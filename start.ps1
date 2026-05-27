@@ -1,7 +1,7 @@
 ﻿# Start yaat-server and yaat-client side by side.
 # Kill all processes on Ctrl-C.
 # Build sequentially first -- both projects share Yaat.Sim.
-# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStripsWeb] [-Release] [-Scenario <id>] [-Sync <url>]
+# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-VStripsWeb] [-VTdlsWeb] [-WebApps] [-Release] [-Scenario <id>] [-Sync <url>]
 #
 # -Sync <url>     Sync local yaat repo to the commit pinned by a remote server,
 #                 then build and run client-only. Example:
@@ -11,10 +11,13 @@
 #                 the live web client. Off by default to keep iteration fast --
 #                 opt in when you've changed Yaat.VStrips.Web and need a fresh
 #                 bundle. Ignored under -ClientOnly or -Docker.
+# -VTdlsWeb       Same as -VStripsWeb but for Yaat.VTdls.Web ->
+#                 yaat-server\wwwroot\vtdls\ -- serves http://<server>/vtdls/.
+# -WebApps        Shortcut for both -VStripsWeb and -VTdlsWeb.
 # -Release        Build and run every project in Release configuration. Default
-#                 is Debug for faster iteration. Yaat.VStrips.Web always
-#                 publishes Release regardless (its Debug bundle is huge and
-#                 the timing characteristics matter for diagnosing UI issues).
+#                 is Debug for faster iteration. WASM bundles always publish
+#                 Release regardless (their Debug output is huge and the timing
+#                 characteristics matter for diagnosing UI issues).
 
 param(
     [switch]$Pull,
@@ -22,10 +25,18 @@ param(
     [switch]$ClientOnly,
     [switch]$ServerOnly,
     [switch]$VStripsWeb,
+    [switch]$VTdlsWeb,
+    [switch]$WebApps,
     [switch]$Release,
     [string]$Scenario,
     [string]$Sync
 )
+
+# -WebApps is sugar for both bundles. Resolve it before the publish block.
+if ($WebApps) {
+    $VStripsWeb = $true
+    $VTdlsWeb = $true
+}
 
 $Configuration = if ($Release) { "Release" } else { "Debug" }
 
@@ -128,14 +139,22 @@ if (-not $ServerOnly) {
     if ($LASTEXITCODE -ne 0) { Write-Error "Client build failed"; exit 1 }
 }
 
-# Publish the WASM web vStrips client into yaat-server\wwwroot\vstrips\ so
-# /vstrips/ serves the live bundle when the server runs. The project's
-# CopyToServerWwwroot AfterTargets="Publish" target does the cross-repo copy.
-# Opt-in via -VStripsWeb. Ignored under -ClientOnly (no server to serve it
-# from) or -Docker (the dockerized server has its own bundle baked in via
-# the image).
+# Publish the WASM web clients into yaat-server\wwwroot\{vstrips,vtdls}\ so
+# /vstrips/ and /vtdls/ serve the live bundles when the server runs. Each
+# project's CopyToServerWwwroot AfterTargets="Publish" target does the
+# cross-repo copy. Opt-in via -VStripsWeb / -VTdlsWeb / -WebApps. Ignored
+# under -ClientOnly (no server to serve them from) or -Docker (the
+# dockerized server has its own bundles baked in via the image).
+$wasmJobs = @()
 if ($VStripsWeb -and -not $ClientOnly -and -not $Docker) {
-    # Yaat.VStrips.Web is a Microsoft.NET.Sdk.WebAssembly project with
+    $wasmJobs += @{ Project = "$ClientDir\tools\Yaat.VStrips.Web"; Name = 'yaat-vstrips-web' }
+}
+if ($VTdlsWeb -and -not $ClientOnly -and -not $Docker) {
+    $wasmJobs += @{ Project = "$ClientDir\tools\Yaat.VTdls.Web"; Name = 'yaat-vtdls-web' }
+}
+
+if ($wasmJobs.Count -gt 0) {
+    # The WASM bundles are Microsoft.NET.Sdk.WebAssembly projects with
     # WasmBuildNative=true, which needs the wasm-tools workload. There's no
     # global.json manifest pinning it, so `dotnet workload restore` is a no-op
     # -- probe explicitly and bail with an actionable message rather than
@@ -145,29 +164,32 @@ if ($VStripsWeb -and -not $ClientOnly -and -not $Docker) {
         Write-Error @"
 Missing required .NET workload: wasm-tools.
 
-It's needed to publish the WebAssembly vStrips bundle into the server's
-wwwroot (tools/Yaat.VStrips.Web -> yaat-server/src/Yaat.Server/wwwroot/vstrips/).
-Install it with:
+It's needed to publish the WebAssembly client bundles into the server's
+wwwroot (tools/Yaat.VStrips.Web -> yaat-server/.../wwwroot/vstrips/, and
+tools/Yaat.VTdls.Web -> .../wwwroot/vtdls/). Install with:
 
     dotnet workload install wasm-tools
 
 On Windows this needs an elevated PowerShell. Then re-run start.ps1.
 
-To skip the WASM publish entirely, re-run without -VStripsWeb (the default).
+To skip the WASM publish entirely, re-run without -VStripsWeb / -VTdlsWeb / -WebApps.
 "@
         exit 1
     }
 
-    # Clean before publish so content-hashed WASM assets don't pile up across
-    # iterations (Avalonia.Base.{hash}.wasm and friends never get deleted by
-    # incremental publish; the wwwroot grows from 35 MB to 150 MB+ in a few
-    # rebuilds). Clean is fast on incremental and forces a fresh asset set.
-    Write-Host "Cleaning yaat-vstrips-web..."
-    dotnet clean "$ClientDir\tools\Yaat.VStrips.Web" -c Release -v q
-    if ($LASTEXITCODE -ne 0) { Write-Error "Yaat.VStrips.Web clean failed"; exit 1 }
-    Write-Host "Publishing yaat-vstrips-web..."
-    dotnet publish "$ClientDir\tools\Yaat.VStrips.Web" -c Release -v q
-    if ($LASTEXITCODE -ne 0) { Write-Error "Yaat.VStrips.Web publish failed"; exit 1 }
+    foreach ($job in $wasmJobs) {
+        # Clean before publish so content-hashed WASM assets don't pile up
+        # across iterations (Avalonia.Base.{hash}.wasm and friends never get
+        # deleted by incremental publish; the wwwroot grows from 35 MB to
+        # 150 MB+ in a few rebuilds). Clean is fast on incremental and
+        # forces a fresh asset set.
+        Write-Host "Cleaning $($job.Name)..."
+        dotnet clean $job.Project -c Release -v q
+        if ($LASTEXITCODE -ne 0) { Write-Error "$($job.Name) clean failed"; exit 1 }
+        Write-Host "Publishing $($job.Name)..."
+        dotnet publish $job.Project -c Release -v q
+        if ($LASTEXITCODE -ne 0) { Write-Error "$($job.Name) publish failed"; exit 1 }
+    }
 }
 
 $procs = @()

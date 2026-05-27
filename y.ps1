@@ -10,7 +10,8 @@
 
       launch          Build + run yaat-server and yaat-client side by side.
                       Forwards remaining args to start.ps1 (e.g. -Release,
-                      -ClientOnly, -VStrips, -Scenario, -Sync).
+                      -ClientOnly, -VStripsWeb, -VTdlsWeb, -WebApps,
+                      -Scenario, -Sync).
       build           dotnet build both repos. -Release for Release config.
                       -Server / -Client to build just one side (default: both).
       clean           dotnet clean both repos.
