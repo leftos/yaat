@@ -436,6 +436,29 @@ public class PhraseologyVerbalizerTests
         Assert.Equal("cross seppin at and maintain five thousand at two fifty knots", result);
     }
 
+    // --- ClimbVia ---
+
+    [Fact]
+    public void Verbalize_ClimbVia_BareForm()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new ClimbViaCommand(null));
+        Assert.Equal("climb via sid", result);
+    }
+
+    [Fact]
+    public void Verbalize_ClimbVia_ExceptMaintain()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new ClimbViaCommand(5000));
+        Assert.Equal("climb via sid except maintain five thousand", result);
+    }
+
+    [Fact]
+    public void Verbalize_ClimbVia_ExceptMaintain_FlightLevel()
+    {
+        var result = PhraseologyVerbalizer.Verbalize(new ClimbViaCommand(18000));
+        Assert.Equal("climb via sid except maintain flight level one eight zero", result);
+    }
+
     // --- SttOnly rules must NOT leak into pilot speech ---
 
     [Fact]

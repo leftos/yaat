@@ -105,6 +105,13 @@ public static class PhraseologyRules
             new(["normal", "rate"], "NORM", NormalRate),
             new(["maintain", "mach", "{mach}"], "MACH {mach}", Mach),
             new(["mach", "{mach}"], "MACH {mach}", Mach),
+            // Climb via SID (FAA 7110.65 §4-3-2, §4-5-7, §5-2-9, §5-5-14). The bare form
+            // engages SID vertical guidance using the aircraft's already-assigned SID; the
+            // "except maintain" override sets a temporary ceiling via ClimbViaCommand.Altitude.
+            // Named-SID phrasings ("climb via the SUZAN2 departure") need a SID-name
+            // normalizer that doesn't exist yet — out of scope for this rule set.
+            new(["climb", "via", "sid"], "CVIA", ClimbVia),
+            new(["climb", "via", "sid", "except", "maintain", "{alt}"], "CVIA {alt}", ClimbVia),
         ];
 
     // --- Navigation (CommandRegistry.NavigationCommands) ---

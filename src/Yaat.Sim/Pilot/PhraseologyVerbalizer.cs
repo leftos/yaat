@@ -229,6 +229,7 @@ public static class PhraseologyVerbalizer
             ExpectApproachCommand e => Map("rwy", SpellApproach(e.ApproachId)),
             JoinFinalApproachCourseCommand jfac when jfac.ApproachId is { } id => Map("rwy", SpellApproach(id)),
             CrossFixCommand cf => CrossFixArgs(cf),
+            ClimbViaCommand cv when cv.Altitude is int alt => Map("alt", AltitudeWords(alt)),
 
             // Tower
             LandAndHoldShortCommand l => Map("crossrwy", SpellRunway(l.CrossingRunwayId)),

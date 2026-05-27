@@ -144,6 +144,22 @@ public class PhraseologyMapperTests
         Assert.Equal("CFIX CEPIN A5000, CAPP ILS28R", result!.CanonicalCommand.ToUpperInvariant());
     }
 
+    // --- ClimbVia (CLIMB VIA SID) ---
+    // FAA 7110.65 §4-3-2, §4-5-7, §5-2-9, §5-5-14. Bare "climb via SID" and the
+    // "except maintain {alt}" override form. Named-SID variants (e.g. "climb via the
+    // SUZAN2 departure") require a SID-name normalizer that isn't yet in the pipeline.
+
+    [Theory]
+    [InlineData("climb via sid", "CVIA")]
+    [InlineData("climb via sid except maintain five thousand", "CVIA 5000")]
+    [InlineData("climb via sid except maintain flight level one eight zero", "CVIA 18000")]
+    public void ClimbVia_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     // --- Tower rules ---
 
     [Theory]
