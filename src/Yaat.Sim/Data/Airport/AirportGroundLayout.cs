@@ -886,6 +886,48 @@ public sealed class AirportGroundLayout
         GroundNode? best = null;
         double bestDistNm = double.MaxValue;
 
+        // Fast path: if the aircraft is essentially at a Parking/Helipad node,
+        // prefer it as the startNode UNLESS it has a co-located non-parking
+        // neighbor (a fillet phase-d-shorten endpoint at near-zero distance).
+        // The co-located neighbor is the natural exit point — using it lets
+        // the route skip the degenerate near-zero parking-exit edge while
+        // still keeping the route's first segment anchored at the aircraft's
+        // actual position. When no co-located neighbor exists (e.g. SFO 42-4
+        // where the only edge from 1047 is a 42 ft RAMP to 2718), use the
+        // parking node directly so the route's first segment IS the
+        // parking-exit RAMP — otherwise the resolver picks a fillet vertex
+        // 90+ ft away, leaving the aircraft off-line from segment 0 and
+        // unable to converge under the short-route speed cap (slow-creep
+        // spin observed at SFO 42-4 → 10L).
+        foreach (var parkingNode in Nodes.Values)
+        {
+            if (parkingNode.Type is not (GroundNodeType.Parking or GroundNodeType.Helipad))
+            {
+                continue;
+            }
+            if (GeoMath.DistanceNm(position, parkingNode.Position) > atNodeNm)
+            {
+                continue;
+            }
+
+            GroundNode? colocatedNeighbor = null;
+            foreach (var edge in parkingNode.Edges)
+            {
+                var other = edge.OtherNode(parkingNode);
+                if (other.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
+                {
+                    continue;
+                }
+                if (GeoMath.DistanceNm(parkingNode.Position, other.Position) <= atNodeNm)
+                {
+                    colocatedNeighbor = other;
+                    break;
+                }
+            }
+
+            return colocatedNeighbor ?? parkingNode;
+        }
+
         foreach (var node in Nodes.Values)
         {
             if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
