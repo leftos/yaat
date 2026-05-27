@@ -328,6 +328,48 @@ public class PhraseologyMapperTests
         Assert.Equal("ualx5321", captures!["callsign"]);
     }
 
+    // --- Runway-exit instructions (FAA 7110.65 §3-10-9) ---
+    // "TURN LEFT/RIGHT (taxiway)" and "IF ABLE, TURN LEFT/RIGHT (taxiway)". The "if able"
+    // preamble silently skips via the no-match advance; the new turn-left/right rules pick up
+    // at the verb. TaxiwayNames validation rejects nonsense captures so "turn left harriet"
+    // falls through to the LLM rather than producing "EL harriet".
+
+    private static MapContext TaxiwayContext(params string[] taxiways) =>
+        MapContext.Empty with
+        {
+            TaxiwayNames = new HashSet<string>(taxiways, StringComparer.OrdinalIgnoreCase),
+        };
+
+    [Theory]
+    [InlineData("turn left charlie", "EL C")]
+    [InlineData("turn right alpha", "ER A")]
+    [InlineData("if able turn left charlie", "EL C")]
+    [InlineData("if able turn right alpha", "ER A")]
+    public void TurnExit_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, TaxiwayContext("A", "C"));
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Fact]
+    public void TurnExit_UnknownTaxiway_FailsValidation()
+    {
+        // "harriet" isn't a NATO letter and isn't in the taxiway list — rule rejects, result null.
+        var result = PhraseologyMapper.Map("turn left harriet", TaxiwayContext("A", "C"));
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void TurnExit_TurnLeftHeadingStillWins()
+    {
+        // Regression: longer "turn left heading {hdg}" rule (4 tokens) must still win over the
+        // new 3-token "turn left {taxiway}" rule for heading inputs.
+        var result = PhraseologyMapper.Map("turn left heading two seven zero", TaxiwayContext("A", "C"));
+        Assert.NotNull(result);
+        Assert.Equal("TL 270", result!.CanonicalCommand);
+    }
+
     // --- Pattern-entry APPROVED shorthand (FAA 7110.65 §3-10-1) ---
     // Controllers commonly use the bare-direction approval form when accepting a pilot's
     // request, e.g. "straight in approved" / "right traffic approved". Maps to the same

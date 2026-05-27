@@ -82,6 +82,14 @@ public static class PhraseologyMapper
         ["star"] = ProcedureKind.Star,
     };
 
+    // Capture names that hold a taxiway identifier. The post-pass in TryMatchRule validates that
+    // the captured token is in MapContext.TaxiwayNames so rules like "turn left {taxiway}" don't
+    // false-positive on arbitrary words ("turn left harriet" would otherwise emit "EL harriet").
+    // Skipped when context.TaxiwayNames is empty (tests, headless) — same skip behavior as runway
+    // and procedure validation. Production callers populate TaxiwayNames from the active aircraft's
+    // ground layout.
+    private static readonly HashSet<string> TaxiwayLikeCaptureNames = new(StringComparer.OrdinalIgnoreCase) { "taxiway" };
+
     /// <summary>
     /// Map a transcript to a canonical YAAT command. Returns null when no rule matched any part
     /// of the transcript. Equivalent to <see cref="MapWithTrace"/> with the trace discarded —
@@ -500,6 +508,32 @@ public static class PhraseologyMapper
                 }
             }
 
+            // Post-pass: validate taxiway captures.
+            //   Always-on length+alphanumeric sanity check (rejects regular English words like
+            //     "hitting" / "harriet" — real taxiway names are 1-4 alphanumeric chars).
+            //   Set-membership check against MapContext.TaxiwayNames when populated — skipped
+            //     for empty-context tests (mirrors runway/procedure validation skip behavior).
+            foreach (var name in TaxiwayLikeCaptureNames)
+            {
+                if (captures.TryGetValue(name, out var rawValue))
+                {
+                    if (!IsPlausibleTaxiwayName(rawValue))
+                    {
+                        Log.LogDebug("[Speech] TaxiwayValidate: \"{Raw}\" failed length/charset sanity, rule rejected", rawValue);
+                        output = "";
+                        return false;
+                    }
+                    var upper = rawValue.ToUpperInvariant();
+                    if (context.TaxiwayNames.Count > 0 && !context.TaxiwayNames.Contains(upper))
+                    {
+                        Log.LogDebug("[Speech] TaxiwayValidate: \"{Raw}\" failed — not in scenario taxiway list, rule rejected", rawValue);
+                        output = "";
+                        return false;
+                    }
+                    captures[name] = upper;
+                }
+            }
+
             // Post-pass: validate SID/STAR procedure captures against MapContext.Procedures.
             // SidStarNameNormalizer collapses spoken procedure names into the canonical token
             // before rule matching; any {sid}/{star} capture that didn't come from that collapse
@@ -903,6 +937,28 @@ public static class PhraseologyMapper
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Sanity-check that a captured taxiway token looks like a real taxiway identifier. Real
+    /// taxiway names are 1-4 alphanumeric characters ("A", "Y", "CC", "B5", "A12"); anything
+    /// longer or with punctuation is almost certainly Whisper transcribing a regular English
+    /// word into the slot, which we reject so the LLM fallback can recover.
+    /// </summary>
+    private static bool IsPlausibleTaxiwayName(string token)
+    {
+        if (token.Length is < 1 or > 4)
+        {
+            return false;
+        }
+        foreach (var c in token)
+        {
+            if (!char.IsLetterOrDigit(c))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static bool IsDigitString(string s)

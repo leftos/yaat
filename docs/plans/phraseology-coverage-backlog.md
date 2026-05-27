@@ -447,9 +447,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "GO-AROUND" (with optional wrong-runway/wrong-surface context)
   **Canonical:** `GoAround`
   **Notes:** `PhraseologyRules.cs:161-164`.
-- **Phrasing:** "TURN LEFT/RIGHT (taxiway/runway)" (runway-exiting instruction)
+- **Phrasing:** "TURN LEFT/RIGHT (taxiway/runway)" (runway-exiting instruction) / "IF ABLE, TURN LEFT/RIGHT (taxiway)"
   **Canonical:** `ExitLeft` / `ExitRight`
-  **Notes:** `PhraseologyRules.cs:505-508`.
+  **Notes:** `PhraseologyRules.cs:566-567`. {taxiway} capture is validated by length/charset sanity check (≤4 alphanumeric chars) plus MapContext.TaxiwayNames set membership when populated, so "turn left hitting" (Whisper mishear of "heading") falls through to the LLM rather than producing nonsense. "IF ABLE" preamble silently skips via the greedy matcher's no-match advance.
 - **Phrasing:** "RUNWAY (number) SHORTENED, CLEARED TO LAND"
   **Canonical:** `ClearedToLand`
   **Notes:** "shortened" wedge silent skip; bare CLAND fires. Test: `TowerModifierWedges_Rules`. ("RUNWAY (number) SHORTENED, CONTINUE" form still uncovered — see CONTINUE MissingCanonical.)
@@ -470,9 +470,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "TURN LEFT/RIGHT (taxiway), CROSS (runway), CONTACT GROUND (freq)" (compound exit+cross+handoff)
   **Canonical:** `ExitLeft`/`ExitRight` + `CrossRunway` + `Contact`
   **Notes:** ExitLeft/Right rules don't compose with the trailing "cross runway X" / "contact ground" segments in one utterance.
-- **Phrasing:** "IF ABLE, TURN LEFT/RIGHT (taxiway/runway)" (conditional exit)
-  **Canonical:** `ExitLeft` / `ExitRight`
-  **Notes:** existing rules don't tolerate the "if able" preamble (§3-10-9).
 - **Phrasing:** "CLEARED LOW APPROACH AT OR ABOVE (altitude)" (altitude-restricted low approach §3-10-10)
   **Canonical:** `LowApproach`
   **Notes:** existing LowApproach rules don't carry an altitude restriction; would need an {alt?} slot.
@@ -591,7 +588,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** entirely separation procedures (Category I/II/III distance minima for float planes in sea lanes); no PHRASEOLOGY- blocks. Sea-lane operations not in YAAT scope.
 
-**Ch 3 totals:** Covered 54 · MissingRule 26 · MissingCanonical 28 · OutOfScope 50 · Phrasings 158
+**Ch 3 totals:** Covered 54 · MissingRule 25 · MissingCanonical 28 · OutOfScope 50 · Phrasings 157
 
 ### Chapter 4 — IFR (TRACON / approach control)
 
@@ -3040,16 +3037,16 @@ All 10 chapters audited.
 | Bucket | Count |
 |---|---|
 | Covered | 188 |
-| MissingRule | 183 |
+| MissingRule | 182 |
 | MissingCanonical | 239 |
 | OutOfScope | 189 |
-| **Total phrasings audited** | **799** |
+| **Total phrasings audited** | **798** |
 
 ### Per-chapter totals
 
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
-| 7110.65 Ch 3 — Tower | 54 | 26 | 28 | 50 | 158 |
+| 7110.65 Ch 3 — Tower | 54 | 25 | 28 | 50 | 157 |
 | 7110.65 Ch 4 — IFR/TRACON | 28 | 18 | 55 | 29 | 130 |
 | 7110.65 Ch 5 — Radar | 32 | 31 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
@@ -3059,7 +3056,7 @@ All 10 chapters audited.
 | AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
 | AIM Ch 5 — ATC Procedures | 25 | 28 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **188** | **183** | **239** | **189** | **799** |
+| **Total** | **188** | **182** | **239** | **189** | **798** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 

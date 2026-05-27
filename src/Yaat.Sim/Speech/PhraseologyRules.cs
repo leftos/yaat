@@ -609,6 +609,14 @@ public static class PhraseologyRules
             new(["exit", "left", "at?", "{taxiway}"], "EL {taxiway}", ExitLeft),
             new(["exit", "right", "at?", "{taxiway}"], "ER {taxiway}", ExitRight),
             new(["exit", "at?", "{taxiway}"], "EXIT {taxiway}", ExitTaxiway),
+            // FAA 7110.65 §3-10-9: "TURN LEFT/RIGHT (taxiway)" runway-exit instruction. The
+            // {taxiway} capture is validated against MapContext.TaxiwayNames in the
+            // PhraseologyMapper post-pass so false-positives like "turn left harriet" fall
+            // through to the LLM fallback. SttOnly so the pilot AI keeps reading these back
+            // as the canonical "exit left at …" form. "IF ABLE" preamble silent-skips via the
+            // greedy matcher's no-match advance — no separate rule needed.
+            new(["turn", "left", "{taxiway}"], "EL {taxiway}", ExitLeft, SttOnly: true),
+            new(["turn", "right", "{taxiway}"], "ER {taxiway}", ExitRight, SttOnly: true),
         ];
 
     // --- Broadcast requests (CommandRegistry.BroadcastCommands) ---
