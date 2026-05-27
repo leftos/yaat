@@ -81,6 +81,13 @@
                               Padding="4,1"
                               Foreground="Cyan"
                               ToolTip.Tip="Show chat. Shift+Click: solo (toggle to restore)." />
+                <ToggleButton x:Name="TdlsToggle"
+                              IsChecked="{Binding ShowTdlsEntries}"
+                              Content="TDLS"
+                              FontSize="10"
+                              Padding="4,1"
+                              Foreground="#FFB000"
+                              ToolTip.Tip="Show vTDLS PDC broadcasts. Shift+Click: solo (toggle to restore)." />
             </StackPanel>
             <Button Grid.Column="3"
                     Content="{Binding IsTerminalDocked,

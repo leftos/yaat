@@ -727,6 +727,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _showChatEntries = true;
 
+    [ObservableProperty]
+    private bool _showTdlsEntries = true;
+
     public event Action? TerminalFilterChanged;
 
     /// <summary>
@@ -767,6 +770,8 @@ public partial class MainViewModel : ObservableObject
     partial void OnShowErrorEntriesChanged(bool value) => OnTerminalToggleChanged();
 
     partial void OnShowChatEntriesChanged(bool value) => OnTerminalToggleChanged();
+
+    partial void OnShowTdlsEntriesChanged(bool value) => OnTerminalToggleChanged();
 
     partial void OnTerminalSearchTextChanged(string value) => TerminalFilterChanged?.Invoke();
 
@@ -851,6 +856,11 @@ public partial class MainViewModel : ObservableObject
             visible.Add(TerminalEntryKind.Chat);
         }
 
+        if (ShowTdlsEntries)
+        {
+            visible.Add(TerminalEntryKind.Tdls);
+        }
+
         return visible;
     }
 
@@ -866,6 +876,7 @@ public partial class MainViewModel : ObservableObject
             ShowWarningEntries = visible.Contains(TerminalEntryKind.Warning);
             ShowErrorEntries = visible.Contains(TerminalEntryKind.Error);
             ShowChatEntries = visible.Contains(TerminalEntryKind.Chat);
+            ShowTdlsEntries = visible.Contains(TerminalEntryKind.Tdls);
         }
         finally
         {
@@ -913,6 +924,11 @@ public partial class MainViewModel : ObservableObject
             hidden.Add(TerminalEntryKind.Chat);
         }
 
+        if (!ShowTdlsEntries)
+        {
+            hidden.Add(TerminalEntryKind.Tdls);
+        }
+
         _preferences.SetHiddenTerminalKinds(hidden);
         TerminalFilterChanged?.Invoke();
     }
@@ -927,6 +943,7 @@ public partial class MainViewModel : ObservableObject
             TerminalEntryKind.Warning => ShowWarningEntries,
             TerminalEntryKind.Error => ShowErrorEntries,
             TerminalEntryKind.Chat => ShowChatEntries,
+            TerminalEntryKind.Tdls => ShowTdlsEntries,
             _ => true,
         };
 
@@ -1053,6 +1070,7 @@ public partial class MainViewModel : ObservableObject
         _showWarningEntries = !hidden.Contains(TerminalEntryKind.Warning);
         _showErrorEntries = !hidden.Contains(TerminalEntryKind.Error);
         _showChatEntries = !hidden.Contains(TerminalEntryKind.Chat);
+        _showTdlsEntries = !hidden.Contains(TerminalEntryKind.Tdls);
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged, _preferences);
         Ground.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
         Ground.SetTowerCabServices(_vnasConfigService, _towerCabImageService, _airportResolver);

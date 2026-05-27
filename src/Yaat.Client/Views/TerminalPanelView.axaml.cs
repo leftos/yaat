@@ -116,6 +116,7 @@ public partial class TerminalPanelView : UserControl
         yield return (WrnToggle, TerminalEntryKind.Warning);
         yield return (ErrToggle, TerminalEntryKind.Error);
         yield return (ChatToggle, TerminalEntryKind.Chat);
+        yield return (TdlsToggle, TerminalEntryKind.Tdls);
     }
 
     private void OnTogglePointerPressed(object? sender, PointerPressedEventArgs e)
@@ -274,6 +275,7 @@ public partial class TerminalPanelView : UserControl
             TerminalEntryKind.Warning => "WRN",
             TerminalEntryKind.Error => "ERR",
             TerminalEntryKind.Chat => "CHAT",
+            TerminalEntryKind.Tdls => "TDLS",
             _ => "???",
         };
 
