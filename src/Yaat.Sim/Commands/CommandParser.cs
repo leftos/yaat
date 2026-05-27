@@ -1116,7 +1116,12 @@ public static class CommandParser
             return PR.Fail($"invalid altitude '{arg}'");
         }
 
-        return PR.Ok(factory(value));
+        // Accept both shorthand (50 = 50 hundreds = 5000 ft) and literal-feet (5000 = 5000 ft)
+        // input. Spoken phraseology produces "5000" after AtcNumberParser normalization, while
+        // typed STARS-style commands use the hundreds shorthand — both should round-trip to the
+        // same canonical altitude. Same convention as ParseCfixAltitudeToken / AltitudeResolver.
+        var hundreds = value < 1000 ? value : value / 100;
+        return PR.Ok(factory(hundreds));
     }
 
     private static PR ParseGhostTrackArg(string arg)

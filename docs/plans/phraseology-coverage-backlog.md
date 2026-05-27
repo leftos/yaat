@@ -834,11 +834,11 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CLIMB VIA (SID name and number)" / "CLIMB VIA (SID), (en route transition)" / bare "CLIMB VIA SID"
   **Canonical:** `ClimbVia`
   **Notes:** `PhraseologyRules.cs:113-118`. Bare "CLIMB VIA SID" + "except maintain {alt}" are shipped; the named-SID variant "CLIMB VIA the {sid} DEPARTURE [except maintain {alt}]" drops the SID name (bare CVIA uses the aircraft's already-filed SID). SID-amendment (changing the filed SID) is a separate canonical and remains unmodeled.
-
-##### MissingRule
 - **Phrasing:** "CRUISE (altitude)"
   **Canonical:** `Cruise`
-  **Notes:** canonical exists in enum but no rule. Note: `Cruise` is listed under track-ops out-of-pilot-scope in the index — but the phrasing here is a controller-issued cruise altitude assignment; defer to product whether to extend.
+  **Notes:** `PhraseologyRules.cs:118`. Block-altitude assignment. `ParseAltitudeHundreds` was updated to accept both shorthand (`50` = 50 hundreds) and literal-feet (`5000` = 5000 ft) input, so spoken "cruise five thousand" round-trips correctly. Also at §6-6, AIM §4-4.
+
+##### MissingRule
 
 ##### MissingCanonical
 - **Phrasing:** "MAINTAIN (altitude) UNTIL (time/fix/waypoint)" / "MAINTAIN (altitude) UNTIL (N) MILES/MINUTES PAST (fix)"
@@ -1057,7 +1057,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** advisory/info exchange.
 
-**Ch 4 totals:** Covered 27 · MissingRule 19 · MissingCanonical 55 · OutOfScope 29 · Phrasings 130
+**Ch 4 totals:** Covered 28 · MissingRule 18 · MissingCanonical 55 · OutOfScope 29 · Phrasings 130
 
 ### Chapter 5 — Radar
 
@@ -1307,6 +1307,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "Cross (fix) at and maintain (altitude) at (speed) knots." (combined fix+alt+speed crossing)
   **Canonical:** `CrossFix`
   **Notes:** `PhraseologyRules.cs:135`. Verbalized as "cross … at and maintain … at … knots" with `SpeedWords` colloquial form.
+- **Phrasing:** "Maintain (speed) until (fix), then (additional instructions)."
+  **Canonical:** `Speed` (compound via `CommandSchemeParser.ExpandSpeedUntil`)
+  **Notes:** `PhraseologyRules.cs:109`. Emits the literal `SPD {spd} UNTIL {fix}` which the dispatcher expands to `SPD {spd}; AT {fix} RNS`. Validation uses `CommandParser.ParseCompound` so compound outputs pass the rule mapper.
 
 ##### MissingRule
 - **Phrasing:** "Maintain present speed."
@@ -1315,9 +1318,6 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "Reduce speed twenty knots." (relative delta)
   **Canonical:** `Speed`
   **Notes:** existing `Speed` rules expect absolute target; no relative-delta rule.
-- **Phrasing:** "Maintain (speed) until (fix), then (additional instructions)."
-  **Canonical:** `??`
-  **Notes:** conditional speed-until-fix.
 - **Phrasing:** "Resume published speed."
   **Canonical:** `??`
   **Notes:** distinct from "resume normal speed" — semantics differ.
@@ -1637,7 +1637,7 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
   **Canonical:** —
   **Notes:** entire chapter is equipment/automation/display/track-ops workflow — out-of-pilot-scope per index header.
 
-**Ch 5 totals:** Covered 31 · MissingRule 32 · MissingCanonical 62 · OutOfScope 37 · Phrasings 162
+**Ch 5 totals:** Covered 32 · MissingRule 31 · MissingCanonical 62 · OutOfScope 37 · Phrasings 162
 
 ### Chapter 7 — Visual
 
@@ -3039,8 +3039,8 @@ All 10 chapters audited.
 
 | Bucket | Count |
 |---|---|
-| Covered | 186 |
-| MissingRule | 185 |
+| Covered | 188 |
+| MissingRule | 183 |
 | MissingCanonical | 239 |
 | OutOfScope | 189 |
 | **Total phrasings audited** | **799** |
@@ -3050,8 +3050,8 @@ All 10 chapters audited.
 | Chapter | Covered | MissingRule | MissingCanonical | OutOfScope | Phrasings |
 |---|---:|---:|---:|---:|---:|
 | 7110.65 Ch 3 — Tower | 54 | 26 | 28 | 50 | 158 |
-| 7110.65 Ch 4 — IFR/TRACON | 27 | 19 | 55 | 29 | 130 |
-| 7110.65 Ch 5 — Radar | 31 | 32 | 62 | 37 | 162 |
+| 7110.65 Ch 4 — IFR/TRACON | 28 | 18 | 55 | 29 | 130 |
+| 7110.65 Ch 5 — Radar | 32 | 31 | 62 | 37 | 162 |
 | 7110.65 Ch 7 — Visual | 10 | 39 | 14 | 13 | 76 |
 | 7110.65 Ch 2 — General Control | 4 | 13 | 13 | 18 | 48 |
 | 7110.65 Ch 6 — Nonradar | 1 | 1 | 12 | 9 | 23 |
@@ -3059,7 +3059,7 @@ All 10 chapters audited.
 | AIM Ch 4 — ATC | 34 | 27 | 21 | 10 | 92 |
 | AIM Ch 5 — ATC Procedures | 25 | 28 | 14 | 6 | 73 |
 | AIM Ch 10 — Helicopter Ops | 0 | 0 | 0 | 9 | 9 |
-| **Total** | **186** | **185** | **239** | **189** | **799** |
+| **Total** | **188** | **183** | **239** | **189** | **799** |
 
 ### High-leverage MissingRule clusters (canonicals already exist; just need rule tokens)
 

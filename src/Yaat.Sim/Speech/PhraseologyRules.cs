@@ -105,6 +105,16 @@ public static class PhraseologyRules
             new(["normal", "rate"], "NORM", NormalRate),
             new(["maintain", "mach", "{mach}"], "MACH {mach}", Mach),
             new(["mach", "{mach}"], "MACH {mach}", Mach),
+            // FAA 7110.65 §5-7, AIM §4-4: "Maintain (speed) until (fix), then …". The canonical
+            // form "SPD {spd} UNTIL {fix}" is rewritten by CommandSchemeParser.ExpandSpeedUntil
+            // into "SPD {spd}; AT {fix} RNS" — a sequenced speed assignment that resumes normal
+            // speed when the aircraft crosses the fix.
+            new(["maintain", "{spd}", "knots?", "until", "{fix}"], "SPD {spd} UNTIL {fix}", Speed),
+            // FAA 7110.65 §4-5, §6-6, AIM §4-4: "CRUISE (altitude)" — block-altitude assignment
+            // (aircraft may operate at any altitude from MEA up to and including the assigned
+            // cruise altitude). ParseAltitudeHundreds normalizes feet → hundreds, so "5000" and
+            // "50" both store as 50 hundreds.
+            new(["cruise", "{alt}"], "CRUISE {alt}", Cruise),
             // Climb via SID (FAA 7110.65 §4-3-2, §4-5-7, §5-2-9, §5-5-14). The bare form
             // engages SID vertical guidance using the aircraft's already-assigned SID; the
             // "except maintain" override sets a temporary ceiling via ClimbViaCommand.Altitude.

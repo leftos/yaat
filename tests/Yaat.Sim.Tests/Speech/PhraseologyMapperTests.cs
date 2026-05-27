@@ -70,6 +70,29 @@ public class PhraseologyMapperTests
     // --- Speed rules ---
 
     [Theory]
+    [InlineData("maintain two five zero until cepin", "SPD 250 UNTIL CEPIN")]
+    [InlineData("maintain two five zero knots until cepin", "SPD 250 UNTIL CEPIN")]
+    public void SpeedUntilFix_Rules(string transcript, string expected)
+    {
+        // CommandSchemeParser.ExpandSpeedUntil rewrites "SPD 250 UNTIL CEPIN" downstream into
+        // "SPD 250; AT CEPIN RNS" — the STT rule just emits the literal compound canonical.
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand.ToUpperInvariant());
+    }
+
+    [Theory]
+    // FAA 7110.65 §4-5: "Cruise (altitude)" block-altitude assignment.
+    [InlineData("cruise five thousand", "CRUISE 5000")]
+    [InlineData("cruise flight level two five zero", "CRUISE 25000")]
+    public void Cruise_Rules(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
+    [Theory]
     [InlineData("reduce speed to two five zero", "SPD 250")]
     [InlineData("reduce speed two five zero", "SPD 250")]
     [InlineData("increase speed to two eight zero", "SPD 280")]

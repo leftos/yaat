@@ -538,14 +538,14 @@ public static class PhraseologyMapper
             }
 
             var filled = FillTemplate(rule.OutputTemplate, captures);
-            // Validate the filled canonical via the same parser the terminal input uses. This is
-            // the single source of truth for what's a valid command — it checks verb aliases,
-            // argument shapes, altitude/heading/speed ranges, runway designators, etc. If the
-            // parser rejects it, this rule doesn't match: the greedy engine will either try
-            // another rule or advance one token. Catches Whisper mistranscriptions like
-            // "climb to main aim flight level tree five zero" where "{alt}" would capture
-            // "main" and produce the nonsense canonical "CM main".
-            if (!CommandParser.Parse(filled).IsSuccess)
+            // Validate the filled canonical via the same compound parser the terminal input uses.
+            // ParseCompound expands shorthand forms (SPD X UNTIL Y → SPD X; AT Y RNS) and handles
+            // ;/, separators, so compound rule outputs validate the same way the dispatcher
+            // will see them. Single-clause outputs work too — ParseCompound delegates to Parse
+            // when there are no separators. Catches Whisper mistranscriptions like "climb to main
+            // aim flight level tree five zero" where "{alt}" would capture "main" and produce
+            // the nonsense canonical "CM main".
+            if (!CommandParser.ParseCompound(filled).IsSuccess)
             {
                 output = "";
                 return false;
