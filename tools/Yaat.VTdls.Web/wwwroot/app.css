@@ -1,0 +1,128 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #FFFFFF;
+    color: #202020;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+
+#out {
+    width: 100vw;
+    height: 100vh;
+}
+
+.splash {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #888;
+    font-size: 14px;
+}
+
+/* Landing form — matches VStrips's dark form so the identity flow feels the
+   same between the two browser apps; once authenticated, the vTDLS view
+   itself uses the light upstream look. */
+.landing-form {
+    width: min(420px, calc(100vw - 32px));
+    margin: 64px auto;
+    padding: 24px 32px;
+    background: #2e2e34;
+    border: 1px solid #3a3a40;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-sizing: border-box;
+    color: #dddddd;
+}
+
+.landing-form h1 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 600;
+    color: #f0f0f0;
+}
+
+.landing-form .subtitle {
+    margin: 0 0 20px;
+    color: #999;
+    font-size: 13px;
+}
+
+.landing-form label {
+    display: block;
+    margin: 14px 0;
+    font-size: 13px;
+    color: #aaa;
+}
+
+.landing-form input {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    padding: 8px 10px;
+    background: #1d1d22;
+    border: 1px solid #3a3a40;
+    border-radius: 4px;
+    color: #ddd;
+    font-family: Consolas, Menlo, monospace;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.landing-form input:focus {
+    outline: none;
+    border-color: #5a8fbb;
+    background: #25252b;
+}
+
+.landing-form input:invalid:not(:placeholder-shown):not(:focus) {
+    border-color: #c45c5c;
+}
+
+.landing-form details {
+    margin: 16px 0 8px;
+    padding-top: 12px;
+    border-top: 1px solid #3a3a40;
+}
+
+.landing-form summary {
+    cursor: pointer;
+    color: #888;
+    font-size: 13px;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.landing-form summary:hover {
+    color: #ccc;
+}
+
+.landing-form button {
+    display: block;
+    width: 100%;
+    margin-top: 20px;
+    padding: 10px 16px;
+    background: #4a7ba8;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.landing-form button:hover {
+    background: #5a8fbb;
+}
+
+.landing-form button:active {
+    background: #3e6890;
+}
+
+.landing-form .note {
+    margin: 16px 0 0;
+    font-size: 11px;
+    color: #777;
+    text-align: center;
+}

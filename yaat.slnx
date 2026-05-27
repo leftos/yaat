@@ -19,5 +19,6 @@
     <Project Path="tools/Yaat.Scratch/Yaat.Scratch.csproj" />
     <Project Path="tools/Yaat.SpeechSandbox/Yaat.SpeechSandbox.csproj" />
     <Project Path="tools/Yaat.VStrips.Web/Yaat.VStrips.Web.csproj" />
+    <Project Path="tools/Yaat.VTdls.Web/Yaat.VTdls.Web.csproj" />
   </Folder>
 </Solution>

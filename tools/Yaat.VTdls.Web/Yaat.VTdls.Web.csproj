@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0-browser</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Yaat.VTdls.Web</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <WasmBuildNative>true</WasmBuildNative>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Browser" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference the vTDLS view library directly; Strips is dragged in
+         transitively because Yaat.Client.Tdls's Avalonia resources expect
+         JetBrains Mono to be registered via Yaat.Client.Strips's
+         WithJetBrainsMonoFont() helper. -->
+    <ProjectReference Include="..\..\src\Yaat.Client.Tdls\Yaat.Client.Tdls.csproj" />
+    <ProjectReference Include="..\..\src\Yaat.Client.Strips\Yaat.Client.Strips.csproj" />
+  </ItemGroup>
+
+  <!-- After Publish, mirror the WASM bundle into yaat-server's wwwroot so
+       running yaat-server from the sibling clone serves the live /vtdls/
+       URL. Override the YaatServer property if your checkout differs from
+       the sibling layout documented in CLAUDE.md.
+       Skipped when the property resolves to a path that doesn't exist:
+       lets CI builds without the sibling checkout still publish locally. -->
+  <PropertyGroup>
+    <YaatServer Condition="'$(YaatServer)' == ''">$(MSBuildThisFileDirectory)../../../yaat-server</YaatServer>
+    <YaatServerWwwroot>$(YaatServer)/src/Yaat.Server/wwwroot/vtdls</YaatServerWwwroot>
+  </PropertyGroup>
+
+  <Target Name="CopyToServerWwwroot" AfterTargets="Publish">
+    <ItemGroup>
+      <_PublishedWasm Include="$(PublishDir)wwwroot/**/*" />
+      <!-- WASM publish writes content-hashed assets; without this Delete step
+           the destination wwwroot balloons as stale variants pile up. Mirrors
+           VStrips.Web's CopyToServerWwwroot. -->
+      <_StaleWwwroot Include="$(YaatServerWwwroot)/**/*" />
+    </ItemGroup>
+    <Delete
+      Files="@(_StaleWwwroot)"
+      Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
+    <Copy
+      SourceFiles="@(_PublishedWasm)"
+      DestinationFiles="@(_PublishedWasm->'$(YaatServerWwwroot)/%(RecursiveDir)%(Filename)%(Extension)')"
+      Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
+    <Message Importance="high"
+             Text="Yaat.VTdls.Web → $(YaatServerWwwroot)"
+             Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
+    <Message Importance="high"
+             Text="Skipped server-wwwroot copy: $(YaatServer)/src/Yaat.Server/Yaat.Server.csproj does not exist."
+             Condition="!Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
+  </Target>
+</Project>

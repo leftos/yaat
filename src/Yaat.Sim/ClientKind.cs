@@ -13,6 +13,7 @@ public static class ClientKind
 {
     public const string Main = "main";
     public const string VStrips = "vstrips";
+    public const string VTdls = "vtdls";
 
     /// <summary>
     /// Suffix to append to terminal-broadcast verbs (e.g. "joined the room")
@@ -23,6 +24,7 @@ public static class ClientKind
         kind switch
         {
             VStrips => " (Flight Strips)",
+            VTdls => " (vTDLS)",
             _ => "",
         };
 }

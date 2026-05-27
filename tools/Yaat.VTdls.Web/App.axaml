@@ -1,0 +1,24 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Yaat.VTdls.Web.App"
+             RequestedThemeVariant="Light">
+    <Application.Resources>
+        <!-- Mirror of Yaat.Client/App.axaml resources that VTdlsView resolves
+             via {StaticResource ...}. Without these the AXAML compiler still
+             binds at parse time, but at runtime the lookup returns null and
+             the list panels render blank.
+
+             vTDLS uses a Light theme (white list backgrounds with green
+             headers) so the Application's RequestedThemeVariant is Light,
+             unlike Yaat.Client which is Dark. -->
+        <SolidColorBrush x:Key="SubtleTextBrush" Color="#606060" />
+        <!-- JetBrains Mono first so callsign columns align identically in the
+             browser tab and the desktop client. Without this the WASM bundle
+             falls back to Inter (the only font in Avalonia.Browser by
+             default), which is proportional and clips callsigns. -->
+        <FontFamily x:Key="MonoFont">fonts:JetBrainsMono#JetBrains Mono,Consolas,Menlo,DejaVu Sans Mono,monospace</FontFamily>
+    </Application.Resources>
+    <Application.Styles>
+        <FluentTheme DensityStyle="Compact" />
+    </Application.Styles>
+</Application>
