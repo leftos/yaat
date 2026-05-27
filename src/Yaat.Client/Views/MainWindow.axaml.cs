@@ -262,6 +262,15 @@ public partial class MainWindow : Window
         // hold Row 0 at 3* (an empty 75 % stripe above the terminal).
         UpdateContentGridLayout(vm);
 
+        // Re-validate SelectedTabIndex now that every dynamic TabItem (Strips
+        // and TDLS) is materialized. The TabControl's two-way SelectedIndex
+        // binding can clamp/reset during the AXAML-side layout pass before the
+        // dynamic tabs exist, leaving the index pointing at a popped-out tab.
+        // The TabControl renders that tab's content even though its header is
+        // hidden — visible bug was the Aircraft List columns appearing under
+        // the Strips/TDLS tabs after a session with everything popped out.
+        vm.EnsureSelectedTabVisible();
+
         var slider = this.FindControl<Slider>("TimelineSlider");
         if (slider is not null)
         {

@@ -400,7 +400,18 @@ public partial class MainViewModel : ObservableObject
         EnsureSelectedTabVisible();
     }
 
-    private void EnsureSelectedTabVisible()
+    /// <summary>
+    /// Re-evaluates <see cref="SelectedTabIndex"/> against the current pop-out
+    /// state of every tab — static (DataGrid / Ground / Radar) and dynamic
+    /// (StripsEntries / TdlsEntries) alike. If the current selection points
+    /// at a popped-out tab, advances to the next docked one. Called both
+    /// internally when any tab's pop-out flag flips, and externally by
+    /// MainWindow once the dynamic Strips and TDLS TabItems have been
+    /// materialized (the AXAML-side TabControl two-way-binding can clamp
+    /// SelectedTabIndex to a stale value during startup before the dynamic
+    /// tabs exist).
+    /// </summary>
+    public void EnsureSelectedTabVisible()
     {
         if (IsTabVisible(SelectedTabIndex))
         {
@@ -434,6 +445,13 @@ public partial class MainViewModel : ObservableObject
                     return true;
                 }
             }
+            foreach (var entry in TdlsEntries)
+            {
+                if (!entry.IsPoppedOut)
+                {
+                    return true;
+                }
+            }
             return false;
         }
     }
@@ -456,11 +474,13 @@ public partial class MainViewModel : ObservableObject
     private int FindNextVisibleTabIndex(int currentIndex)
     {
         // Tab 0: Aircraft List, Tab 1: Ground View, Tab 2: Radar View.
-        // Strips tabs start at index 3, ordered to match StripsEntries.
-        // Walk all tabs (wrapping) and pick the next still-docked one.
-        // Returns -1 when every tab is popped out — caller then leaves
-        // SelectedTabIndex alone since the TabControl is hidden anyway.
-        var total = 3 + StripsEntries.Count;
+        // Strips tabs follow at indices 3 .. 3 + StripsEntries.Count - 1, then
+        // TDLS tabs at the next block — same order MainWindow.axaml.cs appends
+        // them via tabControl.Items.Add. Walk all tabs (wrapping) and pick
+        // the next still-docked one. Returns -1 only when every tab is
+        // popped out — caller then leaves SelectedTabIndex alone since the
+        // TabControl is hidden anyway.
+        var total = 3 + StripsEntries.Count + TdlsEntries.Count;
         if (total <= 0)
         {
             return -1;
@@ -476,15 +496,29 @@ public partial class MainViewModel : ObservableObject
         return -1;
     }
 
-    private bool IsTabVisible(int index) =>
-        index switch
+    private bool IsTabVisible(int index)
+    {
+        switch (index)
         {
-            0 => !IsDataGridPoppedOut,
-            1 => !IsGroundViewPoppedOut,
-            2 => !IsRadarViewPoppedOut,
-            _ when index >= 3 && index - 3 < StripsEntries.Count => !StripsEntries[index - 3].IsPoppedOut,
-            _ => false,
-        };
+            case 0:
+                return !IsDataGridPoppedOut;
+            case 1:
+                return !IsGroundViewPoppedOut;
+            case 2:
+                return !IsRadarViewPoppedOut;
+        }
+        var stripsBase = 3;
+        if (index >= stripsBase && index - stripsBase < StripsEntries.Count)
+        {
+            return !StripsEntries[index - stripsBase].IsPoppedOut;
+        }
+        var tdlsBase = stripsBase + StripsEntries.Count;
+        if (index >= tdlsBase && index - tdlsBase < TdlsEntries.Count)
+        {
+            return !TdlsEntries[index - tdlsBase].IsPoppedOut;
+        }
+        return false;
+    }
 
     [ObservableProperty]
     private int _selectedTabIndex;

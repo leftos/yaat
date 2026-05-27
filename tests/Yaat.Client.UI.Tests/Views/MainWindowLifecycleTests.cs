@@ -90,8 +90,10 @@ public class MainWindowLifecycleTests
         vm.IsGroundViewPoppedOut = true;
         vm.IsRadarViewPoppedOut = true;
         // Student strips entry is index 0 and must also be popped out for the
-        // "every tab popped out" collapse case (commit f30f6b3).
+        // "every tab popped out" collapse case (commit f30f6b3). The TDLS
+        // student entry — added once vTDLS landed — counts the same way.
         vm.StripsEntries[0].IsPoppedOut = true;
+        vm.TdlsEntries[0].IsPoppedOut = true;
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(vm.IsAnyTabVisible);
