@@ -181,100 +181,149 @@
             </Border>
         </Grid>
 
-        <!-- ── Flight-plan editor (visible only when a DCL item is selected) ── -->
+        <!-- ── Flight-plan editor (visible only when a DCL item is selected) ──
+             Layout mirrors docs/vtdls/img/flight-plan.png and the field order
+             documented in §Selecting PDC Field Values: Expect, then SID /
+             Transition / Climb out / Climb via / Maintain, then Contact info /
+             Departure frequency, then Local info. Buttons: Dump bottom-left,
+             Cancel + Send bottom-right. All dropdowns are ComboBoxes —
+             "Only values predefined by the Facility Engineer may be selected"
+             (upstream §Selecting PDC Field Values). -->
         <Border Grid.Row="3"
                 IsVisible="{Binding Editor, Converter={x:Static ObjectConverters.IsNotNull}}"
                 Background="{DynamicResource VTdlsListBg}"
                 BorderBrush="{DynamicResource VTdlsListBorder}"
                 BorderThickness="1"
                 Padding="8">
-            <Grid DataContext="{Binding Editor}"
-                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
-                  ColumnDefinitions="100,*,100,*">
-                <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4"
-                           Text="{Binding Callsign, StringFormat='FLIGHT PLAN — {0}'}"
+            <StackPanel DataContext="{Binding Editor}" Orientation="Vertical">
+
+                <!-- Flight-plan header strip. Pre-populate from the filed plan
+                     is wired up by the read-only header view (separate task);
+                     for now we render just the callsign so the editor still
+                     identifies which aircraft is being cleared. -->
+                <TextBlock Text="{Binding Callsign, StringFormat='FLIGHT PLAN — {0}'}"
                            FontFamily="{StaticResource MonoFont}"
                            FontWeight="Bold"
                            FontSize="12"
                            Foreground="{DynamicResource VTdlsEditorTextFg}"
                            Margin="0,0,0,6"/>
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="SID" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                <ComboBox Grid.Row="1" Grid.Column="1" Margin="2"
-                          ItemsSource="{Binding Sids}"
-                          SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
-                          DisplayMemberBinding="{Binding Name}"
-                          FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                <TextBlock Grid.Row="1" Grid.Column="2" Text="Transition" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                <ComboBox Grid.Row="1" Grid.Column="3" Margin="2"
-                          ItemsSource="{Binding Transitions}"
-                          SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
-                          DisplayMemberBinding="{Binding Name}"
-                          FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                <!-- Row 1: Expect (alone — first field in the upstream order). -->
+                <Grid ColumnDefinitions="120,200,*" Margin="0,0,0,4">
+                    <TextBlock Grid.Column="0" Text="Expect" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                    <ComboBox Grid.Column="1" Margin="2"
+                              ItemsSource="{Binding Expects}"
+                              SelectedValue="{Binding Expect, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Value}"
+                              DisplayMemberBinding="{Binding Value}"
+                              HorizontalAlignment="Stretch"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                </Grid>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Expect" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                <AutoCompleteBox Grid.Row="2" Grid.Column="1" Margin="2"
-                                 ItemsSource="{Binding Expects}"
-                                 Text="{Binding Expect, Mode=TwoWay}"
-                                 ValueMemberBinding="{Binding Value}"
-                                 FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                <TextBlock Grid.Row="2" Grid.Column="2" Text="Initial Alt" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                <AutoCompleteBox Grid.Row="2" Grid.Column="3" Margin="2"
-                                 ItemsSource="{Binding InitialAlts}"
-                                 Text="{Binding InitialAlt, Mode=TwoWay}"
-                                 ValueMemberBinding="{Binding Value}"
-                                 FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                <!-- Row 2: SID | Transition | Climb out | Climb via | Maintain.
+                     Five equal columns; label-above-dropdown so the row stays
+                     readable when the editor pane is narrow. -->
+                <Grid ColumnDefinitions="*,*,*,*,*" Margin="0,0,0,4">
+                    <StackPanel Grid.Column="0" Margin="2">
+                        <TextBlock Text="SID" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                        <ComboBox ItemsSource="{Binding Sids}"
+                                  SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
+                                  DisplayMemberBinding="{Binding Name}"
+                                  HorizontalAlignment="Stretch"
+                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="2">
+                        <TextBlock Text="Transition" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                        <ComboBox ItemsSource="{Binding Transitions}"
+                                  SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
+                                  DisplayMemberBinding="{Binding Name}"
+                                  HorizontalAlignment="Stretch"
+                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Margin="2">
+                        <TextBlock Text="Climb out" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                        <ComboBox ItemsSource="{Binding Climbouts}"
+                                  SelectedValue="{Binding Climbout, Mode=TwoWay}"
+                                  SelectedValueBinding="{Binding Value}"
+                                  DisplayMemberBinding="{Binding Value}"
+                                  HorizontalAlignment="Stretch"
+                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" Margin="2">
+                        <TextBlock Text="Climb via" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                        <ComboBox ItemsSource="{Binding Climbvias}"
+                                  SelectedValue="{Binding Climbvia, Mode=TwoWay}"
+                                  SelectedValueBinding="{Binding Value}"
+                                  DisplayMemberBinding="{Binding Value}"
+                                  HorizontalAlignment="Stretch"
+                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="4" Margin="2">
+                        <TextBlock Text="Maintain" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                        <ComboBox ItemsSource="{Binding InitialAlts}"
+                                  SelectedValue="{Binding InitialAlt, Mode=TwoWay}"
+                                  SelectedValueBinding="{Binding Value}"
+                                  DisplayMemberBinding="{Binding Value}"
+                                  HorizontalAlignment="Stretch"
+                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                    </StackPanel>
+                </Grid>
 
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="Climbout" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                <AutoCompleteBox Grid.Row="3" Grid.Column="1" Margin="2"
-                                 ItemsSource="{Binding Climbouts}"
-                                 Text="{Binding Climbout, Mode=TwoWay}"
-                                 ValueMemberBinding="{Binding Value}"
-                                 FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                <TextBlock Grid.Row="3" Grid.Column="2" Text="Climb Via" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                <AutoCompleteBox Grid.Row="3" Grid.Column="3" Margin="2"
-                                 ItemsSource="{Binding Climbvias}"
-                                 Text="{Binding Climbvia, Mode=TwoWay}"
-                                 ValueMemberBinding="{Binding Value}"
-                                 FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                <!-- Row 3: Contact info | Departure frequency. -->
+                <Grid ColumnDefinitions="*,*" Margin="0,0,0,4">
+                    <StackPanel Grid.Column="0" Margin="2">
+                        <TextBlock Text="Contact info" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                        <ComboBox ItemsSource="{Binding ContactInfos}"
+                                  SelectedValue="{Binding ContactInfo, Mode=TwoWay}"
+                                  SelectedValueBinding="{Binding Value}"
+                                  DisplayMemberBinding="{Binding Value}"
+                                  HorizontalAlignment="Stretch"
+                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="2">
+                        <TextBlock Text="Departure frequency" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                        <ComboBox ItemsSource="{Binding DepFreqs}"
+                                  SelectedValue="{Binding DepFreq, Mode=TwoWay}"
+                                  SelectedValueBinding="{Binding Value}"
+                                  DisplayMemberBinding="{Binding Value}"
+                                  HorizontalAlignment="Stretch"
+                                  FontFamily="{StaticResource MonoFont}" FontSize="11"/>
+                    </StackPanel>
+                </Grid>
 
-                <TextBlock Grid.Row="4" Grid.Column="0" Text="Dep Freq" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                <AutoCompleteBox Grid.Row="4" Grid.Column="1" Margin="2"
-                                 ItemsSource="{Binding DepFreqs}"
-                                 Text="{Binding DepFreq, Mode=TwoWay}"
-                                 ValueMemberBinding="{Binding Value}"
-                                 FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                <TextBlock Grid.Row="4" Grid.Column="2" Text="Contact" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                <AutoCompleteBox Grid.Row="4" Grid.Column="3" Margin="2"
-                                 ItemsSource="{Binding ContactInfos}"
-                                 Text="{Binding ContactInfo, Mode=TwoWay}"
-                                 ValueMemberBinding="{Binding Value}"
-                                 FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-
-                <!-- Footer row of the editor pane: Dump on the left, Send on the right
-                     (matches docs/vtdls/img/flight-plan.png). Local Info shares row 5
-                     so the layout stays vertically compact. -->
-                <TextBlock Grid.Row="5" Grid.Column="0" Text="Local Info" VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                <AutoCompleteBox Grid.Row="5" Grid.Column="1" Margin="2"
-                                 ItemsSource="{Binding LocalInfos}"
-                                 Text="{Binding LocalInfo, Mode=TwoWay}"
-                                 ValueMemberBinding="{Binding Value}"
-                                 FontFamily="{StaticResource MonoFont}" FontSize="11"/>
-                <StackPanel Grid.Row="5" Grid.Column="2" Grid.ColumnSpan="2"
-                            Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2">
-                    <Button Content="Dump (F4)"
-                            Click="OnDumpClick"
-                            FontFamily="{StaticResource MonoFont}" FontSize="11"
-                            Margin="0,0,6,0"
-                            Padding="10,2"/>
-                    <Button Content="Send (F12)"
-                            Command="{Binding SendCommand}"
-                            IsEnabled="{Binding IsSendEnabled}"
-                            FontFamily="{StaticResource MonoFont}" FontSize="11"
-                            FontWeight="Bold"
-                            Padding="10,2"/>
+                <!-- Row 4: Local info (full width). -->
+                <StackPanel Margin="2,0,2,8">
+                    <TextBlock Text="Local info" FontFamily="{StaticResource MonoFont}" FontSize="11" Foreground="{DynamicResource VTdlsEditorTextFg}"/>
+                    <ComboBox ItemsSource="{Binding LocalInfos}"
+                              SelectedValue="{Binding LocalInfo, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Value}"
+                              DisplayMemberBinding="{Binding Value}"
+                              HorizontalAlignment="Stretch"
+                              FontFamily="{StaticResource MonoFont}" FontSize="11"/>
                 </StackPanel>
-            </Grid>
+
+                <!-- Buttons row: Dump bottom-left, Cancel + Send bottom-right. -->
+                <Grid ColumnDefinitions="*,*">
+                    <Button Grid.Column="0" Content="Dump (F4)"
+                            Click="OnDumpClick"
+                            HorizontalAlignment="Left"
+                            FontFamily="{StaticResource MonoFont}" FontSize="11"
+                            Padding="10,2"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancel (F10)"
+                                Click="OnCancelClick"
+                                FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                Margin="0,0,6,0"
+                                Padding="10,2"/>
+                        <Button Content="Send (F12)"
+                                Command="{Binding SendCommand}"
+                                IsEnabled="{Binding IsSendEnabled}"
+                                FontFamily="{StaticResource MonoFont}" FontSize="11"
+                                FontWeight="Bold"
+                                Padding="10,2"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
         </Border>
 
         <!-- ── Footer: clearance-type status (left) + decorative status info + Zulu clock (right) ── -->

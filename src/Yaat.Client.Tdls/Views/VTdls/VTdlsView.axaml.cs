@@ -182,6 +182,16 @@ public partial class VTdlsView : UserControl
         }
     }
 
+    private void OnCancelClick(object? sender, RoutedEventArgs e)
+    {
+        // Upstream's Cancel button closes the editor without sending. Mirror
+        // the F10 key handler — clearing SelectedItem dismisses the editor.
+        if (DataContext is VTdlsViewModel vm)
+        {
+            vm.SelectedItem = null;
+        }
+    }
+
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not VTdlsViewModel vm)

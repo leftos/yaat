@@ -261,27 +261,27 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         }
         if (_config.MandatoryClimbout && string.IsNullOrWhiteSpace(Climbout))
         {
-            missing.Add("Climbout");
+            missing.Add("Climb out");
         }
         if (_config.MandatoryClimbvia && string.IsNullOrWhiteSpace(Climbvia))
         {
-            missing.Add("Climbvia");
+            missing.Add("Climb via");
         }
         if (_config.MandatoryInitialAlt && string.IsNullOrWhiteSpace(InitialAlt))
         {
-            missing.Add("Initial Alt");
+            missing.Add("Maintain");
         }
         if (_config.MandatoryDepFreq && string.IsNullOrWhiteSpace(DepFreq))
         {
-            missing.Add("Dep Freq");
+            missing.Add("Departure frequency");
         }
         if (_config.MandatoryContactInfo && string.IsNullOrWhiteSpace(ContactInfo))
         {
-            missing.Add("Contact Info");
+            missing.Add("Contact info");
         }
         if (_config.MandatoryLocalInfo && string.IsNullOrWhiteSpace(LocalInfo))
         {
-            missing.Add("Local Info");
+            missing.Add("Local info");
         }
         return missing;
     }
