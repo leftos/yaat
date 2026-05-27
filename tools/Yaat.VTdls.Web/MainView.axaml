@@ -8,17 +8,17 @@
     <Grid RowDefinitions="*,Auto">
         <vtdls:VTdlsView Grid.Row="0" x:Name="TdlsView" />
         <!-- Status footer — gives the user visible feedback on connect /
-             room state since the browser tab has no other chrome. Code-
-             behind updates StatusText as the connect + auto-join flow
-             progresses. -->
+             room state since the browser tab has no other chrome. Themed
+             brushes come from App.axaml's ThemeDictionaries so the bar
+             tracks the Application's RequestedThemeVariant. -->
         <Border Grid.Row="1"
-                Background="#EFEFEF"
-                BorderBrush="#BFBFBF"
+                Background="{DynamicResource StatusBarBg}"
+                BorderBrush="{DynamicResource StatusBarBorder}"
                 BorderThickness="0,1,0,0"
                 Padding="8,3">
             <TextBlock x:Name="StatusBar"
                        Text="Initializing..."
-                       Foreground="#303030"
+                       Foreground="{DynamicResource StatusBarFg}"
                        FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
                        FontSize="11"/>
         </Border>

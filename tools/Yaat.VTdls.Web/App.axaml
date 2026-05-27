@@ -3,20 +3,32 @@
              x:Class="Yaat.VTdls.Web.App"
              RequestedThemeVariant="Light">
     <Application.Resources>
-        <!-- Mirror of Yaat.Client/App.axaml resources that VTdlsView resolves
-             via {StaticResource ...}. Without these the AXAML compiler still
-             binds at parse time, but at runtime the lookup returns null and
-             the list panels render blank.
+        <ResourceDictionary>
+            <!-- JetBrains Mono first so callsign columns align identically in
+                 the browser tab and the desktop client. Without this the WASM
+                 bundle falls back to Inter (the only font in Avalonia.Browser
+                 by default), which is proportional and clips callsigns. -->
+            <FontFamily x:Key="MonoFont">fonts:JetBrainsMono#JetBrains Mono,Consolas,Menlo,DejaVu Sans Mono,monospace</FontFamily>
 
-             vTDLS uses a Light theme (white list backgrounds with green
-             headers) so the Application's RequestedThemeVariant is Light,
-             unlike Yaat.Client which is Dark. -->
-        <SolidColorBrush x:Key="SubtleTextBrush" Color="#606060" />
-        <!-- JetBrains Mono first so callsign columns align identically in the
-             browser tab and the desktop client. Without this the WASM bundle
-             falls back to Inter (the only font in Avalonia.Browser by
-             default), which is proportional and clips callsigns. -->
-        <FontFamily x:Key="MonoFont">fonts:JetBrainsMono#JetBrains Mono,Consolas,Menlo,DejaVu Sans Mono,monospace</FontFamily>
+            <ResourceDictionary.ThemeDictionaries>
+                <!-- Mirror of Yaat.Client/App.axaml resources that VTdlsView
+                     resolves via {StaticResource ...}. Themed so the browser
+                     status bar tracks Application.Current.RequestedThemeVariant
+                     when MainView toggles dark mode. -->
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="SubtleTextBrush" Color="#606060" />
+                    <SolidColorBrush x:Key="StatusBarBg" Color="#EFEFEF" />
+                    <SolidColorBrush x:Key="StatusBarBorder" Color="#BFBFBF" />
+                    <SolidColorBrush x:Key="StatusBarFg" Color="#303030" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="SubtleTextBrush" Color="#A0A0A0" />
+                    <SolidColorBrush x:Key="StatusBarBg" Color="#181818" />
+                    <SolidColorBrush x:Key="StatusBarBorder" Color="#3A3A3A" />
+                    <SolidColorBrush x:Key="StatusBarFg" Color="#D8D8D8" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
     <Application.Styles>
         <FluentTheme DensityStyle="Compact" />
