@@ -515,20 +515,52 @@ public partial class MainViewModel
         _ = VStrips.RefreshAccessibleFacilitiesAsync();
 
         // Same bootstrap for vTDLS: populate accessible facilities, then
-        // auto-switch to the first one so the student tab renders the
-        // appropriate DCL/PDC lists without the user picking from the menu.
+        // auto-switch to the scenario's primary airport (e.g. OAK for an OAK
+        // scenario) so the student tab renders the appropriate DCL/PDC lists
+        // without the user picking from the menu. Falls back to the first
+        // accessible facility if the primary airport isn't a TDLS facility.
         // No-op silently if the position has no TDLS-configured facility.
-        _ = BootstrapStudentTdlsAsync();
+        _ = BootstrapStudentTdlsAsync(bootstrap.PrimaryAirportId);
     }
 
-    private async Task BootstrapStudentTdlsAsync()
+    private async Task BootstrapStudentTdlsAsync(string? primaryAirportId)
     {
         await VTdls.RefreshAccessibleFacilitiesAsync();
-        var firstFacility = VTdls.AccessibleFacilities.FirstOrDefault();
-        if (firstFacility is not null)
+        var preferred = ResolvePreferredTdlsFacility(primaryAirportId);
+        if (preferred is not null)
         {
-            await VTdls.SwitchFacilityAsync(firstFacility.FacilityId);
+            await VTdls.SwitchFacilityAsync(preferred);
         }
+    }
+
+    /// <summary>
+    /// Picks the best vTDLS facility to default to for the scenario. Prefers the
+    /// facility whose id matches the scenario's primary airport (vNAS convention:
+    /// OAK facility serves KOAK; SFO facility serves KSFO; etc.). Falls back to
+    /// the first accessible TDLS facility, then null when none are available.
+    /// </summary>
+    private string? ResolvePreferredTdlsFacility(string? primaryAirportId)
+    {
+        if (VTdls.AccessibleFacilities.Count == 0)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(primaryAirportId))
+        {
+            // vNAS facility ids drop the leading K (KOAK → OAK). Try the bare
+            // form first, then the full id, then a case-insensitive match.
+            var bare = primaryAirportId.StartsWith('K') && primaryAirportId.Length == 4 ? primaryAirportId[1..] : primaryAirportId;
+            var match =
+                VTdls.AccessibleFacilities.FirstOrDefault(f => string.Equals(f.FacilityId, bare, StringComparison.OrdinalIgnoreCase))
+                ?? VTdls.AccessibleFacilities.FirstOrDefault(f => string.Equals(f.FacilityId, primaryAirportId, StringComparison.OrdinalIgnoreCase));
+            if (match is not null)
+            {
+                return match.FacilityId;
+            }
+        }
+
+        return VTdls.AccessibleFacilities[0].FacilityId;
     }
 
     private void OnScenarioUnloaded()
