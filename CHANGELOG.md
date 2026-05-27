@@ -17,6 +17,7 @@
 - Speech recognition now understands the §3-7 taxi/ground synonyms: "continue taxiing via …" and "proceed via …" as alternates to "taxi via …", "across runway …" as alternate to "cross runway …", "hold for (wake turbulence / traffic)" as alternate to "hold position", and "behind (callsign)" as alternate to "follow … on ground".
 - Speech recognition now understands "depart (fix) heading (degrees)" — radar departure-fix heading assignment (FAA 7110.65 §5-6-6) — and the "option approved" shorthand alternate to "cleared for the option" (FAA 7110.65 §3-10-11).
 - Speech recognition now understands "caution wake turbulence (traffic info)" (FAA 7110.65 §2-1-20). The wake-turbulence advisory issues a CWT command; trailing traffic-description text is captured and dropped.
+- Speech recognition now understands "expect (localizer / localizer back course / V-O-R / L-D-A) (runway) approach" (FAA 7110.65 §4-7-5), extending the existing ILS/RNAV/visual expect-approach forms.
 
 ### Added
 - vTDLS pre-departure clearance arrives as a full feature: a **vTDLS** tab next to **Strips** in YAAT Client, plus a `/vtdls/` browser app served from yaat-server. The tab opens a DCL list of Pending PDCs, a PDC list of Sent/Wilco'd ones, a nine-field flight-plan editor with mandatory-field gating, and Send/Dump buttons (also F12 / F4). Each Send still emits an RPO terminal entry summarizing the issued clearance.

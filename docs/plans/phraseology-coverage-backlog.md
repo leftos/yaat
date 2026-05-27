@@ -941,9 +941,9 @@ Every entry uses these four fields in this order. No prose. Keep entries scannab
 - **Phrasing:** "CLEARED (ILS/RNAV/VISUAL/LDA/Localizer/etc.) APPROACH" / "CLEARED (type) RUNWAY (number) APPROACH"
   **Canonical:** `ClearedApproach` / `ClearedVisualApproach`
   **Notes:** `PhraseologyRules.cs:197-209` covers ILS/RNAV runway-suffix variants and bare "cleared approach"; visual at :205-206. LDA/Localizer/VOR variants missing — see §4-8 MissingRule.
-- **Phrasing:** "EXPECT (ILS/RNAV/VISUAL) APPROACH RUNWAY (number)" / "EXPECT (type) APPROACH TO RUNWAY (number)"
+- **Phrasing:** "EXPECT (ILS/RNAV/VISUAL/LOC/LOC BC/VOR/LDA) APPROACH RUNWAY (number)" / "EXPECT (type) APPROACH TO RUNWAY (number)"
   **Canonical:** `ExpectApproach`
-  **Notes:** `PhraseologyRules.cs:214-218`.
+  **Notes:** `PhraseologyRules.cs:257-269`. PAR/ASR/surveillance/precision variants still pending (no CIFP type code).
 - **Phrasing:** "DESCEND AND MAINTAIN (altitude)" / "MAINTAIN (altitude)"
   **Canonical:** `DescendMaintain` / `ClimbMaintain`
   **Notes:** `PhraseologyRules.cs:78-90`.

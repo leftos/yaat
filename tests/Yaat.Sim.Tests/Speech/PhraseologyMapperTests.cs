@@ -333,6 +333,22 @@ public class PhraseologyMapperTests
         Assert.Equal(expected, result!.CanonicalCommand);
     }
 
+    // --- ExpectApproach type-token variants (FAA 7110.65 §4-7-5, AIM §5-4) ---
+    // Same alternation as ClearedApproach above — LOC, LOC BC, VOR, LDA in addition to
+    // ILS/RNAV/visual that were already covered.
+
+    [Theory]
+    [InlineData("expect localizer runway two eight right approach", "EAPP LOC28R")]
+    [InlineData("expect localizer back course runway one one approach", "EAPP B11")]
+    [InlineData("expect vor runway three four approach", "EAPP VOR34")]
+    [InlineData("expect lda runway one seven left approach", "EAPP LDA17L")]
+    public void ExpectApproachType_Variants(string transcript, string expected)
+    {
+        var result = PhraseologyMapper.Map(transcript, NoContext);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.CanonicalCommand);
+    }
+
     // --- PTAC rules (combined vector + altitude + approach clearance) ---
 
     [Theory]

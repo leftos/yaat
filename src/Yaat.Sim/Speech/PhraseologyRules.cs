@@ -259,6 +259,12 @@ public static class PhraseologyRules
             new(["expect", "rnav", "runway", "{rwy}", "approach"], "EAPP RNAV{rwy}", ExpectApproach),
             new(["expect", "rnav", "approach", "runway", "{rwy}"], "EAPP RNAV{rwy}", ExpectApproach),
             new(["expect", "visual", "approach", "runway", "{rwy}"], "EAPP VIS{rwy}", ExpectApproach),
+            // Expect-approach type variants beyond ILS/RNAV/visual (FAA 7110.65 §4-7-5).
+            // Same prefix encoding as ClearedApproach above.
+            new(["expect", "localizer", "back", "course", "runway", "{rwy}", "approach"], "EAPP B{rwy}", ExpectApproach),
+            new(["expect", "localizer", "runway", "{rwy}", "approach"], "EAPP LOC{rwy}", ExpectApproach),
+            new(["expect", "vor", "runway", "{rwy}", "approach"], "EAPP VOR{rwy}", ExpectApproach),
+            new(["expect", "lda", "runway", "{rwy}", "approach"], "EAPP LDA{rwy}", ExpectApproach),
             // Traffic following
             new(["follow", "traffic", "{callsign}"], "FOLLOW {callsign}", Follow),
             new(["follow", "the?", "{callsign}"], "FOLLOW {callsign}", Follow),
