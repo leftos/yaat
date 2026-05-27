@@ -286,15 +286,24 @@ public sealed class TaxiingPhase : Phase
             return true;
         }
 
-        // Advance to next segment
+        // Advance to next segment. When a composite slow-turn primitive
+        // spanned multiple short chord-chain segments (cluster synth), bump
+        // the index by the extra count so we don't re-target intermediate
+        // fillet nodes the aircraft has already geometrically passed.
         int prevIdx = route.CurrentSegmentIndex;
-        route.CurrentSegmentIndex++;
+        int extraAdvance = _nav.ExtraSegmentsToAdvance;
+        route.CurrentSegmentIndex += 1 + extraAdvance;
+        if (route.CurrentSegmentIndex > route.Segments.Count)
+        {
+            route.CurrentSegmentIndex = route.Segments.Count;
+        }
         Log.LogDebug(
-            "[Taxi] {Callsign}: advance segment {Prev}→{Next}/{Total} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} ias={Ias:F1}",
+            "[Taxi] {Callsign}: advance segment {Prev}→{Next}/{Total} (extra={Extra}) pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} ias={Ias:F1}",
             ctx.Aircraft.Callsign,
             prevIdx,
             route.CurrentSegmentIndex,
             route.Segments.Count,
+            extraAdvance,
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             ctx.Aircraft.TrueHeading.Degrees,

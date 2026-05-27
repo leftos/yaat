@@ -523,7 +523,12 @@ public sealed class RunwayExitPhase : Phase
                 ctx.Aircraft.Ground.CurrentTaxiway = seg.TaxiwayName;
             }
 
-            _exitRoute.CurrentSegmentIndex++;
+            int extraAdvance = _navigator.ExtraSegmentsToAdvance;
+            _exitRoute.CurrentSegmentIndex += 1 + extraAdvance;
+            if (_exitRoute.CurrentSegmentIndex > _exitRoute.Segments.Count)
+            {
+                _exitRoute.CurrentSegmentIndex = _exitRoute.Segments.Count;
+            }
 
             if (_exitRoute.IsComplete)
             {

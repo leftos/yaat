@@ -130,6 +130,19 @@ public sealed class GroundNavigator
     /// </summary>
     public int TicksNearTarget { get; set; }
 
+    /// <summary>
+    /// Extra route-segment advances the consuming phase should apply on top of
+    /// the standard <c>route.CurrentSegmentIndex++</c> when this navigator
+    /// returns <see cref="NavigatorResult.ArrivedAtNode"/>. Set non-zero when a
+    /// composite slow-turn primitive geometrically spans several short route
+    /// segments (chained fillet chord chains where individual corners are
+    /// below the synthesis threshold but cumulative turn is steep). Reset to
+    /// zero on every <see cref="SetupSegment"/> / <see cref="SetupPrimitive"/>
+    /// call, and on every <see cref="NavigatorResult.ArrivedAtNode"/> return
+    /// once the consuming phase has read it.
+    /// </summary>
+    public int ExtraSegmentsToAdvance { get; set; }
+
     public NavTickDiag? LastTickDiag { get; private set; }
     public double MaxSpeedKts { get; set; }
 
@@ -323,7 +336,47 @@ public sealed class GroundNavigator
         /// <summary>Tangent inset in nautical miles — how far before the corner the arc engages. Used by <c>ComputeTargetSpeed</c> for the pre-trigger brake curve.</summary>
         double TangentInsetNm,
         /// <summary>Chosen target speed (knots) at the trigger point, derived from the chosen radius via <c>v = r × ω</c> and clamped to <c>[SlowTurnSpeedKts, CornerSpeedForAngle(θ)]</c>. Used by the pre-trigger brake constraint so the aircraft decelerates to the correct entry speed, not the global <c>SlowTurnSpeedKts</c> floor.</summary>
-        double ChosenSpeedKts
+        double ChosenSpeedKts,
+        /// <summary>
+        /// Number of additional route segments the arc spans beyond the
+        /// individual post-corner segment. Zero for plain single-corner synth
+        /// (the arc exits onto the immediately-post-corner segment, route
+        /// advance is +1 as usual). Non-zero for cluster synth — the arc
+        /// passes through multiple short chord-chain segments geometrically,
+        /// and the route must advance by 1 + ExtraSegmentsSpanned on arrival
+        /// so the next segment after the arc is the post-cluster long segment,
+        /// not a stale intra-cluster fillet chord. Read by the consuming
+        /// phase via <see cref="GroundNavigator.ExtraSegmentsToAdvance"/>.
+        /// </summary>
+        int ExtraSegmentsSpanned,
+        /// <summary>Latitude of the exit node (= SlowTurn.ToNodeId's node position). Used to retarget the navigator at synth-engage time so post-arc hold-short checks reference the cluster's *exit* node, not the pre-synth target.</summary>
+        double ExitNodeLat,
+        /// <summary>Longitude of the exit node. See <see cref="ExitNodeLat"/>.</summary>
+        double ExitNodeLon
+    );
+
+    /// <summary>
+    /// Internal record describing a detected short-segment cluster: a run of
+    /// consecutive route segments where each individual corner is below
+    /// <see cref="SlowTurnSynthesisMinAngleDeg"/> yet the cumulative turn
+    /// from the cluster's inbound bearing to its outbound bearing is steep
+    /// enough that pure-pursuit cannot track each short segment at corner
+    /// speed without orbiting.
+    /// </summary>
+    private readonly record struct ShortSegmentCluster(
+        /// <summary>Index of the FIRST route segment in the cluster (= the segment immediately after the pre-cluster corner being scanned).</summary>
+        int StartSegIdx,
+        /// <summary>Index of the LAST route segment in the cluster.</summary>
+        int EndSegIdx,
+        /// <summary>Cumulative signed deflection from inbound to outbound (absolute, in degrees). Used as the effective turn for synthesis radius/speed.</summary>
+        double EffectiveTurnDeg,
+        /// <summary>Bearing the arc must exit on (= departure bearing of the segment AFTER the cluster).</summary>
+        double OutboundBearing,
+        /// <summary>Length of the segment immediately AFTER the cluster, in feet — the room available for the tangent-exit inset.</summary>
+        double PostClusterSegLenFt,
+        /// <summary>Lat/lon of the cluster's start node (= From node of the first cluster segment), used as the "virtual corner apex" reference for tangent-entry projection.</summary>
+        double StartNodeLat,
+        double StartNodeLon
     );
 
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
@@ -345,6 +398,7 @@ public sealed class GroundNavigator
         _segmentFromLon = from.Position.Lon;
         PrevDistToTarget = double.MaxValue;
         TicksNearTarget = 0;
+        ExtraSegmentsToAdvance = 0;
 
         // Entry alignment: if the aircraft heading is significantly off the
         // segment's first tangent, build a slow-turn from its current pose to
@@ -506,6 +560,7 @@ public sealed class GroundNavigator
         _segmentFromLon = fromLon;
         PrevDistToTarget = double.MaxValue;
         TicksNearTarget = 0;
+        ExtraSegmentsToAdvance = 0;
 
         if (primitive is PathPrimitiveArc arcPrim)
         {
@@ -580,32 +635,72 @@ public sealed class GroundNavigator
             double outbound = segK.Edge.DepartureBearing;
             double turnAngleDeg = GeoMath.AbsBearingDifference(inbound, outbound);
 
+            // Cluster detection: a single corner below the synthesis threshold
+            // may still be part of a *chained short fillet segments* anti-pattern
+            // where each individual corner is small but the cumulative deflection
+            // over a short span is sharp enough to defeat pure-pursuit. Probe
+            // forward through consecutive short segments; if cumulative turn
+            // reaches the synthesis threshold within a span shorter than the
+            // natural turn radius at corner speed, treat the cluster as a single
+            // virtual corner and proceed to synthesis with the cluster's
+            // geometry. Otherwise fall through to the standard per-corner skip.
+            ShortSegmentCluster? cluster = null;
             if (turnAngleDeg < SlowTurnSynthesisMinAngleDeg)
             {
-                distFromCurEndFt += segKLengthFt;
-                continue;
+                cluster = TryDetectCluster(route, k, ctx, turnAngleDeg, segKLengthFt, outbound);
+                if (cluster is null)
+                {
+                    distFromCurEndFt += segKLengthFt;
+                    continue;
+                }
             }
 
-            double cornerSpeedKts = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngleDeg);
+            // Effective values are either the cluster's expanded geometry or the
+            // single corner's values. The rest of the synthesis logic is shape-
+            // agnostic — it only cares about effective turn + effective post-room.
+            double effectiveTurnDeg = cluster?.EffectiveTurnDeg ?? turnAngleDeg;
+            double effectiveOutbound = cluster?.OutboundBearing ?? outbound;
+            double effectivePostSegLenFt = cluster?.PostClusterSegLenFt ?? segKLengthFt;
+            // For cluster mode: the SlowTurn's ToNodeId is the post-cluster
+            // anchor's FromNode (= segments[EndSegIdx].ToNode), which is where
+            // ArrivedAtNode fires. The route then advances onto the post-
+            // cluster long segment, bypassing all intra-cluster segments.
+            int effectiveCornerNodeId = cluster is { } cc ? route.Segments[cc.EndSegIdx].Edge.ToNodeId : prevK.Edge.ToNodeId;
+            double effectiveCornerLat = cluster?.StartNodeLat ?? prevK.Edge.ToNode.Position.Lat;
+            double effectiveCornerLon = cluster?.StartNodeLon ?? prevK.Edge.ToNode.Position.Lon;
+            // Extra route advance: arc spans cluster + trailing corner, route
+            // must land on the post-cluster long segment (index EndSegIdx+1).
+            // From curIdx, default +1 + Extra = EndSegIdx+1 → Extra = EndSegIdx - curIdx.
+            // For curIdx = firstK - 1 (common case), Extra = EndSegIdx - firstK + 1.
+            int extraSegmentsSpanned = cluster is { } cc2 ? (cc2.EndSegIdx - cc2.StartSegIdx + 1) : 0;
+
+            double cornerSpeedKts = CategoryPerformance.CornerSpeedForAngle(ctx.Category, effectiveTurnDeg);
             double cornerSpeedFtPerSec = cornerSpeedKts * GeoMath.FeetPerNm / 3600.0;
             double turnRateRadPerSec = CategoryPerformance.GroundTurnRate(ctx.Category) * Math.PI / 180.0;
             double naturalRadiusFt = cornerSpeedFtPerSec / turnRateRadPerSec;
-            double naturalArcLengthFt = naturalRadiusFt * turnAngleDeg * Math.PI / 180.0;
+            double naturalArcLengthFt = naturalRadiusFt * effectiveTurnDeg * Math.PI / 180.0;
 
-            if (naturalArcLengthFt <= segKLengthFt * SlowTurnSynthesisSegmentFraction)
+            // Skip natural-arc-fits check for clusters: by construction the
+            // cluster span is already < naturalRadius (TryDetectCluster bails
+            // otherwise), so the natural turn does not fit and synthesis is
+            // mandatory. For single corners, retain the existing check.
+            if (cluster is null && naturalArcLengthFt <= effectivePostSegLenFt * SlowTurnSynthesisSegmentFraction)
             {
                 distFromCurEndFt += segKLengthFt;
                 continue;
             }
 
-            // Sharp corner into short segment — synthesis needed.
+            // Sharp corner (or cluster) into short outgoing — synthesis needed.
             //
             // Walk backward through collinear straight segments to measure
             // how much pre-corner "incoming room" is available along the
-            // tangent direction. The walk stops at: (a) an arc segment,
-            // (b) a non-collinear transition (> CollinearBearingToleranceDeg),
-            // or (c) the current segment boundary (segments before curIdx
-            // are already traversed and unavailable).
+            // tangent direction. The walk starts at segment k-1 (the segment
+            // immediately preceding the corner OR the first cluster segment;
+            // in cluster mode the cluster's first segment is k, so k-1 is
+            // still the pre-cluster segment). The walk stops at: (a) an arc
+            // segment, (b) a non-collinear transition
+            // (> CollinearBearingToleranceDeg), or (c) the current segment
+            // boundary (segments before curIdx are already traversed).
             double availIncomingFt = 0;
             int earliestReachableSegIdx = k;
             for (int b = k - 1; b >= curIdx; b--)
@@ -624,10 +719,10 @@ public sealed class GroundNavigator
                 earliestReachableSegIdx = b;
             }
 
-            // Available outgoing room is the post-corner segment length
-            // (not extending through further collinear segments — keeping
-            // the tangent exit conservatively inside segK).
-            double availOutgoingFt = segKLengthFt;
+            // Available outgoing room is the post-corner / post-cluster
+            // segment length (not extending through further collinear segments —
+            // keeping the tangent exit conservatively inside that one segment).
+            double availOutgoingFt = effectivePostSegLenFt;
 
             // Pick the largest radius that fits both tangent insets, with
             // 20% safety margin for pure-pursuit lag, fillet-paint variance,
@@ -640,17 +735,18 @@ public sealed class GroundNavigator
             const double GeometrySafetyFactor = 0.8;
             double minRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
             double maxInsetFt = GeometrySafetyFactor * Math.Min(availIncomingFt, availOutgoingFt);
-            double halfAngleRad = turnAngleDeg * 0.5 * Math.PI / 180.0;
+            double halfAngleRad = effectiveTurnDeg * 0.5 * Math.PI / 180.0;
             double maxRadiusFt = maxInsetFt / Math.Tan(halfAngleRad);
 
             double chosenRadiusFt;
             if (maxRadiusFt < minRadiusFt)
             {
                 Log.LogWarning(
-                    "[NavV2] Synth geometry tight: corner node {NodeId} (seg {K}, {TurnDeg:F1}°) availIn={AvailIn:F1}ft availOut={AvailOut:F1}ft — geometry wants r={MaxR:F1}ft below nose-wheel min {MinR:F1}ft; clamping to min (may fall outside segment)",
-                    prevK.Edge.ToNodeId,
+                    "[NavV2] Synth geometry tight: corner node {NodeId} (seg {K}, {TurnDeg:F1}°{ClusterTag}) availIn={AvailIn:F1}ft availOut={AvailOut:F1}ft — geometry wants r={MaxR:F1}ft below nose-wheel min {MinR:F1}ft; clamping to min (may fall outside segment)",
+                    effectiveCornerNodeId,
                     k,
-                    turnAngleDeg,
+                    effectiveTurnDeg,
+                    cluster is null ? string.Empty : $" cluster +{extraSegmentsSpanned}seg",
                     availIncomingFt,
                     availOutgoingFt,
                     maxRadiusFt,
@@ -711,10 +807,9 @@ public sealed class GroundNavigator
                 return null;
             }
 
-            var cornerNode = prevK.Edge.ToNode;
             double tangentInsetNm = tangentInsetFt / GeoMath.FeetPerNm;
             var (tangentEntryLat, tangentEntryLon) = GeoMath.ProjectPoint(
-                cornerNode.Position,
+                new LatLon(effectiveCornerLat, effectiveCornerLon),
                 new TrueHeading(((inbound + 180.0) % 360.0 + 360.0) % 360.0),
                 tangentInsetNm
             );
@@ -723,19 +818,20 @@ public sealed class GroundNavigator
                 fromLat: tangentEntryLat,
                 fromLon: tangentEntryLon,
                 fromHdgDeg: inbound,
-                toHdgDeg: outbound,
+                toHdgDeg: effectiveOutbound,
                 radiusFt: chosenRadiusFt,
                 maxSpeedKts: chosenSpeedKts,
-                toNodeId: cornerNode.Id
+                toNodeId: effectiveCornerNodeId
             );
 
             Log.LogDebug(
-                "[NavV2] Synth plan: corner node {NodeId} (seg {K}) turn={TurnDeg:F1}° natArc={NatArc:F1}ft segLen={SegLen:F1}ft availIn={AvailIn:F1}ft availOut={AvailOut:F1}ft chosenR={ChosenR:F1}ft chosenV={ChosenV:F1}kt inset={Inset:F1}ft triggerDist={TrigDist:F1}ft",
-                cornerNode.Id,
+                "[NavV2] Synth plan: corner node {NodeId} (seg {K}{ClusterTag}) turn={TurnDeg:F1}° natArc={NatArc:F1}ft postLen={PostLen:F1}ft availIn={AvailIn:F1}ft availOut={AvailOut:F1}ft chosenR={ChosenR:F1}ft chosenV={ChosenV:F1}kt inset={Inset:F1}ft triggerDist={TrigDist:F1}ft",
+                effectiveCornerNodeId,
                 k,
-                turnAngleDeg,
+                cluster is null ? string.Empty : $"..{cluster.Value.EndSegIdx}",
+                effectiveTurnDeg,
                 naturalArcLengthFt,
-                segKLengthFt,
+                effectivePostSegLenFt,
                 availIncomingFt,
                 availOutgoingFt,
                 chosenRadiusFt,
@@ -744,17 +840,200 @@ public sealed class GroundNavigator
                 triggerDistFromSegStartFt
             );
 
+            // Resolve the exit node's position. For cluster: it's the post-
+            // cluster long segment's FromNode (= cluster.EndSegIdx's segment
+            // ToNode). For single corner: it's the corner node itself
+            // (= prevK.ToNode).
+            double exitNodeLat;
+            double exitNodeLon;
+            if (cluster is { } ccExit)
+            {
+                var exitNode = route.Segments[ccExit.EndSegIdx].Edge.ToNode;
+                exitNodeLat = exitNode.Position.Lat;
+                exitNodeLon = exitNode.Position.Lon;
+            }
+            else
+            {
+                exitNodeLat = prevK.Edge.ToNode.Position.Lat;
+                exitNodeLon = prevK.Edge.ToNode.Position.Lon;
+            }
+
             return new PlannedSynthesis(
                 TriggerDistFromSegStartFt: triggerDistFromSegStartFt,
                 SlowTurn: slowTurn,
                 TangentEntryLat: tangentEntryLat,
                 TangentEntryLon: tangentEntryLon,
-                CornerNodeId: cornerNode.Id,
+                CornerNodeId: effectiveCornerNodeId,
                 TangentInsetNm: tangentInsetNm,
-                ChosenSpeedKts: chosenSpeedKts
+                ChosenSpeedKts: chosenSpeedKts,
+                ExtraSegmentsSpanned: extraSegmentsSpanned,
+                ExitNodeLat: exitNodeLat,
+                ExitNodeLon: exitNodeLon
             );
         }
 
+        return null;
+    }
+
+    /// <summary>
+    /// Probe forward from the corner at <paramref name="firstK"/> to detect a
+    /// short-segment cluster: consecutive chord-chain segments where each
+    /// individual corner is below <see cref="SlowTurnSynthesisMinAngleDeg"/>
+    /// yet the cumulative deflection over a span shorter than the natural turn
+    /// radius at corner speed reaches the synthesis threshold. Returns a
+    /// <see cref="ShortSegmentCluster"/> if the cluster is confirmed; null
+    /// otherwise (no cluster, or the chain becomes too long, or hits an arc).
+    /// </summary>
+    /// <remarks>
+    /// Cluster termination criteria (in priority order):
+    ///   - Next segment is an arc → cluster ends, no expansion past it.
+    ///   - Next individual corner ≥ <see cref="SlowTurnSynthesisMinAngleDeg"/>
+    ///     → the per-corner synth handles that corner; cluster ends here.
+    ///   - Next segment length ≥ natural turn radius at current cumulative
+    ///     turn → next segment is "long" enough to absorb its own turn at
+    ///     corner speed; chord chain is over.
+    ///   - Cumulative deflection from inbound to outbound reaches
+    ///     <see cref="SlowTurnSynthesisMinAngleDeg"/> → cluster confirmed.
+    ///   - <see cref="SynthesisLookaheadCapFt"/> exceeded → bail to keep scan
+    ///     bounded.
+    /// The probe also bails if the cumulative deflection grows much faster
+    /// than the net inbound-to-outbound deflection (zigzag pattern) — clusters
+    /// are meant for monotone turns through a fillet vertex, not pathological
+    /// chord oscillation.
+    /// </remarks>
+    private static ShortSegmentCluster? TryDetectCluster(
+        TaxiRoute route,
+        int firstK,
+        PhaseContext ctx,
+        double firstCornerTurnDeg,
+        double firstPostSegLenFt,
+        double firstOutbound
+    )
+    {
+        double turnRateRadPerSec = CategoryPerformance.GroundTurnRate(ctx.Category) * Math.PI / 180.0;
+
+        // We extend the cluster forward through consecutive short segments
+        // until we hit a LONG segment — that long segment becomes the post-
+        // cluster anchor. The arc's tangent-exit is on the long segment's
+        // line, landing the aircraft on stable geometry. This prevents the
+        // failure mode where the arc lands on the cluster's last 10-15 ft
+        // chord, leaving pure-pursuit with essentially zero room to align.
+        //
+        // Without a post-cluster long-segment anchor (the chord chain runs
+        // to the route end, or to an arc, or to a too-sharp corner), we
+        // refuse the cluster and fall back to per-segment routing.
+        int currentLast = firstK;
+        double cumAbsTurnDeg = firstCornerTurnDeg;
+        double cumSpanFt = firstPostSegLenFt;
+        double inboundRef = route.Segments[firstK - 1].Edge.ArrivalBearing;
+
+        while (currentLast + 1 < route.Segments.Count)
+        {
+            if (cumSpanFt > SynthesisLookaheadCapFt)
+            {
+                return null;
+            }
+
+            var segLast = route.Segments[currentLast];
+            var segNext = route.Segments[currentLast + 1];
+
+            if (segLast.Edge.Edge is GroundArc || segNext.Edge.Edge is GroundArc)
+            {
+                return null;
+            }
+
+            double nextCornerTurnDeg = GeoMath.AbsBearingDifference(segLast.Edge.ArrivalBearing, segNext.Edge.DepartureBearing);
+
+            if (nextCornerTurnDeg >= SlowTurnSynthesisMinAngleDeg)
+            {
+                return null;
+            }
+
+            double nextSegLenFt = segNext.Edge.DistanceNm * GeoMath.FeetPerNm;
+            double prospectiveCumTurnDeg = cumAbsTurnDeg + nextCornerTurnDeg;
+            double cornerSpeedKts = CategoryPerformance.CornerSpeedForAngle(ctx.Category, prospectiveCumTurnDeg);
+            double cornerSpeedFtPerSec = cornerSpeedKts * GeoMath.FeetPerNm / 3600.0;
+            double naturalRadiusFt = cornerSpeedFtPerSec / turnRateRadPerSec;
+
+            // Long-segment encountered: this is the post-cluster anchor.
+            // Include the trailing corner's deflection in the arc sweep and
+            // return the cluster. The arc's tangent-exit will land on this
+            // long segment's line, and the route will advance past the
+            // entire cluster onto it.
+            if (nextSegLenFt >= naturalRadiusFt)
+            {
+                cumAbsTurnDeg = prospectiveCumTurnDeg;
+
+                if (cumAbsTurnDeg < SlowTurnSynthesisMinAngleDeg)
+                {
+                    return null;
+                }
+
+                double netDeflectionDeg = GeoMath.AbsBearingDifference(inboundRef, segNext.Edge.DepartureBearing);
+                if (netDeflectionDeg < cumAbsTurnDeg * 0.5)
+                {
+                    return null;
+                }
+
+                // Cluster relevance check: a cluster matters only when the
+                // natural-radius turn at corner speed *cannot* fit within the
+                // cluster's intra-span. Long gentle multi-segment chains
+                // (e.g. 9 segments × 50 ft each, 5° per corner, 46° net) hit
+                // the cumulative-turn threshold but the natural arc fits
+                // comfortably — pure-pursuit handles them. Reject those so
+                // cluster synth only fires for actually-tight fillet-vertex
+                // geometries (SFO node 39 chord chain etc.).
+                double cornerSpeedNetKts = CategoryPerformance.CornerSpeedForAngle(ctx.Category, cumAbsTurnDeg);
+                double cornerSpeedNetFtPerSec = cornerSpeedNetKts * GeoMath.FeetPerNm / 3600.0;
+                double naturalRadiusNetFt = cornerSpeedNetFtPerSec / turnRateRadPerSec;
+                double naturalArcNetFt = naturalRadiusNetFt * cumAbsTurnDeg * Math.PI / 180.0;
+                if (naturalArcNetFt <= cumSpanFt * SlowTurnSynthesisSegmentFraction)
+                {
+                    return null;
+                }
+
+                // Defensive: arc geometrically bypasses the FromNode of every
+                // segment from firstK through currentLast (inclusive). If any
+                // carries a hold-short, fall back to per-segment routing.
+                for (int idx = firstK; idx <= currentLast; idx++)
+                {
+                    if (route.GetHoldShortAt(route.Segments[idx].FromNodeId) is not null)
+                    {
+                        return null;
+                    }
+                }
+
+                // Also bail if the cluster's exit corner (where ArrivedAtNode
+                // fires after the arc) carries a hold-short. The arc geometry
+                // lands the aircraft tangent-inset feet PAST the apex on the
+                // outbound line — past the painted hold-short bar — so the
+                // braking curve that would have stopped the aircraft AT the
+                // bar in per-segment routing is bypassed. Fall back to per-
+                // segment so the aircraft brakes properly before the bar.
+                if (route.GetHoldShortAt(route.Segments[currentLast].Edge.ToNodeId) is not null)
+                {
+                    return null;
+                }
+
+                var clusterFirstSeg = route.Segments[firstK];
+                return new ShortSegmentCluster(
+                    StartSegIdx: firstK,
+                    EndSegIdx: currentLast,
+                    EffectiveTurnDeg: netDeflectionDeg,
+                    OutboundBearing: segNext.Edge.DepartureBearing,
+                    PostClusterSegLenFt: nextSegLenFt,
+                    StartNodeLat: clusterFirstSeg.Edge.FromNode.Position.Lat,
+                    StartNodeLon: clusterFirstSeg.Edge.FromNode.Position.Lon
+                );
+            }
+
+            // Still short — accept into cluster and keep extending.
+            currentLast++;
+            cumAbsTurnDeg = prospectiveCumTurnDeg;
+            cumSpanFt += nextSegLenFt;
+        }
+
+        // Reached end of route without finding a long-segment anchor.
         return null;
     }
 
@@ -835,18 +1114,39 @@ public sealed class GroundNavigator
             else
             {
                 Log.LogDebug(
-                    "[NavV2] Synth engaged: corner node {NodeId} r={RadiusFt:F1}ft v={SpeedKts:F1}kt entry-dist={EntryFt:F2}ft gs={Gs:F1}kt",
+                    "[NavV2] Synth engaged: corner node {NodeId} r={RadiusFt:F1}ft v={SpeedKts:F1}kt entry-dist={EntryFt:F2}ft gs={Gs:F1}kt extraSeg={ExtraSeg}",
                     plan.CornerNodeId,
                     plan.SlowTurn.RadiusFt,
                     plan.ChosenSpeedKts,
                     distFromEntryFt,
-                    ctx.Aircraft.IndicatedAirspeed
+                    ctx.Aircraft.IndicatedAirspeed,
+                    plan.ExtraSegmentsSpanned
                 );
                 _currentPrimitive = plan.SlowTurn;
                 _arcBearingFromCenterDeg = plan.SlowTurn.StartBearingFromCenterDeg;
                 _arcRemainingSweepDeg = plan.SlowTurn.SweepDeg;
                 _plannedSynthesis = null;
+                // Cluster synth: when the slow-turn primitive geometrically
+                // spans multiple short chord-chain segments, advance the route
+                // past all of them on arc completion. The consuming phase
+                // reads this value in its ArrivedAtNode handler.
+                ExtraSegmentsToAdvance = plan.ExtraSegmentsSpanned;
                 PrevDistToTarget = double.MaxValue;
+                // Retarget the navigator when the synth spans extra segments
+                // (cluster mode). The hold-short check in the consuming phase
+                // runs against _nav.TargetNodeId on ArrivedAtNode; without a
+                // retarget, the check fires against the segment[curIdx]
+                // ToNode (cluster's already-passed start) instead of the
+                // cluster's exit node. Single-corner synth (Extra=0) leaves
+                // TargetNodeId alone — a multi-segment incoming collinear
+                // chain (k > curIdx+1) still relies on the original target
+                // for legacy compatibility with the per-corner code path.
+                if (plan.ExtraSegmentsSpanned > 0)
+                {
+                    TargetNodeId = plan.SlowTurn.ToNodeId;
+                    TargetLat = plan.ExitNodeLat;
+                    TargetLon = plan.ExitNodeLon;
+                }
                 return NavigatorResult.Navigating;
             }
         }
