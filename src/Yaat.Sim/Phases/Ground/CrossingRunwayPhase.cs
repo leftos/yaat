@@ -7,21 +7,34 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
-/// Aircraft crosses a runway at ~10 kts along the taxiway alignment.
-/// Completes when the aircraft reaches the far-side taxiway node.
+/// Aircraft crosses a runway at runway-crossing speed by following the taxi
+/// line via a <see cref="GroundNavigator"/> over the crossing slice of the
+/// aircraft's <see cref="TaxiRoute"/>. Each tick steers via the navigator
+/// (which respects arcs, fillets and intermediate runway-centerline nodes
+/// that the painted line traverses), then completes when the navigator
+/// reaches a virtual node offset ½ aircraft length past the exit-side
+/// hold-short.
+///
+/// Earlier versions used a single straight-line beeline from the entry-side
+/// hold-short to the exit-side hold-short, which cut diagonally across the
+/// runway surface whenever the taxiway crossed via a fillet arc rather than
+/// an exactly perpendicular straight line (e.g. SFO H crossing 01L/19R —
+/// see GitHub issue #166).
 /// </summary>
 public sealed class CrossingRunwayPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("CrossingRunwayPhase");
 
-    private const double ArrivalThresholdNm = 0.001;
     private const double LogIntervalSeconds = 3.0;
 
     private readonly int _approachNodeId;
     private readonly int _targetNodeId;
     private readonly string? _runwayId;
-    private double _targetLat;
-    private double _targetLon;
+
+    // Built lazily in OnStart (or first OnTick after snapshot restore) by
+    // slicing the aircraft's AssignedTaxiRoute between approach and target.
+    private TaxiRoute? _crossingRoute;
+    private GroundNavigator? _navigator;
     private bool _initialized;
     private double _timeSinceLastLog;
 
@@ -38,34 +51,16 @@ public sealed class CrossingRunwayPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var node))
-        {
-            // Offset ½ aircraft length past the target node so the tail clears the runway edge.
-            double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
-            double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
-
-            if (ctx.GroundLayout.Nodes.TryGetValue(_approachNodeId, out var approachNode))
-            {
-                var vn = VirtualNode.OffsetPast(ctx.GroundLayout, node, approachNode, halfLengthNm);
-                _targetLat = vn.Position.Lat;
-                _targetLon = vn.Position.Lon;
-            }
-            else
-            {
-                _targetLat = node.Position.Lat;
-                _targetLon = node.Position.Lon;
-            }
-
-            _initialized = true;
-        }
-
-        double crossSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
-        ctx.Targets.TargetSpeed = crossSpeed;
         ctx.Aircraft.IsOnGround = true;
+        ctx.Targets.TargetSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+
+        TryBuildCrossingRoute(ctx);
 
         Log.LogDebug(
-            "[Crossing] {Callsign}: crossing runway, target nodeId={NodeId}, initialized={Init}",
+            "[Crossing] {Callsign}: crossing runway {Rwy}, approach={Approach}, target={Target}, initialized={Init}",
             ctx.Aircraft.Callsign,
+            _runwayId ?? "?",
+            _approachNodeId,
             _targetNodeId,
             _initialized
         );
@@ -75,7 +70,7 @@ public sealed class CrossingRunwayPhase : Phase
     {
         if (!_initialized)
         {
-            return true;
+            TryBuildCrossingRoute(ctx);
         }
 
         if (ctx.Aircraft.Ground.IsImmobile)
@@ -84,34 +79,52 @@ public sealed class CrossingRunwayPhase : Phase
             return false;
         }
 
-        double crossSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
-
-        // Accelerate to crossing speed
-        double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-        if (ctx.Aircraft.IndicatedAirspeed < crossSpeed)
+        if (!_initialized || _navigator is null || _crossingRoute is null)
         {
-            ctx.Aircraft.IndicatedAirspeed = Math.Min(crossSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
+            // Degenerate fallback: no route slice available. Stop where we are
+            // so the next phase can take over (or be inserted) without driving
+            // the aircraft anywhere by guesswork. Should only happen if the
+            // phase is constructed in a test without an AssignedTaxiRoute.
+            ctx.Targets.TargetSpeed = 0;
+            return true;
         }
 
-        // Turn toward target
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
+        bool isLastSegment = _crossingRoute.CurrentSegmentIndex + 1 >= _crossingRoute.Segments.Count;
+        var result = _navigator.Tick(ctx, isLastSegment, _ => true);
 
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
-
-        // Check arrival
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
-
-        if (dist <= ArrivalThresholdNm)
+        if (result == NavigatorResult.ArrivedAtNode)
         {
-            return true;
+            if (_crossingRoute.CurrentSegment is { } seg)
+            {
+                ctx.Aircraft.Ground.CurrentTaxiway = seg.TaxiwayName;
+            }
+
+            int extraAdvance = _navigator.ExtraSegmentsToAdvance;
+            _crossingRoute.CurrentSegmentIndex += 1 + extraAdvance;
+            if (_crossingRoute.CurrentSegmentIndex > _crossingRoute.Segments.Count)
+            {
+                _crossingRoute.CurrentSegmentIndex = _crossingRoute.Segments.Count;
+            }
+
+            if (_crossingRoute.IsComplete)
+            {
+                return true;
+            }
+
+            _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
         }
 
         _timeSinceLastLog += ctx.DeltaSeconds;
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            Log.LogTrace("[Crossing] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts", ctx.Aircraft.Callsign, dist, ctx.Aircraft.GroundSpeed);
+            Log.LogTrace(
+                "[Crossing] {Callsign}: seg={Idx}/{Count} gs={Gs:F1}kts",
+                ctx.Aircraft.Callsign,
+                _crossingRoute.CurrentSegmentIndex,
+                _crossingRoute.Segments.Count,
+                ctx.Aircraft.GroundSpeed
+            );
         }
 
         return false;
@@ -138,6 +151,102 @@ public sealed class CrossingRunwayPhase : Phase
         };
     }
 
+    /// <summary>
+    /// Slice <see cref="AircraftGroundState.AssignedTaxiRoute"/> between the
+    /// entry- and exit-side hold-short nodes, append a virtual tail-clearance
+    /// node ½ aircraft length past the exit, and hand the result to a new
+    /// <see cref="GroundNavigator"/>. Idempotent — only builds the navigator
+    /// once per phase instance.
+    /// </summary>
+    private void TryBuildCrossingRoute(PhaseContext ctx)
+    {
+        if (_initialized || ctx.GroundLayout is null)
+        {
+            return;
+        }
+
+        var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        if (route is null || route.Segments.Count == 0)
+        {
+            return;
+        }
+
+        // Find the slice [entryIdx..exitIdx] in the existing route:
+        //   entryIdx: first segment whose FromNodeId == _approachNodeId
+        //   exitIdx:  first segment at or after entryIdx whose ToNodeId == _targetNodeId
+        int entryIdx = -1;
+        int exitIdx = -1;
+        for (int i = 0; i < route.Segments.Count; i++)
+        {
+            var seg = route.Segments[i];
+            if (entryIdx < 0 && seg.FromNodeId == _approachNodeId)
+            {
+                entryIdx = i;
+            }
+            if (entryIdx >= 0 && seg.ToNodeId == _targetNodeId)
+            {
+                exitIdx = i;
+                break;
+            }
+        }
+
+        if (entryIdx < 0 || exitIdx < 0)
+        {
+            Log.LogWarning(
+                "[Crossing] {Callsign}: could not slice crossing segments from route (approach={Approach}, target={Target}, segments={Count})",
+                ctx.Aircraft.Callsign,
+                _approachNodeId,
+                _targetNodeId,
+                route.Segments.Count
+            );
+            return;
+        }
+
+        var slice = new List<TaxiRouteSegment>(capacity: exitIdx - entryIdx + 2);
+        for (int i = entryIdx; i <= exitIdx; i++)
+        {
+            slice.Add(route.Segments[i]);
+        }
+
+        // Append a virtual past-target segment for tail clearance (½ aircraft length).
+        if (ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var targetNode))
+        {
+            double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
+            double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+
+            GroundNode? approachForOffset = null;
+            if (ctx.GroundLayout.Nodes.TryGetValue(slice[^1].FromNodeId, out var prevNode))
+            {
+                approachForOffset = prevNode;
+            }
+            else if (ctx.GroundLayout.Nodes.TryGetValue(_approachNodeId, out var apNode))
+            {
+                approachForOffset = apNode;
+            }
+
+            if (approachForOffset is not null)
+            {
+                var virtualTarget = VirtualNode.OffsetPast(ctx.GroundLayout, targetNode, approachForOffset, halfLengthNm);
+                slice.Add(VirtualNode.CreateSegment(targetNode, virtualTarget, slice[^1].TaxiwayName));
+            }
+        }
+
+        _crossingRoute = new TaxiRoute { Segments = slice, HoldShortPoints = [] };
+
+        double maxSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed };
+        _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
+
+        _initialized = true;
+
+        Log.LogDebug(
+            "[Crossing] {Callsign}: crossing route built, {SegCount} segments, maxSpeed={Speed:F0}kts",
+            ctx.Aircraft.Callsign,
+            slice.Count,
+            maxSpeed
+        );
+    }
+
     public override PhaseDto ToSnapshot() =>
         new CrossingRunwayPhaseDto
         {
@@ -147,22 +256,28 @@ public sealed class CrossingRunwayPhase : Phase
             ApproachNodeId = _approachNodeId,
             TargetNodeId = _targetNodeId,
             CrossingRunwayId = _runwayId,
-            TargetLat = _targetLat,
-            TargetLon = _targetLon,
             Initialized = _initialized,
             TimeSinceLastLog = _timeSinceLastLog,
+            Navigator = _navigator?.ToSnapshot(),
+            CrossingRouteSegmentIndex = _crossingRoute?.CurrentSegmentIndex ?? 0,
         };
 
     public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto)
     {
         var phase = new CrossingRunwayPhase(dto.ApproachNodeId, dto.TargetNodeId, dto.CrossingRunwayId);
-        phase._targetLat = dto.TargetLat;
-        phase._targetLon = dto.TargetLon;
-        phase._initialized = dto.Initialized;
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
+        // Leave _initialized=false so the first OnTick rebuilds the
+        // navigator + route slice from the restored AssignedTaxiRoute.
+        // dto.Navigator / dto.CrossingRouteSegmentIndex are forward-compat
+        // placeholders; the rebuilt slice is canonical because the route
+        // (and the airport layout) are what FromSnapshot can actually
+        // resolve at restore time.
+        _ = dto.Initialized;
+        _ = dto.Navigator;
+        _ = dto.CrossingRouteSegmentIndex;
         return phase;
     }
 }

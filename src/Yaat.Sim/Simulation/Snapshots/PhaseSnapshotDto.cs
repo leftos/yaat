@@ -256,8 +256,6 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
 {
     public required int ApproachNodeId { get; init; }
     public required int TargetNodeId { get; init; }
-    public required double TargetLat { get; init; }
-    public required double TargetLon { get; init; }
     public required bool Initialized { get; init; }
     public required double TimeSinceLastLog { get; init; }
 
@@ -267,6 +265,21 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
     /// back to AssignedRunway in that case (legacy display behaviour).
     /// </summary>
     public string? CrossingRunwayId { get; init; }
+
+    /// <summary>
+    /// Navigator state for the slice between approach and target. Non-required so
+    /// older snapshots default to null; <see cref="CrossingRunwayPhase.FromSnapshot"/>
+    /// rebuilds the navigator from <see cref="AircraftGroundState.AssignedTaxiRoute"/>
+    /// on the first OnTick after restore. Carrying the navigator state forward is a
+    /// future optimization — the rebuilt slice is canonical today.
+    /// </summary>
+    public GroundNavigatorDto? Navigator { get; init; }
+
+    /// <summary>
+    /// Index into the rebuilt crossing slice; forward-compat placeholder for the same
+    /// reason as <see cref="Navigator"/>. Defaults to 0 for legacy snapshots.
+    /// </summary>
+    public int CrossingRouteSegmentIndex { get; init; }
 }
 
 public sealed class AirTaxiPhaseDto : PhaseDto
