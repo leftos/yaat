@@ -676,7 +676,7 @@ public static class SegmentExpander
             AuthorizedTaxiways = null,
         };
 
-        var (route, failure) = AutoRouter.Run(detourCtx);
+        var (route, failure) = AutoRouter.Run(detourCtx, startOverride: head);
         if (failure is not null || route is null)
         {
             return (
@@ -940,7 +940,7 @@ public static class SegmentExpander
             AuthorizedTaxiways = null,
         };
 
-        var (route, _) = AutoRouter.Run(detourCtx);
+        var (route, _) = AutoRouter.Run(detourCtx, startOverride: head);
         if (route is null)
         {
             return (null, null);
@@ -992,7 +992,7 @@ public static class SegmentExpander
             }
 
             var detourCtx = BuildDetourContext(ctx, head.HeadNodeId, entryNode.Id);
-            var (route, _) = RunBoundedDetour(detourCtx);
+            var (route, _) = RunBoundedDetour(detourCtx, head);
 
             if (route is not null)
             {
@@ -1040,11 +1040,13 @@ public static class SegmentExpander
     }
 
     /// <summary>
-    /// Run a bounded AutoRouter detour search with a limited expansion budget.
+    /// Run a bounded AutoRouter detour search. Passes the prior segment's <paramref name="priorHead"/>
+    /// as the AutoRouter start so admissibility fires on the detour's first edge — without this,
+    /// the detour can pick a first edge that U-turns against the aircraft's existing heading.
     /// </summary>
-    private static (TaxiRoute? Route, PathfindingFailure? Failure) RunBoundedDetour(SearchContext ctx)
+    private static (TaxiRoute? Route, PathfindingFailure? Failure) RunBoundedDetour(SearchContext ctx, PartialRoute priorHead)
     {
-        return AutoRouter.Run(ctx);
+        return AutoRouter.Run(ctx, startOverride: priorHead);
     }
 
     // -----------------------------------------------------------------------
@@ -1073,7 +1075,7 @@ public static class SegmentExpander
             AuthorizedTaxiways = null,
         };
 
-        var (route, failure) = AutoRouter.Run(extCtx);
+        var (route, failure) = AutoRouter.Run(extCtx, startOverride: head);
         if (failure is not null || route is null)
         {
             return (

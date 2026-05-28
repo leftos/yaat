@@ -33,20 +33,24 @@ public sealed record PartialRoute(
 
     /// <summary>
     /// Walk the <see cref="Previous"/> linked list and produce a flat forward-ordered
-    /// list of <see cref="DirectionalEdge"/> for materialisation.
+    /// list of <see cref="DirectionalEdge"/> for materialisation. When
+    /// <paramref name="baseDepth"/> is &gt; 0, only edges added beyond that depth are
+    /// emitted — used by <see cref="AutoRouter"/> when invoked with a
+    /// <c>startOverride</c> so the caller's prior history isn't duplicated into the
+    /// returned route.
     /// </summary>
-    public List<DirectionalEdge> MaterialiseEdges()
+    public List<DirectionalEdge> MaterialiseEdges(int baseDepth = 0)
     {
-        int depth = Depth;
-        if (depth == 0)
+        int sliceCount = Depth - baseDepth;
+        if (sliceCount <= 0)
         {
             return [];
         }
 
-        var result = new DirectionalEdge[depth];
+        var result = new DirectionalEdge[sliceCount];
         var current = this;
 
-        for (int i = depth - 1; i >= 0; i--)
+        for (int i = sliceCount - 1; i >= 0; i--)
         {
             var layout = current!;
             var edge = layout.LastEdge!;

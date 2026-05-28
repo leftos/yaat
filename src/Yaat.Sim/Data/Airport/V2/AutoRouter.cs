@@ -16,7 +16,15 @@ public static class AutoRouter
     /// in <see cref="SearchContext.Destination"/>. Returns either the materialised route
     /// or a structured failure.
     /// </summary>
-    public static (TaxiRoute? Route, PathfindingFailure? Failure) Run(SearchContext ctx)
+    /// <param name="startOverride">
+    /// Optional pre-built starting <see cref="PartialRoute"/>. When provided, A* begins
+    /// from this route's state — including its <c>LastEdge</c> and <c>ArrivalBearing</c> —
+    /// so geometric admissibility fires on the first expanded edge. Used by
+    /// <see cref="SegmentExpander"/>'s detour fallback to inherit the prior segment's
+    /// heading. When null, A* starts cold from <see cref="SearchContext.StartNodeId"/>
+    /// with no arrival-bearing constraint (the first edge is admitted unconditionally).
+    /// </param>
+    public static (TaxiRoute? Route, PathfindingFailure? Failure) Run(SearchContext ctx, PartialRoute? startOverride = null)
     {
         if (ctx.Destination.Kind == DestinationKind.EndOfLastTaxiway)
         {
@@ -90,11 +98,16 @@ public static class AutoRouter
             return (emptyRoute, null);
         }
 
-        var result = RunAstar(ctx, startNode, destinationNode);
+        var result = RunAstar(ctx, startNode, destinationNode, startOverride);
         return result;
     }
 
-    private static (TaxiRoute? Route, PathfindingFailure? Failure) RunAstar(SearchContext ctx, GroundNode startNode, GroundNode destinationNode)
+    private static (TaxiRoute? Route, PathfindingFailure? Failure) RunAstar(
+        SearchContext ctx,
+        GroundNode startNode,
+        GroundNode destinationNode,
+        PartialRoute? startOverride
+    )
     {
         // Priority queue: (PartialRoute, fScore). .NET 6+ PriorityQueue<TElement, TPriority>.
         var openSet = new PriorityQueue<PartialRoute, double>();
@@ -108,12 +121,17 @@ public static class AutoRouter
         int expansions = 0;
         PartialRoute? deepestViable = null;
 
-        var startRoute = PartialRoute.StartAt(ctx.StartNodeId);
+        // When startOverride is provided, inherit its LastEdge + ArrivalBearing so the first
+        // expansion goes through GeometricAdmissibility against the prior heading. Otherwise
+        // the search starts cold (admissibility skips the first edge).
+        var startRoute = startOverride ?? PartialRoute.StartAt(ctx.StartNodeId);
         double startHeuristic = RouteCostFunction.Heuristic(startNode, destinationNode);
-        bestGScore[ctx.StartNodeId] = 0.0;
-        openSet.Enqueue(startRoute, startHeuristic);
+        bestGScore[startRoute.HeadNodeId] = startRoute.AccumulatedCost;
+        openSet.Enqueue(startRoute, startRoute.AccumulatedCost + startHeuristic);
 
-        ctx.DiagnosticLog?.Invoke($"[v2:auto] start node={ctx.StartNodeId}  dest node={destinationNode.Id}  h0={startHeuristic:F3}");
+        ctx.DiagnosticLog?.Invoke(
+            $"[v2:auto] start node={startRoute.HeadNodeId}  dest node={destinationNode.Id}  h0={startHeuristic:F3}  arrival={startRoute.ArrivalBearing:F1}  hasPrior={startRoute.LastEdge is not null}"
+        );
 
         while (openSet.Count > 0)
         {
@@ -151,11 +169,13 @@ public static class AutoRouter
             // Destination check.
             if (IsAtDestination(current.HeadNodeId, destinationNode, ctx))
             {
+                int baseDepth = startOverride?.Depth ?? 0;
+                int newEdgeCount = current.Depth - baseDepth;
                 ctx.DiagnosticLog?.Invoke(
-                    $"[v2:auto] SUCCESS edges={current.Depth}  total_cost={current.AccumulatedCost:F3}  expansions={expansions}"
+                    $"[v2:auto] SUCCESS edges={newEdgeCount}  total_cost={current.AccumulatedCost:F3}  expansions={expansions}"
                 );
 
-                var edges = current.MaterialiseEdges();
+                var edges = current.MaterialiseEdges(baseDepth);
                 var route = RouteMaterialiser.Materialise(edges, ctx);
                 return (route, null);
             }
