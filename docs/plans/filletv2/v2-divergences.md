@@ -17,21 +17,29 @@ Implemented under `src/Yaat.Sim/Data/Airport/`: `IFilletArcGenerator`, `FilletMo
 | V2 `NotImplementedException` message | **Fixed** | Single clear sentence |
 | LayoutInspector `--fillet` / `--fillet-diff` | **Open** | Step 4 |
 
-## Step 2 harness gaps (before step 4 parity declaration)
-
-Must land in `FilletComparison` (or dedicated validators) before declaring V2 ready — not blockers for step 3 implementation.
+## Step 2 harness gaps (step 3f)
 
 | Gap | Status | Notes |
 |-----|--------|-------|
-| Corner-bucket min-radius diff | **Open** | Consensus: `(region, taxiway-pair, bearings ~5°)` → min radius within ±10% Legacy vs V2 |
-| Runway centerline bearing diff | **Open** | Consensus: ±1° per runway centerline segment |
-| Structural validity checks | **Open** | No missing node refs, self-loops, or zero-length edges (all generators) |
-| Connectivity gate wording | **Open** | Harness uses hold-short–seeded BFS reachability set equality; consensus also mentions parking → hold-short BFS — pick one (or both) at step 4 |
-| `LayoutCloner` `GroundRunway` fields | **Open** | Clone copies `Name`, `Coordinates`, `WidthFt` only; omits `TurnoffByEnd`, `PatternAltitudeAglFt`, `PatternSizeNm`, `NoTurnoffByEnd`. OK for fillet compare; document as fillet-scoped or extend clone if reused elsewhere |
+| Corner-bucket min-radius diff | **Fixed (soft)** | `FilletComparisonGates` ±10% bucket compare; triage in airport sections below |
+| Runway centerline bearing diff | **Fixed (soft)** | Indexed; not hard-fail in `Compare_LegacyVsV2_MeetsHardGates` |
+| Structural validity checks | **Fixed** | `ValidateStructural` on all generators |
+| Connectivity gates | **Fixed (metric)** | Stable pre-fillet node IDs reachable from hold shorts + parking→hold-short set equality |
+| `LayoutCloner` `GroundRunway` fields | **Open** | Fillet-scoped clone; extend if reused outside fillet compare |
 
-## Parity runs
+## Parity runs (3f)
 
-V2 is **runnable** (step 3e). OAK/SFO/FLL comparison runs are step **3f** — not started yet.
+V2 is **runnable** (step 3e). Pass **6** adds plan ops (`ArmBypassOp`, `StraightConnectorOp`, `ReconnectEdgeOp`) — see [`v2-pass-6-connectivity-ops.md`](./v2-pass-6-connectivity-ops.md).
+
+`Compare_LegacyVsV2_MeetsHardGates` **fails** OAK/SFO/FLL as expected until the planner contract is complete. Do not patch execute/normalizer to green the test.
+
+| Airport | V2 structural | Hold-short stable match | Parking match | Notes |
+|---------|---------------|-------------------------|---------------|-------|
+| FLL | FAIL (missing node refs on some edges) | 21 only-legacy | OK | After pass-6 execute; investigate **post-merge edge refs** or missing `TangentChainEdgeOp` |
+| OAK | FAIL (degenerate + missing refs) | 92 only-legacy | FAIL | Merged-cut self-edges reduced; gaps remain |
+| SFO | FAIL (degenerate self-edges) | 113 only-legacy | FAIL | Same class as OAK |
+
+**Next op candidates (name before patching):** `TangentChainEdgeOp` for arc-only tangents after merge; replan after `TangentMergeOp` so straight connectors use survivor cut ids only.
 
 ### Expected comparison deltas (not bugs)
 

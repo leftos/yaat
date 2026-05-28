@@ -7,6 +7,7 @@ internal static class ArmCutResolver
         IReadOnlyList<ArmCutOp> ArmCuts,
         IReadOnlyList<TangentMergeOp> TangentMerges,
         IReadOnlyList<CornerArcOp> CornerArcs,
+        IReadOnlyList<StraightConnectorOp> StraightConnectors,
         IReadOnlyList<PlanWarning> Warnings,
         IReadOnlyList<CornerSpec> SurvivingCorners
     );
@@ -16,7 +17,7 @@ internal static class ArmCutResolver
         var warnings = new List<PlanWarning>();
         if (junction.Corners.Count == 0)
         {
-            return new JunctionCutResult(new Dictionary<int, ResolvedArmCut>(), [], [], [], warnings, []);
+            return new JunctionCutResult(new Dictionary<int, ResolvedArmCut>(), [], [], [], [], warnings, []);
         }
 
         var armsById = junction.Arms.ToDictionary(a => a.Id);
@@ -187,7 +188,30 @@ internal static class ArmCutResolver
 
         var merges = SharedArmTangentPass.ApplyIntraArmCoalesce(junction, cuts, warnings);
 
-        return new JunctionCutResult(cuts, armCutOps, merges, cornerArcs, warnings, surviving);
+        var arcCornerIds = cornerArcs.Select(a => a.CornerId).ToHashSet();
+        var straightConnectors = new List<StraightConnectorOp>();
+        foreach (var corner in activeCorners)
+        {
+            if (arcCornerIds.Contains(corner.CornerId))
+            {
+                continue;
+            }
+
+            if (!cornerToCutA.TryGetValue(corner.CornerId, out int cutA) || !cornerToCutB.TryGetValue(corner.CornerId, out int cutB))
+            {
+                continue;
+            }
+
+            if (cutA == cutB)
+            {
+                continue;
+            }
+
+            string twy = corner.EdgeA.SharesTaxiway(corner.EdgeB) ? corner.EdgeA.TaxiwayName : corner.EdgeA.TaxiwayName;
+            straightConnectors.Add(new StraightConnectorOp(junction.JunctionNodeId, corner.CornerId, cutA, cutB, twy));
+        }
+
+        return new JunctionCutResult(cuts, armCutOps, merges, cornerArcs, straightConnectors, warnings, surviving);
     }
 
     private static List<double> CoalescePositions(List<double> sorted)

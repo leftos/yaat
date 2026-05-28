@@ -57,7 +57,7 @@ public sealed class FilletArcGeneratorV2 : IFilletArcGenerator
             cutResults.Add(cutResult);
         }
 
-        var plan = FilletPlanBuilder.Build(junctionPlans, cutResults);
+        var plan = FilletPlanBuilder.Build(layout, junctionPlans, cutResults);
         var exec = FilletPlanExecutor.Execute(layout, plan, junctionPlans, idCounter);
         int coincidentMerged = FilletGraphNormalizer.Normalize(layout);
 

@@ -35,6 +35,10 @@ internal static class FilletPlanExecutor
             .GroupBy(a => cornerToJunction[a.CornerId])
             .ToDictionary(g => g.Key, g => g.ToList());
 
+        var straightByJunction = plan.StraightConnectors.GroupBy(s => s.JunctionNodeId).ToDictionary(g => g.Key, g => g.ToList());
+        var bypassByJunction = plan.ArmBypasses.GroupBy(b => b.JunctionNodeId).ToDictionary(g => g.Key, g => g.ToList());
+        var reconnectByJunction = plan.ReconnectEdges.GroupBy(r => r.JunctionNodeId).ToDictionary(g => g.Key, g => g.ToList());
+
         foreach (var junction in junctionPlans)
         {
             if (!layout.Nodes.ContainsKey(junction.JunctionNodeId))
@@ -96,7 +100,11 @@ internal static class FilletPlanExecutor
                     foreach (var cut in armCuts)
                     {
                         var tan = cutToNode[ResolveCutId(cut.CutId, mergeRedirect)];
-                        AddEdge(layout, prev, tan, root.TaxiwayName, root.IsRunwayCenterline, junction.JunctionNodeId, "arm-sub");
+                        if (prev.Id != tan.Id)
+                        {
+                            AddEdge(layout, prev, tan, root.TaxiwayName, root.IsRunwayCenterline, junction.JunctionNodeId, "arm-sub");
+                        }
+
                         prev = tan;
                     }
 
@@ -151,6 +159,21 @@ internal static class FilletPlanExecutor
                 arcsCreated++;
             }
 
+            if (straightByJunction.TryGetValue(junction.JunctionNodeId, out var straightOps))
+            {
+                foreach (var op in straightOps)
+                {
+                    var tanA = cutToNode[ResolveCutId(op.CutIdAtArmA, mergeRedirect)];
+                    var tanB = cutToNode[ResolveCutId(op.CutIdAtArmB, mergeRedirect)];
+                    if (tanA.Id == tanB.Id)
+                    {
+                        continue;
+                    }
+
+                    AddEdge(layout, tanA, tanB, op.TaxiwayName, false, junction.JunctionNodeId, "straight-connector");
+                }
+            }
+
             if (junction.PreserveNode)
             {
                 var armsWithCuts = junctionCuts.Select(c => c.ArmId).ToHashSet();
@@ -199,6 +222,58 @@ internal static class FilletPlanExecutor
                         var other = arm.RootEdge.OtherNode(node);
                         AddEdge(layout, node, other, arm.TaxiwayName, false, junction.JunctionNodeId, "preserve");
                         consumed.Add(arm.RootEdge);
+                    }
+                }
+            }
+
+            if (bypassByJunction.TryGetValue(junction.JunctionNodeId, out var bypassOps))
+            {
+                foreach (var op in bypassOps)
+                {
+                    var arm = junction.Arms.First(a => a.Id == op.ArmId);
+                    consumed.Add(arm.RootEdge);
+                    var remote = layout.Nodes[op.RemoteNodeId];
+                    var terminal = layout.Nodes[op.TerminalNodeId];
+                    AddEdge(layout, remote, terminal, op.TaxiwayName, op.IsRunwayCenterline, junction.JunctionNodeId, "arm-bypass");
+                }
+            }
+
+            if (reconnectByJunction.TryGetValue(junction.JunctionNodeId, out var reconnectOps))
+            {
+                foreach (var op in reconnectOps)
+                {
+                    var other = layout.Nodes[op.OtherNodeId];
+                    GroundNode target = op.TargetCutId is int cutId ? cutToNode[ResolveCutId(cutId, mergeRedirect)] : node;
+
+                    AddEdge(layout, other, target, op.TaxiwayName, op.IsRunwayCenterline, junction.JunctionNodeId, "reconnect");
+
+                    foreach (var edge in layout.Edges)
+                    {
+                        if (consumed.Contains(edge))
+                        {
+                            continue;
+                        }
+
+                        bool touches =
+                            (edge.Nodes[0].Id == node.Id && edge.Nodes[1].Id == other.Id)
+                            || (edge.Nodes[1].Id == node.Id && edge.Nodes[0].Id == other.Id);
+                        if (touches)
+                        {
+                            consumed.Add(edge);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            foreach (var edge in layout.Edges)
+            {
+                if (plan.EdgesToRemove.Contains(edge))
+                {
+                    bool touches = (edge.Nodes[0].Id == node.Id) || (edge.Nodes[1].Id == node.Id);
+                    if (touches)
+                    {
+                        consumed.Add(edge);
                     }
                 }
             }

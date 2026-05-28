@@ -106,7 +106,7 @@ public class ArmCutResolverTests
         int nextCutId = 1;
         var r1 = ArmCutResolver.Resolve(jp1, ref nextCutId);
         var r2 = ArmCutResolver.Resolve(jp2, ref nextCutId);
-        var plan = FilletPlanBuilder.Build([jp1, jp2], [r1, r2]);
+        var plan = FilletPlanBuilder.Build(layout, [jp1, jp2], [r1, r2]);
 
         Assert.Contains(plan.Warnings, w => w.Code == PlanWarning.SharedArmScaled);
         Assert.NotEmpty(plan.TangentMerges);

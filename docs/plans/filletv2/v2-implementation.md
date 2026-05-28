@@ -282,6 +282,7 @@ LayoutInspector (step 4): `--fillet=none|legacy|v2`, `--fillet-diff <airport>`.
 | **3d** | `ArmCutResolver`, `SharedArmTangentPass`, `FilletPlan`/`FilletPlanBuilder`, `PlanWarning` + resolver unit tests | No |
 | **3e** | `FilletPlanExecutor`, wire `FilletArcGeneratorV2.Apply`, V2 in `Registry.All`, `FilletStatistics.Warnings` | **V2 runnable** |
 | **3f** | Extend `FilletComparison`, OAK/SFO/FLL parity, tune thresholds, triage divergences | Legacy default |
+| **3f-pass6** | Plan connectivity ops (`ArmBypassOp`, `StraightConnectorOp`, `ReconnectEdgeOp`); literal execute; harness hard-fail surfaces planner gaps | See [`v2-pass-6-connectivity-ops.md`](./v2-pass-6-connectivity-ops.md) |
 | **4** | LayoutInspector fillet flags | Tooling |
 | **5** | Aviation review; default `V2`; delete `FilletArcGenerator.cs`, `LegacyFilletArcGenerator.cs`, `FilletProvenance.cs` | V2 default |
 
