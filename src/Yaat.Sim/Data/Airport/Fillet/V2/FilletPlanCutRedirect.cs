@@ -61,50 +61,6 @@ internal static class FilletPlanCutRedirect
         }
     }
 
-    public static HashSet<int> CollectReferencedCutIds(FilletPlan plan)
-    {
-        var ids = new HashSet<int>();
-        foreach (var op in plan.ArmChainEdges)
-        {
-            if (op.FromCutId is int from)
-            {
-                ids.Add(from);
-            }
-
-            if (op.ToCutId is int to)
-            {
-                ids.Add(to);
-            }
-        }
-
-        foreach (var op in plan.CornerArcs)
-        {
-            ids.Add(op.CutIdAtArmA);
-            ids.Add(op.CutIdAtArmB);
-        }
-
-        foreach (var op in plan.StraightConnectors)
-        {
-            ids.Add(op.CutIdAtArmA);
-            ids.Add(op.CutIdAtArmB);
-        }
-
-        foreach (var op in plan.ReconnectEdges)
-        {
-            if (op.TargetCutId is int target)
-            {
-                ids.Add(target);
-            }
-        }
-
-        foreach (var op in plan.PreserveStubs)
-        {
-            ids.Add(op.CutId);
-        }
-
-        return ids;
-    }
-
     public static Dictionary<int, int> BuildSurvivorMap(IReadOnlyList<TangentMergeOp> merges)
     {
         var parent = new Dictionary<int, int>();
@@ -169,27 +125,5 @@ internal static class FilletPlanCutRedirect
                 o.TaxiwayName
             ))
             .Where(o => o.CutIdAtArmA != o.CutIdAtArmB)
-            .ToList();
-
-    public static IReadOnlyList<ArmChainEdgeOp> RedirectArmChainEdges(IReadOnlyList<ArmChainEdgeOp> ops, IReadOnlyDictionary<int, int> redirect) =>
-        ops.Select(o => new ArmChainEdgeOp(
-                o.JunctionNodeId,
-                o.ArmId,
-                o.FromCutId is int fc ? Resolve(fc, redirect) : null,
-                o.ToCutId is int tc ? Resolve(tc, redirect) : null,
-                o.TerminalNodeId,
-                o.FromStableNodeId,
-                o.TaxiwayName,
-                o.IsRunwayCenterline
-            ))
-            .Where(o => o.FromCutId is null || o.ToCutId is null || o.FromCutId != o.ToCutId)
-            .ToList();
-
-    public static IReadOnlyList<ReconnectEdgeOp> RedirectReconnectEdges(IReadOnlyList<ReconnectEdgeOp> ops, IReadOnlyDictionary<int, int> redirect) =>
-        ops.Select(o =>
-            {
-                int? target = o.TargetCutId is int id ? Resolve(id, redirect) : null;
-                return o with { TargetCutId = target };
-            })
             .ToList();
 }
