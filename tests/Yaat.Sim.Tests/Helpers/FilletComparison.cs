@@ -19,6 +19,7 @@ public sealed record FilletComparisonReport(
     int ArcCountDelta,
     int NodeCountDelta,
     bool ConnectivityMatch,
+    FilletComparisonGateReport Gates,
     string Summary
 );
 
@@ -36,7 +37,8 @@ public static class FilletComparison
         }
 
         var runs = new List<FilletRunResult>(generators.Count);
-        var filletedReachability = new List<HashSet<int>>(generators.Count);
+        var gatesByGeneratorId = new Dictionary<string, FilletGateResults>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var generator in generators)
         {
             var layout = LayoutCloner.DeepClone(preFilletLayout);
@@ -44,7 +46,7 @@ public static class FilletComparison
             var stats = generator.Apply(layout);
             sw.Stop();
 
-            filletedReachability.Add(ReachableFromHoldShorts(layout));
+            gatesByGeneratorId[generator.Id] = FilletComparisonGates.Evaluate(preFilletLayout, layout, stats);
             runs.Add(
                 new FilletRunResult(
                     generator.Id,
@@ -63,14 +65,15 @@ public static class FilletComparison
         int minNodes = runs.Min(r => r.NodeCount);
         int maxNodes = runs.Max(r => r.NodeCount);
 
-        bool connectivityMatch = runs.Count <= 1 || filletedReachability.All(set => set.SetEquals(filletedReachability[0]));
+        var gateReport = FilletComparisonGates.CompareGenerators(gatesByGeneratorId);
+        bool connectivityMatch = gateReport.HoldShortConnectivityMatch;
 
         string summary =
             runs.Count == 1
                 ? $"{runs[0].GeneratorId}: {runs[0].ArcCount} arcs, {runs[0].NodeCount} nodes"
                 : string.Join("; ", runs.Select(r => $"{r.GeneratorId}: {r.ArcCount} arcs, {r.NodeCount} nodes"));
 
-        return new FilletComparisonReport(runs, maxArcs - minArcs, maxNodes - minNodes, connectivityMatch, summary);
+        return new FilletComparisonReport(runs, maxArcs - minArcs, maxNodes - minNodes, connectivityMatch, gateReport, summary);
     }
 
     public static string FormatReport(FilletComparisonReport report)
@@ -79,7 +82,7 @@ public static class FilletComparison
         sb.AppendLine(report.Summary);
         sb.AppendLine($"  Arc count delta: {report.ArcCountDelta}");
         sb.AppendLine($"  Node count delta: {report.NodeCountDelta}");
-        sb.AppendLine($"  Hold-short reachability match: {report.ConnectivityMatch}");
+        FilletComparisonGates.AppendGateReport(sb, report);
         foreach (var run in report.Runs)
         {
             sb.AppendLine(
@@ -89,6 +92,20 @@ public static class FilletComparison
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    public static bool V2MeetsHardGates(FilletComparisonReport report)
+    {
+        var v2Run = report.Runs.FirstOrDefault(r => r.GeneratorId == "v2");
+        if (v2Run is null || !report.Gates.GatesByGeneratorId.TryGetValue("v2", out var v2Gates))
+        {
+            return false;
+        }
+
+        return v2Gates.Structural.IsValid
+            && v2Gates.RepairCountersZero
+            && report.Gates.HoldShortConnectivityMatch
+            && report.Gates.ParkingConnectivityMatch;
     }
 
     private static Dictionary<GroundNodeType, int> CountNodesByType(AirportGroundLayout layout)
@@ -101,44 +118,5 @@ public static class FilletComparison
         }
 
         return counts;
-    }
-
-    private static HashSet<int> ReachableFromHoldShorts(AirportGroundLayout layout)
-    {
-        var seeds = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).Select(n => n.Id).ToList();
-        if (seeds.Count == 0)
-        {
-            return layout.Nodes.Keys.ToHashSet();
-        }
-
-        var reachable = new HashSet<int>();
-        var queue = new Queue<int>();
-        foreach (int seed in seeds)
-        {
-            if (reachable.Add(seed))
-            {
-                queue.Enqueue(seed);
-            }
-        }
-
-        while (queue.Count > 0)
-        {
-            int id = queue.Dequeue();
-            if (!layout.Nodes.TryGetValue(id, out var node))
-            {
-                continue;
-            }
-
-            foreach (var edge in node.Edges)
-            {
-                int otherId = edge.OtherNodeId(id);
-                if (reachable.Add(otherId))
-                {
-                    queue.Enqueue(otherId);
-                }
-            }
-        }
-
-        return reachable;
     }
 }
