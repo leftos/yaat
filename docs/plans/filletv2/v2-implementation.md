@@ -316,3 +316,50 @@ Document every parity difference in [`v2-divergences.md`](./v2-divergences.md).
 
 - Algorithm source: `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` (`PhaseA_ComputeFillets` ~989+, per-pair comment ~998–1001).
 - Tests: `tests/Yaat.Sim.Tests/FilletArcGeneratorTests.cs`, `tests/Yaat.Sim.Tests/Fillet/FilletComparisonTests.cs`.
+
+---
+
+## Connectivity rewrite (post rounds 1–14)
+
+The geometry layer (`TaxiwayArmBuilder`, `JunctionClassifier`, `CornerPlanner`, `ArmCutResolver`, `FilletGeometry`) is sound and stays. The **connectivity/execution layer** — `FilletPlanExecutor` edge construction plus the pass-6 `FilletArmChainPlanner` / `FilletConnectivityPlanner` reconnect/bypass/side-branch passes — is being rewritten. The pass-6 work drifted back into per-junction walk reconstruction with order-dependent node removal: exactly the legacy pathology V2 set out to kill.
+
+### Known hard cases (learnings from rounds 1–14)
+
+These are the cases every connectivity attempt must satisfy. Each one broke a prior round.
+
+1. **Order-independence is the core invariant.** The executor must compute the final surviving node set *before* building any edge, build every edge against that set, and materialize once. The bug class behind every round-9→14 structural failure was *create-then-strip*: an edge built for junction A is later deleted when junction B is removed, or a chain op references a node a later pass deletes. Never remove nodes incrementally inside the per-junction loop; never build an edge whose endpoint can later vanish.
+
+2. **The removal set must be single-sourced.** The executor removed junction nodes on `!PreserveNode`; the planner computed `JunctionNodesToRemove` from a narrower predicate. The two drifted, so the consistency validator accepted ops referencing nodes the executor then deleted → `shorten@J{N} references missing node {N-1}`. There must be exactly one `removedNodes` set, consulted by both planner validation and executor.
+
+3. **Preserved junctions must stay wired to their tangents.** FLL 301, OAK 28/155/305/387, SFO 538/823 all ended isolated (`Node has no edges`) because they were `PreserveNode=true`, their original edges were consumed, and nothing reconnected them to their arc tangents. The `MaxPreserveToCutSpanFt = 5 ft` cap (added to stop one spurious long shortcut) severed every preserved junction whose tangent sat at a normal 50–150 ft distance. A preserved junction connects to the nearest cut on **each** of its arms — no distance cap.
+
+4. **Shared edges between two adjacent filleted junctions connect tangent-to-tangent.** Edge `A—B` where both A and B are filleted: A's cut (toward B) and B's cut (toward A) split it into `[A..cutA] [cutA..cutB] [cutB..B]`. The middle survives as one tangent→tangent sub-edge; the inner stubs are consumed (or become preserve stubs). A removed junction node must **never** appear as an edge endpoint — it is always replaced by its cut tangent on the relevant arm. This is what `SharedArmTangentPass` / `TryResolveSharedJunctionFarCut` approximated incompletely.
+
+5. **Arms overlap.** `TaxiwayWalk` continues through intermediate junctions that have a same-taxiway continuation (it stops only on a same-taxiway branch count ≠ 1). So one taxiway edge can sit on the walk of several junctions' arms. Per-junction walk reconstruction therefore double-emits (J67, J139, J181 all rebuilt the T6 corridor through node 301) and forced the dedup/guard sprawl. The rewrite processes each **original edge once**, splitting it by whatever cuts land on it from any junction — overlap is handled structurally, not by dedup.
+
+6. **Runway-centerline arms** must be split, not consumed, and must not chain through intermediate stable walk steps (an aircraft does not stop at a mid-runway intersection). `IsRunwayCenterline` arms keep their centerline and only receive tangent splits at corners.
+
+7. **Hold-shorts are structurally inviolable.** A `RunwayHoldShort` node must never be left with zero edges; its pre-fillet link to the parent intersection survives fillet unconditionally.
+
+8. **Coincident merges (e.g. SFO 359/887, 2.4 ft apart)** are resolved by redirecting the V2 tangent cut onto the coincident pre-fillet stable (`FilletPlanCutRedirect.ExtendWithStableAnchors`). The merge must not produce a self-loop: after redirect, a `shorten` whose two endpoints both resolve to the survivor (`887→887`) must be dropped before/within the normalizer, and adjacency rebuilt before the isolated-node sweep.
+
+### Rewrite model — global edge-split executor
+
+Returns to the proposal's original §Executor intent ("SplitArmsIntoSubEdges in distance-from-junction order"), done **globally and order-independently** rather than per-junction.
+
+**Precompute (pure):**
+- `removed` = non-preserve filleted junction node ids (single source of truth; executor never recomputes from `!PreserveNode`).
+- `tangentByCut[cutId]` = one GroundNode per surviving cut, after `TangentMerge` + stable-anchor redirect (coincident cut → existing pre-fillet stable node, no new node).
+- `cutsOnEdge[edge]` = cuts whose arm-walk straddling step is that original edge (map each cut to the walk step whose cumulative-distance range contains `DistanceAlongArmFt`).
+- `consumedSteps` per arm = walk steps strictly inside the outermost cut (fully consumed), plus the straddling step (split, inner part consumed).
+
+**Materialize once:**
+1. **Nodes** = preFillet − `removed` + tangent nodes (− merged duplicates).
+2. **Original edges**: for each original edge, split at the cuts on it. Emit each segment between consecutive split points / surviving endpoints as a straight edge, EXCEPT the inner segment adjacent to a filleted junction (dropped if the junction is removed; emitted as a preserve stub if preserved). Fully-consumed steps (inside the outermost cut, no cut on them) are dropped. A removed-junction endpoint is replaced by its cut tangent; if a segment would still reference a removed node, drop + warn.
+3. **Corner arcs**: one `GroundArc` per `CornerArcOp`, `tangent(cutA)`–`tangent(cutB)`, control points from `FilletGeometry.BuildBezier`.
+4. **Straight connectors / collinear-through**: tangent→tangent per op.
+5. **Hold-short safety**: any `RunwayHoldShort` left with zero edges gets its pre-fillet parent link restored.
+6. Set `layout.Edges`/`layout.Arcs`/`layout.Nodes` to the built sets; **no incremental removal**.
+7. **Normalizer**: recompute distances/radii, rebuild adjacency, drop self-loops/degenerate edges, merge 5 ft coincident (backstop), rebuild adjacency **again** before the isolated-intersection sweep (the missing second rebuild is why round-14 self-loops/isolated nodes survived).
+
+Deletes on completion: `FilletArmChainPlanner`, the `ArmChainEdgeOp`/`ReconnectEdgeOp`/`ArmBypassOp` reconnect sprawl, the `MaxPreserveToCutSpanFt`/`MaxHoldShortTangentSpanFt` band-aid caps, and the executor's `!PreserveNode` incremental node deletion.

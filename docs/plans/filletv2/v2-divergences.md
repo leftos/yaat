@@ -35,11 +35,48 @@ V2 is **runnable** (step 3e). Pass **6** adds plan ops (`ArmBypassOp`, `Straight
 
 | Airport | V2 structural | Hold-short stable match | Parking match | Notes |
 |---------|---------------|-------------------------|---------------|-------|
-| FLL | FAIL (missing node refs on some edges) | 21 only-legacy | OK | After pass-6 execute; investigate **post-merge edge refs** or missing `TangentChainEdgeOp` |
-| OAK | FAIL (degenerate + missing refs) | 92 only-legacy | FAIL | Merged-cut self-edges reduced; gaps remain |
-| SFO | FAIL (degenerate self-edges) | 113 only-legacy | FAIL | Same class as OAK |
+| FLL | FAIL (edges ref removed node ids 3–6) | 20 only-legacy | OK | Execute no longer throws; planner gaps remain |
+| OAK | FAIL (degenerate 0 ft edges; edge S refs 203/850) | 50 only-legacy | OK | `NO_OWNING_CUT=1` on at least one spur |
+| SFO | FAIL (degenerate 0 ft edges on taxiway A) | 56 only-legacy | OK | Same degenerate class as OAK |
 
-**Next op candidates (name before patching):** `TangentChainEdgeOp` for arc-only tangents after merge; replan after `TangentMergeOp` so straight connectors use survivor cut ids only.
+### Pass-6 follow-ups (landed)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| `SelectTargetCut` taxiway match only | **Fixed** | No nearest-cut fallback; `PlanWarning(NoOwningCut)` + spur left out of `EdgesToRemove` unless `PreserveNode` |
+| `ArmChainEdgeOp` + merge redirect | **Fixed** | `FilletArmChainPlanner` + `FilletPlanCutRedirect`; `PruneCuts` syncs `CutId` to survivor key; executor keys `cutToNode` by dictionary key |
+| Shared-arm tail to filleted junction | **Fixed** | Chain to far junction near cut via `TryResolveSharedJunctionFarCut`; omit tail when far junction filleted and cuts merged |
+
+**Next planner gaps (name before patching — do not executor-patch):**
+
+| # | Name | Symptom | Notes |
+|---|------|---------|-------|
+| 1 | **`JunctionIncidentEdgeOp`** (or stricter `EdgesToRemove` contract) | Edges ref deleted intersection ids (FLL 3–6; OAK edge S / 203–850) | Every edge incident to `JunctionNodesToRemove` must be in `EdgesToRemove` or replaced before execute. |
+| 1 | **Shared-arm cross-junction** (`TryResolveSharedJunctionFarCut` + empty branch) | 20–56 only-legacy | Connector exists at `FilletArmChainPlanner:64-71` when far cut resolves; **silent no-op at L73-79** when it does not. Tighten match first; `SharedArmConnectorOp` only if needed. See [`claude-response.md`](./claude-response.md). |
+| 2 | **Sub-threshold cut filter in `ArmCutResolver`** | Degenerate self-loops (`V2:shorten@J*`) | Origin decode: shorten dominates. Loops appear **post-normalizer** coincident merge, not same id at `AddEdge`. Fix: do not emit cuts with `DistanceAlongArmFt < CoincidentNodeThresholdFt`. |
+| 3 | **`JunctionIncidentEdgeOp`** | Missing node refs on edges | `EdgesToRemove` completeness. |
+
+**Deferred:** `JunctionPromoteToPreserveOp` (option a) / `DroppedSpurOp` — after gap 1–3 rerun; may be unnecessary if `NoOwningCut` rate drops.
+
+`ArmChainEdgeOp` + merge redirect is **done**.
+
+### Degenerate self-loop decode (OAK/SFO diagnostic)
+
+Run: `FilletDegenerateEdgeDiagnosticTests`.
+
+| Finding | Detail |
+|---------|--------|
+| Dominant `Origin` | **`V2:shorten@J*/{twy}`** — OAK `T 753→753` → `V2:shorten@J149/T`. |
+| Mechanism (corrected) | Cut at very small `DistanceAlongArmFt`; tangent within 5 ft of remote; **`FilletGraphNormalizer.MergeCoincidentNodesDefensive`** after execute rewrites edge to same node. Not same id at executor (`idCounter` allocates fresh tangent). |
+| Fix layer | **`ArmCutResolver`** — filter sub-threshold cuts at creation. Not redirect-time shorten suppress unless resolver insufficient. |
+
+### `NoOwningCut` policy (decision pending implementation)
+
+| Option | Op name | Verdict |
+|--------|---------|---------|
+| (a) Promote junction to preserve | **`JunctionPromoteToPreserveOp`** | **Recommended** — spur uses junction node; no invented taxiway semantics. |
+| (b) Drop spur | **`DroppedSpurOp`** | Traceability only; loses connectivity. |
+| (c) Nearest cut any taxiway | — | **Rejected** (same class as old patchwork). |
 
 ### Expected comparison deltas (not bugs)
 

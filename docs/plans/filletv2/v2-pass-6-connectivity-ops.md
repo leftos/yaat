@@ -119,9 +119,24 @@ Execute in junction loop, in order:
 | Demoted / degenerate corner with cuts | `StraightConnectorOp` with expected cut ids; no `CornerArcOp` |
 | Junction + parking spur | Exactly one `ReconnectEdgeOp(parkingId, targetCutId)`; spur edge in `EdgesToRemove` |
 | Arm with no cuts, J removed | One `ArmBypassOp` per cutless arm |
+| Two adjacent junctions, shared arm merge | `ArmChainEdgeOp` uses survivor cut ids only; no `TerminalNodeId` to removed junction |
 | `FilletPlanBuilder` on synthetic layout | Contract rows 1–3 for built plan |
 
 Execution/layout parity remains `Compare_LegacyVsV2_MeetsHardGates` (expected fail until contract satisfied).
+
+---
+
+## Round 2 planner gaps (post pass-6 follow-up)
+
+See [`v2-divergences.md`](./v2-divergences.md), [`claude-response.md`](./claude-response.md), [`cursor-progress.md`](./cursor-progress.md). **Three** gaps (+ deferred spur policy).
+
+| Priority | Fix | When |
+|----------|-----|------|
+| 1 | Tighten **`TryResolveSharedJunctionFarCut`**; eliminate silent empty branch `FilletArmChainPlanner:73-79` | Cross-junction `lastCut→farCut` already exists when match succeeds |
+| 2 | **`ArmCutResolver`** sub-threshold cut filter (`DistanceAlongArmFt < CoincidentNodeThresholdFt`) | Degenerate `V2:shorten@*` post-normalizer merge |
+| 3 | **`JunctionIncidentEdgeOp`** | Missing node refs |
+| defer | **`JunctionPromoteToPreserveOp`** | After gate rerun; optional if `NoOwningCut` still high |
+| if needed | **`SharedArmConnectorOp`** | Only if (1) does not close reachability |
 
 ---
 

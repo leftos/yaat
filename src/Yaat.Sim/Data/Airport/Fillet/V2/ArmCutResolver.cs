@@ -82,6 +82,19 @@ internal static class ArmCutResolver
             if (!distortedArms.Contains(arm.Id))
             {
                 double dist = candidateFt[arm.Id];
+                if (dist <= FilletConstants.CoincidentNodeThresholdFt)
+                {
+                    dist = FilletConstants.CoincidentNodeThresholdFt + 1.0;
+                    warnings.Add(
+                        new PlanWarning(
+                            junction.JunctionNodeId,
+                            null,
+                            PlanWarning.SubThresholdCutSkipped,
+                            $"Arm {arm.Id} ({arm.TaxiwayName}) cut clamped to {dist:F1}ft (was below coincident threshold)"
+                        )
+                    );
+                }
+
                 int cutId = nextCutId++;
                 var (pos, brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, dist);
                 var cut = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, dist, pos, brg, involved.Select(c => c.CornerId).ToList());
@@ -120,6 +133,11 @@ internal static class ArmCutResolver
             foreach (double dist in positions)
             {
                 double capped = Math.Min(dist, Math.Min(arm.IntersectionCapFt, FilletConstants.MaxTangentDistFt));
+                if (capped <= FilletConstants.CoincidentNodeThresholdFt)
+                {
+                    continue;
+                }
+
                 int cutId = nextCutId++;
                 var (pos, brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, capped);
                 var owners = involved

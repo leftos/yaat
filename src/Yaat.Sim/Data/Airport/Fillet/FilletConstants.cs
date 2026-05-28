@@ -24,4 +24,7 @@ public static class FilletConstants
     public const double DistortionThreshold = 2.0;
     public const double AsymmetryThreshold = 2.0;
     public const double MinArmSegmentGapFt = 5.0;
+
+    /// <summary>Max span for fillet tangent links involving a runway hold-short (executor safety net).</summary>
+    public const double MaxHoldShortTangentSpanFt = 50.0;
 }

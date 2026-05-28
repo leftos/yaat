@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Airport.Fillet;
 
 namespace Yaat.Sim.Data.Airport.Fillet.V2;
 
@@ -20,7 +21,14 @@ internal static class FilletPlanExecutor
         int filletedNodes = 0;
 
         var cutToNode = new Dictionary<int, GroundNode>();
-        var mergeRedirect = BuildMergeRedirect(plan.TangentMerges);
+        foreach (int stableId in plan.StableAnchoredEndpointIds)
+        {
+            if (layout.Nodes.TryGetValue(stableId, out var stableNode))
+            {
+                cutToNode[stableId] = stableNode;
+            }
+        }
+
         var cornerToJunction = new Dictionary<int, int>();
         foreach (var jp in junctionPlans)
         {
@@ -28,6 +36,39 @@ internal static class FilletPlanExecutor
             {
                 cornerToJunction[corner.CornerId] = jp.JunctionNodeId;
             }
+        }
+
+        foreach (var (cutId, cut) in plan.Cuts)
+        {
+            if (cutToNode.ContainsKey(cutId))
+            {
+                continue;
+            }
+
+            if (TryBindCutToCoincidentStable(layout, cutId, cut, cutToNode))
+            {
+                continue;
+            }
+
+            var junctionPlan = junctionPlans.FirstOrDefault(j => j.JunctionNodeId == cut.JunctionNodeId);
+            var junctionPos = junctionPlan?.JunctionNode.Position ?? cut.Position;
+
+            int id = idCounter.Next++;
+            while (layout.Nodes.ContainsKey(id))
+            {
+                id = idCounter.Next++;
+            }
+
+            var tanNode = new GroundNode
+            {
+                Id = id,
+                Position = cut.Position,
+                Type = GroundNodeType.TaxiwayIntersection,
+                SourceIntersectionPosition = (junctionPos.Lat, junctionPos.Lon),
+                Origin = $"V2:tangent-cut@J{cut.JunctionNodeId}/{(junctionPlan is not null ? GetTaxiwayName(junctionPlan, cut.ArmId) : "?")}",
+            };
+            layout.Nodes[id] = tanNode;
+            cutToNode[cutId] = tanNode;
         }
 
         var cornerArcsByJunction = plan
@@ -55,63 +96,63 @@ internal static class FilletPlanExecutor
 
             filletedNodes++;
 
-            foreach (var cut in junctionCuts)
-            {
-                int effectiveCutId = ResolveCutId(cut.CutId, mergeRedirect);
-                if (cutToNode.ContainsKey(effectiveCutId))
-                {
-                    continue;
-                }
-
-                int id = idCounter.Next++;
-                var tanNode = new GroundNode
-                {
-                    Id = id,
-                    Position = cut.Position,
-                    Type = GroundNodeType.TaxiwayIntersection,
-                    SourceIntersectionPosition = (node.Position.Lat, node.Position.Lon),
-                    Origin = $"V2:tangent-cut@J{junction.JunctionNodeId}/{GetTaxiwayName(junction, cut.ArmId)}",
-                };
-                layout.Nodes[id] = tanNode;
-                cutToNode[effectiveCutId] = tanNode;
-            }
-
             var consumed = new HashSet<GroundEdge>();
+            var chainOpsForJunction = plan.ArmChainEdges.Where(e => e.JunctionNodeId == junction.JunctionNodeId).ToList();
             foreach (var arm in junction.Arms)
             {
-                var armCuts = junctionCuts.Where(c => c.ArmId == arm.Id).OrderBy(c => c.DistanceAlongArmFt).ToList();
-                if (armCuts.Count == 0)
+                var root = arm.RootEdge;
+                var other = root.OtherNode(node);
+                var armChains = chainOpsForJunction.Where(e => e.ArmId == arm.Id).ToList();
+                if (armChains.Count == 0)
                 {
                     continue;
                 }
 
-                var root = arm.RootEdge;
-                var other = root.OtherNode(node);
                 consumed.Add(root);
-
-                if (armCuts.Count == 1)
+                foreach (var op in armChains)
                 {
-                    var tan = cutToNode[ResolveCutId(armCuts[0].CutId, mergeRedirect)];
-                    AddEdge(layout, other, tan, root.TaxiwayName, root.IsRunwayCenterline, junction.JunctionNodeId, "shorten");
-                }
-                else
-                {
-                    GroundNode prev = other;
-                    foreach (var cut in armCuts)
+                    if (op.FromStableNodeId is int stableFromId && !layout.Nodes.ContainsKey(stableFromId))
                     {
-                        var tan = cutToNode[ResolveCutId(cut.CutId, mergeRedirect)];
-                        if (prev.Id != tan.Id)
-                        {
-                            AddEdge(layout, prev, tan, root.TaxiwayName, root.IsRunwayCenterline, junction.JunctionNodeId, "arm-sub");
-                        }
-
-                        prev = tan;
+                        continue;
                     }
 
-                    if (!arm.IsRunwayCenterline)
+                    if (op.TerminalNodeId is int terminalId && !layout.Nodes.ContainsKey(terminalId))
                     {
-                        AddEdge(layout, prev, arm.TerminalNode, root.TaxiwayName, false, junction.JunctionNodeId, "arm-tail");
+                        continue;
                     }
+
+                    GroundNode from =
+                        op.FromCutId is int fromCut ? ResolveCutEndpoint(fromCut, cutToNode, layout)
+                        : op.FromStableNodeId is int stableFrom ? layout.Nodes[stableFrom]
+                        : other;
+                    GroundNode to = op.ToCutId is int toCut ? ResolveCutEndpoint(toCut, cutToNode, layout) : layout.Nodes[op.TerminalNodeId!.Value];
+
+                    if ((!layout.Nodes.ContainsKey(from.Id)) || (!layout.Nodes.ContainsKey(to.Id)))
+                    {
+                        continue;
+                    }
+
+                    if ((from.Id == to.Id) || (GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm < 1.0))
+                    {
+                        continue;
+                    }
+
+                    double chainSpanFt = GeoMath.DistanceNm(from.Position, to.Position) * GeoMath.FeetPerNm;
+                    bool fromIsV2Tangent = from.Origin?.StartsWith("V2:", StringComparison.Ordinal) == true;
+                    bool toIsV2Tangent = to.Origin?.StartsWith("V2:", StringComparison.Ordinal) == true;
+                    if (
+                        (chainSpanFt > FilletConstants.MaxHoldShortTangentSpanFt)
+                        && (
+                            ((from.Type == GroundNodeType.RunwayHoldShort) && toIsV2Tangent)
+                            || ((to.Type == GroundNodeType.RunwayHoldShort) && fromIsV2Tangent)
+                        )
+                    )
+                    {
+                        continue;
+                    }
+
+                    string kind = (op.FromCutId is null) ? "shorten" : ((op.ToCutId is null) ? "arm-tail" : "arm-chain");
+                    AddEdge(layout, from, to, op.TaxiwayName, op.IsRunwayCenterline, junction.JunctionNodeId, kind);
                 }
             }
 
@@ -123,8 +164,8 @@ internal static class FilletPlanExecutor
             foreach (var arcOp in junctionArcOps)
             {
                 var corner = junction.Corners.First(c => c.CornerId == arcOp.CornerId);
-                var tanA = cutToNode[ResolveCutId(arcOp.CutIdAtArmA, mergeRedirect)];
-                var tanB = cutToNode[ResolveCutId(arcOp.CutIdAtArmB, mergeRedirect)];
+                var tanA = ResolveCutEndpoint(arcOp.CutIdAtArmA, cutToNode, layout);
+                var tanB = ResolveCutEndpoint(arcOp.CutIdAtArmB, cutToNode, layout);
                 if (tanA.Id == tanB.Id)
                 {
                     continue;
@@ -163,8 +204,8 @@ internal static class FilletPlanExecutor
             {
                 foreach (var op in straightOps)
                 {
-                    var tanA = cutToNode[ResolveCutId(op.CutIdAtArmA, mergeRedirect)];
-                    var tanB = cutToNode[ResolveCutId(op.CutIdAtArmB, mergeRedirect)];
+                    var tanA = ResolveCutEndpoint(op.CutIdAtArmA, cutToNode, layout);
+                    var tanB = ResolveCutEndpoint(op.CutIdAtArmB, cutToNode, layout);
                     if (tanA.Id == tanB.Id)
                     {
                         continue;
@@ -191,8 +232,8 @@ internal static class FilletPlanExecutor
                     {
                         var farCutA = FarthestCutOnArm(junctionCuts, armIdA);
                         var farCutB = FarthestCutOnArm(junctionCuts, armIdB);
-                        var tanA = cutToNode[ResolveCutId(farCutA.CutId, mergeRedirect)];
-                        var tanB = cutToNode[ResolveCutId(farCutB.CutId, mergeRedirect)];
+                        var tanA = ResolveCutEndpoint(farCutA.CutId, cutToNode, layout);
+                        var tanB = ResolveCutEndpoint(farCutB.CutId, cutToNode, layout);
                         string twy = armA.TaxiwayName;
                         AddEdge(layout, tanA, tanB, twy, false, junction.JunctionNodeId, "collinear-through");
                     }
@@ -200,14 +241,12 @@ internal static class FilletPlanExecutor
                     {
                         if (!cutOnA)
                         {
-                            var otherA = armA.RootEdge.OtherNode(node);
-                            AddEdge(layout, node, otherA, armA.TaxiwayName, false, junction.JunctionNodeId, "preserve-collinear");
+                            AddPreserveCollinearStub(layout, plan, junctionPlans, junction, armA, node, cutToNode);
                         }
 
                         if (!cutOnB)
                         {
-                            var otherB = armB.RootEdge.OtherNode(node);
-                            AddEdge(layout, node, otherB, armB.TaxiwayName, false, junction.JunctionNodeId, "preserve-collinear");
+                            AddPreserveCollinearStub(layout, plan, junctionPlans, junction, armB, node, cutToNode);
                         }
                     }
 
@@ -222,6 +261,24 @@ internal static class FilletPlanExecutor
                         var other = arm.RootEdge.OtherNode(node);
                         AddEdge(layout, node, other, arm.TaxiwayName, false, junction.JunctionNodeId, "preserve");
                         consumed.Add(arm.RootEdge);
+                    }
+                }
+
+                foreach (var armGroup in junctionCuts.GroupBy(c => c.ArmId))
+                {
+                    var nearestCut = armGroup.OrderBy(c => c.DistanceAlongArmFt).First();
+                    if (!cutToNode.TryGetValue(nearestCut.CutId, out var tan) || (tan.Id == node.Id))
+                    {
+                        continue;
+                    }
+
+                    bool hasTangentEdge = layout.Edges.Any(e =>
+                        ((e.Nodes[0].Id == node.Id) && (e.Nodes[1].Id == tan.Id)) || ((e.Nodes[1].Id == node.Id) && (e.Nodes[0].Id == tan.Id))
+                    );
+                    if (!hasTangentEdge)
+                    {
+                        var arm = junction.Arms.First(a => a.Id == nearestCut.ArmId);
+                        AddEdge(layout, node, tan, arm.TaxiwayName, false, junction.JunctionNodeId, "preserve-to-cut");
                     }
                 }
             }
@@ -243,7 +300,7 @@ internal static class FilletPlanExecutor
                 foreach (var op in reconnectOps)
                 {
                     var other = layout.Nodes[op.OtherNodeId];
-                    GroundNode target = op.TargetCutId is int cutId ? cutToNode[ResolveCutId(cutId, mergeRedirect)] : node;
+                    GroundNode target = op.TargetCutId is int cutId ? ResolveCutEndpoint(cutId, cutToNode, layout) : node;
 
                     AddEdge(layout, other, target, op.TaxiwayName, op.IsRunwayCenterline, junction.JunctionNodeId, "reconnect");
 
@@ -271,10 +328,19 @@ internal static class FilletPlanExecutor
                 if (plan.EdgesToRemove.Contains(edge))
                 {
                     bool touches = (edge.Nodes[0].Id == node.Id) || (edge.Nodes[1].Id == node.Id);
-                    if (touches)
+                    if (!touches)
                     {
-                        consumed.Add(edge);
+                        continue;
                     }
+
+                    bool touchesHoldShort =
+                        (edge.Nodes[0].Type == GroundNodeType.RunwayHoldShort) || (edge.Nodes[1].Type == GroundNodeType.RunwayHoldShort);
+                    if (touchesHoldShort)
+                    {
+                        continue;
+                    }
+
+                    consumed.Add(edge);
                 }
             }
 
@@ -289,6 +355,19 @@ internal static class FilletPlanExecutor
             }
         }
 
+        foreach (var op in plan.HoldShortReconnects)
+        {
+            if (
+                !layout.Nodes.TryGetValue(op.HoldShortNodeId, out var holdShort)
+                || !layout.Nodes.TryGetValue(op.IntersectionNodeId, out var intersection)
+            )
+            {
+                continue;
+            }
+
+            AddEdge(layout, holdShort, intersection, op.TaxiwayName, op.IsRunwayCenterline, op.HoldShortNodeId, "hold-short-reconnect");
+        }
+
         if (Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("V2 executor: {Arcs} arcs, {Collinear} collinear, {Nodes} junctions", arcsCreated, collinearMerges, filletedNodes);
@@ -299,7 +378,17 @@ internal static class FilletPlanExecutor
 
     private static void AddEdge(AirportGroundLayout layout, GroundNode a, GroundNode b, string taxiway, bool isRunway, int junctionId, string kind)
     {
-        if (a.Id == b.Id)
+        if ((a.Id == b.Id) || (!layout.Nodes.ContainsKey(a.Id)) || (!layout.Nodes.ContainsKey(b.Id)))
+        {
+            return;
+        }
+
+        string twy = isRunway ? $"RWY:{taxiway}" : taxiway;
+        bool alreadyExists = layout.Edges.Any(e =>
+            string.Equals(e.TaxiwayName, twy, StringComparison.OrdinalIgnoreCase)
+            && (((e.Nodes[0].Id == a.Id) && (e.Nodes[1].Id == b.Id)) || ((e.Nodes[0].Id == b.Id) && (e.Nodes[1].Id == a.Id)))
+        );
+        if (alreadyExists)
         {
             return;
         }
@@ -316,55 +405,80 @@ internal static class FilletPlanExecutor
         );
     }
 
-    private static Dictionary<int, int> BuildMergeRedirect(IReadOnlyList<TangentMergeOp> merges)
-    {
-        var parent = new Dictionary<int, int>();
-        int Find(int x)
-        {
-            if (!parent.TryGetValue(x, out int p))
-            {
-                parent[x] = x;
-                return x;
-            }
-
-            if (p != x)
-            {
-                parent[x] = Find(p);
-            }
-
-            return parent[x];
-        }
-
-        void Union(int a, int b)
-        {
-            int ra = Find(a);
-            int rb = Find(b);
-            int survivor = Math.Min(ra, rb);
-            int child = Math.Max(ra, rb);
-            parent[child] = survivor;
-        }
-
-        foreach (var m in merges)
-        {
-            Union(m.CutIdA, m.CutIdB);
-        }
-
-        var redirect = new Dictionary<int, int>();
-        foreach (var id in parent.Keys)
-        {
-            redirect[id] = Find(id);
-        }
-
-        return redirect;
-    }
-
-    private static int ResolveCutId(int cutId, Dictionary<int, int> mergeRedirect) =>
-        mergeRedirect.TryGetValue(cutId, out int resolved) ? resolved : cutId;
-
     private static string GetTaxiwayName(JunctionPlan junction, int armId) => junction.Arms.FirstOrDefault(a => a.Id == armId)?.TaxiwayName ?? "?";
+
+    private static void AddPreserveCollinearStub(
+        AirportGroundLayout layout,
+        FilletPlan plan,
+        IReadOnlyList<JunctionPlan> junctionPlans,
+        JunctionPlan junction,
+        TaxiwayArm arm,
+        GroundNode junctionNode,
+        IReadOnlyDictionary<int, GroundNode> cutToNode
+    )
+    {
+        var other = arm.RootEdge.OtherNode(junctionNode);
+        var removed = plan.JunctionNodesToRemove.ToHashSet();
+        if ((!removed.Contains(other.Id)) && layout.Nodes.ContainsKey(other.Id))
+        {
+            AddEdge(layout, junctionNode, other, arm.TaxiwayName, false, junction.JunctionNodeId, "preserve-collinear");
+            return;
+        }
+
+        var farJunction = junctionPlans.FirstOrDefault(j => j.JunctionNodeId == other.Id);
+        if (farJunction is null)
+        {
+            return;
+        }
+
+        var returnArm = farJunction.Arms.FirstOrDefault(a =>
+            string.Equals(a.TaxiwayName, arm.TaxiwayName, StringComparison.OrdinalIgnoreCase)
+            && ((a.TerminalNode.Id == junction.JunctionNodeId) || a.Walk.Steps.Any(s => s.FarNode.Id == junction.JunctionNodeId))
+        );
+        if (returnArm is null)
+        {
+            return;
+        }
+
+        var partnerCut = plan
+            .Cuts.Values.Where(c => (c.JunctionNodeId == other.Id) && (c.ArmId == returnArm.Id))
+            .OrderByDescending(c => c.DistanceAlongArmFt)
+            .FirstOrDefault();
+        if ((partnerCut is not null) && cutToNode.TryGetValue(partnerCut.CutId, out var tan))
+        {
+            AddEdge(layout, junctionNode, tan, arm.TaxiwayName, false, junction.JunctionNodeId, "preserve-collinear-cut");
+        }
+    }
 
     private static ResolvedArmCut FarthestCutOnArm(IReadOnlyList<ResolvedArmCut> junctionCuts, int armId) =>
         junctionCuts.Where(c => c.ArmId == armId).OrderByDescending(c => c.DistanceAlongArmFt).First();
+
+    private static GroundNode ResolveCutEndpoint(int cutOrStableId, IReadOnlyDictionary<int, GroundNode> cutToNode, AirportGroundLayout layout)
+    {
+        if (cutToNode.TryGetValue(cutOrStableId, out var node))
+        {
+            return node;
+        }
+
+        return layout.Nodes[cutOrStableId];
+    }
+
+    private static bool TryBindCutToCoincidentStable(AirportGroundLayout layout, int cutId, ResolvedArmCut cut, Dictionary<int, GroundNode> cutToNode)
+    {
+        if (!layout.Nodes.TryGetValue(cutId, out var existing) || (existing.Type != GroundNodeType.TaxiwayIntersection))
+        {
+            return false;
+        }
+
+        double distFt = GeoMath.DistanceNm(cut.Position, existing.Position) * GeoMath.FeetPerNm;
+        if (distFt > FilletConstants.CoincidentNodeThresholdFt)
+        {
+            return false;
+        }
+
+        cutToNode[cutId] = existing;
+        return true;
+    }
 
     internal sealed class NextNodeIdCounter
     {

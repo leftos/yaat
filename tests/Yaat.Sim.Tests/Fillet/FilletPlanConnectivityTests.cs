@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Fillet;
 using Yaat.Sim.Data.Airport.Fillet.V2;
 
 namespace Yaat.Sim.Tests.Fillet;
@@ -8,7 +9,7 @@ namespace Yaat.Sim.Tests.Fillet;
 public class FilletPlanConnectivityTests
 {
     [Fact]
-    public void Simple90Degree_PlanHasCornerArc_NoStraightConnector()
+    public void Simple90Degree_PlanHasCornerArc_ArmChainEdges_NoStraightConnector()
     {
         var layout = BuildSimple90Layout();
         var plan = BuildPlanForJunction(layout, junctionNodeId: 0);
@@ -16,35 +17,45 @@ public class FilletPlanConnectivityTests
         Assert.Single(plan.CornerArcs);
         Assert.Empty(plan.StraightConnectors);
         Assert.Equal(2, plan.Cuts.Count);
+        Assert.NotEmpty(plan.ArmChainEdges);
     }
 
     [Fact]
-    public void JunctionWithParkingSpur_ProducesReconnectEdgeOp()
+    public void ParkingSpur_MatchingTaxiway_ProducesReconnectEdgeOp()
     {
-        var layout = BuildJunctionWithParkingSpur();
+        var layout = BuildJunctionWithParkingSpur(taxiway: "T1");
         var junction = JunctionClassifier.Classify(layout.Nodes[0], preserveNode: false, manualArcNodes: []);
-        var rampArm = junction.Arms.First(a => a.TaxiwayName == "T1");
-        var cutResult = new ArmCutResolver.JunctionCutResult(
-            Cuts: new Dictionary<int, ResolvedArmCut> { [1] = new ResolvedArmCut(1, 0, rampArm.Id, 50, layout.Nodes[1].Position, 180, [1]) },
-            ArmCuts: [new ArmCutOp(1)],
-            TangentMerges: [],
-            CornerArcs: [new CornerArcOp(1, 1, 1)],
-            StraightConnectors: [],
-            Warnings: [],
-            SurvivingCorners: []
-        );
-
+        var t1Arm = junction.Arms.Single(a => a.TaxiwayName == "T1" && a.TerminalNode.Id == 1);
+        var cuts = new Dictionary<int, ResolvedArmCut> { [1] = new ResolvedArmCut(1, 0, t1Arm.Id, 50, layout.Nodes[1].Position, 180, [t1Arm.Id]) };
+        var edgesToRemove = new HashSet<GroundEdge>();
         var reconnects = new List<ReconnectEdgeOp>();
         var warnings = new List<PlanWarning>();
-        var edgesToRemove = new HashSet<GroundEdge>(junction.Arms.Where(a => a.TaxiwayName.StartsWith('T')).Select(a => a.RootEdge));
 
-        FilletConnectivityPlanner.AppendForJunction(layout, junction, cutResult, edgesToRemove, [], reconnects, warnings);
+        FilletConnectivityPlanner.AppendReconnectEdges(layout, junction, cuts, edgesToRemove, reconnects, warnings);
 
         var reconnect = Assert.Single(reconnects);
         Assert.Equal(99, reconnect.OtherNodeId);
         Assert.Equal(1, reconnect.TargetCutId);
-        Assert.Equal("RAMP", reconnect.TaxiwayName);
-        Assert.Contains(layout.Edges.Single(e => e.Nodes[0].Id == 99 || e.Nodes[1].Id == 99), edgesToRemove);
+        Assert.Equal("T1", reconnect.TaxiwayName);
+    }
+
+    [Fact]
+    public void ParkingSpur_NoTaxiwayMatch_EmitsNoOwningCut_LeavesEdge()
+    {
+        var layout = BuildJunctionWithParkingSpur(taxiway: "RAMP");
+        var junction = JunctionClassifier.Classify(layout.Nodes[0], preserveNode: false, manualArcNodes: []);
+        var t1Arm = junction.Arms.Single(a => a.TaxiwayName == "T1" && a.TerminalNode.Id == 1);
+        var cuts = new Dictionary<int, ResolvedArmCut> { [1] = new ResolvedArmCut(1, 0, t1Arm.Id, 50, layout.Nodes[1].Position, 180, [t1Arm.Id]) };
+        var edgesToRemove = new HashSet<GroundEdge>();
+        var reconnects = new List<ReconnectEdgeOp>();
+        var warnings = new List<PlanWarning>();
+
+        FilletConnectivityPlanner.AppendReconnectEdges(layout, junction, cuts, edgesToRemove, reconnects, warnings);
+
+        Assert.Empty(reconnects);
+        Assert.Contains(warnings, w => w.Code == PlanWarning.NoOwningCut);
+        var spur = layout.Edges.Single(e => e.Nodes[0].Id == 99 || e.Nodes[1].Id == 99);
+        Assert.DoesNotContain(spur, edgesToRemove);
     }
 
     [Fact]
@@ -63,14 +74,112 @@ public class FilletPlanConnectivityTests
         );
 
         var armBypasses = new List<ArmBypassOp>();
-        var reconnects = new List<ReconnectEdgeOp>();
-        var warnings = new List<PlanWarning>();
-        var edgesToRemove = new HashSet<GroundEdge>(junction.Arms.Where(a => a.TaxiwayName.StartsWith('T')).Select(a => a.RootEdge));
-
-        FilletConnectivityPlanner.AppendForJunction(layout, junction, cutOnNorthOnly, edgesToRemove, armBypasses, reconnects, warnings);
+        FilletConnectivityPlanner.AppendArmBypasses(junction, cutOnNorthOnly, new HashSet<int>(), armBypasses);
 
         var bypass = Assert.Single(armBypasses);
         Assert.Equal(1, bypass.ArmId);
+    }
+
+    [Theory]
+    [InlineData("fll")]
+    [InlineData("oak")]
+    public void RealLayout_PlanCutReferences_AndJunctionCoverage(string shortId)
+    {
+        string path = Path.Combine("TestData", $"{shortId}.geojson");
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        var layout = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        layout.RebuildAdjacencyLists();
+        var manualArcNodes = ManualArcDetector.Detect(layout);
+        var junctionPlans = new List<JunctionPlan>();
+        var cutResults = new List<ArmCutResolver.JunctionCutResult>();
+        int nextCutId = 1;
+
+        foreach (var node in layout.Nodes.Values.OrderBy(n => n.Id))
+        {
+            if (manualArcNodes.Contains(node.Id))
+            {
+                continue;
+            }
+
+            if (!FilletEligibility.IsEligible(node, out bool preserve))
+            {
+                continue;
+            }
+
+            if (!layout.Nodes.TryGetValue(node.Id, out var current) || (current.Edges.Count < 2))
+            {
+                continue;
+            }
+
+            var junction = JunctionClassifier.Classify(current, preserve, manualArcNodes);
+            if (junction.Kind == JunctionKind.Skip)
+            {
+                continue;
+            }
+
+            var cutResult = ArmCutResolver.Resolve(junction, ref nextCutId);
+            if ((cutResult.CornerArcs.Count == 0) && (junction.CollinearPairs.Count == 0))
+            {
+                continue;
+            }
+
+            junctionPlans.Add(junction);
+            cutResults.Add(cutResult);
+        }
+
+        var plan = FilletPlanBuilder.Build(layout, junctionPlans, cutResults);
+        foreach (var cut in plan.Cuts.Values)
+        {
+            Assert.Contains(junctionPlans, j => j.JunctionNodeId == cut.JunctionNodeId);
+        }
+    }
+
+    [Fact]
+    public void CrossJunctionMerge_ArmChainEdgesReferenceSurvivorCutOnly()
+    {
+        var layout = BuildSharedArmLayout(sharedLengthFt: 80);
+        var jp1 = PlanAt(layout, 1);
+        var jp2 = PlanAt(layout, 2);
+        int nextCutId = 1;
+        var r1 = ArmCutResolver.Resolve(jp1, ref nextCutId);
+        var r2 = ArmCutResolver.Resolve(jp2, ref nextCutId);
+        var plan = FilletPlanBuilder.Build(layout, [jp1, jp2], [r1, r2]);
+
+        Assert.NotEmpty(plan.TangentMerges);
+        var merge = plan.TangentMerges[0];
+        int survivor = Math.Min(merge.CutIdA, merge.CutIdB);
+        int child = Math.Max(merge.CutIdA, merge.CutIdB);
+
+        Assert.Contains(plan.Cuts.Keys, k => k == survivor);
+        Assert.DoesNotContain(plan.Cuts.Keys, k => k == child);
+        Assert.DoesNotContain(plan.ArmChainEdges, e => e.FromCutId == child || e.ToCutId == child);
+        Assert.DoesNotContain(plan.CornerArcs, a => a.CutIdAtArmA == child || a.CutIdAtArmB == child);
+        Assert.DoesNotContain(plan.ArmChainEdges, e => e.TerminalNodeId == 2);
+    }
+
+    [Fact]
+    public void SharedArm_NoCrossMerge_EmitsCrossJunctionChainWhenBothEndsHaveCuts()
+    {
+        var layout = BuildSharedArmLayout(sharedLengthFt: 200);
+        var jp1 = PlanAt(layout, 1);
+        var jp2 = PlanAt(layout, 2);
+        int nextCutId = 1;
+        var r1 = ArmCutResolver.Resolve(jp1, ref nextCutId);
+        var r2 = ArmCutResolver.Resolve(jp2, ref nextCutId);
+        var plan = FilletPlanBuilder.Build(layout, [jp1, jp2], [r1, r2]);
+
+        Assert.Empty(plan.TangentMerges);
+        Assert.Contains(plan.ArmChainEdges, e => (e.JunctionNodeId == 1) && (e.FromCutId is int) && (e.ToCutId is int) && (e.TerminalNodeId is null));
+    }
+
+    private static JunctionPlan PlanAt(AirportGroundLayout layout, int junctionNodeId)
+    {
+        var node = layout.Nodes[junctionNodeId];
+        return JunctionClassifier.Classify(node, preserveNode: false, manualArcNodes: []);
     }
 
     private static FilletPlan BuildPlanForJunction(AirportGroundLayout layout, int junctionNodeId)
@@ -140,7 +249,7 @@ public class FilletPlanConnectivityTests
         return layout;
     }
 
-    private static AirportGroundLayout BuildJunctionWithParkingSpur()
+    private static AirportGroundLayout BuildJunctionWithParkingSpur(string taxiway)
     {
         var layout = BuildSimple90Layout();
         var parking = new GroundNode
@@ -155,7 +264,7 @@ public class FilletPlanConnectivityTests
             new GroundEdge
             {
                 Nodes = [parking, layout.Nodes[0]],
-                TaxiwayName = "RAMP",
+                TaxiwayName = taxiway,
                 DistanceNm = GeoMath.DistanceNm(parking.Position, layout.Nodes[0].Position),
             }
         );
@@ -163,41 +272,57 @@ public class FilletPlanConnectivityTests
         return layout;
     }
 
-    private static AirportGroundLayout BuildYPatternLayout()
+    private static AirportGroundLayout BuildSharedArmLayout(double sharedLengthFt)
     {
         var layout = new AirportGroundLayout { AirportId = "TEST" };
-        var junction = new GroundNode
+        double sharedNm = sharedLengthFt / GeoMath.FeetPerNm;
+        double legNm = 400.0 / GeoMath.FeetPerNm;
+
+        var j1 = new GroundNode
         {
-            Id = 0,
+            Id = 1,
             Position = LatLon.Zero,
             Type = GroundNodeType.TaxiwayIntersection,
         };
-        layout.Nodes[0] = junction;
-
-        double distNm = 800.0 / GeoMath.FeetPerNm;
-        void AddArm(int nodeId, double bearingDeg, string taxiway)
+        var j2 = new GroundNode
         {
-            var pos = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(bearingDeg), distNm);
-            var node = new GroundNode
-            {
-                Id = nodeId,
-                Position = pos,
-                Type = GroundNodeType.TaxiwayIntersection,
-            };
-            layout.Nodes[nodeId] = node;
+            Id = 2,
+            Position = GeoMath.ProjectPoint(LatLon.Zero, new TrueHeading(0), sharedNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var north = new GroundNode
+        {
+            Id = 11,
+            Position = GeoMath.ProjectPoint(j1.Position, new TrueHeading(90), legNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var south = new GroundNode
+        {
+            Id = 12,
+            Position = GeoMath.ProjectPoint(j2.Position, new TrueHeading(270), legNm),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+
+        foreach (var n in new[] { j1, j2, north, south })
+        {
+            layout.Nodes[n.Id] = n;
+        }
+
+        void Add(GroundNode a, GroundNode b, string twy)
+        {
             layout.Edges.Add(
                 new GroundEdge
                 {
-                    Nodes = [junction, node],
-                    TaxiwayName = taxiway,
-                    DistanceNm = distNm,
+                    Nodes = [a, b],
+                    TaxiwayName = twy,
+                    DistanceNm = GeoMath.DistanceNm(a.Position, b.Position),
                 }
             );
         }
 
-        AddArm(10, 0.0, "STRAIGHT");
-        AddArm(11, 89.0, "BRANCH");
-        AddArm(12, 179.0, "STRAIGHT");
+        Add(j1, j2, "SHARED");
+        Add(j1, north, "N");
+        Add(j2, south, "S");
 
         layout.RebuildAdjacencyLists();
         return layout;

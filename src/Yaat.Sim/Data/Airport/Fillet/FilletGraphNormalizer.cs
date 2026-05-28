@@ -7,7 +7,24 @@ public static class FilletGraphNormalizer
     {
         RecomputeDistances(layout);
         layout.RebuildAdjacencyLists();
-        return MergeCoincidentNodesDefensive(layout);
+        int changed = MergeCoincidentNodesDefensive(layout);
+        layout.RebuildAdjacencyLists();
+        changed += RemoveIsolatedIntersectionNodes(layout);
+        return changed;
+    }
+
+    private static int RemoveIsolatedIntersectionNodes(AirportGroundLayout layout)
+    {
+        var toRemove = layout
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.TaxiwayIntersection) && (n.Edges.Count == 0))
+            .Select(n => n.Id)
+            .ToList();
+        foreach (int id in toRemove)
+        {
+            layout.Nodes.Remove(id);
+        }
+
+        return toRemove.Count;
     }
 
     private static void RecomputeDistances(AirportGroundLayout layout)
@@ -94,6 +111,7 @@ public static class FilletGraphNormalizer
         } while (changed);
 
         layout.Arcs.RemoveAll(a => (a.Nodes[0].Id == a.Nodes[1].Id) || (a.MinRadiusOfCurvatureFt < FilletConstants.RadiusFloorFt));
+        layout.Edges.RemoveAll(e => e.Nodes[0].Id == e.Nodes[1].Id);
         return merged;
     }
 

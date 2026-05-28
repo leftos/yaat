@@ -78,6 +78,13 @@ public static class FilletComparisonGates
         return new FilletComparisonGateReport(gatesByGeneratorId, holdShortMatch, parkingMatch, cornerMismatches, runwayMismatches);
     }
 
+    /// <summary>
+    /// Pre-fillet node IDs still present in <paramref name="layout"/> and reachable from that layout's hold shorts.
+    /// Matches the hold-short connectivity gate metric.
+    /// </summary>
+    public static HashSet<int> ReachableStableIdsFromHoldShorts(AirportGroundLayout preFillet, AirportGroundLayout layout) =>
+        Reachability.ReachableStableIdsFromHoldShorts(preFillet, layout);
+
     public static bool RepairCountersZero(FilletStatistics stats) =>
         (stats.OrphansRescued == 0)
         && (stats.RedundantPreserveEdgesRemoved == 0)
@@ -93,7 +100,8 @@ public static class FilletComparisonGates
         {
             if (!layout.Nodes.TryGetValue(edge.Nodes[0].Id, out var n0) || !layout.Nodes.TryGetValue(edge.Nodes[1].Id, out var n1))
             {
-                errors.Add($"Edge {edge.TaxiwayName} references missing node ({edge.Nodes[0].Id} or {edge.Nodes[1].Id})");
+                string originTag = string.IsNullOrEmpty(edge.Origin) ? "<input>" : edge.Origin;
+                errors.Add($"Edge {edge.TaxiwayName} references missing node ({edge.Nodes[0].Id} or {edge.Nodes[1].Id}) origin={originTag}");
                 continue;
             }
 
@@ -102,7 +110,8 @@ public static class FilletComparisonGates
                 double actualDistFt = GeoMath.DistanceNm(n0.Position, n1.Position) * GeoMath.FeetPerNm;
                 if (actualDistFt < 1.0)
                 {
-                    errors.Add($"Degenerate edge {edge.TaxiwayName} ({n0.Id}->{n1.Id}): {actualDistFt:F1}ft");
+                    string originTag = string.IsNullOrEmpty(edge.Origin) ? "<input>" : edge.Origin;
+                    errors.Add($"Degenerate edge {edge.TaxiwayName} ({n0.Id}->{n1.Id}): {actualDistFt:F1}ft origin={originTag}");
                 }
             }
         }
@@ -379,7 +388,63 @@ public static class FilletComparisonGates
 
             var reachable = BfsFrom(seeds, layout);
             reachable.IntersectWith(stableIds);
+            ExpandCoincidentMergeAliases(preFillet, layout, reachable);
             return reachable;
+        }
+
+        /// <summary>
+        /// Pre-fillet intersections merged away in <paramref name="layout"/> still count as reachable when a
+        /// coincident survivor intersection is reachable (gate compares pre-fillet node ids across generators).
+        /// </summary>
+        private static void ExpandCoincidentMergeAliases(AirportGroundLayout preFillet, AirportGroundLayout layout, HashSet<int> reachable)
+        {
+            foreach (var preKv in preFillet.Nodes)
+            {
+                if (reachable.Contains(preKv.Key))
+                {
+                    continue;
+                }
+
+                if (preKv.Value.Type != GroundNodeType.TaxiwayIntersection)
+                {
+                    continue;
+                }
+
+                if (layout.Nodes.ContainsKey(preKv.Key))
+                {
+                    continue;
+                }
+
+                if (!IsCoincidentWithReachableIntersection(preKv.Value, layout, reachable))
+                {
+                    continue;
+                }
+
+                reachable.Add(preKv.Key);
+            }
+        }
+
+        private static bool IsCoincidentWithReachableIntersection(GroundNode preNode, AirportGroundLayout layout, HashSet<int> reachable)
+        {
+            foreach (int id in reachable)
+            {
+                if (!layout.Nodes.TryGetValue(id, out var survivor))
+                {
+                    continue;
+                }
+
+                if (survivor.Type != GroundNodeType.TaxiwayIntersection)
+                {
+                    continue;
+                }
+
+                if (GeoMath.DistanceNm(preNode.Position, survivor.Position) <= CoincidentNodeThresholdNm)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public static HashSet<int> ParkingReachableToHoldShort(AirportGroundLayout layout)
