@@ -20,14 +20,15 @@ public interface ITaxiPathfinder
         int fromNodeId,
         List<string> taxiwayNames,
         out string? failReason,
-        ExplicitPathOptions options
+        ExplicitPathOptions options,
+        AircraftCategory category
     );
 
     /// <summary>
     /// Find the single best route between two nodes using the FewestTurns strategy.
     /// Returns null when no route exists in the graph.
     /// </summary>
-    TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId);
+    TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category);
 
     /// <summary>
     /// Find up to <paramref name="maxRoutes"/> distinct routes between two nodes.
@@ -41,7 +42,8 @@ public interface ITaxiPathfinder
         int toNodeId,
         RoutePreference? preference,
         int maxRoutes,
-        IReadOnlySet<string>? authorizedTaxiways
+        IReadOnlySet<string>? authorizedTaxiways,
+        AircraftCategory category
     );
 
     /// <summary>
@@ -50,10 +52,5 @@ public interface ITaxiPathfinder
     /// Falls back to the hold-short nearest <paramref name="startNode"/> when
     /// the runway is unknown to <see cref="NavigationDatabase"/>.
     /// </summary>
-    GroundNode FindFullLengthLineupHoldShort(
-        AirportGroundLayout layout,
-        GroundNode startNode,
-        string runwayId,
-        List<GroundNode> holdShortNodes
-    );
+    GroundNode FindFullLengthLineupHoldShort(AirportGroundLayout layout, GroundNode startNode, string runwayId, List<GroundNode> holdShortNodes);
 }

@@ -63,14 +63,15 @@ internal static class GroundCommandHandler
 
         TaxiRoute? route;
         string? failReason;
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         if (taxi.DestinationParking is not null || taxi.DestinationSpot is not null)
         {
-            route = ResolveParkingRoute(groundLayout, startNode, taxi, out failReason);
+            route = ResolveParkingRoute(groundLayout, startNode, taxi, out failReason, category);
         }
         else
         {
-            route = ResolveStandardRoute(groundLayout, startNode, taxi, out failReason);
+            route = ResolveStandardRoute(groundLayout, startNode, taxi, out failReason, category);
         }
 
         if (route is null)
@@ -220,7 +221,12 @@ internal static class GroundCommandHandler
 
                 if (bestNeighbor is not null)
                 {
-                    var reroute = TaxiPathfinderRouter.Current.FindRoute(groundLayout, bestNeighbor.Id, destNode.Id);
+                    var reroute = TaxiPathfinderRouter.Current.FindRoute(
+                        groundLayout,
+                        bestNeighbor.Id,
+                        destNode.Id,
+                        AircraftCategorization.Categorize(aircraft.AircraftType)
+                    );
                     if (reroute is not null && reroute.Segments.Count > 0)
                     {
                         route = SetDestination(reroute, taxi);
@@ -303,12 +309,18 @@ internal static class GroundCommandHandler
         return TryTaxi(aircraft, taxi, groundLayout, autoCrossRunway);
     }
 
-    private static TaxiRoute? ResolveStandardRoute(AirportGroundLayout groundLayout, GroundNode startNode, TaxiCommand taxi, out string? failReason)
+    private static TaxiRoute? ResolveStandardRoute(
+        AirportGroundLayout groundLayout,
+        GroundNode startNode,
+        TaxiCommand taxi,
+        out string? failReason,
+        AircraftCategory category
+    )
     {
         // Empty path + destination runway → A* to nearest hold-short node
         if (taxi.Path.Count == 0 && taxi.DestinationRunway is not null)
         {
-            return ResolveRunwayRouteByAStar(groundLayout, startNode, taxi.DestinationRunway, out failReason);
+            return ResolveRunwayRouteByAStar(groundLayout, startNode, taxi.DestinationRunway, out failReason, category);
         }
 
         return TaxiPathfinderRouter.Current.ResolveExplicitPath(
@@ -321,7 +333,8 @@ internal static class GroundCommandHandler
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
                 AirportId = groundLayout.AirportId,
-            }
+            },
+            category
         );
     }
 
@@ -329,7 +342,8 @@ internal static class GroundCommandHandler
         AirportGroundLayout groundLayout,
         GroundNode startNode,
         string runwayId,
-        out string? failReason
+        out string? failReason,
+        AircraftCategory category
     )
     {
         failReason = null;
@@ -342,7 +356,7 @@ internal static class GroundCommandHandler
 
         var targetHs = TaxiPathfinderRouter.Current.FindFullLengthLineupHoldShort(groundLayout, startNode, runwayId, holdShortNodes);
 
-        var route = TaxiPathfinderRouter.Current.FindRoute(groundLayout, startNode.Id, targetHs.Id);
+        var route = TaxiPathfinderRouter.Current.FindRoute(groundLayout, startNode.Id, targetHs.Id, category);
         if (route is null)
         {
             failReason = $"No route to runway {runwayId} hold-short";
@@ -352,7 +366,13 @@ internal static class GroundCommandHandler
         return route;
     }
 
-    private static TaxiRoute? ResolveParkingRoute(AirportGroundLayout groundLayout, GroundNode startNode, TaxiCommand taxi, out string? failReason)
+    private static TaxiRoute? ResolveParkingRoute(
+        AirportGroundLayout groundLayout,
+        GroundNode startNode,
+        TaxiCommand taxi,
+        out string? failReason,
+        AircraftCategory category
+    )
     {
         failReason = null;
 
@@ -383,7 +403,7 @@ internal static class GroundCommandHandler
         if (taxi.Path.Count == 0)
         {
             // No explicit path — A* direct to destination
-            var route = TaxiPathfinderRouter.Current.FindRoute(groundLayout, startNode.Id, destNode.Id);
+            var route = TaxiPathfinderRouter.Current.FindRoute(groundLayout, startNode.Id, destNode.Id, category);
             if (route is null)
             {
                 failReason = $"No route to {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'";
@@ -405,7 +425,8 @@ internal static class GroundCommandHandler
                 DestinationRunway = taxi.DestinationRunway,
                 AirportId = groundLayout.AirportId,
                 DestinationHintNode = destNode,
-            }
+            },
+            category
         );
 
         if (explicitRoute is null)
@@ -428,7 +449,7 @@ internal static class GroundCommandHandler
         else
         {
             // Extend from end of explicit path to destination node via A*
-            var extension = TaxiPathfinderRouter.Current.FindRoute(groundLayout, endNodeId, destNode.Id);
+            var extension = TaxiPathfinderRouter.Current.FindRoute(groundLayout, endNodeId, destNode.Id, category);
             if (extension is null)
             {
                 Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
@@ -719,7 +740,12 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Cannot find position on taxiway graph");
         }
 
-        var route = TaxiPathfinderRouter.Current.FindRoute(groundLayout, startNode.Id, destNode.Id);
+        var route = TaxiPathfinderRouter.Current.FindRoute(
+            groundLayout,
+            startNode.Id,
+            destNode.Id,
+            AircraftCategorization.Categorize(aircraft.AircraftType)
+        );
         if (route is null)
         {
             return new CommandResult(false, $"No route to {(push.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");

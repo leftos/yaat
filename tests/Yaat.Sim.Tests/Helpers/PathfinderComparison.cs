@@ -51,15 +51,16 @@ public static class PathfinderComparison
         ITaxiPathfinder v2,
         AirportGroundLayout layout,
         int fromNodeId,
-        int toNodeId
+        int toNodeId,
+        AircraftCategory category = AircraftCategory.Jet
     )
     {
         var sw1 = Stopwatch.StartNew();
-        var r1 = v1.FindRoute(layout, fromNodeId, toNodeId);
+        var r1 = v1.FindRoute(layout, fromNodeId, toNodeId, category);
         sw1.Stop();
 
         var sw2 = Stopwatch.StartNew();
-        var r2 = v2.FindRoute(layout, fromNodeId, toNodeId);
+        var r2 = v2.FindRoute(layout, fromNodeId, toNodeId, category);
         sw2.Stop();
 
         bool v1Ok = r1 is not null;
@@ -113,10 +114,12 @@ public static class PathfinderComparison
 
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"Both succeeded. Route match: {r.SameRoute}");
-        sb.AppendLine($"  Segments  — V1: {r.V1SegmentCount,4}  V2: {r.V2SegmentCount,4}  delta: {r.V2SegmentCount - r.V1SegmentCount:+0;-0;0}");
-        sb.AppendLine($"  Dist (ft) — V1: {r.V1TotalDistanceFt,8:F0}  V2: {r.V2TotalDistanceFt,8:F0}  delta: {r.V2TotalDistanceFt - r.V1TotalDistanceFt:+0;-0;0}");
-        sb.AppendLine($"  U-turns   — V1: {r.V1UTurnCount,4}  V2: {r.V2UTurnCount,4}  delta: {r.V2UTurnCount - r.V1UTurnCount:+0;-0;0}");
-        sb.AppendLine($"  Time (ms) — V1: {r.V1ElapsedMs,4}  V2: {r.V2ElapsedMs,4}");
+        sb.AppendLine($"  Segments  — V1: {r.V1SegmentCount, 4}  V2: {r.V2SegmentCount, 4}  delta: {r.V2SegmentCount - r.V1SegmentCount:+0;-0;0}");
+        sb.AppendLine(
+            $"  Dist (ft) — V1: {r.V1TotalDistanceFt, 8:F0}  V2: {r.V2TotalDistanceFt, 8:F0}  delta: {r.V2TotalDistanceFt - r.V1TotalDistanceFt:+0;-0;0}"
+        );
+        sb.AppendLine($"  U-turns   — V1: {r.V1UTurnCount, 4}  V2: {r.V2UTurnCount, 4}  delta: {r.V2UTurnCount - r.V1UTurnCount:+0;-0;0}");
+        sb.AppendLine($"  Time (ms) — V1: {r.V1ElapsedMs, 4}  V2: {r.V2ElapsedMs, 4}");
         return sb.ToString().TrimEnd();
     }
 

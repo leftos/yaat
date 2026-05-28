@@ -3,6 +3,7 @@ namespace Yaat.Sim.Data.Airport;
 /// <summary>
 /// Thin adapter that implements <see cref="ITaxiPathfinder"/> by delegating to
 /// the existing static <see cref="TaxiPathfinder"/> methods. No behavior change.
+/// Category is accepted but ignored — v1 uses jet defaults internally.
 /// </summary>
 public sealed class TaxiPathfinderV1Adapter : ITaxiPathfinder
 {
@@ -12,14 +13,15 @@ public sealed class TaxiPathfinderV1Adapter : ITaxiPathfinder
         int fromNodeId,
         List<string> taxiwayNames,
         out string? failReason,
-        ExplicitPathOptions options
+        ExplicitPathOptions options,
+        AircraftCategory category
     )
     {
         return TaxiPathfinder.ResolveExplicitPath(layout, fromNodeId, taxiwayNames, out failReason, options);
     }
 
     /// <inheritdoc/>
-    public TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId)
+    public TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category)
     {
         return TaxiPathfinder.FindRoute(layout, fromNodeId, toNodeId);
     }
@@ -31,7 +33,8 @@ public sealed class TaxiPathfinderV1Adapter : ITaxiPathfinder
         int toNodeId,
         RoutePreference? preference,
         int maxRoutes,
-        IReadOnlySet<string>? authorizedTaxiways
+        IReadOnlySet<string>? authorizedTaxiways,
+        AircraftCategory category
     )
     {
         return TaxiPathfinder.FindRoutes(layout, fromNodeId, toNodeId, preference, maxRoutes, authorizedTaxiways);

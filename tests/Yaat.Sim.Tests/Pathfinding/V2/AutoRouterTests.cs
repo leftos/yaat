@@ -406,7 +406,7 @@ public class AutoRouterTests
         Edge(n1, n2, "A");
 
         var pathfinder = new TaxiPathfinderV2();
-        var route = pathfinder.FindRoute(layout, 0, 2);
+        var route = pathfinder.FindRoute(layout, 0, 2, AircraftCategory.Jet);
 
         Assert.NotNull(route);
         Assert.Equal(2, route.Segments.Count);
@@ -427,7 +427,7 @@ public class AutoRouterTests
         Edge(n2, n3, "B");
 
         var pathfinder = new TaxiPathfinderV2();
-        var routes = pathfinder.FindRoutes(layout, 0, 3, null, 3, null);
+        var routes = pathfinder.FindRoutes(layout, 0, 3, null, 3, null, AircraftCategory.Jet);
 
         Assert.NotEmpty(routes);
         Assert.True(routes.Count <= 3);
@@ -446,7 +446,7 @@ public class AutoRouterTests
         Edge(n0, n1, "A");
 
         var pathfinder = new TaxiPathfinderV2();
-        var routes = pathfinder.FindRoutes(layout, 0, 1, RoutePreference.Shortest, 5, null);
+        var routes = pathfinder.FindRoutes(layout, 0, 1, RoutePreference.Shortest, 5, null, AircraftCategory.Jet);
 
         Assert.Single(routes);
     }

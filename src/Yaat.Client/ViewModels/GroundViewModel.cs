@@ -569,7 +569,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        return TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId, toNodeId);
+        return TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId, toNodeId, AircraftCategory.Jet);
     }
 
     public string BuildTaxiCommand(TaxiRoute route)
@@ -786,7 +786,15 @@ public partial class GroundViewModel : ObservableObject
             return [];
         }
 
-        return TaxiPathfinderRouter.Current.FindRoutes(_domainLayout, fromNodeId, toNodeId, preference: null, maxRoutes: 4, authorizedTaxiways: null);
+        return TaxiPathfinderRouter.Current.FindRoutes(
+            _domainLayout,
+            fromNodeId,
+            toNodeId,
+            preference: null,
+            maxRoutes: 4,
+            authorizedTaxiways: null,
+            AircraftCategory.Jet
+        );
     }
 
     /// <summary>
@@ -1140,7 +1148,7 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            var route = TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId.Value, node.Id);
+            var route = TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId.Value, node.Id, AircraftCategory.Jet);
             if (route is null)
             {
                 continue;
@@ -1237,7 +1245,14 @@ public partial class GroundViewModel : ObservableObject
             }
         }
 
-        return TaxiPathfinderRouter.Current.ResolveExplicitPath(_domainLayout, nodeId.Value, routeTaxiways, out _, new ExplicitPathOptions());
+        return TaxiPathfinderRouter.Current.ResolveExplicitPath(
+            _domainLayout,
+            nodeId.Value,
+            routeTaxiways,
+            out _,
+            new ExplicitPathOptions(),
+            AircraftCategory.Jet
+        );
     }
 
     private static List<string> ParseRouteTaxiways(string taxiRoute)

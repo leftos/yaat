@@ -4,27 +4,49 @@ using Yaat.Sim.Data.Airport.V2;
 
 /// <summary>
 /// v2 pathfinder implementation. Auto-route methods (<see cref="FindRoute"/>, <see cref="FindRoutes"/>)
-/// are implemented with the A* <see cref="AutoRouter"/>. <see cref="ResolveExplicitPath"/> still
-/// delegates to <see cref="TaxiPathfinderV1Adapter"/> — SegmentExpander is step 6.
+/// are implemented with the A* <see cref="AutoRouter"/>. <see cref="ResolveExplicitPath"/> is
+/// implemented with <see cref="SegmentExpander"/>.
 /// </summary>
 public sealed class TaxiPathfinderV2 : ITaxiPathfinder
 {
-    private static readonly TaxiPathfinderV1Adapter _v1 = new();
-
     /// <inheritdoc/>
     public TaxiRoute? ResolveExplicitPath(
         AirportGroundLayout layout,
         int fromNodeId,
         List<string> taxiwayNames,
         out string? failReason,
-        ExplicitPathOptions options
+        ExplicitPathOptions options,
+        AircraftCategory category
     )
     {
-        return _v1.ResolveExplicitPath(layout, fromNodeId, taxiwayNames, out failReason, options);
+        var ctx = SearchContext.Compile(
+            layout,
+            fromNodeId,
+            waypointSequence: taxiwayNames,
+            destinationRunway: options.DestinationRunway,
+            destinationParking: options.DestinationHintNode?.Name,
+            destinationSpot: null,
+            destinationNodeId: null,
+            explicitHoldShortRunways: options.ExplicitHoldShorts,
+            category: category,
+            preference: null,
+            diagnosticLog: options.DiagnosticLog
+        );
+
+        var (route, failure) = SegmentExpander.Run(ctx);
+
+        if (failure is not null)
+        {
+            failReason = failure.HumanMessage;
+            return null;
+        }
+
+        failReason = null;
+        return route;
     }
 
     /// <inheritdoc/>
-    public TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId)
+    public TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category)
     {
         var ctx = SearchContext.Compile(
             layout,
@@ -35,7 +57,7 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
             destinationSpot: null,
             destinationNodeId: toNodeId,
             explicitHoldShortRunways: null,
-            category: AircraftCategory.Jet,
+            category: category,
             preference: RoutePreference.FewestTurns,
             diagnosticLog: null
         );
@@ -51,12 +73,13 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
         int toNodeId,
         RoutePreference? preference,
         int maxRoutes,
-        IReadOnlySet<string>? authorizedTaxiways
+        IReadOnlySet<string>? authorizedTaxiways,
+        AircraftCategory category
     )
     {
         if (preference is not null)
         {
-            var ctx = BuildNodeContext(layout, fromNodeId, toNodeId, preference.Value, authorizedTaxiways);
+            var ctx = BuildNodeContext(layout, fromNodeId, toNodeId, preference.Value, authorizedTaxiways, category);
             var (route, _) = AutoRouter.Run(ctx);
             return route is not null ? [route] : [];
         }
@@ -72,7 +95,7 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
                 break;
             }
 
-            var ctx = BuildNodeContext(layout, fromNodeId, toNodeId, pref, authorizedTaxiways);
+            var ctx = BuildNodeContext(layout, fromNodeId, toNodeId, pref, authorizedTaxiways, category);
             var (route, _) = AutoRouter.Run(ctx);
 
             if (route is null)
@@ -105,7 +128,8 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
         int fromNodeId,
         int toNodeId,
         RoutePreference preference,
-        IReadOnlySet<string>? authorizedTaxiways
+        IReadOnlySet<string>? authorizedTaxiways,
+        AircraftCategory category
     )
     {
         var ctx = SearchContext.Compile(
@@ -117,7 +141,7 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
             destinationSpot: null,
             destinationNodeId: toNodeId,
             explicitHoldShortRunways: null,
-            category: AircraftCategory.Jet,
+            category: category,
             preference: preference,
             diagnosticLog: null
         );
