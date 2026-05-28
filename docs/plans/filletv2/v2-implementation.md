@@ -1,8 +1,13 @@
 # Fillet V2 — implementation specification
 
-**Status:** Authoritative spec for V2 fillet work (May 2026). Multi-agent consensus passes 1–5 were consolidated into this file; intermediate plan docs were removed.
+**Status:** Authoritative for the V2 **geometry layer** (arms, junction classification, cuts, corners,
+constants, bezier). The **connectivity layer shipped differently**: the per-junction chain/reconnect
+executor described in *Pipeline*, *Module layout*, *Data types*, and *Executor* below was superseded
+by the order-independent **global edge-split** — see **`Connectivity rewrite`** at the bottom of this
+file, [`v2-divergences.md`](./v2-divergences.md) (current status), and `docs/architecture.md`. Read
+those sections as authoritative for connectivity; the earlier executor sections are historical.
 
-**Triage log:** [`v2-divergences.md`](./v2-divergences.md) — Legacy vs V2 parity findings during step 3f+.
+**Triage log:** [`v2-divergences.md`](./v2-divergences.md) — Legacy vs V2 parity findings.
 
 ---
 
@@ -282,7 +287,7 @@ LayoutInspector (step 4): `--fillet=none|legacy|v2`, `--fillet-diff <airport>`.
 | **3d** | `ArmCutResolver`, `SharedArmTangentPass`, `FilletPlan`/`FilletPlanBuilder`, `PlanWarning` + resolver unit tests | No |
 | **3e** | `FilletPlanExecutor`, wire `FilletArcGeneratorV2.Apply`, V2 in `Registry.All`, `FilletStatistics.Warnings` | **V2 runnable** |
 | **3f** | Extend `FilletComparison`, OAK/SFO/FLL parity, tune thresholds, triage divergences | Legacy default |
-| **3f-pass6** | Plan connectivity ops (`ArmBypassOp`, `StraightConnectorOp`, `ReconnectEdgeOp`); literal execute; harness hard-fail surfaces planner gaps | See [`v2-pass-6-connectivity-ops.md`](./v2-pass-6-connectivity-ops.md) |
+| **3f-pass6** | Per-junction chain/reconnect connectivity ops — **superseded** by the global edge-split (see `Connectivity rewrite` below) | Removed |
 | **4** | LayoutInspector fillet flags | Tooling |
 | **5** | Aviation review; default `V2`; delete `FilletArcGenerator.cs`, `LegacyFilletArcGenerator.cs`, `FilletProvenance.cs` | V2 default |
 

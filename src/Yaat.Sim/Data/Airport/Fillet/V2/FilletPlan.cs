@@ -1,7 +1,5 @@
 namespace Yaat.Sim.Data.Airport.Fillet.V2;
 
-internal sealed record ArmCutOp(int CutId);
-
 internal sealed record TangentMergeOp(int CutIdA, int CutIdB);
 
 internal sealed record CornerArcOp(int JunctionNodeId, int CornerId, int CutIdAtArmA, int CutIdAtArmB);
@@ -26,7 +24,6 @@ internal sealed record SurvivingEdgeOp(
 
 internal sealed record FilletPlan(
     IReadOnlyDictionary<int, ResolvedArmCut> Cuts,
-    IReadOnlyList<ArmCutOp> ArmCuts,
     IReadOnlyList<TangentMergeOp> TangentMerges,
     IReadOnlyList<CornerArcOp> CornerArcs,
     IReadOnlyList<StraightConnectorOp> StraightConnectors,
@@ -40,7 +37,6 @@ internal sealed record FilletPlan(
     public static FilletPlan Empty { get; } =
         new(
             Cuts: new Dictionary<int, ResolvedArmCut>(),
-            ArmCuts: [],
             TangentMerges: [],
             CornerArcs: [],
             StraightConnectors: [],

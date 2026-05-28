@@ -4,7 +4,6 @@ internal static class ArmCutResolver
 {
     public sealed record JunctionCutResult(
         IReadOnlyDictionary<int, ResolvedArmCut> Cuts,
-        IReadOnlyList<ArmCutOp> ArmCuts,
         IReadOnlyList<TangentMergeOp> TangentMerges,
         IReadOnlyList<CornerArcOp> CornerArcs,
         IReadOnlyList<StraightConnectorOp> StraightConnectors,
@@ -17,7 +16,7 @@ internal static class ArmCutResolver
         var warnings = new List<PlanWarning>();
         if (junction.Corners.Count == 0)
         {
-            return new JunctionCutResult(new Dictionary<int, ResolvedArmCut>(), [], [], [], [], warnings, []);
+            return new JunctionCutResult(new Dictionary<int, ResolvedArmCut>(), [], [], [], warnings, []);
         }
 
         var armsById = junction.Arms.ToDictionary(a => a.Id);
@@ -67,7 +66,6 @@ internal static class ArmCutResolver
         }
 
         var cuts = new Dictionary<int, ResolvedArmCut>();
-        var armCutOps = new List<ArmCutOp>();
         var cornerToCutA = new Dictionary<int, int>();
         var cornerToCutB = new Dictionary<int, int>();
 
@@ -99,7 +97,6 @@ internal static class ArmCutResolver
                 var (pos, brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, dist);
                 var cut = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, dist, pos, brg, involved.Select(c => c.CornerId).ToList());
                 cuts[cutId] = cut;
-                armCutOps.Add(new ArmCutOp(cutId));
                 foreach (var c in involved)
                 {
                     if (c.ArmIdA == arm.Id)
@@ -147,7 +144,6 @@ internal static class ArmCutResolver
 
                 var cut = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, capped, pos, brg, owners);
                 cuts[cutId] = cut;
-                armCutOps.Add(new ArmCutOp(cutId));
 
                 foreach (var c in involved.Where(c => owners.Contains(c.CornerId)))
                 {
@@ -229,7 +225,7 @@ internal static class ArmCutResolver
             straightConnectors.Add(new StraightConnectorOp(junction.JunctionNodeId, corner.CornerId, cutA, cutB, twy));
         }
 
-        return new JunctionCutResult(cuts, armCutOps, merges, cornerArcs, straightConnectors, warnings, surviving);
+        return new JunctionCutResult(cuts, merges, cornerArcs, straightConnectors, warnings, surviving);
     }
 
     private static List<double> CoalescePositions(List<double> sorted)

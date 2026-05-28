@@ -11,7 +11,6 @@ internal static class FilletPlanBuilder
     )
     {
         var cuts = new Dictionary<int, ResolvedArmCut>();
-        var armCuts = new List<ArmCutOp>();
         var merges = new List<TangentMergeOp>();
         var cornerArcs = new List<CornerArcOp>();
         var straightConnectors = new List<StraightConnectorOp>();
@@ -28,7 +27,6 @@ internal static class FilletPlanBuilder
                 cuts[id] = cut;
             }
 
-            armCuts.AddRange(r.ArmCuts);
             merges.AddRange(r.TangentMerges);
             cornerArcs.AddRange(r.CornerArcs);
             straightConnectors.AddRange(r.StraightConnectors);
@@ -59,7 +57,6 @@ internal static class FilletPlanBuilder
 
         var built = new FilletPlan(
             prunedCuts,
-            armCuts,
             merges,
             redirectedCornerArcs,
             redirectedStraightConnectors,
