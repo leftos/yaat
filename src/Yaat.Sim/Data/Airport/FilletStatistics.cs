@@ -19,4 +19,7 @@ public sealed record FilletStatistics(
 {
     /// <summary>Statistics for a no-op fillet pass (<see cref="FilletMode.None"/>).</summary>
     public static FilletStatistics Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    /// <summary>V2 planner warnings (empty for legacy/none).</summary>
+    public IReadOnlyList<Fillet.V2.PlanWarning> Warnings { get; init; } = [];
 }

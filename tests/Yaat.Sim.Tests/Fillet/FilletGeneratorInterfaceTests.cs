@@ -28,17 +28,20 @@ public class FilletGeneratorInterfaceTests
     }
 
     [Fact]
-    public void Registry_All_ContainsOnlyImplementedGenerators()
+    public void Registry_All_ContainsImplementedGenerators()
     {
         var ids = FilletArcGeneratorRegistry.All.Select(g => g.Id).ToList();
-        Assert.Equal(["none", "legacy"], ids);
+        Assert.Equal(["none", "legacy", "v2"], ids);
     }
 
     [Fact]
-    public void Factory_V2_ThrowsUntilImplemented()
+    public void Factory_V2_AppliesFilletOnSimpleLayout()
     {
         var layout = BuildSimpleIntersectionLayout();
-        Assert.Throws<NotImplementedException>(() => FilletGeneratorFactory.Create(FilletMode.V2).Apply(layout));
+        var stats = FilletGeneratorFactory.Create(FilletMode.V2).Apply(layout);
+        Assert.True(stats.ArcsCreated >= 1);
+        Assert.Equal(0, stats.OrphansRescued);
+        Assert.Equal(0, stats.DirectShortensAdded);
     }
 
     [Fact]
