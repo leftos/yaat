@@ -43,6 +43,14 @@ public static class FilletArcGenerator
     private const double CoincidentNodeThresholdFt = 5.0;
     private const double CoincidentNodeThresholdNm = CoincidentNodeThresholdFt / GeoMath.FeetPerNm;
 
+    // Tighter threshold used to relax the runway-asymmetry merge guard for
+    // genuinely-coincident tangent/intersection pairs. The standard 5 ft window
+    // can include intentionally-offset runway-edge tangents; this 1 ft window
+    // only covers nodes that share a lat/lon to sub-foot precision (i.e. the
+    // tangent placement landed exactly on top of an existing intersection).
+    private const double CoincidentTangentMergeThresholdFt = 1.0;
+    private const double CoincidentTangentMergeThresholdNm = CoincidentTangentMergeThresholdFt / GeoMath.FeetPerNm;
+
     /// <summary>
     /// Apply fillet arcs to all eligible intersection nodes in the layout.
     /// Mutates the layout in place: inserts tangent-point nodes, creates arcs,
@@ -2207,20 +2215,126 @@ public static class FilletArcGenerator
 
                 double dist = GeoMath.DistanceNm(candidates[i].Position, candidates[j].Position);
 
-                if (dist <= thresholdNm)
+                if (dist > thresholdNm)
                 {
-                    // Don't merge runway-centerline tangent nodes with taxiway tangent
-                    // nodes — they're close but intentionally at different positions.
-                    // Merging pulls runway edges off the centerline.
-                    bool iOnRunway = HasRunwayEdge(layout, candidates[i].Id);
-                    bool jOnRunway = HasRunwayEdge(layout, candidates[j].Id);
-                    if (iOnRunway != jOnRunway)
+                    continue;
+                }
+
+                bool iOnRunway = HasRunwayEdge(layout, candidates[i].Id);
+                bool jOnRunway = HasRunwayEdge(layout, candidates[j].Id);
+                bool iIsTangent = candidates[i].FilletProvenance is TangentNodeProvenance;
+                bool jIsTangent = candidates[j].FilletProvenance is TangentNodeProvenance;
+
+                if (iOnRunway != jOnRunway)
+                {
+                    // Normally skip: a tangent placed close-but-not-on a runway centerline
+                    // must not be folded into the centerline. Exception: when the pair is
+                    // genuinely coincident (≤1 ft) AND exactly one node is a fillet-tangent,
+                    // the tangent was placed ON TOP OF the original intersection and folding
+                    // them is correct (zero-distance phase-d-shorten edges otherwise leak
+                    // unparseable bearings into downstream consumers).
+                    if (dist > CoincidentTangentMergeThresholdNm)
                     {
                         continue;
                     }
 
-                    mergeMap[candidates[j].Id] = candidates[i];
+                    if (iIsTangent == jIsTangent)
+                    {
+                        continue;
+                    }
                 }
+
+                // Survivor preference: prefer the non-tangent node so the original
+                // intersection's id is preserved (tangent nodes are synthesised by the
+                // fillet pipeline and have no external references).
+                int victimId;
+                GroundNode survivor;
+                if (iIsTangent && !jIsTangent)
+                {
+                    // candidates[i] would normally be the survivor; flip so the original
+                    // intersection wins. Only safe if candidates[i] hasn't already been
+                    // recorded as a survivor for some earlier k → i merge in this pass.
+                    bool iIsAlreadySurvivor = false;
+                    foreach (var v in mergeMap.Values)
+                    {
+                        if (v.Id == candidates[i].Id)
+                        {
+                            iIsAlreadySurvivor = true;
+                            break;
+                        }
+                    }
+
+                    if (iIsAlreadySurvivor)
+                    {
+                        // Defer to a later pass — the multi-pass loop in MergeCoincidentNodes
+                        // will re-evaluate once the earlier merge has consumed its victim.
+                        continue;
+                    }
+
+                    victimId = candidates[i].Id;
+                    survivor = candidates[j];
+                }
+                else
+                {
+                    victimId = candidates[j].Id;
+                    survivor = candidates[i];
+                }
+
+                mergeMap[victimId] = survivor;
+
+                // If candidates[i] is now a victim, stop scanning j-pairs from this i — it's
+                // no longer alive in this pass.
+                if (victimId == candidates[i].Id)
+                {
+                    break;
+                }
+            }
+        }
+
+        // Second pass: tangent-on-named-anchor coincidences. When the fillet pipeline
+        // places a tangent node directly on top of a named anchor (Spot, Parking, Helipad)
+        // — which happens when the original geojson spot/parking sits at a taxiway corner —
+        // the tangent and the anchor occupy the same lat/lon. The standard intersection-only
+        // pass above can't see these because the anchor isn't a TaxiwayIntersection. Fold
+        // the tangent into the anchor; the anchor survives so its Name and external
+        // references (controller spot calls, parking assignment) are preserved.
+        foreach (var tangentNode in candidates)
+        {
+            if (mergeMap.ContainsKey(tangentNode.Id))
+            {
+                continue;
+            }
+
+            if (tangentNode.FilletProvenance is not TangentNodeProvenance)
+            {
+                continue;
+            }
+
+            foreach (var anchor in layout.Nodes.Values)
+            {
+                if (anchor.Type is not (GroundNodeType.Spot or GroundNodeType.Parking or GroundNodeType.Helipad))
+                {
+                    continue;
+                }
+
+                if (mergeMap.ContainsKey(anchor.Id))
+                {
+                    continue;
+                }
+
+                if (anchor.Id == tangentNode.Id)
+                {
+                    continue;
+                }
+
+                double dist = GeoMath.DistanceNm(tangentNode.Position, anchor.Position);
+                if (dist > CoincidentTangentMergeThresholdNm)
+                {
+                    continue;
+                }
+
+                mergeMap[tangentNode.Id] = anchor;
+                break;
             }
         }
 
