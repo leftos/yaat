@@ -5,8 +5,6 @@
 [[repos]]
 repo = "builtin"
 hooks = [
-    { id = "trailing-whitespace" },
-    { id = "end-of-file-fixer" },
     { id = "check-merge-conflict" },
     { id = "detect-private-key", exclude = "tools/discord-bot/" },
     # 8 MB ceiling: accommodates recording bundles that include snapshots for hybrid-replay
@@ -17,6 +15,17 @@ hooks = [
 
 [[repos]]
 repo = "local"
+
+# Replaces builtin `trailing-whitespace` + `end-of-file-fixer`: applies the same
+# fixes but auto-stages the result so the commit proceeds instead of failing
+# with "files were modified by this hook".
+[[repos.hooks]]
+id = "whitespace-fix-autostage"
+name = "trim trailing whitespace + EOF newline (auto-stages fixes)"
+entry = "bash tools/hooks/whitespace-fix-autostage.sh"
+language = "system"
+types = ["text"]
+stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "dotnet-format-style"
