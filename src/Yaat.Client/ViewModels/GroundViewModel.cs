@@ -569,7 +569,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        return TaxiPathfinder.FindRoute(_domainLayout, fromNodeId, toNodeId);
+        return TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId, toNodeId);
     }
 
     public string BuildTaxiCommand(TaxiRoute route)
@@ -786,7 +786,7 @@ public partial class GroundViewModel : ObservableObject
             return [];
         }
 
-        return TaxiPathfinder.FindRoutes(_domainLayout, fromNodeId, toNodeId);
+        return TaxiPathfinderRouter.Current.FindRoutes(_domainLayout, fromNodeId, toNodeId, preference: null, maxRoutes: 4, authorizedTaxiways: null);
     }
 
     /// <summary>
@@ -1140,7 +1140,7 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            var route = TaxiPathfinder.FindRoute(_domainLayout, fromNodeId.Value, node.Id);
+            var route = TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId.Value, node.Id);
             if (route is null)
             {
                 continue;
@@ -1237,7 +1237,7 @@ public partial class GroundViewModel : ObservableObject
             }
         }
 
-        return TaxiPathfinder.ResolveExplicitPath(_domainLayout, nodeId.Value, routeTaxiways, out _, new ExplicitPathOptions());
+        return TaxiPathfinderRouter.Current.ResolveExplicitPath(_domainLayout, nodeId.Value, routeTaxiways, out _, new ExplicitPathOptions());
     }
 
     private static List<string> ParseRouteTaxiways(string taxiRoute)

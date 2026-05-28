@@ -319,7 +319,7 @@ internal static class TaxiVariantResolver
             return false;
         }
 
-        var astarRoute = TaxiPathfinder.FindRoute(layout, fromNodeId, targetHs.Id);
+        var astarRoute = TaxiPathfinderRouter.Current.FindRoute(layout, fromNodeId, targetHs.Id);
         if (astarRoute is null)
         {
             Log.LogDebug("[Variant] ExtendViaAStar: A* from #{From} to #{To} failed", fromNodeId, targetHs.Id);
@@ -405,7 +405,7 @@ internal static class TaxiVariantResolver
 
         foreach (var hs in holdShortNodes)
         {
-            var route = TaxiPathfinder.FindRoute(layout, currentNodeId, hs.Id);
+            var route = TaxiPathfinderRouter.Current.FindRoute(layout, currentNodeId, hs.Id);
             if (route is null)
             {
                 continue;
