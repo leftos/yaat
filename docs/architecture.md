@@ -13,7 +13,7 @@
 | **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
 | **Heading/navigation** | `FlightCommandHandler.cs`, `NavigationCommandHandler.cs`, `FlightPhysics.cs` (UpdateNavigation/UpdateHeading), `ControlTargets.cs` |
 | **Ground taxiing** | `GroundNavigator.cs`, `TaxiPathfinder.cs`, `TaxiingPhase.cs`, `TaxiRoute.cs`, `AirportGroundLayout.cs` |
-| **Ground layout parsing** | `GeoJsonParser.cs`, `FilletArcGenerator.cs`, `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
+| **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory` / `FilletArcGeneratorRouter`, legacy `FilletArcGenerator.cs`, `FilletArcGeneratorV2.cs` (stub), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
 | **Runway exits** | `LandingPhase.cs`, `RunwayExitPhase.cs`, `ExitPreference.cs`, `AirportGroundLayout.cs` (FindExitPath) |
 | **Approach procedures** | `ApproachCommandHandler.cs`, `ApproachNavigationPhase.cs`, `FinalApproachPhase.cs`, `CifpParser.cs` |
 | **SID/STAR** | `DepartureClearanceHandler.cs`, `InitialClimbPhase.cs`, `CifpParser.cs`, `NavigationDatabase.cs` |
@@ -579,7 +579,13 @@ AirportLayoutDownloader.cs     # Fetches airport ground GeoJSON from vNAS traini
 AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt), DirectionalEdge (traversal direction)
                                # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops; returns Side), FindExitFromCenterline (walk centerlines, returns side+walk node), FindOnSidePreferredExit (lookahead: defer off-side, prefer later on-side), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
 CubicBezier.cs                 # Bezier math utilities; used by FilletArcGenerator (arc generation) and GroundNavigator (path following)
-FilletArcGenerator.cs          # Replaces intersection nodes with bezier fillet arcs; plan-then-execute: compute tangent points → create arcs → rebuild edges → delete node
+IFilletArcGenerator.cs         # Pluggable fillet contract; Legacy + V2 implementations; FilletMode on GeoJsonParser.Parse
+FilletGeneratorFactory.cs    # FilletMode → IFilletArcGenerator (None / Legacy / V2)
+FilletArcGeneratorRouter.cs  # Runtime Current / UseV2 selector (delegates to factory)
+FilletArcGeneratorRegistry.cs# Enumerates all generators for comparison tests / LayoutInspector
+Fillet/FilletStatistics.cs   # Per-pass fillet tallies returned by Apply
+FilletArcGenerator.cs        # Legacy static implementation (pair-based fillet + cleanup passes)
+FilletArcGeneratorV2.cs      # Clean-room V2 stub (NotImplemented until planner lands)
                                # Radius fits to edge length, collinear merges produce inner straight edges, coincident node merge pass, applied as Step 8 in GeoJsonParser
 FilletProvenance.cs            # Discriminated record (TangentNode / CornerArc / etc.) attached to fillet-generated nodes/edges/arcs so cleanup passes can pattern-match instead of parsing Origin strings
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching

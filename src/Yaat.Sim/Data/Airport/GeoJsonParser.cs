@@ -32,10 +32,15 @@ public static class GeoJsonParser
 
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode)
     {
-        return Parse(airportId, geoJson, runwayAirportCode, applyFillets: true);
+        return Parse(airportId, geoJson, runwayAirportCode, FilletMode.Legacy);
     }
 
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, bool applyFillets)
+    {
+        return Parse(airportId, geoJson, runwayAirportCode, applyFillets ? FilletMode.Legacy : FilletMode.None);
+    }
+
+    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, FilletMode filletMode)
     {
         string sanitized = SanitizeJson(geoJson);
         using var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
@@ -49,7 +54,7 @@ public static class GeoJsonParser
             classified.Taxiways,
             classified.Runways,
             runwayAirportCode,
-            applyFillets
+            filletMode
         );
     }
 
@@ -59,11 +64,21 @@ public static class GeoJsonParser
     /// </summary>
     public static AirportGroundLayout ParseMultiple(string airportId, IEnumerable<string> geoJsonFiles, string? runwayAirportCode)
     {
+        return ParseMultiple(airportId, geoJsonFiles, runwayAirportCode, FilletMode.Legacy);
+    }
+
+    public static AirportGroundLayout ParseMultiple(
+        string airportId,
+        IEnumerable<string> geoJsonFiles,
+        string? runwayAirportCode,
+        FilletMode filletMode
+    )
+    {
         var merged = geoJsonFiles.ToList();
 
         if (merged.Count == 1)
         {
-            return Parse(airportId, merged[0], runwayAirportCode);
+            return Parse(airportId, merged[0], runwayAirportCode, filletMode);
         }
 
         var allFeatures = new List<JsonElement>();
@@ -87,7 +102,7 @@ public static class GeoJsonParser
             classified.Taxiways,
             classified.Runways,
             runwayAirportCode,
-            applyFillets: true
+            filletMode
         );
     }
 
@@ -163,7 +178,7 @@ public static class GeoJsonParser
         List<TaxiwayFeature> taxiways,
         List<RunwayFeature> runways,
         string? runwayAirportCode,
-        bool applyFillets
+        FilletMode filletMode
     )
     {
         var layout = new AirportGroundLayout { AirportId = airportId };
@@ -270,9 +285,9 @@ public static class GeoJsonParser
         layout.RebuildAdjacencyLists();
 
         // Step 8: Generate fillet arcs at intersections
-        if (applyFillets)
+        if (filletMode != FilletMode.None)
         {
-            FilletArcGenerator.Apply(layout);
+            FilletGeneratorFactory.Create(filletMode).Apply(layout);
         }
 
         Log.LogInformation(

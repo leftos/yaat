@@ -3,23 +3,6 @@ using Microsoft.Extensions.Logging;
 namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
-/// Per-pass tallies returned by <see cref="FilletArcGenerator.Apply"/>. Each field
-/// also appears in the <c>LogInformation</c> summary the pass emits, but tests and
-/// diagnostic tools can read these directly without scraping logs.
-/// </summary>
-public sealed record FilletStatistics(
-    int FilletedNodes,
-    int ArcsCreated,
-    int CollinearMerges,
-    int CoincidentNodesMerged,
-    int OrphansRescued,
-    int RedundantPreserveEdgesRemoved,
-    int DuplicateCornerArcsRemoved,
-    int ParallelBypassEdgesRemoved,
-    int DirectShortensAdded
-);
-
-/// <summary>
 /// Replaces eligible intersection nodes with fillet arcs. For each intersection node
 /// with 2+ edges, every edge pair gets a fillet: a <see cref="GroundArc"/> for angled
 /// pairs (≥15° turn), or a merged straight <see cref="GroundEdge"/> for collinear pairs.
