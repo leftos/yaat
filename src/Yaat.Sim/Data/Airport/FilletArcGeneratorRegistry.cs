@@ -1,13 +1,13 @@
 namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
-/// All registered <see cref="IFilletArcGenerator"/> implementations for enumeration,
-/// parameterized tests, and LayoutInspector comparison.
+/// Implemented <see cref="IFilletArcGenerator"/> instances safe for enumeration and
+/// <see cref="FilletComparison"/>. <see cref="FilletArcGeneratorV2"/> is omitted until
+/// step 3 — use <see cref="FilletGeneratorFactory.Create"/> for <see cref="FilletMode.V2"/>.
 /// </summary>
 public static class FilletArcGeneratorRegistry
 {
-    public static IReadOnlyList<IFilletArcGenerator> All { get; } =
-    [NullFilletArcGenerator.Instance, new LegacyFilletArcGenerator(), new FilletArcGeneratorV2()];
+    public static IReadOnlyList<IFilletArcGenerator> All { get; } = [NullFilletArcGenerator.Instance, new LegacyFilletArcGenerator()];
 
     public static IFilletArcGenerator? GetById(string id)
     {

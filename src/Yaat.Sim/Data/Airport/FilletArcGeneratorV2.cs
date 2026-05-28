@@ -10,7 +10,5 @@ public sealed class FilletArcGeneratorV2 : IFilletArcGenerator
     public string DisplayName => "V2 (plan-then-execute)";
 
     public FilletStatistics Apply(AirportGroundLayout layout) =>
-        throw new NotImplementedException(
-            "FilletArcGeneratorV2 is not implemented yet. Use FilletMode.Legacy or FilletArcGeneratorRouter.UseV2 = false."
-        );
+        throw new NotImplementedException("FilletArcGeneratorV2 is not implemented yet; use FilletMode.Legacy.");
 }

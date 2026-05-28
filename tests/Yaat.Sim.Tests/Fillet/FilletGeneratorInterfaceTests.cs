@@ -28,10 +28,17 @@ public class FilletGeneratorInterfaceTests
     }
 
     [Fact]
-    public void Registry_All_ContainsNoneLegacyAndV2()
+    public void Registry_All_ContainsOnlyImplementedGenerators()
     {
         var ids = FilletArcGeneratorRegistry.All.Select(g => g.Id).ToList();
-        Assert.Equal(["none", "legacy", "v2"], ids);
+        Assert.Equal(["none", "legacy"], ids);
+    }
+
+    [Fact]
+    public void Factory_V2_ThrowsUntilImplemented()
+    {
+        var layout = BuildSimpleIntersectionLayout();
+        Assert.Throws<NotImplementedException>(() => FilletGeneratorFactory.Create(FilletMode.V2).Apply(layout));
     }
 
     [Fact]

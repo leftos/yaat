@@ -582,8 +582,8 @@ CubicBezier.cs                 # Bezier math utilities; used by FilletArcGenerat
 IFilletArcGenerator.cs         # Pluggable fillet contract; Legacy + V2 implementations; FilletMode on GeoJsonParser.Parse
 FilletGeneratorFactory.cs    # FilletMode → IFilletArcGenerator (None / Legacy / V2)
 FilletArcGeneratorRouter.cs  # Runtime Current / UseV2 selector (delegates to factory)
-FilletArcGeneratorRegistry.cs# Enumerates all generators for comparison tests / LayoutInspector
-Fillet/FilletStatistics.cs   # Per-pass fillet tallies returned by Apply
+FilletArcGeneratorRegistry.cs# Enumerates implemented generators (V2 joins when real); factory for V2 stub
+FilletStatistics.cs          # Per-pass fillet tallies returned by Apply
 FilletArcGenerator.cs        # Legacy static implementation (pair-based fillet + cleanup passes)
 FilletArcGeneratorV2.cs      # Clean-room V2 stub (NotImplemented until planner lands)
                                # Radius fits to edge length, collinear merges produce inner straight edges, coincident node merge pass, applied as Step 8 in GeoJsonParser
