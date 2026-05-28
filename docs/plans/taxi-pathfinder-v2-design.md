@@ -10,13 +10,21 @@ The five open questions raised in section 12 have been resolved as follows. The 
 
 2. **Weight calibration (§12.2):** **Hardcoded constants** at the top of `RouteCostFunction.cs`. Calibrate by running OAK + SFO grids and adjusting in code; no tunable config record.
 
-3. **Reverse arc handling (§12.3):** **Hard reject in admissibility filter.** A junction arc whose forward traversal exceeds the category heading-delta limit is excluded from the search graph. If the layout has no admissible arc at a junction, the result is `TransitionInfeasible` — which is the correct signal that the layout needs an additional arc.
+3. **Reverse arc handling (§12.3):** ~~Hard reject in admissibility filter.~~ **REVISED 2026-05-27 after step 5:** **Soft cost penalty.** `GeometricAdmissibility` gates only on the category heading-delta limit (135° for jets); it does not separately exclude reverse arcs. `RouteCostFunction.ReverseArcCostNm = 0.8 nm` provides the soft disincentive. Real layouts (SFO, OAK) have legitimate reverse-traversed arcs at parking exits whose heading-delta is within limits — hard rejecting all reverse arcs was too aggressive. The SKW3404 case is still caught: that specific arc's delta is 180°, which the heading-delta check excludes regardless of direction.
 
 4. **Segment expander junction backtracking (§12.4):** **Try multiple junction candidates between the same two taxiways.** Real airports (SFO especially) have parallel junctions where the controller's intent is satisfied by any of several junction nodes. Failing at the first infeasible junction is a correctness gap. Each per-segment search must enumerate all `T_i ↔ T_{i+1}` junction candidates, score them via the unified cost function, and pick the best feasible one (or report `TransitionInfeasible` only after all candidates fail).
 
 5. **Authorized-taxiway enforcement (§12.5):** **Soft cost penalty** in `RouteCostFunction`, as specified in §6 (0.2 nm per first-use of an unauthorized letter taxiway). v2 emits a `Warning` on the route when this happens. Hard exclusion is rejected — some parking access necessarily crosses unnamed letter taxiways.
 
-6. **`FindFullLengthLineupHoldShort` (§12.6):** Implementer's choice. Either pattern is fine; pick the one that produces fewer cross-file dependencies.
+6. **`FindFullLengthLineupHoldShort` (§12.6):** Implementer's choice. Either pattern is fine; pick the one that produces fewer cross-file dependencies. *Step 4 outcome:* implemented in `RouteMaterialiser`; `TaxiPathfinderV2.FindFullLengthLineupHoldShort` delegates to it.
+
+7. **DirectionReversal penalty location (added 2026-05-27 after step 5):** **SegmentExpander only.** Applying `DirectionReversalCostNm` in `RouteCostFunction.IncrementalCost` during A* breaks the heuristic's admissibility — any edge whose mid-bearing is more than 90° off the start→destination direction inflates the g-score, causing exponential expansion across the airport. AutoRouter's A* does NOT add the penalty. SegmentExpander's bounded per-segment local searches will apply it directly when scoring junction candidates.
+
+8. **AutoRouter expansion budget (added 2026-05-27 after step 5):** **200,000** (raised from the design doc's initial 50,000 estimate). SFO cross-field routes legitimately explore the 100K+ range; 50K was rejecting valid paths. Re-evaluate if memory pressure becomes a concern.
+
+9. **Aircraft category parameter (added 2026-05-27 after step 5):** The `ITaxiPathfinder` interface does NOT currently expose aircraft category. `TaxiPathfinderV2.FindRoute`/`FindRoutes` hardcode `AircraftCategory.Jet`. **Step 6 will extend the interface** to accept category and update production callers (`GroundCommandHandler`, `GroundViewModel`) to pass real category. Until then, all routes use jet limits.
+
+10. **Helipad detection (added 2026-05-27 after step 5):** `SearchContext.ResolveDestination` was initially using a name-pattern heuristic (`name.Contains('H')`) to classify parking-vs-helipad. Replaced with node-type lookup: try `FindHelipadByName` first, classify as Helipad if found; otherwise classify via `FindParkingByName` as Parking.
 
 ---
 

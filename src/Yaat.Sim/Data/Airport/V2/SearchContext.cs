@@ -127,14 +127,16 @@ public sealed record SearchContext(
 
         if (parkingName is not null)
         {
-            int? resolvedId = layout.FindParkingByName(parkingName)?.Id ?? layout.FindHelipadByName(parkingName)?.Id;
+            // Try helipad first, then parking — matches AirportGroundLayout.FindParkingByName conventions
+            // and lets the node's actual GroundNodeType drive DestinationKind classification.
+            var helipadNode = layout.FindHelipadByName(parkingName);
+            if (helipadNode is not null)
+            {
+                return new DestinationDescriptor(helipadNode.Id, null, parkingName, null, DestinationKind.Helipad);
+            }
 
-            DestinationKind kind =
-                parkingName.Length > 0 && char.IsLetter(parkingName[0]) && parkingName.Contains('H')
-                    ? DestinationKind.Helipad
-                    : DestinationKind.Parking;
-
-            return new DestinationDescriptor(resolvedId, null, parkingName, null, kind);
+            var parkingNode = layout.FindParkingByName(parkingName);
+            return new DestinationDescriptor(parkingNode?.Id, null, parkingName, null, DestinationKind.Parking);
         }
 
         if (spotName is not null)
