@@ -181,15 +181,18 @@ public class GeometricAdmissibilityTests
     }
 
     [Fact]
-    public void ReverseArc_IsAlwaysRejected()
+    public void ReverseArc_WithinHeadingLimit_IsAdmitted()
     {
         // Arc with Nodes[0]=n2, Nodes[1]=n1. Traversing from n1→n2 is reverse.
+        // Heading change is ~90° which is within the Jet 135° limit.
+        // Per §Decisions §3 (revised): reverse arcs are admitted when heading delta is within limit;
+        // they are penalised by ReverseArcCostNm in the cost function instead.
         var n0 = Node(0, 37.700, -122.200);
         var n1 = Node(1, 37.701, -122.200);
         var n2 = Node(2, 37.701, -122.199);
 
         var eForward = StraightEdge(n0, n1);
-        // Arc's natural direction is n2→n1 (Nodes[0]=n2).
+        // Arc's natural direction is n2→n1 (Nodes[0]=n2). Traversing from n1→n2 is reverse.
         var arc = StraightArc(n2, n1);
 
         double arrivalBearing = GeoMath.BearingTo(n0.Position, n1.Position);
@@ -205,7 +208,40 @@ public class GeometricAdmissibilityTests
             VisitedNodeIds: ImmutableHashSet<int>.Empty.Add(n0.Id).Add(n1.Id)
         );
 
-        // n1 is Nodes[1] so traversal from n1 is reverse.
+        // Reverse traversal but heading delta ~90° < 135° limit — admitted.
+        bool result = GeometricAdmissibility.IsAdmissible(routeAtN1, arc, n2, AircraftCategory.Jet);
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void ReverseArc_ExceedingHeadingLimit_IsRejected()
+    {
+        // Arc with Nodes[0]=n2, Nodes[1]=n1. Traversing from n1→n2 where n2 is almost behind n1.
+        // The departure bearing of the reverse arc is ~160° from arrival bearing, which exceeds 135°.
+        var n0 = Node(0, 37.700, -122.200);
+        var n1 = Node(1, 37.701, -122.200);
+
+        // n2 is positioned so bearing n1→n2 ≈ 180° (south), giving a ~180° heading change.
+        var n2 = Node(2, 37.699, -122.200);
+
+        var eForward = StraightEdge(n0, n1);
+        // Arc's natural direction is n2→n1 (forward: south→north). Traversing from n1→n2 is reverse.
+        var arc = StraightArc(n2, n1);
+
+        double arrivalBearing = GeoMath.BearingTo(n0.Position, n1.Position); // north ≈ 0°
+
+        var routeAtN1 = new PartialRoute(
+            HeadNodeId: n1.Id,
+            ArrivalBearing: arrivalBearing,
+            LastEdge: eForward,
+            LastTaxiwayName: "A",
+            Previous: PartialRoute.StartAt(n0.Id),
+            Depth: 1,
+            AccumulatedCost: 0.0,
+            VisitedNodeIds: ImmutableHashSet<int>.Empty.Add(n0.Id).Add(n1.Id)
+        );
+
+        // Reverse traversal with heading delta ~180° > 135° limit — rejected.
         bool result = GeometricAdmissibility.IsAdmissible(routeAtN1, arc, n2, AircraftCategory.Jet);
         Assert.False(result);
     }

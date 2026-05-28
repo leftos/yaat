@@ -133,8 +133,11 @@ public class SfoStressGridTests(ITestOutputHelper output)
             result.BothSucceeded || result.BothFailed,
             $"{label}: V1 and V2 disagree on success (V1FailReason={result.V1FailReason}, V2FailReason={result.V2FailReason})"
         );
-        Assert.True(result.SameRoute, $"{label}: V1 and V2 returned different routes");
-        Assert.Equal(result.V1SegmentCount, result.V2SegmentCount);
-        Assert.Equal(result.V1UTurnCount, result.V2UTurnCount);
+
+        // V2 must not regress U-turn count vs V1 — the whole point of the rewrite.
+        Assert.True(
+            result.V2UTurnCount <= result.V1UTurnCount,
+            $"{label}: V2 produced MORE U-turns ({result.V2UTurnCount}) than V1 ({result.V1UTurnCount})"
+        );
     }
 }

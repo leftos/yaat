@@ -417,4 +417,194 @@ public class RouteCostFunctionTests
         Assert.Equal(1.0, RouteCostFunction.HeadingDelta(359.0, 0.0), precision: 6);
         Assert.Equal(180.0, RouteCostFunction.HeadingDelta(0.0, 180.0), precision: 6);
     }
+
+    // ---------------------------------------------------------------------------
+    // Fix A: Destination hold-short does not double-count as crossing
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void FixA_DestinationHoldShort_NoCrossingPenalty()
+    {
+        // A hold-short node that IS the destination runway should not add a crossing penalty.
+        var n0 = MakeNode(0, 37.700, -122.200);
+        var n1 = MakeNode(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        n1.RunwayId = new RunwayIdentifier("28R", "10L");
+        var layout = MakeLayout(n0, n1);
+        var e = MakeEdge(n0, n1, "A");
+
+        var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
+        var ctx = new SearchContext(
+            layout,
+            0,
+            dest,
+            [],
+            null,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            AircraftCategory.Jet,
+            null,
+            null
+        );
+
+        var r0 = StartRoute(0);
+        double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
+
+        // Cost should be ONLY the segment distance — no crossing penalty.
+        Assert.Equal(e.DistanceNm, cost, precision: 9);
+    }
+
+    [Fact]
+    public void FixA_NonDestinationHoldShort_AddsCrossingPenalty()
+    {
+        // A hold-short node on a DIFFERENT runway than the destination should still add the penalty.
+        var n0 = MakeNode(0, 37.700, -122.200);
+        var n1 = MakeNode(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        n1.RunwayId = new RunwayIdentifier("10L", "28R");
+        var layout = MakeLayout(n0, n1);
+        var e = MakeEdge(n0, n1, "A");
+
+        // Destination is 30, not 10L/28R — so this hold-short IS a crossing.
+        var dest = new DestinationDescriptor(null, "30", null, null, DestinationKind.Runway);
+        var ctx = new SearchContext(
+            layout,
+            0,
+            dest,
+            [],
+            null,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            AircraftCategory.Jet,
+            null,
+            null
+        );
+
+        var r0 = StartRoute(0);
+        double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
+
+        Assert.InRange(cost, e.DistanceNm + RouteCostFunction.RunwayCrossingCostNm - 1e-9, double.MaxValue);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Fix B: Fastest preference adds time-cost term
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void FixB_Fastest_StraightEdge_AddsTimeCost()
+    {
+        // A straight edge (MaxSafeSpeedKts = MaxValue) should add near-zero time cost.
+        // This test verifies the code path executes without error and the distance cost is primary.
+        var n0 = MakeNode(0, 37.700, -122.200);
+        var n1 = MakeNode(1, 37.701, -122.200);
+        var layout = MakeLayout(n0, n1);
+        var e = MakeEdge(n0, n1, "A");
+
+        var ctxDefault = MakeContext(layout, 0);
+        var ctxFastest = MakeContext(layout, 0, RoutePreference.Fastest);
+
+        var r0 = StartRoute(0);
+        double costDefault = RouteCostFunction.IncrementalCost(r0, e, n1, ctxDefault);
+        double costFastest = RouteCostFunction.IncrementalCost(r0, e, n1, ctxFastest);
+
+        // Fastest adds a time term. For a straight edge MaxSafeSpeedKts = MaxValue → time cost ≈ 0.
+        // Both should essentially equal segment distance (within floating point).
+        Assert.True(costFastest >= e.DistanceNm, $"Fastest cost {costFastest} must be >= distance {e.DistanceNm}");
+    }
+
+    [Fact]
+    public void FixB_Fastest_Arc_AddsTimeCostAboveDistance()
+    {
+        // An arc with finite MaxSafeSpeedKts should add a meaningful time cost.
+        var n0 = MakeNode(0, 37.700, -122.200);
+        var n1 = MakeNode(1, 37.701, -122.200);
+        var n2 = MakeNode(2, 37.701, -122.199);
+
+        var eForward = MakeEdge(n0, n1, "A");
+
+        // Arc with tight radius (200 ft) — MaxSafeSpeedKts will be small.
+        var arc = new GroundArc
+        {
+            Nodes = [n1, n2],
+            TaxiwayNames = ["A"],
+            DistanceNm = GeoMath.DistanceNm(n1.Position, n2.Position),
+            P1Lat = n1.Position.Lat + (n2.Position.Lat - n1.Position.Lat) / 3.0,
+            P1Lon = n1.Position.Lon + (n2.Position.Lon - n1.Position.Lon) / 3.0,
+            P2Lat = n1.Position.Lat + 2.0 * (n2.Position.Lat - n1.Position.Lat) / 3.0,
+            P2Lon = n1.Position.Lon + 2.0 * (n2.Position.Lon - n1.Position.Lon) / 3.0,
+            MinRadiusOfCurvatureFt = 200.0,
+        };
+        n1.Edges.Add(arc);
+        n2.Edges.Add(arc);
+
+        var layout = MakeLayout(n0, n1, n2);
+        var ctxFastest = MakeContext(layout, 0, RoutePreference.Fastest);
+
+        var r0 = StartRoute(0);
+        var r1 = ExtendRoute(r0, eForward, n1, ctxFastest);
+        double costWithArc = RouteCostFunction.IncrementalCost(r1, arc, n2, ctxFastest);
+
+        // Fastest adds distance / (maxSafeSpeedNmPerSec). For a tight-radius arc this is large.
+        double maxSafeKts = arc.MaxSafeSpeedKts(RouteCostFunction.TaxiTurnRateDegPerSec);
+        double timeCost = arc.DistanceNm / (maxSafeKts / 3600.0);
+        Assert.True(costWithArc >= arc.DistanceNm + timeCost - 1e-9, $"Expected time cost term {timeCost} in arc cost {costWithArc}");
+    }
+
+    // ---------------------------------------------------------------------------
+    // Fix D: No phantom transition penalty on first edge (Depth == 0)
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void FixD_FirstEdge_NoTransitionPenalty()
+    {
+        // At Depth==0, transitioning from empty LastTaxiwayName to "A" must not add a transition penalty.
+        var n0 = MakeNode(0, 37.700, -122.200);
+        var n1 = MakeNode(1, 37.701, -122.200);
+        var layout = MakeLayout(n0, n1);
+        var e = MakeEdge(n0, n1, "A");
+
+        var ctx = MakeContext(layout, 0);
+        var r0 = StartRoute(0); // Depth == 0, LastTaxiwayName == ""
+
+        double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
+
+        // Only segment distance — no transition penalty.
+        Assert.Equal(e.DistanceNm, cost, precision: 9);
+    }
+
+    [Fact]
+    public void FixD_SecondEdge_SameTaxiway_NoTransitionPenalty()
+    {
+        // Depth==1, same taxiway name — no transition penalty.
+        var n0 = MakeNode(0, 37.700, -122.200);
+        var n1 = MakeNode(1, 37.701, -122.200);
+        var n2 = MakeNode(2, 37.702, -122.200);
+        var layout = MakeLayout(n0, n1, n2);
+        var e01 = MakeEdge(n0, n1, "A");
+        var e12 = MakeEdge(n1, n2, "A");
+
+        var ctx = MakeContext(layout, 0, RoutePreference.Shortest);
+        var r0 = StartRoute(0);
+        var r1 = ExtendRoute(r0, e01, n1, ctx);
+
+        double cost = RouteCostFunction.IncrementalCost(r1, e12, n2, ctx);
+        // With Shortest preference: only distance.
+        Assert.Equal(e12.DistanceNm, cost, precision: 9);
+    }
+
+    [Fact]
+    public void FixD_SecondEdge_DifferentTaxiway_AddsTransitionPenalty()
+    {
+        // Depth==1, different taxiway name — transition penalty must fire.
+        var n0 = MakeNode(0, 37.700, -122.200);
+        var n1 = MakeNode(1, 37.701, -122.200);
+        var n2 = MakeNode(2, 37.702, -122.200);
+        var layout = MakeLayout(n0, n1, n2);
+        var e01 = MakeEdge(n0, n1, "A");
+        var e12 = MakeEdge(n1, n2, "B");
+
+        var ctx = MakeContext(layout, 0);
+        var r0 = StartRoute(0);
+        var r1 = ExtendRoute(r0, e01, n1, ctx);
+
+        double cost2 = RouteCostFunction.IncrementalCost(r1, e12, n2, ctx);
+
+        Assert.InRange(cost2 - e12.DistanceNm, RouteCostFunction.TaxiwayTransitionCostNm - 1e-9, double.MaxValue);
+    }
 }

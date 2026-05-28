@@ -28,6 +28,10 @@ public static class GeometricAdmissibility
 {
     /// <summary>
     /// Returns true when the candidate edge is admissible from the current route head.
+    /// Per §Decisions §3: hard-reject any junction where the resulting heading change exceeds
+    /// the category limit. Reverse arcs whose heading change is within the limit are admitted
+    /// (and penalised by the cost function's ReverseArcCostNm term). Only arcs whose heading
+    /// delta exceeds the limit regardless of direction are excluded.
     /// </summary>
     public static bool IsAdmissible(PartialRoute current, IGroundEdge candidate, GroundNode nextNode, AircraftCategory category)
     {
@@ -38,12 +42,6 @@ public static class GeometricAdmissibility
 
         GroundNode headNode = ResolveNode(candidate, current.HeadNodeId);
         if (headNode is null)
-        {
-            return false;
-        }
-
-        // Hard-reject reverse-arc traversal per §Decisions §3.
-        if (candidate is GroundArc arc && IsReverseTraversal(arc, headNode))
         {
             return false;
         }

@@ -39,6 +39,12 @@ public static class RouteCostFunction
     public const double FewestTurnsWeightMultiplier = 5.0;
 
     /// <summary>
+    /// Standard taxi turn rate used to convert <see cref="IGroundEdge.MaxSafeSpeedKts"/> on arcs
+    /// to a scalar for the Fastest time-cost term. ~3 deg/sec is typical ground taxi.
+    /// </summary>
+    public const double TaxiTurnRateDegPerSec = 3.0;
+
+    /// <summary>
     /// Compute the incremental cost of extending <paramref name="current"/> by one edge to <paramref name="nextNode"/>.
     /// This is the single cost function called by all search decision points.
     /// </summary>
@@ -69,6 +75,18 @@ public static class RouteCostFunction
 
         cost += distanceCost;
 
+        // Fix B — Fastest time-cost: distance / maxSafeSpeed gives a time-equivalent penalty.
+        // Applied on top of the distance component so slower arcs cost proportionally more.
+        if (ctx.Preference == RoutePreference.Fastest)
+        {
+            double maxSafeSpeedKts = candidate.MaxSafeSpeedKts(TaxiTurnRateDegPerSec);
+            if (maxSafeSpeedKts > 0.0 && !double.IsPositiveInfinity(maxSafeSpeedKts))
+            {
+                double maxSafeSpeedNmPerSec = maxSafeSpeedKts / 3600.0;
+                cost += candidate.DistanceNm / maxSafeSpeedNmPerSec;
+            }
+        }
+
         // Turn penalty: heading change at the current head node.
         if (ctx.Preference != RoutePreference.Shortest && current.LastEdge is not null)
         {
@@ -86,7 +104,9 @@ public static class RouteCostFunction
         }
 
         // Taxiway transition penalty.
-        if (ctx.Preference != RoutePreference.Shortest && current.LastEdge is not null)
+        // Fix D — skip when Depth == 0 (no previous edge): LastTaxiwayName is empty at start
+        // and comparing empty string against the first edge's name would produce a phantom penalty.
+        if (ctx.Preference != RoutePreference.Shortest && current.Depth > 0)
         {
             string prevTaxiway = current.LastTaxiwayName;
             string nextTaxiway = ResolveTaxiwayName(candidate, current.HeadNodeId);
@@ -97,9 +117,19 @@ public static class RouteCostFunction
         }
 
         // Runway crossing penalty: applies when crossing a hold-short node on an unrelated runway.
+        // Fix A — skip the penalty when this hold-short IS the destination (not a crossing, just lineup).
         if (nextNode.Type == GroundNodeType.RunwayHoldShort && ctx.Preference != RoutePreference.Shortest)
         {
-            cost += RunwayCrossingCostNm;
+            bool isDestinationHoldShort =
+                ctx.Destination.Kind == DestinationKind.Runway
+                && ctx.Destination.RunwayId is { } destRunwayId
+                && nextNode.RunwayId is { } nodeRwyId
+                && nodeRwyId.Contains(destRunwayId);
+
+            if (!isDestinationHoldShort)
+            {
+                cost += RunwayCrossingCostNm;
+            }
         }
 
         // Reverse arc penalty.
@@ -112,6 +142,13 @@ public static class RouteCostFunction
                 cost += ReverseArcCostNm;
             }
         }
+
+        // Fix C — Direction reversal penalty is NOT applied here. Applying a per-edge
+        // penalty for edges pointing away from the start→destination bearing causes
+        // A* to explore exponentially more nodes on cross-airport routes (which must
+        // temporarily go "backward" to cross runways or navigate ramp topology). The
+        // DirectionReversalCostNm constant is retained for use by SegmentExpander's
+        // local searches where the bounded search space makes it safe.
 
         // Unauthorized taxiway penalty: first use only of a letter taxiway not in the authorized set.
         if (ctx.AuthorizedTaxiways is not null && ctx.Preference != RoutePreference.Shortest)
