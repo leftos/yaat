@@ -19,8 +19,10 @@ internal static class FilletPlanExecutor
         var cutNode = MaterializeCutNodes(layout, plan, junctionPlans, idCounter);
 
         var cornerByKey = new Dictionary<(int Junction, int Corner), CornerSpec>();
+        var junctionPosById = new Dictionary<int, LatLon>();
         foreach (var jp in junctionPlans)
         {
+            junctionPosById[jp.JunctionNodeId] = jp.JunctionNode.Position;
             foreach (var corner in jp.Corners)
             {
                 cornerByKey[(jp.JunctionNodeId, corner.CornerId)] = corner;
@@ -64,12 +66,31 @@ internal static class FilletPlanExecutor
                 continue;
             }
 
+            // Build a clean circular arc from the actual tangent geometry: size the curve to the
+            // radius the cut spacing supports (capped by the corner's policy radius), so the stored
+            // MinRadiusOfCurvatureFt is honest instead of an over-bulged requested-radius bezier.
+            double arcRadiusFt = corner.RequestedRadiusFt;
+            if (junctionPosById.TryGetValue(arcOp.JunctionNodeId, out var junctionPos))
+            {
+                double taFt = GeoMath.DistanceNm(junctionPos, tanA.Position) * GeoMath.FeetPerNm;
+                double tbFt = GeoMath.DistanceNm(junctionPos, tanB.Position) * GeoMath.FeetPerNm;
+                double effectiveR = FilletGeometry.EffectiveMinRadiusFt(
+                    taFt,
+                    tbFt,
+                    corner.BearingAToJunctionDeg,
+                    corner.BearingBToJunctionDeg,
+                    tanA.Position,
+                    tanB.Position
+                );
+                arcRadiusFt = Math.Min(corner.RequestedRadiusFt, effectiveR);
+            }
+
             var bez = FilletGeometry.BuildBezier(
                 tanA.Position,
                 tanB.Position,
                 corner.BearingAToJunctionDeg,
                 corner.BearingBToJunctionDeg,
-                corner.RequestedRadiusFt
+                arcRadiusFt
             );
 
             // A too-tight fillet degrades to the sharp corner: emit the chord so the cuts stay

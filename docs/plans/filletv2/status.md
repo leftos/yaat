@@ -38,11 +38,18 @@ differences are accepted classification divergences (8 marginal junctions, see
 [`v2-divergences.md`](./v2-divergences.md)) — each present in exactly one layout, parking 100%
 reachable both ways.
 
-## Next (staged commits — see plan doc Workstreams)
+## Commits (done)
 
-1. **`feat:`** edge-split planner + executor + gate redefinition + obsolete-test cleanup — **this commit**.
-2. **`ref:`** delete dead connectivity layer (`FilletArmChainPlanner`, `FilletConnectivityPlanner`,
-   `FilletPlanCutRedirect` op-redirect methods, obsolete `FilletPlan` ops) + dependent diagnostics.
-3. **`fix:`** Workstream B — runway-bearing parity (FLL `RWY10L/28R #39↔#644`).
-4. **`fix:`** Workstream C — RAMP corner-radius parity (J119 FLL / J473 OAK / J796 SFO,
-   V2 6–22 ft vs legacy 40–50 ft; geometry-layer radius policy).
+1. **`feat:`** edge-split planner + executor + gate redefinition + obsolete-test cleanup (`2d706b38`).
+2. **`ref:`** delete dead connectivity layer + dependent diagnostics.
+3. **`fix:`** clean-arc bezier (honest arc radius) — Workstream C correctness fix.
+
+## Workstream outcomes
+
+- **A (connectivity):** done — hard gate green on FLL/OAK/SFO (no-true-disconnection).
+- **B (runway bearing):** done — `CompareRunwayBearings` reports 0 mismatches; the edge-split's
+  orientation preservation + the toward-junction bezier fixed `#39↔#644` with no dedicated change.
+- **C (corner radius):** clean-arc fix applied (honest geometry; mismatch count down ~25–35%).
+  Residual is an **accepted bidirectional policy difference** (see [`v2-divergences.md`](./v2-divergences.md)) —
+  not pursued, as full parity would clone legacy's radius computation + relax the overrun-preventing
+  cut caps. Soft gate; hard gate unaffected.

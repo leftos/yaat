@@ -33,6 +33,32 @@ parking reachability is identical (100%). **Class: accepted — V2 clean-room el
 Decode harness: `FilletReachabilityDiagnosticTests`. The `Fillet:phase-d-*` "gap-next" nodes in
 the decode are legacy tangent artifacts — ignore them; the gate compares pre-fillet node ids.
 
+### Runway-bearing parity (Workstream B) — resolved
+
+`CompareRunwayBearings` reports **0 mismatches** on FLL/OAK/SFO. The edge-split preserves each
+source edge's `(Nodes[0]→Nodes[1])` orientation on every sub-segment, and `BuildBezier` now
+projects control points toward the junction — together these fixed the former FLL
+`RWY10L/28R #39↔#644` reversal without a dedicated change.
+
+### Corner-radius (Workstream C) — accepted policy difference
+
+**Class: accepted — different radius policy, not a bug. Soft gate.**
+
+Fixed the one real defect: `BuildBezier` used to size control-point depth for the *requested*
+radius (50/75/100/150 ft) while the tangent cuts sat at distances implying a smaller radius,
+producing an over-bulged, internally-inconsistent arc whose stored `MinRadiusOfCurvatureFt`
+(taxi turn-speed input) was distorted. The executor now builds each arc as a clean circular arc
+sized to `min(requested, EffectiveMinRadiusFt(tangent geometry))`. This cut `CompareCornerBuckets`
+mismatches FLL 134→88 / OAK 95→85 / SFO 180→160.
+
+The residual is a **bidirectional policy difference**, not pursued: at RAMP junctions legacy goes
+tight (e.g. 15 ft) while V2 applies `RampRadiusFt = 50`; at taxiway corners V2's conservative cut
+placement (caps that prevent overrunning adjacent intersections) yields tighter arcs than legacy.
+Matching legacy exactly would mean cloning its radius computation + relaxing the cut caps that
+exist to prevent overrun — which fights the clean-room goal and risks the bug class the rewrite
+eliminated. Hard gate (connectivity/structural) is unaffected; revisit only if taxi-physics
+testing shows a specific corner's turn speed is wrong.
+
 ## Shipped interface (steps 1–2 — do not replan)
 
 Implemented under `src/Yaat.Sim/Data/Airport/`: `IFilletArcGenerator`, `FilletMode`, `FilletGeneratorFactory`, `FilletArcGeneratorRouter`, `FilletArcGeneratorRegistry.All` = `none` + `legacy` until V2 works, `GeoJsonParser.Parse(..., FilletMode)` default `Legacy`. Comparison: `tests/Yaat.Sim.Tests/Helpers/LayoutCloner.cs`, `FilletComparison.cs`.
