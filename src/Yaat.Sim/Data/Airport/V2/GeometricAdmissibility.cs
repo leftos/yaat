@@ -27,15 +27,36 @@ public static class CategoryLimits
 public static class GeometricAdmissibility
 {
     /// <summary>
+    /// Edges shorter than this distance are treated as topological no-ops — the fillet generator
+    /// emits zero-distance "phase-d-shorten" pairs (e.g. SFO 1471↔30) at co-located node pairs
+    /// with inherited-from-neighbour bearings that have no physical meaning. Admissibility
+    /// skips them and downstream code must propagate the prior arrival bearing through them
+    /// rather than reading the edge's stored bearing.
+    /// </summary>
+    public const double NoOpEdgeThresholdNm = 0.0002; // ≈ 1.2 ft
+
+    /// <summary>
+    /// True when <paramref name="edge"/> is a zero-distance no-op — see <see cref="NoOpEdgeThresholdNm"/>.
+    /// </summary>
+    public static bool IsNoOpEdge(IGroundEdge edge) => edge.DistanceNm < NoOpEdgeThresholdNm;
+
+    /// <summary>
     /// Returns true when the candidate edge is admissible from the current route head.
     /// Per §Decisions §3: hard-reject any junction where the resulting heading change exceeds
     /// the category limit. Reverse arcs whose heading change is within the limit are admitted
     /// (and penalised by the cost function's ReverseArcCostNm term). Only arcs whose heading
     /// delta exceeds the limit regardless of direction are excluded.
+    /// Zero-distance no-op edges (see <see cref="IsNoOpEdge"/>) are admitted unconditionally
+    /// because the aircraft doesn't physically move along them.
     /// </summary>
     public static bool IsAdmissible(PartialRoute current, IGroundEdge candidate, GroundNode nextNode, AircraftCategory category)
     {
         if (current.LastEdge is null)
+        {
+            return true;
+        }
+
+        if (IsNoOpEdge(candidate))
         {
             return true;
         }

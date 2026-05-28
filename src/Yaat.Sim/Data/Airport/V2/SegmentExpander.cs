@@ -379,17 +379,26 @@ public static class SegmentExpander
         // Trivial: head is already the junction.
         if (startHead.HeadNodeId == junctionNodeId)
         {
+            ctx.DiagnosticLog?.Invoke($"[v2:local] twy={taxiwayName} start={startHead.HeadNodeId} dest={junctionNodeId} TRIVIAL (start==dest)");
             return ([], startHead, 0.0);
         }
 
         if (!ctx.Layout.Nodes.TryGetValue(junctionNodeId, out var destNode))
         {
+            ctx.DiagnosticLog?.Invoke($"[v2:local] twy={taxiwayName} dest={junctionNodeId} NOT IN LAYOUT");
             return (null, null, double.MaxValue);
         }
+
+        ctx.DiagnosticLog?.Invoke(
+            $"[v2:local] BEGIN twy={taxiwayName} start={startHead.HeadNodeId} arr={startHead.ArrivalBearing:F1} hasPrior={startHead.LastEdge is not null} dest={junctionNodeId}"
+        );
 
         var openSet = new PriorityQueue<PartialRoute, double>();
         var bestGScore = new Dictionary<int, double>();
         int expansions = 0;
+        PartialRoute? deepest = null;
+        int admittedTotal = 0;
+        int rejectedTotal = 0;
 
         double h0 = ctx.Layout.Nodes.TryGetValue(startHead.HeadNodeId, out var sn) ? RouteCostFunction.Heuristic(sn, destNode) : 0.0;
 
@@ -403,6 +412,9 @@ public static class SegmentExpander
 
             if (expansions > MaxLocalExpansions)
             {
+                ctx.DiagnosticLog?.Invoke(
+                    $"[v2:local] EXHAUSTED twy={taxiwayName} dest={junctionNodeId} expansions={expansions} deepest={deepest?.HeadNodeId ?? -1} depth={deepest?.Depth ?? 0} admitted={admittedTotal} rejected={rejectedTotal}"
+                );
                 break;
             }
 
@@ -411,10 +423,18 @@ public static class SegmentExpander
                 continue;
             }
 
+            if (deepest is null || current.Depth > deepest.Depth)
+            {
+                deepest = current;
+            }
+
             if (current.HeadNodeId == junctionNodeId)
             {
                 // Found the junction: extract edges accumulated since the start.
                 var edges = ExtractEdgesSince(current, startHead.HeadNodeId, startHead.Depth);
+                ctx.DiagnosticLog?.Invoke(
+                    $"[v2:local] SUCCESS twy={taxiwayName} dest={junctionNodeId} expansions={expansions} edges={edges.Count} cost={current.AccumulatedCost - startHead.AccumulatedCost:F3} admitted={admittedTotal} rejected={rejectedTotal}"
+                );
                 return (edges, current, current.AccumulatedCost - startHead.AccumulatedCost);
             }
 
@@ -423,24 +443,40 @@ public static class SegmentExpander
                 continue;
             }
 
+            int admittedHere = 0;
+            int rejectedHere = 0;
+
             foreach (var edge in headNode.Edges)
             {
                 var nextNode = edge.OtherNode(headNode);
 
                 if (current.VisitedNodeIds.Contains(nextNode.Id))
                 {
+                    ctx.DiagnosticLog?.Invoke($"[v2:local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT visited");
+                    rejectedHere++;
                     continue;
                 }
 
                 // Constrain to edges on the current taxiway, OR edges that connect to the junction node directly.
-                if (!edge.MatchesTaxiway(taxiwayName) && nextNode.Id != junctionNodeId)
+                bool matchesTwy = edge.MatchesTaxiway(taxiwayName);
+                bool isJunctionEdge = nextNode.Id == junctionNodeId;
+                if (!matchesTwy && !isJunctionEdge)
                 {
+                    ctx.DiagnosticLog?.Invoke(
+                        $"[v2:local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT off-taxiway (need {taxiwayName})"
+                    );
+                    rejectedHere++;
                     continue;
                 }
 
                 if (!GeometricAdmissibility.IsAdmissible(current, edge, nextNode, ctx.Category))
                 {
-                    ctx.DiagnosticLog?.Invoke($"[v2:junction] {taxiwayName}  node={nextNode.Id}  headingDelta=REJECTED");
+                    double dep = GeometricAdmissibility.GetDepartureBearing(edge, headNode, nextNode);
+                    double delta = RouteCostFunction.HeadingDelta(current.ArrivalBearing, dep);
+                    ctx.DiagnosticLog?.Invoke(
+                        $"[v2:local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT admis arr={current.ArrivalBearing:F1} dep={dep:F1} delta={delta:F1} limit={CategoryLimits.MaxHeadingChangeDeg(ctx.Category):F0}"
+                    );
+                    rejectedHere++;
                     continue;
                 }
 
@@ -455,13 +491,26 @@ public static class SegmentExpander
 
                 if (bestGScore.TryGetValue(nextNode.Id, out double existing) && (newGScore >= existing - 1e-9))
                 {
+                    ctx.DiagnosticLog?.Invoke(
+                        $"[v2:local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT g-score new={newGScore:F3} existing={existing:F3}"
+                    );
+                    rejectedHere++;
                     continue;
                 }
 
                 bestGScore[nextNode.Id] = newGScore;
 
-                double arrival = GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
+                // Zero-distance no-op edges (phase-d-shorten between co-located nodes) carry
+                // bogus inherited bearings — propagate the current arrival bearing through
+                // them so the next admissibility check sees the real heading.
+                double arrival = GeometricAdmissibility.IsNoOpEdge(edge)
+                    ? current.ArrivalBearing
+                    : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
                 string twyName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
+
+                ctx.DiagnosticLog?.Invoke(
+                    $"[v2:local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} ADMIT arr={current.ArrivalBearing:F1} arr'={arrival:F1} g={newGScore:F3} h={RouteCostFunction.Heuristic(nextNode, destNode):F3}"
+                );
 
                 var extended = current with
                 {
@@ -478,8 +527,20 @@ public static class SegmentExpander
                 double h = RouteCostFunction.Heuristic(nextNode, destNode);
                 double fScore = newGScore + h - (extended.Depth * 1e-9);
                 openSet.Enqueue(extended, fScore);
+                admittedHere++;
             }
+
+            admittedTotal += admittedHere;
+            rejectedTotal += rejectedHere;
+
+            ctx.DiagnosticLog?.Invoke(
+                $"[v2:local-pop] node={current.HeadNodeId} depth={current.Depth} arr={current.ArrivalBearing:F1} admit={admittedHere} reject={rejectedHere}"
+            );
         }
+
+        ctx.DiagnosticLog?.Invoke(
+            $"[v2:local] FAIL twy={taxiwayName} dest={junctionNodeId} expansions={expansions} openSet=empty deepest={deepest?.HeadNodeId ?? -1} depth={deepest?.Depth ?? 0} admitted={admittedTotal} rejected={rejectedTotal}"
+        );
 
         return (null, null, double.MaxValue);
     }

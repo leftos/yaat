@@ -225,7 +225,12 @@ public static class AutoRouter
                 admitted++;
                 bestGScore[nextNode.Id] = newGScore;
 
-                double arrivalBearing = GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
+                // Zero-distance no-op edges carry bogus inherited bearings — propagate the
+                // current arrival bearing through them so the next admissibility check sees
+                // the real heading.
+                double arrivalBearing = GeometricAdmissibility.IsNoOpEdge(edge)
+                    ? current.ArrivalBearing
+                    : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
                 string taxiwayName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
 
                 var extended = current with
