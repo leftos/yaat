@@ -57,9 +57,12 @@ public static class SegmentExpander
 
             if (i + 1 < resolvedWaypoints.Count)
             {
-                // Segment from current taxiway/node to the next.
+                // Segment from current taxiway/node to the next. The next-next named waypoint
+                // (when one exists) is the "lookahead" used by RouteNamedToNamed to pick a
+                // junction whose toTaxiway-side points toward where we'll need to go next.
                 var next = resolvedWaypoints[i + 1];
-                var (segEdges, newHead, failure) = ExpandSegment(head, current, next, ctx);
+                var lookahead = i + 2 < resolvedWaypoints.Count ? resolvedWaypoints[i + 2] : null;
+                var (segEdges, newHead, failure) = ExpandSegment(head, current, next, lookahead, ctx);
                 if (failure is not null)
                 {
                     return (null, failure);
@@ -167,6 +170,7 @@ public static class SegmentExpander
         PartialRoute head,
         WaypointToken current,
         WaypointToken next,
+        WaypointToken? lookahead,
         SearchContext ctx
     )
     {
@@ -182,8 +186,11 @@ public static class SegmentExpander
             return RouteFromNodeRefToTaxiway(head, current.ResolvedNodeId, next.Name, ctx);
         }
 
-        // Named taxiway → named taxiway: find junction nodes and pick best.
-        return RouteNamedToNamed(head, current.Name, next.Name, ctx);
+        // Named taxiway → named taxiway: find junction nodes and pick best. Lookahead only
+        // applies when it's a named taxiway (not a node-ref) — for node-ref lookaheads, the
+        // junction picker has no anchor to align against.
+        string? lookaheadName = lookahead is { IsNodeRef: false } la ? la.Name : null;
+        return RouteNamedToNamed(head, current.Name, next.Name, lookaheadName, ctx);
     }
 
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) ExpandLastWaypoint(
@@ -210,13 +217,38 @@ public static class SegmentExpander
         PartialRoute head,
         string fromTaxiway,
         string toTaxiway,
+        string? lookaheadTaxiway,
         SearchContext ctx
     )
     {
         // Find all junction candidates: nodes on fromTaxiway with at least one edge onto toTaxiway.
         var junctionCandidates = FindJunctionCandidates(ctx.Layout, fromTaxiway, toTaxiway);
 
-        ctx.DiagnosticLog?.Invoke($"[v2:segment] twy={fromTaxiway}→{toTaxiway} head={head.HeadNodeId} junctions={junctionCandidates.Count}");
+        // Lookahead anchor: centroid of junctions between toTaxiway and the next-next taxiway.
+        // Used to bias junction selection so that the chosen junction's toTaxiway-side points
+        // toward where the route will continue, avoiding wrong-side picks that force a U-turn
+        // immediately after the transition.
+        (double Lat, double Lon)? lookaheadAnchor = null;
+        if (lookaheadTaxiway is not null)
+        {
+            var anchors = FindJunctionCandidates(ctx.Layout, toTaxiway, lookaheadTaxiway);
+            if (anchors.Count > 0)
+            {
+                double sumLat = 0;
+                double sumLon = 0;
+                foreach (var a in anchors)
+                {
+                    sumLat += a.Position.Lat;
+                    sumLon += a.Position.Lon;
+                }
+
+                lookaheadAnchor = (sumLat / anchors.Count, sumLon / anchors.Count);
+            }
+        }
+
+        ctx.DiagnosticLog?.Invoke(
+            $"[v2:segment] twy={fromTaxiway}→{toTaxiway} head={head.HeadNodeId} junctions={junctionCandidates.Count} lookahead={lookaheadTaxiway ?? "(none)"}"
+        );
 
         if (junctionCandidates.Count == 0)
         {
@@ -235,9 +267,16 @@ public static class SegmentExpander
                 continue;
             }
 
-            if (cost < bestCost)
+            double lookaheadPenalty = ComputeLookaheadPenalty(junctionNode, toTaxiway, lookaheadAnchor);
+            double totalCost = cost + lookaheadPenalty;
+
+            ctx.DiagnosticLog?.Invoke(
+                $"[v2:junction-pick] {fromTaxiway}→{toTaxiway} candidate={junctionNode.Id} cost={cost:F3} lookahead+={lookaheadPenalty:F3} total={totalCost:F3}"
+            );
+
+            if (totalCost < bestCost)
             {
-                bestCost = cost;
+                bestCost = totalCost;
                 bestEdges = segEdges;
                 bestHead = segHead;
             }
@@ -254,6 +293,46 @@ public static class SegmentExpander
         );
 
         return (bestEdges, bestHead, null);
+    }
+
+    /// <summary>
+    /// Penalise junction candidates whose toTaxiway-side does not point toward
+    /// <paramref name="lookaheadAnchor"/>. A junction is "well-aligned" if it has at least
+    /// one toTaxiway-edge whose other endpoint is geographically closer to the anchor than
+    /// the junction itself — meaning continuing along that edge moves the aircraft toward
+    /// the next-next taxiway. Junctions with no such edge would force a U-turn on
+    /// toTaxiway after the transition.
+    /// </summary>
+    private const double LookaheadMisalignedPenaltyNm = 10.0;
+
+    private static double ComputeLookaheadPenalty(GroundNode junction, string toTaxiway, (double Lat, double Lon)? anchor)
+    {
+        if (anchor is not { } a)
+        {
+            return 0.0;
+        }
+
+        double junctionToAnchorNm = GeoMath.DistanceNm(junction.Position.Lat, junction.Position.Lon, a.Lat, a.Lon);
+
+        foreach (var edge in junction.Edges)
+        {
+            if (!edge.MatchesTaxiway(toTaxiway))
+            {
+                continue;
+            }
+
+            var neighbor = edge.OtherNode(junction);
+            double neighborToAnchorNm = GeoMath.DistanceNm(neighbor.Position.Lat, neighbor.Position.Lon, a.Lat, a.Lon);
+            if (neighborToAnchorNm < junctionToAnchorNm)
+            {
+                // At least one toTaxiway-edge moves us closer to the anchor — junction OK.
+                return 0.0;
+            }
+        }
+
+        // Every toTaxiway-edge moves away from the anchor — picking this junction would
+        // require a U-turn on toTaxiway to reach the next-next taxiway.
+        return LookaheadMisalignedPenaltyNm;
     }
 
     /// <summary>
