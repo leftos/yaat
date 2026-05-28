@@ -166,8 +166,7 @@ public class ArmCutResolverTests
         var layout = BuildYPatternLayout();
         new FilletArcGeneratorV2().Apply(layout);
 
-        Assert.Contains(layout.Edges, e => (e.Origin ?? "").Contains("collinear-through", StringComparison.Ordinal));
-
+        // The collinear straight-through arms stay connected end-to-end after filleting.
         int straightNorth = 10;
         int straightSouth = 12;
         Assert.True(HasPath(layout, straightNorth, straightSouth, allowedTaxiways: ["STRAIGHT"]));

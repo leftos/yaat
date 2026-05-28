@@ -13,7 +13,7 @@
 | **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
 | **Heading/navigation** | `FlightCommandHandler.cs`, `NavigationCommandHandler.cs`, `FlightPhysics.cs` (UpdateNavigation/UpdateHeading), `ControlTargets.cs` |
 | **Ground taxiing** | `GroundNavigator.cs`, `TaxiPathfinder.cs`, `TaxiingPhase.cs`, `TaxiRoute.cs`, `AirportGroundLayout.cs` |
-| **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory` / `FilletArcGeneratorRouter`, legacy `FilletArcGenerator.cs`, `FilletArcGeneratorV2.cs` (stub), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
+| **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory` / `FilletArcGeneratorRouter`, legacy `FilletArcGenerator.cs`, `FilletArcGeneratorV2.cs` + `Fillet/V2/` (plan-then-execute edge-split), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
 | **Runway exits** | `LandingPhase.cs`, `RunwayExitPhase.cs`, `ExitPreference.cs`, `AirportGroundLayout.cs` (FindExitPath) |
 | **Approach procedures** | `ApproachCommandHandler.cs`, `ApproachNavigationPhase.cs`, `FinalApproachPhase.cs`, `CifpParser.cs` |
 | **SID/STAR** | `DepartureClearanceHandler.cs`, `InitialClimbPhase.cs`, `CifpParser.cs`, `NavigationDatabase.cs` |
@@ -585,9 +585,19 @@ FilletArcGeneratorRouter.cs  # Runtime Current / UseV2 selector (delegates to fa
 FilletArcGeneratorRegistry.cs# Enumerates implemented generators (V2 joins when real); factory for V2 stub
 FilletStatistics.cs          # Per-pass fillet tallies returned by Apply
 FilletArcGenerator.cs        # Legacy static implementation (pair-based fillet + cleanup passes)
-FilletArcGeneratorV2.cs      # Clean-room V2 stub (NotImplemented until planner lands)
-                               # Radius fits to edge length, collinear merges produce inner straight edges, coincident node merge pass, applied as Step 8 in GeoJsonParser
+FilletArcGeneratorV2.cs      # Clean-room V2: classify junctions → resolve cuts → plan → execute → normalize
 FilletProvenance.cs            # Discriminated record (TangentNode / CornerArc / etc.) attached to fillet-generated nodes/edges/arcs so cleanup passes can pattern-match instead of parsing Origin strings
+Fillet/                        # V2 fillet pipeline (clean-room)
+  FilletGeometry.cs            # Turn angle, ideal tangent, cubic-bezier build (control points project toward the junction)
+  FilletGraphNormalizer.cs     # Post-execute: recompute distances, merge coincident nodes, sweep isolated nodes, drop self-loops/degenerate arcs
+  V2/TaxiwayArmBuilder.cs      # One arm per outbound edge; TaxiwayWalk along same-named taxiway
+  V2/JunctionClassifier.cs     # Eligibility + Skip/Simple/MultiCorner/Preserve + collinear pairs
+  V2/CornerPlanner.cs          # Arm-pair corners (≥15°) and collinear pairs (<15°)
+  V2/ArmCutResolver.cs         # Tangent-cut placement per arm; corner arcs + straight connectors; tangent merges
+  V2/FilletEdgeSplitPlanner.cs # Order-independent connectivity: split each original edge once by its cuts, drop only removed-junction stubs → SurvivingEdgeOp
+  V2/FilletPlanBuilder.cs      # Assemble the immutable FilletPlan (cuts, merges, corner arcs, surviving edges, nodes/edges to remove)
+  V2/FilletPlanExecutor.cs     # Materialize cut nodes + surviving edges + corner arcs (degenerate arc → straight chord) in one pass; remove consumed edges + removed junctions
+  V2/FilletPlanCutRedirect.cs  # Union-find survivor map for tangent merges + stable-anchor binding
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiRouteAutoCross.cs          # Applies AutoCrossRunway toggle to a route's RunwayCrossing hold-shorts; reused at TAXI-resolution and on mid-session toggle (SimulationWorld.ApplyAutoCrossToActiveTaxiRoutes)

@@ -77,6 +77,38 @@ internal static class TaxiwayWalk
         return double.MaxValue;
     }
 
+    /// <summary>
+    /// Locates a distance-along-arm on the walk: which <see cref="WalkStep.Edge"/> contains it
+    /// (reference identity, not a node pair) and the fraction from that step's walk-start toward
+    /// its far node. Mirrors <see cref="InterpolateAtDistanceFt"/>'s loop so a cut's geometric
+    /// position and its edge assignment never disagree. Clamps a past-terminal distance to the
+    /// last step. <see cref="WalkResult.Steps"/> always has at least one entry.
+    /// </summary>
+    internal sealed record EdgeLocation(int StepIndex, GroundEdge Edge, GroundNode StepFromNode, GroundNode StepToNode, double FractionFromStepStart);
+
+    internal static EdgeLocation LocateDistanceFt(WalkResult walk, GroundNode intersection, double targetDistFt)
+    {
+        double remaining = targetDistFt;
+        for (int i = 0; i < walk.Steps.Count; i++)
+        {
+            var step = walk.Steps[i];
+            double stepLenFt = i == 0 ? step.CumulativeDistFt : step.CumulativeDistFt - walk.Steps[i - 1].CumulativeDistFt;
+            var fromNode = i == 0 ? intersection : walk.Steps[i - 1].FarNode;
+
+            if (remaining <= stepLenFt + 1e-6)
+            {
+                double frac = stepLenFt > 0 ? Math.Clamp(remaining / stepLenFt, 0.0, 1.0) : 0.0;
+                return new EdgeLocation(i, step.Edge, fromNode, step.FarNode, frac);
+            }
+
+            remaining -= stepLenFt;
+        }
+
+        int last = walk.Steps.Count - 1;
+        var lastFrom = last == 0 ? intersection : walk.Steps[last - 1].FarNode;
+        return new EdgeLocation(last, walk.Steps[last].Edge, lastFrom, walk.Steps[last].FarNode, 1.0);
+    }
+
     internal static (LatLon Position, double BearingTowardJunctionDeg) InterpolateAtDistanceFt(
         WalkResult walk,
         GroundNode intersection,

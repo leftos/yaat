@@ -201,7 +201,7 @@ internal static class ArmCutResolver
             }
 
             surviving.Add(corner);
-            cornerArcs.Add(new CornerArcOp(corner.CornerId, cutA, cutB));
+            cornerArcs.Add(new CornerArcOp(junction.JunctionNodeId, corner.CornerId, cutA, cutB));
         }
 
         var merges = SharedArmTangentPass.ApplyIntraArmCoalesce(junction, cuts, warnings);

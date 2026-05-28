@@ -16,19 +16,6 @@ internal static class FilletPlanConsistency
             throw new InvalidOperationException($"{context}: cut id {id} is not in plan.Cuts (keys: {cutIds.Count})");
         }
 
-        foreach (var op in plan.ArmChainEdges)
-        {
-            if (op.FromCutId is int from)
-            {
-                Require(from, $"ArmChainEdge J{op.JunctionNodeId} arm {op.ArmId} FromCutId");
-            }
-
-            if (op.ToCutId is int to)
-            {
-                Require(to, $"ArmChainEdge J{op.JunctionNodeId} arm {op.ArmId} ToCutId");
-            }
-        }
-
         foreach (var op in plan.CornerArcs)
         {
             Require(op.CutIdAtArmA, $"CornerArc corner {op.CornerId} armA");
@@ -41,11 +28,16 @@ internal static class FilletPlanConsistency
             Require(op.CutIdAtArmB, $"StraightConnector J{op.JunctionNodeId} corner {op.CornerId} armB");
         }
 
-        foreach (var op in plan.ReconnectEdges)
+        foreach (var op in plan.SurvivingEdges)
         {
-            if (op.TargetCutId is int target)
+            if (op.FromCutId is int from)
             {
-                Require(target, $"ReconnectEdge J{op.JunctionNodeId} other {op.OtherNodeId}");
+                Require(from, $"SurvivingEdge {op.Origin} FromCutId");
+            }
+
+            if (op.ToCutId is int to)
+            {
+                Require(to, $"SurvivingEdge {op.Origin} ToCutId");
             }
         }
     }
@@ -66,30 +58,16 @@ internal static class FilletPlanConsistency
             }
         }
 
-        foreach (var op in plan.ArmBypasses)
+        foreach (var op in plan.SurvivingEdges)
         {
-            RequireNotRemoved(op.RemoteNodeId, $"ArmBypass J{op.JunctionNodeId} arm {op.ArmId} RemoteNodeId");
-            RequireNotRemoved(op.TerminalNodeId, $"ArmBypass J{op.JunctionNodeId} arm {op.ArmId} TerminalNodeId");
-        }
-
-        foreach (var op in plan.ArmChainEdges)
-        {
-            if (op.TerminalNodeId is int terminal)
+            if (op.FromNodeId is int from)
             {
-                RequireNotRemoved(terminal, $"ArmChainEdge J{op.JunctionNodeId} arm {op.ArmId} TerminalNodeId");
+                RequireNotRemoved(from, $"SurvivingEdge {op.Origin} FromNodeId");
             }
 
-            if (op.FromStableNodeId is int stableFrom)
+            if (op.ToNodeId is int to)
             {
-                RequireNotRemoved(stableFrom, $"ArmChainEdge J{op.JunctionNodeId} arm {op.ArmId} FromStableNodeId");
-            }
-        }
-
-        foreach (var op in plan.ReconnectEdges)
-        {
-            if (op.TargetCutId is null)
-            {
-                RequireNotRemoved(op.JunctionNodeId, $"ReconnectEdge J{op.JunctionNodeId} other {op.OtherNodeId} TargetCutId=null");
+                RequireNotRemoved(to, $"SurvivingEdge {op.Origin} ToNodeId");
             }
         }
     }

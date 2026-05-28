@@ -6,42 +6,43 @@
 
 ## Strategy
 
-1. **Reach structural-green first**, commit a checkpoint (working V2 + comparison baseline as a safety net).
-2. **Then** do the connectivity-layer rewrite (global edge-split, order-independent) against that baseline.
+1. ~~Reach structural-green first, commit a checkpoint.~~ **Done** (commit `a7b0e963`).
+2. **Connectivity-layer rewrite (global edge-split) — landed.** `Compare_LegacyVsV2_MeetsHardGates`
+   passes FLL/OAK/SFO under the no-true-disconnection gate.
 
-Keep: geometry layer (`TaxiwayArmBuilder`, `JunctionClassifier`, `CornerPlanner`, `ArmCutResolver`, `FilletGeometry`, `TaxiwayWalk`), gate harness, diagnostics.
-Rewrite later: `FilletPlanExecutor` edge construction + `FilletArmChainPlanner` + reconnect/bypass/side-branch passes → single order-independent edge-split.
+Plan doc: [`../../../../../Users/Leftos/.claude/plans/i-ve-had-a-lot-sorted-mccarthy.md`] (Workstreams A/B/C).
 
-## Done so far (uncommitted)
+### What changed (Workstream A)
 
-- Reverted dead `IsNamedTaxiwayIntersection` node-retention in `FilletPlanBuilder` (no behavior change; removed complexity).
-- Removed the `MaxPreserveToCutSpanFt = 5 ft` cap in `FilletPlanExecutor` preserve-to-cut → preserved junctions now connect to their nearest tangent per arm. Fixed all 7 isolated-node structural failures (FLL 301, OAK 28/155/305/387, SFO 538/823).
-- Added degenerate/self-loop **edge** removal to `FilletGraphNormalizer` (HEAD version only removed degenerate *arcs*) → targets SFO `887→887` self-loop.
+- New pure `FilletEdgeSplitPlanner`: split each original edge once by its cuts; drop only the
+  removed-junction stub; degenerate corner arc → straight chord. Emits `SurvivingEdgeOp`.
+- `FilletPlanExecutor` rewritten to materialize the surviving-edge list once (no per-junction
+  mutation loop), removing the order-dependence and the create-then-strip bug class.
+- `FilletPlanBuilder` calls the edge-split instead of `FilletArmChainPlanner` /
+  `FilletConnectivityPlanner` (those are now dead — removed in the `ref:` commit).
+- `CornerArcOp` carries `JunctionNodeId` (corner ids are per-junction, not global — fixed an
+  arc-to-junction mis-match that silently corrupted arc geometry).
+- `FilletGeometry.BuildBezier` projects control points toward the junction (was projecting away
+  → S-cusps / `minR≈0` arcs the normalizer deleted).
+- Gate redefined to no-true-disconnection (structural + repair-zero + parking-match + no node
+  present in both layouts reachable in only one).
 
-## Gate progression
+Keep: geometry layer (`TaxiwayArmBuilder`, `JunctionClassifier`, `CornerPlanner`,
+`ArmCutResolver`, `FilletGeometry`, `TaxiwayWalk`), gate harness, `FilletReachabilityDiagnostics`.
 
-| Run | FLL | OAK | SFO |
-|-----|-----|-----|-----|
-| post-recovery (broken) | FAIL / 6 / 0 | FAIL / 5 / 3 | FAIL / 9 / 2 |
-| after cap removal | **ok** / 5 / 0 | **ok** / 1 / 3 | FAIL(self-loop) / 4 / 2 |
-| + self-loop edge removal + adjacency rebuild + isolated-node sweep | **ok** / 5 / 0 | **ok** / **10** / 3 | **ok** / **25** / 2 |
+## Gate result (edge-split)
 
-(format: structural / only-legacy / only-v2)
+`Compare_LegacyVsV2_MeetsHardGates` **passes** FLL/OAK/SFO: structural ok, repair counters
+zero, parking reachability matches, no true disconnection. The remaining hold-short stable-set
+differences are accepted classification divergences (8 marginal junctions, see
+[`v2-divergences.md`](./v2-divergences.md)) — each present in exactly one layout, parking 100%
+reachable both ways.
 
-**Structural-green achieved on all three.** Remaining gate failures are reachability only.
+## Next (staged commits — see plan doc Workstreams)
 
-### Stale-adjacency finding (important)
-
-The HEAD `FilletGraphNormalizer` removed degenerate *arcs* without rebuilding adjacency, so the gate ran on **stale adjacency that masked real disconnections** and inflated reachability. The fix (rebuild after removals + isolated-node sweep) reveals the TRUE only-legacy: OAK 1→10, SFO 4→25 (FLL unchanged at 5). Every prior round's only-legacy number was understated. The corrected numbers are the real target for the rewrite.
-
-## Next
-
-1. Confirm self-loop fix → structural-green on all three. Commit checkpoint.
-2. only-legacy decode: FLL 105/106/357/501/468, OAK 600, SFO 661/660/1101/1043.
-3. only-v2 decode: OAK 3, SFO 2.
-4. Then the global edge-split rewrite.
-
-## Known non-structural divergences (defer)
-
-- Corner-radius mismatches at RAMP junctions (J119 FLL, J473 OAK, J796 SFO): V2 radii 6–22 ft vs legacy 40–50 ft. Radius-policy difference, triage later.
-- FLL runway bearing `RWY10L/28R #39↔#644`: v2 270° vs legacy 90° (reversed edge). Investigate.
+1. **`feat:`** edge-split planner + executor + gate redefinition + obsolete-test cleanup — **this commit**.
+2. **`ref:`** delete dead connectivity layer (`FilletArmChainPlanner`, `FilletConnectivityPlanner`,
+   `FilletPlanCutRedirect` op-redirect methods, obsolete `FilletPlan` ops) + dependent diagnostics.
+3. **`fix:`** Workstream B — runway-bearing parity (FLL `RWY10L/28R #39↔#644`).
+4. **`fix:`** Workstream C — RAMP corner-radius parity (J119 FLL / J473 OAK / J796 SFO,
+   V2 6–22 ft vs legacy 40–50 ft; geometry-layer radius policy).

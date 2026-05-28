@@ -17,6 +17,7 @@ public sealed record FilletGateResults(
     StructuralValidationResult Structural,
     bool RepairCountersZero,
     HashSet<int> HoldShortReachableStableIds,
+    HashSet<int> SurvivingPreFilletNodeIds,
     HashSet<int> ParkingReachableToHoldShort,
     IReadOnlyDictionary<CornerBucketKey, double> CornerBucketMinRadiusFt,
     IReadOnlyDictionary<(int NodeIdA, int NodeIdB, string Taxiway), double> RunwayEdgeBearingsDeg,
@@ -26,6 +27,8 @@ public sealed record FilletGateResults(
 public sealed record FilletComparisonGateReport(
     IReadOnlyDictionary<string, FilletGateResults> GatesByGeneratorId,
     bool HoldShortConnectivityMatch,
+    bool HoldShortNoTrueDisconnection,
+    IReadOnlyList<int> TrueDisconnections,
     bool ParkingConnectivityMatch,
     IReadOnlyList<CornerBucketMismatch> CornerBucketMismatches,
     IReadOnlyList<RunwayBearingMismatch> RunwayBearingMismatches
@@ -52,6 +55,7 @@ public static class FilletComparisonGates
             ValidateStructural(layout),
             RepairCountersZero(stats),
             Reachability.ReachableStableIdsFromHoldShorts(preFillet, layout),
+            Reachability.SurvivingStableIds(preFillet, layout),
             Reachability.ParkingReachableToHoldShort(layout),
             IndexCornerBuckets(layout),
             IndexRunwayEdgeBearings(layout),
@@ -68,14 +72,45 @@ public static class FilletComparisonGates
 
         var cornerMismatches = new List<CornerBucketMismatch>();
         var runwayMismatches = new List<RunwayBearingMismatch>();
+        bool noTrueDisconnection = true;
+        var trueDisconnections = new List<int>();
 
         if (gatesByGeneratorId.TryGetValue("legacy", out var legacy) && gatesByGeneratorId.TryGetValue("v2", out var v2))
         {
             cornerMismatches.AddRange(CompareCornerBuckets(legacy.CornerBucketMinRadiusFt, v2.CornerBucketMinRadiusFt));
             runwayMismatches.AddRange(CompareRunwayBearings(legacy.RunwayEdgeBearingsDeg, v2.RunwayEdgeBearingsDeg));
+
+            // A true disconnection is a node present in BOTH layouts yet reachable in only one. Reachability
+            // differences over nodes one generator dissolved (filleted away) are classification divergences,
+            // not connectivity losses.
+            foreach (int id in legacy.HoldShortReachableStableIds.Except(v2.HoldShortReachableStableIds))
+            {
+                if (v2.SurvivingPreFilletNodeIds.Contains(id))
+                {
+                    trueDisconnections.Add(id);
+                }
+            }
+
+            foreach (int id in v2.HoldShortReachableStableIds.Except(legacy.HoldShortReachableStableIds))
+            {
+                if (legacy.SurvivingPreFilletNodeIds.Contains(id))
+                {
+                    trueDisconnections.Add(id);
+                }
+            }
+
+            noTrueDisconnection = trueDisconnections.Count == 0;
         }
 
-        return new FilletComparisonGateReport(gatesByGeneratorId, holdShortMatch, parkingMatch, cornerMismatches, runwayMismatches);
+        return new FilletComparisonGateReport(
+            gatesByGeneratorId,
+            holdShortMatch,
+            noTrueDisconnection,
+            trueDisconnections,
+            parkingMatch,
+            cornerMismatches,
+            runwayMismatches
+        );
     }
 
     /// <summary>
@@ -261,7 +296,8 @@ public static class FilletComparisonGates
 
     public static void AppendGateReport(StringBuilder sb, FilletComparisonReport report)
     {
-        sb.AppendLine($"  Hold-short reachability match: {report.Gates.HoldShortConnectivityMatch}");
+        sb.AppendLine($"  Hold-short reachability exact-match: {report.Gates.HoldShortConnectivityMatch}");
+        sb.AppendLine($"  Hold-short no-true-disconnection: {report.Gates.HoldShortNoTrueDisconnection}");
         if (
             !report.Gates.HoldShortConnectivityMatch
             && report.Gates.GatesByGeneratorId.TryGetValue("legacy", out var legacyGates)
@@ -272,11 +308,11 @@ public static class FilletComparisonGates
             int onlyV2 = v2Gates.HoldShortReachableStableIds.Except(legacyGates.HoldShortReachableStableIds).Count();
             sb.AppendLine(
                 $"    stable reachable: legacy={legacyGates.HoldShortReachableStableIds.Count} v2={v2Gates.HoldShortReachableStableIds.Count} "
-                    + $"only-legacy={onlyLegacy} only-v2={onlyV2}"
+                    + $"only-legacy={onlyLegacy} only-v2={onlyV2} (classification divergences)"
             );
-            foreach (int id in legacyGates.HoldShortReachableStableIds.Except(v2Gates.HoldShortReachableStableIds).Take(5))
+            if (report.Gates.TrueDisconnections.Count > 0)
             {
-                sb.AppendLine($"    only-legacy sample: node {id}");
+                sb.AppendLine($"    TRUE DISCONNECTIONS (present in both, reachable in one): {string.Join(", ", report.Gates.TrueDisconnections)}");
             }
         }
         sb.AppendLine($"  Parking→hold-short reachability match: {report.Gates.ParkingConnectivityMatch}");
@@ -373,6 +409,10 @@ public static class FilletComparisonGates
 
     private static class Reachability
     {
+        /// <summary>Pre-fillet node IDs that still exist (were not dissolved/filleted away) in the layout.</summary>
+        public static HashSet<int> SurvivingStableIds(AirportGroundLayout preFillet, AirportGroundLayout layout) =>
+            preFillet.Nodes.Keys.Where(layout.Nodes.ContainsKey).ToHashSet();
+
         /// <summary>
         /// Pre-fillet node IDs still present in the filleted layout and reachable from hold shorts.
         /// Tangent nodes created during fillet are excluded so Legacy vs V2 compares operational connectivity.

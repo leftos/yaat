@@ -4,7 +4,7 @@ internal sealed record ArmCutOp(int CutId);
 
 internal sealed record TangentMergeOp(int CutIdA, int CutIdB);
 
-internal sealed record CornerArcOp(int CornerId, int CutIdAtArmA, int CutIdAtArmB);
+internal sealed record CornerArcOp(int JunctionNodeId, int CornerId, int CutIdAtArmA, int CutIdAtArmB);
 
 internal sealed record StraightConnectorOp(int JunctionNodeId, int CornerId, int CutIdAtArmA, int CutIdAtArmB, string TaxiwayName);
 
@@ -17,6 +17,22 @@ internal sealed record ReconnectEdgeOp(int JunctionNodeId, int OtherNodeId, int?
 internal sealed record ReconnectHoldShortOp(int HoldShortNodeId, int IntersectionNodeId, string TaxiwayName, bool IsRunwayCenterline);
 
 internal sealed record PreserveStubOp(int JunctionNodeId, int CutId);
+
+/// <summary>
+/// A surviving sub-segment of exactly one original edge, produced by the global edge-split.
+/// Each endpoint is EITHER a resolved cut (<see cref="FromCutId"/>/<see cref="ToCutId"/>) OR a
+/// stable graph node (<see cref="FromNodeId"/>/<see cref="ToNodeId"/>) — exactly one of each pair
+/// is non-null. Cut endpoints are materialized by the executor; node endpoints already exist.
+/// </summary>
+internal sealed record SurvivingEdgeOp(
+    int? FromCutId,
+    int? FromNodeId,
+    int? ToCutId,
+    int? ToNodeId,
+    string TaxiwayName,
+    bool IsRunwayCenterline,
+    string Origin
+);
 
 /// <summary>
 /// Planned straight segment on one arm: remote→cut, cut→cut, cut→stable, stable→cut, or stable→terminal.
@@ -44,6 +60,7 @@ internal sealed record FilletPlan(
     IReadOnlyList<ReconnectEdgeOp> ReconnectEdges,
     IReadOnlyList<ReconnectHoldShortOp> HoldShortReconnects,
     IReadOnlyList<PreserveStubOp> PreserveStubs,
+    IReadOnlyList<SurvivingEdgeOp> SurvivingEdges,
     IReadOnlyList<int> JunctionNodesToRemove,
     IReadOnlySet<GroundEdge> EdgesToRemove,
     IReadOnlyList<PlanWarning> Warnings,
@@ -62,6 +79,7 @@ internal sealed record FilletPlan(
             ReconnectEdges: [],
             HoldShortReconnects: [],
             PreserveStubs: [],
+            SurvivingEdges: [],
             JunctionNodesToRemove: [],
             EdgesToRemove: new HashSet<GroundEdge>(),
             Warnings: [],

@@ -153,7 +153,7 @@ internal static class FilletPlanCutRedirect
         cuts.Where(kv => Resolve(kv.Key, redirect) == kv.Key).ToDictionary(kv => kv.Key, kv => kv.Value with { CutId = kv.Key });
 
     public static IReadOnlyList<CornerArcOp> RedirectCornerArcs(IReadOnlyList<CornerArcOp> ops, IReadOnlyDictionary<int, int> redirect) =>
-        ops.Select(o => new CornerArcOp(o.CornerId, Resolve(o.CutIdAtArmA, redirect), Resolve(o.CutIdAtArmB, redirect)))
+        ops.Select(o => new CornerArcOp(o.JunctionNodeId, o.CornerId, Resolve(o.CutIdAtArmA, redirect), Resolve(o.CutIdAtArmB, redirect)))
             .Where(o => o.CutIdAtArmA != o.CutIdAtArmB)
             .ToList();
 

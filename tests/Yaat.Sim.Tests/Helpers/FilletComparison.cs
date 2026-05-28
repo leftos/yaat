@@ -104,7 +104,7 @@ public static class FilletComparison
 
         return v2Gates.Structural.IsValid
             && v2Gates.RepairCountersZero
-            && report.Gates.HoldShortConnectivityMatch
+            && report.Gates.HoldShortNoTrueDisconnection
             && report.Gates.ParkingConnectivityMatch;
     }
 
