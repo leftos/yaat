@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- `PUSH FACE` / `PUSH TAIL` during an active pushback amends the target facing in place, accepted until the nose begins rotating to the prior target. (#167)
+
 ### Fixed
 - Aircraft cleared to cross a runway with `CROSS` now follow the painted taxi line through the crossing instead of cutting diagonally across the runway surface when the taxiway curves through the crossing (e.g. SFO H across 01L/19R).
 

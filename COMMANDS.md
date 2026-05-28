@@ -554,6 +554,8 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 
 Pushback orientation accepts the eight compass points: `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`. Use `FACE C` (or shorthand `>C`) to specify the nose direction, or `TAIL C` (`<C`) to specify the tail direction. When pushed onto a taxiway, the cardinal acts as a hint — the aircraft aligns with whichever of the taxiway's two directions is closest. For parking/spot destinations, the cardinal is the absolute facing.
 
+While a pushback is already in progress, a **heading-only** `PUSH FACE C` / `PUSH TAIL C` / `PUSH >C` / `PUSH <C` amends the target facing in place — no new phase, no restart. Accepted until the aircraft has begun rotating the nose to the prior target (simple-mode: until alignment completes; taxiway-target: until 60% of the push distance is covered; spot-target: until the final node is reached). After the turn begins, the amendment is rejected with `Unable, pushback turn in progress`. Non-heading-only PUSH commands (`PUSH A`, `PUSH @SPOT`, etc.) issued during active pushback are rejected — only the facing can be amended.
+
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts.
 
 `HS` can be issued to a taxiing aircraft to add a hold-short point at the first upcoming intersection with the given taxiway or runway along the remaining route.

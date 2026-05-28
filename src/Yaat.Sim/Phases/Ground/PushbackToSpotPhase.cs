@@ -22,7 +22,7 @@ public sealed class PushbackToSpotPhase : Phase
     private const double LogIntervalSeconds = 3.0;
 
     private readonly TaxiRoute _route;
-    private readonly int? _targetHeading;
+    private int? _targetHeading;
 
     private int _targetNodeId;
     private double _targetLat;
@@ -40,6 +40,29 @@ public sealed class PushbackToSpotPhase : Phase
     }
 
     public override string Name => "Pushback to Spot";
+
+    /// <summary>
+    /// Updates the final-node facing heading mid-pushback. Returns false once
+    /// the aircraft has reached the final node and started rotating in place
+    /// (the "turn" the controller can no longer revise).
+    /// </summary>
+    public bool TryUpdateTargetHeading(int? newHeading, PhaseContext ctx)
+    {
+        if (_reachedFinalNode)
+        {
+            return false;
+        }
+
+        int? prior = _targetHeading;
+        _targetHeading = newHeading;
+        Log.LogDebug(
+            "[PushSpot] {Callsign}: face heading amended {Prior} → {New}",
+            ctx.Aircraft.Callsign,
+            prior?.ToString() ?? "parking",
+            newHeading?.ToString() ?? "parking"
+        );
+        return true;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -173,7 +196,7 @@ public sealed class PushbackToSpotPhase : Phase
         return cmd switch
         {
             CanonicalCommandType.Taxi or CanonicalCommandType.TaxiAuto => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.Pushback => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Pushback => CommandAcceptance.Allowed,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,

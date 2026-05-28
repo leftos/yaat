@@ -966,6 +966,200 @@ public class GroundPhaseTests
     }
 
     // -------------------------------------------------------------------------
+    // Issue #167 — adjust pushback face direction mid-pushback
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void PushbackPhase_SimpleMode_DuringAlignment_FaceUpdate_RetargetsAlignment()
+    {
+        // Misaligned simple-mode push (no taxiway target). Aircraft is still
+        // rotating in place to original target heading — amend should redirect.
+        var aircraft = MakeGroundAircraft(heading: 0);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase { TargetHeading = 90 };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Confirm we're in alignment (PushbackTrueHeading not yet set)
+        Assert.Null(aircraft.Ground.PushbackTrueHeading);
+
+        // Amend to target 180 (south) — should succeed
+        Assert.True(phase.TryUpdateTargetHeading(180, ctx));
+        Assert.Equal(180, phase.TargetHeading);
+
+        // Tick until aligned — nose should rotate toward 180, NOT 90
+        for (int i = 0; i < 100; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+            if (aircraft.Ground.PushbackTrueHeading is not null)
+            {
+                break;
+            }
+        }
+
+        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
+        // Nose should be near 180 (within alignment threshold of 20°), not near 90
+        double noseDiffFromNewTarget = new TrueHeading(180).AbsAngleTo(aircraft.TrueHeading);
+        double noseDiffFromOldTarget = new TrueHeading(90).AbsAngleTo(aircraft.TrueHeading);
+        Assert.True(noseDiffFromNewTarget <= 20, $"Nose {aircraft.TrueHeading.Degrees:F0} should be within 20° of new target 180");
+        Assert.True(noseDiffFromNewTarget < noseDiffFromOldTarget, "Nose should be closer to new target (180) than old (90)");
+    }
+
+    [Fact]
+    public void PushbackPhase_SimpleMode_AfterAlignment_FaceUpdate_Rejected()
+    {
+        // Simple mode, already-aligned start (heading=10, target=0 → diff < 20°).
+        // _isAligned is set in OnStart — amendment must be rejected.
+        var aircraft = MakeGroundAircraft(heading: 10);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase { TargetHeading = 0 };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Confirm already-aligned (PushbackTrueHeading set in OnStart)
+        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
+
+        Assert.False(phase.TryUpdateTargetHeading(180, ctx));
+        Assert.Equal(0, phase.TargetHeading);
+    }
+
+    [Fact]
+    public void PushbackPhase_TargetedMode_BeforeNoseRotation_FaceUpdate_Applies()
+    {
+        // Targeted mode: aircraft pushes back along an arc, nose rotation to
+        // TargetHeading doesn't begin until 60% of distance is covered.
+        // Aircraft heading=0 (north), target south of aircraft → tail-south, nose-north (already ~aligned).
+        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 0);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase
+        {
+            TargetLatitude = 37.619,
+            TargetLongitude = -122.380,
+            TargetHeading = 90,
+        };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Should be aligned immediately (nose=0, alignment heading=0)
+        Assert.NotNull(aircraft.Ground.PushbackTrueHeading);
+
+        // Tick a couple of seconds — well under 60% progress
+        for (int i = 0; i < 2; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
+        // Amend to face 270 (west)
+        Assert.True(phase.TryUpdateTargetHeading(270, ctx));
+        Assert.Equal(270, phase.TargetHeading);
+    }
+
+    [Fact]
+    public void PushbackPhase_TargetedMode_AfterNoseRotation_FaceUpdate_Rejected()
+    {
+        // Drive the phase past _reachedTarget — amendment must be rejected.
+        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 0);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase
+        {
+            TargetLatitude = 37.619995, // very close, target reached quickly
+            TargetLongitude = -122.380,
+            TargetHeading = 90,
+        };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Tick until reachedTarget — read snapshot to detect _reachedTarget=true
+        for (int i = 0; i < 300; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+            var snap = (PushbackPhaseDto)phase.ToSnapshot();
+            if (snap.ReachedTarget)
+            {
+                break;
+            }
+        }
+
+        var snapAfter = (PushbackPhaseDto)phase.ToSnapshot();
+        Assert.True(snapAfter.ReachedTarget, "test setup: phase should have reached target");
+
+        Assert.False(phase.TryUpdateTargetHeading(180, ctx));
+        Assert.Equal(90, phase.TargetHeading);
+    }
+
+    [Fact]
+    public void PushbackToSpotPhase_BeforeFinalNode_FaceUpdate_Applies()
+    {
+        // Two-segment pushback route — amendment must succeed while still en route.
+        var layout = BuildCrossingLayout();
+        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 0);
+
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) },
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[1].Directed(layout.Nodes[1], layout.Nodes[2]) },
+            ],
+            HoldShortPoints = [],
+        };
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackToSpotPhase(route, targetHeading: 90);
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft, layout);
+        aircraft.Phases.Start(ctx);
+
+        Assert.True(phase.TryUpdateTargetHeading(180, ctx));
+        var snap = (PushbackToSpotPhaseDto)phase.ToSnapshot();
+        Assert.Equal(180, snap.TargetHeading);
+    }
+
+    [Fact]
+    public void PushbackToSpotPhase_AfterFinalNode_FaceUpdate_Rejected()
+    {
+        // Drive phase to _reachedFinalNode — amendment must be rejected.
+        var layout = BuildCrossingLayout();
+        // Start very close to the second node so the short single-segment route completes fast.
+        var aircraft = MakeGroundAircraft(lat: 37.620999, lon: -122.380, heading: 180);
+
+        var route = new TaxiRoute
+        {
+            Segments = [new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) }],
+            HoldShortPoints = [],
+        };
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackToSpotPhase(route, targetHeading: 90);
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft, layout);
+        aircraft.Phases.Start(ctx);
+
+        // Tick until ReachedFinalNode is true
+        for (int i = 0; i < 200; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+            var snap = (PushbackToSpotPhaseDto)phase.ToSnapshot();
+            if (snap.ReachedFinalNode)
+            {
+                break;
+            }
+        }
+
+        var snapAfter = (PushbackToSpotPhaseDto)phase.ToSnapshot();
+        Assert.True(snapAfter.ReachedFinalNode, "test setup: phase should have reached final node");
+
+        Assert.False(phase.TryUpdateTargetHeading(180, ctx));
+        Assert.Equal(90, snapAfter.TargetHeading);
+    }
+
+    // -------------------------------------------------------------------------
     // CrossingRunwayPhase OnEnd must preserve momentum for following TaxiingPhase
     // -------------------------------------------------------------------------
 

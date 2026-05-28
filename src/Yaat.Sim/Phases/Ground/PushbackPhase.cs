@@ -31,9 +31,52 @@ public sealed class PushbackPhase : Phase
     private bool _isAligned;
     private double _timeSinceLastLog;
 
-    public int? TargetHeading { get; init; }
+    public int? TargetHeading { get; set; }
     public double? TargetLatitude { get; init; }
     public double? TargetLongitude { get; init; }
+
+    /// <summary>
+    /// Updates the target facing heading mid-pushback. Returns false if the nose
+    /// has already begun rotating to the prior target (the "turn" the controller
+    /// can no longer revise). Simple-mode is gated on alignment; targeted-mode
+    /// is gated on the same 60% progress threshold used in TickTargetedPushback.
+    /// </summary>
+    public bool TryUpdateTargetHeading(int? newHeading, PhaseContext ctx)
+    {
+        bool isTargeted = TargetLatitude is not null && TargetLongitude is not null;
+
+        if (isTargeted)
+        {
+            if (_reachedTarget)
+            {
+                return false;
+            }
+
+            double distFromStart = GeoMath.DistanceNm(new LatLon(_startLat, _startLon), ctx.Aircraft.Position);
+            double progress = _totalDistToTarget > 0.001 ? distFromStart / _totalDistToTarget : 1.0;
+            if (progress >= NoseRotationProgressThreshold)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if (_isAligned)
+            {
+                return false;
+            }
+        }
+
+        int? prior = TargetHeading;
+        TargetHeading = newHeading;
+        Log.LogDebug(
+            "[Push] {Callsign}: face heading amended {Prior} → {New}",
+            ctx.Aircraft.Callsign,
+            prior?.ToString() ?? "none",
+            newHeading?.ToString() ?? "none"
+        );
+        return true;
+    }
 
     public override string Name => "Pushback";
 
@@ -298,6 +341,7 @@ public sealed class PushbackPhase : Phase
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
+            CanonicalCommandType.Pushback => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected("aircraft is being pushed back; only HOLD/RES are accepted until pushback completes"),
         };

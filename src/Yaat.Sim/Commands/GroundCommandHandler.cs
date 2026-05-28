@@ -483,6 +483,40 @@ internal static class GroundCommandHandler
 
     internal static CommandResult TryPushback(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout)
     {
+        // Mid-pushback amendment: heading-only PUSH (FACE/TAIL) updates the active
+        // pushback phase's target heading in place, accepted until the nose has
+        // begun rotating to the prior target (issue #167).
+        if (aircraft.Phases?.CurrentPhase is PushbackPhase or PushbackToSpotPhase)
+        {
+            bool headingOnly =
+                push.Taxiway is null
+                && push.FacingTaxiway is null
+                && push.DestinationParking is null
+                && push.DestinationSpot is null
+                && push.MagneticHeading is not null;
+
+            if (!headingOnly)
+            {
+                return new CommandResult(false, "Unable, only face/tail amendment accepted during pushback");
+            }
+
+            int newHeading = push.MagneticHeading!.Value.ToDisplayInt();
+            var amendCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+            bool updated = aircraft.Phases.CurrentPhase switch
+            {
+                PushbackPhase p => p.TryUpdateTargetHeading(newHeading, amendCtx),
+                PushbackToSpotPhase p => p.TryUpdateTargetHeading(newHeading, amendCtx),
+                _ => false,
+            };
+
+            if (!updated)
+            {
+                return new CommandResult(false, "Unable, pushback turn in progress");
+            }
+
+            return CommandDispatcher.Ok($"Pushback amended, face heading {newHeading:000}");
+        }
+
         if (aircraft.Phases?.CurrentPhase is not (AtParkingPhase or HoldingAfterPushbackPhase))
         {
             return new CommandResult(false, "Pushback requires aircraft to be at parking");
