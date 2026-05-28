@@ -53,3 +53,42 @@ reachable both ways.
   Residual is an **accepted bidirectional policy difference** (see [`v2-divergences.md`](./v2-divergences.md)) —
   not pursued, as full parity would clone legacy's radius computation + relax the overrun-preventing
   cut caps. Soft gate; hard gate unaffected.
+
+## Where production stands
+
+**Production still runs Legacy.** `AirportLayoutDownloader` → `GeoJsonParser.Parse(...)` defaults to
+`FilletMode.Legacy`. V2 is **geometry-validated only** (the comparison gate + interface/router +
+synthetic `ArmCutResolver` tests) — **never sim-validated**: no taxi/landing/replay test runs aircraft
+on a V2-filleted graph. Runtime switch exists (`FilletArcGeneratorRouter.UseV2` / `FilletMode.V2` via
+`FilletGeneratorFactory`).
+
+> **Two independent "V2"s — do not conflate.** This is **fillet V2** (arc generator). Separate effort:
+> **TaxiPathfinder V2** (`TaxiPathfinderRouter.UseV2`, `docs/plans/pathfinderv2/`). The
+> `Issue165SkwTaxiSpinTests` "UseV2" reference is the *pathfinder*, not fillet. Both reshape the ground
+> graph, so a fillet default-flip interacts with the pathfinder default-flip — sequence them together.
+
+## Next phase — default-flip campaign
+
+Goal: make V2 the default and delete Legacy. Approach (locked): **validate behind the switch first**
+(Legacy stays default), **fillet before pathfinder** (pathfinder stays V1 so failures isolate to fillet).
+
+1. **Validate in the real sim, behind the switch — IN PROGRESS (green so far).** Sim-level gate added:
+   the OAK + SFO taxi-coverage smoke set + landing/exit scenarios run on `FilletMode.V2` layouts with the
+   V1 pathfinder. All 30 pass; full non-nightly Sim suite green (5516 pass / 1 skip / 0 fail). See
+   [`v2-sim-validation.md`](./v2-sim-validation.md). Remaining: FLL taxi coverage; a full-suite run with
+   the default flipped to V2 to triage the Legacy-pinned delta.
+2. **Flip default** to `FilletMode.V2` in `GeoJsonParser.Parse` overloads + `AirportLayoutDownloader`
+   once step 1 is fully green (incl. FLL + the full-suite-on-V2 triage).
+3. **Aviation-realism review** (MANDATORY) on radius/preserve semantics → turn-speed sign-off.
+4. **Delete Legacy** — `FilletArcGenerator.cs`, `LegacyFilletArcGenerator`, `FilletProvenance`, unused
+   `FilletMode` plumbing; retire the vestigial `FilletArcGeneratorRouter` (no `src/` consumers today).
+
+### Gotchas for the next agent
+
+- Corner-arc/straight-connector endpoint resolution in `FilletPlanExecutor.ResolveId` uses cut-id-first
+  lookup (a latent cut-id vs node-id keyspace overlap); `SurvivingEdgeOp` uses discriminated endpoints so
+  it's unaffected. Works on gate airports; revisit only if a collision surfaces.
+- The **degenerate corner arc → straight chord** fallback in the executor is load-bearing for
+  connectivity — don't remove it.
+- `v2-implementation.md` executor/data-types/module-layout sections are historical (banner added); its
+  "Connectivity rewrite" section + `v2-divergences.md` are authoritative for connectivity.
