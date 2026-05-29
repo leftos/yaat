@@ -291,7 +291,7 @@ public sealed class GroundNavigator
     /// rotating through a real arc geometry — no in-place pivot, no snap.
     ///
     /// <para>
-    /// 60° threshold catches the OAK GA3 case (TWY801 at hdg 290°, segBrg 209°,
+    /// The threshold catches the OAK GA3 case (TWY801 at hdg 290°, segBrg 209°,
     /// delta 80.9°) where the pure-pursuit lookahead loop diverges: at low
     /// speed the lookahead point shifts faster than the aircraft can turn to
     /// chase it, producing an orbit. The same divergence happens mid-route
@@ -301,11 +301,11 @@ public sealed class GroundNavigator
     /// availOut 55 ft), or because the aircraft drifted off the planned
     /// tangent line by more than the strict-geometry tolerance. Entry-
     /// alignment is the safety net: any segment with a starting heading
-    /// delta above 60° gets a slow-turn at the segment-start node regardless
-    /// of route position, and any segment with a smaller delta proceeds
-    /// directly to the real primitive. Normal corners are below this
+    /// delta above the threshold gets a slow-turn at the segment-start node
+    /// regardless of route position, and any segment with a smaller delta
+    /// proceeds directly to the real primitive. Normal corners are below this
     /// threshold by construction (fillet arcs split sharp turns into
-    /// multiple sub-segments each well under 60°).
+    /// multiple sub-segments each well under it).
     /// </para>
     /// </summary>
     private const double EntryAlignmentThresholdDeg = 45.0;
@@ -408,7 +408,7 @@ public sealed class GroundNavigator
         // the segment's tangent at first tick.
         //
         // Gates (all required):
-        //   - Heading delta > 60° (EntryAlignmentThresholdDeg): normal
+        //   - Heading delta > EntryAlignmentThresholdDeg: normal
         //     fillet-smoothed corners stay below this; only wrong-way starts,
         //     post-pushback U-turns, and mid-route corners where synthesis
         //     failed to engage produce deltas this large.
@@ -1270,8 +1270,10 @@ public sealed class GroundNavigator
 
         // Pre-turn blend: in the last ~50 ft of a straight that precedes a
         // gentle turn, start blending the steer target toward the next
-        // segment's departure bearing. Gated by turn angle — large turns
-        // (>60°) get no blend to avoid yanking the tail early.
+        // segment's departure bearing. Scaled by turn angle — full blend at
+        // ≤30°, ramping linearly to zero by 90°, so sharp turns get little or
+        // no blend (they are handled by synthesis or entry alignment instead)
+        // and the tail isn't yanked early.
         if (_nextSegmentBearing is { } nextBearingDeg)
         {
             double turnAngle = GeoMath.AbsBearingDifference(bearingToSteerDeg, nextBearingDeg);
