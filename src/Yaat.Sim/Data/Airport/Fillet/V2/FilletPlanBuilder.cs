@@ -44,7 +44,12 @@ internal static class FilletPlanBuilder
         var preFilletStableNodes = layout
             .Nodes.Where(kv => FilletPlanCutRedirect.IsStableAnchorTarget(kv.Value))
             .ToDictionary(kv => kv.Key, kv => kv.Value);
-        FilletPlanCutRedirect.ExtendWithStableAnchors(redirect, cuts, preFilletStableNodes, FilletConstants.CoincidentNodeThresholdFt);
+        var stableAnchorNodeIds = FilletPlanCutRedirect.ExtendWithStableAnchors(
+            redirect,
+            cuts,
+            preFilletStableNodes,
+            FilletConstants.CoincidentNodeThresholdFt
+        );
         var prunedCuts = FilletPlanCutRedirect.PruneCuts(cuts, redirect);
         var redirectedCornerArcs = FilletPlanCutRedirect.RedirectCornerArcs(cornerArcs, redirect).ToList();
         var redirectedStraightConnectors = FilletPlanCutRedirect.RedirectStraightConnectors(straightConnectors, redirect).ToList();
@@ -53,7 +58,12 @@ internal static class FilletPlanBuilder
         var split = FilletEdgeSplitPlanner.Plan(layout, junctions, prunedCuts, redirect, nodesToRemoveSet);
         warnings.AddRange(split.Warnings);
 
-        var stableAnchoredEndpoints = CollectStableAnchoredEndpoints(prunedCuts, redirectedCornerArcs, redirectedStraightConnectors);
+        // Use the anchor node IDs returned directly by ExtendWithStableAnchors rather than
+        // inferring them from arc ops post-hoc. The inferred approach was broken: when an
+        // anchor node ID coincides with a surviving cut ID, the inference incorrectly removed
+        // the anchor from the set, causing the executor to resolve via cutNode instead of
+        // layout.Nodes and pick up the wrong tangent-cut from a different junction.
+        var stableAnchoredEndpoints = stableAnchorNodeIds;
 
         var built = new FilletPlan(
             prunedCuts,
@@ -69,28 +79,5 @@ internal static class FilletPlanBuilder
         FilletPlanConsistency.ValidateCutReferences(built);
         FilletPlanConsistency.ValidateNodeReferences(built);
         return built;
-    }
-
-    private static HashSet<int> CollectStableAnchoredEndpoints(
-        IReadOnlyDictionary<int, ResolvedArmCut> prunedCuts,
-        IReadOnlyList<CornerArcOp> cornerArcs,
-        IReadOnlyList<StraightConnectorOp> straightConnectors
-    )
-    {
-        var refs = new HashSet<int>();
-        foreach (var op in cornerArcs)
-        {
-            refs.Add(op.CutIdAtArmA);
-            refs.Add(op.CutIdAtArmB);
-        }
-
-        foreach (var op in straightConnectors)
-        {
-            refs.Add(op.CutIdAtArmA);
-            refs.Add(op.CutIdAtArmB);
-        }
-
-        refs.RemoveWhere(id => prunedCuts.ContainsKey(id));
-        return refs;
     }
 }

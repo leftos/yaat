@@ -16,13 +16,20 @@ public sealed class FilletArcGeneratorV2 : IFilletArcGenerator
     public FilletStatistics Apply(AirportGroundLayout layout)
     {
         var manualArcNodes = ManualArcDetector.Detect(layout);
-        var idCounter = new FilletPlanExecutor.NextNodeIdCounter { Next = layout.Nodes.Keys.DefaultIfEmpty(0).Max() + 1 };
+        int maxNodeId = layout.Nodes.Keys.DefaultIfEmpty(0).Max();
+        var idCounter = new FilletPlanExecutor.NextNodeIdCounter { Next = maxNodeId + 1 };
 
         layout.RebuildAdjacencyLists();
 
         var junctionPlans = new List<JunctionPlan>();
         var cutResults = new List<ArmCutResolver.JunctionCutResult>();
-        int nextCutId = 1;
+
+        // Start cut IDs well above the maximum possible node ID (both pre-existing and new
+        // tangent-cut nodes) so cut IDs never collide with node IDs. Pre-existing nodes are
+        // 0..maxNodeId; new tangent-cut nodes start at maxNodeId+1 and there are at most one
+        // per cut, so the largest new-node ID is ~maxNodeId + maxCuts. Using a 1_000_000
+        // offset guarantees no overlap for any airport that fits in int32.
+        int nextCutId = maxNodeId + 1_000_000;
 
         foreach (var node in layout.Nodes.Values.OrderBy(n => n.Id))
         {

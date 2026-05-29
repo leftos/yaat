@@ -29,6 +29,11 @@ internal static class FilletPlanExecutor
             }
         }
 
+        // Cut IDs live in a disjoint high range (see FilletArcGeneratorV2: nextCutId starts at
+        // maxNodeId + 1_000_000), so a cut ID never collides with a node ID. That invariant lets
+        // this plain "cut node first, else layout node" lookup resolve both cut-ID endpoints and
+        // substituted stable-anchor endpoints (pre-existing node IDs) correctly — an anchor's node
+        // ID is below the cut-ID range, so cutNode never shadows it.
         GroundNode? ResolveId(int id) => cutNode.TryGetValue(id, out var n) ? n : layout.Nodes.GetValueOrDefault(id);
         GroundNode? ResolveEndpoint(int? cutId, int? nodeId) =>
             cutId is int c ? cutNode.GetValueOrDefault(c)

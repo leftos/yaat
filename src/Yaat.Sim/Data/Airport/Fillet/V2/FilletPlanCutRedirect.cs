@@ -11,14 +11,20 @@ internal static class FilletPlanCutRedirect
     /// <summary>
     /// After tangent merges, redirect each surviving cut that lands on a pre-fillet stable intersection to that node id
     /// so the executor does not materialize a duplicate tangent.
+    /// Returns the set of pre-existing node IDs that were actually used as redirect targets.
+    /// The caller must pass this set to the executor so it can resolve these IDs via layout.Nodes
+    /// rather than via the cut-node map — the two ID spaces overlap and the lookup would be wrong
+    /// without this disambiguation.
     /// </summary>
-    public static void ExtendWithStableAnchors(
+    public static HashSet<int> ExtendWithStableAnchors(
         Dictionary<int, int> redirect,
         IReadOnlyDictionary<int, ResolvedArmCut> cuts,
         IReadOnlyDictionary<int, GroundNode> preFilletStableNodes,
         double thresholdFt
     )
     {
+        var usedAnchorIds = new HashSet<int>();
+
         foreach (var (cutId, cut) in cuts)
         {
             if (redirect.TryGetValue(cutId, out int survivor) && (survivor != cutId))
@@ -58,7 +64,11 @@ internal static class FilletPlanCutRedirect
             {
                 redirect[anchorId] = anchorId;
             }
+
+            usedAnchorIds.Add(anchorId);
         }
+
+        return usedAnchorIds;
     }
 
     public static Dictionary<int, int> BuildSurvivorMap(IReadOnlyList<TangentMergeOp> merges)
