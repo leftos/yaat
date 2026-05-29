@@ -29,6 +29,14 @@ Set diff across the two fillet modes (the key triage signal):
 
 Reproduce a mode: flip `TaxiPathfinderRouter._current` to `TaxiPathfinderV2` (+ `TestAirportGroundData` default to `FilletMode.V2` for the V2+V2 baseline), run `--filter "Category!=Nightly"`. Revert both before committing.
 
+### RESUME — verdict pass (pending)
+
+Next action is a per-test root-cause verdict pass over the 54 ship-target failures. Mechanism: the named workflow **`.claude/workflows/pathfinder-v2-verdict-pass.js`** (one agent per failing test class; reads a per-test failure block, test source, and prod code; returns `{verdict, owner, evidence, fixHint, confidence}`). Relaunch with `Workflow({name: 'pathfinder-v2-verdict-pass'})` — the 54-failure list is embedded, no args needed.
+
+Inputs it depends on (gitignored, persist on disk): `.tmp/triage-blocks/<Method>.log` (54 per-test failure blocks) + `.tmp/triage-v2v2-detail.log` (source). Regenerate per the workflow file's header comment if absent.
+
+NOTE: on Claude Code 2.1.156 the workflow runtime did **not** fan out (ran agents serially — one at a time, twice). The retry assumes a newer build parallelizes; if it still serializes, do the verdict pass inline (read each `.tmp/triage-blocks/*.log` + source). After verdicts: fix pathfinder-WS2 items first; route navigator-WS3 / phase-sim items to #7 with per-test confirmation; relax `assertion-relax` (V1-pinned) tests.
+
 **No bandaids** — each test failure needs a verdict on root cause before any change lands:
 
 - **V2-bug**: V2 produces a wrong route or fails to find a valid one. Fix V2.
