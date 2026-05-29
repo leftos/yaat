@@ -82,6 +82,64 @@ public class JunctionContinuationTests
     }
 
     /// <summary>
+    /// SFO: walking taxiway <c>A</c> through the collapsed junction at node 1160 must
+    /// continue on the single-name <c>A</c> edge, not divert onto the membership-matched
+    /// junction arcs <c>A - Q1</c> / <c>A - RAMP</c> that also live at that node. Pure
+    /// req ① (no V-shaped-taxiway complication). The walk starts on <c>A</c> just west of
+    /// 1160 and must stay on single-name <c>A</c> with no backtrack.
+    /// </summary>
+    [Fact]
+    public void Sfo_WalkA_ThroughCollapsedJunction_StaysOnSingleNameA()
+    {
+        var layout = V2Layout("SFO");
+        if (layout is null)
+        {
+            _output.WriteLine("sfo.geojson not found — skipping");
+            return;
+        }
+
+        // Nearest node carrying an A edge to a point just west of node 1160 (37.6224, -122.3905),
+        // so the natural-terminus walk on A passes eastward through the 1160 collapse.
+        const double WestOf1160Lat = 37.622400;
+        const double WestOf1160Lon = -122.390500;
+        var startNode = layout
+            .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("A")))
+            .OrderBy(n => GeoMath.DistanceNm(WestOf1160Lat, WestOf1160Lon, n.Position.Lat, n.Position.Lon))
+            .First();
+        _output.WriteLine($"Start: #{startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
+
+        var route = new TaxiPathfinderV2().ResolveExplicitPath(
+            layout,
+            startNode.Id,
+            ["A"],
+            out string? failReason,
+            new ExplicitPathOptions { AirportId = "SFO", DiagnosticLog = msg => _output.WriteLine(msg) },
+            AircraftCategory.Jet
+        );
+
+        Assert.NotNull(route);
+        Assert.Null(failReason);
+
+        _output.WriteLine($"Route: {route.Segments.Count} segments");
+        foreach (var seg in route.Segments)
+        {
+            _output.WriteLine($"  {seg.TaxiwayName, -10} #{seg.FromNodeId} → #{seg.ToNodeId}");
+        }
+
+        // No segment may be a membership-only junction arc (a multi-name "X - Y" edge):
+        // walking A must not silently divert onto Q1/RAMP via an A-membership arc.
+        foreach (var seg in route.Segments)
+        {
+            Assert.False(
+                seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 },
+                $"Walk A diverted onto membership junction arc '{seg.TaxiwayName}' (#{seg.FromNodeId}→#{seg.ToNodeId})."
+            );
+        }
+
+        AssertNoBacktrack(route, layout);
+    }
+
+    /// <summary>
     /// Fails if the route reverses onto the segment it just traversed (an explicit
     /// node-pair backtrack <c>i→j</c> then <c>j→i</c>) or makes a &gt;150° bearing
     /// flip between consecutive segments (a geometric U-turn).

@@ -775,6 +775,8 @@ public static class SegmentExpander
             IGroundEdge? bestEdge = null;
             GroundNode? bestNext = null;
             double bestCost = double.MaxValue;
+            // Sentinel true so the first single-name candidate always displaces it.
+            bool bestIsJunctionArc = true;
 
             foreach (var edge in headNode.Edges)
             {
@@ -795,11 +797,23 @@ public static class SegmentExpander
                 }
 
                 double cost = RouteCostFunction.IncrementalCost(current, edge, nextNode, ctx);
-                if (cost < bestCost)
+
+                // req ①: when extending the same named taxiway, an exact single-name edge ranks
+                // strictly above a junction arc that matches taxiwayName only by membership (e.g.
+                // an "A - Q1" arc when walking A). A multi-name junction arc is a turn OFF the
+                // taxiway onto a crossing one, not a continuation of it — V2's collapsed junctions
+                // expose several such membership matches at one node. Single-name wins regardless
+                // of cost; cost only breaks ties within the same tier.
+                bool isJunctionArc = edge is GroundArc { TaxiwayNames.Length: >= 2 };
+                bool better =
+                    bestEdge is null || (bestIsJunctionArc && !isJunctionArc) || ((bestIsJunctionArc == isJunctionArc) && (cost < bestCost));
+
+                if (better)
                 {
                     bestCost = cost;
                     bestEdge = edge;
                     bestNext = nextNode;
+                    bestIsJunctionArc = isJunctionArc;
                 }
             }
 
