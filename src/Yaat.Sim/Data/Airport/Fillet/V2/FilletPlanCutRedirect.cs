@@ -3,10 +3,21 @@ namespace Yaat.Sim.Data.Airport.Fillet.V2;
 /// <summary>Union-find survivor map for <see cref="TangentMergeOp"/>; rewrites cut-id references across the plan.</summary>
 internal static class FilletPlanCutRedirect
 {
-    /// <summary>Pre-fillet intersection nodes that may absorb a coincident V2 cut (never hold-shorts).</summary>
+    /// <summary>
+    /// Pre-fillet nodes that may absorb a coincident V2 cut. Includes TaxiwayIntersection,
+    /// Spot, Parking, Helipad, and RunwayHoldShort — all types that survive the fillet pass
+    /// unchanged and are therefore valid redirect targets. Centerline-projection nodes are
+    /// excluded because they are synthetically inserted and not part of the source topology.
+    /// </summary>
     public static bool IsStableAnchorTarget(GroundNode node) =>
-        (node.Type == GroundNodeType.TaxiwayIntersection)
-        && (node.Origin?.StartsWith("RunwayCrossing:centerline-projection", StringComparison.Ordinal) != true);
+        (
+            node.Type
+            is GroundNodeType.TaxiwayIntersection
+                or GroundNodeType.Spot
+                or GroundNodeType.Parking
+                or GroundNodeType.Helipad
+                or GroundNodeType.RunwayHoldShort
+        ) && (node.Origin?.StartsWith("RunwayCrossing:centerline-projection", StringComparison.Ordinal) != true);
 
     /// <summary>
     /// After tangent merges, redirect each surviving cut that lands on a pre-fillet stable intersection to that node id
