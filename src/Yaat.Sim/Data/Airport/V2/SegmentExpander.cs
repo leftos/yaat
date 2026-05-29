@@ -22,6 +22,13 @@ public static class SegmentExpander
     private const int MaxDetourExpansions = 5_000;
 
     /// <summary>
+    /// Maximum BFS hops when bridging a start node (e.g. a parking/RAMP spot) onto the
+    /// first named taxiway. Matches v1's <c>BfsToTaxiway</c> bound — parking spots connect
+    /// to their taxiway within one or two RAMP/connector hops.
+    /// </summary>
+    private const int MaxBridgeHops = 3;
+
+    /// <summary>
     /// Run the segment expander on the given <paramref name="ctx"/>.
     /// Returns either a materialised <see cref="TaxiRoute"/> or a structured
     /// <see cref="PathfindingFailure"/>. Exactly one of the two return values is non-null.
@@ -49,6 +56,20 @@ public static class SegmentExpander
 
         var edges = new List<DirectionalEdge>();
         var head = PartialRoute.StartAt(ctx.StartNodeId);
+
+        // Bridge onto the first named taxiway when the start node is off it (e.g. parked
+        // on a RAMP spot whose only edges are RAMP). Mirrors v1's BfsToTaxiway. Without
+        // this the first per-segment local search finds no on-taxiway edge from the start
+        // and the route degrades to a long, often-failing detour.
+        if (!resolvedWaypoints[0].IsNodeRef)
+        {
+            var (bridgeEdges, bridgeHead) = BridgeStartToTaxiway(head, resolvedWaypoints[0].Name, ctx);
+            if (bridgeEdges.Count > 0)
+            {
+                edges.AddRange(bridgeEdges);
+                head = bridgeHead with { VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(bridgeHead.HeadNodeId) };
+            }
+        }
 
         // Walk each consecutive waypoint pair.
         for (int i = 0; i < resolvedWaypoints.Count; i++)
@@ -207,6 +228,119 @@ public static class SegmentExpander
 
         // Named taxiway at end: walk to natural terminus.
         return WalkToNaturalTerminus(head, waypoint.Name, ctx);
+    }
+
+    /// <summary>
+    /// Bridge the search head from a start node that is not yet on
+    /// <paramref name="taxiwayName"/> (typically a parking/RAMP spot) onto the nearest
+    /// node carrying an edge on that taxiway, via a bounded BFS. Mirrors v1's
+    /// <c>BfsToTaxiway</c>. Returns empty edges and the unchanged head when the start is
+    /// already on the taxiway, or when no on-taxiway node is reachable within
+    /// <see cref="MaxBridgeHops"/> hops — the caller then proceeds and the per-segment
+    /// detour remains the fallback.
+    /// </summary>
+    private static (List<DirectionalEdge> Edges, PartialRoute Head) BridgeStartToTaxiway(PartialRoute head, string taxiwayName, SearchContext ctx)
+    {
+        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var startNode))
+        {
+            return ([], head);
+        }
+
+        foreach (var edge in startNode.Edges)
+        {
+            if (edge.MatchesTaxiway(taxiwayName))
+            {
+                return ([], head);
+            }
+        }
+
+        var visited = new HashSet<int> { head.HeadNodeId };
+        var queue = new Queue<(int NodeId, int Depth)>();
+        var cameFrom = new Dictionary<int, (int ParentId, IGroundEdge Edge)>();
+        queue.Enqueue((head.HeadNodeId, 0));
+        int foundId = -1;
+
+        while (queue.Count > 0)
+        {
+            var (nodeId, depth) = queue.Dequeue();
+            if (!ctx.Layout.Nodes.TryGetValue(nodeId, out var node))
+            {
+                continue;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                var neighbor = edge.OtherNode(node);
+                if (!visited.Add(neighbor.Id))
+                {
+                    continue;
+                }
+
+                cameFrom[neighbor.Id] = (nodeId, edge);
+
+                if (neighbor.Edges.Any(e => e.MatchesTaxiway(taxiwayName)))
+                {
+                    foundId = neighbor.Id;
+                    break;
+                }
+
+                if (depth + 1 < MaxBridgeHops)
+                {
+                    queue.Enqueue((neighbor.Id, depth + 1));
+                }
+            }
+
+            if (foundId >= 0)
+            {
+                break;
+            }
+        }
+
+        if (foundId < 0)
+        {
+            return ([], head);
+        }
+
+        var pathNodes = new List<int>();
+        int trace = foundId;
+        while (trace != head.HeadNodeId)
+        {
+            pathNodes.Add(trace);
+            trace = cameFrom[trace].ParentId;
+        }
+
+        pathNodes.Reverse();
+
+        var bridgeEdges = new List<DirectionalEdge>(pathNodes.Count);
+        var current = head;
+        foreach (int id in pathNodes)
+        {
+            var (_, edge) = cameFrom[id];
+            if (!ctx.Layout.Nodes.TryGetValue(current.HeadNodeId, out var fromNode) || !ctx.Layout.Nodes.TryGetValue(id, out var toNode))
+            {
+                break;
+            }
+
+            double arrival = GeometricAdmissibility.GetArrivalBearing(edge, fromNode, toNode);
+            double cost = RouteCostFunction.IncrementalCost(current, edge, toNode, ctx);
+            string twyName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
+
+            bridgeEdges.Add(edge.Directed(fromNode, toNode));
+            current = current with
+            {
+                HeadNodeId = id,
+                ArrivalBearing = arrival,
+                LastEdge = edge,
+                LastTaxiwayName = twyName,
+                Previous = current,
+                Depth = current.Depth + 1,
+                AccumulatedCost = current.AccumulatedCost + cost,
+                VisitedNodeIds = current.VisitedNodeIds.Add(id),
+            };
+        }
+
+        ctx.DiagnosticLog?.Invoke($"[v2:bridge] start={head.HeadNodeId} → {foundId} onto {taxiwayName} ({bridgeEdges.Count} edges)");
+        return (bridgeEdges, current);
     }
 
     // -----------------------------------------------------------------------
