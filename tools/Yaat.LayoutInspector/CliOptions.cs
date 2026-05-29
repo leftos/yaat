@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Airport;
+
 namespace Yaat.LayoutInspector;
 
 /// <summary>
@@ -103,7 +105,7 @@ public sealed record CliOptions
     public bool JsonOutput { get; init; }
     public bool DumpAll { get; init; }
 
-    public bool NoFillets { get; init; }
+    public FilletMode FilletMode { get; init; } = FilletMode.Legacy;
     public bool DebugFillets { get; init; }
     public bool DebugExits { get; init; }
 
@@ -183,7 +185,7 @@ public sealed record CliOptions
         string? intersectTwy2 = null;
         bool jsonOutput = false;
         bool dumpAll = false;
-        bool noFillets = false;
+        var filletMode = FilletMode.Legacy;
         bool debugFillets = false;
         bool debugExits = false;
         var exitQueries = new List<(string Runway, string Taxiway, string? Side)>();
@@ -280,7 +282,10 @@ public sealed record CliOptions
                     jsonOutput = true;
                     break;
                 case "--no-fillets":
-                    noFillets = true;
+                    filletMode = FilletMode.None;
+                    break;
+                case "--fillet-mode" when i + 1 < args.Length:
+                    filletMode = ParseFilletMode(args[++i]);
                     break;
                 case "--debug-fillets":
                     debugFillets = true;
@@ -462,7 +467,7 @@ public sealed record CliOptions
             IntersectionTaxiway2 = intersectTwy2,
             JsonOutput = jsonOutput,
             DumpAll = dumpAll,
-            NoFillets = noFillets,
+            FilletMode = filletMode,
             DebugFillets = debugFillets,
             DebugExits = debugExits,
             ExitQueries = exitQueries,
@@ -502,4 +507,20 @@ public sealed record CliOptions
         || (IntersectionTaxiway1 is not null);
 
     private static IEnumerable<string> SplitCsv(string s) => s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static FilletMode ParseFilletMode(string value)
+    {
+        switch (value.ToLowerInvariant())
+        {
+            case "v2":
+                return FilletMode.V2;
+            case "legacy":
+                return FilletMode.Legacy;
+            case "none":
+                return FilletMode.None;
+            default:
+                Console.Error.WriteLine($"Unknown --fillet-mode '{value}', using legacy (expected: legacy, v2, none)");
+                return FilletMode.Legacy;
+        }
+    }
 }

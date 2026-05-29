@@ -16,11 +16,11 @@ public sealed class LayoutAnalyzer
         AirportId = layout.AirportId;
     }
 
-    public static LayoutAnalyzer Load(string geoJsonPath, string? airportCode, bool applyFillets)
+    public static LayoutAnalyzer Load(string geoJsonPath, string? airportCode, FilletMode filletMode)
     {
         string geoJson = File.ReadAllText(geoJsonPath);
         string airportId = Path.GetFileNameWithoutExtension(geoJsonPath).ToUpperInvariant();
-        var layout = GeoJsonParser.Parse(airportId, geoJson, airportCode, applyFillets);
+        var layout = GeoJsonParser.Parse(airportId, geoJson, airportCode, filletMode);
         return new LayoutAnalyzer(layout);
     }
 

@@ -68,7 +68,7 @@ public static class Program
         LayoutAnalyzer analyzer;
         try
         {
-            analyzer = LayoutAnalyzer.Load(geoJsonPath, options.AirportCode, applyFillets: !options.NoFillets);
+            analyzer = LayoutAnalyzer.Load(geoJsonPath, options.AirportCode, options.FilletMode);
         }
         catch (Exception ex)
         {
