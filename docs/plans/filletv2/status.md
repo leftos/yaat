@@ -73,10 +73,10 @@ Goal: make V2 the default and delete Legacy. Approach (locked): **validate behin
 (Legacy stays default), **fillet before pathfinder** (pathfinder stays V1 so failures isolate to fillet).
 
 1. **Validate in the real sim, behind the switch — IN PROGRESS (green so far).** Sim-level gate added:
-   the OAK + SFO taxi-coverage smoke set + landing/exit scenarios run on `FilletMode.V2` layouts with the
-   V1 pathfinder. All 30 pass; full non-nightly Sim suite green (5516 pass / 1 skip / 0 fail). See
-   [`v2-sim-validation.md`](./v2-sim-validation.md). Remaining: FLL taxi coverage; a full-suite run with
-   the default flipped to V2 to triage the Legacy-pinned delta.
+   the OAK + SFO + FLL taxi-coverage smoke set + landing/exit scenarios run on `FilletMode.V2` layouts
+   with the V1 pathfinder. All 36 V2 tests pass (FLL also green on the Legacy baseline); full non-nightly
+   Sim suite green (5528 pass / 1 skip / 0 fail). See [`v2-sim-validation.md`](./v2-sim-validation.md).
+   Remaining: a full-suite run with the default flipped to V2 to triage the Legacy-pinned delta.
 2. **Flip default** to `FilletMode.V2` in `GeoJsonParser.Parse` overloads + `AirportLayoutDownloader`
    once step 1 is fully green (incl. FLL + the full-suite-on-V2 triage).
 3. **Aviation-realism review** (MANDATORY) on radius/preserve semantics → turn-speed sign-off.

@@ -372,4 +372,86 @@ public static class TaxiCoverageData
             DefaultPistonType
         ),
     ];
+
+    /// <summary>
+    /// FLL is the third fillet-comparison-gate airport. Two parallel runways:
+    /// 10L/28R (long, north — exits A/B/Q/A2 plus high-speed A5/B7/B8) and
+    /// 10R/28L (south — J-series exits). Terminal cores B/C/D/E/F sit between
+    /// them; A-row parking flanks 10L. Pairs are jets (FLL is commercial) with
+    /// one piston for mixed turn dynamics. The D-row → 10L route mirrors the
+    /// DAL880 backtrack bundle (<see cref="IssueFllDal880TaxiBacktrackBTests"/>).
+    /// </summary>
+    public static readonly IReadOnlyList<TaxiPair> FllSmoke =
+    [
+        // --- Parking → runway (terminal core → long runway, both ends) ---
+        new TaxiPair(
+            "FLL_D8-to-10L_jet",
+            "FLL",
+            "D8",
+            TaxiNodeKind.Parking,
+            "10L",
+            TaxiNodeKind.RunwayExit,
+            "10L",
+            AircraftCategory.Jet,
+            DefaultJetType
+        ),
+        new TaxiPair(
+            "FLL_C9-to-28R_jet",
+            "FLL",
+            "C9",
+            TaxiNodeKind.Parking,
+            "28R",
+            TaxiNodeKind.RunwayExit,
+            "28R",
+            AircraftCategory.Jet,
+            DefaultJetType
+        ),
+        new TaxiPair(
+            "FLL_A9-to-10L_jet",
+            "FLL",
+            "A9",
+            TaxiNodeKind.Parking,
+            "10L",
+            TaxiNodeKind.RunwayExit,
+            "10L",
+            AircraftCategory.Jet,
+            DefaultJetType
+        ),
+        // Same D-row → 10L route under piston turn dynamics.
+        new TaxiPair(
+            "FLL_D8-to-10L_piston",
+            "FLL",
+            "D8",
+            TaxiNodeKind.Parking,
+            "10L",
+            TaxiNodeKind.RunwayExit,
+            "10L",
+            AircraftCategory.Piston,
+            DefaultPistonType
+        ),
+        // --- Runway-exit → parking (just landed, taxi to terminal) ---
+        // 28R high-speed exit B8 → terminal D; 10R 90° exit J → terminal C.
+        new TaxiPair(
+            "FLL_28R-B8-to-D8_jet",
+            "FLL",
+            "28R/B8",
+            TaxiNodeKind.RunwayExit,
+            "D8",
+            TaxiNodeKind.Parking,
+            null,
+            AircraftCategory.Jet,
+            DefaultJetType
+        ),
+        new TaxiPair(
+            "FLL_10R-J-to-C9_jet",
+            "FLL",
+            "10R/J",
+            TaxiNodeKind.RunwayExit,
+            "C9",
+            TaxiNodeKind.Parking,
+            null,
+            AircraftCategory.Jet,
+            DefaultJetType
+        ),
+    ];
 }

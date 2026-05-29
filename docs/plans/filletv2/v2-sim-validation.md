@@ -23,7 +23,7 @@ that are known-good on the baseline, run them on the candidate, and give every d
 
 | Suite | File | What it exercises |
 |-------|------|-------------------|
-| Taxi coverage | `tests/.../Simulation/GroundTaxi/FilletV2TaxiCoverageTests.cs` | The existing OAK + SFO `TaxiCoverageData` smoke pairs (25), run through `TaxiCoverageRunner.Run` on V2 fillets. Spawn at parking / runway-exit, `TAXIAUTO` to a runway hold-short or parking, assert arrival within the V2 A\*-derived time + turn budget and no stall window > 30 s outside a legitimate stop. |
+| Taxi coverage | `tests/.../Simulation/GroundTaxi/FilletV2TaxiCoverageTests.cs` | The OAK + SFO + FLL `TaxiCoverageData` smoke pairs (31), run through `TaxiCoverageRunner.Run` on V2 fillets. Spawn at parking / runway-exit, `TAXIAUTO` to a runway hold-short or parking, assert arrival within the V2 A\*-derived time + turn budget and no stall window > 30 s outside a legitimate stop. The FLL pairs also run on Legacy in `TaxiCoverageFllTests` (the baseline), so any FLL regression isolates to fillet, not routing. |
 | Landing + exit | `tests/.../Simulation/GroundTaxi/FilletV2LandingExitTests.cs` | OAK 28R no-preference rollout (brakes to a sane turn-off speed over the V2 exit), OAK 28R exit-far-ahead coast, OAK 30/W5 high-speed-exit angle classification, `FindExitAhead` / `FindNearestExit` over V2 geometry. |
 
 The budgets derive from each V2 layout's own optimal A\* route, so the taxi gate measures
@@ -32,13 +32,15 @@ Legacy-distance match.
 
 ## Current result — GREEN
 
-All 30 tests pass (25 taxi pairs + 5 landing/exit). Full non-nightly Sim suite: 5516 passed,
-1 skipped (the pathfinder-V2-gated `Issue165 Skw3404_DoesNotOrbitDuringTaxi`), 0 failed.
+All 36 V2 tests pass (31 taxi pairs across OAK/SFO/FLL + 5 landing/exit). The 6 FLL pairs are also
+green on the Legacy baseline (`TaxiCoverageFllTests`) with path lengths within ~1 % of V2. Full
+non-nightly Sim suite: 5528 passed, 1 skipped (the pathfinder-V2-gated
+`Issue165 Skw3404_DoesNotOrbitDuringTaxi`), 0 failed.
 
 - Every taxi pair printed `OK … arrived` with path length within a few feet of the V2 optimal,
   `maxConsecutiveZeroProgress ≤ 4 s` (threshold 30 s), and cumulative turn under budget.
 - **No `SKIP: no A* route` lines** — fillet V2 stays fully connected for every smoke route under the
-  production pathfinder.
+  production pathfinder, on all three gate airports.
 - The OAK 30/W5 high-speed exit survives V2 filleting and is still classified high-speed (≤ 45°);
   exit-node lookup and runway-side association are preserved.
 
@@ -54,10 +56,8 @@ tangent-entry tolerance / synthesis trigger, not the fillet geometry.
 
 ## Remaining before flipping the default
 
-- [ ] **FLL taxi coverage.** `TaxiCoverageData` has no FLL smoke pairs; only OAK + SFO are covered
-      here. FLL is the third comparison-gate airport and has its own divergent junctions
-      (105/106/357, B×B12, J8). Author a small FLL parking→runway / exit→parking smoke set and run it
-      on V2 the same way.
+- [x] **FLL taxi coverage.** Added a 6-pair FLL smoke set (terminal→10L/28R departures, high-speed and
+      90° runway-exit→terminal taxi-ins); green on both Legacy and V2.
 - [ ] **Full-suite-on-V2 sweep.** This gate runs curated pairs on V2 but the *whole* suite still runs
       on Legacy. Before the flip, do one run of the full Sim suite with the default flipped to V2 (the
       "flip default now, then triage" pass the pathfinder effort used) and triage the delta — recording

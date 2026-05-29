@@ -2,35 +2,28 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data;
-using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
-/// Sim-level validation gate for the fillet V2 arc generator.
+/// Per-PR smoke set for FLL on the production (Legacy) fillets: every
+/// <see cref="TaxiCoverageData.FllSmoke"/> pair must reach its destination within
+/// the budgets derived by <see cref="TaxiBudgetDeriver"/> and never sit unmoving
+/// for an unreasonable stretch outside a legitimate stop.
 ///
-/// Runs the OAK + SFO + FLL <see cref="TaxiCoverageData"/> smoke pairs — which
-/// pass on the Legacy fillets with the production (V1) pathfinder — through the
-/// same <see cref="TaxiCoverageRunner"/> harness, but on a layout filleted by the
-/// V2 generator (<see cref="FilletMode.V2"/>). The pathfinder stays on V1, so any
-/// regression here isolates cleanly to V2 fillet geometry rather than routing.
-///
-/// The time / turn budgets are derived from the V2 layout's own optimal A* route,
-/// so this is a "does an aircraft taxi the V2 graph without getting stuck or
-/// wildly over-turning" gate — not a brittle Legacy-distance match. Production
-/// stays on Legacy; this suite is what justifies flipping the default later
-/// (see docs/plans/filletv2/v2-sim-validation.md).
+/// This is the Legacy baseline for FLL — the same pairs run on V2 fillets in
+/// <see cref="FilletV2TaxiCoverageTests"/>. Keeping both green isolates any
+/// fillet-V2 regression at FLL from the routing layer.
 /// </summary>
-public class FilletV2TaxiCoverageTests(ITestOutputHelper output)
+public class TaxiCoverageFllTests(ITestOutputHelper output)
 {
-    public static IEnumerable<object[]> Pairs() =>
-        TaxiCoverageData.OakSmoke.Concat(TaxiCoverageData.SfoSmoke).Concat(TaxiCoverageData.FllSmoke).Select(p => new object[] { p.PairId, p });
+    public static IEnumerable<object[]> Pairs() => TaxiCoverageData.FllSmoke.Select(p => new object[] { p.PairId, p });
 
     [Theory]
     [MemberData(nameof(Pairs))]
-    public void Pair_ReachesDestinationWithinBudgets_OnV2Fillets(string pairId, TaxiPair pair)
+    public void Pair_ReachesDestinationWithinBudgets(string pairId, TaxiPair pair)
     {
         _ = pairId;
         TestVnasData.EnsureInitialized();
@@ -40,7 +33,7 @@ public class FilletV2TaxiCoverageTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData(FilletMode.V2).GetLayout(pair.AirportId);
+        var layout = new TestAirportGroundData().GetLayout(pair.AirportId);
         Assert.NotNull(layout);
 
         var destination = TaxiCoverageRunner.ResolveNode(
@@ -53,7 +46,7 @@ public class FilletV2TaxiCoverageTests(ITestOutputHelper output)
         if (destination is null)
         {
             output.WriteLine(
-                $"SKIP {pair.PairId}: destination '{pair.DestinationName}' ({pair.DestinationKind}) not found in {pair.AirportId} V2 layout"
+                $"SKIP {pair.PairId}: destination '{pair.DestinationName}' ({pair.DestinationKind}) not found in {pair.AirportId} layout"
             );
             return;
         }
@@ -68,7 +61,7 @@ public class FilletV2TaxiCoverageTests(ITestOutputHelper output)
         );
         if (origin is null)
         {
-            output.WriteLine($"SKIP {pair.PairId}: origin '{pair.OriginName}' ({pair.OriginKind}) not found in {pair.AirportId} V2 layout");
+            output.WriteLine($"SKIP {pair.PairId}: origin '{pair.OriginName}' ({pair.OriginKind}) not found in {pair.AirportId} layout");
             return;
         }
 
@@ -83,7 +76,7 @@ public class FilletV2TaxiCoverageTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData();
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Information).InitializeSimLog();
         return new SimulationEngine(groundData);
     }
