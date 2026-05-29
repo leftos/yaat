@@ -177,6 +177,37 @@ These changes addressed symptoms of the same fillet data quality the rewrite tar
 - [ ] **`IsNoOpEdge` guard in V2** (commit `edd96bf7`, `src/Yaat.Sim/Data/Airport/V2/GeometricAdmissibility.cs`). If the rewrite removes zero-distance edges at the source, this is no longer load-bearing. Decide: keep as defence-in-depth, or rip out so V2 reads bearings cleanly.
 - [ ] **B1's tangent-on-anchor merge pass in `FilletArcGenerator`** (commit `fd7e35fe`, `BuildMergeMap` second pass). If the rewrite makes co-located tangent/anchor placements impossible by construction, this post-merge pass is no longer needed.
 
+## Fillet-V2 interaction findings (from the fillet V2 sim-validation sweep)
+
+The fillet-arc-generator V2 rewrite (`docs/plans/filletv2/`) is geometry-validated and was sim-validated
+behind the switch. A full-suite run with the fillet default flipped to V2 (pathfinder still on V1)
+produced only 5 failures, and triage (`docs/plans/filletv2/v2-sim-validation.md`) traced them to the
+**routing/navigation layer**, not the fillet geometry. Because pathfinder V1 is being replaced, these are
+recorded here as V2 requirements rather than V1 fixes. **When fillet V2 and pathfinder V2 flip together,
+the V2 router + navigator must handle these or the failures resurface.**
+
+- [ ] **Prefer single-name continuation over membership-matching junction arcs (reinforces the greedy
+      natural-terminus gap above).** V2's edge-split collapses each junction into fewer tangent nodes with
+      larger bearing steps, and retains fillet junction arcs named e.g. `C1 - B`, `A - RAMP`, `A - Q1`.
+      A bare-taxiway walk matches these arcs **by membership** (`GroundArc.MatchesTaxiway` checks
+      `TaxiwayNames` membership), so when continuing taxiway `B` the walk sees the `C1 - B` junction arc as
+      a valid `B` continuation. Where the true continuation is now an *arc* whose bearing competes closely
+      with the junction arc (or a short edge), V1's straightest-continuation heuristic picks the wrong one
+      → dead-end spur / oscillation → `X→Y→X` reversal (FLL B/C1 nodes 765↔767; SFO A nodes 1160↔43).
+      **V2 requirement:** when extending the *same* named taxiway, an exact single-name edge/arc must rank
+      strictly above a junction arc that matches only by membership; and the multi-candidate search (not a
+      one-step-greedy `WalkToNaturalTerminus`) must reject a candidate that immediately backtracks. Repro:
+      `IssueFllDal880TaxiBacktrackBTests`, `Issue166CrossShortcutsGrassTests` (both pass on Legacy fillets).
+> **Out of scope here:** fillet-V2 root cause ② (AMX669 freeze) is a **GroundNavigator** issue
+> (route *following*, not route resolution), and pathfinder V2 does not change the navigator. It is
+> tracked as a separate navigator review in
+> [docs/plans/filletv2/v2-sim-validation.md](../filletv2/v2-sim-validation.md), not as a pathfinder V2
+> requirement.
+
+- [ ] **Re-run the fillet-V2 full-suite sweep after ① + the navigator review.**
+      `S2Oak4RvSidCtoTests.N436MS_CtoDuringTaxi…` (a CTO/InitialClimb replay cascade) is expected to clear
+      once the routing/navigation causes are fixed; re-triage rather than touch the CTO path directly.
+
 ### Replacement gate (Codex)
 
 Before flipping V2 on by default or deleting V1, the Codex review explicitly required:

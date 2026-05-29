@@ -80,30 +80,70 @@ needs relaxing — every failure is a real routing/navigation regression at a sp
 |------|---------|---------|
 | `IssueFllDal880TaxiBacktrackBTests.ResolveExplicitPath_TT4BB1_…RouteHasNoUTurn` | `U-turn at seg 60→61: B #765→#767 then #767→#765` (180°) | **V2-bug — edge-split reversal stub** at FLL B/C1 |
 | `IssueFllDal880TaxiBacktrackBTests.DAL880_TaxiTT4BB1HS10L_RouteHasNoUTurn` | same B/C1 U-turn (recording variant) | **V2-bug** — same root |
-| `Issue166CrossShortcutsGrassTests.Ual19_FollowsHTaxiLineThroughRunwayCrossing` | route to F14 `reversal at index 85: (1160→43) then (43→1160)`; UAL19 never reaches `CrossingRunwayPhase` by t=314 | **V2-bug — edge-split reversal stub** at SFO 43/1160 (cascades to replay timing) |
-| `IssueAmxTaxiOvershootTests.AMX669_HoldsShortOf1L_WithReasonableHeading` | never reaches 1L hold-short in 300 s; `[NavV2] Synth trigger: aircraft 30.8ft from planned tangent entry (tol 6.0ft for r=40.0ft) — skipping synthesis for corner node 770` | **V2-bug — navigator synth tolerance too tight for tight V2 arcs** (may share root with a prior reversal pushing the aircraft off the tangent) |
-| `S2Oak4RvSidCtoTests.N436MS_CtoDuringTaxi_Nimi6_Stores315…` | no pending `InitialClimbPhase` at t=10 during CTO-while-taxiing replay | **underlying / replay cascade** — downstream of a taxi-route difference; re-triage after the above fixes |
+| `Issue166CrossShortcutsGrassTests.Ual19_FollowsHTaxiLineThroughRunwayCrossing` | UAL19 route to @F14 `reversal at index 85: (1160→43) then (43→1160)` on taxiway A; UAL19 never reaches `CrossingRunwayPhase` by t=314 | **① pathfinder edge-selection** over collapsed SFO 43/1160 junction (confirmed — see below) |
+| `IssueAmxTaxiOvershootTests.AMX669_HoldsShortOf1L_WithReasonableHeading` | **frozen at taxi seg 0 from t=1** (ias=0, never advances, target #1283); `[NavV2] Synth trigger: aircraft 30.8ft from planned tangent entry (tol 6.0ft for r=40.0ft) — skipping synthesis for corner node 770` | **② GroundNavigator freeze** at a tight V2 arc near route start (confirmed — NOT a reversal) |
+| `S2Oak4RvSidCtoTests.N436MS_CtoDuringTaxi_Nimi6_Stores315…` | no pending `InitialClimbPhase` at t=10 during CTO-while-taxiing replay | **③ CTO/replay cascade** — downstream of a taxi-route difference; re-triage after ①/② |
 
-### Root causes (2–3, not 5)
+### Root causes (confirmed, 2 + 1 cascade)
 
-1. **Edge-split reversal stubs (3 tests).** At a few junctions the V2 surviving-edge set contains a
-   short there-and-back: the route walks `X→Y` then `Y→X`. Clean on Legacy, so V2 introduced the stub;
-   the V1 pathfinder faithfully walks the V2 graph. This is the "crossed-middle / backward sub-segment"
-   hazard the rewrite plan called out (Workstream A, Step 4) surfacing at FLL B/C1 and SFO 43/1160.
-   **Fix is in the edge-split** (drop the degenerate there-and-back sub-segment), then re-run the
-   no-true-disconnection gate + this suite. Needs aviation-realism review (turn-speed) if arc shapes
-   change.
-2. **Navigator synth tolerance vs tight V2 arcs (1 test, possibly shared with #1).** The earlier benign
-   `[NavV2] Synth trigger … skipping` observation turns fatal here: with the aircraft 30.8 ft off the
-   planned tangent for an r=40 ft arc (tol 6 ft), slow-turn synthesis is skipped and AMX669 can't make
-   the corner. Either the 30.8 ft offset comes from a prior reversal (→ #1) or the synth tolerance
-   needs to scale with arc radius. Investigate which before changing the navigator.
-3. **Replay cascade (1 test).** Likely downstream of a taxi-route difference; expected to clear once
-   #1/#2 are fixed. Re-triage rather than touch the CTO/InitialClimb path blindly.
+The investigation used `FilletV2ReversalStubDiagnosticTests` (junction edge dumps for both fillet
+generators) and an AMX669 V2 trajectory dump.
 
-**Conclusion:** V2 is close to drop-in — 5 real regressions, no brittle assertions. The blocker is a
-small number of edge-split reversal stubs (root cause #1) plus the navigator-tolerance interaction
-(#2). Fix those, re-run the sweep, then the flip is a small step.
+1. **① Pathfinder `WalkTaxiway` edge-selection over collapsed V2 junctions (FLL DAL880 ×2, SFO Issue166).**
+   The graph is fully connected (matches the green no-true-disconnection gate) — this is *not* a
+   connectivity break. V2's edge-split collapses each junction into **fewer tangent nodes** than Legacy
+   (SFO J43: 5 nodes vs 9; FLL J75 similar) with **larger bearing steps**, and every junction retains
+   the fillet **junction arcs** (`C1 - B`, `B - C`, `A - RAMP`, `A - Q1`) that a bare-taxiway walk matches
+   **by membership** (`GroundArc.MatchesTaxiway` checks `TaxiwayNames` membership). Where Legacy gave the
+   walk an unambiguous near-straight pure-name continuation, V2's true continuation is now an *arc* whose
+   bearing competes closely with a membership-matching junction arc or a short edge. `TaxiPathfinder.WalkTaxiway`'s
+   straightest-continuation heuristic then picks the wrong edge — a dead-end spur (FLL: B→767, a C/C1
+   node) or an oscillation (SFO: 1160↔43) — producing the `X→Y→X` reversal. Trigger is V2 geometry;
+   the latent fault is the V1 pathfinder edge-selection.
+2. **② GroundNavigator slow-turn synthesis vs tight V2 arcs (AMX669).** AMX669 freezes at taxi segment 0
+   (ias 0, zero movement, target #1283). The navigator declines slow-turn synthesis at a tight r=40 ft
+   V2 arc because the aircraft is 30.8 ft off the planned tangent entry (tolerance 6 ft), and pure-pursuit
+   fails to produce forward motion — the aircraft never starts taxiing. This is the GroundNavigator
+   (downstream of routing), not the pathfinder. The synth tolerance does not scale with the (now tighter)
+   V2 arc radius.
+3. **③ CTO/replay cascade (N436MS).** Expected downstream of a taxi-route difference; re-triage after
+   ①/② rather than touching the CTO/InitialClimb path.
+
+**Conclusion:** V2 is close to drop-in — 5 real regressions, no brittle assertions, 2 root causes. Both
+live in the *routing/navigation* layer, not in the fillet geometry itself (the geometry passes the
+connectivity gate). They sit in **two different components**, so they are tracked separately:
+
+- **① → pathfinder.** Route *resolution*. Pathfinder V1 is being replaced, so do not patch V1 — folded
+  into the [pathfinder V2 plan](../pathfinderv2/default-flip-triage.md) as a V2-router requirement.
+- **② → GroundNavigator.** Route *following*. The pathfinder swap does not touch the navigator, so this
+  is its own review — see below.
+
+## Navigator review (root cause ②) — a fillet-V2 flip prerequisite
+
+The GroundNavigator (the per-tick steerer in `TaxiingPhase`, not the pathfinder) physically follows the
+route over the fillet geometry. It is **shared** — unchanged by the pathfinder V1→V2 swap — and it carries
+a large amount of tuning built specifically against *Legacy* fillet-arc quirks: the orbit detector, the
+cluster / slow-turn **synthesis planner**, chord-chain aggregate-turn handling, reverse-arc
+"natural-forward" detection, and the pure-pursuit entry-alignment thresholds.
+
+Fillet V2 produces different geometry (cleaner single arcs, fewer tangent nodes, different radii), so the
+navigator needs its own review against V2 — independent of the pathfinder:
+
+- [ ] **Synthesis tolerance vs tight V2 arcs.** On an r=40 ft V2 arc the planned-tangent-entry tolerance
+      (~6 ft) is too small: AMX669 was 30.8 ft off, synthesis was skipped, pure-pursuit produced no forward
+      motion, and the aircraft **froze at taxi seg 0**. Scale the tolerance with arc radius and/or guarantee
+      a non-freezing pure-pursuit fallback. Repro: `IssueAmxTaxiOvershootTests.AMX669_HoldsShortOf1L_WithReasonableHeading`;
+      the benign `[NavV2] Synth trigger … skipping` lines in the *passing* taxi smoke runs show it operating
+      at the tolerance edge on V2 arcs.
+- [ ] **Audit Legacy-fillet-specific compensations for dead/wrong behavior on V2.** Orbit detector, cluster
+      synth planner, chord-chain aggregate turn, reverse-arc natural-forward detection — these were tuned for
+      Legacy artifacts (chord chains, reverse-traversed arcs). Determine which are no longer needed (V2 may
+      not produce the artifact) vs which need re-tuning for V2 arc radii. Re-validate the existing navigator
+      regression tests (the OAK/SFO taxi-spin pins) against V2 geometry.
+- [ ] **Aviation-realism review (mandatory)** of any navigator tolerance/turn-speed change on the (tighter)
+      V2 arcs — turn-rate and corner-speed realism.
+
+This review gates the fillet-V2 default flip alongside the pathfinder V2 work; the two flip together.
 
 ## Reproduce
 
