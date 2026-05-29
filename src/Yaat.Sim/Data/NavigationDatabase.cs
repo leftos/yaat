@@ -65,6 +65,13 @@ public sealed class NavigationDatabase
         ?? throw new InvalidOperationException("NavigationDatabase not initialized. Call Initialize() first.");
 
     /// <summary>
+    /// The global instance if initialized (scoped override, else process-wide default), or
+    /// <c>null</c> if neither is set. Use when a lookup is best-effort and the caller has a
+    /// fallback — never throws, unlike <see cref="Instance"/>.
+    /// </summary>
+    public static NavigationDatabase? InstanceOrNull => _scopedInstance.Value ?? _defaultInstance;
+
+    /// <summary>
     /// Initializes the global singleton with NavData + CIFP. Both are required.
     /// <paramref name="artccsBaseDir"/> overrides the per-ARTCC user-data root (custom fixes,
     /// fix pronunciations, taxi route presets); pass an empty string to skip loading entirely.

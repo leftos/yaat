@@ -1,6 +1,9 @@
 using Xunit;
+using Yaat.Sim;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.V2;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests.Pathfinding.V2;
 
@@ -147,7 +150,9 @@ public class RouteMaterialiserTests
         var e01 = Edge(n0, n1, "A");
         var e12 = Edge(n1, n2, "A");
 
-        var holdShortSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "28R/10L" };
+        // A controller says "hold short 28R" — a single designator, never the combined "28R/10L".
+        // Reciprocal matching must tag the 28R/10L bar as the explicit hold.
+        var holdShortSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "28R" };
         var ctx = Context(layout, holdShorts: holdShortSet);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
@@ -155,6 +160,40 @@ public class RouteMaterialiserTests
 
         Assert.Single(route.HoldShortPoints);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, route.HoldShortPoints[0].Reason);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Destination runway annotation
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void RunwayDestination_TerminalBarIsDestinationRunway_EnRouteCrossingStaysCrossing()
+    {
+        // Taxiing to runway 28R: the en-route 01L/19R bar is a crossing; the terminal 28R/10L bar
+        // is the destination runway (held short for departure, never auto-crossed onto).
+        var n0 = Node(0, 37.700, -122.200);
+        var nCross = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        nCross.RunwayId = new RunwayIdentifier("01L", "19R");
+        var n2 = Node(2, 37.702, -122.200);
+        var nDest = Node(3, 37.703, -122.200, GroundNodeType.RunwayHoldShort);
+        nDest.RunwayId = new RunwayIdentifier("28R", "10L");
+        var layout = Layout(n0, nCross, n2, nDest);
+        var e01 = Edge(n0, nCross, "A");
+        var e12 = Edge(nCross, n2, "A");
+        var e23 = Edge(n2, nDest, "A");
+
+        var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
+        var ctx = Context(layout, dest);
+
+        var edges = new List<DirectionalEdge> { Directed(e01, n0, nCross), Directed(e12, nCross, n2), Directed(e23, n2, nDest) };
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+
+        var crossHs = route.HoldShortPoints.Single(h => h.NodeId == nCross.Id);
+        Assert.Equal(HoldShortReason.RunwayCrossing, crossHs.Reason);
+
+        var destHs = route.HoldShortPoints.Single(h => h.NodeId == nDest.Id);
+        Assert.Equal(HoldShortReason.DestinationRunway, destHs.Reason);
+        Assert.Equal("28R", destHs.TargetName);
     }
 
     // ---------------------------------------------------------------------------
@@ -295,36 +334,39 @@ public class RouteMaterialiserTests
     }
 
     [Fact]
-    public void FindFullLengthLineupHoldShort_MultipleHoldShorts_PicksNearestToThreshold()
+    public void FindFullLengthLineupHoldShort_MultipleHoldShorts_PicksBarNearestRequestedThreshold()
     {
-        // Runway 28R runs roughly east-west; threshold (departure end for 28R) is at the west end.
-        // Near-threshold hold-short: nNear (west side), intermediate hold-short: nFar (east side).
-        // We place runway centerline edges so the algorithm can find the threshold proxy.
-        var n0 = Node(0, 37.700, -122.210); // start node (aircraft position)
-        var nNear = Node(1, 37.700, -122.208, GroundNodeType.RunwayHoldShort); // near threshold
-        nNear.RunwayId = new RunwayIdentifier("28R", "10L");
-        var nFar = Node(2, 37.700, -122.202, GroundNodeType.RunwayHoldShort); // far from threshold
-        nFar.RunwayId = new RunwayIdentifier("28R", "10L");
+        // Runway 28R/10L: the 28R threshold (full-length departure end for a 28R takeoff) is the EAST
+        // end. The full-length lineup bar is the hold-short nearest that designator's threshold — nEast.
+        // The aircraft starts to the WEST (nearer the wrong bar), so a nearest-start or wrong-end
+        // heuristic would pick nWest; only the authoritative per-designator threshold picks nEast.
+        var n0 = Node(0, 37.700, -122.210); // start node, west of both bars
+        var nWest = Node(1, 37.700, -122.208, GroundNodeType.RunwayHoldShort);
+        nWest.RunwayId = new RunwayIdentifier("28R", "10L");
+        var nEast = Node(2, 37.700, -122.202, GroundNodeType.RunwayHoldShort);
+        nEast.RunwayId = new RunwayIdentifier("28R", "10L");
+        var layout = Layout(n0, nWest, nEast);
 
-        // Two runway centerline nodes: threshold-end at west (-122.209), other end at east (-122.200).
-        var rwyWest = Node(10, 37.700, -122.209);
-        var rwyEast = Node(11, 37.700, -122.200);
-
-        var layout = Layout(n0, nNear, nFar, rwyWest, rwyEast);
-
-        // Add a runway centerline edge so MatchesRunway("28R") returns true.
-        var rwyEdge = new GroundEdge
+        // End1 = 28R threshold at the EAST end; End2 = 10L threshold at the WEST end.
+        var runway = new RunwayInfo
         {
-            Nodes = [rwyWest, rwyEast],
-            TaxiwayName = "RWY28R/10L",
-            DistanceNm = GeoMath.DistanceNm(rwyWest.Position, rwyEast.Position),
+            AirportId = "TEST",
+            Id = new RunwayIdentifier("28R", "10L"),
+            Designator = "28R",
+            Lat1 = 37.700,
+            Lon1 = -122.200,
+            Elevation1Ft = 0,
+            TrueHeading1 = new TrueHeading(280),
+            Lat2 = 37.700,
+            Lon2 = -122.209,
+            Elevation2Ft = 0,
+            TrueHeading2 = new TrueHeading(100),
+            LengthFt = 9000,
+            WidthFt = 150,
         };
-        rwyWest.Edges.Add(rwyEdge);
-        rwyEast.Edges.Add(rwyEdge);
-        layout.Edges.Add(rwyEdge);
+        using var scope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
 
-        // nNear is the full-length lineup hold-short (nearest to threshold = rwyWest at -122.209).
-        var result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", [nNear, nFar]);
-        Assert.Equal(nNear.Id, result.Id);
+        var result = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, n0, "28R", [nWest, nEast]);
+        Assert.Equal(nEast.Id, result.Id);
     }
 }

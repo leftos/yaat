@@ -202,20 +202,20 @@ public class JunctionContinuationTests
         // junction (B before B3) and the second A comes after B3 — never B3 taken off the first A.
         AssertOrderedSubsequence(instructed, runs);
 
-        // A and B1 have no direct junction at SFO (they connect via the Q connector), so the
-        // resolver inserts Q. That must surface as an informative notification naming only the
-        // truly-inserted connector (Q), not cleared taxiways (B3), and never as an "unauthorized
-        // taxiway" deviation warning.
+        // A and B1 have no direct junction at SFO, so the resolver inserts a connector. Under the
+        // soft detour policy it prefers the numbered B2 connector over an unauthorized full letter
+        // taxiway — that must surface as an informative notification naming only the truly-inserted
+        // connector (B2), not cleared taxiways (B3), and never as an "unauthorized taxiway" warning.
         Assert.Contains(
             route.Warnings,
-            w => w.Contains("A and B1", StringComparison.OrdinalIgnoreCase) && w.Contains("Q", StringComparison.OrdinalIgnoreCase)
+            w => w.Contains("A and B1", StringComparison.OrdinalIgnoreCase) && w.Contains("B2", StringComparison.OrdinalIgnoreCase)
         );
         Assert.DoesNotContain(
             route.Warnings,
             w => w.Contains("A and B1", StringComparison.OrdinalIgnoreCase) && w.Contains("B3", StringComparison.OrdinalIgnoreCase)
         );
 
-        // The leading RAMP (parking bridge from D8) and the mandatory Q connector must not be
+        // The leading RAMP (parking bridge from D8) and the mandatory B2 connector must not be
         // flagged as "not in authorized path" deviations.
         Assert.DoesNotContain(route.Warnings, w => w.Contains("not in authorized path", StringComparison.OrdinalIgnoreCase));
     }

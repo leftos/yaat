@@ -263,6 +263,68 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     }
 
     // -----------------------------------------------------------------------
+    // Detour authorized-taxiway policy: prefer numbered/RAMP connectors over an
+    // unauthorized letter taxiway when both bridge the same gap (soft policy).
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void Detour_PrefersNumberedConnectorOverUnauthorizedLetterTaxiway()
+    {
+        // A and B don't connect directly. Two bridges from n1 to nB span the gap: a numbered
+        // connector "N1" (slightly longer) and an unauthorized letter taxiway "Q" (shorter).
+        // The detour must prefer the numbered connector — the letter taxiway, not in the "A B"
+        // clearance, carries the unauthorized-taxiway penalty that outweighs its small distance edge.
+        var n0 = Node(0, 37.7000, -122.2000); // A start
+        var n1 = Node(1, 37.7010, -122.2000); // A, bridge origin
+        var nB = Node(2, 37.7010, -122.1990); // B, bridge destination
+        var nB2 = Node(3, 37.7010, -122.1980); // B, further east
+        var nN = Node(4, 37.7013, -122.1995); // N1 bridge midpoint (bowed north → slightly longer)
+        var layout = Layout(n0, n1, nB, nB2, nN);
+        Edge(layout, n0, n1, "A");
+        Edge(layout, n1, nB, "Q"); // unauthorized letter taxiway — direct, shorter
+        Edge(layout, n1, nN, "N1"); // numbered connector — two hops, slightly longer
+        Edge(layout, nN, nB, "N1");
+        Edge(layout, nB, nB2, "B");
+        layout.RebuildAdjacencyLists();
+
+        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
+        var (route, failure) = SegmentExpander.Run(ctx);
+
+        Assert.Null(failure);
+        Assert.NotNull(route);
+        Assert.Contains(route.Segments, s => s.TaxiwayName == "N1");
+        Assert.DoesNotContain(route.Segments, s => s.TaxiwayName == "Q");
+    }
+
+    [Fact]
+    public void Detour_LetterTaxiwayOnlyBridge_ResolvesAndNotifies()
+    {
+        // When the only physical bridge between two cleared taxiways is an unauthorized letter
+        // taxiway, the soft policy still resolves the route (never fails a resolvable clearance)
+        // and surfaces the insertion as an informative connector notification — not a deviation warning.
+        var n0 = Node(0, 37.7000, -122.2000);
+        var n1 = Node(1, 37.7010, -122.2000);
+        var nB = Node(2, 37.7010, -122.1990);
+        var nB2 = Node(3, 37.7010, -122.1980);
+        var layout = Layout(n0, n1, nB, nB2);
+        Edge(layout, n0, n1, "A");
+        Edge(layout, n1, nB, "Q"); // only bridge is the letter taxiway
+        Edge(layout, nB, nB2, "B");
+        layout.RebuildAdjacencyLists();
+
+        var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
+        var (route, failure) = SegmentExpander.Run(ctx);
+
+        Assert.Null(failure);
+        Assert.NotNull(route);
+        Assert.Contains(route.Segments, s => s.TaxiwayName == "Q");
+        Assert.Contains(
+            route.Warnings,
+            w => w.Contains("do not connect directly", StringComparison.OrdinalIgnoreCase) && w.Contains("Q", StringComparison.OrdinalIgnoreCase)
+        );
+    }
+
+    // -----------------------------------------------------------------------
     // Reroute: no junction and no detour → TransitionInfeasible
     // -----------------------------------------------------------------------
 

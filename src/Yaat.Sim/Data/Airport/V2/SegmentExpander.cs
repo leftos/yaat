@@ -1496,8 +1496,8 @@ public static class SegmentExpander
             );
         }
 
-        // Build a detour context that allows only numbered connectors and RAMP edges.
-        // We try to route from head to the nearest node on toTaxiway using a permissive AutoRouter.
+        // Route from head to the nearest node on toTaxiway via a bounded AutoRouter that inherits the
+        // authorized set — so numbered connectors and RAMP edges are preferred over unnamed letter taxiways.
         GroundNode? bestEntry = null;
         TaxiRoute? bestRoute = null;
 
@@ -1543,7 +1543,11 @@ public static class SegmentExpander
     }
 
     /// <summary>
-    /// Build a detour SearchContext that permits only numbered taxiways and RAMP edges.
+    /// Build a detour SearchContext for bridging two cleared taxiways that have no direct junction.
+    /// Inherits the original <see cref="SearchContext.AuthorizedTaxiways"/> so the cost function still
+    /// prefers numbered connectors and RAMP edges over unnamed letter taxiways (the soft policy:
+    /// an unauthorized letter taxiway is penalized but usable as a last resort, then surfaced in the
+    /// connector notification — never silently free, never hard-failing a resolvable clearance).
     /// </summary>
     private static SearchContext BuildDetourContext(SearchContext ctx, int fromNodeId, int toNodeId)
     {
@@ -1552,7 +1556,6 @@ public static class SegmentExpander
             StartNodeId = fromNodeId,
             Destination = new DestinationDescriptor(toNodeId, null, null, null, DestinationKind.Node),
             WaypointSequence = [],
-            AuthorizedTaxiways = null,
         };
     }
 
@@ -1563,7 +1566,7 @@ public static class SegmentExpander
     /// </summary>
     private static (TaxiRoute? Route, PathfindingFailure? Failure) RunBoundedDetour(SearchContext ctx, PartialRoute priorHead)
     {
-        return AutoRouter.Run(ctx, startOverride: priorHead);
+        return AutoRouter.Run(ctx, startOverride: priorHead, maxExpansions: MaxDetourExpansions);
     }
 
     // -----------------------------------------------------------------------

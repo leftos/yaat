@@ -101,7 +101,7 @@ At a `T_i → T_{i+1}` transition there are usually multiple junction candidates
 
 ### Mandatory-connector insertion + notification
 
-When two consecutive cleared taxiways have **no direct junction** (zero junction candidates), the resolver bridges them via numbered/RAMP connectors (`TryDetour`) and records a `ConnectorInsertion`. The materialiser surfaces this as an informative notification — *"A and B do not connect directly — taxi via A1"* — **not** an "unauthorized taxiway" warning, and suppresses the generic warning for those connector names (`RouteMaterialiser.BuildWarnings`).
+When two consecutive cleared taxiways have **no direct junction** (zero junction candidates), the resolver bridges them (`TryDetour`) and records a `ConnectorInsertion`. The detour is a bounded `AutoRouter` (capped at `MaxDetourExpansions = 5_000`) that **inherits the authorized set** (soft policy): numbered connectors and RAMP are free, an unnamed letter taxiway carries the `0.2 nm` unauthorized penalty so it loses to a numbered connector but is still usable as a last resort — the detour never fails a resolvable clearance. The materialiser surfaces the inserted connector as an informative notification — *"A and B do not connect directly — taxi via A1"* — **not** an "unauthorized taxiway" warning, and suppresses the generic warning for those connector names (`RouteMaterialiser.BuildWarnings`).
 
 ---
 
@@ -158,13 +158,7 @@ Verify each against current code before relying on it — several are open work 
 
 - **`IsNumberedVariant` must reject digit-bearing bases.** `B10` is **not** a variant of `B1` — `B1` and `B10` are both siblings under base `B`. `IsNumberedVariant` (`SegmentExpander.cs:1279`) returns false when the base contains any digit, preventing the false positive that made a `B1`→runway hold-short look ambiguous against `B10`/`B11`. A digit-bearing base is a leaf connector with no further numbered variants.
 
-- **Reciprocal runway matching is inconsistent across the materialiser.** `RouteReachesRunwayHoldShort` / `IsRunwayHoldShort`, `FindTruncationIndex`, and `FindVariant/SameNameHoldShorts` use `.Contains(runwayId)` (so `28R` matches a `28R/10L` bar). But `AnnotateHoldShorts` decides `ExplicitHoldShort` vs `RunwayCrossing` via exact `ctx.ExplicitHoldShorts.Contains(runwayIdStr)` (`RouteMaterialiser.cs:91`) — literal string membership, which can miss `28R` against `28R/10L`. Prefer `RunwayIdentifier`-based matching when touching this. (Open Codex HIGH finding.)
-
-- **`HoldShortReason.DestinationRunway` is not emitted by V2.** V2's materialiser only produces `ExplicitHoldShort` and `RunwayCrossing` — never `DestinationRunway`. So `TaxiRoute.ToSummary()`'s `RWY <id>` semantics differ from V1. (Open Codex HIGH finding; `RouteMaterialiser.cs:88`.)
-
-- **A* pruning is node-id-keyed, not state-aware.** `AutoRouter` and `LocalSearchToJunction` prune by best cost *per node id*, but future admissibility/cost depends on arrival bearing, last edge, last taxiway, category, and visited set. A cheaper arrival can suppress a slightly-more-expensive but viable arrival with a different bearing. (Open Codex HIGH finding.)
-
-- **Detour fallback can use unauthorized full taxiways.** `BuildDetourContext` clears `AuthorizedTaxiways` then runs the normal `AutoRouter`, so the unauthorized-letter-taxiway penalty doesn't apply inside a detour. The policy is meant to be numbered/RAMP-only. (Open Codex HIGH finding.) Also: `MaxDetourExpansions = 5_000` is declared but **not enforced** — `RunBoundedDetour` just calls `AutoRouter.Run` (which uses the 200k cap).
+- **A* pruning is node-id-keyed, not state-aware.** `AutoRouter` and `LocalSearchToJunction` prune by best cost *per node id*, but future admissibility depends on arrival bearing (the `GeometricAdmissibility` heading-delta gate). A cheaper arrival can suppress a slightly-more-expensive but viable arrival with a different bearing → false `DestinationUnreachable` / worse route. (Open Codex HIGH finding — **deferred careful pass**: key the closed set by `(nodeId, 5°-bearing-bucket)` using the propagated arrival bearing; see `docs/plans/ground-graph-v2.md` Workstream 2.)
 
 - **Auto-route 200k expansion cap.** `AutoRouter.MaxExpansions = 200_000`. SFO cross-field routes legitimately explore 100k+, so this is a real ceiling, not a safety margin — a latency footgun on degenerate/disconnected layouts. There is no CI latency budget yet.
 

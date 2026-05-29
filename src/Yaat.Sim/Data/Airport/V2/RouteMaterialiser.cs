@@ -87,29 +87,35 @@ public static class RouteMaterialiser
 
             if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } runwayId)
             {
-                string runwayIdStr = runwayId.ToString();
-                HoldShortReason reason = ctx.ExplicitHoldShorts.Contains(runwayIdStr)
-                    ? HoldShortReason.ExplicitHoldShort
-                    : HoldShortReason.RunwayCrossing;
+                // Precedence: DestinationRunway (taxiing TO this runway — hold for departure, never
+                // auto-cross) > ExplicitHoldShort (controller named it in the HS list) > RunwayCrossing.
+                // Reciprocal matching: a node's RunwayId is the combined "28R/10L"; clearances name a
+                // single end ("28R"), so match via RunwayIdentifier.Contains, not literal string equality.
+                HoldShortReason reason;
+                string targetName = runwayId.ToString();
 
-                // Handle "28L/28R" style multi-runway hold-shorts.
-                string[] parts = runwayIdStr.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                bool addedAny = false;
-                foreach (string part in parts)
+                if (ctx.Destination.Kind == DestinationKind.Runway && ctx.Destination.RunwayId is { } destRwy && runwayId.Contains(destRwy))
                 {
-                    if (!addedAny)
-                    {
-                        holdShorts.Add(
-                            new HoldShortPoint
-                            {
-                                NodeId = nodeId,
-                                Reason = reason,
-                                TargetName = runwayIdStr,
-                            }
-                        );
-                        addedAny = true;
-                    }
+                    reason = HoldShortReason.DestinationRunway;
+                    targetName = destRwy;
                 }
+                else if (MatchesExplicitHoldShort(runwayId, ctx.ExplicitHoldShorts))
+                {
+                    reason = HoldShortReason.ExplicitHoldShort;
+                }
+                else
+                {
+                    reason = HoldShortReason.RunwayCrossing;
+                }
+
+                holdShorts.Add(
+                    new HoldShortPoint
+                    {
+                        NodeId = nodeId,
+                        Reason = reason,
+                        TargetName = targetName,
+                    }
+                );
 
                 continue;
             }
@@ -136,6 +142,23 @@ public static class RouteMaterialiser
         }
 
         return holdShorts;
+    }
+
+    /// <summary>
+    /// True when any controller-named explicit hold-short designator matches this runway,
+    /// reciprocal-aware (a "28R" hold matches a node whose RunwayId is "28R/10L").
+    /// </summary>
+    private static bool MatchesExplicitHoldShort(RunwayIdentifier runwayId, IReadOnlySet<string> explicitHoldShorts)
+    {
+        foreach (string designator in explicitHoldShorts)
+        {
+            if (runwayId.Contains(designator))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static int FindTruncationIndex(List<TaxiRouteSegment> segments, List<HoldShortPoint> holdShorts, SearchContext ctx)
@@ -284,9 +307,11 @@ public static class RouteMaterialiser
 
     /// <summary>
     /// Pick the full-length lineup hold-short on <paramref name="runwayId"/> — the one
-    /// geographically nearest to the runway threshold (departure end).
-    /// Falls back to the hold-short nearest <paramref name="startNode"/> when the
-    /// runway is unknown to the layout.
+    /// geographically nearest to the requested designator's threshold (the departure end you line
+    /// up at for a full-length takeoff). The threshold is resolved authoritatively from
+    /// <see cref="NavigationDatabase"/> so the correct end is chosen for the named designator
+    /// (the 28R end, not the reciprocal 10L end). When the runway is unknown to nav-data, falls
+    /// back to the hold-short nearest <paramref name="startNode"/>.
     /// </summary>
     public static GroundNode FindFullLengthLineupHoldShort(
         AirportGroundLayout layout,
@@ -305,91 +330,31 @@ public static class RouteMaterialiser
             return holdShortNodes[0];
         }
 
-        // Find the runway's threshold position to determine which hold-short is at the full-length end.
-        GroundNode? thresholdProxy = FindRunwayThresholdProxy(layout, runwayId);
+        LatLon reference = ResolveRunwayThreshold(layout.AirportId, runwayId) ?? startNode.Position;
 
-        if (thresholdProxy is not null)
-        {
-            // Pick the hold-short nearest to the runway threshold.
-            GroundNode best = holdShortNodes[0];
-            double bestDist = GeoMath.DistanceNm(thresholdProxy.Position, best.Position);
-
-            for (int i = 1; i < holdShortNodes.Count; i++)
-            {
-                double dist = GeoMath.DistanceNm(thresholdProxy.Position, holdShortNodes[i].Position);
-                if (dist < bestDist)
-                {
-                    bestDist = dist;
-                    best = holdShortNodes[i];
-                }
-            }
-
-            return best;
-        }
-
-        // Fallback: pick the hold-short nearest the start node.
-        GroundNode fallback = holdShortNodes[0];
-        double fallbackDist = GeoMath.DistanceNm(startNode.Position, fallback.Position);
-
+        GroundNode best = holdShortNodes[0];
+        double bestDist = GeoMath.DistanceNm(reference, best.Position);
         for (int i = 1; i < holdShortNodes.Count; i++)
         {
-            double dist = GeoMath.DistanceNm(startNode.Position, holdShortNodes[i].Position);
-            if (dist < fallbackDist)
+            double dist = GeoMath.DistanceNm(reference, holdShortNodes[i].Position);
+            if (dist < bestDist)
             {
-                fallbackDist = dist;
-                fallback = holdShortNodes[i];
+                bestDist = dist;
+                best = holdShortNodes[i];
             }
         }
 
-        return fallback;
+        return best;
     }
 
-    private static GroundNode? FindRunwayThresholdProxy(AirportGroundLayout layout, string runwayId)
+    /// <summary>
+    /// The geographic threshold of <paramref name="runwayId"/>'s requested designator (e.g. the 28R
+    /// end, not the reciprocal 10L end), from <see cref="NavigationDatabase"/>. Null when nav-data is
+    /// uninitialized or the runway is unknown to it.
+    /// </summary>
+    private static LatLon? ResolveRunwayThreshold(string airportId, string runwayId)
     {
-        // Use the farthest runway-centerline node on the named runway as the threshold proxy.
-        GroundNode? thresholdProxy = null;
-        double maxDistFromCentroid = -1.0;
-
-        double centroidLat = 0.0;
-        double centroidLon = 0.0;
-        int count = 0;
-
-        foreach (var edge in layout.AllEdges)
-        {
-            if (edge.MatchesRunway(runwayId))
-            {
-                foreach (var node in edge.Nodes)
-                {
-                    centroidLat += node.Position.Lat;
-                    centroidLon += node.Position.Lon;
-                    count++;
-                }
-            }
-        }
-
-        if (count == 0)
-        {
-            return null;
-        }
-
-        var centroid = new LatLon(centroidLat / count, centroidLon / count);
-
-        foreach (var edge in layout.AllEdges)
-        {
-            if (edge.MatchesRunway(runwayId))
-            {
-                foreach (var node in edge.Nodes)
-                {
-                    double d = GeoMath.DistanceNm(centroid, node.Position);
-                    if (d > maxDistFromCentroid)
-                    {
-                        maxDistFromCentroid = d;
-                        thresholdProxy = node;
-                    }
-                }
-            }
-        }
-
-        return thresholdProxy;
+        var runway = NavigationDatabase.InstanceOrNull?.GetRunway(airportId, runwayId);
+        return runway is null ? null : new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
     }
 }

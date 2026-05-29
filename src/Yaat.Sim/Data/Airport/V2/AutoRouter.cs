@@ -24,7 +24,15 @@ public static class AutoRouter
     /// heading. When null, A* starts cold from <see cref="SearchContext.StartNodeId"/>
     /// with no arrival-bearing constraint (the first edge is admitted unconditionally).
     /// </param>
-    public static (TaxiRoute? Route, PathfindingFailure? Failure) Run(SearchContext ctx, PartialRoute? startOverride = null)
+    /// <param name="maxExpansions">
+    /// Node-expansion ceiling before returning <see cref="FailureKind.SearchExhausted"/>. Defaults to
+    /// the full-search cap; bounded callers (e.g. <c>SegmentExpander</c>'s detour) pass a smaller value.
+    /// </param>
+    public static (TaxiRoute? Route, PathfindingFailure? Failure) Run(
+        SearchContext ctx,
+        PartialRoute? startOverride = null,
+        int maxExpansions = MaxExpansions
+    )
     {
         if (ctx.Destination.Kind == DestinationKind.EndOfLastTaxiway)
         {
@@ -98,7 +106,7 @@ public static class AutoRouter
             return (emptyRoute, null);
         }
 
-        var result = RunAstar(ctx, startNode, destinationNode, startOverride);
+        var result = RunAstar(ctx, startNode, destinationNode, startOverride, maxExpansions);
         return result;
     }
 
@@ -106,7 +114,8 @@ public static class AutoRouter
         SearchContext ctx,
         GroundNode startNode,
         GroundNode destinationNode,
-        PartialRoute? startOverride
+        PartialRoute? startOverride,
+        int maxExpansions
     )
     {
         // Priority queue: (PartialRoute, fScore). .NET 6+ PriorityQueue<TElement, TPriority>.
@@ -138,7 +147,7 @@ public static class AutoRouter
             var current = openSet.Dequeue();
             expansions++;
 
-            if (expansions > MaxExpansions)
+            if (expansions > maxExpansions)
             {
                 ctx.DiagnosticLog?.Invoke(
                     $"[v2:auto] FAIL reason=SearchExhausted  expansions={expansions}  deepest_depth={deepestViable?.Depth ?? 0}"
@@ -148,7 +157,7 @@ public static class AutoRouter
                     null,
                     new PathfindingFailure(
                         FailureKind.SearchExhausted,
-                        $"Route search exceeded {MaxExpansions} expansions near node {current.HeadNodeId} — possible layout data gap.",
+                        $"Route search exceeded {maxExpansions} expansions near node {current.HeadNodeId} — possible layout data gap.",
                         null,
                         null,
                         null
