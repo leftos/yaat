@@ -8,6 +8,27 @@ This is the entry point when V2 work resumes. It covers:
 2. Pre-flip work items pulled from `cursor-review.md` that still apply.
 3. Items expected to become defunct after the fillet rewrite — re-evaluate before doing them.
 
+## Re-baseline (2026-05-29 — after #1–#5, req ①, fillet-V2 #28/#29)
+
+Re-ran the per-PR suite (`Category!=Nightly`) with the pathfinder temporarily flipped to V2, under both fillet modes. **Original 56 → 29** (pathfinder V2 + Legacy fillet, matching the original list's conditions). Under the ship target (pathfinder V2 + fillet V2, via `TestAirportGroundData` default) → **54**, because many tests pin Legacy-specific geometry that V2 fillet changes.
+
+Set diff across the two fillet modes (the key triage signal):
+
+- **28 fail in BOTH modes** — fillet-mode-independent. Prime suspects for real pathfinder/sim bugs or route-shape-pinned assertions.
+- **26 fail ONLY under fillet V2** — Legacy-geometry-pinned assertions (relax) OR navigator-on-V2-arcs issues (Workstream 3, #7), e.g. `OakGaSpawnTurnAroundTests`/`OakNorthFieldTaxiSpinTests` spins, `TaxiPathfinderTests.ResolveExplicitPath_SfoM2_UsesSameTaxiwayArcAtA1Apex`, the `Skw*Diagnostic` pins, the `N7lj*` recording-replays.
+- **1 fails ONLY under Legacy** (`IssueS1OakDeadlockTests.ConvergenceWinner_DoesNotStallAcrossMerge`) — **fillet V2 fixes it.**
+
+### First-pass verdicts (V2+Legacy 29 — confirm each test's assertion before fixing; names mislead)
+
+- **Missing-feature — destination-runway connector auto-resolution.** `TAXI … W` to rwy 30 where W has connectors W1–W7: V1 auto-picks the connector reaching the rwy-30 threshold; V2 errors "served by both W1…W7" (`SegmentExpander.cs:1220`). Tests: `OAK_TaxiFromParking_DCBW_ToRunway30_HasHoldShortAndPhases`, `OAK_FullTaxiToTakeoff_DCBW_HoldShort30_HasPhases`, `Bug157leCtoMltStuckTests.TaxiBwRwy30_RouteTerminatesAtHoldShort` (confirm).
+- **V2-bug — routing too permissive.** `OAK_TaxiD_NeedsVariantForRunway30` (D alone must NOT reach rwy 30; V2 succeeds), `GroundCommandHandlerTests.TryTaxi_UnknownTaxiway_Fails` (V2 accepts unknown taxiway), `SfoRampCrossesRunwayTests.TaxiCommand_AcrossRunways_ShouldFail` (V2 accepts cross-runway taxi).
+- **V2-bug — hold-short / crossing annotation + wrong-taxiway selection.** `OakCrossThenHoldOnNextTaxiwayTests.AfterRes_AircraftCrossesAndHoldsOnC` (holds on G not C), `OakCross28RHoldShortTests.RerouteFrom28R_ExitSideHoldShort_NotAddedAsCrossing` (extra crossing), `OakExplicitHsAutoCrossTests.ExplicitHs28R_OverridesAutoCross_HoldsOnEntrySide` (2 hold-shorts not 1), `Issue163BareCrossThenHoldTests`, `IssueOakImplicitCrossOnTaxiTests.TaxiAcrossSameRunway_StillHoldsAtDestination` (240s timeout — maybe navigator), `Issue166CrossShortcutsGrassTests` (req-① residual).
+- **Overshoot / reversal (routing-vs-navigator TBD).** `SpotOvershootTaxiRouteTests` ×3, `OakPostLandingReversalsTests` ×2 (end "Holding Short 28R/10L" not "At Parking").
+- **Underlying-sim / navigator (Workstream 3, #7).** `IssueAmxTaxiOvershootTests.AMX669` (navigator freeze), `SfoLineupDiagonalTests` + `DiagonalLineup28rTests` (lineup alignment), `Issue133Rwy28rTakeoffTests` ×2.
+- **Underlying-sim / phase (not routing).** `GoAroundPreservesIntentE2ETests`, `PatternDirectionResetTests`, `ExtDuringTouchAndGoTests.ExtDuringHoldingShort`, `AdctDuringInitialClimbTests` (still taxiing — downstream of routing not reaching rwy), `S2Oak4RvSidCtoTests` (CTO cascade — re-triage after routing), `TwoPilotControllerResponseGateE2ETests` (pilot-speech timing).
+
+Reproduce a mode: flip `TaxiPathfinderRouter._current` to `TaxiPathfinderV2` (+ `TestAirportGroundData` default to `FilletMode.V2` for the V2+V2 baseline), run `--filter "Category!=Nightly"`. Revert both before committing.
+
 **No bandaids** — each test failure needs a verdict on root cause before any change lands:
 
 - **V2-bug**: V2 produces a wrong route or fails to find a valid one. Fix V2.
