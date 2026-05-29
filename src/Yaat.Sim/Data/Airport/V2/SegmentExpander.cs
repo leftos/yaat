@@ -74,7 +74,10 @@ public static class SegmentExpander
         // Walk the waypoint sequence segment by segment, with recursive look-ahead at each
         // taxiway-to-taxiway junction (see ResolveSequence). Look-ahead defeats first-match
         // junction picks that would strand the route on the wrong leg of a V-shaped taxiway.
-        var (seqEdges, seqHead, seqFailure) = ResolveSequence(head, resolvedWaypoints, 0, enableLookahead: true, ctx);
+        // Mandatory-connector insertions (two cleared taxiways with no direct junction) are
+        // collected so the materialiser can notify the controller instead of warning.
+        var insertions = new List<ConnectorInsertion>();
+        var (seqEdges, seqHead, seqFailure) = ResolveSequence(head, resolvedWaypoints, 0, enableLookahead: true, insertions, ctx);
         if (seqFailure is not null)
         {
             return (null, seqFailure);
@@ -128,9 +131,7 @@ public static class SegmentExpander
             }
         }
 
-        // Build context adjusted for EndOfLastTaxiway so materialiser truncates correctly.
-        var materCtx = ctx.Destination.Kind == DestinationKind.EndOfLastTaxiway ? ctx : ctx;
-        var route = RouteMaterialiser.Materialise(edges, materCtx);
+        var route = RouteMaterialiser.Materialise(edges, ctx, insertions);
         return (route, null);
     }
 
@@ -158,6 +159,7 @@ public static class SegmentExpander
         IReadOnlyList<WaypointToken> tokens,
         int startIndex,
         bool enableLookahead,
+        List<ConnectorInsertion> insertions,
         SearchContext ctx
     )
     {
@@ -172,7 +174,7 @@ public static class SegmentExpander
             {
                 var next = tokens[i + 1];
                 var lookahead = i + 2 < tokens.Count ? tokens[i + 2] : null;
-                var (segEdges, newHead, failure) = ExpandSegment(current, token, next, lookahead, tokens, i, enableLookahead, ctx);
+                var (segEdges, newHead, failure) = ExpandSegment(current, token, next, lookahead, tokens, i, enableLookahead, insertions, ctx);
                 if (failure is not null)
                 {
                     return (null, null, failure);
@@ -239,7 +241,9 @@ public static class SegmentExpander
         {
             VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(headAtJunction.HeadNodeId),
         };
-        var (_, tailHead, failure) = ResolveSequence(probeStart, tokens, startIndex, enableLookahead: false, ctx);
+        // Probes never reach the detour (it is suppressed when enableLookahead is false), so no
+        // connector insertions are recorded — pass a throwaway list.
+        var (_, tailHead, failure) = ResolveSequence(probeStart, tokens, startIndex, enableLookahead: false, [], ctx);
         if (failure is not null || tailHead is null)
         {
             return TailUnresolvablePenaltyNm;
@@ -284,6 +288,7 @@ public static class SegmentExpander
         IReadOnlyList<WaypointToken> tokens,
         int index,
         bool enableLookahead,
+        List<ConnectorInsertion> insertions,
         SearchContext ctx
     )
     {
@@ -303,7 +308,7 @@ public static class SegmentExpander
         // applies when it's a named taxiway (not a node-ref) — for node-ref lookaheads, the
         // junction picker has no anchor to align against.
         string? lookaheadName = lookahead is { IsNodeRef: false } la ? la.Name : null;
-        return RouteNamedToNamed(head, current.Name, next.Name, lookaheadName, tokens, index, enableLookahead, ctx);
+        return RouteNamedToNamed(head, current.Name, next.Name, lookaheadName, tokens, index, enableLookahead, insertions, ctx);
     }
 
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) ExpandLastWaypoint(
@@ -447,6 +452,7 @@ public static class SegmentExpander
         IReadOnlyList<WaypointToken> tokens,
         int index,
         bool enableLookahead,
+        List<ConnectorInsertion> insertions,
         SearchContext ctx
     )
     {
@@ -486,10 +492,23 @@ public static class SegmentExpander
 
         if (junctionCandidates.Count == 0)
         {
-            // No direct junction: attempt a detour (suppressed inside a look-ahead probe).
-            return enableLookahead
-                ? TryDetour(head, fromTaxiway, toTaxiway, ctx)
-                : (null, null, DetourSuppressedFailure(fromTaxiway, toTaxiway, head));
+            // No direct junction between the two cleared taxiways. Inside a look-ahead probe the
+            // detour is suppressed (a continuation needing one is a negative signal). At the top
+            // level we detour and — because zero junction candidates verifies there is genuinely
+            // no edge or arc joining fromTaxiway and toTaxiway — record the inserted connector so
+            // the controller is notified of the mandatory insertion rather than warned about it.
+            if (!enableLookahead)
+            {
+                return (null, null, DetourSuppressedFailure(fromTaxiway, toTaxiway, head));
+            }
+
+            var detour = TryDetour(head, fromTaxiway, toTaxiway, ctx);
+            if (detour.Failure is null && detour.Edges is not null)
+            {
+                RecordConnectorInsertion(insertions, fromTaxiway, toTaxiway, detour.Edges, tokens);
+            }
+
+            return detour;
         }
 
         // For each junction candidate, run a bounded local search from the current head.
@@ -1387,6 +1406,55 @@ public static class SegmentExpander
     // -----------------------------------------------------------------------
     // Detour (§Decisions §1): when junction search fails, try numbered+RAMP bridge
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Record a mandatory-connector insertion: <paramref name="fromTaxiway"/> and
+    /// <paramref name="toTaxiway"/> are consecutive cleared taxiways with no direct junction, so
+    /// the detour bridged them via one or more connectors. The connector names are the distinct
+    /// single-name (non-junction-arc) taxiways the detour traversed other than from/to and other
+    /// than any taxiway already named in the clearance (<paramref name="tokens"/>) — only a
+    /// taxiway the controller did not name counts as an inserted connector worth flagging. When
+    /// the bridge uses no such taxiway, nothing is recorded.
+    /// </summary>
+    private static void RecordConnectorInsertion(
+        List<ConnectorInsertion> insertions,
+        string fromTaxiway,
+        string toTaxiway,
+        IReadOnlyList<DirectionalEdge> detourEdges,
+        IReadOnlyList<WaypointToken> tokens
+    )
+    {
+        var cleared = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var token in tokens)
+        {
+            if (!token.IsNodeRef)
+            {
+                cleared.Add(token.Name);
+            }
+        }
+
+        var connectors = new List<string>();
+        foreach (var edge in detourEdges)
+        {
+            if (edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
+            {
+                continue;
+            }
+
+            string name = edge.TaxiwayName;
+            if (cleared.Contains(name) || connectors.Contains(name, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            connectors.Add(name);
+        }
+
+        if (connectors.Count > 0)
+        {
+            insertions.Add(new ConnectorInsertion(fromTaxiway, toTaxiway, connectors));
+        }
+    }
 
     /// <summary>
     /// Failure returned in place of a detour when resolving a segment inside a look-ahead

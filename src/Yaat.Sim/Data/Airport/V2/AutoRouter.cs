@@ -94,7 +94,7 @@ public static class AutoRouter
         if (ctx.StartNodeId == destinationNode.Id)
         {
             ctx.DiagnosticLog?.Invoke($"[v2:auto] trivial route — start == destination node {ctx.StartNodeId}");
-            var emptyRoute = RouteMaterialiser.Materialise([], ctx);
+            var emptyRoute = RouteMaterialiser.Materialise([], ctx, []);
             return (emptyRoute, null);
         }
 
@@ -176,7 +176,7 @@ public static class AutoRouter
                 );
 
                 var edges = current.MaterialiseEdges(baseDepth);
-                var route = RouteMaterialiser.Materialise(edges, ctx);
+                var route = RouteMaterialiser.Materialise(edges, ctx, []);
                 return (route, null);
             }
 

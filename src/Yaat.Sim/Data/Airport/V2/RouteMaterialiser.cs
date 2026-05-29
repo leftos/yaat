@@ -8,8 +8,11 @@ public static class RouteMaterialiser
 {
     /// <summary>
     /// Produce a <see cref="TaxiRoute"/> from a committed edge sequence and search context.
+    /// <paramref name="insertions"/> are mandatory connectors the resolver had to bridge between
+    /// cleared taxiways with no direct junction — surfaced as informative notifications rather
+    /// than "unauthorized taxiway" warnings. Auto-route callers (no named clearance) pass empty.
     /// </summary>
-    public static TaxiRoute Materialise(IReadOnlyList<DirectionalEdge> edges, SearchContext ctx)
+    public static TaxiRoute Materialise(IReadOnlyList<DirectionalEdge> edges, SearchContext ctx, IReadOnlyList<ConnectorInsertion> insertions)
     {
         if (edges.Count == 0)
         {
@@ -37,8 +40,9 @@ public static class RouteMaterialiser
             holdShorts = holdShorts.Where(hs => segments.Any(s => s.ToNodeId == hs.NodeId)).ToList();
         }
 
-        // Step 4: Warnings for unauthorized letter taxiways traversed.
-        var warnings = BuildWarnings(segments, ctx);
+        // Step 4: Warnings for unauthorized letter taxiways traversed, plus informative
+        // notifications for mandatory connector insertions.
+        var warnings = BuildWarnings(segments, ctx, insertions);
 
         return new TaxiRoute
         {
@@ -207,20 +211,69 @@ public static class RouteMaterialiser
         return lastRequiredIdx < 0 ? segments.Count - 1 : Math.Min(lastRequiredIdx + 1, segments.Count - 1);
     }
 
-    private static List<string> BuildWarnings(List<TaxiRouteSegment> segments, SearchContext ctx)
+    private static List<string> BuildWarnings(List<TaxiRouteSegment> segments, SearchContext ctx, IReadOnlyList<ConnectorInsertion> insertions)
     {
-        if (ctx.AuthorizedTaxiways is null)
+        var warnings = new List<string>();
+
+        // Mandatory connectors the resolver had to bridge between cleared taxiways with no direct
+        // junction. Notify the controller of each insertion, and suppress the generic
+        // "unauthorized" warning for those connector taxiways — they were not a deviation.
+        var mandatoryConnectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var insertion in insertions)
         {
-            return [];
+            warnings.Add(
+                $"{insertion.FromTaxiway} and {insertion.ToTaxiway} do not connect directly — taxi via {string.Join(", ", insertion.Connectors)}"
+            );
+            foreach (string connector in insertion.Connectors)
+            {
+                mandatoryConnectors.Add(connector);
+            }
         }
 
-        var warnings = new List<string>();
-        var warned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var seg in segments)
+        if (ctx.AuthorizedTaxiways is null)
         {
+            return warnings;
+        }
+
+        // Bounds of the non-RAMP traversal. RAMP segments before the first / after the last are
+        // the parking bridge and parking arrival — not a deviation, so they are never flagged.
+        int firstNonRamp = -1;
+        int lastNonRamp = -1;
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (!segments[i].TaxiwayName.Equals("RAMP", StringComparison.OrdinalIgnoreCase))
+            {
+                firstNonRamp = firstNonRamp < 0 ? i : firstNonRamp;
+                lastNonRamp = i;
+            }
+        }
+
+        var warned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < segments.Count; i++)
+        {
+            var seg = segments[i];
+
+            // Junction arcs ("X - Y") are transitions between taxiways, not a traversal of one —
+            // never an "unauthorized taxiway" deviation.
+            if (seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
+            {
+                continue;
+            }
+
             string name = seg.TaxiwayName;
-            if (SearchContext.IsLetterOnlyTaxiway(name) && !ctx.AuthorizedTaxiways.Contains(name) && warned.Add(name))
+
+            // RAMP forming the leading parking bridge or trailing parking arrival is expected.
+            if (name.Equals("RAMP", StringComparison.OrdinalIgnoreCase) && (firstNonRamp < 0 || i < firstNonRamp || i > lastNonRamp))
+            {
+                continue;
+            }
+
+            if (
+                SearchContext.IsLetterOnlyTaxiway(name)
+                && !ctx.AuthorizedTaxiways.Contains(name)
+                && !mandatoryConnectors.Contains(name)
+                && warned.Add(name)
+            )
             {
                 warnings.Add($"Taxiing via {name} (not in authorized path)");
             }

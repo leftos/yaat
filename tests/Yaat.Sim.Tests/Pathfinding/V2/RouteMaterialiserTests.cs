@@ -80,7 +80,7 @@ public class RouteMaterialiserTests
         var layout = Layout(n0);
         var ctx = Context(layout);
 
-        var route = RouteMaterialiser.Materialise([], ctx);
+        var route = RouteMaterialiser.Materialise([], ctx, []);
 
         Assert.Empty(route.Segments);
         Assert.Empty(route.HoldShortPoints);
@@ -101,7 +101,7 @@ public class RouteMaterialiserTests
 
         var ctx = Context(layout);
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx);
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Single(route.Segments);
         Assert.Equal("A", route.Segments[0].TaxiwayName);
@@ -125,7 +125,7 @@ public class RouteMaterialiserTests
 
         var ctx = Context(layout);
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
-        var route = RouteMaterialiser.Materialise(edges, ctx);
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Single(route.HoldShortPoints);
         Assert.Equal(n1.Id, route.HoldShortPoints[0].NodeId);
@@ -151,7 +151,7 @@ public class RouteMaterialiserTests
         var ctx = Context(layout, holdShorts: holdShortSet);
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2) };
-        var route = RouteMaterialiser.Materialise(edges, ctx);
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Single(route.HoldShortPoints);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, route.HoldShortPoints[0].Reason);
@@ -179,7 +179,7 @@ public class RouteMaterialiserTests
 
         var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, n2), Directed(e23, n2, n3) };
 
-        var route = RouteMaterialiser.Materialise(edges, ctx);
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Equal(2, route.Segments.Count);
         Assert.Equal(n2.Id, route.Segments[1].ToNodeId);
@@ -201,7 +201,7 @@ public class RouteMaterialiserTests
         var ctx = Context(layout, dest);
 
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx);
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Equal("D8", route.DestinationParking);
         Assert.Null(route.DestinationSpot);
@@ -223,7 +223,7 @@ public class RouteMaterialiserTests
         var ctx = Context(layout, dest);
 
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx);
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Null(route.DestinationParking);
         Assert.Equal("32", route.DestinationSpot);
@@ -245,7 +245,7 @@ public class RouteMaterialiserTests
         var ctx = Context(layout, authorized: authorized);
 
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx);
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Single(route.Warnings);
         Assert.Contains("X", route.Warnings[0]);
@@ -263,7 +263,7 @@ public class RouteMaterialiserTests
         var ctx = Context(layout, authorized: authorized);
 
         var edges = new List<DirectionalEdge> { Directed(e, n0, n1) };
-        var route = RouteMaterialiser.Materialise(edges, ctx);
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
 
         Assert.Empty(route.Warnings);
     }

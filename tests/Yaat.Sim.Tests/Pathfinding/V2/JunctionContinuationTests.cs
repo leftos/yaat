@@ -140,6 +140,144 @@ public class JunctionContinuationTests
     }
 
     /// <summary>
+    /// GitHub issue #165 — the bug that prompted the whole fillet + pathfinder V2 rewrite.
+    /// SKW3404 spawns at parking D8 (KSFO) and is instructed <c>TAXI A E B B3 A B1 Z S</c>.
+    /// Two failure modes the rewrite must eliminate, asserted here on the ship config
+    /// (pathfinder V2 ON fillet V2):
+    /// <list type="number">
+    /// <item>The pathfinder must not pick a junction arc that points away from where the
+    /// route continues, which produced 180° corners and an on-axis spin.</item>
+    /// <item>The route must honor the instructed taxiway order — stay on <c>B</c> all the
+    /// way to the <c>B/B3</c> junction, take <c>B3</c>, then rejoin <c>A</c>. It must not
+    /// join <c>A</c> early (off <c>B</c>) and then take <c>B3</c> off <c>A</c>, which is
+    /// illegal given the clearance.</item>
+    /// </list>
+    /// </summary>
+    [Fact]
+    public void Sfo_Skw3404_TaxiAEBB3AB1ZS_OnV2_HonorsOrderNoSpin()
+    {
+        var layout = V2Layout("SFO");
+        if (layout is null)
+        {
+            _output.WriteLine("sfo.geojson not found — skipping");
+            return;
+        }
+
+        var d8 = layout.FindParkingByName("D8");
+        if (d8 is null)
+        {
+            _output.WriteLine("parking D8 not found — skipping");
+            return;
+        }
+
+        _output.WriteLine($"Start: D8 = #{d8.Id} at ({d8.Position.Lat:F6}, {d8.Position.Lon:F6})");
+
+        List<string> instructed = ["A", "E", "B", "B3", "A", "B1", "Z", "S"];
+        var route = new TaxiPathfinderV2().ResolveExplicitPath(
+            layout,
+            d8.Id,
+            instructed,
+            out string? failReason,
+            new ExplicitPathOptions { AirportId = "SFO", DiagnosticLog = msg => _output.WriteLine(msg) },
+            AircraftCategory.Jet
+        );
+
+        Assert.NotNull(route);
+        Assert.Null(failReason);
+
+        var runs = ExtractSingleNameRuns(route);
+        _output.WriteLine($"Route: {route.Segments.Count} segments; single-name runs: {string.Join(" ", runs)}");
+        foreach (var seg in route.Segments)
+        {
+            _output.WriteLine($"  {seg.TaxiwayName, -10} #{seg.FromNodeId} → #{seg.ToNodeId}");
+        }
+
+        _output.WriteLine($"Warnings: {string.Join(" | ", route.Warnings)}");
+
+        // Failure mode 1: no 180° spin / backtrack anywhere.
+        AssertNoBacktrack(route, layout);
+
+        // Failure mode 2: the instructed taxiway order is honored. The single-name runs must
+        // contain the instruction as an in-order subsequence, so B is fully walked to the B/B3
+        // junction (B before B3) and the second A comes after B3 — never B3 taken off the first A.
+        AssertOrderedSubsequence(instructed, runs);
+
+        // A and B1 have no direct junction at SFO (they connect via the Q connector), so the
+        // resolver inserts Q. That must surface as an informative notification naming only the
+        // truly-inserted connector (Q), not cleared taxiways (B3), and never as an "unauthorized
+        // taxiway" deviation warning.
+        Assert.Contains(
+            route.Warnings,
+            w => w.Contains("A and B1", StringComparison.OrdinalIgnoreCase) && w.Contains("Q", StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.DoesNotContain(
+            route.Warnings,
+            w => w.Contains("A and B1", StringComparison.OrdinalIgnoreCase) && w.Contains("B3", StringComparison.OrdinalIgnoreCase)
+        );
+
+        // The leading RAMP (parking bridge from D8) and the mandatory Q connector must not be
+        // flagged as "not in authorized path" deviations.
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("not in authorized path", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Ordered list of single-name taxiway names traversed, collapsing consecutive duplicates
+    /// and skipping multi-name junction arcs (which are transitions between taxiways, not a
+    /// continuation of either). This is the sequence of taxiways the route actually walks.
+    /// </summary>
+    private static List<string> ExtractSingleNameRuns(TaxiRoute route)
+    {
+        var runs = new List<string>();
+        foreach (var seg in route.Segments)
+        {
+            if (seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
+            {
+                continue;
+            }
+
+            if (runs.Count == 0 || !runs[^1].Equals(seg.TaxiwayName, StringComparison.OrdinalIgnoreCase))
+            {
+                runs.Add(seg.TaxiwayName);
+            }
+        }
+
+        return runs;
+    }
+
+    /// <summary>
+    /// Fails unless every element of <paramref name="expected"/> appears in
+    /// <paramref name="actual"/> in order (a contiguous-or-gapped subsequence). Catches a
+    /// skipped taxiway (e.g. B never walked) and an out-of-order traversal (e.g. the second A
+    /// before B3).
+    /// </summary>
+    private static void AssertOrderedSubsequence(IReadOnlyList<string> expected, IReadOnlyList<string> actual)
+    {
+        int ai = 0;
+        foreach (string want in expected)
+        {
+            bool found = false;
+            while (ai < actual.Count)
+            {
+                if (actual[ai].Equals(want, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = true;
+                    ai++;
+                    break;
+                }
+
+                ai++;
+            }
+
+            if (!found)
+            {
+                Assert.Fail(
+                    $"Instructed taxiway '{want}' not found in order. Instructed=[{string.Join(" ", expected)}] walked=[{string.Join(" ", actual)}]"
+                );
+            }
+        }
+    }
+
+    /// <summary>
     /// Fails if the route reverses onto the segment it just traversed (an explicit
     /// node-pair backtrack <c>i→j</c> then <c>j→i</c>) or makes a &gt;150° bearing
     /// flip between consecutive segments (a geometric U-turn).

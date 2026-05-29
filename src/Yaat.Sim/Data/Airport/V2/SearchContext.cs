@@ -19,6 +19,13 @@ public enum DestinationKind
 public sealed record DestinationDescriptor(int? TargetNodeId, string? RunwayId, string? ParkingName, string? SpotName, DestinationKind Kind);
 
 /// <summary>
+/// Records a connector the pathfinder had to insert between two consecutive cleared taxiways
+/// that have no direct edge or arc joining them (verified mandatory). Surfaced to the controller
+/// as an informative route notification rather than an "unauthorized taxiway" warning.
+/// </summary>
+public sealed record ConnectorInsertion(string FromTaxiway, string ToTaxiway, IReadOnlyList<string> Connectors);
+
+/// <summary>
 /// Compiled context for one pathfinding call. Immutable after construction.
 /// </summary>
 public sealed record SearchContext(
