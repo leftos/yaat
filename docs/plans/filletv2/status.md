@@ -76,9 +76,13 @@ Goal: make V2 the default and delete Legacy. Approach (locked): **validate behin
    the OAK + SFO + FLL taxi-coverage smoke set + landing/exit scenarios run on `FilletMode.V2` layouts
    with the V1 pathfinder. All 36 V2 tests pass (FLL also green on the Legacy baseline); full non-nightly
    Sim suite green (5528 pass / 1 skip / 0 fail). See [`v2-sim-validation.md`](./v2-sim-validation.md).
-   Remaining: a full-suite run with the default flipped to V2 to triage the Legacy-pinned delta.
-2. **Flip default** to `FilletMode.V2` in `GeoJsonParser.Parse` overloads + `AirportLayoutDownloader`
-   once step 1 is fully green (incl. FLL + the full-suite-on-V2 triage).
+   Full-suite-on-V2 sweep done (throwaway flip, reverted): **5 failures**, all real V2 regressions, no
+   brittle Legacy-pinned assertions. Triaged in `v2-sim-validation.md`. **Blockers before the flip:**
+   (a) edge-split reversal stubs at FLL B/C1 + SFO 43/1160 (3 tests — `X→Y` then `Y→X` in the surviving
+   edge set), (b) navigator slow-turn synth tolerance too tight for tight V2 arcs (AMX669), (c) one
+   replay cascade expected to clear after a/b.
+2. **Fix the triaged blockers**, re-run the sweep, then **flip default** to `FilletMode.V2` in
+   `GeoJsonParser.Parse` overloads + `AirportLayoutDownloader`.
 3. **Aviation-realism review** (MANDATORY) on radius/preserve semantics → turn-speed sign-off.
 4. **Delete Legacy** — `FilletArcGenerator.cs`, `LegacyFilletArcGenerator`, `FilletProvenance`, unused
    `FilletMode` plumbing; retire the vestigial `FilletArcGeneratorRouter` (no `src/` consumers today).

@@ -58,11 +58,9 @@ tangent-entry tolerance / synthesis trigger, not the fillet geometry.
 
 - [x] **FLL taxi coverage.** Added a 6-pair FLL smoke set (terminal→10L/28R departures, high-speed and
       90° runway-exit→terminal taxi-ins); green on both Legacy and V2.
-- [ ] **Full-suite-on-V2 sweep.** This gate runs curated pairs on V2 but the *whole* suite still runs
-      on Legacy. Before the flip, do one run of the full Sim suite with the default flipped to V2 (the
-      "flip default now, then triage" pass the pathfinder effort used) and triage the delta — recording
-      replays, exit-overlap, hold-short, and lineup tests are pinned to Legacy geometry and will need
-      verdicts.
+- [x] **Full-suite-on-V2 sweep.** Done as a throwaway run (defaults reverted). Only **5 failures**
+      across the whole non-nightly suite — all genuine V2 behavioral regressions, **zero brittle
+      Legacy-pinned assertions**. Triage below.
 - [ ] **Aviation-realism review** of the V2 radius / preserve policy (turn-speed sign-off), per the
       mandatory review rule. Adding test coverage didn't change sim behavior, so this is gated on the
       flip itself, not on this doc.
@@ -70,6 +68,42 @@ tangent-entry tolerance / synthesis trigger, not the fillet geometry.
       has no consumers in `src/` — the real lever is the `FilletMode` argument to `GeoJsonParser.Parse`.
       The router exists only for `FilletGeneratorInterfaceTests`. Decide during the flip: make it the
       actual default lever, or delete it.
+
+## Full-suite-on-V2 sweep — triage
+
+Method: temporarily flip the test-visible fillet defaults to V2 (`GeoJsonParser.Parse` /
+`ParseMultiple` 3-arg default + `TestAirportGroundData()` parameterless), run `Category!=Nightly`,
+revert. All 5 failing tests pass on Legacy (verified), so each is V2-specific. No assertion merely
+needs relaxing — every failure is a real routing/navigation regression at a specific junction.
+
+| Test | Symptom | Verdict |
+|------|---------|---------|
+| `IssueFllDal880TaxiBacktrackBTests.ResolveExplicitPath_TT4BB1_…RouteHasNoUTurn` | `U-turn at seg 60→61: B #765→#767 then #767→#765` (180°) | **V2-bug — edge-split reversal stub** at FLL B/C1 |
+| `IssueFllDal880TaxiBacktrackBTests.DAL880_TaxiTT4BB1HS10L_RouteHasNoUTurn` | same B/C1 U-turn (recording variant) | **V2-bug** — same root |
+| `Issue166CrossShortcutsGrassTests.Ual19_FollowsHTaxiLineThroughRunwayCrossing` | route to F14 `reversal at index 85: (1160→43) then (43→1160)`; UAL19 never reaches `CrossingRunwayPhase` by t=314 | **V2-bug — edge-split reversal stub** at SFO 43/1160 (cascades to replay timing) |
+| `IssueAmxTaxiOvershootTests.AMX669_HoldsShortOf1L_WithReasonableHeading` | never reaches 1L hold-short in 300 s; `[NavV2] Synth trigger: aircraft 30.8ft from planned tangent entry (tol 6.0ft for r=40.0ft) — skipping synthesis for corner node 770` | **V2-bug — navigator synth tolerance too tight for tight V2 arcs** (may share root with a prior reversal pushing the aircraft off the tangent) |
+| `S2Oak4RvSidCtoTests.N436MS_CtoDuringTaxi_Nimi6_Stores315…` | no pending `InitialClimbPhase` at t=10 during CTO-while-taxiing replay | **underlying / replay cascade** — downstream of a taxi-route difference; re-triage after the above fixes |
+
+### Root causes (2–3, not 5)
+
+1. **Edge-split reversal stubs (3 tests).** At a few junctions the V2 surviving-edge set contains a
+   short there-and-back: the route walks `X→Y` then `Y→X`. Clean on Legacy, so V2 introduced the stub;
+   the V1 pathfinder faithfully walks the V2 graph. This is the "crossed-middle / backward sub-segment"
+   hazard the rewrite plan called out (Workstream A, Step 4) surfacing at FLL B/C1 and SFO 43/1160.
+   **Fix is in the edge-split** (drop the degenerate there-and-back sub-segment), then re-run the
+   no-true-disconnection gate + this suite. Needs aviation-realism review (turn-speed) if arc shapes
+   change.
+2. **Navigator synth tolerance vs tight V2 arcs (1 test, possibly shared with #1).** The earlier benign
+   `[NavV2] Synth trigger … skipping` observation turns fatal here: with the aircraft 30.8 ft off the
+   planned tangent for an r=40 ft arc (tol 6 ft), slow-turn synthesis is skipped and AMX669 can't make
+   the corner. Either the 30.8 ft offset comes from a prior reversal (→ #1) or the synth tolerance
+   needs to scale with arc radius. Investigate which before changing the navigator.
+3. **Replay cascade (1 test).** Likely downstream of a taxi-route difference; expected to clear once
+   #1/#2 are fixed. Re-triage rather than touch the CTO/InitialClimb path blindly.
+
+**Conclusion:** V2 is close to drop-in — 5 real regressions, no brittle assertions. The blocker is a
+small number of edge-split reversal stubs (root cause #1) plus the navigator-tolerance interaction
+(#2). Fix those, re-run the sweep, then the flip is a small step.
 
 ## Reproduce
 
