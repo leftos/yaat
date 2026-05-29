@@ -98,6 +98,49 @@ internal static class SharedArmTangentPass
         return merges;
     }
 
+    /// <summary>
+    /// Merge ANY two cuts across the whole plan whose resolved positions land within
+    /// <see cref="FilletConstants.CoincidentNodeThresholdFt"/>. This is the plan-time equivalent of
+    /// the node-coincidence test the post-execute normalizer used to apply before it was deleted,
+    /// moved earlier and applied to cuts. It catches cross-junction coincidences that
+    /// <see cref="ApplyCrossJunction"/>'s farthest-pair-only merge does not reach — e.g. adjacent
+    /// junctions whose tangent cuts on a shared taxiway land 1-4 ft apart. Run AFTER
+    /// <see cref="ApplyCrossJunction"/> so cut positions reflect any shared-arm scaling. Survivor =
+    /// lower <see cref="CutId.Value"/>; the union-find in <c>BuildSurvivorMap</c> absorbs the overlap
+    /// with the intra-arm/cross-arm/cross-junction passes.
+    /// </summary>
+    public static IReadOnlyList<TangentMergeOp> ApplyGlobalCoincidentCutCoalesce(
+        IReadOnlyDictionary<CutId, ResolvedArmCut> cuts,
+        List<PlanWarning> warnings
+    )
+    {
+        var merges = new List<TangentMergeOp>();
+        var ordered = cuts.Values.OrderBy(c => c.CutId.Value).ToList();
+
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            for (int j = i + 1; j < ordered.Count; j++)
+            {
+                var a = ordered[i];
+                var b = ordered[j];
+                double gapFt = GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm;
+                if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
+                {
+                    var survivor = a.CutId.Value <= b.CutId.Value ? a.CutId : b.CutId;
+                    var child = a.CutId.Value <= b.CutId.Value ? b.CutId : a.CutId;
+                    merges.Add(new TangentMergeOp(survivor, child));
+                }
+            }
+        }
+
+        if (merges.Count > 0)
+        {
+            warnings.Add(new PlanWarning(null, null, PlanWarning.CoincidentCutMerged, $"Planned {merges.Count} global coincident-cut merge(s)"));
+        }
+
+        return merges;
+    }
+
     /// <summary>Scale endpoint cut sets on the same physical arm between adjacent junctions.</summary>
     public static IReadOnlyList<TangentMergeOp> ApplyCrossJunction(
         IReadOnlyList<JunctionPlan> junctionPlans,

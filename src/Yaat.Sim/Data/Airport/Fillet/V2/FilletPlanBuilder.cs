@@ -40,6 +40,12 @@ internal static class FilletPlanBuilder
 
         merges.AddRange(SharedArmTangentPass.ApplyCrossJunction(junctions, results, cuts, warnings));
 
+        // Global coincident-cut coalesce runs last so it sees the scaled positions from
+        // ApplyCrossJunction. It absorbs every remaining cut-vs-cut coincidence — most importantly
+        // adjacent junctions' tangent cuts on a shared taxiway — so the executor materializes no
+        // coincident tangent nodes and the post-execute normalizer has none to merge.
+        merges.AddRange(SharedArmTangentPass.ApplyGlobalCoincidentCutCoalesce(cuts, warnings));
+
         var redirect = FilletPlanCutRedirect.BuildSurvivorMap(merges);
         var preFilletStableNodes = layout
             .Nodes.Where(kv => FilletPlanCutRedirect.IsStableAnchorTarget(kv.Value))

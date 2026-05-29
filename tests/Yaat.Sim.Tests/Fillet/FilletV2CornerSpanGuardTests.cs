@@ -194,11 +194,13 @@ public class FilletV2CornerSpanGuardTests
     }
 
     /// <summary>
-    /// The final V2 graph has no two coincident intersection nodes. Same-junction cross-arm
-    /// coincidences are now prevented at the planning layer (<c>SharedArmTangentPass.ApplyCrossArmCoalesce</c>),
-    /// which is what eliminates the duplicate corner arcs; remaining cross-junction coincidences
-    /// are still collapsed by <c>FilletGraphNormalizer</c>. Either way the materialized graph must
-    /// carry no coincident intersection nodes.
+    /// The final V2 graph has no two coincident intersection nodes — guaranteed entirely at
+    /// construction/plan time, with no post-execute node merge. Same-junction cross-arm and
+    /// cross-junction coincident tangent cuts are merged in the plan
+    /// (<c>SharedArmTangentPass.ApplyCrossArmCoalesce</c> + <c>ApplyGlobalCoincidentCutCoalesce</c>);
+    /// runway-centerline projections reuse a pre-existing coincident node instead of minting one
+    /// (<c>RunwayCrossingDetector.ResolveCenterlineProjectionNode</c>). <c>FilletGraphNormalizer</c>
+    /// no longer merges coincident nodes, so this guard now proves those producers leave none.
     /// </summary>
     [Theory]
     [InlineData("sfo")]

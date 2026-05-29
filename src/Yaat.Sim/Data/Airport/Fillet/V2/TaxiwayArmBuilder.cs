@@ -52,7 +52,8 @@ internal static class TaxiwayArmBuilder
         var seen = new HashSet<(int OtherNodeId, string TaxiwayName)>();
         foreach (var e in intersection.Edges)
         {
-            if (e is GroundEdge ge)
+            // Runway-crossing connectors are not taxi corners — fillet never curves onto them.
+            if (e is GroundEdge ge && !ge.IsRunwayCrossingLink)
             {
                 var other = ge.OtherNode(intersection);
                 if (seen.Add((other.Id, ge.TaxiwayName)))

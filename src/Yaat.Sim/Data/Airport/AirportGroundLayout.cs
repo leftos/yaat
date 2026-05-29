@@ -210,6 +210,13 @@ public sealed class GroundEdge : IGroundEdge
 
     public bool IsRunwayCenterline => TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !TaxiwayName.Contains(":link");
 
+    /// <summary>
+    /// True if this edge is a runway-crossing connector (<c>RWY…:link</c>) joining a taxiway
+    /// hold-short representative to the runway centerline. These are connectivity artifacts, not
+    /// taxi corners — fillet must ignore them (never curve a taxiway onto a runway crossing link).
+    /// </summary>
+    public bool IsRunwayCrossingLink => TaxiwayName.Contains(":link", StringComparison.OrdinalIgnoreCase);
+
     public bool MatchesRunway(string designator) => IsRunwayCenterline && IGroundEdge.RunwayNameContainsDesignator(TaxiwayName, designator);
 
     public bool IsRamp => string.Equals(TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);

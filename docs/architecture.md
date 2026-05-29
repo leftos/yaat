@@ -589,7 +589,7 @@ FilletArcGeneratorV2.cs      # Clean-room V2: classify junctions → resolve cut
 FilletProvenance.cs            # Discriminated record (TangentNode / CornerArc / etc.) attached to fillet-generated nodes/edges/arcs so cleanup passes can pattern-match instead of parsing Origin strings
 Fillet/                        # V2 fillet pipeline (clean-room)
   FilletGeometry.cs            # Turn angle, ideal tangent, cubic-bezier build (control points project toward the junction)
-  FilletGraphNormalizer.cs     # Post-execute: recompute distances, merge coincident nodes, sweep isolated nodes, drop self-loops/degenerate arcs
+  FilletGraphNormalizer.cs     # Post-execute: recompute distances, drop self-loops/degenerate arcs, sweep isolated nodes (no coincident-node merge — plan guarantees none)
   V2/TaxiwayArmBuilder.cs      # One arm per outbound edge; TaxiwayWalk along same-named taxiway
   V2/JunctionClassifier.cs     # Eligibility + Skip/Simple/MultiCorner/Preserve + collinear pairs
   V2/CornerPlanner.cs          # Arm-pair corners (≥15°) and collinear pairs (<15°)

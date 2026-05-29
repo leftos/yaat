@@ -67,13 +67,13 @@ public sealed class FilletArcGeneratorV2 : IFilletArcGenerator
 
         var plan = FilletPlanBuilder.Build(layout, junctionPlans, cutResults);
         var exec = FilletPlanExecutor.Execute(layout, plan, junctionPlans, idCounter);
-        int coincidentMerged = FilletGraphNormalizer.Normalize(layout);
+        int structuralCleanups = FilletGraphNormalizer.Normalize(layout);
 
         var stats = new FilletStatistics(
             FilletedNodes: exec.FilletedNodes,
             ArcsCreated: exec.ArcsCreated,
             CollinearMerges: exec.CollinearMerges,
-            CoincidentNodesMerged: coincidentMerged,
+            CoincidentNodesMerged: 0,
             OrphansRescued: 0,
             RedundantPreserveEdgesRemoved: 0,
             DuplicateCornerArcsRemoved: 0,
@@ -85,11 +85,11 @@ public sealed class FilletArcGeneratorV2 : IFilletArcGenerator
         };
 
         Log.LogInformation(
-            "V2 fillet: {Nodes} filleted, {Arcs} arcs, {Merged} collinear, {Coincident} coincident merged, {Warnings} warnings",
+            "V2 fillet: {Nodes} filleted, {Arcs} arcs, {Merged} collinear, {Cleanups} structural cleanups, {Warnings} warnings",
             stats.FilletedNodes,
             stats.ArcsCreated,
             stats.CollinearMerges,
-            stats.CoincidentNodesMerged,
+            structuralCleanups,
             stats.Warnings.Count
         );
 

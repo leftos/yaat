@@ -292,41 +292,8 @@ internal static class RunwayCrossingDetector
             }
             else
             {
-                // Create a new node on the actual runway centerline and connect
-                // the on-runway node to it. The link uses the runway name with a
-                // :link suffix so it's not treated as a centerline edge or a taxiway edge.
-                var (clLat, clLon) = GeoMath.ProjectPointRaw(rect.RefLat, rect.RefLon, rect.TrueHeading.Degrees, alongTrack);
-                int clId = nextNodeId++;
-                var clNode = new GroundNode
-                {
-                    Id = clId,
-                    Position = new LatLon(clLat, clLon),
-                    Type = GroundNodeType.TaxiwayIntersection,
-                    Origin = $"RunwayCrossing:centerline-projection@{rect.CombinedId} from #{bestId}",
-                };
-                layout.Nodes[clId] = clNode;
-                coordIndex.Add(clLat, clLon, clId);
-
-                double perpDist = GeoMath.DistanceNm(bestNode.Position, new LatLon(clLat, clLon));
-                layout.Edges.Add(
-                    new GroundEdge
-                    {
-                        Nodes = [bestNode, clNode],
-                        TaxiwayName = $"RWY{rect.CombinedId}:link",
-                        DistanceNm = perpDist,
-                        Origin = $"RunwayCrossing:centerline-link@{rect.CombinedId} #{bestId}↔#{clId}",
-                    }
-                );
-
-                centerlineNodes.Add((clId, alongTrack));
-
-                Log.LogDebug(
-                    "Projected #{OnId} onto centerline as #{ClId} ({CrossFt:F0}ft off-center, {AlongFt:F0}ft along)",
-                    bestId,
-                    clId,
-                    crossTrackFt,
-                    alongTrack * GeoMath.FeetPerNm
-                );
+                int projId = ResolveCenterlineProjectionNode(layout, coordIndex, bestNode, alongTrack, rect, ref nextNodeId);
+                centerlineNodes.Add((projId, alongTrack));
             }
         }
 
@@ -341,6 +308,10 @@ internal static class RunwayCrossingDetector
         {
             int fromId = centerlineNodes[i].Id;
             int toId = centerlineNodes[i + 1].Id;
+            if (fromId == toId)
+            {
+                continue;
+            }
 
             var from = layout.Nodes[fromId];
             var to = layout.Nodes[toId];
@@ -358,6 +329,97 @@ internal static class RunwayCrossingDetector
 
             Log.LogDebug("Runway centerline edge: {From}->{To} on {Runway} ({DistFt:F0}ft)", fromId, toId, rect.CombinedId, dist * GeoMath.FeetPerNm);
         }
+    }
+
+    /// <summary>
+    /// Resolves the node to use as a runway-centerline projection for <paramref name="bestNode"/>.
+    /// If a pre-existing taxiway intersection already sits on the projected centerline point (within
+    /// <see cref="Fillet.FilletConstants.CoincidentNodeThresholdFt"/>), that node is reused — instead
+    /// of minting a coincident node the post-execute fillet pass would otherwise have to merge.
+    /// Either way a short <c>RWY…:link</c> edge connects the on-runway node to the projection.
+    /// </summary>
+    private static int ResolveCenterlineProjectionNode(
+        AirportGroundLayout layout,
+        CoordinateIndex coordIndex,
+        GroundNode bestNode,
+        double alongTrack,
+        in RunwayRectangle rect,
+        ref int nextNodeId
+    )
+    {
+        var (clLat, clLon) = GeoMath.ProjectPointRaw(rect.RefLat, rect.RefLon, rect.TrueHeading.Degrees, alongTrack);
+        int bestId = bestNode.Id;
+
+        int reuseId = FindCoincidentIntersection(layout, clLat, clLon, Fillet.FilletConstants.CoincidentNodeThresholdFt, bestId);
+        if (reuseId != -1)
+        {
+            var reuseNode = layout.Nodes[reuseId];
+            layout.Edges.Add(
+                new GroundEdge
+                {
+                    Nodes = [bestNode, reuseNode],
+                    TaxiwayName = $"RWY{rect.CombinedId}:link",
+                    DistanceNm = GeoMath.DistanceNm(bestNode.Position, reuseNode.Position),
+                    Origin = $"RunwayCrossing:centerline-link@{rect.CombinedId} #{bestId}↔#{reuseId}",
+                }
+            );
+            Log.LogDebug("Reused #{ReuseId} as centerline projection for #{BestId} on {Runway}", reuseId, bestId, rect.CombinedId);
+            return reuseId;
+        }
+
+        int clId = nextNodeId++;
+        var clNode = new GroundNode
+        {
+            Id = clId,
+            Position = new LatLon(clLat, clLon),
+            Type = GroundNodeType.TaxiwayIntersection,
+            Origin = $"RunwayCrossing:centerline-projection@{rect.CombinedId} from #{bestId}",
+        };
+        layout.Nodes[clId] = clNode;
+        coordIndex.Add(clLat, clLon, clId);
+
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [bestNode, clNode],
+                TaxiwayName = $"RWY{rect.CombinedId}:link",
+                DistanceNm = GeoMath.DistanceNm(bestNode.Position, new LatLon(clLat, clLon)),
+                Origin = $"RunwayCrossing:centerline-link@{rect.CombinedId} #{bestId}↔#{clId}",
+            }
+        );
+
+        Log.LogDebug("Projected #{OnId} onto centerline as #{ClId} ({AlongFt:F0}ft along)", bestId, clId, alongTrack * GeoMath.FeetPerNm);
+        return clId;
+    }
+
+    /// <summary>
+    /// Returns the id of an existing <see cref="GroundNodeType.TaxiwayIntersection"/> node within
+    /// <paramref name="thresholdFt"/> of (<paramref name="lat"/>, <paramref name="lon"/>), excluding
+    /// <paramref name="excludeId"/>; -1 if none. Used so the centerline projection can reuse a
+    /// coincident node rather than create one. Mirrors the intersection-only domain the retired
+    /// post-execute coincident-node merge operated on.
+    /// </summary>
+    private static int FindCoincidentIntersection(AirportGroundLayout layout, double lat, double lon, double thresholdFt, int excludeId)
+    {
+        int bestId = -1;
+        double bestFt = double.MaxValue;
+        var target = new LatLon(lat, lon);
+        foreach (var (id, node) in layout.Nodes)
+        {
+            if ((id == excludeId) || (node.Type != GroundNodeType.TaxiwayIntersection))
+            {
+                continue;
+            }
+
+            double distFt = GeoMath.DistanceNm(node.Position, target) * GeoMath.FeetPerNm;
+            if ((distFt <= thresholdFt) && (distFt < bestFt))
+            {
+                bestFt = distFt;
+                bestId = id;
+            }
+        }
+
+        return bestId;
     }
 
     /// <summary>
