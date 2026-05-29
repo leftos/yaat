@@ -657,7 +657,11 @@ public static class SegmentExpander
         );
 
         var openSet = new PriorityQueue<PartialRoute, double>();
-        var bestGScore = new Dictionary<int, double>();
+
+        // Keyed by (node, arrival-bearing-bucket): onward admissibility depends on arrival bearing,
+        // so node-id-only pruning would let a cheaper dead-end arrival suppress the only admissible
+        // arrival (see GeometricAdmissibility.PruningStateKey).
+        var bestGScore = new Dictionary<(int Node, int Bucket), double>();
         int expansions = 0;
         PartialRoute? deepest = null;
         int admittedTotal = 0;
@@ -666,7 +670,7 @@ public static class SegmentExpander
         double h0 = ctx.Layout.Nodes.TryGetValue(startHead.HeadNodeId, out var sn) ? RouteCostFunction.Heuristic(sn, destNode) : 0.0;
 
         openSet.Enqueue(startHead, startHead.AccumulatedCost + h0);
-        bestGScore[startHead.HeadNodeId] = startHead.AccumulatedCost;
+        bestGScore[GeometricAdmissibility.PruningStateKey(startHead.HeadNodeId, startHead.ArrivalBearing)] = startHead.AccumulatedCost;
 
         while (openSet.Count > 0)
         {
@@ -681,7 +685,10 @@ public static class SegmentExpander
                 break;
             }
 
-            if (bestGScore.TryGetValue(current.HeadNodeId, out double recorded) && (current.AccumulatedCost > recorded + 1e-9))
+            if (
+                bestGScore.TryGetValue(GeometricAdmissibility.PruningStateKey(current.HeadNodeId, current.ArrivalBearing), out double recorded)
+                && (current.AccumulatedCost > recorded + 1e-9)
+            )
             {
                 continue;
             }
@@ -752,7 +759,16 @@ public static class SegmentExpander
 
                 double newGScore = current.AccumulatedCost + incrementalCost;
 
-                if (bestGScore.TryGetValue(nextNode.Id, out double existing) && (newGScore >= existing - 1e-9))
+                // Zero-distance no-op edges (phase-d-shorten between co-located nodes) carry
+                // bogus inherited bearings — propagate the current arrival bearing through
+                // them so the next admissibility check (and the closed-set key below) sees the
+                // real heading.
+                double arrival = GeometricAdmissibility.IsNoOpEdge(edge)
+                    ? current.ArrivalBearing
+                    : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
+
+                var nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrival);
+                if (bestGScore.TryGetValue(nextKey, out double existing) && (newGScore >= existing - 1e-9))
                 {
                     ctx.DiagnosticLog?.Invoke(
                         $"[v2:local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT g-score new={newGScore:F3} existing={existing:F3}"
@@ -761,14 +777,8 @@ public static class SegmentExpander
                     continue;
                 }
 
-                bestGScore[nextNode.Id] = newGScore;
+                bestGScore[nextKey] = newGScore;
 
-                // Zero-distance no-op edges (phase-d-shorten between co-located nodes) carry
-                // bogus inherited bearings — propagate the current arrival bearing through
-                // them so the next admissibility check sees the real heading.
-                double arrival = GeometricAdmissibility.IsNoOpEdge(edge)
-                    ? current.ArrivalBearing
-                    : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
                 string twyName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
 
                 ctx.DiagnosticLog?.Invoke(

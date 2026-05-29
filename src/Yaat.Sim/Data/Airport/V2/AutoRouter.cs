@@ -121,11 +121,13 @@ public static class AutoRouter
         // Priority queue: (PartialRoute, fScore). .NET 6+ PriorityQueue<TElement, TPriority>.
         var openSet = new PriorityQueue<PartialRoute, double>();
 
-        // Global best-g-score per node. When a node is re-encountered with a g-score >= the
-        // recorded best, the duplicate is skipped. This reduces exponential state explosion
-        // from the per-path visited set without sacrificing optimality (A* with consistent
-        // heuristic finds the optimal path first).
-        var bestGScore = new Dictionary<int, double>();
+        // Best-g-score per (node, arrival-bearing-bucket) state. When a state is re-encountered with
+        // a g-score >= the recorded best, the duplicate is skipped. Keying by node id alone would be
+        // unsound: onward-edge admissibility depends on arrival bearing, so a cheaper arrival with a
+        // dead-end bearing must not suppress the only admissible (different-bearing) arrival
+        // (see GeometricAdmissibility.PruningStateKey). The heuristic is bearing-independent, so
+        // A* optimality is preserved within the (node, bucket) state space.
+        var bestGScore = new Dictionary<(int Node, int Bucket), double>();
 
         int expansions = 0;
         PartialRoute? deepestViable = null;
@@ -135,7 +137,7 @@ public static class AutoRouter
         // the search starts cold (admissibility skips the first edge).
         var startRoute = startOverride ?? PartialRoute.StartAt(ctx.StartNodeId);
         double startHeuristic = RouteCostFunction.Heuristic(startNode, destinationNode);
-        bestGScore[startRoute.HeadNodeId] = startRoute.AccumulatedCost;
+        bestGScore[GeometricAdmissibility.PruningStateKey(startRoute.HeadNodeId, startRoute.ArrivalBearing)] = startRoute.AccumulatedCost;
         openSet.Enqueue(startRoute, startRoute.AccumulatedCost + startHeuristic);
 
         ctx.DiagnosticLog?.Invoke(
@@ -165,8 +167,11 @@ public static class AutoRouter
                 );
             }
 
-            // Skip stale queue entries: a cheaper path to this node was already expanded.
-            if (bestGScore.TryGetValue(current.HeadNodeId, out double recordedBest) && (current.AccumulatedCost > recordedBest + 1e-9))
+            // Skip stale queue entries: a cheaper path to this (node, bearing-bucket) state was already expanded.
+            if (
+                bestGScore.TryGetValue(GeometricAdmissibility.PruningStateKey(current.HeadNodeId, current.ArrivalBearing), out double recordedBest)
+                && (current.AccumulatedCost > recordedBest + 1e-9)
+            )
             {
                 continue;
             }
@@ -224,22 +229,24 @@ public static class AutoRouter
                 double incrementalCost = RouteCostFunction.IncrementalCost(current, edge, nextNode, ctx);
                 double newGScore = current.AccumulatedCost + incrementalCost;
 
-                // Skip if we already have a cheaper or equal path to nextNode.
-                if (bestGScore.TryGetValue(nextNode.Id, out double existingBest) && (newGScore >= existingBest - 1e-9))
+                // Zero-distance no-op edges carry bogus inherited bearings — propagate the
+                // current arrival bearing through them so the next admissibility check (and the
+                // closed-set key below) sees the real heading.
+                double arrivalBearing = GeometricAdmissibility.IsNoOpEdge(edge)
+                    ? current.ArrivalBearing
+                    : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
+
+                // Skip if we already have a cheaper or equal path to this (node, bearing-bucket) state.
+                var nextKey = GeometricAdmissibility.PruningStateKey(nextNode.Id, arrivalBearing);
+                if (bestGScore.TryGetValue(nextKey, out double existingBest) && (newGScore >= existingBest - 1e-9))
                 {
                     rejected++;
                     continue;
                 }
 
                 admitted++;
-                bestGScore[nextNode.Id] = newGScore;
+                bestGScore[nextKey] = newGScore;
 
-                // Zero-distance no-op edges carry bogus inherited bearings — propagate the
-                // current arrival bearing through them so the next admissibility check sees
-                // the real heading.
-                double arrivalBearing = GeometricAdmissibility.IsNoOpEdge(edge)
-                    ? current.ArrivalBearing
-                    : GeometricAdmissibility.GetArrivalBearing(edge, headNode, nextNode);
                 string taxiwayName = RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId);
 
                 var extended = current with

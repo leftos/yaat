@@ -41,6 +41,32 @@ public static class GeometricAdmissibility
     public static bool IsNoOpEdge(IGroundEdge edge) => edge.DistanceNm < NoOpEdgeThresholdNm;
 
     /// <summary>
+    /// Bucket width (degrees) for the A* closed-set key. Onward-edge admissibility depends on the
+    /// arrival bearing, so both A* searches key the closed set by <c>(nodeId, arrival-bearing-bucket)</c>
+    /// rather than node id alone — otherwise a cheaper arrival with a dead-end bearing can permanently
+    /// suppress the only admissible (different-bearing) arrival, producing a false
+    /// <see cref="FailureKind.DestinationUnreachable"/> or a worse route. 1° gives near-exact
+    /// discrimination relative to the 135°+ category turn limits while bounding states-per-node at 360.
+    /// </summary>
+    public const int PruningBearingBucketDeg = 1;
+
+    /// <summary>
+    /// Closed-set key for state-aware A* pruning: node id paired with the arrival-bearing bucket
+    /// (see <see cref="PruningBearingBucketDeg"/>). Two arrivals at the same node with sufficiently
+    /// different bearings occupy distinct keys, so neither prunes the other.
+    /// </summary>
+    public static (int Node, int Bucket) PruningStateKey(int nodeId, double arrivalBearing)
+    {
+        double normalized = arrivalBearing % 360.0;
+        if (normalized < 0.0)
+        {
+            normalized += 360.0;
+        }
+
+        return (nodeId, (int)(normalized / PruningBearingBucketDeg));
+    }
+
+    /// <summary>
     /// Returns true when the candidate edge is admissible from the current route head.
     /// Per §Decisions §3: hard-reject any junction where the resulting heading change exceeds
     /// the category limit. Reverse arcs whose heading change is within the limit are admitted
