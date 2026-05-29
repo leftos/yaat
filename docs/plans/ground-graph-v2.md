@@ -116,12 +116,38 @@ Landed (pathfinder V2 on fillet V2):
       variants of `B1` (false positive → spurious ambiguity), and `Run` ran `TryVariantExtension` even when
       the walk already reached the destination hold-short (would back-track to it). `Fll_ResolveExplicitPath_TT4BB1_OnV2`
       now green; full `Pathfinding.V2` suite 88/88, V2-pathfinder grids/sim 69/70 (1 pre-existing skip).
+- [x] **Issue #165 (the origin bug) resolved on the ship config** — SKW3404 SFO `TAXI A E B B3 A B1 Z S`
+      now honors the instructed taxiway order (stays on B to the B/B3 junction before rejoining A; no
+      B3-off-A shortcut) with no 180° spin. Regression test `Sfo_Skw3404_TaxiAEBB3AB1ZS_OnV2`. Resolved by
+      the bridge + req ① terminus + look-ahead + the goal-directed multi-candidate search (passes pre- and
+      post-look-ahead — it's a guard, not a new fix).
+- [x] **Mandatory-connector notification** — when two cleared taxiways have no direct junction (verified via
+      `junctionCandidates == 0`), the resolver inserts the connector and emits an informative route
+      notification (“A and B1 do not connect directly — taxi via Q”) instead of a misleading
+      “not in authorized path” warning. Also stopped warning on RAMP at the parking-bridge/arrival ends and
+      on junction-arc segments. SFO A↔B1-via-Q confirmed source-data (A/B1 have no direct edge in any fillet
+      mode; Legacy's A/B1 junction was a fillet artifact).
+- [x] **Fillet V2 corner-chord namespace bug fixed + hardened** *(Workstream 1)* — cut IDs collided with node
+      IDs (both raw `int`), so a redirected stable-anchor resolved to the wrong tangent cut → airport-spanning
+      `V2:corner-chord` edges (SFO 52 over 300 ft, max ~9533 ft → 0). Fixed by a disjoint cut-ID offset, then
+      hardened to a compile-time `CutId` newtype + `FilletEndpoint` (Cut|Node) union so the conflation can't
+      recompile. Guard test `FilletV2CornerSpanGuardTests` (≤300 ft, SFO/OAK/FLL). Audit found the only other
+      site (`FilletEdgeSplitPlanner.ResolveCut`) was the same latent twin, now also covered.
+- [x] **Ground-stack design docs** — `docs/ground/{README,fillet-generator,pathfinder,navigator}.md`
+      (agent-facing; V2 = architecture, V1 flagged legacy). Linked from CLAUDE.md.
 
 Active frontier (pathfinder V2, tracked in TaskList):
-- [ ] Requirement ① for the multi-segment path too (`LocalSearchToJunction`), not just natural-terminus.
-- [ ] 5 Codex HIGH findings; named routing failures (`Sfo*`, `SpotOvershoot*`, …).
+- [ ] 5 Codex HIGH findings (confirmed still open in code: no `DestinationRunway` hold-short reason,
+      non-reciprocal hold-short matching, centroid full-length lineup, state-aware A\* pruning, detour
+      authorized-taxiway policy); named routing failures (`Sfo*`, `SpotOvershoot*`, …).
 - [ ] Ground deadlock (`GroundConflictDetector` mutual proximity-stop) — re-evaluate after routing; may be
       route-induced (AMX669 was routed the wrong way before deadlocking).
+- [ ] Navigator v1.1 audit (Workstream 3): re-evaluate the Legacy-fillet compensations on V2 geometry +
+      the AMX669 freeze (synth tolerance vs tight V2 arcs); aviation sign-off.
+
+> Req ① for the multi-segment path (`LocalSearchToJunction`) has **no failing repro** — that search is
+> goal-directed (A\* to a specific junction), so it does not divert onto a membership arc the way the greedy
+> `WalkToNaturalTerminus` did. Re-open only if a concrete V2-on-V2 backtrack surfaces.
 
 Do **not** patch pathfinder V1 or the navigator for V1 geometry — both V1s are being replaced. The
 fillet-V2 graph is correct-but-different (membership junction arcs are legitimate turn-connectors; the
