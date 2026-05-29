@@ -18,24 +18,30 @@ Set diff across the two fillet modes (the key triage signal):
 - **26 fail ONLY under fillet V2** — Legacy-geometry-pinned assertions (relax) OR navigator-on-V2-arcs issues (Workstream 3, #7), e.g. `OakGaSpawnTurnAroundTests`/`OakNorthFieldTaxiSpinTests` spins, `TaxiPathfinderTests.ResolveExplicitPath_SfoM2_UsesSameTaxiwayArcAtA1Apex`, the `Skw*Diagnostic` pins, the `N7lj*` recording-replays.
 - **1 fails ONLY under Legacy** (`IssueS1OakDeadlockTests.ConvergenceWinner_DoesNotStallAcrossMerge`) — **fillet V2 fixes it.**
 
-### First-pass verdicts (V2+Legacy 29 — confirm each test's assertion before fixing; names mislead)
+### Confirmed verdicts (parallel workflow pass, 2026-05-29)
 
-- **Missing-feature — destination-runway connector auto-resolution.** `TAXI … W` to rwy 30 where W has connectors W1–W7: V1 auto-picks the connector reaching the rwy-30 threshold; V2 errors "served by both W1…W7" (`SegmentExpander.cs:1220`). Tests: `OAK_TaxiFromParking_DCBW_ToRunway30_HasHoldShortAndPhases`, `OAK_FullTaxiToTakeoff_DCBW_HoldShort30_HasPhases`, `Bug157leCtoMltStuckTests.TaxiBwRwy30_RouteTerminatesAtHoldShort` (confirm).
-- **V2-bug — routing too permissive.** `OAK_TaxiD_NeedsVariantForRunway30` (D alone must NOT reach rwy 30; V2 succeeds), `GroundCommandHandlerTests.TryTaxi_UnknownTaxiway_Fails` (V2 accepts unknown taxiway), `SfoRampCrossesRunwayTests.TaxiCommand_AcrossRunways_ShouldFail` (V2 accepts cross-runway taxi).
-- **V2-bug — hold-short / crossing annotation + wrong-taxiway selection.** `OakCrossThenHoldOnNextTaxiwayTests.AfterRes_AircraftCrossesAndHoldsOnC` (holds on G not C), `OakCross28RHoldShortTests.RerouteFrom28R_ExitSideHoldShort_NotAddedAsCrossing` (extra crossing), `OakExplicitHsAutoCrossTests.ExplicitHs28R_OverridesAutoCross_HoldsOnEntrySide` (2 hold-shorts not 1), `Issue163BareCrossThenHoldTests`, `IssueOakImplicitCrossOnTaxiTests.TaxiAcrossSameRunway_StillHoldsAtDestination` (240s timeout — maybe navigator), `Issue166CrossShortcutsGrassTests` (req-① residual).
-- **Overshoot / reversal (routing-vs-navigator TBD).** `SpotOvershootTaxiRouteTests` ×3, `OakPostLandingReversalsTests` ×2 (end "Holding Short 28R/10L" not "At Parking").
-- **Underlying-sim / navigator (Workstream 3, #7).** `IssueAmxTaxiOvershootTests.AMX669` (navigator freeze), `SfoLineupDiagonalTests` + `DiagonalLineup28rTests` (lineup alignment), `Issue133Rwy28rTakeoffTests` ×2.
-- **Underlying-sim / phase (not routing).** `GoAroundPreservesIntentE2ETests`, `PatternDirectionResetTests`, `ExtDuringTouchAndGoTests.ExtDuringHoldingShort`, `AdctDuringInitialClimbTests` (still taxiing — downstream of routing not reaching rwy), `S2Oak4RvSidCtoTests` (CTO cascade — re-triage after routing), `TwoPilotControllerResponseGateE2ETests` (pilot-speech timing).
+54 ship-target failures verdicted one-agent-per-class via `.claude/workflows/pathfinder-v2-verdict-pass.js`. Full per-test evidence + fixHints: **[`verdict-pass-results.json`](./verdict-pass-results.json)**. Tally: **17 V2-bug · 5 missing-feature · 4 V1-pinned · 28 underlying-sim**.
 
 Reproduce a mode: flip `TaxiPathfinderRouter._current` to `TaxiPathfinderV2` (+ `TestAirportGroundData` default to `FilletMode.V2` for the V2+V2 baseline), run `--filter "Category!=Nightly"`. Revert both before committing.
 
-### RESUME — verdict pass (pending)
+#### Pathfinder-WS2 fix clusters (22 — fix these in this pass; ~6 code areas)
 
-Next action is a per-test root-cause verdict pass over the 54 ship-target failures. Mechanism: the named workflow **`.claude/workflows/pathfinder-v2-verdict-pass.js`** (one agent per failing test class; reads a per-test failure block, test source, and prod code; returns `{verdict, owner, evidence, fixHint, confidence}`). Relaunch with `Workflow({name: 'pathfinder-v2-verdict-pass'})` — the 54-failure list is embedded, no args needed.
+- **A. `SegmentExpander.TryVariantExtension` — multi-variant auto-resolve + reject-on-unreachable (7).** `TAXI…W → rwy30` must auto-pick the W-connector whose hold-short is nearest the requested runway end (port `TaxiVariantResolver.PickBestVariant`) instead of erroring `TransitionAmbiguous` (`SegmentExpander.cs:1212`): `OAK_FullTaxiToTakeoff_DCBW`, `OAK_TaxiFromParking_DCBW`, `Bug157le.TaxiBwRwy30`, `Issue163.BareCrossThenHold` *(missing-feature)*. And the inverse — return a failure (not `(null,null)`) when the named taxiway can't reach the destination runway / doesn't exist / crosses a runway: `OAK_TaxiD_NeedsVariant`, `TryTaxi_UnknownTaxiway_Fails`, `SfoRampCrossesRunway_ShouldFail` *(V2-bug, over-permissive)*.
+- **B. `WalkToNaturalTerminus`/`ExpandLastWaypoint` — destination-aware stop (≈9, V2-bug).** Last named-taxiway leg walks to the taxiway's natural terminus, overshooting a downstream parking/spot/hold-short destination: `SpotOvershoot` ×3, `SKW3078_TaxiAtoB10`, `OakPostLandingReversals.N436MS_TaxiC`, `BundleReplay_LiveRoute`, `S2Oak4RvSidCto` ×2, `AdctDuringInitialClimb`, `AtFixDuringInitialClimb` (last two: `TAXI D C B 28R` from GA7 never reaches the rwy → still TaxiingPhase).
+- **C. `RouteMaterialiser.AnnotateHoldShorts` — entry/exit pairing + reciprocal designator (3, V2-bug/missing).** Port `HoldShortAnnotator.AddImplicitRunwayHoldShorts` entry/exit pairing; one explicit-HS designator (`28R`) matching multiple reciprocal nodes mis-truncates: `OakCross28R.RerouteFrom28R`, `OakExplicitHsAutoCross.ExplicitHs28R`, `OakCrossThenHold.AfterRes` (holds on G not C).
+- **D. `IssueFllDal880.ResolveExplicitPath_TT4BB1` — U-turn (1, V2-bug).** `SelectBestStopNode` scoring picks a stop node that forces a 167° reversal; score by route cost not raw distance.
+- **E. `SfoLineupDiagonal.N346G_LineUp28R` — final-leg out-and-back (1, V2-bug).** Materialiser emits `(1269→159)(159→1269)`. ⚠ Sibling `DiagonalLineup28r.N436MS_LineUp28R` (same assertion) was verdicted navigator-WS3 — **reconcile these two together** (route artifact vs following), they may share a cause.
 
-Inputs it depends on (gitignored, persist on disk): `.tmp/triage-blocks/<Method>.log` (54 per-test failure blocks) + `.tmp/triage-v2v2-detail.log` (source). Regenerate per the workflow file's header comment if absent.
+#### V1-pinned — relax assertion (4, assertion-relax)
 
-NOTE: on Claude Code 2.1.156 the workflow runtime did **not** fan out (ran agents serially — one at a time, twice). The retry assumes a newer build parallelizes; if it still serializes, do the verdict pass inline (read each `.tmp/triage-blocks/*.log` + source). After verdicts: fix pathfinder-WS2 items first; route navigator-WS3 / phase-sim items to #7 with per-test confirmation; relax `assertion-relax` (V1-pinned) tests.
+- `OAK_HoldShortNodes_NotAtJunctions` — exclude membership junction arcs (`IsMembershipTaxiwayJunctionArc`) from the distinct-taxiway count.
+- `TaxiPathfinderTests.ResolveExplicitPath_SfoM2_UsesSameTaxiwayArcAtA1Apex` — relax the arc identifier in `usesArc` to match both generators.
+- `Issue165.Skw3404_Seg12_PathfinderDiagnostic` — migrate the direct `TaxiPathfinder.ResolveExplicitPath` call to `TaxiPathfinderRouter.Current`.
+- `Issue165.Skw3404_StuckMoment_Diagnostic` — V1-only diagnostic asserting a stuck moment EXISTS; delete or invert.
+
+#### Deferred → #7 (28, underlying-sim / navigator-WS3)
+
+Confirm each is genuinely downstream before deferring. The workflow attributes nearly all to **one GroundNavigator root cause**: the strict tangent-entry tolerance doesn't scale with arc radius, so on tight V2 fillet arcs the aircraft stalls/spins/overshoots and never finishes the taxi — failing every downstream phase assertion (touch-and-go, go-around, pattern, CTO, pilot-speech timing, lineup alignment). A single navigator slow-turn-synthesis fix (`GroundNavigator.cs:1093` region, the AMX669-class freeze) likely clears most of: `ExtDuringTouchAndGo` ×6, `GoAroundPreservesIntent` ×2, `N7lj*` ×5, `Issue133` ×2, `IssueOakImplicitCross` ×2, `AutoCrossRunwayToggle` ×2, `OakGaSpawn`/`OakNorthField` spins, `PatternDirectionReset`, `IssueAmx.AMX669`, `Issue166`, `DiagonalLineup28r`, `OakPostLandingReversals.N9225L`, `N929aw`, `TwoPilotControllerResponseGate`.
 
 **No bandaids** — each test failure needs a verdict on root cause before any change lands:
 
