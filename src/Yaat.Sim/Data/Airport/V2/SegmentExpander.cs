@@ -757,6 +757,16 @@ public static class SegmentExpander
                 // (head → destination), treat it as a temporary reversal.
                 incrementalCost += ComputeDirectionReversalPenalty(current, edge, headNode, nextNode, destNode);
 
+                // req ①: penalise leaving the walked taxiway onto a membership taxiway-junction arc
+                // ("X - Y", both taxiways) as a CONTINUATION — a single-name continuation must win.
+                // The legitimate turn onto the next taxiway (nextNode == junction) and runway-crossing
+                // arcs (IsRunwayJunction) are not penalised. Soft: the arc stays usable when it is the
+                // only continuation, so a resolvable clearance never fails.
+                if (matchesTwy && !isJunctionEdge && (edge is GroundArc { IsMembershipTaxiwayJunctionArc: true }))
+                {
+                    incrementalCost += RouteCostFunction.MembershipJunctionArcContinuationCostNm;
+                }
+
                 double newGScore = current.AccumulatedCost + incrementalCost;
 
                 // Zero-distance no-op edges (phase-d-shorten between co-located nodes) carry
@@ -942,8 +952,10 @@ public static class SegmentExpander
                 // an "A - Q1" arc when walking A). A multi-name junction arc is a turn OFF the
                 // taxiway onto a crossing one, not a continuation of it — V2's collapsed junctions
                 // expose several such membership matches at one node. Single-name wins regardless
-                // of cost; cost only breaks ties within the same tier.
-                bool isJunctionArc = edge is GroundArc { TaxiwayNames.Length: >= 2 };
+                // of cost; cost only breaks ties within the same tier. Runway-crossing arcs
+                // (IsRunwayJunction, e.g. "H - RWY...") DO continue the taxiway across a runway and
+                // are not treated as junction arcs.
+                bool isJunctionArc = edge is GroundArc { IsMembershipTaxiwayJunctionArc: true };
                 bool better =
                     bestEdge is null || (bestIsJunctionArc && !isJunctionArc) || ((bestIsJunctionArc == isJunctionArc) && (cost < bestCost));
 

@@ -410,6 +410,15 @@ public sealed class GroundArc : IGroundEdge
         }
     }
 
+    /// <summary>
+    /// True if this is a membership junction arc between two TAXIWAYS (e.g. "A - Q1", "A - RAMP")
+    /// — a turn OFF the current taxiway onto a crossing one, not a continuation of it. Excludes
+    /// runway-crossing arcs (<see cref="IsRunwayJunction"/>, e.g. "H - RWY01L/19R"), which DO
+    /// continue the taxiway across a runway. Used by requirement ① to rank a single-name
+    /// continuation above such an arc when walking a named taxiway.
+    /// </summary>
+    public bool IsMembershipTaxiwayJunctionArc => TaxiwayNames.Length >= 2 && !IsRunwayJunction;
+
     public bool MatchesRunway(string designator)
     {
         foreach (string name in TaxiwayNames)

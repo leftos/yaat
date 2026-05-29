@@ -30,6 +30,17 @@ public static class RouteCostFunction
     /// <summary>First use of each unauthorized letter taxiway — encourages bridging through one rather than none.</summary>
     public const double UnauthorizedTaxiwayFirstUseCostNm = 0.2;
 
+    /// <summary>
+    /// Penalty (nm-equivalent) for traversing a membership taxiway-junction arc ("X - Y", both
+    /// taxiways) as a CONTINUATION of the walked taxiway rather than the turn onto the next
+    /// instructed one. req ①: a single-name continuation must win over such an arc (a turn OFF
+    /// the taxiway onto a crossing one). Sized to dominate intra-segment distance/turn spread so
+    /// single-name is preferred, yet finite so the arc stays usable as a last resort — a
+    /// resolvable clearance never fails. Runway-crossing arcs (IsRunwayJunction) are continuations
+    /// and are NOT penalised.
+    /// </summary>
+    public const double MembershipJunctionArcContinuationCostNm = 0.5;
+
     /// <summary>Runway centerline multiplier on top of base distance — makes on-runway transit ~10× worse.</summary>
     public const double RunwayCenterlineDistanceMultiplier = 10.0;
 

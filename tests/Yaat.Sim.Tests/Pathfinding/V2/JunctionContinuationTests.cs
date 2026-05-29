@@ -330,4 +330,153 @@ public class JunctionContinuationTests
         }
         return deg;
     }
+
+    /// <summary>
+    /// req ① for the INTERMEDIATE-segment path (<c>LocalSearchToJunction</c>), not just the
+    /// natural-terminus walk: walking taxiway X toward its junction with Y must stay on
+    /// single-name X and must not divert onto a membership taxiway-junction arc (<c>"X - Z"</c>)
+    /// and back. Surfaced by the membership-arc sweep (SFO Z→B diverts via <c>Z - CZ</c>;
+    /// FLL A→B via <c>A - A1</c>). Runway-crossing arcs (<c>IsRunwayJunction</c>, e.g.
+    /// <c>"H - RWY01L/19R"</c>) ARE continuations and remain allowed. Start = the X node
+    /// farthest from the X∩Y junction, so the walk must actually traverse X.
+    /// </summary>
+    [Theory]
+    [InlineData("SFO", "Z", "B")]
+    [InlineData("FLL", "A", "B")]
+    public void IntermediateWalk_StaysOnTaxiway_NoMembershipArcDiversion(string airport, string x, string y)
+    {
+        var layout = V2Layout(airport);
+        if (layout is null)
+        {
+            _output.WriteLine($"{airport} layout unavailable — skipping");
+            return;
+        }
+
+        int startId = FarthestNodeOnTaxiwayFromJunction(layout, x, y);
+
+        var route = new TaxiPathfinderV2().ResolveExplicitPath(
+            layout,
+            startId,
+            [x, y],
+            out string? failReason,
+            new ExplicitPathOptions { AirportId = airport, DiagnosticLog = msg => _output.WriteLine(msg) },
+            AircraftCategory.Jet
+        );
+
+        Assert.NotNull(route);
+        Assert.Null(failReason);
+
+        _output.WriteLine($"{airport} [{x},{y}] from #{startId}: {route.Segments.Count} segs");
+        foreach (var seg in route.Segments)
+        {
+            _output.WriteLine($"  {seg.TaxiwayName, -10} #{seg.FromNodeId} → #{seg.ToNodeId}");
+        }
+
+        string? diversion = FindInteriorMembershipArcDiversion(route, layout);
+        Assert.True(diversion is null, $"Route diverted off the walked taxiway onto a membership junction arc and back: {diversion}");
+    }
+
+    private static int FarthestNodeOnTaxiwayFromJunction(AirportGroundLayout layout, string x, string y)
+    {
+        var xNodes = NodesTouching(layout, x);
+        var junctions = xNodes.Intersect(NodesTouching(layout, y)).ToList();
+        Assert.NotEmpty(junctions);
+        return xNodes.OrderByDescending(nid => junctions.Min(j => GeoMath.DistanceNm(layout.Nodes[nid].Position, layout.Nodes[j].Position))).First();
+    }
+
+    private static HashSet<int> NodesTouching(AirportGroundLayout layout, string taxiway)
+    {
+        var set = new HashSet<int>();
+        foreach (var node in layout.Nodes.Values)
+        {
+            foreach (var edge in node.Edges)
+            {
+                string[] names = edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
+                if (names.Any(n => n.Equals(taxiway, StringComparison.OrdinalIgnoreCase)))
+                {
+                    set.Add(node.Id);
+                    break;
+                }
+            }
+        }
+
+        return set;
+    }
+
+    /// <summary>
+    /// Returns the first INTERIOR membership taxiway-junction arc segment (a non-runway
+    /// <c>"X - Y"</c> arc) whose nearest single-name neighbours on both sides name the SAME
+    /// taxiway — i.e. the route physically left that taxiway onto a membership arc and returned.
+    /// Null when no such diversion exists. Runway-crossing arcs (<c>IsRunwayJunction</c>) are
+    /// ignored (they continue the taxiway across a runway). A membership arc with an identical
+    /// single-name twin edge between the same nodes is also ignored — that is a benign
+    /// parallel-duplicate corner arc (fillet V2 emits both <c>"A"</c> and <c>"A - A8"</c> arcs
+    /// at one corner); the physical path is identical, so it is cosmetic mislabelling, not a
+    /// diversion onto a crossing taxiway.
+    /// </summary>
+    private static string? FindInteriorMembershipArcDiversion(TaxiRoute route, AirportGroundLayout layout)
+    {
+        var segs = route.Segments;
+        for (int i = 0; i < segs.Count; i++)
+        {
+            if (segs[i].Edge.Edge is not GroundArc arc || arc.TaxiwayNames.Length < 2 || arc.IsRunwayJunction)
+            {
+                continue;
+            }
+
+            string? prev = NearestSingleName(segs, i, -1);
+            string? next = NearestSingleName(segs, i, +1);
+            if (prev is null || next is null || !prev.Equals(next, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (HasSingleNameTwin(layout, segs[i].FromNodeId, segs[i].ToNodeId, prev))
+            {
+                continue;
+            }
+
+            return $"'{arc.TaxiwayName}' #{segs[i].FromNodeId}→#{segs[i].ToNodeId} flanked by '{prev}'";
+        }
+
+        return null;
+    }
+
+    private static bool HasSingleNameTwin(AirportGroundLayout layout, int fromId, int toId, string taxiway)
+    {
+        if (!layout.Nodes.TryGetValue(fromId, out var fromNode))
+        {
+            return false;
+        }
+
+        foreach (var edge in fromNode.Edges)
+        {
+            bool single = edge is not GroundArc arc || arc.TaxiwayNames.Length == 1;
+            if (single && (edge.OtherNode(fromNode).Id == toId) && edge.TaxiwayName.Equals(taxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? NearestSingleName(IReadOnlyList<TaxiRouteSegment> segs, int from, int step)
+    {
+        for (int i = from + step; i >= 0 && i < segs.Count; i += step)
+        {
+            if (segs[i].Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
+            {
+                continue;
+            }
+
+            string name = segs[i].TaxiwayName;
+            if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !name.Equals("RAMP", StringComparison.OrdinalIgnoreCase))
+            {
+                return name;
+            }
+        }
+
+        return null;
+    }
 }
