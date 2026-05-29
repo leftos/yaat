@@ -92,6 +92,30 @@ Then, in a single change: flip `GeoJsonParser.Parse` default + `AirportLayoutDow
 
 ## Current focus / next up
 
-- Fillet generator V2 is parked at a clean, validated checkpoint (nothing to do until 2 + 3 land).
-- The active frontier is **pathfinder V2** (workstream 2) and **scoping navigator v1.1** (workstream 3).
-- Do **not** patch pathfinder V1 or the navigator for V1 geometry — both V1s are being replaced.
+**Reframe (validated):** the full all-V2 test suite is **not** a discovery tool — it hangs (unbounded
+"tick until X" ground tests loop forever when an aircraft deadlocks; pathfinder-V2 latency spikes). It is
+the **Phase-6 validation gate**, run once when the work is believed done. Drive the work with **targeted,
+scoped V2 tests** (pathfinder-V2 *on* fillet-V2 — the ship config, which nothing exercised before).
+Key finding: **pathfinder V2 was only ever validated on Legacy fillets**; adapting it to V2's
+collapsed-junction geometry is the open Phase-2 work.
+
+Landed (pathfinder V2 on fillet V2):
+- [x] `LayoutInspector --fillet-mode legacy|v2|none` (inspect the V2 graph directly).
+- [x] **Parking→taxiway bridge** — V2 `SegmentExpander` now bridges a RAMP-only parking start onto the
+      first taxiway (`BridgeStartToTaxiway`, mirrors V1 `BfsToTaxiway`). Was the root of cluster-C
+      `OAK_TaxiFromParking*` failures.
+- [x] **Requirement ① (natural-terminus walk)** — single-name continuation now ranks strictly above a
+      membership-only junction arc in `WalkToNaturalTerminus` (SFO `1160` validated, fail-first proven).
+
+Active frontier (pathfinder V2, tracked in TaskList):
+- [ ] **V-shaped / multi-leg taxiway junction reachability** — FLL T4→B picks hairpin #61 because #53 is
+      unreachable from the committed T-walk head (port V1's `SelectBestStopNode` + U-turn-penalty idea to
+      V2 `RouteNamedToNamed`). FLL `Fll_ResolveExplicitPath_TT4BB1_OnV2` is the (red) target.
+- [ ] Requirement ① for the multi-segment path too (`LocalSearchToJunction`), not just natural-terminus.
+- [ ] 5 Codex HIGH findings; named routing failures (`Sfo*`, `SpotOvershoot*`, …).
+- [ ] Ground deadlock (`GroundConflictDetector` mutual proximity-stop) — re-evaluate after routing; may be
+      route-induced (AMX669 was routed the wrong way before deadlocking).
+
+Do **not** patch pathfinder V1 or the navigator for V1 geometry — both V1s are being replaced. The
+fillet-V2 graph is correct-but-different (membership junction arcs are legitimate turn-connectors; the
+FLL coincident C/C1 edges are source-data, not a fillet bug) — adapt the consumer, don't "fix" the graph.
