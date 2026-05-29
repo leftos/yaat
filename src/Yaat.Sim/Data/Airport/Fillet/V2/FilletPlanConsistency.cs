@@ -6,38 +6,52 @@ internal static class FilletPlanConsistency
     {
         var cutIds = plan.Cuts.Keys.ToHashSet();
         var stableAnchors = plan.StableAnchoredEndpointIds;
-        void Require(int id, string context)
-        {
-            if (cutIds.Contains(id) || stableAnchors.Contains(id))
-            {
-                return;
-            }
 
-            throw new InvalidOperationException($"{context}: cut id {id} is not in plan.Cuts (keys: {cutIds.Count})");
+        void RequireEndpoint(FilletEndpoint ep, string context)
+        {
+            switch (ep)
+            {
+                case FilletEndpoint.Cut cut:
+                    if (!cutIds.Contains(cut.Id))
+                    {
+                        throw new InvalidOperationException($"{context}: cut id {cut.Id.Value} is not in plan.Cuts (keys: {cutIds.Count})");
+                    }
+
+                    break;
+                case FilletEndpoint.Node node:
+                    if (!stableAnchors.Contains(node.NodeId))
+                    {
+                        throw new InvalidOperationException(
+                            $"{context}: stable anchor node id {node.NodeId} is not in StableAnchoredEndpointIds (count: {stableAnchors.Count})"
+                        );
+                    }
+
+                    break;
+            }
         }
 
         foreach (var op in plan.CornerArcs)
         {
-            Require(op.CutIdAtArmA, $"CornerArc corner {op.CornerId} armA");
-            Require(op.CutIdAtArmB, $"CornerArc corner {op.CornerId} armB");
+            RequireEndpoint(op.EndpointAtArmA, $"CornerArc corner {op.CornerId} armA");
+            RequireEndpoint(op.EndpointAtArmB, $"CornerArc corner {op.CornerId} armB");
         }
 
         foreach (var op in plan.StraightConnectors)
         {
-            Require(op.CutIdAtArmA, $"StraightConnector J{op.JunctionNodeId} corner {op.CornerId} armA");
-            Require(op.CutIdAtArmB, $"StraightConnector J{op.JunctionNodeId} corner {op.CornerId} armB");
+            RequireEndpoint(op.EndpointAtArmA, $"StraightConnector J{op.JunctionNodeId} corner {op.CornerId} armA");
+            RequireEndpoint(op.EndpointAtArmB, $"StraightConnector J{op.JunctionNodeId} corner {op.CornerId} armB");
         }
 
         foreach (var op in plan.SurvivingEdges)
         {
-            if (op.FromCutId is int from)
+            if (op.From is FilletEndpoint.Cut fromCut)
             {
-                Require(from, $"SurvivingEdge {op.Origin} FromCutId");
+                RequireEndpoint(fromCut, $"SurvivingEdge {op.Origin} From");
             }
 
-            if (op.ToCutId is int to)
+            if (op.To is FilletEndpoint.Cut toCut)
             {
-                Require(to, $"SurvivingEdge {op.Origin} ToCutId");
+                RequireEndpoint(toCut, $"SurvivingEdge {op.Origin} To");
             }
         }
     }
@@ -60,14 +74,14 @@ internal static class FilletPlanConsistency
 
         foreach (var op in plan.SurvivingEdges)
         {
-            if (op.FromNodeId is int from)
+            if (op.From is FilletEndpoint.Node fromNode)
             {
-                RequireNotRemoved(from, $"SurvivingEdge {op.Origin} FromNodeId");
+                RequireNotRemoved(fromNode.NodeId, $"SurvivingEdge {op.Origin} From");
             }
 
-            if (op.ToNodeId is int to)
+            if (op.To is FilletEndpoint.Node toNode)
             {
-                RequireNotRemoved(to, $"SurvivingEdge {op.Origin} ToNodeId");
+                RequireNotRemoved(toNode.NodeId, $"SurvivingEdge {op.Origin} To");
             }
         }
     }

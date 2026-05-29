@@ -29,16 +29,13 @@ internal static class FilletPlanExecutor
             }
         }
 
-        // Cut IDs live in a disjoint high range (see FilletArcGeneratorV2: nextCutId starts at
-        // maxNodeId + 1_000_000), so a cut ID never collides with a node ID. That invariant lets
-        // this plain "cut node first, else layout node" lookup resolve both cut-ID endpoints and
-        // substituted stable-anchor endpoints (pre-existing node IDs) correctly — an anchor's node
-        // ID is below the cut-ID range, so cutNode never shadows it.
-        GroundNode? ResolveId(int id) => cutNode.TryGetValue(id, out var n) ? n : layout.Nodes.GetValueOrDefault(id);
-        GroundNode? ResolveEndpoint(int? cutId, int? nodeId) =>
-            cutId is int c ? cutNode.GetValueOrDefault(c)
-            : nodeId is int nid ? layout.Nodes.GetValueOrDefault(nid)
-            : null;
+        GroundNode? ResolveEndpoint(FilletEndpoint ep) =>
+            ep switch
+            {
+                FilletEndpoint.Cut cut => cutNode.GetValueOrDefault(cut.Id),
+                FilletEndpoint.Node node => layout.Nodes.GetValueOrDefault(node.NodeId),
+                _ => throw new InvalidOperationException($"Unknown FilletEndpoint subtype: {ep.GetType().Name}"),
+            };
 
         // Remove the original edges the split consumes BEFORE adding survivors so a surviving
         // sub-segment identical to a consumed edge is not deduped away then orphaned.
@@ -46,8 +43,8 @@ internal static class FilletPlanExecutor
 
         foreach (var op in plan.SurvivingEdges)
         {
-            var from = ResolveEndpoint(op.FromCutId, op.FromNodeId);
-            var to = ResolveEndpoint(op.ToCutId, op.ToNodeId);
+            var from = ResolveEndpoint(op.From);
+            var to = ResolveEndpoint(op.To);
             if ((from is null) || (to is null))
             {
                 continue;
@@ -64,8 +61,8 @@ internal static class FilletPlanExecutor
                 continue;
             }
 
-            var tanA = ResolveId(arcOp.CutIdAtArmA);
-            var tanB = ResolveId(arcOp.CutIdAtArmB);
+            var tanA = ResolveEndpoint(arcOp.EndpointAtArmA);
+            var tanB = ResolveEndpoint(arcOp.EndpointAtArmB);
             if ((tanA is null) || (tanB is null) || (tanA.Id == tanB.Id))
             {
                 continue;
@@ -129,8 +126,8 @@ internal static class FilletPlanExecutor
 
         foreach (var op in plan.StraightConnectors)
         {
-            var tanA = ResolveId(op.CutIdAtArmA);
-            var tanB = ResolveId(op.CutIdAtArmB);
+            var tanA = ResolveEndpoint(op.EndpointAtArmA);
+            var tanB = ResolveEndpoint(op.EndpointAtArmB);
             if ((tanA is null) || (tanB is null) || (tanA.Id == tanB.Id))
             {
                 continue;
@@ -165,14 +162,14 @@ internal static class FilletPlanExecutor
         return new ExecuteResult(arcsCreated, collinearMerges, filletedNodes);
     }
 
-    private static Dictionary<int, GroundNode> MaterializeCutNodes(
+    private static Dictionary<CutId, GroundNode> MaterializeCutNodes(
         AirportGroundLayout layout,
         FilletPlan plan,
         IReadOnlyList<JunctionPlan> junctionPlans,
         NextNodeIdCounter idCounter
     )
     {
-        var cutNode = new Dictionary<int, GroundNode>();
+        var cutNode = new Dictionary<CutId, GroundNode>();
         foreach (var (cutId, cut) in plan.Cuts)
         {
             var junctionPlan = junctionPlans.FirstOrDefault(j => j.JunctionNodeId == cut.JunctionNodeId);

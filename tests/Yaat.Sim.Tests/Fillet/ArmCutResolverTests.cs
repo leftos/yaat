@@ -64,11 +64,13 @@ public class ArmCutResolverTests
 
         var acute = junction.Corners.First(c => c.ArmIdA == 0 && c.ArmIdB == 2);
         var arc = result.CornerArcs.First(a => a.CornerId == acute.CornerId);
-        double ta = result.Cuts[arc.CutIdAtArmA].DistanceAlongArmFt;
-        double tb = result.Cuts[arc.CutIdAtArmB].DistanceAlongArmFt;
+        var cutA = Assert.IsType<FilletEndpoint.Cut>(arc.EndpointAtArmA);
+        var cutB = Assert.IsType<FilletEndpoint.Cut>(arc.EndpointAtArmB);
+        double ta = result.Cuts[cutA.Id].DistanceAlongArmFt;
+        double tb = result.Cuts[cutB.Id].DistanceAlongArmFt;
         Assert.InRange(ta, 10.0, 20.0);
         Assert.InRange(tb, 10.0, 20.0);
-        Assert.NotEqual(arc.CutIdAtArmA, arc.CutIdAtArmB);
+        Assert.NotEqual(cutA.Id, cutB.Id);
     }
 
     [Fact]
@@ -103,7 +105,7 @@ public class ArmCutResolverTests
         var jp1 = PlanAt(layout, 1);
         var jp2 = PlanAt(layout, 2);
 
-        int nextCutId = 1;
+        var nextCutId = new CutId(1);
         var r1 = ArmCutResolver.Resolve(jp1, ref nextCutId);
         var r2 = ArmCutResolver.Resolve(jp2, ref nextCutId);
         var plan = FilletPlanBuilder.Build(layout, [jp1, jp2], [r1, r2]);
@@ -124,7 +126,7 @@ public class ArmCutResolverTests
 
         Assert.Equal(result.SurvivingCorners.Count, result.CornerArcs.Count);
         Assert.Equal(result.SurvivingCorners.Count, result.CornerArcs.Select(a => a.CornerId).Distinct().Count());
-        Assert.DoesNotContain(result.CornerArcs, a => a.CutIdAtArmA == a.CutIdAtArmB);
+        Assert.DoesNotContain(result.CornerArcs, a => a.EndpointAtArmA == a.EndpointAtArmB);
     }
 
     [Fact]
@@ -222,7 +224,7 @@ public class ArmCutResolverTests
 
     private static ArmCutResolver.JunctionCutResult Resolve(JunctionPlan junction)
     {
-        int nextCutId = 1;
+        var nextCutId = new CutId(1);
         return ArmCutResolver.Resolve(junction, ref nextCutId);
     }
 

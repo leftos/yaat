@@ -16,21 +16,13 @@ internal static class FilletEdgeSplitPlanner
         IReadOnlyList<PlanWarning> Warnings
     );
 
-    /// <summary>An endpoint is EITHER a resolved cut OR a stable graph node — never both.</summary>
-    private readonly record struct Endpoint(int? CutId, int? NodeId)
-    {
-        public static Endpoint Node(int id) => new(null, id);
-
-        public static Endpoint Cut(int id) => new(id, null);
-    }
-
-    private readonly record struct CutOnEdge(double Frac, Endpoint Endpoint);
+    private readonly record struct CutOnEdge(double Frac, FilletEndpoint Endpoint);
 
     public static Result Plan(
         AirportGroundLayout layout,
         IReadOnlyList<JunctionPlan> junctions,
-        IReadOnlyDictionary<int, ResolvedArmCut> prunedCuts,
-        IReadOnlyDictionary<int, int> redirect,
+        IReadOnlyDictionary<CutId, ResolvedArmCut> prunedCuts,
+        IReadOnlyDictionary<CutId, FilletEndpoint> redirect,
         IReadOnlySet<int> removedJunctionIds
     )
     {
@@ -40,10 +32,15 @@ internal static class FilletEdgeSplitPlanner
         var edgeCuts = new Dictionary<GroundEdge, List<CutOnEdge>>();
         var armHasCut = new HashSet<(int Junction, int Arm)>();
 
-        Endpoint ResolveCut(int cutId)
+        FilletEndpoint ResolveCut(CutId cutId)
         {
-            int finalId = FilletPlanCutRedirect.Resolve(cutId, redirect);
-            return prunedCuts.ContainsKey(finalId) ? Endpoint.Cut(finalId) : Endpoint.Node(finalId);
+            var ep = FilletPlanCutRedirect.Resolve(cutId, redirect);
+            return ep switch
+            {
+                FilletEndpoint.Cut cut => prunedCuts.ContainsKey(cut.Id) ? new FilletEndpoint.Cut(cut.Id) : new FilletEndpoint.Node(cut.Id.Value),
+                FilletEndpoint.Node node => node,
+                _ => throw new InvalidOperationException($"Unknown FilletEndpoint subtype: {ep.GetType().Name}"),
+            };
         }
 
         // Map every surviving cut to the original edge it lands on, with the fraction normalized
@@ -110,10 +107,10 @@ internal static class FilletEdgeSplitPlanner
             bool aRemoved = removedJunctionIds.Contains(edge.Nodes[0].Id);
             bool bRemoved = removedJunctionIds.Contains(edge.Nodes[1].Id);
 
-            var seq = new List<Endpoint>();
+            var seq = new List<FilletEndpoint>();
             if (!aRemoved)
             {
-                seq.Add(Endpoint.Node(edge.Nodes[0].Id));
+                seq.Add(new FilletEndpoint.Node(edge.Nodes[0].Id));
             }
 
             foreach (var c in sorted)
@@ -123,7 +120,7 @@ internal static class FilletEdgeSplitPlanner
 
             if (!bRemoved)
             {
-                seq.Add(Endpoint.Node(edge.Nodes[1].Id));
+                seq.Add(new FilletEndpoint.Node(edge.Nodes[1].Id));
             }
 
             for (int i = 0; (i + 1) < seq.Count; i++)
@@ -169,13 +166,13 @@ internal static class FilletEdgeSplitPlanner
                 }
 
                 var nearest = junctionCuts.OrderBy(c => GeoMath.DistanceNm(c.Position, farNode.Position)).First();
-                surviving.Add(MakeEdge(Endpoint.Node(farNode.Id), ResolveCut(nearest.CutId), arm.RootEdge, "edge-split-redirect"));
+                surviving.Add(MakeEdge(new FilletEndpoint.Node(farNode.Id), ResolveCut(nearest.CutId), arm.RootEdge, "edge-split-redirect"));
             }
         }
 
         return new Result(consumed, surviving, warnings);
     }
 
-    private static SurvivingEdgeOp MakeEdge(Endpoint from, Endpoint to, GroundEdge source, string kind) =>
-        new(from.CutId, from.NodeId, to.CutId, to.NodeId, source.TaxiwayName, source.IsRunwayCenterline, $"V2:{kind}/{source.TaxiwayName}");
+    private static SurvivingEdgeOp MakeEdge(FilletEndpoint from, FilletEndpoint to, GroundEdge source, string kind) =>
+        new(from, to, source.TaxiwayName, source.IsRunwayCenterline, $"V2:{kind}/{source.TaxiwayName}");
 }

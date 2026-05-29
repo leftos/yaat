@@ -10,7 +10,7 @@ internal static class FilletPlanBuilder
         IReadOnlyList<ArmCutResolver.JunctionCutResult> results
     )
     {
-        var cuts = new Dictionary<int, ResolvedArmCut>();
+        var cuts = new Dictionary<CutId, ResolvedArmCut>();
         var merges = new List<TangentMergeOp>();
         var cornerArcs = new List<CornerArcOp>();
         var straightConnectors = new List<StraightConnectorOp>();

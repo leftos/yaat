@@ -3,7 +3,7 @@ namespace Yaat.Sim.Data.Airport.Fillet.V2;
 internal static class ArmCutResolver
 {
     public sealed record JunctionCutResult(
-        IReadOnlyDictionary<int, ResolvedArmCut> Cuts,
+        IReadOnlyDictionary<CutId, ResolvedArmCut> Cuts,
         IReadOnlyList<TangentMergeOp> TangentMerges,
         IReadOnlyList<CornerArcOp> CornerArcs,
         IReadOnlyList<StraightConnectorOp> StraightConnectors,
@@ -11,12 +11,12 @@ internal static class ArmCutResolver
         IReadOnlyList<CornerSpec> SurvivingCorners
     );
 
-    public static JunctionCutResult Resolve(JunctionPlan junction, ref int nextCutId)
+    public static JunctionCutResult Resolve(JunctionPlan junction, ref CutId nextCutId)
     {
         var warnings = new List<PlanWarning>();
         if (junction.Corners.Count == 0)
         {
-            return new JunctionCutResult(new Dictionary<int, ResolvedArmCut>(), [], [], [], warnings, []);
+            return new JunctionCutResult(new Dictionary<CutId, ResolvedArmCut>(), [], [], [], warnings, []);
         }
 
         var armsById = junction.Arms.ToDictionary(a => a.Id);
@@ -65,9 +65,9 @@ internal static class ArmCutResolver
             }
         }
 
-        var cuts = new Dictionary<int, ResolvedArmCut>();
-        var cornerToCutA = new Dictionary<int, int>();
-        var cornerToCutB = new Dictionary<int, int>();
+        var cuts = new Dictionary<CutId, ResolvedArmCut>();
+        var cornerToCutA = new Dictionary<int, CutId>();
+        var cornerToCutB = new Dictionary<int, CutId>();
 
         foreach (var arm in junction.Arms)
         {
@@ -93,7 +93,8 @@ internal static class ArmCutResolver
                     );
                 }
 
-                int cutId = nextCutId++;
+                var cutId = nextCutId;
+                nextCutId = new CutId(nextCutId.Value + 1);
                 var (pos, brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, dist);
                 var cut = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, dist, pos, brg, involved.Select(c => c.CornerId).ToList());
                 cuts[cutId] = cut;
@@ -135,7 +136,8 @@ internal static class ArmCutResolver
                     continue;
                 }
 
-                int cutId = nextCutId++;
+                var cutId = nextCutId;
+                nextCutId = new CutId(nextCutId.Value + 1);
                 var (pos, brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, capped);
                 var owners = involved
                     .Where(c => Math.Abs(c.IdealTangentFt - dist) <= FilletConstants.CoincidentNodeThresholdFt)
@@ -164,7 +166,7 @@ internal static class ArmCutResolver
         var cornerArcs = new List<CornerArcOp>();
         foreach (var corner in activeCorners)
         {
-            if (!cornerToCutA.TryGetValue(corner.CornerId, out int cutA) || !cornerToCutB.TryGetValue(corner.CornerId, out int cutB))
+            if (!cornerToCutA.TryGetValue(corner.CornerId, out var cutA) || !cornerToCutB.TryGetValue(corner.CornerId, out var cutB))
             {
                 warnings.Add(
                     new PlanWarning(junction.JunctionNodeId, corner.CornerId, PlanWarning.NoOwningCut, "Corner has no owning cut after resolve")
@@ -197,7 +199,9 @@ internal static class ArmCutResolver
             }
 
             surviving.Add(corner);
-            cornerArcs.Add(new CornerArcOp(junction.JunctionNodeId, corner.CornerId, cutA, cutB));
+            // Emit FilletEndpoint.Cut for both arms; FilletPlanCutRedirect will rewrite to
+            // FilletEndpoint.Node when a cut redirects to a stable anchor.
+            cornerArcs.Add(new CornerArcOp(junction.JunctionNodeId, corner.CornerId, new FilletEndpoint.Cut(cutA), new FilletEndpoint.Cut(cutB)));
         }
 
         var merges = SharedArmTangentPass.ApplyIntraArmCoalesce(junction, cuts, warnings);
@@ -211,7 +215,7 @@ internal static class ArmCutResolver
                 continue;
             }
 
-            if (!cornerToCutA.TryGetValue(corner.CornerId, out int cutA) || !cornerToCutB.TryGetValue(corner.CornerId, out int cutB))
+            if (!cornerToCutA.TryGetValue(corner.CornerId, out var cutA) || !cornerToCutB.TryGetValue(corner.CornerId, out var cutB))
             {
                 continue;
             }
@@ -222,7 +226,9 @@ internal static class ArmCutResolver
             }
 
             string twy = corner.EdgeA.SharesTaxiway(corner.EdgeB) ? corner.EdgeA.TaxiwayName : corner.EdgeA.TaxiwayName;
-            straightConnectors.Add(new StraightConnectorOp(junction.JunctionNodeId, corner.CornerId, cutA, cutB, twy));
+            straightConnectors.Add(
+                new StraightConnectorOp(junction.JunctionNodeId, corner.CornerId, new FilletEndpoint.Cut(cutA), new FilletEndpoint.Cut(cutB), twy)
+            );
         }
 
         return new JunctionCutResult(cuts, merges, cornerArcs, straightConnectors, warnings, surviving);

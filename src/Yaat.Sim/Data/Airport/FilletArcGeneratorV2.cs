@@ -25,11 +25,12 @@ public sealed class FilletArcGeneratorV2 : IFilletArcGenerator
         var cutResults = new List<ArmCutResolver.JunctionCutResult>();
 
         // Start cut IDs well above the maximum possible node ID (both pre-existing and new
-        // tangent-cut nodes) so cut IDs never collide with node IDs. Pre-existing nodes are
+        // tangent-cut nodes) so CutId values never collide with node IDs. Pre-existing nodes are
         // 0..maxNodeId; new tangent-cut nodes start at maxNodeId+1 and there are at most one
         // per cut, so the largest new-node ID is ~maxNodeId + maxCuts. Using a 1_000_000
-        // offset guarantees no overlap for any airport that fits in int32.
-        int nextCutId = maxNodeId + 1_000_000;
+        // offset guarantees no overlap for any airport that fits in int32. The CutId type wrapper
+        // enforces this namespace separation at compile time.
+        var nextCutId = new CutId(maxNodeId + 1_000_000);
 
         foreach (var node in layout.Nodes.Values.OrderBy(n => n.Id))
         {

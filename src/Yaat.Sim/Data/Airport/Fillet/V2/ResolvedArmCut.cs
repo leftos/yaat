@@ -1,7 +1,7 @@
 namespace Yaat.Sim.Data.Airport.Fillet.V2;
 
 internal sealed record ResolvedArmCut(
-    int CutId,
+    CutId CutId,
     int JunctionNodeId,
     int ArmId,
     double DistanceAlongArmFt,

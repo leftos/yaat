@@ -6,7 +6,7 @@ internal static class SharedArmTangentPass
     /// <summary>Merge ordered cuts on one arm that land within <see cref="FilletConstants.CoincidentNodeThresholdFt"/>.</summary>
     public static IReadOnlyList<TangentMergeOp> ApplyIntraArmCoalesce(
         JunctionPlan junction,
-        Dictionary<int, ResolvedArmCut> cuts,
+        Dictionary<CutId, ResolvedArmCut> cuts,
         List<PlanWarning> warnings
     )
     {
@@ -30,7 +30,10 @@ internal static class SharedArmTangentPass
                 double gapFt = GeoMath.DistanceNm(prev.Position, curr.Position) * GeoMath.FeetPerNm;
                 if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
                 {
-                    merges.Add(new TangentMergeOp(Math.Min(prev.CutId, curr.CutId), Math.Max(prev.CutId, curr.CutId)));
+                    // Pick the lower integer value as the survivor (mirrors the old Math.Min behavior).
+                    var survivor = prev.CutId.Value <= curr.CutId.Value ? prev.CutId : curr.CutId;
+                    var child = prev.CutId.Value <= curr.CutId.Value ? curr.CutId : prev.CutId;
+                    merges.Add(new TangentMergeOp(survivor, child));
                 }
             }
         }
@@ -49,7 +52,7 @@ internal static class SharedArmTangentPass
     public static IReadOnlyList<TangentMergeOp> ApplyCrossJunction(
         IReadOnlyList<JunctionPlan> junctionPlans,
         IReadOnlyList<ArmCutResolver.JunctionCutResult> results,
-        Dictionary<int, ResolvedArmCut> allCuts,
+        Dictionary<CutId, ResolvedArmCut> allCuts,
         List<PlanWarning> warnings
     )
     {
@@ -127,7 +130,10 @@ internal static class SharedArmTangentPass
                     double gapFt = GeoMath.DistanceNm(far1.Position, far2.Position) * GeoMath.FeetPerNm;
                     if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
                     {
-                        merges.Add(new TangentMergeOp(Math.Min(far1.CutId, far2.CutId), Math.Max(far1.CutId, far2.CutId)));
+                        // Pick the lower integer value as the survivor (mirrors the old Math.Min behavior).
+                        var survivor = far1.CutId.Value <= far2.CutId.Value ? far1.CutId : far2.CutId;
+                        var child = far1.CutId.Value <= far2.CutId.Value ? far2.CutId : far1.CutId;
+                        merges.Add(new TangentMergeOp(survivor, child));
                     }
                 }
             }
@@ -141,7 +147,7 @@ internal static class SharedArmTangentPass
         TaxiwayArm arm,
         List<ResolvedArmCut> cutsOnArm,
         double scale,
-        Dictionary<int, ResolvedArmCut> allCuts
+        Dictionary<CutId, ResolvedArmCut> allCuts
     )
     {
         foreach (var cut in cutsOnArm)

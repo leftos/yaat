@@ -13,12 +13,11 @@ internal static class FilletPlanCutRedirect
     /// so the executor does not materialize a duplicate tangent.
     /// Returns the set of pre-existing node IDs that were actually used as redirect targets.
     /// The caller must pass this set to the executor so it can resolve these IDs via layout.Nodes
-    /// rather than via the cut-node map — the two ID spaces overlap and the lookup would be wrong
-    /// without this disambiguation.
+    /// rather than via the cut-node map.
     /// </summary>
     public static HashSet<int> ExtendWithStableAnchors(
-        Dictionary<int, int> redirect,
-        IReadOnlyDictionary<int, ResolvedArmCut> cuts,
+        Dictionary<CutId, FilletEndpoint> redirect,
+        IReadOnlyDictionary<CutId, ResolvedArmCut> cuts,
         IReadOnlyDictionary<int, GroundNode> preFilletStableNodes,
         double thresholdFt
     )
@@ -27,7 +26,8 @@ internal static class FilletPlanCutRedirect
 
         foreach (var (cutId, cut) in cuts)
         {
-            if (redirect.TryGetValue(cutId, out int survivor) && (survivor != cutId))
+            // Skip cuts that are already redirected away (they're merged into another cut).
+            if (redirect.TryGetValue(cutId, out var existing) && (existing is FilletEndpoint.Cut c) && (c.Id != cutId))
             {
                 continue;
             }
@@ -51,18 +51,22 @@ internal static class FilletPlanCutRedirect
                 continue;
             }
 
+            var anchorEndpoint = new FilletEndpoint.Node(anchorId);
+
+            // Repoint every cut that was pointing at this cutId to the anchor node instead.
             foreach (var key in redirect.Keys.ToList())
             {
-                if (redirect[key] == cutId)
+                if ((redirect[key] is FilletEndpoint.Cut fc) && (fc.Id == cutId))
                 {
-                    redirect[key] = anchorId;
+                    redirect[key] = anchorEndpoint;
                 }
             }
 
-            redirect[cutId] = anchorId;
-            if (!redirect.ContainsKey(anchorId))
+            redirect[cutId] = anchorEndpoint;
+            // Ensure the anchor itself is in the redirect map so Resolve can find it.
+            if (!redirect.ContainsKey(new CutId(anchorId)))
             {
-                redirect[anchorId] = anchorId;
+                redirect[new CutId(anchorId)] = anchorEndpoint;
             }
 
             usedAnchorIds.Add(anchorId);
@@ -71,12 +75,18 @@ internal static class FilletPlanCutRedirect
         return usedAnchorIds;
     }
 
-    public static Dictionary<int, int> BuildSurvivorMap(IReadOnlyList<TangentMergeOp> merges)
+    /// <summary>
+    /// Builds the initial survivor map from tangent merges (union-find over CutIds only).
+    /// Each entry maps a child CutId to its surviving <see cref="FilletEndpoint.Cut"/> root.
+    /// <see cref="ExtendWithStableAnchors"/> may later overwrite entries with <see cref="FilletEndpoint.Node"/>.
+    /// </summary>
+    public static Dictionary<CutId, FilletEndpoint> BuildSurvivorMap(IReadOnlyList<TangentMergeOp> merges)
     {
-        var parent = new Dictionary<int, int>();
-        int Find(int x)
+        var parent = new Dictionary<CutId, CutId>();
+
+        CutId Find(CutId x)
         {
-            if (!parent.TryGetValue(x, out int p))
+            if (!parent.TryGetValue(x, out var p))
             {
                 parent[x] = x;
                 return x;
@@ -90,12 +100,13 @@ internal static class FilletPlanCutRedirect
             return parent[x];
         }
 
-        void Union(int a, int b)
+        void Union(CutId a, CutId b)
         {
-            int ra = Find(a);
-            int rb = Find(b);
-            int survivor = Math.Min(ra, rb);
-            int child = Math.Max(ra, rb);
+            var ra = Find(a);
+            var rb = Find(b);
+            // Pick the lower integer value as survivor to match original Math.Min(ra, rb) semantics.
+            var survivor = ra.Value <= rb.Value ? ra : rb;
+            var child = ra.Value <= rb.Value ? rb : ra;
             parent[child] = survivor;
         }
 
@@ -104,36 +115,89 @@ internal static class FilletPlanCutRedirect
             Union(m.CutIdA, m.CutIdB);
         }
 
-        var redirect = new Dictionary<int, int>();
+        var redirect = new Dictionary<CutId, FilletEndpoint>();
         foreach (var id in parent.Keys)
         {
-            redirect[id] = Find(id);
+            redirect[id] = new FilletEndpoint.Cut(Find(id));
         }
 
         return redirect;
     }
 
-    public static int Resolve(int cutId, IReadOnlyDictionary<int, int> redirect) => redirect.TryGetValue(cutId, out int survivor) ? survivor : cutId;
+    /// <summary>
+    /// Resolves a CutId through the redirect map to a <see cref="FilletEndpoint"/>.
+    /// If not in the map the CutId survives as-is (no merge, no anchor).
+    /// </summary>
+    public static FilletEndpoint Resolve(CutId cutId, IReadOnlyDictionary<CutId, FilletEndpoint> redirect) =>
+        redirect.TryGetValue(cutId, out var ep) ? ep : new FilletEndpoint.Cut(cutId);
 
-    public static Dictionary<int, ResolvedArmCut> PruneCuts(IReadOnlyDictionary<int, ResolvedArmCut> cuts, IReadOnlyDictionary<int, int> redirect) =>
-        cuts.Where(kv => Resolve(kv.Key, redirect) == kv.Key).ToDictionary(kv => kv.Key, kv => kv.Value with { CutId = kv.Key });
+    public static Dictionary<CutId, ResolvedArmCut> PruneCuts(
+        IReadOnlyDictionary<CutId, ResolvedArmCut> cuts,
+        IReadOnlyDictionary<CutId, FilletEndpoint> redirect
+    ) =>
+        cuts.Where(kv => Resolve(kv.Key, redirect) is FilletEndpoint.Cut survivor && survivor.Id == kv.Key)
+            .ToDictionary(kv => kv.Key, kv => kv.Value with { CutId = kv.Key });
 
-    public static IReadOnlyList<CornerArcOp> RedirectCornerArcs(IReadOnlyList<CornerArcOp> ops, IReadOnlyDictionary<int, int> redirect) =>
-        ops.Select(o => new CornerArcOp(o.JunctionNodeId, o.CornerId, Resolve(o.CutIdAtArmA, redirect), Resolve(o.CutIdAtArmB, redirect)))
-            .Where(o => o.CutIdAtArmA != o.CutIdAtArmB)
-            .ToList();
+    public static IReadOnlyList<CornerArcOp> RedirectCornerArcs(IReadOnlyList<CornerArcOp> ops, IReadOnlyDictionary<CutId, FilletEndpoint> redirect)
+    {
+        var result = new List<CornerArcOp>();
+        foreach (var o in ops)
+        {
+            FilletEndpoint epA = ResolveEndpoint(o.EndpointAtArmA, redirect);
+            FilletEndpoint epB = ResolveEndpoint(o.EndpointAtArmB, redirect);
+
+            // Drop arcs whose two endpoints resolved to the same node/cut.
+            if (EndpointsEqual(epA, epB))
+            {
+                continue;
+            }
+
+            result.Add(new CornerArcOp(o.JunctionNodeId, o.CornerId, epA, epB));
+        }
+
+        return result;
+    }
 
     public static IReadOnlyList<StraightConnectorOp> RedirectStraightConnectors(
         IReadOnlyList<StraightConnectorOp> ops,
-        IReadOnlyDictionary<int, int> redirect
-    ) =>
-        ops.Select(o => new StraightConnectorOp(
-                o.JunctionNodeId,
-                o.CornerId,
-                Resolve(o.CutIdAtArmA, redirect),
-                Resolve(o.CutIdAtArmB, redirect),
-                o.TaxiwayName
-            ))
-            .Where(o => o.CutIdAtArmA != o.CutIdAtArmB)
-            .ToList();
+        IReadOnlyDictionary<CutId, FilletEndpoint> redirect
+    )
+    {
+        var result = new List<StraightConnectorOp>();
+        foreach (var o in ops)
+        {
+            FilletEndpoint epA = ResolveEndpoint(o.EndpointAtArmA, redirect);
+            FilletEndpoint epB = ResolveEndpoint(o.EndpointAtArmB, redirect);
+
+            // Drop connectors whose two endpoints resolved to the same node/cut.
+            if (EndpointsEqual(epA, epB))
+            {
+                continue;
+            }
+
+            result.Add(new StraightConnectorOp(o.JunctionNodeId, o.CornerId, epA, epB, o.TaxiwayName));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Resolves a <see cref="FilletEndpoint"/> through the redirect map.
+    /// A <see cref="FilletEndpoint.Cut"/> is looked up; a <see cref="FilletEndpoint.Node"/> is stable and passes through.
+    /// </summary>
+    private static FilletEndpoint ResolveEndpoint(FilletEndpoint ep, IReadOnlyDictionary<CutId, FilletEndpoint> redirect) =>
+        ep switch
+        {
+            FilletEndpoint.Cut cut => Resolve(cut.Id, redirect),
+            FilletEndpoint.Node node => node,
+            _ => throw new InvalidOperationException($"Unknown FilletEndpoint subtype: {ep.GetType().Name}"),
+        };
+
+    private static bool EndpointsEqual(FilletEndpoint a, FilletEndpoint b) =>
+        (a, b) switch
+        {
+            (FilletEndpoint.Cut ca, FilletEndpoint.Cut cb) => ca.Id == cb.Id,
+            (FilletEndpoint.Node na, FilletEndpoint.Node nb) => na.NodeId == nb.NodeId,
+            _ => false,
+        };
 }
