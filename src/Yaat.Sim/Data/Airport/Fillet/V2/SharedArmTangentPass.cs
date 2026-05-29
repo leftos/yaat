@@ -48,6 +48,56 @@ internal static class SharedArmTangentPass
         return merges;
     }
 
+    /// <summary>
+    /// Merge coincident cuts on DIFFERENT arms of one junction that land within
+    /// <see cref="FilletConstants.CoincidentNodeThresholdFt"/> — the same physical tangent point
+    /// reached from two arms (e.g. an A tangent and a collinear A8/RAMP tangent). Without this the
+    /// executor materializes two coincident nodes that the post-execute normalizer then has to
+    /// merge, repointing both arms' corner arcs onto the survivor and leaving duplicate corner
+    /// arcs. Planning the merge here keeps the produced graph clean. Mirrors
+    /// <see cref="ApplyIntraArmCoalesce"/> but across arm pairs.
+    /// </summary>
+    public static IReadOnlyList<TangentMergeOp> ApplyCrossArmCoalesce(
+        JunctionPlan junction,
+        Dictionary<CutId, ResolvedArmCut> cuts,
+        List<PlanWarning> warnings
+    )
+    {
+        var merges = new List<TangentMergeOp>();
+        var junctionCuts = cuts.Values.Where(c => c.JunctionNodeId == junction.JunctionNodeId).OrderBy(c => c.CutId.Value).ToList();
+
+        for (int i = 0; i < junctionCuts.Count; i++)
+        {
+            for (int j = i + 1; j < junctionCuts.Count; j++)
+            {
+                var a = junctionCuts[i];
+                var b = junctionCuts[j];
+                if (a.ArmId == b.ArmId)
+                {
+                    continue;
+                }
+
+                double gapFt = GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm;
+                if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
+                {
+                    // Lower integer value survives (mirrors the intra-arm / cross-junction convention).
+                    var survivor = a.CutId.Value <= b.CutId.Value ? a.CutId : b.CutId;
+                    var child = a.CutId.Value <= b.CutId.Value ? b.CutId : a.CutId;
+                    merges.Add(new TangentMergeOp(survivor, child));
+                }
+            }
+        }
+
+        if (merges.Count > 0)
+        {
+            warnings.Add(
+                new PlanWarning(junction.JunctionNodeId, null, PlanWarning.SharedArmScaled, $"Planned {merges.Count} cross-arm tangent merge(s)")
+            );
+        }
+
+        return merges;
+    }
+
     /// <summary>Scale endpoint cut sets on the same physical arm between adjacent junctions.</summary>
     public static IReadOnlyList<TangentMergeOp> ApplyCrossJunction(
         IReadOnlyList<JunctionPlan> junctionPlans,

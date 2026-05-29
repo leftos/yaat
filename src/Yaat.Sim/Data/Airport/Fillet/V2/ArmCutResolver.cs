@@ -204,7 +204,8 @@ internal static class ArmCutResolver
             cornerArcs.Add(new CornerArcOp(junction.JunctionNodeId, corner.CornerId, new FilletEndpoint.Cut(cutA), new FilletEndpoint.Cut(cutB)));
         }
 
-        var merges = SharedArmTangentPass.ApplyIntraArmCoalesce(junction, cuts, warnings);
+        var merges = SharedArmTangentPass.ApplyIntraArmCoalesce(junction, cuts, warnings).ToList();
+        merges.AddRange(SharedArmTangentPass.ApplyCrossArmCoalesce(junction, cuts, warnings));
 
         var arcCornerIds = cornerArcs.Select(a => a.CornerId).ToHashSet();
         var straightConnectors = new List<StraightConnectorOp>();

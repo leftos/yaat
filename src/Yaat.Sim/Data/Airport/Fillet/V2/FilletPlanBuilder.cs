@@ -54,6 +54,18 @@ internal static class FilletPlanBuilder
         var redirectedCornerArcs = FilletPlanCutRedirect.RedirectCornerArcs(cornerArcs, redirect).ToList();
         var redirectedStraightConnectors = FilletPlanCutRedirect.RedirectStraightConnectors(straightConnectors, redirect).ToList();
 
+        // The cross-arm tangent merge collapses coincident cross-arm cuts onto one survivor, so
+        // several corners (e.g. A/A and A/A8, or A/RAMP twice) now resolve to the SAME endpoint
+        // pair. Keep one op per pair — preferring the single-name corner (requirement ①) — so the
+        // executor emits exactly one arc per node pair and the post-execute normalizer has no
+        // coincident nodes to merge.
+        redirectedCornerArcs = DedupByEndpointPair(
+            redirectedCornerArcs,
+            op => (op.EndpointAtArmA, op.EndpointAtArmB),
+            op => IsSingleNameCorner(op, junctions)
+        );
+        redirectedStraightConnectors = DedupByEndpointPair(redirectedStraightConnectors, op => (op.EndpointAtArmA, op.EndpointAtArmB), _ => true);
+
         var nodesToRemoveSet = nodesToRemove.ToHashSet();
         var split = FilletEdgeSplitPlanner.Plan(layout, junctions, prunedCuts, redirect, nodesToRemoveSet);
         warnings.AddRange(split.Warnings);
@@ -79,5 +91,75 @@ internal static class FilletPlanBuilder
         FilletPlanConsistency.ValidateCutReferences(built);
         FilletPlanConsistency.ValidateNodeReferences(built);
         return built;
+    }
+
+    /// <summary>
+    /// Keep one op per unordered resolved-endpoint pair, preserving original order. When two ops
+    /// share a pair, the one for which <paramref name="prefer"/> is true (e.g. a single-name corner)
+    /// wins; otherwise the first-seen op is kept.
+    /// </summary>
+    private static List<T> DedupByEndpointPair<T>(List<T> ops, Func<T, (FilletEndpoint A, FilletEndpoint B)> endpoints, Func<T, bool> prefer)
+    {
+        var chosenIndex = new Dictionary<((int, int) A, (int, int) B), int>();
+        for (int i = 0; i < ops.Count; i++)
+        {
+            var key = PairKey(endpoints(ops[i]));
+            if (!chosenIndex.TryGetValue(key, out int existing))
+            {
+                chosenIndex[key] = i;
+            }
+            else if (!prefer(ops[existing]) && prefer(ops[i]))
+            {
+                chosenIndex[key] = i;
+            }
+        }
+
+        var keep = chosenIndex.Values.ToHashSet();
+        var result = new List<T>(keep.Count);
+        for (int i = 0; i < ops.Count; i++)
+        {
+            if (keep.Contains(i))
+            {
+                result.Add(ops[i]);
+            }
+        }
+
+        return result;
+    }
+
+    private static ((int, int) A, (int, int) B) PairKey((FilletEndpoint A, FilletEndpoint B) ep)
+    {
+        var a = Token(ep.A);
+        var b = Token(ep.B);
+        return a.CompareTo(b) <= 0 ? (a, b) : (b, a);
+    }
+
+    private static (int Kind, int Id) Token(FilletEndpoint ep) =>
+        ep switch
+        {
+            FilletEndpoint.Cut cut => (0, cut.Id.Value),
+            FilletEndpoint.Node node => (1, node.NodeId),
+            _ => throw new InvalidOperationException($"Unknown FilletEndpoint subtype: {ep.GetType().Name}"),
+        };
+
+    private static bool IsSingleNameCorner(CornerArcOp op, IReadOnlyList<JunctionPlan> junctions)
+    {
+        foreach (var jp in junctions)
+        {
+            if (jp.JunctionNodeId != op.JunctionNodeId)
+            {
+                continue;
+            }
+
+            foreach (var corner in jp.Corners)
+            {
+                if (corner.CornerId == op.CornerId)
+                {
+                    return corner.EdgeA.SharesTaxiway(corner.EdgeB);
+                }
+            }
+        }
+
+        return false;
     }
 }

@@ -1,6 +1,7 @@
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Fillet;
 using Yaat.Sim.Data.Airport.V2;
 using Yaat.Sim.Tests.Helpers;
 
@@ -128,6 +129,115 @@ public class FilletV2CornerSpanGuardTests
         }
 
         foreach (var v in violations)
+        {
+            _output.WriteLine(v);
+        }
+
+        Assert.Empty(violations);
+    }
+
+    /// <summary>
+    /// Guards against duplicate corner arcs: when the cut-redirect merges two arms' collinear
+    /// tangent cuts onto one shared node, two corners (e.g. A/A and A/A8) emit geometrically
+    /// coincident arcs between the SAME node pair — one single-name ("A"), one membership
+    /// ("A - A8"). The membership twin is redundant (identical curve) yet makes the segment carry
+    /// a membership label that requirement ① must work around. The executor must keep only one
+    /// corner arc per node pair, preferring the single-name one.
+    /// </summary>
+    [Theory]
+    [InlineData("sfo")]
+    [InlineData("oak")]
+    [InlineData("fll")]
+    public void V2_CornerArcs_NoDuplicateNodePairs(string shortId)
+    {
+        TestVnasData.EnsureInitialized();
+
+        string path = Path.Combine("TestData", $"{shortId}.geojson");
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        var layout = LayoutCloner.DeepClone(pre);
+        new FilletArcGeneratorV2().Apply(layout);
+
+        var byPair = new Dictionary<(int, int), List<GroundArc>>();
+        foreach (var arc in layout.Arcs)
+        {
+            if (arc.Origin?.StartsWith("V2:corner", StringComparison.Ordinal) != true)
+            {
+                continue;
+            }
+
+            var key = (Math.Min(arc.Nodes[0].Id, arc.Nodes[1].Id), Math.Max(arc.Nodes[0].Id, arc.Nodes[1].Id));
+            if (!byPair.TryGetValue(key, out var list))
+            {
+                list = [];
+                byPair[key] = list;
+            }
+
+            list.Add(arc);
+        }
+
+        var violations = byPair
+            .Where(kv => kv.Value.Count > 1)
+            .Select(kv => $"#{kv.Key.Item1}<->#{kv.Key.Item2}: {string.Join(" | ", kv.Value.Select(a => $"[{a.TaxiwayName}] {a.Origin}"))}")
+            .ToList();
+
+        foreach (var v in violations)
+        {
+            _output.WriteLine(v);
+        }
+
+        Assert.Empty(violations);
+    }
+
+    /// <summary>
+    /// The final V2 graph has no two coincident intersection nodes. Same-junction cross-arm
+    /// coincidences are now prevented at the planning layer (<c>SharedArmTangentPass.ApplyCrossArmCoalesce</c>),
+    /// which is what eliminates the duplicate corner arcs; remaining cross-junction coincidences
+    /// are still collapsed by <c>FilletGraphNormalizer</c>. Either way the materialized graph must
+    /// carry no coincident intersection nodes.
+    /// </summary>
+    [Theory]
+    [InlineData("sfo")]
+    [InlineData("oak")]
+    [InlineData("fll")]
+    public void V2_NoCoincidentIntersectionNodes(string shortId)
+    {
+        TestVnasData.EnsureInitialized();
+
+        string path = Path.Combine("TestData", $"{shortId}.geojson");
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        var layout = LayoutCloner.DeepClone(pre);
+        new FilletArcGeneratorV2().Apply(layout);
+
+        var nodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).ToList();
+        var violations = new List<string>();
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            for (int j = i + 1; j < nodes.Count; j++)
+            {
+                double distFt = GeoMath.DistanceNm(nodes[i].Position, nodes[j].Position) * GeoMath.FeetPerNm;
+                if (distFt < ZeroDistanceEdgeThresholdFt)
+                {
+                    continue;
+                }
+
+                if (distFt <= FilletConstants.CoincidentNodeThresholdFt)
+                {
+                    violations.Add($"#{nodes[i].Id} ({nodes[i].Origin}) <-> #{nodes[j].Id} ({nodes[j].Origin}) {distFt:F2}ft");
+                }
+            }
+        }
+
+        foreach (var v in violations.Take(20))
         {
             _output.WriteLine(v);
         }
