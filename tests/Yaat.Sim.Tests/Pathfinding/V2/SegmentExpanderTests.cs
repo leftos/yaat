@@ -439,6 +439,9 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     [InlineData("AA1", "AA", true)]
     [InlineData("A1", "AA", false)] // doesn't start with "AA"
     [InlineData("W1", "WX", false)] // doesn't start with "WX"
+    [InlineData("B10", "B1", false)] // B10 is a sibling of B1 under base "B", not a variant of B1
+    [InlineData("B11", "B1", false)] // same: digit-bearing base has no numbered variants
+    [InlineData("B1", "B1", false)] // same length — not a variant
     public void IsNumberedVariant_Cases(string candidate, string baseName, bool expected)
     {
         Assert.Equal(expected, SegmentExpander.IsNumberedVariant(candidate, baseName));

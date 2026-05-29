@@ -106,11 +106,18 @@ Landed (pathfinder V2 on fillet V2):
       `OAK_TaxiFromParking*` failures.
 - [x] **Requirement ① (natural-terminus walk)** — single-name continuation now ranks strictly above a
       membership-only junction arc in `WalkToNaturalTerminus` (SFO `1160` validated, fail-first proven).
+- [x] **V-shaped / multi-leg taxiway junction reachability** — `SegmentExpander` now runs a bounded
+      recursive look-ahead (`ResolveSequence` + `ProbeTailCost`, mirrors V1 `SelectBestStopNode`): each
+      junction candidate is scored by the cost of resolving the *remaining* sequence from it, and the
+      whole-airport detour is suppressed inside a probe so a continuation that would need one is a strong
+      negative signal. FLL `T T4 B B1 HS 10L` now enters T4 at the apex (#56), walks the NW arm to #682,
+      turns onto B and west to the B1 10L hold-short (#339) — no hairpin/backtrack. Also fixed two latent
+      variant-resolution bugs surfaced once the route resolved: `IsNumberedVariant` treated `B10`/`B11` as
+      variants of `B1` (false positive → spurious ambiguity), and `Run` ran `TryVariantExtension` even when
+      the walk already reached the destination hold-short (would back-track to it). `Fll_ResolveExplicitPath_TT4BB1_OnV2`
+      now green; full `Pathfinding.V2` suite 88/88, V2-pathfinder grids/sim 69/70 (1 pre-existing skip).
 
 Active frontier (pathfinder V2, tracked in TaskList):
-- [ ] **V-shaped / multi-leg taxiway junction reachability** — FLL T4→B picks hairpin #61 because #53 is
-      unreachable from the committed T-walk head (port V1's `SelectBestStopNode` + U-turn-penalty idea to
-      V2 `RouteNamedToNamed`). FLL `Fll_ResolveExplicitPath_TT4BB1_OnV2` is the (red) target.
 - [ ] Requirement ① for the multi-segment path too (`LocalSearchToJunction`), not just natural-terminus.
 - [ ] 5 Codex HIGH findings; named routing failures (`Sfo*`, `SpotOvershoot*`, …).
 - [ ] Ground deadlock (`GroundConflictDetector` mutual proximity-stop) — re-evaluate after routing; may be

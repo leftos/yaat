@@ -71,58 +71,33 @@ public static class SegmentExpander
             }
         }
 
-        // Walk each consecutive waypoint pair.
-        for (int i = 0; i < resolvedWaypoints.Count; i++)
+        // Walk the waypoint sequence segment by segment, with recursive look-ahead at each
+        // taxiway-to-taxiway junction (see ResolveSequence). Look-ahead defeats first-match
+        // junction picks that would strand the route on the wrong leg of a V-shaped taxiway.
+        var (seqEdges, seqHead, seqFailure) = ResolveSequence(head, resolvedWaypoints, 0, enableLookahead: true, ctx);
+        if (seqFailure is not null)
         {
-            var current = resolvedWaypoints[i];
-
-            if (i + 1 < resolvedWaypoints.Count)
-            {
-                // Segment from current taxiway/node to the next. The next-next named waypoint
-                // (when one exists) is the "lookahead" used by RouteNamedToNamed to pick a
-                // junction whose toTaxiway-side points toward where we'll need to go next.
-                var next = resolvedWaypoints[i + 1];
-                var lookahead = i + 2 < resolvedWaypoints.Count ? resolvedWaypoints[i + 2] : null;
-                var (segEdges, newHead, failure) = ExpandSegment(head, current, next, lookahead, ctx);
-                if (failure is not null)
-                {
-                    return (null, failure);
-                }
-
-                edges.AddRange(segEdges!);
-
-                // Reset VisitedNodeIds to just the current head node before entering the next segment.
-                // This allows routes that intentionally revisit a taxiway (e.g. A E B B3 A B1) to
-                // use nodes already visited in a prior segment. Cycle prevention within a single
-                // segment's local search is preserved because each local search starts from the
-                // freshly-reset head.
-                head = newHead! with
-                {
-                    VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(newHead!.HeadNodeId),
-                };
-            }
-            else
-            {
-                // Last waypoint: walk to natural terminus of the taxiway (or the node itself for node-refs).
-                var (segEdges, newHead, failure) = ExpandLastWaypoint(head, current, ctx);
-                if (failure is not null)
-                {
-                    return (null, failure);
-                }
-
-                edges.AddRange(segEdges!);
-                head = newHead!;
-            }
+            return (null, seqFailure);
         }
 
+        edges.AddRange(seqEdges!);
+        head = seqHead!;
+
         // Variant resolution: if destination is a runway and the last named taxiway has
-        // numbered variants that reach it, extend automatically.
-        if (ctx.Destination.Kind == DestinationKind.Runway && ctx.Destination.RunwayId is not null)
+        // numbered variants that reach it, extend automatically. Skipped when the walked
+        // route already reaches a hold-short for the destination runway — the named taxiway
+        // serves the runway directly (e.g. B1 has its own 10L hold-short), so the materialiser
+        // truncates there and a variant extension would only back-track to it.
+        if (
+            ctx.Destination.Kind == DestinationKind.Runway
+            && ctx.Destination.RunwayId is { } destRunway
+            && !RouteReachesRunwayHoldShort(edges, destRunway, ctx)
+        )
         {
             var lastWaypoint = resolvedWaypoints[^1];
             if (!lastWaypoint.IsNodeRef)
             {
-                var (varEdges, varFailure) = TryVariantExtension(head, lastWaypoint.Name, ctx.Destination.RunwayId, ctx);
+                var (varEdges, varFailure) = TryVariantExtension(head, lastWaypoint.Name, destRunway, ctx);
                 if (varFailure is not null)
                 {
                     return (null, varFailure);
@@ -160,6 +135,120 @@ public static class SegmentExpander
     }
 
     // -----------------------------------------------------------------------
+    // Sequence resolution (with recursive junction look-ahead)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Resolve waypoint tokens from <paramref name="startIndex"/> onward, walking each
+    /// consecutive pair via <see cref="ExpandSegment"/> and the final token via
+    /// <see cref="ExpandLastWaypoint"/>. Returns the accumulated directed edges, the final
+    /// head, or a structured failure (exactly one of edges/head vs failure is non-null).
+    ///
+    /// <para><paramref name="enableLookahead"/> controls junction selection. When true (the
+    /// top-level resolution) <see cref="RouteNamedToNamed"/> scores each junction candidate by
+    /// the cost of resolving the <em>remaining</em> sequence from it — a bounded recursive
+    /// look-ahead that defeats first-match picks producing hairpin U-turns at V-shaped
+    /// taxiway junctions (mirrors v1's SelectBestStopNode). When false (inside a look-ahead
+    /// probe) it falls back to first-match selection and suppresses the whole-airport detour
+    /// fallback, which both bounds recursion to a single level and treats a continuation that
+    /// needs a detour as a strong negative signal against the candidate that led there.</para>
+    /// </summary>
+    private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) ResolveSequence(
+        PartialRoute head,
+        IReadOnlyList<WaypointToken> tokens,
+        int startIndex,
+        bool enableLookahead,
+        SearchContext ctx
+    )
+    {
+        var edges = new List<DirectionalEdge>();
+        var current = head;
+
+        for (int i = startIndex; i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+
+            if (i + 1 < tokens.Count)
+            {
+                var next = tokens[i + 1];
+                var lookahead = i + 2 < tokens.Count ? tokens[i + 2] : null;
+                var (segEdges, newHead, failure) = ExpandSegment(current, token, next, lookahead, tokens, i, enableLookahead, ctx);
+                if (failure is not null)
+                {
+                    return (null, null, failure);
+                }
+
+                edges.AddRange(segEdges!);
+
+                // Reset VisitedNodeIds to just the current head node before entering the next segment.
+                // This allows routes that intentionally revisit a taxiway (e.g. A E B B3 A B1) to
+                // use nodes already visited in a prior segment. Cycle prevention within a single
+                // segment's local search is preserved because each local search starts from the
+                // freshly-reset head.
+                current = newHead! with
+                {
+                    VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(newHead!.HeadNodeId),
+                };
+            }
+            else
+            {
+                // Last waypoint: walk to natural terminus of the taxiway (or the node itself for node-refs).
+                var (segEdges, newHead, failure) = ExpandLastWaypoint(current, token, ctx);
+                if (failure is not null)
+                {
+                    return (null, null, failure);
+                }
+
+                edges.AddRange(segEdges!);
+                current = newHead!;
+            }
+        }
+
+        return (edges, current, null);
+    }
+
+    /// <summary>
+    /// Penalty assigned to a junction candidate whose remaining-sequence look-ahead probe
+    /// cannot resolve cleanly (a tail segment would need the whole-airport detour). Large
+    /// enough to dominate any real route distance so a clean continuation always wins, but
+    /// finite so that when <em>every</em> candidate's tail is unresolvable the selection
+    /// still falls back to the cheapest cost-to-reach.
+    /// </summary>
+    private const double TailUnresolvablePenaltyNm = 1000.0;
+
+    /// <summary>
+    /// True when there is at least one waypoint after the segment's toTaxiway (token
+    /// <paramref name="fromIndex"/>+1), i.e. the route continues past the junction and the
+    /// look-ahead probe has something meaningful to discriminate on. For the final
+    /// transition (toTaxiway is the last token) the probe would only measure a terminus walk,
+    /// so the cheaper geometric heuristic is used instead.
+    /// </summary>
+    private static bool HasMeaningfulTail(IReadOnlyList<WaypointToken> tokens, int fromIndex) => fromIndex + 2 < tokens.Count;
+
+    /// <summary>
+    /// Cost of resolving the remaining sequence (tokens from <paramref name="startIndex"/>)
+    /// starting at <paramref name="headAtJunction"/>, used to score a junction candidate.
+    /// Resolves first-match with the detour fallback suppressed; returns
+    /// <see cref="TailUnresolvablePenaltyNm"/> when the tail cannot be resolved cleanly.
+    /// </summary>
+    private static double ProbeTailCost(PartialRoute headAtJunction, IReadOnlyList<WaypointToken> tokens, int startIndex, SearchContext ctx)
+    {
+        // Mirror the main loop's reset of VisitedNodeIds before the next segment so the probe
+        // cost matches what the real resolution would produce from this junction.
+        var probeStart = headAtJunction with
+        {
+            VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(headAtJunction.HeadNodeId),
+        };
+        var (_, tailHead, failure) = ResolveSequence(probeStart, tokens, startIndex, enableLookahead: false, ctx);
+        if (failure is not null || tailHead is null)
+        {
+            return TailUnresolvablePenaltyNm;
+        }
+
+        return Math.Max(0.0, tailHead.AccumulatedCost - probeStart.AccumulatedCost);
+    }
+
+    // -----------------------------------------------------------------------
     // Waypoint resolution
     // -----------------------------------------------------------------------
 
@@ -192,6 +281,9 @@ public static class SegmentExpander
         WaypointToken current,
         WaypointToken next,
         WaypointToken? lookahead,
+        IReadOnlyList<WaypointToken> tokens,
+        int index,
+        bool enableLookahead,
         SearchContext ctx
     )
     {
@@ -211,7 +303,7 @@ public static class SegmentExpander
         // applies when it's a named taxiway (not a node-ref) — for node-ref lookaheads, the
         // junction picker has no anchor to align against.
         string? lookaheadName = lookahead is { IsNodeRef: false } la ? la.Name : null;
-        return RouteNamedToNamed(head, current.Name, next.Name, lookaheadName, ctx);
+        return RouteNamedToNamed(head, current.Name, next.Name, lookaheadName, tokens, index, enableLookahead, ctx);
     }
 
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) ExpandLastWaypoint(
@@ -352,11 +444,19 @@ public static class SegmentExpander
         string fromTaxiway,
         string toTaxiway,
         string? lookaheadTaxiway,
+        IReadOnlyList<WaypointToken> tokens,
+        int index,
+        bool enableLookahead,
         SearchContext ctx
     )
     {
         // Find all junction candidates: nodes on fromTaxiway with at least one edge onto toTaxiway.
         var junctionCandidates = FindJunctionCandidates(ctx.Layout, fromTaxiway, toTaxiway);
+
+        // When the route continues past toTaxiway and look-ahead is enabled, score each junction
+        // by the cost of resolving the remaining sequence from it (recursive probe). Otherwise
+        // fall back to the cheap geometric look-ahead anchor.
+        bool useTailProbe = enableLookahead && HasMeaningfulTail(tokens, index);
 
         // Lookahead anchor: centroid of junctions between toTaxiway and the next-next taxiway.
         // Used to bias junction selection so that the chosen junction's toTaxiway-side points
@@ -386,8 +486,10 @@ public static class SegmentExpander
 
         if (junctionCandidates.Count == 0)
         {
-            // No direct junction: attempt a detour.
-            return TryDetour(head, fromTaxiway, toTaxiway, ctx);
+            // No direct junction: attempt a detour (suppressed inside a look-ahead probe).
+            return enableLookahead
+                ? TryDetour(head, fromTaxiway, toTaxiway, ctx)
+                : (null, null, DetourSuppressedFailure(fromTaxiway, toTaxiway, head));
         }
 
         // For each junction candidate, run a bounded local search from the current head.
@@ -401,11 +503,17 @@ public static class SegmentExpander
                 continue;
             }
 
-            double lookaheadPenalty = ComputeLookaheadPenalty(junctionNode, toTaxiway, lookaheadAnchor);
-            double totalCost = cost + lookaheadPenalty;
+            // Look-ahead: prefer the junction whose continuation through the rest of the
+            // sequence is cheapest (recursive probe), defeating first-match picks that strand
+            // the route on the wrong leg of a V-shaped taxiway. When there is no meaningful tail
+            // (final transition) or we are already inside a probe, use the geometric heuristic.
+            double continuationCost = useTailProbe
+                ? ProbeTailCost(segHead!, tokens, index + 1, ctx)
+                : ComputeLookaheadPenalty(junctionNode, toTaxiway, lookaheadAnchor);
+            double totalCost = cost + continuationCost;
 
             ctx.DiagnosticLog?.Invoke(
-                $"[v2:junction-pick] {fromTaxiway}→{toTaxiway} candidate={junctionNode.Id} cost={cost:F3} lookahead+={lookaheadPenalty:F3} total={totalCost:F3}"
+                $"[v2:junction-pick] {fromTaxiway}→{toTaxiway} candidate={junctionNode.Id} cost={cost:F3} continuation+={continuationCost:F3} total={totalCost:F3}"
             );
 
             if (totalCost < bestCost)
@@ -418,8 +526,10 @@ public static class SegmentExpander
 
         if (bestEdges is null)
         {
-            // All junction candidates failed: attempt detour.
-            return TryDetour(head, fromTaxiway, toTaxiway, ctx);
+            // All junction candidates failed: attempt detour (suppressed inside a probe).
+            return enableLookahead
+                ? TryDetour(head, fromTaxiway, toTaxiway, ctx)
+                : (null, null, DetourSuppressedFailure(fromTaxiway, toTaxiway, head));
         }
 
         ctx.DiagnosticLog?.Invoke(
@@ -988,6 +1098,30 @@ public static class SegmentExpander
     // Variant resolution at the final taxiway segment
     // -----------------------------------------------------------------------
 
+    /// <summary>
+    /// True when any node touched by <paramref name="edges"/> is a hold-short for
+    /// <paramref name="runwayId"/> (reciprocal-tolerant via <c>Contains</c>) — i.e. the
+    /// walked route already reaches the destination runway and needs no variant extension.
+    /// </summary>
+    private static bool RouteReachesRunwayHoldShort(IReadOnlyList<DirectionalEdge> edges, string runwayId, SearchContext ctx)
+    {
+        foreach (var edge in edges)
+        {
+            if (IsRunwayHoldShort(edge.ToNodeId, runwayId, ctx) || IsRunwayHoldShort(edge.FromNodeId, runwayId, ctx))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsRunwayHoldShort(int nodeId, string runwayId, SearchContext ctx) =>
+        ctx.Layout.Nodes.TryGetValue(nodeId, out var node)
+        && node.Type == GroundNodeType.RunwayHoldShort
+        && node.RunwayId is { } rwy
+        && rwy.ToString().Contains(runwayId, StringComparison.OrdinalIgnoreCase);
+
     private static (List<DirectionalEdge>? Edges, PathfindingFailure? Failure) TryVariantExtension(
         PartialRoute head,
         string lastTaxiwayName,
@@ -1117,12 +1251,25 @@ public static class SegmentExpander
     /// <summary>
     /// Returns true if <paramref name="candidate"/> is a numbered variant of
     /// <paramref name="baseName"/> (e.g., "W1" is a variant of "W"; "WA" is not).
+    /// Numbered variants only branch off a letter-only base: "B10" is a variant of
+    /// "B", not of "B1" — "B1" and "B10" are siblings under base "B". A digit-bearing
+    /// base ("B1") is itself a leaf connector and has no further numbered variants, so
+    /// it never matches (prevents the "B10 is a variant of B1" false positive that made
+    /// a B1→runway hold-short look ambiguous against B10/B11).
     /// </summary>
     internal static bool IsNumberedVariant(string candidate, string baseName)
     {
         if (candidate.Length <= baseName.Length)
         {
             return false;
+        }
+
+        foreach (char c in baseName)
+        {
+            if (char.IsAsciiDigit(c))
+            {
+                return false;
+            }
         }
 
         if (!candidate.StartsWith(baseName, StringComparison.OrdinalIgnoreCase))
@@ -1240,6 +1387,20 @@ public static class SegmentExpander
     // -----------------------------------------------------------------------
     // Detour (§Decisions §1): when junction search fails, try numbered+RAMP bridge
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Failure returned in place of a detour when resolving a segment inside a look-ahead
+    /// probe. Signals the probe that this continuation would need the whole-airport detour —
+    /// a strong negative signal against the candidate junction that led here.
+    /// </summary>
+    private static PathfindingFailure DetourSuppressedFailure(string fromTaxiway, string toTaxiway, PartialRoute head) =>
+        new(
+            FailureKind.TransitionInfeasible,
+            $"[probe] {fromTaxiway} → {toTaxiway} would require a detour from node {head.HeadNodeId}",
+            fromTaxiway,
+            $"{fromTaxiway} → {toTaxiway}",
+            null
+        );
 
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) TryDetour(
         PartialRoute head,
