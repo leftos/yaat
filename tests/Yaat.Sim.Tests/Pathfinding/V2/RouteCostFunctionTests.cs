@@ -316,6 +316,43 @@ public class RouteCostFunctionTests
     }
 
     // ---------------------------------------------------------------------------
+    // RAMP classification: apron access is not an unauthorized lettered taxiway
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void Ramp_IsNotClassifiedAsLetterOnlyTaxiway()
+    {
+        // RAMP is apron / parking access — never a controller-authorized lettered taxiway.
+        Assert.False(SearchContext.IsLetterOnlyTaxiway("RAMP"));
+        Assert.False(SearchContext.IsLetterOnlyTaxiway("ramp"));
+
+        // Genuine lettered taxiways still classify as before.
+        Assert.True(SearchContext.IsLetterOnlyTaxiway("A"));
+        Assert.True(SearchContext.IsLetterOnlyTaxiway("AY"));
+    }
+
+    [Fact]
+    public void Ramp_FirstUse_NoUnauthorizedPenalty()
+    {
+        // A RAMP edge outside the authorized set must NOT incur the unauthorized-taxiway penalty —
+        // apron / parking access is always permitted. Mirror of UnauthorizedTaxiway_FirstUse_AddsPenalty
+        // but with RAMP, which a controller never explicitly authorizes.
+        var n0 = MakeNode(0, 37.700, -122.200);
+        var n1 = MakeNode(1, 37.701, -122.200);
+        var layout = MakeLayout(n0, n1);
+        var e = MakeEdge(n0, n1, "RAMP");
+
+        var authorized = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "A" };
+        var ctx = MakeContext(layout, 0, null, authorized);
+
+        var r0 = StartRoute(0);
+        double cost = RouteCostFunction.IncrementalCost(r0, e, n1, ctx);
+
+        // Cost is only the segment distance — no UnauthorizedTaxiwayFirstUseCostNm.
+        Assert.Equal(e.DistanceNm, cost, precision: 9);
+    }
+
+    // ---------------------------------------------------------------------------
     // Preference selector
     // ---------------------------------------------------------------------------
 

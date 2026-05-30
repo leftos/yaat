@@ -399,24 +399,9 @@ public static class RouteMaterialiser
             return warnings;
         }
 
-        // Bounds of the non-RAMP traversal. RAMP segments before the first / after the last are
-        // the parking bridge and parking arrival — not a deviation, so they are never flagged.
-        int firstNonRamp = -1;
-        int lastNonRamp = -1;
-        for (int i = 0; i < segments.Count; i++)
-        {
-            if (!segments[i].TaxiwayName.Equals("RAMP", StringComparison.OrdinalIgnoreCase))
-            {
-                firstNonRamp = firstNonRamp < 0 ? i : firstNonRamp;
-                lastNonRamp = i;
-            }
-        }
-
         var warned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < segments.Count; i++)
+        foreach (var seg in segments)
         {
-            var seg = segments[i];
-
             // Junction arcs ("X - Y") are transitions between taxiways, not a traversal of one —
             // never an "unauthorized taxiway" deviation.
             if (seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
@@ -426,12 +411,8 @@ public static class RouteMaterialiser
 
             string name = seg.TaxiwayName;
 
-            // RAMP forming the leading parking bridge or trailing parking arrival is expected.
-            if (name.Equals("RAMP", StringComparison.OrdinalIgnoreCase) && (firstNonRamp < 0 || i < firstNonRamp || i > lastNonRamp))
-            {
-                continue;
-            }
-
+            // RAMP (apron / parking access) is never an unauthorized deviation — it is excluded by
+            // IsLetterOnlyTaxiway, so the parking-bridge and arrival RAMP legs are not flagged here.
             if (
                 SearchContext.IsLetterOnlyTaxiway(name)
                 && !ctx.AuthorizedTaxiways.Contains(name)

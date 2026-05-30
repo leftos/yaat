@@ -100,10 +100,19 @@ public sealed record SearchContext(
     /// (e.g., "A", "B", "Y") — controllers explicitly authorize these.
     /// Numbered taxiways ("A1", "AY1", "M1") contain at least one digit.
     /// Node-reference tokens ("#1234") and runway tokens are excluded.
+    /// <c>RAMP</c> is apron / parking access, not a controller-authorized lettered taxiway, so it
+    /// is excluded too — otherwise RAMP edges would draw an unauthorized-taxiway cost penalty
+    /// (<see cref="RouteCostFunction"/>) and "not in authorized path" warnings
+    /// (<see cref="RouteMaterialiser"/>) even though apron access is always permitted.
     /// </summary>
     public static bool IsLetterOnlyTaxiway(string name)
     {
         if (string.IsNullOrEmpty(name) || name[0] == '#')
+        {
+            return false;
+        }
+
+        if (name.Equals("RAMP", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
