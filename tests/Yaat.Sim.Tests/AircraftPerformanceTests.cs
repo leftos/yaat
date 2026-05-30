@@ -349,4 +349,27 @@ public sealed class AircraftPerformanceTests
         // Only the first breakpoint is valid; should return 400 everywhere
         Assert.Equal(400, AircraftPerformance.InterpolateByAltitude(10000, bp));
     }
+
+    [Theory]
+    // v = omega * r: the fastest ground speed at which the gear-limited turn rate can still track an
+    // arc of the given radius. At each category's nose-wheel minimum radius this is a sharp-corner /
+    // spot-exit taxi speed (~5 kt jet), not the 3 kt SMGCS creep the flat SlowTurnSpeedKts implied.
+    // Jet 20 deg/s * 25 ft -> 5.17 kt; TP 25 deg/s * 18 ft -> 4.65 kt; Piston 35 deg/s * 10 ft -> 3.62 kt.
+    [InlineData(AircraftCategory.Jet, 25.0, 5.17)]
+    [InlineData(AircraftCategory.Turboprop, 18.0, 4.65)]
+    [InlineData(AircraftCategory.Piston, 10.0, 3.62)]
+    public void TurnRateLimitedSpeed_AtNoseWheelRadius_IsRealisticCornerSpeed(AircraftCategory category, double radiusFt, double expectedKts)
+    {
+        double v = CategoryPerformance.TurnRateLimitedSpeedKts(category, radiusFt);
+        Assert.Equal(expectedKts, v, 2);
+    }
+
+    [Fact]
+    public void TurnRateLimitedSpeed_TinyRadius_FlooredAtSlowTurnCreep()
+    {
+        // A degenerate sub-foot radius would compute a sub-knot speed; it must floor at the
+        // walking-pace creep so the arc never commands an unrealistic crawl-to-stall.
+        double v = CategoryPerformance.TurnRateLimitedSpeedKts(AircraftCategory.Jet, 0.5);
+        Assert.Equal(CategoryPerformance.SlowTurnSpeedKts, v, 3);
+    }
 }

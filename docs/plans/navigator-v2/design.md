@@ -240,6 +240,13 @@ decline path, not just where synthesis used to live.
 >    off the line, and the gate lets it slide back on cleanly. Both are no-ops on tangent-rounded corners
 >    (offset ≈ 0). EDG320 cumulative drops 401° → 194° (≈ the ~195° actually required), no swing-back.
 >
+> **Implemented (2026-05-30, follow-up — §4.4c corner speed).** The entry-alignment / corner-rounding
+> slow-turn now plays back at `CategoryPerformance.TurnRateLimitedSpeedKts` (v = ω·r, the fastest the
+> gear-limited turn rate can track the nose-wheel radius — ~5 kt jet / ~4.7 kt TP / ~3.6 kt piston) rather
+> than a flat 3 kt `SlowTurnSpeedKts`. The 3 kt floor was an unrealistic SMGCS-creep for routine sharp
+> taxi turns (aviation-reviewed: Boeing FCTM / AC 120-74); it survives only as the floor for degenerate
+> radii. EDG320 settles at 276° at the realistic speed (still well within the 320° guard).
+>
 > Remaining cluster item: `OakCrossThenHold.AfterRes` (Q4 crossing→hold handoff).
 
 ### 4.4 Speed / turn model — **aviation-reviewed, separable from the rewrite**

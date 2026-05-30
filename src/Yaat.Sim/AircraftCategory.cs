@@ -620,11 +620,26 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Target forward speed (knots) during a <see cref="PathPrimitiveKind.SlowTurn"/>
-    /// primitive. Walking pace — matches real nose-wheel-steering practice
-    /// (full deflection is only usable at very low speed; above ~5 kts the
-    /// steering authority drops off as tyre scrub increases). Constant across
-    /// categories because the rate-limit is ergonomic, not performance-limited.
+    /// Fastest ground speed (knots) at which the gear-limited <see cref="GroundTurnRate"/> can still
+    /// track a turn of <paramref name="radiusFt"/> — i.e. <c>v = ω·r</c>. Above this the required yaw
+    /// rate exceeds the nose-wheel steering rate and the nose can no longer follow the arc. Floored at
+    /// <see cref="SlowTurnSpeedKts"/> for degenerate-small radii. Used to set the playback speed of
+    /// nose-wheel-radius corner-rounding / entry-alignment arcs: rounding a sharp corner at the
+    /// nose-wheel minimum radius settles a jet near ~5 kt — a realistic sharp-taxiway-turn / spot-exit
+    /// speed (Boeing FCTM, AC 120-74), not the 3 kt low-visibility (SMGCS) creep the flat floor implied.
+    /// </summary>
+    public static double TurnRateLimitedSpeedKts(AircraftCategory cat, double radiusFt)
+    {
+        double omegaRadPerSec = GroundTurnRate(cat) * (Math.PI / 180.0);
+        double vKts = omegaRadPerSec * radiusFt * 3600.0 / GeoMath.FeetPerNm;
+        return Math.Max(vKts, SlowTurnSpeedKts);
+    }
+
+    /// <summary>
+    /// Slowest defensible forward speed (knots) during a <see cref="PathPrimitiveKind.SlowTurn"/>
+    /// primitive — a walking-pace creep for the very tightest geometry and low-visibility (SMGCS) taxi.
+    /// Normal sharp-corner rounding runs faster, at <see cref="TurnRateLimitedSpeedKts"/>; this is the
+    /// floor, not the default.
     /// </summary>
     public const double SlowTurnSpeedKts = 3.0;
 

@@ -166,9 +166,10 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     /// start tangent. Without this, an arc primitive's first <see cref="TickArc"/>
     /// would write the arc tangent into <c>TrueHeading</c> directly, snapping
     /// a stationary aircraft (e.g. just after pushback) to the route start
-    /// direction. The slow-turn lets the aircraft taxi forward at
-    /// <see cref="CategoryPerformance.SlowTurnSpeedKts"/> while gradually
-    /// rotating through a real arc geometry — no in-place pivot, no snap.
+    /// direction. The slow-turn lets the aircraft taxi forward at the
+    /// turn-rate-limited speed for the nose-wheel radius
+    /// (<see cref="CategoryPerformance.TurnRateLimitedSpeedKts"/>, ~5 kt for a jet) while
+    /// gradually rotating through a real arc geometry — no in-place pivot, no snap.
     ///
     /// <para>
     /// The threshold catches the OAK GA3 case (TWY801 at hdg 290°, segBrg 209°,
@@ -219,8 +220,9 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         // Corner rounding: when the aircraft heading is significantly off the segment's first tangent,
         // build a slow-turn from its current pose to the segment's start direction and stash the real
         // segment primitive for swap-in when the slow-turn completes. The aircraft taxis forward through
-        // the arc at SlowTurnSpeedKts (~3 kt), rounding the corner at the nose-wheel radius instead of
-        // snapping to the tangent.
+        // the arc at the turn-rate-limited speed for the nose-wheel radius (TurnRateLimitedSpeedKts —
+        // v = ω·r, ~5 kt for a jet), rounding the corner at the nose-wheel radius instead of snapping to
+        // the tangent.
         //
         // Fires for any corner sharper than EntryAlignmentThresholdDeg regardless of segment length. A bend
         // tighter than the nose-wheel radius — common in ramp clusters the fillet generator cannot widen —
@@ -235,13 +237,17 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
 
         if (headingDelta > EntryAlignmentThresholdDeg)
         {
+            double roundingRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
             var alignmentArc = PathPrimitiveBuilder.SlowTurn(
                 fromLat: ctx.Aircraft.Position.Lat,
                 fromLon: ctx.Aircraft.Position.Lon,
                 fromHdgDeg: ctx.Aircraft.TrueHeading.Degrees,
                 toHdgDeg: segDepartureBearing,
-                radiusFt: CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category),
-                maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,
+                radiusFt: roundingRadiusFt,
+                // Round at the fastest speed the gear-limited turn rate can track this radius (v = ω·r),
+                // not a flat 3 kt creep — a jet rounds a sharp corner at its 25 ft nose-wheel radius near
+                // ~5 kt (aviation-reviewed). Floored at SlowTurnSpeedKts for degenerate radii.
+                maxSpeedKts: CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, roundingRadiusFt),
                 toNodeId: seg.FromNodeId
             );
             _pendingSegmentPrimitive = segmentPrimitive;
