@@ -264,8 +264,12 @@ public static class AutoRouter
                 double heuristic = RouteCostFunction.Heuristic(nextNode, destinationNode);
                 double fScore = newGScore + heuristic;
 
-                // Encode depth as a tiny fractional tie-breaker so shallower routes
-                // are preferred among equal f-scores, keeping the queue deterministic.
+                // Encode depth as a tiny fractional tie-breaker. Subtracting (Depth * 1e-9) lowers
+                // the priority value of deeper routes, and .NET's PriorityQueue is a min-queue, so
+                // among equal f-scores the DEEPER route dequeues first. This is the standard A*
+                // tie-break — preferring nodes closer to the goal (higher g) cuts expansions — and
+                // it keeps the queue deterministic. (Tie-break only; A* still returns an
+                // optimal-cost route, since ties are between equal-cost frontiers.)
                 double priority = fScore - (extended.Depth * 1e-9);
 
                 openSet.Enqueue(extended, priority);

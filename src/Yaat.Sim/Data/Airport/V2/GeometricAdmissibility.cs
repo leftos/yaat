@@ -32,6 +32,14 @@ public static class GeometricAdmissibility
     /// with inherited-from-neighbour bearings that have no physical meaning. Admissibility
     /// skips them and downstream code must propagate the prior arrival bearing through them
     /// rather than reading the edge's stored bearing.
+    ///
+    /// <para>
+    /// Load-bearing while the Legacy fillet generator remains the runtime default (it emits these
+    /// zero-distance pairs and the V2 pathfinder router can run on either fillet graph). Fillet V2
+    /// removes them at the source — guarded by <c>FilletV2…V2_EdgeSplit_NoZeroDistanceEdges</c> — so
+    /// once the joint flip makes fillet V2 the only graph this guard becomes pure defence-in-depth;
+    /// re-evaluate keeping vs removing it then.
+    /// </para>
     /// </summary>
     public const double NoOpEdgeThresholdNm = 0.0002; // ≈ 1.2 ft
 

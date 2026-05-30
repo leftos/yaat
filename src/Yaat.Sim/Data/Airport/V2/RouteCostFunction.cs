@@ -1,8 +1,16 @@
 namespace Yaat.Sim.Data.Airport.V2;
 
 /// <summary>
-/// Unified cost function used at every decision point in the v2 pathfinder.
-/// All costs are in nm-equivalent units so the A* heuristic remains admissible.
+/// Unified cost function used at every decision point in the v2 pathfinder. The scalar is a
+/// generic route cost, not strictly nautical miles. For the distance-based preferences
+/// (<see cref="RoutePreference.Shortest"/> / <see cref="RoutePreference.FewestTurns"/>) every term is
+/// nm-equivalent, so the straight-line <see cref="Heuristic"/> is both admissible (never overestimates)
+/// and informative. The <see cref="RoutePreference.Fastest"/> branch additionally adds a time-equivalent
+/// term (<c>distance / maxSafeSpeed</c>, in seconds) onto the same scalar, which dominates the nm terms
+/// by ~2 orders of magnitude: the nm heuristic still never overestimates that larger time-dominated cost
+/// (so A* stays optimal), but it provides little guidance, so Fastest searches degrade toward Dijkstra.
+/// That is acceptable — Fastest is never the default preference (<see cref="TaxiPathfinderV2.FindRoute"/>
+/// uses FewestTurns) and the routes returned are correct, just found with more expansions.
 /// Constants are hardcoded; calibrate by running OAK + SFO grids and adjusting in code.
 /// </summary>
 public static class RouteCostFunction
@@ -80,8 +88,10 @@ public static class RouteCostFunction
 
         cost += distanceCost;
 
-        // Fix B — Fastest time-cost: distance / maxSafeSpeed gives a time-equivalent penalty.
-        // Applied on top of the distance component so slower arcs cost proportionally more.
+        // Fastest time-cost: distance / maxSafeSpeed gives a time-equivalent penalty (seconds),
+        // added on top of the nm distance component so slower arcs cost proportionally more. This
+        // mixes units into the scalar by design — see the class summary; the term dominates, so the
+        // nm heuristic stays admissible but weak for Fastest.
         if (ctx.Preference == RoutePreference.Fastest)
         {
             double maxSafeSpeedKts = candidate.MaxSafeSpeedKts(ctx.Category);
