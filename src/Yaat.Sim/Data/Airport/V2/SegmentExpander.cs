@@ -1307,7 +1307,34 @@ public static class SegmentExpander
 
         if (distinctVariants.Count > 1)
         {
-            // Multiple variants serving the same runway — ambiguous.
+            // Multiple numbered variants of the base taxiway serve the destination runway (e.g.
+            // W1..W7 off W to rwy 30). Auto-pick the one whose hold-short is nearest the requested
+            // runway's threshold — the full-length lineup connector — mirroring V1's
+            // TaxiVariantResolver.PickBestVariant. Only fall back to a TransitionAmbiguous failure
+            // when the threshold is unavailable (no navdata), so the controller is never asked to
+            // disambiguate a resolvable clearance and we never silently guess without a reference.
+            var threshold = RouteMaterialiser.ResolveRunwayThreshold(ctx.Layout.AirportId, destinationRunway);
+            if (threshold is { } thresholdPos)
+            {
+                string bestVariant = variants[0].Name;
+                double bestDist = double.MaxValue;
+                foreach (var (hsNode, name) in variants)
+                {
+                    double dist = GeoMath.DistanceNm(hsNode.Position, thresholdPos);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestVariant = name;
+                    }
+                }
+
+                var bestHsNodes = variants.Where(v => v.Name.Equals(bestVariant, StringComparison.OrdinalIgnoreCase)).Select(v => v.HsNode).ToList();
+                ctx.DiagnosticLog?.Invoke(
+                    $"[v2:variant] auto-picked {bestVariant} (nearest {destinationRunway} threshold) from {distinctVariants.Count} variants"
+                );
+                return ExtendToVariant(head, lastTaxiwayName, bestVariant, bestHsNodes, destinationRunway, ctx);
+            }
+
             var candidateList = distinctVariants.OrderBy(s => s).ToList();
             return (
                 null,

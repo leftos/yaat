@@ -352,7 +352,7 @@ public static class RouteMaterialiser
     /// end, not the reciprocal 10L end), from <see cref="NavigationDatabase"/>. Null when nav-data is
     /// uninitialized or the runway is unknown to it.
     /// </summary>
-    private static LatLon? ResolveRunwayThreshold(string airportId, string runwayId)
+    internal static LatLon? ResolveRunwayThreshold(string airportId, string runwayId)
     {
         var runway = NavigationDatabase.InstanceOrNull?.GetRunway(airportId, runwayId);
         return runway is null ? null : new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
