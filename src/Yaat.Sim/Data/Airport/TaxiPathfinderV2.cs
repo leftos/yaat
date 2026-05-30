@@ -90,6 +90,15 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// V2 is intentionally <b>per-preference</b>, not a Yen-style k-shortest generator (V1 was the
+    /// latter). With no preference it runs one search for each of <see cref="RoutePreference.FewestTurns"/>
+    /// / <see cref="RoutePreference.Shortest"/> / <see cref="RoutePreference.Fastest"/> and returns the
+    /// deduplicated results — at most 3 routes, regardless of <paramref name="maxRoutes"/>. Three distinct
+    /// strategies are more useful to a controller than a set of near-identical Yen detours, so callers
+    /// should request ≤3 (see <c>GroundViewModel.FindRoutesToNode</c>). Decision recorded in
+    /// <c>docs/plans/pathfinderv2/codex-review.md</c>.
+    /// </remarks>
     public List<TaxiRoute> FindRoutes(
         AirportGroundLayout layout,
         int fromNodeId,

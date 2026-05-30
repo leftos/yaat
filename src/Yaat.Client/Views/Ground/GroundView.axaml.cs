@@ -915,7 +915,10 @@ public partial class GroundView : UserControl
         string? destRunway
     )
     {
-        var routes = vm.FindRoutesToNode(fromNodeId, toNodeId);
+        // Preview with the aircraft's real category so route options match command execution.
+        // Both callers derive `callsign` from vm.SelectedAircraft, so it is the routed aircraft.
+        var category = vm.SelectedAircraft is { } ac ? GroundViewModel.CategoryFor(ac) : AircraftCategory.Jet;
+        var routes = vm.FindRoutesToNode(fromNodeId, toNodeId, category);
 
         if (routes.Count == 0)
         {

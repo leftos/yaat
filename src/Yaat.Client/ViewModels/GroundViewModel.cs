@@ -562,14 +562,21 @@ public partial class GroundViewModel : ObservableObject
         }
     }
 
-    public TaxiRoute? FindRouteToNode(int fromNodeId, int toNodeId)
+    /// <summary>
+    /// Resolve the performance category the sim will use for <paramref name="ac"/>, so route
+    /// previews match command execution — <see cref="Yaat.Sim.Commands.GroundCommandHandler"/>
+    /// categorizes the same way (<c>AircraftCategorization.Categorize(aircraftType)</c>).
+    /// </summary>
+    public static AircraftCategory CategoryFor(AircraftModel ac) => AircraftCategorization.Categorize(ac.AircraftType);
+
+    public TaxiRoute? FindRouteToNode(int fromNodeId, int toNodeId, AircraftCategory category)
     {
         if (_domainLayout is null)
         {
             return null;
         }
 
-        return TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId, toNodeId, AircraftCategory.Jet);
+        return TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId, toNodeId, category);
     }
 
     public string BuildTaxiCommand(TaxiRoute route)
@@ -653,7 +660,7 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        var route = FindRouteToNode(fromNodeId.Value, toNodeId);
+        var route = FindRouteToNode(fromNodeId.Value, toNodeId, CategoryFor(SelectedAircraft));
         if (route is null)
         {
             _log.LogWarning("No route from node {From} to {To}", fromNodeId, toNodeId);
@@ -779,21 +786,24 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, $"WARPG #{nodeId}", initials);
     }
 
-    public List<TaxiRoute> FindRoutesToNode(int fromNodeId, int toNodeId)
+    public List<TaxiRoute> FindRoutesToNode(int fromNodeId, int toNodeId, AircraftCategory category)
     {
         if (_domainLayout is null)
         {
             return [];
         }
 
+        // V2 returns one route per preference (FewestTurns / Shortest / Fastest), deduped — at most 3.
+        // It is intentionally per-preference, not a Yen-style k-shortest generator, so requesting 3
+        // matches what the router can actually produce (a 4th request always came back empty).
         return TaxiPathfinderRouter.Current.FindRoutes(
             _domainLayout,
             fromNodeId,
             toNodeId,
             preference: null,
-            maxRoutes: 4,
+            maxRoutes: 3,
             authorizedTaxiways: null,
-            AircraftCategory.Jet
+            category
         );
     }
 
@@ -1148,7 +1158,7 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            var route = TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId.Value, node.Id, AircraftCategory.Jet);
+            var route = TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId.Value, node.Id, CategoryFor(ac));
             if (route is null)
             {
                 continue;
@@ -1251,7 +1261,7 @@ public partial class GroundViewModel : ObservableObject
             routeTaxiways,
             out _,
             new ExplicitPathOptions(),
-            AircraftCategory.Jet
+            CategoryFor(ac)
         );
     }
 
@@ -1384,7 +1394,7 @@ public partial class GroundViewModel : ObservableObject
             return false;
         }
 
-        var subRoute = FindRouteToNode(_drawWaypointIds[^1], nodeId);
+        var subRoute = FindRouteToNode(_drawWaypointIds[^1], nodeId, _drawAircraft is { } da ? CategoryFor(da) : AircraftCategory.Jet);
         if (subRoute is null)
         {
             return false;
@@ -1441,7 +1451,7 @@ public partial class GroundViewModel : ObservableObject
             return;
         }
 
-        DrawHoverPreview = FindRouteToNode(_drawWaypointIds[^1], nodeId.Value);
+        DrawHoverPreview = FindRouteToNode(_drawWaypointIds[^1], nodeId.Value, _drawAircraft is { } da ? CategoryFor(da) : AircraftCategory.Jet);
     }
 
     public void CancelDrawRoute()
