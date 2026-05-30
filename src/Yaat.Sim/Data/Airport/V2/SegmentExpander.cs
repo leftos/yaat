@@ -75,10 +75,16 @@ public static class SegmentExpander
         // Bridge onto the first named taxiway when the start node is off it (e.g. parked
         // on a RAMP spot whose only edges are RAMP). Mirrors v1's BfsToTaxiway. Without
         // this the first per-segment local search finds no on-taxiway edge from the start
-        // and the route degrades to a long, often-failing detour.
+        // and the route degrades to a long, often-failing detour. The bridge is
+        // direction-aware: when several taxiway-access nodes are reachable, it picks the one
+        // whose admissible on-taxiway continuation heads toward where the route must go (the
+        // junction with the next cleared taxiway, or the destination). A direction-blind
+        // pick can enter the taxiway through a corner arc that commits the head to the wrong
+        // branch, after which the correct branch fails the U-turn admissibility check.
         if (!resolvedWaypoints[0].IsNodeRef)
         {
-            var (bridgeEdges, bridgeHead) = BridgeStartToTaxiway(head, resolvedWaypoints[0].Name, ctx);
+            var bridgeBias = ResolveBridgeBias(resolvedWaypoints, head, ctx);
+            var (bridgeEdges, bridgeHead) = BridgeStartToTaxiway(head, resolvedWaypoints[0].Name, bridgeBias, ctx);
             if (bridgeEdges.Count > 0)
             {
                 edges.AddRange(bridgeEdges);
@@ -459,15 +465,31 @@ public static class SegmentExpander
     }
 
     /// <summary>
-    /// Bridge the search head from a start node that is not yet on
-    /// <paramref name="taxiwayName"/> (typically a parking/RAMP spot) onto the nearest
-    /// node carrying an edge on that taxiway, via a bounded BFS. Mirrors v1's
-    /// <c>BfsToTaxiway</c>. Returns empty edges and the unchanged head when the start is
-    /// already on the taxiway, or when no on-taxiway node is reachable within
-    /// <see cref="MaxBridgeHops"/> hops — the caller then proceeds and the per-segment
-    /// detour remains the fallback.
+    /// Direction penalty for a bridge candidate with no admissible on-taxiway continuation from
+    /// the bridged arrival bearing. Large enough that any candidate WITH a dest-ward continuation
+    /// always wins, but finite so a dead-end candidate stays selectable when it is the only option.
     /// </summary>
-    private static (List<DirectionalEdge> Edges, PartialRoute Head) BridgeStartToTaxiway(PartialRoute head, string taxiwayName, SearchContext ctx)
+    private const double BridgeNoOnwardPenaltyNm = 100.0;
+
+    /// <summary>
+    /// Bridge the search head from a start node that is not yet on <paramref name="taxiwayName"/>
+    /// (typically a parking/RAMP spot, or a runway hold-short on a crossing taxiway) onto a node
+    /// carrying an edge on that taxiway, via a bounded BFS. Mirrors v1's <c>BfsToTaxiway</c> but is
+    /// direction-aware: among the taxiway-access nodes reachable within <see cref="MaxBridgeHops"/>
+    /// hops, it picks the one whose admissible on-taxiway continuation gets nearest
+    /// <paramref name="bias"/> (the next-junction or destination position). A direction-blind
+    /// nearest pick can enter the taxiway through a corner arc that commits the head to the wrong
+    /// branch, after which the correct branch fails the U-turn admissibility check and the route
+    /// detours the long way round. Returns empty edges and the unchanged head when the start is
+    /// already on the taxiway, or when no taxiway node is reachable — the caller then proceeds and
+    /// the per-segment detour remains the fallback.
+    /// </summary>
+    private static (List<DirectionalEdge> Edges, PartialRoute Head) BridgeStartToTaxiway(
+        PartialRoute head,
+        string taxiwayName,
+        LatLon? bias,
+        SearchContext ctx
+    )
     {
         if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var startNode))
         {
@@ -482,11 +504,69 @@ public static class SegmentExpander
             }
         }
 
-        var visited = new HashSet<int> { head.HeadNodeId };
+        var (candidates, cameFrom) = CollectBridgeCandidates(head.HeadNodeId, taxiwayName, ctx);
+        if (candidates.Count == 0)
+        {
+            return ([], head);
+        }
+
+        List<DirectionalEdge>? bestEdges = null;
+        PartialRoute? bestHead = null;
+        double bestScore = double.MaxValue;
+        double bestCost = double.MaxValue;
+
+        foreach (int candidateId in candidates)
+        {
+            var (candEdges, candHead) = BuildBridgePath(head, candidateId, cameFrom, ctx);
+            if (candEdges.Count == 0)
+            {
+                continue;
+            }
+
+            double cost = candHead.AccumulatedCost - head.AccumulatedCost;
+            // No bias (no destination / next-junction signal): prefer the nearest access node,
+            // matching the original nearest-first behaviour.
+            double score = bias is { } b ? ScoreBridgeCandidate(candHead, taxiwayName, b, ctx) : cost;
+
+            if ((score < bestScore - 1e-9) || ((Math.Abs(score - bestScore) <= 1e-9) && (cost < bestCost)))
+            {
+                bestScore = score;
+                bestCost = cost;
+                bestEdges = candEdges;
+                bestHead = candHead;
+            }
+        }
+
+        if (bestEdges is null || bestHead is null)
+        {
+            return ([], head);
+        }
+
+        ctx.DiagnosticLog?.Invoke(
+            $"[v2:bridge] start={head.HeadNodeId} → {bestHead.HeadNodeId} onto {taxiwayName} ({bestEdges.Count} edges, score={bestScore:F3})"
+        );
+        return (bestEdges, bestHead);
+    }
+
+    /// <summary>
+    /// BFS from <paramref name="startId"/> collecting every node within <see cref="MaxBridgeHops"/>
+    /// hops that carries an edge on <paramref name="taxiwayName"/>. Unlike a stop-at-first BFS, it
+    /// keeps exploring past a taxiway-access node so access nodes reachable only THROUGH another one
+    /// (e.g. the next junction node further along the connecting taxiway) are also discovered —
+    /// these are exactly the alternate-direction entries a direction-blind nearest pick would miss.
+    /// Returns the candidate node ids and the BFS-tree parent map for path reconstruction.
+    /// </summary>
+    private static (List<int> Candidates, Dictionary<int, (int ParentId, IGroundEdge Edge)> CameFrom) CollectBridgeCandidates(
+        int startId,
+        string taxiwayName,
+        SearchContext ctx
+    )
+    {
+        var visited = new HashSet<int> { startId };
         var queue = new Queue<(int NodeId, int Depth)>();
         var cameFrom = new Dictionary<int, (int ParentId, IGroundEdge Edge)>();
-        queue.Enqueue((head.HeadNodeId, 0));
-        int foundId = -1;
+        var candidates = new List<int>();
+        queue.Enqueue((startId, 0));
 
         while (queue.Count > 0)
         {
@@ -508,8 +588,7 @@ public static class SegmentExpander
 
                 if (neighbor.Edges.Any(e => e.MatchesTaxiway(taxiwayName)))
                 {
-                    foundId = neighbor.Id;
-                    break;
+                    candidates.Add(neighbor.Id);
                 }
 
                 if (depth + 1 < MaxBridgeHops)
@@ -517,24 +596,34 @@ public static class SegmentExpander
                     queue.Enqueue((neighbor.Id, depth + 1));
                 }
             }
-
-            if (foundId >= 0)
-            {
-                break;
-            }
         }
 
-        if (foundId < 0)
-        {
-            return ([], head);
-        }
+        return (candidates, cameFrom);
+    }
 
+    /// <summary>
+    /// Reconstruct the directed bridge edges and the resulting <see cref="PartialRoute"/> head for
+    /// the path from <paramref name="head"/> to <paramref name="targetId"/> recorded in
+    /// <paramref name="cameFrom"/>. Returns empty edges when the chain cannot be walked.
+    /// </summary>
+    private static (List<DirectionalEdge> Edges, PartialRoute Head) BuildBridgePath(
+        PartialRoute head,
+        int targetId,
+        Dictionary<int, (int ParentId, IGroundEdge Edge)> cameFrom,
+        SearchContext ctx
+    )
+    {
         var pathNodes = new List<int>();
-        int trace = foundId;
+        int trace = targetId;
         while (trace != head.HeadNodeId)
         {
             pathNodes.Add(trace);
-            trace = cameFrom[trace].ParentId;
+            if (!cameFrom.TryGetValue(trace, out var step))
+            {
+                return ([], head);
+            }
+
+            trace = step.ParentId;
         }
 
         pathNodes.Reverse();
@@ -567,8 +656,107 @@ public static class SegmentExpander
             };
         }
 
-        ctx.DiagnosticLog?.Invoke($"[v2:bridge] start={head.HeadNodeId} → {foundId} onto {taxiwayName} ({bridgeEdges.Count} edges)");
         return (bridgeEdges, current);
+    }
+
+    /// <summary>
+    /// Score a bridge candidate by the distance from <paramref name="bias"/> of the nearest node
+    /// reachable by one admissible on-taxiway step from the bridged head — i.e. how well the
+    /// candidate's available continuation heads toward where the route must go. A candidate whose
+    /// only taxiway edges are inadmissible from the bridged arrival bearing (a corner-arc entry that
+    /// would force an immediate U-turn) gets its own distance plus
+    /// <see cref="BridgeNoOnwardPenaltyNm"/>, so any candidate with a real dest-ward continuation
+    /// wins. Lower is better.
+    /// </summary>
+    private static double ScoreBridgeCandidate(PartialRoute candHead, string taxiwayName, LatLon bias, SearchContext ctx)
+    {
+        if (!ctx.Layout.Nodes.TryGetValue(candHead.HeadNodeId, out var node))
+        {
+            return double.MaxValue;
+        }
+
+        double best = double.MaxValue;
+        foreach (var edge in node.Edges)
+        {
+            if (!edge.MatchesTaxiway(taxiwayName))
+            {
+                continue;
+            }
+
+            var neighbor = edge.OtherNode(node);
+            if (candHead.VisitedNodeIds.Contains(neighbor.Id))
+            {
+                continue;
+            }
+
+            if (!GeometricAdmissibility.IsAdmissible(candHead, edge, neighbor, ctx.Category))
+            {
+                continue;
+            }
+
+            double d = GeoMath.DistanceNm(neighbor.Position, bias);
+            if (d < best)
+            {
+                best = d;
+            }
+        }
+
+        if (best == double.MaxValue)
+        {
+            return GeoMath.DistanceNm(node.Position, bias) + BridgeNoOnwardPenaltyNm;
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// The position the bridge should head toward when entering the first cleared taxiway: the
+    /// junction with the next cleared taxiway when the route continues, otherwise the destination
+    /// (parking/spot/node target, or the nearest destination-runway hold-short on the taxiway).
+    /// Null when there is no directional signal — the bridge then keeps its nearest-access pick.
+    /// </summary>
+    private static LatLon? ResolveBridgeBias(IReadOnlyList<WaypointToken> tokens, PartialRoute head, SearchContext ctx)
+    {
+        var first = tokens[0];
+
+        // Route continues past the first taxiway: head toward the junction with the next token.
+        if (tokens.Count >= 2)
+        {
+            var next = tokens[1];
+            if (next.IsNodeRef)
+            {
+                if (ctx.Layout.Nodes.TryGetValue(next.ResolvedNodeId, out var nextNode))
+                {
+                    return nextNode.Position;
+                }
+            }
+            else
+            {
+                var junctions = FindJunctionCandidates(ctx.Layout, first.Name, next.Name);
+                if (junctions.Count > 0)
+                {
+                    double sumLat = 0;
+                    double sumLon = 0;
+                    foreach (var j in junctions)
+                    {
+                        sumLat += j.Position.Lat;
+                        sumLon += j.Position.Lon;
+                    }
+
+                    return new LatLon(sumLat / junctions.Count, sumLon / junctions.Count);
+                }
+            }
+        }
+
+        // Single cleared taxiway: head toward the destination node when known.
+        if (ctx.Destination.TargetNodeId is { } destId && ctx.Layout.Nodes.TryGetValue(destId, out var destNode))
+        {
+            return destNode.Position;
+        }
+
+        // Runway destination has no single node — reuse the terminus bias (nearest
+        // destination-runway hold-short on the first taxiway).
+        return ResolveTerminusBias(head, first.Name, ctx);
     }
 
     // -----------------------------------------------------------------------
