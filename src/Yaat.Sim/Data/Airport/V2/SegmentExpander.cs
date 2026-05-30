@@ -345,8 +345,14 @@ public static class SegmentExpander
             }
         }
 
-        // Named taxiway at end: walk to natural terminus.
-        return WalkToNaturalTerminus(head, waypoint.Name, ctx);
+        // Named taxiway at end: walk to natural terminus, biased toward the destination at the
+        // first (momentum-free) step. The greedy walk is otherwise direction-blind and picks an
+        // arbitrary admissible direction — wrong when the aircraft starts mid-taxiway facing away
+        // from the destination (post-landing arrival heading) or when the destination-runway
+        // hold-short sits the opposite way along the named taxiway. The bias only breaks ties on
+        // the first step; once moving, admissibility constrains direction as before.
+        var bias = ResolveTerminusBias(head, waypoint.Name, ctx);
+        return WalkToNaturalTerminus(head, waypoint.Name, ctx, bias);
     }
 
     /// <summary>
@@ -924,7 +930,8 @@ public static class SegmentExpander
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) WalkToNaturalTerminus(
         PartialRoute head,
         string taxiwayName,
-        SearchContext ctx
+        SearchContext ctx,
+        LatLon? biasToward
     )
     {
         // Walk forward along the taxiway from current head, staying on the named taxiway,
@@ -942,10 +949,15 @@ public static class SegmentExpander
                 break;
             }
 
+            // On the first (momentum-free) step, break ties toward the destination so the walk
+            // heads the right way along the taxiway; afterwards admissibility fixes the direction.
+            bool firstStep = (edges.Count == 0) && (biasToward is not null);
+
             // Find the best admissible forward step on this taxiway.
             IGroundEdge? bestEdge = null;
             GroundNode? bestNext = null;
             double bestCost = double.MaxValue;
+            double bestBiasDist = double.MaxValue;
             // Sentinel true so the first single-name candidate always displaces it.
             bool bestIsJunctionArc = true;
 
@@ -978,12 +990,15 @@ public static class SegmentExpander
                 // (IsRunwayJunction, e.g. "H - RWY...") DO continue the taxiway across a runway and
                 // are not treated as junction arcs.
                 bool isJunctionArc = edge is GroundArc { IsMembershipTaxiwayJunctionArc: true };
-                bool better =
-                    bestEdge is null || (bestIsJunctionArc && !isJunctionArc) || ((bestIsJunctionArc == isJunctionArc) && (cost < bestCost));
+                double biasDist = firstStep ? GeoMath.DistanceNm(nextNode.Position, biasToward!.Value) : 0.0;
+                bool sameTier = bestIsJunctionArc == isJunctionArc;
+                bool tieBetter = firstStep ? (biasDist < bestBiasDist) : (cost < bestCost);
+                bool better = (bestEdge is null) || (bestIsJunctionArc && !isJunctionArc) || (sameTier && tieBetter);
 
                 if (better)
                 {
                     bestCost = cost;
+                    bestBiasDist = biasDist;
                     bestEdge = edge;
                     bestNext = nextNode;
                     bestIsJunctionArc = isJunctionArc;
@@ -1016,6 +1031,65 @@ public static class SegmentExpander
         ctx.DiagnosticLog?.Invoke($"[v2:terminus] twy={taxiwayName} terminus={current.HeadNodeId} edges={edges.Count}");
 
         return (edges, current, null);
+    }
+
+    /// <summary>
+    /// The position the final-taxiway terminus walk should head toward at its first step, for a
+    /// runway destination: the nearest hold-short for the destination runway that lies on the named
+    /// taxiway (so a "TAXI B 28R" walk heads toward B's own 28R hold-short instead of away from it,
+    /// avoiding a wrong-direction walk that then detours via another taxiway). Null when there is no
+    /// directional preference — the walk keeps its prior admissibility-only behaviour. Parking/spot
+    /// destinations are handled by the on-taxiway LocalSearchToJunction in ExpandLastWaypoint, not
+    /// here: biasing the terminus walk toward an off-taxiway parking node is unreliable (it can pick
+    /// a terminus from which the parking extension cannot complete).
+    /// </summary>
+    private static LatLon? ResolveTerminusBias(PartialRoute head, string taxiwayName, SearchContext ctx)
+    {
+        if (
+            ctx.Destination.Kind == DestinationKind.Runway
+            && ctx.Destination.RunwayId is { } runwayId
+            && ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode)
+        )
+        {
+            GroundNode? best = null;
+            double bestDistNm = double.MaxValue;
+            foreach (var node in ctx.Layout.Nodes.Values)
+            {
+                if (!IsRunwayHoldShort(node.Id, runwayId, ctx))
+                {
+                    continue;
+                }
+
+                bool onTaxiway = false;
+                foreach (var edge in node.Edges)
+                {
+                    if (edge.MatchesTaxiway(taxiwayName))
+                    {
+                        onTaxiway = true;
+                        break;
+                    }
+                }
+
+                if (!onTaxiway)
+                {
+                    continue;
+                }
+
+                double distNm = GeoMath.DistanceNm(node.Position, headNode.Position);
+                if (distNm < bestDistNm)
+                {
+                    bestDistNm = distNm;
+                    best = node;
+                }
+            }
+
+            if (best is not null)
+            {
+                return best.Position;
+            }
+        }
+
+        return null;
     }
 
     // -----------------------------------------------------------------------
