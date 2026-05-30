@@ -356,6 +356,12 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 
 ## Behavioral Differences
 
+### STARS Flight-Plan Creation vs AID + Slew (YAAT-only)
+
+Typed STARS `DA`/`VP` commands are create-only — they never amend an existing flight plan. Typing against a callsign that already has a flight plan returns `DUP NEW ID`. The legitimate "aircraft exists but no FP" case (e.g. a ground aircraft before its FP is filed) is still a create — the FP is attached for the first time. No amend variants belong on `FlightPlanCommandHandler`.
+
+The AID + slew gesture (type the aircraft ID, left-click the video map without pressing ENTER) is a separate path: it drops a ghost-overlay on the existing flight-planned aircraft at the click point and claims `Track.Owner` for the slewing controller, leaving the flight plan untouched. `CrcVisibilityTracker` auto-merges the ghost into the real surveillance track once the aircraft crosses the STARS floor; the owner persists. The two implied paths are discriminated by `CrcClientState.IsAidSlewGhostOverlay`.
+
 ### IFR/VFR Command Gating (YAAT-only)
 
 VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds, touch-and-go, stop-and-go, low approach, cleared-for-option) are restricted to VFR aircraft. IFR aircraft receive an error with a hint to use `CIFR`. The report commands `RFIS`/`RTIS` are available to both IFR and VFR aircraft. Visual approaches (`CVA`) are IFR only and use IFR pattern geometry — wide pattern at 2000 ft AGL with no parallel-runway deconfliction; VFR pattern entry uses `ELD`/`ERD`/`SI` instead.

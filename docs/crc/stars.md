@@ -830,6 +830,8 @@ To acknowledge an alert, click on either of the two tracks. The tone will be sil
 
 Note that conflict alerts are suppressed for tracks that are near the final approach course for a runway at an airport that is included in the internal airports list for the STARS facility. This only applies to airports that are large enough to have an ICAO ID. This suppression zone is 4 NM wide, starting at the runway threshold and extending out 30 NM along the runway extended center line. Vertically, the suppression zone starts at field elevation and extends up to 1,500 feet above the glideslope.
 
+> **YAAT behavior:** approach-corridor suppression is pure geometry, with no phase-of-flight or active-approach gating. `ConflictAlertDetector` builds two corridors per physical runway from the facility's internal-airports list and the navigation database; if either track in a pair sits inside any corridor, the alert is suppressed. This matches the volumes above and correctly suppresses CA for two VFR aircraft on parallel visual finals.
+
 ## Special Purpose Codes
 
 A number of Special Purpose Codes (SPCs) are recognized by the system. These are beacon codes that carry special meaning when the pilot enters the code into the aircraft's transponder. These codes and their meanings are as follows:
@@ -977,6 +979,10 @@ While unrealistic, the following additions are included in CRC STARS to aid in c
 vNAS supports the ability to automatically begin tracking aircraft upon departure from a customizable list of airports. When an aircraft departs an airport on the autotrack list, the flight plan is automatically activated and track control is automatically assigned to your TCP.
 
 To add an airport to the autotrack list, enter the `.autotrack <airport ID>` command in either the preview area or the messages window. (Entering the command in the messages window will use the position of your primary display as the track owner.) To remove an airport from the autotrack list, enter the `.autotrack -<airport ID>` command. Multiple airports can be specified at once, for example `.autotrack BOS -MHT` will add `BOS` and remove `MHT` from the autotrack list. To clear the autotrack list, enter the `.autotrack none` command. You can enter either the FAA ID or the ICAO ID for each airport and the autotrack function will work regardless of which ID the pilot filed as their departure airport.
+
+> **YAAT behavior:** the autotrack list enforces global per-airport uniqueness — one airport autotracks to at most one position. Scenario JSON `autoTrackAirportIds` is treated as an on-load `.autotrack` (last declaration wins). A positive entry steals the airport from any other position; `-<airport>` removes it globally; `none` clears only the caller's list. Already-owned aircraft are never stolen when an airport changes hands — only untracked aircraft are picked up by the new owner.
+
+> **YAAT behavior:** typing VP/DA on a pre-existing aircraft stamps the flight plan with the creating TCP (`CreatedByOwner`). Per tick, the creator acquires the track once the pilot squawks the assigned code (`Code == AssignedCode`), and this runs before the airport-based autotrack so the explicit FP creator wins over scenario `autoTrackAirportIds` for the aircraft just touched.
 
 ### Single-Click Track
 

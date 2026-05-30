@@ -87,6 +87,8 @@ When another controller has initiated a handoff to you then another popup menu i
     <figcaption>Fig. <span class="counter"></span> - p.108</figcaption>
 </figure>
 
+> **YAAT divergence — owner cell drives RPO assignment, not the STARS track.** In YAAT's EuroScope-style tags the owner cell (the initials / `--` at the start of line 1) controls which person in the multi-user room is acting as pseudopilot, sourced from the room's aircraft-assignment state rather than the STARS track owner. Left-click takes RPO control of the aircraft for the local user; right-click opens a small context menu (Take control / Give up control / Give control to a room member / Unassign). The right-click does not fall through to the full aircraft right-click menu, and neither click maps to the STARS `TRACK` / `DROP` / `HO` controls — those belong to STARS list and handoff UI.
+
 3. Aircraft type - the type of the aircraft coming from the flight plan By clicking on it with the right button you can toggle its display in the Tagged TAG.The type is followed by the aircraft category sign (by default /H or /M or /L or /J) and the communication type (/r or /t or /?) is here also. Note that from version 3.0 EuroScope never displays the /v as voice is the default communication form on VATSIM and we would like to save spaces. Only the different or unidentified types are flagged. To set the communication type just click on the sign (there are to spaces in the detailed TAG for /v types that allows the mouse clicks). Then a popup menu appears to select the right type.
 
 <figure>

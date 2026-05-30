@@ -56,6 +56,8 @@ tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_A
 tools/mcp/exa-stdio.ps1           # Exa stdio adapter that reads EXA_API_KEY from the environment when a local authenticated Exa MCP is preferred.
 ```
 
+See [installer-release.md](installer-release.md) for the Velopack packaging, auto-update, CRC install prompt, and tag-driven `release.yml` pipeline.
+
 ## Yaat.Client.Strips — WASM-clean strip layer (`src/Yaat.Client.Strips/`)
 
 Foundation for the flight-strip view. Pure Avalonia + SignalR + CommunityToolkit.Mvvm — no Avalonia.Desktop, no Velopack, no file IO. The browser strips client (`tools/Yaat.VStrips.Web`) consumes only this assembly so its WASM publish closure stays free of Win32-only code. Yaat.Client.Core project-references Strips and exposes the shared types up to Yaat.Client.

@@ -84,6 +84,8 @@ After validation, every command is recorded for replay: `Record(new RecordedComm
 
 `ApplyCommand` is a thin routing switch over command type → `FlightCommandHandler`, `NavigationCommandHandler`, `ApproachCommandHandler`, `DepartureClearanceHandler`, `GroundCommandHandler`, `PatternCommandHandler`, `FlightPlanCommandHandler`, etc. See `Commands/CommandRegistry.cs` for the complete enum.
 
+**Flight-plan commands (VP / FP / DA) canonicalize their inputs.** `FlightPlanCommandHandler` splits `C172/G` into `AircraftType` + `EquipmentSuffix`, canonicalizes departure/destination via `NavigationDatabase.TryResolveAirport` (rejecting unknown airports), and treats a single-token route as destination-only (`VP C172 5500 MOD` → `Destination=KMOD`, `Departure=null`). On the server, `RoomEngine.RecordAndDispatchFlightPlanAsync` spawns an unsupported track before dispatching the handler and rolls that spawn back on handler failure, gated on a `spawnedUnsupported` flag so a DUP-NEW-ID collision with a pre-existing aircraft doesn't delete it.
+
 ### 6. CommandQueue & triggers — `CommandQueue.cs`
 
 A queued `CommandBlock` carries:
@@ -150,3 +152,4 @@ Adding a new contextual flag to handlers? Add it to `DispatchContext`, set it at
 - **`TerminalEmitter` must be nulled in dry-run.** SAY-class verbs broadcast via `ctx.TerminalEmitter`; if dry-run forgets to null it, SAYs fire twice. See the `project_dispatch_context_terminal_emitter` memory.
 - **Phase clearing is post-validation.** `ClearsPhase` does not immediately clear — validation runs first on a clone, then the phase is cleared, then commands apply. This protects against half-applied compound commands.
 - **Dimension-aware clearing isn't all-or-nothing.** A new heading command clears queued lateral blocks but leaves a queued altitude block alone. If you find yourself adding `aircraft.CommandQueue.Clear()` to a handler, you're probably bypassing this design.
+- **`SimulationWorld.AddAircraft` is replacement-safe.** It drops any same-callsign entry (case-insensitive) before appending and logs a warning. Spawn wins over a pre-existing user-typed VP/DA ghost — don't add per-call-site dedup. A logged replacement is expected when a scenario spawn collides with a ghost; two scenario spawn paths firing for one callsign is a bug.

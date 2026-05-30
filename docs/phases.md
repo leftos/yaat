@@ -106,6 +106,11 @@ Files are under `Phases/Tower/`, `Phases/Ground/`, `Phases/Pattern/`, `Phases/Ap
 
 **Approach** — `ApproachNavigationPhase`, `InterceptCoursePhase`, `ProcedureTurnPhase`, `HoldingPatternPhase`.
 
+### Procedure turns and transition selection
+
+- **`ProcedureTurnPhase`** executes a published procedure turn from a CIFP PI leg (AIM 5-4-9 course reversal). CAPP/JAPP auto-engage it when the procedure has a PI leg, the transition is not NoPT, and either the DCT fix matches the PT anchor or the intercept angle exceeds 90°. The PI leg's `OutboundCourse` is the published 45°-offset PT heading (magnetic, **not** the radial out of the fix); `TurnDirection` is the direction of the 180° turn back to inbound. Implied PTAC (`CAPP` on a vector) additionally requires an empty `NavigationRoute`.
+- **`ApproachCommandHandler.SelectBestTransition`** competes each transition's first fix against every common-leg `IAF`/`IF` in its position-based fallback and returns `null` when a common-leg fix is nearest (the aircraft flies the published feeder from the start). PT engagement gates `interceptTooSteep` on `transition is not null` to avoid a false-positive PT when no transition is selected and the published feeder already delivers FAC alignment.
+
 ## Snapshotting — `Simulation/Snapshots/PhaseSnapshotDto.cs`
 
 `PhaseDto` is an abstract polymorphic base. Every concrete phase has a sibling DTO and a `[JsonDerivedType(typeof(XyzPhaseDto), "Xyz")]` registration on `PhaseDto`. Restore lives in `PhaseList.RestorePhase()` — a switch on DTO type that calls each phase's static `FromSnapshot(dto)` factory.
@@ -128,3 +133,4 @@ Skip any of these and old recordings will throw `InvalidOperationException` on r
 - **`Rejected` vs `ClearsPhase` semantics.** `Rejected` is for "valid command, but not now" (temporary gate). `ClearsPhase` is for "this command supersedes the phase's intent" — the default. If you find yourself returning `Rejected` for a command that *should* cancel the phase, you've got it backwards.
 - **LAHSO insertion is post-hoc.** Hold/exit phases are appended *after* `LandingPhase` completes, not before. `LandingPhase` sets `StoppedForLahso = true`; `PhaseRunner` detects it next tick and appends.
 - **`CurrentPhase != null` bypasses CommandQueue entirely.** Don't try to "queue a command behind a phase" — there is no such mechanism. Either the phase accepts it (`Allowed`), rejects it (`Rejected`), or yields (`ClearsPhase`).
+- **`InitialClimbPhase` must hold while `_rvSidActive`.** The phase must NOT complete and `ApplyDepartureTurn` must NOT load the nav route while `_rvSidActive` is true — only `UpdateRvSidHeadingHold` releases the phase after comms handoff. A bare `CTO` (no assigned altitude) reproduces the early-completion bug; tests asserting before the deferred-turn gate fires do not catch it.

@@ -116,6 +116,20 @@ GroundNavigator handles the actual turn through the exit. It uses:
 - **High-speed exits** (≤45°): shallow turns, higher turn-off speed (30 kts for jets). Tolerate shorter virtual segments since the turn angle is small.
 - **Standard exits** (>45°): steep turns, lower turn-off speed (15 kts for jets). Need more distance for the turn arc. Rejected if the aircraft is at/past the branch point — the virtual segment would be too short.
 
+## Final Approach Course (FAC) Alignment
+
+The aircraft flies the published final approach course down to minimums, then transitions visually onto the runway centerline — heading and lateral position together, with no snap at the threshold.
+
+- **FAC derivation.** `FinalApproachCourseExtractor` derives the published FAC from the CIFP missed-approach (MAP) leg rather than hardcoding runway heading. CF/FA legs use `OutboundCourse`; TF/DF legs use the great-circle bearing to the MAP fix; RF and anything else fall back to runway heading. This is what makes offset approaches (LDA, RNAV-with-offset CF leg, VOR offset) track their published FAC instead of the centerline.
+- **Visual alignment ramp.** `FinalApproachPhase.OnTick` lerps both the lateral cross-track course and the lateral anchor from FAC/anchor toward runway-heading/threshold via a smoothstep, so the aim-point bearing rotates onto the centerline over the last ~200 ft AGL. The ramp is a no-op below `FacRampMinOffsetDeg` (0.5°); small CIFP/mag-var divergences (0.5°–5°) ramp over ~300→100 ft AGL, genuine offsets (≥5°) over ~1000→500 ft AGL. There is no separate heading snap — heading and position converge together.
+
+## Short-Approach Base & Landing Geometry
+
+The `SA` (Make Short Approach) compressed pattern has two coupled geometry invariants that must hold together:
+
+- **Base-leg descent targets the rollout point.** `BasePhase`'s SA branch targets glideslope altitude at `(finalDist + turnRadius)`, not at `finalDist` — the 90° base→final turn translates the aircraft one turn radius further along the final, so targeting at `finalDist` would put it at GS-intercept altitude before the turn fires and trip the landing stabilization gate.
+- **LandingPhase floats over the runway while rolling out.** When heading-error from runway exceeds 5° (`_floatingForRollout`), LandingPhase holds level (target altitude = current, vertical rate = 0) until wings level, then resumes descent → flare → touchdown. This lets a tight turn complete before the bank-stabilization gate engages. The descent target is restored on the first non-rolling-out tick.
+
 ## Key Files
 
 - `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — Rollout braking, exit candidate resolution, unable-replan
@@ -123,6 +137,9 @@ GroundNavigator handles the actual turn through the exit. It uses:
 - `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — Steering, turn anticipation, backward-propagated braking
 - `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — FindExitFromCenterline, FindAdjacentHoldShort, InferPreferredExitSide, exit scoring
 - `src/Yaat.Sim/AircraftCategory.cs` — All category-specific performance constants
+- `src/Yaat.Sim/Phases/Tower/FinalApproachPhase.cs` — FAC tracking and the visual-alignment ramp onto the centerline
+- `src/Yaat.Sim/Data/Vnas/FinalApproachCourseExtractor.cs` — Derives the published FAC from the CIFP MAP leg
+- `src/Yaat.Sim/Phases/Pattern/BasePhase.cs` — Short-approach base-leg descent geometry
 
 ## Anti-Patterns to Avoid
 

@@ -133,7 +133,9 @@ depend on LM-Kit and PortAudio native libraries.
   - `NormalizeDigits(transcript)` collapses spoken number forms to
     digit strings: `"two eight right"` → `"28R"`,
     `"flight level three five zero"` → `"FL350"`,
-    `"five thousand"` → `"5000"`. Handles `niner/tree/fife`. The runway
+    `"five thousand"` → `"5000"`. Handles `niner/tree/fife` — the parser
+    accepts both `nine` and `niner` for digit 9, so pilot latitude on the
+    air is normalized away. The runway
     suffix collapse runs as a post-pass via
     `PhraseologyMapper.CollapseRunwayDesignators` so both the rule engine
     and the LLM fallback see the canonical `"28R"` form.
@@ -516,6 +518,18 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 - **Commands are never auto-dispatched.** The pipeline always writes
   into `CommandText` for user review. Don't "shortcut" this — it's the
   designed safety valve.
+- **Niner is controller-only.** FAA 7110.65 2-4-17 requires controllers
+  to say "niner" for digit 9; pilots may say either. The STT parser
+  accepts both forms. Pilot-speech generators emit "nine" (compliant);
+  future controller-speech generators must route digit 9 through a
+  separate table that emits "niner".
+- **Pilot phraseology is FAA-grounded** (AIM 5-5-10 / 5-5-11). A pilot
+  who can't see traffic says "negative contact", not "unable" (which
+  7110.65 reserves for refusing a clearance); positive acquisition is
+  "traffic in sight", not "tally". Sim-internal diagnostics never appear
+  in pilot speech. Pilot transmissions intentionally keep GA
+  colloquialisms like "short final" and "inbound" — they are not held to
+  controller phraseology.
 
 ## Extension Points
 

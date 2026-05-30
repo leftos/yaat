@@ -104,6 +104,15 @@ Two well-known position lists:
 
 A legacy single-string overload of `RouteSoloOrRpoTransmission` exists for callers that haven't migrated to `PilotSpeechText` yet. Prefer the dual-output overload for new code.
 
+## Position reports vs intent declarations
+
+Towered-field pilots do not self-announce every pattern leg on entry. Two kinds of transmission with different triggers:
+
+- **Position reports are no-clearance-driven.** Midfield-downwind and short-final calls fire from `OnTick`, gated on still being uncleared (`!HasLandingClearance`), so a pilot only "reminds tower" when a clearance is overdue. They never fire on phase entry.
+- **Intent declarations are entry-driven.** Initial-contact statements ("request closed traffic", "ready for departure") fire from `OnStart` on first contact — they are not position reports and must happen up front, not after a delay.
+
+Output channel follows the usual split: solo mode lands in `PendingNotifications` (gray pilot speech, AI voices the pilot); RPO mode lands in `PendingWarnings` (orange controller-facing nag) unless `RpoShowPilotSpeech` routes it to `PendingPilotSpeech`. Never delete the `PendingWarnings` text — it is the default fallback when pilot-speech mode is off.
+
 ## "Unable" routing on rejected commands
 
 `CommandResult` now carries the rejected `CanonicalCommandType`:
