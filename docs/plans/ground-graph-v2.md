@@ -93,11 +93,21 @@ pursuit, backward-propagated braking, entry alignment, I7) and dropping the chor
 - [ ] **§4.4b crossing-momentum guard:** §4.4a already preserves ground speed across the crossing→taxiing handoff;
       add the explicit min-gs-through-crossing ≥ ~5 kt regression assertion alongside the Phase-4 V2 navigator work
       (deferred to there so it lands when AfterRes goes green under V2+V2, avoiding a V1-default false-fail).
-- [ ] **`IGroundNavigator` + `GroundNavigatorRouter` (static factory) extraction.** All five construction
-      sites route through it; acceptance is a grep gate (zero `new GroundNavigator`/`FromSnapshot` outside
-      the router), V1 stays default.
-- [ ] **`GroundNavigatorV2`:** straight pure-pursuit + closed-form arc/slow-turn + speed profile + entry
-      alignment; no synthesis/cluster/orbit machinery; Q1 no-freeze floor as a global invariant.
+- [x] **`IGroundNavigator` + `GroundNavigatorRouter` (static factory) extraction — DONE.** All construction
+      sites route through the factory; grep gate holds (zero `new GroundNavigator`/`FromSnapshot` outside the
+      router); B2 `OverrideTargetPosition` seam replaces the mutable `TargetLat/Lon` setters; V1 stays default.
+      Pure refactor — full cross-repo suite green (Sim 6781, Client 772+70, Server 618).
+- [x] **`GroundNavigatorV2` skeleton — DONE.** Clean-room extraction behind `GroundNavigatorRouter.UseV2`
+      (default V1): keeps the durable core (closed-form arc/slow-turn playback, pure-pursuit + pre-turn blend,
+      backward-propagated braking, entry alignment, I7 floor), drops the Legacy compensations (slow-turn
+      synthesis, `TryDetectCluster`, chord-chain `EffectiveTurnAngleAt` → single-corner read, orbit-stall).
+      Builds clean; under V2+V2 it is behaviorally equivalent to V1 on the cluster (same 17/20, identical
+      AfterRes trace) — the verbatim-core extraction introduces no regressions. The 3 residuals live in the
+      *kept* core, so they're the iterate-to-green step below, now doable without a V1-regression tax.
+- [ ] **Iterate the V2+V2 cluster to green (step 5):** the 3 residuals are kept-core tuning, not dropped-
+      compensation artifacts — EDG320 (entry-align 109° + pure-pursuit overshoot → spin), N436MS (following
+      too slow), AfterRes (crosses with momentum but reaches the hold-phase ~2 s late). Fail-first repro per
+      anchor test; aviation review on any speed/turn change.
 - [ ] Validate against the E2E taxi suite under V2+V2 (AMX669, the spin guards, AfterRes crossing,
       S2Oak4, coverage smoke) → 0 failures; **aviation-realism review (mandatory)** of any further
       turn-speed change.

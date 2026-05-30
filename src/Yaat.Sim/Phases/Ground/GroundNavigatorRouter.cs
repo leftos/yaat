@@ -13,9 +13,17 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public static class GroundNavigatorRouter
 {
+    /// <summary>
+    /// When true, the factory builds <see cref="GroundNavigatorV2"/>; otherwise the V1
+    /// <see cref="GroundNavigator"/>. Default false (V1) until the joint flip. Set at startup or in
+    /// single-threaded test setup; not thread-safe across concurrent assignment.
+    /// </summary>
+    public static bool UseV2 { get; set; }
+
     /// <summary>Build a fresh navigator for a new segment-follow.</summary>
-    public static IGroundNavigator Create() => new GroundNavigator();
+    public static IGroundNavigator Create() => UseV2 ? new GroundNavigatorV2() : new GroundNavigator();
 
     /// <summary>Rebuild a navigator from a snapshot DTO (lossy — the primitive re-derives on the next <see cref="IGroundNavigator.SetupSegment"/>).</summary>
-    public static IGroundNavigator FromSnapshot(GroundNavigatorDto dto) => GroundNavigator.FromSnapshot(dto);
+    public static IGroundNavigator FromSnapshot(GroundNavigatorDto dto) =>
+        UseV2 ? GroundNavigatorV2.FromSnapshot(dto) : GroundNavigator.FromSnapshot(dto);
 }
