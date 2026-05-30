@@ -10,14 +10,20 @@ namespace Yaat.Sim.Phases.Ground;
 /// <see cref="PathPrimitive"/>s (invariant I2 — during an arc, position and heading are both functions of
 /// one scalar, so they cannot drift apart). Straight segments use pure-pursuit steering; arc and slow-turn
 /// segments advance a closed-form circular integrator and write lat/lon/heading directly from playback
-/// state. Speed comes from corner-speed limits + backward-propagated kinematic braking, capped by the
-/// lateral-accel arc speed model.
+/// state. Speed comes from corner-speed limits — angle-based plus a turn-rate-feasibility cap that slows
+/// the aircraft into bends too tight to track at the angle-only speed (see <see cref="CornerSpeed"/>) —
+/// backward-propagated by kinematic braking, and capped by the lateral-accel arc speed model.
 ///
 /// <para>
-/// Built for clean V2 geometry, this deliberately drops the Legacy-fillet compensations the shared V1
-/// <see cref="GroundNavigator"/> carries (slow-turn synthesis, short-segment cluster detection, chord-chain
-/// aggregate-turn, the orbit-stall backstop): V2 emits proper single arcs for real corners, so those
-/// mechanisms are unnecessary. The entry-alignment slow-turn (for misaligned parking-out starts) is kept.
+/// Built for clean V2 geometry, this deliberately drops the V1 chord-chain compensations that worked around
+/// Legacy ArcSplit artifacts (short-segment cluster detection, chord-chain aggregate-turn, the orbit-stall
+/// backstop): V2 fillets emit a single arc per real taxiway corner, so those do not apply. But corners
+/// <em>tighter</em> than the nose-wheel radius — ramp/apron bends the fillet generator cannot widen, which
+/// stay sharp vertices between short straight segments — still cannot be tracked by pure-pursuit at any
+/// allowed speed (the orbit radius v/ω exceeds the segment scale). Those are rounded by the entry-alignment
+/// slow-turn, which fires for <em>any</em> corner past <see cref="EntryAlignmentThresholdDeg"/> — a
+/// misaligned parking-out start or a tight mid-route ramp bend — tracing a nose-wheel-radius arc at walking
+/// pace. This is geometric corner-rounding, not the dropped Legacy synthesis.
 /// </para>
 ///
 /// <para>
@@ -192,40 +198,24 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         _segmentFromLon = from.Position.Lon;
         PrevDistToTarget = double.MaxValue;
 
-        // Entry alignment: if the aircraft heading is significantly off the
-        // segment's first tangent, build a slow-turn from its current pose to
-        // the segment's start direction and stash the real segment primitive
-        // for swap-in when the slow-turn completes. Aircraft taxis forward
-        // through the arc at SlowTurnSpeedKts (~3 kt) instead of snapping to
-        // the segment's tangent at first tick.
+        // Corner rounding: when the aircraft heading is significantly off the segment's first tangent,
+        // build a slow-turn from its current pose to the segment's start direction and stash the real
+        // segment primitive for swap-in when the slow-turn completes. The aircraft taxis forward through
+        // the arc at SlowTurnSpeedKts (~3 kt), rounding the corner at the nose-wheel radius instead of
+        // snapping to the tangent.
         //
-        // Gates (all required):
-        //   - Heading delta > EntryAlignmentThresholdDeg: normal
-        //     fillet-smoothed corners stay below this; only wrong-way starts,
-        //     post-pushback U-turns, and mid-route corners where synthesis
-        //     failed to engage produce deltas this large.
-        //   - Segment length > 2 × alignment chord: short segments (e.g. M2
-        //     entrance ~12 ft) can't absorb the displacement; the aircraft
-        //     would end up well past the segment endpoint with pure-pursuit
-        //     unable to recover. Defer alignment in those cases and accept
-        //     the snap (rare and brief on those tiny segments).
+        // Fires for any corner sharper than EntryAlignmentThresholdDeg regardless of segment length. A bend
+        // tighter than the nose-wheel radius — common in ramp clusters the fillet generator cannot widen —
+        // cannot be tracked by pure-pursuit at any allowed speed: the orbit radius v/ω exceeds the
+        // short-segment scale even at the SlowTurnSpeedKts floor, so the aircraft would circle the corner
+        // node forever. It MUST be rounded. The speed planner (see CornerSpeed / BuildSpeedConstraints) has
+        // already slowed the aircraft to the corner speed before it arrives, so the rounding begins from a
+        // near-crawl and any overshoot of a very short segment is small and recovered by the normal
+        // arrival/overshoot advance on the (near-collinear) segments that follow.
         double segDepartureBearing = seg.Edge.DepartureBearing;
         double headingDelta = new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading);
-        double alignmentRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
-        double sweepRad = headingDelta * Math.PI / 180.0;
-        double alignmentChordFt = 2.0 * alignmentRadiusFt * Math.Sin(sweepRad / 2.0);
-        double segmentLengthFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
-        // Segment must accommodate the slow-turn chord plus a small pure-pursuit
-        // recovery margin. The chord is the straight-line displacement during
-        // the alignment arc; after the swap to the real segment primitive,
-        // pure-pursuit handles the remainder. Factor 1.2 covers numerical drift
-        // (segments slightly shorter than chord overshoot the target node);
-        // anything tighter than that risks an orbit, anything looser starves
-        // tight-ramp jet exits (e.g. OAK JSX1 RAMP, 38 ft segment vs C700's
-        // 31.5 ft chord for a 78° turn).
-        bool segmentLongEnough = segmentLengthFt > 1.2 * alignmentChordFt;
 
-        if (headingDelta > EntryAlignmentThresholdDeg && segmentLongEnough)
+        if (headingDelta > EntryAlignmentThresholdDeg)
         {
             var alignmentArc = PathPrimitiveBuilder.SlowTurn(
                 fromLat: ctx.Aircraft.Position.Lat,
@@ -699,7 +689,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             int nextIdx = route.CurrentSegmentIndex + 1;
             var nextSeg = route.Segments[nextIdx];
             double turnAngle = SingleCornerTurnAngle(route, route.CurrentSegmentIndex);
-            _currentNodeRequiredSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngle);
+            _currentNodeRequiredSpeed = CornerSpeed(ctx.Category, turnAngle, seg.Edge.DistanceNm, nextSeg.Edge.DistanceNm);
             _nextSegmentBearing = nextSeg.Edge.DepartureBearing;
             _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
         }
@@ -738,7 +728,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             if (nextNextIdx < route.Segments.Count)
             {
                 double futureTurnAngle = SingleCornerTurnAngle(route, i);
-                reqSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, futureTurnAngle);
+                reqSpeed = CornerSpeed(ctx.Category, futureTurnAngle, futureSeg.Edge.DistanceNm, route.Segments[nextNextIdx].Edge.DistanceNm);
             }
             else
             {
@@ -817,6 +807,45 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     /// aircraft actually turns is the one between the two adjacent segments. (This replaces V1's
     /// forward-window sum, a Legacy-fillet compensation for ArcSplit chord chains that V2 does not produce.)
     /// </summary>
+    /// <summary>
+    /// Required ground speed at a corner of <paramref name="turnAngleDeg"/> whose heading change must be
+    /// executed across the shorter of the two segments meeting at the corner (<paramref name="intoNm"/>,
+    /// <paramref name="outNm"/>). Combines the angle-based comfort cap
+    /// (<see cref="CategoryPerformance.CornerSpeedForAngle"/>) with a turn-rate-feasibility cap: rotating
+    /// <c>θ</c>° across distance <c>L</c> at the ground turn rate <c>ω</c> demands <c>θ·v/L ≤ ω</c>, i.e.
+    /// <c>v ≤ ω·L/θ</c>. The <c>½·L</c> reflects the rounding being centred on the vertex (the aircraft must
+    /// be mid-turn at the node, not just beginning it). Backward-propagated by the caller's braking curve,
+    /// this slows the aircraft <em>before</em> a tight bend — a pilot reads the ramp ahead and eases off —
+    /// instead of barrelling in.
+    ///
+    /// <para>
+    /// Without the feasibility term a sharp bend over a very short ramp segment keeps the angle-only speed
+    /// (~18 kt for a 52° jet corner); the aircraft covers the segment in a fraction of a tick, cannot rotate
+    /// far enough to track the turn, overshoots the corner node, and orbits a target now behind it. Floored
+    /// at <see cref="CategoryPerformance.SlowTurnSpeedKts"/>: anything tighter than walking pace is rounded
+    /// by the entry-alignment slow-turn at the nose-wheel radius, not commanded slower here. The
+    /// lateral-accel comfort cap (§4.4a) is non-binding for these straight-segment vertices — it governs
+    /// genuine arc primitives, which carry their own <see cref="GroundArc.MaxSafeSpeedKts"/>. Validated by
+    /// aviation-sim-expert (turn-rate model, ½ factor, 3 kt floor, θ&gt;30° engagement).
+    /// </para>
+    /// </summary>
+    private static double CornerSpeed(AircraftCategory cat, double turnAngleDeg, double intoNm, double outNm)
+    {
+        double angleCap = CategoryPerformance.CornerSpeedForAngle(cat, turnAngleDeg);
+
+        // Below the corner knee the turn is gentle (angle cap holds at full taxi speed) and dividing by a
+        // near-zero angle would blow up — leave near-collinear ramp kinks at taxi speed.
+        if (turnAngleDeg <= 30.0)
+        {
+            return angleCap;
+        }
+
+        double lFt = Math.Min(intoNm, outNm) * GeoMath.FeetPerNm;
+        double feasibleFtPerSec = CategoryPerformance.GroundTurnRate(cat) * (0.5 * lFt) / turnAngleDeg;
+        double feasibleKts = feasibleFtPerSec * 3600.0 / GeoMath.FeetPerNm;
+        return Math.Max(Math.Min(angleCap, feasibleKts), CategoryPerformance.SlowTurnSpeedKts);
+    }
+
     private static double SingleCornerTurnAngle(TaxiRoute route, int turnNodeSegIdx)
     {
         int nextIdx = turnNodeSegIdx + 1;

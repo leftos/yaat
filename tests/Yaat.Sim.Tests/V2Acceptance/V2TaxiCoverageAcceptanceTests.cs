@@ -20,37 +20,15 @@ namespace Yaat.Sim.Tests.V2Acceptance;
 /// but the V1 pathfinder + V1 navigator — that isolates fillet-geometry regressions; this isolates
 /// the full V2 stack.
 /// </para>
-///
-/// <para>
-/// Pairs in <see cref="KnownNavV2OverRotationWip"/> are quarantined: GroundNavigatorV2 currently
-/// over-rotates at ramp-connector fillet-arc pairs (cumulative turn 3-6x optimal). They are being
-/// fixed under the Phase-4 navigator work; remove each from the set as it goes green.
-/// </para>
 /// </summary>
 [Collection("V2 Acceptance")]
 public class V2TaxiCoverageAcceptanceTests(ITestOutputHelper output)
 {
-    /// <summary>
-    /// Coverage pairs GroundNavigatorV2 cannot yet complete within the turn budget because it
-    /// over-rotates at ramp-connector fillet-arc pairs. Each is re-validated (and removed from this
-    /// set) as the navigator fix lands.
-    /// </summary>
-    private static readonly HashSet<string> KnownNavV2OverRotationWip = new(StringComparer.Ordinal)
-    {
-        "OAK_FDX5-to-30_jet",
-        "OAK_FDX5-to-Gate22_jet",
-        "OAK_Gate22-to-30_jet",
-        "FLL_A9-to-10L_jet",
-        "FLL_28R-B8-to-D8_jet",
-    };
-
-    private static IEnumerable<TaxiPair> AllPairs() => TaxiCoverageData.OakSmoke.Concat(TaxiCoverageData.SfoSmoke).Concat(TaxiCoverageData.FllSmoke);
-
-    public static IEnumerable<object[]> PassingPairs() =>
-        AllPairs().Where(p => !KnownNavV2OverRotationWip.Contains(p.PairId)).Select(p => new object[] { p.PairId, p });
+    public static IEnumerable<object[]> Pairs() =>
+        TaxiCoverageData.OakSmoke.Concat(TaxiCoverageData.SfoSmoke).Concat(TaxiCoverageData.FllSmoke).Select(p => new object[] { p.PairId, p });
 
     [Theory]
-    [MemberData(nameof(PassingPairs))]
+    [MemberData(nameof(Pairs))]
     public void Pair_ReachesDestinationWithinBudgets_OnAllV2(string pairId, TaxiPair pair)
     {
         _ = pairId;
@@ -95,12 +73,6 @@ public class V2TaxiCoverageAcceptanceTests(ITestOutputHelper output)
 
         TaxiCoverageRunner.Run(BuildEngine, pair, origin, destination, layout, output);
     }
-
-    [Fact(
-        Skip = "GroundNavigatorV2 over-rotates at ramp-connector fillet-arc pairs (cumulative turn 3-6x optimal). "
-            + "Phase-4 navigator WIP. Quarantined: OAK_FDX5-to-30, OAK_FDX5-to-Gate22, OAK_Gate22-to-30, FLL_A9-to-10L, FLL_28R-B8-to-D8."
-    )]
-    public void KnownNavV2OverRotation_Wip() { }
 
     private SimulationEngine? BuildEngine()
     {

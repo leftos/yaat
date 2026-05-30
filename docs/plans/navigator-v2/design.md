@@ -200,6 +200,27 @@ pure-pursuit* when geometry doesn't fit (its own "segment long enough" gate). Q1
 motion is always the floor") must therefore be a **global** tick-loop invariant, enforced for every
 decline path, not just where synthesis used to live.
 
+> **Implemented (2026-05-30) — resolves S5 without a backstop.** The OAK/FLL ramp-cluster coverage pairs
+> orbited because of exactly this decline path: a bend *tighter than the nose-wheel radius* (ramp/apron
+> corners the fillet generator cannot widen — they stay sharp vertices between 4–60 ft straights) made
+> entry-alignment decline (its `segmentLongEnough` gate) and fall through to pure-pursuit, which cannot
+> converge on a corner node whose orbit radius `v/ω` exceeds the short segment, even at the `SlowTurnSpeedKts`
+> floor → infinite circle. Fix, in two coupled parts (aviation-reviewed):
+> 1. **Un-gate the rounding.** Entry-alignment now fires for *any* corner past `EntryAlignmentThresholdDeg`,
+>    regardless of segment length — a sub-radius bend *must* be rounded at the nose-wheel radius; there is no
+>    "segment long enough" to track it on. This removes the decline path entirely (S5's freeze can't occur),
+>    so a global no-freeze floor is unnecessary — the corner is *rounded*, not *rescued*.
+> 2. **Turn-rate corner-speed cap (`CornerSpeed`, refines §4.4c).** Per-corner required speed is capped at
+>    `v ≤ ω·(½·min(into,out))/θ` (floored at `SlowTurnSpeedKts`) so the speed planner slows the aircraft into
+>    the bend *before* arrival — a pilot easing off for a tight ramp turn — instead of overshooting the
+>    corner node and stranding the target behind it.
+>
+> Net: the "V2 emits proper arcs, synthesis unnecessary" rationale holds for *taxiway* corners but not for
+> sub-nose-wheel *ramp* corners; those are handled by geometric corner-rounding (the kept entry-alignment,
+> broadened), not the dropped Legacy chord-chain synthesis. Validated by the all-V2 coverage gate
+> (`V2TaxiCoverageAcceptanceTests`, 31/31). Remaining cluster items: EDG320 mild parking-out wiggle
+> (338°/320°, not an orbit) and `OakCrossThenHold.AfterRes` (Q4 crossing→hold handoff).
+
 ### 4.4 Speed / turn model — **aviation-reviewed, separable from the rewrite**
 
 The cluster's tight-arc symptoms (EDG320, AfterRes) are a *speed-model* defect, not a turn-rate one.
