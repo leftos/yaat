@@ -112,7 +112,7 @@ public static class AircraftStatusDescriber
                 CrossingRunwayId = ExtractCrossingRunwayId(ac.Phases),
                 ExitingRunwayId = ExtractExitingRunwayId(ac.Phases),
                 CurrentTaxiway = ac.Ground.CurrentTaxiway ?? "",
-                TaxiRoute = BuildTaxiRoute(ac.Ground.AssignedTaxiRoute),
+                TaxiRoute = ac.Ground.AssignedTaxiRoute?.FormatTaxiwaySequence() ?? "",
                 ParkingSpot = ac.Ground.ParkingSpot ?? "",
                 PatternDirection = ac.Phases?.TrafficDirection?.ToString() ?? "",
                 PatternEntryKind = ExtractPatternEntryKind(ac.Phases),
@@ -434,27 +434,6 @@ public static class AircraftStatusDescriber
         }
 
         return names;
-    }
-
-    private static string BuildTaxiRoute(TaxiRoute? route)
-    {
-        if (route is null || route.Segments.Count == 0)
-        {
-            return "";
-        }
-
-        var taxiways = new List<string>();
-        string? lastTaxiway = null;
-        foreach (var seg in route.Segments)
-        {
-            if (seg.TaxiwayName != lastTaxiway)
-            {
-                taxiways.Add(seg.TaxiwayName);
-                lastTaxiway = seg.TaxiwayName;
-            }
-        }
-
-        return string.Join(" ", taxiways);
     }
 
     private static string? ExtractCrossingRunwayId(PhaseList? phases)

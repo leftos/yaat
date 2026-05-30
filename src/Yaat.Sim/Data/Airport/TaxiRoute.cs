@@ -20,6 +20,34 @@ public sealed class TaxiRoute
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
     /// <summary>
+    /// The cleared taxiways in order for operator-facing display — distinct consecutive segment
+    /// names with junction/membership arcs (<c>"D - RAMP"</c>) excluded. Those arcs are transitions
+    /// between taxiways, not a leg of one, so they must never appear as a named part of the route:
+    /// a route through RAMP, the RAMP↔D corner, then D C B reads <c>"RAMP D C B"</c>, not
+    /// <c>"RAMP D - RAMP D C B"</c>. Drives the Aircraft List Info column and the DTO TaxiRoute field.
+    /// </summary>
+    public string FormatTaxiwaySequence()
+    {
+        var taxiways = new List<string>();
+        string? last = null;
+        foreach (var seg in Segments)
+        {
+            if (seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
+            {
+                continue;
+            }
+
+            if (seg.TaxiwayName != last)
+            {
+                taxiways.Add(seg.TaxiwayName);
+                last = seg.TaxiwayName;
+            }
+        }
+
+        return string.Join(" ", taxiways);
+    }
+
+    /// <summary>
     /// Returns a shallow copy of this route truncated to end at the segment whose
     /// ToNodeId matches <paramref name="nodeId"/>. If the node is not found, returns this route.
     /// </summary>
