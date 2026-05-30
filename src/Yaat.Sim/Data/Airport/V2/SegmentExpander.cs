@@ -358,6 +358,17 @@ public static class SegmentExpander
             {
                 return (toDestEdges, toDestHead, null);
             }
+
+            // The destination is more than one hop off the named taxiway (e.g. via a connector or a
+            // RAMP spur). Pick the on-taxiway stop node from which the destination is reachable at
+            // lowest total (walk + extension) cost instead of committing to the greedy terminus —
+            // mirrors V1's SelectBestStopNode. The greedy terminus is direction-blind and its single
+            // from-terminus extension is often inadmissible (a U-turn at a dead-end) or wrong-way.
+            var (stopEdges, stopHead) = SelectBestParkingStop(head, waypoint.Name, destId, ctx);
+            if (stopEdges is not null)
+            {
+                return (stopEdges, stopHead, null);
+            }
         }
 
         // Named taxiway at end: walk to natural terminus, biased toward the destination at the
@@ -368,6 +379,83 @@ public static class SegmentExpander
         // the first step; once moving, admissibility constrains direction as before.
         var bias = ResolveTerminusBias(head, waypoint.Name, ctx);
         return WalkToNaturalTerminus(head, waypoint.Name, ctx, bias);
+    }
+
+    /// <summary>
+    /// Maximum candidate stop nodes evaluated by <see cref="SelectBestParkingStop"/>. The turn-off
+    /// onto a parking/spot spur is geometrically near the destination, so the nearest few taxiway
+    /// nodes cover the real stop points without one extension search per taxiway node.
+    /// </summary>
+    private const int MaxParkingStopCandidates = 10;
+
+    /// <summary>
+    /// Pick the on-taxiway stop node from which a parking/spot/helipad destination is reachable at
+    /// lowest total (walk + extension) cost. Mirrors v1's <c>SelectBestStopNode</c>: the greedy
+    /// terminus walk commits to one direction and a single extension from the dead-end terminus is
+    /// often inadmissible (a U-turn) or wrong-way, so instead try the taxiway nodes nearest the
+    /// destination as stop points — route to each on-taxiway (<see cref="LocalSearchToJunction"/>)
+    /// and extend from there (<see cref="ExtendToDestination"/>) — and return the walk to the best
+    /// stop node. The caller's <see cref="ExtendToDestination"/> then completes the route from that
+    /// node. Returns (null, null) when no candidate reaches the destination — the caller falls back
+    /// to the greedy terminus walk.
+    /// </summary>
+    private static (List<DirectionalEdge>? Edges, PartialRoute? Head) SelectBestParkingStop(
+        PartialRoute head,
+        string taxiwayName,
+        int destId,
+        SearchContext ctx
+    )
+    {
+        if (!ctx.Layout.Nodes.TryGetValue(destId, out var destNode))
+        {
+            return (null, null);
+        }
+
+        var candidates = ctx
+            .Layout.GetNodesOnTaxiway(taxiwayName)
+            .OrderBy(n => GeoMath.DistanceNm(n.Position, destNode.Position))
+            .Take(MaxParkingStopCandidates);
+
+        List<DirectionalEdge>? bestWalk = null;
+        PartialRoute? bestStopHead = null;
+        double bestTotal = double.MaxValue;
+
+        foreach (var cand in candidates)
+        {
+            var (walkEdges, candHead, walkCost) = LocalSearchToJunction(head, taxiwayName, cand.Id, ctx);
+            if (walkEdges is null || candHead is null)
+            {
+                continue;
+            }
+
+            var (extEdges, extFailure) = ExtendToDestination(candHead, destId, ctx);
+            if (extFailure is not null || extEdges is null)
+            {
+                continue;
+            }
+
+            double extCost = 0.0;
+            foreach (var e in extEdges)
+            {
+                extCost += e.DistanceNm;
+            }
+
+            double total = walkCost + extCost;
+            if (total < bestTotal)
+            {
+                bestTotal = total;
+                bestWalk = walkEdges;
+                bestStopHead = candHead;
+            }
+        }
+
+        if (bestWalk is null)
+        {
+            return (null, null);
+        }
+
+        ctx.DiagnosticLog?.Invoke($"[v2:beststop] twy={taxiwayName} dest={destId} stop={bestStopHead!.HeadNodeId} total={bestTotal:F3}");
+        return (bestWalk, bestStopHead);
     }
 
     /// <summary>
