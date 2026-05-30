@@ -539,7 +539,7 @@ public sealed class QueryCommand : ICommand
         {
             if (TryGetSegmentArc(analyzer, segments[i], out var arc))
             {
-                double maxSafe = arc.MaxSafeSpeedKts(CategoryPerformance.GroundTurnRate(AircraftCategory.Jet));
+                double maxSafe = arc.MaxSafeSpeedKts(AircraftCategory.Jet);
                 if (maxSafe < TightArcMaxSafeKts)
                 {
                     diagLog.Add(

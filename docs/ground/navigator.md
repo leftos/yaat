@@ -106,7 +106,7 @@ Entry alignment is the **safety net** for the pure-pursuit divergence at low spe
 The navigator never overspeeds into a future turn. `BuildSpeedConstraints` (`GroundNavigator.cs:1532`) runs at every `SetupSegment`:
 
 1. Sets `_currentNodeRequiredSpeed` from `CornerSpeedForAngle(category, EffectiveTurnAngleAt(...))` (0 for stops — uncleared hold-shorts and the last segment).
-2. Forward-walks remaining segments collecting `(pathDist, requiredSpeed, nodeId)` constraints: future-arc max-safe speeds (`GroundArc.MaxSafeSpeedKts`), corner speeds at each future node, and 0 at the first uncleared hold-short (then stops).
+2. Forward-walks remaining segments collecting `(pathDist, requiredSpeed, nodeId)` constraints: future-arc max-safe speeds (`GroundArc.MaxSafeSpeedKts(category)` — a lateral-acceleration cap `v = √(a_lat·r)`, `a_lat ≈ 0.13 g`, additionally capped by `CornerSpeedForAngle` and floored at `SlowTurnSpeedKts`), corner speeds at each future node, and 0 at the first uncleared hold-short (then stops).
 3. Backward-propagates a kinematic decel curve (`v = sqrt(v_next² + 2·a·d)`) between adjacent constraints and into the current node's required speed.
 
 `ComputeTargetSpeed` (`GroundNavigator.cs:1482`) per-tick takes the min of: the brake curve from the current node's required speed, every future constraint (skipping cleared hold-shorts), a pre-trigger constraint for a planned synthesis (so the aircraft reaches the chosen entry speed by the tangent point), and a quadratic heading-error scaling (`speedFraction`, full speed at 0° error down to 3 % at ≥ 90°). A safety backstop in `TickStraight` (`GroundNavigator.cs:1295`) caps target speed so the aircraft can't cover more than 80 % of remaining distance in one tick (overshoot prevention).

@@ -129,7 +129,7 @@ public sealed class HtmlRenderer
             writer.WriteBoolean("hl", IsHighlighted(arc));
             writer.WriteString("origin", arc.Origin ?? "");
             writer.WriteNumber("radius", Math.Round(arc.MinRadiusOfCurvatureFt, 1));
-            writer.WriteNumber("maxSafe", Math.Round(arc.MaxSafeSpeedKts(20.0), 1));
+            writer.WriteNumber("maxSafe", Math.Round(arc.MaxSafeSpeedKts(AircraftCategory.Jet), 1));
             writer.WriteNumber("turnAngle", Math.Round(arc.TurnAngleDeg, 1));
             writer.WriteStartArray("names");
             foreach (string name in arc.TaxiwayNames)

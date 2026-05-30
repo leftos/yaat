@@ -11,6 +11,9 @@ namespace Yaat.LayoutInspector;
 /// </summary>
 public sealed class LayoutValidator
 {
+    /// <summary>A genuine turn arc rounded below this radius (ft) is treated as a degenerate bezier.</summary>
+    private const double DegenerateRadiusFt = 5.0;
+
     private readonly AirportGroundLayout _layout;
     private readonly List<ValidationWarning> _warnings = [];
 
@@ -156,8 +159,10 @@ public sealed class LayoutValidator
     }
 
     /// <summary>
-    /// Warn if a genuine turn arc (TurnAngleDeg > 30°) has MaxSafeSpeedKts below 1kt.
-    /// Near-collinear arcs with degenerate beziers are expected to have low values.
+    /// Warn if a genuine turn arc (TurnAngleDeg &gt; 30°) has a degenerate curvature radius.
+    /// Checks the radius directly: the lateral-accel speed cap is floored at SlowTurnSpeedKts, so a
+    /// collapsed bezier no longer shows up as a near-zero speed. A genuine turn rounded below
+    /// <see cref="DegenerateRadiusFt"/> indicates bezier corruption (e.g. a merge bug).
     /// </summary>
     private void CheckDegenerateArcRadius()
     {
@@ -168,14 +173,13 @@ public sealed class LayoutValidator
                 continue;
             }
 
-            double maxSafe = arc.MaxSafeSpeedKts(20.0);
-            if (maxSafe < 1.0)
+            if (arc.MinRadiusOfCurvatureFt < DegenerateRadiusFt)
             {
                 Warn(
                     "arc-degenerate-radius",
                     $"Arc {arc.TaxiwayName} ({arc.Nodes[0].Id}->{arc.Nodes[1].Id}): "
-                        + $"turn={arc.TurnAngleDeg:F1}° but radius={arc.MinRadiusOfCurvatureFt:F1}ft, "
-                        + $"maxSafe={maxSafe:F2}kt. Degenerate bezier for a genuine turn.",
+                        + $"turn={arc.TurnAngleDeg:F1}° but radius={arc.MinRadiusOfCurvatureFt:F1}ft "
+                        + $"(< {DegenerateRadiusFt:F0}ft). Degenerate bezier for a genuine turn.",
                     arc
                 );
             }

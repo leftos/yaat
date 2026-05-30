@@ -103,10 +103,11 @@ public interface IGroundEdge
     bool IsRamp { get; }
 
     /// <summary>
-    /// Maximum safe speed (kts) for traversing this edge given an aircraft ground turn rate.
-    /// Straight edges return <see cref="double.MaxValue"/>; arcs compute from radius and turn rate.
+    /// Maximum safe speed (kts) for traversing this edge for the given aircraft category.
+    /// Straight edges return <see cref="double.MaxValue"/>; arcs compute from a lateral-acceleration
+    /// (tire-scrub / comfort) limit on the curvature radius, capped by the angle-based corner speed.
     /// </summary>
-    double MaxSafeSpeedKts(double turnRateDegPerSec);
+    double MaxSafeSpeedKts(AircraftCategory category);
 
     /// <summary>
     /// Returns true if this edge shares any taxiway name with <paramref name="other"/>.
@@ -196,7 +197,7 @@ public sealed class GroundEdge : IGroundEdge
 
     public bool MatchesTaxiway(string name) => string.Equals(TaxiwayName, name, StringComparison.OrdinalIgnoreCase);
 
-    public double MaxSafeSpeedKts(double turnRateDegPerSec) => double.MaxValue;
+    public double MaxSafeSpeedKts(AircraftCategory category) => double.MaxValue;
 
     public bool SharesTaxiway(IGroundEdge other) => other.MatchesTaxiway(TaxiwayName);
 
@@ -335,11 +336,26 @@ public sealed class GroundArc : IGroundEdge
     public CubicBezier ToBezier() =>
         new(Nodes[0].Position.Lat, Nodes[0].Position.Lon, P1Lat, P1Lon, P2Lat, P2Lon, Nodes[1].Position.Lat, Nodes[1].Position.Lon);
 
-    public double MaxSafeSpeedKts(double turnRateDegPerSec)
+    /// <summary>Lateral acceleration ceiling for taxi turns (m/s²) ≈ 0.13 g — a tire-scrub / passenger-comfort
+    /// limit, the same basis ICAO Annex 14 uses for rapid-exit taxiway design speeds.</summary>
+    private const double TaxiLateralAccelMps2 = 0.13 * 9.80665;
+    private const double MetersPerFoot = 0.3048;
+    private const double KnotsToMetersPerSecond = 0.514444;
+
+    /// <summary>
+    /// Maximum safe taxi speed (kts) along this arc, from a lateral-acceleration limit on the
+    /// curvature radius — the speed at which centripetal acceleration v²/r reaches
+    /// <see cref="TaxiLateralAccelMps2"/> — capped by the angle-based
+    /// <see cref="CategoryPerformance.CornerSpeedForAngle"/> ceiling and floored at
+    /// <see cref="CategoryPerformance.SlowTurnSpeedKts"/> so a degenerate-radius arc never commands a stop.
+    /// Degrades as √r: ~4.7 kt @15 ft, ~7.6 kt @40 ft, ~9.1 kt @56 ft.
+    /// </summary>
+    public double MaxSafeSpeedKts(AircraftCategory category)
     {
-        double turnRateRadSec = turnRateDegPerSec * (Math.PI / 180.0);
-        double radiusNm = MinRadiusOfCurvatureFt / GeoMath.FeetPerNm;
-        return turnRateRadSec * radiusNm * 3600.0;
+        double radiusM = MinRadiusOfCurvatureFt * MetersPerFoot;
+        double lateralAccelKts = Math.Sqrt(TaxiLateralAccelMps2 * radiusM) / KnotsToMetersPerSecond;
+        double cornerCeilingKts = CategoryPerformance.CornerSpeedForAngle(category, TurnAngleDeg);
+        return Math.Max(Math.Min(lateralAccelKts, cornerCeilingKts), CategoryPerformance.SlowTurnSpeedKts);
     }
 
     public bool SharesTaxiway(IGroundEdge other)

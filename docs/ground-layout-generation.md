@@ -275,7 +275,7 @@ public interface IGroundEdge
     bool IsRunwayCenterline { get; }                        // Runway centerline segment?
     bool MatchesRunway(string designator);                  // Matches runway identifier?
     bool IsRamp { get; }                                    // Parking connection edge?
-    double MaxSafeSpeedKts(double turnRateDegPerSec);       // Speed constraint from curvature
+    double MaxSafeSpeedKts(AircraftCategory category);      // Lateral-accel speed cap from curvature
     bool SharesTaxiway(IGroundEdge other);                  // Either taxiway matches?
     bool SameTaxiway(IGroundEdge other);                    // Exact taxiway identity?
     GroundNode OtherNode(GroundNode node);

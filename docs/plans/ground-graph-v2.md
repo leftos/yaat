@@ -83,11 +83,16 @@ deleted shared code under a V1-regression tax, build a **clean V2 navigator behi
 factory** (default V1 until the joint flip), keeping the durable core (closed-form arc playback, pure-
 pursuit, backward-propagated braking, entry alignment, I7) and dropping the chord-chain machinery.
 
-- [ ] **§4.4 speed-model fix first (separable, benefits V1+V2):** replace `GroundArc.MaxSafeSpeedKts`'s
-      kinematic `v=r·ω` cap with a lateral-accel cap `min(√(a_lat·r), CornerSpeedForAngle(sweep))`
-      (a_lat≈0.13 g); preserve ground speed across the runway-crossing handoff (don't brake to ~0).
-      Resolves the tight-arc spin/decel family. *(`GroundTurnRate` 20/25/35 is correct — do NOT change it;
-      the earlier "3°/s" framing was a diagnostic artifact.)*
+- [x] **§4.4a lateral-accel arc-cap (separable, benefits V1+V2) — DONE.** Replaced `GroundArc.MaxSafeSpeedKts`'s
+      kinematic `v=r·ω` cap with a lateral-accel cap `min(√(a_lat·r), CornerSpeedForAngle(category, TurnAngleDeg))`
+      floored at `SlowTurnSpeedKts` (a_lat≈0.13 g). Signature `(double turnRate)`→`(AircraftCategory)`; all call
+      sites (V1/V2 pathfinder, navigator, LayoutInspector, test helpers) updated; formula unit tests rewritten and
+      degenerate-arc diagnostics rewired off the now-floored speed proxy onto radius. V1 suite green (6781/0);
+      under V2+V2 the crossing no longer brakes to ~0 (AfterRes momentum preserved) and the 3.0 kt floor removes the
+      AMX669 no-motion freeze. *(`GroundTurnRate` 20/25/35 unchanged — the earlier "3°/s" framing was a diagnostic artifact.)*
+- [ ] **§4.4b crossing-momentum guard:** §4.4a already preserves ground speed across the crossing→taxiing handoff;
+      add the explicit min-gs-through-crossing ≥ ~5 kt regression assertion alongside the Phase-4 V2 navigator work
+      (deferred to there so it lands when AfterRes goes green under V2+V2, avoiding a V1-default false-fail).
 - [ ] **`IGroundNavigator` + `GroundNavigatorRouter` (static factory) extraction.** All five construction
       sites route through it; acceptance is a grep gate (zero `new GroundNavigator`/`FromSnapshot` outside
       the router), V1 stays default.

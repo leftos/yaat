@@ -133,7 +133,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
                 output.WriteLine(
                     $"  #{arc.Nodes[0].Id}->{arc.Nodes[1].Id} "
                         + $"radius={arc.MinRadiusOfCurvatureFt:F1}ft "
-                        + $"maxSafe={arc.MaxSafeSpeedKts(20.0):F1}kt"
+                        + $"maxSafe={arc.MaxSafeSpeedKts(AircraftCategory.Jet):F1}kt"
                 );
             }
 
@@ -151,11 +151,12 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
     // ─── Plan D: OAK G/D junction arcs ───
 
     /// <summary>
-    /// All arcs at OAK node #1208 must have MaxSafeSpeedKts > 0 (not degenerate).
-    /// The D·G junction arcs previously had radius=0ft due to the merge bug.
+    /// All arcs at OAK node #1208 must have a non-degenerate curvature radius.
+    /// The D·G junction arcs previously had radius=0ft due to the merge bug; the lateral-accel speed
+    /// cap is floored at SlowTurnSpeedKts, so the radius — not the speed — is what catches degeneration.
     /// </summary>
     [Fact]
-    public void OAK_GDJunction_AllArcsHaveNonZeroMaxSafeSpeed()
+    public void OAK_GDJunction_AllArcsHaveNonDegenerateRadius()
     {
         var layout = LoadOak();
         if (layout is null)
@@ -171,22 +172,26 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
         foreach (var arc in arcs)
         {
             var other = arc.Nodes[0].Id == node.Id ? arc.Nodes[1] : arc.Nodes[0];
-            double maxSafe = arc.MaxSafeSpeedKts(20.0);
+            double maxSafe = arc.MaxSafeSpeedKts(AircraftCategory.Jet);
             output.WriteLine($"  -> #{other.Id} {arc.TaxiwayName} radius={arc.MinRadiusOfCurvatureFt:F1}ft maxSafe={maxSafe:F1}kt");
 
-            Assert.True(maxSafe > 0.1, $"Arc -> #{other.Id} ({arc.TaxiwayName}) has degenerate maxSafe={maxSafe:F2}kt");
+            Assert.True(
+                arc.MinRadiusOfCurvatureFt > 1.0,
+                $"Arc -> #{other.Id} ({arc.TaxiwayName}) has degenerate radius={arc.MinRadiusOfCurvatureFt:F2}ft"
+            );
         }
     }
 
     /// <summary>
-    /// No genuine turn arc (TurnAngleDeg > 30°) should have MaxSafeSpeedKts below 1kt.
-    /// Near-collinear arcs (≤30°) are exempt — they return double.MaxValue by design.
-    /// This catches merge-induced bezier corruption on real turns without masking it
-    /// behind a blanket speed floor.
+    /// No genuine turn arc (TurnAngleDeg > 30°) should have a degenerate curvature radius.
+    /// Near-collinear arcs (≤30°) are exempt. This catches merge-induced bezier corruption on real
+    /// turns by checking the radius directly — the lateral-accel speed cap is floored at
+    /// SlowTurnSpeedKts, so a collapsed radius no longer surfaces as a near-zero speed.
     /// </summary>
     [Fact]
-    public void GenuineTurnArcs_HaveReasonableMaxSafeSpeed()
+    public void GenuineTurnArcs_HaveNonDegenerateRadius()
     {
+        const double DegenerateRadiusFt = 5.0;
         foreach (string airport in new[] { "SFO", "OAK" })
         {
             string path = Path.Combine("TestData", $"{airport.ToLowerInvariant()}.geojson");
@@ -202,7 +207,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
 
             foreach (var arc in layout.Arcs)
             {
-                double maxSafe = arc.MaxSafeSpeedKts(20.0);
+                double maxSafe = arc.MaxSafeSpeedKts(AircraftCategory.Jet);
 
                 if (arc.TurnAngleDeg <= 30.0)
                 {
@@ -212,7 +217,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
 
                 genuineTurnCount++;
 
-                if (maxSafe < 1.0)
+                if (arc.MinRadiusOfCurvatureFt < DegenerateRadiusFt)
                 {
                     output.WriteLine(
                         $"{airport}: degenerate turn arc #{arc.Nodes[0].Id}->{arc.Nodes[1].Id} "

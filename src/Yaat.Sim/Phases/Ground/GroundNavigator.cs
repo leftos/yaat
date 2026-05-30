@@ -1567,7 +1567,6 @@ public sealed class GroundNavigator
 
         // Forward walk: collect future speed constraints.
         double cumulativeDistNm = 0;
-        double turnRate = CategoryPerformance.GroundTurnRate(ctx.Category);
         for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
         {
             var futureSeg = route.Segments[i];
@@ -1575,7 +1574,7 @@ public sealed class GroundNavigator
 
             if (futureSeg.Edge.Edge is GroundArc futureArc)
             {
-                double arcMaxSpeed = futureArc.MaxSafeSpeedKts(turnRate);
+                double arcMaxSpeed = futureArc.MaxSafeSpeedKts(ctx.Category);
                 if (arcMaxSpeed < MaxSpeedKts)
                 {
                     double arcStartDist = cumulativeDistNm - futureSeg.Edge.DistanceNm;

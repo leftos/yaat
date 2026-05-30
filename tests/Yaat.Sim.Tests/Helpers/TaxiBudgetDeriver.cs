@@ -88,7 +88,6 @@ internal static class TaxiBudgetDeriver
             ?? throw new InvalidOperationException($"TaxiBudgetDeriver: no A* route from node {fromNodeId} to {toNodeId} in {layout.AirportId}");
 
         double nominalKts = CategoryPerformance.TaxiSpeed(category);
-        double turnRateDegSec = CategoryPerformance.GroundTurnRate(category);
 
         double optimalDistFt = 0;
         double optimalTurnDeg = 0;
@@ -103,7 +102,7 @@ internal static class TaxiBudgetDeriver
 
             // Per-segment arc-aware speed: straight segments use nominal,
             // arcs are capped by their geometry (tight fillet → low speed).
-            double segMaxSafeKts = seg.Edge.Edge.MaxSafeSpeedKts(turnRateDegSec);
+            double segMaxSafeKts = seg.Edge.Edge.MaxSafeSpeedKts(category);
             double effKts = Math.Max(1.0, Math.Min(nominalKts, segMaxSafeKts));
             optimalTimeSec += distFt / (effKts * FtPerSecondsPerKt);
 

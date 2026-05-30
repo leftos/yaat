@@ -170,12 +170,11 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
             .Where(x => string.Equals(x.Segment.TaxiwayName, "F", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        const double JetTurnRateDegSec = 20.0;
-        const double UntaxiableMaxSafeKts = 3.0;
+        const double DegenerateRadiusFt = 5.0;
 
         var tightArcs = route
             .Segments.Select((s, i) => (Index: i, Segment: s))
-            .Where(x => x.Segment.Edge.Edge is GroundArc arc && arc.MaxSafeSpeedKts(JetTurnRateDegSec) < UntaxiableMaxSafeKts)
+            .Where(x => x.Segment.Edge.Edge is GroundArc arc && arc.MinRadiusOfCurvatureFt < DegenerateRadiusFt)
             .ToList();
 
         if (fSegments.Count > 0)
@@ -189,14 +188,12 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
 
         if (tightArcs.Count > 0)
         {
-            output.WriteLine(
-                $"!!! {tightArcs.Count} un-taxiable arc segment(s) (maxSafe < {UntaxiableMaxSafeKts}kt @ {JetTurnRateDegSec}°/s turn rate):"
-            );
+            output.WriteLine($"!!! {tightArcs.Count} degenerate-radius arc segment(s) (radius < {DegenerateRadiusFt:F0}ft):");
             foreach (var (idx, seg) in tightArcs)
             {
                 var arc = (GroundArc)seg.Edge.Edge;
                 output.WriteLine(
-                    $"  [{idx}] {seg.FromNodeId}->{seg.ToNodeId} on {seg.TaxiwayName} radius={arc.MinRadiusOfCurvatureFt:F1}ft maxSafe={arc.MaxSafeSpeedKts(JetTurnRateDegSec):F1}kt"
+                    $"  [{idx}] {seg.FromNodeId}->{seg.ToNodeId} on {seg.TaxiwayName} radius={arc.MinRadiusOfCurvatureFt:F1}ft maxSafe={arc.MaxSafeSpeedKts(AircraftCategory.Jet):F1}kt"
                 );
             }
         }

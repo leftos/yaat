@@ -541,7 +541,7 @@ public class RouteCostFunctionTests
         double costWithArc = RouteCostFunction.IncrementalCost(r1, arc, n2, ctxFastest);
 
         // Fastest adds distance / (maxSafeSpeedNmPerSec). For a tight-radius arc this is large.
-        double maxSafeKts = arc.MaxSafeSpeedKts(RouteCostFunction.TaxiTurnRateDegPerSec);
+        double maxSafeKts = arc.MaxSafeSpeedKts(ctxFastest.Category);
         double timeCost = arc.DistanceNm / (maxSafeKts / 3600.0);
         Assert.True(costWithArc >= arc.DistanceNm + timeCost - 1e-9, $"Expected time cost term {timeCost} in arc cost {costWithArc}");
     }

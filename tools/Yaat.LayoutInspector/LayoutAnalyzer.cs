@@ -134,7 +134,7 @@ public sealed class LayoutAnalyzer
                 arcDetail = new ArcDetail(
                     arc.TaxiwayNames,
                     arc.MinRadiusOfCurvatureFt,
-                    arc.MaxSafeSpeedKts(20.0),
+                    arc.MaxSafeSpeedKts(AircraftCategory.Jet),
                     arc.DistanceNm,
                     tangentDeg,
                     arc.TurnAngleDeg,

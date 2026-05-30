@@ -281,9 +281,12 @@ fail-first repro per the TDD rule.
 ## 7. Rollout (reshapes Workstream 3)
 
 1. **This design** → reviewed (`architect-reviewer` + `aviation-sim-expert`) → revised. ✅ done.
-2. **Lateral-accel arc-cap (§4.4a) + crossing momentum (§4.4b)** — separable, aviation-reviewed, touches
-   the shared arc model so it benefits V1 *and* V2. Can land first/independently. Fail-first repro
-   (AfterRes crossing min-gs; the EDG320 tight-arc speed). *(Touches shared code → verify V1 green.)*
+2. **Lateral-accel arc-cap (§4.4a)** ✅ done — replaced the kinematic `v=r·ω` cap with
+   `min(√(a_lat·r), CornerSpeedForAngle(category, TurnAngleDeg))` floored at `SlowTurnSpeedKts`; signature
+   `(double turnRate)`→`(AircraftCategory)`; all call sites updated; formula unit tests rewritten; V1 suite green
+   (6781/0). Under V2+V2 the crossing keeps momentum (AfterRes no longer brakes to ~0) and the floor clears the
+   AMX669 freeze. **Crossing-momentum guard (§4.4b)** — the min-gs-through-crossing assertion folds into the
+   Phase-4 V2 navigator work (where AfterRes goes green under V2+V2), avoiding a V1-default false-fail.
 3. `IGroundNavigator` + `GroundNavigatorRouter` (static factory) extraction; V1 implements it; **all five**
    construction sites route through the factory. Pure refactor, no behavior change; V1 stays default.
    **Acceptance: the grep gate** (zero `new GroundNavigator` / `GroundNavigator.FromSnapshot` outside the

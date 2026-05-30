@@ -713,7 +713,7 @@ public static class TaxiPathfinder
             ? [preference.Value]
             : new[] { RoutePreference.FewestTurns, RoutePreference.Shortest, RoutePreference.Fastest };
 
-        double turnRateDegSec = CategoryPerformance.GroundTurnRate(AircraftCategory.Jet);
+        const AircraftCategory taxiCategory = AircraftCategory.Jet;
         double taxiSpeedKts = CategoryPerformance.TaxiSpeed(AircraftCategory.Jet);
 
         // Phase 1: Collect candidates from each strategy via Yen's K-shortest.
@@ -727,7 +727,7 @@ public static class TaxiPathfinder
             {
                 RoutePreference.Shortest => (edge, _) => CostShortestBiased(edge, authorizedTaxiways),
                 RoutePreference.FewestTurns => (edge, prev) => CostFewestTurns(edge, prev),
-                RoutePreference.Fastest => (edge, _) => CostFastest(edge, turnRateDegSec, taxiSpeedKts),
+                RoutePreference.Fastest => (edge, _) => CostFastest(edge, taxiCategory, taxiSpeedKts),
                 _ => (edge, _) => CostShortestBiased(edge, authorizedTaxiways),
             };
 
@@ -771,7 +771,7 @@ public static class TaxiPathfinder
         {
             double dist = route.TotalDistanceNm;
             int trans = CountTaxiwayTransitions(route);
-            double time = EstimateTime(route, turnRateDegSec, taxiSpeedKts);
+            double time = EstimateTime(route, taxiCategory, taxiSpeedKts);
 
             if (dist < bestDistance)
             {
@@ -797,7 +797,7 @@ public static class TaxiPathfinder
         {
             double distScore = bestDistance / Math.Max(route.TotalDistanceNm, 1e-9);
             double transScore = (fewestTransitions + 1.0) / (CountTaxiwayTransitions(route) + 1.0);
-            double timeScore = bestTime / Math.Max(EstimateTime(route, turnRateDegSec, taxiSpeedKts), 1e-9);
+            double timeScore = bestTime / Math.Max(EstimateTime(route, taxiCategory, taxiSpeedKts), 1e-9);
 
             double finalScore = (distScore + transScore + timeScore) / 3.0;
             scored.Add((route, finalScore));
@@ -819,12 +819,12 @@ public static class TaxiPathfinder
     /// Estimate travel time (hours) for a route given aircraft performance.
     /// Straight edges use taxi speed; arcs use min(taxiSpeed, arcSafeSpeed).
     /// </summary>
-    private static double EstimateTime(TaxiRoute route, double turnRateDegSec, double taxiSpeedKts)
+    private static double EstimateTime(TaxiRoute route, AircraftCategory category, double taxiSpeedKts)
     {
         double totalTime = 0;
         foreach (var seg in route.Segments)
         {
-            double speed = Math.Min(taxiSpeedKts, seg.Edge.Edge.MaxSafeSpeedKts(turnRateDegSec));
+            double speed = Math.Min(taxiSpeedKts, seg.Edge.Edge.MaxSafeSpeedKts(category));
             speed = Math.Max(speed, 1.0);
             totalTime += seg.Edge.DistanceNm / speed;
         }
@@ -1059,14 +1059,14 @@ public static class TaxiPathfinder
         return cost;
     }
 
-    private static double CostFastest(IGroundEdge edge, double turnRateDegSec, double taxiSpeedKts)
+    private static double CostFastest(IGroundEdge edge, AircraftCategory category, double taxiSpeedKts)
     {
         if (edge.IsRunwayCenterline)
         {
             return edge.DistanceNm + RunwayEdgePenaltyCost;
         }
 
-        double speedKts = Math.Min(taxiSpeedKts, edge.MaxSafeSpeedKts(turnRateDegSec));
+        double speedKts = Math.Min(taxiSpeedKts, edge.MaxSafeSpeedKts(category));
         speedKts = Math.Max(speedKts, 1.0); // avoid division by zero
         double timeHours = edge.DistanceNm / speedKts;
         return timeHours;

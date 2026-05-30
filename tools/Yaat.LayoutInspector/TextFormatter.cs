@@ -111,7 +111,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
             {
                 arcStr =
                     $"\n      arc: names=[{string.Join(",", a.TaxiwayNames)}] radius={a.MinRadiusOfCurvatureFt:F0}ft"
-                    + $" maxSafe={a.MaxSafeSpeedKts20:F1}kt tangent={a.TangentAtParentDeg:F1}°"
+                    + $" maxSafe={a.MaxSafeSpeedKts:F1}kt tangent={a.TangentAtParentDeg:F1}°"
                     + $" len={a.ArcLengthNm:F4}nm";
             }
 

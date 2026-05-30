@@ -50,12 +50,6 @@ public static class RouteCostFunction
     public const double FewestTurnsWeightMultiplier = 5.0;
 
     /// <summary>
-    /// Standard taxi turn rate used to convert <see cref="IGroundEdge.MaxSafeSpeedKts"/> on arcs
-    /// to a scalar for the Fastest time-cost term. ~3 deg/sec is typical ground taxi.
-    /// </summary>
-    public const double TaxiTurnRateDegPerSec = 3.0;
-
-    /// <summary>
     /// Compute the incremental cost of extending <paramref name="current"/> by one edge to <paramref name="nextNode"/>.
     /// This is the single cost function called by all search decision points.
     /// </summary>
@@ -90,7 +84,7 @@ public static class RouteCostFunction
         // Applied on top of the distance component so slower arcs cost proportionally more.
         if (ctx.Preference == RoutePreference.Fastest)
         {
-            double maxSafeSpeedKts = candidate.MaxSafeSpeedKts(TaxiTurnRateDegPerSec);
+            double maxSafeSpeedKts = candidate.MaxSafeSpeedKts(ctx.Category);
             if (maxSafeSpeedKts > 0.0 && !double.IsPositiveInfinity(maxSafeSpeedKts))
             {
                 double maxSafeSpeedNmPerSec = maxSafeSpeedKts / 3600.0;

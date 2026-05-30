@@ -48,7 +48,7 @@ public sealed record EdgeInfo(
 public sealed record ArcDetail(
     string[] TaxiwayNames,
     double MinRadiusOfCurvatureFt,
-    double MaxSafeSpeedKts20,
+    double MaxSafeSpeedKts,
     double ArcLengthNm,
     /// <summary>Tangent direction (degrees true) at the parent node. For bezier arcs, this is the
     /// direction from P0→P1 (when parent is Nodes[0]) or P3→P2 (when parent is Nodes[1]).</summary>

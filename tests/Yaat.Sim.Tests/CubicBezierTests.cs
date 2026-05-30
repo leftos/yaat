@@ -201,30 +201,26 @@ public class CubicBezierTests
     // --- MaxSafeSpeedKts (GroundArc method) ---
 
     [Fact]
-    public void MaxSafeSpeedKts_75FtRadius_JetTurnRate()
+    public void MaxSafeSpeedKts_75FtRadius_LateralAccelModel()
     {
+        // Lateral-accel cap: v = sqrt(a_lat · r), a_lat = 0.13 g. At 75 ft this is ~10.5 kt, under the
+        // Jet corner ceiling (TaxiSpeed = 30 kt for a near-straight arc), so the radius term governs.
         double radiusFt = 75.0;
-        double turnRateDegSec = 20.0; // Jet
+        double radiusM = radiusFt * 0.3048;
+        double expected = Math.Sqrt(0.13 * 9.80665 * radiusM) / 0.514444;
 
-        // Expected: ω_rad/s × R_nm × 3600
-        double turnRateRadSec = turnRateDegSec * Math.PI / 180.0;
-        double radiusNm = radiusFt / GeoMath.FeetPerNm;
-        double expected = turnRateRadSec * radiusNm * 3600.0;
+        var arc = MakeGroundArc(radiusFt); // TurnAngleDeg defaults to 0 → corner ceiling non-binding
 
-        var arc = MakeGroundArc(radiusFt);
-        double actual = arc.MaxSafeSpeedKts(turnRateDegSec);
-
-        Assert.Equal(expected, actual, 0.001);
+        Assert.Equal(expected, arc.MaxSafeSpeedKts(AircraftCategory.Jet), 0.01);
     }
 
     [Fact]
     public void MaxSafeSpeedKts_LargerRadius_ProducesHigherSpeed()
     {
-        double turnRate = 20.0;
         var smallArc = MakeGroundArc(75.0);
         var largeArc = MakeGroundArc(150.0);
 
-        Assert.True(largeArc.MaxSafeSpeedKts(turnRate) > smallArc.MaxSafeSpeedKts(turnRate));
+        Assert.True(largeArc.MaxSafeSpeedKts(AircraftCategory.Jet) > smallArc.MaxSafeSpeedKts(AircraftCategory.Jet));
     }
 
     private static GroundArc MakeGroundArc(double minRadiusFt)
