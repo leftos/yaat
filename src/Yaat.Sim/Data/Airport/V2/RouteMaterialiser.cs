@@ -72,6 +72,15 @@ public static class RouteMaterialiser
         var holdShorts = new List<HoldShortPoint>();
         var seen = new HashSet<int>();
 
+        // Entry/exit pairing by encounter order (ported from HoldShortAnnotator): the first
+        // RunwayHoldShort node for a runway is the entry side (annotate); the second distinct
+        // node for that runway is the exit side of the same crossing (skip). The destination
+        // runway is exempt — it is the route terminus, always annotated. When the route begins
+        // mid-crossing (e.g. re-routed from a runway hold-short), pre-seed the start node as an
+        // entry so its exit-side pair is skipped.
+        var enteredRunways = new Dictionary<RunwayIdentifier, int>();
+        PreSeedStartCrossing(segments, ctx, enteredRunways);
+
         foreach (var seg in segments)
         {
             int nodeId = seg.ToNodeId;
@@ -91,29 +100,37 @@ public static class RouteMaterialiser
                 // auto-cross) > ExplicitHoldShort (controller named it in the HS list) > RunwayCrossing.
                 // Reciprocal matching: a node's RunwayId is the combined "28R/10L"; clearances name a
                 // single end ("28R"), so match via RunwayIdentifier.Contains, not literal string equality.
-                HoldShortReason reason;
-                string targetName = runwayId.ToString();
-
                 if (ctx.Destination.Kind == DestinationKind.Runway && ctx.Destination.RunwayId is { } destRwy && runwayId.Contains(destRwy))
                 {
-                    reason = HoldShortReason.DestinationRunway;
-                    targetName = destRwy;
+                    holdShorts.Add(
+                        new HoldShortPoint
+                        {
+                            NodeId = nodeId,
+                            Reason = HoldShortReason.DestinationRunway,
+                            TargetName = destRwy,
+                        }
+                    );
+                    continue;
                 }
-                else if (MatchesExplicitHoldShort(runwayId, ctx.ExplicitHoldShorts))
+
+                // Non-destination runway: pair the crossing's entry and exit sides. The second
+                // distinct hold-short node for a runway is the exit side — drop it so the aircraft
+                // doesn't stop on the far side of a runway it is cleared through.
+                if (enteredRunways.Remove(runwayId))
                 {
-                    reason = HoldShortReason.ExplicitHoldShort;
+                    continue;
                 }
-                else
-                {
-                    reason = HoldShortReason.RunwayCrossing;
-                }
+
+                enteredRunways[runwayId] = nodeId;
 
                 holdShorts.Add(
                     new HoldShortPoint
                     {
                         NodeId = nodeId,
-                        Reason = reason,
-                        TargetName = targetName,
+                        Reason = MatchesExplicitHoldShort(runwayId, ctx.ExplicitHoldShorts)
+                            ? HoldShortReason.ExplicitHoldShort
+                            : HoldShortReason.RunwayCrossing,
+                        TargetName = runwayId.ToString(),
                     }
                 );
 
@@ -142,6 +159,58 @@ public static class RouteMaterialiser
         }
 
         return holdShorts;
+    }
+
+    /// <summary>
+    /// When the route begins at a runway hold-short and the aircraft is mid-crossing (there is a
+    /// paired hold-short for the same runway further along the starting taxiway), pre-seed the
+    /// start node as an entry so the next encounter of that runway's hold-short is treated as the
+    /// exit side and skipped. A route that begins at a single-sided exit hold-short (just vacated
+    /// the runway, no paired hold-short ahead on the same taxiway) is NOT pre-seeded — its next
+    /// runway hold-short is a genuine new crossing entry. Mirrors HoldShortAnnotator's start-node
+    /// pre-seed.
+    /// </summary>
+    private static void PreSeedStartCrossing(List<TaxiRouteSegment> segments, SearchContext ctx, Dictionary<RunwayIdentifier, int> enteredRunways)
+    {
+        if (segments.Count == 0)
+        {
+            return;
+        }
+
+        int startNodeId = segments[0].FromNodeId;
+        if (
+            !ctx.Layout.Nodes.TryGetValue(startNodeId, out var startNode)
+            || startNode.Type != GroundNodeType.RunwayHoldShort
+            || startNode.RunwayId is not { } startRwyId
+        )
+        {
+            return;
+        }
+
+        string startTaxiway = segments[0].TaxiwayName;
+        foreach (var seg in segments)
+        {
+            if (seg.TaxiwayName != startTaxiway)
+            {
+                break;
+            }
+
+            if (seg.ToNodeId == startNodeId)
+            {
+                continue;
+            }
+
+            if (
+                ctx.Layout.Nodes.TryGetValue(seg.ToNodeId, out var segToNode)
+                && segToNode.Type == GroundNodeType.RunwayHoldShort
+                && segToNode.RunwayId is { } segRwyId
+                && segRwyId.Equals(startRwyId)
+            )
+            {
+                enteredRunways[startRwyId] = startNodeId;
+                return;
+            }
+        }
     }
 
     /// <summary>
