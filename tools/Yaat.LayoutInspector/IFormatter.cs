@@ -6,6 +6,7 @@ public interface IFormatter
     void WriteTaxiway(TaxiwayResult result);
     void WriteRunway(RunwayResult result);
     void WriteNode(NodeInfo node);
+    void WriteNodeAngles(NodeAnglesResult result);
     void WriteExits(ExitsResult result);
     void WriteBfsPath(BfsPathResult result);
     void WriteNodeList(string title, List<NodeInfo> nodes);

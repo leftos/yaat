@@ -70,6 +70,15 @@ public sealed class QueryCommand : ICommand
             }
 
             formatter.WriteNode(node);
+
+            if (options.NodeAngles)
+            {
+                var angles = analyzer.GetNodeAngles(nodeId);
+                if (angles is not null)
+                {
+                    formatter.WriteNodeAngles(angles);
+                }
+            }
         }
 
         foreach (string exitsRunway in options.ExitsRunways)

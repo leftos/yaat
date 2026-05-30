@@ -217,6 +217,154 @@ public sealed class LayoutAnalyzer
         return Layout.Nodes.TryGetValue(id, out var node) ? BuildNodeInfo(node) : null;
     }
 
+    /// <summary>Max hops the bridge BFS walks looking for an alternate route between an edge pair's arms.</summary>
+    private const int BridgeMaxHops = 6;
+
+    /// <summary>
+    /// Pairwise fan/turn angles between every edge fanning out of <paramref name="id"/>, plus the
+    /// shortest alternate path between each pair's neighbors that avoids the node (the bridging
+    /// taxiway). Pairs are returned tightest-turn-first so un-filletable corners surface at the top.
+    /// </summary>
+    public NodeAnglesResult? GetNodeAngles(int id)
+    {
+        if (!Layout.Nodes.TryGetValue(id, out var node))
+        {
+            return null;
+        }
+
+        var arms = new List<(int Neighbor, string Taxiway, double DepartBearing)>();
+        foreach (var edge in node.Edges)
+        {
+            int neighborId = edge.OtherNodeId(node.Id);
+            double depart;
+            if (edge is GroundArc arc)
+            {
+                depart = ComputeArcTangentAtNode(arc, arc.Nodes[0].Id == node.Id);
+            }
+            else if (Layout.Nodes.TryGetValue(neighborId, out var neighbor))
+            {
+                depart = GeoMath.BearingTo(node.Position, neighbor.Position);
+            }
+            else
+            {
+                depart = 0;
+            }
+
+            arms.Add((neighborId, edge.TaxiwayName, depart));
+        }
+
+        var pairs = new List<EdgePairAngle>();
+        for (int i = 0; i < arms.Count; i++)
+        {
+            for (int j = i + 1; j < arms.Count; j++)
+            {
+                double fan = FanAngle(arms[i].DepartBearing, arms[j].DepartBearing);
+                var bridge = FindBridge(node.Id, arms[i].Neighbor, arms[j].Neighbor, arms[i].Taxiway, arms[j].Taxiway);
+                pairs.Add(new EdgePairAngle(arms[i].Taxiway, arms[i].Neighbor, arms[j].Taxiway, arms[j].Neighbor, fan, 180.0 - fan, bridge));
+            }
+        }
+
+        pairs.Sort((a, b) => b.TurnAngleDeg.CompareTo(a.TurnAngleDeg));
+        return new NodeAnglesResult(node.Id, node.Type.ToString(), pairs);
+    }
+
+    /// <summary>Included angle (0..180°) between two outbound bearings: 0 = same direction, 180 = opposite.</summary>
+    private static double FanAngle(double bearingADeg, double bearingBDeg)
+    {
+        return Math.Abs((((bearingADeg - bearingBDeg) + 540.0) % 360.0) - 180.0);
+    }
+
+    /// <summary>
+    /// Shortest hop path from <paramref name="from"/> to <paramref name="to"/> that never revisits
+    /// <paramref name="excludeNode"/>, capped at <see cref="BridgeMaxHops"/>. Returns null when no
+    /// alternate route exists within the cap (the pair is connected only through the shared node).
+    /// </summary>
+    private BridgeInfo? FindBridge(int excludeNode, int from, int to, string taxiwayA, string taxiwayB)
+    {
+        if (from == to)
+        {
+            return new BridgeInfo([], [from], 0, 0);
+        }
+
+        var prev = new Dictionary<int, int>();
+        var depth = new Dictionary<int, int> { [from] = 0 };
+        var queue = new Queue<int>();
+        queue.Enqueue(from);
+        while (queue.Count > 0)
+        {
+            int cur = queue.Dequeue();
+            if (cur == to)
+            {
+                break;
+            }
+
+            if (depth[cur] >= BridgeMaxHops || !Layout.Nodes.TryGetValue(cur, out var curNode))
+            {
+                continue;
+            }
+
+            foreach (var edge in curNode.Edges)
+            {
+                int nb = edge.OtherNodeId(cur);
+                if (nb == excludeNode || depth.ContainsKey(nb))
+                {
+                    continue;
+                }
+
+                depth[nb] = depth[cur] + 1;
+                prev[nb] = cur;
+                queue.Enqueue(nb);
+            }
+        }
+
+        if (!depth.ContainsKey(to))
+        {
+            return null;
+        }
+
+        var path = new List<int> { to };
+        int n = to;
+        while (n != from)
+        {
+            n = prev[n];
+            path.Add(n);
+        }
+
+        path.Reverse();
+
+        double distFt = 0;
+        var bridgeTaxiways = new List<string>();
+        var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { taxiwayA, taxiwayB };
+        for (int k = 0; k + 1 < path.Count; k++)
+        {
+            if (!Layout.Nodes.TryGetValue(path[k], out var a))
+            {
+                continue;
+            }
+
+            foreach (var edge in a.Edges)
+            {
+                if (edge.OtherNodeId(path[k]) != path[k + 1])
+                {
+                    continue;
+                }
+
+                distFt += edge.DistanceNm * GeoMath.FeetPerNm;
+                foreach (string twy in CollectNonRunwayTaxiwayNames(edge))
+                {
+                    if (!excluded.Contains(twy) && !bridgeTaxiways.Contains(twy))
+                    {
+                        bridgeTaxiways.Add(twy);
+                    }
+                }
+
+                break;
+            }
+        }
+
+        return new BridgeInfo(bridgeTaxiways, path, distFt, path.Count - 1);
+    }
+
     public TaxiwayResult GetTaxiwayDetail(string name)
     {
         var nodeIds = new HashSet<int>();

@@ -14,6 +14,8 @@ public sealed class JsonFormatter(TextWriter writer) : IFormatter
 
     public void WriteNode(NodeInfo n) => writer.WriteLine(JsonSerializer.Serialize(n, Opts));
 
+    public void WriteNodeAngles(NodeAnglesResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
+
     public void WriteExits(ExitsResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
 
     public void WriteBfsPath(BfsPathResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));

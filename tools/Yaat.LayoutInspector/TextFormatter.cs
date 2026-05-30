@@ -120,6 +120,36 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         }
     }
 
+    public void WriteNodeAngles(NodeAnglesResult r)
+    {
+        w.WriteLine($"  Edge-pair angles ({r.Pairs.Count}, tightest turn first):");
+        foreach (var p in r.Pairs)
+        {
+            string bridge;
+            if (p.Bridge is null)
+            {
+                bridge = "bridge=none (connected only through this node)";
+            }
+            else if (p.Bridge.BridgeTaxiways.Count == 0)
+            {
+                bridge = $"bridge=direct ({p.Bridge.Hops} hop, {p.Bridge.DistanceFt:F0}ft)";
+            }
+            else
+            {
+                bridge =
+                    $"bridge via [{string.Join(",", p.Bridge.BridgeTaxiways)}] "
+                    + $"({p.Bridge.Hops} hops, {p.Bridge.DistanceFt:F0}ft, nodes {string.Join("->", p.Bridge.NodeIds)})";
+            }
+
+            w.WriteLine(
+                $"    {p.TaxiwayA}(->{p.NeighborA}) / {p.TaxiwayB}(->{p.NeighborB}): "
+                    + $"fan={p.FanAngleDeg:F1}° turn={p.TurnAngleDeg:F1}°  {bridge}"
+            );
+        }
+
+        w.WriteLine();
+    }
+
     public void WriteExits(ExitsResult r)
     {
         w.WriteLine($"Exits for runway {r.Designator}: {r.Exits.Count} found");

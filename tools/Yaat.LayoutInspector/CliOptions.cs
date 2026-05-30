@@ -42,6 +42,13 @@ public sealed record CliOptions
     /// </summary>
     public int NodeDepth { get; init; }
 
+    /// <summary>
+    /// When set, each printed <c>--node</c> also gets a pairwise fan/turn-angle breakdown of its
+    /// edges plus the bridging-taxiway between each pair (the alternate path avoiding the node).
+    /// Diagnoses un-filletable corners and redundant corner-chords. Set via <c>--node-angles</c>.
+    /// </summary>
+    public bool NodeAngles { get; init; }
+
     public int? WalkTraceNodeId { get; init; }
     public string? WalkTraceTaxiway { get; init; }
 
@@ -167,6 +174,7 @@ public sealed record CliOptions
         int? pathNodeId = null;
         string? pathTaxiway = null;
         int nodeDepth = 0;
+        bool nodeAngles = false;
         int? walkTraceNodeId = null;
         string? walkTraceTaxiway = null;
         int? pfNodeId = null;
@@ -245,6 +253,9 @@ public sealed record CliOptions
                     }
 
                     nodeDepth = depth;
+                    break;
+                case "--node-angles":
+                    nodeAngles = true;
                     break;
                 case "--exits" when i + 1 < args.Length:
                     foreach (string exToken in SplitCsv(args[++i]))
@@ -449,6 +460,7 @@ public sealed record CliOptions
             BfsNodeId = pathNodeId,
             BfsTaxiway = pathTaxiway,
             NodeDepth = nodeDepth,
+            NodeAngles = nodeAngles,
             WalkTraceNodeId = walkTraceNodeId,
             WalkTraceTaxiway = walkTraceTaxiway,
             PathfinderNodeId = pfNodeId,

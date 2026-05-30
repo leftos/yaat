@@ -62,6 +62,34 @@ public sealed record ArcDetail(
     double P2Lon
 );
 
+/// <summary>
+/// Pairwise angle diagnostic for the edges fanning out of one node (via <c>--node-angles</c>).
+/// Mirrors what <c>CornerPlanner</c> reasons about: for each pair of edges, the included fan
+/// angle and the deflection (turn) an aircraft makes between them, plus the shortest alternate
+/// path between the two arms that does NOT pass through this node — the bridging taxiway (e.g.
+/// G bridges a C↔D corner), which makes a direct corner-chord between the pair redundant.
+/// </summary>
+public sealed record NodeAnglesResult(int NodeId, string NodeType, IReadOnlyList<EdgePairAngle> Pairs);
+
+public sealed record EdgePairAngle(
+    string TaxiwayA,
+    int NeighborA,
+    string TaxiwayB,
+    int NeighborB,
+    /// <summary>Included angle between the two outbound directions: ~0° = same direction (hairpin), ~180° = opposite (straight through).</summary>
+    double FanAngleDeg,
+    /// <summary>Deflection an aircraft makes turning between the two arms (180 − fan). High = sharp corner, hard/impossible to fillet.</summary>
+    double TurnAngleDeg,
+    BridgeInfo? Bridge
+);
+
+/// <summary>
+/// Shortest alternate route between an edge pair's two neighbors that avoids the shared node.
+/// <see cref="BridgeTaxiways"/> excludes the pair's own two taxiways, isolating the connector(s)
+/// that already join the two arms (the reason a direct corner-chord would be redundant).
+/// </summary>
+public sealed record BridgeInfo(IReadOnlyList<string> BridgeTaxiways, IReadOnlyList<int> NodeIds, double DistanceFt, int Hops);
+
 public sealed record TaxiwayIntersectionInfo(string OtherTaxiway, int NodeId);
 
 public sealed record IntersectionResult(string Taxiway1, string Taxiway2, List<NodeInfo> Nodes);

@@ -50,6 +50,15 @@ timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --node 6
 # Useful for dumping a fillet cluster without listing every member id by hand.
 ```
 
+**Diagnose junction corners — fan/turn angle of every edge pair + the bridging taxiway (`--node-angles`):**
+```bash
+timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --fillet-mode none --node 349 --node-angles 2>&1 | tee .tmp/li-angles.log
+# Per pair: fan=included angle (0=parallel, 180=straight-through), turn=deflection (180-fan; high=sharp/un-filletable),
+# and the shortest alternate path avoiding the node — "bridge via [G]" means another taxiway already joins the pair,
+# so a direct corner-chord between them is redundant. Pairs sorted tightest-turn-first. Run on --fillet-mode none for
+# the clean raw fan; on --fillet-mode v2 to see the split tangent-cut nodes.
+```
+
 **Show all nodes on a taxiway:**
 ```bash
 timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --taxiway <T> --json 2>&1 | tee .tmp/li-twy.log
