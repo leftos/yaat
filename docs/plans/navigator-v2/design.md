@@ -218,8 +218,29 @@ decline path, not just where synthesis used to live.
 > Net: the "V2 emits proper arcs, synthesis unnecessary" rationale holds for *taxiway* corners but not for
 > sub-nose-wheel *ramp* corners; those are handled by geometric corner-rounding (the kept entry-alignment,
 > broadened), not the dropped Legacy chord-chain synthesis. Validated by the all-V2 coverage gate
-> (`V2TaxiCoverageAcceptanceTests`, 31/31). Remaining cluster items: EDG320 mild parking-out wiggle
-> (338°/320°, not an orbit) and `OakCrossThenHold.AfterRes` (Q4 crossing→hold handoff).
+> (`V2TaxiCoverageAcceptanceTests`, 31/31).
+
+> **Implemented (2026-05-30, follow-up) — tangent corner-rounding + establish-straight gate (resolves the
+> EDG320 wiggle).** The broadened entry-alignment above rounds *heading* at the vertex but anchored the arc
+> *at* the vertex, so it finished displaced off the outgoing centerline; pure-pursuit then re-acquired the
+> line while accelerating and overshot ~40° per corner (EDG320 jet out of SIG4: 401° cumulative over 30 s vs
+> a 320° guard). Two coupled fixes (aviation-reviewed — judgmental oversteer / Boeing FCTM "roll straight,
+> then add thrust"; `Edg320Sig4JetTaxiOutTests`):
+> 1. **Tangent rounding (geometry).** `TickStraight` arrives at the tangent point `T = r·tan(δ/2)` *before* a
+>    sharp vertex (r = nose-wheel radius, δ = corner deflection) rather than at the vertex, so the next
+>    segment's entry-alignment slow-turn anchors at the incoming tangent point — its nose-wheel-radius arc is
+>    then tangent to *both* legs and exits *on* the outgoing centerline, aligned, with no lateral offset. `T`
+>    is clamped into the current leg; the corrective end-of-segment nudge is skipped for sharp corners so the
+>    slow-turn enters at the incoming heading. Eliminates mid-route corner overshoot (corner 366: 401→321).
+> 2. **Establish-straight gate (speed).** While displaced > `ReacquireOffsetFt` off the segment centerline,
+>    target speed is held at `ReacquireSpeedKts` (~5 kt) instead of accelerating, and the pure-pursuit
+>    look-ahead scales with the offset (`max(speed-term, 1.5·offset)`) so re-acquisition converges
+>    asymptotically instead of over-steering at the near point. This governs the *from-rest spot-exit pivot*
+>    (109° out of SIG4), which has no incoming leg and so cannot be rounded tangent — it unavoidably finishes
+>    off the line, and the gate lets it slide back on cleanly. Both are no-ops on tangent-rounded corners
+>    (offset ≈ 0). EDG320 cumulative drops 401° → 194° (≈ the ~195° actually required), no swing-back.
+>
+> Remaining cluster item: `OakCrossThenHold.AfterRes` (Q4 crossing→hold handoff).
 
 ### 4.4 Speed / turn model — **aviation-reviewed, separable from the rewrite**
 

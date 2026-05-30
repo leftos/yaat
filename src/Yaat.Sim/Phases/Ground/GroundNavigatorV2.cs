@@ -62,6 +62,24 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     /// </summary>
     private const double LookAheadCapFt = 50.0;
 
+    /// <summary>
+    /// Cross-track offset (feet) above which the aircraft is "not established"
+    /// on the segment centerline and must re-acquire it at
+    /// <see cref="ReacquireSpeedKts"/> before accelerating. See the
+    /// establish-straight gate in <see cref="TickStraight"/>.
+    /// </summary>
+    private const double ReacquireOffsetFt = 4.0;
+
+    /// <summary>
+    /// Speed cap (knots) while re-acquiring the centerline from a cross-track
+    /// offset &gt; <see cref="ReacquireOffsetFt"/>. Holds a slow taxi so
+    /// pure-pursuit converges onto the line without the over-speed overshoot
+    /// (Boeing FCTM "roll straight, then add thrust"). Tangent-rounded corners
+    /// exit on-line (offset ≈ 0), so this never fires for them; it governs the
+    /// from-rest spot-exit pivot, which has no incoming leg to round tangent.
+    /// </summary>
+    private const double ReacquireSpeedKts = 5.0;
+
     public int TargetNodeId { get; private set; }
     public double TargetLat { get; private set; }
     public double TargetLon { get; private set; }
@@ -354,8 +372,35 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         // stop, leaving the aircraft parked well behind the painted line.
         bool shortEdge = edgeLengthNm < NodeArrivalThresholdNm * 1.5;
         bool isStopTarget = _currentNodeRequiredSpeed == 0;
-        double arrivalThresholdNm =
-            (isLastSegment || shortEdge || isStopTarget || _nextSegmentIsArc) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+
+        // Tangent corner-rounding: when a SHARP turn onto the next (straight)
+        // segment is coming up, arrive at the tangent point T = r·tan(δ/2)
+        // before the vertex (r = nose-wheel radius, δ = corner deflection)
+        // instead of at the vertex. The next segment's entry-alignment slow-turn
+        // then anchors at that tangent point, so its nose-wheel-radius arc is
+        // tangent to BOTH legs and exits ON the outgoing centerline (aligned, no
+        // lateral offset) — eliminating the pure-pursuit re-acquisition that
+        // otherwise overshoots ~40° per corner. This is judgmental oversteer /
+        // corner-cutting (aviation-reviewed: T is the tangent length of a simple
+        // circular curve, AC 150/5300-13). Skipped when the next segment is
+        // itself an arc (the arc rounds the corner) or the target is a stop /
+        // route end. T is clamped into the current leg so the arc start can't
+        // precede the segment.
+        double cornerTurnDeg = (!_nextSegmentIsArc && _nextSegmentBearing is { } nb) ? GeoMath.AbsBearingDifference(prim.BearingDeg, nb) : 0.0;
+        bool sharpCornerAhead = !isLastSegment && !isStopTarget && cornerTurnDeg > EntryAlignmentThresholdDeg;
+
+        double arrivalThresholdNm;
+        if (sharpCornerAhead)
+        {
+            double rFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+            double tFt = rFt * Math.Tan(cornerTurnDeg * 0.5 * Math.PI / 180.0);
+            arrivalThresholdNm = Math.Clamp(tFt / GeoMath.FeetPerNm, FinalNodeArrivalThresholdNm, 0.45 * edgeLengthNm);
+        }
+        else
+        {
+            arrivalThresholdNm =
+                (isLastSegment || shortEdge || isStopTarget || _nextSegmentIsArc) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+        }
 
         bool overshot = distNm > PrevDistToTarget && PrevDistToTarget < OvershootDetectionNm;
         bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && distNm < arrivalThresholdNm + 0.001;
@@ -364,7 +409,9 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         if (straightArrived || overshot || stalledAtThreshold)
         {
             // Corrective nudge toward next segment bearing, bounded by turn rate.
-            if (_nextSegmentBearing is { } nextBrg)
+            // Skipped for a sharp upcoming corner: the entry-alignment slow-turn
+            // built next must start at the incoming heading to round tangent.
+            if (!sharpCornerAhead && _nextSegmentBearing is { } nextBrg)
             {
                 double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurn);
@@ -387,20 +434,33 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         // Fallback: a zero-length segment means we have nothing to project
         // onto. Steer at the target directly (matches pre-change behaviour).
         double bearingToSteerDeg;
+        double crossTrackOffsetFt = 0.0;
         if (edgeLengthNm < 1e-9)
         {
             bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         }
         else
         {
-            var (_, alongNm, _) = GeoMath.FootOfPerpendicular(
+            var (foot, alongNm, _) = GeoMath.FootOfPerpendicular(
                 ctx.Aircraft.Position,
                 new LatLon(_segmentFromLat, _segmentFromLon),
                 new LatLon(TargetLat, TargetLon)
             );
+            crossTrackOffsetFt = GeoMath.DistanceNm(ctx.Aircraft.Position, foot) * GeoMath.FeetPerNm;
 
+            // Look-ahead scales with speed AND with the current cross-track
+            // offset: re-acquiring a large offset (e.g. the from-rest spot-exit
+            // pivot, which finishes ~30 ft off the line) with the short
+            // speed-only floor steers too hard at the near point and overshoots
+            // the line. Reaching toward a point ~1.5× the offset ahead bounds
+            // the re-acquisition steer angle (atan(offset / lookAhead)) and
+            // converges asymptotically. No effect once on-line (offset ≈ 0).
             double speedFtPerSec = ctx.Aircraft.IndicatedAirspeed * GeoMath.FeetPerNm / 3600.0;
-            double lookAheadFt = Math.Clamp(2.0 * speedFtPerSec * ctx.DeltaSeconds, LookAheadFloorFt, LookAheadCapFt);
+            double lookAheadFt = Math.Clamp(
+                Math.Max(2.0 * speedFtPerSec * ctx.DeltaSeconds, 1.5 * crossTrackOffsetFt),
+                LookAheadFloorFt,
+                LookAheadCapFt
+            );
             double lookAheadNm = lookAheadFt / GeoMath.FeetPerNm;
             double lookAheadAlongNm = Math.Min(edgeLengthNm, alongNm + lookAheadNm);
 
@@ -443,6 +503,19 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearingToSteerDeg, maxTurnDeg);
 
         double targetSpeed = ComputeTargetSpeed(ctx, distNm, isHoldShortCleared);
+
+        // Establish-straight gate (Boeing FCTM "roll straight, then add thrust";
+        // AIM 4-3-19.4 positive control): while displaced off the segment
+        // centerline, hold a slow re-acquire speed instead of accelerating.
+        // Pure-pursuit at taxi speed onto an off-line segment overshoots the
+        // line and swings back (~40°+ of wasted rotation). Tangent-rounded
+        // corners exit on-line (offset ≈ 0) so this is a no-op there; it bites
+        // the from-rest spot-exit pivot, which has no incoming leg to round
+        // tangent and so unavoidably finishes off the outgoing centerline.
+        if (crossTrackOffsetFt > ReacquireOffsetFt)
+        {
+            targetSpeed = Math.Min(targetSpeed, ReacquireSpeedKts);
+        }
 
         // Safety backstop: cap target speed so the aircraft cannot cover more
         // than ~80% of the remaining distance in a single tick (would
