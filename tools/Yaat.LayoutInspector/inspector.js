@@ -761,6 +761,9 @@ function updateTooltip(mx, my) {
       "hdg=" + closestTick.hdg.toFixed(1) + "°  gs=" + closestTick.gs.toFixed(1) + "kt",
       "phase=" + closestTick.phase + (closestTick.twy ? "  twy=" + closestTick.twy : ""),
     ];
+    if (closestTick.status) {
+      lines.push("info: " + closestTick.status);
+    }
     if (closestTick.speedLimit != null) {
       lines.push("speedLimit=" + closestTick.speedLimit.toFixed(1) + "kt");
     }
@@ -902,7 +905,7 @@ if (D.ticks && D.ticks.length > 0) {
 
   // Render the per-aircraft details as a table so columns line up across
   // multiple aircraft.
-  const tickColumns = ["callsign", "phase", "twy", "hdg", "gs", "lim", "navTarget"];
+  const tickColumns = ["callsign", "phase", "twy", "hdg", "gs", "lim", "navTarget", "status"];
   const tickColLabels = {
     callsign: "CS",
     phase: "phase",
@@ -911,6 +914,7 @@ if (D.ticks && D.ticks.length > 0) {
     gs: "gs",
     lim: "lim",
     navTarget: "navTgt",
+    status: "info (command)",
   };
 
   function buildTickTable() {
@@ -972,7 +976,7 @@ if (D.ticks && D.ticks.length > 0) {
       });
       if (!t) {
         cells.callsign.textContent = cs;
-        ["phase", "twy", "hdg", "gs", "lim", "navTarget"].forEach((c) => (cells[c].textContent = "–"));
+        ["phase", "twy", "hdg", "gs", "lim", "navTarget", "status"].forEach((c) => (cells[c].textContent = "–"));
         return;
       }
       cells.callsign.textContent = cs;
@@ -982,6 +986,7 @@ if (D.ticks && D.ticks.length > 0) {
       cells.gs.textContent = t.gs.toFixed(0) + "kt";
       cells.lim.textContent = t.speedLimit != null ? t.speedLimit.toFixed(0) + "kt" : "";
       cells.navTarget.textContent = t.nav && t.nav.targetNodeId ? "#" + t.nav.targetNodeId : "";
+      cells.status.textContent = t.status || "";
     });
   }
 

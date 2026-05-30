@@ -22,7 +22,8 @@ public record TickDataRow(
     double? NavBrakeLimit,
     double? NavArcLimit,
     bool? NavOnArc,
-    double? NavNodeReqSpd
+    double? NavNodeReqSpd,
+    string Status
 )
 {
     public static TickDataRow From(TickEvent ev) =>
@@ -43,6 +44,7 @@ public record TickDataRow(
             NavBrakeLimit: ev.Nav?.BrakeLimitKts,
             NavArcLimit: ev.Nav?.ArcLimitKts,
             NavOnArc: ev.Nav?.OnArc,
-            NavNodeReqSpd: ev.Nav?.NodeReqSpdKts
+            NavNodeReqSpd: ev.Nav?.NodeReqSpdKts,
+            Status: ev.Status ?? ""
         );
 }

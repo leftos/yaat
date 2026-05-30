@@ -346,6 +346,10 @@ CommandQueue.cs                # CommandBlock (trigger + closure + TrackedComman
 AircraftCategory.cs            # Enum + AircraftCategorization (static Init from AircraftSpecs.json)
                                # CategoryPerformance: fallback aviation constants (taxi, pattern geometry, flare, etc.)
                                # CornerSpeedForAngle: piecewise taxi speed curve (0-30° max, 30-90° corner, 90-150° tight corner)
+AircraftStatusDescriber.cs     # Pure AircraftState→text projection for the Aircraft List "Info" column.
+                               # Describe(AircraftState) / Describe(AircraftStatusView); server computes once
+                               # per broadcast → AircraftDto.SmartStatus (client just displays it), TickRecorder
+                               # calls it too. One implementation so all surfaces agree.
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit overrides.

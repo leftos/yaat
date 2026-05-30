@@ -192,6 +192,7 @@ public sealed class TickRecorder
             Vs = ac.IsOnGround ? null : ac.VerticalSpeed,
             Alt = ac.IsOnGround ? null : ac.Altitude,
             TgtSpd = ac.Targets.TargetSpeed,
+            Status = Yaat.Sim.AircraftStatusDescriber.Describe(ac, Yaat.Sim.AircraftStatusContext.None).Text,
         };
 
     private static void WriteJsonFile(string path, TickRecording recording)
@@ -353,6 +354,14 @@ public sealed class TickEvent
     /// <summary>Phase-commanded TargetSpeed (kt). Null when the aircraft has no speed target set.</summary>
     [JsonPropertyName("tgtSpd")]
     public double? TgtSpd { get; init; }
+
+    /// <summary>
+    /// Human-readable one-line status, identical to the Aircraft List "Info" column
+    /// (e.g. "Taxi to RWY 30 via D C B W W1", "Holding short 28R @ B", "Crossing runway 28L").
+    /// Computed via <see cref="Yaat.Sim.AircraftStatusDescriber"/> so it matches what the operator sees.
+    /// </summary>
+    [JsonPropertyName("status")]
+    public string? Status { get; init; }
 }
 
 public sealed class NavTickDto

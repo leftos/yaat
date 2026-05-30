@@ -1,825 +1,717 @@
 using Xunit;
-using Yaat.Client.Models;
+using Yaat.Sim;
+using static Yaat.Sim.AircraftStatusDescriber;
 
 namespace Yaat.Client.Tests;
 
+/// <summary>
+/// Exercises the shared <see cref="AircraftStatusDescriber"/> projection that produces the Aircraft
+/// List "Info" column text. The status is computed server-side from <see cref="AircraftStatusView"/>
+/// (an AircraftState projection) and shipped in the DTO; these assertions pin the exact strings.
+/// </summary>
 public class SmartStatusTests
 {
-    private static AircraftModel CreateModel()
-    {
-        return new AircraftModel { Callsign = "AAL100", AircraftType = "B738" };
-    }
+    private static string Text(AircraftStatusView v) => Describe(v).Text;
+
+    private static AircraftStatusSeverity Severity(AircraftStatusView v) => Describe(v).Severity;
 
     [Fact]
     public void FinalApproach_NoLandingClearance_Critical()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "FinalApproach";
-        ac.LandingClearance = "";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("No landing clnc", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Critical, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView { CurrentPhase = "FinalApproach", LandingClearance = "" };
+        Assert.Equal("No landing clnc", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
     [Fact]
     public void FinalApproach_NoLandingClearance_AutoCtl_Normal()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "FinalApproach";
-        ac.LandingClearance = "";
-        ac.IsAutoClearedToLand = true;
-        ac.ActiveApproachId = "ILS28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("ILS28R final", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Normal, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "FinalApproach",
+            LandingClearance = "",
+            IsAutoClearedToLand = true,
+            ActiveApproachId = "ILS28R",
+        };
+        Assert.Equal("ILS28R final", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Normal, Severity(v));
     }
 
     [Fact]
     public void FinalApproach_WithLandingClearance_Normal()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "FinalApproach";
-        ac.LandingClearance = "ClearedToLand";
-        ac.ActiveApproachId = "ILS28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("ILS28R final", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Normal, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "FinalApproach",
+            LandingClearance = "ClearedToLand",
+            ActiveApproachId = "ILS28R",
+        };
+        Assert.Equal("ILS28R final", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Normal, Severity(v));
     }
 
     [Fact]
     public void Landing_NoLandingClearance_Critical()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Landing";
-        ac.LandingClearance = "";
-        ac.AssignedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Landing — no clnc!", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Critical, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Landing",
+            LandingClearance = "",
+            AssignedRunway = "28R",
+        };
+        Assert.Equal("Landing — no clnc!", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
     [Fact]
     public void LandingH_NoLandingClearance_Critical()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Landing-H";
-        ac.LandingClearance = "";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Landing — no clnc!", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Critical, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView { CurrentPhase = "Landing-H", LandingClearance = "" };
+        Assert.Equal("Landing — no clnc!", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
     [Fact]
     public void Landing_NoLandingClearance_AutoCtl_Normal()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Landing";
-        ac.LandingClearance = "";
-        ac.AssignedRunway = "28R";
-        ac.IsAutoClearedToLand = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Landing 28R", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Normal, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Landing",
+            LandingClearance = "",
+            AssignedRunway = "28R",
+            IsAutoClearedToLand = true,
+        };
+        Assert.Equal("Landing 28R", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Normal, Severity(v));
     }
 
     [Fact]
     public void HandoffPeer_Warning()
     {
-        var ac = CreateModel();
-        ac.HandoffPeer = "conn123";
-        ac.HandoffPeerSectorCode = "NR";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("HO → NR", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Warning, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView { HandoffPeer = "conn123", HandoffPeerSectorCode = "NR" };
+        Assert.Equal("HO → NR", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Warning, Severity(v));
     }
 
     [Fact]
     public void HandoffPeer_NoSectorCode_UsesConnectionId()
     {
-        var ac = CreateModel();
-        ac.HandoffPeer = "conn123";
-        ac.HandoffPeerSectorCode = null;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("HO → conn123", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Warning, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView { HandoffPeer = "conn123", HandoffPeerSectorCode = null };
+        Assert.Equal("HO → conn123", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Warning, Severity(v));
     }
 
     [Fact]
     public void Airborne_NoPhase_NoSid_NoAlt_NoRoute_NotDelayed_Warning()
     {
-        var ac = CreateModel();
-        ac.IsOnGround = false;
-        ac.CurrentPhase = "";
-        ac.ActiveSidId = "";
-        ac.ActiveStarId = "";
-        ac.AssignedAltitude = null;
-        ac.NavigationRoute = [];
-        ac.Status = "Active";
-        ac.VerticalSpeed = 0;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("No altitude asgn", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Warning, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            IsOnGround = false,
+            CurrentPhase = "",
+            ActiveSidId = "",
+            ActiveStarId = "",
+            AssignedAltitude = null,
+            VerticalSpeed = 0,
+        };
+        Assert.Equal("No altitude asgn", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Warning, Severity(v));
     }
 
     [Fact]
     public void Airborne_NoPhase_WithSid_NoWarning()
     {
-        var ac = CreateModel();
-        ac.IsOnGround = false;
-        ac.CurrentPhase = "";
-        ac.ActiveSidId = "OAK5";
-        ac.AssignedAltitude = null;
-        ac.NavigationRoute = [];
-        ac.VerticalSpeed = 500;
-        ac.ComputeSmartStatus();
-
-        Assert.NotEqual("No altitude asgn", ac.SmartStatus);
-        Assert.NotEqual(SmartStatusSeverity.Warning, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            IsOnGround = false,
+            CurrentPhase = "",
+            ActiveSidId = "OAK5",
+            AssignedAltitude = null,
+            VerticalSpeed = 500,
+        };
+        Assert.NotEqual("No altitude asgn", Text(v));
+        Assert.NotEqual(AircraftStatusSeverity.Warning, Severity(v));
     }
 
     [Fact]
     public void Delayed_NoAltWarning_Suppressed()
     {
-        var ac = CreateModel();
-        ac.IsOnGround = false;
-        ac.CurrentPhase = "";
-        ac.ActiveSidId = "";
-        ac.ActiveStarId = "";
-        ac.AssignedAltitude = null;
-        ac.NavigationRoute = [];
-        ac.Status = "Delayed (120s)";
-        ac.VerticalSpeed = 0;
-        ac.ComputeSmartStatus();
-
-        Assert.NotEqual("No altitude asgn", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            IsOnGround = false,
+            CurrentPhase = "",
+            ActiveSidId = "",
+            ActiveStarId = "",
+            AssignedAltitude = null,
+            IsDelayed = true,
+            VerticalSpeed = 0,
+        };
+        Assert.NotEqual("No altitude asgn", Text(v));
     }
 
     [Fact]
     public void AtParking_WithSpot()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "At Parking";
-        ac.ParkingSpot = "A12";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("At parking A12", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Normal, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "At Parking",
+            ParkingSpot = "A12",
+            IsOnGround = true,
+        };
+        Assert.Equal("At parking A12", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Normal, Severity(v));
     }
 
     [Fact]
     public void AtParking_NoSpot()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "At Parking";
-        ac.ParkingSpot = "";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("At parking", ac.SmartStatus);
+        Assert.Equal(
+            "At parking",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "At Parking",
+                    ParkingSpot = "",
+                    IsOnGround = true,
+                }
+            )
+        );
     }
 
     [Fact]
     public void Pushback()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Pushback";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Pushing back", ac.SmartStatus);
+        Assert.Equal("Pushing back", Text(new AircraftStatusView { CurrentPhase = "Pushback", IsOnGround = true }));
     }
 
     [Fact]
     public void HoldingShort_WithTarget()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Holding Short 28R";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Holding short 28R", ac.SmartStatus);
+        Assert.Equal("Holding short 28R", Text(new AircraftStatusView { CurrentPhase = "Holding Short 28R", IsOnGround = true }));
     }
 
     [Fact]
     public void HoldingShort_RunwayWithCurrentTaxiway()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Holding Short 28R";
-        ac.CurrentTaxiway = "E";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Holding short 28R @ E", ac.SmartStatus);
+        Assert.Equal(
+            "Holding short 28R @ E",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "Holding Short 28R",
+                    CurrentTaxiway = "E",
+                    IsOnGround = true,
+                }
+            )
+        );
     }
 
     [Fact]
     public void HoldingShort_TaxiwayWithCurrentTaxiway()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Holding Short E";
-        ac.CurrentTaxiway = "C";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Holding short of E on C", ac.SmartStatus);
+        Assert.Equal(
+            "Holding short of E on C",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "Holding Short E",
+                    CurrentTaxiway = "C",
+                    IsOnGround = true,
+                }
+            )
+        );
     }
 
     [Fact]
     public void HoldingShort_TaxiwayNoCurrentTaxiway()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Holding Short E";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Holding short of E", ac.SmartStatus);
+        Assert.Equal("Holding short of E", Text(new AircraftStatusView { CurrentPhase = "Holding Short E", IsOnGround = true }));
     }
 
     [Fact]
     public void Taxiing_WithRunway_WithRoute()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Taxiing";
-        ac.AssignedRunway = "28R";
-        ac.TaxiRoute = "A B C D E";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Taxi to RWY 28R via A B C D E", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Taxiing",
+            AssignedRunway = "28R",
+            TaxiRoute = "A B C D E",
+            IsOnGround = true,
+        };
+        Assert.Equal("Taxi to RWY 28R via A B C D E", Text(v));
     }
 
     [Fact]
     public void Taxiing_NoRunway_NoRoute()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Taxiing";
-        ac.AssignedRunway = "";
-        ac.TaxiRoute = "";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Taxiing", ac.SmartStatus);
+        Assert.Equal(
+            "Taxiing",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "Taxiing",
+                    AssignedRunway = "",
+                    TaxiRoute = "",
+                    IsOnGround = true,
+                }
+            )
+        );
     }
 
     [Fact]
     public void LinedUpAndWaiting()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "LinedUpAndWaiting";
-        ac.AssignedRunway = "28R";
-        ac.IsOnGround = true;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("LUAW 28R", ac.SmartStatus);
+        Assert.Equal(
+            "LUAW 28R",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "LinedUpAndWaiting",
+                    AssignedRunway = "28R",
+                    IsOnGround = true,
+                }
+            )
+        );
     }
 
     [Fact]
     public void Takeoff()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Takeoff";
-        ac.AssignedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Takeoff 28R", ac.SmartStatus);
+        Assert.Equal("Takeoff 28R", Text(new AircraftStatusView { CurrentPhase = "Takeoff", AssignedRunway = "28R" }));
     }
 
     [Fact]
     public void InitialClimb_WithSid()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "InitialClimb";
-        ac.DepartureRunway = "28R";
-        ac.ActiveSidId = "OAK5";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Departing 28R, OAK5", ac.SmartStatus);
+        Assert.Equal(
+            "Departing 28R, OAK5",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "InitialClimb",
+                    DepartureRunway = "28R",
+                    ActiveSidId = "OAK5",
+                }
+            )
+        );
     }
 
     [Fact]
     public void InitialClimb_WithHeading_SuppressesHdgSuffix()
     {
-        // InitialClimb implies a vector (SID or runway heading); the trailing
-        // "hdg XXX" duplicates info already in the phase name.
-        var ac = CreateModel();
-        ac.CurrentPhase = "InitialClimb";
-        ac.DepartureRunway = "28R";
-        ac.ActiveSidId = "";
-        ac.AssignedHeading = 280;
-        ac.NavigatingTo = "";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Departing 28R", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            ActiveSidId = "",
+            AssignedHeading = 280,
+            NavigatingTo = "",
+        };
+        Assert.Equal("Departing 28R", Text(v));
     }
 
     [Fact]
     public void ApproachNav_WithRoute()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "ApproachNav";
-        ac.ActiveApproachId = "ILS28R";
-        ac.NavigationRoute = ["CEPIN", "DUMBA", "AXMUL"];
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("ILS28R → CEPIN DUMBA AXMUL", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "ApproachNav",
+            ActiveApproachId = "ILS28R",
+            NavigationRouteCount = 3,
+            NavigationRouteDisplay = "CEPIN DUMBA AXMUL",
+        };
+        Assert.Equal("ILS28R → CEPIN DUMBA AXMUL", Text(v));
     }
 
     [Fact]
     public void HoldingPattern_WithFix()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "HoldingPattern";
-        ac.NavigatingTo = "CEPIN";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Holding at CEPIN", ac.SmartStatus);
+        Assert.Equal("Holding at CEPIN", Text(new AircraftStatusView { CurrentPhase = "HoldingPattern", NavigatingTo = "CEPIN" }));
     }
 
     [Fact]
     public void Landing_WithClearance()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Landing";
-        ac.LandingClearance = "ClearedToLand";
-        ac.ClearedRunway = "28R";
-        ac.AssignedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Landing 28R", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Normal, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Landing",
+            LandingClearance = "ClearedToLand",
+            ClearedRunway = "28R",
+            AssignedRunway = "28R",
+        };
+        Assert.Equal("Landing 28R", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Normal, Severity(v));
     }
 
     [Fact]
     public void GoAround()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "GoAround";
-        ac.ClearedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Go-around 28R", ac.SmartStatus);
+        Assert.Equal("Go-around 28R", Text(new AircraftStatusView { CurrentPhase = "GoAround", ClearedRunway = "28R" }));
     }
 
     [Fact]
     public void PatternDownwind()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Downwind";
-        ac.PatternDirection = "Left";
-        ac.AssignedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Left downwind 28R", ac.SmartStatus);
+        Assert.Equal(
+            "Left downwind 28R",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "Downwind",
+                    PatternDirection = "Left",
+                    AssignedRunway = "28R",
+                }
+            )
+        );
     }
 
     [Fact]
     public void TouchAndGo()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "TouchAndGo";
-        ac.ClearedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Touch-and-go 28R", ac.SmartStatus);
+        Assert.Equal("Touch-and-go 28R", Text(new AircraftStatusView { CurrentPhase = "TouchAndGo", ClearedRunway = "28R" }));
     }
 
     [Fact]
     public void NoPhase_OnGround_Stationary()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "";
-        ac.IsOnGround = true;
-        ac.GroundSpeed = 3;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("On ground", ac.SmartStatus);
+        Assert.Equal(
+            "On ground",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "",
+                    IsOnGround = true,
+                    GroundSpeed = 3,
+                }
+            )
+        );
     }
 
     [Fact]
     public void NoPhase_Climbing_WithAssignedAlt()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "";
-        ac.IsOnGround = false;
-        ac.VerticalSpeed = 1500;
-        ac.AssignedAltitude = 10000;
-        ac.NavigationRoute = [];
-        ac.ActiveSidId = "OAK5";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("\u2191 10,000", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            IsOnGround = false,
+            VerticalSpeed = 1500,
+            AssignedAltitude = 10000,
+            ActiveSidId = "OAK5",
+        };
+        Assert.Equal("↑ 10,000", Text(v));
     }
 
     [Fact]
     public void NoPhase_Climbing_NoAssignedAlt()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "";
-        ac.IsOnGround = false;
-        ac.VerticalSpeed = 1500;
-        ac.AssignedAltitude = null;
-        ac.NavigationRoute = [];
-        ac.ActiveSidId = "OAK5";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Climbing", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            IsOnGround = false,
+            VerticalSpeed = 1500,
+            AssignedAltitude = null,
+            ActiveSidId = "OAK5",
+        };
+        Assert.Equal("Climbing", Text(v));
     }
 
     [Fact]
     public void NoPhase_Climbing_WithNavRoute()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "";
-        ac.IsOnGround = false;
-        ac.VerticalSpeed = 1500;
-        ac.AssignedAltitude = 24000;
-        ac.NavigationRoute = ["OAK", "SFO"];
-        ac.ActiveSidId = "OAK5";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("\u2191 FL240 \u2192 OAK SFO", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            IsOnGround = false,
+            VerticalSpeed = 1500,
+            AssignedAltitude = 24000,
+            NavigationRouteCount = 2,
+            NavigationRouteDisplay = "OAK SFO",
+            ActiveSidId = "OAK5",
+        };
+        Assert.Equal("↑ FL240 → OAK SFO", Text(v));
     }
 
     [Fact]
     public void NoPhase_Descending_WithAssignedAlt()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "";
-        ac.IsOnGround = false;
-        ac.VerticalSpeed = -1500;
-        ac.AssignedAltitude = 5000;
-        ac.NavigationRoute = [];
-        ac.ActiveStarId = "STAR1";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("\u2193 5,000", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            IsOnGround = false,
+            VerticalSpeed = -1500,
+            AssignedAltitude = 5000,
+            ActiveStarId = "STAR1",
+        };
+        Assert.Equal("↓ 5,000", Text(v));
     }
 
     [Fact]
     public void NoPhase_Level_WithNavRoute()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "";
-        ac.IsOnGround = false;
-        ac.VerticalSpeed = 0;
-        ac.NavigationRoute = ["OAK", "SFO", "LAX"];
-        ac.ActiveSidId = "OAK5";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("\u2192 OAK SFO LAX", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            IsOnGround = false,
+            VerticalSpeed = 0,
+            NavigationRouteCount = 3,
+            NavigationRouteDisplay = "OAK SFO LAX",
+            ActiveSidId = "OAK5",
+        };
+        Assert.Equal("→ OAK SFO LAX", Text(v));
     }
 
     [Fact]
     public void NoPhase_Level_NavigatingToFix()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "";
-        ac.IsOnGround = false;
-        ac.VerticalSpeed = 0;
-        ac.NavigationRoute = [];
-        ac.NavigatingTo = "CEPIN";
-        ac.ActiveSidId = "OAK5";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("\u2192 CEPIN", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            IsOnGround = false,
+            VerticalSpeed = 0,
+            NavigatingTo = "CEPIN",
+            ActiveSidId = "OAK5",
+        };
+        Assert.Equal("→ CEPIN", Text(v));
     }
 
     [Fact]
     public void NoPhase_Level_NothingSet()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "";
-        ac.IsOnGround = false;
-        ac.VerticalSpeed = 0;
-        ac.NavigationRoute = [];
-        ac.NavigatingTo = "";
-        ac.Altitude = 35000;
-        ac.ActiveSidId = "OAK5";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("FL350, on course", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            IsOnGround = false,
+            VerticalSpeed = 0,
+            NavigatingTo = "",
+            Altitude = 35000,
+            ActiveSidId = "OAK5",
+        };
+        Assert.Equal("FL350, on course", Text(v));
     }
 
     [Fact]
     public void NoPhase_Level_AssignedHeading()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "";
-        ac.IsOnGround = false;
-        ac.VerticalSpeed = 0;
-        ac.NavigationRoute = [];
-        ac.NavigatingTo = "";
-        ac.Altitude = 35000;
-        ac.AssignedHeading = 270;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("FL350, on course, hdg 270", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "",
+            IsOnGround = false,
+            VerticalSpeed = 0,
+            NavigatingTo = "",
+            Altitude = 35000,
+            AssignedHeading = 270,
+        };
+        Assert.Equal("FL350, on course, hdg 270", Text(v));
     }
 
     [Fact]
     public void Phase_AssignedHeading_SuppressedOnPatternLeg()
     {
-        // A pattern leg's heading is implied by the leg name; the trailing
-        // "hdg XXX" is redundant noise.
-        var ac = CreateModel();
-        ac.CurrentPhase = "Downwind";
-        ac.PatternDirection = "Left";
-        ac.AssignedRunway = "28R";
-        ac.AssignedHeading = 90;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Left downwind 28R", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Downwind",
+            PatternDirection = "Left",
+            AssignedRunway = "28R",
+            AssignedHeading = 90,
+        };
+        Assert.Equal("Left downwind 28R", Text(v));
     }
 
     [Fact]
     public void Phase_AssignedHeading_KeptOnProceedToFix()
     {
-        // ProceedToFix is a vector-style phase; heading is informative. The
-        // suffix always shows the numeric heading, never the fix name ("hdg
-        // OAKEY" would be nonsense).
-        var ac = CreateModel();
-        ac.CurrentPhase = "ProceedToFix";
-        ac.NavigatingTo = "OAKEY";
-        ac.AssignedHeading = 270;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Proceeding to OAKEY, hdg 270", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "ProceedToFix",
+            NavigatingTo = "OAKEY",
+            AssignedHeading = 270,
+        };
+        Assert.Equal("Proceeding to OAKEY, hdg 270", Text(v));
     }
 
     [Fact]
     public void FormatAltitudeCompact_Below18000()
     {
-        Assert.Equal("10,000", AircraftModel.FormatAltitudeCompact(10000));
+        Assert.Equal("10,000", FormatAltitudeCompact(10000));
     }
 
     [Fact]
     public void FormatAltitudeCompact_AtOrAbove18000()
     {
-        Assert.Equal("FL350", AircraftModel.FormatAltitudeCompact(35000));
+        Assert.Equal("FL350", FormatAltitudeCompact(35000));
     }
 
     [Fact]
     public void FormatAltitudeCompact_FL180()
     {
-        Assert.Equal("FL180", AircraftModel.FormatAltitudeCompact(18000));
+        Assert.Equal("FL180", FormatAltitudeCompact(18000));
     }
 
     [Fact]
     public void HoldPresentPosition()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "HPP-L";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Hold present position", ac.SmartStatus);
+        Assert.Equal("Hold present position", Text(new AircraftStatusView { CurrentPhase = "HPP-L" }));
     }
 
     [Fact]
     public void STurns()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "S-Turns";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("S-turns", ac.SmartStatus);
+        Assert.Equal("S-turns", Text(new AircraftStatusView { CurrentPhase = "S-Turns" }));
     }
 
     [Fact]
     public void Following()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Following UAL456";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Following UAL456", ac.SmartStatus);
+        Assert.Equal("Following UAL456", Text(new AircraftStatusView { CurrentPhase = "Following UAL456" }));
     }
 
     [Fact]
     public void TurnPhase()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "TurnL90";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Turning", ac.SmartStatus);
+        Assert.Equal("Turning", Text(new AircraftStatusView { CurrentPhase = "TurnL90" }));
     }
 
     [Fact]
     public void RunwayExit()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Runway Exit";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Exiting runway", ac.SmartStatus);
+        Assert.Equal("Exiting runway", Text(new AircraftStatusView { CurrentPhase = "Runway Exit" }));
     }
 
     [Fact]
     public void PatternEntry_FallbackWithoutKind()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Pattern Entry";
-        ac.PatternDirection = "Right";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Right pattern entry", ac.SmartStatus);
+        Assert.Equal("Right pattern entry", Text(new AircraftStatusView { CurrentPhase = "Pattern Entry", PatternDirection = "Right" }));
     }
 
     [Fact]
     public void MidfieldCrossing()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "MidfieldCrossing";
-        ac.AssignedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Midfield crossing 28R", ac.SmartStatus);
+        Assert.Equal("Midfield crossing 28R", Text(new AircraftStatusView { CurrentPhase = "MidfieldCrossing", AssignedRunway = "28R" }));
     }
 
     [Fact]
     public void InterceptCourse_WithApproach()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "InterceptCourse";
-        ac.ActiveApproachId = "ILS28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Intercepting ILS28R", ac.SmartStatus);
+        Assert.Equal("Intercepting ILS28R", Text(new AircraftStatusView { CurrentPhase = "InterceptCourse", ActiveApproachId = "ILS28R" }));
     }
 
     [Fact]
     public void InterceptCourse_NoApproach()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "InterceptCourse";
-        ac.ActiveApproachId = null;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Intercepting course", ac.SmartStatus);
+        Assert.Equal("Intercepting course", Text(new AircraftStatusView { CurrentPhase = "InterceptCourse", ActiveApproachId = null }));
     }
 
     [Fact]
     public void ProceedToFix()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "ProceedToFix";
-        ac.NavigatingTo = "OAKEY";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Proceeding to OAKEY", ac.SmartStatus);
+        Assert.Equal("Proceeding to OAKEY", Text(new AircraftStatusView { CurrentPhase = "ProceedToFix", NavigatingTo = "OAKEY" }));
     }
 
     [Fact]
     public void StopAndGo()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "StopAndGo";
-        ac.ClearedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Stop-and-go 28R", ac.SmartStatus);
+        Assert.Equal("Stop-and-go 28R", Text(new AircraftStatusView { CurrentPhase = "StopAndGo", ClearedRunway = "28R" }));
     }
 
     [Fact]
     public void LowApproach()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "LowApproach";
-        ac.ClearedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Low approach 28R", ac.SmartStatus);
+        Assert.Equal("Low approach 28R", Text(new AircraftStatusView { CurrentPhase = "LowApproach", ClearedRunway = "28R" }));
     }
 
     [Fact]
     public void AirTaxi()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "AirTaxi";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Air taxi", ac.SmartStatus);
+        Assert.Equal("Air taxi", Text(new AircraftStatusView { CurrentPhase = "AirTaxi" }));
     }
 
     [Fact]
     public void CrossingRunway()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Crossing Runway";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Crossing runway", ac.SmartStatus);
+        Assert.Equal("Crossing runway", Text(new AircraftStatusView { CurrentPhase = "Crossing Runway" }));
     }
 
     [Fact]
     public void HoldingAfterExit()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Holding After Exit";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Clear of runway", ac.SmartStatus);
+        Assert.Equal("Clear of runway", Text(new AircraftStatusView { CurrentPhase = "Holding After Exit" }));
     }
 
     [Fact]
     public void AlertPriority_HandoffOverridesPhase()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Taxiing";
-        ac.HandoffPeer = "conn1";
-        ac.HandoffPeerSectorCode = "NR";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("HO → NR", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Warning, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Taxiing",
+            HandoffPeer = "conn1",
+            HandoffPeerSectorCode = "NR",
+        };
+        Assert.Equal("HO → NR", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Warning, Severity(v));
     }
 
     [Fact]
     public void AlertPriority_FinalNoClearanceOverridesHandoff()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "FinalApproach";
-        ac.LandingClearance = "";
-        ac.HandoffPeer = "conn1";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("No landing clnc", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Critical, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "FinalApproach",
+            LandingClearance = "",
+            HandoffPeer = "conn1",
+        };
+        Assert.Equal("No landing clnc", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
     [Fact]
     public void VfrFollow_Phase_ShowsFollowingCallsign()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "VFR Follow";
-        ac.FollowingCallsign = "N436MS";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Following N436MS", ac.SmartStatus);
-        Assert.Equal(SmartStatusSeverity.Normal, ac.SmartStatusSeverity);
+        var v = new AircraftStatusView { CurrentPhase = "VFR Follow", FollowingCallsign = "N436MS" };
+        Assert.Equal("Following N436MS", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Normal, Severity(v));
     }
 
     [Fact]
     public void Downwind_WithFollowingCallsign_PrefixesFollowState()
     {
-        // Once the follower has joined the pattern the server keeps
-        // FollowingCallsign set but the phase text alone hides the follow
-        // fact. The Info column must prefix it so the controller still sees
-        // the sequencing relationship at a glance.
-        var ac = CreateModel();
-        ac.CurrentPhase = "Downwind";
-        ac.PatternDirection = "right";
-        ac.AssignedRunway = "28R";
-        ac.FollowingCallsign = "N436MS";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Following N436MS → right downwind 28R", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Downwind",
+            PatternDirection = "right",
+            AssignedRunway = "28R",
+            FollowingCallsign = "N436MS",
+        };
+        Assert.Equal("Following N436MS → right downwind 28R", Text(v));
     }
 
     [Fact]
     public void FinalApproach_WithFollowingCallsign_PrefixesFollowState()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "FinalApproach";
-        ac.LandingClearance = "ClearedToLand";
-        ac.ActiveApproachId = "ILS28R";
-        ac.FollowingCallsign = "N436MS";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Following N436MS → ILS28R final", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "FinalApproach",
+            LandingClearance = "ClearedToLand",
+            ActiveApproachId = "ILS28R",
+            FollowingCallsign = "N436MS",
+        };
+        Assert.Equal("Following N436MS → ILS28R final", Text(v));
     }
 
     [Fact]
     public void Landing_WithFollowingCallsign_PrefixesFollowState()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Landing";
-        ac.LandingClearance = "ClearedToLand";
-        ac.ClearedRunway = "28R";
-        ac.FollowingCallsign = "N436MS";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Following N436MS → landing 28R", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Landing",
+            LandingClearance = "ClearedToLand",
+            ClearedRunway = "28R",
+            FollowingCallsign = "N436MS",
+        };
+        Assert.Equal("Following N436MS → landing 28R", Text(v));
     }
 
     [Fact]
     public void VfrFollow_NullFollowingCallsign_FallsBackToGenericLabel()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "VFR Follow";
-        ac.FollowingCallsign = null;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("VFR follow", ac.SmartStatus);
+        Assert.Equal("VFR follow", Text(new AircraftStatusView { CurrentPhase = "VFR Follow", FollowingCallsign = null }));
     }
 }

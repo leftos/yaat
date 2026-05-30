@@ -1,112 +1,109 @@
 using Xunit;
-using Yaat.Client.Models;
+using Yaat.Sim;
+using static Yaat.Sim.AircraftStatusDescriber;
 
 namespace Yaat.Client.Tests;
 
 /// <summary>
-/// Tests for the context-rich info text produced by <c>AircraftModel.ComputePhaseStatus()</c>.
+/// Tests for the context-rich info text produced by <see cref="AircraftStatusDescriber"/>.
 /// Covers pattern-entry kinds, runway-exit taxiway, VFR-follow callsign, and heading suppression.
-/// Fabricates AircraftModel state directly — no simulation, no recording replay.
+/// Builds an <see cref="AircraftStatusView"/> directly — no simulation, no recording replay.
 /// </summary>
 public class AircraftModelPhaseStatusTests
 {
-    private static AircraftModel CreateModel()
-    {
-        return new AircraftModel { Callsign = "N123AB", AircraftType = "C172" };
-    }
+    private static string Text(AircraftStatusView v) => Describe(v).Text;
 
     // --- Pattern entry by kind -------------------------------------------------
 
     [Fact]
     public void PatternEntry_DirectDownwind()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Pattern Entry";
-        ac.PatternDirection = "Left";
-        ac.PatternEntryKind = "Direct";
-        ac.AssignedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Direct left downwind 28R", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Pattern Entry",
+            PatternDirection = "Left",
+            PatternEntryKind = "Direct",
+            AssignedRunway = "28R",
+        };
+        Assert.Equal("Direct left downwind 28R", Text(v));
     }
 
     [Fact]
     public void PatternEntry_FortyFive()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Pattern Entry";
-        ac.PatternDirection = "Right";
-        ac.PatternEntryKind = "FortyFive";
-        ac.AssignedRunway = "10L";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("45 to right downwind 10L", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Pattern Entry",
+            PatternDirection = "Right",
+            PatternEntryKind = "FortyFive",
+            AssignedRunway = "10L",
+        };
+        Assert.Equal("45 to right downwind 10L", Text(v));
     }
 
     [Fact]
     public void PatternEntry_Crosswind()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Pattern Entry";
-        ac.PatternDirection = "Left";
-        ac.PatternEntryKind = "Crosswind";
-        ac.AssignedRunway = "28L";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Crosswind to left downwind 28L", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Pattern Entry",
+            PatternDirection = "Left",
+            PatternEntryKind = "Crosswind",
+            AssignedRunway = "28L",
+        };
+        Assert.Equal("Crosswind to left downwind 28L", Text(v));
     }
 
     [Fact]
     public void PatternEntry_Upwind()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Pattern Entry";
-        ac.PatternDirection = "Left";
-        ac.PatternEntryKind = "Upwind";
-        ac.AssignedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Upwind entry 28R", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Pattern Entry",
+            PatternDirection = "Left",
+            PatternEntryKind = "Upwind",
+            AssignedRunway = "28R",
+        };
+        Assert.Equal("Upwind entry 28R", Text(v));
     }
 
     [Fact]
     public void PatternEntry_Base()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Pattern Entry";
-        ac.PatternDirection = "Right";
-        ac.PatternEntryKind = "Base";
-        ac.AssignedRunway = "19";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Right base entry 19", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Pattern Entry",
+            PatternDirection = "Right",
+            PatternEntryKind = "Base",
+            AssignedRunway = "19",
+        };
+        Assert.Equal("Right base entry 19", Text(v));
     }
 
     [Fact]
     public void PatternEntry_Final()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Pattern Entry";
-        ac.PatternEntryKind = "Final";
-        ac.AssignedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Straight-in 28R", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Pattern Entry",
+            PatternEntryKind = "Final",
+            AssignedRunway = "28R",
+        };
+        Assert.Equal("Straight-in 28R", Text(v));
     }
 
     [Fact]
     public void PatternEntry_HeadingAssigned_IsSuppressed()
     {
-        // For a direct downwind entry, the heading is implied; suppress the suffix.
-        var ac = CreateModel();
-        ac.CurrentPhase = "Pattern Entry";
-        ac.PatternDirection = "Left";
-        ac.PatternEntryKind = "Direct";
-        ac.AssignedRunway = "28R";
-        ac.AssignedHeading = 100;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Direct left downwind 28R", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Pattern Entry",
+            PatternDirection = "Left",
+            PatternEntryKind = "Direct",
+            AssignedRunway = "28R",
+            AssignedHeading = 100,
+        };
+        Assert.Equal("Direct left downwind 28R", Text(v));
     }
 
     // --- Runway exit -----------------------------------------------------------
@@ -114,46 +111,38 @@ public class AircraftModelPhaseStatusTests
     [Fact]
     public void RunwayExit_WithRunwayAndTaxiway()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Runway Exit";
-        ac.ExitingRunwayId = "28R";
-        ac.CurrentTaxiway = "T";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Exiting runway 28R via T", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Runway Exit",
+            ExitingRunwayId = "28R",
+            CurrentTaxiway = "T",
+        };
+        Assert.Equal("Exiting runway 28R via T", Text(v));
     }
 
     [Fact]
     public void RunwayExit_WithRunwayOnly()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Runway Exit";
-        ac.ExitingRunwayId = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Exiting runway 28R", ac.SmartStatus);
+        var v = new AircraftStatusView { CurrentPhase = "Runway Exit", ExitingRunwayId = "28R" };
+        Assert.Equal("Exiting runway 28R", Text(v));
     }
 
     [Fact]
     public void RunwayExit_FallsBackToAssignedRunway()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Runway Exit";
-        ac.AssignedRunway = "10L";
-        ac.CurrentTaxiway = "D";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Exiting runway 10L via D", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Runway Exit",
+            AssignedRunway = "10L",
+            CurrentTaxiway = "D",
+        };
+        Assert.Equal("Exiting runway 10L via D", Text(v));
     }
 
     [Fact]
     public void RunwayExit_NoContext_FallsBack()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Runway Exit";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Exiting runway", ac.SmartStatus);
+        Assert.Equal("Exiting runway", Text(new AircraftStatusView { CurrentPhase = "Runway Exit" }));
     }
 
     // --- Holding after exit ----------------------------------------------------
@@ -161,34 +150,26 @@ public class AircraftModelPhaseStatusTests
     [Fact]
     public void HoldingAfterExit_WithRunwayAndTaxiway()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Holding After Exit";
-        ac.ExitingRunwayId = "28R";
-        ac.CurrentTaxiway = "T";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Clear of runway 28R via T", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Holding After Exit",
+            ExitingRunwayId = "28R",
+            CurrentTaxiway = "T",
+        };
+        Assert.Equal("Clear of runway 28R via T", Text(v));
     }
 
     [Fact]
     public void HoldingAfterExit_WithRunwayOnly()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Holding After Exit";
-        ac.ExitingRunwayId = "10R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Clear of runway 10R", ac.SmartStatus);
+        var v = new AircraftStatusView { CurrentPhase = "Holding After Exit", ExitingRunwayId = "10R" };
+        Assert.Equal("Clear of runway 10R", Text(v));
     }
 
     [Fact]
     public void HoldingAfterExit_NoContext_FallsBack()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Holding After Exit";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Clear of runway", ac.SmartStatus);
+        Assert.Equal("Clear of runway", Text(new AircraftStatusView { CurrentPhase = "Holding After Exit" }));
     }
 
     // --- VFR follow ------------------------------------------------------------
@@ -196,22 +177,14 @@ public class AircraftModelPhaseStatusTests
     [Fact]
     public void VfrFollow_WithTargetCallsign()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "VFR Follow";
-        ac.FollowingCallsign = "SWA123";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Following SWA123", ac.SmartStatus);
+        var v = new AircraftStatusView { CurrentPhase = "VFR Follow", FollowingCallsign = "SWA123" };
+        Assert.Equal("Following SWA123", Text(v));
     }
 
     [Fact]
     public void VfrFollow_WithoutTargetCallsign()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "VFR Follow";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("VFR follow", ac.SmartStatus);
+        Assert.Equal("VFR follow", Text(new AircraftStatusView { CurrentPhase = "VFR Follow" }));
     }
 
     // --- AirTaxi / Crossing Runway with runway context -------------------------
@@ -219,12 +192,8 @@ public class AircraftModelPhaseStatusTests
     [Fact]
     public void AirTaxi_WithAssignedRunway()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "AirTaxi";
-        ac.AssignedRunway = "28R";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Air taxi to 28R", ac.SmartStatus);
+        var v = new AircraftStatusView { CurrentPhase = "AirTaxi", AssignedRunway = "28R" };
+        Assert.Equal("Air taxi to 28R", Text(v));
     }
 
     [Fact]
@@ -232,37 +201,31 @@ public class AircraftModelPhaseStatusTests
     {
         // Bug fixture: aircraft taxiing to runway 30 for departure, currently crossing 28L.
         // The status must reflect the runway being crossed, not the departure runway.
-        var ac = CreateModel();
-        ac.CurrentPhase = "Crossing Runway";
-        ac.AssignedRunway = "30";
-        ac.CrossingRunwayId = "28L";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Crossing runway 28L", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Crossing Runway",
+            AssignedRunway = "30",
+            CrossingRunwayId = "28L",
+        };
+        Assert.Equal("Crossing runway 28L", Text(v));
     }
 
     [Fact]
     public void CrossingRunway_FallsBackToAssignedRunway_WhenCrossingRunwayIdMissing()
     {
-        // Snapshot/session predates CrossingRunwayId — keep the legacy fallback so the
-        // status still says something useful instead of going blank.
-        var ac = CreateModel();
-        ac.CurrentPhase = "Crossing Runway";
-        ac.AssignedRunway = "10L";
-        ac.CrossingRunwayId = null;
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Crossing runway 10L", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Crossing Runway",
+            AssignedRunway = "10L",
+            CrossingRunwayId = null,
+        };
+        Assert.Equal("Crossing runway 10L", Text(v));
     }
 
     [Fact]
     public void CrossingRunway_NoRunway()
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = "Crossing Runway";
-        ac.ComputeSmartStatus();
-
-        Assert.Equal("Crossing runway", ac.SmartStatus);
+        Assert.Equal("Crossing runway", Text(new AircraftStatusView { CurrentPhase = "Crossing Runway" }));
     }
 
     // --- Heading suppression matrix --------------------------------------------
@@ -283,16 +246,16 @@ public class AircraftModelPhaseStatusTests
     [InlineData("MidfieldCrossing")]
     public void HeadingSuffix_Suppressed_ForImpliedOrGroundPhases(string phase)
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = phase;
-        ac.AssignedRunway = "28R";
-        ac.ClearedRunway = "28R";
-        ac.DepartureRunway = "28R";
-        ac.PatternDirection = "Left";
-        ac.AssignedHeading = 123;
-        ac.ComputeSmartStatus();
-
-        Assert.DoesNotContain("hdg", ac.SmartStatus);
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = phase,
+            AssignedRunway = "28R",
+            ClearedRunway = "28R",
+            DepartureRunway = "28R",
+            PatternDirection = "Left",
+            AssignedHeading = 123,
+        };
+        Assert.DoesNotContain("hdg", Text(v));
     }
 
     [Theory]
@@ -303,11 +266,7 @@ public class AircraftModelPhaseStatusTests
     [InlineData("TurnL90")]
     public void HeadingSuffix_Kept_ForVectorPhases(string phase)
     {
-        var ac = CreateModel();
-        ac.CurrentPhase = phase;
-        ac.AssignedHeading = 270;
-        ac.ComputeSmartStatus();
-
-        Assert.Contains("hdg 270", ac.SmartStatus);
+        var v = new AircraftStatusView { CurrentPhase = phase, AssignedHeading = 270 };
+        Assert.Contains("hdg 270", Text(v));
     }
 }

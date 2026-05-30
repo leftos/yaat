@@ -804,7 +804,12 @@ public record AircraftDto(
     bool NoLandingClearanceWarningActive = false,
     // True when a queued ONHS DEL block is armed (or per-aircraft auto-delete has been
     // requested). Drives the small auto-delete marker in the radar / tower-cab datablock.
-    bool AutoDeletePending = false
+    bool AutoDeletePending = false,
+    // One-line human-readable status for the Aircraft List Info column, computed server-side
+    // by Yaat.Sim.AircraftStatusDescriber. The client displays it verbatim; SmartStatusSeverity
+    // drives the column colour.
+    string SmartStatus = "",
+    Yaat.Sim.AircraftStatusSeverity SmartStatusSeverity = Yaat.Sim.AircraftStatusSeverity.Normal
 );
 
 public record LoadScenarioResultDto(

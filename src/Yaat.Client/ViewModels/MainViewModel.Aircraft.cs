@@ -250,7 +250,9 @@ public partial class MainViewModel
 
     private void ApplyAutoClearedToLand(AircraftModel model)
     {
+        // Drives the radar / tower-cab "NoLndgClnc" datablock suppression. The Info-column status
+        // is computed server-side (AircraftStatusDescriber) and already accounts for the session
+        // auto-clear setting, so no client-side status recompute is needed here.
         model.IsAutoClearedToLand = _isAutoClearedToLand;
-        model.ComputeSmartStatus();
     }
 }

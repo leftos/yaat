@@ -73,6 +73,9 @@ public sealed class TickEvent
 
     [JsonPropertyName("nav")]
     public NavTickDto? Nav { get; init; }
+
+    [JsonPropertyName("status")]
+    public string? Status { get; init; }
 }
 
 public sealed class NavTickDto

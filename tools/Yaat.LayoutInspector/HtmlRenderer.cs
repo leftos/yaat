@@ -245,6 +245,10 @@ public sealed class HtmlRenderer
                 writer.WriteNumber("hdg", Math.Round(tick.Hdg, 2));
                 writer.WriteNumber("gs", Math.Round(tick.Gs, 2));
                 writer.WriteString("phase", tick.Phase);
+                if (tick.Status is { } status)
+                {
+                    writer.WriteString("status", status);
+                }
                 if (tick.Twy is { } twy)
                 {
                     writer.WriteString("twy", twy);

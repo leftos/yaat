@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
+using static Yaat.Sim.AircraftStatusDescriber;
 
 namespace Yaat.Client.Tests;
 
@@ -70,15 +71,9 @@ public class AircraftViewFilterTests
     [Fact]
     public void UnsupportedGhostStillProducesNoAltitudeAsgnSmartStatus()
     {
-        // Sanity-check that the underlying SmartStatus computation is unchanged —
-        // the filter is the layer that hides the row, not a SmartStatus rewrite.
-        var ac = new AircraftModel
-        {
-            Callsign = "*T",
-            AircraftType = "",
-            IsUnsupported = true,
-        };
-        ac.ComputeSmartStatus();
-        Assert.Equal("No altitude asgn", ac.SmartStatus);
+        // Sanity-check that the underlying status projection is unchanged — the filter is the layer
+        // that hides the row, not a status rewrite. An unsupported phantom is airborne with no phase,
+        // SID, altitude, or route, which the describer reports as "No altitude asgn".
+        Assert.Equal("No altitude asgn", Describe(new AircraftStatusView { IsOnGround = false }).Text);
     }
 }

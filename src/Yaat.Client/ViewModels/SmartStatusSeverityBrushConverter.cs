@@ -1,7 +1,7 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
-using Yaat.Client.Models;
+using Yaat.Sim;
 
 namespace Yaat.Client.ViewModels;
 
@@ -17,8 +17,8 @@ public class SmartStatusSeverityBrushConverter : IValueConverter
     {
         return value switch
         {
-            SmartStatusSeverity.Warning => Warning,
-            SmartStatusSeverity.Critical => Critical,
+            AircraftStatusSeverity.Warning => Warning,
+            AircraftStatusSeverity.Critical => Critical,
             _ => Normal,
         };
     }
