@@ -358,6 +358,40 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         return result;
     }
 
+    /// <summary>
+    /// Arrival threshold (nm) for a straight segment. When a sharp turn onto the next straight leg is
+    /// coming up and the leg is long enough to round within, applies tangent corner-rounding — arrive
+    /// at the tangent point T = r·tan(δ/2) (r = nose-wheel radius, δ = corner deflection), capped at
+    /// 0.45·leg so rounding can't start before the midpoint and floored at the final-node threshold —
+    /// and reports <paramref name="roundingActive"/> true. On a leg too short to round above that floor
+    /// (0.45·leg ≤ <see cref="FinalNodeArrivalThresholdNm"/>), there is no room: it falls back to the
+    /// standard arrival threshold and reports <paramref name="roundingActive"/> false, never clamping
+    /// with an inverted [min, max] range (which would throw). Pure — extracted for unit testing.
+    /// </summary>
+    internal static double StraightArrivalThresholdNm(
+        double cornerTurnDeg,
+        double edgeLengthNm,
+        AircraftCategory category,
+        bool isLastSegment,
+        bool isStopTarget,
+        bool shortEdge,
+        bool nextSegmentIsArc,
+        out bool roundingActive
+    )
+    {
+        double maxRoundingNm = 0.45 * edgeLengthNm;
+        roundingActive = !isLastSegment && !isStopTarget && cornerTurnDeg > EntryAlignmentThresholdDeg && maxRoundingNm > FinalNodeArrivalThresholdNm;
+
+        if (roundingActive)
+        {
+            double rFt = CategoryPerformance.NoseWheelTurnRadiusFt(category);
+            double tFt = rFt * Math.Tan(cornerTurnDeg * 0.5 * Math.PI / 180.0);
+            return Math.Clamp(tFt / GeoMath.FeetPerNm, FinalNodeArrivalThresholdNm, maxRoundingNm);
+        }
+
+        return (isLastSegment || shortEdge || isStopTarget || nextSegmentIsArc) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+    }
+
     private NavigatorResult TickStraight(PhaseContext ctx, PathPrimitiveStraight prim, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
@@ -396,20 +430,16 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         // route end. T is clamped into the current leg so the arc start can't
         // precede the segment.
         double cornerTurnDeg = (!_nextSegmentIsArc && _nextSegmentBearing is { } nb) ? GeoMath.AbsBearingDifference(prim.BearingDeg, nb) : 0.0;
-        bool sharpCornerAhead = !isLastSegment && !isStopTarget && cornerTurnDeg > EntryAlignmentThresholdDeg;
-
-        double arrivalThresholdNm;
-        if (sharpCornerAhead)
-        {
-            double rFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
-            double tFt = rFt * Math.Tan(cornerTurnDeg * 0.5 * Math.PI / 180.0);
-            arrivalThresholdNm = Math.Clamp(tFt / GeoMath.FeetPerNm, FinalNodeArrivalThresholdNm, 0.45 * edgeLengthNm);
-        }
-        else
-        {
-            arrivalThresholdNm =
-                (isLastSegment || shortEdge || isStopTarget || _nextSegmentIsArc) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
-        }
+        double arrivalThresholdNm = StraightArrivalThresholdNm(
+            cornerTurnDeg,
+            edgeLengthNm,
+            ctx.Category,
+            isLastSegment,
+            isStopTarget,
+            shortEdge,
+            _nextSegmentIsArc,
+            out bool sharpCornerAhead
+        );
 
         bool overshot = distNm > PrevDistToTarget && PrevDistToTarget < OvershootDetectionNm;
         bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && distNm < arrivalThresholdNm + 0.001;
