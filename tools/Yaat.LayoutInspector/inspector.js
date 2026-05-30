@@ -14,7 +14,7 @@ const PAINT = {
   surface: "#15171a",
   hairline: "#1f2126",
   hairlineStrong: "#2a2d33",
-  textFaint: "#4a4e57",
+  textFaint: "#828995",
   accent: "#f0883e",
   accentSoft: "rgba(240, 136, 62, 0.25)",
   legendTwy: "#3fb950",
@@ -23,10 +23,17 @@ const PAINT = {
   legendRamp: "#8b949e",
   legendHs: "#f85149",
   legendRoute: "#f0883e",
+  // Emphasized stroke colors — used for the actively-highlighted set, and for
+  // the whole graph when nothing is highlighted (the full-contrast default).
+  edgeTwyHi: "#56d364",
+  edgeRwyHi: "#79c0ff",
+  edgeRampHi: "#aab1bd",
+  arcHi: "#d2a8ff",
+  arcJunctionHi: "#bc8cff",
   rwSurface: "#16181c",
-  rwSurfaceHl: "#23262c",
+  rwSurfaceHl: "#2a2e35",
   rwCenterline: "#262a31",
-  rwCenterlineHl: "#3a3f48",
+  rwCenterlineHl: "#565d6a",
   measureRuler: "#e6db74",
 };
 
@@ -213,10 +220,27 @@ function drawLine(x1, y1, x2, y2) {
   ctx.stroke();
 }
 
+function traceArc(a) {
+  ctx.beginPath();
+  a.pts.forEach((p, i) => {
+    const [x, y] = toScreen(p[0], p[1]);
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+}
+
 function draw() {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = PAINT.bg;
   ctx.fillRect(0, 0, W, H);
+
+  // When nothing is explicitly highlighted, everything is emphasized: the
+  // default view reads at full contrast, and selecting something is what drops
+  // the rest back to the de-emphasized style.
+  const haveAnyHl = hasHl();
 
   // 1. Runway surfaces
   D.runways.forEach((r) => {
@@ -226,7 +250,7 @@ function draw() {
     const [x2, y2] = toScreen(c[c.length - 1][0], c[c.length - 1][1]);
     const len = Math.hypot(x2 - x1, y2 - y1);
     const widthPx = Math.max(4, (r.widthFt * len) / 6000);
-    const rwHl = isHlRunway(r);
+    const rwHl = isHlRunway(r) || !haveAnyHl;
     ctx.strokeStyle = rwHl ? PAINT.rwSurfaceHl : PAINT.rwSurface;
     ctx.lineWidth = widthPx;
     ctx.lineCap = "round";
@@ -252,82 +276,70 @@ function draw() {
     ctx.restore();
   });
 
-  const haveAnyHl = hasHl();
+  // Edges and arcs draw in two passes so emphasized strokes always sit on top
+  // of de-emphasized ones at intersections.
 
-  // 2. Non-highlighted edges
+  // 2. De-emphasized edges (only when a highlight is active)
   ctx.lineCap = "butt";
-  D.edges.forEach((e) => {
-    if (isHlEdge(e) && haveAnyHl) return;
-    const na = nodeMap[e.a],
-      nb = nodeMap[e.b];
-    if (!na || !nb) return;
-    const [x1, y1] = toScreen(na.lat, na.lon);
-    const [x2, y2] = toScreen(nb.lat, nb.lon);
-    ctx.globalAlpha = haveAnyHl ? 0.18 : 0.32;
-    ctx.strokeStyle = e.rwy ? PAINT.legendRwy : e.ramp ? PAINT.legendRamp : PAINT.legendTwy;
-    ctx.lineWidth = 0.7;
-    if (e.rwy) ctx.setLineDash([6, 4]);
-    else ctx.setLineDash([]);
-    drawLine(x1, y1, x2, y2);
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
-  });
-
-  // 3. Non-highlighted arcs
-  D.arcs.forEach((a) => {
-    if (isHlArc(a) && haveAnyHl) return;
-    ctx.globalAlpha = haveAnyHl ? 0.18 : 0.32;
-    ctx.strokeStyle = PAINT.legendArc;
-    ctx.lineWidth = 0.7;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    a.pts.forEach((p, i) => {
-      const [x, y] = toScreen(p[0], p[1]);
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
-  });
-
-  // 4. Highlighted edges (only when something is actively highlighted)
   if (haveAnyHl) {
-    D.edges.filter(isHlEdge).forEach((e) => {
+    D.edges.forEach((e) => {
+      if (isHlEdge(e)) return;
       const na = nodeMap[e.a],
         nb = nodeMap[e.b];
       if (!na || !nb) return;
       const [x1, y1] = toScreen(na.lat, na.lon);
       const [x2, y2] = toScreen(nb.lat, nb.lon);
-      ctx.strokeStyle = e.rwy ? "#79c0ff" : "#56d364";
-      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = e.rwy ? PAINT.legendRwy : e.ramp ? PAINT.legendRamp : PAINT.legendTwy;
+      ctx.lineWidth = 0.7;
       if (e.rwy) ctx.setLineDash([6, 4]);
       else ctx.setLineDash([]);
       drawLine(x1, y1, x2, y2);
       ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
     });
 
-    // 5. Highlighted arcs
-    D.arcs.filter(isHlArc).forEach((a) => {
-      ctx.strokeStyle = a.rwyJunction ? "#bc8cff" : "#d2a8ff";
-      ctx.lineWidth = 2;
+    // 3. De-emphasized arcs
+    D.arcs.forEach((a) => {
+      if (isHlArc(a)) return;
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = PAINT.legendArc;
+      ctx.lineWidth = 0.7;
       ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      a.pts.forEach((p, i) => {
-        const [x, y] = toScreen(p[0], p[1]);
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
+      traceArc(a);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
     });
   }
+
+  // 4. Emphasized edges — the highlighted set, or every edge when nothing is
+  //    explicitly highlighted.
+  D.edges.forEach((e) => {
+    if (haveAnyHl && !isHlEdge(e)) return;
+    const na = nodeMap[e.a],
+      nb = nodeMap[e.b];
+    if (!na || !nb) return;
+    const [x1, y1] = toScreen(na.lat, na.lon);
+    const [x2, y2] = toScreen(nb.lat, nb.lon);
+    ctx.strokeStyle = e.rwy ? PAINT.edgeRwyHi : e.ramp ? PAINT.edgeRampHi : PAINT.edgeTwyHi;
+    ctx.lineWidth = 1.6;
+    if (e.rwy) ctx.setLineDash([6, 4]);
+    else ctx.setLineDash([]);
+    drawLine(x1, y1, x2, y2);
+    ctx.setLineDash([]);
+  });
+
+  // 5. Emphasized arcs
+  D.arcs.forEach((a) => {
+    if (haveAnyHl && !isHlArc(a)) return;
+    ctx.strokeStyle = a.rwyJunction ? PAINT.arcJunctionHi : PAINT.arcHi;
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([4, 3]);
+    traceArc(a);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
 
   // 6. Route overlay
   if (D.route.length >= 2) {
@@ -408,9 +420,9 @@ function draw() {
     const onHlTwy = n.edges && n.edges.some((e) => twyMatch(e.twy));
     if (haveAnyHl && !isImportant && !onHlTwy && !n.ann) return;
 
-    const r = isImportant ? (explicitlyHl ? 5 : 3) : 1.5;
+    const r = isImportant ? (explicitlyHl ? 5 : 3) : 1.8;
     const color = isHS ? PAINT.legendHs : isSpot ? PAINT.legendTwy : isPark ? PAINT.legendRwy : "#d29922";
-    ctx.globalAlpha = isImportant || onHlTwy ? 0.9 : 0.25;
+    ctx.globalAlpha = isImportant || onHlTwy ? 0.9 : haveAnyHl ? 0.3 : 0.6;
     ctx.beginPath();
     ctx.arc(x, y, Math.max(r, (r * Math.min(scale, 3)) / 3), 0, Math.PI * 2);
     if (isImportant) {
@@ -418,7 +430,7 @@ function draw() {
       ctx.fill();
     } else {
       ctx.strokeStyle = color;
-      ctx.lineWidth = 0.8;
+      ctx.lineWidth = 1.0;
       ctx.stroke();
     }
     ctx.globalAlpha = 1;

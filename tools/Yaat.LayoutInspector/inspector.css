@@ -16,9 +16,9 @@
   --surface-tint: rgba(21, 23, 26, 0.92);
   --hairline: #1f2126;
   --hairline-strong: #2a2d33;
-  --text: #e8e9ec;
-  --text-muted: #7e8390;
-  --text-faint: #4a4e57;
+  --text: #edeef1;
+  --text-muted: #aab1bd;
+  --text-faint: #828995;
   --accent: #f0883e;
   --accent-soft: rgba(240, 136, 62, 0.15);
   --danger: #e5534b;
