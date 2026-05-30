@@ -323,6 +323,28 @@ public static class SegmentExpander
             return RouteToSpecificNode(head, waypoint.ResolvedNodeId, ctx);
         }
 
+        // Destination-aware terminus: when the clearance ends on a named taxiway that leads to a
+        // known parking/spot/helipad node, route to that node along the taxiway instead of walking
+        // to the natural terminus. The greedy terminus walk is direction-blind — it picks the
+        // geometrically-admissible continuation, which can be the wrong way along the taxiway
+        // (post-landing arrival direction) or past the destination, after which ExtendToDestination
+        // U-turns back. LocalSearchToJunction routes straight to the destination in the correct
+        // direction and stops there (its junction-edge exception allows the final one-hop off the
+        // taxiway onto the spot). A destination more than one hop off the taxiway makes the search
+        // fail, so it falls through to the terminus walk + ExtendToDestination as before.
+        if (
+            ctx.Destination.Kind is DestinationKind.Parking or DestinationKind.Spot or DestinationKind.Helipad
+            && ctx.Destination.TargetNodeId is { } destId
+            && head.HeadNodeId != destId
+        )
+        {
+            var (toDestEdges, toDestHead, _) = LocalSearchToJunction(head, waypoint.Name, destId, ctx);
+            if (toDestEdges is not null)
+            {
+                return (toDestEdges, toDestHead, null);
+            }
+        }
+
         // Named taxiway at end: walk to natural terminus.
         return WalkToNaturalTerminus(head, waypoint.Name, ctx);
     }

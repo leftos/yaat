@@ -19,14 +19,37 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
         AircraftCategory category
     )
     {
+        // Route the resolved destination hint node through the channel that matches its node
+        // TYPE. A spot ($) must resolve via FindSpotNodeByName (the destinationSpot channel), not
+        // FindParkingByName (the destinationParking channel) — passing a spot's name as parking
+        // resolves to null, leaving ctx.Destination.TargetNodeId null and defeating the
+        // destination-aware terminus routing in SegmentExpander (the route then walks to the
+        // taxiway terminus and U-turns back to the spot).
+        var hint = options.DestinationHintNode;
+        string? destParking = null;
+        string? destSpot = null;
+        int? destNodeId = null;
+        switch (hint?.Type)
+        {
+            case GroundNodeType.Spot:
+                destSpot = hint.Name;
+                break;
+            case GroundNodeType.Parking or GroundNodeType.Helipad:
+                destParking = hint.Name;
+                break;
+            case not null:
+                destNodeId = hint.Id;
+                break;
+        }
+
         var ctx = SearchContext.Compile(
             layout,
             fromNodeId,
             waypointSequence: taxiwayNames,
             destinationRunway: options.DestinationRunway,
-            destinationParking: options.DestinationHintNode?.Name,
-            destinationSpot: null,
-            destinationNodeId: null,
+            destinationParking: destParking,
+            destinationSpot: destSpot,
+            destinationNodeId: destNodeId,
             explicitHoldShortRunways: options.ExplicitHoldShorts,
             category: category,
             preference: null,
