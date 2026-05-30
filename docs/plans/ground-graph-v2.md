@@ -10,11 +10,14 @@ own sub-plan (linked below). A fresh agent should be able to start here and find
 |---|-------|------|-----------|----------|--------|
 | 1 | **Fillet generator V2** | builds the ground-graph **geometry** (nodes, edges, arcs + radii) | `FilletArcGenerator` V2 | [`filletv2/`](./filletv2/status.md) | geometry + behind-switch validation **done**; flip gated |
 | 2 | **Pathfinder V2** | resolves a `TaxiRoute` over that graph | `TaxiPathfinder` V2 router | [`pathfinderv2/`](./pathfinderv2/default-flip-triage.md) | **WIP** (default-flip triage open) |
-| 3 | **Navigator v1.1** | **follows** the route+geometry per tick (steering) | `GroundNavigator` (in `TaxiingPhase`) | [navigator review](./filletv2/v2-sim-validation.md) (§ Navigator review) | **not started** |
+| 3 | **Navigator V2 (clean-room)** | **follows** the route+geometry per tick (steering) | `GroundNavigatorV2` behind `GroundNavigatorRouter` | [`navigator-v2/design.md`](./navigator-v2/design.md) | **design reviewed**; impl not started |
 
-> Naming: layer 1 is the *fillet generator* (a.k.a. "generator v2" / "fillet v2"). Layer 3 is an
-> *incremental* update to the existing navigator (hence **v1.1**, not a rewrite). All three are versioned
-> independently but **ship as one switch-over** — see the joint flip gate below.
+> Naming: layer 1 is the *fillet generator* (a.k.a. "generator v2" / "fillet v2"). Layer 3 was originally
+> scoped as an *incremental* v1.1 update; the navigator-WS3 failure cluster (freeze + spins) showed the
+> Legacy-fillet compensations misfire on V2 geometry, so it is now a **clean-room V2 navigator behind a
+> `GroundNavigatorRouter`** — the same clean-V2-behind-a-switch pattern as layers 1 and 2 (design
+> reviewed: [`navigator-v2/design.md`](./navigator-v2/design.md)). All three are versioned independently
+> but **ship as one switch-over** — see the joint flip gate below.
 
 ## Why they flip together
 
@@ -37,7 +40,7 @@ flip in a single change, after which V1 of each is deleted.
 |------------|-------|-------------|
 | Fillet generator V2 | geometry validated; sim-validated behind switch; sweep triaged | hold for layers 2+3, then flip + delete Legacy |
 | Pathfinder V2 | WIP, default reverted (56-failure triage open) | work the cluster triage + Codex HIGH findings + fillet-sweep req ① |
-| Navigator v1.1 | not started | scope + start the navigator review (root cause ②) |
+| Navigator V2 (clean-room) | design reviewed | build it: §4.4 arc-cap fix first, then interface+router extraction, then `GroundNavigatorV2` |
 | **Joint flip** | blocked on 2 + 3 | flip all three together once green |
 
 ---
@@ -67,17 +70,32 @@ Sub-plan: [`pathfinderv2/default-flip-triage.md`](./pathfinderv2/default-flip-tr
 - [ ] Decide k-alternative support; coverage tests; latency budget
 - [ ] Flip default `TaxiPathfinderRouter` to V2
 
-## Workstream 3 — Navigator v1.1 (following)
+## Workstream 3 — Navigator V2 (clean-room)
 
-Detail: [`filletv2/v2-sim-validation.md`](./filletv2/v2-sim-validation.md) § "Navigator review (root cause ②)". May graduate to its own `docs/plans/navigator-v1.1/` once work begins.
+Detail: [`navigator-v2/design.md`](./navigator-v2/design.md) (reviewed by `architect-reviewer` +
+`aviation-sim-expert`). Origin of the decision: [`filletv2/v2-sim-validation.md`](./filletv2/v2-sim-validation.md)
+§ "Navigator review (root cause ②)" + the navigator-WS3 failure cluster.
 
-The GroundNavigator is **shared** (unchanged by the pathfinder swap) and physically steers the aircraft
-along the route. Its V1 tuning targets Legacy fillet geometry; V2 needs its own review.
+The shared `GroundNavigator` carries heavy Legacy-fillet compensations (slow-turn synthesis, cluster
+detection, chord-chain aggregate-turn, orbit-stall backstop, reverse-arc tangent-flip) that misfire on
+V2's cleaner geometry — the AMX669 freeze and the EDG320/N172SP spins. Rather than re-tune soon-to-be-
+deleted shared code under a V1-regression tax, build a **clean V2 navigator behind a `GroundNavigatorRouter`
+factory** (default V1 until the joint flip), keeping the durable core (closed-form arc playback, pure-
+pursuit, backward-propagated braking, entry alignment, I7) and dropping the chord-chain machinery.
 
-- [ ] **Synth tolerance vs tight V2 arcs.** r=40 ft V2 arc + 6 ft tangent-entry tolerance → AMX669 froze at taxi seg 0 (synthesis skipped, pure-pursuit produced no motion). Scale tolerance with arc radius and/or guarantee a non-freezing pursuit fallback. Repro: `IssueAmxTaxiOvershootTests.AMX669_HoldsShortOf1L_WithReasonableHeading`
-- [ ] **Audit Legacy-fillet-specific compensations** (orbit detector, cluster synth planner, chord-chain aggregate turn, reverse-arc natural-forward detection) for dead/wrong behavior on V2 geometry — some may be removable, some need re-tuning
-- [ ] Re-validate the navigator regression pins (OAK/SFO taxi-spin recordings) against V2 geometry
-- [ ] **Aviation-realism review (mandatory)** of any tolerance / turn-speed change on the tighter V2 arcs
+- [ ] **§4.4 speed-model fix first (separable, benefits V1+V2):** replace `GroundArc.MaxSafeSpeedKts`'s
+      kinematic `v=r·ω` cap with a lateral-accel cap `min(√(a_lat·r), CornerSpeedForAngle(sweep))`
+      (a_lat≈0.13 g); preserve ground speed across the runway-crossing handoff (don't brake to ~0).
+      Resolves the tight-arc spin/decel family. *(`GroundTurnRate` 20/25/35 is correct — do NOT change it;
+      the earlier "3°/s" framing was a diagnostic artifact.)*
+- [ ] **`IGroundNavigator` + `GroundNavigatorRouter` (static factory) extraction.** All five construction
+      sites route through it; acceptance is a grep gate (zero `new GroundNavigator`/`FromSnapshot` outside
+      the router), V1 stays default.
+- [ ] **`GroundNavigatorV2`:** straight pure-pursuit + closed-form arc/slow-turn + speed profile + entry
+      alignment; no synthesis/cluster/orbit machinery; Q1 no-freeze floor as a global invariant.
+- [ ] Validate against the E2E taxi suite under V2+V2 (AMX669, the spin guards, AfterRes crossing,
+      S2Oak4, coverage smoke) → 0 failures; **aviation-realism review (mandatory)** of any further
+      turn-speed change.
 
 ---
 
