@@ -269,17 +269,38 @@ public static class RouteMaterialiser
             }
         }
 
-        // Explicit hold-shorts: include one past the last one.
+        // Explicit hold-shorts. A hold-short is the route terminus only when no cleared taxiway
+        // lies beyond it. "TAXI G C HS 28R" holds short of 28R while crossing from G onto C: the
+        // hold-short is a stop point mid-route, not the end, so the route must cross and stop just
+        // onto the last cleared taxiway C. Truncating at the hold-short would strand the aircraft
+        // on the near side, dropping the crossing and all of C. When the route reaches the last
+        // cleared taxiway AFTER the hold-short (crossed en route), stop AT the first segment onto
+        // that taxiway — directly, with no trailing buffer, so the aircraft settles just past the
+        // junction. Otherwise (the hold-short is on/after the last cleared taxiway) it is the
+        // terminus — stop one segment past it like any other required stop.
+        int lastClearedEntryIdx = FindLastClearedTaxiwayEntry(segments, ctx);
+        int crossHoldTruncateAt = -1;
         foreach (var hs in holdShorts)
         {
-            if (hs.Reason == HoldShortReason.ExplicitHoldShort)
+            if (hs.Reason != HoldShortReason.ExplicitHoldShort)
             {
-                for (int i = 0; i < segments.Count; i++)
+                continue;
+            }
+
+            for (int i = 0; i < segments.Count; i++)
+            {
+                if (segments[i].ToNodeId != hs.NodeId)
                 {
-                    if (segments[i].ToNodeId == hs.NodeId)
-                    {
-                        lastRequiredIdx = Math.Max(lastRequiredIdx, i);
-                    }
+                    continue;
+                }
+
+                if (lastClearedEntryIdx > i)
+                {
+                    crossHoldTruncateAt = Math.Max(crossHoldTruncateAt, lastClearedEntryIdx);
+                }
+                else
+                {
+                    lastRequiredIdx = Math.Max(lastRequiredIdx, i);
                 }
             }
         }
@@ -299,8 +320,42 @@ public static class RouteMaterialiser
             }
         }
 
-        // One past the last required stop.
-        return lastRequiredIdx < 0 ? segments.Count - 1 : Math.Min(lastRequiredIdx + 1, segments.Count - 1);
+        // One past the last required stop; a crossed-hold stop is exact (no trailing buffer).
+        int normalTruncate = lastRequiredIdx < 0 ? -1 : lastRequiredIdx + 1;
+        int result = Math.Max(normalTruncate, crossHoldTruncateAt);
+        return result < 0 ? segments.Count - 1 : Math.Min(result, segments.Count - 1);
+    }
+
+    /// <summary>
+    /// Index of the first segment that lies purely on the last cleared taxiway (the final named
+    /// waypoint), or -1 when there is no named last waypoint or it is never reached on a single-name
+    /// segment. "Purely" excludes the membership junction arc onto the taxiway (e.g. a "C - G" corner
+    /// arc) so the cross-and-hold stop lands on the taxiway proper — leaving the aircraft reporting
+    /// the cleared taxiway as its current one rather than a transitional corner. Used by the
+    /// explicit-hold-short truncation to stop one segment onto the taxiway the route crossed to reach.
+    /// </summary>
+    private static int FindLastClearedTaxiwayEntry(List<TaxiRouteSegment> segments, SearchContext ctx)
+    {
+        if (ctx.WaypointSequence.Count == 0)
+        {
+            return -1;
+        }
+
+        string last = ctx.WaypointSequence[^1];
+        if (last.StartsWith('#'))
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (segments[i].TaxiwayName.Equals(last, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private static List<string> BuildWarnings(List<TaxiRouteSegment> segments, SearchContext ctx, IReadOnlyList<ConnectorInsertion> insertions)
