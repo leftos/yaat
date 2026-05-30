@@ -43,6 +43,20 @@ Reproduce a mode: flip `TaxiPathfinderRouter._current` to `TaxiPathfinderV2` (+ 
 
 Confirm each is genuinely downstream before deferring. The workflow attributes nearly all to **one GroundNavigator root cause**: the strict tangent-entry tolerance doesn't scale with arc radius, so on tight V2 fillet arcs the aircraft stalls/spins/overshoots and never finishes the taxi — failing every downstream phase assertion (touch-and-go, go-around, pattern, CTO, pilot-speech timing, lineup alignment). A single navigator slow-turn-synthesis fix (`GroundNavigator.cs:1093` region, the AMX669-class freeze) likely clears most of: `ExtDuringTouchAndGo` ×6, `GoAroundPreservesIntent` ×2, `N7lj*` ×5, `Issue133` ×2, `IssueOakImplicitCross` ×2, `AutoCrossRunwayToggle` ×2, `OakGaSpawn`/`OakNorthField` spins, `PatternDirectionReset`, `IssueAmx.AMX669`, `Issue166`, `DiagonalLineup28r`, `OakPostLandingReversals.N9225L`, `N929aw`, `TwoPilotControllerResponseGate`.
 
+### Progress — cluster B landed (54 → 25 under V2+V2)
+
+Cluster B (terminus overshoot + direction) cleared **29** failures across two commits, **zero regressions**:
+
+- **Spot/parking overshoot** (`fea86543`): `ResolveExplicitPath` routed a spot's name through the parking finder (→ null TargetNodeId); fixed by channelling the hint node by `GroundNodeType`, plus `ExpandLastWaypoint` routing to an on-taxiway destination via `LocalSearchToJunction` instead of walking to the terminus. Fixed `SpotOvershoot` ×3.
+- **Final-taxiway direction bias** (`feaa73c7`): `WalkToNaturalTerminus` was direction-blind; now biases its first step toward the destination-runway hold-short on the named taxiway (`ResolveTerminusBias`, runway-only). Fixed **26** — and most were the failures the verdict pass had attributed to `navigator-WS3`: they were downstream of the wrong-direction route, not the navigator. **Re-verdict:** `ExtDuringTouchAndGo` ×6, `GoAround` ×2, `N7lj*` ×5, `Issue133` ×2, `AutoCross` ×2, `AMX669`, `PatternDirectionReset`, `DiagonalLineup28r`, `N929aw`, `TwoPilotControllerResponseGate`, `Adct/AtFixDuringInitialClimb`, `S2Oak4.N346G`, `SfoLineupDiagonal` were **routing-direction**, now green. (Lesson: the parallel verdict agents, blind to each other and to the fix, over-attributed "aircraft never reached the runway" to the navigator.)
+
+**Remaining 25 under V2+V2:**
+- **Cluster A** — variant resolve + over-permissive guards (~7): `OAK_FullTaxi`/`OAK_TaxiFromParking_DCBW`/`Bug157le` (auto-resolve W→connector), `OAK_TaxiD`/`TryTaxi_UnknownTaxiway`/`SfoRampCrossesRunway` (reject unreachable/unknown/cross-runway), `Issue163`.
+- **Cluster C** — hold-short annotation (3): `OakCross28R.RerouteFrom28R`, `OakExplicitHsAutoCross`, `OakCrossThenHold.AfterRes`.
+- **Cluster B remnants** (5): `SKW3078`/`BundleReplay` (parking extension bearing-gate, B2), `IssueFllDal880` (U-turn `SelectBestStopNode`, D), `OakPostLandingReversals` ×2 (off-taxiway parking direction — needs real routing to `@JSX1`/`@NEW1`, not just a terminus bias).
+- **Genuine navigator-WS3 → #7** (~6): `OakGaSpawn`/`OakNorthField` spins, `IssueOakImplicitCross` ×2, `Issue166`, `S2Oak4.N436MS` (route now correct — `B RWY 28R` 5 segs — but aircraft still TaxiingPhase at t=10: navigator follows V2 arcs too slowly).
+- **V1-pinned → relax** (4): `OAK_HoldShortNodes`, `Skw3404` ×2 diagnostics, `SfoM2` arc id.
+
 **No bandaids** — each test failure needs a verdict on root cause before any change lands:
 
 - **V2-bug**: V2 produces a wrong route or fails to find a valid one. Fix V2.
