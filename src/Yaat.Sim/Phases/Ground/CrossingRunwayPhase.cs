@@ -34,7 +34,7 @@ public sealed class CrossingRunwayPhase : Phase
     // Built lazily in OnStart (or first OnTick after snapshot restore) by
     // slicing the aircraft's AssignedTaxiRoute between approach and target.
     private TaxiRoute? _crossingRoute;
-    private GroundNavigator? _navigator;
+    private IGroundNavigator? _navigator;
     private bool _initialized;
     private double _timeSinceLastLog;
 
@@ -234,7 +234,8 @@ public sealed class CrossingRunwayPhase : Phase
         _crossingRoute = new TaxiRoute { Segments = slice, HoldShortPoints = [] };
 
         double maxSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
-        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed };
+        _navigator = GroundNavigatorRouter.Create();
+        _navigator.MaxSpeedKts = maxSpeed;
         _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
 
         _initialized = true;

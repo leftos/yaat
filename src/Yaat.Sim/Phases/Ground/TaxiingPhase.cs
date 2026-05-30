@@ -23,7 +23,7 @@ public sealed class TaxiingPhase : Phase
 
     private const double LogIntervalSeconds = 3.0;
 
-    private GroundNavigator _nav = new();
+    private IGroundNavigator _nav = GroundNavigatorRouter.Create();
     private bool _initialized;
     private double _timeSinceLastLog;
 
@@ -169,19 +169,21 @@ public sealed class TaxiingPhase : Phase
 
         if (dto.Navigator is not null)
         {
-            phase._nav = GroundNavigator.FromSnapshot(dto.Navigator);
+            phase._nav = GroundNavigatorRouter.FromSnapshot(dto.Navigator);
         }
         else
         {
-            // Legacy snapshot without navigator — reconstruct from old fields.
-            phase._nav = new GroundNavigator
-            {
-                TargetLat = dto.TargetLat,
-                TargetLon = dto.TargetLon,
-                PrevDistToTarget = dto.PrevDistToTarget,
-                MaxSpeedKts = 30,
-            };
-            phase._nav.SetTargetNodeId(dto.TargetNodeId);
+            // Legacy snapshot without navigator — reconstruct from old flat fields via the navigator DTO.
+            phase._nav = GroundNavigatorRouter.FromSnapshot(
+                new GroundNavigatorDto
+                {
+                    TargetNodeId = dto.TargetNodeId,
+                    TargetLat = dto.TargetLat,
+                    TargetLon = dto.TargetLon,
+                    PrevDistToTarget = dto.PrevDistToTarget,
+                    MaxSpeedKts = 30,
+                }
+            );
         }
 
         return phase;
@@ -205,8 +207,7 @@ public sealed class TaxiingPhase : Phase
         var hs = route.GetHoldShortAt(_nav.TargetNodeId);
         if (hs is not null && !hs.IsCleared && hs.Latitude is not null && hs.Longitude is not null)
         {
-            _nav.TargetLat = hs.Latitude.Value;
-            _nav.TargetLon = hs.Longitude.Value;
+            _nav.OverrideTargetPosition(hs.Latitude.Value, hs.Longitude.Value);
         }
 
         _initialized = true;

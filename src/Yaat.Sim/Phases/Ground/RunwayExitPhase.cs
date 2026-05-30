@@ -50,7 +50,7 @@ public sealed class RunwayExitPhase : Phase
 
     // Exit path navigation (FollowingExitPath state)
     private TaxiRoute? _exitRoute;
-    private GroundNavigator? _navigator;
+    private IGroundNavigator? _navigator;
 
     /// <summary>
     /// The hold-short node ID this aircraft is targeting (or null if still searching).
@@ -489,7 +489,8 @@ public sealed class RunwayExitPhase : Phase
         // deceleration into the turn at the branch node.
         double maxSpeed = _coastSpeed;
 
-        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed };
+        _navigator = GroundNavigatorRouter.Create();
+        _navigator.MaxSpeedKts = maxSpeed;
         _navigator.SetupSegment(_exitRoute, ctx, _ => true);
 
         _state = ExitState.FollowingExitPath;
@@ -662,7 +663,7 @@ public sealed class RunwayExitPhase : Phase
             }
             if (dto.Navigator is not null)
             {
-                phase._navigator = GroundNavigator.FromSnapshot(dto.Navigator);
+                phase._navigator = GroundNavigatorRouter.FromSnapshot(dto.Navigator);
             }
         }
 

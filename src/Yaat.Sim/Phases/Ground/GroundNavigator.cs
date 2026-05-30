@@ -65,7 +65,7 @@ public record NavTickDiag(
 /// handoff, runway assignment.
 /// </para>
 /// </summary>
-public sealed class GroundNavigator
+public sealed class GroundNavigator : IGroundNavigator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GroundNavigator");
 
@@ -118,9 +118,9 @@ public sealed class GroundNavigator
     private const int OrbitStallTicks = 15;
 
     public int TargetNodeId { get; private set; }
-    public double TargetLat { get; set; }
-    public double TargetLon { get; set; }
-    public double PrevDistToTarget { get; set; } = double.MaxValue;
+    public double TargetLat { get; private set; }
+    public double TargetLon { get; private set; }
+    public double PrevDistToTarget { get; private set; } = double.MaxValue;
 
     /// <summary>
     /// Consecutive ticks (seconds) the aircraft has spent within
@@ -147,6 +147,17 @@ public sealed class GroundNavigator
     public double MaxSpeedKts { get; set; }
 
     public void SetTargetNodeId(int nodeId) => TargetNodeId = nodeId;
+
+    /// <summary>
+    /// Override the target position to the painted hold-short bar offset (the owning phase calls this
+    /// after <see cref="SetupSegment"/> when stopping short of an uncleared hold-short). The arrival
+    /// threshold depends on this position, so it is an explicit seam rather than a free setter.
+    /// </summary>
+    public void OverrideTargetPosition(double lat, double lon)
+    {
+        TargetLat = lat;
+        TargetLon = lon;
+    }
 
     // --- Internal state ---
 
