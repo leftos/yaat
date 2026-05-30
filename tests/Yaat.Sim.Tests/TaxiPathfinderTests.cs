@@ -9,6 +9,18 @@ using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
+/// <summary>
+/// V1-only regression pins for the static <see cref="TaxiPathfinder"/> implementation. Every test here
+/// calls the V1 static API directly (e.g. the 3-arg <c>FindRoute(layout, from, to)</c> with no aircraft
+/// category) on synthetic graphs and on real OAK/SFO layouts built with the default (Legacy) fillet mode,
+/// and asserts V1's exact route shapes. They are intentionally NOT routed through
+/// <see cref="TaxiPathfinderRouter"/>: V2 legitimately produces different (correct) routes on this
+/// geometry, so migrating these to <c>TaxiPathfinderRouter.Current</c> would make them fail the moment the
+/// joint flip makes V2 the default. They are deleted together with V1 at that flip. Router-tracking /
+/// V2 behaviour coverage for the same scenarios lives in the all-V2 suites
+/// (<c>FilletV2TaxiCoverageTests</c>, the <c>*_OnV2</c> tests, the V2 Acceptance collection) and in the
+/// explicit-path comparison harness (<c>PathfinderComparison</c>).
+/// </summary>
 [Collection("NavDbMutator")]
 public class TaxiPathfinderTests
 {

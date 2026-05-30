@@ -63,34 +63,57 @@ public static class PathfinderComparison
         var r2 = v2.FindRoute(layout, fromNodeId, toNodeId, category);
         sw2.Stop();
 
+        return BuildResult(r1, r2, sw1.ElapsedMilliseconds, sw2.ElapsedMilliseconds, null, null);
+    }
+
+    /// <summary>
+    /// Calls <see cref="ITaxiPathfinder.ResolveExplicitPath"/> on both implementations for the same
+    /// named waypoint sequence, records timing and route metrics, and returns a
+    /// <see cref="ComparisonResult"/>. The explicit-path analogue of <see cref="Compare"/>; the key
+    /// metric is <c>V2UTurnCount &lt;= V1UTurnCount</c> — V2 must be no zig-zaggier than V1 on the same
+    /// instructed taxi route over the same graph. A fresh copy of <paramref name="taxiwayNames"/> is
+    /// passed to each implementation so neither can observe the other's mutations.
+    /// </summary>
+    public static ComparisonResult CompareExplicit(
+        ITaxiPathfinder v1,
+        ITaxiPathfinder v2,
+        AirportGroundLayout layout,
+        int fromNodeId,
+        List<string> taxiwayNames,
+        ExplicitPathOptions options,
+        AircraftCategory category = AircraftCategory.Jet
+    )
+    {
+        var sw1 = Stopwatch.StartNew();
+        var r1 = v1.ResolveExplicitPath(layout, fromNodeId, [.. taxiwayNames], out string? f1, options, category);
+        sw1.Stop();
+
+        var sw2 = Stopwatch.StartNew();
+        var r2 = v2.ResolveExplicitPath(layout, fromNodeId, [.. taxiwayNames], out string? f2, options, category);
+        sw2.Stop();
+
+        return BuildResult(r1, r2, sw1.ElapsedMilliseconds, sw2.ElapsedMilliseconds, f1, f2);
+    }
+
+    private static ComparisonResult BuildResult(TaxiRoute? r1, TaxiRoute? r2, long v1ElapsedMs, long v2ElapsedMs, string? v1Fail, string? v2Fail)
+    {
         bool v1Ok = r1 is not null;
         bool v2Ok = r2 is not null;
-
-        int v1Segs = r1?.Segments.Count ?? 0;
-        int v2Segs = r2?.Segments.Count ?? 0;
-
-        double v1Dist = (r1?.TotalDistanceNm ?? 0.0) * FeetPerNm;
-        double v2Dist = (r2?.TotalDistanceNm ?? 0.0) * FeetPerNm;
-
-        int v1UTurns = CountUTurns(r1);
-        int v2UTurns = CountUTurns(r2);
-
-        bool sameRoute = RoutesMatch(r1, r2);
 
         return new ComparisonResult(
             BothSucceeded: v1Ok && v2Ok,
             BothFailed: (!v1Ok) && (!v2Ok),
-            SameRoute: sameRoute,
-            V1SegmentCount: v1Segs,
-            V2SegmentCount: v2Segs,
-            V1TotalDistanceFt: v1Dist,
-            V2TotalDistanceFt: v2Dist,
-            V1UTurnCount: v1UTurns,
-            V2UTurnCount: v2UTurns,
-            V1ElapsedMs: sw1.ElapsedMilliseconds,
-            V2ElapsedMs: sw2.ElapsedMilliseconds,
-            V1FailReason: r1 is null ? "No route found" : null,
-            V2FailReason: r2 is null ? "No route found" : null
+            SameRoute: RoutesMatch(r1, r2),
+            V1SegmentCount: r1?.Segments.Count ?? 0,
+            V2SegmentCount: r2?.Segments.Count ?? 0,
+            V1TotalDistanceFt: (r1?.TotalDistanceNm ?? 0.0) * FeetPerNm,
+            V2TotalDistanceFt: (r2?.TotalDistanceNm ?? 0.0) * FeetPerNm,
+            V1UTurnCount: CountUTurns(r1),
+            V2UTurnCount: CountUTurns(r2),
+            V1ElapsedMs: v1ElapsedMs,
+            V2ElapsedMs: v2ElapsedMs,
+            V1FailReason: r1 is null ? (v1Fail ?? "No route found") : null,
+            V2FailReason: r2 is null ? (v2Fail ?? "No route found") : null
         );
     }
 

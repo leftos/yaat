@@ -223,6 +223,33 @@ public class RouteMaterialiserTests
         Assert.DoesNotContain(route.Segments, s => s.ToNodeId == past.Id);
     }
 
+    [Fact]
+    public void RunwayDestination_ToSummary_IncludesRwyDesignator()
+    {
+        // Codex HIGH #1: the DestinationRunway hold-short reason is what makes TaxiRoute.ToSummary()
+        // surface the "RWY <id>" semantics downstream code/tests rely on. A runway-destination route
+        // must emit that reason AND produce a summary containing "RWY 28R".
+        var n0 = Node(0, 37.700, -122.200);
+        var n1 = Node(1, 37.701, -122.200);
+        var nDest = Node(2, 37.702, -122.200, GroundNodeType.RunwayHoldShort);
+        nDest.RunwayId = new RunwayIdentifier("28R", "10L");
+        var layout = Layout(n0, n1, nDest);
+        var e01 = Edge(n0, n1, "A");
+        var e12 = Edge(n1, nDest, "A");
+
+        var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
+        var ctx = Context(layout, dest);
+
+        var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e12, n1, nDest) };
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+
+        var destHs = route.HoldShortPoints.Single(h => h.NodeId == nDest.Id);
+        Assert.Equal(HoldShortReason.DestinationRunway, destHs.Reason);
+
+        // The summary loses the RWY semantics if the reason is dropped (the exact Codex regression).
+        Assert.Contains("RWY 28R", route.ToSummary());
+    }
+
     // ---------------------------------------------------------------------------
     // Truncation
     // ---------------------------------------------------------------------------
