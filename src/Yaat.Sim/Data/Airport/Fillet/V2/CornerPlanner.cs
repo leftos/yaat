@@ -38,6 +38,15 @@ internal static class CornerPlanner
                     continue;
                 }
 
+                // Near-hairpin: the arms are within (180 − threshold)° of parallel — two taxiways
+                // grazing at an acute angle, not a real turn. The fillet would collapse to an
+                // un-taxiable straight chord (a corner no aircraft can fly through), so emit no
+                // corner; the pair stays connected via the taxiway that already bridges them.
+                if (turnAngle > FilletConstants.NearHairpinThresholdDeg)
+                {
+                    continue;
+                }
+
                 double typeMax = FilletGeometry.SelectMaxRadius(edgeA, edgeB, turnAngle);
                 bool capA = FilletEligibility.IsEligible(armA.Walk.TerminalNode) && (armA.Walk.TerminalNode.SourceIntersectionPosition is null);
                 bool capB = FilletEligibility.IsEligible(armB.Walk.TerminalNode) && (armB.Walk.TerminalNode.SourceIntersectionPosition is null);

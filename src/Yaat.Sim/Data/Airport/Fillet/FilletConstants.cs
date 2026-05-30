@@ -5,6 +5,16 @@ public static class FilletConstants
 {
     public const double MinFilletAngleDeg = 15.0;
     public const double CollinearThresholdDeg = 15.0;
+
+    /// <summary>
+    /// Symmetric counterpart to <see cref="CollinearThresholdDeg"/>. A corner whose deflection
+    /// (<see cref="FilletGeometry.ComputeTurnAngle"/>) exceeds this is a near-hairpin: the two arms
+    /// are within (180 − this)° of parallel — taxiways grazing at an acute angle, not a real turn.
+    /// Such a corner can't be filleted (it would degrade to a straight chord no aircraft can taxi),
+    /// so no corner is emitted between the pair; they stay connected via the taxiway that bridges
+    /// them. 165° ⇒ arms within 15° of parallel.
+    /// </summary>
+    public const double NearHairpinThresholdDeg = 180.0 - CollinearThresholdDeg;
     public const double DefaultRadiusFt = 75.0;
     public const double HighSpeedExitRadiusFt = 150.0;
     public const double RunwayExitRadiusFt = 100.0;
