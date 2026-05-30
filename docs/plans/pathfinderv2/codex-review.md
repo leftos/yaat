@@ -210,9 +210,26 @@ The biggest missing coverage areas are:
 
 Before flipping v2 on by default or deleting v1, I would require:
 
-- [ ] Fix the high findings in this review.
-- [ ] Add behavior tests for the missing runway/hold-short semantics.
-- [ ] Run existing v1 taxi-pathfinder behavior tests against the v2 router where practical.
-- [ ] Expand comparison tests to explicit-path routes, not only auto `FindRoute`.
-- [ ] Decide whether v2 must support v1-style k alternatives; if yes, implement it before replacement.
-- [ ] Keep v1 available until v2 passes the same controller-facing scenarios, not just the same synthetic graph scenarios.
+- [x] Fix the high findings in this review. *(All 5 landed: DestinationRunway reason, reciprocal HS matching, full-length lineup threshold, state-aware A\* pruning, detour authorized-taxiway policy.)*
+- [x] Add behavior tests for the missing runway/hold-short semantics. *(Phase 5 — see Resolutions.)*
+- [x] Run existing v1 taxi-pathfinder behavior tests against the v2 router where practical. *(V2/router behaviour coverage lives in the `*_OnV2` suites + `FilletV2TaxiCoverageTests` + the explicit-path comparison; the synthetic v1-algorithm unit tests stay pinned to v1 and are deleted with it.)*
+- [x] Expand comparison tests to explicit-path routes, not only auto `FindRoute`. *(`PathfinderComparison.CompareExplicit` + `ExplicitPathComparisonTests`.)*
+- [x] Decide whether v2 must support v1-style k alternatives. *(Decided: no — v2 is intentionally per-preference; see Resolutions.)*
+- [ ] Keep v1 available until v2 passes the same controller-facing scenarios, not just the same synthetic graph scenarios. *(Held until the joint flip — `docs/plans/ground-graph-v2.md`.)*
+
+## Resolutions (Phase 5, 2026-05-30)
+
+| Finding | Severity | Resolution |
+|---------|----------|------------|
+| DestinationRunway reason lost | HIGH | Fixed (v2 RouteMaterialiser emits it); `ToSummary` "RWY <id>" behaviour test added. |
+| Reciprocal HS matching too literal | HIGH | Fixed (`RunwayIdentifier.Contains`); test `ExplicitHoldShort_ConfiguredInContext_TaggedCorrectly`. |
+| Full-length lineup runway-end ambiguous | HIGH | Fixed (authoritative `NavigationDatabase` threshold); test `…PicksBarNearestRequestedThreshold`. |
+| A\* pruning not state-aware | HIGH | Fixed (key by `(node, 1°-bearing-bucket)`); `StateAwarePruningTests` + necessity sweep. |
+| Detour can use unauthorized full taxiways | HIGH | Fixed (soft penalise-and-warn, `MaxDetourExpansions` enforced); detour tests. |
+| `FindRoutes` not real k-shortest | MED | **Decided: accept v2's per-preference model** (≤3 routes; client requests 3; documented). |
+| Natural-terminus walking still greedy | MED | **Resolved by constraint** (final-leg only, direction-biased, single-name-preferring, parking/spot off-ramped; no failing repro). |
+| `RAMP` treated as letter-only taxiway | MED | Fixed — excluded from `IsLetterOnlyTaxiway` (aviation-reviewed). |
+| `Fastest` cost mixes units | MED | **Decided: keep + document** (generic scalar; admissible-but-weak Fastest heuristic; never the default preference). |
+| Detour expansion limit unused | LOW | Stale — `MaxDetourExpansions` is enforced (`SegmentExpander.cs` `RunBoundedDetour`). |
+| Priority tie-breaker comment | LOW | Fixed the comment (code correctly prefers deeper routes — standard A\* tie-break). |
+| Client preview category divergence | LOW | Fixed — real category threaded through every preview path (`GroundViewModel.CategoryFor`). |

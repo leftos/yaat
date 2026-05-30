@@ -67,7 +67,20 @@ Sub-plan: [`pathfinderv2/default-flip-triage.md`](./pathfinderv2/default-flip-tr
 - [x] **Fillet-sweep requirement ①:** single-name continuation now beats a membership-only taxiway-junction arc in BOTH walkers — `WalkToNaturalTerminus` (hard tier) and `LocalSearchToJunction` (soft penalty `MembershipJunctionArcContinuationCostNm` on a membership-arc continuation; runway-crossing arcs excluded via `GroundArc.IsMembershipTaxiwayJunctionArc`). Reproduced via a dense two-token sweep (29 real diversions across SFO/FLL → 0); guarded by `Req1MembershipArcSweepTests` + `JunctionContinuationTests.IntermediateWalk_*`
 - [x] **Fillet V2 duplicate corner arcs — planning-layer fix:** the single-name + membership-twin corner arcs (e.g. `[M1]`/`[M1 - M5]`, `[A - RAMP]` ×2) came from the post-execute normalizer merging same-junction cross-arm coincident nodes. Moved that merge into the plan (`SharedArmTangentPass.ApplyCrossArmCoalesce`) + dedup corner-arc/straight ops by resolved endpoint pair in `FilletPlanBuilder` (prefer single-name). Guard: `FilletV2CornerSpanGuardTests.V2_CornerArcs_NoDuplicateNodePairs`. No executor band-aid; the normalizer no longer merges same-junction nodes
 - [x] **Retire the post-hoc node-merge (full):** deleted `FilletGraphNormalizer.MergeCoincidentNodesDefensive` entirely — the normalizer now only recomputes distances, drops self-loops/degenerate arcs, and sweeps isolated nodes. Cross-junction coincident tangent cuts are merged in the plan (`SharedArmTangentPass.ApplyGlobalCoincidentCutCoalesce`, run after `ApplyCrossJunction` so it sees scaled positions; union-find absorbs overlap with the intra-arm/cross-arm/cross-junction passes). The one non-cut coincidence (SFO `01R/19L` centerline projection landing 2.4 ft from a taxiway intermediate) is fixed at its source: `RunwayCrossingDetector.ResolveCenterlineProjectionNode` reuses a coincident pre-existing intersection instead of minting a node. That exposed a latent issue the post-hoc merge had masked — a reused node carries a `RWY…:link` arm that fillet would curve onto, producing a 0 ft edge-split fragment; fixed by excluding runway-crossing links from fillet arms (`GroundEdge.IsRunwayCrossingLink` → `TaxiwayArmBuilder`). Guards green WITHOUT any post-hoc merge: `V2_NoCoincidentIntersectionNodes`, `V2_EdgeSplit_NoZeroDistanceEdges`, `V2_CornerArcs_NoDuplicateNodePairs` (sfo/oak/fll); #4 necessity HARD=0; req-① sweep 0
-- [ ] Decide k-alternative support; coverage tests; latency budget
+- [x] **Phase 5 — coverage + design-gap decisions:** k-alternatives decided (V2 is intentionally
+      per-preference — ≤3 routes, not Yen k-shortest; client requests 3; documented on
+      `TaxiPathfinderV2.FindRoutes`). `Fastest` mixed-unit scalar kept + documented (admissible-but-weak
+      heuristic; Fastest is never the default preference). RAMP classified as apron access (no
+      unauthorized-taxiway penalty/warning — `IsLetterOnlyTaxiway`). A\* tie-break comment fixed (code
+      correctly prefers deeper routes). Client preview routing uses the real aircraft category. Coverage:
+      `PathfinderComparison.CompareExplicit` + `ExplicitPathComparisonTests` (named sequences, V2 U-turns
+      ≤ V1), strengthened `Issue165_V2_SkwRoute`, `RouteMaterialiser` `ToSummary` RWY-semantics test (the
+      other 4 Codex HIGH already had behaviour tests). Soft latency budget guard (median V2 ≈ 1.3× V1,
+      hard ceiling 5×, `PathfinderGrid`-gated). `TaxiPathfinderTests` labelled V1-only regression pins.
+      Natural-terminus greedy walk: resolved-by-constraint (final-leg only, direction-biased first step,
+      single-name-preferring, parking/spot off-ramped to the multi-candidate search; no failing repro —
+      not converted to full A\* without one). `MaxDetourExpansions` already enforced; `IsNoOpEdge` kept
+      (load-bearing while Legacy fillets are the runtime default; re-evaluate at the flip).
 - [ ] Flip default `TaxiPathfinderRouter` to V2
 
 ## Workstream 3 — Navigator V2 (clean-room)
