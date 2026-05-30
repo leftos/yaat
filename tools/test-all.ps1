@@ -2,9 +2,15 @@
 # Builds and runs the full test suites for both yaat and yaat-server repos.
 # Usage:
 #   pwsh tools/test-all.ps1                                        # Release (default — ~30% faster on Sim)
+#   pwsh tools/test-all.ps1 -Full                                  # Also run the heavy Nightly + PathfinderGrid sweeps
 #   pwsh tools/test-all.ps1 -Config Debug                          # Debug (better stack traces for failures)
 #   pwsh tools/test-all.ps1 -ServerDir X:\dev\yaat-server          # Override yaat-server checkout (worktree-friendly)
 #   $env:YAAT_SERVER_DIR='X:\dev\yaat-server'; pwsh tools/test-all.ps1   # Same via env var
+#
+# By default the heavy, gated-by-intent test categories are EXCLUDED so the
+# local run stays fast (matching per-PR CI): `Nightly` (per-spot taxi-coverage
+# grid sweeps) and `PathfinderGrid` (the state-aware-pruning necessity oracle
+# sweep — a single ~55 s proof). Pass -Full to run them too (CI/nightly do).
 #
 # Worktrees: this script defaults `-ServerDir` to a sibling `yaat-server` directory
 # (the standard layout). When yaat is checked out in a worktree like
@@ -18,7 +24,9 @@ param(
     [string]$Config = 'Release',
 
     [string]$YaatDir,
-    [string]$ServerDir
+    [string]$ServerDir,
+
+    [switch]$Full
 )
 
 Set-StrictMode -Version Latest
@@ -71,7 +79,17 @@ function Run-Step {
     }
 }
 
+# Exclude the heavy gated-by-intent categories unless -Full. A trait filter of
+# `Category!=X` still includes untagged tests (they have no Category), so this
+# only drops tests explicitly tagged Nightly or PathfinderGrid.
+$testFilter = if ($Full) { '' } else { '--filter "Category!=Nightly&Category!=PathfinderGrid"' }
+
 Write-Host "Configuration: $Config" -ForegroundColor Yellow
+if ($Full) {
+    Write-Host 'Scope: FULL (incl. Nightly + PathfinderGrid sweeps)' -ForegroundColor Yellow
+} else {
+    Write-Host 'Scope: default (Nightly + PathfinderGrid excluded; pass -Full to include)' -ForegroundColor Yellow
+}
 
 # Point dotnet at the .slnx explicitly. .NET 10 SDK 10.0.300 will otherwise
 # drop a transient .sln in the repo root, which then conflicts with the .slnx
@@ -79,8 +97,8 @@ Write-Host "Configuration: $Config" -ForegroundColor Yellow
 # /yaat.sln and /yaat-server.sln in .gitignore.
 Run-Step 'Build yaat' $yaatDir "dotnet build yaat.slnx -c $Config -p:TreatWarningsAsErrors=true"
 Run-Step 'Build yaat-server' $serverDir "dotnet build yaat-server.slnx -c $Config -p:TreatWarningsAsErrors=true"
-Run-Step 'Test yaat' $yaatDir "dotnet test yaat.slnx -c $Config --no-build"
-Run-Step 'Test yaat-server' $serverDir "dotnet test yaat-server.slnx -c $Config --no-build"
+Run-Step 'Test yaat' $yaatDir "dotnet test yaat.slnx -c $Config --no-build $testFilter"
+Run-Step 'Test yaat-server' $serverDir "dotnet test yaat-server.slnx -c $Config --no-build $testFilter"
 
 Write-Host ''
 if ($failed) {
