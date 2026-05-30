@@ -233,9 +233,15 @@ public sealed class CrossingRunwayPhase : Phase
 
         _crossingRoute = new TaxiRoute { Segments = slice, HoldShortPoints = [] };
 
+        // Cross and continue without delay (7110.65 §3-7-2): floor the speed at the crossing speed so the
+        // navigator never brakes toward a stop on the runway or at the (artificial) slice end, and the
+        // off-centerline re-acquire gate can't cap it mid-crossing. The aircraft hands off to the onward
+        // TaxiingPhase still moving; that phase owns the real deceleration for the destination. The floor
+        // never overrides a conflict/airport speed-limit ceiling (see ClampBySpeedLimit).
         double maxSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
         _navigator = GroundNavigatorRouter.Create();
         _navigator.MaxSpeedKts = maxSpeed;
+        _navigator.MinSpeedKts = maxSpeed;
         _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
 
         _initialized = true;

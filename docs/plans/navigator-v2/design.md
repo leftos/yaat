@@ -246,8 +246,19 @@ decline path, not just where synthesis used to live.
 > than a flat 3 kt `SlowTurnSpeedKts`. The 3 kt floor was an unrealistic SMGCS-creep for routine sharp
 > taxi turns (aviation-reviewed: Boeing FCTM / AC 120-74); it survives only as the floor for degenerate
 > radii. EDG320 settles at 276° at the realistic speed (still well within the 320° guard).
->
-> Remaining cluster item: `OakCrossThenHold.AfterRes` (Q4 crossing→hold handoff).
+
+> **Implemented (2026-05-30, follow-up — Q4 crossing momentum).** A cleared runway crossing now holds a
+> steady crossing speed all the way across instead of braking at the far side. `CrossingRunwayPhase` sets a
+> navigator speed FLOOR (`IGroundNavigator.MinSpeedKts`) = `RunwayCrossingSpeed` (piston 12 / jet-TP 15 kt)
+> for the whole crossing slice; the floor overrides the internal braking curve, corner-speed caps, and the
+> off-centerline re-acquire gate, but NEVER the conflict/airport `GroundSpeedLimit` ceiling (a detected
+> conflict can still stop the aircraft mid-crossing). This fixes both navigators: V1 had braked to ~0 at the
+> slice terminus (treated as a stop) and V2 additionally dipped to the ~5 kt re-acquire speed mid-runway —
+> both the runway-incursion anti-pattern. The aircraft hands off to `TaxiingPhase` still moving (~12 kt) and
+> that phase owns the real deceleration for the destination. Guard: `OakCrossingMomentum{V1,V2}Tests` assert
+> min gs ≥ 8 kt once established in the crossing. The "check V2 runway arcs" investigation confirmed the G/28R
+> crossing path is straight (no spurious sub-nose-wheel fillet arcs); the V2 dip was the re-acquire gate, not
+> geometry. **All §5 cluster items resolved.**
 
 ### 4.4 Speed / turn model — **aviation-reviewed, separable from the rewrite**
 

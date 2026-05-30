@@ -20,6 +20,20 @@ public interface IGroundNavigator
     /// <summary>Maximum forward speed (kts) the navigator may command on straights; the phase sets it per category / expedite state.</summary>
     double MaxSpeedKts { get; set; }
 
+    /// <summary>
+    /// Minimum forward speed (kts) the navigator commands while following — a speed floor that overrides the
+    /// internal braking curve, corner-speed caps, and re-acquire gate (but never the conflict/airport
+    /// <see cref="AircraftState.GroundSpeedLimit"/> ceiling, which always wins for safety). Default 0 (no
+    /// floor). <see cref="CrossingRunwayPhase"/> sets it to the runway-crossing speed so a cleared crossing
+    /// is taken "without delay" (7110.65 §3-7-2) and never brakes toward a stop on the runway or at the
+    /// far-side slice end before handing off to the onward taxi.
+    /// </summary>
+    double MinSpeedKts
+    {
+        get => 0;
+        set { }
+    }
+
     /// <summary>The node the navigator is steering toward (the current segment's to-node).</summary>
     int TargetNodeId { get; }
 

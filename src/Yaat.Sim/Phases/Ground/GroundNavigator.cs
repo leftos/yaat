@@ -146,6 +146,9 @@ public sealed class GroundNavigator : IGroundNavigator
     public NavTickDiag? LastTickDiag { get; private set; }
     public double MaxSpeedKts { get; set; }
 
+    /// <summary>Speed floor (kts); see <see cref="IGroundNavigator.MinSpeedKts"/>. 0 = no floor.</summary>
+    public double MinSpeedKts { get; set; }
+
     public void SetTargetNodeId(int nodeId) => TargetNodeId = nodeId;
 
     /// <summary>
@@ -1648,16 +1651,20 @@ public sealed class GroundNavigator : IGroundNavigator
     /// Keeps V2 from overrunning conflict-imposed or airport-imposed speed
     /// caps that physics layers above us enforce.
     /// </summary>
-    private static double ClampBySpeedLimit(PhaseContext ctx, double requested) =>
-        ctx.Aircraft.Ground.SpeedLimit is { } limit ? Math.Min(requested, limit) : requested;
+    private double ClampBySpeedLimit(PhaseContext ctx, double requested)
+    {
+        double floored = Math.Max(requested, MinSpeedKts);
+        return ctx.Aircraft.Ground.SpeedLimit is { } limit ? Math.Min(floored, limit) : floored;
+    }
 
     /// <summary>
     /// Accelerate/decelerate toward <paramref name="targetSpeed"/> bounded by
-    /// the category's taxi accel/decel rates. Mirrors V1's AdjustSpeed so
-    /// physics behaviour at the straight-segment level matches.
+    /// the category's taxi accel/decel rates. The <see cref="MinSpeedKts"/> floor lifts the target before
+    /// the conflict/airport speed-limit ceiling (which always wins).
     /// </summary>
-    private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
+    private void AdjustSpeed(PhaseContext ctx, double targetSpeed)
     {
+        targetSpeed = Math.Max(targetSpeed, MinSpeedKts);
         if (ctx.Aircraft.Ground.SpeedLimit is { } limit)
         {
             targetSpeed = Math.Min(targetSpeed, limit);
