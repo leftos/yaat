@@ -237,6 +237,34 @@ public sealed class QueryCommand : ICommand
             formatter.WriteIntersection(analyzer.GetIntersection(options.IntersectionTaxiway1, options.IntersectionTaxiway2));
         }
 
+        if (options.DistanceFromNodeId is not null && options.DistanceToNodeId is not null)
+        {
+            var distance = analyzer.GetNodeDistance(options.DistanceFromNodeId.Value, options.DistanceToNodeId.Value);
+            if (distance is null)
+            {
+                Console.Error.WriteLine(
+                    $"--distance: node #{options.DistanceFromNodeId} or #{options.DistanceToNodeId} not found at {analyzer.AirportId}"
+                );
+                return 1;
+            }
+
+            formatter.WriteNodeDistance(distance);
+        }
+
+        if (options.PathDistanceNodes.Count > 0)
+        {
+            var pathDistance = analyzer.GetPathDistance(options.PathDistanceNodes);
+            if (pathDistance is null)
+            {
+                Console.Error.WriteLine(
+                    $"--path-distance: needs >= 2 node ids, all known at {analyzer.AirportId} (got [{string.Join(",", options.PathDistanceNodes)}])"
+                );
+                return 1;
+            }
+
+            formatter.WritePathDistance(pathDistance);
+        }
+
         if (options.Validate)
         {
             var validationResult = new ValidationResult(

@@ -449,6 +449,72 @@ public sealed class LayoutAnalyzer
     }
 
     /// <summary>
+    /// Great-circle (straight-line) distance between two nodes' positions. Returns null if either node id
+    /// is unknown. This is "as the crow flies" — for the distance the aircraft actually travels along the
+    /// graph, use <see cref="GetPathDistance"/>.
+    /// </summary>
+    public NodeDistanceResult? GetNodeDistance(int fromId, int toId)
+    {
+        if (!Layout.Nodes.TryGetValue(fromId, out var from) || !Layout.Nodes.TryGetValue(toId, out var to))
+        {
+            return null;
+        }
+
+        double nm = GeoMath.DistanceNm(from.Position, to.Position);
+        return new NodeDistanceResult(fromId, toId, nm, nm * GeoMath.FeetPerNm);
+    }
+
+    /// <summary>
+    /// Cumulative travel distance along a node sequence. Each leg uses the direct graph edge's
+    /// <c>DistanceNm</c> when one connects the pair (arc-aware true travel distance); otherwise it falls
+    /// back to the great-circle distance and flags the leg <c>"straight"</c>. Returns null if fewer than two
+    /// ids are given or any id is unknown.
+    /// </summary>
+    public PathDistanceResult? GetPathDistance(IReadOnlyList<int> nodeIds)
+    {
+        if (nodeIds.Count < 2)
+        {
+            return null;
+        }
+
+        foreach (int id in nodeIds)
+        {
+            if (!Layout.Nodes.ContainsKey(id))
+            {
+                return null;
+            }
+        }
+
+        var legs = new List<PathDistanceLeg>();
+        double totalNm = 0;
+        for (int i = 0; i + 1 < nodeIds.Count; i++)
+        {
+            var fromNode = Layout.Nodes[nodeIds[i]];
+            var toNode = Layout.Nodes[nodeIds[i + 1]];
+            var edge = FindEdge(fromNode, nodeIds[i + 1]);
+            double legNm = edge?.DistanceNm ?? GeoMath.DistanceNm(fromNode.Position, toNode.Position);
+            string mode = edge is not null ? "edge" : "straight";
+            legs.Add(new PathDistanceLeg(nodeIds[i], nodeIds[i + 1], mode, legNm, legNm * GeoMath.FeetPerNm));
+            totalNm += legNm;
+        }
+
+        return new PathDistanceResult(nodeIds, legs, totalNm, totalNm * GeoMath.FeetPerNm);
+    }
+
+    private static IGroundEdge? FindEdge(GroundNode from, int toId)
+    {
+        foreach (var edge in from.Edges)
+        {
+            if (edge.Nodes[0].Id == toId || edge.Nodes[1].Id == toId)
+            {
+                return edge;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Every individual runway-end designator known to this layout (e.g. "10L", "28R").
     /// Flattens GroundRunway names of the form "10L/28R" into both ends.
     /// </summary>

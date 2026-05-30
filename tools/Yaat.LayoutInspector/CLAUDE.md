@@ -59,6 +59,8 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 | `--exits 28R` | BFS-discovered exits with angle/side/high-speed classification |
 | `--bfs N T` | BFS trace from node N through taxiway T to hold-short |
 | `--pathfinder N T1 T2 ...` | Resolve explicit taxi route with diagnostic trace |
+| `--distance N1 N2` | Straight-line (great-circle) distance between two nodes (ft + nm) |
+| `--path-distance N1 N2 ...` | Cumulative distance along a node sequence; per-leg uses the graph edge (arc-aware) where one exists, else great-circle |
 | `--dump` | Full airport JSON (pipe to file for grepping) |
 | `--no-fillets` | Parse without fillet arcs for comparison |
 | `--fillet-mode <m>` | Fillet generator: `legacy` (default), `v2`, or `none` (alias for `--no-fillets`) |

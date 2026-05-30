@@ -11,6 +11,8 @@ public interface IFormatter
     void WriteBfsPath(BfsPathResult result);
     void WriteNodeList(string title, List<NodeInfo> nodes);
     void WriteIntersection(IntersectionResult result);
+    void WriteNodeDistance(NodeDistanceResult result);
+    void WritePathDistance(PathDistanceResult result);
     void WriteValidation(ValidationResult result);
     void WritePathfinder(PathfinderResult result);
 }

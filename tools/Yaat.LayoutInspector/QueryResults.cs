@@ -94,6 +94,19 @@ public sealed record TaxiwayIntersectionInfo(string OtherTaxiway, int NodeId);
 
 public sealed record IntersectionResult(string Taxiway1, string Taxiway2, List<NodeInfo> Nodes);
 
+/// <summary>Great-circle (straight-line) distance between two node positions, from <c>--distance</c>.</summary>
+public sealed record NodeDistanceResult(int FromNodeId, int ToNodeId, double StraightLineNm, double StraightLineFt);
+
+/// <summary>
+/// One leg of a <c>--path-distance</c> walk. <see cref="Mode"/> is <c>"edge"</c> when a direct graph
+/// edge connects the two nodes (so <see cref="Nm"/> is the true arc-aware travel distance) or
+/// <c>"straight"</c> when no edge exists and the great-circle distance is used as a fallback.
+/// </summary>
+public sealed record PathDistanceLeg(int FromNodeId, int ToNodeId, string Mode, double Nm, double Ft);
+
+/// <summary>Cumulative distance along a node sequence (<c>--path-distance N1 N2 …</c>), per-leg + total.</summary>
+public sealed record PathDistanceResult(IReadOnlyList<int> NodeIds, IReadOnlyList<PathDistanceLeg> Legs, double TotalNm, double TotalFt);
+
 public sealed record ValidationResult(int WarningCount, List<ValidationWarningDto> Warnings);
 
 public sealed record ValidationWarningDto(string Code, string Message, string? Origin);

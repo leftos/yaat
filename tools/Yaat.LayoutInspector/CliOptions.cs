@@ -109,6 +109,16 @@ public sealed record CliOptions
     public string? IntersectionTaxiway1 { get; init; }
     public string? IntersectionTaxiway2 { get; init; }
 
+    /// <summary>Node-id pair for <c>--distance N1 N2</c> — great-circle straight-line distance between two nodes.</summary>
+    public int? DistanceFromNodeId { get; init; }
+    public int? DistanceToNodeId { get; init; }
+
+    /// <summary>
+    /// Node sequence for <c>--path-distance N1 N2 N3 …</c> — cumulative travel distance, using graph edges
+    /// (arc-aware) where they exist and great-circle as a fallback. Accepts repeated args and CSV.
+    /// </summary>
+    public List<int> PathDistanceNodes { get; init; } = [];
+
     public bool JsonOutput { get; init; }
     public bool DumpAll { get; init; }
 
@@ -191,6 +201,9 @@ public sealed record CliOptions
         bool validate = false;
         string? intersectTwy1 = null;
         string? intersectTwy2 = null;
+        int? distanceFrom = null;
+        int? distanceTo = null;
+        var pathDistanceNodes = new List<int>();
         bool jsonOutput = false;
         bool dumpAll = false;
         var filletMode = FilletMode.Legacy;
@@ -284,6 +297,32 @@ public sealed record CliOptions
                 case "--intersection" when i + 2 < args.Length:
                     intersectTwy1 = args[++i].ToUpperInvariant();
                     intersectTwy2 = args[++i].ToUpperInvariant();
+                    break;
+                case "--distance" when i + 2 < args.Length:
+                    if (!int.TryParse(args[++i], out int distFrom) || !int.TryParse(args[++i], out int distTo))
+                    {
+                        error = "--distance expects two integer node ids";
+                        return false;
+                    }
+
+                    distanceFrom = distFrom;
+                    distanceTo = distTo;
+                    break;
+                case "--path-distance" when i + 1 < args.Length:
+                    while (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                    {
+                        foreach (string pdToken in SplitCsv(args[++i]))
+                        {
+                            if (!int.TryParse(pdToken, out int pdNode))
+                            {
+                                error = $"--path-distance expects integer node ids, got '{pdToken}'";
+                                return false;
+                            }
+
+                            pathDistanceNodes.Add(pdNode);
+                        }
+                    }
+
                     break;
                 case "--json":
                     jsonOutput = true;
@@ -477,6 +516,9 @@ public sealed record CliOptions
             Validate = validate,
             IntersectionTaxiway1 = intersectTwy1,
             IntersectionTaxiway2 = intersectTwy2,
+            DistanceFromNodeId = distanceFrom,
+            DistanceToNodeId = distanceTo,
+            PathDistanceNodes = pathDistanceNodes,
             JsonOutput = jsonOutput,
             DumpAll = dumpAll,
             FilletMode = filletMode,
@@ -516,7 +558,9 @@ public sealed record CliOptions
         || ShowParking
         || ShowSpots
         || Validate
-        || (IntersectionTaxiway1 is not null);
+        || (IntersectionTaxiway1 is not null)
+        || (DistanceFromNodeId is not null)
+        || (PathDistanceNodes.Count > 0);
 
     private static IEnumerable<string> SplitCsv(string s) => s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 

@@ -34,6 +34,8 @@ public static class UsageText
         Console.WriteLine("  --parking                Show all parking nodes");
         Console.WriteLine("  --spots                  Show all spot/named nodes");
         Console.WriteLine("  --intersection <T1> <T2> Show nodes where two taxiways meet");
+        Console.WriteLine("  --distance <N1> <N2>     Straight-line (great-circle) distance between two nodes");
+        Console.WriteLine("  --path-distance <N1> <N2> [N3 ...]  Cumulative distance along a node sequence (edge-aware, straight-line fallback)");
         Console.WriteLine("  --validate               Run validation and print warnings to stdout");
         Console.WriteLine("  --no-fillets             Skip fillet arc generation (unfilleted graph for comparison)");
         Console.WriteLine("  --fillet-mode <m>        Fillet generator: legacy (default) | v2 | none");

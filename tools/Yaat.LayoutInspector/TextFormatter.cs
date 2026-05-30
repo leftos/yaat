@@ -224,6 +224,21 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         }
     }
 
+    public void WriteNodeDistance(NodeDistanceResult r)
+    {
+        w.WriteLine($"Distance #{r.FromNodeId} → #{r.ToNodeId}: {r.StraightLineFt:F1} ft ({r.StraightLineNm:F4} nm) straight-line");
+    }
+
+    public void WritePathDistance(PathDistanceResult r)
+    {
+        w.WriteLine($"Path distance [{string.Join(" → ", r.NodeIds.Select(n => $"#{n}"))}]: {r.TotalFt:F1} ft ({r.TotalNm:F4} nm)");
+        foreach (var leg in r.Legs)
+        {
+            string note = leg.Mode == "straight" ? "  (no direct edge — straight-line)" : "";
+            w.WriteLine($"  #{leg.FromNodeId, 5} → #{leg.ToNodeId, -5} {leg.Ft, 8:F1} ft  [{leg.Mode}]{note}");
+        }
+    }
+
     public void WriteValidation(ValidationResult r)
     {
         w.WriteLine($"Validation: {r.WarningCount} warning(s)");
