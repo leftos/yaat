@@ -504,8 +504,12 @@ public class AirportE2ETests
             // A junction node connects to multiple distinct non-runway taxiways.
             // Hold-short nodes should NOT be at junctions — they should be on a
             // single taxiway between the runway surface and the next intersection.
+            // Membership junction arcs (a compound "C - E" turn-connector) are
+            // legitimate graph structure under the fillet generator and must not
+            // count as a second distinct taxiway — exclude them like the rest of
+            // the V2 suite (Req1MembershipArcSweepTests, JunctionContinuationTests).
             var taxiwayNames = hs
-                .Edges.Where(e => !e.IsRunwayCenterline)
+                .Edges.Where(e => !e.IsRunwayCenterline && e is not GroundArc { IsMembershipTaxiwayJunctionArc: true })
                 .Select(e => e.TaxiwayName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();

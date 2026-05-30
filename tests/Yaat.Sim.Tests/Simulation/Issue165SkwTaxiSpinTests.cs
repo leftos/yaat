@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -138,68 +139,6 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Skw3404_StuckMoment_Diagnostic()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, 0);
-
-        // Tick until we observe SKW3404 stuck (ias < 5 kt outside any hold-short
-        // phase) and report position + surrounding route segments.
-        int firstStuckT = -1;
-        for (int t = 1; t <= 457; t++)
-        {
-            engine.ReplayOneSecond();
-            var ac = engine.FindAircraft("SKW3404");
-            if (ac is null)
-            {
-                continue;
-            }
-            string phaseName = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
-            bool atHoldShort =
-                phaseName.Contains("HoldingShort", StringComparison.Ordinal)
-                || phaseName.Contains("Pushback", StringComparison.Ordinal)
-                || phaseName.Contains("HoldingAfterPushback", StringComparison.Ordinal);
-            if (firstStuckT < 0 && ac.IndicatedAirspeed < 5.0 && !atHoldShort && phaseName == "TaxiingPhase" && t > 150)
-            {
-                firstStuckT = t;
-                break;
-            }
-        }
-
-        Assert.True(firstStuckT > 0, "did not observe a stuck moment");
-
-        var stuckAc = engine.FindAircraft("SKW3404");
-        Assert.NotNull(stuckAc);
-        var route = stuckAc.Ground.AssignedTaxiRoute;
-        Assert.NotNull(route);
-
-        output.WriteLine(
-            $"FIRST STUCK at t={firstStuckT} SKW3404 ias={stuckAc.IndicatedAirspeed:F1} pos=({stuckAc.Position.Lat:F6},{stuckAc.Position.Lon:F6}) hdg={stuckAc.TrueHeading.Degrees:F0}"
-        );
-        output.WriteLine(
-            $"route: {route.ToSummary()}  segIdx={route.CurrentSegmentIndex}/{route.Segments.Count} target={route.Segments[route.CurrentSegmentIndex].ToNodeId}"
-        );
-
-        int from = Math.Max(0, route.CurrentSegmentIndex - 3);
-        int to = Math.Min(route.Segments.Count - 1, route.CurrentSegmentIndex + 10);
-        for (int i = from; i <= to; i++)
-        {
-            var seg = route.Segments[i];
-            string marker = i == route.CurrentSegmentIndex ? " <-- CURRENT" : string.Empty;
-            output.WriteLine(
-                $"  seg[{i}] twy={seg.TaxiwayName} {seg.FromNodeId}→{seg.ToNodeId} dist={seg.Edge.DistanceNm * 6076.12:F1}ft "
-                    + $"dep={seg.Edge.DepartureBearing:F1}° arr={seg.Edge.ArrivalBearing:F1}° kind={(seg.Edge.Edge is GroundArc ? "arc" : "straight")}{marker}"
-            );
-        }
-    }
-
-    [Fact]
     public void Skw3404_Seg12_PathfinderDiagnostic()
     {
         TestVnasData.EnsureInitialized();
@@ -214,12 +153,17 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
         // The aircraft is parked nearby and the RAMP bridge gets to 1249. Use 1249 as start.
         const int startNode = 1249;
         var diagLines = new System.Collections.Generic.List<string>();
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        // Route through the active pathfinder (TaxiPathfinderRouter.Current) so this
+        // diagnostic follows the runtime selection: V1 on main, V2 once the joint flip
+        // lands. SKW3404 is a CRJ (jet). The V2-native equivalent of this sequence is
+        // Issue165_V2_SkwRoute_ResolvesWithoutFailure.
+        var route = TaxiPathfinderRouter.Current.ResolveExplicitPath(
             layout,
             fromNodeId: startNode,
             taxiwayNames: ["A", "E", "B", "B3", "A", "B1", "Z", "S"],
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", DiagnosticLog = s => diagLines.Add(s) }
+            new ExplicitPathOptions { AirportId = "SFO", DiagnosticLog = s => diagLines.Add(s) },
+            AircraftCategory.Jet
         );
 
         foreach (var line in diagLines)

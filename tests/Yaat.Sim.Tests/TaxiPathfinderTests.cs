@@ -2269,11 +2269,15 @@ public class TaxiPathfinderTests
         // Identify the arc by intersection-of-origin (both tangent endpoints created by
         // the apex intersection 507) rather than hard-coded node IDs — Phase D edge
         // additions can shift tangent ID assignment without changing the geometry.
+        // Both generators encode the originating junction id in the node origin, but with
+        // different prefixes: Legacy "Fillet:tangent-node@507 ..." vs V2
+        // "V2:tangent-cut@J507/...". The junction node (507) is removed under V2, so the
+        // origin tag — not geometry — is the generator-agnostic link to "born from 507".
         bool usesArc = route.Segments.Any(s =>
             s.Edge.Edge is GroundArc arc
             && arc.TaxiwayNames.Length == 1
             && arc.TaxiwayNames[0].Equals("A1", System.StringComparison.OrdinalIgnoreCase)
-            && arc.Nodes.All(n => n.Origin?.Contains("@507") == true)
+            && arc.Nodes.All(n => (n.Origin?.Contains("@507") == true) || (n.Origin?.Contains("@J507") == true))
         );
         Assert.True(usesArc, "route should use a same-taxiway A1 arc at SFO A1 apex (intersection 507)");
 
