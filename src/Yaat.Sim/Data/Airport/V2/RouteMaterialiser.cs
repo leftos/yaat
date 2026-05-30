@@ -247,7 +247,13 @@ public static class RouteMaterialiser
             }
         }
 
-        // Check runway destination: stop at the first hold-short on the destination runway.
+        // Runway destination: the route terminus is the lineup hold-short on the destination runway —
+        // the FIRST hold-short of that runway the route reaches. A departure taxis up to its runway and
+        // holds; it never crosses its own departure runway, so the near-side hold-short (first encountered)
+        // is the lineup. Taking the last match instead would extend the route across the runway to the
+        // far-side hold-short of the same crossing (both physical sides share the combined "28R/10L"
+        // RunwayId). Match reciprocal-aware via Contains.
+        int runwayDestHoldIdx = -1;
         if (ctx.Destination.RunwayId is { } runwayId && ctx.Destination.Kind == DestinationKind.Runway)
         {
             for (int i = 0; i < segments.Count; i++)
@@ -263,7 +269,7 @@ public static class RouteMaterialiser
                     && (nodeRunwayId.ToString() ?? string.Empty).Contains(runwayId, StringComparison.OrdinalIgnoreCase)
                 )
                 {
-                    lastRequiredIdx = Math.Max(lastRequiredIdx, i);
+                    runwayDestHoldIdx = i;
                     break;
                 }
             }
@@ -320,9 +326,20 @@ public static class RouteMaterialiser
             }
         }
 
+        // A runway destination ends EXACTLY at its lineup hold-short — the true terminus. No "+1" buffer
+        // (that would step onto the runway), and en-route truncations never apply: an explicit hold-short
+        // crossed on the way (crossHold, which would otherwise stop the route on the last cleared taxiway)
+        // is moot here because the destination runway lies beyond that taxiway. Departing onto or across
+        // the runway is clearance-gated by LineUp / CrossingRunway phases, never baked into the taxi route.
+        if (runwayDestHoldIdx >= 0)
+        {
+            return Math.Min(runwayDestHoldIdx, segments.Count - 1);
+        }
+
         // One past the last required stop; a crossed-hold stop is exact (no trailing buffer).
         int normalTruncate = lastRequiredIdx < 0 ? -1 : lastRequiredIdx + 1;
         int result = Math.Max(normalTruncate, crossHoldTruncateAt);
+
         return result < 0 ? segments.Count - 1 : Math.Min(result, segments.Count - 1);
     }
 

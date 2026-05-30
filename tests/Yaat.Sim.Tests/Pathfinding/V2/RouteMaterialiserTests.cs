@@ -196,6 +196,33 @@ public class RouteMaterialiserTests
         Assert.Equal("28R", destHs.TargetName);
     }
 
+    [Fact]
+    public void RunwayDestination_RouteWalksPastHoldShort_TruncatesAtHoldShort()
+    {
+        // A departure-runway taxi route must STOP at the runway hold-short. If the search walked one
+        // segment past it (onto the runway on-ramp), the materialiser must truncate AT the hold-short —
+        // proceeding onto the runway is clearance-gated by the LineUp / Crossing phases, not baked into
+        // the taxi route. (Unlike a node destination, a runway destination gets no "one past" buffer.)
+        var n0 = Node(0, 37.700, -122.200);
+        var n1 = Node(1, 37.701, -122.200);
+        var hs = Node(2, 37.702, -122.200, GroundNodeType.RunwayHoldShort);
+        hs.RunwayId = new RunwayIdentifier("28R", "10L");
+        var past = Node(3, 37.703, -122.200); // past the hold-short, toward the runway
+        var layout = Layout(n0, n1, hs, past);
+        var e01 = Edge(n0, n1, "B");
+        var e1hs = Edge(n1, hs, "B");
+        var ehspast = Edge(hs, past, "B");
+
+        var dest = new DestinationDescriptor(null, "28R", null, null, DestinationKind.Runway);
+        var ctx = Context(layout, dest);
+
+        var edges = new List<DirectionalEdge> { Directed(e01, n0, n1), Directed(e1hs, n1, hs), Directed(ehspast, hs, past) };
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+
+        Assert.Equal(hs.Id, route.Segments[^1].ToNodeId);
+        Assert.DoesNotContain(route.Segments, s => s.ToNodeId == past.Id);
+    }
+
     // ---------------------------------------------------------------------------
     // Truncation
     // ---------------------------------------------------------------------------

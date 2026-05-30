@@ -93,7 +93,14 @@ Preference adjusts weights: `FewestTurns` ×5 on turn + transition; `Shortest` z
 
 ### Hold-short handling & truncation
 
-`RouteMaterialiser.AnnotateHoldShorts` tags every `RunwayHoldShort` node with `RunwayCrossing` (or `ExplicitHoldShort` when the runway is in the command's `HS` list). Multi-runway bars (`28L/28R`) add one point with the full string. The route is then **truncated to one segment past the last required stop** (destination node, last explicit hold-short, or the first hold-short on the destination runway) — `FindTruncationIndex` — discarding trailing pavement. `IsCleared`/`ClearedByAutoCross` start false (downstream owns them).
+`RouteMaterialiser.AnnotateHoldShorts` tags every `RunwayHoldShort` node with `RunwayCrossing` (or `ExplicitHoldShort` when the runway is in the command's `HS` list). Multi-runway bars (`28L/28R`) add one point with the full string. The route is then **truncated** by `FindTruncationIndex`, discarding trailing pavement. `IsCleared`/`ClearedByAutoCross` start false (downstream owns them).
+
+**Truncation rules** (`FindTruncationIndex`):
+
+- **Runway destination → the route ends *exactly* at its lineup hold-short** (the **first** hold-short of the destination runway the route reaches — the near-side bar), with **no `+1` buffer** and overriding every other rule. A departure taxis *up to* its runway and holds; it never crosses its own departure runway, so first-match is the lineup. Taking the *last* match instead would extend the route across the runway to the far-side bar of the same crossing (both physical sides share the combined `28R/10L` id) — which gridlocks following traffic. Proceeding onto / across the runway is clearance-gated by Line-Up / Crossing phases, never baked into the taxi route.
+- **An en-route explicit hold-short crossed before reaching the last cleared taxiway** (`TAXI G C HS 28R`, no further runway destination) stops the route *one segment onto* that last cleared taxiway (`crossHoldTruncateAt` / `FindLastClearedTaxiwayEntry`) — the aircraft crosses and settles just past the junction, not stranded on the near side. This rule is **moot for a runway destination**, where the runway lies beyond the last cleared taxiway and the lineup-terminus rule wins.
+- **Node / parking / spot destination** → one segment past the destination node (the `+1` buffer gives the navigator somewhere to aim).
+- Otherwise → the natural terminus (last segment).
 
 ### Look-ahead defeats first-match hairpins (bounded to one level)
 
@@ -129,7 +136,7 @@ When two consecutive cleared taxiways have **no direct junction** (zero junction
 
 **7. Parking/spot extension.** For `@parking`/`$spot`/helipad destinations, `ExtendToDestination` runs `AutoRouter` from the named-path terminus to the destination node.
 
-**8. `RouteMaterialiser.Materialise`** (`src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:15`). One forward pass: build segments → annotate hold-shorts → truncate one past the last required stop → build warnings (mandatory-connector notifications + unauthorized-letter-taxiway warnings, with junction arcs and parking-bridge RAMP exempt). Returns the shared `TaxiRoute`.
+**8. `RouteMaterialiser.Materialise`** (`src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:15`). One forward pass: build segments → annotate hold-shorts → truncate (runway destination = exactly at its lineup hold-short; otherwise one past the last required stop — see **Hold-short handling & truncation** above) → build warnings (mandatory-connector notifications + unauthorized-letter-taxiway warnings, with junction arcs and parking-bridge RAMP exempt). Returns the shared `TaxiRoute`.
 
 ### Auto-route walkthrough (`AutoRouter.Run`)
 
