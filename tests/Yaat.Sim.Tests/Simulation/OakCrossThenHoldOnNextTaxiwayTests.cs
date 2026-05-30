@@ -38,7 +38,12 @@ public class OakCrossThenHoldOnNextTaxiwayTests(ITestOutputHelper output)
     // Timeline anchors from the recording (per `bug_bundle.py history --callsign N427MX`):
     private const int TaxiCommandTime = 1243; // CMD: TAXI G C HS 28R
     private const int ResCommandTime = 1293; // CMD: RES
-    private const int PostResSettleTime = 1340; // ~45s after RES, well past the crossing
+
+    // ~67s after RES — well past the crossing and the post-crossing roll-out to the stop. The window
+    // accommodates both navigators: V1 settles into HoldingInPositionPhase by ~t=1340, V2 by ~t=1350 (its
+    // corner-speed cap realistically slows the G→C turn, so it completes the identical workflow a few
+    // seconds later). Both rest on C within the asserted 600 ft of the G/C junction and stay put.
+    private const int PostResSettleTime = 1360;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
