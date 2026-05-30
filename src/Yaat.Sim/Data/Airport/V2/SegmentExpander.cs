@@ -54,6 +54,21 @@ public static class SegmentExpander
         // Resolve node-reference tokens (#NNNN) in the waypoint sequence.
         var resolvedWaypoints = ResolveWaypoints(ctx);
 
+        // Reject a clearance naming a taxiway that is absent from the layout. Otherwise the
+        // per-segment walk finds no matching edge, silently yields an empty/partial route, and the
+        // command would succeed against a route that goes nowhere. (Node-ref tokens are validated
+        // when routed.) Mirrors v1's "Cannot reach taxiway X" rejection.
+        foreach (var wp in resolvedWaypoints)
+        {
+            if (!wp.IsNodeRef && (ctx.Layout.GetNodesOnTaxiway(wp.Name).Count == 0))
+            {
+                return (
+                    null,
+                    new PathfindingFailure(FailureKind.TaxiwayNotConnected, $"Cannot find taxiway {wp.Name} in layout.", wp.Name, null, null)
+                );
+            }
+        }
+
         var edges = new List<DirectionalEdge>();
         var head = PartialRoute.StartAt(ctx.StartNodeId);
 
@@ -1294,8 +1309,21 @@ public static class SegmentExpander
                 return ExtendToNearestHoldShort(head, sameNameHs, ctx);
             }
 
-            // No extension possible — route ends at natural terminus.
-            return (null, null);
+            // No numbered variant and no same-name hold-short reaches the destination runway from
+            // this taxiway. TryVariantExtension is only entered when the walk itself did NOT reach a
+            // hold-short for the runway, so the runway is genuinely unreachable from the cleared
+            // route — fail rather than returning a route that stops at the taxiway terminus short of
+            // the runway (which would let the command succeed against a route that never gets there).
+            return (
+                null,
+                new PathfindingFailure(
+                    FailureKind.DestinationUnreachable,
+                    $"Taxiway {lastTaxiwayName} does not reach runway {destinationRunway} — specify a connecting taxiway.",
+                    lastTaxiwayName,
+                    $"{lastTaxiwayName} → {destinationRunway}",
+                    null
+                )
+            );
         }
 
         // Determine distinct variant names.
