@@ -139,6 +139,28 @@ The transition is one switch-over, not three. Before flipping:
 Then, in a single change: flip `GeoJsonParser.Parse` default + `AirportLayoutDownloader` (fillet) **and**
 `TaxiPathfinderRouter` (pathfinder) to V2, ship the navigator changes, and delete V1 of each layer.
 
+### Phase 6 all-V2 re-sweep status (2026-05-30)
+
+Ran the gate via a **throwaway flip** of the four V2 defaults (`GeoJsonParser.Parse` / `ParseMultiple`,
+`TestAirportGroundData`, `TaxiPathfinderRouter._current`, `GroundNavigatorRouter.UseV2`) — then reverted —
+filtering `Category!=Nightly&Category!=PathfinderGrid`. The suite **did not hang**: **19 failures / 5589**.
+
+- **Fixed + committed:** `GroundNavigatorV2.TickStraight` crashed (`Math.Clamp` min>max) when tangent
+  rounding hit a near-zero-length edge into a sharp corner. Guarded via the extracted
+  `StraightArrivalThresholdNm` (`GroundNavigatorV2ThresholdTests`).
+- **Not ship-config (8):** `TaxiPathfinderTests.*` drive the V1 static `TaxiPathfinder` on what are now
+  V2 fillets and pin V1-on-Legacy route shapes — deleted with V1 at the flip (see the class label).
+- **V1-fillet-pinned (1):** `FilletDiagnosticTests.SFO…Node268_HasExactlyFourArcs` → task #60.
+- **Known-open (1):** `SfoRampCrossesRunwayTests…ShouldFail` (triage A2c, entangled with #5 detour).
+- **Real ship-config to drive to green (~6):** runway-exit doesn't complete under the V2 navigator
+  (`OakGroundE2E` + `Issue10`×2 — task #55, highest value; `FilletV2LandingExitTests` passes with V1 nav,
+  localizing it to the V2 nav); `N9225L` holds short instead of crossing to NEW1 (#56); `Ual19` never
+  enters `CrossingRunwayPhase` (#57); `Mr270` post-rollout MRT clear (likely a slower-taxi timing
+  cascade, #58); `SfoM2` taxi 98 s vs the V1-tuned 75 s budget (#59). Full log: `.tmp/test-allv2-sweep.log`.
+
+The remaining clusters are V2-navigator work (exit completion, taxi timing) needing per-cluster LI tick
+traces and aviation review on any speed/turn change — they also close the still-open Phase-3/4 trackers.
+
 ## Current focus / next up
 
 **Reframe (validated):** the full all-V2 test suite is **not** a discovery tool — it hangs (unbounded
