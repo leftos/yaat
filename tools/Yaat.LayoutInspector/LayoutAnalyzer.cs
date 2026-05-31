@@ -461,14 +461,17 @@ public sealed class LayoutAnalyzer
         }
 
         double nm = GeoMath.DistanceNm(from.Position, to.Position);
-        return new NodeDistanceResult(fromId, toId, nm, nm * GeoMath.FeetPerNm);
+        double bearing = GeoMath.BearingTo(from.Position, to.Position);
+        return new NodeDistanceResult(fromId, toId, nm, nm * GeoMath.FeetPerNm, bearing);
     }
 
     /// <summary>
-    /// Cumulative travel distance along a node sequence. Each leg uses the direct graph edge's
+    /// Cumulative travel distance and bearing along a node sequence. Each leg uses the direct graph edge's
     /// <c>DistanceNm</c> when one connects the pair (arc-aware true travel distance); otherwise it falls
-    /// back to the great-circle distance and flags the leg <c>"straight"</c>. Returns null if fewer than two
-    /// ids are given or any id is unknown.
+    /// back to the great-circle distance and flags the leg <c>"straight"</c>. Each leg also reports its
+    /// great-circle bearing, and the result summarizes curvature via the heading range (max−min leg
+    /// bearing) and total absolute turn (sum of bearing change between adjacent legs) — a beeline shows
+    /// near-zero turn, a curve a large one. Returns null if fewer than two ids are given or any id is unknown.
     /// </summary>
     public PathDistanceResult? GetPathDistance(IReadOnlyList<int> nodeIds)
     {
@@ -494,11 +497,32 @@ public sealed class LayoutAnalyzer
             var edge = FindEdge(fromNode, nodeIds[i + 1]);
             double legNm = edge?.DistanceNm ?? GeoMath.DistanceNm(fromNode.Position, toNode.Position);
             string mode = edge is not null ? "edge" : "straight";
-            legs.Add(new PathDistanceLeg(nodeIds[i], nodeIds[i + 1], mode, legNm, legNm * GeoMath.FeetPerNm));
+            double bearing = GeoMath.BearingTo(fromNode.Position, toNode.Position);
+            legs.Add(new PathDistanceLeg(nodeIds[i], nodeIds[i + 1], mode, legNm, legNm * GeoMath.FeetPerNm, bearing));
             totalNm += legNm;
         }
 
-        return new PathDistanceResult(nodeIds, legs, totalNm, totalNm * GeoMath.FeetPerNm);
+        double headingRange = 0;
+        double totalTurn = 0;
+        if (legs.Count > 0)
+        {
+            double minBearing = legs.Min(l => l.BearingDeg);
+            double maxBearing = legs.Max(l => l.BearingDeg);
+            headingRange = maxBearing - minBearing;
+            for (int i = 0; i + 1 < legs.Count; i++)
+            {
+                totalTurn += Math.Abs(SignedTurnDeg(legs[i].BearingDeg, legs[i + 1].BearingDeg));
+            }
+        }
+
+        return new PathDistanceResult(nodeIds, legs, totalNm, totalNm * GeoMath.FeetPerNm, headingRange, totalTurn);
+    }
+
+    /// <summary>Signed shortest angular difference from <paramref name="fromDeg"/> to <paramref name="toDeg"/>, in (−180, 180].</summary>
+    private static double SignedTurnDeg(double fromDeg, double toDeg)
+    {
+        double diff = (toDeg - fromDeg + 540.0) % 360.0 - 180.0;
+        return diff;
     }
 
     private static IGroundEdge? FindEdge(GroundNode from, int toId)

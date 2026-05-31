@@ -98,8 +98,8 @@ Most list-valued flags are **repeatable AND accept comma-separated values** — 
 | `--pf-dest-parking P`, `--pf-dest-spot S`, `--pf-dest-node N` | no | Pathfinder destinations |
 | `--exit-query RWY TWY [SIDE]` | yes | Repeated targeted exit-query diagnostic |
 | `--intersection T1 T2` | no | Find taxiway intersection node |
-| `--distance N1 N2` | no | Straight-line (great-circle) distance between two nodes (ft + nm) |
-| `--path-distance N1 N2 ...` | no (greedy) / yes | Cumulative distance along a node sequence; per-leg uses the graph edge (arc-aware) where one exists, else great-circle |
+| `--distance N1 N2` | no | Straight-line (great-circle) distance + bearing between two nodes (ft + nm + °true) |
+| `--path-distance N1 N2 ...` | no (greedy) / yes | Cumulative distance + per-leg bearing along a node sequence; per-leg uses the graph edge (arc-aware) where one exists, else great-circle. Also reports heading range + total absolute turn (large = tracks a curve, near-zero = beeline) |
 | `--parking` / `--spots` | flag | Show parking / spot positions |
 | `--dump` | flag | Full airport JSON |
 | `--json` | flag | JSON output mode |

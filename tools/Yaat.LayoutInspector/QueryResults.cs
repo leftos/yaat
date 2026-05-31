@@ -94,18 +94,34 @@ public sealed record TaxiwayIntersectionInfo(string OtherTaxiway, int NodeId);
 
 public sealed record IntersectionResult(string Taxiway1, string Taxiway2, List<NodeInfo> Nodes);
 
-/// <summary>Great-circle (straight-line) distance between two node positions, from <c>--distance</c>.</summary>
-public sealed record NodeDistanceResult(int FromNodeId, int ToNodeId, double StraightLineNm, double StraightLineFt);
+/// <summary>
+/// Great-circle (straight-line) distance and bearing between two node positions, from <c>--distance</c>.
+/// <see cref="BearingDeg"/> is the bearing (°true) from <paramref name="FromNodeId"/> to <paramref name="ToNodeId"/>.
+/// </summary>
+public sealed record NodeDistanceResult(int FromNodeId, int ToNodeId, double StraightLineNm, double StraightLineFt, double BearingDeg);
 
 /// <summary>
 /// One leg of a <c>--path-distance</c> walk. <see cref="Mode"/> is <c>"edge"</c> when a direct graph
 /// edge connects the two nodes (so <see cref="Nm"/> is the true arc-aware travel distance) or
 /// <c>"straight"</c> when no edge exists and the great-circle distance is used as a fallback.
+/// <see cref="BearingDeg"/> is the great-circle bearing (°true) from this leg's start node to its end node.
 /// </summary>
-public sealed record PathDistanceLeg(int FromNodeId, int ToNodeId, string Mode, double Nm, double Ft);
+public sealed record PathDistanceLeg(int FromNodeId, int ToNodeId, string Mode, double Nm, double Ft, double BearingDeg);
 
-/// <summary>Cumulative distance along a node sequence (<c>--path-distance N1 N2 …</c>), per-leg + total.</summary>
-public sealed record PathDistanceResult(IReadOnlyList<int> NodeIds, IReadOnlyList<PathDistanceLeg> Legs, double TotalNm, double TotalFt);
+/// <summary>
+/// Cumulative distance and bearing along a node sequence (<c>--path-distance N1 N2 …</c>): per-leg
+/// distance + bearing, the total distance, and two curvature summaries — <see cref="HeadingRangeDeg"/>
+/// (max−min leg bearing) and <see cref="TotalTurnDeg"/> (sum of absolute bearing change between adjacent
+/// legs). A near-zero turn means the chain is straight (a beeline); a large turn means it tracks a curve.
+/// </summary>
+public sealed record PathDistanceResult(
+    IReadOnlyList<int> NodeIds,
+    IReadOnlyList<PathDistanceLeg> Legs,
+    double TotalNm,
+    double TotalFt,
+    double HeadingRangeDeg,
+    double TotalTurnDeg
+);
 
 public sealed record ValidationResult(int WarningCount, List<ValidationWarningDto> Warnings);
 
