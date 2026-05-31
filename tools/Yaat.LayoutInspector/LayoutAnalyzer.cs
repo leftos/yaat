@@ -677,7 +677,12 @@ public sealed class LayoutAnalyzer
                         double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
                         double totalDist = GeoMath.DistanceNm(node.Position, result.Value.Node.Position);
                         bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
-                        string sideName = side == ExitSide.Left ? "Left" : "Right";
+
+                        // Label the exit with the hold-short's ACTUAL geometric side (relative to the
+                        // landing heading), not the side we searched with. FindAdjacentHoldShort returns
+                        // an off-side hold-short when no on-side one exists (e.g. E at OAK only exits
+                        // north), so the requested side is not the resolved side.
+                        string sideName = result.Value.Side == ExitSide.Left ? "Left" : "Right";
 
                         exits.Add(
                             new ExitCandidate(
