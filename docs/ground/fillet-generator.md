@@ -1,6 +1,6 @@
 # Fillet Arc Generator — Design & Architecture
 
-> Read this before touching `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs`, anything under `src/Yaat.Sim/Data/Airport/Fillet/`, the shared `Fillet/FilletGeometry.cs` / `Fillet/FilletConstants.cs`, or `FilletProvenance.cs`. The fillet generator turns the raw straight-segment ground graph into one with smooth corner arcs and order-independent junction connectivity. It is layer 1 of the three-layer ground stack — see the [pathfinder](./pathfinder.md) that walks the graph it builds and the [navigator](./navigator.md) that physically follows the arcs it emits. Index: `./README.md`.
+> Read this before touching `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs`, anything under `src/Yaat.Sim/Data/Airport/Fillet/`, or the shared `Fillet/FilletGeometry.cs` / `Fillet/FilletConstants.cs`. The fillet generator turns the raw straight-segment ground graph into one with smooth corner arcs and order-independent junction connectivity. It is layer 1 of the three-layer ground stack — see the [pathfinder](./pathfinder.md) that walks the graph it builds and the [navigator](./navigator.md) that physically follows the arcs it emits. Index: `./README.md`.
 
 ## The fillet generator
 
@@ -46,7 +46,7 @@ The downstream consumers of the filleted graph: the **[pathfinder](./pathfinder.
 
 ### Why this design
 
-The deleted Legacy generator was a per-pair, order-dependent pipeline: for each intersection it fillets every edge pair, places tangent nodes, then runs a cascade of repair passes (`AddDirectShortensFromArcAnchors`, `RescueOrphanedTangentNodes`, parallel-bypass removal, reconnect, duplicate-arc removal — see the `FilletEdgeKind` enum in `FilletProvenance.cs`). Those passes mutate-then-repair: they could create an edge in one junction's pass and strip it in another's, and they emitted **zero-distance and reverse-traversed edges** that the pathfinder tripped on (orbit/spin bugs). The chain-planner that tried to make the connectivity order-independent (`FilletArmChainPlanner`, `FilletConnectivityPlanner`) was itself fragile and was deleted. The current generator is a clean-room design around two ideas: **plan everything before mutating anything**, and **connectivity is one global edge-split, not a stack of repair heuristics**.
+The deleted Legacy generator was a per-pair, order-dependent pipeline: for each intersection it fillets every edge pair, places tangent nodes, then runs a cascade of repair passes (`AddDirectShortensFromArcAnchors`, `RescueOrphanedTangentNodes`, parallel-bypass removal, reconnect, duplicate-arc removal). Those passes mutate-then-repair: they could create an edge in one junction's pass and strip it in another's, and they emitted **zero-distance and reverse-traversed edges** that the pathfinder tripped on (orbit/spin bugs). The chain-planner that tried to make the connectivity order-independent (`FilletArmChainPlanner`, `FilletConnectivityPlanner`) was itself fragile and was deleted. The current generator is a clean-room design around two ideas: **plan everything before mutating anything**, and **connectivity is one global edge-split, not a stack of repair heuristics**.
 
 ### Plan-then-execute, order-independent
 
@@ -196,7 +196,7 @@ Every generated element stamps an `Origin` string, surfaced in LayoutInspector t
 | `corner-chord@J<id>/<taxiway>` | corner **chord** (degenerate fallback) | `FilletPlanExecutor.cs:102` |
 | `straight-connector@J<id>/<taxiway>` | straight connector | `FilletPlanExecutor.cs:136` |
 
-`Origin` is `[JsonIgnore]` (runtime-only; not persisted in snapshots). The deleted Legacy generator's `FilletProvenance` typed-discriminator system stamped `Fillet:`-prefixed strings (`Fillet:phase-c-arc@`, `Fillet:phase-d-shorten@`, etc.); the current generator uses these plain origin strings, not `FilletProvenance`.
+`Origin` is `[JsonIgnore]` (runtime-only; not persisted in snapshots). It is a plain string; the deleted Legacy generator instead stamped `Fillet:`-prefixed strings (`Fillet:phase-c-arc@`, `Fillet:phase-d-shorten@`, etc.) through a typed-discriminator system, which was removed with it.
 
 ### Plan warnings are diagnostics, not failures
 

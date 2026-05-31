@@ -217,13 +217,6 @@ public static class FilletComparisonGates
 
     private static bool TryGetCornerArcIdentity(GroundArc arc, out int junctionId, out string taxiwayKey)
     {
-        if (arc.FilletProvenance is CornerArcProvenance prov)
-        {
-            junctionId = prov.IntersectionId;
-            taxiwayKey = prov.NormalizedTaxiwayKey;
-            return true;
-        }
-
         string? origin = arc.Origin;
         if (origin is not null)
         {

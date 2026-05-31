@@ -26,7 +26,6 @@ public static class LayoutCloner
                 TrueHeading = node.TrueHeading,
                 RunwayId = node.RunwayId,
                 Origin = node.Origin,
-                FilletProvenance = node.FilletProvenance,
                 SourceIntersectionPosition = node.SourceIntersectionPosition,
             };
             nodesById[node.Id] = copy;
@@ -67,7 +66,6 @@ public static class LayoutCloner
             TaxiwayName = edge.TaxiwayName,
             DistanceNm = edge.DistanceNm,
             Origin = edge.Origin,
-            FilletProvenance = edge.FilletProvenance,
             IntermediatePoints = edge.IntermediatePoints.ToList(),
         };
     }
@@ -88,7 +86,6 @@ public static class LayoutCloner
             DistanceNm = arc.DistanceNm,
             TaxiwayNames = arc.TaxiwayNames.ToArray(),
             Origin = arc.Origin,
-            FilletProvenance = arc.FilletProvenance,
         };
     }
 }
