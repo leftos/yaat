@@ -25,20 +25,14 @@ public class FilletComparisonGateTests
     }
 
     [Fact]
-    public void IndexCornerBuckets_LegacyAndV2_90DegreeShareBucket()
+    public void IndexCornerBuckets_V2_90Degree_ProducesBuckets()
     {
-        var preFillet = BuildSimple90Layout();
-        var legacyLayout = LayoutCloner.DeepClone(preFillet);
-        var v2Layout = LayoutCloner.DeepClone(preFillet);
-        new LegacyFilletArcGenerator().Apply(legacyLayout);
+        var v2Layout = BuildSimple90Layout();
         new FilletArcGeneratorV2().Apply(v2Layout);
 
-        var legacyBuckets = FilletComparisonGates.IndexCornerBuckets(legacyLayout);
         var v2Buckets = FilletComparisonGates.IndexCornerBuckets(v2Layout);
 
-        Assert.NotEmpty(legacyBuckets);
         Assert.NotEmpty(v2Buckets);
-        Assert.True(legacyBuckets.Keys.Intersect(v2Buckets.Keys).Any());
     }
 
     [Fact]
@@ -61,7 +55,7 @@ public class FilletComparisonGateTests
     [Theory]
     [InlineData("oak")]
     [InlineData("sfo")]
-    public void Evaluate_RealAirport_LegacyStructuralValid(string shortId)
+    public void Evaluate_RealAirport_V2StructuralValid(string shortId)
     {
         var preFillet = LoadPreFilletLayout(shortId);
         if (preFillet is null)
@@ -70,7 +64,7 @@ public class FilletComparisonGateTests
         }
 
         var layout = LayoutCloner.DeepClone(preFillet);
-        var stats = new LegacyFilletArcGenerator().Apply(layout);
+        var stats = new FilletArcGeneratorV2().Apply(layout);
         var gates = FilletComparisonGates.Evaluate(preFillet, layout, stats);
         Assert.True(gates.Structural.IsValid, string.Join("; ", gates.Structural.Errors.Take(3)));
     }

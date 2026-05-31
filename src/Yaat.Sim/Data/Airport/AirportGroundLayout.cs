@@ -49,7 +49,7 @@ public sealed class GroundNode
 
     /// <summary>
     /// Typed fillet-pipeline provenance for nodes created by
-    /// <see cref="FilletArcGenerator"/>. Null for non-fillet nodes. Cleanup passes
+    /// <see cref="FilletArcGeneratorV2"/>. Null for non-fillet nodes. Cleanup passes
     /// pattern-match on the concrete record type instead of parsing
     /// <see cref="Origin"/>. Not serialized.
     /// </summary>
@@ -57,7 +57,7 @@ public sealed class GroundNode
     public FilletProvenance? FilletProvenance { get; set; }
 
     /// <summary>
-    /// For tangent-point nodes created by <see cref="FilletArcGenerator"/>: the position of
+    /// For tangent-point nodes created by <see cref="FilletArcGeneratorV2"/>: the position of
     /// the intersection node this tangent was created for. Used during coincident-node merging
     /// to position the merged node at the midpoint between two source intersections.
     /// Null for non-tangent nodes.
@@ -133,7 +133,7 @@ public interface IGroundEdge
 
     /// <summary>
     /// Typed fillet-pipeline provenance for edges/arcs created by
-    /// <see cref="FilletArcGenerator"/>. Null for non-fillet elements. Cleanup
+    /// <see cref="FilletArcGeneratorV2"/>. Null for non-fillet elements. Cleanup
     /// passes pattern-match on the concrete record type instead of parsing
     /// <see cref="Origin"/>. Not serialized.
     /// </summary>

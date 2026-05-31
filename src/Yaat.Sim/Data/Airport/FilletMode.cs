@@ -9,9 +9,6 @@ public enum FilletMode
     /// <summary>No fillet pass — raw intersection graph from GeoJSON.</summary>
     None,
 
-    /// <summary>Legacy pair-based fillet generator (<see cref="FilletArcGenerator"/>).</summary>
-    Legacy,
-
-    /// <summary>Clean-room plan-then-execute fillet generator (V2).</summary>
+    /// <summary>Plan-then-execute fillet generator (the production generator).</summary>
     V2,
 }

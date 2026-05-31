@@ -11,8 +11,6 @@ public readonly record struct CornerBucketKey(int JunctionId, string TaxiwayKey,
 
 public sealed record CornerBucketMismatch(CornerBucketKey Key, double LegacyMinRadiusFt, double V2MinRadiusFt, double RelativeDelta);
 
-public sealed record RunwayBearingMismatch(int NodeIdA, int NodeIdB, string TaxiwayName, double LegacyBearingDeg, double V2BearingDeg);
-
 public sealed record FilletGateResults(
     StructuralValidationResult Structural,
     bool RepairCountersZero,
@@ -24,22 +22,11 @@ public sealed record FilletGateResults(
     IReadOnlyDictionary<string, int> WarningCountsByCode
 );
 
-public sealed record FilletComparisonGateReport(
-    IReadOnlyDictionary<string, FilletGateResults> GatesByGeneratorId,
-    bool HoldShortConnectivityMatch,
-    bool HoldShortNoTrueDisconnection,
-    IReadOnlyList<int> TrueDisconnections,
-    bool ParkingConnectivityMatch,
-    IReadOnlyList<CornerBucketMismatch> CornerBucketMismatches,
-    IReadOnlyList<RunwayBearingMismatch> RunwayBearingMismatches
-);
-
-/// <summary>Pass-5 parity gates for <see cref="FilletComparison"/>.</summary>
+/// <summary>Single-layout structural and reachability gates for fillet output.</summary>
 public static class FilletComparisonGates
 {
     private const double CornerBearingToleranceDeg = 5.0;
     private const double CornerRadiusToleranceRatio = 0.10;
-    private const double RunwayBearingToleranceDeg = 1.0;
     private const double CoincidentNodeThresholdNm = 5.0 / GeoMath.FeetPerNm;
 
     private static readonly Regex V2CornerOriginRegex = new(
@@ -60,56 +47,6 @@ public static class FilletComparisonGates
             IndexCornerBuckets(layout),
             IndexRunwayEdgeBearings(layout),
             warningCounts
-        );
-    }
-
-    public static FilletComparisonGateReport CompareGenerators(IReadOnlyDictionary<string, FilletGateResults> gatesByGeneratorId)
-    {
-        var ids = gatesByGeneratorId.Keys.ToList();
-        bool holdShortMatch =
-            ids.Count <= 1 || AllReachabilitySetsEqual(ids.Select(id => gatesByGeneratorId[id].HoldShortReachableStableIds).ToList());
-        bool parkingMatch = ids.Count <= 1 || AllReachabilitySetsEqual(ids.Select(id => gatesByGeneratorId[id].ParkingReachableToHoldShort).ToList());
-
-        var cornerMismatches = new List<CornerBucketMismatch>();
-        var runwayMismatches = new List<RunwayBearingMismatch>();
-        bool noTrueDisconnection = true;
-        var trueDisconnections = new List<int>();
-
-        if (gatesByGeneratorId.TryGetValue("legacy", out var legacy) && gatesByGeneratorId.TryGetValue("v2", out var v2))
-        {
-            cornerMismatches.AddRange(CompareCornerBuckets(legacy.CornerBucketMinRadiusFt, v2.CornerBucketMinRadiusFt));
-            runwayMismatches.AddRange(CompareRunwayBearings(legacy.RunwayEdgeBearingsDeg, v2.RunwayEdgeBearingsDeg));
-
-            // A true disconnection is a node present in BOTH layouts yet reachable in only one. Reachability
-            // differences over nodes one generator dissolved (filleted away) are classification divergences,
-            // not connectivity losses.
-            foreach (int id in legacy.HoldShortReachableStableIds.Except(v2.HoldShortReachableStableIds))
-            {
-                if (v2.SurvivingPreFilletNodeIds.Contains(id))
-                {
-                    trueDisconnections.Add(id);
-                }
-            }
-
-            foreach (int id in v2.HoldShortReachableStableIds.Except(legacy.HoldShortReachableStableIds))
-            {
-                if (legacy.SurvivingPreFilletNodeIds.Contains(id))
-                {
-                    trueDisconnections.Add(id);
-                }
-            }
-
-            noTrueDisconnection = trueDisconnections.Count == 0;
-        }
-
-        return new FilletComparisonGateReport(
-            gatesByGeneratorId,
-            holdShortMatch,
-            noTrueDisconnection,
-            trueDisconnections,
-            parkingMatch,
-            cornerMismatches,
-            runwayMismatches
         );
     }
 
@@ -270,107 +207,6 @@ public static class FilletComparisonGates
         }
 
         return bearings;
-    }
-
-    public static IReadOnlyList<RunwayBearingMismatch> CompareRunwayBearings(
-        IReadOnlyDictionary<(int NodeIdA, int NodeIdB, string Taxiway), double> legacy,
-        IReadOnlyDictionary<(int NodeIdA, int NodeIdB, string Taxiway), double> v2
-    )
-    {
-        var mismatches = new List<RunwayBearingMismatch>();
-        foreach (var (key, legacyBearing) in legacy)
-        {
-            if (!v2.TryGetValue(key, out double v2Bearing))
-            {
-                continue;
-            }
-
-            if (GeoMath.AbsBearingDifference(legacyBearing, v2Bearing) > RunwayBearingToleranceDeg)
-            {
-                mismatches.Add(new RunwayBearingMismatch(key.NodeIdA, key.NodeIdB, key.Taxiway, legacyBearing, v2Bearing));
-            }
-        }
-
-        return mismatches;
-    }
-
-    public static void AppendGateReport(StringBuilder sb, FilletComparisonReport report)
-    {
-        sb.AppendLine($"  Hold-short reachability exact-match: {report.Gates.HoldShortConnectivityMatch}");
-        sb.AppendLine($"  Hold-short no-true-disconnection: {report.Gates.HoldShortNoTrueDisconnection}");
-        if (
-            !report.Gates.HoldShortConnectivityMatch
-            && report.Gates.GatesByGeneratorId.TryGetValue("legacy", out var legacyGates)
-            && report.Gates.GatesByGeneratorId.TryGetValue("v2", out var v2Gates)
-        )
-        {
-            int onlyLegacy = legacyGates.HoldShortReachableStableIds.Except(v2Gates.HoldShortReachableStableIds).Count();
-            int onlyV2 = v2Gates.HoldShortReachableStableIds.Except(legacyGates.HoldShortReachableStableIds).Count();
-            sb.AppendLine(
-                $"    stable reachable: legacy={legacyGates.HoldShortReachableStableIds.Count} v2={v2Gates.HoldShortReachableStableIds.Count} "
-                    + $"only-legacy={onlyLegacy} only-v2={onlyV2} (classification divergences)"
-            );
-            if (report.Gates.TrueDisconnections.Count > 0)
-            {
-                sb.AppendLine($"    TRUE DISCONNECTIONS (present in both, reachable in one): {string.Join(", ", report.Gates.TrueDisconnections)}");
-            }
-        }
-        sb.AppendLine($"  Parking→hold-short reachability match: {report.Gates.ParkingConnectivityMatch}");
-
-        foreach (var run in report.Runs)
-        {
-            if (!report.Gates.GatesByGeneratorId.TryGetValue(run.GeneratorId, out var gates))
-            {
-                continue;
-            }
-
-            sb.AppendLine(
-                $"  [{run.GeneratorId}] structural={(gates.Structural.IsValid ? "ok" : "FAIL")} repairCountersZero={gates.RepairCountersZero}"
-            );
-            if (!gates.Structural.IsValid)
-            {
-                foreach (var err in gates.Structural.Errors.Take(5))
-                {
-                    sb.AppendLine($"    structural: {err}");
-                }
-            }
-
-            if (gates.WarningCountsByCode.Count > 0)
-            {
-                sb.AppendLine($"    warnings: {string.Join(", ", gates.WarningCountsByCode.Select(kv => $"{kv.Key}={kv.Value}"))}");
-            }
-        }
-
-        if (report.Gates.CornerBucketMismatches.Count > 0)
-        {
-            sb.AppendLine($"  Corner bucket mismatches (>{CornerRadiusToleranceRatio:P0}): {report.Gates.CornerBucketMismatches.Count}");
-            foreach (var m in report.Gates.CornerBucketMismatches.Take(8))
-            {
-                sb.AppendLine(
-                    $"    J{m.Key.JunctionId} {m.Key.TaxiwayKey} brg={m.Key.BrgLoBucketDeg}/{m.Key.BrgHiBucketDeg}: legacy={m.LegacyMinRadiusFt:F1}ft v2={m.V2MinRadiusFt:F1}ft ({m.RelativeDelta:P1})"
-                );
-            }
-        }
-
-        if (report.Gates.RunwayBearingMismatches.Count > 0)
-        {
-            sb.AppendLine($"  Runway bearing mismatches (>{RunwayBearingToleranceDeg}°): {report.Gates.RunwayBearingMismatches.Count}");
-            foreach (var m in report.Gates.RunwayBearingMismatches.Take(5))
-            {
-                sb.AppendLine($"    {m.TaxiwayName} #{m.NodeIdA}↔#{m.NodeIdB}: legacy={m.LegacyBearingDeg:F1}° v2={m.V2BearingDeg:F1}°");
-            }
-        }
-    }
-
-    private static bool AllReachabilitySetsEqual(IReadOnlyList<HashSet<int>> sets)
-    {
-        if (sets.Count == 0)
-        {
-            return true;
-        }
-
-        var first = sets[0];
-        return sets.Skip(1).All(s => s.SetEquals(first));
     }
 
     private static int BucketBearingDeg(double bearingDeg)

@@ -9,7 +9,6 @@ public static class FilletGeneratorFactory
         mode switch
         {
             FilletMode.None => NullFilletArcGenerator.Instance,
-            FilletMode.Legacy => new LegacyFilletArcGenerator(),
             FilletMode.V2 => new FilletArcGeneratorV2(),
             _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
         };

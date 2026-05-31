@@ -1,18 +1,14 @@
 # Taxi Pathfinder — Design & Architecture
 
-> Read this before touching anything under `src/Yaat.Sim/Data/Airport/V2/`, `TaxiPathfinderV2.cs`, `TaxiPathfinderRouter.cs`, `TaxiPathfinder.cs` (legacy), or `GroundCommandHandler.cs`'s taxi-resolution paths. The pathfinder turns a `TAXI`/`TAXIAUTO` command into a `TaxiRoute` (edge sequence + hold-shorts). It is one of three ground-stack components — see the **fillet generator** (`./fillet-generator.md`) that builds the graph it walks, and the **navigator** (`./navigator.md`) that physically follows the route it produces. Index: `./README.md`.
+> Read this before touching anything under `src/Yaat.Sim/Data/Airport/V2/`, `TaxiPathfinderV2.cs`, or `GroundCommandHandler.cs`'s taxi-resolution paths. The pathfinder turns a `TAXI`/`TAXIAUTO` command into a `TaxiRoute` (edge sequence + hold-shorts). It is one of three ground-stack components — see the **fillet generator** (`./fillet-generator.md`) that builds the graph it walks, and the **navigator** (`./navigator.md`) that physically follows the route it produces. Index: `./README.md`.
 
-## Transition status — V2 is the target, V1 is the current default
+## Status — V2 is the pathfinder
 
-The ground stack is mid V1→V2. **V2 (`TaxiPathfinderV2` + `Data/Airport/V2/*`) is the architecture this doc describes and where all new work goes.** V1 (`TaxiPathfinder.cs`, ~3200 lines) is the **runtime default today** and is being replaced; it will be deleted once V2 flips on.
+**V2 (`TaxiPathfinderV2` + `Data/Airport/V2/*`) is the only pathfinder.** The V1 `TaxiPathfinder` (~3200 lines), the `ITaxiPathfinder` / `TaxiPathfinderV1Adapter` / `TaxiPathfinderRouter` selector seam, and the V1-only `TaxiVariantResolver` were deleted at the joint flip. `TaxiPathfinderV2`'s four entry points (`ResolveExplicitPath`, `FindRoute`, `FindRoutes`, `FindFullLengthLineupHoldShort`) are now **static**; production calls them directly. The other two ground-stack layers — [fillet generator](./fillet-generator.md) and [navigator](./navigator.md) — are likewise V2-only.
 
-| Layer | V2 component | Runtime default now | Flip gate |
-|---|---|---|---|
-| Pathfinder | `TaxiPathfinderV2` | `TaxiPathfinderV1Adapter` (V1) | shared joint flip with fillet + navigator |
+**Caveat for any agent working on the pathfinder:** membership-matched junction arcs, V-shaped taxiways, and tighter V2 fillet arcs are *correct-but-different* geometry. When something breaks on the graph, **adapt the pathfinder — do not "fix" the graph** (membership junction arcs are legitimate turn-connectors).
 
-`TaxiPathfinderRouter.Current` selects the implementation; it defaults to a `TaxiPathfinderV1Adapter` (`src/Yaat.Sim/Data/Airport/TaxiPathfinderRouter.cs:20`). The pathfinder is **layer 2 of three** that flip together with the fillet generator (geometry) and the navigator (following) — see `docs/plans/ground-graph-v2.md`. Each layer was co-tuned against V1 geometry, so flipping one alone leaves the stack mismatched.
-
-**The single most important caveat for any agent working on V2 today:** *pathfinder V2 was only ever validated on Legacy fillets.* The open work is adapting it to fillet V2's collapsed-junction geometry (`docs/plans/ground-graph-v2.md:99`). Membership-matched junction arcs, V-shaped taxiways, and tighter arcs all behave differently on V2 geometry. When something breaks on V2 fillets, **adapt the pathfinder — do not "fix" the graph** (membership junction arcs are legitimate turn-connectors). And do not patch V1: it is being deleted.
+> The body below still describes V2 relative to the now-deleted V1 in places; a full body refresh is deferred to the final cross-layer rename sweep that drops the `V2` suffixes.
 
 ---
 
@@ -23,9 +19,9 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 1. `GroundCommandHandler.TryTaxi` / `TryTaxiAuto` (`src/Yaat.Sim/Commands/GroundCommandHandler.cs:15`, `:283`) is the dispatch target. `TryTaxiAuto` just builds an empty-path `TaxiCommand` and calls `TryTaxi` — so `TAXIAUTO RWY`/`TAXIAUTO @PARKING` is "a TAXI with no named taxiways". There is no separate auto pathfinder entry.
 2. `TryTaxi` resolves the start node from `(position, heading)` — `groundLayout.FindNearestNodeForTaxi(...)` (heading-aligned endpoint of the nearest edge) with `FindNearestNode` as the off-graph fallback (`GroundCommandHandler.cs:37`). **The pathfinder's contract is strictly node-to-node**; mid-segment snapping happens here, upstream.
 3. `TryTaxi` branches on destination kind into `ResolveParkingRoute` (`@parking`/`$spot`) or `ResolveStandardRoute` (runway / implicit endpoint), and computes the aircraft category via `AircraftCategorization.Categorize` (`GroundCommandHandler.cs:66`).
-4. Those resolvers call **`TaxiPathfinderRouter.Current`** — never a concrete class directly. The interface is `ITaxiPathfinder` (`src/Yaat.Sim/Data/Airport/ITaxiPathfinder.cs`):
+4. Those resolvers call **`TaxiPathfinderV2`**'s static methods directly:
 
-| `ITaxiPathfinder` method | Purpose | V2 driver |
+| `TaxiPathfinderV2` method | Purpose | Driver |
 |---|---|---|
 | `ResolveExplicitPath` | named taxiway sequence (explicit mode) | `SegmentExpander.Run` |
 | `FindRoute` | single best node→node route (FewestTurns) | `AutoRouter.Run` |
@@ -179,16 +175,9 @@ Verify each against current code before relying on it — several are open work 
 
 ---
 
-## Legacy (being removed) — V1
+## V1 — removed
 
-`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` (~3200 lines) is the current runtime default via `TaxiPathfinderV1Adapter` (`TaxiPathfinderRouter.cs:20`, which ignores aircraft category and uses jet defaults). Recognize V1 by these structures so you don't mistake it for where new work goes:
-
-- **Explicit path:** `ResolveExplicitPath` → `WalkTaxiway` (greedy forward walk) + `BridgeToTaxiway` (limited-hop BFS bridge) + `SelectBestStopNode` (the *conditional* look-ahead, only when a destination hint exists) + post-walk `ApplySameTaxiwayArcShortcuts`. Multiple PATH-mutating passes over one segment list (the anti-pattern V2 replaced).
-- **Auto-route:** `FindRoute`/`FindRoutes` → `YenKShortest` (Yen k-shortest) with `CostShortest`/`CostFewestTurns`/`CostFastest`/`CostShortestBiased` (multiple cost functions — V2 unified these into one).
-- **Hold-shorts / variants:** `HoldShortAnnotator.cs` (annotation, `DestinationRunway` reason, reciprocal matching) and `TaxiVariantResolver.cs` (`W` → `W1`).
-- `ExplicitPathOptions` and `WalkOptions` (`TaxiPathfinder.cs:26`, `:50`) are V1's option bags. `ExplicitPathOptions` is also the parameter type on the shared `ITaxiPathfinder.ResolveExplicitPath` — V2 reads a subset of it.
-
-When V2 flips on (jointly with fillet + navigator), V1 and its adapter, `ExplicitPathOptions.EnableLookahead`, `WalkOptions`, `TaxiVariantResolver`, and the V1-specific bits of `HoldShortAnnotator` are deleted. Per project policy there are **no compatibility shims** — V1 goes away entirely. Do not add V1 fixes; fix forward in V2.
+The V1 `TaxiPathfinder` (~3200 lines), its `TaxiPathfinderV1Adapter`, the `TaxiPathfinderRouter` / `ITaxiPathfinder` selector seam, and the V1-only `TaxiVariantResolver` (the `W` → `W1` variant walker — V2's `SegmentExpander` has its own variant handling) were deleted when V2 became the only pathfinder. `WalkOptions` and `ExplicitPathOptions.EnableLookahead` were V1-only and are gone. The shared input types `RoutePreference` and `ExplicitPathOptions` now live in their own `ExplicitPathOptions.cs` (V2 reads a subset of the option bag). `HoldShortAnnotator` survives (it is shared). Per project policy there are **no compatibility shims** — do not add V1 fixes; fix forward in V2.
 
 ---
 
@@ -196,9 +185,8 @@ When V2 flips on (jointly with fillet + navigator), V1 and its adapter, `Explici
 
 | File | Role |
 |---|---|
-| `src/Yaat.Sim/Data/Airport/TaxiPathfinderRouter.cs` | runtime selector (`Current`, `UseV2`) |
-| `src/Yaat.Sim/Data/Airport/ITaxiPathfinder.cs` | the contract both versions implement |
-| `src/Yaat.Sim/Data/Airport/TaxiPathfinderV2.cs` | V2 entry — compiles `SearchContext`, delegates to drivers |
+| `src/Yaat.Sim/Data/Airport/TaxiPathfinderV2.cs` | pathfinder entry (static) — compiles `SearchContext`, delegates to drivers |
+| `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs` | `RoutePreference` enum + `ExplicitPathOptions` input bag |
 | `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs` | explicit-mode driver (junctions, look-ahead, variants, detour) |
 | `src/Yaat.Sim/Data/Airport/V2/AutoRouter.cs` | auto-mode A* over the full layout |
 | `src/Yaat.Sim/Data/Airport/V2/RouteCostFunction.cs` | the single cost function + heuristic |

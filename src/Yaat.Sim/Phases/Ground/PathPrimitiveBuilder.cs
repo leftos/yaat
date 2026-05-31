@@ -120,7 +120,7 @@ public static class PathPrimitiveBuilder
     /// Reinterpret a <see cref="GroundArc"/> (stored as a cubic Bezier fillet)
     /// as a true circle with radius
     /// <see cref="GroundArc.MinRadiusOfCurvatureFt"/>. The
-    /// <see cref="FilletArcGenerator"/> tunes the Bezier so this approximation
+    /// <see cref="FilletArcGeneratorV2"/> tunes the Bezier so this approximation
     /// is tight (&lt; 1 ft deviation from a true circle for radii ≥ 50 ft),
     /// so the playback can use closed-form circle math with no perceptible
     /// geometric error.

@@ -12,22 +12,10 @@ namespace Yaat.Sim.Tests.Simulation;
 /// once an aircraft is established in the crossing it must NOT brake toward a
 /// stop on the runway or at the far-side hold-short before the crossing
 /// completes. The "land 28L → cross 28R → hold on C" workflow (N427MX, a piston,
-/// crossing speed 12 kt) is the canonical case.
-///
-/// Before the crossing-speed floor: V1 braked to ~0 at the crossing-slice end
-/// (slice terminus treated as a stop) then re-accelerated onto C; V2 additionally
-/// dipped to the off-centerline re-acquire speed (~5 kt) mid-runway. Both are the
-/// runway-incursion anti-pattern.
+/// crossing speed 12 kt) is the canonical case. Before the crossing-speed floor,
+/// the aircraft dipped to the off-centerline re-acquire speed (~5 kt) mid-runway —
+/// the runway-incursion anti-pattern this guards against.
 /// </summary>
-public class OakCrossingMomentumV1Tests(ITestOutputHelper output)
-{
-    [Fact]
-    public void AfterRes_MaintainsCrossingMomentum_V1()
-    {
-        OakCrossingMomentum.AssertMomentum(output, FilletMode.Legacy);
-    }
-}
-
 [Collection("V2 Acceptance")]
 public class OakCrossingMomentumV2Tests(ITestOutputHelper output)
 {

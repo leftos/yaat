@@ -122,7 +122,7 @@ public sealed record CliOptions
     public bool JsonOutput { get; init; }
     public bool DumpAll { get; init; }
 
-    public FilletMode FilletMode { get; init; } = FilletMode.Legacy;
+    public FilletMode FilletMode { get; init; } = FilletMode.V2;
     public bool DebugFillets { get; init; }
     public bool DebugExits { get; init; }
 
@@ -206,7 +206,7 @@ public sealed record CliOptions
         var pathDistanceNodes = new List<int>();
         bool jsonOutput = false;
         bool dumpAll = false;
-        var filletMode = FilletMode.Legacy;
+        var filletMode = FilletMode.V2;
         bool debugFillets = false;
         bool debugExits = false;
         var exitQueries = new List<(string Runway, string Taxiway, string? Side)>();
@@ -570,13 +570,11 @@ public sealed record CliOptions
         {
             case "v2":
                 return FilletMode.V2;
-            case "legacy":
-                return FilletMode.Legacy;
             case "none":
                 return FilletMode.None;
             default:
-                Console.Error.WriteLine($"Unknown --fillet-mode '{value}', using legacy (expected: legacy, v2, none)");
-                return FilletMode.Legacy;
+                Console.Error.WriteLine($"Unknown --fillet-mode '{value}', using v2 (expected: v2, none)");
+                return FilletMode.V2;
         }
     }
 }

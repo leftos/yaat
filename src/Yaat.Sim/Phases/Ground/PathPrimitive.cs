@@ -98,7 +98,7 @@ public sealed record PathPrimitiveStraight : PathPrimitive
 /// <see cref="RadiusFt"/>, <see cref="StartBearingFromCenterDeg"/>,
 /// <see cref="SweepDeg"/>) from the <c>GroundArc</c>'s stored tangent
 /// bearings and minimum radius of curvature. This is valid because
-/// <c>FilletArcGenerator</c> tunes the Bezier kappa so the fillet is a
+/// <c>FilletArcGeneratorV2</c> tunes the Bezier kappa so the fillet is a
 /// near-constant-radius circular arc (deviation &lt; 1 ft for radius ≥ 50 ft).
 /// </para>
 /// </summary>

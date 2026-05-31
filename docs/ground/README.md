@@ -20,16 +20,13 @@ GeoJSON ─► TaxiwayGraphBuilder ─► [1] Fillet generator ─► filleted g
 | 2 | **Pathfinder** | resolves a clearance into a `TaxiRoute` over that graph | [`pathfinder.md`](./pathfinder.md) | `TaxiPathfinderV2` · `Data/Airport/V2/*` |
 | 3 | **Navigator** | follows the route + arc geometry per tick (heading/speed) | [`navigator.md`](./navigator.md) | `GroundNavigator` (in `TaxiingPhase`) |
 
-## The V1 → V2 transition (read this first)
+## The V1 → V2 transition (complete)
 
-The stack is mid-migration from V1 to V2, and **all three layers flip together in one change**. Each was co-tuned against V1 geometry, so flipping one alone leaves the stack mismatched.
-
-- **Fillet generator** and **pathfinder** each have full V1 and V2 implementations. **V1 is the runtime default today; V2 is the target** and where all new work goes. V1 of each is deleted after the joint flip. The docs describe **V2 as the architecture** and flag V1 as legacy-being-removed.
-- The **navigator** is *shared* and not rewritten — it is an incremental **v1.1**. The transition that matters for it is the **geometry it consumes**: it was tuned against Legacy fillet arcs, and V2's tighter, cleaner arcs (fewer tangent nodes, collapsed junctions) expose latent issues. Several navigator features are Legacy-fillet compensations under review.
+The stack has fully migrated from V1 to V2. The **fillet generator**, **pathfinder**, and **navigator** are each **V2-only** — the V1/Legacy implementations and their selector seams (`FilletArcGeneratorRouter`, `ITaxiPathfinder` / `TaxiPathfinderRouter`, `IGroundNavigator` / `GroundNavigatorRouter`) were deleted layer by layer at the joint flip. The navigator was a *shared* incremental **v1.1** (not a clean rewrite); it was tuned against Legacy fillet arcs and several of its features were Legacy-fillet compensations, now resolved against V2's tighter geometry (see [navigator.md](./navigator.md)).
 
 **Guiding principle when a consumer trips on V2 geometry:** the V2 graph is *correct-but-different*, not broken — it faithfully mirrors the source data (coincident edges, taxiways that connect only via a third connector, membership-named junction arcs). **Adapt the consumer; do not "fix" the graph.**
 
-The flip is sequenced fillet → pathfinder → navigator-review, all shipped together once green. Live roadmap and open work: [`../plans/ground-graph-v2.md`](../plans/ground-graph-v2.md) (and the `../plans/filletv2/` · `../plans/pathfinderv2/` sub-plans, which these docs supersede for durable reference).
+Still pending: a final cross-layer rename sweep that drops the `V2` suffixes (`FilletArcGeneratorV2` / `TaxiPathfinderV2` / `GroundNavigatorV2` → base names) plus a doc-body refresh. Live roadmap and open work: [`../plans/ground-graph-v2.md`](../plans/ground-graph-v2.md) (and the `../plans/filletv2/` · `../plans/pathfinderv2/` sub-plans, which these docs supersede for durable reference).
 
 ## Tooling
 

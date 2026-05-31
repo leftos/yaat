@@ -14,7 +14,7 @@ public abstract record FilletProvenance
     public abstract string DisplayString { get; }
 }
 
-/// <summary>Tangent node created by <see cref="FilletArcGenerator"/> at an intersection.</summary>
+/// <summary>Tangent node created by <see cref="FilletArcGeneratorV2"/> at an intersection.</summary>
 public sealed record TangentNodeProvenance(int IntersectionId, string Taxiway, int DestinationNodeId) : FilletProvenance
 {
     public override string DisplayString => $"Fillet:tangent-node@{IntersectionId} on-{Taxiway}(→{DestinationNodeId})";

@@ -4,17 +4,17 @@
 
 ## Status banner — V2 is the ground navigator
 
-The ground stack is three layers (see `docs/plans/ground-graph-v2.md`). As of the Phase-7 joint flip all three default to V2; V1 is being deleted layer by layer:
+The ground stack is three layers (see `docs/plans/ground-graph-v2.md`). As of the Phase-7 joint flip all three layers are **V2-only**; the V1/Legacy implementations and their selector seams are deleted:
 
 | Layer | Role | Status |
 |---|---|---|
-| Fillet generator | builds arc geometry (nodes, edges, arcs, radii) | V2 default; Legacy-generator deletion pending |
-| Pathfinder | resolves a `TaxiRoute` over the graph | V2 default; V1 deletion pending |
+| Fillet generator | builds arc geometry (nodes, edges, arcs, radii) | **V2 only** — Legacy generator + `FilletArcGeneratorRouter` deleted |
+| Pathfinder | resolves a `TaxiRoute` over the graph | **V2 only** — V1 `TaxiPathfinder` + `ITaxiPathfinder` / router deleted |
 | **Navigator (this doc)** | **follows** the route + geometry per tick | **V2 only** — V1 `GroundNavigator` deleted |
 
 The navigator is the clean-room `GroundNavigatorV2` (`src/Yaat.Sim/Phases/Ground/GroundNavigatorV2.cs`). The old V1 `GroundNavigator`, the `IGroundNavigator` / `GroundNavigatorRouter` selector seam, and the Legacy-fillet compensations they carried — slow-turn synthesis planner, short-chord cluster detection, chord-chain aggregate-turn, the orbit-stall tick counter — are **deleted**. V2 was built for clean V2 fillet geometry (tighter single arcs, fewer tangent nodes) and plays fillet arcs as their actual cubic Bézier rather than an inscribed circle. Its replacements for the dropped compensations are documented in their own `(V2)` sections below (advance-on-pass + the hard orbit invariant; the per-corner turn-rate-feasibility cap; entry-alignment rounding at any corner past the threshold).
 
-> **Doc refresh pending.** The detailed sections below still carry `GroundNavigator.cs:NNNN` line references and `[Legacy-compensation — re-evaluate on V2]` markers from the V1 era. The mechanisms they describe as "V1" are now deleted, and those re-evaluation questions are resolved — the `(V2)` addenda are the current behavior. The body (and the `GroundNavigatorV2` → `GroundNavigator` rename) is rewritten in the final cross-layer sweep, after the pathfinder and Legacy-fillet deletions land.
+> **Doc refresh pending.** The detailed sections below still carry `GroundNavigator.cs:NNNN` line references and `[Legacy-compensation — re-evaluate on V2]` markers from the V1 era. The mechanisms they describe as "V1" are now deleted, and those re-evaluation questions are resolved — the `(V2)` addenda are the current behavior. The body (and the cross-layer `GroundNavigatorV2` / `TaxiPathfinderV2` / `FilletArcGeneratorV2` → base-name rename) is rewritten in the final sweep now that the pathfinder and Legacy-fillet deletions have landed.
 
 ---
 

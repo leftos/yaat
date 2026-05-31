@@ -80,7 +80,7 @@ public static class Bootstrap
 
             if (opts.DebugFillets)
             {
-                builder.AddFilter("FilletArcGenerator", LogLevel.Debug);
+                builder.AddFilter("FilletArcGeneratorV2", LogLevel.Debug);
                 builder.AddFilter("RunwayCrossingDetector", LogLevel.Debug);
             }
 

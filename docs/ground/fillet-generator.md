@@ -1,18 +1,14 @@
 # Fillet Arc Generator — Design & Architecture
 
-> Read this before touching `src/Yaat.Sim/Data/Airport/FilletArcGeneratorV2.cs`, anything under `src/Yaat.Sim/Data/Airport/Fillet/V2/`, the shared `Fillet/FilletGeometry.cs` / `Fillet/FilletConstants.cs`, or the legacy `FilletArcGenerator.cs` / `LegacyFilletArcGenerator.cs` / `FilletProvenance.cs`. The fillet generator turns the raw straight-segment ground graph into one with smooth corner arcs and order-independent junction connectivity. It is layer 1 of the three-layer ground stack — see the [pathfinder](./pathfinder.md) that walks the graph it builds and the [navigator](./navigator.md) that physically follows the arcs it emits. Index: `./README.md`.
+> Read this before touching `src/Yaat.Sim/Data/Airport/FilletArcGeneratorV2.cs`, anything under `src/Yaat.Sim/Data/Airport/Fillet/V2/`, the shared `Fillet/FilletGeometry.cs` / `Fillet/FilletConstants.cs`, or `FilletProvenance.cs`. The fillet generator turns the raw straight-segment ground graph into one with smooth corner arcs and order-independent junction connectivity. It is layer 1 of the three-layer ground stack — see the [pathfinder](./pathfinder.md) that walks the graph it builds and the [navigator](./navigator.md) that physically follows the arcs it emits. Index: `./README.md`.
 
-## Transition status — V2 is the target, Legacy is the current default
+## Status — V2 is the fillet generator
 
-The ground stack is mid V1→V2. **V2 (`FilletArcGeneratorV2` + `Data/Airport/Fillet/V2/*`) is the architecture this doc describes and where all new work goes.** It is geometry-validated (the `Compare_LegacyVsV2_MeetsHardGates` connectivity gate is green on FLL/OAK/SFO) and sim-validated behind the switch (the OAK/SFO/FLL taxi-coverage smoke set + landing/exit scenarios run on `FilletMode.V2` layouts with the V1 pathfinder). The **Legacy** generator (`FilletArcGenerator` / its `LegacyFilletArcGenerator` adapter / `FilletProvenance`) is the **runtime default today** and is being replaced; it is deleted once V2 flips on.
+**V2 (`FilletArcGeneratorV2` + `Data/Airport/Fillet/V2/*`) is the only fillet generator.** The Legacy pair-based generator and its `LegacyFilletArcGenerator` adapter / `FilletArcGeneratorRouter` selector were deleted at the joint flip; `FilletMode` is now just `None` (raw graph) vs `V2`. The other two ground-stack layers — [pathfinder](./pathfinder.md) and [navigator](./navigator.md) — are likewise V2-only.
 
-| Layer | V2 component | Runtime default now | Flip gate |
-|---|---|---|---|
-| Fillet generator (this doc) | `FilletArcGeneratorV2` | `LegacyFilletArcGenerator` (Legacy) | shared joint flip with pathfinder + navigator |
+**The single most important principle for any agent working on V2:** *the V2 graph is correct-but-different, not broken.* It collapses each junction into fewer tangent nodes with larger per-corner bearing steps; it retains membership-matched junction arcs (`C1 - B`); it faithfully preserves source-data quirks (coincident edges, taxiways that connect only via a third connector). When a downstream consumer trips on V2 geometry, **adapt the consumer — do not "fix" the graph.**
 
-The three layers were each co-tuned against Legacy geometry, so flipping one alone leaves the stack mismatched. The fillet flip is sequenced **first** (pathfinder stays V1 so any failure isolates to fillet geometry), then pathfinder V2, then the navigator review — all shipped together in a single change to `GeoJsonParser.Parse`'s default + `AirportLayoutDownloader`, after which Legacy is deleted (`docs/plans/ground-graph-v2.md`, `docs/plans/filletv2/status.md`).
-
-**The single most important principle for any agent working on V2:** *the V2 graph is correct-but-different, not broken.* It collapses each junction into fewer tangent nodes with larger per-corner bearing steps; it retains membership-matched junction arcs (`C1 - B`); it faithfully preserves source-data quirks (coincident edges, taxiways that connect only via a third connector). When a downstream consumer trips on V2 geometry, **adapt the consumer — do not "fix" the graph.** The two sim regressions the all-V2 sweep surfaced both live in the routing/navigation layer, not the fillet geometry (`docs/plans/filletv2/v2-sim-validation.md`).
+> The body below still describes V2 relative to the now-deleted Legacy generator in places (co-tuning, "shared with Legacy"); a full body refresh is deferred to the final cross-layer rename sweep that drops the `V2` suffixes.
 
 ---
 
@@ -40,12 +36,9 @@ FilletGeneratorFactory.Create(filletMode).Apply(layout);
 | `FilletMode` | Factory result | Behavior |
 |---|---|---|
 | `None` | `NullFilletArcGenerator.Instance` | no-op; raw intersection graph (used by `FilletMode.None` tests + comparison baselines) |
-| `Legacy` | `new LegacyFilletArcGenerator()` | delegates to static `FilletArcGenerator.Apply` |
 | `V2` | `new FilletArcGeneratorV2()` | plan-then-execute (this doc) |
 
-`FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. The convenience overloads `Parse(...)` / `Parse(..., applyFillets: bool)` map to `Legacy` / `None` (`GeoJsonParser.cs:35`, `:40`) — **`Legacy` is the parser's default**, which is why production still runs Legacy.
-
-`FilletArcGeneratorRouter` is a separate runtime selector (`Current`, `UseV2`) for callers that want to switch implementation without re-parsing (startup flag, integration tests). It also defaults to Legacy (`FilletArcGeneratorRouter.cs:16`). It has **no `src/` consumers today** and is slated for retirement at the flip; the parser path through `FilletGeneratorFactory` is the live one. `FilletArcGeneratorRegistry.All` lists all three implementations for enumeration/comparison harnesses.
+`FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. The convenience overloads `Parse(...)` / `Parse(..., applyFillets: bool)` map to `V2` / `None` (`GeoJsonParser.cs:35`, `:40`) — **`V2` is the parser's default**. `FilletArcGeneratorRegistry.All` lists both implementations (`None`, `V2`) for enumeration harnesses.
 
 The downstream consumers of the filleted graph: the **[pathfinder](./pathfinder.md)** walks it to build `TaxiRoute`s, and the **[navigator](./navigator.md)** compiles each `GroundArc` into a `PathPrimitiveArc` and follows it closed-form.
 
@@ -217,15 +210,9 @@ V2 reports `CoincidentNodesMerged`, `OrphansRescued`, `RedundantPreserveEdgesRem
 
 ---
 
-## Legacy (being removed) — V1
+## Legacy — removed
 
-`src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` is the static implementation; `LegacyFilletArcGenerator.cs` is the thin `IFilletArcGenerator` adapter that delegates to it (`FilletArcGenerator.Apply`). It is the **current runtime default** via `FilletGeneratorFactory.Create(FilletMode.Legacy)` from `GeoJsonParser.Parse`. Recognize Legacy by:
-
-- **Per-pair filleting** — for each intersection, every edge pair gets a tangent placement + arc/merge, then the intersection node is deleted (`FilletArcGenerator.cs:5` summary). Constants (`MinFilletAngleDeg`, radii, `MaxTangentDistFt`, coincident thresholds) are duplicated as `private const` in `FilletArcGenerator.cs:15` — the shared values now also live in `FilletConstants.cs`.
-- **Repair-pass cascade** — `AddDirectShortensFromArcAnchors`, `RescueOrphanedTangentNodes`, parallel-bypass removal, reconnect, duplicate-arc removal. These are the order-dependent mutate-then-repair passes V2's single edge-split replaced; their kinds are enumerated in `FilletProvenance.cs` (`FilletEdgeKind`).
-- **`FilletProvenance`** (`FilletProvenance.cs`) — the typed discriminator (`TangentNodeProvenance`, `CornerArcProvenance`, `FilletEdgeProvenance`) attached to Legacy nodes/edges/arcs so its cleanup passes can pattern-match instead of parsing origin strings. **V2 does not use it.**
-
-`DetectManualArcNodes` and the eligibility logic are shared (V2 calls `ManualArcDetector` / `FilletEligibility`; Legacy has near-identical inline copies). At the flip, `FilletArcGenerator.cs`, `LegacyFilletArcGenerator.cs`, `FilletProvenance.cs`, the vestigial `FilletArcGeneratorRouter`, and the unused `FilletMode` plumbing are deleted. Per project policy there are **no compatibility shims** — do not add Legacy fixes; fix forward in V2.
+The Legacy pair-based generator (`FilletArcGenerator.cs`), its `LegacyFilletArcGenerator` adapter, and the vestigial `FilletArcGeneratorRouter` selector were deleted when V2 became the only fillet generator. Per project policy there are **no compatibility shims** — do not add Legacy fixes; fix forward in V2. The shared helpers `FilletProvenance` (V2 attaches `CornerArcProvenance` to its arcs), `ManualArcDetector`, and `FilletEligibility` survive and are used by V2.
 
 ---
 
@@ -252,7 +239,7 @@ V2 reports `CoincidentNodesMerged`, `OrphansRescued`, `RedundantPreserveEdgesRem
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletEligibility.cs` | shared intersection eligibility + preserve rule |
 | `src/Yaat.Sim/Data/Airport/Fillet/ManualArcDetector.cs` | shape-point (manual-arc) exclusion |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletGraphNormalizer.cs` | post-execute recompute + defensive merge (no repair) |
-| `src/Yaat.Sim/Data/Airport/IFilletArcGenerator.cs` · `FilletMode.cs` · `FilletGeneratorFactory.cs` · `FilletArcGeneratorRouter.cs` | selection surface |
+| `src/Yaat.Sim/Data/Airport/IFilletArcGenerator.cs` · `FilletMode.cs` · `FilletGeneratorFactory.cs` | selection surface |
 | `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs` | invokes the chosen generator at parse Step 8 (`:288`) |
 | `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | `GroundArc` (bezier fields, `TaxiwayNames`, `MatchesTaxiway`), `GroundNode`, `GroundEdge` |
 | `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` · `LegacyFilletArcGenerator.cs` · `FilletProvenance.cs` (legacy) | V1 — being deleted |

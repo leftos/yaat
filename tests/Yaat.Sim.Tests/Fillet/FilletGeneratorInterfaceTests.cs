@@ -7,7 +7,7 @@ public class FilletGeneratorInterfaceTests
 {
     [Theory]
     [InlineData(FilletMode.None, "none", 0)]
-    [InlineData(FilletMode.Legacy, "legacy", 1)]
+    [InlineData(FilletMode.V2, "v2", 1)]
     public void Factory_Create_ReturnsExpectedId(FilletMode mode, string expectedId, int expectedArcsOnSimpleLayout)
     {
         var generator = FilletGeneratorFactory.Create(mode);
@@ -31,7 +31,7 @@ public class FilletGeneratorInterfaceTests
     public void Registry_All_ContainsImplementedGenerators()
     {
         var ids = FilletArcGeneratorRegistry.All.Select(g => g.Id).ToList();
-        Assert.Equal(["none", "legacy", "v2"], ids);
+        Assert.Equal(["none", "v2"], ids);
     }
 
     [Fact]
@@ -45,37 +45,10 @@ public class FilletGeneratorInterfaceTests
     }
 
     [Fact]
-    public void Router_UseV2_SwitchesCurrentImplementation()
-    {
-        var previous = FilletArcGeneratorRouter.Current;
-        try
-        {
-            FilletArcGeneratorRouter.UseV2 = true;
-            Assert.Equal("v2", FilletArcGeneratorRouter.Current.Id);
-
-            FilletArcGeneratorRouter.UseV2 = false;
-            Assert.Equal("legacy", FilletArcGeneratorRouter.Current.Id);
-        }
-        finally
-        {
-            FilletArcGeneratorRouter.Current = previous;
-        }
-    }
-
-    [Fact]
     public void GeoJsonParser_None_SkipsFilletPass()
     {
         var layout = GeoJsonParser.Parse("TEST", MinimalGeoJson(), null, FilletMode.None);
         Assert.Empty(layout.Arcs);
-    }
-
-    [Fact]
-    public void GeoJsonParser_Legacy_MatchesBoolApplyFilletsTrue()
-    {
-        var withMode = GeoJsonParser.Parse("TEST", MinimalGeoJson(), null, FilletMode.Legacy);
-        var withBool = GeoJsonParser.Parse("TEST", MinimalGeoJson(), null, applyFillets: true);
-        Assert.Equal(withBool.Arcs.Count, withMode.Arcs.Count);
-        Assert.Equal(withBool.Nodes.Count, withMode.Nodes.Count);
     }
 
     private static AirportGroundLayout BuildSimpleIntersectionLayout()
