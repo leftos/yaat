@@ -264,18 +264,17 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
 }
 
 /// <summary>
-/// All-V2 variant of <see cref="SfoM2MultiTurnTaxiTests"/>. Under the V2 nav stack the M2→A 118° corner
-/// has only ~22 ft of straight M2 between the B-crossing (J159) and the A-crossing (J92) — shorter than
-/// the tangent length needed to round at the nose-wheel radius. The entry-alignment slow-turn must still
-/// exit on the A centerline so pure-pursuit doesn't limit-cycle (orbit the corner for ~45 s). Asserts the
-/// M2 → A → A1 taxi completes within the same 75 s budget as V1. Runs in the parallelization-disabled
-/// "V2 Acceptance" collection so the global router flip can't race the V1-default suite.
+/// Serialized variant of <see cref="SfoM2MultiTurnTaxiTests"/>. The M2→A 118° corner has only ~22 ft of
+/// straight M2 between the B-crossing (J159) and the A-crossing (J92) — shorter than the tangent length
+/// needed to round at the nose-wheel radius. The entry-alignment slow-turn must still exit on the A
+/// centerline so pure-pursuit doesn't limit-cycle (orbit the corner for ~45 s). Asserts the M2 → A → A1
+/// taxi completes within the 75 s budget. Runs in the parallelization-disabled "Acceptance" collection.
 /// </summary>
-[Collection("V2 Acceptance")]
-public class SfoM2MultiTurnUnderV2Tests(ITestOutputHelper output)
+[Collection("Acceptance")]
+public class SfoM2MultiTurnAcceptanceTests(ITestOutputHelper output)
 {
     [Fact]
-    public void Test1_SpawnOffM2_TaxisThroughTwoNinetyTurns_NoSpin_OnV2()
+    public void Test1_SpawnOffM2_TaxisThroughTwoNinetyTurns_NoSpin()
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -292,7 +291,7 @@ public class SfoM2MultiTurnUnderV2Tests(ITestOutputHelper output)
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         var engine = new SimulationEngine(groundData);
 
-        // Same spawn as the V1 test: ~20 ft north of M2 node 1529, heading 280° magnetic.
+        // Same spawn as the sibling test: ~20 ft north of M2 node 1529, heading 280° magnetic.
         string json = SfoM2MultiTurnTaxiTests.BuildScenarioJson(37.607759, -122.384926, 280);
         engine.LoadScenario(json, rngSeed: 42);
 
@@ -341,7 +340,7 @@ public class SfoM2MultiTurnUnderV2Tests(ITestOutputHelper output)
         Assert.True(lineUpAt > 0, "aircraft should reach LiningUp after traversing M2 → A → A1");
         Assert.True(
             taxiDuration <= 75,
-            $"M2 → A → A1 taxi should complete within 75 s under V2 (no pure-pursuit spin at the M2→A corner); got {taxiDuration} s"
+            $"M2 → A → A1 taxi should complete within 75 s (no pure-pursuit spin at the M2→A corner); got {taxiDuration} s"
         );
     }
 }

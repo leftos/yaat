@@ -24,7 +24,7 @@ namespace Yaat.Sim.Tests.Helpers;
 /// fillet arc at a GA-sized ramp are capped at the arc's safe speed
 /// (potentially 5-10 kts) regardless of nominal taxi speed (jet 30 kts).
 /// A flat distance/nominalKts budget under-allows these routes by 2-3×.
-/// Per-segment integration matches how the V2 router's Fastest preference
+/// Per-segment integration matches how the router's Fastest preference
 /// scores routes — same math, applied to the chosen route.
 /// </para>
 ///

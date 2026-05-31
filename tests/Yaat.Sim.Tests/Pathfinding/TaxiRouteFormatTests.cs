@@ -3,7 +3,7 @@ using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
-namespace Yaat.Sim.Tests.Pathfinding.V2;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// Unit tests for <see cref="TaxiRoute.FormatTaxiwaySequence"/> — the operator-facing route string

@@ -793,7 +793,7 @@ public partial class GroundViewModel : ObservableObject
             return [];
         }
 
-        // V2 returns one route per preference (FewestTurns / Shortest / Fastest), deduped — at most 3.
+        // The pathfinder returns one route per preference (FewestTurns / Shortest / Fastest), deduped — at most 3.
         // It is intentionally per-preference, not a Yen-style k-shortest generator, so requesting 3
         // matches what the router can actually produce (a 4th request always came back empty).
         return TaxiPathfinder.FindRoutes(_domainLayout, fromNodeId, toNodeId, preference: null, maxRoutes: 3, authorizedTaxiways: null, category);

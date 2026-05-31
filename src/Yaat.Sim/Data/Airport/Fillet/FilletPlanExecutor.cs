@@ -151,7 +151,7 @@ internal static class FilletPlanExecutor
         if (Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug(
-                "V2 executor: {Arcs} arcs, {Surviving} surviving edges, {Collinear} collinear, {Nodes} junctions",
+                "Fillet executor: {Arcs} arcs, {Surviving} surviving edges, {Collinear} collinear, {Nodes} junctions",
                 arcsCreated,
                 plan.SurvivingEdges.Count,
                 collinearMerges,

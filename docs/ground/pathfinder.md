@@ -4,7 +4,7 @@
 
 ## Architecture
 
-The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:10`) is a `public static class` with four static entry points: `ResolveExplicitPath`, `FindRoute`, `FindRoutes`, and `FindFullLengthLineupHoldShort`. All production callers invoke these directly. The implementation is unified — no V1/V2 dual-path selector, no variant adapter — and lives under `src/Yaat.Sim/Data/Airport/Pathfinding/`.
+The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:10`) is a `public static class` with four static entry points: `ResolveExplicitPath`, `FindRoute`, `FindRoutes`, and `FindFullLengthLineupHoldShort`. All production callers invoke these directly. The implementation is unified — no dual-path selector, no variant adapter — and lives under `src/Yaat.Sim/Data/Airport/Pathfinding/`.
 
 **Caveat for any agent working on the pathfinder:** membership-matched junction arcs, V-shaped taxiways, and tighter fillet arcs are *correct-but-different* geometry. When something breaks on the graph, **adapt the pathfinder — do not "fix" the graph** (membership junction arcs are legitimate turn-connectors).
 

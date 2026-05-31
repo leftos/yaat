@@ -105,8 +105,8 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
     /// aircraft tracks the painted H line — passing within 15 ft of 6+ distinct
     /// H-named graph nodes and turning ≥30° as the line curves — rather than
     /// beelining diagonally across the runway surface (issue #166). Shared by the
-    /// V1-default test above and the all-V2 variant in
-    /// <see cref="Issue166CrossUnderV2Tests"/>.
+    /// test above and the pre-cleared-crossing variant in
+    /// <see cref="Issue166CrossPreClearedTests"/>.
     /// </summary>
     internal static void AssertFollowsHLineThroughCrossing(
         SimulationEngine engine,
@@ -215,22 +215,21 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
 }
 
 /// <summary>
-/// All-V2 variant of <see cref="Issue166CrossShortcutsGrassTests"/>. Under the V2 nav stack
-/// UAL19 reaches the 01L/19R hold-short later than under V1, so the no-arg <c>CROSS</c> at
-/// t=314 clears the crossing while it is still taxiing toward it (pre-cleared) rather than
-/// while it sits holding. The fix in <see cref="CrossingRunwayPhase"/>'s entry point
-/// (<c>TaxiingPhase.BuildPreClearedCrossingPhases</c>) must still hand off to a
-/// <see cref="CrossingRunwayPhase"/> so the aircraft tracks the painted H line across the
-/// runway instead of beelining. Runs in the parallelization-disabled "V2 Acceptance"
-/// collection so the global pathfinder/navigator router flip cannot race the V1-default suite.
+/// Pre-cleared-crossing variant of <see cref="Issue166CrossShortcutsGrassTests"/>. UAL19 reaches
+/// the 01L/19R hold-short late enough that the no-arg <c>CROSS</c> at t=314 clears the crossing
+/// while it is still taxiing toward it (pre-cleared) rather than while it sits holding. The
+/// <see cref="CrossingRunwayPhase"/> entry point (<c>TaxiingPhase.BuildPreClearedCrossingPhases</c>)
+/// must still hand off to a <see cref="CrossingRunwayPhase"/> so the aircraft tracks the painted H
+/// line across the runway instead of beelining. Runs in the parallelization-disabled "Acceptance"
+/// collection so these long, file-writing replays do not contend with one another.
 /// </summary>
-[Collection("V2 Acceptance")]
-public class Issue166CrossUnderV2Tests(ITestOutputHelper output)
+[Collection("Acceptance")]
+public class Issue166CrossPreClearedTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue166-cross-shortcuts-grass-recording.zip";
 
     [Fact]
-    public void Ual19_FollowsHTaxiLineThroughRunwayCrossing_OnV2()
+    public void Ual19_FollowsHTaxiLineThroughRunwayCrossing_PreCleared()
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -267,7 +266,7 @@ public class Issue166CrossUnderV2Tests(ITestOutputHelper output)
     /// <see cref="CrossingRunwayPhase"/> for is 01L/19R.
     /// </summary>
     [Fact]
-    public void Ual19_DoesNotEnterCrossingForVacatedRunway_OnV2()
+    public void Ual19_DoesNotEnterCrossingForVacatedRunway()
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)

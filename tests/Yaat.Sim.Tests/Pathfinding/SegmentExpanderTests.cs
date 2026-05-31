@@ -6,7 +6,7 @@ using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests.Pathfinding.V2;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// Unit and integration tests for <see cref="SegmentExpander"/>.
@@ -256,7 +256,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         var ctx = ExplicitCtx(layout, fromNodeId: 0, waypoints: ["A", "B"], log: s => output.WriteLine(s));
         var (route, failure) = SegmentExpander.Run(ctx);
 
-        // v2 should find the detour via N1.
+        // The pathfinder should find the detour via N1.
         Assert.Null(failure);
         Assert.NotNull(route);
         Assert.Equal(3, route.Segments[^1].ToNodeId);
@@ -527,14 +527,14 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     }
 
     // -----------------------------------------------------------------------
-    // Issue #165 integration: SKW3404 SFO route resolves via SegmentExpander v2
+    // Issue #165 integration: SKW3404 SFO route resolves via SegmentExpander
     //
     // Verifies that SegmentExpander successfully resolves the SKW3404 taxi route
     // on the real SFO layout without returning a PathfindingFailure. The orbit
     // observed in the recording is a GroundNavigator execution issue (geometric
     // 180° junctions that exist in the fillet-arc topology at the E/B/B3 complex),
-    // not a pathfinder resolution failure. This test guards that v2 at minimum
-    // resolves the full route rather than failing with TransitionInfeasible.
+    // not a pathfinder resolution failure. This test guards that the pathfinder at
+    // minimum resolves the full route rather than failing with TransitionInfeasible.
     //
     // Route: A E B B3 A B1 Z S from node 1249 (post-pushback position).
     // -----------------------------------------------------------------------
@@ -542,7 +542,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
     private static readonly TestAirportGroundData SfoGroundData = new();
 
     [Fact]
-    public void Issue165_V2_SkwRoute_ResolvesWithoutFailure()
+    public void Issue165_SkwRoute_ResolvesWithoutFailure()
     {
         TestVnasData.EnsureInitialized();
 
@@ -557,7 +557,7 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         const int StartNodeId = 1249;
         if (!layout.Nodes.ContainsKey(StartNodeId))
         {
-            output.WriteLine($"[v2:issue165] node {StartNodeId} not found — skipping");
+            output.WriteLine($"[issue165] node {StartNodeId} not found — skipping");
             return;
         }
 
@@ -579,11 +579,11 @@ public class SegmentExpanderTests(ITestOutputHelper output)
 
         var (route, failure) = SegmentExpander.Run(ctx);
 
-        output.WriteLine($"[v2:issue165] route={route?.Segments.Count} segs, failure={failure?.Kind}:{failure?.HumanMessage}");
+        output.WriteLine($"[issue165] route={route?.Segments.Count} segs, failure={failure?.Kind}:{failure?.HumanMessage}");
 
         // Count admissibility violations for diagnostic output (not a hard assertion here —
         // the 180° violations at E/B and B3/A junctions are a fillet-arc topology constraint
-        // inherent to the SFO layout, present in v1 as well).
+        // inherent to the SFO layout).
         const double JetMaxHeadingChangeDeg = 135.0;
         int violations = 0;
         if (route is not null)
@@ -597,12 +597,12 @@ public class SegmentExpanderTests(ITestOutputHelper output)
                 {
                     violations++;
                     output.WriteLine(
-                        $"[v2:issue165] diagnostic: seg {i - 1}→{i}: inBearing={inBearing:F1}° outBearing={outBearing:F1}° delta={delta:F1}°"
+                        $"[issue165] diagnostic: seg {i - 1}→{i}: inBearing={inBearing:F1}° outBearing={outBearing:F1}° delta={delta:F1}°"
                     );
                 }
             }
 
-            output.WriteLine($"[v2:issue165] {violations} geometric violations (topology constraint, expected ≤ 2)");
+            output.WriteLine($"[issue165] {violations} geometric violations (topology constraint, expected ≤ 2)");
         }
 
         Assert.Null(failure);

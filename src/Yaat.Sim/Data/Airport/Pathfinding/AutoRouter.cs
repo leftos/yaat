@@ -101,7 +101,7 @@ public static class AutoRouter
         // Trivial case: start is already at the destination.
         if (ctx.StartNodeId == destinationNode.Id)
         {
-            ctx.DiagnosticLog?.Invoke($"[v2:auto] trivial route — start == destination node {ctx.StartNodeId}");
+            ctx.DiagnosticLog?.Invoke($"[auto] trivial route — start == destination node {ctx.StartNodeId}");
             var emptyRoute = RouteMaterialiser.Materialise([], ctx, []);
             return (emptyRoute, null);
         }
@@ -141,7 +141,7 @@ public static class AutoRouter
         openSet.Enqueue(startRoute, startRoute.AccumulatedCost + startHeuristic);
 
         ctx.DiagnosticLog?.Invoke(
-            $"[v2:auto] start node={startRoute.HeadNodeId}  dest node={destinationNode.Id}  h0={startHeuristic:F3}  arrival={startRoute.ArrivalBearing:F1}  hasPrior={startRoute.LastEdge is not null}"
+            $"[auto] start node={startRoute.HeadNodeId}  dest node={destinationNode.Id}  h0={startHeuristic:F3}  arrival={startRoute.ArrivalBearing:F1}  hasPrior={startRoute.LastEdge is not null}"
         );
 
         while (openSet.Count > 0)
@@ -151,9 +151,7 @@ public static class AutoRouter
 
             if (expansions > maxExpansions)
             {
-                ctx.DiagnosticLog?.Invoke(
-                    $"[v2:auto] FAIL reason=SearchExhausted  expansions={expansions}  deepest_depth={deepestViable?.Depth ?? 0}"
-                );
+                ctx.DiagnosticLog?.Invoke($"[auto] FAIL reason=SearchExhausted  expansions={expansions}  deepest_depth={deepestViable?.Depth ?? 0}");
 
                 return (
                     null,
@@ -177,7 +175,7 @@ public static class AutoRouter
             }
 
             ctx.DiagnosticLog?.Invoke(
-                $"[v2:auto] pop f={current.AccumulatedCost + RouteCostFunction.Heuristic(ctx.Layout.Nodes[current.HeadNodeId], destinationNode):F3}  node={current.HeadNodeId}  depth={current.Depth}  cost={current.AccumulatedCost:F3}"
+                $"[auto] pop f={current.AccumulatedCost + RouteCostFunction.Heuristic(ctx.Layout.Nodes[current.HeadNodeId], destinationNode):F3}  node={current.HeadNodeId}  depth={current.Depth}  cost={current.AccumulatedCost:F3}"
             );
 
             // Destination check.
@@ -185,9 +183,7 @@ public static class AutoRouter
             {
                 int baseDepth = startOverride?.Depth ?? 0;
                 int newEdgeCount = current.Depth - baseDepth;
-                ctx.DiagnosticLog?.Invoke(
-                    $"[v2:auto] SUCCESS edges={newEdgeCount}  total_cost={current.AccumulatedCost:F3}  expansions={expansions}"
-                );
+                ctx.DiagnosticLog?.Invoke($"[auto] SUCCESS edges={newEdgeCount}  total_cost={current.AccumulatedCost:F3}  expansions={expansions}");
 
                 var edges = current.MaterialiseEdges(baseDepth);
                 var route = RouteMaterialiser.Materialise(edges, ctx, []);
@@ -275,10 +271,10 @@ public static class AutoRouter
                 openSet.Enqueue(extended, priority);
             }
 
-            ctx.DiagnosticLog?.Invoke($"[v2:auto] EXPAND admitted={admitted} rejected={rejected}");
+            ctx.DiagnosticLog?.Invoke($"[auto] EXPAND admitted={admitted} rejected={rejected}");
         }
 
-        ctx.DiagnosticLog?.Invoke($"[v2:auto] FAIL reason=DestinationUnreachable  expansions={expansions}");
+        ctx.DiagnosticLog?.Invoke($"[auto] FAIL reason=DestinationUnreachable  expansions={expansions}");
 
         return (
             null,

@@ -506,8 +506,8 @@ public class AirportE2ETests
             // single taxiway between the runway surface and the next intersection.
             // Membership junction arcs (a compound "C - E" turn-connector) are
             // legitimate graph structure under the fillet generator and must not
-            // count as a second distinct taxiway — exclude them like the rest of
-            // the V2 suite (Req1MembershipArcSweepTests, JunctionContinuationTests).
+            // count as a second distinct taxiway — exclude them like the
+            // membership-arc tests (Req1MembershipArcSweepTests, JunctionContinuationTests).
             var taxiwayNames = hs
                 .Edges.Where(e => !e.IsRunwayCenterline && e is not GroundArc { IsMembershipTaxiwayJunctionArc: true })
                 .Select(e => e.TaxiwayName)

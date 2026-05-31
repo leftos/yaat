@@ -173,7 +173,7 @@ The runway-exit/landing side has its own tuning that interacts with the navigato
 - **SameEdgeHeadOn** picks a deterministic holder (more remaining route, tie-break by callsign) so the pair doesn't pin both aircraft — the earlier "both stop" rule deadlocked once two routes resolved onto one single-lane segment (`GroundConflictDetector.cs:437`).
 - **Self-pin recovery** (`GroundConflictDetector.cs:341`): a routed aircraft clamped to gs ≈ 0 / SpeedLimit ≈ 0 with no explicit hold reclassifies as `Stationary`, opening the wingspan-lateral-clearance bypass so nearby movers can pass beside it the next tick.
 
-A mutual proximity-stop deadlock is still possible in pathological geometry; `docs/plans/ground-graph-v2.md` notes it should be re-evaluated after routing (AMX669 was routed the wrong way *before* it deadlocked, so the routing layer may be the real cause). When the navigator appears "stuck", check `Ground.SpeedLimit` and the `[Classify]` / `[Pair]` diagnostic log lines before assuming a navigator bug.
+A mutual proximity-stop deadlock is still possible in pathological geometry, and may be a routing-layer issue rather than a navigator one (AMX669 was routed the wrong way *before* it deadlocked). When the navigator appears "stuck", check `Ground.SpeedLimit` and the `[Classify]` / `[Pair]` diagnostic log lines before assuming a navigator bug.
 
 ### Snapshot round-trip is intentionally lossy
 

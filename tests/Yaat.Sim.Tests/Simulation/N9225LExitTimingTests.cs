@@ -2,23 +2,22 @@ using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Acceptance;
 using Yaat.Sim.Tests.Helpers;
-using Yaat.Sim.Tests.V2Acceptance;
 
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
-/// Regression: under the all-V2 ground stack, N9225L (C172 landing OAK 28R, no exit
-/// instruction) must roll out and turn off onto G without the navigator stalling at a
-/// 5 kt crawl. Before the Bézier arc-playback fix, the V2 navigator reinterpreted the
-/// runway→G corner fillet as a circle of the Bézier's *minimum* radius of curvature
-/// (72 ft for endpoints 153 ft apart — geometrically impossible), so closed-form
-/// playback ended ~56 ft short of the corner's exit node. The two short follow-on
-/// segments then started with a 50–80 ft cross-track, tripping the establish-straight
-/// re-acquire gate (5 kt) twice and adding ~9 s vs V1. With true Bézier arc-length
-/// playback the corner ends exactly on its node and the exit flows.
+/// Regression: N9225L (C172 landing OAK 28R, no exit instruction) must roll out and turn
+/// off onto G without the navigator stalling at a 5 kt crawl. Before the Bézier arc-playback
+/// fix, the navigator reinterpreted the runway→G corner fillet as a circle of the Bézier's
+/// *minimum* radius of curvature (72 ft for endpoints 153 ft apart — geometrically impossible),
+/// so closed-form playback ended ~56 ft short of the corner's exit node. The two short follow-on
+/// segments then started with a 50–80 ft cross-track, tripping the establish-straight re-acquire
+/// gate (5 kt) twice and adding ~9 s. With true Bézier arc-length playback the corner ends exactly
+/// on its node and the exit flows.
 /// </summary>
-[Collection("V2 Acceptance")]
+[Collection("Acceptance")]
 public class N9225LExitTimingTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/s2-oak3-vfr-sequencing-recording.yaat-bug-report-bundle.zip";
@@ -32,7 +31,7 @@ public class N9225LExitTimingTests(ITestOutputHelper output)
     private const int MaxConsecutiveReacquireFloorSeconds = 2;
 
     [Fact]
-    public void N9225L_ExitsG_WithoutReacquireCrawl_OnV2()
+    public void N9225L_ExitsG_WithoutReacquireCrawl()
     {
         var recording = RecordingLoader.Load(RecordingPath);
         if (recording is null)

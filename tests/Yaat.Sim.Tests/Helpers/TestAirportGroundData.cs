@@ -13,7 +13,7 @@ namespace Yaat.Sim.Tests.Helpers;
 /// callers share the result.
 ///
 /// The parameterless constructor uses <see cref="FilletMode.Standard"/> — the production
-/// fillet generator — so the ~150 existing call sites build the shipping V2 graph.
+/// fillet generator — so the ~150 existing call sites build the shipping graph.
 /// Pass <see cref="FilletMode.None"/> explicitly for raw-graph (unfilleted) tests.
 /// </summary>
 internal sealed class TestAirportGroundData : IAirportGroundData

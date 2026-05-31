@@ -4,8 +4,8 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Acceptance;
 using Yaat.Sim.Tests.Helpers;
-using Yaat.Sim.Tests.V2Acceptance;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S2-OAK-4 VFR Transitions/Radar Concepts.
 /// </summary>
-[Collection("V2 Acceptance")]
+[Collection("Acceptance")]
 public class GoAroundPreservesIntentE2ETests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/66fd6538542e.zip";

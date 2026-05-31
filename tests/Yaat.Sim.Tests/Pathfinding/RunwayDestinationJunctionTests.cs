@@ -4,7 +4,7 @@ using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests.Pathfinding.V2;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// When the final named taxiway in an explicit clearance leads to a runway destination, the
@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests.Pathfinding.V2;
 /// own hold-short — not merely the cheapest (nearest-along-the-previous-taxiway) junction.
 ///
 /// <para>
-/// Regression for the V2 departure-routing bug (OAK <c>TAXI D J C 33</c>, S2-OAK-4 N342T): C
+/// Regression for the departure-routing bug (OAK <c>TAXI D J C 33</c>, S2-OAK-4 N342T): C
 /// intersects both A (east) and runway 33 (west). The cheapest J/C junction commits the terminus
 /// walk eastward toward A, after which the westward turn toward 33 fails the U-turn admissibility
 /// check, so the route detoured the long way round (C → A → B → cross 28L/10R → P → J → back to 33,

@@ -442,7 +442,7 @@ public sealed class LineUpPhase : Phase
     /// Tick while faulted. Holds the aircraft stopped indefinitely and
     /// returns false so the phase never auto-completes with a bad pose.
     /// Recovery is the user's responsibility (TAXI, CANCEL CLEARANCE).
-    /// This replaces the V2 behaviour of returning true and advancing to
+    /// This replaces the earlier behaviour of returning true and advancing to
     /// TakeoffPhase with a bad pose — that was worse than staying parked.
     /// </summary>
     private bool TickFaulted(PhaseContext ctx)

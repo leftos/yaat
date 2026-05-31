@@ -5,7 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 
-namespace Yaat.Sim.Tests.Pathfinding.V2;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// Unit tests for <see cref="RouteMaterialiser"/>.

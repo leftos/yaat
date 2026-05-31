@@ -472,7 +472,7 @@ internal static class GroundCommandHandler
             HoldShortAnnotator.AddImplicitRunwayHoldShorts(groundLayout, extension.Segments, holdShorts);
         }
 
-        // Safety net: the V2 route resolver should eliminate reversals (a→b immediately
+        // Safety net: the route resolver should eliminate reversals (a→b immediately
         // followed by b→a), but warn if one slips through so we notice regressions rather
         // than quietly producing U-turns.
         for (int i = 0; i + 1 < combined.Count; i++)

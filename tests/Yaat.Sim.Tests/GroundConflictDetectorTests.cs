@@ -777,7 +777,7 @@ public class GroundConflictDetectorTests
     /// a head-on and must not both be stopped at range. A head-on requires near-anti-
     /// parallel headings; an oblique crossing resolves via the closing/arbitration rules
     /// (or, at this separation, no limit at all). Regression for the N569SX/N342T
-    /// false-head-on gridlock under all-V2.
+    /// false-head-on gridlock.
     /// </summary>
     [Fact]
     public void Crossing_ObliqueOpposingHeadings_NotTreatedAsHeadOn()

@@ -29,7 +29,7 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
     [InlineData("OAK")]
     [InlineData("SFO")]
     [InlineData("FLL")]
-    public void EveryV2Arc_BezierPlayback_EndsOnToNode(string airport)
+    public void EveryArc_BezierPlayback_EndsOnToNode(string airport)
     {
         var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
         if (layout is null)

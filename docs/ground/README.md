@@ -20,13 +20,9 @@ GeoJSON ─► TaxiwayGraphBuilder ─► [1] Fillet generator ─► filleted g
 | 2 | **Pathfinder** | resolves a clearance into a `TaxiRoute` over that graph | [`pathfinder.md`](./pathfinder.md) | `TaxiPathfinder` · `Data/Airport/Pathfinding/*` |
 | 3 | **Navigator** | follows the route + arc geometry per tick (heading/speed) | [`navigator.md`](./navigator.md) | `GroundNavigator` (in `TaxiingPhase`) |
 
-## The V1 → V2 transition (complete)
+## Design principle
 
-The stack has fully migrated from V1 to V2. The **fillet generator**, **pathfinder**, and **navigator** are each **V2-only** — the V1/Legacy implementations and their selector seams (`FilletArcGeneratorRouter`, `ITaxiPathfinder` / `TaxiPathfinderRouter`, `IGroundNavigator` / `GroundNavigatorRouter`) were deleted layer by layer at the joint flip. The navigator was a *shared* incremental **v1.1** (not a clean rewrite); it was tuned against Legacy fillet arcs and several of its features were Legacy-fillet compensations, now resolved against V2's tighter geometry (see [navigator.md](./navigator.md)).
-
-**Guiding principle when a consumer trips on V2 geometry:** the V2 graph is *correct-but-different*, not broken — it faithfully mirrors the source data (coincident edges, taxiways that connect only via a third connector, membership-named junction arcs). **Adapt the consumer; do not "fix" the graph.**
-
-The three layers are now `FilletArcGenerator` / `TaxiPathfinder` / `GroundNavigator` (no `V2` suffix), with their internals under `Data/Airport/Fillet/` and `Data/Airport/Pathfinding/`. Live roadmap and open work: [`../plans/ground-graph-v2.md`](../plans/ground-graph-v2.md) (and the `../plans/filletv2/` · `../plans/pathfinderv2/` sub-plans, which these docs supersede for durable reference).
+When a consumer trips on the ground geometry, remember: **the graph is correct-but-different, not broken** — it faithfully mirrors the source data (coincident edges, taxiways that connect only via a third connector, membership-named junction arcs). **Adapt the consumer; do not "fix" the graph.**
 
 ## Tooling
 

@@ -33,18 +33,18 @@ public class Mr270DctWrongDirectionTests(ITestOutputHelper output)
     internal const string RecordingPath = "TestData/mr270-dct-wrong-direction-recording.yaat-bug-report-bundle.zip";
     private const string Callsign = "N172SP";
 
-    // From snapshot inspection of the recording (V1 timing):
+    // From snapshot inspection of the recording (illustrative timing):
     //   t=495: InitialClimb exits, hdg=202.3°T, PreferredTurnDirection=Right
     //   t=510: hdg=247.3°T (still turning right — bug); fix should have hdg < 202.3°T
     //   t=525: hdg=292.3°T (continuing right past rollout — bug)
     //   t=529: FHN 170 forced recovery
     //
-    // The exact rollout second is ground-timing-dependent (the V2 nav stack taxis out
-    // slower, pushing takeoff and the whole departure ~5 s later), so the test detects
-    // the actual InitialClimbPhase exit rather than hard-coding it. ClimbWindowStart is
-    // chosen early enough that the aircraft is airborne and still in InitialClimbPhase
-    // under both V1 and V2 timing; PostRolloutWindow is how long after the exit to verify
-    // the recovery turn and that the turn bias stayed cleared.
+    // The exact rollout second is ground-timing-dependent (taxi-out duration pushes
+    // takeoff and the whole departure around), so the test detects the actual
+    // InitialClimbPhase exit rather than hard-coding it. ClimbWindowStart is chosen early
+    // enough that the aircraft is airborne and still in InitialClimbPhase; PostRolloutWindow
+    // is how long after the exit to verify the recovery turn and that the turn bias stayed
+    // cleared.
     private const int ClimbWindowStart = 460;
     private const int PostRolloutWindow = 25;
     private const int SettleSeconds = 15; // ticks after exit for the left turn to OAK30NUM to settle
@@ -94,8 +94,8 @@ public class Mr270DctWrongDirectionTests(ITestOutputHelper output)
 
     /// <summary>
     /// Replay through the departure, detect the InitialClimbPhase exit, and assert the recovery
-    /// turn behaviour. Shared by the V1-default test above and the all-V2 variant in
-    /// <see cref="Mr270DctUnderV2Tests"/> so both ground-timing models are covered.
+    /// turn behaviour. Shared by the test above and the serialized variant in
+    /// <see cref="Mr270DctRolloutAcceptanceTests"/>.
     /// </summary>
     internal static void AssertTurnsLeftAfterRollout(SimulationEngine engine, SessionRecording recording, ITestOutputHelper output)
     {
@@ -189,18 +189,16 @@ public class Mr270DctWrongDirectionTests(ITestOutputHelper output)
 }
 
 /// <summary>
-/// All-V2 variant of <see cref="Mr270DctWrongDirectionTests"/>. Under the V2 nav stack N172SP taxis
-/// out slower, so takeoff and the whole departure shift ~5 s later — the original V1-pinned sample
-/// window caught the tail of InitialClimbPhase (where PreferredTurnDirection=Right is still valid).
-/// The dynamic-exit detection in <see cref="Mr270DctWrongDirectionTests.AssertTurnsLeftAfterRollout"/>
-/// is timing-agnostic, so the recovery turn and turn-bias clearing are verified at whatever second the
-/// climb actually exits. Runs in the parallelization-disabled "V2 Acceptance" collection.
+/// Serialized variant of <see cref="Mr270DctWrongDirectionTests"/> that runs the same departure replay
+/// in the parallelization-disabled "Acceptance" collection. The dynamic-exit detection in
+/// <see cref="Mr270DctWrongDirectionTests.AssertTurnsLeftAfterRollout"/> is timing-agnostic, so the
+/// recovery turn and turn-bias clearing are verified at whatever second the climb actually exits.
 /// </summary>
-[Collection("V2 Acceptance")]
-public class Mr270DctUnderV2Tests(ITestOutputHelper output)
+[Collection("Acceptance")]
+public class Mr270DctRolloutAcceptanceTests(ITestOutputHelper output)
 {
     [Fact]
-    public void N172SP_TurnsLeftToOak30numAfterMr270Rollout_OnV2()
+    public void N172SP_TurnsLeftToOak30numAfterMr270Rollout()
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)

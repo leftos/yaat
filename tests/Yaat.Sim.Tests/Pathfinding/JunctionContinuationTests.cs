@@ -5,18 +5,17 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests.Pathfinding.V2;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
-/// Requirement ①: on the collapsed-junction geometry that fillet V2 produces, the
-/// V2 pathfinder must prefer a single-name continuation over a junction arc that
+/// Requirement ①: on the collapsed-junction geometry the fillet generator produces, the
+/// pathfinder must prefer a single-name continuation over a junction arc that
 /// matches the walked taxiway only by membership (e.g. an <c>A - Q1</c> arc when
 /// walking <c>A</c>), and must never backtrack onto the segment it just traversed.
 ///
-/// These run pathfinder-V2 ON fillet-V2 — the actual ship configuration, which no
-/// other test currently exercises (the existing repros run V1-on-Legacy, where the
-/// failure does not occur because Legacy fillets do not collapse junctions the same
-/// way). See docs/plans/pathfinderv2/default-flip-triage.md (fillet-sweep req ①).
+/// These exercise the full ground stack: the pathfinder routing over the filleted
+/// graph, where collapsed junctions retain membership-named arcs that the walker must
+/// not mistake for a continuation.
 /// </summary>
 public class JunctionContinuationTests
 {
@@ -30,19 +29,19 @@ public class JunctionContinuationTests
         TestVnasData.EnsureInitialized();
     }
 
-    private static AirportGroundLayout? V2Layout(string airport) => new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
+    private static AirportGroundLayout? Layout(string airport) => new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
 
     /// <summary>
-    /// FLL DAL880 <c>TAXI T T4 B B1 HS 10L</c> from parking. On fillet V2 the
+    /// FLL DAL880 <c>TAXI T T4 B B1 HS 10L</c> from parking. The
     /// T/T4/B junction (J75 area) collapses and retains membership-named junction
-    /// arcs (<c>C1 - B</c>, <c>B - C</c>) plus parallel single-name edges; the V2
+    /// arcs (<c>C1 - B</c>, <c>B - C</c>) plus parallel single-name edges; the
     /// walker gates candidates by membership and can pick the wrong one, producing
     /// the <c>766↔767</c> backtrack. The resolved route must contain no backtrack.
     /// </summary>
     [Fact]
-    public void Fll_ResolveExplicitPath_TT4BB1_OnV2_HasNoBacktrack()
+    public void Fll_ResolveExplicitPath_TT4BB1_HasNoBacktrack()
     {
-        var layout = V2Layout("FLL");
+        var layout = Layout("FLL");
         if (layout is null)
         {
             _output.WriteLine("fll.geojson not found — skipping");
@@ -91,7 +90,7 @@ public class JunctionContinuationTests
     [Fact]
     public void Sfo_WalkA_ThroughCollapsedJunction_StaysOnSingleNameA()
     {
-        var layout = V2Layout("SFO");
+        var layout = Layout("SFO");
         if (layout is null)
         {
             _output.WriteLine("sfo.geojson not found — skipping");
@@ -140,10 +139,9 @@ public class JunctionContinuationTests
     }
 
     /// <summary>
-    /// GitHub issue #165 — the bug that prompted the whole fillet + pathfinder V2 rewrite.
+    /// GitHub issue #165 — the bug that prompted the whole fillet + pathfinder rewrite.
     /// SKW3404 spawns at parking D8 (KSFO) and is instructed <c>TAXI A E B B3 A B1 Z S</c>.
-    /// Two failure modes the rewrite must eliminate, asserted here on the ship config
-    /// (pathfinder V2 ON fillet V2):
+    /// Two failure modes the ground stack must eliminate:
     /// <list type="number">
     /// <item>The pathfinder must not pick a junction arc that points away from where the
     /// route continues, which produced 180° corners and an on-axis spin.</item>
@@ -154,9 +152,9 @@ public class JunctionContinuationTests
     /// </list>
     /// </summary>
     [Fact]
-    public void Sfo_Skw3404_TaxiAEBB3AB1ZS_OnV2_HonorsOrderNoSpin()
+    public void Sfo_Skw3404_TaxiAEBB3AB1ZS_HonorsOrderNoSpin()
     {
-        var layout = V2Layout("SFO");
+        var layout = Layout("SFO");
         if (layout is null)
         {
             _output.WriteLine("sfo.geojson not found — skipping");
@@ -345,7 +343,7 @@ public class JunctionContinuationTests
     [InlineData("FLL", "A", "B")]
     public void IntermediateWalk_StaysOnTaxiway_NoMembershipArcDiversion(string airport, string x, string y)
     {
-        var layout = V2Layout(airport);
+        var layout = Layout(airport);
         if (layout is null)
         {
             _output.WriteLine($"{airport} layout unavailable — skipping");
@@ -410,7 +408,7 @@ public class JunctionContinuationTests
     /// Null when no such diversion exists. Runway-crossing arcs (<c>IsRunwayJunction</c>) are
     /// ignored (they continue the taxiway across a runway). A membership arc with an identical
     /// single-name twin edge between the same nodes is also ignored — that is a benign
-    /// parallel-duplicate corner arc (fillet V2 emits both <c>"A"</c> and <c>"A - A8"</c> arcs
+    /// parallel-duplicate corner arc (the fillet generator emits both <c>"A"</c> and <c>"A - A8"</c> arcs
     /// at one corner); the physical path is identical, so it is cosmetic mislabelling, not a
     /// diversion onto a crossing taxiway.
     /// </summary>

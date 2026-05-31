@@ -9,19 +9,18 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
 /// Sim-level validation that landing rollout and runway-exit planning behave
-/// correctly over V2 fillet geometry. Mirrors the OAK rollout scenarios in
-/// <see cref="LandingExitDecelTests"/> but loads the layout via the V2 arc
-/// generator (<see cref="FilletMode.Standard"/>) instead of Legacy.
+/// correctly over fillet geometry. Mirrors the OAK rollout scenarios in
+/// <see cref="LandingExitDecelTests"/> but loads the layout via the arc
+/// generator (<see cref="FilletMode.Standard"/>).
 ///
 /// These exercise the geometry-sensitive parts of the exit pipeline — exit-node
 /// survival after filleting, exit-angle classification (high-speed vs standard),
-/// and exit-aware braking — which is exactly where tighter V2 arcs at runway-exit
-/// junctions would surface. Production stays on Legacy; this is part of the gate
-/// for flipping the default (docs/plans/filletv2/v2-sim-validation.md).
+/// and exit-aware braking — which is exactly where tight arcs at runway-exit
+/// junctions would surface.
 /// </summary>
-public class FilletV2LandingExitTests
+public class FilletLandingExitTests
 {
-    private static AirportGroundLayout? LoadOakV2Layout() => new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
+    private static AirportGroundLayout? LoadOakLayout() => new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
 
     private static RunwayInfo MakeRunway(string designator, double heading, double thresholdLat, double thresholdLon) =>
         TestRunwayFactory.Make(designator: designator, heading: heading, elevationFt: 9.0, thresholdLat: thresholdLat, thresholdLon: thresholdLon);
@@ -74,9 +73,9 @@ public class FilletV2LandingExitTests
     }
 
     [Fact]
-    public void OAK28R_NoPreference_CompletesAtReasonableSpeed_OnV2()
+    public void OAK28R_NoPreference_CompletesAtReasonableSpeed()
     {
-        var layout = LoadOakV2Layout();
+        var layout = LoadOakLayout();
         if (layout is null)
         {
             return;
@@ -95,15 +94,15 @@ public class FilletV2LandingExitTests
 
         // With a ground layout the pilot plans for the first reachable exit even
         // without an explicit preference; final speed lands at the exit turn-off
-        // speed (15-30 kt for jets, coast 40 kt if no exit resolves). The V2 exit
-        // geometry must keep this inside the same envelope as Legacy.
+        // speed (15-30 kt for jets, coast 40 kt if no exit resolves). The exit
+        // geometry must keep this inside that envelope.
         Assert.InRange(finalSpeed, 0, 41);
     }
 
     [Fact]
-    public void OAK28R_ExitFarAhead_MaintainsCoastSpeed_OnV2()
+    public void OAK28R_ExitFarAhead_MaintainsCoastSpeed()
     {
-        var layout = LoadOakV2Layout();
+        var layout = LoadOakLayout();
         if (layout is null)
         {
             return;
@@ -127,9 +126,9 @@ public class FilletV2LandingExitTests
     }
 
     [Fact]
-    public void ComputeExitAngle_OAK30_W5_IsHighSpeed_OnV2()
+    public void ComputeExitAngle_OAK30_W5_IsHighSpeed()
     {
-        var layout = LoadOakV2Layout();
+        var layout = LoadOakLayout();
         if (layout is null)
         {
             return;
@@ -138,8 +137,8 @@ public class FilletV2LandingExitTests
         var hsNodes = layout.GetRunwayHoldShortNodes("30");
         var w5Node = hsNodes.FirstOrDefault(n => n.Edges.Any(e => e.TaxiwayName == "W5"));
 
-        // Legacy keeps a 30/W5 high-speed-exit hold-short; if V2 fillets it away
-        // that is a real regression, so assert presence rather than skip.
+        // The 30/W5 high-speed-exit hold-short must survive filleting; if it is
+        // filleted away that is a real regression, so assert presence rather than skip.
         Assert.NotNull(w5Node);
 
         double? angle = layout.ComputeExitAngle(w5Node, "W5", new TrueHeading(310.0));
@@ -148,9 +147,9 @@ public class FilletV2LandingExitTests
     }
 
     [Fact]
-    public void FindExitAhead_OAK28R_H_ReturnsIt_OnV2()
+    public void FindExitAhead_OAK28R_H_ReturnsIt()
     {
-        var layout = LoadOakV2Layout();
+        var layout = LoadOakLayout();
         if (layout is null)
         {
             return;
@@ -161,9 +160,9 @@ public class FilletV2LandingExitTests
     }
 
     [Fact]
-    public void FindNearestExit_OAK28R_ReturnsExitOnCorrectRunway_OnV2()
+    public void FindNearestExit_OAK28R_ReturnsExitOnCorrectRunway()
     {
-        var layout = LoadOakV2Layout();
+        var layout = LoadOakLayout();
         if (layout is null)
         {
             return;

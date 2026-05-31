@@ -153,8 +153,8 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
         // The aircraft is parked nearby and the RAMP bridge gets to 1249. Use 1249 as start.
         const int startNode = 1249;
         var diagLines = new System.Collections.Generic.List<string>();
-        // SKW3404 is a CRJ (jet). The V2-native equivalent of this sequence is
-        // Issue165_V2_SkwRoute_ResolvesWithoutFailure.
+        // SKW3404 is a CRJ (jet). The pathfinder-level equivalent of this sequence is
+        // Issue165_SkwRoute_ResolvesWithoutFailure.
         var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: startNode,

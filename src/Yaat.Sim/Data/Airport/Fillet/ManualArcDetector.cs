@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport.Fillet;
 
-/// <summary>Detect shape-point nodes excluded from filleting (legacy-equivalent).</summary>
+/// <summary>Detect shape-point nodes excluded from filleting.</summary>
 public static class ManualArcDetector
 {
     private static readonly ILogger Log = SimLog.CreateLogger("ManualArcDetector");

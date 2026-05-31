@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport.Fillet;
 
-/// <summary>Intersection eligibility rules shared by legacy and V2 fillet passes.</summary>
+/// <summary>Intersection eligibility rules for the fillet pass.</summary>
 public static class FilletEligibility
 {
     private static readonly ILogger Log = SimLog.CreateLogger("FilletEligibility");

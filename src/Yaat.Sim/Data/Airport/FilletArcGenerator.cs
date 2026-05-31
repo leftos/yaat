@@ -3,7 +3,7 @@ using Yaat.Sim.Data.Airport.Fillet;
 
 namespace Yaat.Sim.Data.Airport;
 
-/// <summary>Plan-then-execute fillet generator (V2).</summary>
+/// <summary>Plan-then-execute fillet generator.</summary>
 public sealed class FilletArcGenerator : IFilletArcGenerator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("FilletArcGenerator");
@@ -84,7 +84,7 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
         };
 
         Log.LogInformation(
-            "V2 fillet: {Nodes} filleted, {Arcs} arcs, {Merged} collinear, {Cleanups} structural cleanups, {Warnings} warnings",
+            "Fillet: {Nodes} filleted, {Arcs} arcs, {Merged} collinear, {Cleanups} structural cleanups, {Warnings} warnings",
             stats.FilletedNodes,
             stats.ArcsCreated,
             stats.CollinearMerges,

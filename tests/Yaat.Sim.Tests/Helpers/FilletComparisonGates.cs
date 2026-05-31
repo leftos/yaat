@@ -9,7 +9,7 @@ public sealed record StructuralValidationResult(bool IsValid, IReadOnlyList<stri
 
 public readonly record struct CornerBucketKey(int JunctionId, string TaxiwayKey, int BrgLoBucketDeg, int BrgHiBucketDeg);
 
-public sealed record CornerBucketMismatch(CornerBucketKey Key, double LegacyMinRadiusFt, double V2MinRadiusFt, double RelativeDelta);
+public sealed record CornerBucketMismatch(CornerBucketKey Key, double ExpectedMinRadiusFt, double ActualMinRadiusFt, double RelativeDelta);
 
 public sealed record FilletGateResults(
     StructuralValidationResult Structural,
@@ -161,27 +161,27 @@ public static class FilletComparisonGates
     }
 
     public static IReadOnlyList<CornerBucketMismatch> CompareCornerBuckets(
-        IReadOnlyDictionary<CornerBucketKey, double> legacy,
-        IReadOnlyDictionary<CornerBucketKey, double> v2
+        IReadOnlyDictionary<CornerBucketKey, double> expected,
+        IReadOnlyDictionary<CornerBucketKey, double> actual
     )
     {
         var mismatches = new List<CornerBucketMismatch>();
-        foreach (var (key, legacyRadius) in legacy)
+        foreach (var (key, expectedRadius) in expected)
         {
-            if (!v2.TryGetValue(key, out double v2Radius))
+            if (!actual.TryGetValue(key, out double actualRadius))
             {
                 continue;
             }
 
-            if (legacyRadius <= 0)
+            if (expectedRadius <= 0)
             {
                 continue;
             }
 
-            double rel = Math.Abs(v2Radius - legacyRadius) / legacyRadius;
+            double rel = Math.Abs(actualRadius - expectedRadius) / expectedRadius;
             if (rel > CornerRadiusToleranceRatio)
             {
-                mismatches.Add(new CornerBucketMismatch(key, legacyRadius, v2Radius, rel));
+                mismatches.Add(new CornerBucketMismatch(key, expectedRadius, actualRadius, rel));
             }
         }
 
@@ -244,7 +244,7 @@ public static class FilletComparisonGates
 
         /// <summary>
         /// Pre-fillet node IDs still present in the filleted layout and reachable from hold shorts.
-        /// Tangent nodes created during fillet are excluded so Legacy vs V2 compares operational connectivity.
+        /// Tangent nodes created during fillet are excluded so the comparison reflects operational connectivity.
         /// </summary>
         public static HashSet<int> ReachableStableIdsFromHoldShorts(AirportGroundLayout preFillet, AirportGroundLayout layout)
         {

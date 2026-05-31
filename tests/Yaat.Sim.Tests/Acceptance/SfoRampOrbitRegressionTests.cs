@@ -6,24 +6,24 @@ using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
-namespace Yaat.Sim.Tests.V2Acceptance;
+namespace Yaat.Sim.Tests.Acceptance;
 
 /// <summary>
-/// Regression for the V2-navigator pure-pursuit orbit. SFO's curved cargo/GA ramp taxiways (CG, SIG)
-/// are represented on the V2 fillet graph as chains of very short (15–17 ft) straight chord segments
+/// Regression for the navigator pure-pursuit orbit. SFO's curved cargo/GA ramp taxiways (CG, SIG)
+/// are represented on the fillet graph as chains of very short (15–17 ft) straight chord segments
 /// with ~20° bends. A jet carrying taxi speed into such a cluster overshot a chord's to-node and then
 /// circled it at ~2–3 kt for ~70 s — a limit cycle the budget guard could only flag as "too slow".
 ///
 /// <para>
-/// Two layers protect against it now and both are exercised here (full V2 stack via
-/// <see cref="V2AcceptanceFixture"/> + <see cref="FilletMode.Standard"/>): (1) the navigator advances to the
+/// Two layers protect against it now and both are exercised here (full stack via
+/// <see cref="AcceptanceFixture"/> + <see cref="FilletMode.Standard"/>): (1) the navigator advances to the
 /// next segment once the aircraft's along-track projection passes the to-node instead of circling it,
 /// and (2) the orbit invariant in <c>GroundNavigator.Tick</c> hard-fails (in tests) if a single
 /// segment ever accumulates 360° of net turn. These short ramp→10L routes were the worst offenders
 /// (CG3→10L ran 170 s / x1.52 over budget before the fix); they must now arrive within budget.
 /// </para>
 /// </summary>
-[Collection("V2 Acceptance")]
+[Collection("Acceptance")]
 public class SfoRampOrbitRegressionTests(ITestOutputHelper output)
 {
     public static IEnumerable<object[]> OrbitPronePairs()
@@ -51,7 +51,7 @@ public class SfoRampOrbitRegressionTests(ITestOutputHelper output)
 
     [Theory]
     [MemberData(nameof(OrbitPronePairs))]
-    public void RampShortRoute_TaxisToRunwayWithinBudget_NoOrbit_OnAllV2(string pairId, TaxiPair pair)
+    public void RampShortRoute_TaxisToRunwayWithinBudget_NoOrbit(string pairId, TaxiPair pair)
     {
         _ = pairId;
         TestVnasData.EnsureInitialized();
@@ -72,7 +72,7 @@ public class SfoRampOrbitRegressionTests(ITestOutputHelper output)
         );
         if (destination is null)
         {
-            output.WriteLine($"SKIP {pair.PairId}: destination not found in SFO V2 layout");
+            output.WriteLine($"SKIP {pair.PairId}: destination not found in SFO layout");
             return;
         }
 
@@ -86,7 +86,7 @@ public class SfoRampOrbitRegressionTests(ITestOutputHelper output)
         );
         if (origin is null)
         {
-            output.WriteLine($"SKIP {pair.PairId}: origin not found in SFO V2 layout");
+            output.WriteLine($"SKIP {pair.PairId}: origin not found in SFO layout");
             return;
         }
 

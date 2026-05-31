@@ -1,7 +1,7 @@
 namespace Yaat.Sim.Data.Airport.Pathfinding;
 
 /// <summary>
-/// Unified cost function used at every decision point in the v2 pathfinder. The scalar is a
+/// Unified cost function used at every decision point in the pathfinder. The scalar is a
 /// generic route cost, not strictly nautical miles. For the distance-based preferences
 /// (<see cref="RoutePreference.Shortest"/> / <see cref="RoutePreference.FewestTurns"/>) every term is
 /// nm-equivalent, so the straight-line <see cref="Heuristic"/> is both admissible (never overestimates)

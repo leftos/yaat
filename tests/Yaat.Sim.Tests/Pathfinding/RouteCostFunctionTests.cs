@@ -3,7 +3,7 @@ using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 
-namespace Yaat.Sim.Tests.Pathfinding.V2;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// Unit tests for <see cref="RouteCostFunction"/>. All tests use inline synthetic layouts —

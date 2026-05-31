@@ -1,6 +1,6 @@
 namespace Yaat.Sim.Data.Airport.Fillet;
 
-/// <summary>Walk along a taxiway chain from an intersection (legacy-equivalent).</summary>
+/// <summary>Walk along a taxiway chain from an intersection.</summary>
 internal static class TaxiwayWalk
 {
     internal sealed record WalkStep(GroundEdge Edge, GroundNode FarNode, double CumulativeDistFt, bool HasOtherTaxiways, bool IsProtected);
@@ -62,7 +62,7 @@ internal static class TaxiwayWalk
     /// <summary>
     /// Cap tangent distance at the first step where another taxiway branches off.
     /// Steps before <see cref="FilletConstants.MaxTangentDistFt"/> are ignored so nearby
-    /// branch nodes do not change consumption (legacy Phase A behavior).
+    /// branch nodes do not change consumption.
     /// </summary>
     internal static double DistToFirstIntersectionFt(WalkResult walk)
     {

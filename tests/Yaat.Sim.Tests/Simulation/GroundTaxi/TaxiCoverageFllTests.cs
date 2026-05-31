@@ -8,14 +8,13 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 
 /// <summary>
-/// Per-PR smoke set for FLL on the production (Legacy) fillets: every
-/// <see cref="TaxiCoverageData.FllSmoke"/> pair must reach its destination within
-/// the budgets derived by <see cref="TaxiBudgetDeriver"/> and never sit unmoving
-/// for an unreasonable stretch outside a legitimate stop.
+/// Per-PR smoke set for FLL: every <see cref="TaxiCoverageData.FllSmoke"/> pair must
+/// reach its destination within the budgets derived by <see cref="TaxiBudgetDeriver"/>
+/// and never sit unmoving for an unreasonable stretch outside a legitimate stop.
 ///
-/// This is the Legacy baseline for FLL — the same pairs run on V2 fillets in
-/// <see cref="FilletV2TaxiCoverageTests"/>. Keeping both green isolates any
-/// fillet-V2 regression at FLL from the routing layer.
+/// The same pairs are exercised by <see cref="FilletTaxiCoverageTests"/> via the fillet
+/// graph harness; keeping both green isolates any FLL fillet-geometry regression from the
+/// routing layer.
 /// </summary>
 public class TaxiCoverageFllTests(ITestOutputHelper output)
 {

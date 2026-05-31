@@ -10,7 +10,7 @@ namespace Yaat.Sim.Tests.PathfinderGrid;
 
 /// <summary>
 /// Necessity proof for the deferred state-aware-pruning fix (#4). Sweeps a dense
-/// origin-destination grid on real V2-fillet layouts (OAK/SFO/FLL) and diffs the
+/// origin-destination grid on real filleted layouts (OAK/SFO/FLL) and diffs the
 /// production AutoRouter (closed set keyed by node id alone) against
 /// <see cref="OracleAutoRouter"/> (closed set keyed by node id + arrival-bearing bucket,
 /// hence strictly more complete). Any pair where the oracle resolves a route production

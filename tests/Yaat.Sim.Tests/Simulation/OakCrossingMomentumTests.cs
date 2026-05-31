@@ -16,11 +16,11 @@ namespace Yaat.Sim.Tests.Simulation;
 /// the aircraft dipped to the off-centerline re-acquire speed (~5 kt) mid-runway —
 /// the runway-incursion anti-pattern this guards against.
 /// </summary>
-[Collection("V2 Acceptance")]
-public class OakCrossingMomentumV2Tests(ITestOutputHelper output)
+[Collection("Acceptance")]
+public class OakCrossingMomentumTests(ITestOutputHelper output)
 {
     [Fact]
-    public void AfterRes_MaintainsCrossingMomentum_V2()
+    public void AfterRes_MaintainsCrossingMomentum()
     {
         OakCrossingMomentum.AssertMomentum(output, FilletMode.Standard);
     }

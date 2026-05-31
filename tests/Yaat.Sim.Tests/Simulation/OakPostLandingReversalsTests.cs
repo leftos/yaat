@@ -3,8 +3,8 @@ using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Acceptance;
 using Yaat.Sim.Tests.Helpers;
-using Yaat.Sim.Tests.V2Acceptance;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -18,7 +18,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// - N9225L at t=424: <c>TAXI D @NEW1</c> (102 segments, reversal at index 81).
 /// - N436MS at t=455: <c>TAXI C @JSX1</c> (59 segments, reversal at index 46).
 /// </summary>
-[Collection("V2 Acceptance")]
+[Collection("Acceptance")]
 public class OakPostLandingReversalsTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/s2-oak3-follow-runaway-ias-recording.yaat-bug-report-bundle.zip";
@@ -87,8 +87,8 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
             // The recording's TAXI D @NEW1 fires at t=424, but the route a TAXI resolves
             // depends on the aircraft's exact position when the command is issued. Replaying
-            // to a fixed time makes that route hostage to rollout/exit timing — the V2
-            // navigator's (correct) slower exit leaves N9225L still mid-exit of 28R/10L at
+            // to a fixed time makes that route hostage to rollout/exit timing — the
+            // navigator's slower exit leaves N9225L still mid-exit of 28R/10L at
             // t=424, so the recorded command resolves from a transient position and produces
             // a worse (double-crossing) route. Anchor on the aircraft's STATE, not the clock:
             // replay to t=423 (before the recorded TAXI), then tick — which does not fire
@@ -132,9 +132,9 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
     /// TAXI whose route's first runway hold-short is that SAME runway, must clear forward —
     /// finishing its exit — not hold short of the runway it is leaving (which would strand
     /// it on the runway). Mirrors the holding-short implicit first-crossing clearance for
-    /// the exit case. Regression for #56: under all-V2 the slower exit leaves N9225L still
-    /// mid-exit of 28R/10L when TAXI D @NEW1 fires; without this it holds short of 28R/10L
-    /// and never reaches parking.
+    /// the exit case. Regression for #56: the slower exit leaves N9225L still mid-exit of
+    /// 28R/10L when TAXI D @NEW1 fires; without this it holds short of 28R/10L and never
+    /// reaches parking.
     /// </summary>
     [Fact]
     public void TaxiWhileExitingRunway_ClearsOwnExitHoldShort()

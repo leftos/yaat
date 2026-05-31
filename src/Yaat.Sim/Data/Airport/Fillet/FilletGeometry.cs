@@ -49,7 +49,7 @@ public static class FilletGeometry
         return FilletConstants.DefaultRadiusFt;
     }
 
-    /// <summary>Legacy Phase A symmetric tangent distance (feet) for a corner pair.</summary>
+    /// <summary>Symmetric tangent distance (feet) for a corner pair.</summary>
     public static double ComputeIdealTangentFt(
         double turnAngleDeg,
         double requestedRadiusFt,

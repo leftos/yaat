@@ -147,14 +147,14 @@ public class ArmCutResolverTests
     }
 
     [Fact]
-    public void V2Apply_LegacyRepairCountersRemainZero_OnSimple90()
+    public void Apply_RepairCountersRemainZero_OnSimple90()
     {
         var stats = new FilletArcGenerator().Apply(BuildSimpleIntersectionLayout());
         AssertRepairCountersZero(stats);
     }
 
     [Fact]
-    public void V2Apply_LegacyRepairCountersRemainZero_OnThreeWayMultiCut()
+    public void Apply_RepairCountersRemainZero_OnThreeWayMultiCut()
     {
         var stats = new FilletArcGenerator().Apply(BuildThreeWayLayout());
         AssertRepairCountersZero(stats);
@@ -162,7 +162,7 @@ public class ArmCutResolverTests
     }
 
     [Fact]
-    public void V2Apply_YPattern_CollinearThroughConnectsStraightArmTangents()
+    public void Apply_YPattern_CollinearThroughConnectsStraightArmTangents()
     {
         var layout = BuildYPatternLayout();
         new FilletArcGenerator().Apply(layout);

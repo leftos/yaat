@@ -5,7 +5,7 @@ using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
-namespace Yaat.Sim.Tests.Pathfinding.V2;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// Regression tests for the state-aware A* pruning fix (#4). Onward-edge admissibility
@@ -115,7 +115,7 @@ public class StateAwarePruningTests
     }
 
     // ---------------------------------------------------------------------------
-    // Real-airport repros (V2 fillets). Both were HARD failures in the necessity
+    // Real-airport repros. Both were HARD failures in the necessity
     // sweep: production returns no route; the bearing-aware search resolves one.
     // ---------------------------------------------------------------------------
 

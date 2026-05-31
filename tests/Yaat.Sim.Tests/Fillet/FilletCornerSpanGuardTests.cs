@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests.Fillet;
 /// a cut to a pre-existing node ID, that ID can collide with a cut ID from a different junction
 /// in the executor's cutNode dictionary, causing corner arc/chord endpoints to resolve to the
 /// wrong tangent-cut node hundreds or thousands of feet away.
-/// Also guards against zero-distance edges emitted by the V2 edge-split when a tangent cut
+/// Also guards against zero-distance edges emitted by the edge-split when a tangent cut
 /// lands coincident with an existing Spot or Parking endpoint node.
 /// </summary>
 public class FilletCornerSpanGuardTests
@@ -33,7 +33,7 @@ public class FilletCornerSpanGuardTests
     [InlineData("sfo")]
     [InlineData("oak")]
     [InlineData("fll")]
-    public void V2_CornerEdgesAndChords_NoSpanExceedsMaxSane(string shortId)
+    public void CornerEdgesAndChords_NoSpanExceedsMaxSane(string shortId)
     {
         string path = Path.Combine("TestData", $"{shortId}.geojson");
         if (!File.Exists(path))
@@ -91,7 +91,7 @@ public class FilletCornerSpanGuardTests
     [InlineData("sfo")]
     [InlineData("oak")]
     [InlineData("fll")]
-    public void V2_EdgeSplit_NoZeroDistanceEdges(string shortId)
+    public void EdgeSplit_NoZeroDistanceEdges(string shortId)
     {
         TestVnasData.EnsureInitialized();
 
@@ -148,7 +148,7 @@ public class FilletCornerSpanGuardTests
     [InlineData("sfo")]
     [InlineData("oak")]
     [InlineData("fll")]
-    public void V2_CornerArcs_NoDuplicateNodePairs(string shortId)
+    public void CornerArcs_NoDuplicateNodePairs(string shortId)
     {
         TestVnasData.EnsureInitialized();
 
@@ -194,7 +194,7 @@ public class FilletCornerSpanGuardTests
     }
 
     /// <summary>
-    /// The final V2 graph has no two coincident intersection nodes — guaranteed entirely at
+    /// The final graph has no two coincident intersection nodes — guaranteed entirely at
     /// construction/plan time, with no post-execute node merge. Same-junction cross-arm and
     /// cross-junction coincident tangent cuts are merged in the plan
     /// (<c>SharedArmTangentPass.ApplyCrossArmCoalesce</c> + <c>ApplyGlobalCoincidentCutCoalesce</c>);
@@ -206,7 +206,7 @@ public class FilletCornerSpanGuardTests
     [InlineData("sfo")]
     [InlineData("oak")]
     [InlineData("fll")]
-    public void V2_NoCoincidentIntersectionNodes(string shortId)
+    public void NoCoincidentIntersectionNodes(string shortId)
     {
         TestVnasData.EnsureInitialized();
 

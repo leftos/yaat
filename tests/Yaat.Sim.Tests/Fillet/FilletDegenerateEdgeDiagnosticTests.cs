@@ -16,7 +16,7 @@ public class FilletDegenerateEdgeDiagnosticTests
     [Theory]
     [InlineData("oak")]
     [InlineData("sfo")]
-    public void V2_DumpDegenerateEdges_WithOrigin(string shortId)
+    public void DumpDegenerateEdges_WithOrigin(string shortId)
     {
         string path = Path.Combine("TestData", $"{shortId}.geojson");
         if (!File.Exists(path))
@@ -29,7 +29,7 @@ public class FilletDegenerateEdgeDiagnosticTests
         _ = new FilletArcGenerator().Apply(layout);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"=== {shortId} degenerate / near-degenerate V2 edges ===");
+        sb.AppendLine($"=== {shortId} degenerate / near-degenerate edges ===");
         foreach (var edge in layout.Edges)
         {
             int id0 = edge.Nodes[0].Id;
@@ -47,7 +47,7 @@ public class FilletDegenerateEdgeDiagnosticTests
     }
 
     [Fact]
-    public void Oak_V2_DumpEdgesTouchingNode753()
+    public void Oak_DumpEdgesTouchingNode753()
     {
         string path = Path.Combine("TestData", "oak.geojson");
         if (!File.Exists(path))

@@ -1,6 +1,6 @@
 namespace Yaat.Sim.Data.Airport.Fillet;
 
-/// <summary>Shared fillet geometry thresholds (legacy + V2).</summary>
+/// <summary>Shared fillet geometry thresholds.</summary>
 public static class FilletConstants
 {
     public const double MinFilletAngleDeg = 15.0;
@@ -24,7 +24,7 @@ public static class FilletConstants
     public const double CoincidentNodeThresholdFt = 5.0;
     public const double CoincidentNodeThresholdNm = CoincidentNodeThresholdFt / GeoMath.FeetPerNm;
 
-    /// <summary>V2 multi-cut ideal coalesce only; kept below <see cref="MinArmSegmentGapFt"/> so gap enforcement can demote.</summary>
+    /// <summary>Multi-cut ideal coalesce only; kept below <see cref="MinArmSegmentGapFt"/> so gap enforcement can demote.</summary>
     public const double IdealCoalesceThresholdFt = 2.0;
 
     public const double CoincidentTangentMergeThresholdFt = 1.0;

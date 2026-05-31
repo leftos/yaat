@@ -8,7 +8,7 @@ namespace Yaat.Sim.Tests.Fillet;
 public class FilletComparisonGateTests
 {
     [Fact]
-    public void RepairCountersZero_V2ApplyOnThreeWay_ReturnsTrue()
+    public void RepairCountersZero_ApplyOnThreeWay_ReturnsTrue()
     {
         var layout = BuildThreeWayLayout();
         var stats = new FilletArcGenerator().Apply(layout);
@@ -25,37 +25,37 @@ public class FilletComparisonGateTests
     }
 
     [Fact]
-    public void IndexCornerBuckets_V2_90Degree_ProducesBuckets()
+    public void IndexCornerBuckets_90Degree_ProducesBuckets()
     {
-        var v2Layout = BuildSimple90Layout();
-        new FilletArcGenerator().Apply(v2Layout);
+        var layout = BuildSimple90Layout();
+        new FilletArcGenerator().Apply(layout);
 
-        var v2Buckets = FilletComparisonGates.IndexCornerBuckets(v2Layout);
+        var buckets = FilletComparisonGates.IndexCornerBuckets(layout);
 
-        Assert.NotEmpty(v2Buckets);
+        Assert.NotEmpty(buckets);
     }
 
     [Fact]
     public void CompareCornerBuckets_Within10Percent_NoMismatch()
     {
-        var legacy = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 75.0 };
-        var v2 = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 72.0 };
-        Assert.Empty(FilletComparisonGates.CompareCornerBuckets(legacy, v2));
+        var expected = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 75.0 };
+        var actual = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 72.0 };
+        Assert.Empty(FilletComparisonGates.CompareCornerBuckets(expected, actual));
     }
 
     [Fact]
     public void CompareCornerBuckets_Beyond10Percent_ReportsMismatch()
     {
-        var legacy = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 75.0 };
-        var v2 = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 50.0 };
-        var mismatches = FilletComparisonGates.CompareCornerBuckets(legacy, v2);
+        var expected = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 75.0 };
+        var actual = new Dictionary<CornerBucketKey, double> { [new CornerBucketKey(1, "A/B", 0, 90)] = 50.0 };
+        var mismatches = FilletComparisonGates.CompareCornerBuckets(expected, actual);
         Assert.Single(mismatches);
     }
 
     [Theory]
     [InlineData("oak")]
     [InlineData("sfo")]
-    public void Evaluate_RealAirport_V2StructuralValid(string shortId)
+    public void Evaluate_RealAirport_StructuralValid(string shortId)
     {
         var preFillet = LoadPreFilletLayout(shortId);
         if (preFillet is null)

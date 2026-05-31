@@ -518,7 +518,7 @@ public sealed class LandingPhase : Phase
         }
 
         // Touchdown gate: AGL below threshold AND not climbing. The old
-        // implementation checked only AGL <= 0; V2 widens the AGL bound to
+        // implementation checked only AGL <= 0; the current implementation widens the AGL bound to
         // catch one sub-tick of descent at the peak flare rate
         // (flareFpm × 0.25s / 60 ≈ 0.83 ft) without requiring a floating
         // float. We deliberately do NOT gate on IAS: synthetic fixtures

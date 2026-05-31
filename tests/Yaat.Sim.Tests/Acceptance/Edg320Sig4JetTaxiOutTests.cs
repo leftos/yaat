@@ -8,13 +8,13 @@ using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests.V2Acceptance;
+namespace Yaat.Sim.Tests.Acceptance;
 
 /// <summary>
-/// V2-stack regression for the EDG320 ramp-corner wiggle (from the OAK north-field
+/// Regression for the EDG320 ramp-corner wiggle (from the OAK north-field
 /// spin bundle, where SIG4 hosts a jet). A B738 taxiing out of SIG4 (node 641,
 /// parked heading ~110°) to 28R must make a ~109° turn leaving the spot and a ~86°
-/// turn onto taxiway D. Under the full V2 stack the navigator rounds each corner at
+/// turn onto taxiway D. The navigator rounds each corner at
 /// the nose-wheel radius but — before the tangent-corner-rounding fix — finished each
 /// arc displaced off the outgoing centerline, then re-acquired it with pure-pursuit
 /// while accelerating, overshooting ~40° per corner and wobbling ~400° cumulative.
@@ -24,7 +24,7 @@ namespace Yaat.Sim.Tests.V2Acceptance;
 /// well under 320° <em>absolute</em> over the first 30 s. The overshoot wobble blows
 /// past the absolute bound.
 /// </summary>
-[Collection("V2 Acceptance")]
+[Collection("Acceptance")]
 public class Edg320Sig4JetTaxiOutTests(ITestOutputHelper output)
 {
     private const double MaxCumulativeAbsDeg = 320.0;
@@ -32,7 +32,7 @@ public class Edg320Sig4JetTaxiOutTests(ITestOutputHelper output)
     private const double MinProgressFt = 500.0;
 
     [Fact]
-    public void JetTaxiOutOfSig4_StaysWithinTurnEnvelope_OnV2()
+    public void JetTaxiOutOfSig4_StaysWithinTurnEnvelope()
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -110,7 +110,7 @@ public class Edg320Sig4JetTaxiOutTests(ITestOutputHelper output)
             );
         }
 
-        output.WriteLine($"EDG320 SIG4→28R (V2): cumAbs30={cumAbs30:F0}° cumSigned30={cumSigned30:F0}° moved60={movedFt60:F0}ft");
+        output.WriteLine($"EDG320 SIG4→28R: cumAbs30={cumAbs30:F0}° cumSigned30={cumSigned30:F0}° moved60={movedFt60:F0}ft");
 
         Assert.True(
             movedFt60 >= MinProgressFt,

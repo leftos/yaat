@@ -2,8 +2,8 @@ using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Tests.Acceptance;
 using Yaat.Sim.Tests.Helpers;
-using Yaat.Sim.Tests.V2Acceptance;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -13,17 +13,15 @@ namespace Yaat.Sim.Tests.Simulation;
 /// cleared via a taxiway it cannot reach.
 ///
 /// <para>
-/// V1 produced a straight-line RAMP segment across two runways to reach A (a runway incursion). V2
-/// never crosses runways, but its mandatory-connector detour would otherwise bypass the unreachable A
-/// entirely and route to E via a connector — taxiing the aircraft somewhere the controller never
-/// cleared. The V2 fix rejects the clearance instead: a named taxiway that appears nowhere in the
-/// resolved route fails the command (<c>SegmentExpander</c>). Either way the command fails; this runs
-/// on the full V2 stack to pin the V2 behavior.
+/// The pathfinder never crosses runways, but its mandatory-connector detour would otherwise bypass the
+/// unreachable A entirely and route to E via a connector — taxiing the aircraft somewhere the controller
+/// never cleared. Instead the clearance is rejected: a named taxiway that appears nowhere in the resolved
+/// route fails the command (<c>SegmentExpander</c>). This runs on the full stack to pin that behavior.
 /// </para>
 ///
 /// Recording: S1-SFO-2 Ground Control 28/01 — N70234 on the ground at SFO.
 /// </summary>
-[Collection("V2 Acceptance")]
+[Collection("Acceptance")]
 public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/e55edd55bed7.zip";

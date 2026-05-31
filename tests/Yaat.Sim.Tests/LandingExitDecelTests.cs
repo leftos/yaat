@@ -65,7 +65,7 @@ public class LandingExitDecelTests
         int ticks = 0;
         while (ticks < maxTicks)
         {
-            // LandingPhase V2 writes ControlTargets and delegates integration
+            // LandingPhase writes ControlTargets and delegates integration
             // to FlightPhysics. Call Update to match the real sim loop.
             FlightPhysics.Update(ctx.Aircraft, ctx.DeltaSeconds);
             bool done = phase.OnTick(ctx);

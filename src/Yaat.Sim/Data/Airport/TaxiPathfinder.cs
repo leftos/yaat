@@ -105,13 +105,12 @@ public static class TaxiPathfinder
     /// Pass null for <paramref name="authorizedTaxiways"/> to allow all taxiways.
     /// </summary>
     /// <remarks>
-    /// V2 is intentionally <b>per-preference</b>, not a Yen-style k-shortest generator. With no
+    /// The pathfinder is intentionally <b>per-preference</b>, not a Yen-style k-shortest generator. With no
     /// preference it runs one search for each of <see cref="RoutePreference.FewestTurns"/>
     /// / <see cref="RoutePreference.Shortest"/> / <see cref="RoutePreference.Fastest"/> and returns the
     /// deduplicated results — at most 3 routes, regardless of <paramref name="maxRoutes"/>. Three distinct
     /// strategies are more useful to a controller than a set of near-identical Yen detours, so callers
-    /// should request ≤3 (see <c>GroundViewModel.FindRoutesToNode</c>). Decision recorded in
-    /// <c>docs/plans/pathfinderv2/codex-review.md</c>.
+    /// should request ≤3 (see <c>GroundViewModel.FindRoutesToNode</c>).
     /// </remarks>
     public static List<TaxiRoute> FindRoutes(
         AirportGroundLayout layout,

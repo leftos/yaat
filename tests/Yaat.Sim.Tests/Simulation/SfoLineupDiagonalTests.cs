@@ -10,22 +10,20 @@ namespace Yaat.Sim.Tests.Simulation;
 /// <summary>
 /// E2E test for diagonal runway lineup on SFO RWY 28R from taxiway E.
 /// Recording S1-SFO-2 Ground Control 28/01 — N346G gets CTO at t=250 and
-/// must line up on 28R cleanly. The historical V1 implementation cut a
-/// diagonal across grass from the hold-short to the centerline, leaving
-/// the aircraft parallel-offset at 3.1 ft / 5.9° off runway heading at
-/// rollout end. Design D (closed-form plan playback) fixes this by
-/// construction — invariant I2 guarantees position and heading are both
-/// functions of a single scalar phase variable during the arc, and
-/// rollout steers on runway heading unconditionally rather than on a
-/// bearing to an off-centerline stop node.
+/// must line up on 28R cleanly, rather than cutting a diagonal across grass
+/// from the hold-short to the centerline (which would leave the aircraft
+/// parallel-offset off runway heading at rollout end). LineUpPhase fixes this
+/// by construction — closed-form plan playback guarantees position and heading
+/// are both functions of a single scalar phase variable during the arc, and
+/// rollout steers on runway heading unconditionally rather than on a bearing
+/// to an off-centerline stop node.
 ///
-/// This test asserts the aircraft completes the lineup with the Design D
-/// end-state contract: cross-track ≤ 5 ft, heading diff ≤ 2°, ground
-/// speed ≤ 1 kt at the first tick after LineUpPhase exits. Tolerances
-/// are slightly looser than the synthetic scenario tests in
-/// <c>LineUpPhaseTests</c> because this is a full replay starting from
-/// live taxi state rather than a clean fixture, but still tight enough
-/// to catch the V1 diagonal regression.
+/// This test asserts the aircraft completes the lineup with the end-state
+/// contract: cross-track ≤ 5 ft, heading diff ≤ 2°, ground speed ≤ 1 kt at the
+/// first tick after LineUpPhase exits. Tolerances are slightly looser than the
+/// synthetic scenario tests in <c>LineUpPhaseTests</c> because this is a full
+/// replay starting from live taxi state rather than a clean fixture, but still
+/// tight enough to catch the diagonal-cut regression.
 /// </summary>
 public class SfoLineupDiagonalTests(ITestOutputHelper output)
 {
@@ -51,12 +49,10 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
     /// N346G replay to CTO at t=250, then tick forward and assert the
     /// aircraft transitions through <see cref="LineUpPhase"/> into
     /// <see cref="LinedUpAndWaitingPhase"/> or <see cref="TakeoffPhase"/>
-    /// with an on-centerline, aligned, stopped end state. This is the
-    /// replacement for the V1-shape <c>N346G_LineUp28R_TickByTickTrace</c>
-    /// regression test: the V1 test asserted "no stuck intermediate
-    /// heading for &gt;1s", which is a V1-specific pathology assertion;
-    /// V2 uses a closed-form pivot arc where a stuck heading cannot
-    /// occur, so we assert the actual desired end state instead.
+    /// with an on-centerline, aligned, stopped end state. LineUpPhase uses a
+    /// closed-form pivot arc where a stuck intermediate heading cannot occur,
+    /// so we assert the actual desired end state rather than the absence of a
+    /// stuck-heading pathology.
     /// </summary>
     [Fact]
     public void N346G_LineUp28R_CompletesWithOnCenterlineAlignedStop()
@@ -155,11 +151,11 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         Assert.True(enteredLineUp, $"Aircraft never entered LineUpPhase (CTO at t=250, enterSubTick={enterTick})");
         Assert.True(exitedLineUp, $"Aircraft never exited LineUpPhase within 60 s (entered at sub={enterTick}, budget {budgetSubTicks} sub-ticks)");
 
-        // Design D end-state contract. Tolerances are slightly looser than
-        // the synthetic LineUpPhaseTests fixtures (3 ft / 1° / 0.5 kt)
-        // because this is a full replay with live taxi state feeding the
-        // phase entry, but still tight enough that the V1 diagonal-cut
-        // failure (3.1 ft / 5.9°) would not pass the heading assertion.
+        // End-state contract. Tolerances are slightly looser than the synthetic
+        // LineUpPhaseTests fixtures (3 ft / 1° / 0.5 kt) because this is a full
+        // replay with live taxi state feeding the phase entry, but still tight
+        // enough that a diagonal-cut failure (3.1 ft / 5.9°) would not pass the
+        // heading assertion.
         Assert.True(
             finalCrossFt < 5.0,
             $"cross-centerline {finalCrossFt:F2}ft exceeds 5 ft tolerance at LineUpPhase exit (t={exitTick}, phase={finalPhase})"

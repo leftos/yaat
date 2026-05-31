@@ -39,10 +39,9 @@ public class OakCrossThenHoldOnNextTaxiwayTests(ITestOutputHelper output)
     private const int TaxiCommandTime = 1243; // CMD: TAXI G C HS 28R
     private const int ResCommandTime = 1293; // CMD: RES
 
-    // ~67s after RES — well past the crossing and the post-crossing roll-out to the stop. The window
-    // accommodates both navigators: V1 settles into HoldingInPositionPhase by ~t=1340, V2 by ~t=1350 (its
-    // corner-speed cap realistically slows the G→C turn, so it completes the identical workflow a few
-    // seconds later). Both rest on C within the asserted 600 ft of the G/C junction and stay put.
+    // ~67s after RES — well past the crossing and the post-crossing roll-out to the stop. The
+    // navigator settles into HoldingInPositionPhase by ~t=1350 (the corner-speed cap realistically
+    // slows the G→C turn), resting on C within the asserted 600 ft of the G/C junction and staying put.
     private const int PostResSettleTime = 1360;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);

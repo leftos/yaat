@@ -241,7 +241,7 @@ public static class GroundConflictDetector
                         // is geometrically about to hit the yielder it must still
                         // stop. The wingspan-lateral-clearance bypass in
                         // ApplyClosingLimit handles the merge geometry; what we get
-                        // from the v2 Classify() upgrade is that a self-pinned
+                        // from the Classify() upgrade is that a self-pinned
                         // yielder reclassifies as Stationary on the next tick so
                         // the bypass opens up naturally. We skip head-on here —
                         // convergence already resolved the pair-level decision.
@@ -515,7 +515,7 @@ public static class GroundConflictDetector
         );
 
         ApplyMinLimit(yielder, limitSpeed, "convergence", winner, conflictDistFt);
-        // No closing-proximity for the winner in v2 — convergence is
+        // No closing-proximity for the winner — convergence is
         // authoritative for this pair. The next tick reclassifies; if the
         // geometry shifts to truly crossing/head-on, that layer will catch it.
     }

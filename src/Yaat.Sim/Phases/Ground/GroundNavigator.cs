@@ -39,7 +39,7 @@ public record NavTickDiag(
 /// <summary>
 /// The ground navigator: the per-tick ground-steering contract the taxi / runway-exit / runway-crossing
 /// phases drive. Drives an aircraft
-/// along a resolved <see cref="TaxiRoute"/> over V2 fillet geometry via closed-form playback over
+/// along a resolved <see cref="TaxiRoute"/> over the filleted ground graph via closed-form playback over
 /// <see cref="PathPrimitive"/>s (invariant I2 — during a curve, position and heading are both functions of
 /// one scalar, so they cannot drift apart). Straight segments use pure-pursuit steering; fillet arcs play the
 /// actual cubic Bézier by arc-length (<see cref="PathPrimitiveBezier"/>, ending exactly on the corner node);
@@ -49,22 +49,19 @@ public record NavTickDiag(
 /// backward-propagated by kinematic braking, and capped by the lateral-accel arc speed model.
 ///
 /// <para>
-/// Built for clean V2 geometry, this deliberately drops the V1 chord-chain compensations that worked around
-/// Legacy ArcSplit artifacts (short-segment cluster detection, chord-chain aggregate-turn, the orbit-stall
-/// backstop): V2 fillets emit a single arc per real taxiway corner, so those do not apply. But corners
-/// <em>tighter</em> than the nose-wheel radius — ramp/apron bends the fillet generator cannot widen, which
-/// stay sharp vertices between short straight segments — still cannot be tracked by pure-pursuit at any
-/// allowed speed (the orbit radius v/ω exceeds the segment scale). Those are rounded by the entry-alignment
-/// slow-turn, which fires for <em>any</em> corner past <see cref="EntryAlignmentThresholdDeg"/> — a
-/// misaligned parking-out start or a tight mid-route ramp bend — tracing a nose-wheel-radius arc at walking
-/// pace. This is geometric corner-rounding, not the dropped Legacy synthesis.
+/// The fillet generator emits a single arc per real taxiway corner, so the navigator follows clean arcs
+/// with no chord-chain compensations. But corners <em>tighter</em> than the nose-wheel radius — ramp/apron
+/// bends the fillet generator cannot widen, which stay sharp vertices between short straight segments —
+/// still cannot be tracked by pure-pursuit at any allowed speed (the orbit radius v/ω exceeds the segment
+/// scale). Those are rounded by the entry-alignment slow-turn, which fires for <em>any</em> corner past
+/// <see cref="EntryAlignmentThresholdDeg"/> — a misaligned parking-out start or a tight mid-route ramp bend
+/// — tracing a nose-wheel-radius arc at walking pace. This is geometric corner-rounding.
 /// </para>
 ///
 /// <para>
-/// Dropping the orbit-stall backstop assumed V2 fillets never produce short-chord clusters, but curved
-/// ramp taxiways (e.g. SFO CG) still arrive as chains of ~15 ft straight chords with shallow bends. An
+/// Curved ramp taxiways (e.g. SFO CG) arrive as chains of ~15 ft straight chords with shallow bends. An
 /// aircraft carrying taxi speed into such a chain overshoots a chord's to-node and pure-pursuit then
-/// circles it. Two guards replace the Legacy tick-count detector: <see cref="TickStraight"/> advances to
+/// circles it. Two guards prevent that: <see cref="TickStraight"/> advances to
 /// the next segment as soon as the aircraft's along-track projection passes the to-node (so an off-line
 /// overshoot advances instead of circling), and <see cref="Tick"/> enforces a hard orbit invariant —
 /// a single segment can never net <see cref="OrbitTurnLimitDeg"/> of turn (throws in tests; logs and
@@ -389,7 +386,7 @@ public sealed class GroundNavigator
             _arcRemainingSweepDeg = alignmentArc.SweepDeg;
 
             Log.LogDebug(
-                "[NavV2] SetupSegment seg={SegIdx}/{Total}: entry-align slow-turn "
+                "[Nav] SetupSegment seg={SegIdx}/{Total}: entry-align slow-turn "
                     + "(hdgFrom={From:F0} -> hdgTo={To:F0}, delta={Delta:F0}, r={R:F0}ft, sweep={Sweep:F0})",
                 route.CurrentSegmentIndex,
                 route.Segments.Count,
@@ -424,7 +421,7 @@ public sealed class GroundNavigator
         BuildSpeedConstraints(route, ctx, isHoldShortCleared);
 
         Log.LogDebug(
-            "[NavV2] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm "
+            "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} kind={Kind} dist={Dist:F4}nm "
                 + "fromNode={FromId}@({FromLat:F6},{FromLon:F6}) toNode={ToId}@({ToLat:F6},{ToLon:F6}) "
                 + "twy={Twy} segBrg={SegBrg:F1} acHdg={Hdg:F1} hdgDelta={HdgDelta:F1} entryAlign={EntryAlign} pendingSeg={Pending}",
             route.CurrentSegmentIndex,
@@ -469,7 +466,7 @@ public sealed class GroundNavigator
         if (Math.Abs(_cumulativeTurnSinceAdvanceDeg) >= OrbitTurnLimitDeg)
         {
             string message =
-                $"[NavV2] pure-pursuit orbit: {ctx.Aircraft.Callsign} accumulated {_cumulativeTurnSinceAdvanceDeg:F0}° of net turn on "
+                $"[Nav] pure-pursuit orbit: {ctx.Aircraft.Callsign} accumulated {_cumulativeTurnSinceAdvanceDeg:F0}° of net turn on "
                 + $"segment→node {TargetNodeId} ({_currentPrimitive?.Kind}) without advancing — it is circling a node it cannot "
                 + $"converge on. pos=({ctx.Aircraft.Position.Lat:F6},{ctx.Aircraft.Position.Lon:F6}) gs={ctx.Aircraft.GroundSpeed:F1}kt.";
 
@@ -513,7 +510,7 @@ public sealed class GroundNavigator
             // A new primitive begins — give it its own full-circle budget so a legitimate
             // entry-alignment turn plus the segment's own turn don't sum across the swap.
             _cumulativeTurnSinceAdvanceDeg = 0.0;
-            Log.LogDebug("[NavV2] Entry alignment complete; engaging real segment primitive {Kind}", seg.Kind);
+            Log.LogDebug("[Nav] Entry alignment complete; engaging real segment primitive {Kind}", seg.Kind);
             return NavigatorResult.Navigating;
         }
 
@@ -786,7 +783,7 @@ public sealed class GroundNavigator
             double hdgErr = GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, bearingToSteerDeg);
             double segBearingDeg = GeoMath.BearingTo(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
             Log.LogDebug(
-                "[NavV2] TickStraight cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} steer={Steer:F1} hdgErr={HdgErr:F1} "
+                "[Nav] TickStraight cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} steer={Steer:F1} hdgErr={HdgErr:F1} "
                     + "distFt={DistFt:F1} edgeFt={EdgeFt:F1} segBrg={SegBrg:F1} ias={Ias:F1} tgt={Tgt:F1} xTrkFt={XTrk:F1} extLimit={ExtLimit} "
                     + "thrArrNm={ThrArr:F4} preTurnBlend={Preturn} stalledThr={Stalled} nextBrg={NextBrg}",
                 ctx.Aircraft.Callsign,
@@ -859,7 +856,7 @@ public sealed class GroundNavigator
         UpdateDiag(ctx, distToNode, tangentDeg, targetSpeed, onArc: true);
 
         Log.LogDebug(
-            "[NavV2] TickBezier cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) tan={Tan:F1} t={T:F3} "
+            "[Nav] TickBezier cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) tan={Tan:F1} t={T:F3} "
                 + "ds={Ds:F2}ft v={V:F1}kt traveledFt={Trav:F1} distFt={Dist:F1}",
             ctx.Aircraft.Callsign,
             TargetNodeId,
@@ -1182,10 +1179,9 @@ public sealed class GroundNavigator
 
     /// <summary>
     /// Turn angle (deg) at the node where <paramref name="turnNodeSegIdx"/> ends — the single corner
-    /// between this segment's arrival bearing and the next segment's departure bearing. V2 geometry emits
-    /// proper arcs for real corners, so there is no fillet chord-chain to aggregate: the corner the
-    /// aircraft actually turns is the one between the two adjacent segments. (This replaces V1's
-    /// forward-window sum, a Legacy-fillet compensation for ArcSplit chord chains that V2 does not produce.)
+    /// between this segment's arrival bearing and the next segment's departure bearing. The fillet generator
+    /// emits proper arcs for real corners, so there is no fillet chord-chain to aggregate: the corner the
+    /// aircraft actually turns is the one between the two adjacent segments.
     /// </summary>
     private static double SingleCornerTurnAngle(TaxiRoute route, int turnNodeSegIdx)
     {

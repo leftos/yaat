@@ -3,7 +3,7 @@ using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
 
-namespace Yaat.Sim.Tests.Pathfinding.V2;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// Unit tests for <see cref="AutoRouter"/>.
@@ -387,8 +387,8 @@ public class AutoRouterTests
 
         Assert.NotNull(route);
         Assert.Null(failure);
-        Assert.True(messages.Any(m => m.Contains("[v2:auto]") && m.Contains("start")), "Expected start message");
-        Assert.True(messages.Any(m => m.Contains("[v2:auto]") && m.Contains("SUCCESS")), "Expected SUCCESS message");
+        Assert.True(messages.Any(m => m.Contains("[auto]") && m.Contains("start")), "Expected start message");
+        Assert.True(messages.Any(m => m.Contains("[auto]") && m.Contains("SUCCESS")), "Expected SUCCESS message");
     }
 
     // ---------------------------------------------------------------------------

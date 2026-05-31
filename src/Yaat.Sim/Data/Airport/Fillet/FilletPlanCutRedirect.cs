@@ -4,7 +4,7 @@ namespace Yaat.Sim.Data.Airport.Fillet;
 internal static class FilletPlanCutRedirect
 {
     /// <summary>
-    /// Pre-fillet nodes that may absorb a coincident V2 cut. Includes TaxiwayIntersection,
+    /// Pre-fillet nodes that may absorb a coincident cut. Includes TaxiwayIntersection,
     /// Spot, Parking, Helipad, and RunwayHoldShort — all types that survive the fillet pass
     /// unchanged and are therefore valid redirect targets. Centerline-projection nodes are
     /// excluded because they are synthetically inserted and not part of the source topology.

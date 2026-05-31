@@ -35,7 +35,7 @@ public class FilletGeneratorInterfaceTests
     }
 
     [Fact]
-    public void Factory_V2_AppliesFilletOnSimpleLayout()
+    public void Factory_AppliesFilletOnSimpleLayout()
     {
         var layout = BuildSimpleIntersectionLayout();
         var stats = FilletGeneratorFactory.Create(FilletMode.Standard).Apply(layout);

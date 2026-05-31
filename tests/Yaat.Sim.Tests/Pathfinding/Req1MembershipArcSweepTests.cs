@@ -4,11 +4,11 @@ using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Tests.Helpers;
 
-namespace Yaat.Sim.Tests.Pathfinding.V2;
+namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// Requirement ① guard (broad). Routes explicit two-token clearances <c>[X, Y]</c> for every pair
-/// of connected taxiways across OAK/SFO/FLL on fillet V2, and asserts no FINAL route contains an
+/// of connected taxiways across OAK/SFO/FLL, and asserts no FINAL route contains an
 /// INTERIOR membership taxiway-junction arc diversion — a non-runway <c>"X - Y"</c> arc segment,
 /// flanked by the same single-name taxiway on both sides, that has no identical single-name twin
 /// edge between the same nodes. That signature is the route physically leaving the walked taxiway
@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Pathfinding.V2;
 /// (<see cref="RouteCostFunction.MembershipJunctionArcContinuationCostNm"/> applied in
 /// <c>SegmentExpander.LocalSearchToJunction</c>) drives it to zero. Runway-crossing arcs
 /// (<c>IsRunwayJunction</c>) and benign parallel-duplicate corner arcs (an identical single-name
-/// twin exists, e.g. fillet V2's coincident <c>"A"</c> and <c>"A - A8"</c> arcs) are excluded —
+/// twin exists, e.g. the fillet generator's coincident <c>"A"</c> and <c>"A - A8"</c> arcs) are excluded —
 /// both are physically on the taxiway.
 /// </para>
 /// </summary>

@@ -8,20 +8,14 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
-/// E2E tests for lineup on OAK RWY 28R from taxiway B hold-shorts. The
-/// historical V1 analog LineUpPhase implementation cut a diagonal across
-/// the runway surface when given CTO — it would steer toward the on-runway
-/// graph node instead of first reaching the centerline. The original V1
-/// regression tests asserted a very specific "turn perpendicular, cross
-/// straight, then align" shape which V2 (closed-form plan playback) does
-/// not follow: V2 enters the runway tangentially via a category-sized
-/// pivot arc.
+/// E2E tests for lineup on OAK RWY 28R from taxiway B hold-shorts. LineUpPhase
+/// enters the runway tangentially via a category-sized pivot arc that ends on
+/// the centerline, rather than cutting a diagonal straight to the on-runway
+/// graph node.
 ///
-/// These V2 tests assert the actual desired end state — aircraft completes
+/// These tests assert the actual desired end state — aircraft completes
 /// lineup with an on-centerline, aligned, stopped pose — without caring
-/// about the intermediate maneuver shape. That's the contract the V1
-/// tests were really exercising; the perpendicular-cross-align assertion
-/// was just V1 implementation detail.
+/// about the intermediate maneuver shape.
 ///
 /// Recording: S2-OAK-4 VFR Transitions/Radar Concepts — OAK tower
 /// scenario. Two aircraft (N436MS at t=47, N342T at t=688) each start
@@ -169,7 +163,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     /// recording's actions.json:
     /// <summary>
     /// N436MS at OAK receives CTO at t=47 from hold-short of 28R on
-    /// taxiway B. V2 must complete lineup with proper end state.
+    /// taxiway B and must complete lineup with proper end state.
     /// </summary>
     [Fact]
     public void N436MS_LineUp28R_CompletesWithOnCenterlineAlignedStop()

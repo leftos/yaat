@@ -20,8 +20,8 @@ public class GroundNavigatorThresholdTests
     public void ShortLegWithSharpCorner_DoesNotThrow_FallsBackToFinalThreshold()
     {
         // A leg so short that 0.45*len <= FinalNodeArrivalThresholdNm has no room to round. Regression
-        // for the Math.Clamp(min>max) crash surfaced by the all-V2 sweep on a near-zero-length edge:
-        // before the guard this combination (sharp corner + tiny leg) threw ArgumentException.
+        // for the Math.Clamp(min>max) crash surfaced by the ground-stack sweep on a near-zero-length
+        // edge: before the guard this combination (sharp corner + tiny leg) threw ArgumentException.
         double threshold = GroundNavigator.StraightArrivalThresholdNm(
             cornerTurnDeg: 90.0,
             edgeLengthNm: 1e-6,

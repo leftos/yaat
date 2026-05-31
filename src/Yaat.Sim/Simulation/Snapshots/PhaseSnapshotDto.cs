@@ -630,7 +630,7 @@ public sealed class LandingPhaseDto : PhaseDto
     public bool ExitResolutionEnabled { get; init; }
     public required bool StoppedForLahso { get; init; }
 
-    // LandingPhase V2 additions (optional for backward-compat with older snapshots)
+    // LandingPhase additions (optional for backward-compat with older snapshots)
     public int CurrentStateValue { get; init; }
     public double TouchdownLat { get; init; }
     public double TouchdownLon { get; init; }
