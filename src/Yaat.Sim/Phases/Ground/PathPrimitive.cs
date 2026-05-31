@@ -10,20 +10,16 @@ public enum PathPrimitiveKind
     /// <summary>A straight line segment between two graph nodes.</summary>
     Straight,
 
-    /// <summary>A circular arc (fillet) between two tangent points.</summary>
-    Arc,
-
     /// <summary>
     /// A fillet played back as its true cubic Bézier (see <see cref="PathPrimitiveBezier"/>).
-    /// Unlike <see cref="Arc"/>, which approximates the fillet as a single circle of the
-    /// Bézier's minimum radius of curvature, this traces the actual painted centerline and
-    /// is guaranteed to terminate on the segment's to-node.
+    /// Traces the actual painted centerline and is guaranteed to terminate on the
+    /// segment's to-node.
     /// </summary>
     Bezier,
 
     /// <summary>
     /// A tight-radius circular arc executed at low forward speed using full
-    /// nose-wheel steering authority. Distinguished from <see cref="Arc"/>
+    /// nose-wheel steering authority. Distinguished from <see cref="Bezier"/>
     /// because the speed cap and radius come from aircraft nose-wheel
     /// geometry rather than from graph fillet metadata. Intended for
     /// programmatic maneuvers (lineup pivots, tight parking turns) where the
@@ -39,9 +35,10 @@ public enum PathPrimitiveKind
 /// <see cref="PathPrimitiveBuilder.FromSegment"/> does the conversion.
 ///
 /// <para>
-/// The two concrete subclasses (<see cref="PathPrimitiveStraight"/> and
-/// <see cref="PathPrimitiveArc"/>) hold only the fields each shape needs for
-/// playback. Common metadata (length, to-node id) lives on the base record.
+/// The concrete subclasses (<see cref="PathPrimitiveStraight"/>,
+/// <see cref="PathPrimitiveBezier"/>, <see cref="PathPrimitiveSlowTurn"/>) hold only
+/// the fields each shape needs for playback. Common metadata (length, to-node id)
+/// lives on the base record.
 /// </para>
 ///
 /// <para>
@@ -85,60 +82,6 @@ public sealed record PathPrimitiveStraight : PathPrimitive
 }
 
 /// <summary>
-/// A circular-arc path primitive. Position and heading are both functions of
-/// a single scalar — the aircraft's current compass bearing from the arc
-/// centre — so <c>GroundNavigator</c>'s tick loop can write position and
-/// heading together as pure functions of arc-length progress, with no
-/// feedback loop and no risk of position/heading drift.
-///
-/// <para>
-/// The arc is stored as a <i>true circle</i>, not as a Bezier approximation.
-/// <see cref="PathPrimitiveBuilder.FromSegment"/> recovers the true-circle
-/// parameters (<see cref="CenterLat"/>/<see cref="CenterLon"/>,
-/// <see cref="RadiusFt"/>, <see cref="StartBearingFromCenterDeg"/>,
-/// <see cref="SweepDeg"/>) from the <c>GroundArc</c>'s stored tangent
-/// bearings and minimum radius of curvature. This is valid because
-/// <c>FilletArcGenerator</c> tunes the Bezier kappa so the fillet is a
-/// near-constant-radius circular arc (deviation &lt; 1 ft for radius ≥ 50 ft).
-/// </para>
-/// </summary>
-public sealed record PathPrimitiveArc : PathPrimitive
-{
-    public required double CenterLat { get; init; }
-    public required double CenterLon { get; init; }
-    public required double RadiusFt { get; init; }
-
-    /// <summary>
-    /// Compass bearing from the centre to the aircraft at the arc entry (start
-    /// of traversal). Advances monotonically during playback by
-    /// <c>sign(turn)·v·dt/r</c> radians per tick.
-    /// </summary>
-    public required double StartBearingFromCenterDeg { get; init; }
-
-    /// <summary>
-    /// Unsigned sweep angle in degrees. The playback is complete when the
-    /// accumulated angle reaches this value.
-    /// </summary>
-    public required double SweepDeg { get; init; }
-
-    /// <summary>
-    /// True for clockwise (right) turns, false for counter-clockwise (left).
-    /// Determines the sign of the bearing advance and the tangent offset:
-    /// tangent = radial-from-centre + 90° for right turns, -90° for left.
-    /// </summary>
-    public required bool RightTurn { get; init; }
-
-    /// <summary>Tangent heading at the arc entry (= the departure direction of the preceding segment).</summary>
-    public required double EntryTangentBearingDeg { get; init; }
-
-    /// <summary>Tangent heading at the arc exit (= the departure direction of the next segment).</summary>
-    public required double ExitTangentBearingDeg { get; init; }
-
-    /// <summary>Radius in nautical miles. Pre-computed for the GeoMath primitives.</summary>
-    public double RadiusNm => RadiusFt / GeoMath.FeetPerNm;
-}
-
-/// <summary>
 /// A fillet primitive played back as its true cubic Bézier, not a single-circle
 /// approximation. <see cref="GroundNavigator"/> advances the curve parameter by
 /// arc-length each tick (Δt = v·dt / |B'(t)|) and writes position and tangent heading
@@ -146,8 +89,8 @@ public sealed record PathPrimitiveArc : PathPrimitive
 /// so position and heading remain pure functions of one scalar (invariant I2).
 ///
 /// <para>
-/// Why this exists: <see cref="PathPrimitiveArc"/> reinterprets a fillet as a circle of the
-/// Bézier's <em>minimum</em> radius of curvature. For a wide sweeping runway/taxiway fillet the
+/// Why this exists: reinterpreting a fillet as a circle of the Bézier's <em>minimum</em> radius
+/// of curvature (an earlier approach) undershoots. For a wide sweeping runway/taxiway fillet the
 /// apex curvature is far tighter than the endpoint-connecting radius, so the circle ends well
 /// short of the segment's to-node — the playback then hands off ~50 ft away, and the next short
 /// segment starts with a large cross-track that trips the re-acquire speed gate into a needless
@@ -173,9 +116,8 @@ public sealed record PathPrimitiveBezier : PathPrimitive
 
 /// <summary>
 /// A tight-radius circular-arc primitive driven at low forward speed via
-/// full nose-wheel deflection. Geometrically identical to
-/// <see cref="PathPrimitiveArc"/> (closed-form circular playback — invariant
-/// I2) but kept as a distinct <see cref="PathPrimitiveKind"/> so
+/// full nose-wheel deflection. A closed-form circular playback (invariant
+/// I2) kept as a distinct <see cref="PathPrimitiveKind"/> so
 /// <c>GroundNavigator</c> can apply a different speed policy: the target
 /// speed is clamped to <see cref="MaxSpeedKts"/> (≈ 3 kts — real nose-wheel
 /// steering is a walking-pace maneuver), and the radius is the aircraft's
@@ -191,10 +133,11 @@ public sealed record PathPrimitiveBezier : PathPrimitive
 /// </para>
 ///
 /// <para>
-/// Unlike <see cref="PathPrimitiveArc"/>, this primitive is synthesised
-/// programmatically — it does not correspond to a <c>GroundArc</c> in the
-/// graph. <see cref="ToNodeId"/> is a caller-supplied synthetic id used by
-/// the surrounding <c>TaxiRoute</c> for arrival detection.
+/// This primitive is synthesised programmatically — it does not correspond to a
+/// <c>GroundArc</c> in the graph (painted fillets compile to
+/// <see cref="PathPrimitiveBezier"/> instead). <see cref="ToNodeId"/> is a
+/// caller-supplied synthetic id used by the surrounding <c>TaxiRoute</c> for
+/// arrival detection.
 /// </para>
 /// </summary>
 public sealed record PathPrimitiveSlowTurn : PathPrimitive

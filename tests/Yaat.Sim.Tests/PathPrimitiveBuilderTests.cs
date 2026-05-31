@@ -8,7 +8,7 @@ namespace Yaat.Sim.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="PathPrimitiveBuilder.FromSegment"/>. Exercises
-/// the pure-math layer of GroundNavigator V2 without any real airport data —
+/// the pure-math layer of the ground navigator without any real airport data —
 /// every fixture is a synthesised <see cref="GroundNode"/> + edge pair wrapped
 /// in a <see cref="DirectionalEdge"/> + <see cref="TaxiRouteSegment"/>.
 /// </summary>
@@ -108,155 +108,14 @@ public class PathPrimitiveBuilderTests
         Assert.InRange(straight.BearingDeg, 269.9, 270.1);
     }
 
-    // ---- Arc segments ----
+    // ---- Bézier arc primitive ----
 
     [Fact]
-    public void FromSegment_Arc90DegreeRightTurn_ProducesCorrectCircle()
-    {
-        // Scenario: aircraft enters arc at P0 heading north (0°), turns 90° right,
-        // exits at P3 heading east (90°). Radius 70 ft. Centre is 70 ft east of P0
-        // (perpendicular-right of north).
-        const double p0Lat = 37.0;
-        const double p0Lon = -122.0;
-        const double radiusFt = 70.0;
-        double rNm = radiusFt / GeoMath.FeetPerNm;
-
-        // Compute the circle centre and exit point from the expected geometry.
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(90.0), rNm);
-        var (p3Lat, p3Lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0.0), rNm);
-
-        // Bezier control points using the kappa formula (4/3·tan(θ/4)) for a 90° arc.
-        double kappa = (4.0 / 3.0) * Math.Tan(Math.PI / 8.0);
-        // P1: P0 projected along entry tangent (north, 0°) by kappa·r.
-        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(0.0), kappa * rNm);
-        // P2: P3 projected along reverse of exit tangent. Exit tangent is east (90°),
-        // reverse is west (270°) by kappa·r.
-        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(p3Lat, p3Lon, new TrueHeading(270.0), kappa * rNm);
-
-        var node0 = new GroundNode
-        {
-            Id = 10,
-            Position = new LatLon(p0Lat, p0Lon),
-            Type = GroundNodeType.TaxiwayIntersection,
-        };
-        var node1 = new GroundNode
-        {
-            Id = 11,
-            Position = new LatLon(p3Lat, p3Lon),
-            Type = GroundNodeType.TaxiwayIntersection,
-        };
-        // Arc length for a 90° sweep at r=70 ft is (π/2)·r ≈ 110 ft.
-        double arcLenFt = (Math.PI / 2.0) * radiusFt;
-        var arc = new GroundArc
-        {
-            Nodes = [node0, node1],
-            P1Lat = p1Lat,
-            P1Lon = p1Lon,
-            P2Lat = p2Lat,
-            P2Lon = p2Lon,
-            MinRadiusOfCurvatureFt = radiusFt,
-            DistanceNm = arcLenFt / GeoMath.FeetPerNm,
-            TaxiwayNames = ["A"],
-        };
-        var directed = new DirectionalEdge
-        {
-            Edge = arc,
-            FromNode = node0,
-            ToNode = node1,
-        };
-        var segment = new TaxiRouteSegment { Edge = directed, TaxiwayName = "A" };
-
-        var primitive = PathPrimitiveBuilder.FromSegment(segment);
-
-        var arcPrim = Assert.IsType<PathPrimitiveArc>(primitive);
-        Assert.Equal(PathPrimitiveKind.Arc, arcPrim.Kind);
-        Assert.Equal(11, arcPrim.ToNodeId);
-        Assert.Equal(radiusFt, arcPrim.RadiusFt);
-        Assert.True(arcPrim.RightTurn, "0°→90° short way is a right turn");
-        Assert.InRange(arcPrim.SweepDeg, 89.0, 91.0);
-        Assert.InRange(arcPrim.EntryTangentBearingDeg, -0.5, 0.5);
-        Assert.InRange(arcPrim.ExitTangentBearingDeg, 89.5, 90.5);
-        // Length should be ~π/2 · 70 ≈ 110 ft.
-        Assert.InRange(arcPrim.LengthFt, 108.0, 112.0);
-
-        // Centre should be at (centerLat, centerLon) — 70 ft east of P0.
-        double centerErrFt = GeoMath.DistanceNm(arcPrim.CenterLat, arcPrim.CenterLon, centerLat, centerLon) * GeoMath.FeetPerNm;
-        Assert.True(centerErrFt < 1.0, $"centre off expected by {centerErrFt:F3}ft");
-
-        // StartBearingFromCenterDeg: centre is east of P0, so P0 is west of
-        // centre → bearing from centre to P0 is 270°.
-        Assert.InRange(arcPrim.StartBearingFromCenterDeg, 269.5, 270.5);
-    }
-
-    [Fact]
-    public void FromSegment_Arc90DegreeLeftTurn_ProducesCorrectCircle()
-    {
-        // Mirror: enter heading north, turn 90° left, exit heading west (270°).
-        // Centre is 70 ft west of P0.
-        const double p0Lat = 37.0;
-        const double p0Lon = -122.0;
-        const double radiusFt = 70.0;
-        double rNm = radiusFt / GeoMath.FeetPerNm;
-
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(270.0), rNm);
-        var (p3Lat, p3Lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0.0), rNm);
-
-        double kappa = (4.0 / 3.0) * Math.Tan(Math.PI / 8.0);
-        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(0.0), kappa * rNm);
-        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(p3Lat, p3Lon, new TrueHeading(90.0), kappa * rNm);
-
-        var node0 = new GroundNode
-        {
-            Id = 20,
-            Position = new LatLon(p0Lat, p0Lon),
-            Type = GroundNodeType.TaxiwayIntersection,
-        };
-        var node1 = new GroundNode
-        {
-            Id = 21,
-            Position = new LatLon(p3Lat, p3Lon),
-            Type = GroundNodeType.TaxiwayIntersection,
-        };
-        double arcLenFt = (Math.PI / 2.0) * radiusFt;
-        var arc = new GroundArc
-        {
-            Nodes = [node0, node1],
-            P1Lat = p1Lat,
-            P1Lon = p1Lon,
-            P2Lat = p2Lat,
-            P2Lon = p2Lon,
-            MinRadiusOfCurvatureFt = radiusFt,
-            DistanceNm = arcLenFt / GeoMath.FeetPerNm,
-            TaxiwayNames = ["A"],
-        };
-        var directed = new DirectionalEdge
-        {
-            Edge = arc,
-            FromNode = node0,
-            ToNode = node1,
-        };
-        var segment = new TaxiRouteSegment { Edge = directed, TaxiwayName = "A" };
-
-        var primitive = PathPrimitiveBuilder.FromSegment(segment);
-
-        var arcPrim = Assert.IsType<PathPrimitiveArc>(primitive);
-        Assert.False(arcPrim.RightTurn, "0°→270° short way is a left turn");
-        Assert.InRange(arcPrim.SweepDeg, 89.0, 91.0);
-        Assert.InRange(arcPrim.EntryTangentBearingDeg, -0.5, 0.5);
-        Assert.InRange(arcPrim.ExitTangentBearingDeg, 269.5, 270.5);
-
-        // Centre is west of P0 → bearing from centre to P0 is 90° (east).
-        Assert.InRange(arcPrim.StartBearingFromCenterDeg, 89.5, 90.5);
-    }
-
-    // ---- V2 Bézier arc primitive ----
-
-    [Fact]
-    public void FromSegmentV2_Arc_ProducesBezierTerminatingExactlyOnToNode()
+    public void FromSegment_Arc_ProducesBezierTerminatingExactlyOnToNode()
     {
         var segment = MakeArc90Segment(reversed: false);
 
-        var primitive = PathPrimitiveBuilder.FromSegmentV2(segment);
+        var primitive = PathPrimitiveBuilder.FromSegment(segment);
 
         var bez = Assert.IsType<PathPrimitiveBezier>(primitive);
         Assert.Equal(PathPrimitiveKind.Bezier, bez.Kind);
@@ -280,11 +139,11 @@ public class PathPrimitiveBuilderTests
     }
 
     [Fact]
-    public void FromSegmentV2_ArcReversed_OrientsCurveFromTraversalStart()
+    public void FromSegment_ArcReversed_OrientsCurveFromTraversalStart()
     {
         var segment = MakeArc90Segment(reversed: true);
 
-        var bez = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegmentV2(segment));
+        var bez = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(segment));
         Assert.Equal(10, bez.ToNodeId);
 
         // Reversed traversal: t=0 must be the traversal from-node (node 11), t=1 the to-node (node 10).

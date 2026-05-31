@@ -169,8 +169,8 @@ public sealed class GroundNavigator
     /// <summary>
     /// Working arc-playback state: the aircraft's current compass bearing
     /// from the centre of <c>_currentPrimitive</c> when that primitive is a
-    /// <see cref="PathPrimitiveArc"/>. Advanced each tick by <c>speed·dt/r</c>
-    /// (signed by <see cref="PathPrimitiveArc.RightTurn"/>).
+    /// <see cref="PathPrimitiveSlowTurn"/>. Advanced each tick by <c>speed·dt/r</c>
+    /// (signed by <see cref="PathPrimitiveSlowTurn.RightTurn"/>).
     /// </summary>
     private double _arcBearingFromCenterDeg;
 
@@ -211,7 +211,7 @@ public sealed class GroundNavigator
     /// <see cref="TickStraight"/> to switch to the tight arrival threshold —
     /// the loose 91 ft threshold would fire with the aircraft still a
     /// visible distance from the arc's entry node, and the next
-    /// <see cref="TickArc"/> would then write position directly from arc
+    /// <see cref="TickBezier"/> would then write position directly from curve
     /// state (invariant I2), producing a visible teleport. Set by
     /// <see cref="BuildSpeedConstraints"/> alongside <see cref="_nextSegmentBearing"/>.
     /// </summary>
@@ -278,7 +278,7 @@ public sealed class GroundNavigator
     /// <summary>
     /// Heading-misalignment threshold (deg) above which a new segment gets a
     /// pre-segment slow-turn from the aircraft's current pose to the segment's
-    /// start tangent. Without this, an arc primitive's first <see cref="TickArc"/>
+    /// start tangent. Without this, an arc primitive's first <see cref="TickBezier"/>
     /// would write the arc tangent into <c>TrueHeading</c> directly, snapping
     /// a stationary aircraft (e.g. just after pushback) to the route start
     /// direction. The slow-turn lets the aircraft taxi forward at the
@@ -330,7 +330,7 @@ public sealed class GroundNavigator
             return;
         }
 
-        var segmentPrimitive = PathPrimitiveBuilder.FromSegmentV2(seg);
+        var segmentPrimitive = PathPrimitiveBuilder.FromSegment(seg);
 
         var from = seg.Edge.FromNode;
         var to = seg.Edge.ToNode;
@@ -607,10 +607,10 @@ public sealed class GroundNavigator
         // Tight arrival threshold when any of:
         //   - last segment of the route (always stop precisely),
         //   - the current target is a stop (_currentNodeRequiredSpeed == 0),
-        //   - the next segment is an arc — TickArc writes position directly
-        //     from arc-centre state at engagement (invariant I2), so the
+        //   - the next segment is an arc — TickBezier writes position directly
+        //     from curve state at engagement (invariant I2), so the
         //     loose 91 ft threshold would teleport the aircraft up to 91 ft
-        //     to the arc entry node on the first TickArc call. Tight
+        //     to the arc entry node on the first TickBezier call. Tight
         //     threshold bounds the teleport to <2 ft (imperceptible).
         //   - the effective edge (segment start to current TargetLat/Lon) is
         //     shorter than 1.5× the loose threshold.

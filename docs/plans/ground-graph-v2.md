@@ -186,7 +186,7 @@ filtering `Category!=Nightly&Category!=PathfinderGrid`. The suite **did not hang
   to-node; plus a tight arrival when the next segment is short (so the virtual tail-clear stub isn't entered
   from far away). V2-navigator-only (V1 circle playback untouched until the flip). N9225L 28R→G re-acquire
   crawl 6 s → 1 s. Aviation-reviewed (AIM 2-3-4.2.1 centerline tracking, 2-3-5.1.1 all-parts-crossed).
-  Tests: `PathPrimitiveBuilderTests.FromSegmentV2_*`, `GroundArcBezierPlaybackGuardTests` (every V2 arc on
+  Tests: `PathPrimitiveBuilderTests.FromSegment_Arc*`, `GroundArcBezierPlaybackGuardTests` (every arc on
   OAK/SFO/FLL ends ≤2 ft from its node), `N9225LExitTimingTests`. Full cross-repo suite green.
 
 **Re-swept 2026-05-30 after the #55–#61 fixes (throwaway 4-default flip, `Category!=Nightly&!=PathfinderGrid`):

@@ -7,14 +7,14 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Systemic guard for V2 fillet arc playback. <c>GroundNavigator</c> compiles every
+/// Systemic guard for fillet arc playback. <c>GroundNavigator</c> compiles every
 /// <see cref="GroundArc"/> into a <see cref="PathPrimitiveBezier"/> and plays it by arc-length, so
-/// playback must terminate on the segment's to-node. The earlier <see cref="PathPrimitiveArc"/>
-/// reinterpreted the fillet as a circle of the Bézier's <em>minimum</em> radius of curvature; for
-/// wide sweeping runway/taxiway fillets the apex curvature is far tighter than the endpoint-connecting
-/// radius, so the circle ended tens of feet short of the to-node (the N9225L OAK 28R→G corner under-
-/// shot 56 ft). This sweeps every arc on the committed test airports and asserts the Bézier playback
-/// lands on each arc's to-node, in both traversal directions.
+/// playback must terminate on the segment's to-node. Reinterpreting the fillet as a circle of the
+/// Bézier's <em>minimum</em> radius of curvature (an earlier approach) undershot: for wide sweeping
+/// runway/taxiway fillets the apex curvature is far tighter than the endpoint-connecting radius, so
+/// the circle ended tens of feet short of the to-node (the N9225L OAK 28R→G corner undershot 56 ft).
+/// This sweeps every arc on the committed test airports and asserts the Bézier playback lands on each
+/// arc's to-node, in both traversal directions.
 /// </summary>
 public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
 {
@@ -38,7 +38,6 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
         }
 
         int arcsChecked = 0;
-        int circleWouldUndershoot = 0;
         double worstBezierErrFt = 0;
         string worstArc = "";
 
@@ -54,7 +53,7 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
                 var (from, to) = reversed ? (arc.Nodes[1], arc.Nodes[0]) : (arc.Nodes[0], arc.Nodes[1]);
                 var segment = new TaxiRouteSegment { Edge = arc.Directed(from, to), TaxiwayName = arc.TaxiwayName };
 
-                var bez = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegmentV2(segment));
+                var bez = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegment(segment));
                 arcsChecked++;
 
                 double bezErrFt = PlaybackEndErrorFt(bez, to);
@@ -62,12 +61,6 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
                 {
                     worstBezierErrFt = bezErrFt;
                     worstArc = $"{arc.TaxiwayName} {from.Id}->{to.Id} r={arc.MinRadiusOfCurvatureFt:F0}ft";
-                }
-
-                // Informational: how often the retired circle approximation would have missed the node.
-                if (CircleEndErrorFt(PathPrimitiveBuilder.FromSegment(segment), to) > 5.0)
-                {
-                    circleWouldUndershoot++;
                 }
 
                 Assert.True(
@@ -78,11 +71,8 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
             }
         }
 
-        output.WriteLine(
-            $"{airport}: {arcsChecked} arc traversals; worst Bézier end-error {worstBezierErrFt:F2}ft ({worstArc}); "
-                + $"the retired circle approximation would have undershot >5ft on {circleWouldUndershoot} of them."
-        );
-        Assert.True(arcsChecked > 0, $"{airport}: no V2 arcs found to check");
+        output.WriteLine($"{airport}: {arcsChecked} arc traversals; worst Bézier end-error {worstBezierErrFt:F2}ft ({worstArc}).");
+        Assert.True(arcsChecked > 0, $"{airport}: no arcs found to check");
     }
 
     private static double PlaybackEndErrorFt(PathPrimitiveBezier bez, GroundNode toNode)
@@ -95,18 +85,6 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
             t = speedFt > 1e-6 ? Math.Min(1.0, t + (stepFt / speedFt)) : 1.0;
         }
         var (lat, lon) = bez.Curve.Evaluate(Math.Min(t, 1.0));
-        return GeoMath.DistanceNm(lat, lon, toNode.Position.Lat, toNode.Position.Lon) * GeoMath.FeetPerNm;
-    }
-
-    private static double CircleEndErrorFt(PathPrimitive circlePrim, GroundNode toNode)
-    {
-        if (circlePrim is not PathPrimitiveArc arc)
-        {
-            return 0;
-        }
-
-        double endBearing = arc.StartBearingFromCenterDeg + (arc.RightTurn ? arc.SweepDeg : -arc.SweepDeg);
-        var (lat, lon) = GeoMath.ProjectPoint(arc.CenterLat, arc.CenterLon, new TrueHeading(endBearing), arc.RadiusNm);
         return GeoMath.DistanceNm(lat, lon, toNode.Position.Lat, toNode.Position.Lon) * GeoMath.FeetPerNm;
     }
 }
