@@ -240,29 +240,27 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
     // ─── Plan E: SFO E/F intersection at @268 ───
 
     /// <summary>
-    /// SFO node #268 is the E/F 4-way crossing south of 28L. A 4-way produces
-    /// exactly four corners, so the fillet generator should emit four arcs
-    /// tagged with the @268 origin: two at the wider angle (~102°) and two
-    /// at the narrower (~78°). Currently the count is six because upstream
-    /// intersections @57 and @141 each leave behind a parallel E-NE edge on
-    /// 268 (one to 1240 from @57's passthrough, one to 1483 from @141's
-    /// shorten) on top of the original 268↔141. By the time @268's pair
-    /// iterator runs, it sees three parallel E-NE edges and crosses each
-    /// with the two F-side edges, producing the extra arcs — including the
-    /// 9 ft / 13 ft tight ones that broke SKW3078's E→A taxi.
+    /// SFO node #268 is the E/F 4-way crossing south of 28L. The Legacy fillet
+    /// generator emits exactly four arcs tagged with the @268 origin: two at the
+    /// wider angle (~102°) and two at the narrower (~78°). This guards the fix for
+    /// the earlier parallel-edge defect (upstream @57/@141 passes left extra parallel
+    /// E-NE edges on 268, which produced six arcs — including 9 ft / 13 ft tight ones
+    /// that broke SKW3078's E→A taxi).
     ///
-    /// Skipped pending a fix. Investigation captured in
-    /// docs/plans/open-issues/fillet-parallel-edges-at-268.md — three fix
-    /// attempts have regressed unrelated OAK and SFO M2/A1 pathfinder tests.
+    /// Pinned to <see cref="FilletMode.Legacy"/>: it filters on the Legacy generator's
+    /// "phase-c-arc@268" origin string, which the V2 generator does not emit (V2
+    /// structures the junction differently and has its own coverage in the FilletV2
+    /// tests). Slated for deletion with the Legacy generator at the joint flip.
     /// </summary>
     [Fact]
     public void SFO_FilletArcs_Node268_HasExactlyFourArcs()
     {
-        var layout = LoadSfo();
-        if (layout is null)
+        string path = Path.Combine("TestData", "sfo.geojson");
+        if (!File.Exists(path))
         {
             return;
         }
+        var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), null, FilletMode.Legacy);
 
         Assert.True(layout.Nodes.TryGetValue(268, out _), "SFO node 268 not found");
 
