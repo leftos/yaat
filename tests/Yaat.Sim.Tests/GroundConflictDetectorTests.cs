@@ -770,4 +770,28 @@ public class GroundConflictDetectorTests
             $"AAA should proceed, got limit={aaa.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
         );
     }
+
+    /// <summary>
+    /// Two aircraft passing on oblique crossing paths (headings ~130° apart, e.g. one
+    /// exiting a runway toward its hold-short while another taxis to the apron) are NOT
+    /// a head-on and must not both be stopped at range. A head-on requires near-anti-
+    /// parallel headings; an oblique crossing resolves via the closing/arbitration rules
+    /// (or, at this separation, no limit at all). Regression for the N569SX/N342T
+    /// false-head-on gridlock under all-V2.
+    /// </summary>
+    [Fact]
+    public void Crossing_ObliqueOpposingHeadings_NotTreatedAsHeadOn()
+    {
+        // A heading 030, B 280ft due north heading 160 — 130° apart, both approaching,
+        // inside the 300ft head-on range but beyond trail distance.
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 30, gs: 10);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 2.8 * OffsetLatPer100Ft, BaseLon), heading: 160, gs: 10);
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        // Not a head-on: neither is stopped at this separation.
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(b.Ground.SpeedLimit);
+    }
 }

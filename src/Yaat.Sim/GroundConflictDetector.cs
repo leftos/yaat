@@ -27,7 +27,8 @@
 //     runway surface has priority; a yielder keeps its heading-based closing
 //     pin even when stopped (no self-pin crawl); if both would stop, one
 //     deterministic holder (callsign) holds while the other proceeds. Head-on
-//     fallback still applies for two movers > 120° apart.
+//     fallback (both stop) applies only to near-anti-parallel approaches
+//     (>= HeadOnMinHeadingDiffDeg); oblique crossings use the holder arbitration.
 //
 // Self-pin recovery: a routed aircraft pinned at gs≈0 / SpeedLimit≈0 with no
 // active Hold classifies as Stationary. Treats the pinned aircraft as a parked
@@ -72,6 +73,13 @@ public static class GroundConflictDetector
     private const double SearchRangeNm = 0.3;
     private const double SelfPinSpeedEpsilonKts = 0.5;
     private const double SelfPinLimitEpsilonKts = 0.5;
+
+    // A head-on requires near-anti-parallel headings. Oblique crossings (e.g. an
+    // aircraft exiting a runway toward its hold-short passing one taxiing to the
+    // apron, ~130° apart) are NOT head-ons — stopping both there is the symmetric
+    // mutual-stop that real ground control never does. They resolve via the
+    // closing/arbitration rules (one holds, one goes) instead.
+    private const double HeadOnMinHeadingDiffDeg = 150.0;
 
     public static Action<string>? DebugSink { get; set; }
     public static bool WingspanLateralCheckEnabled { get; set; } = true;
@@ -773,7 +781,7 @@ public static class GroundConflictDetector
     private static void ResolveHeadOn(AircraftState a, double dirA, AircraftState b, double dirB, double distFt)
     {
         double headingDiff = HeadingDifference(dirA, dirB);
-        if (headingDiff <= 120)
+        if (headingDiff < HeadOnMinHeadingDiffDeg)
         {
             return;
         }
