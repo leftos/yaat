@@ -97,6 +97,24 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
         var layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
 
+        AssertFollowsHLineThroughCrossing(engine, layout, recording, output);
+    }
+
+    /// <summary>
+    /// Replay the recording from t=310 through the 01L/19R crossing and assert the
+    /// aircraft tracks the painted H line — passing within 15 ft of 6+ distinct
+    /// H-named graph nodes and turning ≥30° as the line curves — rather than
+    /// beelining diagonally across the runway surface (issue #166). Shared by the
+    /// V1-default test above and the all-V2 variant in
+    /// <see cref="Issue166CrossUnderV2Tests"/>.
+    /// </summary>
+    internal static void AssertFollowsHLineThroughCrossing(
+        SimulationEngine engine,
+        AirportGroundLayout layout,
+        SessionRecording recording,
+        ITestOutputHelper output
+    )
+    {
         engine.Replay(recording, 310);
 
         // Tick forward through the crossing. For each tick, accumulate which
@@ -177,7 +195,7 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
     /// nodes whose edges are labelled e.g. "H - RWY01L/19R" (the painted H
     /// line across the runway surface).
     /// </summary>
-    private static void AddCloseHNodes(AircraftState ac, AirportGroundLayout layout, double maxDistFt, HashSet<int> into)
+    internal static void AddCloseHNodes(AircraftState ac, AirportGroundLayout layout, double maxDistFt, HashSet<int> into)
     {
         double maxDistNm = maxDistFt / 6076.12;
         foreach (var node in layout.Nodes.Values)
@@ -193,5 +211,95 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
                 into.Add(node.Id);
             }
         }
+    }
+}
+
+/// <summary>
+/// All-V2 variant of <see cref="Issue166CrossShortcutsGrassTests"/>. Under the V2 nav stack
+/// UAL19 reaches the 01L/19R hold-short later than under V1, so the no-arg <c>CROSS</c> at
+/// t=314 clears the crossing while it is still taxiing toward it (pre-cleared) rather than
+/// while it sits holding. The fix in <see cref="CrossingRunwayPhase"/>'s entry point
+/// (<c>TaxiingPhase.BuildPreClearedCrossingPhases</c>) must still hand off to a
+/// <see cref="CrossingRunwayPhase"/> so the aircraft tracks the painted H line across the
+/// runway instead of beelining. Runs in the parallelization-disabled "V2 Acceptance"
+/// collection so the global pathfinder/navigator router flip cannot race the V1-default suite.
+/// </summary>
+[Collection("V2 Acceptance")]
+public class Issue166CrossUnderV2Tests(ITestOutputHelper output)
+{
+    private const string RecordingPath = "TestData/issue166-cross-shortcuts-grass-recording.zip";
+
+    [Fact]
+    public void Ual19_FollowsHTaxiLineThroughRunwayCrossing_OnV2()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var recording = RecordingLoader.Load(RecordingPath);
+        if (recording is null)
+        {
+            return;
+        }
+
+        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var layout = groundData.GetLayout("SFO");
+        Assert.NotNull(layout);
+
+        SimLogBuilder
+            .CreateForTest(output)
+            .EnableCategory("CrossingRunwayPhase", LogLevel.Debug)
+            .EnableCategory("TaxiingPhase", LogLevel.Debug)
+            .InitializeSimLog();
+
+        var engine = new SimulationEngine(groundData);
+        Issue166CrossShortcutsGrassTests.AssertFollowsHLineThroughCrossing(engine, layout, recording, output);
+    }
+
+    /// <summary>
+    /// The pre-cleared-crossing hand-off must fire only for a genuinely-new runway, never for
+    /// the runway UAL19 just landed on and vacated (01R/19L, far-side hold-short node 875). Its
+    /// hold-short is also a cleared <c>RunwayCrossing</c>, but the runway surface is behind the
+    /// aircraft (no forward same-runway exit), so it must stay in TaxiingPhase and finish its
+    /// exit. Replays across the whole post-landing taxi and asserts the only runway it enters a
+    /// <see cref="CrossingRunwayPhase"/> for is 01L/19R.
+    /// </summary>
+    [Fact]
+    public void Ual19_DoesNotEnterCrossingForVacatedRunway_OnV2()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var recording = RecordingLoader.Load(RecordingPath);
+        if (recording is null)
+        {
+            return;
+        }
+
+        var groundData = new TestAirportGroundData(FilletMode.V2);
+        Assert.NotNull(groundData.GetLayout("SFO"));
+
+        var engine = new SimulationEngine(groundData);
+        engine.Replay(recording, 250);
+
+        var crossedRunways = new HashSet<string>();
+        for (int t = 251; t <= 360; t++)
+        {
+            engine.ReplayOneSecond();
+            var ac = engine.FindAircraft("UAL19");
+            if (ac?.Phases?.CurrentPhase is CrossingRunwayPhase crossing && crossing.RunwayId is { Length: > 0 } rwy)
+            {
+                crossedRunways.Add(rwy);
+            }
+        }
+
+        output.WriteLine($"UAL19 entered CrossingRunwayPhase for: [{string.Join(", ", crossedRunways)}]");
+        Assert.DoesNotContain("01R/19L", crossedRunways);
+        Assert.Contains("01L/19R", crossedRunways);
     }
 }

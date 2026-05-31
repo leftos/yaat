@@ -27,6 +27,11 @@ public sealed class TaxiingPhase : Phase
     private bool _initialized;
     private double _timeSinceLastLog;
 
+    // Set when this phase completes to hand off to a still-moving CrossingRunwayPhase
+    // (pre-cleared crossing), so OnEnd does not brake the aircraft to a stop. Transient —
+    // set and consumed within the same completing tick, never snapshotted.
+    private bool _completingIntoMovingCrossing;
+
     public override string Name => "Taxiing";
 
     internal double NavMaxSpeedKts => _nav.MaxSpeedKts;
@@ -115,7 +120,9 @@ public sealed class TaxiingPhase : Phase
     {
         Log.LogDebug("[Taxi] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
 
-        if (endStatus == PhaseStatus.Completed)
+        // Completing into a moving runway crossing: keep rolling — the CrossingRunwayPhase
+        // owns the speed and must not re-accelerate from a dead stop on the runway approach.
+        if (endStatus == PhaseStatus.Completed && !_completingIntoMovingCrossing)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
@@ -287,6 +294,24 @@ public sealed class TaxiingPhase : Phase
             return true;
         }
 
+        // Pre-cleared runway crossing: the hold-short was cleared (CROSS, auto-cross,
+        // or exit clearance) before the aircraft reached it, so it doesn't stop here.
+        // Still hand off to a CrossingRunwayPhase so it tracks the painted line across
+        // the runway and clears its tail past the far side — but only for a genuine
+        // forward crossing (a near-side hold-short with a matching far-side hold-short
+        // of the same runway ahead). The far-side hold-short of a runway the aircraft
+        // has already left (landing-rollout vacate, or a crossing it just finished) has
+        // no forward same-runway exit and stays in TaxiingPhase.
+        if (
+            holdShort is { IsCleared: true, Reason: HoldShortReason.RunwayCrossing }
+            && FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout, requireSameRunwayExit: true) is { } crossExitNodeId
+        )
+        {
+            ctx.Aircraft.Phases?.InsertAfterCurrent(BuildPreClearedCrossingPhases(ctx, route, holdShort, crossExitNodeId));
+            _completingIntoMovingCrossing = true;
+            return true;
+        }
+
         // Advance to next segment. When a composite slow-turn primitive
         // spanned multiple short chord-chain segments (cluster synth), bump
         // the index by the extra count so we don't re-target intermediate
@@ -370,7 +395,7 @@ public sealed class TaxiingPhase : Phase
 
         if (needsRunwayCrossing)
         {
-            int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout);
+            int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout, requireSameRunwayExit: false);
             if (exitNodeId is not null)
             {
                 phases.Add(new CrossingRunwayPhase(holdShort.NodeId, exitNodeId.Value, holdShort.TargetName));
@@ -404,7 +429,76 @@ public sealed class TaxiingPhase : Phase
         return phases;
     }
 
-    private static int? FindRunwayCrossingExitNode(TaxiRoute route, HoldShortPoint entryHoldShort, AirportGroundLayout? layout)
+    /// <summary>
+    /// Build the phase sequence for a runway crossing whose hold-short was cleared
+    /// before arrival (so no <see cref="HoldingShortPhase"/> stop): the
+    /// <see cref="CrossingRunwayPhase"/> across the painted line, then the onward
+    /// <see cref="TaxiingPhase"/> (or a terminal phase if the route ends at the far
+    /// side). Advances <see cref="TaxiRoute.CurrentSegmentIndex"/> past the crossing
+    /// slice — identical to the resume flow in <see cref="BuildResumePhases"/>, but
+    /// entered straight from a moving <see cref="TaxiingPhase"/>.
+    /// </summary>
+    private static List<Phase> BuildPreClearedCrossingPhases(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort, int exitNodeId)
+    {
+        var phases = new List<Phase> { new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName) };
+
+        // Skip past the arrived-at hold-short segment, then consume the crossing slice
+        // up to and including the segment that reaches the far-side hold-short.
+        route.CurrentSegmentIndex++;
+        while (!route.IsComplete)
+        {
+            var seg = route.CurrentSegment;
+            if (seg is null)
+            {
+                break;
+            }
+
+            route.CurrentSegmentIndex++;
+            if (seg.ToNodeId == exitNodeId)
+            {
+                break;
+            }
+        }
+
+        if (!route.IsComplete)
+        {
+            phases.Add(new TaxiingPhase());
+        }
+        else if (route.DestinationParking is not null)
+        {
+            ctx.Aircraft.Ground.ParkingSpot = route.DestinationParking;
+            phases.Add(new AtParkingPhase());
+        }
+        else
+        {
+            phases.Add(new HoldingInPositionPhase());
+        }
+
+        return phases;
+    }
+
+    /// <summary>
+    /// Scan the route forward from the current segment for the exit-side hold-short
+    /// of the same runway as <paramref name="entryHoldShort"/> (the far side of the
+    /// crossing). When found, clear that exit-side hold-short and return its node.
+    ///
+    /// <para>
+    /// With <paramref name="requireSameRunwayExit"/> = false, a fallback returns the
+    /// current segment's target node when no matching far-side hold-short exists
+    /// (used by the resume-from-hold flow, where the route may represent a crossing
+    /// with only one annotated hold-short). With it = true, a missing far-side
+    /// hold-short returns null — this distinguishes a genuine forward crossing
+    /// (near-side hold-short with a matching far side ahead) from the far-side
+    /// hold-short of a runway already behind the aircraft (a landing-rollout vacate
+    /// or a crossing it already completed), which must not start a new crossing.
+    /// </para>
+    /// </summary>
+    private static int? FindRunwayCrossingExitNode(
+        TaxiRoute route,
+        HoldShortPoint entryHoldShort,
+        AirportGroundLayout? layout,
+        bool requireSameRunwayExit
+    )
     {
         var entryRwyId = entryHoldShort.TargetName is not null ? RunwayIdentifier.Parse(entryHoldShort.TargetName) : (RunwayIdentifier?)null;
 
@@ -429,6 +523,11 @@ public sealed class TaxiingPhase : Phase
 
                 return seg.ToNodeId;
             }
+        }
+
+        if (requireSameRunwayExit)
+        {
+            return null;
         }
 
         if (route.CurrentSegmentIndex < route.Segments.Count)

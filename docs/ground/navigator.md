@@ -62,8 +62,9 @@ Phases run **before** physics each sub-tick (see [`../tick-loop.md`](../tick-loo
 
 The navigator is one stage in a chain owned by `TaxiingPhase`. It is **not** responsible for hold-short insertion, runway crossing, departure clearance, parking, or phase handoff — `TaxiingPhase` does all of that around the navigator (see `ArriveAtNode` / `BuildResumePhases` in `TaxiingPhase.cs:221`). On arrival at a node:
 
-- An uncleared hold-short → `TaxiingPhase` inserts `HoldingShortPhase` + resume phases.
-- A runway crossing → `CrossingRunwayPhase` (which owns its own navigator over a crossing route).
+- An uncleared hold-short → `TaxiingPhase` inserts `HoldingShortPhase` + resume phases; resuming a runway-crossing hold-short builds a `CrossingRunwayPhase` (`BuildResumePhases`).
+- A **pre-cleared** runway crossing (the hold-short was cleared by an early `CROSS` / auto-cross before arrival) → `CrossingRunwayPhase` straight from the moving `TaxiingPhase`, no stop (`BuildPreClearedCrossingPhases`). Gated to a genuine forward crossing (near-side hold-short with a matching far-side hold-short of the same runway ahead, via `FindRunwayCrossingExitNode(requireSameRunwayExit: true)`); the far-side hold-short of a runway already vacated (landing-rollout exit) stays in `TaxiingPhase`. `TaxiingPhase.OnEnd` skips its stop-braking when handing off to a moving crossing.
+- `CrossingRunwayPhase` owns its own navigator over a crossing-route slice. It crosses at **taxi speed** with `RunwayCrossingSpeed` as a no-stop floor (`MinSpeedKts`) — a crossing is just taxiing across (7110.65 §3-7-2 "cross without delay"); any curve in the painted line is still slowed by the navigator's arc-speed cap.
 - Route end with a parking destination → `AtParkingPhase`; otherwise `HoldingInPositionPhase`.
 - A pending departure clearance at route end → `LineUpPhase` / `LinedUpAndWaitingPhase` / `TakeoffPhase` chain.
 

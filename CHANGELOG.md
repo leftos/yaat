@@ -7,7 +7,8 @@
 
 ### Fixed
 - Aircraft cleared to cross a runway with `CROSS` now follow the painted taxi line through the crossing instead of cutting diagonally across the runway surface when the taxiway curves through the crossing (e.g. SFO H across 01L/19R).
-- Aircraft cleared to cross a runway now hold a steady crossing speed all the way across instead of slowing toward a stop at the far side before continuing onto the next taxiway.
+- Aircraft cleared to cross a runway now cross at normal taxi speed and keep rolling all the way across, instead of slowing to a lower crossing speed or braking toward a stop at the far side before continuing onto the next taxiway.
+- A runway crossing cleared before the aircraft reaches the hold line — an early `CROSS`, or an auto-cross taxi — is now flown as a proper crossing that tracks the painted taxi line across, instead of taxiing straight through; an aircraft still clearing the runway it just landed on is no longer treated as a new crossing of that runway.
 - Ground taxi-route previews (the right-click route options and the route-drawing preview) now use the aircraft's actual performance category instead of always assuming a jet, so a turboprop, piston, or helicopter preview matches the route the taxi command will actually produce.
 - When two aircraft's ground paths cross, the conflict resolver now stops one and lets the other proceed at normal taxi speed instead of slowing both to a crawl; an aircraft clearing the runway keeps priority over a taxiing aircraft crossing its path, and an aircraft giving way holds steadily instead of creeping forward.
 - An aircraft still exiting the runway it just landed on, when given a TAXI whose route crosses that same runway, now taxis clear to finish its exit instead of incorrectly holding short of the runway it is leaving.

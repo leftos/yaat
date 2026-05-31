@@ -7,13 +7,15 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
-/// Aircraft crosses a runway at runway-crossing speed by following the taxi
-/// line via a <see cref="GroundNavigator"/> over the crossing slice of the
-/// aircraft's <see cref="TaxiRoute"/>. Each tick steers via the navigator
-/// (which respects arcs, fillets and intermediate runway-centerline nodes
-/// that the painted line traverses), then completes when the navigator
-/// reaches a virtual node offset ½ aircraft length past the exit-side
-/// hold-short.
+/// Aircraft crosses a runway at normal taxi speed (runway-crossing speed kept only
+/// as a no-stop floor) by following the taxi line via a <see cref="GroundNavigator"/>
+/// over the crossing slice of the aircraft's <see cref="TaxiRoute"/>. Each tick steers
+/// via the navigator (which respects arcs, fillets and intermediate runway-centerline
+/// nodes that the painted line traverses, and slows for any curve via its arc-speed
+/// cap), then completes when the navigator reaches a virtual node offset ½ aircraft
+/// length past the exit-side hold-short. Crossing without delay (7110.65 §3-7-2)
+/// minimizes runway occupancy, so the aircraft does not slow below its taxi speed
+/// for a straight crossing.
 ///
 /// Earlier versions used a single straight-line beeline from the entry-side
 /// hold-short to the exit-side hold-short, which cut diagonally across the
@@ -52,7 +54,7 @@ public sealed class CrossingRunwayPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IsOnGround = true;
-        ctx.Targets.TargetSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+        ctx.Targets.TargetSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
 
         TryBuildCrossingRoute(ctx);
 
@@ -233,24 +235,27 @@ public sealed class CrossingRunwayPhase : Phase
 
         _crossingRoute = new TaxiRoute { Segments = slice, HoldShortPoints = [] };
 
-        // Cross and continue without delay (7110.65 §3-7-2): floor the speed at the crossing speed so the
-        // navigator never brakes toward a stop on the runway or at the (artificial) slice end, and the
-        // off-centerline re-acquire gate can't cap it mid-crossing. The aircraft hands off to the onward
-        // TaxiingPhase still moving; that phase owns the real deceleration for the destination. The floor
-        // never overrides a conflict/airport speed-limit ceiling (see ClampBySpeedLimit).
-        double maxSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
+        // Cross at normal taxi speed and continue without delay (7110.65 §3-7-2, "cross without delay"):
+        // a runway crossing is just taxiing across, so the cap is the category taxi speed — not a slower
+        // "crossing speed". RunwayCrossingSpeed is kept only as a navigator FLOOR so the aircraft never
+        // brakes toward a stop on the runway or at the (artificial) slice end, and the off-centerline
+        // re-acquire gate can't cap it mid-crossing. Any curve in the painted line is still slowed by the
+        // navigator's arc/turn-speed cap. The aircraft hands off to the onward TaxiingPhase still moving;
+        // that phase owns the real deceleration for the destination. The floor never overrides a
+        // conflict/airport speed-limit ceiling (see ClampBySpeedLimit).
         _navigator = GroundNavigatorRouter.Create();
-        _navigator.MaxSpeedKts = maxSpeed;
-        _navigator.MinSpeedKts = maxSpeed;
+        _navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
+        _navigator.MinSpeedKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
         _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
 
         _initialized = true;
 
         Log.LogDebug(
-            "[Crossing] {Callsign}: crossing route built, {SegCount} segments, maxSpeed={Speed:F0}kts",
+            "[Crossing] {Callsign}: crossing route built, {SegCount} segments, maxSpeed={Max:F0}kts floor={Floor:F0}kts",
             ctx.Aircraft.Callsign,
             slice.Count,
-            maxSpeed
+            _navigator.MaxSpeedKts,
+            _navigator.MinSpeedKts
         );
     }
 
