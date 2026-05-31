@@ -7,10 +7,11 @@ namespace Yaat.Sim.Phases.Ground;
 /// <summary>
 /// Clean-room V2 ground navigator (selected via <see cref="GroundNavigatorRouter"/>). Drives an aircraft
 /// along a resolved <see cref="TaxiRoute"/> over V2 fillet geometry via closed-form playback over
-/// <see cref="PathPrimitive"/>s (invariant I2 — during an arc, position and heading are both functions of
-/// one scalar, so they cannot drift apart). Straight segments use pure-pursuit steering; arc and slow-turn
-/// segments advance a closed-form circular integrator and write lat/lon/heading directly from playback
-/// state. Speed comes from corner-speed limits — angle-based plus a turn-rate-feasibility cap that slows
+/// <see cref="PathPrimitive"/>s (invariant I2 — during a curve, position and heading are both functions of
+/// one scalar, so they cannot drift apart). Straight segments use pure-pursuit steering; fillet arcs play the
+/// actual cubic Bézier by arc-length (<see cref="PathPrimitiveBezier"/>, ending exactly on the corner node);
+/// synthesised slow-turns advance a closed-form circular integrator. Curve playback writes lat/lon/heading
+/// directly from playback state. Speed comes from corner-speed limits — angle-based plus a turn-rate-feasibility cap that slows
 /// the aircraft into bends too tight to track at the angle-only speed (see <see cref="CornerSpeed"/>) —
 /// backward-propagated by kinematic braking, and capped by the lateral-accel arc speed model.
 ///
@@ -123,6 +124,15 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     /// <summary>Remaining sweep in degrees; decreases monotonically to 0 as the arc completes.</summary>
     private double _arcRemainingSweepDeg;
 
+    /// <summary>
+    /// Bézier-playback parameter for the current <see cref="PathPrimitiveBezier"/>: 0 at the
+    /// segment's from-node, 1 at its to-node. Advanced each tick by Δt = v·dt / |B'(t)|.
+    /// </summary>
+    private double _bezierT;
+
+    /// <summary>Arc-length (ft) covered along the current Bézier so far, for the braking-curve remaining-distance estimate.</summary>
+    private double _bezierTraveledFt;
+
     /// <summary>Starting lat/lon of the current segment, for diagnostic & cross-track logging.</summary>
     private double _segmentFromLat;
     private double _segmentFromLon;
@@ -153,6 +163,17 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     /// <see cref="BuildSpeedConstraints"/> alongside <see cref="_nextSegmentBearing"/>.
     /// </summary>
     private bool _nextSegmentIsArc;
+
+    /// <summary>
+    /// True when the immediately-following route segment is shorter than the loose arrival threshold
+    /// (typically a virtual tail-clear stub past a hold-short, or a short fillet sub-segment). Used by
+    /// <see cref="TickStraight"/> to switch to the tight arrival threshold: arriving loosely (~91 ft early)
+    /// onto a segment that is itself only ~10-20 ft long places the aircraft most of the loose threshold
+    /// <em>off</em> that segment's centerline, which trips the establish-straight re-acquire gate into a
+    /// needless crawl to the stop. Arriving tight keeps the aircraft on the short segment's line so it
+    /// brakes straight to the node. Set by <see cref="BuildSpeedConstraints"/>.
+    /// </summary>
+    private bool _nextSegmentIsShort;
 
     /// <summary>
     /// Rounding radius (ft) for the corner at the END of the current segment — adaptive: tightened from the
@@ -220,7 +241,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             return;
         }
 
-        var segmentPrimitive = PathPrimitiveBuilder.FromSegment(seg);
+        var segmentPrimitive = PathPrimitiveBuilder.FromSegmentV2(seg);
 
         var from = seg.Edge.FromNode;
         var to = seg.Edge.ToNode;
@@ -294,15 +315,15 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             _pendingSegmentPrimitive = null;
             _currentPrimitive = segmentPrimitive;
 
-            if (_currentPrimitive is PathPrimitiveArc arcPrim)
-            {
-                _arcBearingFromCenterDeg = arcPrim.StartBearingFromCenterDeg;
-                _arcRemainingSweepDeg = arcPrim.SweepDeg;
-            }
-            else if (_currentPrimitive is PathPrimitiveSlowTurn slowPrim)
+            if (_currentPrimitive is PathPrimitiveSlowTurn slowPrim)
             {
                 _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
                 _arcRemainingSweepDeg = slowPrim.SweepDeg;
+            }
+            else if (_currentPrimitive is PathPrimitiveBezier)
+            {
+                _bezierT = 0;
+                _bezierTraveledFt = 0;
             }
             else
             {
@@ -341,7 +362,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         var result = _currentPrimitive switch
         {
             PathPrimitiveStraight s => TickStraight(ctx, s, isLastSegment, isHoldShortCleared),
-            PathPrimitiveArc a => TickArc(ctx, a, isLastSegment, isHoldShortCleared),
+            PathPrimitiveBezier b => TickBezier(ctx, b, isHoldShortCleared),
             PathPrimitiveSlowTurn t => TickSlowTurn(ctx, t),
             _ => NavigatorResult.ArrivedAtNode,
         };
@@ -355,15 +376,15 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             var seg = _pendingSegmentPrimitive;
             _pendingSegmentPrimitive = null;
             _currentPrimitive = seg;
-            if (seg is PathPrimitiveArc arcPrim)
-            {
-                _arcBearingFromCenterDeg = arcPrim.StartBearingFromCenterDeg;
-                _arcRemainingSweepDeg = arcPrim.SweepDeg;
-            }
-            else if (seg is PathPrimitiveSlowTurn slowPrim)
+            if (seg is PathPrimitiveSlowTurn slowPrim)
             {
                 _arcBearingFromCenterDeg = slowPrim.StartBearingFromCenterDeg;
                 _arcRemainingSweepDeg = slowPrim.SweepDeg;
+            }
+            else if (seg is PathPrimitiveBezier)
+            {
+                _bezierT = 0;
+                _bezierTraveledFt = 0;
             }
             else
             {
@@ -419,6 +440,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         bool isStopTarget,
         bool shortEdge,
         bool nextSegmentIsArc,
+        bool nextSegmentIsShort,
         out bool roundingActive
     )
     {
@@ -434,7 +456,9 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             return Math.Clamp(tFt / GeoMath.FeetPerNm, FinalNodeArrivalThresholdNm, maxRoundingNm);
         }
 
-        return (isLastSegment || shortEdge || isStopTarget || nextSegmentIsArc) ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+        return (isLastSegment || shortEdge || isStopTarget || nextSegmentIsArc || nextSegmentIsShort)
+            ? FinalNodeArrivalThresholdNm
+            : NodeArrivalThresholdNm;
     }
 
     private NavigatorResult TickStraight(PhaseContext ctx, PathPrimitiveStraight prim, bool isLastSegment, Func<int, bool> isHoldShortCleared)
@@ -484,6 +508,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             isStopTarget,
             shortEdge,
             _nextSegmentIsArc,
+            _nextSegmentIsShort,
             out bool sharpCornerAhead
         );
 
@@ -650,66 +675,67 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         return NavigatorResult.Navigating;
     }
 
-    private NavigatorResult TickArc(PhaseContext ctx, PathPrimitiveArc prim, bool isLastSegment, Func<int, bool> isHoldShortCleared)
+    /// <summary>
+    /// Play a fillet's true cubic Bézier by arc-length. Each tick advances the curve parameter by
+    /// Δt = ds / |B'(t)| (ds = v·dt) and writes position + tangent heading directly from the curve
+    /// (invariant I2). Because the curve's endpoints are the segment's graph nodes, playback ends
+    /// exactly on the to-node — there is no circle-approximation undershoot, so the next segment
+    /// starts on-centerline rather than tripping the re-acquire speed gate.
+    /// </summary>
+    private NavigatorResult TickBezier(PhaseContext ctx, PathPrimitiveBezier prim, Func<int, bool> isHoldShortCleared)
     {
-        // Speed floor (I7: no pivot-in-place). If the aircraft is effectively
-        // stopped, set speed target and bail — physics will re-accelerate.
+        // Speed floor (I7: no pivot-in-place). If effectively stopped, hold the current tangent
+        // and target speed and bail — physics re-accelerates before the curve can advance.
         double vKts = ctx.Aircraft.IndicatedAirspeed;
         if (vKts < ArcSpeedFloorKts)
         {
-            double currentTangent = CurrentArcTangentDeg(prim);
-            ctx.Targets.TargetTrueHeading = new TrueHeading(currentTangent);
-            double targetSpeed = ComputeTargetSpeed(ctx, ArcRemainingLengthNm(prim), isHoldShortCleared);
-            ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetSpeed);
-            AdjustSpeed(ctx, ctx.Targets.TargetSpeed ?? targetSpeed);
+            double tang = prim.Curve.TangentBearing(_bezierT);
+            ctx.Targets.TargetTrueHeading = new TrueHeading(tang);
+            double ts0 = ComputeTargetSpeed(ctx, BezierRemainingNm(prim), isHoldShortCleared);
+            ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, ts0);
+            AdjustSpeed(ctx, ctx.Targets.TargetSpeed ?? ts0);
             return NavigatorResult.Navigating;
         }
 
-        // Advance the arc by ds = v·dt.
+        // Advance arc-length ds = v·dt, stepping the parameter by ds / |B'(t)|.
         double vFtPerSec = vKts * GeoMath.FeetPerNm / 3600.0;
         double dsFt = vFtPerSec * ctx.DeltaSeconds;
-        double dAngleRad = dsFt / prim.RadiusFt;
-        double dAngleDeg = dAngleRad * (180.0 / Math.PI);
-        dAngleDeg = Math.Min(dAngleDeg, _arcRemainingSweepDeg);
-
-        double signed = prim.RightTurn ? +dAngleDeg : -dAngleDeg;
-        _arcBearingFromCenterDeg = (((_arcBearingFromCenterDeg + signed) % 360.0) + 360.0) % 360.0;
-        _arcRemainingSweepDeg = Math.Max(0.0, _arcRemainingSweepDeg - dAngleDeg);
+        double paramSpeedFt = prim.Curve.DerivativeMagnitudeFt(_bezierT);
+        _bezierT = paramSpeedFt > 1e-6 ? Math.Min(1.0, _bezierT + (dsFt / paramSpeedFt)) : 1.0;
+        _bezierTraveledFt += dsFt;
 
         // Write position + heading directly from the playback state (invariant I2).
-        var (lat, lon) = GeoMath.ProjectPoint(new LatLon(prim.CenterLat, prim.CenterLon), new TrueHeading(_arcBearingFromCenterDeg), prim.RadiusNm);
-        double tangentDeg = CurrentArcTangentDeg(prim);
+        var (lat, lon) = prim.Curve.Evaluate(_bezierT);
+        double tangentDeg = prim.Curve.TangentBearing(_bezierT);
         ctx.Aircraft.Position = new LatLon(lat, lon);
         ctx.Aircraft.TrueHeading = new TrueHeading(tangentDeg);
 
         // Mirror into targets so physics does not fight the closed-form state.
         ctx.Targets.TargetTrueHeading = new TrueHeading(tangentDeg);
-        double arcTargetSpeed = ComputeTargetSpeed(ctx, ArcRemainingLengthNm(prim), isHoldShortCleared);
-        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, arcTargetSpeed);
-        AdjustSpeed(ctx, ctx.Targets.TargetSpeed ?? arcTargetSpeed);
+        double targetSpeed = ComputeTargetSpeed(ctx, BezierRemainingNm(prim), isHoldShortCleared);
+        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetSpeed);
+        AdjustSpeed(ctx, ctx.Targets.TargetSpeed ?? targetSpeed);
 
         double distToNode = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         PrevDistToTarget = distToNode;
-        UpdateDiag(ctx, distToNode, tangentDeg, arcTargetSpeed, onArc: true);
+        UpdateDiag(ctx, distToNode, tangentDeg, targetSpeed, onArc: true);
 
         Log.LogDebug(
-            "[NavV2] TickArc cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) tan={Tan:F1} bearingFromCenter={BFC:F1} "
-                + "remainingSweep={Rem:F2}° r={R:F0}ft right={Right} ds={Ds:F2}ft v={V:F1}kt distFt={Dist:F1}",
+            "[NavV2] TickBezier cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) tan={Tan:F1} t={T:F3} "
+                + "ds={Ds:F2}ft v={V:F1}kt traveledFt={Trav:F1} distFt={Dist:F1}",
             ctx.Aircraft.Callsign,
             TargetNodeId,
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             tangentDeg,
-            _arcBearingFromCenterDeg,
-            _arcRemainingSweepDeg,
-            prim.RadiusFt,
-            prim.RightTurn,
+            _bezierT,
             dsFt,
             vKts,
+            _bezierTraveledFt,
             distToNode * GeoMath.FeetPerNm
         );
 
-        if (_arcRemainingSweepDeg <= 0.01)
+        if (_bezierT >= 1.0 - 1e-9)
         {
             if (_nextSegmentBearing is { } nextBrg)
             {
@@ -723,11 +749,8 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         return NavigatorResult.Navigating;
     }
 
-    private double CurrentArcTangentDeg(PathPrimitiveArc prim)
-    {
-        double tangent = prim.RightTurn ? _arcBearingFromCenterDeg + 90.0 : _arcBearingFromCenterDeg - 90.0;
-        return ((tangent % 360.0) + 360.0) % 360.0;
-    }
+    /// <summary>Remaining arc length (nm) along the current Bézier, for the braking-curve distance-to-endpoint.</summary>
+    private double BezierRemainingNm(PathPrimitiveBezier prim) => Math.Max(0.0, prim.LengthFt - _bezierTraveledFt) / GeoMath.FeetPerNm;
 
     private double CurrentSlowTurnTangentDeg(PathPrimitiveSlowTurn prim)
     {
@@ -792,8 +815,6 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         return NavigatorResult.Navigating;
     }
 
-    private double ArcRemainingLengthNm(PathPrimitiveArc prim) => _arcRemainingSweepDeg * prim.RadiusFt * Math.PI / 180.0 / GeoMath.FeetPerNm;
-
     private double ComputeTargetSpeed(PhaseContext ctx, double distToEndpointNm, Func<int, bool> isHoldShortCleared)
     {
         double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
@@ -814,10 +835,10 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         }
 
         // Quadratic scaling by heading error so the aircraft slows during
-        // large re-alignments. For arcs this is ~1 (we write the exact
+        // large re-alignments. On a Bézier this is ~1 (we write the exact
         // tangent heading each tick) so it is a no-op.
-        double bearingDeg = _currentPrimitive is PathPrimitiveArc arcPrim
-            ? CurrentArcTangentDeg(arcPrim)
+        double bearingDeg = _currentPrimitive is PathPrimitiveBezier bezPrim
+            ? bezPrim.Curve.TangentBearing(_bezierT)
             : GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         double angleDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearingDeg));
         double normalized = Math.Clamp(angleDiff / 90.0, 0.0, 1.0);
@@ -845,6 +866,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             _currentNodeRequiredSpeed = 0;
             _nextSegmentBearing = null;
             _nextSegmentIsArc = false;
+            _nextSegmentIsShort = false;
         }
         else if (!isLastSegment)
         {
@@ -854,6 +876,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             _currentNodeRequiredSpeed = CornerSpeed(ctx.Category, turnAngle, seg.Edge.DistanceNm, nextSeg.Edge.DistanceNm);
             _nextSegmentBearing = nextSeg.Edge.DepartureBearing;
             _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
+            _nextSegmentIsShort = nextSeg.Edge.DistanceNm < NodeArrivalThresholdNm;
 
             // Adaptive rounding radius for the corner at this segment's end (matches the entry-alignment
             // radius the next segment's setup will use): tighten when the approach/departure legs are
@@ -874,6 +897,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             _currentNodeRequiredSpeed = 0;
             _nextSegmentBearing = null;
             _nextSegmentIsArc = false;
+            _nextSegmentIsShort = false;
         }
 
         // Forward walk: collect future speed constraints.

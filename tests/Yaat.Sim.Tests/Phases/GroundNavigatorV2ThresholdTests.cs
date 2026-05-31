@@ -31,6 +31,7 @@ public class GroundNavigatorV2ThresholdTests
             isStopTarget: false,
             shortEdge: true,
             nextSegmentIsArc: false,
+            nextSegmentIsShort: false,
             out bool roundingActive
         );
 
@@ -52,6 +53,7 @@ public class GroundNavigatorV2ThresholdTests
             isStopTarget: false,
             shortEdge: false,
             nextSegmentIsArc: false,
+            nextSegmentIsShort: false,
             out bool roundingActive
         );
 
@@ -94,6 +96,7 @@ public class GroundNavigatorV2ThresholdTests
             isStopTarget: false,
             shortEdge: false,
             nextSegmentIsArc: false,
+            nextSegmentIsShort: false,
             out bool roundingActive
         );
 
@@ -115,6 +118,7 @@ public class GroundNavigatorV2ThresholdTests
             isStopTarget: false,
             shortEdge: false,
             nextSegmentIsArc: false,
+            nextSegmentIsShort: false,
             out bool roundingActive
         );
 

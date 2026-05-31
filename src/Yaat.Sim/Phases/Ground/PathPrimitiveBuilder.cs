@@ -44,8 +44,6 @@ public static class PathPrimitiveBuilder
     public static PathPrimitive FromSegment(TaxiRouteSegment segment)
     {
         var edge = segment.Edge;
-        var from = edge.FromNode;
-        var to = edge.ToNode;
         double lengthFt = edge.DistanceNm * GeoMath.FeetPerNm;
 
         if (edge.Edge is GroundArc arc)
@@ -53,6 +51,32 @@ public static class PathPrimitiveBuilder
             return BuildArc(edge, arc, lengthFt);
         }
 
+        return BuildStraight(edge, lengthFt);
+    }
+
+    /// <summary>
+    /// V2 variant: arcs compile to a <see cref="PathPrimitiveBezier"/> (true painted-centerline
+    /// playback) instead of the single-circle <see cref="PathPrimitiveArc"/>. Straights are
+    /// identical to <see cref="FromSegment"/>. <c>GroundNavigatorV2</c> calls this; the V1
+    /// <c>GroundNavigator</c> keeps using <see cref="FromSegment"/> until it is removed at the joint flip.
+    /// </summary>
+    public static PathPrimitive FromSegmentV2(TaxiRouteSegment segment)
+    {
+        var edge = segment.Edge;
+        double lengthFt = edge.DistanceNm * GeoMath.FeetPerNm;
+
+        if (edge.Edge is GroundArc arc)
+        {
+            return BuildBezier(edge, arc, lengthFt);
+        }
+
+        return BuildStraight(edge, lengthFt);
+    }
+
+    private static PathPrimitiveStraight BuildStraight(DirectionalEdge edge, double lengthFt)
+    {
+        var from = edge.FromNode;
+        var to = edge.ToNode;
         return new PathPrimitiveStraight
         {
             Kind = PathPrimitiveKind.Straight,
@@ -63,6 +87,32 @@ public static class PathPrimitiveBuilder
             ToLat = to.Position.Lat,
             ToLon = to.Position.Lon,
             BearingDeg = edge.DepartureBearing,
+        };
+    }
+
+    /// <summary>
+    /// Compile a <see cref="GroundArc"/> into a <see cref="PathPrimitiveBezier"/> that plays the
+    /// fillet's true cubic Bézier. The curve is oriented for traversal: when the route enters the
+    /// arc at <c>Nodes[0]</c> the stored Bézier is used as-is (t=0 at the from-node); when it enters
+    /// at <c>Nodes[1]</c> the control points are reversed so t still runs from-node → to-node. Because
+    /// the endpoints are the graph nodes, playback terminates exactly on the to-node.
+    /// </summary>
+    private static PathPrimitiveBezier BuildBezier(DirectionalEdge edge, GroundArc arc, double lengthFt)
+    {
+        var stored = arc.ToBezier();
+        bool forward = edge.FromNode.Id == arc.Nodes[0].Id;
+        var oriented = forward
+            ? stored
+            : new CubicBezier(stored.P3Lat, stored.P3Lon, stored.P2Lat, stored.P2Lon, stored.P1Lat, stored.P1Lon, stored.P0Lat, stored.P0Lon);
+
+        return new PathPrimitiveBezier
+        {
+            Kind = PathPrimitiveKind.Bezier,
+            LengthFt = lengthFt,
+            ToNodeId = edge.ToNodeId,
+            Curve = oriented,
+            EntryTangentBearingDeg = edge.DepartureBearing,
+            ExitTangentBearingDeg = edge.ArrivalBearing,
         };
     }
 

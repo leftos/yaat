@@ -91,6 +91,22 @@ public readonly struct CubicBezier(double p0Lat, double p0Lon, double p1Lat, dou
     }
 
     /// <summary>
+    /// Magnitude of the first derivative at parameter t, in feet per unit t — i.e.
+    /// d(arc-length)/dt. Used to advance a parameter by a known arc-length step:
+    /// Δt = Δs / DerivativeMagnitudeFt(t). Converts the lat/lon derivative to local feet
+    /// at the curve's own latitude so the step is isotropic.
+    /// </summary>
+    public double DerivativeMagnitudeFt(double t)
+    {
+        var (dLat, dLon) = Derivative(t);
+        var (lat, _) = Evaluate(t);
+
+        double dyFt = dLat * NmPerDegLat * GeoMath.FeetPerNm;
+        double dxFt = dLon * Math.Cos(lat * (Math.PI / 180.0)) * NmPerDegLat * GeoMath.FeetPerNm;
+        return Math.Sqrt((dxFt * dxFt) + (dyFt * dyFt));
+    }
+
+    /// <summary>
     /// Radius of curvature at parameter t, in feet.
     /// κ = |x'y'' - y'x''| / (x'² + y'²)^(3/2), R = 1/κ.
     /// Converts to local XY feet for correct units.

@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Airport;
+
 namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
@@ -10,6 +12,14 @@ public enum PathPrimitiveKind
 
     /// <summary>A circular arc (fillet) between two tangent points.</summary>
     Arc,
+
+    /// <summary>
+    /// A fillet played back as its true cubic Bézier (see <see cref="PathPrimitiveBezier"/>).
+    /// Unlike <see cref="Arc"/>, which approximates the fillet as a single circle of the
+    /// Bézier's minimum radius of curvature, this traces the actual painted centerline and
+    /// is guaranteed to terminate on the segment's to-node.
+    /// </summary>
+    Bezier,
 
     /// <summary>
     /// A tight-radius circular arc executed at low forward speed using full
@@ -126,6 +136,39 @@ public sealed record PathPrimitiveArc : PathPrimitive
 
     /// <summary>Radius in nautical miles. Pre-computed for the GeoMath primitives.</summary>
     public double RadiusNm => RadiusFt / GeoMath.FeetPerNm;
+}
+
+/// <summary>
+/// A fillet primitive played back as its true cubic Bézier, not a single-circle
+/// approximation. <see cref="GroundNavigatorV2"/> advances the curve parameter by
+/// arc-length each tick (Δt = v·dt / |B'(t)|) and writes position and tangent heading
+/// directly from <see cref="CubicBezier.Evaluate"/> / <see cref="CubicBezier.TangentBearing"/>,
+/// so position and heading remain pure functions of one scalar (invariant I2).
+///
+/// <para>
+/// Why this exists: <see cref="PathPrimitiveArc"/> reinterprets a fillet as a circle of the
+/// Bézier's <em>minimum</em> radius of curvature. For a wide sweeping runway/taxiway fillet the
+/// apex curvature is far tighter than the endpoint-connecting radius, so the circle ends well
+/// short of the segment's to-node — the playback then hands off ~50 ft away, and the next short
+/// segment starts with a large cross-track that trips the re-acquire speed gate into a needless
+/// crawl. Playing the actual Bézier ends exactly on the to-node (its P3) and follows the painted
+/// line the renderer draws.
+/// </para>
+/// </summary>
+public sealed record PathPrimitiveBezier : PathPrimitive
+{
+    /// <summary>
+    /// The fillet curve, oriented for traversal: <c>t = 0</c> is the segment's from-node,
+    /// <c>t = 1</c> is its to-node (<see cref="CubicBezier.P3Lat"/>/<see cref="CubicBezier.P3Lon"/>).
+    /// Reversed-direction traversal is baked in at build time by swapping the control points.
+    /// </summary>
+    public required CubicBezier Curve { get; init; }
+
+    /// <summary>Tangent heading at the curve entry (= the departure direction of the preceding segment).</summary>
+    public required double EntryTangentBearingDeg { get; init; }
+
+    /// <summary>Tangent heading at the curve exit (= the departure direction of the next segment).</summary>
+    public required double ExitTangentBearingDeg { get; init; }
 }
 
 /// <summary>

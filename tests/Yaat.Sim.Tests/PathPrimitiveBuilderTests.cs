@@ -249,6 +249,132 @@ public class PathPrimitiveBuilderTests
         Assert.InRange(arcPrim.StartBearingFromCenterDeg, 89.5, 90.5);
     }
 
+    // ---- V2 Bézier arc primitive ----
+
+    [Fact]
+    public void FromSegmentV2_Arc_ProducesBezierTerminatingExactlyOnToNode()
+    {
+        var segment = MakeArc90Segment(reversed: false);
+
+        var primitive = PathPrimitiveBuilder.FromSegmentV2(segment);
+
+        var bez = Assert.IsType<PathPrimitiveBezier>(primitive);
+        Assert.Equal(PathPrimitiveKind.Bezier, bez.Kind);
+        Assert.Equal(11, bez.ToNodeId);
+
+        // The curve is oriented from→to: t=0 is the from-node, t=1 is the to-node.
+        var (lat0, lon0) = bez.Curve.Evaluate(0.0);
+        var (lat1, lon1) = bez.Curve.Evaluate(1.0);
+        var seg = segment.Edge;
+        double startErrFt = GeoMath.DistanceNm(lat0, lon0, seg.FromNode.Position.Lat, seg.FromNode.Position.Lon) * GeoMath.FeetPerNm;
+        double endErrFt = GeoMath.DistanceNm(lat1, lon1, seg.ToNode.Position.Lat, seg.ToNode.Position.Lon) * GeoMath.FeetPerNm;
+        Assert.True(startErrFt < 0.1, $"curve start off the from-node by {startErrFt:F3}ft");
+        Assert.True(endErrFt < 0.1, $"curve end off the to-node by {endErrFt:F3}ft");
+
+        // Arc-length playback (the navigator's algorithm: step t by ds / |B'(t)|) must reach the
+        // to-node, not stop short like the min-radius-circle approximation does.
+        var (endLat, endLon, traveledFt) = PlayBezier(bez);
+        double playErrFt = GeoMath.DistanceNm(endLat, endLon, seg.ToNode.Position.Lat, seg.ToNode.Position.Lon) * GeoMath.FeetPerNm;
+        Assert.True(playErrFt < 1.0, $"arc-length playback ended {playErrFt:F2}ft from the to-node");
+        Assert.InRange(traveledFt, bez.LengthFt * 0.95, bez.LengthFt * 1.05);
+    }
+
+    [Fact]
+    public void FromSegmentV2_ArcReversed_OrientsCurveFromTraversalStart()
+    {
+        var segment = MakeArc90Segment(reversed: true);
+
+        var bez = Assert.IsType<PathPrimitiveBezier>(PathPrimitiveBuilder.FromSegmentV2(segment));
+        Assert.Equal(10, bez.ToNodeId);
+
+        // Reversed traversal: t=0 must be the traversal from-node (node 11), t=1 the to-node (node 10).
+        var (lat0, lon0) = bez.Curve.Evaluate(0.0);
+        var seg = segment.Edge;
+        double startErrFt = GeoMath.DistanceNm(lat0, lon0, seg.FromNode.Position.Lat, seg.FromNode.Position.Lon) * GeoMath.FeetPerNm;
+        Assert.True(startErrFt < 0.1, $"reversed curve start off the traversal from-node by {startErrFt:F3}ft");
+
+        var (endLat, endLon, _) = PlayBezier(bez);
+        double playErrFt = GeoMath.DistanceNm(endLat, endLon, seg.ToNode.Position.Lat, seg.ToNode.Position.Lon) * GeoMath.FeetPerNm;
+        Assert.True(playErrFt < 1.0, $"reversed playback ended {playErrFt:F2}ft from the to-node");
+    }
+
+    /// <summary>Replay a Bézier primitive by arc-length (2 ft steps) and return the final point and total travel.</summary>
+    private static (double Lat, double Lon, double TraveledFt) PlayBezier(PathPrimitiveBezier bez)
+    {
+        double t = 0.0;
+        double traveledFt = 0.0;
+        const double stepFt = 2.0;
+        for (int i = 0; (i < 100000) && (t < 1.0); i++)
+        {
+            double speedFt = bez.Curve.DerivativeMagnitudeFt(t);
+            t = speedFt > 1e-6 ? Math.Min(1.0, t + (stepFt / speedFt)) : 1.0;
+            traveledFt += stepFt;
+        }
+        var (lat, lon) = bez.Curve.Evaluate(Math.Min(t, 1.0));
+        return (lat, lon, traveledFt);
+    }
+
+    /// <summary>
+    /// Synthesise a 90° right-turn fillet arc segment (entry north, exit east, r=70 ft) wrapped in a
+    /// <see cref="TaxiRouteSegment"/>. When <paramref name="reversed"/>, the directional edge traverses
+    /// node 11 → node 10 instead of 10 → 11.
+    /// </summary>
+    private static TaxiRouteSegment MakeArc90Segment(bool reversed)
+    {
+        const double p0Lat = 37.0;
+        const double p0Lon = -122.0;
+        const double radiusFt = 70.0;
+        double rNm = radiusFt / GeoMath.FeetPerNm;
+
+        var (centerLat, centerLon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(90.0), rNm);
+        var (p3Lat, p3Lon) = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0.0), rNm);
+
+        double kappa = (4.0 / 3.0) * Math.Tan(Math.PI / 8.0);
+        var (p1Lat, p1Lon) = GeoMath.ProjectPoint(p0Lat, p0Lon, new TrueHeading(0.0), kappa * rNm);
+        var (p2Lat, p2Lon) = GeoMath.ProjectPoint(p3Lat, p3Lon, new TrueHeading(270.0), kappa * rNm);
+
+        var node0 = new GroundNode
+        {
+            Id = 10,
+            Position = new LatLon(p0Lat, p0Lon),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var node1 = new GroundNode
+        {
+            Id = 11,
+            Position = new LatLon(p3Lat, p3Lon),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+
+        double arcLenFt = (Math.PI / 2.0) * radiusFt;
+        var arc = new GroundArc
+        {
+            Nodes = [node0, node1],
+            P1Lat = p1Lat,
+            P1Lon = p1Lon,
+            P2Lat = p2Lat,
+            P2Lon = p2Lon,
+            MinRadiusOfCurvatureFt = radiusFt,
+            DistanceNm = arcLenFt / GeoMath.FeetPerNm,
+            TaxiwayNames = ["A"],
+        };
+
+        var directed = reversed
+            ? new DirectionalEdge
+            {
+                Edge = arc,
+                FromNode = node1,
+                ToNode = node0,
+            }
+            : new DirectionalEdge
+            {
+                Edge = arc,
+                FromNode = node0,
+                ToNode = node1,
+            };
+        return new TaxiRouteSegment { Edge = directed, TaxiwayName = "A" };
+    }
+
     // ---- SlowTurn primitive ----
 
     [Fact]

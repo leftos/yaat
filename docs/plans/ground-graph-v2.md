@@ -173,9 +173,21 @@ filtering `Category!=Nightly&Category!=PathfinderGrid`. The suite **did not hang
   tangent-rounding now use an adaptive radius (`AdaptiveCornerRadiusFt`, tightened toward the 15 ft jet
   tight-turn floor) so a corner whose legs are shorter than the comfortable tangent (two junctions <T
   apart, e.g. SFO M2 between B and A) exits on the outgoing centerline instead of orbiting for ~45 s.
-  Aviation-reviewed (Boeing FCTM / AC 150/5300-13B oversteer). The N9225L rollout/exit being marginally
-  slower than V1 is a quality observation with **no failing test** (its symptoms #55/#56 are fixed) — left
-  as future polish, not a sweep blocker.
+  Aviation-reviewed (Boeing FCTM / AC 150/5300-13B oversteer).
+
+- **Exit-timing polish (the #61 residual) — FIXED.** Root-caused the "N9225L rollout/exit marginally slower
+  than V1": the V2 navigator reinterpreted each `GroundArc` fillet as a circle of the Bézier's *minimum*
+  radius of curvature (`PathPrimitiveBuilder.BuildArc`). For wide sweeping fillets the apex curvature is far
+  tighter than the endpoint-connecting radius, so playback ended well short of the corner's exit node (OAK
+  28R→G: 72 ft circle, endpoints 153 ft apart → 56 ft short), and the next short segment started with a large
+  cross-track that pinned the establish-straight re-acquire gate at a 5 kt crawl. A systemic scan found
+  ~30–40 % of all OAK/SFO/FLL fillet traversals would undershoot >5 ft. **Fix:** `GroundNavigatorV2` now plays
+  the *actual* cubic Bézier by arc-length (`PathPrimitiveBezier` / `TickBezier`), ending exactly on the
+  to-node; plus a tight arrival when the next segment is short (so the virtual tail-clear stub isn't entered
+  from far away). V2-navigator-only (V1 circle playback untouched until the flip). N9225L 28R→G re-acquire
+  crawl 6 s → 1 s. Aviation-reviewed (AIM 2-3-4.2.1 centerline tracking, 2-3-5.1.1 all-parts-crossed).
+  Tests: `PathPrimitiveBuilderTests.FromSegmentV2_*`, `GroundArcBezierPlaybackGuardTests` (every V2 arc on
+  OAK/SFO/FLL ends ≤2 ft from its node), `N9225LExitTimingTests`. Full cross-repo suite green.
 
 **Re-swept 2026-05-30 after the #55–#61 fixes (throwaway 4-default flip, `Category!=Nightly&!=PathfinderGrid`):
 2 failures / 5604, both non-real** — `SfoRampCrosses…ShouldFail` (known-open A2c) and one
