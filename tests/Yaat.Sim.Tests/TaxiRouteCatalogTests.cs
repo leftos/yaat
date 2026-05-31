@@ -120,12 +120,13 @@ public class TaxiRouteCatalogTests
         var catalog = new TaxiRouteCatalog(SampleRoutes());
         var route = catalog.GetRoutesForAirport("KOAK").First(r => r.Name == "DEP 30 via W");
 
-        var resolved = TaxiPathfinder.ResolveExplicitPath(
+        var resolved = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             startNode!.Id,
             route.GetPathTokens(),
             out string? failReason,
-            new ExplicitPathOptions { DestinationRunway = route.DestinationRunway, AirportId = "OAK" }
+            new ExplicitPathOptions { DestinationRunway = route.DestinationRunway, AirportId = "OAK" },
+            AircraftCategory.Jet
         );
 
         Assert.NotNull(resolved);
@@ -155,12 +156,13 @@ public class TaxiRouteCatalogTests
             Path = "ZZZ",
         };
 
-        var resolved = TaxiPathfinder.ResolveExplicitPath(
+        var resolved = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             startNode!.Id,
             bogus.GetPathTokens(),
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "OAK" }
+            new ExplicitPathOptions { AirportId = "OAK" },
+            AircraftCategory.Jet
         );
 
         Assert.True(resolved is null || failReason is not null, "Bogus taxiway must not resolve to a valid route");

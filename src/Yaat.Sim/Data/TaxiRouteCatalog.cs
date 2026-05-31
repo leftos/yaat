@@ -4,7 +4,7 @@ namespace Yaat.Sim.Data;
 /// Airport-keyed lookup over a flat list of <see cref="TaxiRouteDefinition"/>s loaded from
 /// per-ARTCC JSON files. Layout-agnostic: callers do their own validation against the airport
 /// ground graph (typically via
-/// <see cref="Yaat.Sim.Data.Airport.TaxiPathfinder.ResolveExplicitPath"/> at menu-build time).
+/// <see cref="Yaat.Sim.Data.Airport.TaxiPathfinderV2.ResolveExplicitPath"/> at menu-build time).
 /// </summary>
 public sealed class TaxiRouteCatalog
 {

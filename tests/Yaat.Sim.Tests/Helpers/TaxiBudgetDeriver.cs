@@ -24,8 +24,8 @@ namespace Yaat.Sim.Tests.Helpers;
 /// fillet arc at a GA-sized ramp are capped at the arc's safe speed
 /// (potentially 5-10 kts) regardless of nominal taxi speed (jet 30 kts).
 /// A flat distance/nominalKts budget under-allows these routes by 2-3×.
-/// Per-segment integration matches how <c>TaxiPathfinder.EstimateTime</c>
-/// scores Fastest routes — same math, applied to the chosen route.
+/// Per-segment integration matches how the V2 router's Fastest preference
+/// scores routes — same math, applied to the chosen route.
 /// </para>
 ///
 /// <para>Intra-segment turn matters because arc edges (fillets at junctions
@@ -84,7 +84,7 @@ internal static class TaxiBudgetDeriver
     public static TaxiBudget Derive(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category)
     {
         var route =
-            TaxiPathfinder.FindRoute(layout, fromNodeId, toNodeId)
+            TaxiPathfinderV2.FindRoute(layout, fromNodeId, toNodeId, AircraftCategory.Jet)
             ?? throw new InvalidOperationException($"TaxiBudgetDeriver: no A* route from node {fromNodeId} to {toNodeId} in {layout.AirportId}");
 
         double nominalKts = CategoryPerformance.TaxiSpeed(category);

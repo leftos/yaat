@@ -132,7 +132,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
         // Node 14 = Spot 2 on M2 (where AMX669 parks)
         int fromNodeId = 14;
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        var route = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             fromNodeId,
             ["B", "M1"],
@@ -142,7 +142,8 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
                 DestinationRunway = "1L",
                 AirportId = "SFO",
                 DiagnosticLog = msg => output.WriteLine(msg),
-            }
+            },
+            AircraftCategory.Jet
         );
 
         Assert.NotNull(route);

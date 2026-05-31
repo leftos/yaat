@@ -405,8 +405,7 @@ public class AutoRouterTests
         Edge(n0, n1, "A");
         Edge(n1, n2, "A");
 
-        var pathfinder = new TaxiPathfinderV2();
-        var route = pathfinder.FindRoute(layout, 0, 2, AircraftCategory.Jet);
+        var route = TaxiPathfinderV2.FindRoute(layout, 0, 2, AircraftCategory.Jet);
 
         Assert.NotNull(route);
         Assert.Equal(2, route.Segments.Count);
@@ -426,8 +425,7 @@ public class AutoRouterTests
         Edge(n0, n2, "B");
         Edge(n2, n3, "B");
 
-        var pathfinder = new TaxiPathfinderV2();
-        var routes = pathfinder.FindRoutes(layout, 0, 3, null, 3, null, AircraftCategory.Jet);
+        var routes = TaxiPathfinderV2.FindRoutes(layout, 0, 3, null, 3, null, AircraftCategory.Jet);
 
         Assert.NotEmpty(routes);
         Assert.True(routes.Count <= 3);
@@ -445,8 +443,7 @@ public class AutoRouterTests
         var layout = Layout(n0, n1);
         Edge(n0, n1, "A");
 
-        var pathfinder = new TaxiPathfinderV2();
-        var routes = pathfinder.FindRoutes(layout, 0, 1, RoutePreference.Shortest, 5, null, AircraftCategory.Jet);
+        var routes = TaxiPathfinderV2.FindRoutes(layout, 0, 1, RoutePreference.Shortest, 5, null, AircraftCategory.Jet);
 
         Assert.Single(routes);
     }
@@ -459,8 +456,7 @@ public class AutoRouterTests
         n1.RunwayId = new RunwayIdentifier("28R", "10L");
         var layout = Layout(n0, n1);
 
-        var pathfinder = new TaxiPathfinderV2();
-        var result = pathfinder.FindFullLengthLineupHoldShort(layout, n0, "28R", [n1]);
+        var result = TaxiPathfinderV2.FindFullLengthLineupHoldShort(layout, n0, "28R", [n1]);
 
         Assert.Equal(n1.Id, result.Id);
     }

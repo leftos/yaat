@@ -14,13 +14,11 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// N157LE (P28A) is taxied via <c>TAXI B W RWY 30</c> at t=2135 with response
 /// "Taxi via B W W1 RWY 30 (cross 28R/10L)", then given <c>CTO MLT</c> at t=2511.
-/// The variant walker at <see cref="TaxiVariantResolver.AutoExtendVariant"/>
-/// previously constructed <see cref="WalkOptions"/> without <c>StopAtRunwayId</c>,
-/// so the W1 walk ran past OAK node 41 (RunwayHoldShort for 30/12) to node 42
-/// (TaxiwayIntersection on the runway centerline). The destination hold-short
-/// landed on the centerline node; when LineUp engaged its geometry rejected
-/// the on-centerline/divergent-heading pose as a Fault and the aircraft sat
-/// indefinitely. User deleted at t=2663.
+/// The variant auto-extension to W1 previously ran past OAK node 41 (RunwayHoldShort
+/// for 30/12) to node 42 (TaxiwayIntersection on the runway centerline), so the
+/// destination hold-short landed on the centerline node; when LineUp engaged its
+/// geometry rejected the on-centerline/divergent-heading pose as a Fault and the
+/// aircraft sat indefinitely. User deleted at t=2663.
 ///
 /// Two regressions are asserted:
 ///   1. After <c>TAXI B W RWY 30</c>, the taxi route terminates at a

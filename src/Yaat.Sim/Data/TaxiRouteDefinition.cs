@@ -7,7 +7,7 @@ namespace Yaat.Sim.Data;
 /// <c>Data/TaxiRoutes/{ARTCC}/</c>. The path is a whitespace-separated list of taxiway
 /// names plus an optional destination (runway hold-short, parking, or spot). At dispatch
 /// time it is reconstructed into an equivalent <c>TAXI</c> command and fed through the
-/// existing <see cref="Yaat.Sim.Data.Airport.TaxiPathfinder.ResolveExplicitPath"/> path —
+/// existing <see cref="Yaat.Sim.Data.Airport.TaxiPathfinderV2.ResolveExplicitPath"/> path —
 /// no new command verb or pathfinder, just a UI shortcut for routes controllers tend to
 /// issue repeatedly per local SOP.
 /// </summary>

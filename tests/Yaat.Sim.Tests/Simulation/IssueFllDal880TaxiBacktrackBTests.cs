@@ -183,7 +183,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
                 + $"edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}]"
         );
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        var route = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["T", "T4", "B", "B1"],
@@ -194,7 +194,8 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
                 ExplicitHoldShorts = ["10L"],
                 AirportId = "FLL",
                 DiagnosticLog = msg => output.WriteLine(msg),
-            }
+            },
+            AircraftCategory.Jet
         );
 
         Assert.NotNull(route);

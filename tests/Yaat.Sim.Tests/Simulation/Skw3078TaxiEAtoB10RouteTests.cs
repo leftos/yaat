@@ -56,7 +56,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         output.WriteLine($"start node #{startNode.Id} type={startNode.Type} pos=({startNode.Position.Lat:F6},{startNode.Position.Lon:F6})");
         output.WriteLine($"parking #{parkingNode.Id} name={parkingNode.Name} pos=({parkingNode.Position.Lat:F6},{parkingNode.Position.Lon:F6})");
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        var route = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
@@ -66,7 +66,8 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
                 AirportId = "SFO",
                 DestinationHintNode = parkingNode,
                 DiagnosticLog = msg => output.WriteLine(msg),
-            }
+            },
+            AircraftCategory.Jet
         );
 
         Assert.Null(failReason);
@@ -150,12 +151,13 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         );
         Assert.NotNull(parkingNode);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        var route = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", DestinationHintNode = parkingNode }
+            new ExplicitPathOptions { AirportId = "SFO", DestinationHintNode = parkingNode },
+            AircraftCategory.Jet
         );
 
         Assert.Null(failReason);
@@ -242,12 +244,13 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         );
         Assert.NotNull(parkingNode);
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
+        var route = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
             out string? failReason,
-            new ExplicitPathOptions { AirportId = "SFO", DestinationHintNode = parkingNode }
+            new ExplicitPathOptions { AirportId = "SFO", DestinationHintNode = parkingNode },
+            AircraftCategory.Jet
         );
 
         Assert.Null(failReason);

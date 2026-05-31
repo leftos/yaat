@@ -3,14 +3,20 @@ namespace Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.V2;
 
 /// <summary>
-/// v2 pathfinder implementation. Auto-route methods (<see cref="FindRoute"/>, <see cref="FindRoutes"/>)
-/// are implemented with the A* <see cref="AutoRouter"/>. <see cref="ResolveExplicitPath"/> is
-/// implemented with <see cref="SegmentExpander"/>.
+/// Taxi pathfinder. Auto-route methods (<see cref="FindRoute"/>, <see cref="FindRoutes"/>) are
+/// implemented with the A* <see cref="AutoRouter"/>. <see cref="ResolveExplicitPath"/> is implemented
+/// with <see cref="SegmentExpander"/>. All methods are stateless; production code calls them directly.
 /// </summary>
-public sealed class TaxiPathfinderV2 : ITaxiPathfinder
+public static class TaxiPathfinderV2
 {
-    /// <inheritdoc/>
-    public TaxiRoute? ResolveExplicitPath(
+    /// <summary>
+    /// Resolve a controller-specified taxi route from a sequence of taxiway names.
+    /// Handles runway crossings, explicit hold-shorts, and variant resolution
+    /// (e.g., W → W1 auto-extension when the destination runway is set).
+    /// Returns null when the path cannot be resolved; <paramref name="failReason"/>
+    /// is set to a human-readable explanation in that case.
+    /// </summary>
+    public static TaxiRoute? ResolveExplicitPath(
         AirportGroundLayout layout,
         int fromNodeId,
         List<string> taxiwayNames,
@@ -68,8 +74,11 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
         return route;
     }
 
-    /// <inheritdoc/>
-    public TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category)
+    /// <summary>
+    /// Find the single best route between two nodes using the FewestTurns strategy.
+    /// Returns null when no route exists in the graph.
+    /// </summary>
+    public static TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category)
     {
         var ctx = SearchContext.Compile(
             layout,
@@ -89,17 +98,22 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
         return route;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Find up to <paramref name="maxRoutes"/> distinct routes between two nodes.
+    /// When <paramref name="preference"/> is null, all three strategies
+    /// (FewestTurns, Shortest, Fastest) are evaluated and results merged.
+    /// Pass null for <paramref name="authorizedTaxiways"/> to allow all taxiways.
+    /// </summary>
     /// <remarks>
-    /// V2 is intentionally <b>per-preference</b>, not a Yen-style k-shortest generator (V1 was the
-    /// latter). With no preference it runs one search for each of <see cref="RoutePreference.FewestTurns"/>
+    /// V2 is intentionally <b>per-preference</b>, not a Yen-style k-shortest generator. With no
+    /// preference it runs one search for each of <see cref="RoutePreference.FewestTurns"/>
     /// / <see cref="RoutePreference.Shortest"/> / <see cref="RoutePreference.Fastest"/> and returns the
     /// deduplicated results — at most 3 routes, regardless of <paramref name="maxRoutes"/>. Three distinct
     /// strategies are more useful to a controller than a set of near-identical Yen detours, so callers
     /// should request ≤3 (see <c>GroundViewModel.FindRoutesToNode</c>). Decision recorded in
     /// <c>docs/plans/pathfinderv2/codex-review.md</c>.
     /// </remarks>
-    public List<TaxiRoute> FindRoutes(
+    public static List<TaxiRoute> FindRoutes(
         AirportGroundLayout layout,
         int fromNodeId,
         int toNodeId,
@@ -144,8 +158,13 @@ public sealed class TaxiPathfinderV2 : ITaxiPathfinder
         return results;
     }
 
-    /// <inheritdoc/>
-    public GroundNode FindFullLengthLineupHoldShort(
+    /// <summary>
+    /// Pick the canonical full-length lineup hold-short for a runway designator —
+    /// the hold-short geographically closest to the runway threshold.
+    /// Falls back to the hold-short nearest <paramref name="startNode"/> when
+    /// the runway is unknown to <see cref="NavigationDatabase"/>.
+    /// </summary>
+    public static GroundNode FindFullLengthLineupHoldShort(
         AirportGroundLayout layout,
         GroundNode startNode,
         string runwayId,

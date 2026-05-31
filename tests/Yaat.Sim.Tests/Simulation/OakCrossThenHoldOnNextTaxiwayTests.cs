@@ -13,7 +13,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Bug: a controller issues TAXI G C HS 28R after an aircraft lands and exits
 /// 28L, expecting the aircraft to hold short of 28R, then on RES/CROSS cross
 /// the runway and stop just onto taxiway C awaiting further instructions or
-/// deletion. Today the route resolved by TaxiPathfinder.ResolveExplicitPath
+/// deletion. Today the route resolved by TaxiPathfinderV2.ResolveExplicitPath
 /// extends through the full length of C (53 segments to its dead-end), and
 /// BuildResumePhases for an ExplicitHoldShort reason at a runway HS doesn't
 /// insert CrossingRunwayPhase, so the aircraft taxis across the runway at

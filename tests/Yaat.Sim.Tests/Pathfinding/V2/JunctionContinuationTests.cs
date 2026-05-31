@@ -54,7 +54,7 @@ public class JunctionContinuationTests
         const double ParkLon = -80.14425458893693;
         var startNode = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ParkLat, ParkLon, n.Position.Lat, n.Position.Lon)).First();
 
-        var route = new TaxiPathfinderV2().ResolveExplicitPath(
+        var route = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["T", "T4", "B", "B1"],
@@ -108,7 +108,7 @@ public class JunctionContinuationTests
             .First();
         _output.WriteLine($"Start: #{startNode.Id} at ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})");
 
-        var route = new TaxiPathfinderV2().ResolveExplicitPath(
+        var route = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["A"],
@@ -173,7 +173,7 @@ public class JunctionContinuationTests
         _output.WriteLine($"Start: D8 = #{d8.Id} at ({d8.Position.Lat:F6}, {d8.Position.Lon:F6})");
 
         List<string> instructed = ["A", "E", "B", "B3", "A", "B1", "Z", "S"];
-        var route = new TaxiPathfinderV2().ResolveExplicitPath(
+        var route = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             d8.Id,
             instructed,
@@ -354,7 +354,7 @@ public class JunctionContinuationTests
 
         int startId = FarthestNodeOnTaxiwayFromJunction(layout, x, y);
 
-        var route = new TaxiPathfinderV2().ResolveExplicitPath(
+        var route = TaxiPathfinderV2.ResolveExplicitPath(
             layout,
             startId,
             [x, y],

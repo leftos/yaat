@@ -648,7 +648,7 @@ public class AirportE2ETests
         var hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        var routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id);
+        var routes = TaxiPathfinderV2.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
         Assert.True(routes.Count > 0, "Should find at least one route from C/B junction to RWY 30");
 
         // The first (best) route should use B → W (with optional variant suffix
@@ -682,7 +682,7 @@ public class AirportE2ETests
         var hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        var routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id);
+        var routes = TaxiPathfinderV2.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
         if (routes.Count < 2)
         {
             return; // Can't test ranking with only one route
@@ -714,7 +714,7 @@ public class AirportE2ETests
         var hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        var routes = TaxiPathfinder.FindRoutes(layout, parking.Id, hsNode.Id);
+        var routes = TaxiPathfinderV2.FindRoutes(layout, parking.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
         Assert.True(routes.Count > 0, "Should find route from NEW7 to RWY 30");
 
         var bestSeq = GetTaxiwaySequence(routes[0]);
@@ -1124,47 +1124,6 @@ public class AirportE2ETests
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"TAXI M1 1L should succeed: {result.Message}");
-    }
-
-    [Fact]
-    public void SFO_TaxiwayE_WalkMisses28R_FixedByVariantResolver()
-    {
-        // Documents that WalkTaxiway on E from the C/E junction goes west
-        // (crossing 1L/19R and 1R/19L) and misses the eastern 28R hold-shorts.
-        // TaxiVariantResolver.ExtendToSameNameHoldShort fixes this by A*
-        // extending from the walk endpoint to the 28R hold-short.
-        var layout = LoadLayout("SFO", "sfo");
-        if (layout is null)
-        {
-            return;
-        }
-
-        var ceJunction = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("C")) && n.Edges.Any(e => e.MatchesTaxiway("E")));
-        Assert.NotNull(ceJunction);
-
-        // Walk E — goes west, misses 28R hold-shorts
-        var segments = new List<TaxiRouteSegment>();
-        bool walked = TaxiPathfinder.WalkTaxiway(layout, ceJunction.Id, "E", segments, out _, new WalkOptions());
-        Assert.True(walked, "Should be able to walk E from C/E junction");
-
-        // Verify the walk does NOT pass through 28R hold-short (the root cause)
-        bool passedHs28R = segments.Any(seg =>
-        {
-            var toNode = layout.Nodes[seg.ToNodeId];
-            return toNode.Type == GroundNodeType.RunwayHoldShort && toNode.RunwayId is { } rId && (rId.Contains("28R") || rId.Contains("10L"));
-        });
-        Assert.False(passedHs28R, "Walk should miss 28R (goes west instead of east)");
-
-        // But 28R hold-short nodes with E edges DO exist
-        var hs28RWithE = layout
-            .Nodes.Values.Where(n =>
-                n.Type == GroundNodeType.RunwayHoldShort
-                && n.RunwayId is { } rId
-                && (rId.Contains("28R") || rId.Contains("10L"))
-                && n.Edges.Any(e => e.MatchesTaxiway("E"))
-            )
-            .ToList();
-        Assert.True(hs28RWithE.Count > 0, "28R hold-shorts with E edges should exist");
     }
 
     /// <summary>

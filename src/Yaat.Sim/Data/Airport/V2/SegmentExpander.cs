@@ -1743,8 +1743,7 @@ public static class SegmentExpander
         {
             // Multiple numbered variants of the base taxiway serve the destination runway (e.g.
             // W1..W7 off W to rwy 30). Auto-pick the one whose hold-short is nearest the requested
-            // runway's threshold — the full-length lineup connector — mirroring V1's
-            // TaxiVariantResolver.PickBestVariant. Only fall back to a TransitionAmbiguous failure
+            // runway's threshold — the full-length lineup connector. Only fall back to a TransitionAmbiguous failure
             // when the threshold is unavailable (no navdata), so the controller is never asked to
             // disambiguate a resolvable clearance and we never silently guess without a reference.
             var threshold = RouteMaterialiser.ResolveRunwayThreshold(ctx.Layout.AirportId, destinationRunway);

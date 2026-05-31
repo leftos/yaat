@@ -102,7 +102,7 @@ public class OakAllParkingTaxiAutoTests(ITestOutputHelper output)
 
         // Verify the pathfinder can find a route at all before spending tick budget.
         // Spots with no graph connectivity to the runway are reported, not asserted.
-        if (TaxiPathfinder.FindRoute(layout, parkingNodeId, holdShortNodes[0].Id) is null)
+        if (TaxiPathfinderV2.FindRoute(layout, parkingNodeId, holdShortNodes[0].Id, AircraftCategory.Jet) is null)
         {
             output.WriteLine($"SKIP {parkingName} (node {parkingNodeId}): no graph route to RWY {runway.Designator}");
             return;

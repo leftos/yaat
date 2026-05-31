@@ -576,7 +576,7 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        return TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId, toNodeId, category);
+        return TaxiPathfinderV2.FindRoute(_domainLayout, fromNodeId, toNodeId, category);
     }
 
     public string BuildTaxiCommand(TaxiRoute route)
@@ -796,15 +796,7 @@ public partial class GroundViewModel : ObservableObject
         // V2 returns one route per preference (FewestTurns / Shortest / Fastest), deduped — at most 3.
         // It is intentionally per-preference, not a Yen-style k-shortest generator, so requesting 3
         // matches what the router can actually produce (a 4th request always came back empty).
-        return TaxiPathfinderRouter.Current.FindRoutes(
-            _domainLayout,
-            fromNodeId,
-            toNodeId,
-            preference: null,
-            maxRoutes: 3,
-            authorizedTaxiways: null,
-            category
-        );
+        return TaxiPathfinderV2.FindRoutes(_domainLayout, fromNodeId, toNodeId, preference: null, maxRoutes: 3, authorizedTaxiways: null, category);
     }
 
     /// <summary>
@@ -1158,7 +1150,7 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            var route = TaxiPathfinderRouter.Current.FindRoute(_domainLayout, fromNodeId.Value, node.Id, CategoryFor(ac));
+            var route = TaxiPathfinderV2.FindRoute(_domainLayout, fromNodeId.Value, node.Id, CategoryFor(ac));
             if (route is null)
             {
                 continue;
@@ -1255,14 +1247,7 @@ public partial class GroundViewModel : ObservableObject
             }
         }
 
-        return TaxiPathfinderRouter.Current.ResolveExplicitPath(
-            _domainLayout,
-            nodeId.Value,
-            routeTaxiways,
-            out _,
-            new ExplicitPathOptions(),
-            CategoryFor(ac)
-        );
+        return TaxiPathfinderV2.ResolveExplicitPath(_domainLayout, nodeId.Value, routeTaxiways, out _, new ExplicitPathOptions(), CategoryFor(ac));
     }
 
     private static List<string> ParseRouteTaxiways(string taxiRoute)

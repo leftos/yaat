@@ -608,25 +608,6 @@ public class SegmentExpanderTests(ITestOutputHelper output)
         Assert.Null(failure);
         Assert.NotNull(route);
         Assert.True(route.Segments.Count > 0, "Route must contain at least one segment.");
-
-        // Strengthened (Cursor): on the same waypoint sequence and same graph, V2 must be no worse than
-        // V1 on U-turns — the whole point of issue 165 was that V2 must not introduce a 180° spin /
-        // backtrack where V1 doesn't. Compare both pathfinders' explicit-path output over the SFO layout.
-        var cmp = PathfinderComparison.CompareExplicit(
-            new TaxiPathfinderV1Adapter(),
-            new TaxiPathfinderV2(),
-            layout,
-            StartNodeId,
-            [.. waypoints],
-            new ExplicitPathOptions { AirportId = "SFO" }
-        );
-        output.WriteLine("[v2:issue165] " + PathfinderComparison.FormatReport(cmp));
-
-        Assert.Null(cmp.V2FailReason);
-        Assert.True(
-            cmp.V2UTurnCount <= cmp.V1UTurnCount,
-            $"V2 U-turn count ({cmp.V2UTurnCount}) must not exceed V1 ({cmp.V1UTurnCount}) for SKW3404 {string.Join(" ", waypoints)}."
-        );
     }
 
     private static double HeadingDelta(double a, double b)

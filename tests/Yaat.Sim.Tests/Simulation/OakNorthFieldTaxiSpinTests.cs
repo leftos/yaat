@@ -19,15 +19,9 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   SIG4 (641): RAMP -> 1332 (forward Nodes[0]=641) and 1333 (reverse Nodes[0]=1332).
 ///   GA3  (621): RAMP -> 1224 (forward Nodes[0]=621) and 1222 (reverse Nodes[0]=1222).
 ///
-/// User TAXI commands flow through
-/// <c>TaxiPathfinder.ResolveExplicitPath -&gt; WalkTaxiway -&gt; BridgeToTaxiway -&gt; BfsToTaxiway</c>.
-/// Before the fix, <c>SelectBestBridgeCandidate</c> scored only the candidate
-/// endpoint's first edge on the target taxiway and ignored reverse-traversed
-/// arcs along the bridge path itself — letting BFS pick the reverse-arc
-/// neighbor, which lands the aircraft 180° away from the next walk step and
-/// orbits the ramp. The fix counts reverse-traversed bridge arcs and
-/// penalizes them with the same <c>ReverseArcPenalty</c> already used for
-/// the endpoint check.
+/// User TAXI commands flow through <c>TaxiPathfinderV2.ResolveExplicitPath</c>.
+/// This recording replays the north-field ramp departures end-to-end and asserts
+/// the aircraft reaches its hold-short without orbiting the ramp.
 /// </summary>
 public class OakNorthFieldTaxiSpinTests(ITestOutputHelper output)
 {

@@ -1,4 +1,5 @@
 using Yaat.LayoutInspector.Tick;
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.LayoutInspector.Commands;
@@ -45,7 +46,7 @@ public sealed class HtmlRenderCommand : ICommand
         // node ids as route overlays.
         if ((options.PathfinderNodeId is not null) && (options.PathfinderTaxiways.Count > 0))
         {
-            var pfRoute = TaxiPathfinder.ResolveExplicitPath(
+            var pfRoute = TaxiPathfinderV2.ResolveExplicitPath(
                 analyzer.Layout,
                 options.PathfinderNodeId.Value,
                 options.PathfinderTaxiways,
@@ -55,7 +56,8 @@ public sealed class HtmlRenderCommand : ICommand
                     DestinationRunway = options.PathfinderDestinationRunway,
                     ExplicitHoldShorts = options.PathfinderHoldShorts.Count > 0 ? options.PathfinderHoldShorts : null,
                     AirportId = analyzer.AirportId,
-                }
+                },
+                AircraftCategory.Jet
             );
             if (pfRoute is not null)
             {
