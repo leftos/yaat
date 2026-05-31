@@ -8,7 +8,7 @@ namespace Yaat.Sim.Data.Airport;
 /// </summary>
 public interface IFilletArcGenerator
 {
-    /// <summary>Stable machine id for logs and diff reports (e.g. "none", "legacy", "v2").</summary>
+    /// <summary>Stable machine id for logs and diff reports (e.g. "none", "standard").</summary>
     string Id { get; }
 
     /// <summary>Human-readable label for LayoutInspector output and test reports.</summary>

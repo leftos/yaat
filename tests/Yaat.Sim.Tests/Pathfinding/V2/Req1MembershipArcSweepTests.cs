@@ -45,7 +45,7 @@ public class Req1MembershipArcSweepTests
 
         foreach (var airport in Airports)
         {
-            var layout = new TestAirportGroundData(FilletMode.V2).GetLayout(airport);
+            var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
             if (layout is null)
             {
                 report.AppendLine($"## {airport}: unavailable");

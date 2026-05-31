@@ -7,7 +7,7 @@ public class FilletGeneratorInterfaceTests
 {
     [Theory]
     [InlineData(FilletMode.None, "none", 0)]
-    [InlineData(FilletMode.V2, "v2", 1)]
+    [InlineData(FilletMode.Standard, "standard", 1)]
     public void Factory_Create_ReturnsExpectedId(FilletMode mode, string expectedId, int expectedArcsOnSimpleLayout)
     {
         var generator = FilletGeneratorFactory.Create(mode);
@@ -31,14 +31,14 @@ public class FilletGeneratorInterfaceTests
     public void Registry_All_ContainsImplementedGenerators()
     {
         var ids = FilletArcGeneratorRegistry.All.Select(g => g.Id).ToList();
-        Assert.Equal(["none", "v2"], ids);
+        Assert.Equal(["none", "standard"], ids);
     }
 
     [Fact]
     public void Factory_V2_AppliesFilletOnSimpleLayout()
     {
         var layout = BuildSimpleIntersectionLayout();
-        var stats = FilletGeneratorFactory.Create(FilletMode.V2).Apply(layout);
+        var stats = FilletGeneratorFactory.Create(FilletMode.Standard).Apply(layout);
         Assert.True(stats.ArcsCreated >= 1);
         Assert.Equal(0, stats.OrphansRescued);
         Assert.Equal(0, stats.DirectShortensAdded);

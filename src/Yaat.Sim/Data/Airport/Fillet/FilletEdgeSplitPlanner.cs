@@ -174,5 +174,5 @@ internal static class FilletEdgeSplitPlanner
     }
 
     private static SurvivingEdgeOp MakeEdge(FilletEndpoint from, FilletEndpoint to, GroundEdge source, string kind) =>
-        new(from, to, source.TaxiwayName, source.IsRunwayCenterline, $"V2:{kind}/{source.TaxiwayName}");
+        new(from, to, source.TaxiwayName, source.IsRunwayCenterline, $"{kind}/{source.TaxiwayName}");
 }

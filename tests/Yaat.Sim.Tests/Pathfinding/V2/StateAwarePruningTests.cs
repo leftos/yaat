@@ -124,7 +124,7 @@ public class StateAwarePruningTests
     [InlineData("FLL", "10L", "SHE4")]
     public void RunwayToParking_FormerlyUnreachable_ResolvesUnderStateAwarePruning(string airport, string runway, string parking)
     {
-        var layout = new TestAirportGroundData(FilletMode.V2).GetLayout(airport);
+        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
         if (layout is null)
         {
             output.WriteLine($"SKIP {airport}: layout unavailable");

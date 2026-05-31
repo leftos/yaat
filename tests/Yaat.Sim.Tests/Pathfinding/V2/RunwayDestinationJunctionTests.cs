@@ -34,7 +34,7 @@ public class RunwayDestinationJunctionTests
     [Fact]
     public void Oak_TaxiDJC_To33_RoutesStraightToRunway_NoADetour()
     {
-        var layout = new TestAirportGroundData(FilletMode.V2).GetLayout("OAK");
+        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
         if (layout is null || TestVnasData.NavigationDb is null)
         {
             _output.WriteLine("oak layout / navdata unavailable — skipping");

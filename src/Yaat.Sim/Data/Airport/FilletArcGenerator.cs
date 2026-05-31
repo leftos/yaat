@@ -8,9 +8,9 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
 {
     private static readonly ILogger Log = SimLog.CreateLogger("FilletArcGenerator");
 
-    public string Id => "v2";
+    public string Id => "standard";
 
-    public string DisplayName => "V2 (plan-then-execute)";
+    public string DisplayName => "Standard (plan-then-execute)";
 
     public FilletStatistics Apply(AirportGroundLayout layout)
     {

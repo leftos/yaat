@@ -11,7 +11,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// Sim-level validation that landing rollout and runway-exit planning behave
 /// correctly over V2 fillet geometry. Mirrors the OAK rollout scenarios in
 /// <see cref="LandingExitDecelTests"/> but loads the layout via the V2 arc
-/// generator (<see cref="FilletMode.V2"/>) instead of Legacy.
+/// generator (<see cref="FilletMode.Standard"/>) instead of Legacy.
 ///
 /// These exercise the geometry-sensitive parts of the exit pipeline — exit-node
 /// survival after filleting, exit-angle classification (high-speed vs standard),
@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// </summary>
 public class FilletV2LandingExitTests
 {
-    private static AirportGroundLayout? LoadOakV2Layout() => new TestAirportGroundData(FilletMode.V2).GetLayout("OAK");
+    private static AirportGroundLayout? LoadOakV2Layout() => new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
 
     private static RunwayInfo MakeRunway(string designator, double heading, double thresholdLat, double thresholdLon) =>
         TestRunwayFactory.Make(designator: designator, heading: heading, elevationFt: 9.0, thresholdLat: thresholdLat, thresholdLon: thresholdLon);

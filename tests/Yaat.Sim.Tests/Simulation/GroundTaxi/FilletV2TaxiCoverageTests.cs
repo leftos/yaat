@@ -14,7 +14,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// Runs the OAK + SFO + FLL <see cref="TaxiCoverageData"/> smoke pairs — which
 /// pass on the Legacy fillets with the production (V1) pathfinder — through the
 /// same <see cref="TaxiCoverageRunner"/> harness, but on a layout filleted by the
-/// V2 generator (<see cref="FilletMode.V2"/>). The pathfinder stays on V1, so any
+/// V2 generator (<see cref="FilletMode.Standard"/>). The pathfinder stays on V1, so any
 /// regression here isolates cleanly to V2 fillet geometry rather than routing.
 ///
 /// The time / turn budgets are derived from the V2 layout's own optimal A* route,
@@ -40,7 +40,7 @@ public class FilletV2TaxiCoverageTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData(FilletMode.V2).GetLayout(pair.AirportId);
+        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(pair.AirportId);
         Assert.NotNull(layout);
 
         var destination = TaxiCoverageRunner.ResolveNode(
@@ -83,7 +83,7 @@ public class FilletV2TaxiCoverageTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Information).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

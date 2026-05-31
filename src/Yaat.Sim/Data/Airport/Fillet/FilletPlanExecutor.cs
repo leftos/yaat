@@ -99,7 +99,7 @@ internal static class FilletPlanExecutor
             // connected rather than relying on a degenerate arc the normalizer would delete.
             if (bez.MinRadiusFt < FilletConstants.RadiusFloorFt)
             {
-                AddEdge(layout, tanA, tanB, corner.EdgeA.TaxiwayName, $"V2:corner-chord@J{arcOp.JunctionNodeId}/{corner.EdgeA.TaxiwayName}");
+                AddEdge(layout, tanA, tanB, corner.EdgeA.TaxiwayName, $"corner-chord@J{arcOp.JunctionNodeId}/{corner.EdgeA.TaxiwayName}");
                 continue;
             }
 
@@ -118,7 +118,7 @@ internal static class FilletPlanExecutor
                     EdgeBearingAtNode0Deg = bez.BearingAFromTangentDeg,
                     EdgeBearingAtNode1Deg = bez.BearingBFromTangentDeg,
                     TurnAngleDeg = bez.EffectiveTurnDeg,
-                    Origin = $"V2:corner@J{arcOp.JunctionNodeId}/{corner.EdgeA.TaxiwayName}/{corner.EdgeB.TaxiwayName}",
+                    Origin = $"corner@J{arcOp.JunctionNodeId}/{corner.EdgeA.TaxiwayName}/{corner.EdgeB.TaxiwayName}",
                 }
             );
             arcsCreated++;
@@ -133,7 +133,7 @@ internal static class FilletPlanExecutor
                 continue;
             }
 
-            AddEdge(layout, tanA, tanB, op.TaxiwayName, $"V2:straight-connector@J{op.JunctionNodeId}/{op.TaxiwayName}");
+            AddEdge(layout, tanA, tanB, op.TaxiwayName, $"straight-connector@J{op.JunctionNodeId}/{op.TaxiwayName}");
         }
 
         foreach (int intId in plan.JunctionNodesToRemove)
@@ -187,7 +187,7 @@ internal static class FilletPlanExecutor
                 Position = cut.Position,
                 Type = GroundNodeType.TaxiwayIntersection,
                 SourceIntersectionPosition = (junctionPos.Lat, junctionPos.Lon),
-                Origin = $"V2:tangent-cut@J{cut.JunctionNodeId}/{(junctionPlan is not null ? GetTaxiwayName(junctionPlan, cut.ArmId) : "?")}",
+                Origin = $"tangent-cut@J{cut.JunctionNodeId}/{(junctionPlan is not null ? GetTaxiwayName(junctionPlan, cut.ArmId) : "?")}",
             };
             layout.Nodes[id] = tanNode;
             cutNode[cutId] = tanNode;

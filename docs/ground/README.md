@@ -30,4 +30,4 @@ The three layers are now `FilletArcGenerator` / `TaxiPathfinder` / `GroundNaviga
 
 ## Tooling
 
-`tools/Yaat.LayoutInspector` is the workhorse for all three layers — `--fillet-mode none|v2` builds the graph with or without fillet arcs, `--node`/`--dump`/`--html` inspect topology and routes, `--ticks`/`--tick-table` analyze a recorded aircraft trajectory, and `--debug-fillets` enables verbose fillet logging. See the per-layer docs for which flags matter where.
+`tools/Yaat.LayoutInspector` is the workhorse for all three layers — `--fillet-mode none|standard` builds the graph with or without fillet arcs, `--node`/`--dump`/`--html` inspect topology and routes, `--ticks`/`--tick-table` analyze a recorded aircraft trajectory, and `--debug-fillets` enables verbose fillet logging. See the per-layer docs for which flags matter where.

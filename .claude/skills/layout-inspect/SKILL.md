@@ -56,7 +56,7 @@ timeout 30 dotnet run --project tools/Yaat.LayoutInspector -- <geojson> --fillet
 # Per pair: fan=included angle (0=parallel, 180=straight-through), turn=deflection (180-fan; high=sharp/un-filletable),
 # and the shortest alternate path avoiding the node — "bridge via [G]" means another taxiway already joins the pair,
 # so a direct corner-chord between them is redundant. Pairs sorted tightest-turn-first. Run on --fillet-mode none for
-# the clean raw fan; on --fillet-mode v2 to see the split tangent-cut nodes.
+# the clean raw fan; on --fillet-mode standard to see the split tangent-cut nodes.
 ```
 
 **Show all nodes on a taxiway:**

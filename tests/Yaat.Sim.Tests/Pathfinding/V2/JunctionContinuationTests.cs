@@ -30,7 +30,7 @@ public class JunctionContinuationTests
         TestVnasData.EnsureInitialized();
     }
 
-    private static AirportGroundLayout? V2Layout(string airport) => new TestAirportGroundData(FilletMode.V2).GetLayout(airport);
+    private static AirportGroundLayout? V2Layout(string airport) => new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
 
     /// <summary>
     /// FLL DAL880 <c>TAXI T T4 B B1 HS 10L</c> from parking. On fillet V2 the

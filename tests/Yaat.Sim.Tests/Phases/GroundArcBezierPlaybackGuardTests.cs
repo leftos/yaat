@@ -31,7 +31,7 @@ public class GroundArcBezierPlaybackGuardTests(ITestOutputHelper output)
     [InlineData("FLL")]
     public void EveryV2Arc_BezierPlayback_EndsOnToNode(string airport)
     {
-        var layout = new TestAirportGroundData(FilletMode.V2).GetLayout(airport);
+        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
         if (layout is null)
         {
             return; // test data absent — skip silently (offline convention)

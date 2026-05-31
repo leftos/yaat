@@ -50,7 +50,7 @@ public class FilletCornerSpanGuardTests
         foreach (var edge in layout.Edges)
         {
             string origin = edge.Origin ?? "";
-            if (!origin.StartsWith("V2:corner", StringComparison.Ordinal))
+            if (!origin.StartsWith("corner", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -67,7 +67,7 @@ public class FilletCornerSpanGuardTests
         foreach (var arc in layout.Arcs)
         {
             string origin = arc.Origin ?? "";
-            if (!origin.StartsWith("V2:corner", StringComparison.Ordinal))
+            if (!origin.StartsWith("corner", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -165,7 +165,7 @@ public class FilletCornerSpanGuardTests
         var byPair = new Dictionary<(int, int), List<GroundArc>>();
         foreach (var arc in layout.Arcs)
         {
-            if (arc.Origin?.StartsWith("V2:corner", StringComparison.Ordinal) != true)
+            if (arc.Origin?.StartsWith("corner", StringComparison.Ordinal) != true)
             {
                 continue;
             }

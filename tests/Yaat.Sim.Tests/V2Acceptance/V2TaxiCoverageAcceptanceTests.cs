@@ -10,7 +10,7 @@ namespace Yaat.Sim.Tests.V2Acceptance;
 
 /// <summary>
 /// Phase-4 acceptance gate: the OAK/SFO/FLL taxi-coverage smoke pairs driven end-to-end over the
-/// <em>all-V2</em> ground stack — V2 fillets (<see cref="FilletMode.V2"/>) + V2 pathfinder + V2
+/// <em>all-V2</em> ground stack — V2 fillets (<see cref="FilletMode.Standard"/>) + V2 pathfinder + V2
 /// navigator (the latter two flipped by <see cref="V2AcceptanceFixture"/>). This is the permanent
 /// replacement for the manual three-file source flip; it runs as part of the normal suite (in the
 /// post-parallel sequential phase, so the global router flip is race-free).
@@ -39,7 +39,7 @@ public class V2TaxiCoverageAcceptanceTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData(FilletMode.V2).GetLayout(pair.AirportId);
+        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(pair.AirportId);
         Assert.NotNull(layout);
 
         var destination = TaxiCoverageRunner.ResolveNode(
@@ -82,7 +82,7 @@ public class V2TaxiCoverageAcceptanceTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Information).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

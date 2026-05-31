@@ -29,8 +29,8 @@ public static class FilletComparisonGates
     private const double CornerRadiusToleranceRatio = 0.10;
     private const double CoincidentNodeThresholdNm = 5.0 / GeoMath.FeetPerNm;
 
-    private static readonly Regex V2CornerOriginRegex = new(
-        @"^V2:corner@J(?<junction>\d+)/(?<twyA>[^/]+)/(?<twyB>[^/]+)$",
+    private static readonly Regex CornerOriginRegex = new(
+        @"^corner@J(?<junction>\d+)/(?<twyA>[^/]+)/(?<twyB>[^/]+)$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled
     );
 
@@ -227,7 +227,7 @@ public static class FilletComparisonGates
         string? origin = arc.Origin;
         if (origin is not null)
         {
-            var match = V2CornerOriginRegex.Match(origin);
+            var match = CornerOriginRegex.Match(origin);
             if (match.Success)
             {
                 string twyA = match.Groups["twyA"].Value;

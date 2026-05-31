@@ -22,7 +22,7 @@ public class OakCrossingMomentumV2Tests(ITestOutputHelper output)
     [Fact]
     public void AfterRes_MaintainsCrossingMomentum_V2()
     {
-        OakCrossingMomentum.AssertMomentum(output, FilletMode.V2);
+        OakCrossingMomentum.AssertMomentum(output, FilletMode.Standard);
     }
 }
 

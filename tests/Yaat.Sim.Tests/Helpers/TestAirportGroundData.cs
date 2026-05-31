@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests.Helpers;
 /// (fillet mode, airport) per test process (~500ms OAK, ~2700ms SFO), then all
 /// callers share the result.
 ///
-/// The parameterless constructor uses <see cref="FilletMode.V2"/> — the production
+/// The parameterless constructor uses <see cref="FilletMode.Standard"/> — the production
 /// fillet generator — so the ~150 existing call sites build the shipping V2 graph.
 /// Pass <see cref="FilletMode.None"/> explicitly for raw-graph (unfilleted) tests.
 /// </summary>
@@ -26,7 +26,7 @@ internal sealed class TestAirportGroundData : IAirportGroundData
     private readonly FilletMode _filletMode;
 
     public TestAirportGroundData()
-        : this(FilletMode.V2) { }
+        : this(FilletMode.Standard) { }
 
     public TestAirportGroundData(FilletMode filletMode)
     {

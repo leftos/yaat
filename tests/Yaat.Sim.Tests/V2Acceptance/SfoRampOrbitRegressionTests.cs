@@ -16,7 +16,7 @@ namespace Yaat.Sim.Tests.V2Acceptance;
 ///
 /// <para>
 /// Two layers protect against it now and both are exercised here (full V2 stack via
-/// <see cref="V2AcceptanceFixture"/> + <see cref="FilletMode.V2"/>): (1) the navigator advances to the
+/// <see cref="V2AcceptanceFixture"/> + <see cref="FilletMode.Standard"/>): (1) the navigator advances to the
 /// next segment once the aircraft's along-track projection passes the to-node instead of circling it,
 /// and (2) the orbit invariant in <c>GroundNavigator.Tick</c> hard-fails (in tests) if a single
 /// segment ever accumulates 360° of net turn. These short ramp→10L routes were the worst offenders
@@ -60,7 +60,7 @@ public class SfoRampOrbitRegressionTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData(FilletMode.V2).GetLayout(pair.AirportId);
+        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(pair.AirportId);
         Assert.NotNull(layout);
 
         var destination = TaxiCoverageRunner.ResolveNode(
@@ -103,7 +103,7 @@ public class SfoRampOrbitRegressionTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Warning).InitializeSimLog();
         return new SimulationEngine(groundData);
     }

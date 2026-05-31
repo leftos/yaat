@@ -165,7 +165,7 @@ Verify each against current code before relying on it — several are open work 
 
 - **`WalkToNaturalTerminus` is one-step greedy.** It picks the best immediate next edge per step (with the requirement-① tier rule), not a multi-candidate search. Acceptable on forced-next-edge topologies; risky where the terminus branches.
 
-- **Validate work with current geometry.** Use `LayoutInspector --fillet-mode v2` to inspect the live graph. The full all-V2 test suite is a final gate, not a discovery tool (it can hang on ground deadlocks / latency spikes); drive work with targeted scoped tests.
+- **Validate work with current geometry.** Use `LayoutInspector --fillet-mode standard` to inspect the live graph. The full ground-stack acceptance suite is a final gate, not a discovery tool (it can hang on ground deadlocks / latency spikes); drive work with targeted scoped tests.
 
 ---
 
@@ -197,4 +197,4 @@ Both live in `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs`.
 | `src/Yaat.Sim/Data/Airport/TaxiRoute.cs` | Output type: segments, hold-shorts, warnings, destination, current index. |
 | `src/Yaat.Sim/Commands/GroundCommandHandler.cs` | `TryTaxi`/`TryTaxiAuto` entry point (`GroundCommandHandler.cs:15`, `:291`). |
 
-**Tooling:** `tools/Yaat.LayoutInspector` with `--fillet-mode v2` to inspect the graph. See `docs/e2e-tdd-issue-debugging.md` for detailed layout-inspector usage.
+**Tooling:** `tools/Yaat.LayoutInspector` with `--fillet-mode standard` to inspect the graph. See `docs/e2e-tdd-issue-debugging.md` for detailed layout-inspector usage.

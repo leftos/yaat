@@ -63,7 +63,7 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 | `--path-distance N1 N2 ...` | Cumulative distance + per-leg bearing along a node sequence; per-leg uses the graph edge (arc-aware) where one exists, else great-circle. Also reports heading range (max−min leg bearing) and total absolute turn — large turn = tracks a curve, near-zero = beeline |
 | `--dump` | Full airport JSON (pipe to file for grepping) |
 | `--no-fillets` | Parse without fillet arcs for comparison |
-| `--fillet-mode <m>` | Fillet generator: `legacy` (default), `v2`, or `none` (alias for `--no-fillets`) |
+| `--fillet-mode <m>` | Fillet generator: `standard` (default) or `none` (alias for `--no-fillets`) |
 
 ### HTML render
 | Flag | Purpose |

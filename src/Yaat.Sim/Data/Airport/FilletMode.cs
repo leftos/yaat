@@ -10,5 +10,5 @@ public enum FilletMode
     None,
 
     /// <summary>Plan-then-execute fillet generator (the production generator).</summary>
-    V2,
+    Standard,
 }

@@ -39,7 +39,7 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);

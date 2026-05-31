@@ -214,7 +214,7 @@ public class Mr270DctUnderV2Tests(ITestOutputHelper output)
             return;
         }
 
-        var engine = new SimulationEngine(new TestAirportGroundData(Yaat.Sim.Data.Airport.FilletMode.V2));
+        var engine = new SimulationEngine(new TestAirportGroundData(Yaat.Sim.Data.Airport.FilletMode.Standard));
         Mr270DctWrongDirectionTests.AssertTurnsLeftAfterRollout(engine, recording, output);
     }
 }

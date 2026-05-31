@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
@@ -283,7 +283,7 @@ public class SfoM2MultiTurnUnderV2Tests(ITestOutputHelper output)
             return;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
         if (groundData.GetLayout("SFO") is null)
         {
             return;

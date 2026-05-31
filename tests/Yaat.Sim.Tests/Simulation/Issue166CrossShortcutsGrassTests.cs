@@ -244,7 +244,7 @@ public class Issue166CrossUnderV2Tests(ITestOutputHelper output)
             return;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
         var layout = groundData.GetLayout("SFO");
         Assert.NotNull(layout);
 
@@ -281,7 +281,7 @@ public class Issue166CrossUnderV2Tests(ITestOutputHelper output)
             return;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
         Assert.NotNull(groundData.GetLayout("SFO"));
 
         var engine = new SimulationEngine(groundData);

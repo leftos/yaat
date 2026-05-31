@@ -41,7 +41,7 @@ public class Edg320Sig4JetTaxiOutTests(ITestOutputHelper output)
             return;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
         SimLogBuilder.CreateForTest(output).EnableCategory("GroundCommandHandler", LogLevel.Information).InitializeSimLog();
         var layout = groundData.GetLayout("OAK");
         Assert.NotNull(layout);

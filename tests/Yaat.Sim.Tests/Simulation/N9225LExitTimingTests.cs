@@ -46,7 +46,7 @@ public class N9225LExitTimingTests(ITestOutputHelper output)
             return;
         }
 
-        var groundData = new TestAirportGroundData(FilletMode.V2);
+        var groundData = new TestAirportGroundData(FilletMode.Standard);
         var engine = new SimulationEngine(groundData);
         engine.Replay(recording, TouchdownSecond);
 
