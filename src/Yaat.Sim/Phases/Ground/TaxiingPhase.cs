@@ -13,7 +13,7 @@ namespace Yaat.Sim.Phases.Ground;
 /// Completes when all segments have been traversed.
 ///
 /// Core navigation (steering, speed profiling, braking, arrival detection) is
-/// delegated to <see cref="GroundNavigator"/>. This phase handles route
+/// delegated to <see cref="GroundNavigatorV2"/>. This phase handles route
 /// management: hold-short insertion, runway crossing, departure clearance,
 /// parking, and route completion.
 /// </summary>
@@ -23,7 +23,7 @@ public sealed class TaxiingPhase : Phase
 
     private const double LogIntervalSeconds = 3.0;
 
-    private IGroundNavigator _nav = GroundNavigatorRouter.Create();
+    private GroundNavigatorV2 _nav = new();
     private bool _initialized;
     private double _timeSinceLastLog;
 
@@ -176,12 +176,12 @@ public sealed class TaxiingPhase : Phase
 
         if (dto.Navigator is not null)
         {
-            phase._nav = GroundNavigatorRouter.FromSnapshot(dto.Navigator);
+            phase._nav = GroundNavigatorV2.FromSnapshot(dto.Navigator);
         }
         else
         {
             // Legacy snapshot without navigator — reconstruct from old flat fields via the navigator DTO.
-            phase._nav = GroundNavigatorRouter.FromSnapshot(
+            phase._nav = GroundNavigatorV2.FromSnapshot(
                 new GroundNavigatorDto
                 {
                     TargetNodeId = dto.TargetNodeId,
@@ -312,24 +312,19 @@ public sealed class TaxiingPhase : Phase
             return true;
         }
 
-        // Advance to next segment. When a composite slow-turn primitive
-        // spanned multiple short chord-chain segments (cluster synth), bump
-        // the index by the extra count so we don't re-target intermediate
-        // fillet nodes the aircraft has already geometrically passed.
+        // Advance to next segment.
         int prevIdx = route.CurrentSegmentIndex;
-        int extraAdvance = _nav.ExtraSegmentsToAdvance;
-        route.CurrentSegmentIndex += 1 + extraAdvance;
+        route.CurrentSegmentIndex += 1;
         if (route.CurrentSegmentIndex > route.Segments.Count)
         {
             route.CurrentSegmentIndex = route.Segments.Count;
         }
         Log.LogDebug(
-            "[Taxi] {Callsign}: advance segment {Prev}→{Next}/{Total} (extra={Extra}) pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} ias={Ias:F1}",
+            "[Taxi] {Callsign}: advance segment {Prev}→{Next}/{Total} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} ias={Ias:F1}",
             ctx.Aircraft.Callsign,
             prevIdx,
             route.CurrentSegmentIndex,
             route.Segments.Count,
-            extraAdvance,
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon,
             ctx.Aircraft.TrueHeading.Degrees,

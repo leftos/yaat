@@ -5,7 +5,40 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
-/// Clean-room V2 ground navigator (selected via <see cref="GroundNavigatorRouter"/>). Drives an aircraft
+/// Result of a single <see cref="GroundNavigatorV2.Tick"/> call. Phases use this to decide when to advance
+/// the route segment index, terminate the phase, etc.
+/// </summary>
+public enum NavigatorResult
+{
+    /// <summary>Still moving toward the current target node.</summary>
+    Navigating,
+
+    /// <summary>Target node reached; the phase should advance to the next segment.</summary>
+    ArrivedAtNode,
+}
+
+/// <summary>
+/// Per-tick diagnostic snapshot produced by <see cref="GroundNavigatorV2"/>. Consumed by
+/// <c>TickRecorder</c> for CSV traces and by <c>Yaat.LayoutInspector --tick-table</c> for post-hoc analysis.
+/// </summary>
+public record NavTickDiag(
+    int TargetNodeId,
+    double DistToTargetNm,
+    double BearingToTargetDeg,
+    double AngleDiffDeg,
+    double TargetSpeedKts,
+    double BrakingLimitKts,
+    double ArcSpeedLimitKts,
+    bool OnArc,
+    double NodeRequiredSpeedKts,
+    double PathDeviationFt,
+    double SegFromLat,
+    double SegFromLon
+);
+
+/// <summary>
+/// The ground navigator: the per-tick ground-steering contract the taxi / runway-exit / runway-crossing
+/// phases drive. Drives an aircraft
 /// along a resolved <see cref="TaxiRoute"/> over V2 fillet geometry via closed-form playback over
 /// <see cref="PathPrimitive"/>s (invariant I2 — during a curve, position and heading are both functions of
 /// one scalar, so they cannot drift apart). Straight segments use pure-pursuit steering; fillet arcs play the
@@ -43,7 +76,7 @@ namespace Yaat.Sim.Phases.Ground;
 /// responsible for: route building, hold-short insertion, phase handoff, runway assignment.
 /// </para>
 /// </summary>
-public sealed class GroundNavigatorV2 : IGroundNavigator
+public sealed class GroundNavigatorV2
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GroundNavigatorV2");
 
@@ -98,9 +131,18 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     public double PrevDistToTarget { get; private set; } = double.MaxValue;
 
     public NavTickDiag? LastTickDiag { get; private set; }
+
+    /// <summary>Maximum forward speed (kts) the navigator may command on straights; the owning phase sets it per category / expedite state.</summary>
     public double MaxSpeedKts { get; set; }
 
-    /// <summary>Speed floor (kts); see <see cref="IGroundNavigator.MinSpeedKts"/>. 0 = no floor.</summary>
+    /// <summary>
+    /// Minimum forward speed (kts) the navigator commands while following — a speed floor that overrides the
+    /// internal braking curve, corner-speed caps, and re-acquire gate (but never the conflict/airport
+    /// <see cref="AircraftState.GroundSpeedLimit"/> ceiling, which always wins for safety). Default 0 (no
+    /// floor). <see cref="CrossingRunwayPhase"/> sets it to the runway-crossing speed so a cleared crossing
+    /// is taken "without delay" (7110.65 §3-7-2) and never brakes toward a stop on the runway or at the
+    /// far-side slice end before handing off to the onward taxi.
+    /// </summary>
     public double MinSpeedKts { get; set; }
 
     public void SetTargetNodeId(int nodeId) => TargetNodeId = nodeId;

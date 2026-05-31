@@ -1,28 +1,20 @@
 # Ground Navigator — Route-Following Design & Implementation
 
-> Read this before touching `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs`, `PathPrimitive.cs`, `PathPrimitiveBuilder.cs`, or the route-following parts of `TaxiingPhase.cs` / `RunwayExitPhase.cs` / `CrossingRunwayPhase.cs`. The navigator is the per-tick controller that physically steers an aircraft along an already-resolved taxi route. It does not build routes (that is the [pathfinder](./pathfinder.md)) and it does not build arc geometry (that is the [fillet generator](./fillet-generator.md)).
+> Read this before touching `src/Yaat.Sim/Phases/Ground/GroundNavigatorV2.cs`, `PathPrimitive.cs`, `PathPrimitiveBuilder.cs`, or the route-following parts of `TaxiingPhase.cs` / `RunwayExitPhase.cs` / `CrossingRunwayPhase.cs`. The navigator is the per-tick controller that physically steers an aircraft along an already-resolved taxi route. It does not build routes (that is the [pathfinder](./pathfinder.md)) and it does not build arc geometry (that is the [fillet generator](./fillet-generator.md)).
 
-## Status banner — navigator is "v1.1"; the geometry it follows is moving V1 → V2
+## Status banner — V2 is the ground navigator
 
-The ground stack is three layers that **ship as one switch-over** (see `docs/plans/ground-graph-v2.md`):
+The ground stack is three layers (see `docs/plans/ground-graph-v2.md`). As of the Phase-7 joint flip all three default to V2; V1 is being deleted layer by layer:
 
-| Layer | Role | V2 status |
+| Layer | Role | Status |
 |---|---|---|
-| Fillet generator | builds arc geometry (nodes, edges, arcs, radii) | geometry validated behind a switch; flip gated |
-| Pathfinder | resolves a `TaxiRoute` over the graph | WIP (V2 router) |
-| **Navigator (this doc)** | **follows** the route + geometry per tick | **incremental v1.1**, not a rewrite |
+| Fillet generator | builds arc geometry (nodes, edges, arcs, radii) | V2 default; Legacy-generator deletion pending |
+| Pathfinder | resolves a `TaxiRoute` over the graph | V2 default; V1 deletion pending |
+| **Navigator (this doc)** | **follows** the route + geometry per tick | **V2 only** — V1 `GroundNavigator` deleted |
 
-Unlike the fillet generator and pathfinder, the navigator is **not** being rewritten — it is **shared** and unchanged by the pathfinder swap. It is an incremental evolution (hence "v1.1"). The risk is the **geometry it consumes**: the navigator was heavily tuned against **Legacy** fillet arcs (chord chains, reverse-traversed arcs, many tangent nodes per junction). Fillet V2 produces **tighter, cleaner single arcs, fewer tangent nodes, and different radii**, which exposes latent issues.
+The navigator is the clean-room `GroundNavigatorV2` (`src/Yaat.Sim/Phases/Ground/GroundNavigatorV2.cs`). The old V1 `GroundNavigator`, the `IGroundNavigator` / `GroundNavigatorRouter` selector seam, and the Legacy-fillet compensations they carried — slow-turn synthesis planner, short-chord cluster detection, chord-chain aggregate-turn, the orbit-stall tick counter — are **deleted**. V2 was built for clean V2 fillet geometry (tighter single arcs, fewer tangent nodes) and plays fillet arcs as their actual cubic Bézier rather than an inscribed circle. Its replacements for the dropped compensations are documented in their own `(V2)` sections below (advance-on-pass + the hard orbit invariant; the per-corner turn-rate-feasibility cap; entry-alignment rounding at any corner past the threshold).
 
-Several navigator features are **Legacy-fillet-specific compensations under review** — some may be removable on V2, some re-tuned. They are flagged inline below with **[Legacy-compensation — re-evaluate on V2]**:
-
-- Slow-turn synthesis planner (`PlanSynthesisLookahead`)
-- Cluster detection across short chord-chain segments (`TryDetectCluster`)
-- Chord-chain aggregate-turn over a forward window (`EffectiveTurnAngleAt`)
-- Orbit-stall detector (`TicksNearTarget` / `OrbitStallTicks`)
-- The strict-geometry synthesis tolerance, which froze AMX669 on a tight V2 arc
-
-This doc describes the navigator **as it is today** (the Legacy-tuned architecture) and marks the parts that need V2 re-validation. The open task list lives in `docs/plans/filletv2/v2-sim-validation.md` § "Navigator review" and `docs/plans/ground-graph-v2.md` Workstream 3.
+> **Doc refresh pending.** The detailed sections below still carry `GroundNavigator.cs:NNNN` line references and `[Legacy-compensation — re-evaluate on V2]` markers from the V1 era. The mechanisms they describe as "V1" are now deleted, and those re-evaluation questions are resolved — the `(V2)` addenda are the current behavior. The body (and the `GroundNavigatorV2` → `GroundNavigator` rename) is rewritten in the final cross-layer sweep, after the pathfinder and Legacy-fillet deletions land.
 
 ---
 
