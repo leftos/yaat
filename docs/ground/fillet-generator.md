@@ -4,11 +4,9 @@
 
 ## Status — V2 is the fillet generator
 
-**V2 (`FilletArcGenerator` + `Data/Airport/Fillet/*`) is the only fillet generator.** The Legacy pair-based generator and its `LegacyFilletArcGenerator` adapter / `FilletArcGeneratorRouter` selector were deleted at the joint flip; `FilletMode` is now just `None` (raw graph) vs `V2`. The other two ground-stack layers — [pathfinder](./pathfinder.md) and [navigator](./navigator.md) — are likewise V2-only.
+The fillet generator is now a single implementation (`FilletArcGenerator`, namespace `Yaat.Sim.Data.Airport.Fillet`, under `src/Yaat.Sim/Data/Airport/Fillet/`). The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the `FilletArcGeneratorRouter` selector were deleted when V2 became the only fillet generator. `FilletMode` now has two values: `None` (raw graph, no-op pass) and `V2` (the production generator). The other two ground-stack layers — [pathfinder](./pathfinder.md) and [navigator](./navigator.md) — are likewise V2-only.
 
-**The single most important principle for any agent working on V2:** *the V2 graph is correct-but-different, not broken.* It collapses each junction into fewer tangent nodes with larger per-corner bearing steps; it retains membership-matched junction arcs (`C1 - B`); it faithfully preserves source-data quirks (coincident edges, taxiways that connect only via a third connector). When a downstream consumer trips on V2 geometry, **adapt the consumer — do not "fix" the graph.**
-
-> The `V2` suffix has been dropped from the type names (the class is now `FilletArcGenerator`, its pipeline lives under `Data/Airport/Fillet/`). The body below still describes V2 relative to the now-deleted Legacy generator in places (co-tuning, "shared with Legacy"); a fuller body-prose refresh remains.
+**The single most important principle:** *the V2 graph is correct-but-different, not broken.* It collapses each junction into fewer tangent nodes with larger per-corner bearing steps; it retains membership-matched junction arcs (`C1 - B`); it faithfully preserves source-data quirks (coincident edges, taxiways that connect only via a third connector). When a downstream consumer trips on V2 geometry, **adapt the consumer — do not "fix" the graph.**
 
 ---
 
@@ -20,7 +18,7 @@ The generator consumes the **base graph** built by `TaxiwayGraphBuilder` (via `G
 
 The generator produces two things, mutating the layout in place:
 
-1. **Corner arcs** — a `GroundArc` (cubic Bezier reinterpreted downstream as a true circle) between two **tangent-cut** nodes on the two arms of a turn, replacing the sharp vertex with a smooth curve. A too-tight corner degrades to a straight **chord** (`GroundEdge`) instead.
+1. **Corner arcs** — a `GroundArc` (cubic Bezier, played downstream as its actual curve) between two **tangent-cut** nodes on the two arms of a turn, replacing the sharp vertex with a smooth curve. A too-tight corner degrades to a straight **chord** (`GroundEdge`) instead.
 2. **An order-independent edge-split** — each original edge is split once at the cuts that land on it; the stub incident to a removed junction is dropped; every other sub-segment survives and reconnects. This is what keeps the graph connected after the junction node is deleted.
 
 `FilletStatistics` (returned, currently advisory) tallies filleted nodes, arcs, collinear merges, coincident merges, and carries the plan's `Warnings`.
@@ -40,7 +38,7 @@ FilletGeneratorFactory.Create(filletMode).Apply(layout);
 
 `FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. The convenience overloads `Parse(...)` / `Parse(..., applyFillets: bool)` map to `V2` / `None` (`GeoJsonParser.cs:35`, `:40`) — **`V2` is the parser's default**. `FilletArcGeneratorRegistry.All` lists both implementations (`None`, `V2`) for enumeration harnesses.
 
-The downstream consumers of the filleted graph: the **[pathfinder](./pathfinder.md)** walks it to build `TaxiRoute`s, and the **[navigator](./navigator.md)** compiles each `GroundArc` into a `PathPrimitiveArc` and follows it closed-form.
+The downstream consumers of the filleted graph: the **[pathfinder](./pathfinder.md)** walks it to build `TaxiRoute`s, and the **[navigator](./navigator.md)** compiles each `GroundArc` into a `PathPrimitiveBezier` and follows its cubic Bézier closed-form.
 
 ---
 
@@ -56,7 +54,7 @@ Legacy is a per-pair, order-dependent pipeline: for each intersection it fillets
 
 ### Global edge-split connectivity & the no-true-disconnection gate
 
-`FilletEdgeSplitPlanner.Plan` (`Fillet/V2/FilletEdgeSplitPlanner.cs:29`) replaces the entire Legacy reconnect/bypass/side-branch machinery. It splits each **original** edge exactly once by the cuts that land on it, drops **only** the stub incident to a removed junction, and keeps every other sub-segment. A removed junction never appears as a surviving endpoint (its endpoints are replaced by cut nodes before any mutation). The correctness bar is the **no-true-disconnection** gate: structural validity + Legacy repair counters all zero + parking→hold-short reachability matching Legacy + **no node present in both layouts reachable in only one** (`docs/plans/filletv2/v2-divergences.md`). Exact hold-short stable-set equality is reported but not required — each generator dissolves a slightly different set of marginal junctions, which is accepted clean-room divergence.
+`FilletEdgeSplitPlanner.Plan` (`Fillet/FilletEdgeSplitPlanner.cs:29`) replaces the entire Legacy reconnect/bypass/side-branch machinery. It splits each **original** edge exactly once by the cuts that land on it, drops **only** the stub incident to a removed junction, and keeps every other sub-segment. A removed junction never appears as a surviving endpoint (its endpoints are replaced by cut nodes before any mutation). The correctness bar is the **no-true-disconnection** gate: structural validity + Legacy repair counters all zero + parking→hold-short reachability matching Legacy + **no node present in both layouts reachable in only one** (`docs/plans/filletv2/v2-divergences.md`). Exact hold-short stable-set equality is reported but not required — each generator dissolves a slightly different set of marginal junctions, which is accepted clean-room divergence.
 
 ### Runway-bearing parity
 
@@ -83,7 +81,7 @@ Before classifying junctions, `ManualArcDetector.Detect` (`Fillet/ManualArcDetec
 
 A tangent cut is a new node placed a computed distance **along an arm, away from the junction**, where the arc tangents off. When a cut lands within `CoincidentNodeThresholdFt = 5 ft` of a **pre-existing stable node** — a `TaxiwayIntersection`, `Spot`, `Parking`, `Helipad`, or `RunwayHoldShort` that is not a runway-centerline projection (`FilletPlanCutRedirect.IsStableAnchorTarget`) — the plan **redirects** the cut onto that existing node instead of materializing a duplicate tangent on top of it (`ExtendWithStableAnchors`, `FilletPlanCutRedirect.cs:19`). This keeps the graph from sprouting near-coincident node pairs the normalizer would just have to merge. The redirect is the source of a subtle namespace invariant — see Caveats.
 
-> The eligible-target set originally included only `TaxiwayIntersection`, so a cut landing on a spot/parking/hold-short endpoint was **not** redirected — it materialized a duplicate node joined by a **zero-distance edge**. That no-op edge's meaningless 0° bearing survived into the materialized route, and `GroundNavigator` followed it, producing a visible taxi wiggle (SFO had 11 such edges, OAK 10+, FLL 1; the raw geojson and Legacy have none). Widening `IsStableAnchorTarget` to all five stable types fixed it. Guard: `FilletV2CornerSpanGuardTests.V2_EdgeSplit_NoZeroDistanceEdges` (no edge under ~1.2 ft at SFO/OAK/FLL).
+> The eligible-target set originally included only `TaxiwayIntersection`, so a cut landing on a spot/parking/hold-short endpoint was **not** redirected — it materialized a duplicate node joined by a **zero-distance edge**. That no-op edge's meaningless 0° bearing survived into the materialized route, and `GroundNavigator` followed it, producing a visible taxi wiggle (SFO had 11 such edges, OAK 10+, FLL 1; the raw geojson and Legacy have none). Widening `IsStableAnchorTarget` to all five stable types fixed it. Guard: `FilletCornerSpanGuardTests.V2_EdgeSplit_NoZeroDistanceEdges` (no edge under ~1.2 ft at SFO/OAK/FLL).
 
 ### Eligibility & the runway-preserve rule
 
@@ -112,38 +110,38 @@ The connector itself is a `RWY…:link` edge. It is **not** a runway centerline 
    - `idCounter` (new tangent-cut **node** IDs) starts at `maxNodeId + 1`.
    - `nextCutId` (plan-internal **cut** IDs, typed `CutId`) starts at **`maxNodeId + 1_000_000`** — a disjoint high range. The `CutId` newtype makes cut-vs-node confusion a compile error; the offset is defense-in-depth (see Caveats).
 
-**2. Per-junction classification.** For each node in ID order, skip if it is a manual-arc node, ineligible, or has fewer than 2 edges. Otherwise `JunctionClassifier.Classify` (`Fillet/V2/JunctionClassifier.cs`):
-   - `TaxiwayArmBuilder.BuildArms` walks each incident edge outward (through shape points) into a `TaxiwayArm` (`Fillet/V2/TaxiwayArm.cs`): root edge, taxiway name, bearing from the junction, available length, an `IntersectionCapFt` that bounds how far a cut may sit before overrunning the next intersection, a `TaxiwayArmTerminus` classification (OtherIntersection / ShapePoint / RunwayCenterline / HoldShort / Parking / DeadEnd), and the full `TaxiwayWalk.WalkResult`.
-   - `CornerPlanner.PlanCorners` (`Fillet/V2/CornerPlanner.cs`) pairs arms. A pair below `CollinearThresholdDeg = 15°` turn is a **collinear pair** (a straight-through, no arc); a pair below `MinFilletAngleDeg = 15°` is skipped; otherwise it is a `CornerSpec` carrying turn angle, requested radius, ideal tangent distance, and arm bearings. The junction's `JunctionKind` is `Skip` / `Simple` / `MultiCorner` / `Preserve`.
+**2. Per-junction classification.** For each node in ID order, skip if it is a manual-arc node, ineligible, or has fewer than 2 edges. Otherwise `JunctionClassifier.Classify` (`Fillet/JunctionClassifier.cs`):
+   - `TaxiwayArmBuilder.BuildArms` walks each incident edge outward (through shape points) into a `TaxiwayArm` (`Fillet/TaxiwayArm.cs`): root edge, taxiway name, bearing from the junction, available length, an `IntersectionCapFt` that bounds how far a cut may sit before overrunning the next intersection, a `TaxiwayArmTerminus` classification (OtherIntersection / ShapePoint / RunwayCenterline / HoldShort / Parking / DeadEnd), and the full `TaxiwayWalk.WalkResult`.
+   - `CornerPlanner.PlanCorners` (`Fillet/CornerPlanner.cs`) pairs arms. A pair below `CollinearThresholdDeg = 15°` turn is a **collinear pair** (a straight-through, no arc); a pair below `MinFilletAngleDeg = 15°` is skipped; otherwise it is a `CornerSpec` carrying turn angle, requested radius, ideal tangent distance, and arm bearings. The junction's `JunctionKind` is `Skip` / `Simple` / `MultiCorner` / `Preserve`.
 
-**3. Per-junction arm-cut resolution.** `ArmCutResolver.Resolve(junction, ref nextCutId)` (`Fillet/V2/ArmCutResolver.cs:14`) decides where each arm is cut:
+**3. Per-junction arm-cut resolution.** `ArmCutResolver.Resolve(junction, ref nextCutId)` (`Fillet/ArmCutResolver.cs`) decides where each arm is cut:
    - For each arm, a **candidate distance** is derived from the ideal tangent distances of its corners (averaged when they cluster within the coincident threshold, else `min(max, IntersectionCapFt)`), capped at `MaxTangentDistFt = 150 ft`.
    - A corner is flagged **distorted** when its effective radius is below the floor, more than `DistortionThreshold = 2×` the requested radius, or its two tangent distances are more than `AsymmetryThreshold = 2×` apart. Distorted arms take an **ordered multi-cut** path: positions are coalesced (`IdealCoalesceThresholdFt = 2 ft`) and gap-enforced (`MinArmSegmentGapFt = 5 ft`, demoting cuts that crowd). Non-distorted arms take a single cut; a sub-threshold cut is clamped to `5 ft + 1` with a `SubThresholdCutSkipped` warning.
    - Each cut becomes a `ResolvedArmCut` (id, junction, arm, distance, position, bearing-toward-junction, owning corner IDs). Corners map to `(cutA, cutB)` → a `CornerArcOp`; corners not arc-able fall to `StraightConnectorOp`. `SharedArmTangentPass.ApplyIntraArmCoalesce` adds `TangentMergeOp`s for cuts on one arm landing within 5 ft of each other; `ApplyCrossArmCoalesce` adds them for cuts on **different arms of the same junction** within 5 ft (e.g. an `A` tangent and a collinear `A8`/`RAMP` tangent) — these used to be merged only by the post-execute normalizer, which manufactured duplicate corner arcs.
 
-**4. Plan building.** `FilletPlanBuilder.Build` (`Fillet/V2/FilletPlanBuilder.cs:7`) aggregates all junction results, then:
-   - `SharedArmTangentPass.ApplyCrossJunction` scales and merges cut sets on a physical arm **shared between two adjacent junctions** so their cuts don't collide in the middle (`Fillet/V2/SharedArmTangentPass.cs`).
+**4. Plan building.** `FilletPlanBuilder.Build` (`Fillet/FilletPlanBuilder.cs`) aggregates all junction results, then:
+   - `SharedArmTangentPass.ApplyCrossJunction` scales and merges cut sets on a physical arm **shared between two adjacent junctions** so their cuts don't collide in the middle.
    - `SharedArmTangentPass.ApplyGlobalCoincidentCutCoalesce` then merges **any** two cuts across the whole plan whose (post-scaling) positions land within 5 ft — the plan-time equivalent of the node-coincidence test the post-execute normalizer used to run, moved earlier and applied to cuts. It catches cross-junction coincidences `ApplyCrossJunction`'s farthest-pair merge misses (adjacent junctions' tangent cuts on a shared taxiway 1–4 ft apart); the union-find survivor map absorbs the overlap with the intra-arm/cross-arm/cross-junction merges.
    - `FilletPlanCutRedirect.BuildSurvivorMap` builds a union-find survivor map over the tangent merges; `ExtendWithStableAnchors` redirects coincident cuts onto pre-fillet stable nodes and returns the **authoritative set of anchor node IDs used**. `PruneCuts` keeps only surviving cut IDs; `RedirectCornerArcs` / `RedirectStraightConnectors` rewrite op endpoints through the survivor map, dropping self-pairs. The redirected ops are then **deduped by resolved endpoint pair** (keeping one op per node pair, preferring the single-name corner — requirement ①), so the cross-arm coalesce above yields exactly one arc per pair instead of a single-name + membership twin.
    - `FilletEdgeSplitPlanner.Plan` computes consumed + surviving edges (above).
-   - The result is a `FilletPlan` (`Fillet/V2/FilletPlan.cs`) with `Cuts`, `TangentMerges`, `CornerArcs`, `StraightConnectors`, `SurvivingEdges`, `JunctionNodesToRemove`, `EdgesToRemove`, `Warnings`, and `StableAnchoredEndpointIds`. `FilletPlanConsistency.ValidateCutReferences` / `ValidateNodeReferences` throw if any op references an unknown cut or a to-be-removed node — a fail-fast guard, not silent repair.
+   - The result is a `FilletPlan` (`Fillet/FilletPlan.cs`) with `Cuts`, `TangentMerges`, `CornerArcs`, `StraightConnectors`, `SurvivingEdges`, `JunctionNodesToRemove`, `EdgesToRemove`, `Warnings`, and `StableAnchoredEndpointIds`. `FilletPlanConsistency.ValidateCutReferences` / `ValidateNodeReferences` throw if any op references an unknown cut or a to-be-removed node — a fail-fast guard, not silent repair.
 
-**5. Execution.** `FilletPlanExecutor.Execute` (`Fillet/V2/FilletPlanExecutor.cs:12`):
+**5. Execution.** `FilletPlanExecutor.Execute` (`Fillet/FilletPlanExecutor.cs`):
    - `MaterializeCutNodes` creates one `GroundNode` per surviving cut (origin `V2:tangent-cut@J.../<taxiway>`), recording each cut's `SourceIntersectionPosition`.
    - Remove `EdgesToRemove` **before** adding survivors (so a survivor identical to a consumed edge isn't deduped then orphaned), then emit each `SurvivingEdgeOp` as a `GroundEdge` (origin `V2:edge-split/<taxiway>` or `V2:edge-split-redirect/<taxiway>`).
    - For each `CornerArcOp`: resolve both tangent endpoints, size the arc to `min(corner.RequestedRadiusFt, EffectiveMinRadiusFt)`, build the bezier via `FilletGeometry.BuildBezier`. **If `bez.MinRadiusFt < RadiusFloorFt`, emit a chord** (`GroundEdge`, origin `V2:corner-chord@J.../<taxiway>`) instead of a degenerate arc; otherwise add a `GroundArc` (origin `V2:corner@J.../<taxiwayA>/<taxiwayB>`), single-named when both edges share a taxiway, two-named otherwise.
    - Emit `StraightConnectorOp`s (origin `V2:straight-connector@J.../<taxiway>`), then delete every node in `JunctionNodesToRemove` and its incident edges/arcs.
 
-**6. Normalization.** `FilletGraphNormalizer.Normalize` (`Fillet/FilletGraphNormalizer.cs`) recomputes edge/arc distances and arc radii from final node positions, rebuilds adjacency, drops self-loops and sub-floor arcs, and removes isolated intersection nodes. There are deliberately **no repair passes** and **no coincident-node merge** — the plan guarantees no coincident tangent cuts (intra-arm + cross-arm + global cut-coalesce, steps 3–4), and the runway-crossing projector reuses a pre-existing coincident node rather than minting one (see [Runway-crossing centerline projection](#runway-crossing-centerline-projection) below). Guarded WITHOUT any post-hoc merge by `FilletV2CornerSpanGuardTests.V2_NoCoincidentIntersectionNodes` + `V2_CornerArcs_NoDuplicateNodePairs` + `V2_EdgeSplit_NoZeroDistanceEdges`.
+**6. Normalization.** `FilletGraphNormalizer.Normalize` (`Fillet/FilletGraphNormalizer.cs`) recomputes edge/arc distances and arc radii from final node positions, rebuilds adjacency, drops self-loops and sub-floor arcs, and removes isolated intersection nodes. There are deliberately **no repair passes** and **no coincident-node merge** — the plan guarantees no coincident tangent cuts (intra-arm + cross-arm + global cut-coalesce, steps 3–4), and the runway-crossing projector reuses a pre-existing coincident node rather than minting one (see [Runway-crossing centerline projection](#runway-crossing-centerline-projection) below). Guarded WITHOUT any post-hoc merge by `FilletCornerSpanGuardTests.V2_NoCoincidentIntersectionNodes` + `V2_CornerArcs_NoDuplicateNodePairs` + `V2_EdgeSplit_NoZeroDistanceEdges`.
 
 ### `FilletGeometry` — the bezier (`Fillet/FilletGeometry.cs`)
 
-`BuildBezier(tanA, tanB, bearingAToJunction, bearingBToJunction, requestedRadius)` (`:112`):
+`BuildBezier(tanA, tanB, bearingAToJunction, bearingBToJunction, requestedRadius)` (`FilletGeometry.cs`):
 - Reverses each arm's toward-junction bearing to a from-tangent bearing, computes the effective turn `180 - |Δbearing|`, the sweep, and `kappa = (4/3)·tan(sweep/4)` (the standard cubic-bezier circular-arc approximation).
 - Projects control points P1/P2 from each tangent **along the from-tangent bearing into the corner** at depth `kappa·radius`. P0 = `tanA`, P3 = `tanB`.
-- Returns `MinRadiusFt` (sampled `MinRadiusOfCurvatureFt`), `ArcLengthNm`, the effective turn, and the two from-tangent bearings — all stored on the `GroundArc`. The navigator relies on the bezier hugging a true circle to within ~1 ft for radius ≥ 50 ft (see [`./navigator.md`](./navigator.md) Invariant I2).
+- Returns `MinRadiusFt` (sampled `MinRadiusOfCurvatureFt`), `ArcLengthNm`, the effective turn, and the two from-tangent bearings — all stored on the `GroundArc`. The navigator plays this Bézier directly by arc-length (it does **not** re-fit a circle); `MinRadiusOfCurvatureFt` feeds its turn-speed cap and back-propagated braking (see [`./navigator.md`](./navigator.md) Invariant I2 and `MaxSafeSpeedKts`).
 
-`EffectiveMinRadiusFt` (`:89`) is the conservative plan-time radius estimate, `min(tangentA, tangentB) / tan(turn/2)` — asymmetric cubics built from endpoint positions alone under-estimate radius when the two tangents differ, so this is the value gated against the floor.
+`EffectiveMinRadiusFt` (`FilletGeometry.cs`) is the conservative plan-time radius estimate, `min(tangentA, tangentB) / tan(turn/2)` — asymmetric cubics built from endpoint positions alone under-estimate radius when the two tangents differ, so this is the value gated against the floor.
 
 ---
 
@@ -153,7 +151,7 @@ Verify each against current code before relying on it.
 
 ### Cut-ID / node-ID type distinction (and the offset invariant behind it)
 
-Planning **cut IDs** and graph **node IDs** are **type-distinct**, so confusing them is a compile error. `CutId` (a `readonly record struct`, `Fillet/V2/CutId.cs`) keys the cut dictionaries (`Cuts`, `prunedCuts`, `cutNode`); a redirected endpoint is a `FilletEndpoint` — a sealed `Cut(CutId) | Node(int)` union (`Fillet/V2/FilletEndpoint.cs`). The executor resolves by matching the union, not by a bare-int lookup (`FilletPlanExecutor.cs:33`):
+Planning **cut IDs** and graph **node IDs** are **type-distinct**, so confusing them is a compile error. `CutId` (a `readonly record struct`, `Fillet/CutId.cs`) keys the cut dictionaries (`Cuts`, `prunedCuts`, `cutNode`); a redirected endpoint is a `FilletEndpoint` — a sealed `Cut(CutId) | Node(int)` union (`Fillet/FilletEndpoint.cs`). The executor resolves by matching the union, not by a bare-int lookup (`FilletPlanExecutor.cs:33`):
 
 ```csharp
 GroundNode? ResolveEndpoint(FilletEndpoint ep) => ep switch
@@ -166,7 +164,7 @@ GroundNode? ResolveEndpoint(FilletEndpoint ep) => ep switch
 
 A node `int` can no longer be passed where a `CutId` is expected. **As defense-in-depth** (and because `GroundNode.Id` is still `int`), cut IDs are also seeded at `maxNodeId + 1_000_000` (`FilletArcGenerator.cs`) so the two ranges stay numerically disjoint.
 
-**The cautionary story (commit `05be106e`, hardened to types in `c08662ac`):** cut IDs used to start at 1, sharing the `int` namespace with graph node IDs (start at 0), and the redirect map / resolver passed both as bare `int`. When `ExtendWithStableAnchors` redirected a tangent cut onto a pre-existing intersection node, the resolver looked the substituted node ID up in the cut-node map **first** — and if a cut ID from a **different junction** happened to equal that node ID, it returned the wrong tangent point. The bezier then degenerated to a chord spanning the two far-apart points: SFO had **52 corner-chord edges over 300 ft, the longest ~9533 ft** (effectively airport-spanning garbage edges). The first fix was the disjoint range + having `ExtendWithStableAnchors` return the authoritative anchor-ID set (`StableAnchoredEndpointIds`); the follow-up made the distinction type-level. The guard is `tests/Yaat.Sim.Tests/Fillet/FilletV2CornerSpanGuardTests.cs` — **no `V2:corner` arc or chord spans more than 300 ft at SFO, OAK, or FLL**. If you touch cut-ID seeding, the redirect, or endpoint resolution, this test is your tripwire.
+**The cautionary story:** cut IDs used to start at 1, sharing the `int` namespace with graph node IDs (start at 0), and the redirect map / resolver passed both as bare `int`. When `ExtendWithStableAnchors` redirected a tangent cut onto a pre-existing intersection node, the resolver looked the substituted node ID up in the cut-node map **first** — and if a cut ID from a **different junction** happened to equal that node ID, it returned the wrong tangent point. The bezier then degenerated to a chord spanning the two far-apart points: SFO had **52 corner-chord edges over 300 ft, the longest ~9533 ft** (effectively airport-spanning garbage edges). The fix was the disjoint range (cut IDs start at `maxNodeId + 1_000_000`) + having `ExtendWithStableAnchors` return the authoritative anchor-ID set (`StableAnchoredEndpointIds`), hardened by making the distinction type-level (`CutId` newtype). The guard is `tests/Yaat.Sim.Tests/Fillet/FilletCornerSpanGuardTests.cs` — **no `V2:corner` arc or chord spans more than 300 ft at SFO, OAK, or FLL**. If you touch cut-ID seeding, the redirect, or endpoint resolution, this test is your tripwire.
 
 ### Corner arcs vs corner-chords
 
@@ -202,7 +200,7 @@ Every V2-emitted element stamps an `Origin` string, surfaced in LayoutInspector 
 
 ### Plan warnings are diagnostics, not failures
 
-`PlanWarning` codes (`Fillet/V2/PlanWarning.cs`) — `DEGENERATE_RADIUS`, `SINGLE_CUT_REJECTED`, `CORNER_DEMOTED`, `SHARED_ARM_SCALED`, `COINCIDENT_CUT_MERGED`, `NO_OWNING_CUT`, `SUB_THRESHOLD_CUT_SKIPPED`, `UNCONSUMED_*` — are collected onto `FilletPlan.Warnings` / `FilletStatistics.Warnings` and logged. They flag corners that couldn't be rounded as requested, not generation failures. A surge in `DEGENERATE_RADIUS` / `CORNER_DEMOTED` on a new airport is a triage signal (tight or distorted geometry), not a crash.
+`PlanWarning` codes (`Fillet/PlanWarning.cs`) — `DEGENERATE_RADIUS`, `SINGLE_CUT_REJECTED`, `CORNER_DEMOTED`, `SHARED_ARM_SCALED`, `COINCIDENT_CUT_MERGED`, `NO_OWNING_CUT`, `SUB_THRESHOLD_CUT_SKIPPED`, `UNCONSUMED_*` — are collected onto `FilletPlan.Warnings` / `FilletStatistics.Warnings` and logged. They flag corners that couldn't be rounded as requested, not generation failures. A surge in `DEGENERATE_RADIUS` / `CORNER_DEMOTED` on a new airport is a triage signal (tight or distorted geometry), not a crash.
 
 ### `FilletStatistics` legacy-repair counters are pinned at zero
 
@@ -212,7 +210,7 @@ V2 reports `CoincidentNodesMerged`, `OrphansRescued`, `RedundantPreserveEdgesRem
 
 ## Legacy — removed
 
-The Legacy pair-based generator (`FilletArcGenerator.cs`), its `LegacyFilletArcGenerator` adapter, and the vestigial `FilletArcGeneratorRouter` selector were deleted when V2 became the only fillet generator. Per project policy there are **no compatibility shims** — do not add Legacy fixes; fix forward in V2. The shared helpers `FilletProvenance` (V2 attaches `CornerArcProvenance` to its arcs), `ManualArcDetector`, and `FilletEligibility` survive and are used by V2.
+The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the `FilletArcGeneratorRouter` selector were deleted when V2 became the only fillet generator. Per project policy there are **no compatibility shims** — do not add Legacy fixes; fix forward in V2. The shared helpers `ManualArcDetector` and `FilletEligibility` survive and are used by V2.
 
 ---
 
@@ -220,37 +218,40 @@ The Legacy pair-based generator (`FilletArcGenerator.cs`), its `LegacyFilletArcG
 
 | File | Role |
 |---|---|
-| `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` | V2 entry — ID seeding, per-junction loop, plan→execute→normalize |
-| `src/Yaat.Sim/Data/Airport/Fillet/JunctionClassifier.cs` | classify a junction into arms + corners + `JunctionKind` |
-| `src/Yaat.Sim/Data/Airport/Fillet/TaxiwayArmBuilder.cs` | walk each incident edge into a `TaxiwayArm` |
-| `src/Yaat.Sim/Data/Airport/Fillet/CornerPlanner.cs` | pair arms into `CornerSpec`s / collinear pairs |
-| `src/Yaat.Sim/Data/Airport/Fillet/ArmCutResolver.cs` | resolve tangent-cut positions (single + ordered multi-cut) |
-| `src/Yaat.Sim/Data/Airport/Fillet/SharedArmTangentPass.cs` | intra-arm coalesce + cross-arm coalesce + cross-junction shared-arm scaling/merge |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanBuilder.cs` | assemble the immutable `FilletPlan` |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanCutRedirect.cs` | union-find survivor map + stable-anchor redirect |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletEdgeSplitPlanner.cs` | order-independent global edge-split |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanExecutor.cs` | materialize cuts, emit edges/arcs/chords, remove junctions |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlan.cs` | the plan record + `SurvivingEdgeOp` / op records |
+| `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` | Generator entry — ID seeding, per-junction loop, plan→execute→normalize |
+| `src/Yaat.Sim/Data/Airport/Fillet/JunctionClassifier.cs` | Classify a junction into arms + corners + `JunctionKind` |
+| `src/Yaat.Sim/Data/Airport/Fillet/TaxiwayArmBuilder.cs` | Walk each incident edge into a `TaxiwayArm` |
+| `src/Yaat.Sim/Data/Airport/Fillet/CornerPlanner.cs` | Pair arms into `CornerSpec`s / collinear pairs |
+| `src/Yaat.Sim/Data/Airport/Fillet/ArmCutResolver.cs` | Resolve tangent-cut positions (single + ordered multi-cut) |
+| `src/Yaat.Sim/Data/Airport/Fillet/SharedArmTangentPass.cs` | Intra-arm coalesce + cross-arm coalesce + cross-junction shared-arm scaling/merge |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanBuilder.cs` | Assemble the immutable `FilletPlan` |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanCutRedirect.cs` | Union-find survivor map + stable-anchor redirect |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletEdgeSplitPlanner.cs` | Order-independent global edge-split |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanExecutor.cs` | Materialize cuts, emit edges/arcs/chords, remove junctions |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlan.cs` | The plan record + `SurvivingEdgeOp` / op records |
 | `src/Yaat.Sim/Data/Airport/Fillet/CutId.cs` | `readonly record struct CutId` — planning ID, type-distinct from node IDs |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletEndpoint.cs` | sealed `Cut(CutId) \| Node(int)` union for redirected endpoints |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanConsistency.cs` | fail-fast plan validation (cut + node references) |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletGeometry.cs` | shared bezier construction + radius math |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletConstants.cs` | shared thresholds (radius floor, coincident, gaps, radii) |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletEligibility.cs` | shared intersection eligibility + preserve rule |
-| `src/Yaat.Sim/Data/Airport/Fillet/ManualArcDetector.cs` | shape-point (manual-arc) exclusion |
-| `src/Yaat.Sim/Data/Airport/Fillet/FilletGraphNormalizer.cs` | post-execute recompute + defensive merge (no repair) |
-| `src/Yaat.Sim/Data/Airport/IFilletArcGenerator.cs` · `FilletMode.cs` · `FilletGeneratorFactory.cs` | selection surface |
-| `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs` | invokes the chosen generator at parse Step 8 (`:288`) |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletEndpoint.cs` | Sealed `Cut(CutId) \| Node(int)` union for redirected endpoints |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanConsistency.cs` | Fail-fast plan validation (cut + node references) |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletGeometry.cs` | Shared bezier construction + radius math |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletConstants.cs` | Shared thresholds (radius floor, coincident, gaps, radii) |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletEligibility.cs` | Shared intersection eligibility + preserve rule |
+| `src/Yaat.Sim/Data/Airport/Fillet/ManualArcDetector.cs` | Shape-point (manual-arc) exclusion |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletGraphNormalizer.cs` | Post-execute recompute + defensive merge (no repair) |
+| `src/Yaat.Sim/Data/Airport/IFilletArcGenerator.cs` | Generator interface (`Id`, `DisplayName`, `Apply`) |
+| `src/Yaat.Sim/Data/Airport/FilletMode.cs` | Enum: `None` (no-op) \| `V2` (production) |
+| `src/Yaat.Sim/Data/Airport/FilletGeneratorFactory.cs` | Factory: `FilletMode` → `IFilletArcGenerator` |
+| `src/Yaat.Sim/Data/Airport/NullFilletArcGenerator.cs` | No-op implementation for `FilletMode.None` |
+| `src/Yaat.Sim/Data/Airport/FilletArcGeneratorRegistry.cs` | Registry: enumerate all implementations |
+| `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs` | Invokes the chosen generator at parse Step 8 |
 | `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | `GroundArc` (bezier fields, `TaxiwayNames`, `MatchesTaxiway`), `GroundNode`, `GroundEdge` |
-| `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` · `LegacyFilletArcGenerator.cs` · `FilletProvenance.cs` (legacy) | V1 — being deleted |
-| `tests/Yaat.Sim.Tests/Fillet/FilletV2CornerSpanGuardTests.cs` | the cut-ID-collision tripwire (≤ 300 ft corner spans) |
+| `tests/Yaat.Sim.Tests/Fillet/FilletCornerSpanGuardTests.cs` | Guard: cut-ID-collision detection (≤ 300 ft corner spans) |
 
-**Plan docs (transient, this doc supersedes them):** `docs/plans/filletv2/{status,v2-implementation,v2-divergences,v2-sim-validation}.md`, `docs/plans/ground-graph-v2.md` (Workstream 1). The `v2-implementation.md` executor/data-types/module-layout sections are explicitly historical; its "Connectivity rewrite" section + `v2-divergences.md` are the authoritative legacy-of-record.
+**Plan docs (transient, this doc supersedes them):** `docs/plans/filletv2/{status,v2-implementation,v2-divergences,v2-sim-validation}.md`, `docs/plans/ground-graph-v2.md` (Workstream 1). The `v2-implementation.md` sections are historical; the plan-docs retain them for the record.
 
-**Tooling:** `tools/Yaat.LayoutInspector` with `--fillet-mode none|legacy|v2` inspects the chosen graph; `--node N`, `--dump`, `--html [--ticks]`, and `--debug-fillets` (verbose fillet debug logging) are the workhorses for ground/exit/taxi debugging.
+**Tooling:** `tools/Yaat.LayoutInspector` with `--fillet-mode v2|none` inspects the chosen graph; `--node N`, `--dump`, `--html [--ticks]`, and `--debug-fillets` (verbose fillet debug logging) are the workhorses for ground/exit/taxi debugging.
 
 ## Related docs
 
 - [`./pathfinder.md`](./pathfinder.md) — consumes the filleted graph to build `TaxiRoute`s (membership-arc handling, mandatory-connector insertion).
-- [`./navigator.md`](./navigator.md) — compiles each `GroundArc` into a `PathPrimitiveArc` and follows it closed-form (Bezier-as-true-circle, `MaxSafeSpeedKts`).
+- [`./navigator.md`](./navigator.md) — compiles each `GroundArc` into a `PathPrimitiveBezier` and follows the actual cubic Bézier closed-form (`MaxSafeSpeedKts`).
 - [`../landing-and-runway-exit.md`](../landing-and-runway-exit.md) — runway-exit geometry that interacts with high-speed-exit fillet radii.

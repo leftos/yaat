@@ -26,8 +26,8 @@ The stack has fully migrated from V1 to V2. The **fillet generator**, **pathfind
 
 **Guiding principle when a consumer trips on V2 geometry:** the V2 graph is *correct-but-different*, not broken — it faithfully mirrors the source data (coincident edges, taxiways that connect only via a third connector, membership-named junction arcs). **Adapt the consumer; do not "fix" the graph.**
 
-The cross-layer rename has landed: the three layers are now `FilletArcGenerator` / `TaxiPathfinder` / `GroundNavigator` (no `V2` suffix), with their internals under `Data/Airport/Fillet/` and `Data/Airport/Pathfinding/`. Still pending: a doc-body prose refresh of the V1-era detail sections in these docs. Live roadmap and open work: [`../plans/ground-graph-v2.md`](../plans/ground-graph-v2.md) (and the `../plans/filletv2/` · `../plans/pathfinderv2/` sub-plans, which these docs supersede for durable reference).
+The three layers are now `FilletArcGenerator` / `TaxiPathfinder` / `GroundNavigator` (no `V2` suffix), with their internals under `Data/Airport/Fillet/` and `Data/Airport/Pathfinding/`. Live roadmap and open work: [`../plans/ground-graph-v2.md`](../plans/ground-graph-v2.md) (and the `../plans/filletv2/` · `../plans/pathfinderv2/` sub-plans, which these docs supersede for durable reference).
 
 ## Tooling
 
-`tools/Yaat.LayoutInspector` is the workhorse for all three layers — `--fillet-mode none|legacy|v2` builds the graph each way, `--node`/`--dump`/`--html` inspect topology and routes, `--ticks`/`--tick-table` analyze a recorded aircraft trajectory, and `--debug-fillets` enables verbose fillet logging. See the per-layer docs for which flags matter where.
+`tools/Yaat.LayoutInspector` is the workhorse for all three layers — `--fillet-mode none|v2` builds the graph with or without fillet arcs, `--node`/`--dump`/`--html` inspect topology and routes, `--ticks`/`--tick-table` analyze a recorded aircraft trajectory, and `--debug-fillets` enables verbose fillet logging. See the per-layer docs for which flags matter where.
