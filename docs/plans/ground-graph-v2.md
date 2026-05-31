@@ -150,16 +150,30 @@ filtering `Category!=Nightly&Category!=PathfinderGrid`. The suite **did not hang
   `StraightArrivalThresholdNm` (`GroundNavigatorV2ThresholdTests`).
 - **Not ship-config (8):** `TaxiPathfinderTests.*` drive the V1 static `TaxiPathfinder` on what are now
   V2 fillets and pin V1-on-Legacy route shapes — deleted with V1 at the flip (see the class label).
-- **V1-fillet-pinned (1):** `FilletDiagnosticTests.SFO…Node268_HasExactlyFourArcs` → task #60.
 - **Known-open (1):** `SfoRampCrossesRunwayTests…ShouldFail` (triage A2c, entangled with #5 detour).
-- **Real ship-config to drive to green (~6):** runway-exit doesn't complete under the V2 navigator
-  (`OakGroundE2E` + `Issue10`×2 — task #55, highest value; `FilletV2LandingExitTests` passes with V1 nav,
-  localizing it to the V2 nav); `N9225L` holds short instead of crossing to NEW1 (#56); `Ual19` never
-  enters `CrossingRunwayPhase` (#57); `Mr270` post-rollout MRT clear (likely a slower-taxi timing
-  cascade, #58); `SfoM2` taxi 98 s vs the V1-tuned 75 s budget (#59). Full log: `.tmp/test-allv2-sweep.log`.
 
-The remaining clusters are V2-navigator work (exit completion, taxi timing) needing per-cluster LI tick
-traces and aviation review on any speed/turn change — they also close the still-open Phase-3/4 trackers.
+**Triaged 2026-05-30 (this session):**
+- **#55 — runway-exit completion under V2 nav:** fixed + committed (`OakGroundE2E` + `Issue10`×2).
+- **#56 — `N9225L` holds short instead of crossing to NEW1:** fixed + committed (`58c3cd7f`, exit-runway
+  implicit first-crossing clearance).
+- **#57 — `Ual19` never enters `CrossingRunwayPhase`:** fixed + committed (`711f93c9`). Pre-cleared
+  crossings now enter `CrossingRunwayPhase` from a moving taxi (gated to a genuine forward same-runway
+  crossing); crossings fly at taxi speed with the crossing speed as a floor. V2-acceptance regression tests.
+- **#58 — `Mr270` post-rollout MRT clear:** confirmed a slower-taxi timing cascade (not a turn-bias-clear
+  regression); re-timed the test to detect the actual `InitialClimbPhase` exit + added a V2 variant
+  (`280a321`).
+- **#60 — `FilletDiagnosticTests…Node268`:** V1-fillet-pinned; pinned explicitly to `FilletMode.Legacy`
+  (`1128cf7`), deleted with Legacy at the flip.
+- **#59 — `SfoM2` taxi 98 s vs 75 s budget:** root-caused as a **V2 navigator spin**, NOT a budget issue —
+  ~45 s pure-pursuit limit-cycle at the M2→A 118° corner (entry-alignment slow-turn off a 22 ft approach
+  lands 26 ft off the 44 ft A-segment centerline; pure-pursuit can't converge on the short edge). Same
+  class as EDG320 (#44) / AMX669. **Folded into #61** as a V2-navigator class fix.
+
+**Remaining real failure:** the V2-navigator class fix (#61) — short-segment pure-pursuit convergence /
+entry-alignment-centering (the #59 spin) **and** the slower rollout/exit follow timing (the N9225L exit
+drift). Needs per-cluster LI tick traces + aviation review on any speed/turn change; closes the still-open
+Phase-3/4 trackers (#7). Everything else on the sweep is flip-expected (8 `TaxiPathfinder`) or known-open
+(`SfoRampCrosses` A2c).
 
 ## Current focus / next up
 
