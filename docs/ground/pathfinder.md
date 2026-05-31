@@ -140,6 +140,8 @@ When two consecutive cleared taxiways have **no direct junction** (zero junction
 
 **8. `RouteMaterialiser.Materialise`** (`src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:15`). One forward pass: build segments → annotate hold-shorts → truncate (runway destination = exactly at its lineup hold-short; otherwise one past the last required stop — see **Hold-short handling & truncation** above) → build warnings (mandatory-connector notifications + unauthorized-letter-taxiway warnings, with junction arcs and parking-bridge RAMP exempt). Returns the shared `TaxiRoute`.
 
+**9. Honor-named-taxiway check** (`SegmentExpander.Run`, after materialise). Every named taxiway in the clearance must be **traversed** by the resolved route (`edges.Any(e => e.Edge.MatchesTaxiway(name))`, membership arcs count). If one is wholly absent the command **fails** (`TaxiwayNotConnected`): the aircraft could not reach it from its start without leaving the movement area (e.g. SFO gate → taxiway `A` lies across active runways), and the per-segment detour would otherwise bypass it toward a later named taxiway — taxiing somewhere the controller never cleared. Distinct from the soft mandatory-connector policy, which inserts a connector *between* named taxiways while keeping every named taxiway present; this fires only when a named taxiway appears nowhere. (Guard: `SfoRampCrossesRunwayTests`.)
+
 ### Auto-route walkthrough (`AutoRouter.Run`)
 
 `AutoRouter.Run` (`src/Yaat.Sim/Data/Airport/V2/AutoRouter.cs:27`) is a flat A* over the whole layout, used by `FindRoute`/`FindRoutes`, the explicit-mode parking extension, the detour fallback, and node-ref routing.

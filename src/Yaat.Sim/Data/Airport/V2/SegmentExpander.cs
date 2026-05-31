@@ -153,6 +153,34 @@ public static class SegmentExpander
         }
 
         var route = RouteMaterialiser.Materialise(edges, ctx, insertions);
+
+        // Honor the clearance: every named taxiway the controller specified must be traversed by the
+        // resolved route. If one is wholly absent, the aircraft could not reach it from its start
+        // without leaving the movement area (e.g. a gate from which taxiway A lies across active
+        // runways), so the resolver bypassed it via a connector toward a later named taxiway. Taxiing
+        // somewhere the controller never cleared is worse than rejecting — fail the command. This is
+        // distinct from the soft mandatory-connector policy, which inserts a connector BETWEEN named
+        // taxiways while keeping every named taxiway present; the check below only fires when a named
+        // taxiway appears nowhere in the route. (Node-ref tokens are validated when routed.)
+        foreach (var wp in resolvedWaypoints)
+        {
+            if (wp.IsNodeRef || edges.Any(e => e.Edge.MatchesTaxiway(wp.Name)))
+            {
+                continue;
+            }
+
+            return (
+                null,
+                new PathfindingFailure(
+                    FailureKind.TaxiwayNotConnected,
+                    $"Cannot taxi via {wp.Name} from the aircraft's position — it is unreachable without crossing a runway or leaving the movement area.",
+                    wp.Name,
+                    null,
+                    null
+                )
+            );
+        }
+
         return (route, null);
     }
 

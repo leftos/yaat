@@ -267,8 +267,16 @@ than revert. Reverting would re-ship the systemic arc-undershoot.
   (avg ramp speed ~10→~19 kt); the orbit guard surfaces any future orbit as a hard test failure.
   Aviation-reviewed SOUND. Regression: `V2Acceptance.SfoRampOrbitRegressionTests`. (Follow-up: confirm the
   corner-speed model reads aggregate chord-chain curvature, not per-chord — separate.)
-- Remaining before the flip can land green: (1) delete V1-pinned `TaxiPathfinderTests` with the flip,
-  (3) A2c `SfoRampCrosses` fix-vs-delete.
+- **(3) A2c DONE (2026-05-31):** `SfoRampCrossesRunwayTests.TaxiCommand_AcrossRunways_ShouldFail`. V1
+  bridged to taxiway A via a straight RAMP across two runways (incursion); V2 never crosses runways but
+  its detour silently bypassed the unreachable A and routed to E via connector C. Per decision, V2 now
+  **fails** the clearance when a named taxiway is wholly absent from the resolved route (`SegmentExpander.Run`
+  honor-named-taxiway check, `TaxiwayNotConnected`) — distinct from the #5 soft-connector policy (which keeps
+  every named taxiway present). Test re-anchored to V2 (asserts the failure with the unreachable-taxiway
+  reason). Pathfinding.V2 suite (109) + full cross-repo green; no false-positives on legitimate explicit paths.
+- Remaining before the flip can land green: (1) delete V1-pinned `TaxiPathfinderTests` with the flip.
+  **All four failure classes (1 mechanical, 2–4 fixed) are now resolved or mechanical** — the flip (commit 1)
+  can be re-applied and should land green once the V1-pinned `TaxiPathfinderTests` are deleted with it.
 
 ## Current focus / next up
 

@@ -1,17 +1,29 @@
 using Xunit;
 using Xunit.Abstractions;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Tests.V2Acceptance;
 
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
-/// E2E tests for SFO RAMP-crosses-runway bug: TAXI A E 28R HS E sent to
-/// N70234 at a gate creates a straight-line RAMP segment across two runways
-/// to reach taxiway A. The command should fail instead.
+/// E2E test for the SFO RAMP-crosses-runway clearance: TAXI A E 28R HS E sent to N70234 at a gate
+/// from which taxiway A lies across active runways. The command must fail — the aircraft cannot be
+/// cleared via a taxiway it cannot reach.
+///
+/// <para>
+/// V1 produced a straight-line RAMP segment across two runways to reach A (a runway incursion). V2
+/// never crosses runways, but its mandatory-connector detour would otherwise bypass the unreachable A
+/// entirely and route to E via a connector — taxiing the aircraft somewhere the controller never
+/// cleared. The V2 fix rejects the clearance instead: a named taxiway that appears nowhere in the
+/// resolved route fails the command (<c>SegmentExpander</c>). Either way the command fails; this runs
+/// on the full V2 stack to pin the V2 behavior.
+/// </para>
 ///
 /// Recording: S1-SFO-2 Ground Control 28/01 — N70234 on the ground at SFO.
 /// </summary>
+[Collection("V2 Acceptance")]
 public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/e55edd55bed7.zip";
@@ -27,16 +39,15 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = new TestAirportGroundData(FilletMode.V2);
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }
 
     /// <summary>
-    /// TAXI A E 28R HS E to N70234 should fail because reaching taxiway A from
-    /// the aircraft's gate position would require crossing runways via a
-    /// straight-line RAMP segment.
+    /// TAXI A E 28R HS E to N70234 must fail: taxiway A is unreachable from the aircraft's gate
+    /// without crossing a runway, so the clearance cannot be honored.
     /// </summary>
     [Fact]
     public void TaxiCommand_AcrossRunways_ShouldFail()
@@ -79,6 +90,9 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
         var result = engine.SendCommand("N70234", "TAXI A E 28R HS E");
         output.WriteLine($"TAXI result: Success={result.Success}, Message={result.Message}");
 
-        Assert.False(result.Success, $"TAXI A E 28R HS E should fail (route crosses runways) but succeeded: {result.Message}");
+        Assert.False(
+            result.Success,
+            $"TAXI A E 28R HS E should fail — taxiway A is unreachable from the gate without crossing a runway — but succeeded: {result.Message}"
+        );
     }
 }
