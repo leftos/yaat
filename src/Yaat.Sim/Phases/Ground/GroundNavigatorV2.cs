@@ -265,6 +265,15 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     private const double EntryAlignmentThresholdDeg = 45.0;
 
     /// <summary>
+    /// Turn angles at or below this are treated as collinear chords (arc tessellation, dead-straight
+    /// legs): no meaningful corner, and the turn-rate feasibility cap's <c>1/θ</c> term would blow up.
+    /// Above it, <see cref="CornerSpeed"/> applies the feasibility cap — including the shallow (sub-30°)
+    /// bends a chord-chain ramp curve is built from, which the angle cap alone would wave through at full
+    /// taxi speed.
+    /// </summary>
+    private const double NearCollinearAngleDeg = 1.0;
+
+    /// <summary>
     /// When entry-alignment is active, this holds the segment's real primitive,
     /// to be swapped in once the alignment slow-turn completes. Null when no
     /// entry alignment is in progress.
@@ -1092,41 +1101,33 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     }
 
     /// <summary>
-    /// Turn angle (deg) at the node where <paramref name="turnNodeSegIdx"/> ends — the single corner
-    /// between this segment's arrival bearing and the next segment's departure bearing. V2 geometry emits
-    /// proper arcs for real corners, so there is no fillet chord-chain to aggregate: the corner the
-    /// aircraft actually turns is the one between the two adjacent segments. (This replaces V1's
-    /// forward-window sum, a Legacy-fillet compensation for ArcSplit chord chains that V2 does not produce.)
-    /// </summary>
-    /// <summary>
-    /// Required ground speed at a corner of <paramref name="turnAngleDeg"/> whose heading change must be
-    /// executed across the shorter of the two segments meeting at the corner (<paramref name="intoNm"/>,
-    /// <paramref name="outNm"/>). Combines the angle-based comfort cap
-    /// (<see cref="CategoryPerformance.CornerSpeedForAngle"/>) with a turn-rate-feasibility cap: rotating
-    /// <c>θ</c>° across distance <c>L</c> at the ground turn rate <c>ω</c> demands <c>θ·v/L ≤ ω</c>, i.e.
-    /// <c>v ≤ ω·L/θ</c>. The <c>½·L</c> reflects the rounding being centred on the vertex (the aircraft must
-    /// be mid-turn at the node, not just beginning it). Backward-propagated by the caller's braking curve,
-    /// this slows the aircraft <em>before</em> a tight bend — a pilot reads the ramp ahead and eases off —
-    /// instead of barrelling in.
+    /// Comfortable taxi speed (kts) through a single corner of <paramref name="turnAngleDeg"/> between legs
+    /// of <paramref name="intoNm"/> and <paramref name="outNm"/>. The lower of an angle-based comfort cap
+    /// (<see cref="CategoryPerformance.CornerSpeedForAngle"/>) and a turn-rate-feasibility cap: rotating
+    /// <c>θ</c>° across distance <c>L</c> at the gear-limited ground turn rate <c>ω</c> needs
+    /// <c>θ·v/L ≤ ω</c>, i.e. <c>v ≤ ω·L/θ</c>; the <c>½·L</c> centres the rounding on the vertex.
     ///
     /// <para>
-    /// Without the feasibility term a sharp bend over a very short ramp segment keeps the angle-only speed
-    /// (~18 kt for a 52° jet corner); the aircraft covers the segment in a fraction of a tick, cannot rotate
-    /// far enough to track the turn, overshoots the corner node, and orbits a target now behind it. Floored
-    /// at <see cref="CategoryPerformance.SlowTurnSpeedKts"/>: anything tighter than walking pace is rounded
-    /// by the entry-alignment slow-turn at the nose-wheel radius, not commanded slower here. The
-    /// lateral-accel comfort cap (§4.4a) is non-binding for these straight-segment vertices — it governs
-    /// genuine arc primitives, which carry their own <see cref="GroundArc.MaxSafeSpeedKts"/>. Validated by
-    /// aviation-sim-expert (turn-rate model, ½ factor, 3 kt floor, θ&gt;30° engagement).
+    /// The feasibility cap is what gives a chord-chain ramp curve (a polyline of shallow per-bend kinks the
+    /// fillet generator could not widen into one arc) a realistic aggregate speed: each kink's short leg
+    /// drives the cap down even though its angle is gentle, so the chain self-limits to the curve's true
+    /// safe speed. It MUST therefore apply across the whole shallow-angle range, not just sharp corners —
+    /// a 50 ft-radius / 90° apron curve subdivided into ~10° chords is comfortable at ~9 kt
+    /// (0.13 g lateral-accel), not the 30 kt the angle cap alone would allow. On a real arc-derived chain the
+    /// cap reduces to <c>v = ω·r</c> (chord length <c>L ≈ R·θ</c> cancels <c>θ</c>), so it is invariant to
+    /// chord count and converges on the same physical limit a genuine arc carries via
+    /// <see cref="GroundArc.MaxSafeSpeedKts"/>. On an isolated gentle kink over a long leg the cap is a no-op
+    /// (<c>ω·½L/θ</c> ≫ taxi speed, so the <c>min</c> keeps taxi speed).
     /// </para>
     /// </summary>
-    private static double CornerSpeed(AircraftCategory cat, double turnAngleDeg, double intoNm, double outNm)
+    public static double CornerSpeed(AircraftCategory cat, double turnAngleDeg, double intoNm, double outNm)
     {
         double angleCap = CategoryPerformance.CornerSpeedForAngle(cat, turnAngleDeg);
 
-        // Below the corner knee the turn is gentle (angle cap holds at full taxi speed) and dividing by a
-        // near-zero angle would blow up — leave near-collinear ramp kinks at taxi speed.
-        if (turnAngleDeg <= 30.0)
+        // Near-collinear chords (arc tessellation, dead-straight legs): no meaningful turn, and dividing by
+        // a near-zero angle would blow up. Everything above this gets the feasibility cap — including the
+        // shallow (sub-30°) bends a chord-chain ramp curve is built from.
+        if (turnAngleDeg <= NearCollinearAngleDeg)
         {
             return angleCap;
         }
@@ -1137,6 +1138,13 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         return Math.Max(Math.Min(angleCap, feasibleKts), CategoryPerformance.SlowTurnSpeedKts);
     }
 
+    /// <summary>
+    /// Turn angle (deg) at the node where <paramref name="turnNodeSegIdx"/> ends — the single corner
+    /// between this segment's arrival bearing and the next segment's departure bearing. V2 geometry emits
+    /// proper arcs for real corners, so there is no fillet chord-chain to aggregate: the corner the
+    /// aircraft actually turns is the one between the two adjacent segments. (This replaces V1's
+    /// forward-window sum, a Legacy-fillet compensation for ArcSplit chord chains that V2 does not produce.)
+    /// </summary>
     private static double SingleCornerTurnAngle(TaxiRoute route, int turnNodeSegIdx)
     {
         int nextIdx = turnNodeSegIdx + 1;
