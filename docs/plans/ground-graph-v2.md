@@ -195,6 +195,55 @@ filtering `Category!=Nightly&Category!=PathfinderGrid`. The suite **did not hang
 V1 at the flip). **0 real failures** — Phase 6 gate met. Remaining sweep entries resolve at the Phase-7 flip
 (delete the V1 `TaxiPathfinder` tests) + the A2c triage.
 
+### Phase 7 commit-1 (the flip) triage — 2026-05-31 (IN PROGRESS, flip not yet committed)
+
+Applied the real flip (the 5 points below) and ran the **full** Sim suite (NOT excluding Nightly):
+**20 failures / 6852.** The earlier "0 real failures" gate had two blind spots: it **excluded the
+`Nightly` category** and predated the Bézier exit-timing fix (`21157d9e`). The 20 sort into 4 classes:
+
+1. **V1-pinned (9) — mechanical, expected.** `TaxiPathfinderTests.*` (OAK direct-arc / no-reversal / SfoM2
+   A1-apex) — the file header declares them "V1-only regression pins for the static `TaxiPathfinder`."
+   They drive the V1 static pathfinder over now-V2 fillets. **Action:** delete with the V1 pathfinder
+   (commit 3); for commit 1 greenness, delete the file as part of the flip (the flip invalidates them).
+
+2. **SFO-Nightly time-budget (8) — NEVER validated under V2 (Nightly excluded from all prior sweeps).**
+   `TaxiCoverageSfoGridTests` SIG4/SIG5/SIG2/CG2/CG3/E8 → 10L/28L/28R, B738. Not deadlocks: path ≈ optimal,
+   total turn < budget, `maxZeroProgress=0s`, reaches the last segment — but exceeds the **time** budget
+   (e.g. SIG4→28R: 10652 ft / 2278° done, phase=Crossing seg 78/78, but >339 s). V2 taxis slower per-foot
+   (arc playback at corner speeds). **Open question (unresolved):** is the budget too tight for V2's
+   correct-but-slower cornering, or is V2 genuinely too slow? Needs its own investigation (isolate
+   pre-Bézier vs Bézier; compare V2 median taxi time vs the budget formula). **Not a replay cascade.**
+
+3. **A2c (1) — pre-existing known-open.** `SfoRampCrossesRunwayTests.TaxiCommand_AcrossRunways_ShouldFail`
+   (entangled with #5 detour). Needs a fix-vs-delete decision.
+
+4. **Replay timing-cascade (2) — root-caused; NOT Bézier correctness bugs.** `OakPostLandingReversalsTests
+   .N9225L_TaxiD_AtNEW1_HasNoReversals` + `GoAroundPreservesIntentE2ETests.N342T_…TouchAndGo`. Both PASS
+   under "flip-without-Bézier" and FAIL with it. Mechanism: during `Replay()`, recorded commands fire at
+   fixed times and resolve against the aircraft's **exact position at that instant**; the Bézier fix shifted
+   exit/rollout timing, so the recorded `TAXI D @NEW1` (t=424) builds a *different* route — 86 segs crossing
+   28R/10L **twice** (2nd uncleared → correctly holds short) vs the circle's 63 segs / one cleared crossing.
+   The aircraft is behaving correctly; the test got a worse (double-crossing) route from a shifted position.
+   Same class as #58. **Action:** re-anchor to be timing-robust (re-issue the command from a settled state
+   like the sibling `N436MS_TaxiC_AtJSX1_HasNoReversals`, or detect the event dynamically), NOT relax/delete
+   the core assertion. *(The double-crossing route from the correct Bézier endpoint is a mild V2-pathfinder
+   route-quality smell worth a look, but the navigator/clearance behavior is correct.)*
+
+**Decision (2026-05-31):** keep the Bézier playback (geometrically correct, aviation-approved, guard-tested;
+it ends exactly on nodes — the circle undershot ~30–40 % of arcs) and re-anchor the cascade tests rather
+than revert. Reverting would re-ship the systemic arc-undershoot.
+
+**The 5 flip points** (for clean re-application — keep together):
+- `GeoJsonParser.Parse` (3-arg + bool overloads) and `ParseMultiple` defaults → `FilletMode.V2`
+  (covers `AirportLayoutDownloader`, which calls the 3-arg overload).
+- `TaxiPathfinderRouter._current = new TaxiPathfinderV2()`.
+- `GroundNavigatorRouter.UseV2` default `= true`.
+- `TestAirportGroundData()` parameterless ctor → `this(FilletMode.V2)`.
+- `V2AcceptanceFixture.Dispose()` → keep V2 (don't revert to V1); fixture now redundant, remove in cleanup.
+
+**Status:** flip reverted to keep `main` green while the 4 classes are worked. Next: (2) SFO-budget
+investigation, (4) re-anchor the 2 cascade tests, (1) delete V1-pinned with the flip, (3) A2c decision.
+
 ## Current focus / next up
 
 **Reframe (validated):** the full all-V2 test suite is **not** a discovery tool — it hangs (unbounded
