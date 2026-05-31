@@ -238,7 +238,7 @@ public static class GroundConflictDetector
                         break;
 
                     case PairKind.Crossing:
-                        ApplyCrossingChecks(a, stateA, dirA, b, stateB, dirB, distFt, skipHeadOn: false, diagnosticLog);
+                        ResolveCrossing(a, stateA, dirA, b, stateB, dirB, distFt, diagnosticLog);
                         break;
                 }
             }
@@ -299,17 +299,7 @@ public static class GroundConflictDetector
             return (MovementState.Following, null);
         }
 
-        bool isStationaryPhase =
-            phaseName
-                is "At Parking"
-                    or "Holding After Pushback"
-                    or "Holding After Exit"
-                    or "Holding In Position"
-                    or "LinedUpAndWaiting"
-                    or "LiningUp"
-            || (phaseName is not null && phaseName.StartsWith("Holding Short", StringComparison.Ordinal));
-
-        if (isStationaryPhase)
+        if (IsStationaryPhase(phaseName))
         {
             return (MovementState.Stationary, null);
         }
@@ -602,7 +592,14 @@ public static class GroundConflictDetector
         }
     }
 
-    private static void ApplyClosingLimit(
+    /// <summary>
+    /// Computes the closing-proximity speed limit <paramref name="mover"/> should
+    /// receive for <paramref name="obstacle"/>, or null when no limit applies (not
+    /// closing, can pass laterally, or the on-runway exemption). Pure — does not
+    /// mutate state — so a caller can arbitrate between the two directions before
+    /// committing a limit (see <see cref="ResolveCrossing"/>).
+    /// </summary>
+    private static (double Limit, string Reason)? ComputeClosingLimit(
         AircraftState mover,
         double moveDir,
         AircraftState obstacle,
@@ -616,7 +613,7 @@ public static class GroundConflictDetector
         if (angleDiff >= 90)
         {
             diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: diff={angleDiff:F0}° ≥90, not closing");
-            return;
+            return null;
         }
 
         double? moverWing = FaaAircraftDatabase.Get(mover.AircraftType)?.WingspanFt;
@@ -632,34 +629,141 @@ public static class GroundConflictDetector
                 diagnosticLog?.Invoke(
                     $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: lateral={lateralFt:F0}ft > clearance({requiredLateralFt:F0}ft), can pass"
                 );
-                return;
+                return null;
             }
         }
 
         if (IsOnRunway(mover) && !IsOnRunway(obstacle) && obstacle.GroundSpeed <= 0)
         {
             diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: mover on runway, obstacle off-runway, skip");
-            return;
+            return null;
         }
 
         var (stopDist, trailDist) = GetSeparation(obstacle, mover);
         if (distFt <= stopDist)
         {
             diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ stop({stopDist:F0}ft) → limit=0");
-            ApplyMinLimit(mover, 0, "proximity stop", obstacle, distFt);
+            return (0, "proximity stop");
         }
-        else if (distFt <= trailDist)
-        {
-            double limitSpeed = obstacle.GroundSpeed;
-            if (limitSpeed < SlowTaxiSpeedKts)
-            {
-                limitSpeed = SlowTaxiSpeedKts;
-            }
 
+        if (distFt <= trailDist)
+        {
+            double limitSpeed = Math.Max(obstacle.GroundSpeed, SlowTaxiSpeedKts);
             diagnosticLog?.Invoke(
                 $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ trail({trailDist:F0}ft) → limit={limitSpeed:F1}"
             );
-            ApplyMinLimit(mover, limitSpeed, "proximity trail", obstacle, distFt);
+            return (limitSpeed, "proximity trail");
+        }
+
+        return null;
+    }
+
+    private static void ApplyClosingLimit(
+        AircraftState mover,
+        double moveDir,
+        AircraftState obstacle,
+        MovementState obstacleState,
+        double distFt,
+        Action<string>? diagnosticLog
+    )
+    {
+        if (ComputeClosingLimit(mover, moveDir, obstacle, obstacleState, distFt, diagnosticLog) is { } result)
+        {
+            ApplyMinLimit(mover, result.Limit, result.Reason, obstacle, distFt);
+        }
+    }
+
+    /// <summary>
+    /// Resolve a Crossing pair (close in space, paths not on a shared edge or node).
+    /// Real ground ops resolve a path conflict to "one holds, one goes" — never a
+    /// symmetric mutual crawl, and never an indefinite creep (7110.65 3-7-2 HOLD/
+    /// FOLLOW phraseology; AIM 4-3-18.b pilot give-way = a definite stop, not a
+    /// crawl). Three rules:
+    /// <list type="number">
+    /// <item>An aircraft on the runway surface has priority — a plain ground crosser
+    /// yields. Never strand an aircraft clearing the runway (AIM 4-3-21.a).</item>
+    /// <item>Closing direction uses the aircraft's heading even when it is momentarily
+    /// stopped (a taxiing/exiting aircraft that has braked for the conflict), so its
+    /// hold stays latched instead of clearing and re-pinning each tick. Genuinely
+    /// parked/held aircraft contribute no closing direction — they remain passable
+    /// obstacles.</item>
+    /// <item>If both would have to stop for each other (a crossing collision course),
+    /// pick ONE deterministic holder (callsign) and let the other proceed, instead of
+    /// stopping both into a slow-motion gridlock.</item>
+    /// </list>
+    /// </summary>
+    private static void ResolveCrossing(
+        AircraftState a,
+        MovementState stateA,
+        double? dirA,
+        AircraftState b,
+        MovementState stateB,
+        double? dirB,
+        double distFt,
+        Action<string>? diagnosticLog
+    )
+    {
+        // Heading-based closing direction: a non-parked aircraft keeps a direction
+        // even at gs=0 so a yielder that has braked for the conflict stays pinned.
+        double? closeDirA = IsParkedOrHeld(a) ? null : a.TrueHeading.Degrees;
+        double? closeDirB = IsParkedOrHeld(b) ? null : b.TrueHeading.Degrees;
+
+        // Rule 1: an aircraft on the runway surface proceeds; the other yields.
+        if (IsOnRunway(a) != IsOnRunway(b))
+        {
+            var onRunway = IsOnRunway(a) ? a : b;
+            var onRunwayDir = IsOnRunway(a) ? closeDirA : closeDirB;
+            var onRunwayState = IsOnRunway(a) ? stateA : stateB;
+            var yielder = IsOnRunway(a) ? b : a;
+            var yielderDir = IsOnRunway(a) ? closeDirB : closeDirA;
+            var yielderState = IsOnRunway(a) ? stateB : stateA;
+
+            // Only override when the yielder can give way (a mover); a genuinely
+            // parked obstacle keeps the normal closing/lateral treatment so the
+            // runway aircraft still stops rather than driving through it.
+            if (yielderDir is { } yd2)
+            {
+                bool conflict =
+                    (onRunwayDir is { } od && ComputeClosingLimit(onRunway, od, yielder, yielderState, distFt, null) is not null)
+                    || ComputeClosingLimit(yielder, yd2, onRunway, onRunwayState, distFt, null) is not null;
+                if (conflict)
+                {
+                    diagnosticLog?.Invoke($"  [Crossing] {onRunway.Callsign} on runway → {yielder.Callsign} yields");
+                    ApplyMinLimit(yielder, 0, "yield to runway aircraft", onRunway, distFt);
+                }
+
+                return;
+            }
+        }
+
+        var limitForA = closeDirA is { } da ? ComputeClosingLimit(a, da, b, stateB, distFt, diagnosticLog) : null;
+        var limitForB = closeDirB is { } db ? ComputeClosingLimit(b, db, a, stateA, distFt, diagnosticLog) : null;
+
+        if (limitForA is { Limit: <= 0 } && limitForB is { Limit: <= 0 })
+        {
+            // Crossing collision course: both would stop. Pick one holder
+            // deterministically so one proceeds instead of a mutual deadlock.
+            var holder = string.CompareOrdinal(a.Callsign, b.Callsign) >= 0 ? a : b;
+            var mover = ReferenceEquals(holder, a) ? b : a;
+            diagnosticLog?.Invoke($"  [Crossing] mutual stop: {holder.Callsign} holds, {mover.Callsign} proceeds");
+            ApplyMinLimit(holder, 0, "crossing hold", mover, distFt);
+        }
+        else
+        {
+            if (limitForA is { } resultA)
+            {
+                ApplyMinLimit(a, resultA.Limit, resultA.Reason, b, distFt);
+            }
+            if (limitForB is { } resultB)
+            {
+                ApplyMinLimit(b, resultB.Limit, resultB.Reason, a, distFt);
+            }
+        }
+
+        // Head-on fallback: two aircraft actually moving toward each other.
+        if (closeDirA is { } da3 && closeDirB is { } db3 && a.GroundSpeed > 0 && b.GroundSpeed > 0)
+        {
+            ResolveHeadOn(a, da3, b, db3, distFt);
         }
     }
 
@@ -701,6 +805,23 @@ public static class GroundConflictDetector
 
         return false;
     }
+
+    /// <summary>
+    /// True when the aircraft is intentionally stationary — parked, holding, or
+    /// lining up — by phase. These aircraft are passable obstacles, not active
+    /// movers, so they contribute no closing direction in crossing resolution.
+    /// </summary>
+    private static bool IsStationaryPhase(string? phaseName) =>
+        phaseName is "At Parking" or "Holding After Pushback" or "Holding After Exit" or "Holding In Position" or "LinedUpAndWaiting" or "LiningUp"
+        || (phaseName is not null && phaseName.StartsWith("Holding Short", StringComparison.Ordinal));
+
+    /// <summary>
+    /// True when the aircraft is parked, holding, lining up, or under any controller
+    /// hold. Such an aircraft is genuinely at rest (a passable obstacle); a taxiing or
+    /// runway-exiting aircraft momentarily stopped for a conflict is NOT — it is
+    /// yielding and keeps its heading-based closing direction.
+    /// </summary>
+    private static bool IsParkedOrHeld(AircraftState ac) => ac.Ground.IsImmobile || IsStationaryPhase(ac.Phases?.CurrentPhase?.Name);
 
     private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader, AircraftState trailer)
     {

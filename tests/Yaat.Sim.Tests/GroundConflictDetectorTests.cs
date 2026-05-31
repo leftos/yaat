@@ -687,4 +687,87 @@ public class GroundConflictDetectorTests
         // The HoldPosition kind should still surface in the [Classify] line for N123.
         Assert.Contains(captured, line => line.StartsWith("[Classify] N123", System.StringComparison.Ordinal) && line.Contains("hold=HoldPosition"));
     }
+
+    // -------------------------------------------------------------------------
+    // Crossing resolution: one-holds-one-goes (no symmetric crawl / oscillation)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// An aircraft on the runway surface (here: a runway-exit aircraft still on the
+    /// centerline) must not be made to yield to a plain taxiing crosser — it has
+    /// priority to clear the runway environment without delay (AIM 4-3-21.a). The
+    /// crosser yields instead.
+    /// </summary>
+    [Fact]
+    public void Crossing_OnRunwayAircraft_HasPriority_TaxiingCrosserYields()
+    {
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+        var routeCrosser = MakeRoute(MakeSeg(0, 1, "A", edge01));
+
+        // Runway-exit aircraft at origin heading north, closing on a crosser ~90ft ahead.
+        var exiting = MakeAircraft("EXIT", new LatLon(BaseLat, BaseLon), heading: 0, gs: 12, phase: new RunwayExitPhase());
+        var crosser = MakeAircraft(
+            "CROSS",
+            new LatLon(BaseLat + 0.9 * OffsetLatPer100Ft, BaseLon),
+            heading: 90,
+            gs: 8,
+            taxiRoute: routeCrosser,
+            phase: new TaxiingPhase()
+        );
+
+        var aircraft = new List<AircraftState> { exiting, crosser };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
+
+        Assert.True(
+            exiting.Ground.SpeedLimit is null || exiting.Ground.SpeedLimit > 0,
+            $"Runway-exit aircraft should proceed, got limit={exiting.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
+        );
+        Assert.Equal(0.0, crosser.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// The self-pin oscillation fix: a route-less ground mover momentarily stopped
+    /// at gs=0 but still pointed at a crosser ahead must KEEP its hold (stay pinned),
+    /// not lose its limit (which would let it lurch forward and re-pin every other
+    /// tick — the slow-motion crawl). A stopped aircraft pointed into a conflict is
+    /// yielding, not free to accelerate.
+    /// </summary>
+    [Fact]
+    public void Crossing_RoutelessStoppedMover_PointedAtCrosser_StaysPinned()
+    {
+        // "STOP" has no route and gs=0 but heading north, with a crosser ~70ft due
+        // north heading east. STOP is closing (by heading) on the crosser → must hold.
+        var stopped = MakeAircraft("STOP", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0);
+        var crosser = MakeAircraft("CROSS", new LatLon(BaseLat + 0.7 * OffsetLatPer100Ft, BaseLon), heading: 90, gs: 8, phase: new TaxiingPhase());
+
+        var aircraft = new List<AircraftState> { stopped, crosser };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Equal(0.0, stopped.Ground.SpeedLimit);
+    }
+
+    /// <summary>
+    /// Two same-priority aircraft on a crossing collision course (both would have to
+    /// stop for each other) must resolve to exactly one holder and one mover, not a
+    /// symmetric double-stop. Holder is deterministic by callsign.
+    /// </summary>
+    [Fact]
+    public void Crossing_MutualCollisionCourse_OneHoldsOneProceeds()
+    {
+        // AAA heading 030, ZZZ 50ft due north heading 150 — both closing, heading
+        // difference 120° (not head-on), within stop distance.
+        var aaa = MakeAircraft("AAA", new LatLon(BaseLat, BaseLon), heading: 30, gs: 10);
+        var zzz = MakeAircraft("ZZZ", new LatLon(BaseLat + 0.5 * OffsetLatPer100Ft, BaseLon), heading: 150, gs: 10);
+
+        var aircraft = new List<AircraftState> { aaa, zzz };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        // Exactly one holds (deterministic: ZZZ sorts after AAA → ZZZ holds), the other proceeds.
+        Assert.Equal(0.0, zzz.Ground.SpeedLimit);
+        Assert.True(
+            aaa.Ground.SpeedLimit is null || aaa.Ground.SpeedLimit > 0,
+            $"AAA should proceed, got limit={aaa.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
+        );
+    }
 }

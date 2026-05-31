@@ -578,7 +578,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             double segBearingDeg = GeoMath.BearingTo(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
             Log.LogDebug(
                 "[NavV2] TickStraight cs={Callsign} seg→{Target} pos=({Lat:F6},{Lon:F6}) hdg={Hdg:F1} steer={Steer:F1} hdgErr={HdgErr:F1} "
-                    + "distFt={DistFt:F1} edgeFt={EdgeFt:F1} segBrg={SegBrg:F1} ias={Ias:F1} tgt={Tgt:F1} "
+                    + "distFt={DistFt:F1} edgeFt={EdgeFt:F1} segBrg={SegBrg:F1} ias={Ias:F1} tgt={Tgt:F1} xTrkFt={XTrk:F1} extLimit={ExtLimit} "
                     + "thrArrNm={ThrArr:F4} preTurnBlend={Preturn} stalledThr={Stalled} nextBrg={NextBrg}",
                 ctx.Aircraft.Callsign,
                 TargetNodeId,
@@ -592,6 +592,8 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
                 segBearingDeg,
                 ctx.Aircraft.IndicatedAirspeed,
                 targetSpeed,
+                crossTrackOffsetFt,
+                ctx.Aircraft.Ground.SpeedLimit?.ToString("F1") ?? "(none)",
                 arrivalThresholdNm,
                 _nextSegmentBearing.HasValue,
                 stalledAtThreshold,
