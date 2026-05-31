@@ -168,7 +168,7 @@ public sealed class QueryCommand : ICommand
                 );
             }
 
-            var pfRoute = TaxiPathfinderV2.ResolveExplicitPath(
+            var pfRoute = TaxiPathfinder.ResolveExplicitPath(
                 analyzer.Layout,
                 options.PathfinderNodeId.Value,
                 options.PathfinderTaxiways,
@@ -195,7 +195,7 @@ public sealed class QueryCommand : ICommand
                 int explicitEndNodeId = pfRoute.Segments[^1].ToNodeId;
                 if (explicitEndNodeId != destHintNode.Id)
                 {
-                    var extension = TaxiPathfinderV2.FindRoute(analyzer.Layout, explicitEndNodeId, destHintNode.Id, AircraftCategory.Jet);
+                    var extension = TaxiPathfinder.FindRoute(analyzer.Layout, explicitEndNodeId, destHintNode.Id, AircraftCategory.Jet);
                     if (extension is not null)
                     {
                         diagLog.Add($"[LI] Extension via FindRoute({explicitEndNodeId} → {destHintNode.Id}): {extension.Segments.Count} segment(s)");
@@ -332,7 +332,7 @@ public sealed class QueryCommand : ICommand
     /// <summary>
     /// Run the same auto-route resolution that <c>TAXIAUTO &lt;RWY&gt;</c> uses at
     /// runtime: pick the full-length lineup hold-short via
-    /// <see cref="TaxiPathfinderV2.FindFullLengthLineupHoldShort"/>, then run A*
+    /// <see cref="TaxiPathfinder.FindFullLengthLineupHoldShort"/>, then run A*
     /// from <paramref name="startNodeId"/>. Prints the chosen hold-short, the
     /// taxiway sequence, and per-segment detail with any runway crossings called
     /// out so the route's intent is auditable from the CLI.
@@ -354,7 +354,7 @@ public sealed class QueryCommand : ICommand
             return;
         }
 
-        var targetHs = TaxiPathfinderV2.FindFullLengthLineupHoldShort(analyzer.Layout, startNode, runwayId, holdShortNodes);
+        var targetHs = TaxiPathfinder.FindFullLengthLineupHoldShort(analyzer.Layout, startNode, runwayId, holdShortNodes);
 
         Console.WriteLine(
             $"start:       #{startNode.Id} {startNode.Type} {startNode.Name ?? ""} ({startNode.Position.Lat:F6}, {startNode.Position.Lon:F6})"
@@ -371,7 +371,7 @@ public sealed class QueryCommand : ICommand
         }
         Console.WriteLine();
 
-        var route = TaxiPathfinderV2.FindRoute(analyzer.Layout, startNode.Id, targetHs.Id, AircraftCategory.Jet);
+        var route = TaxiPathfinder.FindRoute(analyzer.Layout, startNode.Id, targetHs.Id, AircraftCategory.Jet);
         if (route is null)
         {
             Console.Error.WriteLine($"No A* route from #{startNodeId} to #{targetHs.Id}");
@@ -424,7 +424,7 @@ public sealed class QueryCommand : ICommand
     }
 
     /// <summary>
-    /// Single-taxiway walk via <see cref="TaxiPathfinderV2.ResolveExplicitPath"/>
+    /// Single-taxiway walk via <see cref="TaxiPathfinder.ResolveExplicitPath"/>
     /// with one taxiway argument. The pathfinder's diagnostic log captures every
     /// step of the underlying <c>WalkTaxiway</c> and the reason it stopped
     /// (dead-end / next-twy match / hold-short / hint-reached). Prints the trace
@@ -440,7 +440,7 @@ public sealed class QueryCommand : ICommand
         }
 
         var diag = new List<string>();
-        var route = TaxiPathfinderV2.ResolveExplicitPath(
+        var route = TaxiPathfinder.ResolveExplicitPath(
             analyzer.Layout,
             nodeId,
             [taxiway],

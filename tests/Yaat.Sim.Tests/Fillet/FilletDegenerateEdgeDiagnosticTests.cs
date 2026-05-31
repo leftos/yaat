@@ -26,7 +26,7 @@ public class FilletDegenerateEdgeDiagnosticTests
 
         var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
         var layout = LayoutCloner.DeepClone(pre);
-        _ = new FilletArcGeneratorV2().Apply(layout);
+        _ = new FilletArcGenerator().Apply(layout);
 
         var sb = new StringBuilder();
         sb.AppendLine($"=== {shortId} degenerate / near-degenerate V2 edges ===");
@@ -57,7 +57,7 @@ public class FilletDegenerateEdgeDiagnosticTests
 
         var pre = GeoJsonParser.Parse("oak", File.ReadAllText(path), null, FilletMode.None);
         var layout = LayoutCloner.DeepClone(pre);
-        _ = new FilletArcGeneratorV2().Apply(layout);
+        _ = new FilletArcGenerator().Apply(layout);
 
         const int nodeId = 753;
         var sb = new StringBuilder();

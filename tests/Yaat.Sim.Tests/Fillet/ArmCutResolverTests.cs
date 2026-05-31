@@ -1,7 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Fillet;
-using Yaat.Sim.Data.Airport.Fillet.V2;
 
 namespace Yaat.Sim.Tests.Fillet;
 
@@ -150,14 +149,14 @@ public class ArmCutResolverTests
     [Fact]
     public void V2Apply_LegacyRepairCountersRemainZero_OnSimple90()
     {
-        var stats = new FilletArcGeneratorV2().Apply(BuildSimpleIntersectionLayout());
+        var stats = new FilletArcGenerator().Apply(BuildSimpleIntersectionLayout());
         AssertRepairCountersZero(stats);
     }
 
     [Fact]
     public void V2Apply_LegacyRepairCountersRemainZero_OnThreeWayMultiCut()
     {
-        var stats = new FilletArcGeneratorV2().Apply(BuildThreeWayLayout());
+        var stats = new FilletArcGenerator().Apply(BuildThreeWayLayout());
         AssertRepairCountersZero(stats);
         Assert.True(stats.ArcsCreated >= 3);
     }
@@ -166,7 +165,7 @@ public class ArmCutResolverTests
     public void V2Apply_YPattern_CollinearThroughConnectsStraightArmTangents()
     {
         var layout = BuildYPatternLayout();
-        new FilletArcGeneratorV2().Apply(layout);
+        new FilletArcGenerator().Apply(layout);
 
         // The collinear straight-through arms stay connected end-to-end after filleting.
         int straightNorth = 10;

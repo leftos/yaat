@@ -1,14 +1,14 @@
 # Fillet Arc Generator — Design & Architecture
 
-> Read this before touching `src/Yaat.Sim/Data/Airport/FilletArcGeneratorV2.cs`, anything under `src/Yaat.Sim/Data/Airport/Fillet/V2/`, the shared `Fillet/FilletGeometry.cs` / `Fillet/FilletConstants.cs`, or `FilletProvenance.cs`. The fillet generator turns the raw straight-segment ground graph into one with smooth corner arcs and order-independent junction connectivity. It is layer 1 of the three-layer ground stack — see the [pathfinder](./pathfinder.md) that walks the graph it builds and the [navigator](./navigator.md) that physically follows the arcs it emits. Index: `./README.md`.
+> Read this before touching `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs`, anything under `src/Yaat.Sim/Data/Airport/Fillet/`, the shared `Fillet/FilletGeometry.cs` / `Fillet/FilletConstants.cs`, or `FilletProvenance.cs`. The fillet generator turns the raw straight-segment ground graph into one with smooth corner arcs and order-independent junction connectivity. It is layer 1 of the three-layer ground stack — see the [pathfinder](./pathfinder.md) that walks the graph it builds and the [navigator](./navigator.md) that physically follows the arcs it emits. Index: `./README.md`.
 
 ## Status — V2 is the fillet generator
 
-**V2 (`FilletArcGeneratorV2` + `Data/Airport/Fillet/V2/*`) is the only fillet generator.** The Legacy pair-based generator and its `LegacyFilletArcGenerator` adapter / `FilletArcGeneratorRouter` selector were deleted at the joint flip; `FilletMode` is now just `None` (raw graph) vs `V2`. The other two ground-stack layers — [pathfinder](./pathfinder.md) and [navigator](./navigator.md) — are likewise V2-only.
+**V2 (`FilletArcGenerator` + `Data/Airport/Fillet/*`) is the only fillet generator.** The Legacy pair-based generator and its `LegacyFilletArcGenerator` adapter / `FilletArcGeneratorRouter` selector were deleted at the joint flip; `FilletMode` is now just `None` (raw graph) vs `V2`. The other two ground-stack layers — [pathfinder](./pathfinder.md) and [navigator](./navigator.md) — are likewise V2-only.
 
 **The single most important principle for any agent working on V2:** *the V2 graph is correct-but-different, not broken.* It collapses each junction into fewer tangent nodes with larger per-corner bearing steps; it retains membership-matched junction arcs (`C1 - B`); it faithfully preserves source-data quirks (coincident edges, taxiways that connect only via a third connector). When a downstream consumer trips on V2 geometry, **adapt the consumer — do not "fix" the graph.**
 
-> The body below still describes V2 relative to the now-deleted Legacy generator in places (co-tuning, "shared with Legacy"); a full body refresh is deferred to the final cross-layer rename sweep that drops the `V2` suffixes.
+> The `V2` suffix has been dropped from the type names (the class is now `FilletArcGenerator`, its pipeline lives under `Data/Airport/Fillet/`). The body below still describes V2 relative to the now-deleted Legacy generator in places (co-tuning, "shared with Legacy"); a fuller body-prose refresh remains.
 
 ---
 
@@ -36,7 +36,7 @@ FilletGeneratorFactory.Create(filletMode).Apply(layout);
 | `FilletMode` | Factory result | Behavior |
 |---|---|---|
 | `None` | `NullFilletArcGenerator.Instance` | no-op; raw intersection graph (used by `FilletMode.None` tests + comparison baselines) |
-| `V2` | `new FilletArcGeneratorV2()` | plan-then-execute (this doc) |
+| `V2` | `new FilletArcGenerator()` | plan-then-execute (this doc) |
 
 `FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. The convenience overloads `Parse(...)` / `Parse(..., applyFillets: bool)` map to `V2` / `None` (`GeoJsonParser.cs:35`, `:40`) — **`V2` is the parser's default**. `FilletArcGeneratorRegistry.All` lists both implementations (`None`, `V2`) for enumeration harnesses.
 
@@ -104,9 +104,9 @@ The connector itself is a `RWY…:link` edge. It is **not** a runway centerline 
 
 ---
 
-## Step-by-step pipeline walkthrough — `FilletArcGeneratorV2.Apply`
+## Step-by-step pipeline walkthrough — `FilletArcGenerator.Apply`
 
-`FilletArcGeneratorV2.Apply` (`src/Yaat.Sim/Data/Airport/FilletArcGeneratorV2.cs:16`):
+`FilletArcGenerator.Apply` (`src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs:16`):
 
 **1. Manual-arc detection + ID seeding.** `ManualArcDetector.Detect` collects shape-point node IDs. `maxNodeId` = the largest existing node ID. Two counters are seeded:
    - `idCounter` (new tangent-cut **node** IDs) starts at `maxNodeId + 1`.
@@ -164,7 +164,7 @@ GroundNode? ResolveEndpoint(FilletEndpoint ep) => ep switch
 };
 ```
 
-A node `int` can no longer be passed where a `CutId` is expected. **As defense-in-depth** (and because `GroundNode.Id` is still `int`), cut IDs are also seeded at `maxNodeId + 1_000_000` (`FilletArcGeneratorV2.cs`) so the two ranges stay numerically disjoint.
+A node `int` can no longer be passed where a `CutId` is expected. **As defense-in-depth** (and because `GroundNode.Id` is still `int`), cut IDs are also seeded at `maxNodeId + 1_000_000` (`FilletArcGenerator.cs`) so the two ranges stay numerically disjoint.
 
 **The cautionary story (commit `05be106e`, hardened to types in `c08662ac`):** cut IDs used to start at 1, sharing the `int` namespace with graph node IDs (start at 0), and the redirect map / resolver passed both as bare `int`. When `ExtendWithStableAnchors` redirected a tangent cut onto a pre-existing intersection node, the resolver looked the substituted node ID up in the cut-node map **first** — and if a cut ID from a **different junction** happened to equal that node ID, it returned the wrong tangent point. The bezier then degenerated to a chord spanning the two far-apart points: SFO had **52 corner-chord edges over 300 ft, the longest ~9533 ft** (effectively airport-spanning garbage edges). The first fix was the disjoint range + having `ExtendWithStableAnchors` return the authoritative anchor-ID set (`StableAnchoredEndpointIds`); the follow-up made the distinction type-level. The guard is `tests/Yaat.Sim.Tests/Fillet/FilletV2CornerSpanGuardTests.cs` — **no `V2:corner` arc or chord spans more than 300 ft at SFO, OAK, or FLL**. If you touch cut-ID seeding, the redirect, or endpoint resolution, this test is your tripwire.
 
@@ -206,7 +206,7 @@ Every V2-emitted element stamps an `Origin` string, surfaced in LayoutInspector 
 
 ### `FilletStatistics` legacy-repair counters are pinned at zero
 
-V2 reports `CoincidentNodesMerged`, `OrphansRescued`, `RedundantPreserveEdgesRemoved`, `DuplicateCornerArcsRemoved`, `ParallelBypassEdgesRemoved`, `DirectShortensAdded` all **= 0** by construction (`FilletArcGeneratorV2.cs`) — those describe Legacy repair passes V2 doesn't have. `CoincidentNodesMerged` is zero because the post-execute coincident-node merge was deleted (the plan + the runway-crossing projector guarantee no coincident nodes); the normalizer's remaining structural cleanup count (degenerate arcs/edges + isolated nodes removed) is logged separately, not surfaced as a statistic. The connectivity gate **requires** these to stay zero. They exist only so V2 and Legacy share the `FilletStatistics` shape for comparison.
+V2 reports `CoincidentNodesMerged`, `OrphansRescued`, `RedundantPreserveEdgesRemoved`, `DuplicateCornerArcsRemoved`, `ParallelBypassEdgesRemoved`, `DirectShortensAdded` all **= 0** by construction (`FilletArcGenerator.cs`) — those describe Legacy repair passes V2 doesn't have. `CoincidentNodesMerged` is zero because the post-execute coincident-node merge was deleted (the plan + the runway-crossing projector guarantee no coincident nodes); the normalizer's remaining structural cleanup count (degenerate arcs/edges + isolated nodes removed) is logged separately, not surfaced as a statistic. The connectivity gate **requires** these to stay zero. They exist only so V2 and Legacy share the `FilletStatistics` shape for comparison.
 
 ---
 
@@ -220,20 +220,20 @@ The Legacy pair-based generator (`FilletArcGenerator.cs`), its `LegacyFilletArcG
 
 | File | Role |
 |---|---|
-| `src/Yaat.Sim/Data/Airport/FilletArcGeneratorV2.cs` | V2 entry — ID seeding, per-junction loop, plan→execute→normalize |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/JunctionClassifier.cs` | classify a junction into arms + corners + `JunctionKind` |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/TaxiwayArmBuilder.cs` | walk each incident edge into a `TaxiwayArm` |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/CornerPlanner.cs` | pair arms into `CornerSpec`s / collinear pairs |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/ArmCutResolver.cs` | resolve tangent-cut positions (single + ordered multi-cut) |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/SharedArmTangentPass.cs` | intra-arm coalesce + cross-arm coalesce + cross-junction shared-arm scaling/merge |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/FilletPlanBuilder.cs` | assemble the immutable `FilletPlan` |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/FilletPlanCutRedirect.cs` | union-find survivor map + stable-anchor redirect |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/FilletEdgeSplitPlanner.cs` | order-independent global edge-split |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/FilletPlanExecutor.cs` | materialize cuts, emit edges/arcs/chords, remove junctions |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/FilletPlan.cs` | the plan record + `SurvivingEdgeOp` / op records |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/CutId.cs` | `readonly record struct CutId` — planning ID, type-distinct from node IDs |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/FilletEndpoint.cs` | sealed `Cut(CutId) \| Node(int)` union for redirected endpoints |
-| `src/Yaat.Sim/Data/Airport/Fillet/V2/FilletPlanConsistency.cs` | fail-fast plan validation (cut + node references) |
+| `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` | V2 entry — ID seeding, per-junction loop, plan→execute→normalize |
+| `src/Yaat.Sim/Data/Airport/Fillet/JunctionClassifier.cs` | classify a junction into arms + corners + `JunctionKind` |
+| `src/Yaat.Sim/Data/Airport/Fillet/TaxiwayArmBuilder.cs` | walk each incident edge into a `TaxiwayArm` |
+| `src/Yaat.Sim/Data/Airport/Fillet/CornerPlanner.cs` | pair arms into `CornerSpec`s / collinear pairs |
+| `src/Yaat.Sim/Data/Airport/Fillet/ArmCutResolver.cs` | resolve tangent-cut positions (single + ordered multi-cut) |
+| `src/Yaat.Sim/Data/Airport/Fillet/SharedArmTangentPass.cs` | intra-arm coalesce + cross-arm coalesce + cross-junction shared-arm scaling/merge |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanBuilder.cs` | assemble the immutable `FilletPlan` |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanCutRedirect.cs` | union-find survivor map + stable-anchor redirect |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletEdgeSplitPlanner.cs` | order-independent global edge-split |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanExecutor.cs` | materialize cuts, emit edges/arcs/chords, remove junctions |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlan.cs` | the plan record + `SurvivingEdgeOp` / op records |
+| `src/Yaat.Sim/Data/Airport/Fillet/CutId.cs` | `readonly record struct CutId` — planning ID, type-distinct from node IDs |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletEndpoint.cs` | sealed `Cut(CutId) \| Node(int)` union for redirected endpoints |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanConsistency.cs` | fail-fast plan validation (cut + node references) |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletGeometry.cs` | shared bezier construction + radius math |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletConstants.cs` | shared thresholds (radius floor, coincident, gaps, radii) |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletEligibility.cs` | shared intersection eligibility + preserve rule |

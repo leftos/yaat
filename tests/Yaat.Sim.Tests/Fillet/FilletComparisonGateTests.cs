@@ -1,6 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Airport.Fillet.V2;
+using Yaat.Sim.Data.Airport.Fillet;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Fillet;
@@ -11,7 +11,7 @@ public class FilletComparisonGateTests
     public void RepairCountersZero_V2ApplyOnThreeWay_ReturnsTrue()
     {
         var layout = BuildThreeWayLayout();
-        var stats = new FilletArcGeneratorV2().Apply(layout);
+        var stats = new FilletArcGenerator().Apply(layout);
         Assert.True(FilletComparisonGates.RepairCountersZero(stats));
     }
 
@@ -19,7 +19,7 @@ public class FilletComparisonGateTests
     public void ValidateStructural_Simple90Filleted_IsValid()
     {
         var layout = BuildSimple90Layout();
-        new FilletArcGeneratorV2().Apply(layout);
+        new FilletArcGenerator().Apply(layout);
         var result = FilletComparisonGates.ValidateStructural(layout);
         Assert.True(result.IsValid, string.Join("; ", result.Errors));
     }
@@ -28,7 +28,7 @@ public class FilletComparisonGateTests
     public void IndexCornerBuckets_V2_90Degree_ProducesBuckets()
     {
         var v2Layout = BuildSimple90Layout();
-        new FilletArcGeneratorV2().Apply(v2Layout);
+        new FilletArcGenerator().Apply(v2Layout);
 
         var v2Buckets = FilletComparisonGates.IndexCornerBuckets(v2Layout);
 
@@ -64,7 +64,7 @@ public class FilletComparisonGateTests
         }
 
         var layout = LayoutCloner.DeepClone(preFillet);
-        var stats = new FilletArcGeneratorV2().Apply(layout);
+        var stats = new FilletArcGenerator().Apply(layout);
         var gates = FilletComparisonGates.Evaluate(preFillet, layout, stats);
         Assert.True(gates.Structural.IsValid, string.Join("; ", gates.Structural.Errors.Take(3)));
     }

@@ -183,7 +183,7 @@ public class IssueFllDal880TaxiBacktrackBTests(ITestOutputHelper output)
                 + $"edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}]"
         );
 
-        var route = TaxiPathfinderV2.ResolveExplicitPath(
+        var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["T", "T4", "B", "B1"],

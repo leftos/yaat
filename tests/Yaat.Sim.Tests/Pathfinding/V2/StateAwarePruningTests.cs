@@ -1,7 +1,7 @@
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Airport.V2;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Tests.Helpers;
 using Yaat.Sim.Tests.Simulation.GroundTaxi;
 
@@ -141,7 +141,7 @@ public class StateAwarePruningTests
 
         var lineup = RouteMaterialiser.FindFullLengthLineupHoldShort(layout, holdShorts[0], runway, holdShorts);
 
-        var route = TaxiPathfinderV2.FindRoute(layout, lineup.Id, parkingNode.Id, AircraftCategory.Jet);
+        var route = TaxiPathfinder.FindRoute(layout, lineup.Id, parkingNode.Id, AircraftCategory.Jet);
 
         output.WriteLine(
             $"{airport} {runway}({lineup.Id})->{parking}({parkingNode.Id}): {(route is null ? "NULL" : route.Segments.Count + " segs")}"

@@ -56,7 +56,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         output.WriteLine($"start node #{startNode.Id} type={startNode.Type} pos=({startNode.Position.Lat:F6},{startNode.Position.Lon:F6})");
         output.WriteLine($"parking #{parkingNode.Id} name={parkingNode.Name} pos=({parkingNode.Position.Lat:F6},{parkingNode.Position.Lon:F6})");
 
-        var route = TaxiPathfinderV2.ResolveExplicitPath(
+        var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
@@ -151,7 +151,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         );
         Assert.NotNull(parkingNode);
 
-        var route = TaxiPathfinderV2.ResolveExplicitPath(
+        var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,
@@ -244,7 +244,7 @@ public class Skw3078TaxiEAtoB10RouteTests(ITestOutputHelper output)
         );
         Assert.NotNull(parkingNode);
 
-        var route = TaxiPathfinderV2.ResolveExplicitPath(
+        var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: StartNodeId,
             taxiwayNames: Taxiways,

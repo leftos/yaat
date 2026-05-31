@@ -7,7 +7,7 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Systemic guard for V2 fillet arc playback. <c>GroundNavigatorV2</c> compiles every
+/// Systemic guard for V2 fillet arc playback. <c>GroundNavigator</c> compiles every
 /// <see cref="GroundArc"/> into a <see cref="PathPrimitiveBezier"/> and plays it by arc-length, so
 /// playback must terminate on the segment's to-node. The earlier <see cref="PathPrimitiveArc"/>
 /// reinterpreted the fillet as a circle of the Bézier's <em>minimum</em> radius of curvature; for

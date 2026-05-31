@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -9,7 +9,7 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="GroundNavigatorV2"/> on synthetic fixtures. No
+/// Unit tests for <see cref="GroundNavigator"/> on synthetic fixtures. No
 /// real airport data; each test builds a minimal <c>PhaseContext</c> + route
 /// inline and drives the navigator through <c>Tick</c> loops.
 /// </summary>
@@ -90,7 +90,7 @@ public class GroundNavigatorTests
             MaxSpeedKts = 30,
         };
 
-        var nav = GroundNavigatorV2.FromSnapshot(dto);
+        var nav = GroundNavigator.FromSnapshot(dto);
         Assert.Equal(42, nav.TargetNodeId);
         Assert.Equal(30, nav.MaxSpeedKts);
     }
@@ -108,7 +108,7 @@ public class GroundNavigatorTests
         var route = new TaxiRoute { Segments = [MakeStraightSegment(fromNode, toNode)], HoldShortPoints = [] };
 
         var (aircraft, ctx) = MakeFixture(fromNode.Position, 90.0);
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
         Assert.Equal(2, nav.TargetNodeId);
@@ -176,7 +176,7 @@ public class GroundNavigatorTests
 
         // Start with some forward speed so the arc integrator advances from tick 0.
         var (aircraft, ctx) = MakeFixture(new LatLon(p0Lat, p0Lon), 0.0, startSpeedKts: 10.0);
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
         bool arrived = false;
@@ -227,7 +227,7 @@ public class GroundNavigatorTests
 
         // Aircraft heading 270° (west) vs segment heading 90° (east) = 180° delta.
         var (aircraft, ctx) = MakeFixture(fromNode.Position, acHeadingDeg: 270.0);
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
         // Drive a few ticks and capture per-tick heading deltas. With entry
@@ -276,7 +276,7 @@ public class GroundNavigatorTests
         // Aircraft heading 95° vs segment 90° = only 5° off, well under the
         // 30° entry alignment threshold.
         var (aircraft, ctx) = MakeFixture(fromNode.Position, acHeadingDeg: 95.0);
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
         nav.SetupSegment(route, ctx, _ => true);
 
         // Run for 30 ticks (~7.5 s). With direct segment engagement (no

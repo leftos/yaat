@@ -41,7 +41,7 @@ public static class UsageText
         Console.WriteLine("  --validate               Run validation and print warnings to stdout");
         Console.WriteLine("  --no-fillets             Skip fillet arc generation (unfilleted graph for comparison)");
         Console.WriteLine("  --fillet-mode <m>        Fillet generator: v2 (default) | none");
-        Console.WriteLine("  --debug-fillets          Enable debug logging for fillet generation (FilletArcGeneratorV2)");
+        Console.WriteLine("  --debug-fillets          Enable debug logging for fillet generation (FilletArcGenerator)");
         Console.WriteLine("  --dump                   Dump everything (nodes, taxiways, runways, exits) as JSON");
         Console.WriteLine("  --json                   Output as JSON");
         Console.WriteLine("  --airport-code <ICAO>    Airport code for NavData runway widths");

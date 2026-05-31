@@ -8,7 +8,7 @@ namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
 /// Aircraft crosses a runway at normal taxi speed (runway-crossing speed kept only
-/// as a no-stop floor) by following the taxi line via a <see cref="GroundNavigatorV2"/>
+/// as a no-stop floor) by following the taxi line via a <see cref="GroundNavigator"/>
 /// over the crossing slice of the aircraft's <see cref="TaxiRoute"/>. Each tick steers
 /// via the navigator (which respects arcs, fillets and intermediate runway-centerline
 /// nodes that the painted line traverses, and slows for any curve via its arc-speed
@@ -36,7 +36,7 @@ public sealed class CrossingRunwayPhase : Phase
     // Built lazily in OnStart (or first OnTick after snapshot restore) by
     // slicing the aircraft's AssignedTaxiRoute between approach and target.
     private TaxiRoute? _crossingRoute;
-    private GroundNavigatorV2? _navigator;
+    private GroundNavigator? _navigator;
     private bool _initialized;
     private double _timeSinceLastLog;
 
@@ -156,7 +156,7 @@ public sealed class CrossingRunwayPhase : Phase
     /// Slice <see cref="AircraftGroundState.AssignedTaxiRoute"/> between the
     /// entry- and exit-side hold-short nodes, append a virtual tail-clearance
     /// node ½ aircraft length past the exit, and hand the result to a new
-    /// <see cref="GroundNavigatorV2"/>. Idempotent — only builds the navigator
+    /// <see cref="GroundNavigator"/>. Idempotent — only builds the navigator
     /// once per phase instance.
     /// </summary>
     private void TryBuildCrossingRoute(PhaseContext ctx)
@@ -242,7 +242,7 @@ public sealed class CrossingRunwayPhase : Phase
         // navigator's arc/turn-speed cap. The aircraft hands off to the onward TaxiingPhase still moving;
         // that phase owns the real deceleration for the destination. The floor never overrides a
         // conflict/airport speed-limit ceiling (see ClampBySpeedLimit).
-        _navigator = new GroundNavigatorV2();
+        _navigator = new GroundNavigator();
         _navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
         _navigator.MinSpeedKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
         _navigator.SetupSegment(_crossingRoute, ctx, _ => true);

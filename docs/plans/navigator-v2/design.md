@@ -76,7 +76,7 @@ Both reviews are folded into the sections below; this is the index of binding de
 
 ## 2. Scope & non-goals
 
-**In scope:** a `GroundNavigatorV2` that physically steers an aircraft along an already-resolved
+**In scope:** a `GroundNavigator` that physically steers an aircraft along an already-resolved
 `TaxiRoute` over V2 geometry, per tick — the same role `GroundNavigator` plays today, behind a
 `GroundNavigatorRouter` switch, default V1 until the joint flip.
 
@@ -132,7 +132,7 @@ Derived from the current contract (`navigator.md`) and the failing cluster. Each
 ### 4.1 The switch (mirror the **live** `TaxiPathfinderRouter`)
 
 Extract the phase-facing surface into `IGroundNavigator`; `GroundNavigator` (V1) implements it
-unchanged; new `GroundNavigatorV2` implements it. `GroundNavigatorRouter` is a **static factory** (the
+unchanged; new `GroundNavigator` implements it. `GroundNavigatorRouter` is a **static factory** (the
 navigator is stateful per-aircraft, so the router builds instances, it does not hold one — this is the
 difference from the stateless `TaxiPathfinderRouter`): `static IGroundNavigator Create()` + `static bool
 UseV2`. Mirror `TaxiPathfinderRouter` (live); **not** the vestigial `FilletArcGeneratorRouter`.
@@ -165,7 +165,7 @@ callers bind the concrete V1 type and die with V1).
 ### 4.2 Primitive model — reuse as-is
 
 `PathPrimitive` (Straight / Arc / SlowTurn) and `PathPrimitiveBuilder.FromSegment` already target a
-"GroundNavigatorV2" (the doc comments name it). V2 reuses them unchanged — the Bezier→true-circle
+"GroundNavigator" (the doc comments name it). V2 reuses them unchanged — the Bezier→true-circle
 recovery is geometry, not Legacy tuning.
 
 ### 4.3 Kept core vs dropped compensations
@@ -351,7 +351,7 @@ fail-first repro per the TDD rule.
    construction sites route through the factory. Pure refactor, no behavior change; V1 stays default.
    **Acceptance: the grep gate** (zero `new GroundNavigator` / `GroundNavigator.FromSnapshot` outside the
    router) + full suite green on V1 — the suite alone won't catch a missed site (B3/N1).
-4. `GroundNavigatorV2` skeleton: straight pure-pursuit + closed-form arc/slow-turn + speed profile +
+4. `GroundNavigator` skeleton: straight pure-pursuit + closed-form arc/slow-turn + speed profile +
    entry alignment. No synthesis/cluster/orbit machinery. Q1 no-freeze floor is a **global** tick-loop
    invariant (covers the kept entry-alignment decline path too — S5). Rewire corner-speed to the single
    arc's `TurnAngleDeg` (S4).

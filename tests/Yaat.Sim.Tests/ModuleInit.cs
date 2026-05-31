@@ -14,9 +14,9 @@ internal static class ModuleInit
     [ModuleInitializer]
     public static void Initialize()
     {
-        // Surface any pure-pursuit orbit (GroundNavigatorV2 circling a node it can't converge on) as a
+        // Surface any pure-pursuit orbit (GroundNavigator circling a node it can't converge on) as a
         // hard test failure. The shipping app leaves this false and recovers gracefully instead.
-        GroundNavigatorV2.ThrowOnOrbit = true;
+        GroundNavigator.ThrowOnOrbit = true;
 
         var testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
         Yaat.Sim.Testing.TestVnasData.SetTestDataDir(testDataDir);

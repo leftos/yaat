@@ -46,7 +46,7 @@ public sealed class HtmlRenderCommand : ICommand
         // node ids as route overlays.
         if ((options.PathfinderNodeId is not null) && (options.PathfinderTaxiways.Count > 0))
         {
-            var pfRoute = TaxiPathfinderV2.ResolveExplicitPath(
+            var pfRoute = TaxiPathfinder.ResolveExplicitPath(
                 analyzer.Layout,
                 options.PathfinderNodeId.Value,
                 options.PathfinderTaxiways,

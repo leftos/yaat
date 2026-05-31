@@ -16,13 +16,13 @@ The five open questions raised in section 12 have been resolved as follows. The 
 
 5. **Authorized-taxiway enforcement (§12.5):** **Soft cost penalty** in `RouteCostFunction`, as specified in §6 (0.2 nm per first-use of an unauthorized letter taxiway). v2 emits a `Warning` on the route when this happens. Hard exclusion is rejected — some parking access necessarily crosses unnamed letter taxiways.
 
-6. **`FindFullLengthLineupHoldShort` (§12.6):** Implementer's choice. Either pattern is fine; pick the one that produces fewer cross-file dependencies. *Step 4 outcome:* implemented in `RouteMaterialiser`; `TaxiPathfinderV2.FindFullLengthLineupHoldShort` delegates to it.
+6. **`FindFullLengthLineupHoldShort` (§12.6):** Implementer's choice. Either pattern is fine; pick the one that produces fewer cross-file dependencies. *Step 4 outcome:* implemented in `RouteMaterialiser`; `TaxiPathfinder.FindFullLengthLineupHoldShort` delegates to it.
 
 7. **DirectionReversal penalty location (added 2026-05-27 after step 5):** **SegmentExpander only.** Applying `DirectionReversalCostNm` in `RouteCostFunction.IncrementalCost` during A* breaks the heuristic's admissibility — any edge whose mid-bearing is more than 90° off the start→destination direction inflates the g-score, causing exponential expansion across the airport. AutoRouter's A* does NOT add the penalty. SegmentExpander's bounded per-segment local searches will apply it directly when scoring junction candidates.
 
 8. **AutoRouter expansion budget (added 2026-05-27 after step 5):** **200,000** (raised from the design doc's initial 50,000 estimate). SFO cross-field routes legitimately explore the 100K+ range; 50K was rejecting valid paths. Re-evaluate if memory pressure becomes a concern.
 
-9. **Aircraft category parameter (added 2026-05-27 after step 5):** The `ITaxiPathfinder` interface does NOT currently expose aircraft category. `TaxiPathfinderV2.FindRoute`/`FindRoutes` hardcode `AircraftCategory.Jet`. **Step 6 will extend the interface** to accept category and update production callers (`GroundCommandHandler`, `GroundViewModel`) to pass real category. Until then, all routes use jet limits.
+9. **Aircraft category parameter (added 2026-05-27 after step 5):** The `ITaxiPathfinder` interface does NOT currently expose aircraft category. `TaxiPathfinder.FindRoute`/`FindRoutes` hardcode `AircraftCategory.Jet`. **Step 6 will extend the interface** to accept category and update production callers (`GroundCommandHandler`, `GroundViewModel`) to pass real category. Until then, all routes use jet limits.
 
 10. **Helipad detection (added 2026-05-27 after step 5):** `SearchContext.ResolveDestination` was initially using a name-pattern heuristic (`name.Contains('H')`) to classify parking-vs-helipad. Replaced with node-type lookup: try `FindHelipadByName` first, classify as Helipad if found; otherwise classify via `FindParkingByName` as Parking.
 
@@ -283,9 +283,9 @@ record VariantResolutionResult(
 
 ## 5. Module / File Layout
 
-All files under `src/Yaat.Sim/Data/Airport/V2/`.
+All files under `src/Yaat.Sim/Data/Airport/Pathfinding/`.
 
-**`TaxiPathfinderV2.cs`** — The public implementation of `ITaxiPathfinder`. Thin
+**`TaxiPathfinder.cs`** — The public implementation of `ITaxiPathfinder`. Thin
 orchestrator: constructs a `SearchContext`, delegates to the segment expander (explicit
 mode) or A\* driver (auto mode), then calls the materialiser. Contains no search logic
 itself. This is the only file that sees both the public interface and the internal modules.
@@ -579,13 +579,13 @@ one-line string the controller can act on:
 
 **Null vs failure:** `ResolveExplicitPath` returns `null` and sets `failReason` (per the
 interface contract). Internally, all paths use `PathfindingFailure`; the adapter in
-`TaxiPathfinderV2` converts to the null/string interface at the boundary.
+`TaxiPathfinder` converts to the null/string interface at the boundary.
 
 ---
 
 ## 11. Test Strategy
 
-**Unit tests for isolated modules** (`TaxiPathfinderV2UnitTests.cs`):
+**Unit tests for isolated modules** (`TaxiPathfinderUnitTests.cs`):
 - `RouteCostFunction`: construct `PartialRoute` instances programmatically and assert
   that cost components accumulate correctly; verify preference-selector weight adjustments.
 - `GeometricAdmissibility`: parametric tests over heading delta × arc direction × category
@@ -664,7 +664,7 @@ without; assert routes are identical.
 6. **`FindFullLengthLineupHoldShort` contract.** The interface exposes this as a public
    method. The current design places its implementation in `RouteMaterialiser`. Should v2
    expose this as a separate thin public method that delegates to the materialiser, or
-   should `TaxiPathfinderV2` implement it independently of the route-building path? The
+   should `TaxiPathfinder` implement it independently of the route-building path? The
    implementation is small either way; the question is whether the interface method is
    called from places other than within a full `ResolveExplicitPath` call.
 
@@ -673,13 +673,13 @@ without; assert routes are identical.
 ## 13. Implementation Order
 
 **Step 1 — Scaffold and plumbing** (first testable milestone: existing interface compiles
-with stub bodies). Create `V2/` directory, stub `TaxiPathfinderV2.cs` implementing
+with stub bodies). Create `V2/` directory, stub `TaxiPathfinder.cs` implementing
 `ITaxiPathfinder` with `throw new NotImplementedException()`. Wire `TaxiPathfinderRouter.UseV2`
 to instantiate v2. Ensure the solution builds without warnings.
 
 **Step 2 — Data structures and cost function** (unit-testable in isolation). Implement
 `SearchContext.cs`, `PartialRoute.cs`, `PathfindingFailure.cs`, and `RouteCostFunction.cs`
-with all record definitions and the cost calculation. Write `TaxiPathfinderV2UnitTests`
+with all record definitions and the cost calculation. Write `TaxiPathfinderUnitTests`
 covering cost accumulation and heuristic properties. No layout interaction yet.
 
 **Step 3 — Geometric admissibility** (unit-testable with mock edges). Implement
@@ -691,12 +691,12 @@ reverse arcs, and the category-limit threshold. This step does not require a rea
 population. Confirms the `TaxiRoute` output shape before any search logic exists.
 
 **Step 5 — Auto router** (integration-testable against OAK/SFO). Implement `AutoRouter.cs`
-with A\* over the full layout. Wire into `TaxiPathfinderV2.FindRoute` and `FindRoutes`.
+with A\* over the full layout. Wire into `TaxiPathfinder.FindRoute` and `FindRoutes`.
 Run `TaxiCoverageRunner` against OAK and SFO to establish a baseline success rate.
 
 **Step 6 — Segment expander** (integration-testable against explicit-mode tests). Implement
 `SegmentExpander.cs` with junction search and variant resolution. Wire into
-`TaxiPathfinderV2.ResolveExplicitPath`. Run all existing TAXI-related unit tests. This is
+`TaxiPathfinder.ResolveExplicitPath`. Run all existing TAXI-related unit tests. This is
 where the SKW3404 regression must pass.
 
 **Step 7 — Diagnostics and failure messages** (polish). Refine the diagnostic callback

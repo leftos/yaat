@@ -1,6 +1,6 @@
 # V2 resume plan — default-flip triage and follow-up work
 
-When `TaxiPathfinderRouter._current` was flipped from `TaxiPathfinderV1Adapter` to `TaxiPathfinderV2`, the per-PR test suite went from 1 failure to **56** (excluding the `Category=Nightly` grids, which contributed another 354 — those need their own pass). The default was reverted (commit `46e13d5a`) so the fillet-arc-generator rewrite can land on a green tree first.
+When `TaxiPathfinderRouter._current` was flipped from `TaxiPathfinderV1Adapter` to `TaxiPathfinder`, the per-PR test suite went from 1 failure to **56** (excluding the `Category=Nightly` grids, which contributed another 354 — those need their own pass). The default was reverted (commit `46e13d5a`) so the fillet-arc-generator rewrite can land on a green tree first.
 
 This is the entry point when V2 work resumes. It covers:
 
@@ -22,7 +22,7 @@ Set diff across the two fillet modes (the key triage signal):
 
 54 ship-target failures verdicted one-agent-per-class via `.claude/workflows/pathfinder-v2-verdict-pass.js`. Full per-test evidence + fixHints: **[`verdict-pass-results.json`](./verdict-pass-results.json)**. Tally: **17 V2-bug · 5 missing-feature · 4 V1-pinned · 28 underlying-sim**.
 
-Reproduce a mode: flip `TaxiPathfinderRouter._current` to `TaxiPathfinderV2` (+ `TestAirportGroundData` default to `FilletMode.V2` for the V2+V2 baseline), run `--filter "Category!=Nightly"`. Revert both before committing.
+Reproduce a mode: flip `TaxiPathfinderRouter._current` to `TaxiPathfinder` (+ `TestAirportGroundData` default to `FilletMode.V2` for the V2+V2 baseline), run `--filter "Category!=Nightly"`. Revert both before committing.
 
 #### Pathfinder-WS2 fix clusters (22 — fix these in this pass; ~6 code areas)
 
@@ -188,9 +188,9 @@ Both reviews flagged structural issues not tracked by individual test failures. 
 
 #### Codex HIGH findings (real V2 behavioural gaps)
 
-- [ ] **`DestinationRunway` hold-short reason is missing in V2 materialisation.** Routes to a runway destination should emit `HoldShortReason.DestinationRunway` so `TaxiRoute.ToSummary()` includes the `RWY <id>` semantics. V2 only emits `ExplicitHoldShort` / `RunwayCrossing`. (`src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:84, 154`; V1 contrast `src/Yaat.Sim/Data/Airport/HoldShortAnnotator.cs:283`)
-- [ ] **Explicit hold-short matching is too literal for reciprocal runways.** V2 uses exact string membership; misses `28R` matching `28R/10L`. Use `RunwayIdentifier.Contains(...)` instead. (`src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:84`; V1 contrast `HoldShortAnnotator.cs:177, 204`)
-- [ ] **Full-length lineup hold-short selection is runway-end ambiguous.** V2's `FindFullLengthLineupHoldShort` uses farthest-from-centroid geometry; reciprocal runways can pick the wrong end. Use `NavigationDatabase` threshold for the requested designator as V1 does, with current geometry as fallback. (`src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:238, 294`; V1 contrast `TaxiPathfinder.cs:647`)
+- [ ] **`DestinationRunway` hold-short reason is missing in V2 materialisation.** Routes to a runway destination should emit `HoldShortReason.DestinationRunway` so `TaxiRoute.ToSummary()` includes the `RWY <id>` semantics. V2 only emits `ExplicitHoldShort` / `RunwayCrossing`. (`src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:84, 154`; V1 contrast `src/Yaat.Sim/Data/Airport/HoldShortAnnotator.cs:283`)
+- [ ] **Explicit hold-short matching is too literal for reciprocal runways.** V2 uses exact string membership; misses `28R` matching `28R/10L`. Use `RunwayIdentifier.Contains(...)` instead. (`src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:84`; V1 contrast `HoldShortAnnotator.cs:177, 204`)
+- [ ] **Full-length lineup hold-short selection is runway-end ambiguous.** V2's `FindFullLengthLineupHoldShort` uses farthest-from-centroid geometry; reciprocal runways can pick the wrong end. Use `NavigationDatabase` threshold for the requested designator as V1 does, with current geometry as fallback. (`src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:238, 294`; V1 contrast `TaxiPathfinder.cs:647`)
 - [ ] **A\* pruning is not state-aware.** `AutoRouter` and `LocalSearchToJunction` prune by best cost per node id, but future admissibility/cost depends on arrival bearing, last edge, last taxiway, aircraft category, and visited nodes. A cheaper arrival can suppress a slightly-more-expensive viable arrival. Key closed/best-cost state by the route state that affects future expansion. (`AutoRouter.cs:115, 208, 218, 228`; `SegmentExpander.cs:396, 492`)
 - [ ] **Detour fallback can silently use unauthorized full taxiways.** Detour context clears `AuthorizedTaxiways` then runs the normal auto-router, which lets all taxiways through with no unauthorized-taxiway penalty. Make the fallback policy explicit — enforce numbered/RAMP-only or surface as a warning/failure. (`SegmentExpander.cs:1122, 1171, 1187`; `SearchContext.cs:67`; `RouteCostFunction.cs:153`)
 
@@ -203,7 +203,7 @@ Both reviews flagged structural issues not tracked by individual test failures. 
 
 #### Design gaps to decide on (Codex MED) — DECIDED (Phase 5)
 
-- [x] **`FindRoutes` k-alternatives — decided: accept V2's per-preference model.** V2 is intentionally per-preference (≤3 routes: FewestTurns / Shortest / Fastest, deduped), NOT Yen-style k-shortest — three distinct strategies beat near-identical Yen detours for a controller. Client `GroundViewModel.FindRoutesToNode` now requests 3 (a 4th always came back empty); documented on `TaxiPathfinderV2.FindRoutes`.
+- [x] **`FindRoutes` k-alternatives — decided: accept V2's per-preference model.** V2 is intentionally per-preference (≤3 routes: FewestTurns / Shortest / Fastest, deduped), NOT Yen-style k-shortest — three distinct strategies beat near-identical Yen detours for a controller. Client `GroundViewModel.FindRoutesToNode` now requests 3 (a 4th always came back empty); documented on `TaxiPathfinder.FindRoutes`.
 - [x] **Natural-terminus greedy walk — resolved by constraint.** The greedy walk is now the *final leg only* (intermediate legs use the multi-candidate `LocalSearchToJunction` + `ProbeTailCost` look-ahead), direction-biased on its first step (`ResolveTerminusBias`), single-name-preferring (req ①, so it cannot divert onto a crossing arc), and parking/spot destinations are off-ramped to `LocalSearchToJunction`. That is effectively Codex's "restrict the greedy walk to forced-next-edge topologies." The original lock-in failures (FLL B/C1, SFO A) are fixed and there is no failing repro; converting the final-leg walk to full A\* without one would be premature. Re-open only if a concrete V2-on-V2 backtrack surfaces.
 - [x] **`RAMP` classified as apron access** — excluded from `IsLetterOnlyTaxiway`, so RAMP no longer draws an unauthorized-taxiway penalty/warning (aviation-reviewed: 7110.65 §3-7-2 NOTE 2 / AIM §4-3-18.b.7). Retired the now-redundant `RouteMaterialiser` bridge-end special-case.
 - [x] **`Fastest` cost units — decided: keep + document.** The scalar is a generic cost; distance preferences stay nm-equivalent (admissible + informative heuristic). Fastest adds a time-equivalent term that dominates, so its heuristic is admissible-but-weak (degrades toward Dijkstra) — acceptable since Fastest is never the default preference and returns correct routes. Class doc updated.

@@ -1,14 +1,14 @@
 # Taxi Pathfinder — Design & Architecture
 
-> Read this before touching anything under `src/Yaat.Sim/Data/Airport/V2/`, `TaxiPathfinderV2.cs`, or `GroundCommandHandler.cs`'s taxi-resolution paths. The pathfinder turns a `TAXI`/`TAXIAUTO` command into a `TaxiRoute` (edge sequence + hold-shorts). It is one of three ground-stack components — see the **fillet generator** (`./fillet-generator.md`) that builds the graph it walks, and the **navigator** (`./navigator.md`) that physically follows the route it produces. Index: `./README.md`.
+> Read this before touching anything under `src/Yaat.Sim/Data/Airport/Pathfinding/`, `TaxiPathfinder.cs`, or `GroundCommandHandler.cs`'s taxi-resolution paths. The pathfinder turns a `TAXI`/`TAXIAUTO` command into a `TaxiRoute` (edge sequence + hold-shorts). It is one of three ground-stack components — see the **fillet generator** (`./fillet-generator.md`) that builds the graph it walks, and the **navigator** (`./navigator.md`) that physically follows the route it produces. Index: `./README.md`.
 
 ## Status — V2 is the pathfinder
 
-**V2 (`TaxiPathfinderV2` + `Data/Airport/V2/*`) is the only pathfinder.** The V1 `TaxiPathfinder` (~3200 lines), the `ITaxiPathfinder` / `TaxiPathfinderV1Adapter` / `TaxiPathfinderRouter` selector seam, and the V1-only `TaxiVariantResolver` were deleted at the joint flip. `TaxiPathfinderV2`'s four entry points (`ResolveExplicitPath`, `FindRoute`, `FindRoutes`, `FindFullLengthLineupHoldShort`) are now **static**; production calls them directly. The other two ground-stack layers — [fillet generator](./fillet-generator.md) and [navigator](./navigator.md) — are likewise V2-only.
+**V2 (`TaxiPathfinder` + `Data/Airport/Pathfinding/*`) is the only pathfinder.** The V1 `TaxiPathfinder` (~3200 lines), the `ITaxiPathfinder` / `TaxiPathfinderV1Adapter` / `TaxiPathfinderRouter` selector seam, and the V1-only `TaxiVariantResolver` were deleted at the joint flip. `TaxiPathfinder`'s four entry points (`ResolveExplicitPath`, `FindRoute`, `FindRoutes`, `FindFullLengthLineupHoldShort`) are now **static**; production calls them directly. The other two ground-stack layers — [fillet generator](./fillet-generator.md) and [navigator](./navigator.md) — are likewise V2-only.
 
 **Caveat for any agent working on the pathfinder:** membership-matched junction arcs, V-shaped taxiways, and tighter V2 fillet arcs are *correct-but-different* geometry. When something breaks on the graph, **adapt the pathfinder — do not "fix" the graph** (membership junction arcs are legitimate turn-connectors).
 
-> The body below still describes V2 relative to the now-deleted V1 in places; a full body refresh is deferred to the final cross-layer rename sweep that drops the `V2` suffixes.
+> The `V2` suffix has been dropped from the type names (the class is now `TaxiPathfinder`, its internals live under `Data/Airport/Pathfinding/`). The body below still describes V2 relative to the now-deleted V1 in places; a fuller body-prose refresh remains.
 
 ---
 
@@ -19,9 +19,9 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 1. `GroundCommandHandler.TryTaxi` / `TryTaxiAuto` (`src/Yaat.Sim/Commands/GroundCommandHandler.cs:15`, `:283`) is the dispatch target. `TryTaxiAuto` just builds an empty-path `TaxiCommand` and calls `TryTaxi` — so `TAXIAUTO RWY`/`TAXIAUTO @PARKING` is "a TAXI with no named taxiways". There is no separate auto pathfinder entry.
 2. `TryTaxi` resolves the start node from `(position, heading)` — `groundLayout.FindNearestNodeForTaxi(...)` (heading-aligned endpoint of the nearest edge) with `FindNearestNode` as the off-graph fallback (`GroundCommandHandler.cs:37`). **The pathfinder's contract is strictly node-to-node**; mid-segment snapping happens here, upstream.
 3. `TryTaxi` branches on destination kind into `ResolveParkingRoute` (`@parking`/`$spot`) or `ResolveStandardRoute` (runway / implicit endpoint), and computes the aircraft category via `AircraftCategorization.Categorize` (`GroundCommandHandler.cs:66`).
-4. Those resolvers call **`TaxiPathfinderV2`**'s static methods directly:
+4. Those resolvers call **`TaxiPathfinder`**'s static methods directly:
 
-| `TaxiPathfinderV2` method | Purpose | Driver |
+| `TaxiPathfinder` method | Purpose | Driver |
 |---|---|---|
 | `ResolveExplicitPath` | named taxiway sequence (explicit mode) | `SegmentExpander.Run` |
 | `FindRoute` | single best node→node route (FewestTurns) | `AutoRouter.Run` |
@@ -53,7 +53,7 @@ A route is a sequence of directed edges, and every quality criterion — drivabi
 
 ### Geometric correctness is a constraint, not a post-filter
 
-An inadmissible junction is simply not an edge in the search graph from that arrival direction. `GeometricAdmissibility.IsAdmissible` (`src/Yaat.Sim/Data/Airport/V2/GeometricAdmissibility.cs:52`) **hard-rejects** any edge whose heading change from the current arrival bearing exceeds the per-category limit:
+An inadmissible junction is simply not an edge in the search graph from that arrival direction. `GeometricAdmissibility.IsAdmissible` (`src/Yaat.Sim/Data/Airport/Pathfinding/GeometricAdmissibility.cs:52`) **hard-rejects** any edge whose heading change from the current arrival bearing exceeds the per-category limit:
 
 | Category | Max heading change at a node |
 |---|---|
@@ -85,7 +85,7 @@ Preference adjusts weights: `FewestTurns` ×5 on turn + transition; `Shortest` z
 
 ### Authorized-taxiway policy: letter-only = boundary, numbered = free
 
-`SearchContext.IsLetterOnlyTaxiway` (`src/Yaat.Sim/Data/Airport/V2/SearchContext.cs:104`) classifies by name: a name with **no digit** is letter-only (`A`, `Y`, `F`). The authorized set is the letter-only names the controller named (`BuildAuthorizedTaxiwaySet`). Numbered names (`A1`, `AY1`, `M1`) are always free for bridging/parking access. Letter-only taxiways the controller did **not** name are not hard-excluded — they cost `0.2 nm` first-use and surface a `Warning`. (Caveat: `IsLetterOnlyTaxiway` currently returns true for `RAMP`, so RAMP edges can attract the unauthorized penalty/warning; the materialiser separately suppresses warnings for leading/trailing parking-bridge RAMP — see `RouteMaterialiser.BuildWarnings`.)
+`SearchContext.IsLetterOnlyTaxiway` (`src/Yaat.Sim/Data/Airport/Pathfinding/SearchContext.cs:104`) classifies by name: a name with **no digit** is letter-only (`A`, `Y`, `F`). The authorized set is the letter-only names the controller named (`BuildAuthorizedTaxiwaySet`). Numbered names (`A1`, `AY1`, `M1`) are always free for bridging/parking access. Letter-only taxiways the controller did **not** name are not hard-excluded — they cost `0.2 nm` first-use and surface a `Warning`. (Caveat: `IsLetterOnlyTaxiway` currently returns true for `RAMP`, so RAMP edges can attract the unauthorized penalty/warning; the materialiser separately suppresses warnings for leading/trailing parking-bridge RAMP — see `RouteMaterialiser.BuildWarnings`.)
 
 ### Hold-short handling & truncation
 
@@ -112,7 +112,7 @@ When two consecutive cleared taxiways have **no direct junction** (zero junction
 
 ## Step-by-step walkthrough — V2 explicit mode (`SegmentExpander.Run`)
 
-`SegmentExpander.Run` (`src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs:36`) returns exactly one of `(TaxiRoute, null)` or `(null, PathfindingFailure)`.
+`SegmentExpander.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:36`) returns exactly one of `(TaxiRoute, null)` or `(null, PathfindingFailure)`.
 
 **1. Waypoint resolution.** `ResolveWaypoints` turns each token into a `WaypointToken`. `#NNNN` tokens become node-refs (`IsNodeRef = true`); everything else is a named taxiway. The search starts with `head = PartialRoute.StartAt(ctx.StartNodeId)` — an immutable linked-list node (`PartialRoute.cs`) carrying head node id, arrival bearing, last edge, accumulated cost, depth, and a `VisitedNodeIds` set.
 
@@ -134,13 +134,13 @@ When two consecutive cleared taxiways have **no direct junction** (zero junction
 
 **7. Parking/spot extension.** For `@parking`/`$spot`/helipad destinations, `ExtendToDestination` runs `AutoRouter` from the named-path terminus to the destination node.
 
-**8. `RouteMaterialiser.Materialise`** (`src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:15`). One forward pass: build segments → annotate hold-shorts → truncate (runway destination = exactly at its lineup hold-short; otherwise one past the last required stop — see **Hold-short handling & truncation** above) → build warnings (mandatory-connector notifications + unauthorized-letter-taxiway warnings, with junction arcs and parking-bridge RAMP exempt). Returns the shared `TaxiRoute`.
+**8. `RouteMaterialiser.Materialise`** (`src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:15`). One forward pass: build segments → annotate hold-shorts → truncate (runway destination = exactly at its lineup hold-short; otherwise one past the last required stop — see **Hold-short handling & truncation** above) → build warnings (mandatory-connector notifications + unauthorized-letter-taxiway warnings, with junction arcs and parking-bridge RAMP exempt). Returns the shared `TaxiRoute`.
 
 **9. Honor-named-taxiway check** (`SegmentExpander.Run`, after materialise — `RouteReachesTaxiway(route, name)`). Every named taxiway in the clearance must be **reached** by the resolved route — either *traversed* (an edge labeled for it, membership arcs count) or at least *touched* (the route passes through a node incident to it). Touching without traversing is normal and must not fail: when two cleared taxiways meet at the same junction the route turns from one onto the next through that node without walking a labeled edge of either (e.g. `TE T U` where `TE` and `U` share junction node 136, which is on `T`), and a more direct connector can reach the junction a named taxiway serves (e.g. OAK `G @SIG1`, where the north-side route reaches the G/C junction node 350 via C without crossing a runway). The check runs on the **materialised route**, not the pre-materialise edge walk — the latter can over-run the destination hold-short and reach the taxiway only on the far side of a runway the final route never crosses (which previously produced false rejections). The command **fails** (`TaxiwayNotConnected`) only when a named taxiway is never reached at all: the aircraft could not get to it from its start without leaving the movement area (e.g. SFO gate → taxiway `A` lies across active runways, reachable only via a runway-crossing RAMP bridge the resolver rejects). Distinct from the soft mandatory-connector policy, which inserts a connector *between* named taxiways while keeping every named taxiway present. (Guards: `SfoRampCrossesRunwayTests` for the genuine-failure case; `OakGroundE2ETests` + `RoomEngineE2ETests.OakS1_PushbackThenTaxi` for the reachable-bypassed cases.)
 
 ### Auto-route walkthrough (`AutoRouter.Run`)
 
-`AutoRouter.Run` (`src/Yaat.Sim/Data/Airport/V2/AutoRouter.cs:27`) is a flat A* over the whole layout, used by `FindRoute`/`FindRoutes`, the explicit-mode parking extension, the detour fallback, and node-ref routing.
+`AutoRouter.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs:27`) is a flat A* over the whole layout, used by `FindRoute`/`FindRoutes`, the explicit-mode parking extension, the detour fallback, and node-ref routing.
 
 - Resolves the destination node (runway → `FindFullLengthLineupHoldShort`; parking/spot/node → the resolved id).
 - A* with a `PriorityQueue<PartialRoute, double>`, a `(nodeId, arrival-bearing-bucket)`-keyed `bestGScore` map for state-aware duplicate pruning (`GeometricAdmissibility.PruningStateKey`), and the `GeometricAdmissibility` hard gate on every edge. `IncrementalCost` (the same cost function) prices each edge. Heuristic = straight-line nm. Cap: **`MaxExpansions = 200_000`** → `SearchExhausted` (raised from the design's 50k after SFO cross-field routes legitimately explored 100k+).
@@ -185,16 +185,16 @@ The V1 `TaxiPathfinder` (~3200 lines), its `TaxiPathfinderV1Adapter`, the `TaxiP
 
 | File | Role |
 |---|---|
-| `src/Yaat.Sim/Data/Airport/TaxiPathfinderV2.cs` | pathfinder entry (static) — compiles `SearchContext`, delegates to drivers |
+| `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` | pathfinder entry (static) — compiles `SearchContext`, delegates to drivers |
 | `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs` | `RoutePreference` enum + `ExplicitPathOptions` input bag |
-| `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs` | explicit-mode driver (junctions, look-ahead, variants, detour) |
-| `src/Yaat.Sim/Data/Airport/V2/AutoRouter.cs` | auto-mode A* over the full layout |
-| `src/Yaat.Sim/Data/Airport/V2/RouteCostFunction.cs` | the single cost function + heuristic |
-| `src/Yaat.Sim/Data/Airport/V2/GeometricAdmissibility.cs` | heading-delta gate + bearing helpers |
-| `src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs` | edges → `TaxiRoute` (hold-shorts, truncation, warnings) |
-| `src/Yaat.Sim/Data/Airport/V2/SearchContext.cs` | compiled per-call context, authorized-set + destination resolution |
-| `src/Yaat.Sim/Data/Airport/V2/PartialRoute.cs` | immutable linked-list search state |
-| `src/Yaat.Sim/Data/Airport/V2/PathfindingFailure.cs` | structured failure + `FailureKind` |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs` | explicit-mode driver (junctions, look-ahead, variants, detour) |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs` | auto-mode A* over the full layout |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/RouteCostFunction.cs` | the single cost function + heuristic |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/GeometricAdmissibility.cs` | heading-delta gate + bearing helpers |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs` | edges → `TaxiRoute` (hold-shorts, truncation, warnings) |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/SearchContext.cs` | compiled per-call context, authorized-set + destination resolution |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/PartialRoute.cs` | immutable linked-list search state |
+| `src/Yaat.Sim/Data/Airport/Pathfinding/PathfindingFailure.cs` | structured failure + `FailureKind` |
 | `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | graph types: `GroundNode`, `GroundArc`, `IGroundEdge`, `DirectionalEdge`, `MatchesTaxiway`, `GetNodesOnTaxiway`, `GetRunwayHoldShortNodes` |
 | `src/Yaat.Sim/Data/Airport/TaxiRoute.cs` | the shared output type |
 | `src/Yaat.Sim/Commands/GroundCommandHandler.cs` | `TryTaxi`/`TryTaxiAuto` entry + downstream clearance handling |

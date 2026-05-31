@@ -17,7 +17,7 @@ public enum RoutePreference
 }
 
 /// <summary>
-/// Optional routing hints and diagnostics for <see cref="TaxiPathfinderV2.ResolveExplicitPath"/>.
+/// Optional routing hints and diagnostics for <see cref="TaxiPathfinder.ResolveExplicitPath"/>.
 /// </summary>
 public sealed class ExplicitPathOptions
 {

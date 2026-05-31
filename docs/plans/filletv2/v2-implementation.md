@@ -40,7 +40,7 @@ Under `src/Yaat.Sim/Data/Airport/`:
 | `GeoJsonParser.Parse(..., FilletMode)` | Default `Legacy` |
 | Comparison harness | `tests/Yaat.Sim.Tests/Helpers/LayoutCloner.cs`, `FilletComparison.cs` |
 
-`FilletArcGeneratorV2` exists but throws until step 3e.
+`FilletArcGenerator` exists but throws until step 3e.
 
 ---
 
@@ -156,7 +156,7 @@ Demotion loop until stable:
 
 ```
 src/Yaat.Sim/Data/Airport/
-  FilletArcGeneratorV2.cs
+  FilletArcGenerator.cs
   Fillet/
     FilletConstants.cs
     FilletGeometry.cs          // turn angle, radius caps, bezier build, effective min radius
@@ -285,7 +285,7 @@ LayoutInspector (step 4): `--fillet=none|legacy|v2`, `--fillet-diff <airport>`.
 | **3b** | `TaxiwayArm`, `TaxiwayArmTerminus`, `PolylineChain`, `TaxiwayArmBuilder` + walk parity tests | No |
 | **3c** | `JunctionClassifier`, `CornerPlanner`, `CornerSpec`, corner-key dedup tests | No |
 | **3d** | `ArmCutResolver`, `SharedArmTangentPass`, `FilletPlan`/`FilletPlanBuilder`, `PlanWarning` + resolver unit tests | No |
-| **3e** | `FilletPlanExecutor`, wire `FilletArcGeneratorV2.Apply`, V2 in `Registry.All`, `FilletStatistics.Warnings` | **V2 runnable** |
+| **3e** | `FilletPlanExecutor`, wire `FilletArcGenerator.Apply`, V2 in `Registry.All`, `FilletStatistics.Warnings` | **V2 runnable** |
 | **3f** | Extend `FilletComparison`, OAK/SFO/FLL parity, tune thresholds, triage divergences | Legacy default |
 | **3f-pass6** | Per-junction chain/reconnect connectivity ops — **superseded** by the global edge-split (see `Connectivity rewrite` below) | Removed |
 | **4** | LayoutInspector fillet flags | Tooling |

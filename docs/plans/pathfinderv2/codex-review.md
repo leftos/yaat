@@ -20,8 +20,8 @@ V2 materialises runway hold-short points as either `ExplicitHoldShort` or `Runwa
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:84`
-- `src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:154`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:84`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:154`
 - `src/Yaat.Sim/Data/Airport/TaxiRoute.cs:153`
 - v1 contrast: `src/Yaat.Sim/Data/Airport/HoldShortAnnotator.cs:283`
 - v1 call site: `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:431`
@@ -34,7 +34,7 @@ V2 checks explicit hold-shorts with exact string membership against the runway i
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:84`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:84`
 - v1 contrast: `src/Yaat.Sim/Data/Airport/HoldShortAnnotator.cs:177`
 - v1 contrast: `src/Yaat.Sim/Data/Airport/HoldShortAnnotator.cs:204`
 
@@ -46,8 +46,8 @@ V2's `FindFullLengthLineupHoldShort` approximates the requested threshold by fin
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:238`
-- `src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:294`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:238`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:294`
 - v1 contrast: `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:647`
 
 Recommendation: use the navigation database runway threshold for the requested designator in v2 as v1 does, with the current geometric fallback only as a fallback.
@@ -58,12 +58,12 @@ Recommendation: use the navigation database runway threshold for the requested d
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/V2/AutoRouter.cs:115`
-- `src/Yaat.Sim/Data/Airport/V2/AutoRouter.cs:208`
-- `src/Yaat.Sim/Data/Airport/V2/AutoRouter.cs:218`
-- `src/Yaat.Sim/Data/Airport/V2/AutoRouter.cs:228`
-- `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs:396`
-- `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs:492`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs:115`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs:208`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs:218`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs:228`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:396`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:492`
 
 Recommendation: key the closed/best-cost state by the route state that affects future expansion, at minimum node plus arrival/last-edge equivalence, or avoid pruning states that are not dominance-comparable.
 
@@ -73,11 +73,11 @@ The detour comments say fallback detours permit only numbered connectors and `RA
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs:1122`
-- `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs:1171`
-- `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs:1187`
-- `src/Yaat.Sim/Data/Airport/V2/SearchContext.cs:67`
-- `src/Yaat.Sim/Data/Airport/V2/RouteCostFunction.cs:153`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:1122`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:1171`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:1187`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SearchContext.cs:67`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteCostFunction.cs:153`
 
 Recommendation: make the fallback policy explicit in the admissibility/cost layer. If the intended policy is numbered/RAMP-only, enforce that. If a broader fallback is intentionally allowed, surface it as a warning/failure mode rather than silently routing across unassigned full taxiways.
 
@@ -87,7 +87,7 @@ V1 implements a Yen-style k-shortest alternative generator and can return multip
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/TaxiPathfinderV2.cs:70`
+- `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:70`
 - `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:690`
 - `src/Yaat.Client/ViewModels/GroundViewModel.cs:789`
 
@@ -99,7 +99,7 @@ One of the stated v2 goals is to avoid v1's greedy lock-in. The last explicit-pa
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs:619`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:619`
 - `docs/plans/pathfinderv2/requirements.md:124`
 
 Recommendation: use the same multi-candidate search discipline for natural terminus expansion that v2 uses elsewhere, or restrict the greedy walk to cases where topology proves the next edge is forced.
@@ -110,9 +110,9 @@ Recommendation: use the same multi-candidate search discipline for natural termi
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/V2/SearchContext.cs:97`
-- `src/Yaat.Sim/Data/Airport/V2/RouteCostFunction.cs:153`
-- `src/Yaat.Sim/Data/Airport/V2/RouteMaterialiser.cs:210`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SearchContext.cs:97`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteCostFunction.cs:153`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:210`
 - `docs/plans/pathfinderv2/requirements.md:169`
 
 Recommendation: classify `RAMP` separately from lettered taxiways in the shared taxiway-name classifier.
@@ -123,8 +123,8 @@ Recommendation: classify `RAMP` separately from lettered taxiways in the shared 
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/V2/RouteCostFunction.cs:3`
-- `src/Yaat.Sim/Data/Airport/V2/RouteCostFunction.cs:80`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteCostFunction.cs:3`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/RouteCostFunction.cs:80`
 
 Recommendation: keep one unit for the full cost model, or rename/document the mixed scalar and adjust heuristic claims accordingly.
 
@@ -134,8 +134,8 @@ Recommendation: keep one unit for the full cost model, or rename/document the mi
 
 References:
 
-- `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs:19`
-- `src/Yaat.Sim/Data/Airport/V2/SegmentExpander.cs:1187`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:19`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:1187`
 
 Recommendation: either enforce the intended bounded detour cap or remove the unused constant/comment.
 
@@ -145,7 +145,7 @@ The auto-router says shallower routes should be preferred on exact ties, but the
 
 Reference:
 
-- `src/Yaat.Sim/Data/Airport/V2/AutoRouter.cs:251`
+- `src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs:251`
 
 Recommendation: fix the sign or the comment.
 
@@ -165,7 +165,7 @@ Recommendation: feed the same aircraft category into preview routing that the co
 
 ## In a Vacuum
 
-V2's shape is good. `TaxiPathfinderV2` is small, routing concerns are split into `AutoRouter`, `SegmentExpander`, `RouteCostFunction`, `GeometricAdmissibility`, `RouteMaterialiser`, and `SearchContext`, and failures are first-class values instead of just empty routes. This is the right direction for maintainability.
+V2's shape is good. `TaxiPathfinder` is small, routing concerns are split into `AutoRouter`, `SegmentExpander`, `RouteCostFunction`, `GeometricAdmissibility`, `RouteMaterialiser`, and `SearchContext`, and failures are first-class values instead of just empty routes. This is the right direction for maintainability.
 
 The strongest idea is moving geometric legality into the search, not only post-processing. If an edge is impossible for a jet because of arrival heading and turn angle, it should be rejected while expanding the route. That is much better than v1's tendency to discover bad geometry late.
 

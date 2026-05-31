@@ -9,7 +9,7 @@ namespace Yaat.Sim.Phases.Ground;
 /// <summary>
 /// After landing rollout completes, rolls the aircraft forward along runway
 /// centerline edges until a hold-short exit is found, then follows the exit
-/// path using <see cref="GroundNavigatorV2"/> with exit-appropriate speed.
+/// path using <see cref="GroundNavigator"/> with exit-appropriate speed.
 ///
 /// States:
 ///   RollingOnCenterline — following RWY edges forward, checking for exits
@@ -50,7 +50,7 @@ public sealed class RunwayExitPhase : Phase
 
     // Exit path navigation (FollowingExitPath state)
     private TaxiRoute? _exitRoute;
-    private GroundNavigatorV2? _navigator;
+    private GroundNavigator? _navigator;
 
     /// <summary>
     /// The hold-short node ID this aircraft is targeting (or null if still searching).
@@ -489,7 +489,7 @@ public sealed class RunwayExitPhase : Phase
         // deceleration into the turn at the branch node.
         double maxSpeed = _coastSpeed;
 
-        _navigator = new GroundNavigatorV2();
+        _navigator = new GroundNavigator();
         _navigator.MaxSpeedKts = maxSpeed;
         _navigator.SetupSegment(_exitRoute, ctx, _ => true);
 
@@ -662,7 +662,7 @@ public sealed class RunwayExitPhase : Phase
             }
             if (dto.Navigator is not null)
             {
-                phase._navigator = GroundNavigatorV2.FromSnapshot(dto.Navigator);
+                phase._navigator = GroundNavigator.FromSnapshot(dto.Navigator);
             }
         }
 

@@ -5,7 +5,7 @@ namespace Yaat.Sim.Data.Airport;
 /// </summary>
 public static class FilletArcGeneratorRegistry
 {
-    public static IReadOnlyList<IFilletArcGenerator> All { get; } = [NullFilletArcGenerator.Instance, new FilletArcGeneratorV2()];
+    public static IReadOnlyList<IFilletArcGenerator> All { get; } = [NullFilletArcGenerator.Instance, new FilletArcGenerator()];
 
     public static IFilletArcGenerator? GetById(string id)
     {

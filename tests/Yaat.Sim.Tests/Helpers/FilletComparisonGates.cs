@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Airport.Fillet.V2;
+using Yaat.Sim.Data.Airport.Fillet;
 
 namespace Yaat.Sim.Tests.Helpers;
 

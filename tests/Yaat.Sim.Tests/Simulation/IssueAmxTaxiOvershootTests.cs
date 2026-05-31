@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
@@ -132,7 +132,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
         // Node 14 = Spot 2 on M2 (where AMX669 parks)
         int fromNodeId = 14;
 
-        var route = TaxiPathfinderV2.ResolveExplicitPath(
+        var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId,
             ["B", "M1"],

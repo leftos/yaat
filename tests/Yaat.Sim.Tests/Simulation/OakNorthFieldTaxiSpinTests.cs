@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   SIG4 (641): RAMP -> 1332 (forward Nodes[0]=641) and 1333 (reverse Nodes[0]=1332).
 ///   GA3  (621): RAMP -> 1224 (forward Nodes[0]=621) and 1222 (reverse Nodes[0]=1222).
 ///
-/// User TAXI commands flow through <c>TaxiPathfinderV2.ResolveExplicitPath</c>.
+/// User TAXI commands flow through <c>TaxiPathfinder.ResolveExplicitPath</c>.
 /// This recording replays the north-field ramp departures end-to-end and asserts
 /// the aircraft reaches its hold-short without orbiting the ramp.
 /// </summary>

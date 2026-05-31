@@ -50,7 +50,7 @@ public class RunwayDestinationJunctionTests
             .First();
         _output.WriteLine($"start node = {startNode.Id}");
 
-        var route = TaxiPathfinderV2.ResolveExplicitPath(
+        var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode.Id,
             ["D", "J", "C"],

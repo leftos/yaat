@@ -37,7 +37,7 @@ public sealed class GroundPhaseConvention
 
         var nonPhaseHelpers = new HashSet<string>(System.StringComparer.Ordinal)
         {
-            "GroundNavigatorV2.cs",
+            "GroundNavigator.cs",
             "PathPrimitive.cs",
             "PathPrimitiveBuilder.cs",
         };

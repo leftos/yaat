@@ -155,7 +155,7 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
         var diagLines = new System.Collections.Generic.List<string>();
         // SKW3404 is a CRJ (jet). The V2-native equivalent of this sequence is
         // Issue165_V2_SkwRoute_ResolvesWithoutFailure.
-        var route = TaxiPathfinderV2.ResolveExplicitPath(
+        var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
             fromNodeId: startNode,
             taxiwayNames: ["A", "E", "B", "B3", "A", "B1", "Z", "S"],

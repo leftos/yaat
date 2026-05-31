@@ -716,7 +716,7 @@ public partial class GroundView : UserControl
 
         foreach (var route in routes)
         {
-            var resolved = TaxiPathfinderV2.ResolveExplicitPath(
+            var resolved = TaxiPathfinder.ResolveExplicitPath(
                 layout,
                 fromNodeId.Value,
                 route.GetPathTokens(),

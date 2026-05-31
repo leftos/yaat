@@ -34,7 +34,7 @@ public enum PathPrimitiveKind
 }
 
 /// <summary>
-/// Immutable geometric primitive consumed by <c>GroundNavigatorV2</c>'s tick
+/// Immutable geometric primitive consumed by <c>GroundNavigator</c>'s tick
 /// loop. A taxi route segment compiles into exactly one primitive;
 /// <see cref="PathPrimitiveBuilder.FromSegment"/> does the conversion.
 ///
@@ -87,7 +87,7 @@ public sealed record PathPrimitiveStraight : PathPrimitive
 /// <summary>
 /// A circular-arc path primitive. Position and heading are both functions of
 /// a single scalar — the aircraft's current compass bearing from the arc
-/// centre — so <c>GroundNavigatorV2</c>'s tick loop can write position and
+/// centre — so <c>GroundNavigator</c>'s tick loop can write position and
 /// heading together as pure functions of arc-length progress, with no
 /// feedback loop and no risk of position/heading drift.
 ///
@@ -98,7 +98,7 @@ public sealed record PathPrimitiveStraight : PathPrimitive
 /// <see cref="RadiusFt"/>, <see cref="StartBearingFromCenterDeg"/>,
 /// <see cref="SweepDeg"/>) from the <c>GroundArc</c>'s stored tangent
 /// bearings and minimum radius of curvature. This is valid because
-/// <c>FilletArcGeneratorV2</c> tunes the Bezier kappa so the fillet is a
+/// <c>FilletArcGenerator</c> tunes the Bezier kappa so the fillet is a
 /// near-constant-radius circular arc (deviation &lt; 1 ft for radius ≥ 50 ft).
 /// </para>
 /// </summary>
@@ -140,7 +140,7 @@ public sealed record PathPrimitiveArc : PathPrimitive
 
 /// <summary>
 /// A fillet primitive played back as its true cubic Bézier, not a single-circle
-/// approximation. <see cref="GroundNavigatorV2"/> advances the curve parameter by
+/// approximation. <see cref="GroundNavigator"/> advances the curve parameter by
 /// arc-length each tick (Δt = v·dt / |B'(t)|) and writes position and tangent heading
 /// directly from <see cref="CubicBezier.Evaluate"/> / <see cref="CubicBezier.TangentBearing"/>,
 /// so position and heading remain pure functions of one scalar (invariant I2).

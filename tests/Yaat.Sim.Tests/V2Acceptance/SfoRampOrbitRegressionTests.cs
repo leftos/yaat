@@ -18,7 +18,7 @@ namespace Yaat.Sim.Tests.V2Acceptance;
 /// Two layers protect against it now and both are exercised here (full V2 stack via
 /// <see cref="V2AcceptanceFixture"/> + <see cref="FilletMode.V2"/>): (1) the navigator advances to the
 /// next segment once the aircraft's along-track projection passes the to-node instead of circling it,
-/// and (2) the orbit invariant in <c>GroundNavigatorV2.Tick</c> hard-fails (in tests) if a single
+/// and (2) the orbit invariant in <c>GroundNavigator.Tick</c> hard-fails (in tests) if a single
 /// segment ever accumulates 360° of net turn. These short ramp→10L routes were the worst offenders
 /// (CG3→10L ran 170 s / x1.52 over budget before the fix); they must now arrive within budget.
 /// </para>

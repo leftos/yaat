@@ -229,7 +229,7 @@ internal static class GroundCommandHandler
 
                 if (bestNeighbor is not null)
                 {
-                    var reroute = TaxiPathfinderV2.FindRoute(
+                    var reroute = TaxiPathfinder.FindRoute(
                         groundLayout,
                         bestNeighbor.Id,
                         destNode.Id,
@@ -331,7 +331,7 @@ internal static class GroundCommandHandler
             return ResolveRunwayRouteByAStar(groundLayout, startNode, taxi.DestinationRunway, out failReason, category);
         }
 
-        return TaxiPathfinderV2.ResolveExplicitPath(
+        return TaxiPathfinder.ResolveExplicitPath(
             groundLayout,
             startNode.Id,
             taxi.Path,
@@ -362,9 +362,9 @@ internal static class GroundCommandHandler
             return null;
         }
 
-        var targetHs = TaxiPathfinderV2.FindFullLengthLineupHoldShort(groundLayout, startNode, runwayId, holdShortNodes);
+        var targetHs = TaxiPathfinder.FindFullLengthLineupHoldShort(groundLayout, startNode, runwayId, holdShortNodes);
 
-        var route = TaxiPathfinderV2.FindRoute(groundLayout, startNode.Id, targetHs.Id, category);
+        var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, targetHs.Id, category);
         if (route is null)
         {
             failReason = $"No route to runway {runwayId} hold-short";
@@ -411,7 +411,7 @@ internal static class GroundCommandHandler
         if (taxi.Path.Count == 0)
         {
             // No explicit path — A* direct to destination
-            var route = TaxiPathfinderV2.FindRoute(groundLayout, startNode.Id, destNode.Id, category);
+            var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, destNode.Id, category);
             if (route is null)
             {
                 failReason = $"No route to {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'";
@@ -422,7 +422,7 @@ internal static class GroundCommandHandler
         }
 
         // Explicit path given — resolve it, then extend to destination via A*
-        var explicitRoute = TaxiPathfinderV2.ResolveExplicitPath(
+        var explicitRoute = TaxiPathfinder.ResolveExplicitPath(
             groundLayout,
             startNode.Id,
             taxi.Path,
@@ -457,7 +457,7 @@ internal static class GroundCommandHandler
         else
         {
             // Extend from end of explicit path to destination node via A*
-            var extension = TaxiPathfinderV2.FindRoute(groundLayout, endNodeId, destNode.Id, category);
+            var extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, destNode.Id, category);
             if (extension is null)
             {
                 Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
@@ -748,7 +748,7 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Cannot find position on taxiway graph");
         }
 
-        var route = TaxiPathfinderV2.FindRoute(groundLayout, startNode.Id, destNode.Id, AircraftCategorization.Categorize(aircraft.AircraftType));
+        var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, destNode.Id, AircraftCategorization.Categorize(aircraft.AircraftType));
         if (route is null)
         {
             return new CommandResult(false, $"No route to {(push.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");

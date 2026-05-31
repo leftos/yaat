@@ -13,7 +13,7 @@ namespace Yaat.Sim.Phases.Ground;
 /// Completes when all segments have been traversed.
 ///
 /// Core navigation (steering, speed profiling, braking, arrival detection) is
-/// delegated to <see cref="GroundNavigatorV2"/>. This phase handles route
+/// delegated to <see cref="GroundNavigator"/>. This phase handles route
 /// management: hold-short insertion, runway crossing, departure clearance,
 /// parking, and route completion.
 /// </summary>
@@ -23,7 +23,7 @@ public sealed class TaxiingPhase : Phase
 
     private const double LogIntervalSeconds = 3.0;
 
-    private GroundNavigatorV2 _nav = new();
+    private GroundNavigator _nav = new();
     private bool _initialized;
     private double _timeSinceLastLog;
 
@@ -176,12 +176,12 @@ public sealed class TaxiingPhase : Phase
 
         if (dto.Navigator is not null)
         {
-            phase._nav = GroundNavigatorV2.FromSnapshot(dto.Navigator);
+            phase._nav = GroundNavigator.FromSnapshot(dto.Navigator);
         }
         else
         {
             // Legacy snapshot without navigator — reconstruct from old flat fields via the navigator DTO.
-            phase._nav = GroundNavigatorV2.FromSnapshot(
+            phase._nav = GroundNavigator.FromSnapshot(
                 new GroundNavigatorDto
                 {
                     TargetNodeId = dto.TargetNodeId,

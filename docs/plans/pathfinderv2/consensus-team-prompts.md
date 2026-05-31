@@ -25,14 +25,14 @@ Use absolute paths anchored at $WT for every Edit/Write file_path. After every e
 1. `$WT/docs/plans/taxi-pathfinder-v2.md` — your requirements contract. Read it completely. This is what v2 must satisfy.
 2. `$WT/src/Yaat.Sim/Data/Airport/ITaxiPathfinder.cs` — the interface to implement.
 3. `$WT/src/Yaat.Sim/Data/Airport/TaxiPathfinderRouter.cs` — the selector. v2 plugs into this.
-4. `$WT/src/Yaat.Sim/Data/Airport/TaxiPathfinderV2.cs` — current state (stub that delegates to v1). You will replace this.
+4. `$WT/src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` — current state (stub that delegates to v1). You will replace this.
 5. `$WT/src/Yaat.Sim/Data/Airport/TaxiRoute.cs` — the output contract. v2 returns instances of this class.
 6. `$WT/src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — the input graph type (skim).
 7. `$WT/src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` — v1, for reference only. DO NOT MODIFY.
 8. `$WT/tests/Yaat.Sim.Tests/Simulation/Issue165SkwTaxiSpinTests.cs` — the immediate motivating test.
 
 ## Your scope (and ONLY your scope)
-- Implement the v2 algorithm in `$WT/src/Yaat.Sim/Data/Airport/TaxiPathfinderV2.cs` (and optional helper files under `$WT/src/Yaat.Sim/Data/Airport/V2/`).
+- Implement the v2 algorithm in `$WT/src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` (and optional helper files under `$WT/src/Yaat.Sim/Data/Airport/Pathfinding/`).
 - DO NOT modify v1's `TaxiPathfinder.cs`, the interface, the router, or any tests.
 - DO NOT modify the harness scaffolding.
 - DO NOT add scope beyond the requirements doc.

@@ -12,8 +12,8 @@
 | **Altitude commands** | `AltitudeResolver.cs`, `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateAltitude), `ControlTargets.cs` |
 | **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
 | **Heading/navigation** | `FlightCommandHandler.cs`, `NavigationCommandHandler.cs`, `FlightPhysics.cs` (UpdateNavigation/UpdateHeading), `ControlTargets.cs` |
-| **Ground taxiing** | `GroundNavigatorV2.cs`, `TaxiPathfinderV2.cs`, `TaxiingPhase.cs`, `TaxiRoute.cs`, `AirportGroundLayout.cs` |
-| **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory`, `FilletArcGeneratorV2.cs` + `Fillet/V2/` (plan-then-execute edge-split), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
+| **Ground taxiing** | `GroundNavigator.cs`, `TaxiPathfinder.cs`, `TaxiingPhase.cs`, `TaxiRoute.cs`, `AirportGroundLayout.cs` |
+| **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory`, `FilletArcGenerator.cs` + `Fillet/V2/` (plan-then-execute edge-split), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
 | **Runway exits** | `LandingPhase.cs`, `RunwayExitPhase.cs`, `ExitPreference.cs`, `AirportGroundLayout.cs` (FindExitPath) |
 | **Approach procedures** | `ApproachCommandHandler.cs`, `ApproachNavigationPhase.cs`, `FinalApproachPhase.cs`, `CifpParser.cs` |
 | **SID/STAR** | `DepartureClearanceHandler.cs`, `InitialClimbPhase.cs`, `CifpParser.cs`, `NavigationDatabase.cs` |
@@ -507,7 +507,7 @@ AirborneFollowHelper.cs        # Shared spacing math. GetAdjustedSpeed for patte
 # Phases/Ground/
 AtParkingPhase / PushbackPhase / PushbackToSpotPhase / TaxiingPhase / HoldingShortPhase
 CrossingRunwayPhase / HoldingAfterExitPhase / FollowingPhase
-GroundNavigatorV2.cs           # Core ground nav: closed-form arc playback (plays the real cubic Bezier), pure-pursuit tracking, turn-rate-feasibility corner-speed cap, entry-alignment rounding, orbit invariant
+GroundNavigator.cs           # Core ground nav: closed-form arc playback (plays the real cubic Bezier), pure-pursuit tracking, turn-rate-feasibility corner-speed cap, entry-alignment rounding, orbit invariant
 RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 
@@ -563,7 +563,7 @@ Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways
 Data/RouteExpander.cs          # Static: expands route strings (SID/STAR/airway/fix tokens) into ordered fix lists
 Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading from Data/ARTCCs/{ARTCC}/CustomFixes/*.json
 Data/TaxiRouteDefinition.cs / TaxiRouteLoader.cs / TaxiRouteCatalog.cs  # Per-airport preset taxi routes from Data/ARTCCs/{ARTCC}/TaxiRoutes/*.json
-                               # Validation against airport graph is lazy at menu-build time via TaxiPathfinderV2.ResolveExplicitPath.
+                               # Validation against airport graph is lazy at menu-build time via TaxiPathfinder.ResolveExplicitPath.
                                # Right-click "Preset taxi route" submenu in GroundView surfaces applicable routes per aircraft.
 Data/InitialContactTransferRule.cs / InitialContactTransferLoader.cs / InitialContactTransferCatalog.cs
                                # ARTCC/airport SOP exceptions for pilot initial-contact comm transfer, loaded from Data/ARTCCs/{ARTCC}/InitialContactTransfers/*.json.
@@ -584,12 +584,12 @@ IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGrou
 AirportLayoutDownloader.cs     # Fetches airport ground GeoJSON from vNAS training API; caches under %LOCALAPPDATA%/yaat/cache/airports/
 AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt), DirectionalEdge (traversal direction)
                                # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops; returns Side), FindExitFromCenterline (walk centerlines, returns side+walk node), FindOnSidePreferredExit (lookahead: defer off-side, prefer later on-side), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
-CubicBezier.cs                 # Bezier math utilities; used by FilletArcGeneratorV2 (arc generation) and GroundNavigatorV2 (path following)
+CubicBezier.cs                 # Bezier math utilities; used by FilletArcGenerator (arc generation) and GroundNavigator (path following)
 IFilletArcGenerator.cs         # Pluggable fillet contract; None + V2 implementations; FilletMode on GeoJsonParser.Parse
 FilletGeneratorFactory.cs    # FilletMode → IFilletArcGenerator (None / V2)
 FilletArcGeneratorRegistry.cs# Enumerates implemented generators (None, V2)
 FilletStatistics.cs          # Per-pass fillet tallies returned by Apply
-FilletArcGeneratorV2.cs      # The fillet generator: classify junctions → resolve cuts → plan → execute → normalize
+FilletArcGenerator.cs      # The fillet generator: classify junctions → resolve cuts → plan → execute → normalize
 FilletProvenance.cs            # Discriminated record (TangentNode / CornerArc / etc.) attached to fillet-generated nodes/edges/arcs so cleanup passes can pattern-match instead of parsing Origin strings
 Fillet/                        # V2 fillet pipeline (clean-room)
   FilletGeometry.cs            # Turn angle, ideal tangent, cubic-bezier build (control points project toward the junction)
@@ -605,7 +605,7 @@ Fillet/                        # V2 fillet pipeline (clean-room)
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiRouteAutoCross.cs          # Applies AutoCrossRunway toggle to a route's RunwayCrossing hold-shorts; reused at TAXI-resolution and on mid-session toggle (SimulationWorld.ApplyAutoCrossToActiveTaxiRoutes)
-TaxiPathfinderV2.cs            # Taxi pathfinder (static): ResolveExplicitPath (SegmentExpander), FindRoute/FindRoutes (A* AutoRouter, per-preference), FindFullLengthLineupHoldShort. See Data/Airport/V2/ + docs/ground/pathfinder.md
+TaxiPathfinder.cs            # Taxi pathfinder (static): ResolveExplicitPath (SegmentExpander), FindRoute/FindRoutes (A* AutoRouter, per-preference), FindFullLengthLineupHoldShort. See Data/Airport/Pathfinding/ + docs/ground/pathfinder.md
 ExplicitPathOptions.cs         # RoutePreference enum + ExplicitPathOptions input bag (pathfinder inputs)
 VirtualNode.cs                 # Factory for virtual ground nodes (negative IDs); CreateEdge, CreateSegment, OffsetBefore/OffsetPast
 TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges

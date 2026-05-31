@@ -81,7 +81,7 @@ internal static class TaxiCoverageRunner
         {
             return holdShorts[0];
         }
-        return TaxiPathfinderV2.FindFullLengthLineupHoldShort(layout, holdShorts[0], runway.Designator, holdShorts);
+        return TaxiPathfinder.FindFullLengthLineupHoldShort(layout, holdShorts[0], runway.Designator, holdShorts);
     }
 
     private static GroundNode? ResolveRunwayExit(AirportGroundLayout layout, string name, GroundNode? tieBreakerToNode)
@@ -112,7 +112,7 @@ internal static class TaxiCoverageRunner
         double bestDistNm = double.MaxValue;
         foreach (var candidate in candidates)
         {
-            var route = TaxiPathfinderV2.FindRoute(layout, candidate.Id, tieBreakerToNode.Id, AircraftCategory.Jet);
+            var route = TaxiPathfinder.FindRoute(layout, candidate.Id, tieBreakerToNode.Id, AircraftCategory.Jet);
             if (route is null)
             {
                 continue;
@@ -168,7 +168,7 @@ internal static class TaxiCoverageRunner
         ITestOutputHelper output
     )
     {
-        if (TaxiPathfinderV2.FindRoute(layout, origin.Id, destination.Id, AircraftCategory.Jet) is null)
+        if (TaxiPathfinder.FindRoute(layout, origin.Id, destination.Id, AircraftCategory.Jet) is null)
         {
             output.WriteLine($"SKIP {pair.PairId}: no A* route from {origin.Id} to {destination.Id}");
             return;

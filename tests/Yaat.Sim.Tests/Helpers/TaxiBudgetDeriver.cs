@@ -84,7 +84,7 @@ internal static class TaxiBudgetDeriver
     public static TaxiBudget Derive(AirportGroundLayout layout, int fromNodeId, int toNodeId, AircraftCategory category)
     {
         var route =
-            TaxiPathfinderV2.FindRoute(layout, fromNodeId, toNodeId, AircraftCategory.Jet)
+            TaxiPathfinder.FindRoute(layout, fromNodeId, toNodeId, AircraftCategory.Jet)
             ?? throw new InvalidOperationException($"TaxiBudgetDeriver: no A* route from node {fromNodeId} to {toNodeId} in {layout.AirportId}");
 
         double nominalKts = CategoryPerformance.TaxiSpeed(category);

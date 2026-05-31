@@ -10,7 +10,7 @@ own sub-plan (linked below). A fresh agent should be able to start here and find
 |---|-------|------|-----------|----------|--------|
 | 1 | **Fillet generator V2** | builds the ground-graph **geometry** (nodes, edges, arcs + radii) | `FilletArcGenerator` V2 | [`filletv2/`](./filletv2/status.md) | geometry + behind-switch validation **done**; flip gated |
 | 2 | **Pathfinder V2** | resolves a `TaxiRoute` over that graph | `TaxiPathfinder` V2 router | [`pathfinderv2/`](./pathfinderv2/default-flip-triage.md) | **WIP** (default-flip triage open) |
-| 3 | **Navigator V2 (clean-room)** | **follows** the route+geometry per tick (steering) | `GroundNavigatorV2` behind `GroundNavigatorRouter` | [`navigator-v2/design.md`](./navigator-v2/design.md) | **design reviewed**; impl not started |
+| 3 | **Navigator V2 (clean-room)** | **follows** the route+geometry per tick (steering) | `GroundNavigator` behind `GroundNavigatorRouter` | [`navigator-v2/design.md`](./navigator-v2/design.md) | **design reviewed**; impl not started |
 
 > Naming: layer 1 is the *fillet generator* (a.k.a. "generator v2" / "fillet v2"). Layer 3 was originally
 > scoped as an *incremental* v1.1 update; the navigator-WS3 failure cluster (freeze + spins) showed the
@@ -40,7 +40,7 @@ flip in a single change, after which V1 of each is deleted.
 |------------|-------|-------------|
 | Fillet generator V2 | geometry validated; sim-validated behind switch; sweep triaged | hold for layers 2+3, then flip + delete Legacy |
 | Pathfinder V2 | WIP, default reverted (56-failure triage open) | work the cluster triage + Codex HIGH findings + fillet-sweep req ① |
-| Navigator V2 (clean-room) | design reviewed | build it: §4.4 arc-cap fix first, then interface+router extraction, then `GroundNavigatorV2` |
+| Navigator V2 (clean-room) | design reviewed | build it: §4.4 arc-cap fix first, then interface+router extraction, then `GroundNavigator` |
 | **Joint flip** | blocked on 2 + 3 | flip all three together once green |
 
 ---
@@ -69,7 +69,7 @@ Sub-plan: [`pathfinderv2/default-flip-triage.md`](./pathfinderv2/default-flip-tr
 - [x] **Retire the post-hoc node-merge (full):** deleted `FilletGraphNormalizer.MergeCoincidentNodesDefensive` entirely — the normalizer now only recomputes distances, drops self-loops/degenerate arcs, and sweeps isolated nodes. Cross-junction coincident tangent cuts are merged in the plan (`SharedArmTangentPass.ApplyGlobalCoincidentCutCoalesce`, run after `ApplyCrossJunction` so it sees scaled positions; union-find absorbs overlap with the intra-arm/cross-arm/cross-junction passes). The one non-cut coincidence (SFO `01R/19L` centerline projection landing 2.4 ft from a taxiway intermediate) is fixed at its source: `RunwayCrossingDetector.ResolveCenterlineProjectionNode` reuses a coincident pre-existing intersection instead of minting a node. That exposed a latent issue the post-hoc merge had masked — a reused node carries a `RWY…:link` arm that fillet would curve onto, producing a 0 ft edge-split fragment; fixed by excluding runway-crossing links from fillet arms (`GroundEdge.IsRunwayCrossingLink` → `TaxiwayArmBuilder`). Guards green WITHOUT any post-hoc merge: `V2_NoCoincidentIntersectionNodes`, `V2_EdgeSplit_NoZeroDistanceEdges`, `V2_CornerArcs_NoDuplicateNodePairs` (sfo/oak/fll); #4 necessity HARD=0; req-① sweep 0
 - [x] **Phase 5 — coverage + design-gap decisions:** k-alternatives decided (V2 is intentionally
       per-preference — ≤3 routes, not Yen k-shortest; client requests 3; documented on
-      `TaxiPathfinderV2.FindRoutes`). `Fastest` mixed-unit scalar kept + documented (admissible-but-weak
+      `TaxiPathfinder.FindRoutes`). `Fastest` mixed-unit scalar kept + documented (admissible-but-weak
       heuristic; Fastest is never the default preference). RAMP classified as apron access (no
       unauthorized-taxiway penalty/warning — `IsLetterOnlyTaxiway`). A\* tie-break comment fixed (code
       correctly prefers deeper routes). Client preview routing uses the real aircraft category. Coverage:
@@ -110,7 +110,7 @@ pursuit, backward-propagated braking, entry alignment, I7) and dropping the chor
       sites route through the factory; grep gate holds (zero `new GroundNavigator`/`FromSnapshot` outside the
       router); B2 `OverrideTargetPosition` seam replaces the mutable `TargetLat/Lon` setters; V1 stays default.
       Pure refactor — full cross-repo suite green (Sim 6781, Client 772+70, Server 618).
-- [x] **`GroundNavigatorV2` skeleton — DONE.** Clean-room extraction behind `GroundNavigatorRouter.UseV2`
+- [x] **`GroundNavigator` skeleton — DONE.** Clean-room extraction behind `GroundNavigatorRouter.UseV2`
       (default V1): keeps the durable core (closed-form arc/slow-turn playback, pure-pursuit + pre-turn blend,
       backward-propagated braking, entry alignment, I7 floor), drops the Legacy compensations (slow-turn
       synthesis, `TryDetectCluster`, chord-chain `EffectiveTurnAngleAt` → single-corner read, orbit-stall).
@@ -145,9 +145,9 @@ Ran the gate via a **throwaway flip** of the four V2 defaults (`GeoJsonParser.Pa
 `TestAirportGroundData`, `TaxiPathfinderRouter._current`, `GroundNavigatorRouter.UseV2`) — then reverted —
 filtering `Category!=Nightly&Category!=PathfinderGrid`. The suite **did not hang**: **19 failures / 5589**.
 
-- **Fixed + committed:** `GroundNavigatorV2.TickStraight` crashed (`Math.Clamp` min>max) when tangent
+- **Fixed + committed:** `GroundNavigator.TickStraight` crashed (`Math.Clamp` min>max) when tangent
   rounding hit a near-zero-length edge into a sharp corner. Guarded via the extracted
-  `StraightArrivalThresholdNm` (`GroundNavigatorV2ThresholdTests`).
+  `StraightArrivalThresholdNm` (`GroundNavigatorThresholdTests`).
 - **Not ship-config (8):** `TaxiPathfinderTests.*` drive the V1 static `TaxiPathfinder` on what are now
   V2 fillets and pin V1-on-Legacy route shapes — deleted with V1 at the flip (see the class label).
 - **Known-open (1):** `SfoRampCrossesRunwayTests…ShouldFail` (triage A2c, entangled with #5 detour).
@@ -181,7 +181,7 @@ filtering `Category!=Nightly&Category!=PathfinderGrid`. The suite **did not hang
   tighter than the endpoint-connecting radius, so playback ended well short of the corner's exit node (OAK
   28R→G: 72 ft circle, endpoints 153 ft apart → 56 ft short), and the next short segment started with a large
   cross-track that pinned the establish-straight re-acquire gate at a 5 kt crawl. A systemic scan found
-  ~30–40 % of all OAK/SFO/FLL fillet traversals would undershoot >5 ft. **Fix:** `GroundNavigatorV2` now plays
+  ~30–40 % of all OAK/SFO/FLL fillet traversals would undershoot >5 ft. **Fix:** `GroundNavigator` now plays
   the *actual* cubic Bézier by arc-length (`PathPrimitiveBezier` / `TickBezier`), ending exactly on the
   to-node; plus a tight arrival when the next segment is short (so the virtual tail-clear stub isn't entered
   from far away). V2-navigator-only (V1 circle playback untouched until the flip). N9225L 28R→G re-acquire
@@ -246,7 +246,7 @@ than revert. Reverting would re-ship the systemic arc-undershoot.
 **The 5 flip points** (for clean re-application — keep together):
 - `GeoJsonParser.Parse` (3-arg + bool overloads) and `ParseMultiple` defaults → `FilletMode.V2`
   (covers `AirportLayoutDownloader`, which calls the 3-arg overload).
-- `TaxiPathfinderRouter._current = new TaxiPathfinderV2()`.
+- `TaxiPathfinderRouter._current = new TaxiPathfinder()`.
 - `GroundNavigatorRouter.UseV2` default `= true`.
 - `TestAirportGroundData()` parameterless ctor → `this(FilletMode.V2)`.
 - `V2AcceptanceFixture.Dispose()` → keep V2 (don't revert to V1); fixture now redundant, remove in cleanup.
@@ -256,11 +256,11 @@ than revert. Reverting would re-ship the systemic arc-undershoot.
   a misdiagnosed V2 departure-routing bug, fixed in `SegmentExpander` (final-transition runway anchor). Both
   test files pinned to `[Collection("V2 Acceptance")]` + `FilletMode.V2` and green under full V2; full
   cross-repo suite green. Attribute strip is part of the flip-cleanup.
-- **(2) DONE (2026-05-31):** the SFO-Nightly "time-budget" failures were a GroundNavigatorV2 **pure-pursuit
+- **(2) DONE (2026-05-31):** the SFO-Nightly "time-budget" failures were a GroundNavigator **pure-pursuit
   orbit**, not a too-tight budget. SFO's curved ramp taxiways (CG/SIG) arrive on the V2 graph as chains of
   ~15 ft straight chords; a jet carrying taxi speed overshot a chord's to-node and circled it at 2–3 kt for
   ~70 s (CG3→10L: 170 s, x1.52 over). V2 had dropped the Legacy orbit-stall backstop assuming clean fillets
-  never chord-chain. Fixed by **advance-on-pass** in `GroundNavigatorV2.TickStraight` (advance when the
+  never chord-chain. Fixed by **advance-on-pass** in `GroundNavigator.TickStraight` (advance when the
   along-track projection passes the to-node, regardless of cross-track) + a **hard orbit invariant** in
   `Tick` (net turn on a single segment may never reach 360°; throws in tests via `ThrowOnOrbit`, logs +
   force-advances in the app). All **717 SFO parking→runway pairs** now taxi within budget under full V2

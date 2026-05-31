@@ -5,7 +5,7 @@ namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
 /// Converts <see cref="TaxiRouteSegment"/>s into <see cref="PathPrimitive"/>s
-/// for consumption by <c>GroundNavigatorV2</c>. The conversion is a pure
+/// for consumption by <c>GroundNavigator</c>. The conversion is a pure
 /// function of the segment's <see cref="DirectionalEdge"/>; no
 /// <see cref="PhaseContext"/> is needed, which makes the builder trivially
 /// unit-testable with synthesised fixtures.
@@ -57,7 +57,7 @@ public static class PathPrimitiveBuilder
     /// <summary>
     /// V2 variant: arcs compile to a <see cref="PathPrimitiveBezier"/> (true painted-centerline
     /// playback) instead of the single-circle <see cref="PathPrimitiveArc"/>. Straights are
-    /// identical to <see cref="FromSegment"/>. <c>GroundNavigatorV2</c> calls this; the V1
+    /// identical to <see cref="FromSegment"/>. <c>GroundNavigator</c> calls this; the V1
     /// <c>GroundNavigator</c> keeps using <see cref="FromSegment"/> until it is removed at the joint flip.
     /// </summary>
     public static PathPrimitive FromSegmentV2(TaxiRouteSegment segment)
@@ -120,7 +120,7 @@ public static class PathPrimitiveBuilder
     /// Reinterpret a <see cref="GroundArc"/> (stored as a cubic Bezier fillet)
     /// as a true circle with radius
     /// <see cref="GroundArc.MinRadiusOfCurvatureFt"/>. The
-    /// <see cref="FilletArcGeneratorV2"/> tunes the Bezier so this approximation
+    /// <see cref="FilletArcGenerator"/> tunes the Bezier so this approximation
     /// is tight (&lt; 1 ft deviation from a true circle for radii ≥ 50 ft),
     /// so the playback can use closed-form circle math with no perceptible
     /// geometric error.

@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Airport.V2;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Testing;
 using Yaat.Sim.Tests.Helpers;
 

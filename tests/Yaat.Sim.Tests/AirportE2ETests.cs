@@ -648,7 +648,7 @@ public class AirportE2ETests
         var hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        var routes = TaxiPathfinderV2.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
+        var routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
         Assert.True(routes.Count > 0, "Should find at least one route from C/B junction to RWY 30");
 
         // The first (best) route should use B → W (with optional variant suffix
@@ -682,7 +682,7 @@ public class AirportE2ETests
         var hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        var routes = TaxiPathfinderV2.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
+        var routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
         if (routes.Count < 2)
         {
             return; // Can't test ranking with only one route
@@ -714,7 +714,7 @@ public class AirportE2ETests
         var hsNode = FindHoldShortForRunway(layout, "30");
         Assert.NotNull(hsNode);
 
-        var routes = TaxiPathfinderV2.FindRoutes(layout, parking.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
+        var routes = TaxiPathfinder.FindRoutes(layout, parking.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);
         Assert.True(routes.Count > 0, "Should find route from NEW7 to RWY 30");
 
         var bestSeq = GetTaxiwaySequence(routes[0]);

@@ -120,7 +120,7 @@ public class TaxiRouteCatalogTests
         var catalog = new TaxiRouteCatalog(SampleRoutes());
         var route = catalog.GetRoutesForAirport("KOAK").First(r => r.Name == "DEP 30 via W");
 
-        var resolved = TaxiPathfinderV2.ResolveExplicitPath(
+        var resolved = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode!.Id,
             route.GetPathTokens(),
@@ -156,7 +156,7 @@ public class TaxiRouteCatalogTests
             Path = "ZZZ",
         };
 
-        var resolved = TaxiPathfinderV2.ResolveExplicitPath(
+        var resolved = TaxiPathfinder.ResolveExplicitPath(
             layout,
             startNode!.Id,
             bogus.GetPathTokens(),

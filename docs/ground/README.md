@@ -16,8 +16,8 @@ GeoJSON ─► TaxiwayGraphBuilder ─► [1] Fillet generator ─► filleted g
 
 | # | Layer | Role | Doc | Core code |
 |---|-------|------|-----|-----------|
-| 1 | **Fillet generator** | builds the graph geometry — smooth corner arcs + order-independent junction connectivity | [`fillet-generator.md`](./fillet-generator.md) | `FilletArcGeneratorV2` · `Data/Airport/Fillet/V2/*` |
-| 2 | **Pathfinder** | resolves a clearance into a `TaxiRoute` over that graph | [`pathfinder.md`](./pathfinder.md) | `TaxiPathfinderV2` · `Data/Airport/V2/*` |
+| 1 | **Fillet generator** | builds the graph geometry — smooth corner arcs + order-independent junction connectivity | [`fillet-generator.md`](./fillet-generator.md) | `FilletArcGenerator` · `Data/Airport/Fillet/*` |
+| 2 | **Pathfinder** | resolves a clearance into a `TaxiRoute` over that graph | [`pathfinder.md`](./pathfinder.md) | `TaxiPathfinder` · `Data/Airport/Pathfinding/*` |
 | 3 | **Navigator** | follows the route + arc geometry per tick (heading/speed) | [`navigator.md`](./navigator.md) | `GroundNavigator` (in `TaxiingPhase`) |
 
 ## The V1 → V2 transition (complete)
@@ -26,7 +26,7 @@ The stack has fully migrated from V1 to V2. The **fillet generator**, **pathfind
 
 **Guiding principle when a consumer trips on V2 geometry:** the V2 graph is *correct-but-different*, not broken — it faithfully mirrors the source data (coincident edges, taxiways that connect only via a third connector, membership-named junction arcs). **Adapt the consumer; do not "fix" the graph.**
 
-Still pending: a final cross-layer rename sweep that drops the `V2` suffixes (`FilletArcGeneratorV2` / `TaxiPathfinderV2` / `GroundNavigatorV2` → base names) plus a doc-body refresh. Live roadmap and open work: [`../plans/ground-graph-v2.md`](../plans/ground-graph-v2.md) (and the `../plans/filletv2/` · `../plans/pathfinderv2/` sub-plans, which these docs supersede for durable reference).
+The cross-layer rename has landed: the three layers are now `FilletArcGenerator` / `TaxiPathfinder` / `GroundNavigator` (no `V2` suffix), with their internals under `Data/Airport/Fillet/` and `Data/Airport/Pathfinding/`. Still pending: a doc-body prose refresh of the V1-era detail sections in these docs. Live roadmap and open work: [`../plans/ground-graph-v2.md`](../plans/ground-graph-v2.md) (and the `../plans/filletv2/` · `../plans/pathfinderv2/` sub-plans, which these docs supersede for durable reference).
 
 ## Tooling
 

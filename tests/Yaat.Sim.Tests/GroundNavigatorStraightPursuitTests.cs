@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -8,7 +8,7 @@ using Yaat.Sim.Phases.Ground;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="GroundNavigatorV2"/>'s pure-pursuit steering on
+/// Unit tests for <see cref="GroundNavigator"/>'s pure-pursuit steering on
 /// straight segments. Verifies that an aircraft placed off the segment line
 /// converges back onto the line (rather than cutting diagonally toward the
 /// target node), that on-segment aircraft track the line with no deviation,
@@ -85,7 +85,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         var (startLat, startLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 100.0 / GeoMath.FeetPerNm);
         var (aircraft, ctx) = MakeFixture(new LatLon(startLat, startLon), segBearing, startSpeedKts: 10);
 
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = 15.0 };
+        var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
 
         double maxCrossTrackFt = 0;
@@ -125,7 +125,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         var (acLat, acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
         var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 10);
 
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = 15.0 };
+        var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
 
         double finalCrossFt = double.NaN;
@@ -161,7 +161,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         var (acLat, acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
         var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), segBearing, startSpeedKts: 10);
 
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = 15.0 };
+        var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
 
         double initialCrossFt = 35.0;
@@ -198,7 +198,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
 
         var (aircraft, ctx) = MakeFixture(from.Position, segBearing, startSpeedKts: 5);
 
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = 15.0 };
+        var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
 
         bool arrived = false;
@@ -235,7 +235,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         var (acLat, acLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(180.0), 35.0 / GeoMath.FeetPerNm);
         var (aircraft, ctx) = MakeFixture(new LatLon(acLat, acLon), 60.0, startSpeedKts: 10);
 
-        var nav = new GroundNavigatorV2 { MaxSpeedKts = 15.0 };
+        var nav = new GroundNavigator { MaxSpeedKts = 15.0 };
         nav.SetupSegment(MakeRoute(MakeStraightSegment(from, to)), ctx, _ => true);
 
         double finalHdgDiff = double.NaN;

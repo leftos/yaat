@@ -2,7 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Airport.V2;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests.Pathfinding.V2;

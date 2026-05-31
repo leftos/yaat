@@ -21,5 +21,5 @@ public sealed record FilletStatistics(
     public static FilletStatistics Empty { get; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0);
 
     /// <summary>V2 planner warnings (empty for legacy/none).</summary>
-    public IReadOnlyList<Fillet.V2.PlanWarning> Warnings { get; init; } = [];
+    public IReadOnlyList<Fillet.PlanWarning> Warnings { get; init; } = [];
 }
