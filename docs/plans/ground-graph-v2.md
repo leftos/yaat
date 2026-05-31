@@ -169,11 +169,19 @@ filtering `Category!=Nightly&Category!=PathfinderGrid`. The suite **did not hang
   lands 26 ft off the 44 ft A-segment centerline; pure-pursuit can't converge on the short edge). Same
   class as EDG320 (#44) / AMX669. **Folded into #61** as a V2-navigator class fix.
 
-**Remaining real failure:** the V2-navigator class fix (#61) — short-segment pure-pursuit convergence /
-entry-alignment-centering (the #59 spin) **and** the slower rollout/exit follow timing (the N9225L exit
-drift). Needs per-cluster LI tick traces + aviation review on any speed/turn change; closes the still-open
-Phase-3/4 trackers (#7). Everything else on the sweep is flip-expected (8 `TaxiPathfinder`) or known-open
-(`SfoRampCrosses` A2c).
+- **#61 — V2-navigator tight-junction spin:** FIXED. The entry-alignment slow-turn + incoming
+  tangent-rounding now use an adaptive radius (`AdaptiveCornerRadiusFt`, tightened toward the 15 ft jet
+  tight-turn floor) so a corner whose legs are shorter than the comfortable tangent (two junctions <T
+  apart, e.g. SFO M2 between B and A) exits on the outgoing centerline instead of orbiting for ~45 s.
+  Aviation-reviewed (Boeing FCTM / AC 150/5300-13B oversteer). The N9225L rollout/exit being marginally
+  slower than V1 is a quality observation with **no failing test** (its symptoms #55/#56 are fixed) — left
+  as future polish, not a sweep blocker.
+
+**Re-swept 2026-05-30 after the #55–#61 fixes (throwaway 4-default flip, `Category!=Nightly&!=PathfinderGrid`):
+2 failures / 5604, both non-real** — `SfoRampCrosses…ShouldFail` (known-open A2c) and one
+`TaxiPathfinderTests.ResolveExplicitPath_SfoM2…A1Apex` (V1-pinned pathfinder route-shape test, deleted with
+V1 at the flip). **0 real failures** — Phase 6 gate met. Remaining sweep entries resolve at the Phase-7 flip
+(delete the V1 `TaxiPathfinder` tests) + the A2c triage.
 
 ## Current focus / next up
 
