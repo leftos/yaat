@@ -805,6 +805,24 @@ public static class SegmentExpander
             }
         }
 
+        // Final named transition into a runway destination: there is no next named taxiway to
+        // anchor toward, but the destination runway's own hold-short on toTaxiway is the de-facto
+        // next waypoint. Anchor junction selection toward it so the chosen junction's toTaxiway
+        // side leads to the runway — otherwise the cheapest (nearest-along-fromTaxiway) junction
+        // can commit the following terminus walk to the wrong end of toTaxiway, after which the
+        // correct direction fails the U-turn admissibility check and the route detours the long
+        // way around to the same runway (OAK "TAXI D J C 33": C-from-the-near-junction only
+        // continues toward A, forcing a loop via B/28L-10R/P back to 33).
+        if (
+            lookaheadAnchor is null
+            && lookaheadTaxiway is null
+            && ctx.Destination.Kind == DestinationKind.Runway
+            && ctx.Destination.RunwayId is { } destRunwayId
+        )
+        {
+            lookaheadAnchor = ResolveRunwayHoldShortAnchorOnTaxiway(toTaxiway, destRunwayId, ctx);
+        }
+
         ctx.DiagnosticLog?.Invoke(
             $"[v2:segment] twy={fromTaxiway}→{toTaxiway} head={head.HeadNodeId} junctions={junctionCandidates.Count} lookahead={lookaheadTaxiway ?? "(none)"}"
         );
@@ -915,6 +933,51 @@ public static class SegmentExpander
         // Every toTaxiway-edge moves away from the anchor — picking this junction would
         // require a U-turn on toTaxiway to reach the next-next taxiway.
         return LookaheadMisalignedPenaltyNm;
+    }
+
+    /// <summary>
+    /// Centroid of the destination runway's hold-short nodes that lie on <paramref name="taxiway"/>,
+    /// used as the look-ahead anchor for the final named transition when the route ends at a runway
+    /// (there is no next named taxiway). Steers junction selection toward the junction whose
+    /// taxiway side leads to the runway's own hold-short, so the following terminus walk heads the
+    /// right way along the taxiway instead of committing to the opposite end and detouring back.
+    /// Null when no hold-short for the runway sits on the taxiway (the runway is reached via a
+    /// numbered variant or connector, which <see cref="TryVariantExtension"/> handles later) — in
+    /// which case junction selection keeps its prior cost-only behaviour.
+    /// </summary>
+    private static (double Lat, double Lon)? ResolveRunwayHoldShortAnchorOnTaxiway(string taxiway, string runwayId, SearchContext ctx)
+    {
+        double sumLat = 0;
+        double sumLon = 0;
+        int count = 0;
+        foreach (var node in ctx.Layout.Nodes.Values)
+        {
+            if (!IsRunwayHoldShort(node.Id, runwayId, ctx))
+            {
+                continue;
+            }
+
+            bool onTaxiway = false;
+            foreach (var edge in node.Edges)
+            {
+                if (edge.MatchesTaxiway(taxiway))
+                {
+                    onTaxiway = true;
+                    break;
+                }
+            }
+
+            if (!onTaxiway)
+            {
+                continue;
+            }
+
+            sumLat += node.Position.Lat;
+            sumLon += node.Position.Lon;
+            count++;
+        }
+
+        return count > 0 ? (sumLat / count, sumLon / count) : null;
     }
 
     /// <summary>

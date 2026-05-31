@@ -4,6 +4,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
+using Yaat.Sim.Tests.V2Acceptance;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -17,6 +18,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// - N9225L at t=424: <c>TAXI D @NEW1</c> (102 segments, reversal at index 81).
 /// - N436MS at t=455: <c>TAXI C @JSX1</c> (59 segments, reversal at index 46).
 /// </summary>
+[Collection("V2 Acceptance")]
 public class OakPostLandingReversalsTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/s2-oak3-follow-runaway-ias-recording.yaat-bug-report-bundle.zip";
@@ -29,7 +31,7 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = new TestAirportGroundData(FilletMode.V2);
         SimLogBuilder.CreateForTest(output).InitializeSimLog();
         return new SimulationEngine(groundData);
     }
@@ -83,10 +85,31 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
 
             using var _ = TickRecorder.Attach(engine, Path.Combine(TickRecorder.FindRepoRoot(), ".tmp", "oak-n9225l-taxi.json"), "N9225L");
 
-            // TAXI D @NEW1 is recorded at t=424.
-            engine.Replay(recording, 430);
+            // The recording's TAXI D @NEW1 fires at t=424, but the route a TAXI resolves
+            // depends on the aircraft's exact position when the command is issued. Replaying
+            // to a fixed time makes that route hostage to rollout/exit timing — the V2
+            // navigator's (correct) slower exit leaves N9225L still mid-exit of 28R/10L at
+            // t=424, so the recorded command resolves from a transient position and produces
+            // a worse (double-crossing) route. Anchor on the aircraft's STATE, not the clock:
+            // replay to t=423 (before the recorded TAXI), then tick — which does not fire
+            // recorded commands — until it settles into HoldingAfterExit (fully clear of the
+            // runway, stopped), then issue TAXI D @NEW1 from that deterministic position.
+            engine.Replay(recording, 423);
 
             var ac = engine.FindAircraft("N9225L");
+            Assert.NotNull(ac);
+            for (int t = 0; (t < 120) && (ac!.Phases?.CurrentPhase?.Name != "Holding After Exit"); t++)
+            {
+                engine.TickOneSecond();
+                ac = engine.FindAircraft("N9225L");
+            }
+
+            Assert.Equal("Holding After Exit", ac!.Phases?.CurrentPhase?.Name);
+
+            var taxi = engine.SendCommand("N9225L", "TAXI D @NEW1");
+            Assert.True(taxi.Success, $"TAXI D @NEW1 failed: {taxi.Message}");
+
+            ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
             Assert.NotNull(ac.Ground.AssignedTaxiRoute);
 

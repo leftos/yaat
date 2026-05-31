@@ -217,17 +217,27 @@ Applied the real flip (the 5 points below) and ran the **full** Sim suite (NOT e
 3. **A2c (1) — pre-existing known-open.** `SfoRampCrossesRunwayTests.TaxiCommand_AcrossRunways_ShouldFail`
    (entangled with #5 detour). Needs a fix-vs-delete decision.
 
-4. **Replay timing-cascade (2) — root-caused; NOT Bézier correctness bugs.** `OakPostLandingReversalsTests
-   .N9225L_TaxiD_AtNEW1_HasNoReversals` + `GoAroundPreservesIntentE2ETests.N342T_…TouchAndGo`. Both PASS
-   under "flip-without-Bézier" and FAIL with it. Mechanism: during `Replay()`, recorded commands fire at
-   fixed times and resolve against the aircraft's **exact position at that instant**; the Bézier fix shifted
-   exit/rollout timing, so the recorded `TAXI D @NEW1` (t=424) builds a *different* route — 86 segs crossing
-   28R/10L **twice** (2nd uncleared → correctly holds short) vs the circle's 63 segs / one cleared crossing.
-   The aircraft is behaving correctly; the test got a worse (double-crossing) route from a shifted position.
-   Same class as #58. **Action:** re-anchor to be timing-robust (re-issue the command from a settled state
-   like the sibling `N436MS_TaxiC_AtJSX1_HasNoReversals`, or detect the event dynamically), NOT relax/delete
-   the core assertion. *(The double-crossing route from the correct Bézier endpoint is a mild V2-pathfinder
-   route-quality smell worth a look, but the navigator/clearance behavior is correct.)*
+4. **Replay timing-cascade (2) — RESOLVED 2026-05-31; the two failures had *different* root causes.**
+   - **`OakPostLandingReversalsTests.N9225L_TaxiD_AtNEW1_HasNoReversals` — genuine timing-anchor; re-anchored.**
+     During `Replay()` the recorded `TAXI D @NEW1` (t=424) resolves against the aircraft's position at that
+     instant; the (correct) slower V2 exit leaves N9225L still mid-exit, so the route resolves from a transient
+     position → an 86-seg double-28R/10L-crossing route that holds short of the 2nd (uncleared) crossing. The
+     navigator/clearance behaviour is correct; the test got a worse route from a transient position. **Fixed**
+     by anchoring on STATE not the clock: `Replay(423)` (before the recorded TAXI), tick (no recorded commands
+     fire) until `Holding After Exit`, then re-issue `TAXI D @NEW1` from that settled, clear-of-runway state —
+     clean 0-reversal route to parking. Mirrors the sibling `N436MS_TaxiC_AtJSX1`.
+   - **`GoAroundPreservesIntentE2ETests.N342T_…TouchAndGo` — MISDIAGNOSED; was a V2 departure-routing bug, fixed
+     in the pathfinder.** N342T is a *ground departure* (`TAXI D J C 33`). Under V2 the pathfinder gave it a
+     131-segment route: after C it walked the wrong way (toward A) and looped via B / 28L-10R / P back to 33,
+     reaching its departure runway ~340 s late and missing its recorded takeoff window, so it never got airborne
+     to fly the pattern the test needs (no replay-cascade — a route-quality bug). **Root cause:** the final J→C
+     transition's junction selection ignored the destination runway (no next named taxiway), picking the nearest
+     J/C junction from which C only continues toward A; the westward turn to 33 then failed the U-turn
+     admissibility gate. **Fixed** in `SegmentExpander.RouteNamedToNamed` by anchoring the final-transition
+     junction selection toward the destination runway's hold-short on the final taxiway
+     (`ResolveRunwayHoldShortAnchorOnTaxiway`) — route collapsed 131→~36 seg, straight D-J-C-33. With routing
+     fixed, the **original** recording-based test (`Replay(871)`, recorded GA) passes under full V2. Regression
+     guard: `Pathfinding.V2.RunwayDestinationJunctionTests`.
 
 **Decision (2026-05-31):** keep the Bézier playback (geometrically correct, aviation-approved, guard-tested;
 it ends exactly on nodes — the circle undershot ~30–40 % of arcs) and re-anchor the cascade tests rather
@@ -241,8 +251,14 @@ than revert. Reverting would re-ship the systemic arc-undershoot.
 - `TestAirportGroundData()` parameterless ctor → `this(FilletMode.V2)`.
 - `V2AcceptanceFixture.Dispose()` → keep V2 (don't revert to V1); fixture now redundant, remove in cleanup.
 
-**Status:** flip reverted to keep `main` green while the 4 classes are worked. Next: (2) SFO-budget
-investigation, (4) re-anchor the 2 cascade tests, (1) delete V1-pinned with the flip, (3) A2c decision.
+**Status:** flip reverted to keep `main` green while the 4 classes are worked.
+- **(4) DONE (2026-05-31):** both "cascade" tests resolved — N9225L re-anchored to a settled state; N342T was
+  a misdiagnosed V2 departure-routing bug, fixed in `SegmentExpander` (final-transition runway anchor). Both
+  test files pinned to `[Collection("V2 Acceptance")]` + `FilletMode.V2` and green under full V2; full
+  cross-repo suite green. Attribute strip is part of the flip-cleanup.
+- Remaining before the flip can land green: (2) SFO-Nightly time-budget investigation (the long pole; note
+  the SFO-budget grid passed under V1 default in the 2026-05-31 grid run — it still needs validation under the
+  flip), (1) delete V1-pinned `TaxiPathfinderTests` with the flip, (3) A2c `SfoRampCrosses` fix-vs-delete.
 
 ## Current focus / next up
 
