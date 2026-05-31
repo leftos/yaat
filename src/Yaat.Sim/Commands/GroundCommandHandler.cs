@@ -103,11 +103,19 @@ internal static class GroundCommandHandler
         );
 
         // Implicit first-crossing clearance: when the aircraft is already holding short of a
-        // runway and the new route's first runway crossing is for that same runway, the TAXI
-        // command itself authorizes the crossing — no separate CTO needed. Subsequent crossings
-        // still require explicit clearance.
+        // runway — or is in the middle of exiting one (it must taxi past that runway's
+        // hold-short bars to finish clearing the runway it just landed on, not hold short of
+        // the runway it is leaving) — and the new route's first runway crossing is for that
+        // same runway, the TAXI command itself authorizes it. No separate CTO needed.
+        // Subsequent crossings still require explicit clearance.
+        string? priorRwy = aircraft.Phases?.CurrentPhase switch
+        {
+            HoldingShortPhase priorHold when priorHold.HoldShort.TargetName is { Length: > 0 } heldRwy => heldRwy,
+            RunwayExitPhase exitPhase when exitPhase.RunwayId is { Length: > 0 } exitRwy => exitRwy,
+            _ => null,
+        };
         string? implicitCrossLabel = null;
-        if (aircraft.Phases?.CurrentPhase is HoldingShortPhase priorHold && priorHold.HoldShort.TargetName is { Length: > 0 } priorRwy)
+        if (priorRwy is not null)
         {
             var firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
             if (firstCrossing is not null && firstCrossing.TargetName is { Length: > 0 } crossingRwy)
@@ -117,7 +125,7 @@ internal static class GroundCommandHandler
                     firstCrossing.IsCleared = true;
                     implicitCrossLabel = crossingRwy;
                     Log.LogInformation(
-                        "[TryTaxi] {Callsign}: implicit cross of {Rwy} at node {NodeId} (already holding short of {PriorRwy})",
+                        "[TryTaxi] {Callsign}: implicit cross of {Rwy} at node {NodeId} (already at/exiting {PriorRwy})",
                         aircraft.Callsign,
                         crossingRwy,
                         firstCrossing.NodeId,

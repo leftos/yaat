@@ -1,6 +1,7 @@
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -100,6 +101,74 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
             ac = engine.FindAircraft("N9225L");
             Assert.NotNull(ac);
             Assert.Equal("At Parking", ac.Phases?.CurrentPhase?.Name);
+        }
+    }
+
+    /// <summary>
+    /// An aircraft still exiting the runway it just landed on (RunwayExitPhase), given a
+    /// TAXI whose route's first runway hold-short is that SAME runway, must clear forward —
+    /// finishing its exit — not hold short of the runway it is leaving (which would strand
+    /// it on the runway). Mirrors the holding-short implicit first-crossing clearance for
+    /// the exit case. Regression for #56: under all-V2 the slower exit leaves N9225L still
+    /// mid-exit of 28R/10L when TAXI D @NEW1 fires; without this it holds short of 28R/10L
+    /// and never reaches parking.
+    /// </summary>
+    [Fact]
+    public void TaxiWhileExitingRunway_ClearsOwnExitHoldShort()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var recording = archive.ToBaseSessionRecording();
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            // Advance until N9225L is mid-exit of the runway it just landed on. Replay
+            // applies the recorded landing clearance; ticking then carries it through the
+            // rollout into RunwayExitPhase (TickOneSecond does not fire recorded commands).
+            engine.Replay(recording, 400);
+            RunwayExitPhase? exitPhase = null;
+            for (int t = 0; t < 60 && exitPhase is null; t++)
+            {
+                var probe = engine.FindAircraft("N9225L");
+                exitPhase = probe?.Phases?.CurrentPhase as RunwayExitPhase;
+                if (exitPhase is null)
+                {
+                    engine.TickOneSecond();
+                }
+            }
+
+            Assert.NotNull(exitPhase);
+            Assert.False(string.IsNullOrEmpty(exitPhase.RunwayId), "exit phase must know which runway it is exiting");
+            string exitRwy = exitPhase.RunwayId!;
+            output.WriteLine($"N9225L caught mid-exit of {exitRwy}");
+
+            var result = engine.SendCommand("N9225L", "TAXI D @NEW1");
+            Assert.True(result.Success, $"TAXI D @NEW1 failed: {result.Message}");
+
+            var ac = engine.FindAircraft("N9225L");
+            Assert.NotNull(ac);
+            var route = ac.Ground.AssignedTaxiRoute;
+            Assert.NotNull(route);
+
+            var firstCrossing = route.HoldShortPoints.FirstOrDefault(h => h.Reason == HoldShortReason.RunwayCrossing);
+            Assert.NotNull(firstCrossing);
+            Assert.True(
+                RunwayIdentifier.Parse(firstCrossing.TargetName!).Overlaps(RunwayIdentifier.Parse(exitRwy)),
+                $"route's first crossing ({firstCrossing.TargetName}) should be the exit runway {exitRwy}"
+            );
+            Assert.True(
+                firstCrossing.IsCleared,
+                $"aircraft exiting {exitRwy} must clear its own exit hold-short ({firstCrossing.TargetName} at node {firstCrossing.NodeId}), not hold short of the runway it is leaving"
+            );
         }
     }
 
