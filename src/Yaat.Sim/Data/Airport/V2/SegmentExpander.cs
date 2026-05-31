@@ -154,17 +154,20 @@ public static class SegmentExpander
 
         var route = RouteMaterialiser.Materialise(edges, ctx, insertions);
 
-        // Honor the clearance: every named taxiway the controller specified must be traversed by the
-        // resolved route. If one is wholly absent, the aircraft could not reach it from its start
-        // without leaving the movement area (e.g. a gate from which taxiway A lies across active
-        // runways), so the resolver bypassed it via a connector toward a later named taxiway. Taxiing
-        // somewhere the controller never cleared is worse than rejecting — fail the command. This is
-        // distinct from the soft mandatory-connector policy, which inserts a connector BETWEEN named
-        // taxiways while keeping every named taxiway present; the check below only fires when a named
-        // taxiway appears nowhere in the route. (Node-ref tokens are validated when routed.)
+        // Honor the clearance: every named taxiway the controller specified must be REACHED by the
+        // resolved route — either traversed (an edge labeled for it) or at least touched (the route
+        // passes through a node that lies on it). Touching without traversing is legitimate and
+        // common: when two cleared taxiways meet at the same junction, the route turns from one onto
+        // the next through that node without ever walking a labeled edge of either, and when a more
+        // direct connector reaches the junction a named taxiway serves, the named taxiway is still
+        // touched there. The check only fails when a named taxiway is never reached at all — the
+        // aircraft could not get to it from its start without leaving the movement area (e.g. a gate
+        // from which taxiway A lies across active runways), so the resolver bypassed it entirely.
+        // Clearing via a taxiway the aircraft cannot reach is worse than rejecting. (Node-ref tokens
+        // are validated when routed.)
         foreach (var wp in resolvedWaypoints)
         {
-            if (wp.IsNodeRef || edges.Any(e => e.Edge.MatchesTaxiway(wp.Name)))
+            if (wp.IsNodeRef || RouteReachesTaxiway(route, wp.Name))
             {
                 continue;
             }
@@ -182,6 +185,42 @@ public static class SegmentExpander
         }
 
         return (route, null);
+    }
+
+    /// <summary>
+    /// True if the materialised route reaches <paramref name="taxiwayName"/>: it traverses an edge
+    /// labeled for the taxiway, or it passes through a node incident to the taxiway (the route turned
+    /// off at a junction the taxiway serves without walking a labeled edge). Used to honor an explicit
+    /// clearance without rejecting the normal case where consecutive cleared taxiways share a junction
+    /// node. Operates on the final route — not the pre-materialise edge walk, which can over-run the
+    /// destination hold-short and reach the taxiway only on the far side of a runway it never crosses.
+    /// </summary>
+    private static bool RouteReachesTaxiway(TaxiRoute route, string taxiwayName)
+    {
+        foreach (var seg in route.Segments)
+        {
+            var e = seg.Edge;
+            if (e.Edge.MatchesTaxiway(taxiwayName) || NodeIncidentToTaxiway(e.FromNode, taxiwayName) || NodeIncidentToTaxiway(e.ToNode, taxiwayName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>True if any edge incident to <paramref name="node"/> belongs to <paramref name="taxiwayName"/>.</summary>
+    private static bool NodeIncidentToTaxiway(GroundNode node, string taxiwayName)
+    {
+        foreach (var edge in node.Edges)
+        {
+            if (edge.MatchesTaxiway(taxiwayName))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // -----------------------------------------------------------------------
