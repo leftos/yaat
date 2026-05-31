@@ -23,8 +23,11 @@
 //     wingspan-lateral-clearance bypass handles the merge geometry); head-on
 //     is suppressed for this pair this tick.
 //   • Crossing          — close in space, no shared route node, not same-edge.
-//     Apply closing-proximity in both directions; apply head-on fallback IF
-//     both are moving with diff > 120° and not behind each other.
+//     Resolved to one-holds-one-goes (ResolveCrossing): an aircraft on the
+//     runway surface has priority; a yielder keeps its heading-based closing
+//     pin even when stopped (no self-pin crawl); if both would stop, one
+//     deterministic holder (callsign) holds while the other proceeds. Head-on
+//     fallback still applies for two movers > 120° apart.
 //
 // Self-pin recovery: a routed aircraft pinned at gs≈0 / SpeedLimit≈0 with no
 // active Hold classifies as Stationary. Treats the pinned aircraft as a parked
