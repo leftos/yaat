@@ -32,12 +32,12 @@ public static class GeoJsonParser
 
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode)
     {
-        return Parse(airportId, geoJson, runwayAirportCode, FilletMode.Legacy);
+        return Parse(airportId, geoJson, runwayAirportCode, FilletMode.V2);
     }
 
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, bool applyFillets)
     {
-        return Parse(airportId, geoJson, runwayAirportCode, applyFillets ? FilletMode.Legacy : FilletMode.None);
+        return Parse(airportId, geoJson, runwayAirportCode, applyFillets ? FilletMode.V2 : FilletMode.None);
     }
 
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, FilletMode filletMode)
@@ -64,7 +64,7 @@ public static class GeoJsonParser
     /// </summary>
     public static AirportGroundLayout ParseMultiple(string airportId, IEnumerable<string> geoJsonFiles, string? runwayAirportCode)
     {
-        return ParseMultiple(airportId, geoJsonFiles, runwayAirportCode, FilletMode.Legacy);
+        return ParseMultiple(airportId, geoJsonFiles, runwayAirportCode, FilletMode.V2);
     }
 
     public static AirportGroundLayout ParseMultiple(

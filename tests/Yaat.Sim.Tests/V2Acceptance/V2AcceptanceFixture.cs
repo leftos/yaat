@@ -35,8 +35,11 @@ public sealed class V2AcceptanceFixture : IDisposable
 
     public void Dispose()
     {
-        TaxiPathfinderRouter.UseV2 = false;
-        GroundNavigatorRouter.UseV2 = false;
+        // Post joint-flip the production default is already V2, so this fixture is a no-op and is
+        // slated for removal. Keep V2 on dispose rather than reverting to V1 — a revert would flip
+        // any later sequential collection back to the now-deleted V1 stack.
+        TaxiPathfinderRouter.UseV2 = true;
+        GroundNavigatorRouter.UseV2 = true;
     }
 }
 

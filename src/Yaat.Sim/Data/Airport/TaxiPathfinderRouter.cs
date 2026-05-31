@@ -17,7 +17,7 @@ namespace Yaat.Sim.Data.Airport;
 /// </summary>
 public static class TaxiPathfinderRouter
 {
-    private static ITaxiPathfinder _current = new TaxiPathfinderV1Adapter();
+    private static ITaxiPathfinder _current = new TaxiPathfinderV2();
 
     /// <summary>
     /// The active pathfinder instance used by all production callers.

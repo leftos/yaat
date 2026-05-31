@@ -15,10 +15,10 @@ public static class GroundNavigatorRouter
 {
     /// <summary>
     /// When true, the factory builds <see cref="GroundNavigatorV2"/>; otherwise the V1
-    /// <see cref="GroundNavigator"/>. Default false (V1) until the joint flip. Set at startup or in
+    /// <see cref="GroundNavigator"/>. Defaults to true (V2) — the joint flip. Set at startup or in
     /// single-threaded test setup; not thread-safe across concurrent assignment.
     /// </summary>
-    public static bool UseV2 { get; set; }
+    public static bool UseV2 { get; set; } = true;
 
     /// <summary>Build a fresh navigator for a new segment-follow.</summary>
     public static IGroundNavigator Create() => UseV2 ? new GroundNavigatorV2() : new GroundNavigator();

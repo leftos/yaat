@@ -12,10 +12,10 @@ namespace Yaat.Sim.Tests.Helpers;
 /// (fillet mode, airport) per test process (~500ms OAK, ~2700ms SFO), then all
 /// callers share the result.
 ///
-/// The parameterless constructor uses <see cref="FilletMode.Legacy"/> — the
-/// production fillet generator — so the ~150 existing call sites are unaffected.
-/// Pass <see cref="FilletMode.V2"/> to exercise the V2 arc generator in sim-level
-/// validation tests while production stays on Legacy.
+/// The parameterless constructor uses <see cref="FilletMode.V2"/> — the production
+/// fillet generator at the joint flip — so the ~150 existing call sites build the
+/// shipping V2 graph. Pass <see cref="FilletMode.Legacy"/> explicitly only for the
+/// few tests that still pin V1-fillet geometry.
 /// </summary>
 internal sealed class TestAirportGroundData : IAirportGroundData
 {
@@ -27,7 +27,7 @@ internal sealed class TestAirportGroundData : IAirportGroundData
     private readonly FilletMode _filletMode;
 
     public TestAirportGroundData()
-        : this(FilletMode.Legacy) { }
+        : this(FilletMode.V2) { }
 
     public TestAirportGroundData(FilletMode filletMode)
     {
