@@ -59,7 +59,7 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
     /// TAXI + CTO commands. Keeping the JSON inline (not a fixture file)
     /// lets the test stay co-located with its geometry assertions.
     /// </summary>
-    private static string BuildScenarioJson(double lat, double lon, int headingMag)
+    internal static string BuildScenarioJson(double lat, double lon, int headingMag)
     {
         return $$"""
             {
@@ -261,10 +261,87 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
             $"taxi should complete within 75 s for the M2 → A → A1 route (catch spiral regression at node 507); got {taxiDuration} s"
         );
     }
+}
 
-    /// <summary>
-    /// Diagnostic: same setup as <see cref="Test1_SpawnOffM2_TaxisThroughTwoNinetyTurns_AndTakesOff"/>
-    /// but writes a per-tick CSV of the trajectory so the taxi can be
-    /// rendered with <c>Yaat.LayoutInspector --ticks</c> for visual
-    /// inspection. Writes to <c>.tmp/sfo-m2-multiturn.json</c>. Render with:
+/// <summary>
+/// All-V2 variant of <see cref="SfoM2MultiTurnTaxiTests"/>. Under the V2 nav stack the M2→A 118° corner
+/// has only ~22 ft of straight M2 between the B-crossing (J159) and the A-crossing (J92) — shorter than
+/// the tangent length needed to round at the nose-wheel radius. The entry-alignment slow-turn must still
+/// exit on the A centerline so pure-pursuit doesn't limit-cycle (orbit the corner for ~45 s). Asserts the
+/// M2 → A → A1 taxi completes within the same 75 s budget as V1. Runs in the parallelization-disabled
+/// "V2 Acceptance" collection so the global router flip can't race the V1-default suite.
+/// </summary>
+[Collection("V2 Acceptance")]
+public class SfoM2MultiTurnUnderV2Tests(ITestOutputHelper output)
+{
+    [Fact]
+    public void Test1_SpawnOffM2_TaxisThroughTwoNinetyTurns_NoSpin_OnV2()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var groundData = new TestAirportGroundData(FilletMode.V2);
+        if (groundData.GetLayout("SFO") is null)
+        {
+            return;
+        }
+
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        var engine = new SimulationEngine(groundData);
+
+        // Same spawn as the V1 test: ~20 ft north of M2 node 1529, heading 280° magnetic.
+        string json = SfoM2MultiTurnTaxiTests.BuildScenarioJson(37.607759, -122.384926, 280);
+        engine.LoadScenario(json, rngSeed: 42);
+
+        int taxiStartedAt = -1;
+        int lineUpAt = -1;
+        int lowSpeedTicks = 0; // ticks crawling < 2 kt mid-taxi — a spin/orbit signature
+        string prevPhase = "";
+        for (int t = 1; t <= 5 * 60; t++)
+        {
+            engine.TickOneSecond();
+            var ac = engine.FindAircraft("TEST1");
+            if (ac is null)
+            {
+                break;
+            }
+
+            string phase = ac.Phases?.CurrentPhase?.Name ?? "(null)";
+            if (phase != prevPhase)
+            {
+                if (phase == "Taxiing" && taxiStartedAt < 0)
+                {
+                    taxiStartedAt = t;
+                }
+                if (phase == "LiningUp" && lineUpAt < 0)
+                {
+                    lineUpAt = t;
+                }
+                prevPhase = phase;
+            }
+
+            if (taxiStartedAt > 0 && lineUpAt < 0 && ac.GroundSpeed < 2.0)
+            {
+                lowSpeedTicks++;
+            }
+
+            if (lineUpAt > 0)
+            {
+                break;
+            }
+        }
+
+        int taxiDuration = lineUpAt - taxiStartedAt;
+        output.WriteLine($"taxiStarted={taxiStartedAt}s lineUp={lineUpAt}s duration={taxiDuration}s lowSpeedTicks={lowSpeedTicks}");
+
+        Assert.True(taxiStartedAt > 0, "aircraft should enter Taxiing after the preset TAXI fires");
+        Assert.True(lineUpAt > 0, "aircraft should reach LiningUp after traversing M2 → A → A1");
+        Assert.True(
+            taxiDuration <= 75,
+            $"M2 → A → A1 taxi should complete within 75 s under V2 (no pure-pursuit spin at the M2→A corner); got {taxiDuration} s"
+        );
+    }
 }

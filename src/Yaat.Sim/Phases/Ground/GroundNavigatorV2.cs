@@ -155,6 +155,17 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     private bool _nextSegmentIsArc;
 
     /// <summary>
+    /// Rounding radius (ft) for the corner at the END of the current segment — adaptive: tightened from the
+    /// comfortable nose-wheel radius toward the tight-turn floor when the approach/departure legs are shorter
+    /// than the comfortable tangent length (two close junctions), so the corner-rounding arc still exits on
+    /// the outgoing centerline instead of finishing wide and forcing a pure-pursuit re-acquisition. Set in
+    /// <see cref="BuildSpeedConstraints"/>; read by <see cref="TickStraight"/>'s arrival threshold. The
+    /// entry-alignment arc computes its own radius from the route directly (restore-safe), using the same
+    /// <see cref="AdaptiveCornerRadiusFt"/> rule.
+    /// </summary>
+    private double _cornerRoundingRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet);
+
+    /// <summary>
     /// Speed constraints from future segments, each as a tuple of:
     /// (path distance from current target, required speed at that point, node id).
     /// Computed during <see cref="SetupSegment"/> via forward-walk + backward-
@@ -240,7 +251,15 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
 
         if (headingDelta > EntryAlignmentThresholdDeg)
         {
-            double roundingRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+            // Adaptive rounding radius: tighten toward the tight-turn floor when the incoming leg (the
+            // segment the aircraft is turning off) or the outgoing leg (this segment) is shorter than the
+            // comfortable nose-wheel tangent length, so the arc still exits on this segment's centerline
+            // rather than finishing wide and forcing a pure-pursuit re-acquisition (the SfoM2 M2→A spin:
+            // B and A crossings only ~22 ft apart). Computed from the route here (restore-safe).
+            double incomingRunFt =
+                route.CurrentSegmentIndex > 0 ? route.Segments[route.CurrentSegmentIndex - 1].Edge.DistanceNm * GeoMath.FeetPerNm : double.MaxValue;
+            double outgoingRunFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
+            double roundingRadiusFt = AdaptiveCornerRadiusFt(ctx.Category, headingDelta, incomingRunFt, outgoingRunFt);
             var alignmentArc = PathPrimitiveBuilder.SlowTurn(
                 fromLat: ctx.Aircraft.Position.Lat,
                 fromLon: ctx.Aircraft.Position.Lon,
@@ -359,19 +378,43 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     }
 
     /// <summary>
+    /// Corner-rounding radius (ft) for a turn of <paramref name="deflectionDeg"/> whose approach and
+    /// departure legs are <paramref name="incomingRunFt"/> / <paramref name="outgoingRunFt"/> long.
+    /// Tightens from the comfortable nose-wheel radius toward the tight-turn floor when the shorter leg
+    /// can't contain the comfortable tangent length (the radius whose tangent T = r·tan(δ/2) fits the
+    /// shorter leg), so the rounding arc exits on the outgoing centerline rather than finishing wide.
+    /// Returns the comfortable radius for a near-straight turn. Pure.
+    /// </summary>
+    internal static double AdaptiveCornerRadiusFt(AircraftCategory category, double deflectionDeg, double incomingRunFt, double outgoingRunFt)
+    {
+        double comfortable = CategoryPerformance.NoseWheelTurnRadiusFt(category);
+        double halfTan = Math.Tan(deflectionDeg * 0.5 * Math.PI / 180.0);
+        if (halfTan <= 1e-6)
+        {
+            return comfortable;
+        }
+
+        double fit = Math.Min(incomingRunFt, outgoingRunFt) / halfTan;
+        return Math.Clamp(fit, CategoryPerformance.TightTurnFloorRadiusFt(category), comfortable);
+    }
+
+    /// <summary>
     /// Arrival threshold (nm) for a straight segment. When a sharp turn onto the next straight leg is
-    /// coming up and the leg is long enough to round within, applies tangent corner-rounding — arrive
-    /// at the tangent point T = r·tan(δ/2) (r = nose-wheel radius, δ = corner deflection), capped at
-    /// 0.45·leg so rounding can't start before the midpoint and floored at the final-node threshold —
-    /// and reports <paramref name="roundingActive"/> true. On a leg too short to round above that floor
-    /// (0.45·leg ≤ <see cref="FinalNodeArrivalThresholdNm"/>), there is no room: it falls back to the
-    /// standard arrival threshold and reports <paramref name="roundingActive"/> false, never clamping
-    /// with an inverted [min, max] range (which would throw). Pure — extracted for unit testing.
+    /// coming up, applies tangent corner-rounding — arrive at the tangent point T = r·tan(δ/2)
+    /// (r = <paramref name="roundingRadiusFt"/>, δ = corner deflection) and report
+    /// <paramref name="roundingActive"/> true. Normally T is capped at 0.45·leg so rounding can't start
+    /// before the midpoint; on a leg shorter than the COMFORTABLE tangent length (two close junctions —
+    /// e.g. SFO M2 between the B and A crossings) the cap is relaxed to the whole leg so the tightened
+    /// arc can begin at the leg start and still exit on the outgoing centerline. Floored at the
+    /// final-node threshold; on a leg with no room it falls back to the standard threshold and reports
+    /// <paramref name="roundingActive"/> false (never an inverted [min, max] clamp, which would throw).
+    /// Pure — extracted for unit testing.
     /// </summary>
     internal static double StraightArrivalThresholdNm(
         double cornerTurnDeg,
         double edgeLengthNm,
         AircraftCategory category,
+        double roundingRadiusFt,
         bool isLastSegment,
         bool isStopTarget,
         bool shortEdge,
@@ -379,13 +422,15 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         out bool roundingActive
     )
     {
-        double maxRoundingNm = 0.45 * edgeLengthNm;
+        double halfTan = Math.Tan(cornerTurnDeg * 0.5 * Math.PI / 180.0);
+        double comfortableTangentNm = CategoryPerformance.NoseWheelTurnRadiusFt(category) * halfTan / GeoMath.FeetPerNm;
+        bool tightLeg = edgeLengthNm < comfortableTangentNm;
+        double maxRoundingNm = tightLeg ? edgeLengthNm : 0.45 * edgeLengthNm;
         roundingActive = !isLastSegment && !isStopTarget && cornerTurnDeg > EntryAlignmentThresholdDeg && maxRoundingNm > FinalNodeArrivalThresholdNm;
 
         if (roundingActive)
         {
-            double rFt = CategoryPerformance.NoseWheelTurnRadiusFt(category);
-            double tFt = rFt * Math.Tan(cornerTurnDeg * 0.5 * Math.PI / 180.0);
+            double tFt = roundingRadiusFt * halfTan;
             return Math.Clamp(tFt / GeoMath.FeetPerNm, FinalNodeArrivalThresholdNm, maxRoundingNm);
         }
 
@@ -434,6 +479,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             cornerTurnDeg,
             edgeLengthNm,
             ctx.Category,
+            _cornerRoundingRadiusFt,
             isLastSegment,
             isStopTarget,
             shortEdge,
@@ -792,6 +838,8 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
 
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
 
+        _cornerRoundingRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+
         if (!isHoldShortCleared(TargetNodeId))
         {
             _currentNodeRequiredSpeed = 0;
@@ -806,6 +854,20 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             _currentNodeRequiredSpeed = CornerSpeed(ctx.Category, turnAngle, seg.Edge.DistanceNm, nextSeg.Edge.DistanceNm);
             _nextSegmentBearing = nextSeg.Edge.DepartureBearing;
             _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
+
+            // Adaptive rounding radius for the corner at this segment's end (matches the entry-alignment
+            // radius the next segment's setup will use): tighten when the approach/departure legs are
+            // shorter than the comfortable tangent so the rounding arc exits on the outgoing centerline.
+            if (!_nextSegmentIsArc)
+            {
+                double deflectionDeg = GeoMath.AbsBearingDifference(seg.Edge.DepartureBearing, nextSeg.Edge.DepartureBearing);
+                _cornerRoundingRadiusFt = AdaptiveCornerRadiusFt(
+                    ctx.Category,
+                    deflectionDeg,
+                    seg.Edge.DistanceNm * GeoMath.FeetPerNm,
+                    nextSeg.Edge.DistanceNm * GeoMath.FeetPerNm
+                );
+            }
         }
         else
         {

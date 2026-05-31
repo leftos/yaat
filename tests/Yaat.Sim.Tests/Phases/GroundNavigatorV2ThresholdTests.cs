@@ -26,6 +26,7 @@ public class GroundNavigatorV2ThresholdTests
             cornerTurnDeg: 90.0,
             edgeLengthNm: 1e-6,
             category: AircraftCategory.Jet,
+            roundingRadiusFt: CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
             shortEdge: true,
@@ -46,6 +47,7 @@ public class GroundNavigatorV2ThresholdTests
             cornerTurnDeg: 90.0,
             edgeLengthNm: 0.05,
             category: AircraftCategory.Jet,
+            roundingRadiusFt: CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
             shortEdge: false,
@@ -60,6 +62,47 @@ public class GroundNavigatorV2ThresholdTests
     }
 
     [Fact]
+    public void AdaptiveCornerRadius_TightLeg_TightensTowardFloor()
+    {
+        // 118° turn (SFO M2→A) with only ~22 ft of approach between the B and A crossings: the comfortable
+        // 25 ft tangent (41.6 ft) doesn't fit, so the radius tightens to fit — clamped at the 15 ft jet floor.
+        double r = GroundNavigatorV2.AdaptiveCornerRadiusFt(AircraftCategory.Jet, deflectionDeg: 118.0, incomingRunFt: 22.0, outgoingRunFt: 44.0);
+        Assert.Equal(CategoryPerformance.TightTurnFloorRadiusFt(AircraftCategory.Jet), r, precision: 3);
+    }
+
+    [Fact]
+    public void AdaptiveCornerRadius_AmpleLegs_StaysComfortable()
+    {
+        // A 90° turn with 100 ft legs has ample room — no tightening, comfortable nose-wheel radius.
+        double r = GroundNavigatorV2.AdaptiveCornerRadiusFt(AircraftCategory.Jet, deflectionDeg: 90.0, incomingRunFt: 100.0, outgoingRunFt: 100.0);
+        Assert.Equal(CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet), r, precision: 3);
+    }
+
+    [Fact]
+    public void TightLeg_RelaxesCapToWholeLeg_RoundsAcrossIt()
+    {
+        // A leg shorter than the comfortable tangent (118° corner, 22 ft leg vs 41.6 ft comfortable tangent)
+        // relaxes the 0.45·leg cap to the whole leg, so the tightened arc rounds across it and exits aligned.
+        double edgeNm = 22.0 / GeoMath.FeetPerNm;
+        double rFt = GroundNavigatorV2.AdaptiveCornerRadiusFt(AircraftCategory.Jet, 118.0, 22.0, 44.0);
+        double threshold = GroundNavigatorV2.StraightArrivalThresholdNm(
+            cornerTurnDeg: 118.0,
+            edgeLengthNm: edgeNm,
+            category: AircraftCategory.Jet,
+            roundingRadiusFt: rFt,
+            isLastSegment: false,
+            isStopTarget: false,
+            shortEdge: false,
+            nextSegmentIsArc: false,
+            out bool roundingActive
+        );
+
+        Assert.True(roundingActive);
+        // r·tan(59°) = 15·1.664 ≈ 25 ft > the 22 ft leg, so the back-off is capped at the whole leg.
+        Assert.Equal(edgeNm, threshold, precision: 6);
+    }
+
+    [Fact]
     public void GentleCorner_NoRounding_UsesStandardThreshold()
     {
         // A corner shallower than the entry-alignment threshold does not round.
@@ -67,6 +110,7 @@ public class GroundNavigatorV2ThresholdTests
             cornerTurnDeg: 20.0,
             edgeLengthNm: 0.05,
             category: AircraftCategory.Jet,
+            roundingRadiusFt: CategoryPerformance.NoseWheelTurnRadiusFt(AircraftCategory.Jet),
             isLastSegment: false,
             isStopTarget: false,
             shortEdge: false,

@@ -102,6 +102,8 @@ Two gates, both required (`GroundNavigator.cs:436`):
 
 Entry alignment is the **safety net** for the pure-pursuit divergence at low speed: when the look-ahead point shifts faster than the aircraft can turn, it orbits. Any segment whose start delta exceeds the threshold gets a slow-turn regardless of route position.
 
+**Adaptive rounding radius (V2).** The entry-alignment slow-turn and the incoming tangent-rounding both use an *adaptive* radius (`GroundNavigatorV2.AdaptiveCornerRadiusFt`), not a fixed nose-wheel radius. When the approach or departure leg is shorter than the comfortable tangent length `T = r·tan(δ/2)` — two junctions closer than `T` apart, e.g. SFO M2 between the B and A crossings (~22 ft for a 118° turn that wants 41.6 ft) — the radius tightens toward a category **tight-turn floor** (`CategoryPerformance.TightTurnFloorRadiusFt`, 15 ft jet ≈ inner-main-gear radius) so the arc still **exits on the outgoing centerline**. The incoming arrival threshold (`StraightArrivalThresholdNm`) relaxes its `0.45·leg` cap to the whole leg only on such a tight leg, so the rounding can begin at the leg start. Without this, a fixed 25 ft arc off a 22 ft leg finishes ~26 ft wide, and pure-pursuit limit-cycles (orbits) the corner on the short outgoing segment for ~45 s. This is judgmental oversteer (Boeing FCTM / AC 150/5300-13B): the nose may bulge wide of centerline mid-arc but rolls out aligned. Aviation-reviewed.
+
 ### Speed: corner-speed limits and backward-propagated braking
 
 The navigator never overspeeds into a future turn. `BuildSpeedConstraints` (`GroundNavigator.cs:1532`) runs at every `SetupSegment`:

@@ -620,6 +620,26 @@ public static class CategoryPerformance
     }
 
     /// <summary>
+    /// Tightest defensible nose-gear turn radius (ft) for a deliberate, brake-assisted, walking-pace pivot
+    /// at a geometrically tight junction — below the comfortable <see cref="NoseWheelTurnRadiusFt"/> but at or
+    /// above the inner-main-gear radius (tighter would pivot on a near-locked inner main gear). A jet floors at
+    /// ~15 ft (≈ B737-800 inner-main-gear radius); smaller categories scale down. Used to clamp the adaptive
+    /// corner-rounding radius when the available approach straight is shorter than the comfortable tangent
+    /// length (aviation-reviewed: Boeing FCTM tight-turn technique / judgmental oversteer, AC 150/5300-13B).
+    /// </summary>
+    public static double TightTurnFloorRadiusFt(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 15.0,
+            AircraftCategory.Turboprop => 12.0,
+            AircraftCategory.Piston => 8.0,
+            AircraftCategory.Helicopter => 8.0,
+            _ => 15.0,
+        };
+    }
+
+    /// <summary>
     /// Fastest ground speed (knots) at which the gear-limited <see cref="GroundTurnRate"/> can still
     /// track a turn of <paramref name="radiusFt"/> — i.e. <c>v = ω·r</c>. Above this the required yaw
     /// rate exceeds the nose-wheel steering rate and the nose can no longer follow the arc. Floored at
