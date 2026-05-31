@@ -28,6 +28,17 @@ namespace Yaat.Sim.Phases.Ground;
 /// </para>
 ///
 /// <para>
+/// Dropping the orbit-stall backstop assumed V2 fillets never produce short-chord clusters, but curved
+/// ramp taxiways (e.g. SFO CG) still arrive as chains of ~15 ft straight chords with shallow bends. An
+/// aircraft carrying taxi speed into such a chain overshoots a chord's to-node and pure-pursuit then
+/// circles it. Two guards replace the Legacy tick-count detector: <see cref="TickStraight"/> advances to
+/// the next segment as soon as the aircraft's along-track projection passes the to-node (so an off-line
+/// overshoot advances instead of circling), and <see cref="Tick"/> enforces a hard orbit invariant —
+/// a single segment can never net <see cref="OrbitTurnLimitDeg"/> of turn (throws in tests; logs and
+/// force-advances in the app).
+/// </para>
+///
+/// <para>
 /// Responsibilities: steer along each route segment; manage speed; detect per-segment arrival. Not
 /// responsible for: route building, hold-short insertion, phase handoff, runway assignment.
 /// </para>
@@ -176,6 +187,33 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
     private bool _nextSegmentIsShort;
 
     /// <summary>
+    /// Net signed heading change (degrees) accumulated since the current segment was set up. Reset to 0
+    /// whenever a primitive begins (<see cref="SetupSegment"/> or the entry-alignment→real-segment swap)
+    /// and incremented each tick by the signed heading delta. Backstops the orbit invariant
+    /// (<see cref="OrbitTurnLimitDeg"/>): a single segment's playback can never net a full circle —
+    /// an arc sweeps &lt;180° (admissibility), a slow-turn &lt;180°, a straight ~0° — so reaching ±360°
+    /// without advancing means the navigator is circling a node it cannot converge on (a pure-pursuit
+    /// orbit). See the throw in <see cref="Tick"/>.
+    /// </summary>
+    private double _cumulativeTurnSinceAdvanceDeg;
+
+    /// <summary>
+    /// Hard ceiling on net turn within a single segment before the navigator is declared to be orbiting.
+    /// A full circle (360°) is unreachable by any legitimate single-segment maneuver, so crossing it is a
+    /// definitive pure-pursuit orbit — surfaced as a hard failure rather than an indefinite crawl.
+    /// </summary>
+    private const double OrbitTurnLimitDeg = 360.0;
+
+    /// <summary>
+    /// When true, a detected orbit (<see cref="OrbitTurnLimitDeg"/>) throws so the failure is impossible to
+    /// miss. The test assembly's module initializer sets this so every test that drives an aircraft into a
+    /// pure-pursuit orbit fails hard with an actionable message. In the shipping app it stays false: an
+    /// orbit is logged as an error and recovered by force-advancing past the unconvergeable node, never
+    /// crashing a live training session.
+    /// </summary>
+    public static bool ThrowOnOrbit { get; set; }
+
+    /// <summary>
     /// Rounding radius (ft) for the corner at the END of the current segment — adaptive: tightened from the
     /// comfortable nose-wheel radius toward the tight-turn floor when the approach/departure legs are shorter
     /// than the comfortable tangent length (two close junctions), so the corner-rounding arc still exits on
@@ -251,6 +289,7 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         _segmentFromLat = from.Position.Lat;
         _segmentFromLon = from.Position.Lon;
         PrevDistToTarget = double.MaxValue;
+        _cumulativeTurnSinceAdvanceDeg = 0.0;
 
         // Corner rounding: when the aircraft heading is significantly off the segment's first tangent,
         // build a slow-turn from its current pose to the segment's start direction and stash the real
@@ -359,6 +398,8 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
 
     public NavigatorResult Tick(PhaseContext ctx, bool isLastSegment, Func<int, bool> isHoldShortCleared)
     {
+        double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
+
         var result = _currentPrimitive switch
         {
             PathPrimitiveStraight s => TickStraight(ctx, s, isLastSegment, isHoldShortCleared),
@@ -366,6 +407,33 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
             PathPrimitiveSlowTurn t => TickSlowTurn(ctx, t),
             _ => NavigatorResult.ArrivedAtNode,
         };
+
+        // Orbit invariant: accumulate net signed heading change within the current primitive and hard-fail
+        // if it reaches a full circle without advancing. No legitimate single-segment maneuver nets 360°
+        // (an arc sweeps <180° by admissibility, a slow-turn <180°, a straight ~0°), so crossing it means
+        // the navigator is circling a node it cannot converge on — a pure-pursuit orbit that would otherwise
+        // crawl indefinitely at the slow-turn floor. Surfacing it as a throw makes every such case a hard
+        // test failure with an actionable message instead of a silent slow taxi.
+        _cumulativeTurnSinceAdvanceDeg += GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, headingBeforeDeg);
+        if (Math.Abs(_cumulativeTurnSinceAdvanceDeg) >= OrbitTurnLimitDeg)
+        {
+            string message =
+                $"[NavV2] pure-pursuit orbit: {ctx.Aircraft.Callsign} accumulated {_cumulativeTurnSinceAdvanceDeg:F0}° of net turn on "
+                + $"segment→node {TargetNodeId} ({_currentPrimitive?.Kind}) without advancing — it is circling a node it cannot "
+                + $"converge on. pos=({ctx.Aircraft.Position.Lat:F6},{ctx.Aircraft.Position.Lon:F6}) gs={ctx.Aircraft.GroundSpeed:F1}kt.";
+
+            if (ThrowOnOrbit)
+            {
+                throw new InvalidOperationException(message);
+            }
+
+            // Shipping app: never crash a live session. Log the invariant breach and recover by
+            // advancing past the node the navigator cannot converge on (the advance-on-pass guard in
+            // TickStraight should already prevent reaching here; this is the belt-and-suspenders path).
+            Log.LogError("{OrbitMessage}", message);
+            _cumulativeTurnSinceAdvanceDeg = 0.0;
+            return NavigatorResult.ArrivedAtNode;
+        }
 
         // When the entry-alignment slow-turn finishes, swap in the deferred
         // segment primitive and continue navigating in the same tick. The
@@ -391,6 +459,9 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
                 _arcRemainingSweepDeg = 0;
             }
             PrevDistToTarget = double.MaxValue;
+            // A new primitive begins — give it its own full-circle budget so a legitimate
+            // entry-alignment turn plus the segment's own turn don't sum across the swap.
+            _cumulativeTurnSinceAdvanceDeg = 0.0;
             Log.LogDebug("[NavV2] Entry alignment complete; engaging real segment primitive {Kind}", seg.Kind);
             return NavigatorResult.Navigating;
         }
@@ -466,6 +537,22 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         double edgeLengthNm = GeoMath.DistanceNm(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
 
+        // Foot-of-perpendicular along the segment line: along-track progress (alongNm) and cross-track
+        // offset (crossTrackOffsetFt). Computed once here for both the segment-advance test below and the
+        // pure-pursuit steering further down. A zero-length segment has nothing to project onto.
+        double alongNm = 0.0;
+        double crossTrackOffsetFt = 0.0;
+        if (edgeLengthNm >= 1e-9)
+        {
+            var (foot, along, _) = GeoMath.FootOfPerpendicular(
+                ctx.Aircraft.Position,
+                new LatLon(_segmentFromLat, _segmentFromLon),
+                new LatLon(TargetLat, TargetLon)
+            );
+            alongNm = along;
+            crossTrackOffsetFt = GeoMath.DistanceNm(ctx.Aircraft.Position, foot) * GeoMath.FeetPerNm;
+        }
+
         // Tight arrival threshold when any of:
         //   - last segment of the route (always stop precisely),
         //   - the current target is a stop (_currentNodeRequiredSpeed == 0),
@@ -516,7 +603,14 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && distNm < arrivalThresholdNm + 0.001;
         bool straightArrived = distNm <= arrivalThresholdNm;
 
-        if (straightArrived || overshot || stalledAtThreshold)
+        // Advance-on-pass: the aircraft's along-track projection has reached/passed the to-node. On the
+        // centerline this coincides with normal arrival; off the centerline (a pure-pursuit overshoot of a
+        // short segment) it advances instead of circling the node it can no longer converge on — the
+        // orbit the invariant in Tick() backstops. Excluded for stop targets and the last segment, where
+        // the aircraft must arrive precisely at the node rather than pass it.
+        bool passedAlongTrack = (edgeLengthNm >= 1e-9) && (alongNm >= edgeLengthNm) && !isStopTarget && !isLastSegment;
+
+        if (straightArrived || overshot || stalledAtThreshold || passedAlongTrack)
         {
             // Corrective nudge toward next segment bearing, bounded by turn rate.
             // Skipped for a sharp upcoming corner: the entry-alignment slow-turn
@@ -544,20 +638,13 @@ public sealed class GroundNavigatorV2 : IGroundNavigator
         // Fallback: a zero-length segment means we have nothing to project
         // onto. Steer at the target directly (matches pre-change behaviour).
         double bearingToSteerDeg;
-        double crossTrackOffsetFt = 0.0;
         if (edgeLengthNm < 1e-9)
         {
             bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
         }
         else
         {
-            var (foot, alongNm, _) = GeoMath.FootOfPerpendicular(
-                ctx.Aircraft.Position,
-                new LatLon(_segmentFromLat, _segmentFromLon),
-                new LatLon(TargetLat, TargetLon)
-            );
-            crossTrackOffsetFt = GeoMath.DistanceNm(ctx.Aircraft.Position, foot) * GeoMath.FeetPerNm;
-
+            // alongNm and crossTrackOffsetFt were computed once at the top of the tick.
             // Look-ahead scales with speed AND with the current cross-track
             // offset: re-acquiring a large offset (e.g. the from-rest spot-exit
             // pivot, which finishes ~30 ft off the line) with the short

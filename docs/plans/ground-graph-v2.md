@@ -256,9 +256,19 @@ than revert. Reverting would re-ship the systemic arc-undershoot.
   a misdiagnosed V2 departure-routing bug, fixed in `SegmentExpander` (final-transition runway anchor). Both
   test files pinned to `[Collection("V2 Acceptance")]` + `FilletMode.V2` and green under full V2; full
   cross-repo suite green. Attribute strip is part of the flip-cleanup.
-- Remaining before the flip can land green: (2) SFO-Nightly time-budget investigation (the long pole; note
-  the SFO-budget grid passed under V1 default in the 2026-05-31 grid run — it still needs validation under the
-  flip), (1) delete V1-pinned `TaxiPathfinderTests` with the flip, (3) A2c `SfoRampCrosses` fix-vs-delete.
+- **(2) DONE (2026-05-31):** the SFO-Nightly "time-budget" failures were a GroundNavigatorV2 **pure-pursuit
+  orbit**, not a too-tight budget. SFO's curved ramp taxiways (CG/SIG) arrive on the V2 graph as chains of
+  ~15 ft straight chords; a jet carrying taxi speed overshot a chord's to-node and circled it at 2–3 kt for
+  ~70 s (CG3→10L: 170 s, x1.52 over). V2 had dropped the Legacy orbit-stall backstop assuming clean fillets
+  never chord-chain. Fixed by **advance-on-pass** in `GroundNavigatorV2.TickStraight` (advance when the
+  along-track projection passes the to-node, regardless of cross-track) + a **hard orbit invariant** in
+  `Tick` (net turn on a single segment may never reach 360°; throws in tests via `ThrowOnOrbit`, logs +
+  force-advances in the app). All **717 SFO parking→runway pairs** now taxi within budget under full V2
+  (avg ramp speed ~10→~19 kt); the orbit guard surfaces any future orbit as a hard test failure.
+  Aviation-reviewed SOUND. Regression: `V2Acceptance.SfoRampOrbitRegressionTests`. (Follow-up: confirm the
+  corner-speed model reads aggregate chord-chain curvature, not per-chord — separate.)
+- Remaining before the flip can land green: (1) delete V1-pinned `TaxiPathfinderTests` with the flip,
+  (3) A2c `SfoRampCrosses` fix-vs-delete.
 
 ## Current focus / next up
 

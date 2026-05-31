@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -13,6 +14,10 @@ internal static class ModuleInit
     [ModuleInitializer]
     public static void Initialize()
     {
+        // Surface any pure-pursuit orbit (GroundNavigatorV2 circling a node it can't converge on) as a
+        // hard test failure. The shipping app leaves this false and recovers gracefully instead.
+        GroundNavigatorV2.ThrowOnOrbit = true;
+
         var testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
         Yaat.Sim.Testing.TestVnasData.SetTestDataDir(testDataDir);
 
