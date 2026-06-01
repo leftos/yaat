@@ -1,7 +1,9 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim;
 
@@ -92,6 +94,12 @@ public static class AircraftStatusDescriber
         public string? FollowingCallsign { get; init; }
         public double? AssignedAltitude { get; init; }
         public double? AssignedHeading { get; init; }
+
+        /// <summary>Climb target altitude (feet MSL) while in the InitialClimb phase; drives the "↑ {alt}" departure suffix.</summary>
+        public double? TargetAltitude { get; init; }
+
+        /// <summary>Departure clearance retained by the InitialClimb phase; drives the departure lateral descriptor.</summary>
+        public DepartureInstruction? Departure { get; init; }
         public int NavigationRouteCount { get; init; }
         public string NavigationRouteDisplay { get; init; } = "";
         public bool IsDelayed { get; init; }
@@ -127,6 +135,8 @@ public static class AircraftStatusDescriber
                 FollowingCallsign = ac.Approach.FollowingCallsign,
                 AssignedAltitude = ac.Targets.AssignedAltitude,
                 AssignedHeading = ac.Targets.AssignedMagneticHeading?.Degrees,
+                TargetAltitude = ac.Targets.TargetAltitude,
+                Departure = (ac.Phases?.CurrentPhase as InitialClimbPhase)?.Departure,
                 NavigationRouteCount = navNames.Count,
                 NavigationRouteDisplay = string.Join(" ", navNames),
                 IsDelayed = ctx.IsDelayed,
@@ -280,12 +290,54 @@ public static class AircraftStatusDescriber
     private static string FormatInitialClimbStatus(AircraftStatusView i)
     {
         var text = $"departing {i.DepartureRunway}";
-        if (!string.IsNullOrEmpty(i.ActiveSidId))
+        var lateral = FormatDepartureLateral(i);
+        if (!string.IsNullOrEmpty(lateral))
         {
-            return $"{text}, {i.ActiveSidId}";
+            text = $"{text}, {lateral}";
+        }
+        if (i.TargetAltitude.HasValue)
+        {
+            text = $"{text}, ↑ {FormatAltitudeCompact(i.TargetAltitude.Value)}";
         }
         return text;
     }
+
+    /// <summary>
+    /// The lateral half of the departure status: where the aircraft is going after takeoff. SID takes
+    /// precedence; a set <see cref="AircraftStatusView.PatternDirection"/> means closed traffic (this
+    /// survives snapshot restore, unlike the instruction type); otherwise the retained
+    /// <see cref="DepartureInstruction"/> is matched. A <see cref="DefaultDeparture"/> with a loaded
+    /// route fix is IFR ("→ {fix}"); without one it is VFR runway heading.
+    /// </summary>
+    private static string FormatDepartureLateral(AircraftStatusView i)
+    {
+        if (!string.IsNullOrEmpty(i.ActiveSidId))
+        {
+            return i.ActiveSidId;
+        }
+        if (!string.IsNullOrEmpty(i.PatternDirection))
+        {
+            return $"{i.PatternDirection.ToLowerInvariant()} traffic";
+        }
+
+        return i.Departure switch
+        {
+            ClosedTrafficDeparture ct => $"{ct.Direction.ToString().ToLowerInvariant()} traffic",
+            OnCourseDeparture => "on course",
+            DirectFixDeparture d => $"→ {d.FixName}",
+            FlyHeadingDeparture fh => FormatHeadingLateral(fh.Direction, fh.MagneticHeading.Degrees),
+            RelativeTurnDeparture rt => $"{rt.Direction.ToString().ToLowerInvariant()} turn {rt.Degrees}°",
+            RunwayHeadingDeparture => "runway heading",
+            DefaultDeparture => string.IsNullOrEmpty(i.NavigatingTo) ? "runway heading" : $"→ {i.NavigatingTo}",
+            null => !string.IsNullOrEmpty(i.NavigatingTo) ? $"→ {i.NavigatingTo}"
+            : i.AssignedHeading.HasValue ? $"hdg {i.AssignedHeading.Value:F0}"
+            : "",
+            _ => "",
+        };
+    }
+
+    private static string FormatHeadingLateral(TurnDirection? dir, double deg) =>
+        dir is null ? $"hdg {deg:F0}" : $"{dir.ToString()!.ToLowerInvariant()} turn hdg {deg:F0}";
 
     private static string FormatApproachNavStatus(AircraftStatusView i)
     {

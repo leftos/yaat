@@ -230,7 +230,9 @@ The **Info** column shows a contextual summary of each aircraft's state.
 | Handoff in progress | "HO → {sector}" | Gold |
 | Airborne, no phase/SID/STAR, no altitude assignment, no nav route | "No altitude asgn" | Gold |
 
-**Phase-based status** (white, when no alerts apply): Describes the current phase — e.g., "Taxi to RWY 28R via A B C", "LUAW 28R", "Departing 28R, OAK5", "ILS28R → CEPIN DUMBA AXMUL", "Left downwind 28R", "Landing 28R".
+**Phase-based status** (white, when no alerts apply): Describes the current phase — e.g., "Taxi to RWY 28R via A B C", "LUAW 28R", "Departing 28R, hdg 270, ↑ 3,000", "ILS28R → CEPIN DUMBA AXMUL", "Left downwind 28R", "Landing 28R".
+
+**Departing aircraft** add their lateral clearance and climb target after the runway: the lateral part is the SID name, "hdg 270" (with "left/right turn" when a turn direction was assigned), "→ {fix}", "on course", "runway heading", or "{left/right} traffic" for closed traffic; the vertical part is "↑ {altitude}" for the climb target. Examples: "Departing 28R, OAK5, ↑ 5,000", "Departing 28R, → VPMID, ↑ 3,000", "Departing 28R, right traffic, ↑ 1,400".
 
 **No-phase fallback** (white, when no phase is active): Shows climb/descent arrows with altitude ("↑ FL350", "↓ 5,000"), navigation route ("→ OAK SFO LAX"), or "On ground" / "FL350, on course".
 

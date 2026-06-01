@@ -1,5 +1,7 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Phases;
 using static Yaat.Sim.AircraftStatusDescriber;
 
 namespace Yaat.Client.Tests;
@@ -296,17 +298,180 @@ public class SmartStatusTests
     }
 
     [Fact]
-    public void InitialClimb_WithHeading_SuppressesHdgSuffix()
+    public void InitialClimb_Sid_TakesPrecedence_WithTargetAltitude()
     {
         var v = new AircraftStatusView
         {
             CurrentPhase = "InitialClimb",
             DepartureRunway = "28R",
-            ActiveSidId = "",
+            ActiveSidId = "OAK5",
+            Departure = new OnCourseDeparture(),
+            TargetAltitude = 5000,
+        };
+        Assert.Equal("Departing 28R, OAK5, ↑ 5,000", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_FlyHeading_NoTurn()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new FlyHeadingDeparture(new MagneticHeading(270), null),
+            TargetAltitude = 3000,
+        };
+        Assert.Equal("Departing 28R, hdg 270, ↑ 3,000", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_FlyHeading_WithTurnDirection()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new FlyHeadingDeparture(new MagneticHeading(270), TurnDirection.Right),
+            TargetAltitude = 3000,
+        };
+        Assert.Equal("Departing 28R, right turn hdg 270, ↑ 3,000", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_RelativeTurn()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new RelativeTurnDeparture(90, TurnDirection.Right),
+            TargetAltitude = 2000,
+        };
+        Assert.Equal("Departing 28R, right turn 90°, ↑ 2,000", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_OnCourse()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new OnCourseDeparture(),
+            TargetAltitude = 5000,
+        };
+        Assert.Equal("Departing 28R, on course, ↑ 5,000", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_DirectFix()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new DirectFixDeparture("VPMID", 37.5, -122.2, null),
+            TargetAltitude = 3000,
+        };
+        Assert.Equal("Departing 28R, → VPMID, ↑ 3,000", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_RunwayHeading()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new RunwayHeadingDeparture(),
+            TargetAltitude = 3000,
+        };
+        Assert.Equal("Departing 28R, runway heading, ↑ 3,000", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_DefaultDeparture_Ifr_ShowsRouteFix()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new DefaultDeparture(),
+            NavigatingTo = "SUTRO",
+            TargetAltitude = 5000,
+        };
+        Assert.Equal("Departing 28R, → SUTRO, ↑ 5,000", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_DefaultDeparture_Vfr_RunwayHeading()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new DefaultDeparture(),
+            NavigatingTo = "",
+            TargetAltitude = 1400,
+        };
+        Assert.Equal("Departing 28R, runway heading, ↑ 1,400", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_ClosedTraffic_ViaPatternDirection()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            PatternDirection = "Right",
+            TargetAltitude = 1400,
+        };
+        Assert.Equal("Departing 28R, right traffic, ↑ 1,400", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_ClosedTraffic_ViaInstruction()
+    {
+        // No PatternDirection (e.g. after a snapshot restore where it survives but the
+        // instruction degraded) — the live ClosedTrafficDeparture still renders the leg.
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null),
+            TargetAltitude = 1400,
+        };
+        Assert.Equal("Departing 28R, left traffic, ↑ 1,400", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_TargetAltitude_FlightLevel()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = new OnCourseDeparture(),
+            TargetAltitude = 23000,
+        };
+        Assert.Equal("Departing 28R, on course, ↑ FL230", Text(v));
+    }
+
+    [Fact]
+    public void InitialClimb_NoDeparture_FallsBackToAssignedHeading()
+    {
+        // No retained departure instruction (or one not yet set): fall back to the
+        // assigned magnetic heading. No target altitude → no vertical suffix.
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "InitialClimb",
+            DepartureRunway = "28R",
+            Departure = null,
             AssignedHeading = 280,
             NavigatingTo = "",
         };
-        Assert.Equal("Departing 28R", Text(v));
+        Assert.Equal("Departing 28R, hdg 280", Text(v));
     }
 
     [Fact]
