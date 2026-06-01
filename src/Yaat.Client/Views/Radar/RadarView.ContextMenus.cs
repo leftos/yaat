@@ -101,7 +101,16 @@ public partial class RadarView
         }
 
         menu.Items.Add(new Separator());
-        menu.AddCommandTextBox(cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
+        menu.Items.Add(
+            CreateMenuItem(
+                "Command…",
+                () =>
+                {
+                    CommandFlyout.Open(_canvas!, callsign, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
+                    return Task.CompletedTask;
+                }
+            )
+        );
         menu.Items.Add(new Separator());
 
         menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));

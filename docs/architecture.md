@@ -238,7 +238,7 @@ Views/
   TimelineMarkerCanvas.cs       # SkiaSharp canvas overlaying TimelineMarkerVm ticks above the rewind scrub slider; finding markers above, command markers slightly lower; supports hit-testing and hover tooltips.
   ManageWindowProfilesDialog.axaml(.cs)  # View → Window Profiles dialog: list saved profiles, switch, rename, delete
   SaveWindowProfileDialog.axaml(.cs)     # Name-entry dialog for saving the current window arrangement as a new profile
-  ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
+  CommandFlyout.cs              # Floating focused command-entry popup opened from aircraft right-click menus (radar/ground/flight list)
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
 
 Views/Map/

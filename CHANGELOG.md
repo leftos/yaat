@@ -24,6 +24,7 @@
 - Commands that combine a verb with a modifier — `RES CROSS 28L`, `RES HS B`, `CLAND NODEL` — are now accepted when typed in the command box, instead of being rejected with a misleading "callsign is not a recognized command" error; previously the modifier form only worked when split into separate commands (e.g. `RES; CROSS 28L`).
 - An aircraft pre-cleared across an upcoming runway with a sequential `RES; CROSS <rwy>` no longer briefly flashes "holding short" of that runway before crossing — the crossing clearance now applies as soon as the aircraft resumes taxiing, rather than waiting until it reaches the hold line.
 - Conflict alerts now fire between VFR aircraft at the standard STARS thresholds (3 NM / 1,000 ft), matching CRC, instead of only when their targets were nearly merged.
+- The right-click **Command** entry on the radar, ground, and flight-list views now opens a focused popup you can type a command into.
 - A VFR pattern aircraft told to FOLLOW traffic that is ahead of it (turning base or on final) now extends its downwind to fall in behind that traffic, instead of turning base at its own normal point and overtaking the aircraft it was told to follow. If it reaches its maximum downwind extension before it has spacing, it turns base and reports that the spacing is tight so you can re-sequence.
 
 ## v0.4.0-beta [2026/05/27]

@@ -179,7 +179,9 @@ public partial class DataGridView : UserControl
         );
         menu.Items.Add(new Separator());
 
-        menu.AddCommandTextBox(cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        var commandItem = new MenuItem { Header = "Command…" };
+        commandItem.Click += (_, _) => CommandFlyout.Open(grid, callsign, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        menu.Items.Add(commandItem);
         menu.Items.Add(new Separator());
 
         menu.Items.Add(FavoritesContextMenu.Build(vm, ac, callsign, initials));
