@@ -4,8 +4,8 @@
 > so future agents (and humans) stop re-parsing the same big, complex parts of the codebase on
 > every task. Produced by a 22-agent gap-analysis workflow over **both repos** (yaat + yaat-server).
 >
-> **Status:** **All Tier-1 docs (#1–#7) + the `logging.md` quick win (#15) drafted + adversarially verified**
-> (✅ in the tables below). Tier 2 (#8–#14) and the rest of Tier 3 (#16–#18) remain candidates. Per-item
+> **Status:** **Tier 1 (#1–#7), Tier 2 (#8–#14), and the `logging.md` quick win (#15) all drafted + adversarially verified**
+> (✅ in the tables below). Only Tier-3 items #16–#18 remain candidates. Per-item
 > drafting material (complete outline, every footgun, the measured cold-read cost) is in the verbatim
 > appendix: [doc-coverage-opportunities.detail.md](doc-coverage-opportunities.detail.md).
 
@@ -47,13 +47,13 @@ Tiers are my synthesis over the agents' (mostly uniform) priority scores, ranked
 
 | # | Proposed doc | Scope (one line) | Effort | Churn | Cold-read cost |
 |---|---|---|---|---|---|
-| 8 | `approach-and-pattern-geometry.md` | Airborne approach/pattern/hold/intercept geometry (the most bug-reported area) | L | High | ~6K LOC / 18–22 files |
-| 9 | `conflict-and-visual-detection.md` | Airborne CA / ground proximity / ATPA wake / visual acquisition + thresholds | M | High | ~2.4K LOC / 10–12 files |
-| 10 | `scenario-loading-and-generation.md` | The two spawn pipelines + four runtime queues; spawn-state bugs start here | L | Med-High | ~3K LOC / 9 files |
-| 11 | `solo-training-evaluation.md` | The scoring rule-to-code map (27 7110.65/AIM refs), same-runway tracker | L | Med | ~6.2K LOC / 10 files (3.5K in one class) |
-| 12 | `track-sharing-and-consolidation.md` | STARS/ERAM shared datablock state, pointouts, the consolidation hierarchy | M | Med | ~1.5–1.8K LOC / ~19 files, **2 repos** |
-| 13 | `client-mainviewmodel.md` | The client integration seam: threading, scenario bootstrap fan-out, lifecycle | M | High | ~8.3K LOC / 8–11 files |
-| 14 | `radar-rendering.md` | SkiaSharp two-thread render pipeline, datablock geometry, context menus | L | High | ~5.5K LOC / 12–15 files |
+| 8 | ✅ `approach-and-pattern-geometry.md` | Airborne approach/pattern/hold/intercept geometry (the most bug-reported area) | L | High | ~6K LOC / 18–22 files |
+| 9 | ✅ `conflict-and-visual-detection.md` | Airborne CA / ground proximity / ATPA wake / visual acquisition + thresholds | M | High | ~2.4K LOC / 10–12 files |
+| 10 | ✅ `scenario-loading-and-generation.md` | The two spawn pipelines + four runtime queues; spawn-state bugs start here | L | Med-High | ~3K LOC / 9 files |
+| 11 | ✅ `solo-training-evaluation.md` | The scoring rule-to-code map (27 7110.65/AIM refs), same-runway tracker | L | Med | ~6.2K LOC / 10 files (3.5K in one class) |
+| 12 | ✅ `track-sharing-and-consolidation.md` | STARS/ERAM shared datablock state, pointouts, the consolidation hierarchy | M | Med | ~1.5–1.8K LOC / ~19 files, **2 repos** |
+| 13 | ✅ `client-mainviewmodel.md` | The client integration seam: threading, scenario bootstrap fan-out, lifecycle | M | High | ~8.3K LOC / 8–11 files |
+| 14 | ✅ `radar-rendering.md` | SkiaSharp two-thread render pipeline, datablock geometry, context menus | L | High | ~5.5K LOC / 12–15 files |
 
 ### Tier 3 — useful, contained (good quick wins)
 
@@ -240,8 +240,8 @@ places, and the 6 MB checked-in Brotli fixture.
 
 ## Next steps
 
-**Done:** all of Tier 1 (#1–#7) plus the #15 `logging.md` quick win — drafted and adversarially verified;
+**Done:** Tier 1 (#1–#7), Tier 2 (#8–#14), and the #15 `logging.md` quick win — all drafted and adversarially verified;
 the incidental findings are resolved (see above).
 
-**Remaining, by leverage:** Tier 2 (#8–#14) and the rest of Tier 3 (#16–#18). Each is self-contained
-drafting work using its appendix block.
+**Remaining:** only Tier-3 #16 `command-input-ux.md`, #17 `weather-and-wind.md`, #18 `airspace-database.md`. Each is
+self-contained drafting work using its appendix block.

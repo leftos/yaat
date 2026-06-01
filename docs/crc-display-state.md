@@ -1,6 +1,6 @@
 # CRC Display State & Broadcast
 
-> Read this before touching `CrcClientState`, `CrcBroadcastService`, `CrcVisibilityTracker`, `DtoConverter`, or any `CrcDtos*.cs` file. Adding fields to ERAM/STARS/ASDEX/TowerCab data without following the contract here leads to silent gaps where mid-session subscribers don't see state.
+> Read this before touching `CrcClientState`, `CrcBroadcastService`, `CrcVisibilityTracker`, `DtoConverter`, or any `CrcDtos*.cs` file. Adding fields to ERAM/STARS/ASDEX/TowerCab data without following the contract here leads to silent gaps where mid-session subscribers don't see state. For the consolidation hierarchy and per-track shared display state (STARS/ERAM pointouts, consolidation ownership) that rides these topics, see [track-sharing-and-consolidation.md](track-sharing-and-consolidation.md).
 
 ## Architecture in one diagram
 
