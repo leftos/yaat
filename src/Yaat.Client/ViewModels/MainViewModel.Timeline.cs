@@ -526,7 +526,7 @@ public partial class MainViewModel
         }
     }
 
-    private void ApplyRecordingResult(RewindResultDto result)
+    internal void ApplyRecordingResult(RewindResultDto result)
     {
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.ScenarioName;

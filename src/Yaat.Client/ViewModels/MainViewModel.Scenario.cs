@@ -471,7 +471,7 @@ public partial class MainViewModel
     /// signature, ApplySessionSettings*, _studentPositionType, prefs push,
     /// StatusText/AddSystemEntry — stay at the call site.
     /// </summary>
-    private void ApplyScenarioBootstrap(ScenarioBootstrap bootstrap)
+    internal void ApplyScenarioBootstrap(ScenarioBootstrap bootstrap)
     {
         ActiveScenarioId = bootstrap.ScenarioId;
         ActiveScenarioName = bootstrap.ScenarioName;
