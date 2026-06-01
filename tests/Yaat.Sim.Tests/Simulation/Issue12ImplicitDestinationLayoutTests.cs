@@ -25,7 +25,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// (<see cref="AircraftState.AirportId"/>), without writing into the flight plan.
 ///
 /// Reference bundle (the real-world report this fix is for):
-/// <c>TestData/issue12-implicit-dest-layout-recording.yaat-bug-report-bundle.zip</c>
+/// <c>TestData/e5c26ff62464.zip</c>
 /// — S2-OAK-5 "Practical Exam Preparation / Advanced Concepts". In it the
 /// controller had to manually amend Destination=KOAK on N655EX (t=1583) and
 /// N10194 (t=356) before they would taxi after landing; a straight replay

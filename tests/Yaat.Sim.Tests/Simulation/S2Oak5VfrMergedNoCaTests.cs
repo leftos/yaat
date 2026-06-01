@@ -25,7 +25,7 @@ namespace Yaat.Sim.Tests.Simulation;
 [Collection("NavDbMutator")]
 public class S2Oak5VfrMergedNoCaTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/s2-oak5-vfr-merged-no-ca-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/e5c26ff62464.zip";
     private const int RestoreAtSeconds = 400;
     private const string CallsignA = "N436MS";
     private const string CallsignB = "N10194";

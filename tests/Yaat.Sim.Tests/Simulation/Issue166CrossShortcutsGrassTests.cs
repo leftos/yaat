@@ -25,7 +25,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue166-cross-shortcuts-grass-recording.zip";
+    private const string RecordingPath = "TestData/b872b01f688a.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -226,7 +226,7 @@ public class Issue166CrossShortcutsGrassTests(ITestOutputHelper output)
 [Collection("Acceptance")]
 public class Issue166CrossPreClearedTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue166-cross-shortcuts-grass-recording.zip";
+    private const string RecordingPath = "TestData/b872b01f688a.zip";
 
     [Fact]
     public void Ual19_FollowsHTaxiLineThroughRunwayCrossing_PreCleared()

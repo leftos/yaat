@@ -28,7 +28,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue165-skw3404-sfo-taxi-spin-recording.zip";
+    private const string RecordingPath = "TestData/b872b01f688a.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

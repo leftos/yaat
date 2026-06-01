@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class ScratchpadOverlengthReplayTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/n346g-scratchpad-overlength-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/e5c26ff62464.zip";
     private const string Callsign = "N436MS";
 
     // SP1 N346G is applied at t=74; a bare SP1 (clear/toggle) follows at t=160. Asserting at
