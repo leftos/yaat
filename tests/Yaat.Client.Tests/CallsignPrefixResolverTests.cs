@@ -62,6 +62,23 @@ public class CallsignPrefixResolverTests
         Assert.Equal("FH 270", resolved.Remainder);
     }
 
+    [Theory]
+    [InlineData("N7LJ RES CROSS 28L", "RES CROSS 28L")]
+    [InlineData("n7lj res cross 28l", "res cross 28l")]
+    [InlineData("N7LJ CLAND NODEL", "CLAND NODEL")]
+    public void Resolved_ModifierOnlyVerb_StripsCallsign(string input, string expectedRemainder)
+    {
+        // Regression (S2-OAK-5): "N7LJ RES CROSS 28L" must strip the callsign. The combined
+        // RES CROSS form previously failed ParseCompound (Resume was ArgMode.None), so the
+        // remainder didn't parse, the callsign wasn't stripped, and the verb "N7LJ" was
+        // reported as an unknown command.
+        var result = CallsignPrefixResolver.Resolve(input, Scheme, Aircraft("N7LJ", "N1234"));
+
+        var resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
+        Assert.Equal("N7LJ", resolved.Aircraft.Callsign);
+        Assert.Equal(expectedRemainder, resolved.Remainder);
+    }
+
     [Fact]
     public void NotAPrefix_UniqueMatch_RemainderNotACommand()
     {

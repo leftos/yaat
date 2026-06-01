@@ -16,6 +16,7 @@
 - Ground taxi-route previews (the right-click route options and the route-drawing preview) now use the aircraft's actual performance category instead of always assuming a jet, so a turboprop, piston, or helicopter preview matches the route the taxi command will actually produce.
 - When two aircraft's ground paths cross, the conflict resolver now stops one and lets the other proceed at normal taxi speed instead of slowing both to a crawl; an aircraft clearing the runway keeps priority over a taxiing aircraft crossing its path, and an aircraft giving way holds steadily instead of creeping forward.
 - An aircraft still exiting the runway it just landed on, when given a TAXI whose route crosses that same runway, now taxis clear to finish its exit instead of incorrectly holding short of the runway it is leaving.
+- Commands that combine a verb with a modifier — `RES CROSS 28L`, `RES HS B`, `CLAND NODEL` — are now accepted when typed in the command box, instead of being rejected with a misleading "callsign is not a recognized command" error; previously the modifier form only worked when split into separate commands (e.g. `RES; CROSS 28L`).
 
 ## v0.4.0-beta [2026/05/27]
 

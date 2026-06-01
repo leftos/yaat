@@ -28,9 +28,20 @@ public record CommandDefinition(
     {
         bool hasBare = Overloads.Any(o => o.Parameters.Length == 0);
         bool hasParams = Overloads.Any(o => o.Parameters.Length > 0);
-        if (!hasParams)
+        // Compound modifiers (e.g. RES CROSS <rwy>, CLAND NODEL) are optional arguments too —
+        // a verb whose only overload is bare but that carries modifiers still accepts input.
+        // Without this, the client parser rejects "RES CROSS 28L" with "does not accept
+        // arguments", which then prevents the callsign prefix from being stripped.
+        bool hasModifiers = CompoundModifiers is { Length: > 0 };
+        if (!hasParams && !hasModifiers)
         {
             return ArgMode.None;
+        }
+
+        if (!hasParams)
+        {
+            // Modifier-only verb: the bare form is always valid, so the argument is optional.
+            return ArgMode.Optional;
         }
 
         return hasBare ? ArgMode.Optional : ArgMode.Required;
