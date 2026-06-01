@@ -1201,6 +1201,7 @@ public partial class MainViewModel : ObservableObject
         _connection.AircraftAssignmentsChanged += OnAircraftAssignmentsChanged;
         _connection.SessionSettingsChanged += OnSessionSettingsChanged;
         _connection.KickedFromRoom += OnKickedFromRoom;
+        _connection.RoomRetired += OnRoomRetired;
 
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;

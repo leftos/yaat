@@ -83,6 +83,7 @@ public sealed class BrowserStripsTransport : IStripsTransport, IAsyncDisposable
         _connection.On<List<StripItemDto>>("StripItemsChanged", items => StripItemsChanged?.Invoke(items));
         _connection.On<BrowserScenarioLoadedDto>("ScenarioLoaded", dto => StripsConfigChanged?.Invoke(dto.FlightStripsConfig));
         _connection.On("ScenarioUnloaded", () => StripsConfigChanged?.Invoke(null));
+        _connection.On<string>("RoomRetired", _ => StripsConfigChanged?.Invoke(null));
         _connection.On<string>("RoomAvailableForCid", roomId => RoomAvailableForCid?.Invoke(roomId));
 
         _connection.Reconnecting += error =>

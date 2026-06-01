@@ -682,6 +682,18 @@ public partial class MainViewModel
         });
     }
 
+    private void OnRoomRetired(string reason)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            AddSystemEntry(reason);
+            ClearRoomState();
+            StatusText = reason;
+            await RefreshRoomListAsync();
+            ShowRoomList = true;
+        });
+    }
+
     private void OnCrcLobbyChanged(CrcLobbyChangedDto dto)
     {
         _log.LogInformation(
