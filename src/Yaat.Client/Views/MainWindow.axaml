@@ -43,6 +43,9 @@
                 <MenuItem Header="_Members..."
                           Command="{Binding ToggleRoomMembersPanelCommand}"
                           IsEnabled="{Binding IsInRoom}" />
+                <MenuItem Header="_Controllers..."
+                          x:Name="ControllersMenuItem"
+                          IsEnabled="{Binding IsInRoom}" />
                 <Separator />
                 <MenuItem Header="_Leave Room"
                           Command="{Binding LeaveRoomCommand}" />

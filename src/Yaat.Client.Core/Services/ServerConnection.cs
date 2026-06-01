@@ -667,6 +667,12 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<List<CrcRoomMemberDto>>("GetCrcRoomMembers");
     }
 
+    public async Task<List<OnlineControllerDto>> GetOnlineControllersAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<OnlineControllerDto>>("GetOnlineControllers");
+    }
+
     // --- Lifecycle ---
 
     public async ValueTask DisposeAsync()
@@ -999,6 +1005,24 @@ public record CrcLobbyChangedDto(List<CrcLobbyClientDto> Clients);
 public record CrcRoomMemberDto(string ClientId, string? Cid, string? DisplayName, string? PositionId, bool IsActive);
 
 public record CrcRoomMembersChangedDto(string RoomId, List<CrcRoomMemberDto> Members);
+
+public record OnlineControllerDto(
+    string Callsign,
+    string Frequency,
+    string? FacilityId,
+    string? FacilityName,
+    string PositionType,
+    string? Tcp,
+    string? RadioName,
+    string RealName,
+    bool IsActive,
+    bool IsScenarioPosition
+)
+{
+    public string StatusText => IsActive ? "Active" : "Standby";
+
+    public string SourceText => IsScenarioPosition ? "Scenario" : "CRC";
+}
 
 public record GroundLayoutDto(
     string AirportId,

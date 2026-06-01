@@ -521,6 +521,9 @@ public partial class MainViewModel
         // accessible facility if the primary airport isn't a TDLS facility.
         // No-op silently if the position has no TDLS-configured facility.
         _ = BootstrapStudentTdlsAsync(bootstrap.PrimaryAirportId);
+
+        // Scenario auto-connect ATC positions appear in the controller list.
+        _ = RefreshOnlineControllersAsync();
     }
 
     private async Task BootstrapStudentTdlsAsync(string? primaryAirportId)
@@ -592,6 +595,9 @@ public partial class MainViewModel
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
         ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, false, 100, 100, 0, false, false, false));
+
+        // Scenario positions are gone; refresh to leave only live CRC controllers (if any).
+        _ = RefreshOnlineControllersAsync();
     }
 }
 

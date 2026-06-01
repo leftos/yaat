@@ -184,6 +184,12 @@ public partial class MainWindow : Window
             favoritesPanelItem.Click += OnFavoritesPanelClick;
         }
 
+        var controllersItem = this.FindControl<MenuItem>("ControllersMenuItem");
+        if (controllersItem is not null)
+        {
+            controllersItem.Click += OnControllersClick;
+        }
+
         var crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
         if (crcItem is not null)
         {
@@ -325,6 +331,14 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             FavoritesPanelWindow.ShowOrActivate(vm, this);
+        }
+    }
+
+    private void OnControllersClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            ControllersWindow.ShowOrActivate(vm, this);
         }
     }
 

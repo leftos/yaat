@@ -725,6 +725,8 @@ public partial class MainViewModel
             {
                 CrcRoomMembers.Add(c);
             }
+
+            _ = RefreshOnlineControllersAsync();
         });
     }
 
