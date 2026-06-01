@@ -381,12 +381,12 @@ WeatherTimeline.cs             # Time-based weather evolution: list of WeatherPe
                                # HasMeaningfulChange: rate-limits broadcasts (direction >1°, speed >0.5kt tolerance)
 WeatherTimelineParser.cs       # Static v1/v2 auto-detection parser: checks for "periods" array → WeatherTimeline, else → WeatherProfile
                                # Returns WeatherParseResult discriminated union (Timeline | Profile | Error)
-WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360), IasToTas (8-point
-                               # lookup table), TasToIas, MachToIas (ISA speed-of-sound model), ComputeWindCorrectionAngle
+WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360),
+                               # IasToTas/TasToIas/MachToIas/IasToMach (ISA compressible-flow equations), ComputeWindCorrectionAngle
 MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record
 MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm
 WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
-MagneticDeclination.cs         # Static: approximate CONUS magnetic declination from lon; TrueToMagnetic conversion
+MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library; TrueToMagnetic/MagneticToTrue conversion
 VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
                                # Returns VisualAcquisitionResult { Acquired, Reason, DistanceNm, MaxRangeNm }
                                # VisualAcquisitionFailure enum: InClassA, AboveCeiling, MixedCeiling, BehindOwnship, OccludedByBank, OutOfRange, OppositeSideOfRunway
@@ -415,7 +415,7 @@ TrackOwnerType.cs              # Enum: Other, Eram, Stars, Caats, Atop
 Tcp.cs                         # Record: Subset, SectorId, Id, ParentTcpId
 StarsPointout.cs / StarsPointoutStatus.cs  # Pointout state
 EramPointoutState.cs           # Per-aircraft ERAM pointout record (mirrors vatsim-server-rs radar_state::PointoutState)
-                               # Runtime-only: not round-tripped through AircraftSnapshotDto, consistent with other ERAM per-track state
+                               # Round-tripped via the Eram satellite (AircraftEramStateDto.Pointouts/ForcedPointoutsTo), like other serialized ERAM state
 
 # Coordination
 CoordinationChannel.cs         # Channel config: ListId, Title, SendingTcps, Receivers, Items

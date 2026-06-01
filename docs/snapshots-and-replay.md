@@ -51,7 +51,6 @@ Some state is intentionally runtime-only:
 - **`AircraftState.DeclinationCachePosition`** — `null` means "not cached"; warms up on the first tick after a round-trip.
 - **`Ground.Layout`** is `[JsonIgnore]`. Only `Ground.LayoutAirportId` round-trips. On restore, `SimulationEngine` re-resolves the layout from the airport ID against the loaded ground graphs. This avoids embedding an entire taxiway graph per aircraft.
 - **`PendingObservations`** (pilot "watch for condition" state) — ephemeral, never restored.
-- **`EramPointoutState`** — runtime-only, consistent with other ERAM per-track state.
 
 If you see `[JsonIgnore]` on a field, also check that there's a separate carrier (like `LayoutAirportId`) that lets restore reattach.
 
