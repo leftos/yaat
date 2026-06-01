@@ -1639,9 +1639,12 @@ public static class FlightPhysics
             return;
         }
 
-        // Only fire on phases that actively wait for input (have unsatisfied
-        // clearance requirements). Transient phases that auto-advance must let
-        // the queue keep its untriggered head block.
+        // Fire when the aircraft reaches a phase that waits for input (an unsatisfied clearance
+        // requirement). Additionally, fire a queued runway-crossing clearance as soon as the
+        // aircraft is taxiing again (see the CROSS guard in the loop below): a CROSS block
+        // pre-clears an upcoming crossing and is idempotent, so applying it while moving lets
+        // "RES; CROSS 28L" clear 28L before arrival instead of installing a transient
+        // HoldingShortPhase — and its spurious "holding short" warning — at the runway crossed.
         bool isWaitPhase = false;
         foreach (var req in currentPhase.Requirements)
         {
@@ -1651,7 +1654,8 @@ public static class FlightPhysics
                 break;
             }
         }
-        if (!isWaitPhase)
+        bool movingGroundPhase = currentPhase is Phases.Ground.TaxiingPhase or Phases.Ground.CrossingRunwayPhase;
+        if (!isWaitPhase && !movingGroundPhase)
         {
             return;
         }
@@ -1680,6 +1684,14 @@ public static class FlightPhysics
                 return;
             }
 
+            // On a moving (non-wait) ground phase, only eager-apply runway-crossing clearances.
+            // Other queued blocks (e.g. HOLD) keep waiting for the next hold-short phase so the
+            // aircraft doesn't stop prematurely.
+            if (!isWaitPhase && !parsed.Exists(c => c is CrossRunwayCommand))
+            {
+                return;
+            }
+
             foreach (var cmd in parsed)
             {
                 var canonical = CommandDescriber.ToCanonicalType(cmd);
@@ -1691,7 +1703,7 @@ public static class FlightPhysics
             }
 
             Log.LogDebug(
-                "[PhaseAdvanced] {Callsign}: new wait phase {Phase} accepts queued block {Idx} ({Desc}); firing",
+                "[PhaseAdvanced] {Callsign}: phase {Phase} accepts queued block {Idx} ({Desc}); firing",
                 aircraft.Callsign,
                 currentPhase.GetType().Name,
                 i,
