@@ -263,6 +263,14 @@ public partial class AircraftModel : ObservableObject
     private string? _followingCallsign;
 
     /// <summary>
+    /// Callsign of the traffic this aircraft most recently reported in sight (via
+    /// RTIS/RTISF). Null until a successful report. Used to gate the "follow this
+    /// traffic" context-menu item to traffic the aircraft can actually see.
+    /// </summary>
+    [ObservableProperty]
+    private string? _lastReportedTrafficCallsign;
+
+    /// <summary>
     /// When in <c>Runway Exit</c> or <c>Holding After Exit</c>, the runway being
     /// exited. Distinct from <see cref="AssignedRunway"/> which can change once
     /// the aircraft accepts a taxi clearance. Null otherwise.
@@ -735,6 +743,7 @@ public partial class AircraftModel : ObservableObject
             PositionHistory = dto.PositionHistory,
             PatternEntryKind = dto.PatternEntryKind,
             FollowingCallsign = dto.FollowingCallsign,
+            LastReportedTrafficCallsign = dto.LastReportedTrafficCallsign,
             ExitingRunwayId = dto.ExitingRunwayId,
             CrossingRunwayId = dto.CrossingRunwayId,
             IsUnsupported = dto.IsUnsupported,
@@ -811,6 +820,7 @@ public partial class AircraftModel : ObservableObject
         PositionHistory = dto.PositionHistory;
         PatternEntryKind = dto.PatternEntryKind;
         FollowingCallsign = dto.FollowingCallsign;
+        LastReportedTrafficCallsign = dto.LastReportedTrafficCallsign;
         ExitingRunwayId = dto.ExitingRunwayId;
         CrossingRunwayId = dto.CrossingRunwayId;
         IsUnsupported = dto.IsUnsupported;

@@ -359,10 +359,24 @@ public partial class GroundView : UserControl
         }
 
         var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
-        if (ac is not null)
+
+        // Keep the previously-selected aircraft as the command recipient when the
+        // controller right-clicks a DIFFERENT aircraft, so selected→right-clicked
+        // relative actions (give way / follow) target the selected aircraft. Only adopt
+        // the right-clicked aircraft as the selection when nothing was selected or the
+        // same aircraft was re-clicked. Left-click remains the way to change selection.
+        var prevSelected = vm.SelectedAircraft;
+        if (ac is not null && (prevSelected is null || string.Equals(prevSelected.Callsign, callsign, StringComparison.OrdinalIgnoreCase)))
         {
             vm.SelectedAircraft = ac;
         }
+
+        // When a different on-ground aircraft is selected, the direct "give way / follow"
+        // items replace the candidate Follow…/Give way to… submenus.
+        var isRelative =
+            ac is not null
+            && RelativeTrafficActions.HasRelativeContext(prevSelected, callsign)
+            && RelativeTrafficActions.ShouldOfferGroundActions(prevSelected!, ac);
 
         var initials = GetInitials();
         var menu = new ContextMenu();
@@ -383,6 +397,8 @@ public partial class GroundView : UserControl
 
         menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
         menu.Items.Add(new Separator());
+
+        AddRelativeGroundItems(menu, vm, prevSelected, callsign, initials, isRelative);
 
         if (phase == "At Parking")
         {
@@ -412,7 +428,10 @@ public partial class GroundView : UserControl
         if (phase == "Taxiing" && ac is not null)
         {
             AddHoldShortSubmenu(menu, vm, ac, callsign, initials);
-            AddFollowBehindSubmenus(menu, ac, callsign, initials);
+            if (!isRelative)
+            {
+                AddFollowBehindSubmenus(menu, ac, callsign, initials);
+            }
 
             // BREAK overrides the ground-conflict speed limit for 15 seconds.
             // Useful when two aircraft are mutually stopped by the conflict
@@ -522,7 +541,7 @@ public partial class GroundView : UserControl
                     "Draw taxi route...",
                     () =>
                     {
-                        vm.StartDrawRoute(vm.SelectedAircraft!);
+                        vm.StartDrawRoute(ac!);
                         return Task.CompletedTask;
                     }
                 )
@@ -560,6 +579,40 @@ public partial class GroundView : UserControl
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
         ShowContextMenu(menu);
+    }
+
+    /// <summary>
+    /// When a different on-ground aircraft is selected, adds direct "give way to" /
+    /// "follow" items issued to that selected aircraft referencing the right-clicked
+    /// aircraft. No-op otherwise. When active these REPLACE the candidate
+    /// "Follow…/Give way to…" submenus (see <see cref="AddFollowBehindSubmenus"/>).
+    /// </summary>
+    private void AddRelativeGroundItems(
+        ContextMenu menu,
+        GroundViewModel vm,
+        AircraftModel? selected,
+        string callsign,
+        string initials,
+        bool isRelative
+    )
+    {
+        if (!isRelative)
+        {
+            return;
+        }
+
+        var a = selected!.Callsign;
+        menu.Items.Add(
+            new MenuItem
+            {
+                Header = $"↪ {a}:",
+                IsEnabled = false,
+                FontWeight = Avalonia.Media.FontWeight.Bold,
+            }
+        );
+        menu.Items.Add(CreateMenuItem($"{a}: give way to {callsign}", () => vm.SendRawCommandAsync(a, initials, $"GW {callsign}")));
+        menu.Items.Add(CreateMenuItem($"{a}: follow {callsign}", () => vm.SendRawCommandAsync(a, initials, $"FOLLOWG {callsign}")));
+        menu.Items.Add(new Separator());
     }
 
     /// <summary>

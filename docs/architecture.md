@@ -186,6 +186,7 @@ Services/
   MenuGroup.cs                  # Enum of context menu groups (Heading, Altitude, Speed, Tower, etc.)
   ContextMenuProfile.cs         # Record: Primary/Secondary/Hidden menu groups for a phase
   ContextMenuProfileService.cs  # Static: maps phase name + isOnGround → ContextMenuProfile
+  RelativeTrafficActions.cs     # Static pure gating for selected→right-clicked traffic menu items (RTIS/FOLLOW in radar, GIVEWAY/FOLLOWG on ground): HasRelativeContext, ShouldOfferFollow (airborne + LastReportedTrafficCallsign match), ShouldOfferGroundActions
   BuildInfo.cs                  # Static: version (from AssemblyInformationalVersion) + release-vs-dev detection (VelopackLocator.Current); used by title bar, About window, and startup log line
   DocLinks.cs                   # Static: GitHub URLs for user-facing docs (README/USER_GUIDE/COMMANDS/CHANGELOG/issues), pinned to release tag for installed builds, main for dev
   UrlLauncher.cs                # Static: opens HTTPS URLs in OS default browser (Process.Start with UseShellExecute)

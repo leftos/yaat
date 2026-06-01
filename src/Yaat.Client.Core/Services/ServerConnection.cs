@@ -779,6 +779,9 @@ public record AircraftDto(
     List<double[]>? PositionHistory = null,
     string? PatternEntryKind = null,
     string? FollowingCallsign = null,
+    // Callsign of the traffic this aircraft most recently reported in sight (RTIS/RTISF).
+    // Null until a successful report. Lets the client gate the "follow this traffic" menu item.
+    string? LastReportedTrafficCallsign = null,
     string? ExitingRunwayId = null,
     string FiledAircraftType = "",
     bool IsUnsupported = false,

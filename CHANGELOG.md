@@ -9,6 +9,7 @@
 - Speech bubbles gained a duration multiplier (Settings > Display > Overlays) to scale how long they stay on screen. (#170)
 - Optional amber WARN-message speech bubbles (Settings > Display > Overlays) overlay warning-channel messages on the aircraft, distinct from the green SAY/pilot bubbles. (#170)
 - The Aircraft List Info column shows a departing aircraft's lateral clearance and climb target, e.g. "Departing 28R, hdg 270, ↑ 3,000" or "Departing 28R, right traffic, ↑ 1,400". (#171)
+- With an aircraft selected, right-clicking a *different* aircraft now offers traffic actions issued to the selected aircraft that reference the one you clicked: in the radar view, "report in sight" (RTIS) and — once it has that traffic in sight — "follow"; in the ground view, "give way to" and "follow". Right-clicking a different aircraft no longer changes the selection, so you can point out and sequence traffic without reselecting.
 
 ### Fixed
 - Ghosting an aircraft (STARS AID + slew) that is already tracked by another position no longer steals the track from that position; the ghost is rejected with an ownership error. Ghosting an untracked aircraft, or one you already own, still works.

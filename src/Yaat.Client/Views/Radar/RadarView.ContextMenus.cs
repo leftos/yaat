@@ -62,7 +62,14 @@ public partial class RadarView
         }
 
         var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
-        if (ac is not null)
+
+        // Keep the previously-selected aircraft as the command recipient when the
+        // controller right-clicks a DIFFERENT aircraft, so selected→right-clicked
+        // relative actions (RTIS / FOLLOW) target the selected aircraft. Only adopt
+        // the right-clicked aircraft as the selection when nothing was selected or
+        // the same aircraft was re-clicked. Left-click remains the way to change selection.
+        var prevSelected = vm.SelectedAircraft;
+        if (ac is not null && (prevSelected is null || string.Equals(prevSelected.Callsign, callsign, StringComparison.OrdinalIgnoreCase)))
         {
             vm.SelectedAircraft = ac;
         }
@@ -100,6 +107,8 @@ public partial class RadarView
         menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
         menu.Items.Add(new Separator());
 
+        AddRelativeTrafficItems(menu, vm, prevSelected, callsign, initials);
+
         var profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
         foreach (var group in profile.PrimaryGroups)
@@ -132,6 +141,37 @@ public partial class RadarView
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
         ShowContextMenu(menu);
+    }
+
+    /// <summary>
+    /// When a different aircraft is selected, adds traffic actions issued to that
+    /// selected aircraft referencing the right-clicked aircraft: "report in sight"
+    /// (RTIS, always offered) and "follow" (only once the selected aircraft has
+    /// reported the right-clicked traffic in sight). No-op when no different aircraft
+    /// is selected.
+    /// </summary>
+    private static void AddRelativeTrafficItems(ContextMenu menu, RadarViewModel vm, AircraftModel? selected, string callsign, string initials)
+    {
+        if (!RelativeTrafficActions.HasRelativeContext(selected, callsign))
+        {
+            return;
+        }
+
+        var a = selected!.Callsign;
+        menu.Items.Add(
+            new MenuItem
+            {
+                Header = $"↪ {a}:",
+                IsEnabled = false,
+                FontWeight = Avalonia.Media.FontWeight.Bold,
+            }
+        );
+        menu.Items.Add(CreateMenuItem($"{a}: report {callsign} in sight", () => vm.ReportTrafficInSightAsync(a, initials, callsign)));
+        if (RelativeTrafficActions.ShouldOfferFollow(selected, callsign))
+        {
+            menu.Items.Add(CreateMenuItem($"{a}: follow {callsign}", () => vm.SendRawCommandAsync(a, initials, $"FOLLOW {callsign}")));
+        }
+        menu.Items.Add(new Separator());
     }
 
     private static MenuItem? BuildRouteSummaryItem(AircraftModel ac)
