@@ -27,19 +27,13 @@ public static class ConflictAlertDetector
 {
     private const double PredictionSeconds = 5.0;
 
-    // Standard STARS CA thresholds (IFR)
+    // Standard STARS CA thresholds — applied to all associated tracks regardless of flight rules
     private const double HorizontalNm = 3.0;
     private const double VerticalFt = 1000;
 
-    // IFR hysteresis thresholds — must exceed these to clear an existing alert
+    // Hysteresis thresholds — must exceed these to clear an existing alert
     private const double HysteresisHorizontalNm = 3.3;
     private const double HysteresisVerticalFt = 1100;
-
-    // VFR thresholds — "target resolution" per STARS behavior
-    private const double VfrHorizontalNm = 0.25;
-    private const double VfrVerticalFt = 500;
-    private const double VfrHysteresisHorizontalNm = 0.30;
-    private const double VfrHysteresisVerticalFt = 550;
 
     // Final approach suppression zone (anchored at runway threshold)
     private const double ApproachZoneHalfWidthNm = 2.0;
@@ -194,22 +188,14 @@ public static class ConflictAlertDetector
             return false;
         }
 
-        // When either target is VFR, use target-resolution thresholds
-        bool vfr = (a.FlightPlan.IsVfr) || (b.FlightPlan.IsVfr);
-
         if (alreadyInConflict)
         {
-            double hystH = vfr ? VfrHysteresisHorizontalNm : HysteresisHorizontalNm;
-            double hystV = vfr ? VfrHysteresisVerticalFt : HysteresisVerticalFt;
-            return (currentHorizontal < hystH) && (currentVertical < hystV);
+            return (currentHorizontal < HysteresisHorizontalNm) && (currentVertical < HysteresisVerticalFt);
         }
 
-        double threshH = vfr ? VfrHorizontalNm : HorizontalNm;
-        double threshV = vfr ? VfrVerticalFt : VerticalFt;
-
         // Alert if current OR predicted separation violates thresholds
-        bool currentViolation = (currentHorizontal < threshH) && (currentVertical < threshV);
-        bool predictedViolation = (predictedHorizontal < threshH) && (predictedVertical < threshV);
+        bool currentViolation = (currentHorizontal < HorizontalNm) && (currentVertical < VerticalFt);
+        bool predictedViolation = (predictedHorizontal < HorizontalNm) && (predictedVertical < VerticalFt);
         return currentViolation || predictedViolation;
     }
 

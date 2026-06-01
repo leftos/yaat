@@ -18,6 +18,7 @@
 - An aircraft still exiting the runway it just landed on, when given a TAXI whose route crosses that same runway, now taxis clear to finish its exit instead of incorrectly holding short of the runway it is leaving.
 - Commands that combine a verb with a modifier — `RES CROSS 28L`, `RES HS B`, `CLAND NODEL` — are now accepted when typed in the command box, instead of being rejected with a misleading "callsign is not a recognized command" error; previously the modifier form only worked when split into separate commands (e.g. `RES; CROSS 28L`).
 - An aircraft pre-cleared across an upcoming runway with a sequential `RES; CROSS <rwy>` no longer briefly flashes "holding short" of that runway before crossing — the crossing clearance now applies as soon as the aircraft resumes taxiing, rather than waiting until it reaches the hold line.
+- Conflict alerts now fire between VFR aircraft at the standard STARS thresholds (3 NM / 1,000 ft), matching CRC, instead of only when their targets were nearly merged.
 
 ## v0.4.0-beta [2026/05/27]
 

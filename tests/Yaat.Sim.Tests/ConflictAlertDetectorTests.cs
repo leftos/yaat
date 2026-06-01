@@ -617,16 +617,16 @@ public class ConflictAlertDetectorTests
     }
 
     // -------------------------------------------------------------------------
-    // VFR thresholds (target resolution: 0.25nm / 500ft)
+    // Flight rules do not affect CA thresholds (CRC: 3 nm / 1,000 ft for all)
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void VfrPair_UsesTargetResolution_Detected()
+    public void VfrPair_SameAltitudeWithinThreshold_Detected()
     {
-        // Two VFR aircraft 0.2nm apart, 400ft vertical → detected (within 0.25nm / 500ft)
+        // Two VFR aircraft 2nm apart at the same altitude → CA, same as IFR
         var a = MakeAircraft("N12345", altitude: 5000);
         a.FlightPlan.FlightRules = "VFR";
-        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.2), altitude: 5400);
+        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5000);
         b.FlightPlan.FlightRules = "VFR";
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
@@ -635,12 +635,12 @@ public class ConflictAlertDetectorTests
     }
 
     [Fact]
-    public void VfrPair_UsesTargetResolution_NotDetected()
+    public void VfrPair_BeyondHorizontalThreshold_NotDetected()
     {
-        // Two VFR aircraft 0.3nm apart, 400ft vertical → not detected (outside 0.25nm)
+        // Two VFR aircraft 4nm apart → outside 3nm, no CA
         var a = MakeAircraft("N12345", altitude: 5000);
         a.FlightPlan.FlightRules = "VFR";
-        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.3), altitude: 5400);
+        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(4.0), altitude: 5000);
         b.FlightPlan.FlightRules = "VFR";
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
@@ -649,25 +649,12 @@ public class ConflictAlertDetectorTests
     }
 
     [Fact]
-    public void VfrPair_Uses500ftVertical_NotDetected()
+    public void VfrPair_Within1000ftVertical_Detected()
     {
-        // Two VFR aircraft same position, 600ft vertical → not detected (outside 500ft)
-        var a = MakeAircraft("N12345", altitude: 5000);
+        // Two VFR aircraft converging 2nm apart, 600ft vertical → CA (within 1,000ft, like IFR)
+        var a = MakeAircraft("N12345", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 250);
         a.FlightPlan.FlightRules = "VFR";
-        var b = MakeAircraft("N67890", altitude: 5600);
-        b.FlightPlan.FlightRules = "VFR";
-
-        var result = ConflictAlertDetector.Detect([a, b], Ctx());
-
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public void IfrVfr_Mixed_UsesVfrThresholds()
-    {
-        // One IFR + one VFR, 0.2nm apart, 400ft vertical → detected (VFR thresholds when either is VFR)
-        var a = MakeAircraft("AAL100", altitude: 5000);
-        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.2), altitude: 5400);
+        var b = MakeAircraft("N67890", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 5600, heading: 270, groundSpeed: 250);
         b.FlightPlan.FlightRules = "VFR";
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
@@ -676,35 +663,66 @@ public class ConflictAlertDetectorTests
     }
 
     [Fact]
-    public void IfrVfr_Mixed_OutsideVfrThreshold_NotDetected()
+    public void VfrPair_BeyondVerticalThreshold_NotDetected()
     {
-        // One IFR + one VFR, 2nm apart, 800ft vertical → not detected
-        // Would be CA under IFR thresholds (2nm < 3nm, 800ft < 1000ft) but not under VFR (2nm > 0.25nm)
+        // Two VFR aircraft converging 2nm apart but 1200ft vertical → outside 1,000ft, no CA
+        var a = MakeAircraft("N12345", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 250);
+        a.FlightPlan.FlightRules = "VFR";
+        var b = MakeAircraft("N67890", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 6200, heading: 270, groundSpeed: 250);
+        b.FlightPlan.FlightRules = "VFR";
+
+        var result = ConflictAlertDetector.Detect([a, b], Ctx());
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void IfrVfr_Mixed_UsesStandardThresholds_Detected()
+    {
+        // One IFR + one VFR, 2nm apart, 800ft vertical → CA at standard thresholds
         var a = MakeAircraft("AAL100", altitude: 5000);
         var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5800);
         b.FlightPlan.FlightRules = "VFR";
 
         var result = ConflictAlertDetector.Detect([a, b], Ctx());
 
-        Assert.Empty(result);
+        Assert.Single(result);
     }
 
     [Fact]
-    public void VfrHysteresis_ExistingConflict_ClearsAtVfrHysteresis()
+    public void FlightRules_DoNotChangeDetection()
     {
-        // Existing VFR conflict at 0.28nm (between 0.25 entry and 0.30 hysteresis) stays active
+        // Identical geometry produces the same result whether the pair is IFR or VFR.
+        var ifrA = MakeAircraft("AAL100", altitude: 5000);
+        var ifrB = MakeAircraft("UAL200", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5500);
+        var ifrResult = ConflictAlertDetector.Detect([ifrA, ifrB], Ctx());
+
+        var vfrA = MakeAircraft("N12345", altitude: 5000);
+        vfrA.FlightPlan.FlightRules = "VFR";
+        var vfrB = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5500);
+        vfrB.FlightPlan.FlightRules = "VFR";
+        var vfrResult = ConflictAlertDetector.Detect([vfrA, vfrB], Ctx());
+
+        Assert.Equal(ifrResult.Count, vfrResult.Count);
+        Assert.Single(vfrResult);
+    }
+
+    [Fact]
+    public void Hysteresis_ExistingConflict_StaysActiveUntilHysteresis()
+    {
+        // Existing conflict at 3.2nm (between 3.0 entry and 3.3 hysteresis) stays active.
         var a = MakeAircraft("N12345", altitude: 5000);
         a.FlightPlan.FlightRules = "VFR";
-        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.28), altitude: 5000);
+        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(3.2), altitude: 5000);
         b.FlightPlan.FlightRules = "VFR";
 
         string id = ConflictAlertDetector.MakeConflictId("N12345", "N67890");
 
-        // Without existing: no detection (0.28 > 0.25)
+        // Without existing: no detection (3.2 > 3.0)
         var fresh = ConflictAlertDetector.Detect([a, b], Ctx());
         Assert.Empty(fresh);
 
-        // With existing: still in conflict (0.28 < 0.30 hysteresis)
+        // With existing: still in conflict (3.2 < 3.3 hysteresis)
         var hysteresis = ConflictAlertDetector.Detect([a, b], Ctx(new HashSet<string> { id }));
         Assert.Single(hysteresis);
     }
