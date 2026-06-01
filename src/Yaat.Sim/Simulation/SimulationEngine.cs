@@ -1436,6 +1436,22 @@ public sealed class SimulationEngine
         var depLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Departure) ? null : _groundData.GetLayout(aircraft.FlightPlan.Departure);
         var destLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Destination) ? null : _groundData.GetLayout(aircraft.FlightPlan.Destination);
 
+        // Cold-call VFR aircraft (pattern work, full-stop requests) frequently file
+        // neither departure nor destination. Treat the assigned arrival runway's
+        // airport — or the spawn-time operational airport context — as the implicit
+        // destination so the ground layout is available for runway exit and taxi
+        // after landing, without writing into the flight plan.
+        if (depLayout is null && destLayout is null)
+        {
+            var implicitAirport = aircraft.Phases?.AssignedRunway?.AirportId;
+            if (string.IsNullOrEmpty(implicitAirport))
+            {
+                implicitAirport = aircraft.AirportId;
+            }
+
+            return string.IsNullOrEmpty(implicitAirport) ? null : _groundData.GetLayout(implicitAirport);
+        }
+
         if (depLayout is null)
         {
             return destLayout;
