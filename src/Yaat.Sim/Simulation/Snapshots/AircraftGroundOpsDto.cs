@@ -12,6 +12,12 @@ public sealed class AircraftGroundOpsDto
     public bool PendingAutoDelete { get; init; }
     public required double ConflictBreakRemainingSeconds { get; init; }
     public double? SpeedLimit { get; init; }
+
+    /// <summary>Callsign this aircraft is auto-yielding to (drives the "→{target} (auto)" badge); null when not auto-yielding.</summary>
+    public string? AutoYieldTarget { get; init; }
+
+    /// <summary>True when the auto-yield is a same-edge in-trail follow ("Following") rather than a converging give-way ("Yielding to").</summary>
+    public bool AutoYieldIsFollowing { get; init; }
     public double? PushbackTrueHeadingDeg { get; init; }
     public required bool HasAnnouncedReady { get; init; }
     public bool InitialCallupDecisionProcessed { get; init; }

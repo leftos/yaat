@@ -798,6 +798,13 @@ public record AircraftDto(
     // GIVEWAY relationship (HoldYieldTarget carries the callsign in that case).
     string? HoldKind = null,
     string? HoldYieldTarget = null,
+    // Callsign this aircraft is auto-yielding to (GroundConflictDetector picked it as the yielder
+    // for a converging / same-edge-trailing pair). Display-only: the aircraft is slowing, not held,
+    // so IsHeld stays false. Drives the "→{target} (auto)" badge.
+    string? AutoYieldTarget = null,
+    // True when the auto-yield is a same-edge in-trail follow ("Following") vs a converging
+    // give-way ("Yielding to"). Drives the right-click menu wording.
+    bool AutoYieldIsFollowing = false,
     // Runway being crossed during CrossingRunwayPhase (e.g. "28R/10L"). Distinct from
     // AssignedRunway which holds the aircraft's departure / destination runway —
     // those differ when an aircraft taxis across one runway to reach a different

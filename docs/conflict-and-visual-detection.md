@@ -118,6 +118,14 @@ writing the minimum surviving cap onto `Ground.SpeedLimit`:
 
 The navigator reads `Ground.SpeedLimit` via `ClampBySpeedLimit` (`GroundNavigator.cs:1113`) and never overruns it.
 
+For `Converging` and `SameEdgeTrailing` the chosen yielder also gets a **display-only** annotation —
+`Ground.AutoYieldTarget` (the other callsign) plus `Ground.AutoYieldIsFollowing` (true for in-trail). Both reset to
+their defaults at the top of `ApplySpeedLimits` and re-derive each tick, exactly like `SpeedLimit`. They do **not** set
+`Hold`/`IsImmobile` (the aircraft still slows, never fully stops on their account); they drive the client's
+"→{target} (auto)" ground datablock badge and the "Yielding to" / "Following" right-click wording, distinct from a
+controller GIVEWAY. The wire carries them on `AircraftStateDto.AutoYieldTarget`/`AutoYieldIsFollowing` (in the
+`TrainingDtoFingerprint` so the badge updates live).
+
 ---
 
 ## ATPA in-trail sequencing — `AtpaProcessor` + `AtpaVolumeGeometry`

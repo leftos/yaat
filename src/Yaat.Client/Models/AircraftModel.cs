@@ -559,20 +559,38 @@ public partial class AircraftModel : ObservableObject
     private string? _holdYieldTarget;
 
     /// <summary>
+    /// Callsign this aircraft is auto-yielding to, set by the ground conflict detector for
+    /// converging / same-edge-trailing pairs. Display-only — the aircraft is slowing, not held,
+    /// so it does NOT set <see cref="IsHeld"/>. Drives the "→{target} (auto)" badge.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HoldStatusDisplay))]
+    private string? _autoYieldTarget;
+
+    /// <summary>
+    /// True when <see cref="AutoYieldTarget"/> is a same-edge in-trail follow ("Following") rather
+    /// than a converging give-way ("Yielding to"). Drives the right-click menu wording.
+    /// </summary>
+    [ObservableProperty]
+    private bool _autoYieldIsFollowing;
+
+    /// <summary>
     /// True when the aircraft is under any active hold directive (HoldPosition or
-    /// GiveWay). Driven by <see cref="HoldKind"/>.
+    /// GiveWay). Driven by <see cref="HoldKind"/>. Auto-yield (slowing) is NOT a hold.
     /// </summary>
     public bool IsHeld => !string.IsNullOrEmpty(HoldKind);
 
     /// <summary>
-    /// Compact status string for the ground datablock suffix and the right-click
-    /// menu header. Empty when there is no active hold.
+    /// Compact status string for the ground datablock suffix and the right-click menu header.
+    /// A controller hold takes precedence; an auto-detected yield shows "→{target} (auto)".
+    /// Empty when there is neither.
     /// </summary>
     public string HoldStatusDisplay =>
         HoldKind switch
         {
             "GiveWay" when !string.IsNullOrEmpty(HoldYieldTarget) => $"→{HoldYieldTarget}",
             "HoldPosition" => "HOLD",
+            _ when !string.IsNullOrEmpty(AutoYieldTarget) => $"→{AutoYieldTarget} (auto)",
             _ => string.Empty,
         };
 
@@ -718,6 +736,8 @@ public partial class AircraftModel : ObservableObject
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
             HoldKind = dto.HoldKind,
             HoldYieldTarget = dto.HoldYieldTarget,
+            AutoYieldTarget = dto.AutoYieldTarget,
+            AutoYieldIsFollowing = dto.AutoYieldIsFollowing,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
             Owner = dto.Owner,
@@ -795,6 +815,8 @@ public partial class AircraftModel : ObservableObject
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;
         HoldKind = dto.HoldKind;
         HoldYieldTarget = dto.HoldYieldTarget;
+        AutoYieldTarget = dto.AutoYieldTarget;
+        AutoYieldIsFollowing = dto.AutoYieldIsFollowing;
         ParkingSpot = dto.ParkingSpot;
         CurrentTaxiway = dto.CurrentTaxiway;
         Owner = dto.Owner;

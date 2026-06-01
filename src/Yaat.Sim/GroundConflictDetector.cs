@@ -133,6 +133,8 @@ public static class GroundConflictDetector
         for (int i = 0; i < aircraft.Count; i++)
         {
             aircraft[i].Ground.SpeedLimit = null;
+            aircraft[i].Ground.AutoYieldTarget = null;
+            aircraft[i].Ground.AutoYieldIsFollowing = false;
 
             if (aircraft[i].Ground.ConflictBreakRemainingSeconds > 0)
             {
@@ -428,10 +430,14 @@ public static class GroundConflictDetector
         if (distAToTarget > distBToTarget)
         {
             ApplyTrailLimit(a, b, distFt);
+            a.Ground.AutoYieldTarget = b.Callsign;
+            a.Ground.AutoYieldIsFollowing = true;
         }
         else
         {
             ApplyTrailLimit(b, a, distFt);
+            b.Ground.AutoYieldTarget = a.Callsign;
+            b.Ground.AutoYieldIsFollowing = true;
         }
     }
 
@@ -515,6 +521,7 @@ public static class GroundConflictDetector
         );
 
         ApplyMinLimit(yielder, limitSpeed, "convergence", winner, conflictDistFt);
+        yielder.Ground.AutoYieldTarget = winner.Callsign;
         // No closing-proximity for the winner — convergence is
         // authoritative for this pair. The next tick reclassifies; if the
         // geometry shifts to truly crossing/head-on, that layer will catch it.

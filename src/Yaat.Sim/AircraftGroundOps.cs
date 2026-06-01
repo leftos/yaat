@@ -87,6 +87,23 @@ public class AircraftGroundOps
     public double? SpeedLimit { get; set; }
 
     /// <summary>
+    /// Display-only annotation: the callsign this aircraft is auto-yielding to, set by
+    /// GroundConflictDetector when it picks this aircraft as the yielder for a converging or
+    /// same-edge-trailing pair. Drives the "→{target} (auto)" ground datablock badge so the
+    /// operator can see who an auto-slowdown is for. Null when not auto-yielding. Reset each tick
+    /// before conflict detection runs and re-derived — does NOT make the aircraft immobile (that
+    /// is <see cref="Hold"/>); the aircraft still slows via <see cref="SpeedLimit"/>.
+    /// </summary>
+    public string? AutoYieldTarget { get; set; }
+
+    /// <summary>
+    /// When <see cref="AutoYieldTarget"/> is set, distinguishes a same-edge in-trail follow
+    /// (true — the aircraft is spacing behind the target) from a converging give-way (false — the
+    /// aircraft is yielding to the target at a merge). Drives "Following" vs "Yielding to" wording.
+    /// </summary>
+    public bool AutoYieldIsFollowing { get; set; }
+
+    /// <summary>
     /// When set, FlightPhysics uses this heading for ground position updates
     /// instead of the aircraft's TrueHeading. Used by pushback (aircraft nose stays
     /// forward while tug pushes it backward along this direction).
@@ -145,6 +162,8 @@ public class AircraftGroundOps
             PendingAutoDelete = PendingAutoDelete,
             ConflictBreakRemainingSeconds = ConflictBreakRemainingSeconds,
             SpeedLimit = SpeedLimit,
+            AutoYieldTarget = AutoYieldTarget,
+            AutoYieldIsFollowing = AutoYieldIsFollowing,
             PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
             HasAnnouncedReady = HasAnnouncedReady,
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
@@ -167,6 +186,8 @@ public class AircraftGroundOps
             PendingAutoDelete = dto.PendingAutoDelete,
             ConflictBreakRemainingSeconds = dto.ConflictBreakRemainingSeconds,
             SpeedLimit = dto.SpeedLimit,
+            AutoYieldTarget = dto.AutoYieldTarget,
+            AutoYieldIsFollowing = dto.AutoYieldIsFollowing,
             PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
             HasAnnouncedReady = dto.HasAnnouncedReady,
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,

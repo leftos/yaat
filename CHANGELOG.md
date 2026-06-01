@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- When the simulator automatically slows one ground aircraft for another (a converging or in-trail conflict), the slowed aircraft's ground datablock now shows a "→{callsign} (auto)" badge so it's clear which traffic it's slowing for, instead of an unexplained slowdown. The right-click menu spells it out as "Yielding to" (converging) or "Following" (in trail). A controller-issued give-way still takes precedence.
+
 ### Fixed
 - ATPA volumes now honor their configured excluded TCP list — aircraft tracked by a position in a volume's excluded-TCP list are no longer paired for in-trail spacing in that volume. Previously the exclusion list was silently ignored and every aircraft in the volume was sequenced.
 - An aircraft told to give way now resumes more reliably: it keeps holding while the other aircraft's taxi route still crosses its path ahead (instead of releasing the instant the other is no longer dead ahead), breaks a mutual give-way standstill once the other has been stopped a while and there's room to pass, and auto-resumes after 5 minutes if the named traffic never comes (e.g. a mistyped callsign) rather than waiting forever.

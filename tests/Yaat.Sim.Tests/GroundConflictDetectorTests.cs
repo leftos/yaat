@@ -235,6 +235,71 @@ public class GroundConflictDetectorTests
     }
 
     [Fact]
+    public void Convergence_AnnotatesYielderWithAutoYieldTarget()
+    {
+        var (layout, n0, n1, _) = BuildConvergenceLayout();
+        var routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
+        var routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
+        var a = MakeAircraft("A", n0.Position, heading: 45, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft("B", n1.Position, heading: 315, gs: 15, taxiRoute: routeB, phase: new TaxiingPhase());
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
+
+        // The yielder is the speed-limited one; it carries the auto-yield annotation
+        // pointing at the winner. The winner carries none.
+        var yielder = a.Ground.SpeedLimit is not null ? a : b;
+        var winner = ReferenceEquals(yielder, a) ? b : a;
+        Assert.Equal(winner.Callsign, yielder.Ground.AutoYieldTarget);
+        Assert.False(yielder.Ground.AutoYieldIsFollowing); // converging give-way, not in-trail follow
+        Assert.Null(winner.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void SameEdgeTrailing_AnnotatesTrailerWithAutoYieldTarget()
+    {
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+        var routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        // A behind, B ahead — A trails B on the shared edge.
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft(
+            "B",
+            new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
+            heading: 0,
+            gs: 10,
+            taxiRoute: routeB,
+            phase: new TaxiingPhase()
+        );
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout);
+
+        var trailer = a.Ground.SpeedLimit is not null ? a : b;
+        var leader = ReferenceEquals(trailer, a) ? b : a;
+        Assert.Equal(leader.Callsign, trailer.Ground.AutoYieldTarget);
+        Assert.True(trailer.Ground.AutoYieldIsFollowing); // in-trail follow, not converging give-way
+        Assert.Null(leader.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void NoConflict_ClearsStaleAutoYieldTarget()
+    {
+        // Two aircraft well outside SearchRangeNm — no pair is formed, and the per-tick
+        // reset must clear any stale annotation.
+        var a = MakeAircraft("A", new LatLon(BaseLat, BaseLon), heading: 0, gs: 15);
+        var b = MakeAircraft("B", new LatLon(BaseLat + 1.0, BaseLon), heading: 0, gs: 15);
+        a.Ground.AutoYieldTarget = "STALE";
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.Null(a.Ground.AutoYieldTarget);
+        Assert.Null(b.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
     public void MovingAircraft_ClosingOnStationary_MovingOneStops()
     {
         // B is stationary at parking, A is taxiing toward B at 150ft

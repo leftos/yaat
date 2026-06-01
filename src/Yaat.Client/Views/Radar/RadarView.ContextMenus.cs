@@ -235,7 +235,7 @@ public partial class RadarView
     /// </summary>
     private static MenuItem? BuildHoldStatusItem(AircraftModel ac)
     {
-        if (!ac.IsHeld)
+        if (!ac.IsHeld && string.IsNullOrEmpty(ac.AutoYieldTarget))
         {
             return null;
         }
@@ -244,6 +244,8 @@ public partial class RadarView
         {
             "GiveWay" when !string.IsNullOrEmpty(ac.HoldYieldTarget) => $"Yielding to: {ac.HoldYieldTarget}",
             "HoldPosition" => "Held: position",
+            _ when !string.IsNullOrEmpty(ac.AutoYieldTarget) && ac.AutoYieldIsFollowing => $"Following: {ac.AutoYieldTarget} (auto-detected)",
+            _ when !string.IsNullOrEmpty(ac.AutoYieldTarget) => $"Yielding to: {ac.AutoYieldTarget} (auto-detected)",
             _ => "Held",
         };
 
