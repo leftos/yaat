@@ -27,5 +27,6 @@ conservative ("show more alerts") fallback, not an oversight.
 
 `TrackOwner` and the snapshot/CRC DTOs span both repos; verify with `pwsh tools/test-all.ps1`.
 
-> Surfaced by the doc-coverage gap-analysis workflow (see `docs/plans/doc-coverage-opportunities.md`,
-> "Conflict, Alert & Visual-Acquisition Detection"). Behavior left conservative until this is scheduled.
+> Surfaced by the doc-coverage gap-analysis pass while writing
+> [`conflict-and-visual-detection.md`](../../conflict-and-visual-detection.md) (which documents this ATPA gap).
+> Behavior left conservative until this is scheduled.
