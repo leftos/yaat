@@ -239,6 +239,8 @@ Views/
   ManageWindowProfilesDialog.axaml(.cs)  # View → Window Profiles dialog: list saved profiles, switch, rename, delete
   SaveWindowProfileDialog.axaml(.cs)     # Name-entry dialog for saving the current window arrangement as a new profile
   CommandFlyout.cs              # Floating focused command-entry popup opened from aircraft right-click menus (radar/ground/flight list)
+  ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
+  HoldShortMenuHelper.cs        # Shared resolver: held runway from the "Holding Short {rwy}" phase, used by ground-map + aircraft-list cross/LUAW menu items
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
 
 Views/Map/

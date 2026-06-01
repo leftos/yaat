@@ -22,7 +22,7 @@ public partial class DataGridView
         return item;
     }
 
-    private static void AddPhaseAwareItems(ContextMenu menu, AircraftModel ac, MainViewModel vm, string callsign, string initials)
+    internal static void AddPhaseAwareItems(ContextMenu menu, AircraftModel ac, MainViewModel vm, string callsign, string initials)
     {
         Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
 
@@ -44,11 +44,11 @@ public partial class DataGridView
             if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
             {
                 menu.Items.Add(MakeItem("Resume taxi", () => Cmd("RES")));
-                if (!string.IsNullOrEmpty(ac.AssignedRunway))
+                var heldRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
+                if (!string.IsNullOrEmpty(heldRwy))
                 {
-                    var r = ac.AssignedRunway;
-                    menu.Items.Add(MakeItem($"Cross {r}", () => Cmd($"CROSS {r}")));
-                    menu.Items.Add(MakeItem($"Line up and wait {r}", () => Cmd($"LUAW {r}")));
+                    menu.Items.Add(MakeItem($"Cross {heldRwy}", () => Cmd($"CROSS {heldRwy}")));
+                    menu.Items.Add(MakeItem($"Line up and wait {heldRwy}", () => Cmd($"LUAW {heldRwy}")));
                 }
             }
 

@@ -463,21 +463,7 @@ public partial class GroundView : UserControl
 
         if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
         {
-            var rwyId = ExtractHoldingShortRunway(phase, ac);
-
-            if (ac is { HasActiveTaxiRoute: true })
-            {
-                menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
-            }
-
-            if (rwyId is not null)
-            {
-                menu.Items.Add(CreateMenuItem($"Cross {rwyId}", () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
-                menu.Items.Add(CreateMenuItem($"Line up and wait {rwyId}", () => vm.LineUpAndWaitAsync(callsign, initials, rwyId)));
-                AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId);
-            }
-
-            AddNearbyRunwayCrossings(menu, vm, ac, callsign, initials, rwyId);
+            AddHoldShortCrossingItems(menu, vm, ac, phase, callsign, initials);
         }
 
         if (phase == "Holding In Position")
@@ -1079,56 +1065,27 @@ public partial class GroundView : UserControl
         item.PointerEntered += (_, _) => vm.PreviewRoute = route;
     }
 
-    private static string? ExtractHoldingShortRunway(string phase, AircraftModel? ac)
-    {
-        // Phase name: "Holding Short 28L/10R" → extract runway after "Holding Short "
-        const string prefix = "Holding Short ";
-        if (phase.StartsWith(prefix, StringComparison.Ordinal) && phase.Length > prefix.Length)
-        {
-            var rwyPart = phase[prefix.Length..];
-            // Use first part of compound ID: "28L/10R" → "28L"
-            return RunwayIdentifier.Parse(rwyPart).End1;
-        }
-
-        return !string.IsNullOrEmpty(ac?.AssignedRunway) ? ac.AssignedRunway : null;
-    }
-
-    private static void AddNearbyRunwayCrossings(
+    internal static void AddHoldShortCrossingItems(
         ContextMenu menu,
         GroundViewModel vm,
         AircraftModel? ac,
+        string phase,
         string callsign,
-        string initials,
-        string? excludeRunway
+        string initials
     )
     {
-        if (ac is null || vm.Layout is null)
+        var rwyId = HoldShortMenuHelper.HeldRunway(phase, ac);
+
+        if (ac is { HasActiveTaxiRoute: true })
         {
-            return;
+            menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
         }
 
-        foreach (var node in vm.Layout.Nodes)
+        if (rwyId is not null)
         {
-            if (node.Type != "RunwayHoldShort" || node.RunwayId is null)
-            {
-                continue;
-            }
-
-            var dist = GeoMath.DistanceNm(ac.Position, new LatLon(node.Latitude, node.Longitude));
-
-            if (dist >= 0.1)
-            {
-                continue;
-            }
-
-            // Extract first part for comparison and display
-            var rwyId = RunwayIdentifier.Parse(node.RunwayId).End1;
-            if (excludeRunway is not null && string.Equals(rwyId, excludeRunway, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
             menu.Items.Add(CreateMenuItem($"Cross {rwyId}", () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
+            menu.Items.Add(CreateMenuItem($"Line up and wait {rwyId}", () => vm.LineUpAndWaitAsync(callsign, initials, rwyId)));
+            AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId);
         }
     }
 
