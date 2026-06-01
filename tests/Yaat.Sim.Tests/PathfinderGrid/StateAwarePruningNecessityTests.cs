@@ -223,7 +223,17 @@ public class StateAwarePruningNecessityTests
             category: AircraftCategory.Jet,
             preference: RoutePreference.FewestTurns,
             diagnosticLog: null
-        );
+        ) with
+        {
+            // This sweep proves state-aware-pruning soundness (production's node-id closed set vs the
+            // oracle's (node, bearing) one). Per-airport avoided taxiways (e.g. OAK "S", which Compile
+            // turns on for auto routes) are an orthogonal routing policy the oracle does not model:
+            // leaving them on would make production hard-exclude S in this single A* pass (the two-pass
+            // fallback lives in TaxiPathfinder, not AutoRouter) and diverge from the avoidance-agnostic
+            // oracle, masking the pruning signal. Force Off so both search the same graph. Avoidance is
+            // covered by AvoidTaxiwayPathfinderTests.
+            AvoidMode = AvoidTaxiwayMode.Off,
+        };
 
     private static List<(string Label, int From, int To)> BuildGrid(AirportGroundLayout layout, string airport)
     {

@@ -12,6 +12,8 @@ ARTCCs/
       visual.json
     TaxiRoutes/
       koak-routes.json
+    AvoidTaxiways/
+      oak.json
     InitialContactTransfers/
       zoa-initial-contact-transfers.json
     WakeDirectives/
@@ -171,6 +173,40 @@ Each file is a JSON object scoped to one airport. The `path` is whatever you'd t
 At most one of the three `destination*` fields may be set on a single route. Routes whose path can't be walked from the aircraft's current position are silently dropped from the menu — so a KOAK route won't surface when right-clicking an aircraft at KSFO.
 
 Restart YAAT to pick up edits to route JSONs.
+
+---
+
+## AvoidTaxiways
+
+Per-airport taxiways the **automatic** pathfinder should avoid in route suggestions — the routes generated for the right-click "taxi to…" menu, `TAXIAUTO`/`TAXIALL`, the auto-extension of an explicit path into a parking, and any other auto-route. Use this where a taxiway is technically usable but locally undesirable for routine routing (e.g. a perimeter/cargo lead such as taxiway S at OAK).
+
+The avoidance is **strict but not absolute**: an avoided taxiway is never used when any avoiding route to the destination exists, but it *is* used when the destination is only reachable through it (e.g. parking spots that hang off it). Explicit controller commands that name the taxiway — `TAXI S …` — are obeyed verbatim and never re-routed.
+
+Each file is a JSON object scoped to one airport:
+
+```json
+{
+  "airportId": "KOAK",
+  "taxiways": [
+    {
+      "name": "S",
+      "notes": "Perimeter/cargo ramp lead; not used for routine auto-taxi."
+    }
+  ]
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `airportId` | string | Yes (file-level) | ICAO or FAA ident of the airport (`KOAK` and `OAK` both match) |
+| `taxiways[].name` | string | Yes | Taxiway name to avoid, matched case-insensitively against the route's taxiway names |
+| `taxiways[].notes` | string | No | Human-readable rationale (SOP reference, condition). Informational only |
+
+Names are case-insensitive and de-duplicated per file. Multiple files for the same airport are merged. An entry with a blank name, or a file with no valid entries, is skipped with a warning.
+
+Restart YAAT to pick up edits to avoid-taxiway JSONs.
 
 ---
 

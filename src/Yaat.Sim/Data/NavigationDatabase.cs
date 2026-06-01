@@ -130,6 +130,7 @@ public sealed class NavigationDatabase
         InitialContactTransfers = LoadInitialContactTransfers(artccsBaseDir);
         WakeDirectives = LoadWakeDirectives(artccsBaseDir);
         TaxiRoutes = LoadTaxiRoutes(artccsBaseDir);
+        AvoidTaxiways = LoadAvoidTaxiways(artccsBaseDir);
         AllFixNames = BuildSortedNames();
     }
 
@@ -142,6 +143,7 @@ public sealed class NavigationDatabase
         InitialContactTransfers = InitialContactTransferCatalog.Empty;
         WakeDirectives = WakeDirectiveCatalog.Empty;
         TaxiRoutes = TaxiRouteCatalog.Empty;
+        AvoidTaxiways = AvoidTaxiwayCatalog.Empty;
         AllFixNames = [];
     }
 
@@ -151,6 +153,14 @@ public sealed class NavigationDatabase
     /// aircraft right-click menu to surface SOP-aligned taxi routes per airport.
     /// </summary>
     public TaxiRouteCatalog TaxiRoutes { get; }
+
+    /// <summary>
+    /// Per-ARTCC per-airport taxiways the AUTO taxi pathfinder should avoid, loaded from
+    /// <c>Data/ARTCCs/{ARTCC}/AvoidTaxiways/*.json</c>. Consulted by
+    /// <see cref="Yaat.Sim.Data.Airport.Pathfinding.SearchContext"/> for auto-routes only;
+    /// explicit <c>TAXI</c> commands that name an avoided taxiway are unaffected.
+    /// </summary>
+    public AvoidTaxiwayCatalog AvoidTaxiways { get; }
 
     /// <summary>
     /// ARTCC-specific pilot initial-contact transfer exceptions, indexed by ARTCC, airport,
@@ -1665,6 +1675,20 @@ public sealed class NavigationDatabase
         Log.LogInformation("Taxi routes: {Count} loaded from {BaseDir}", loadResult.Routes.Count, baseDir);
 
         return new TaxiRouteCatalog(loadResult.Routes);
+    }
+
+    private static AvoidTaxiwayCatalog LoadAvoidTaxiways(string baseDir)
+    {
+        var loadResult = AvoidTaxiwayLoader.LoadAll(baseDir);
+
+        foreach (var warning in loadResult.Warnings)
+        {
+            Log.LogWarning("Avoid taxiway: {Warning}", warning);
+        }
+
+        Log.LogInformation("Avoid taxiways: {Count} airport(s) loaded from {BaseDir}", loadResult.Airports.Count, baseDir);
+
+        return new AvoidTaxiwayCatalog(loadResult.Airports);
     }
 
     private static InitialContactTransferCatalog LoadInitialContactTransfers(string baseDir)

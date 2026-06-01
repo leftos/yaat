@@ -39,6 +39,15 @@ public static class RouteCostFunction
     public const double UnauthorizedTaxiwayFirstUseCostNm = 0.2;
 
     /// <summary>
+    /// First use of an ARTCC-avoided taxiway on the soft-penalty pass (the pass that runs only when
+    /// hard exclusion found no avoiding route). Sized far above any plausible taxi-distance spread so
+    /// avoided mileage is minimised, yet finite so a destination reachable only through the taxiway
+    /// still resolves. Must never be infinite. First-use only (see <see cref="IsAvoidedTaxiwayAlreadyVisited"/>)
+    /// so a long avoided stretch is not multiplied edge-by-edge.
+    /// </summary>
+    public const double AvoidedTaxiwayFirstUseCostNm = 5.0;
+
+    /// <summary>
     /// Penalty (nm-equivalent) for traversing a membership taxiway-junction arc ("X - Y", both
     /// taxiways) as a CONTINUATION of the walked taxiway rather than the turn onto the next
     /// instructed one. req ①: a single-name continuation must win over such an arc (a turn OFF
@@ -179,6 +188,18 @@ public static class RouteCostFunction
             }
         }
 
+        // Avoided-taxiway soft penalty (SoftPenalty pass only): first use of an ARTCC-avoided taxiway
+        // when the hard-exclude pass found no avoiding route. First-use-only and finite so the
+        // destination stays reachable while avoided mileage is minimised.
+        if (ctx.AvoidMode == AvoidTaxiwayMode.SoftPenalty && ctx.Preference != RoutePreference.Shortest)
+        {
+            string edgeTaxiway = ResolveTaxiwayName(candidate, current.HeadNodeId);
+            if (ctx.AvoidedTaxiways.Contains(edgeTaxiway) && !IsAvoidedTaxiwayAlreadyVisited(current, edgeTaxiway))
+            {
+                cost += AvoidedTaxiwayFirstUseCostNm;
+            }
+        }
+
         return cost;
     }
 
@@ -240,6 +261,23 @@ public static class RouteCostFunction
     }
 
     private static bool IsUnauthorizedTaxiwayAlreadyVisited(PartialRoute route, string taxiwayName)
+    {
+        var cursor = route;
+        while (cursor.LastEdge is not null)
+        {
+            string name = ResolveTaxiwayName(cursor.LastEdge, cursor.Previous?.HeadNodeId ?? cursor.HeadNodeId);
+            if (string.Equals(name, taxiwayName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            cursor = cursor.Previous!;
+        }
+
+        return false;
+    }
+
+    private static bool IsAvoidedTaxiwayAlreadyVisited(PartialRoute route, string taxiwayName)
     {
         var cursor = route;
         while (cursor.LastEdge is not null)

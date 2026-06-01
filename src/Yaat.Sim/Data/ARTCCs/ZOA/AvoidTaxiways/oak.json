@@ -1,0 +1,9 @@
+{
+  "airportId": "KOAK",
+  "taxiways": [
+    {
+      "name": "S",
+      "notes": "ZOA training: taxiway S (north-field perimeter/cargo ramp lead) is not used for routine auto-taxi. Route via TC/U/W instead; S is used only when a destination (e.g. parking @A, @B) is reachable only through it."
+    }
+  ]
+}

@@ -46,6 +46,17 @@ The pathfinder returns `TaxiRoute` (`src/Yaat.Sim/Data/Airport/TaxiRoute.cs`), a
 The pathfinder uses a single cost function (`RouteCostFunction.IncrementalCost`) evaluated at every decision point, with no per-decision scorer hacks or post-walk geometry fixes. This prevents the orbit/spin bugs (e.g., SKW3404 at SFO on route `A E B B3 A B1 Z S`, issue #165) that arose when local greedy choices were made without knowing downstream viability — and when per-node heuristics then tried to repair the wrong choice after the fact. The design evaluates the full sequence's viability before committing to an edge. Issue #165's regression test `Skw3404_DoesNotOrbitDuringTaxi` (`tests/Yaat.Sim.Tests/Simulation/Issue165SkwTaxiSpinTests.cs:201`) is un-skipped and passes under the current pathfinder.
 
 
+### Avoided taxiways (per-ARTCC)
+
+An ARTCC can mark taxiways an airport's **auto** routes should avoid via `Data/ARTCCs/{ARTCC}/AvoidTaxiways/{airport}.json` (loaded into `NavigationDatabase.AvoidTaxiways`; see `Data/ARTCCs/README.md`). `SearchContext.Compile` resolves the set for `Layout.AirportId` and sets `AvoidMode = HardExclude` **only for auto routes** (empty waypoint sequence); an explicit named-taxiway path keeps `AvoidMode = Off`, so `SegmentExpander` and controller `TAXI` commands are never re-routed.
+
+`TaxiPathfinder.FindRoute`/`FindRoutes` run a **two pass** search via `RunWithAvoidance`:
+
+1. **Pass 1 — hard exclude.** `AutoRouter.RunAstar` skips any edge whose `ResolveTaxiwayName` is in `ctx.AvoidedTaxiways` (the edge is never expanded — a reachability gate, not a cost). If a route is found, it is returned and the avoided taxiway is guaranteed unused.
+2. **Pass 2 — soft penalty (fallback).** Only when pass 1 finds no route, the search re-runs with `AvoidMode = SoftPenalty`: avoided edges are permitted but charged `RouteCostFunction.AvoidedTaxiwayFirstUseCostNm` (5.0 nm-equivalent, first-use only, finite). This keeps a destination reachable only through the avoided taxiway (e.g. a parking spot that hangs off it) resolvable while minimising the avoided mileage.
+
+Exclusion is by the **resolved** taxiway name: a junction arc that *continues along* the avoided taxiway is excluded, while one that merely *crosses* it (continuing another taxiway) is not. When the avoided set is empty or the airport is unconfigured, `AvoidMode = Off` and `RunWithAvoidance` is a single, unchanged search — no second pass, no added cost.
+
 ### Geometric correctness is a constraint, not a post-filter
 
 An inadmissible junction is simply not an edge in the search graph from that arrival direction. `GeometricAdmissibility.IsAdmissible` (`src/Yaat.Sim/Data/Airport/Pathfinding/GeometricAdmissibility.cs:86`) **hard-rejects** any edge whose heading change from the current arrival bearing exceeds the per-category limit:

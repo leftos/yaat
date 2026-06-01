@@ -40,6 +40,20 @@ public sealed record SearchContext(
     Action<string>? DiagnosticLog
 )
 {
+    private static readonly IReadOnlySet<string> EmptyAvoidedTaxiways = new HashSet<string>();
+
+    /// <summary>
+    /// Taxiway names the AUTO router should avoid at this airport, resolved from
+    /// <see cref="NavigationDatabase.AvoidTaxiways"/> keyed by <c>Layout.AirportId</c>. Empty when the
+    /// feature is off or the airport is unconfigured. Honoured only by <see cref="AutoRouter"/> /
+    /// <see cref="RouteCostFunction"/> in auto mode; <see cref="SegmentExpander"/> (explicit named-taxiway
+    /// paths) never reads it, so controller <c>TAXI</c> commands are unaffected.
+    /// </summary>
+    public IReadOnlySet<string> AvoidedTaxiways { get; init; } = EmptyAvoidedTaxiways;
+
+    /// <summary>How the avoided taxiways are enforced for this search; see <see cref="AvoidTaxiwayMode"/>.</summary>
+    public AvoidTaxiwayMode AvoidMode { get; init; } = AvoidTaxiwayMode.Off;
+
     /// <summary>
     /// Build a <see cref="SearchContext"/> from parsed command inputs.
     /// Resolves destination token to a node id, assembles authorized-taxiway set,
@@ -67,7 +81,29 @@ public sealed record SearchContext(
 
         var destination = ResolveDestination(layout, destinationRunway, destinationParking, destinationSpot, destinationNodeId);
 
-        return new SearchContext(layout, startNodeId, destination, waypointSequence, authorized, holdShorts, category, preference, diagnosticLog);
+        // Per-airport avoided taxiways apply to AUTO routes only (empty waypoint sequence). An explicit
+        // named-taxiway path (waypointSequence non-empty) is a controller instruction and is never
+        // re-routed around an avoided taxiway, so AvoidMode stays Off for it.
+        var avoidedTaxiways = ResolveAvoidedTaxiways(layout);
+        var avoidMode = (avoidedTaxiways.Count > 0) && (waypointSequence.Count == 0) ? AvoidTaxiwayMode.HardExclude : AvoidTaxiwayMode.Off;
+
+        return new SearchContext(layout, startNodeId, destination, waypointSequence, authorized, holdShorts, category, preference, diagnosticLog)
+        {
+            AvoidedTaxiways = avoidedTaxiways,
+            AvoidMode = avoidMode,
+        };
+    }
+
+    /// <summary>
+    /// Looks up the avoided-taxiway set for <paramref name="layout"/>'s airport from the global
+    /// <see cref="NavigationDatabase"/>. Best-effort: returns an empty set when no database is
+    /// initialized (e.g. synthetic-layout unit tests) or the airport is unconfigured. Reads a
+    /// process-global catalog and mutates nothing — the layout is untouched.
+    /// </summary>
+    private static IReadOnlySet<string> ResolveAvoidedTaxiways(AirportGroundLayout layout)
+    {
+        var db = NavigationDatabase.InstanceOrNull;
+        return db is null ? EmptyAvoidedTaxiways : db.AvoidTaxiways.GetAvoidedTaxiways(layout.AirportId);
     }
 
     /// <summary>

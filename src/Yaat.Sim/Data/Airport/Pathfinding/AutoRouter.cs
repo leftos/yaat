@@ -215,6 +215,19 @@ public static class AutoRouter
                     continue;
                 }
 
+                // Pass-1 hard exclusion of ARTCC-avoided taxiways (auto routes only — AvoidMode is
+                // Off for explicit/named-taxiway searches). When this pass finds no route,
+                // TaxiPathfinder re-runs with AvoidMode flipped to SoftPenalty so a destination only
+                // reachable through an avoided taxiway still resolves.
+                if (
+                    ctx.AvoidMode == AvoidTaxiwayMode.HardExclude
+                    && ctx.AvoidedTaxiways.Contains(RouteCostFunction.ResolveTaxiwayName(edge, current.HeadNodeId))
+                )
+                {
+                    rejected++;
+                    continue;
+                }
+
                 // Geometric admissibility gate.
                 if (!GeometricAdmissibility.IsAdmissible(current, edge, nextNode, ctx.Category))
                 {

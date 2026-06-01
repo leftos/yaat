@@ -94,7 +94,7 @@ public static class TaxiPathfinder
             diagnosticLog: null
         );
 
-        var (route, _) = AutoRouter.Run(ctx);
+        var (route, _) = RunWithAvoidance(ctx);
         return route;
     }
 
@@ -125,7 +125,7 @@ public static class TaxiPathfinder
         if (preference is not null)
         {
             var ctx = BuildNodeContext(layout, fromNodeId, toNodeId, preference.Value, authorizedTaxiways, category);
-            var (route, _) = AutoRouter.Run(ctx);
+            var (route, _) = RunWithAvoidance(ctx);
             return route is not null ? [route] : [];
         }
 
@@ -141,7 +141,7 @@ public static class TaxiPathfinder
             }
 
             var ctx = BuildNodeContext(layout, fromNodeId, toNodeId, pref, authorizedTaxiways, category);
-            var (route, _) = AutoRouter.Run(ctx);
+            var (route, _) = RunWithAvoidance(ctx);
 
             if (route is null)
             {
@@ -171,6 +171,31 @@ public static class TaxiPathfinder
     )
     {
         return RouteMaterialiser.FindFullLengthLineupHoldShort(layout, startNode, runwayId, holdShortNodes);
+    }
+
+    /// <summary>
+    /// Runs the A* auto-router with two-pass avoided-taxiway semantics. When the context carries
+    /// avoided taxiways (auto mode only — <see cref="AvoidTaxiwayMode.HardExclude"/>), pass 1
+    /// hard-excludes them; only if pass 1 finds no route does pass 2 run with the avoided taxiways
+    /// permitted under a heavy soft penalty, so a destination reachable only through an avoided
+    /// taxiway still resolves while using it minimally. With no avoided taxiways the mode is
+    /// <see cref="AvoidTaxiwayMode.Off"/> and this is a single, unchanged search.
+    /// </summary>
+    private static (TaxiRoute? Route, PathfindingFailure? Failure) RunWithAvoidance(SearchContext ctx)
+    {
+        if (ctx.AvoidMode != AvoidTaxiwayMode.HardExclude)
+        {
+            return AutoRouter.Run(ctx);
+        }
+
+        var pass1 = AutoRouter.Run(ctx);
+        if (pass1.Route is not null)
+        {
+            return pass1;
+        }
+
+        ctx.DiagnosticLog?.Invoke("[avoid] pass 1 (hard-exclude) found no route; retrying with soft penalty");
+        return AutoRouter.Run(ctx with { AvoidMode = AvoidTaxiwayMode.SoftPenalty });
     }
 
     private static SearchContext BuildNodeContext(
