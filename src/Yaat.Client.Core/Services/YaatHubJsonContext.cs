@@ -74,6 +74,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(SessionReportDto))]
 [JsonSerializable(typeof(List<CrcLobbyClientDto>))]
 [JsonSerializable(typeof(List<CrcRoomMemberDto>))]
+[JsonSerializable(typeof(List<OnlineControllerDto>))]
 // --- Method argument types beyond primitives. ---
 [JsonSerializable(typeof(FlightPlanAmendmentDto))]
 // --- Nested types that appear inside lists / arrays of registered types
@@ -83,6 +84,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(RoomMemberDto))]
 [JsonSerializable(typeof(CrcLobbyClientDto))]
 [JsonSerializable(typeof(CrcRoomMemberDto))]
+[JsonSerializable(typeof(OnlineControllerDto))]
 [JsonSerializable(typeof(WindLayerDto))]
 [JsonSerializable(typeof(Yaat.Sim.Scenarios.ScenarioGeneratorConfig))]
 [JsonSerializable(typeof(List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>))]
