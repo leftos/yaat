@@ -32,6 +32,7 @@
 - The right-click **Command** entry on the radar, ground, and flight-list views now opens a focused popup you can type a command into.
 - A VFR pattern aircraft told to FOLLOW traffic that is ahead of it (turning base or on final) now extends its downwind to fall in behind that traffic, instead of turning base at its own normal point and overtaking the aircraft it was told to follow. If it reaches its maximum downwind extension before it has spacing, it turns base and reports that the spacing is tight so you can re-sequence.
 - The right-click menu for an aircraft holding short now offers to cross the runway it is actually holding short of, once. Previously the ground-map menu could repeat a nearby runway several times (e.g. four "Cross 28R" entries while holding short of 15/33), and the aircraft-list menu offered the departure runway instead of the one being held.
+- A STARS primary or secondary scratchpad now rejects entries longer than the facility limit (3 characters, or 4 if enabled) instead of storing them, so a full callsign can no longer be set as one.
 
 ## v0.4.0-beta [2026/05/27]
 

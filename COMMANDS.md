@@ -418,8 +418,8 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Create half-strip | `HSC Ground/1 Hello\World` | `HALFSTRIPCREATE` | — |
 | Amend half-strip | `HSA Hello\Updated\Body` | `HALFSTRIPAMEND` | Also accepts `HSA HSTRIP_<id> ...` (UI default — disambiguates duplicate first-line text) |
 | Delete half-strip | `HSD Hello` | `HALFSTRIPDEL` | Also accepts `HSD HSTRIP_<id>` (UI default) |
-| Scratchpad 1 | `SP1 OAK` / `SP1` (clear) | — | — |
-| Scratchpad 2 | `SP2 I8R` / `SP2` (clear) | — | — |
+| Scratchpad 1 | `SP1 OAK` / `SP1` (clear) | — | Max 3 chars (4 if the facility enables 4-char scratchpads); longer entries are rejected with `FORMAT`. |
+| Scratchpad 2 | `SP2 I8R` / `SP2` (clear) | — | Max 3 chars (4 if the facility enables 4-char scratchpads); longer entries are rejected with `FORMAT`. |
 | Temp altitude | `TEMPALT 120` | `TA`, `TEMP`, `QQ` | — |
 | Cruise | `CRUISE 240` | `QZ` | — |
 | Pilot reported altitude | `PRA 250` / `PRA 0` (clear) | — | — |
@@ -1040,6 +1040,8 @@ Changing your active position also updates the radar display:
 | `SP1` | Clear scratchpad 1 |
 | `SP2 I8R` | Set scratchpad 2 |
 | `SP2` | Clear scratchpad 2 |
+
+STARS scratchpads hold at most **3 characters** (4 when the facility enables 4-character scratchpads). A longer entry is rejected with `FORMAT` and the existing value is left unchanged. The ASDE-X (`ASDXSP1`/`ASDXSP2`) and ERAM scratchpads are governed by their own rules and are not bound by this limit.
 
 Scratchpads support **undo/toggle**: entering the same value again restores the previous value, and clearing an already-cleared scratchpad restores the previous value.
 

@@ -10,6 +10,12 @@ namespace Yaat.Sim.Simulation;
 public static class ScratchpadRuleEngine
 {
     /// <summary>
+    /// STARS primary/secondary scratchpad character limit: 3, or 4 when the facility enables
+    /// <c>Allow4CharacterScratchpad</c>. ERAM and ASDE-X scratchpads are not bound by this rule.
+    /// </summary>
+    public static int MaxScratchpadLength(StarsConfig? starsConfig) => (starsConfig?.Allow4CharacterScratchpad ?? false) ? 4 : 3;
+
+    /// <summary>
     /// Evaluates primary and secondary scratchpad rules against the aircraft.
     /// Only sets scratchpad if no value is already assigned.
     /// </summary>

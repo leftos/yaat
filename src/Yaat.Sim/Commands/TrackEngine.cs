@@ -211,7 +211,7 @@ public static class TrackEngine
         return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
     }
 
-    public static CommandResult HandleScratchpad1(AircraftState ac, string text)
+    public static CommandResult HandleScratchpad1(AircraftState ac, string text, int maxLength)
     {
         bool isClearing = string.IsNullOrEmpty(text);
 
@@ -229,6 +229,12 @@ public static class TrackEngine
             ac.Stars.Scratchpad1 = ac.Stars.PreviousScratchpad1;
             ac.Stars.WasScratchpad1Cleared = string.IsNullOrEmpty(ac.Stars.PreviousScratchpad1);
             return new CommandResult(true, $"SP1: {ac.Stars.Scratchpad1}");
+        }
+
+        if (!isClearing && text.Length > maxLength)
+        {
+            // STARS rejects an over-length scratchpad entry; leave the current value unchanged.
+            return new CommandResult(false, "FORMAT");
         }
 
         ac.Stars.PreviousScratchpad1 = ac.Stars.Scratchpad1;
@@ -301,7 +307,7 @@ public static class TrackEngine
         }
     }
 
-    public static CommandResult HandleScratchpad2(AircraftState ac, string text)
+    public static CommandResult HandleScratchpad2(AircraftState ac, string text, int maxLength)
     {
         bool isClearing = string.IsNullOrEmpty(text);
 
@@ -317,6 +323,12 @@ public static class TrackEngine
             // Toggle: same value restores previous
             ac.Stars.Scratchpad2 = ac.Stars.PreviousScratchpad2;
             return new CommandResult(true, $"SP2: {ac.Stars.Scratchpad2}");
+        }
+
+        if (!isClearing && text.Length > maxLength)
+        {
+            // STARS rejects an over-length scratchpad entry; leave the current value unchanged.
+            return new CommandResult(false, "FORMAT");
         }
 
         ac.Stars.PreviousScratchpad2 = ac.Stars.Scratchpad2;
@@ -522,6 +534,9 @@ public static class TrackEngine
             return new CommandResult(false, "No active position — use AS to set one");
         }
 
+        var starsConfig = artccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? "");
+        int maxScratchpad = ScratchpadRuleEngine.MaxScratchpadLength(starsConfig);
+
         return parsed switch
         {
             TrackAircraftCommand => HandleTrack(ac, identity!),
@@ -539,8 +554,8 @@ public static class TrackEngine
             LeaderDirectionCommand ldr => HandleLeaderDirection(ac, ldr.Direction),
             JRingCommand jr => HandleJRing(ac, jr.Enable),
             ConeCommand cone => HandleCone(ac, cone.Enable),
-            Scratchpad1Command sp1 => HandleScratchpad1(ac, sp1.Text),
-            Scratchpad2Command sp2 => HandleScratchpad2(ac, sp2.Text),
+            Scratchpad1Command sp1 => HandleScratchpad1(ac, sp1.Text, maxScratchpad),
+            Scratchpad2Command sp2 => HandleScratchpad2(ac, sp2.Text, maxScratchpad),
             AsdexEditCommand asdexEdit => HandleAsdexEdit(ac, asdexEdit.Field, asdexEdit.Text),
             AsdexVerbCommand asdexVerb => HandleAsdexVerb(ac, asdexVerb.Verb),
             TemporaryAltitudeCommand ta => HandleTemporaryAltitude(ac, ta.AltitudeHundreds),
