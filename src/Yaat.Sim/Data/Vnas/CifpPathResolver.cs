@@ -261,6 +261,57 @@ public static class CifpPathResolver
     }
 
     /// <summary>
+    /// Resolves a supplementary CIFP from the local cache: the newest cached AIRAC cycle strictly older
+    /// than <paramref name="currentCycleId"/>. The app caches each cycle's CIFP it downloads, so a
+    /// procedure absent from the current cycle's file — e.g. a SID dropped during an amendment/rename
+    /// gap (NIMI5 → NIMI6) — can still be resolved from the most recent prior cycle that carried it.
+    /// Auto-accumulates as the app runs across cycle transitions; no shipped data. Returns null when no
+    /// older cached cycle exists (e.g. a fresh install).
+    /// </summary>
+    public static string? ResolveSupplementaryFromCache(string currentCycleId) =>
+        ResolveSupplementaryFromCache(currentCycleId, YaatPaths.Combine("cache", "cifp"));
+
+    internal static string? ResolveSupplementaryFromCache(string currentCycleId, string cacheDir)
+    {
+        if (!Directory.Exists(cacheDir))
+        {
+            return null;
+        }
+
+        string? bestPath = null;
+        string? bestCycle = null;
+        foreach (var path in Directory.EnumerateFiles(cacheDir, "FAACIFP18-*"))
+        {
+            var cycle = Path.GetFileName(path)["FAACIFP18-".Length..];
+
+            // AIRAC cycle ids are 4 ASCII digits (YYNN); skip the bundled file and any other artifacts.
+            if (cycle.Length != 4 || !cycle.All(char.IsAsciiDigit))
+            {
+                continue;
+            }
+
+            // Only cycles strictly older than the current one (same-length numeric ids order correctly).
+            if (string.CompareOrdinal(cycle, currentCycleId) >= 0)
+            {
+                continue;
+            }
+
+            if (bestCycle is null || string.CompareOrdinal(cycle, bestCycle) > 0)
+            {
+                bestCycle = cycle;
+                bestPath = path;
+            }
+        }
+
+        if (bestPath is not null)
+        {
+            Log.LogInformation("Supplementary CIFP resolved from cached prior cycle {Cycle} (current {Current})", bestCycle, currentCycleId);
+        }
+
+        return bestPath;
+    }
+
+    /// <summary>
     /// Decompresses <see cref="CifpResolveOptions.BundledGzPath"/> for supplementary procedure lookup
     /// (retired SIDs absent from the current FAA cycle). Returns null when no bundle is configured.
     /// </summary>

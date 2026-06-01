@@ -69,6 +69,7 @@ public sealed class InitialClimbPhase : Phase
             RvSidActive = _rvSidActive,
             RvSidHandoffElapsed = _rvSidHandoffElapsed,
             RvSidDeferHeadingUntilMinAlt = RvSidDeferHeadingUntilMinAlt,
+            RvSidHoldRunwayHeading = RvSidHoldRunwayHeading,
         };
 
     public static InitialClimbPhase FromSnapshot(InitialClimbPhaseDto dto)
@@ -85,6 +86,7 @@ public sealed class InitialClimbPhase : Phase
             DepartureSidId = dto.DepartureSidId,
             SidDepartureHeadingMagnetic = dto.SidDepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = dto.RvSidDeferHeadingUntilMinAlt,
+            RvSidHoldRunwayHeading = dto.RvSidHoldRunwayHeading,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
@@ -130,6 +132,14 @@ public sealed class InitialClimbPhase : Phase
     /// </summary>
     public bool RvSidDeferHeadingUntilMinAlt { get; init; }
 
+    /// <summary>
+    /// Radar-vectors SID whose published vectors heading could not be resolved (CIFP unavailable — e.g.
+    /// the procedure was retired from the current FAA cycle). Hold runway heading and await vectors
+    /// instead of navigating direct to the first enroute fix. <see cref="DepartureRoute"/> is retained
+    /// as the post-vectors route, loaded after comms handoff like any other radar-vectors departure.
+    /// </summary>
+    public bool RvSidHoldRunwayHeading { get; init; }
+
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
@@ -155,8 +165,10 @@ public sealed class InitialClimbPhase : Phase
 
         // Radar vectors SID: fly published heading, defer nav route until handoff + 5s.
         // The heading is actively held each tick; nav route is NOT loaded yet so
-        // FlightPhysics won't override the heading.
-        bool isRvSid = SidDepartureHeadingMagnetic.HasValue && (DepartureRoute is { Count: > 0 });
+        // FlightPhysics won't override the heading. RvSidHoldRunwayHeading covers the
+        // degradation case where the published vectors heading is unavailable (CIFP miss):
+        // hold runway heading and await vectors instead of navigating direct to the first fix.
+        bool isRvSid = (SidDepartureHeadingMagnetic.HasValue && (DepartureRoute is { Count: > 0 })) || RvSidHoldRunwayHeading;
         if (isRvSid)
         {
             _rvSidActive = true;
@@ -521,6 +533,9 @@ public sealed class InitialClimbPhase : Phase
             DefaultDeparture when SidDepartureHeadingMagnetic.HasValue => new MagneticHeading(SidDepartureHeadingMagnetic.Value).ToTrue(
                 ctx.Aircraft.Declination
             ),
+            // Radar vectors SID with no resolvable published heading (CIFP unavailable):
+            // fly runway heading and await vectors (FAA 7110.65 5-8-2 "FLY RUNWAY HEADING").
+            DefaultDeparture when RvSidHoldRunwayHeading => runwayHeading,
             _ => null,
         };
     }

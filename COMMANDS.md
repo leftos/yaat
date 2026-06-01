@@ -649,6 +649,8 @@ Append `CWT` after any CTO form to include "caution wake turbulence" in the take
 
 After liftoff the assigned departure turn is **deferred** to InitialClimbPhase. The aircraft holds runway heading until both gates are satisfied: past the departure end of runway AND at or above the minimum safe altitude — pattern altitude − 300 ft for VFR (AIM 4-3-2), or 400 ft above field elevation for IFR (TERPS criterion: no turns below 400 ft AGL for ODP design).
 
+For a **radar-vectors SID** (e.g. NIMI6 off KOAK), the published departure heading is read from CIFP and held after liftoff while you still have the aircraft, then the filed route is picked up after you hand it off. If that published heading can't be resolved from the current FAA CIFP cycle — for example the procedure was renamed and is briefly absent from the cycle's data — the aircraft holds **runway heading** and awaits vectors instead of turning direct to the first enroute fix (FAA 7110.65 5-8-2). When a recently-superseded CIFP cycle is still cached, the published heading is recovered from it.
+
 | Modifier | Departure type | VFR/IFR |
 |----------|----------------|---------|
 | *(none)* | Default departure — VFR: runway heading; IFR: navigates filed route ([SID](#glossary) expansion) | Both |

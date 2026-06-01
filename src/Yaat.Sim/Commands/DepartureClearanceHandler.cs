@@ -13,7 +13,8 @@ internal sealed record DepartureRouteResult(
     List<NavigationTarget> Targets,
     string? SidId,
     double? DepartureHeadingMagnetic = null,
-    bool RvSidDeferHeadingUntilMinAlt = false
+    bool RvSidDeferHeadingUntilMinAlt = false,
+    bool RvSidHoldRunwayHeading = false
 );
 
 internal static class DepartureClearanceHandler
@@ -308,6 +309,7 @@ internal static class DepartureClearanceHandler
             DepartureSidId = routeResult?.SidId,
             SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,
+            RvSidHoldRunwayHeading = routeResult?.RvSidHoldRunwayHeading ?? false,
             PatternRunway = patternRunway,
             PreClearedHoldShortNodeIds = preClearedIds.Count > 0 ? preClearedIds : null,
         };
@@ -363,6 +365,7 @@ internal static class DepartureClearanceHandler
                 DepartureSidId = routeResult?.SidId,
                 SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
                 RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,
+                RvSidHoldRunwayHeading = routeResult?.RvSidHoldRunwayHeading ?? false,
                 IsVfr = aircraft.FlightPlan.IsVfr,
                 CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
             };
@@ -655,36 +658,18 @@ internal static class DepartureClearanceHandler
                 }
 
                 // Fallback to NavData body-fix expansion (lateral path only, no constraints)
-                var expanded = navDb.ExpandRouteForNavigation(aircraft.FlightPlan.Route, aircraft.FlightPlan.Departure);
-                var targets = new List<NavigationTarget>();
+                var targets = BuildFallbackNavTargets(aircraft, navDb);
 
-                // Resolve fix positions, skipping unknown fixes
-                var airportPos = aircraft.FlightPlan.Departure is not null ? navDb.GetFixPosition(aircraft.FlightPlan.Departure) : null;
-
-                foreach (var name in expanded)
+                // CIFP couldn't resolve the SID (e.g. the procedure was retired from the current FAA
+                // cycle, so the published vectors heading is unavailable). If the vNAS nav data still
+                // recognizes the first route token as a radar-vectors SID — one with no published lateral
+                // path — degrade to a radar-vectors departure: hold runway heading and await vectors
+                // instead of turning direct to the first enroute fix. The expanded fixes are retained as
+                // the post-vectors route, loaded after comms handoff like any other RV-SID departure.
+                var firstToken = aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                if (firstToken is not null && navDb.IsRadarVectorsSidWithoutLateralPath(firstToken, aircraft.FlightPlan.Departure))
                 {
-                    var pos = navDb.GetFixPosition(name);
-                    if (pos is null)
-                    {
-                        continue;
-                    }
-
-                    targets.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
-                }
-
-                // Safety net: strip leading targets within 1nm of departure
-                if (airportPos is not null)
-                {
-                    while (targets.Count > 0)
-                    {
-                        double dist = GeoMath.DistanceNm(new LatLon(airportPos.Value.Lat, airportPos.Value.Lon), targets[0].Position);
-                        if (dist > 1.0)
-                        {
-                            break;
-                        }
-
-                        targets.RemoveAt(0);
-                    }
+                    return new DepartureRouteResult(targets, SidId: null, DepartureHeadingMagnetic: null, RvSidHoldRunwayHeading: true);
                 }
 
                 return targets.Count > 0 ? new DepartureRouteResult(targets, null) : null;
@@ -693,6 +678,47 @@ internal static class DepartureClearanceHandler
             default:
                 return null;
         }
+    }
+
+    /// <summary>
+    /// Expands the filed route via NavData body-fix expansion (lateral path only, no constraints) and
+    /// resolves each fix to a navigation target, stripping leading fixes within 1 nm of the departure
+    /// airport. Used as the fallback when CIFP can't supply constrained SID legs.
+    /// </summary>
+    private static List<NavigationTarget> BuildFallbackNavTargets(AircraftState aircraft, NavigationDatabase navDb)
+    {
+        var expanded = navDb.ExpandRouteForNavigation(aircraft.FlightPlan.Route, aircraft.FlightPlan.Departure);
+        var targets = new List<NavigationTarget>();
+
+        var airportPos = aircraft.FlightPlan.Departure is not null ? navDb.GetFixPosition(aircraft.FlightPlan.Departure) : null;
+
+        foreach (var name in expanded)
+        {
+            var pos = navDb.GetFixPosition(name);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            targets.Add(new NavigationTarget { Name = name, Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
+        }
+
+        // Safety net: strip leading targets within 1nm of departure
+        if (airportPos is not null)
+        {
+            while (targets.Count > 0)
+            {
+                double dist = GeoMath.DistanceNm(new LatLon(airportPos.Value.Lat, airportPos.Value.Lon), targets[0].Position);
+                if (dist > 1.0)
+                {
+                    break;
+                }
+
+                targets.RemoveAt(0);
+            }
+        }
+
+        return targets;
     }
 
     /// <summary>
@@ -1138,6 +1164,7 @@ internal static class DepartureClearanceHandler
             DepartureSidId = routeResult?.SidId,
             SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? stored.RvSidDeferHeadingUntilMinAlt,
+            RvSidHoldRunwayHeading = routeResult?.RvSidHoldRunwayHeading ?? stored.RvSidHoldRunwayHeading,
             PatternRunway = stored.PatternRunway,
             PreClearedHoldShortNodeIds = stored.PreClearedHoldShortNodeIds,
         };
@@ -1216,6 +1243,7 @@ internal static class DepartureClearanceHandler
             DepartureSidId = routeResult?.SidId,
             SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,
+            RvSidHoldRunwayHeading = routeResult?.RvSidHoldRunwayHeading ?? false,
             IsVfr = aircraft.FlightPlan.IsVfr,
             CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
         };

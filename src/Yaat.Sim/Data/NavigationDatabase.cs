@@ -658,6 +658,60 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
+    /// True when <paramref name="sidName"/> resolves to a SID in the vNAS nav data whose body carries
+    /// no published lateral path beyond the departure airport's colocated navaid — the signature of a
+    /// radar-vectors SID. Used to recognize RV-SIDs when the CIFP procedure (which carries the published
+    /// vectors heading) is unavailable — e.g. the SID was retired from the current FAA cycle — so the
+    /// aircraft holds runway heading and awaits vectors instead of turning direct to the first enroute fix.
+    /// </summary>
+    public bool IsRadarVectorsSidWithoutLateralPath(string sidName, string? departureAirport)
+    {
+        var sidId = ResolveSidId(sidName);
+        if (sidId is null)
+        {
+            return false;
+        }
+
+        var body = GetSidBody(sidId);
+        if (body is null)
+        {
+            return false;
+        }
+
+        if (body.Count == 0)
+        {
+            return true;
+        }
+
+        if (departureAirport is null)
+        {
+            return false;
+        }
+
+        var airportPos = GetFixPosition(departureAirport);
+        if (airportPos is null)
+        {
+            return false;
+        }
+
+        foreach (var fix in body)
+        {
+            var fixPos = GetFixPosition(fix);
+            if (fixPos is null)
+            {
+                return false;
+            }
+
+            if (GeoMath.DistanceNm(airportPos.Value.Lat, airportPos.Value.Lon, fixPos.Value.Lat, fixPos.Value.Lon) > 1.0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Resolves a potentially outdated SID ID to the current version.
     /// Returns the input if it matches exactly, the current version if the base name matches
     /// (e.g., "CNDEL5" → "CNDEL6"), or null if no match exists.

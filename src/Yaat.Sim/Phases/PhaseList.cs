@@ -70,6 +70,13 @@ public sealed class DepartureClearanceInfo
     public bool RvSidDeferHeadingUntilMinAlt { get; init; }
 
     /// <summary>
+    /// When true, the filed SID is a radar-vectors SID but its published vectors heading could not be
+    /// resolved (CIFP unavailable — e.g. the procedure was retired from the current FAA cycle). Initial
+    /// climb holds runway heading and awaits vectors instead of navigating direct to the first enroute fix.
+    /// </summary>
+    public bool RvSidHoldRunwayHeading { get; init; }
+
+    /// <summary>
     /// Pre-resolved pattern runway for cross-runway closed traffic departures.
     /// Set by the dispatcher so TaxiingPhase doesn't need NavigationDatabase.
     /// </summary>
@@ -93,6 +100,7 @@ public sealed class DepartureClearanceInfo
             DepartureSidId = DepartureSidId,
             SidDepartureHeadingMagnetic = SidDepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = RvSidDeferHeadingUntilMinAlt,
+            RvSidHoldRunwayHeading = RvSidHoldRunwayHeading,
             PatternRunway = PatternRunway?.ToSnapshot(),
             PreClearedHoldShortNodeIds = PreClearedHoldShortNodeIds?.ToList(),
         };
@@ -107,6 +115,7 @@ public sealed class DepartureClearanceInfo
             DepartureSidId = dto.DepartureSidId,
             SidDepartureHeadingMagnetic = dto.SidDepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = dto.RvSidDeferHeadingUntilMinAlt,
+            RvSidHoldRunwayHeading = dto.RvSidHoldRunwayHeading,
             PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
             PreClearedHoldShortNodeIds = dto.PreClearedHoldShortNodeIds,
         };
