@@ -57,7 +57,7 @@ public sealed class AtpaProcessor
                 continue;
             }
 
-            if (IsExcludedByTcp(volume, ac))
+            if (IsExcludedByTcp(volume, ac, tcpCodeByUlid))
             {
                 continue;
             }
@@ -171,19 +171,28 @@ public sealed class AtpaProcessor
         };
     }
 
-    private static bool IsExcludedByTcp(AtpaVolumeConfig volume, AircraftState ac)
+    private static bool IsExcludedByTcp(AtpaVolumeConfig volume, AircraftState ac, Dictionary<string, string> tcpCodeByUlid)
     {
-        if (volume.ExcludedTcpIds.Count == 0 || ac.Track.Owner is null)
+        var owner = ac.Track.Owner;
+        if (volume.ExcludedTcpIds.Count == 0 || owner is null)
         {
             return false;
         }
 
-        // Owner.SectorId matches the TCP sector ID, but excluded list uses ULID IDs.
-        // We store the ULID in Tcp.Id on AircraftState.Owner. However, TrackOwner
-        // does not carry the ULID — it carries Subset and SectorId.
-        // The ExcludedTcpIds list contains ULIDs; we can't match without the ULID.
-        // For now, return false (no exclusion by TCP) — the ULID is not propagated
-        // to TrackOwner. This matches safe/conservative behaviour (show more alerts).
+        // ExcludedTcpIds carries TCP ULIDs, but the track owner identifies its position by
+        // Subset + SectorId. Resolve each excluded ULID to its "{Subset}{SectorId}" code (the
+        // same projection BuildTcpCodeMap produces for the monitor/alert cones) and match it
+        // against the owner's TCP code. A null Subset (non-STARS owner) yields a code that no
+        // real STARS TCP produces, so it simply never matches.
+        var ownerCode = $"{owner.Subset}{owner.SectorId}";
+        foreach (var ulid in volume.ExcludedTcpIds)
+        {
+            if (tcpCodeByUlid.TryGetValue(ulid, out var code) && code.Equals(ownerCode, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

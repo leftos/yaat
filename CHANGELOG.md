@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- ATPA volumes now honor their configured excluded TCP list — aircraft tracked by a position in a volume's excluded-TCP list are no longer paired for in-trail spacing in that volume. Previously the exclusion list was silently ignored and every aircraft in the volume was sequenced.
+
 ## v0.5.0-beta [2026/05/31]
 
 ### Highlights

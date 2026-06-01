@@ -133,7 +133,9 @@ For each `AtpaVolumeConfig`, `ProcessVolume` collects aircraft that pass **four*
 1. **`AtpaVolumeGeometry.IsInside`** (`AtpaVolumeGeometry.cs:15`) — a threshold-anchored rectangle: altitude between
    `Floor` and `Ceiling` (**in hundreds of feet** — see footgun), ground track within `MaximumHeadingDeviation` of the
    volume's `MagneticHeading`, along-track 0..`Length` nm, cross-track within `WidthLeft`/`WidthRight` (**in feet**).
-2. **`IsExcludedByTcp`** (`AtpaProcessor.cs:174`) — **always returns false** (footgun below).
+2. **`IsExcludedByTcp`** (`AtpaProcessor.cs:174`) — drops aircraft whose track owner's `{Subset}{SectorId}` TCP code
+   matches one of the volume's `ExcludedTcpIds`. The excluded ULIDs are resolved to codes via the same ULID→`{Subset}{SectorId}`
+   map (`BuildTcpCodeMap`) used for the monitor/alert cones, then compared against the owner's code.
 3. **`IsExcludedByScratchpad`** (`:190`) — drops aircraft whose `Stars.Scratchpad1`/`Scratchpad2` (selected by the
    config's `ScratchPadNumber` of `"One"`/`"Two"`) matches a configured exclusion `Entry`.
 4. **`IsEstablishedOnApproach`** (`AtpaVolumeGeometry.cs:77`) — airborne, `VerticalSpeed ≤ 100 fpm` (`MaxVerticalSpeedFpm`),
@@ -323,10 +325,11 @@ here and have `aviation-sim-expert` review against the local FAA references.
   active approach, nor destination. Any track merely flying through *any* internal airport's 4 nm × 30 nm × glideslope
   box suppresses CA — even an overflight not landing there.
 
-- **`AtpaProcessor.IsExcludedByTcp` always returns false** (`AtpaProcessor.cs:174`). The volume's `ExcludedTcpIds` hold
-  ULIDs, but `Track.Owner` (a `TrackOwner`) carries only `Subset`/`SectorId`, never the ULID — so the match can't be
-  made and per-TCP volume exclusions silently do nothing. This is documented in-code as deliberately conservative
-  ("show more alerts"); it reads like a bug but is intentional until the ULID is propagated to `TrackOwner`.
+- **`ExcludedTcpIds` matches on `{Subset}{SectorId}`, not the ULID.** The volume's `ExcludedTcpIds` hold ULIDs, but
+  `Track.Owner` carries only `Subset`/`SectorId`. Rather than propagate the ULID onto `TrackOwner`, `IsExcludedByTcp`
+  resolves each excluded ULID to its `{Subset}{SectorId}` code (via `BuildTcpCodeMap`) and matches that against the
+  owner's code — the same identity model `TrackOwner.IsTcp` uses. Two STARS TCPs sharing a code (a malformed config)
+  would be indistinguishable here, the same exposure the monitor/alert cone resolution already has.
 
 - **Altitude units differ per detector.** `AtpaVolumeConfig.Floor`/`Ceiling` are in **hundreds of feet**
   (`AtpaVolumeGeometry.cs:18` divides aircraft altitude by 100 before comparing); CA thresholds are **raw feet**; cloud
