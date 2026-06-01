@@ -162,6 +162,7 @@ public sealed class UserPreferences
     public bool ShowSpeechBubbles => _data.ShowSpeechBubbles;
     public double SpeechBubbleDurationMultiplier => Math.Clamp(_data.SpeechBubbleDurationMultiplier, 0.25, 4.0);
     public bool ShowWarningSpeechBubbles => _data.ShowWarningSpeechBubbles;
+    public bool AlwaysShowGroundBubblesOnRadar => _data.AlwaysShowGroundBubblesOnRadar;
     public bool AutoClearedToLandGnd => _data.AutoClearedToLandGnd;
     public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
@@ -619,6 +620,12 @@ public sealed class UserPreferences
     public void SetShowWarningSpeechBubbles(bool enabled)
     {
         _data.ShowWarningSpeechBubbles = enabled;
+        Save();
+    }
+
+    public void SetAlwaysShowGroundBubblesOnRadar(bool enabled)
+    {
+        _data.AlwaysShowGroundBubblesOnRadar = enabled;
         Save();
     }
 
@@ -1373,6 +1380,7 @@ public sealed class UserPreferences
         public bool ShowSpeechBubbles { get; set; }
         public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;
         public bool ShowWarningSpeechBubbles { get; set; }
+        public bool AlwaysShowGroundBubblesOnRadar { get; set; }
         public bool AutoClearedToLandGnd { get; set; } = true;
         public bool AutoClearedToLandTwr { get; set; }
         public bool AutoClearedToLandApp { get; set; } = true;

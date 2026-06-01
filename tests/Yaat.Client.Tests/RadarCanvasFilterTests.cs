@@ -31,9 +31,15 @@ public class RadarCanvasFilterTests
 
     private static AircraftSpeechBubble ExpiredBubble() => new("Ready to taxi", Now - TimeSpan.FromSeconds(1), SpeechBubbleSeverity.Speech);
 
-    private static List<string> Filter(IReadOnlyList<AircraftModel> aircraft, bool showTopDown, bool showSpeechBubbles, string? groundShownAirportId)
+    private static List<string> Filter(
+        IReadOnlyList<AircraftModel> aircraft,
+        bool showTopDown,
+        bool showSpeechBubbles,
+        string? groundShownAirportId,
+        bool alwaysShowGroundBubbles = false
+    )
     {
-        var result = RadarCanvas.FilterAircraft(aircraft, showTopDown, showSpeechBubbles, groundShownAirportId, Now);
+        var result = RadarCanvas.FilterAircraft(aircraft, showTopDown, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, Now);
         return result.Select(a => a.Callsign).ToList();
     }
 
@@ -111,6 +117,47 @@ public class RadarCanvasFilterTests
             showTopDown: false,
             showSpeechBubbles: true,
             groundShownAirportId: "SFO"
+        );
+        Assert.Empty(list);
+    }
+
+    [Fact]
+    public void GroundAircraft_ActiveBubble_AlwaysShowOption_SurfacedEvenWhenGroundViewShowsAirport()
+    {
+        // "Always show ground bubbles on radar" overrides the airport-match gate.
+        var list = Filter(
+            [Ground("N1", "OAK", ActiveBubble())],
+            showTopDown: false,
+            showSpeechBubbles: true,
+            groundShownAirportId: "OAK",
+            alwaysShowGroundBubbles: true
+        );
+        Assert.Equal(["N1"], list);
+    }
+
+    [Fact]
+    public void GroundAircraft_NoBubble_AlwaysShowOption_StillHidden()
+    {
+        // The always-show option only surfaces aircraft that actually have an active bubble.
+        var list = Filter(
+            [Ground("N1", "OAK")],
+            showTopDown: false,
+            showSpeechBubbles: true,
+            groundShownAirportId: "OAK",
+            alwaysShowGroundBubbles: true
+        );
+        Assert.Empty(list);
+    }
+
+    [Fact]
+    public void GroundAircraft_ActiveBubble_AlwaysShowOption_MasterToggleOff_Hidden()
+    {
+        var list = Filter(
+            [Ground("N1", "OAK", ActiveBubble())],
+            showTopDown: false,
+            showSpeechBubbles: false,
+            groundShownAirportId: "OAK",
+            alwaysShowGroundBubbles: true
         );
         Assert.Empty(list);
     }

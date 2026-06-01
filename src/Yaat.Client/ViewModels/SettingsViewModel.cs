@@ -163,6 +163,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _showWarningSpeechBubbles;
 
     [ObservableProperty]
+    private bool _alwaysShowGroundBubblesOnRadar;
+
+    [ObservableProperty]
     private bool _autoClearedToLandGnd;
 
     [ObservableProperty]
@@ -554,6 +557,7 @@ public partial class SettingsViewModel : ObservableObject
         _showSpeechBubbles = _preferences.ShowSpeechBubbles;
         _speechBubbleDurationMultiplier = _preferences.SpeechBubbleDurationMultiplier;
         _showWarningSpeechBubbles = _preferences.ShowWarningSpeechBubbles;
+        _alwaysShowGroundBubblesOnRadar = _preferences.AlwaysShowGroundBubblesOnRadar;
         _autoClearedToLandGnd = _preferences.AutoClearedToLandGnd;
         _autoClearedToLandTwr = _preferences.AutoClearedToLandTwr;
         _autoClearedToLandApp = _preferences.AutoClearedToLandApp;
@@ -678,6 +682,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetShowSpeechBubbles(ShowSpeechBubbles);
         _preferences.SetSpeechBubbleDurationMultiplier(SpeechBubbleDurationMultiplier);
         _preferences.SetShowWarningSpeechBubbles(ShowWarningSpeechBubbles);
+        _preferences.SetAlwaysShowGroundBubblesOnRadar(AlwaysShowGroundBubblesOnRadar);
         _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
@@ -1454,6 +1459,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnSpeechBubbleDurationMultiplierChanged(double value) => VisualSettingsChanged?.Invoke();
 
     partial void OnShowWarningSpeechBubblesChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnAlwaysShowGroundBubblesOnRadarChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     // ---------- CUDA backend install ----------
 

@@ -4,7 +4,8 @@
 
 ### Added
 - `PUSH FACE` / `PUSH TAIL` during an active pushback amends the target facing in place, accepted until the nose begins rotating to the prior target. (#167)
-- A taxiing aircraft's speech bubble now appears on the Radar view when no Ground view is currently showing that airport, so SAY prompts and pilot calls from aircraft on the ground aren't missed. (#169)
+- A taxiing aircraft's speech bubble now appears on the Radar view when no Ground view is showing that airport — including when the Ground view is docked but a different tab is in focus — so prompts from aircraft on the ground aren't missed. (#169)
+- Option (Settings > Display > Overlays) to always show ground aircraft speech bubbles on the Radar view, even when a Ground view for that airport is open and in focus. (#169)
 - Speech bubbles gained a duration multiplier (Settings > Display > Overlays) to scale how long they stay on screen. (#170)
 - Optional amber WARN-message speech bubbles (Settings > Display > Overlays) overlay warning-channel messages on the aircraft, distinct from the green SAY/pilot bubbles. (#170)
 

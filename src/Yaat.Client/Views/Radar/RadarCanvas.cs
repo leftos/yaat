@@ -390,6 +390,26 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(GroundShownAirportIdProperty, value);
     }
 
+    private bool _alwaysShowGroundBubblesOnRadar;
+
+    /// <summary>
+    /// When true, every ground aircraft with an active speech bubble is surfaced on the radar,
+    /// even when a ground view is showing its airport (otherwise such aircraft are surfaced only
+    /// when no ground view presents their airport). Driven by the matching user preference.
+    /// </summary>
+    public bool AlwaysShowGroundBubblesOnRadar
+    {
+        get => _alwaysShowGroundBubblesOnRadar;
+        set
+        {
+            if (_alwaysShowGroundBubblesOnRadar != value)
+            {
+                _alwaysShowGroundBubblesOnRadar = value;
+                MarkDirty();
+            }
+        }
+    }
+
     public float DatablockTextSize
     {
         get => _renderer.DatablockTextSize;
@@ -742,7 +762,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return new RenderSnapshot(
             VideoMaps ?? Array.Empty<VideoMapData>(),
             _brightnessLookup,
-            SortByZOrder(FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, GroundShownAirportId, DateTime.UtcNow), _dataBlockZOrder),
+            SortByZOrder(
+                FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
+                _dataBlockZOrder
+            ),
             SelectedAircraft,
             ShowRangeRings,
             RangeNm,
@@ -1188,7 +1211,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         var tags = LastEuroScopeTags;
-        var sorted = SortByZOrder(FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, GroundShownAirportId, DateTime.UtcNow), _dataBlockZOrder);
+        var sorted = SortByZOrder(
+            FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
+            _dataBlockZOrder
+        );
         AircraftModel? bestAc = null;
         var bestField = TagFieldId.None;
 
@@ -1238,7 +1264,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        var sorted = SortByZOrder(FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, GroundShownAirportId, DateTime.UtcNow), _dataBlockZOrder);
+        var sorted = SortByZOrder(
+            FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
+            _dataBlockZOrder
+        );
         AircraftModel? best = null;
 
         foreach (var ac in sorted)
@@ -1346,7 +1375,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         AircraftModel? closest = null;
         float closestDist = hitRadius;
 
-        foreach (var ac in FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, GroundShownAirportId, DateTime.UtcNow))
+        foreach (
+            var ac in FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow)
+        )
         {
             var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             var dx = (float)screenPos.X - sx;
@@ -1618,6 +1649,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<AircraftModel>? aircraft,
         bool showTopDown,
         bool showSpeechBubbles,
+        bool alwaysShowGroundBubbles,
         string? groundShownAirportId,
         DateTime nowUtc
     )
@@ -1635,7 +1667,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 continue;
             }
 
-            if (ac.IsOnGround && !showTopDown && !ShouldSurfaceGroundBubble(ac, showSpeechBubbles, groundShownAirportId, nowUtc))
+            if (
+                ac.IsOnGround
+                && !showTopDown
+                && !ShouldSurfaceGroundBubble(ac, showSpeechBubbles, alwaysShowGroundBubbles, groundShownAirportId, nowUtc)
+            )
             {
                 continue;
             }
@@ -1647,15 +1683,27 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// True when a ground aircraft carries an active speech bubble that no open ground view is
-    /// already showing — i.e. its airport differs from <paramref name="groundShownAirportId"/>
-    /// (or its airport is unknown), so the radar should surface it rather than hide it.
+    /// True when a ground aircraft carries an active speech bubble the radar should surface. With
+    /// <paramref name="alwaysShowGroundBubbles"/> on, any active bubble surfaces; otherwise only
+    /// when no open ground view is already showing the aircraft's airport — i.e. its airport
+    /// differs from <paramref name="groundShownAirportId"/> (or is unknown).
     /// </summary>
-    private static bool ShouldSurfaceGroundBubble(AircraftModel ac, bool showSpeechBubbles, string? groundShownAirportId, DateTime nowUtc)
+    private static bool ShouldSurfaceGroundBubble(
+        AircraftModel ac,
+        bool showSpeechBubbles,
+        bool alwaysShowGroundBubbles,
+        string? groundShownAirportId,
+        DateTime nowUtc
+    )
     {
         if (!showSpeechBubbles || ac.SpeechBubble is not { } bubble || bubble.ExpiresAt <= nowUtc)
         {
             return false;
+        }
+
+        if (alwaysShowGroundBubbles)
+        {
+            return true;
         }
 
         return string.IsNullOrEmpty(ac.GroundAirportId)

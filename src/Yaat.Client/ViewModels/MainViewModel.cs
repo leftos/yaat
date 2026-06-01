@@ -69,7 +69,22 @@ public partial class MainViewModel : ObservableObject
     /// loaded. The radar uses this to surface a ground aircraft's speech bubble only when that
     /// aircraft's airport isn't already shown on the ground view (issue #169).
     /// </summary>
-    public string? GroundShownAirportId => (IsGroundViewPoppedOut || SelectedTabIndex == GroundViewTabIndex) ? Ground.DomainLayout?.AirportId : null;
+    public string? GroundShownAirportId =>
+        ResolveGroundShownAirportId(IsGroundViewPoppedOut, SelectedTabIndex, GroundViewTabIndex, Ground.DomainLayout?.AirportId);
+
+    /// <summary>
+    /// The airport a ground view is currently presenting to the user: the loaded ground-layout
+    /// airport when the ground view is visible (popped out, or the selected docked tab), else null.
+    /// Returning null is what surfaces that airport's ground-aircraft speech bubbles on the radar —
+    /// including the case where the ground view is docked but a different tab (Aircraft List, Strips,
+    /// Radar, …) is in focus. Pure and static so the focus rule can be unit-tested.
+    /// </summary>
+    internal static string? ResolveGroundShownAirportId(
+        bool groundViewPoppedOut,
+        int selectedTabIndex,
+        int groundTabIndex,
+        string? groundLayoutAirportId
+    ) => (groundViewPoppedOut || selectedTabIndex == groundTabIndex) ? groundLayoutAirportId : null;
 
     /// <summary>
     /// Short-hand for the student-facility strips VM (the first entry in
