@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.5.0-beta [2026/05/31]
+
+### Highlights
+- Smoother ground handling — the taxi, turn, and corner logic was rebuilt, so aircraft follow the pavement more realistically and far fewer get stuck spinning in place or wandering off the taxiway.
+- Taxiing aircraft's speech bubbles now show on the Radar view when no Ground view is up for their airport, so you don't miss ground prompts — plus new options for longer bubble duration and amber warning bubbles.
+- The Aircraft List Info column shows each departing aircraft's lateral clearance and climb target at a glance (e.g. "Departing 28R, hdg 270, ↑ 3,000").
+- Right-click another aircraft without changing your selection to issue traffic calls to the aircraft you're working — "report in sight" and "follow" on the radar, "give way to" and "follow" on the ground.
 
 ### Added
 - `PUSH FACE` / `PUSH TAIL` during an active pushback amends the target facing in place, accepted until the nose begins rotating to the prior target. (#167)
@@ -13,13 +19,15 @@
 - `ADD` can spawn a departure lined up on a runway with a filed route: `ADD IFR S P 28R NIMI6.OAK.SAU` files the route `NIMI6 OAK SAU` and sets the departure airport, so a subsequent `CTO` flies the filed SID. The route is a dot-joined token after the runway; a numeric token there is still the on-final distance.
 - ARTCCs can mark per-airport taxiways the auto-router avoids in auto-taxi and "taxi to…" routing (e.g. OAK taxiway S), using one only when a destination is otherwise unreachable; explicit `TAXI` commands naming the taxiway are unaffected.
 
+### Changed
+- The ground-movement stack — taxi pathfinder, corner-fillet geometry, and ground navigator — was rebuilt from scratch using everything learned since the first release, for more realistic taxiing and far fewer aircraft stuck spinning in place or wandering off the pavement.
+
 ### Fixed
 - Ghosting an aircraft (STARS AID + slew) that is already tracked by another position no longer steals the track from that position; the ghost is rejected with an ownership error. Ghosting an untracked aircraft, or one you already own, still works.
 - ERAM `QT` (start track) and `QT D` (drop track) no longer take or drop a track owned by another sector without authorization; both are rejected unless the `/OK` logic-check override is included, which forcefully steals the track as documented.
 - A helicopter given a bare `CTOPP` now lifts straight up into a hover and holds position (25 ft AGL) awaiting further instructions, instead of accelerating forward and drifting off along its parked heading. `CTOPP +0XX` holds at a higher AGL, and the directional forms (`CTOPP <hdg>` / `OC` / `DCT FIX`) now climb vertically before turning to depart.
 - Training sessions paused for over an hour are now retired from the server even with users connected, ejecting them back to the room list with a notice.
 - An IFR aircraft cleared for takeoff on a radar-vectors SID (e.g. NIMI6 off KOAK) no longer turns direct to the first enroute fix when the SID's published departure heading is missing from the current FAA CIFP cycle — for example during a procedure rename (NIMI5 → NIMI6) when the new id is briefly absent from the cycle's data. It now holds runway heading and awaits vectors, and recovers the published heading from a recently-cached prior CIFP cycle when one is available.
-- `ADD` spawning an aircraft on a runway whose designator ends in L/R/C (e.g. `ADD VFR S P 28R`) no longer fails with "Missing position arguments" — the runway is no longer mistaken for an aircraft-type override.
 - Holding `F1` in CRC STARS (the beaconator) now shows aircraft callsigns, and CRC ERAM data blocks show the callsign instead of the beacon code.
 - Aircraft cleared to cross a runway with `CROSS` now follow the painted taxi line through the crossing instead of cutting diagonally across the runway surface when the taxiway curves through the crossing (e.g. SFO H across 01L/19R).
 - Aircraft cleared to cross a runway now cross at normal taxi speed and keep rolling all the way across, instead of slowing to a lower crossing speed or braking toward a stop at the far side before continuing onto the next taxiway.
