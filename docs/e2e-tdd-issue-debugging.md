@@ -1,5 +1,7 @@
 # Test-Driven Debugging with Recordings
 
+> For the test *harness* mechanics this builds on — fixtures, the static-singleton-race protocol, offline data fallbacks, and the `xunit.runner.json` gotcha — see [test-harness.md](test-harness.md). This doc covers the recording-replay debugging flow specifically.
+
 ## The Core Idea
 
 Users report bugs by attaching a `.yaat-recording.json` to a GitHub issue. That recording is a complete snapshot: the scenario JSON, RNG seed, weather, and every action the user took — timestamped to the second. You can replay it deterministically in a test, freeze time at any point, and inspect every field on every aircraft.

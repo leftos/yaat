@@ -34,6 +34,8 @@ The 4 sub-ticks give physics 0.25-second resolution while keeping all broadcasts
 
 ## `FlightPhysics.Update` — 8 steps in order
 
+> This section gives the step ORDER. For the integration math inside each step, the airspeed-frame model (IAS/TAS/GS/Mach), and the validated per-category performance constants, see [flight-physics.md](flight-physics.md).
+
 For each aircraft, `FlightPhysics.Update(ac, deltaSeconds, …)` runs:
 
 1. **`UpdateNavigation`** — sequence to next waypoint; on arrival, fire `NotifyFixSequenced` (which feeds AT-fix triggers); compute course-to-target.

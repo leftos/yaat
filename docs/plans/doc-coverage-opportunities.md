@@ -4,11 +4,10 @@
 > so future agents (and humans) stop re-parsing the same big, complex parts of the codebase on
 > every task. Produced by a 22-agent gap-analysis workflow over **both repos** (yaat + yaat-server).
 >
-> **Status:** Tier-1 first batch **drafted + adversarially verified** (✅ in the tables below):
-> `command-handlers.md`, `aircraft-data-model.md`, `training-hub-contract.md`, `server-rooms-and-hub.md`,
-> and the `logging.md` quick win. Remaining items stay candidates. Per-item drafting material (complete
-> outline, every footgun, the measured cold-read cost) is in the verbatim appendix:
-> [doc-coverage-opportunities.detail.md](doc-coverage-opportunities.detail.md).
+> **Status:** **All Tier-1 docs (#1–#7) + the `logging.md` quick win (#15) drafted + adversarially verified**
+> (✅ in the tables below). Tier 2 (#8–#14) and the rest of Tier 3 (#16–#18) remain candidates. Per-item
+> drafting material (complete outline, every footgun, the measured cold-read cost) is in the verbatim
+> appendix: [doc-coverage-opportunities.detail.md](doc-coverage-opportunities.detail.md).
 
 ## Methodology
 
@@ -40,9 +39,9 @@ Tiers are my synthesis over the agents' (mostly uniform) priority scores, ranked
 | 2 | ✅ `aircraft-data-model.md` | `AircraftState` + 13 satellites + `ControlTargets`; the 3-projection trap | M | High | ~1.4K LOC + 1,314 accessor refs / 17 files |
 | 3 | ✅ `training-hub-contract.md` | The `/hubs/training` JSON wire contract (client↔server DTO matching, source-gen) | M | High | ~3K LOC / 9 files, **2 repos** |
 | 4 | ✅ `server-rooms-and-hub.md` | Hosted tick loop, `RoomEngine`, room isolation, delta/fingerprint engine | L | High | ~8.4K LOC / 9 files, **2 repos** |
-| 5 | `navigation-database.md` | NavData/CIFP singleton, route expansion, the RV-SID footgun, FRD | M | Med-High | ~2.9K LOC / 6 files |
-| 6 | `flight-physics.md` | Per-tick kinematics, airspeed frames, the validated performance-constant table | L | High | ~3.2K LOC / 5 files |
-| 7 | `test-harness.md` | Fixtures, the singleton-race protocol, the pathfinder oracle/budget infra | M | High | ~1.6K LOC / 10 files + 8 singletons |
+| 5 | ✅ `navigation-database.md` | NavData/CIFP singleton, route expansion, the RV-SID footgun, FRD | M | Med-High | ~2.9K LOC / 6 files |
+| 6 | ✅ `flight-physics.md` | Per-tick kinematics, airspeed frames, the validated performance-constant table | L | High | ~3.2K LOC / 5 files |
+| 7 | ✅ `test-harness.md` | Fixtures, the singleton-race protocol, the pathfinder oracle/budget infra | M | High | ~1.6K LOC / 10 files + 8 singletons |
 
 ### Tier 2 — high value (high churn / aviation-sensitive)
 
@@ -241,9 +240,8 @@ places, and the 6 MB checked-in Brotli fixture.
 
 ## Next steps
 
-**Done so far:** the Tier-1 first batch (#1, #2, the #3+#4 pair) plus the #15 quick win are drafted and
-adversarially verified; the incidental findings are resolved (see above).
+**Done:** all of Tier 1 (#1–#7) plus the #15 `logging.md` quick win — drafted and adversarially verified;
+the incidental findings are resolved (see above).
 
-**Remaining, by leverage:** Tier-1 #5 `navigation-database.md`, #6 `flight-physics.md`, #7 `test-harness.md`;
-then Tier 2 (#8–#14) and the rest of Tier 3 (#16–#18). Each is self-contained drafting work using its
-appendix block.
+**Remaining, by leverage:** Tier 2 (#8–#14) and the rest of Tier 3 (#16–#18). Each is self-contained
+drafting work using its appendix block.
