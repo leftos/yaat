@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -5,6 +6,9 @@ using Yaat.Client.Services;
 using Yaat.Sim;
 
 namespace Yaat.Client.ViewModels;
+
+/// <summary>One airport's raw METAR string, as broadcast for the currently active weather.</summary>
+public record MetarEntry(string? StationId, string Raw);
 
 public record WeatherDisplayInfo(string? StationId, int? WindDirectionDeg, int? WindSpeedKts, int? WindGustKts, double? AltimeterInHg)
 {
@@ -47,6 +51,9 @@ public partial class MainViewModel
 
     private string? _activeWeatherJson;
     private IReadOnlyList<WeatherDisplayInfo>? _allWeatherInfo;
+
+    /// <summary>Raw METAR strings for the active weather, one per airport, shown in the METAR window.</summary>
+    public ObservableCollection<MetarEntry> Metars { get; } = [];
 
     public string? ActiveWeatherJson => _activeWeatherJson;
 
@@ -248,6 +255,7 @@ public partial class MainViewModel
                 _allWeatherInfo = null;
                 Ground.WeatherInfo = null;
                 Radar.WeatherInfo = null;
+                Metars.Clear();
             }
             else
             {
@@ -257,8 +265,35 @@ public partial class MainViewModel
                 _allWeatherInfo = allInfo;
                 Radar.WeatherInfo = FilterWeatherForPosition(allInfo, Radar.WeatherAirports);
                 Ground.WeatherInfo = PickGroundWeather(allInfo, Ground.Layout?.AirportId);
+                PopulateMetars(dto.Metars);
             }
         });
+    }
+
+    private void PopulateMetars(IReadOnlyList<string>? metars)
+    {
+        Metars.Clear();
+        if (metars is null)
+        {
+            return;
+        }
+
+        foreach (var raw in metars)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            // Strip K prefix for US ICAO stations (KOAK → OAK) for the display label.
+            var stationId = MetarParser.Parse(raw)?.StationId;
+            if (stationId is { Length: 4 } && stationId.StartsWith('K'))
+            {
+                stationId = stationId[1..];
+            }
+
+            Metars.Add(new MetarEntry(stationId, raw.Trim()));
+        }
     }
 
     private static IReadOnlyList<WeatherDisplayInfo>? ExtractAllWeatherDisplay(IReadOnlyList<string>? metars)

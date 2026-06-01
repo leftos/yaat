@@ -190,6 +190,12 @@ public partial class MainWindow : Window
             controllersItem.Click += OnControllersClick;
         }
 
+        var metarItem = this.FindControl<MenuItem>("MetarMenuItem");
+        if (metarItem is not null)
+        {
+            metarItem.Click += OnMetarClick;
+        }
+
         var crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
         if (crcItem is not null)
         {
@@ -339,6 +345,14 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             ControllersWindow.ShowOrActivate(vm, this);
+        }
+    }
+
+    private void OnMetarClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            MetarWindow.ShowOrActivate(vm, this);
         }
     }
 
