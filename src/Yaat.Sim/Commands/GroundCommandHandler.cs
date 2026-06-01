@@ -1237,6 +1237,7 @@ internal static class GroundCommandHandler
         }
 
         aircraft.Ground.Hold = HoldDirective.GiveWay(targetCallsign);
+        aircraft.Ground.IsExpeditingTaxi = false;
         return CommandDispatcher.Ok($"Give way to {targetCallsign}");
     }
 

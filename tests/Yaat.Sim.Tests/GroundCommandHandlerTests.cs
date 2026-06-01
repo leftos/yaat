@@ -1724,6 +1724,21 @@ public class GroundCommandHandlerTests
     }
 
     [Fact]
+    public void TryGiveWay_ClearsExpeditingTaxi()
+    {
+        // GIVEWAY is a hold-class command: telling the aircraft to wait for another
+        // implicitly cancels an earlier EXPEDITE, so it resumes at normal taxi speed.
+        // Matches TryHoldPosition / TryResumeTaxi / TryHoldShort.
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = MakeRouteWithHoldShort("28R");
+        ac.Ground.IsExpeditingTaxi = true;
+
+        GroundCommandHandler.TryGiveWay(ac, "UAL999");
+
+        Assert.False(ac.Ground.IsExpeditingTaxi);
+    }
+
+    [Fact]
     public void TryGiveWay_NoTaxiRoute_Fails()
     {
         // GIVEWAY requires an assigned taxi route — without one there's no taxi to defer.
