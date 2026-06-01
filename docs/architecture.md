@@ -13,7 +13,7 @@
 | **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
 | **Heading/navigation** | `FlightCommandHandler.cs`, `NavigationCommandHandler.cs`, `FlightPhysics.cs` (UpdateNavigation/UpdateHeading), `ControlTargets.cs` |
 | **Ground taxiing** | `GroundNavigator.cs`, `TaxiPathfinder.cs`, `TaxiingPhase.cs`, `TaxiRoute.cs`, `AirportGroundLayout.cs` |
-| **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory`, `FilletArcGenerator.cs` + `Fillet/V2/` (plan-then-execute edge-split), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
+| **Ground layout parsing** | `GeoJsonParser.cs`, `IFilletArcGenerator` / `FilletGeneratorFactory`, `FilletArcGenerator.cs` + `Fillet/` (plan-then-execute edge-split), `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
 | **Runway exits** | `LandingPhase.cs`, `RunwayExitPhase.cs`, `ExitPreference.cs`, `AirportGroundLayout.cs` (FindExitPath) |
 | **Approach procedures** | `ApproachCommandHandler.cs`, `ApproachNavigationPhase.cs`, `FinalApproachPhase.cs`, `CifpParser.cs` |
 | **SID/STAR** | `DepartureClearanceHandler.cs`, `InitialClimbPhase.cs`, `CifpParser.cs`, `NavigationDatabase.cs` |
@@ -590,23 +590,27 @@ AirportLayoutDownloader.cs     # Fetches airport ground GeoJSON from vNAS traini
 AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt), DirectionalEdge (traversal direction)
                                # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops; returns Side), FindExitFromCenterline (walk centerlines, returns side+walk node), FindOnSidePreferredExit (lookahead: defer off-side, prefer later on-side), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
 CubicBezier.cs                 # Bezier math utilities; used by FilletArcGenerator (arc generation) and GroundNavigator (path following)
-IFilletArcGenerator.cs         # Pluggable fillet contract; None + V2 implementations; FilletMode on GeoJsonParser.Parse
-FilletGeneratorFactory.cs    # FilletMode → IFilletArcGenerator (None / V2)
-FilletArcGeneratorRegistry.cs# Enumerates implemented generators (None, V2)
+IFilletArcGenerator.cs         # Pluggable fillet contract; None + Standard implementations; FilletMode on GeoJsonParser.Parse
+FilletMode.cs                  # Fillet mode enum: None (no-op pass) / Standard (the real generator)
+NullFilletArcGenerator.cs      # No-op generator for FilletMode.None and raw-layout tests
+FilletGeneratorFactory.cs    # FilletMode → IFilletArcGenerator (None / Standard)
+FilletArcGeneratorRegistry.cs# Enumerates implemented generators (None, Standard)
 FilletStatistics.cs          # Per-pass fillet tallies returned by Apply
 FilletArcGenerator.cs      # The fillet generator: classify junctions → resolve cuts → plan → execute → normalize
-FilletProvenance.cs            # Discriminated record (TangentNode / CornerArc / etc.) attached to fillet-generated nodes/edges/arcs so cleanup passes can pattern-match instead of parsing Origin strings
-Fillet/                        # V2 fillet pipeline (clean-room)
+Fillet/                        # Plan-then-execute fillet pipeline (edge-split connectivity)
   FilletGeometry.cs            # Turn angle, ideal tangent, cubic-bezier build (control points project toward the junction)
   FilletGraphNormalizer.cs     # Post-execute: recompute distances, drop self-loops/degenerate arcs, sweep isolated nodes (no coincident-node merge — plan guarantees none)
-  V2/TaxiwayArmBuilder.cs      # One arm per outbound edge; TaxiwayWalk along same-named taxiway
-  V2/JunctionClassifier.cs     # Eligibility + Skip/Simple/MultiCorner/Preserve + collinear pairs
-  V2/CornerPlanner.cs          # Arm-pair corners (≥15°) and collinear pairs (<15°)
-  V2/ArmCutResolver.cs         # Tangent-cut placement per arm; corner arcs + straight connectors; tangent merges
-  V2/FilletEdgeSplitPlanner.cs # Order-independent connectivity: split each original edge once by its cuts, drop only removed-junction stubs → SurvivingEdgeOp
-  V2/FilletPlanBuilder.cs      # Assemble the immutable FilletPlan (cuts, merges, corner arcs, surviving edges, nodes/edges to remove)
-  V2/FilletPlanExecutor.cs     # Materialize cut nodes + surviving edges + corner arcs (degenerate arc → straight chord) in one pass; remove consumed edges + removed junctions
-  V2/FilletPlanCutRedirect.cs  # Union-find survivor map for tangent merges + stable-anchor binding
+  CutId.cs                     # Type-distinct cut identifier (no Origin-string parsing)
+  FilletEndpoint.cs            # Type-distinct fillet endpoint; with CutId lets cleanup passes pattern-match instead of parsing Origin strings
+  TaxiwayArmBuilder.cs         # One arm per outbound edge; TaxiwayWalk along same-named taxiway
+  JunctionClassifier.cs        # Eligibility + Skip/Simple/MultiCorner/Preserve + collinear pairs
+  CornerPlanner.cs             # Arm-pair corners (≥15°) and collinear pairs (<15°)
+  ArmCutResolver.cs            # Tangent-cut placement per arm; corner arcs + straight connectors; tangent merges
+  FilletEdgeSplitPlanner.cs    # Order-independent connectivity: split each original edge once by its cuts, drop only removed-junction stubs → SurvivingEdgeOp
+  FilletPlanBuilder.cs         # Assemble the immutable FilletPlan (cuts, merges, corner arcs, surviving edges, nodes/edges to remove)
+  FilletPlanExecutor.cs        # Materialize cut nodes + surviving edges + corner arcs (degenerate arc → straight chord) in one pass; remove consumed edges + removed junctions
+  FilletPlanCutRedirect.cs     # Union-find survivor map for tangent merges + stable-anchor binding
+  (also FilletPlan/JunctionPlan/CornerSpec/ResolvedArmCut plan model + TaxiwayArm(Terminus), JunctionKind, FilletEligibility, ManualArcDetector, SharedArmTangentPass, PlanWarning, FilletConstants, FilletPlanConsistency)
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiRouteAutoCross.cs          # Applies AutoCrossRunway toggle to a route's RunwayCrossing hold-shorts; reused at TAXI-resolution and on mid-session toggle (SimulationWorld.ApplyAutoCrossToActiveTaxiRoutes)
