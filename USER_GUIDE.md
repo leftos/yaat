@@ -646,7 +646,9 @@ The active weather name is shown in the terminal when weather is loaded or clear
 
 ### Viewing METARs
 
-**Scenario > View METAR...** opens a window listing the raw METAR string for each airport in the currently active weather, with the station id labeled. The text is selectable so you can copy it. The list reflects whatever weather is loaded — the scenario's default weather or a profile you loaded over it — and updates whenever the weather changes. If no weather is loaded, the window shows "No weather loaded."
+**Scenario > View METAR...** opens a window listing the METAR string for each airport in the currently active weather, with the station id labeled. The text is selectable so you can copy it. The list reflects whatever weather is loaded — the scenario's default weather or a profile you loaded over it. If no weather is loaded, the window shows "No weather loaded."
+
+For loaded weather profiles and timelines, the METARs are **reconstructed from the live simulated conditions** and re-issued like real observations: a routine METAR each hour at **:53Z**, plus an off-cycle **SPECI** whenever the wind, visibility, ceiling, or precipitation changes significantly (a basic subset of the real FAA SPECI criteria). The reported observation reflects the conditions at the moment it was issued and then holds steady until the next one — a realistic reporting lag. **Live weather** (Load Live Weather) keeps its real-world METARs unchanged.
 
 ### Loading Live Weather
 

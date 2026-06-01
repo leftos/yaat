@@ -361,10 +361,10 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
     // --- Weather ---
 
-    public async Task<CommandResultDto> LoadWeatherAsync(string weatherJson)
+    public async Task<CommandResultDto> LoadWeatherAsync(string weatherJson, bool reconstructMetars)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<CommandResultDto>("LoadWeather", weatherJson);
+        return await _connection!.InvokeAsync<CommandResultDto>("LoadWeather", weatherJson, reconstructMetars);
     }
 
     public async Task ClearWeatherAsync()

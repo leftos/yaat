@@ -79,7 +79,7 @@ public partial class MainViewModel
         {
             _log.LogInformation("Loading weather from {Path}", filePath);
             var json = await File.ReadAllTextAsync(filePath);
-            var result = await _connection.LoadWeatherAsync(json);
+            var result = await _connection.LoadWeatherAsync(json, reconstructMetars: true);
 
             if (result.Success)
             {
@@ -109,7 +109,7 @@ public partial class MainViewModel
         try
         {
             _log.LogInformation("Loading weather from API: {Name}", displayName);
-            var result = await _connection.LoadWeatherAsync(json);
+            var result = await _connection.LoadWeatherAsync(json, reconstructMetars: true);
 
             if (result.Success)
             {
@@ -155,7 +155,8 @@ public partial class MainViewModel
             }
 
             var json = JsonSerializer.Serialize(profile);
-            var result = await _connection.LoadWeatherAsync(json);
+            // Live-fetched real METARs are left untouched (no dynamic reconstruction).
+            var result = await _connection.LoadWeatherAsync(json, reconstructMetars: false);
 
             if (result.Success)
             {

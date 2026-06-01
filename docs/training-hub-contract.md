@@ -98,7 +98,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetFacilityVideoMapsForArtccAsync(…)` | `GetFacilityVideoMapsForArtcc` | `GetFacilityVideoMapsForArtcc(...)` `:1103` |
 | `GetApproachReportAsync()` | `GetApproachReport` | `GetApproachReport()` `:646` |
 | `GetSessionReportAsync()` | `GetSessionReport` | `GetSessionReport()` `:659` |
-| `LoadWeatherAsync(json)` | `LoadWeather` | `LoadWeather(json)` `:599` |
+| `LoadWeatherAsync(json, reconstructMetars)` | `LoadWeather` | `LoadWeather(json, reconstructMetars)` `:599` |
 | `ClearWeatherAsync()` | `ClearWeather` | `ClearWeather()` `:616` |
 | `LoadArrivalGeneratorsAsync(json)` | `LoadArrivalGenerators` | `LoadArrivalGenerators(json)` `:628` |
 | `AssignAircraftAsync(callsigns, conn)` | `AssignAircraft` | `AssignAircraft(...)` `:476` |

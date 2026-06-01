@@ -60,6 +60,10 @@ public sealed class SimScenarioState
     // Weather timeline (v2 time-based weather evolution)
     public WeatherTimeline? WeatherTimeline { get; set; }
 
+    // Discrete reported-METAR issuance (routine at :53, SPECI on significant change).
+    // Null when weather reconstruction is disabled (live-fetched weather, replay, restore).
+    public MetarIssuer? MetarIssuer { get; set; }
+
     // Scenario metadata
     public string? InitialWeatherJson { get; set; }
     public List<RecordedAction> ActionLog { get; } = [];
