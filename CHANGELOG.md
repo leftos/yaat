@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- **Room > Controllers...** opens a CRC-style controller list for the current room, so you can see who's online and on what frequency without opening CRC. Each row shows the callsign, frequency, TCP, position/radio name, facility, controller name, and active/standby status, and marks whether it's a live CRC controller or a scenario auto-connect position. The list updates as controllers connect or disconnect and as scenarios load or unload.
+- **Scenario > View METAR...** opens a window showing the raw METAR for each airport in the active weather (scenario default or a loaded override), with the station labeled and the text selectable for copy.
 - When the simulator automatically slows one ground aircraft for another (a converging or in-trail conflict), the slowed aircraft's ground datablock now shows a "→{callsign} (auto)" badge so it's clear which traffic it's slowing for, instead of an unexplained slowdown. The right-click menu spells it out as "Yielding to" (converging) or "Following" (in trail). A controller-issued give-way still takes precedence.
 
 ### Fixed

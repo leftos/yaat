@@ -24,6 +24,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Loading a Scenario](#loading-a-scenario)
   - [Unloading a Scenario](#unloading-a-scenario)
   - [Loading a Weather Profile](#loading-a-weather-profile)
+  - [Viewing METARs](#viewing-metars)
   - [Loading Live Weather](#loading-live-weather)
   - [Weather Editor](#weather-editor)
   - [Weather Timelines (V2 Format)](#weather-timelines-v2-format)
@@ -39,6 +40,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Aircraft Assignments](#aircraft-assignments)
   - [Room Members](#room-members)
   - [Students Panel](#students-panel)
+  - [Controllers](#controllers)
 - [Connecting CRC for Students](#connecting-crc-for-students)
 - [Customization](#customization)
   - [Autocomplete](#autocomplete)
@@ -642,6 +644,10 @@ The active weather name is shown in the terminal when weather is loaded or clear
 
 **Speed note:** Speed commands (`SPD`, `CM`, `DM`) assign [IAS](#glossary) (indicated airspeed). Aircraft ground speed — visible on the radar scope and aircraft grid — is derived from IAS + wind at altitude. Aircraft flying into a headwind show a lower ground speed than their assigned IAS. Aircraft on the ground are unaffected by wind.
 
+### Viewing METARs
+
+**Scenario > View METAR...** opens a window listing the raw METAR string for each airport in the currently active weather, with the station id labeled. The text is selectable so you can copy it. The list reflects whatever weather is loaded — the scenario's default weather or a profile you loaded over it — and updates whenever the weather changes. If no weather is loaded, the window shows "No weather loaded."
+
 ### Loading Live Weather
 
 **Scenario > Load Live Weather** fetches real-world METARs and winds aloft from aviationweather.gov. Requires a room, an ARTCC ID, and navdata.
@@ -1037,6 +1043,21 @@ Open **Room > Students...** to manage CRC clients:
 - CRC clients with a CID matching a YAAT client in a room are automatically bound to that room
 - If all YAAT clients leave a room, CRC clients are automatically unbound to the lobby
 - Use **Refresh** to manually re-fetch both lists
+
+### Controllers
+
+Open **Room > Controllers...** for a CRC-style list of the controllers in the current room, so you don't have to open CRC just to check who's covering what frequency. Each row shows:
+
+- **Callsign** — the position callsign (e.g. `SFO_DEP`)
+- **Freq** — the position frequency in MHz (e.g. `135.100`)
+- **TCP** — the position's tactical control position (e.g. `4U`), when it has one
+- **Position** — the radio name (e.g. `NorCal Approach`)
+- **Facility** — the facility id
+- **Controller** — the controller's real name (live CRC clients) or `YAAT` for scenario positions
+- **Status** — `Active` or `Standby`
+- **Source** — `CRC` for a live connected controller, or `Scenario` for an auto-connect ATC position defined by the loaded scenario
+
+The list combines live CRC-connected controllers with the scenario's auto-connect ATC positions, and refreshes automatically when controllers connect or disconnect and when a scenario is loaded or unloaded. Use **Refresh** to re-fetch on demand.
 
 ---
 
