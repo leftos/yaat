@@ -533,6 +533,7 @@ internal static class DepartureClearanceHandler
         return departure switch
         {
             DefaultDeparture => "",
+            PresentPositionHoverDeparture hover => $", hover and hold at {hover.HoverAltitudeAglFt:N0} feet",
             RunwayHeadingDeparture => ", fly runway heading",
             RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } => ", right crosswind departure",
             RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } => ", left crosswind departure",
@@ -1389,11 +1390,23 @@ internal static class DepartureClearanceHandler
         helo.SetAssignedDeparture(ctopp.Departure);
         aircraft.Phases.Add(helo);
 
-        var climb = new InitialClimbPhase { IsVfr = aircraft.FlightPlan.IsVfr, CruiseAltitude = aircraft.FlightPlan.CruiseAltitude };
-        aircraft.Phases.Add(climb);
+        if (ctopp.Departure is PresentPositionHoverDeparture hover)
+        {
+            // Hold in place: vertical liftoff to the hover altitude, then hover (zero forward
+            // speed, hold present heading) until the controller issues the next command.
+            helo.CompletionAgl = hover.HoverAltitudeAglFt;
+            aircraft.Phases.Add(new VfrHoldPhase { OrbitDirection = null });
+        }
+        else
+        {
+            // Depart: vertical liftoff first, then InitialClimbPhase applies the departure turn
+            // and forward acceleration once airborne.
+            var climb = new InitialClimbPhase { IsVfr = aircraft.FlightPlan.IsVfr, CruiseAltitude = aircraft.FlightPlan.CruiseAltitude };
+            aircraft.Phases.Add(climb);
 
-        var routeResult = ResolveDepartureRoute(ctopp.Departure, aircraft);
-        SetInitialClimbProperties(climb, ctopp.Departure, ctopp.AssignedAltitude, routeResult, aircraft);
+            var routeResult = ResolveDepartureRoute(ctopp.Departure, aircraft);
+            SetInitialClimbProperties(climb, ctopp.Departure, ctopp.AssignedAltitude, routeResult, aircraft);
+        }
 
         // Field elevation = current altitude (on ground)
         ctoppCtx = new PhaseContext

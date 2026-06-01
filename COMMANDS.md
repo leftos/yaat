@@ -272,7 +272,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
-| Takeoff present pos | `CTOPP` | — | — |
+| Takeoff present pos (hover & hold) | `CTOPP` | `CTOPP +002` | — |
 | Takeoff present pos heading | `CTOPP 270` | `CTOPP H270`, `CTOPP LT270`, `CTOPP RT270` | — |
 | Takeoff present pos on course | `CTOPP OC` | — | — |
 | Takeoff present pos direct | `CTOPP DCT FIX` | `CTOPP TLDCT FIX`, `CTOPP TRDCT FIX` | — |
@@ -572,11 +572,12 @@ Helicopters are detected automatically from the ICAO type designator. They use t
 
 | Command | Effect |
 |---------|--------|
-| `CTOPP` | Cleared for takeoff, present position — vertical liftoff from ramp, helipad, or parking |
-| `CTOPP 270 050` | CTOPP, fly heading 270 after liftoff, climb to 5000 ft. Optional altitude on every form. |
-| `CTOPP LT270 050` / `CTOPP RT090` | CTOPP with explicit turn direction to heading after liftoff |
-| `CTOPP OC [alt]` | CTOPP, fly direct to flight-plan destination after liftoff |
-| `CTOPP DCT FIX [alt]` / `CTOPP TLDCT FIX` / `CTOPP TRDCT FIX` | CTOPP, proceed direct to fix after liftoff (optionally turning left/right) |
+| `CTOPP` | Cleared for takeoff, present position — vertical liftoff to a hover, **holds position** at 25 ft AGL awaiting further instructions (does not depart) |
+| `CTOPP +002` | Hover and hold at a specified height — `+0XX` ft AGL relative to present position (`+001` = 100 ft, `+002` = 200 ft) |
+| `CTOPP 270 050` | CTOPP, **depart**: lift vertically, then fly heading 270, climb to 5000 ft. Optional climb altitude on every directional form. |
+| `CTOPP LT270 050` / `CTOPP RT090` | CTOPP depart with explicit turn direction to heading after the vertical climb |
+| `CTOPP OC [alt]` | CTOPP, depart direct to flight-plan destination after the vertical climb |
+| `CTOPP DCT FIX [alt]` / `CTOPP TLDCT FIX` / `CTOPP TRDCT FIX` | CTOPP, depart direct to fix after the vertical climb (optionally turning left/right) |
 | `ATXI H1` / `ATXI @H1` | Air-taxi to helipad/parking spot H1 — airborne at 100 ft AGL, ~40 KIAS, descends and lands at the spot. `@` prefix optional. |
 | `ATXI $M1` / `ATXI M1` | Air-taxi to taxiway spot M1. `$` prefix optional. |
 | `ATXI 28L` | Air-taxi to the threshold of runway 28L. |

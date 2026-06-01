@@ -237,23 +237,36 @@ internal static class DepartureCommandParser
     /// <summary>
     /// Parses CTOPP modifier grammar — same shape as CTO but rejects runway-only forms
     /// (RH/MRH/MSO/MLT/MRT and relative turns) since vertical liftoff has no runway.
-    /// Supported: bare, heading, LT/RT heading, OC, DCT/TLDCT/TRDCT fix, all with optional altitude.
+    /// Bare CTOPP and CTOPP +AGL hold position (vertical liftoff to a hover). All other
+    /// forms (heading, LT/RT heading, OC, DCT/TLDCT/TRDCT fix, optional altitude) depart.
     /// </summary>
     internal static PR ParseCtoppArg(string? arg)
     {
         if (arg is null)
         {
-            return PR.Ok(new ClearedTakeoffPresentCommand(new DefaultDeparture()));
+            return PR.Ok(new ClearedTakeoffPresentCommand(new PresentPositionHoverDeparture()));
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return PR.Ok(new ClearedTakeoffPresentCommand(new DefaultDeparture()));
+            return PR.Ok(new ClearedTakeoffPresentCommand(new PresentPositionHoverDeparture()));
         }
 
         var mod = tokens[0].ToUpperInvariant();
         var secondToken = tokens.Length > 1 ? tokens[1] : null;
+
+        // Present-position AGL hover: CTOPP +001 / +002 (no airport — relative to present position).
+        if (mod.StartsWith('+'))
+        {
+            var hoverAgl = ParsePresentPositionAgl(mod);
+            if (hoverAgl is null)
+            {
+                return PR.Fail($"CTOPP does not understand altitude '{mod}' — use +0XX feet AGL (e.g. +001 = 100 ft)");
+            }
+
+            return PR.Ok(new ClearedTakeoffPresentCommand(new PresentPositionHoverDeparture(hoverAgl.Value)));
+        }
 
         if (mod is "TLDCT")
         {
@@ -298,6 +311,26 @@ internal static class DepartureCommandParser
 
     private static PR ToCtopp(ParsedCommand cto) =>
         cto is ClearedForTakeoffCommand c ? PR.Ok(new ClearedTakeoffPresentCommand(c.Departure, c.AssignedAltitude)) : PR.Ok(cto);
+
+    /// <summary>
+    /// Parses a present-position AGL token "+0XX" into feet AGL (no airport).
+    /// Digits are interpreted like <see cref="AltitudeResolver"/>: under 1000 means hundreds
+    /// (+001 = 100 ft, +010 = 1000 ft); 1000+ is taken literally. Returns null if malformed.
+    /// </summary>
+    private static int? ParsePresentPositionAgl(string token)
+    {
+        if (!token.StartsWith('+') || token.Length < 2)
+        {
+            return null;
+        }
+
+        if (!int.TryParse(token[1..], out var digits) || digits <= 0)
+        {
+            return null;
+        }
+
+        return digits < 1000 ? digits * 100 : digits;
+    }
 
     /// <summary>
     /// Disambiguates a single argument as runway or no-arg for ELD/ERD/EF.

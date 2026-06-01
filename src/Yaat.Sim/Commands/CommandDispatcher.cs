@@ -422,7 +422,7 @@ public static class CommandDispatcher
             _ => null,
         };
 
-        if (departure is null or DefaultDeparture or FlyHeadingDeparture)
+        if (departure is null or DefaultDeparture or FlyHeadingDeparture or PresentPositionHoverDeparture)
         {
             return null;
         }

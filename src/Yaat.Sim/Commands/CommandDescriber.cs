@@ -1230,6 +1230,11 @@ public static class CommandDescriber
 
     private static string FormatCtoppCanonical(ClearedTakeoffPresentCommand ctopp)
     {
+        if (ctopp.Departure is PresentPositionHoverDeparture hover)
+        {
+            return $"CTOPP{FormatCtoppHoverAltToken(hover.HoverAltitudeAglFt)}";
+        }
+
         var suffix = ctopp.Departure switch
         {
             DefaultDeparture => "",
@@ -1248,8 +1253,27 @@ public static class CommandDescriber
         return $"CTOPP{suffix}{alt}";
     }
 
+    /// <summary>
+    /// Canonical hover-altitude token for CTOPP: "" at the default, otherwise "+0XX" AGL that
+    /// round-trips through <see cref="DepartureCommandParser.ParseCtoppArg"/>.
+    /// </summary>
+    private static string FormatCtoppHoverAltToken(int aglFt)
+    {
+        if (aglFt == PresentPositionHoverDeparture.DefaultAltitudeAglFt)
+        {
+            return "";
+        }
+
+        return (aglFt % 100 == 0) && (aglFt / 100 < 1000) ? $" +{aglFt / 100:000}" : $" +{aglFt}";
+    }
+
     private static string DescribeCtoppNatural(ClearedTakeoffPresentCommand ctopp)
     {
+        if (ctopp.Departure is PresentPositionHoverDeparture hover)
+        {
+            return $"Cleared for takeoff, present position, hover and hold at {hover.HoverAltitudeAglFt:N0} feet";
+        }
+
         var msg = "Cleared for takeoff, present position";
         msg += ctopp.Departure switch
         {

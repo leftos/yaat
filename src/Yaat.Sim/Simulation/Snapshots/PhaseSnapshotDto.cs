@@ -121,6 +121,7 @@ public sealed class LahsoTargetDto
 [JsonDerivedType(typeof(FlyHeadingDepartureDto), "FlyHeading")]
 [JsonDerivedType(typeof(OnCourseDepartureDto), "OnCourse")]
 [JsonDerivedType(typeof(DirectFixDepartureDto), "DirectFix")]
+[JsonDerivedType(typeof(PresentPositionHoverDepartureDto), "PresentPositionHover")]
 public abstract class DepartureInstructionDto;
 
 public sealed class DefaultDepartureDto : DepartureInstructionDto;
@@ -147,6 +148,11 @@ public sealed class DirectFixDepartureDto : DepartureInstructionDto
     public required double Lat { get; init; }
     public required double Lon { get; init; }
     public int? Direction { get; init; }
+}
+
+public sealed class PresentPositionHoverDepartureDto : DepartureInstructionDto
+{
+    public required int HoverAltitudeAglFt { get; init; }
 }
 
 // --- Pattern waypoints ---
@@ -409,6 +415,7 @@ public sealed class HelicopterTakeoffPhaseDto : PhaseDto
     public required double FieldElevation { get; init; }
     public required double RunwayHeadingDeg { get; init; }
     public DepartureInstructionDto? Departure { get; init; }
+    public double? CompletionAgl { get; init; }
 }
 
 public sealed class LowApproachPhaseDto : PhaseDto

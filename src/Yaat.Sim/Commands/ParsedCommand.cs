@@ -155,6 +155,7 @@ public abstract record DepartureInstruction
                 df.Lon,
                 df.Direction.HasValue ? (TurnDirection)df.Direction.Value : null
             ),
+            PresentPositionHoverDepartureDto h => new PresentPositionHoverDeparture(h.HoverAltitudeAglFt),
             DefaultDepartureDto => new DefaultDeparture(),
             _ => new DefaultDeparture(),
         };
@@ -189,6 +190,23 @@ public record FlyHeadingDeparture(MagneticHeading MagneticHeading, TurnDirection
 public record OnCourseDeparture : DepartureInstruction
 {
     public override DepartureInstructionDto ToSnapshot() => new OnCourseDepartureDto();
+}
+
+/// <summary>
+/// Present-position hover (helicopter): vertical liftoff, then hold position at
+/// <see cref="HoverAltitudeAglFt"/> ft AGL with zero forward speed, awaiting the next
+/// instruction. No lateral departure. Produced by bare CTOPP and CTOPP +AGL.
+/// </summary>
+public record PresentPositionHoverDeparture(int HoverAltitudeAglFt = PresentPositionHoverDeparture.DefaultAltitudeAglFt) : DepartureInstruction
+{
+    /// <summary>
+    /// Default hover-hold altitude (ft AGL) for a bare CTOPP. 25 ft keeps the helicopter in
+    /// an in-ground-effect hover — the ceiling a pilot may hold at without requesting a higher
+    /// altitude from ATC (AIM 4-3-17.b.2). Use the +AGL form for anything higher.
+    /// </summary>
+    public const int DefaultAltitudeAglFt = 25;
+
+    public override DepartureInstructionDto ToSnapshot() => new PresentPositionHoverDepartureDto { HoverAltitudeAglFt = HoverAltitudeAglFt };
 }
 
 /// <summary>Direct to a named fix after takeoff, with optional turn direction preference.</summary>

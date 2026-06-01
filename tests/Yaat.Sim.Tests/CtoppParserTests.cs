@@ -19,12 +19,49 @@ public class CtoppParserTests : IDisposable
     }
 
     [Fact]
-    public void BareCtopp_ParsesAsDefaultDeparture()
+    public void BareCtopp_ParsesAsPresentPositionHover_DefaultAltitude()
     {
         var cmd = CommandParser.Parse("CTOPP");
         var ctopp = Assert.IsType<ClearedTakeoffPresentCommand>(cmd.Value);
-        Assert.IsType<DefaultDeparture>(ctopp.Departure);
+        var hover = Assert.IsType<PresentPositionHoverDeparture>(ctopp.Departure);
+        Assert.Equal(25, hover.HoverAltitudeAglFt);
         Assert.Null(ctopp.AssignedAltitude);
+    }
+
+    [Fact]
+    public void Ctopp_PlusAgl_HundredsShorthand()
+    {
+        var cmd = CommandParser.Parse("CTOPP +002");
+        var ctopp = Assert.IsType<ClearedTakeoffPresentCommand>(cmd.Value);
+        var hover = Assert.IsType<PresentPositionHoverDeparture>(ctopp.Departure);
+        Assert.Equal(200, hover.HoverAltitudeAglFt);
+        Assert.Null(ctopp.AssignedAltitude);
+    }
+
+    [Fact]
+    public void Ctopp_PlusAgl_DefaultHundred()
+    {
+        var cmd = CommandParser.Parse("CTOPP +001");
+        var ctopp = Assert.IsType<ClearedTakeoffPresentCommand>(cmd.Value);
+        var hover = Assert.IsType<PresentPositionHoverDeparture>(ctopp.Departure);
+        Assert.Equal(100, hover.HoverAltitudeAglFt);
+    }
+
+    [Fact]
+    public void Ctopp_PlusAgl_LiteralFeetAboveThousand()
+    {
+        var cmd = CommandParser.Parse("CTOPP +1500");
+        var ctopp = Assert.IsType<ClearedTakeoffPresentCommand>(cmd.Value);
+        var hover = Assert.IsType<PresentPositionHoverDeparture>(ctopp.Departure);
+        Assert.Equal(1500, hover.HoverAltitudeAglFt);
+    }
+
+    [Fact]
+    public void Ctopp_PlusMalformed_Rejected()
+    {
+        var cmd = CommandParser.Parse("CTOPP +");
+        Assert.False(cmd.IsSuccess);
+        Assert.Contains("CTOPP", cmd.Reason!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

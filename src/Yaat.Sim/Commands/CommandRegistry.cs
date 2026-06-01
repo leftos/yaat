@@ -614,7 +614,8 @@ public static class CommandRegistry
                 false,
                 ["CTOPP"],
                 [
-                    O(null, [], "Cleared takeoff, present position (vertical liftoff, current heading)"),
+                    O(null, [], "Vertical liftoff to a hover, hold present position at 25 ft AGL"),
+                    O("Hover alt", [R("agl", "+0XX AGL")], "Vertical liftoff to a hover at +0XX ft AGL (e.g. +002 = 200 ft)"),
                     O("OC", [L("OC"), Opt("altitude", "alt")], "Fly on course after liftoff"),
                     O("Heading", [R("heading", "0-360"), Opt("altitude", "alt")], "Fly heading after liftoff"),
                     O("LT", [L("LT"), R("heading", "0-360"), Opt("altitude", "alt")], "Turn left to heading after liftoff"),

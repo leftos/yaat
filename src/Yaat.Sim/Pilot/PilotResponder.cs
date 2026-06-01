@@ -364,6 +364,7 @@ public static class PilotResponder
         departure switch
         {
             DefaultDeparture => "",
+            PresentPositionHoverDeparture => "holding present position",
             RunwayHeadingDeparture => "fly runway heading",
             RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } => "right crosswind departure",
             RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } => "left crosswind departure",

@@ -937,7 +937,7 @@ Helicopters are detected automatically from the ICAO type designator (`H60`, `EC
 |---------|--------|
 | `ATXI @H1` | Air-taxi to helipad/parking spot H1 — single command lifts off, cruises at 100 ft AGL / 40 KIAS, lands |
 | `LAND H1` | Land at named spot H1 (helipad, parking, ramp) without the cruise leg |
-| `CTOPP` | Cleared for takeoff, present position — vertical liftoff from current spot |
+| `CTOPP` | Cleared for takeoff, present position — vertical liftoff to a hover, holds at 25 ft AGL awaiting further instructions. `CTOPP +0XX` hovers at a higher AGL; `CTOPP <hdg>` / `OC` / `DCT FIX` lift vertically then depart |
 | `HPP` | Hover in place (no orbit, no movement) |
 | `HFIX SUNOL` | Navigate to fix SUNOL and hover (no orbit) |
 

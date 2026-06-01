@@ -5,21 +5,34 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Helicopter vertical liftoff: climb from ground to 400ft AGL
-/// at initial climb rate with no ground roll. Accelerates to
-/// InitialClimbSpeed once airborne. Transitions to InitialClimbPhase.
+/// Helicopter vertical liftoff: climb straight up from the ground to the completion
+/// altitude (default 400 ft AGL, or the hover altitude for a present-position hold) at
+/// initial climb rate, with zero forward speed and no ground roll — the aircraft does not
+/// drift laterally off the spot. Any departure turn and forward acceleration belong to the
+/// next phase (InitialClimbPhase for a departure, VfrHoldPhase for a present-position hover).
 /// </summary>
 public sealed class HelicopterTakeoffPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("HelicopterTakeoffPhase");
 
-    private const double CompletionAgl = 400.0;
+    private const double DefaultCompletionAgl = 400.0;
 
     private double _fieldElevation;
     private TrueHeading _runwayHeading;
     private DepartureInstruction? _departure;
+    private double _completionAgl = DefaultCompletionAgl;
 
     public override string Name => "Takeoff-H";
+
+    /// <summary>
+    /// AGL (ft) at which the vertical liftoff completes. Set to the hover altitude for a
+    /// present-position hold; defaults to 400 ft for a normal departure liftoff.
+    /// </summary>
+    public double CompletionAgl
+    {
+        get => _completionAgl;
+        set => _completionAgl = value;
+    }
 
     public override PhaseDto ToSnapshot() =>
         new HelicopterTakeoffPhaseDto
@@ -30,6 +43,7 @@ public sealed class HelicopterTakeoffPhase : Phase
             FieldElevation = _fieldElevation,
             RunwayHeadingDeg = _runwayHeading.Degrees,
             Departure = _departure?.ToSnapshot(),
+            CompletionAgl = _completionAgl,
         };
 
     public static HelicopterTakeoffPhase FromSnapshot(HelicopterTakeoffPhaseDto dto)
@@ -43,6 +57,7 @@ public sealed class HelicopterTakeoffPhase : Phase
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
         phase._departure = departure;
         phase.Departure = departure;
+        phase._completionAgl = dto.CompletionAgl ?? DefaultCompletionAgl;
         return phase;
     }
 
@@ -64,52 +79,29 @@ public sealed class HelicopterTakeoffPhase : Phase
         ctx.Aircraft.IsOnGround = false;
 
         double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
-        double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
 
-        ctx.Targets.TargetAltitude = _fieldElevation + CompletionAgl;
+        // Pure vertical climb: zero forward speed and hold present heading so the helicopter
+        // rises straight up without drifting off the spot. The departure turn / forward
+        // acceleration is applied by the following phase once this completes.
+        ctx.Targets.TargetAltitude = _fieldElevation + _completionAgl;
         ctx.Targets.DesiredVerticalRate = climbRate;
-        ctx.Targets.TargetSpeed = climbSpeed;
+        ctx.Targets.TargetSpeed = 0;
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
 
-        ApplyDepartureHeading(ctx);
-
-        Log.LogDebug("[Takeoff-H] {Callsign}: vertical liftoff, targetAlt={Alt:F0}ft", ctx.Aircraft.Callsign, _fieldElevation + CompletionAgl);
+        Log.LogDebug("[Takeoff-H] {Callsign}: vertical liftoff, targetAlt={Alt:F0}ft AGL", ctx.Aircraft.Callsign, _completionAgl);
     }
 
     public override bool OnTick(PhaseContext ctx)
     {
         double agl = ctx.Aircraft.Altitude - _fieldElevation;
-        bool complete = agl >= CompletionAgl;
+        bool complete = agl >= _completionAgl;
         if (complete)
         {
             Log.LogDebug("[Takeoff-H] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
         }
 
         return complete;
-    }
-
-    private void ApplyDepartureHeading(PhaseContext ctx)
-    {
-        switch (_departure)
-        {
-            case RelativeTurnDeparture rel:
-                ctx.Targets.TargetTrueHeading =
-                    rel.Direction == TurnDirection.Right
-                        ? new TrueHeading(_runwayHeading.Degrees + rel.Degrees)
-                        : new TrueHeading(_runwayHeading.Degrees - rel.Degrees);
-                ctx.Targets.PreferredTurnDirection = rel.Direction;
-                break;
-
-            case FlyHeadingDeparture fh:
-                ctx.Targets.TargetTrueHeading = fh.MagneticHeading.ToTrue(ctx.Aircraft.Declination);
-                ctx.Targets.PreferredTurnDirection = fh.Direction;
-                break;
-
-            case DirectFixDeparture { Direction: not null } dfd:
-                ctx.Targets.PreferredTurnDirection = dfd.Direction;
-                break;
-        }
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
