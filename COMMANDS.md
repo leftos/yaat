@@ -1175,6 +1175,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 | Airborne | `ADD {rules} {weight} {engine} -{bearing} {dist} {alt}` | `ADD IFR H J -270 15 10000` |
 | At fix | `ADD {rules} {weight} {engine} @{fix} {alt}` | `ADD IFR L J @SUNOL 8000` |
 | Lined up on runway | `ADD {rules} {weight} {engine} {runway}` | `ADD VFR S P 28R` |
+| Departure on runway | `ADD {rules} {weight} {engine} {runway} {route}` | `ADD IFR S P 28R NIMI6.OAK.SAU` |
 | On final | `ADD {rules} {weight} {engine} {runway} {dist}` | `ADD IFR L J 28R 8` |
 | At parking/helipad | `ADD {rules} {weight} {engine} @{spot}` | `ADD VFR S P @H1 H60` |
 
@@ -1190,6 +1191,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 - **Airborne**: `-{bearing}` is degrees from the primary airport, `{dist}` is distance in NM, `{alt}` is altitude in feet. Aircraft spawns heading toward the airport.
 - **At fix**: `@{fix}` is a fix name or FRD, `{alt}` is altitude in feet. Aircraft spawns at the fix heading toward the primary airport.
 - **Lined up**: `{runway}` is the runway designator (e.g., `28R`). Aircraft spawns on the runway threshold, ready for takeoff clearance.
+- **Departure on runway**: `{runway}` plus a dot-joined `{route}` (e.g., `NIMI6.OAK.SAU`, converted to the filed route `NIMI6 OAK SAU`). Spawns lined up on the runway with the route filed and the departure airport set, so a subsequent `CTO` flies the filed SID. IFR only — the route is ignored for VFR. A numeric token after the runway is the on-final distance, not a route.
 - **On final**: `{runway}` plus `{dist}` in NM. Aircraft spawns on final approach at that distance from the runway.
 - **At parking/helipad**: `@{spot}` is a parking or helipad name (e.g., `@H1`, `@B12`). Aircraft spawns at ground level. Useful for helicopters and ground operations.
 

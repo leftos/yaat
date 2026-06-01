@@ -7,6 +7,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
@@ -226,6 +227,80 @@ public class NimiRadarVectorsSidTests
         // SidId is null for RV SIDs — the procedure ID is intentionally not threaded
         // through because there's no published lateral path to follow against it.
         Assert.Null(initialClimb.DepartureSidId);
+    }
+
+    [Fact]
+    public void NIMI6_AddDepartureOnRunway_CtoHoldsRunwayHeadingThenTurnsToAndHolds315()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        // ADD I S P 28R NIMI6.OAK.SAU — spawn an IFR piston lined up on KOAK 28R, filed on the NIMI6 RV SID.
+        var (request, parseError) = SpawnParser.Parse("I S P 28R NIMI6.OAK.SAU");
+        Assert.Null(parseError);
+        Assert.NotNull(request);
+
+        var (ac, _) = AircraftGenerator.Generate(request, primaryAirportId: "KOAK", existingAircraft: [], groundLayout: null, rng: new Random(42));
+        if (ac is null)
+        {
+            // KOAK runways not present in the test nav data — skip.
+            return;
+        }
+
+        Assert.True(ac.IsOnGround);
+        Assert.Equal("NIMI6 OAK SAU", ac.FlightPlan.Route);
+        Assert.Equal("KOAK", ac.FlightPlan.Departure);
+        var runway = ac.Phases!.AssignedRunway!;
+        Assert.Contains("28R", runway.Designator);
+
+        // Start the lined-up phases and clear for takeoff (bare CTO — relies on the SID's published heading).
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        var ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(new ClearedForTakeoffCommand(new DefaultDeparture()), ac, luaw);
+        Assert.True(ctoResult.Success, ctoResult.Message);
+
+        var climb = ac.Phases.Phases.OfType<InitialClimbPhase>().First();
+        Assert.Equal(ExpectedRvHeading, climb.SidDepartureHeadingMagnetic);
+
+        // Fly it: airborne, past the departure end of runway and above the 400 ft AGL turn floor.
+        ac.IsOnGround = false;
+        ac.Position = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), runway.TrueHeading, 2.0);
+        ac.TrueHeading = runway.TrueHeading;
+        ac.Altitude = runway.ElevationFt + 2000;
+        ac.IndicatedAirspeed = 130;
+
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = runway.ElevationFt,
+            Logger = NullLogger.Instance,
+        };
+
+        climb.OnStart(ctx);
+
+        // NIMI defers the vectors heading until the turn gate: climbs runway heading first.
+        Assert.True(ctx.Targets.TargetTrueHeading!.Value.AbsAngleTo(runway.TrueHeading) < 0.5);
+
+        // Past the gate it turns to the published 315° and holds it (no comms handoff → no nav route loaded).
+        var expected315True = new MagneticHeading(ExpectedRvHeading).ToTrue(ac.Declination);
+        for (int i = 0; i < 60; i++)
+        {
+            climb.OnTick(ctx);
+        }
+
+        Assert.True(
+            ctx.Targets.TargetTrueHeading!.Value.AbsAngleTo(expected315True) < 0.5,
+            $"Expected to hold {expected315True.Degrees:F1}° (315° mag), got {ctx.Targets.TargetTrueHeading.Value.Degrees:F1}°"
+        );
+        Assert.Empty(ctx.Targets.NavigationRoute);
     }
 
     // -------------------------------------------------------------------------

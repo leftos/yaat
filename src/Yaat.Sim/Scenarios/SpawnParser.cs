@@ -31,12 +31,14 @@ public static class SpawnParser
             return (null, comboError);
         }
 
-        // Parse optional trailing overrides (type like B738, airline like *UAL)
+        // Parse optional trailing overrides (type like B738, airline like *UAL). Stop at index 4 so the
+        // first position token (index 3) is never consumed — e.g. a runway like "28R" looks like an
+        // aircraft type (3-4 chars, letter + digit) but is the position, not a type override.
         string? explicitType = null;
         string? explicitAirline = null;
         int positionEndIndex = tokens.Length;
 
-        for (int i = tokens.Length - 1; i >= 3; i--)
+        for (int i = tokens.Length - 1; i >= 4; i--)
         {
             if (tokens[i].StartsWith('*') && tokens[i].Length > 1)
             {
@@ -210,7 +212,7 @@ public static class SpawnParser
 
         if (posTokens.Length == 1)
         {
-            // Lined up on runway
+            // Lined up on runway (no filed route)
             return (
                 new SpawnRequest
                 {
@@ -228,10 +230,29 @@ public static class SpawnParser
 
         if (posTokens.Length == 2)
         {
-            // On final at distance
-            if (!double.TryParse(posTokens[1], out var finalDist) || finalDist <= 0)
+            // A numeric second token is an on-final distance; a non-numeric token is a dot-joined
+            // departure route (e.g. "NIMI6.OAK.SAU"), spawning a departure lined up on the runway.
+            if (double.TryParse(posTokens[1], out var finalDist))
             {
-                return (null, $"Invalid final distance '{posTokens[1]}'. Must be a positive number (nm)");
+                if (finalDist <= 0)
+                {
+                    return (null, $"Invalid final distance '{posTokens[1]}'. Must be a positive number (nm)");
+                }
+
+                return (
+                    new SpawnRequest
+                    {
+                        Rules = rules,
+                        Weight = weight,
+                        Engine = engine,
+                        PositionType = SpawnPositionType.OnFinal,
+                        RunwayId = runwayId,
+                        FinalDistanceNm = finalDist,
+                        ExplicitType = explicitType,
+                        ExplicitAirline = explicitAirline,
+                    },
+                    null
+                );
             }
 
             return (
@@ -240,9 +261,9 @@ public static class SpawnParser
                     Rules = rules,
                     Weight = weight,
                     Engine = engine,
-                    PositionType = SpawnPositionType.OnFinal,
+                    PositionType = SpawnPositionType.Runway,
                     RunwayId = runwayId,
-                    FinalDistanceNm = finalDist,
+                    Route = posTokens[1].ToUpperInvariant().Replace('.', ' '),
                     ExplicitType = explicitType,
                     ExplicitAirline = explicitAirline,
                 },

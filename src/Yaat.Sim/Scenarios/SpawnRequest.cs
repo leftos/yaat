@@ -44,6 +44,10 @@ public sealed class SpawnRequest
     // Runway variant
     public string RunwayId { get; init; } = "";
 
+    // Optional filed route for a departure lined up on a runway (e.g. "NIMI6 OAK SAU").
+    // Empty for a bare runway spawn; set so a subsequent CTO flies the filed SID.
+    public string Route { get; init; } = "";
+
     // OnFinal variant
     public double FinalDistanceNm { get; init; }
 

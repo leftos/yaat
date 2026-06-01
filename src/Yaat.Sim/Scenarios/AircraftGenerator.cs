@@ -98,7 +98,7 @@ public static class AircraftGenerator
     /// HasFlightPlan=false. The controller files via DA / VP later. IFR ADD = filed plan with
     /// the auto-generated type so STARS/strips have a non-blank readout.
     /// </summary>
-    private static AircraftFlightPlan BuildAddFlightPlan(string flightRules, string aircraftType, string destination)
+    private static AircraftFlightPlan BuildAddFlightPlan(string flightRules, string aircraftType, string departure, string destination, string route)
     {
         if (flightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
         {
@@ -115,7 +115,9 @@ public static class AircraftGenerator
             HasFlightPlan = true,
             FlightRules = flightRules,
             AircraftType = aircraftType,
+            Departure = departure,
             Destination = destination,
+            Route = route,
         };
     }
 
@@ -321,7 +323,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, ""),
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: "", route: ""),
         };
 
         return (state, null);
@@ -375,7 +377,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, ""),
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: "", route: ""),
         };
 
         return (state, null);
@@ -407,6 +409,13 @@ public static class AircraftGenerator
         var category = AircraftCategorization.Categorize(aircraftType);
         var init = AircraftInitializer.InitializeOnRunway(rwy, category);
 
+        // Departure airport (canonical ICAO) for IFR so a filed SID route resolves against it.
+        var departure = "";
+        if (request.Rules == FlightRulesKind.Ifr)
+        {
+            departure = NavigationDatabase.Instance.TryResolveAirport(airportId, out var canonical) ? canonical : airportId;
+        }
+
         var state = new AircraftState
         {
             Callsign = callsign,
@@ -424,7 +433,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, ""),
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: departure, destination: "", route: request.Route),
             Phases = init.Phases,
         };
 
@@ -483,7 +492,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, destination),
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: destination, route: ""),
             Phases = init.Phases,
         };
 
@@ -535,7 +544,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, ""),
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: "", route: ""),
             Phases = init.Phases,
         };
 
