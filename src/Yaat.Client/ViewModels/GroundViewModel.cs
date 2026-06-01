@@ -26,6 +26,15 @@ public partial class GroundViewModel : ObservableObject
     /// can read taxiway metadata without duplicating the reconstruction pipeline.
     /// </summary>
     public AirportGroundLayout? DomainLayout => _domainLayout;
+
+    /// <summary>
+    /// Raised whenever the airport this ground view is showing changes (layout loaded, switched,
+    /// or cleared). <see cref="MainViewModel"/> listens so it can re-publish
+    /// <c>GroundShownAirportId</c> to the radar, which surfaces ground-aircraft speech bubbles
+    /// only for airports the ground view isn't currently showing.
+    /// </summary>
+    public event Action? ShownAirportChanged;
+
     private Func<string, double?>? _getAirportElevation;
     private VnasConfigService? _vnasConfigService;
     private TowerCabImageService? _towerCabImageService;
@@ -372,6 +381,7 @@ public partial class GroundViewModel : ObservableObject
     {
         Layout = dto;
         _domainLayout = ReconstructLayout(dto);
+        ShownAirportChanged?.Invoke();
     }
 
     public async Task LoadLayoutAsync(string airportId)
@@ -384,6 +394,7 @@ public partial class GroundViewModel : ObservableObject
                 _log.LogWarning("No ground layout for airport {Id}", airportId);
                 Layout = null;
                 _domainLayout = null;
+                ShownAirportChanged?.Invoke();
                 return;
             }
 
@@ -408,6 +419,7 @@ public partial class GroundViewModel : ObservableObject
             AirportElevation = _getAirportElevation?.Invoke(airportId) ?? 0;
 
             _activeAirportId = airportId;
+            ShownAirportChanged?.Invoke();
             var savedRotation = Preferences?.GetGroundRotation(airportId);
             if (savedRotation.HasValue)
             {
@@ -470,6 +482,7 @@ public partial class GroundViewModel : ObservableObject
         TowerCabMap = null;
         GroundAircraft.Clear();
         ClearShownTaxiRoutes();
+        ShownAirportChanged?.Invoke();
     }
 
     public void CopySettingsFrom(string sourceScenarioId)

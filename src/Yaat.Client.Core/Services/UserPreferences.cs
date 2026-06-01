@@ -160,6 +160,8 @@ public sealed class UserPreferences
     public bool EuroScopeMode => _data.EuroScopeMode;
     public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
     public bool ShowSpeechBubbles => _data.ShowSpeechBubbles;
+    public double SpeechBubbleDurationMultiplier => Math.Clamp(_data.SpeechBubbleDurationMultiplier, 0.25, 4.0);
+    public bool ShowWarningSpeechBubbles => _data.ShowWarningSpeechBubbles;
     public bool AutoClearedToLandGnd => _data.AutoClearedToLandGnd;
     public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
@@ -605,6 +607,18 @@ public sealed class UserPreferences
     public void SetShowSpeechBubbles(bool enabled)
     {
         _data.ShowSpeechBubbles = enabled;
+        Save();
+    }
+
+    public void SetSpeechBubbleDurationMultiplier(double multiplier)
+    {
+        _data.SpeechBubbleDurationMultiplier = Math.Clamp(multiplier, 0.25, 4.0);
+        Save();
+    }
+
+    public void SetShowWarningSpeechBubbles(bool enabled)
+    {
+        _data.ShowWarningSpeechBubbles = enabled;
         Save();
     }
 
@@ -1357,6 +1371,8 @@ public sealed class UserPreferences
         public bool EuroScopeMode { get; set; }
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowSpeechBubbles { get; set; }
+        public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;
+        public bool ShowWarningSpeechBubbles { get; set; }
         public bool AutoClearedToLandGnd { get; set; } = true;
         public bool AutoClearedToLandTwr { get; set; }
         public bool AutoClearedToLandApp { get; set; } = true;

@@ -658,6 +658,14 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private AircraftSpeechBubble? _speechBubble;
 
+    /// <summary>
+    /// Airport id of the ground layout this aircraft is currently on (server-side
+    /// <c>AircraftGroundOps.LayoutAirportId</c>, with the scenario primary airport as a fallback).
+    /// Null when airborne / unknown. Read by the radar to decide whether a ground aircraft's
+    /// speech bubble needs surfacing because no ground view is currently showing that airport.
+    /// </summary>
+    public string? GroundAirportId { get; set; }
+
     public static AircraftModel FromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
         var model = new AircraftModel
@@ -686,6 +694,7 @@ public partial class AircraftModel : ObservableObject
             CurrentPhase = dto.CurrentPhase,
             AssignedRunway = dto.AssignedRunway,
             IsOnGround = dto.IsOnGround,
+            GroundAirportId = dto.GroundAirportId,
             PhaseSequence = dto.PhaseSequence,
             ActivePhaseIndex = dto.ActivePhaseIndex,
             LandingClearance = dto.LandingClearance,
@@ -761,6 +770,7 @@ public partial class AircraftModel : ObservableObject
         CurrentPhase = dto.CurrentPhase;
         AssignedRunway = dto.AssignedRunway;
         IsOnGround = dto.IsOnGround;
+        GroundAirportId = dto.GroundAirportId;
         PhaseSequence = dto.PhaseSequence;
         ActivePhaseIndex = dto.ActivePhaseIndex;
         LandingClearance = dto.LandingClearance;

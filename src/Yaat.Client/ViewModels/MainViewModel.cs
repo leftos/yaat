@@ -60,6 +60,17 @@ public partial class MainViewModel : ObservableObject
     public GroundViewModel Ground { get; }
     public RadarViewModel Radar { get; }
 
+    // Tab index of the Ground view in the fixed-tab region (see IsTabVisible).
+    private const int GroundViewTabIndex = 1;
+
+    /// <summary>
+    /// Airport id the ground view is currently presenting to the user, or null when the ground
+    /// view isn't visible (a different tab is selected and it isn't popped out) or has no layout
+    /// loaded. The radar uses this to surface a ground aircraft's speech bubble only when that
+    /// aircraft's airport isn't already shown on the ground view (issue #169).
+    /// </summary>
+    public string? GroundShownAirportId => (IsGroundViewPoppedOut || SelectedTabIndex == GroundViewTabIndex) ? Ground.DomainLayout?.AirportId : null;
+
     /// <summary>
     /// Short-hand for the student-facility strips VM (the first entry in
     /// <see cref="StripsEntries"/>). Kept as a property so scenario-bootstrap
@@ -376,7 +387,10 @@ public partial class MainViewModel : ObservableObject
     {
         _preferences.SetPoppedOut("GroundView", value);
         OnTabPoppedOutChanged();
+        OnPropertyChanged(nameof(GroundShownAirportId));
     }
+
+    partial void OnSelectedTabIndexChanged(int value) => OnPropertyChanged(nameof(GroundShownAirportId));
 
     partial void OnIsRadarViewPoppedOutChanged(bool value)
     {
@@ -1106,6 +1120,7 @@ public partial class MainViewModel : ObservableObject
         _showChatEntries = !hidden.Contains(TerminalEntryKind.Chat);
         _showTdlsEntries = !hidden.Contains(TerminalEntryKind.Tdls);
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged, _preferences);
+        Ground.ShownAirportChanged += () => OnPropertyChanged(nameof(GroundShownAirportId));
         Ground.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
         Ground.SetTowerCabServices(_vnasConfigService, _towerCabImageService, _airportResolver);
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);

@@ -76,6 +76,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<bool> ShowTopDownProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(ShowTopDown));
 
+    public static readonly StyledProperty<string?> GroundShownAirportIdProperty = AvaloniaProperty.Register<RadarCanvas, string?>(
+        nameof(GroundShownAirportId)
+    );
+
     public static readonly StyledProperty<double> PtlLengthMinutesProperty = AvaloniaProperty.Register<RadarCanvas, double>(nameof(PtlLengthMinutes));
 
     public static readonly StyledProperty<bool> PtlOwnProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(PtlOwn));
@@ -375,6 +379,17 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Airport id the user's ground view is currently showing (null when none). A ground
+    /// aircraft is normally hidden on the radar, but when it has an active speech bubble and its
+    /// airport differs from this value, the radar surfaces it so the bubble isn't missed (#169).
+    /// </summary>
+    public string? GroundShownAirportId
+    {
+        get => GetValue(GroundShownAirportIdProperty);
+        set => SetValue(GroundShownAirportIdProperty, value);
+    }
+
     public float DatablockTextSize
     {
         get => _renderer.DatablockTextSize;
@@ -606,6 +621,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == RangeRingCenterLonProperty
             || change.Property == RangeRingSizeNmProperty
             || change.Property == ShowTopDownProperty
+            || change.Property == GroundShownAirportIdProperty
             || change.Property == PtlLengthMinutesProperty
             || change.Property == PtlOwnProperty
             || change.Property == PtlAllProperty
@@ -726,7 +742,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return new RenderSnapshot(
             VideoMaps ?? Array.Empty<VideoMapData>(),
             _brightnessLookup,
-            SortByZOrder(FilterAircraft(Aircraft, ShowTopDown), _dataBlockZOrder),
+            SortByZOrder(FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, GroundShownAirportId, DateTime.UtcNow), _dataBlockZOrder),
             SelectedAircraft,
             ShowRangeRings,
             RangeNm,
@@ -1172,7 +1188,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         var tags = LastEuroScopeTags;
-        var sorted = SortByZOrder(FilterAircraft(Aircraft, ShowTopDown), _dataBlockZOrder);
+        var sorted = SortByZOrder(FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, GroundShownAirportId, DateTime.UtcNow), _dataBlockZOrder);
         AircraftModel? bestAc = null;
         var bestField = TagFieldId.None;
 
@@ -1222,7 +1238,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        var sorted = SortByZOrder(FilterAircraft(Aircraft, ShowTopDown), _dataBlockZOrder);
+        var sorted = SortByZOrder(FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, GroundShownAirportId, DateTime.UtcNow), _dataBlockZOrder);
         AircraftModel? best = null;
 
         foreach (var ac in sorted)
@@ -1330,7 +1346,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         AircraftModel? closest = null;
         float closestDist = hitRadius;
 
-        foreach (var ac in FilterAircraft(Aircraft, ShowTopDown))
+        foreach (var ac in FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, GroundShownAirportId, DateTime.UtcNow))
         {
             var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             var dx = (float)screenPos.X - sx;
@@ -1591,7 +1607,20 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return parts.Count > 0 ? string.Join(" ", parts) : null;
     }
 
-    private static IReadOnlyList<AircraftModel> FilterAircraft(IReadOnlyList<AircraftModel>? aircraft, bool showTopDown)
+    /// <summary>
+    /// Selects which aircraft the radar draws. Delayed aircraft are always hidden. On-ground
+    /// aircraft are hidden in the normal (non-top-down) view, except when an aircraft has an
+    /// active speech bubble whose airport isn't currently shown on the user's ground view — those
+    /// are surfaced so a SAY / pilot / WARN prompt for a taxiing aircraft isn't missed (#169).
+    /// Pure and static so it can be unit-tested without an Avalonia control instance.
+    /// </summary>
+    public static IReadOnlyList<AircraftModel> FilterAircraft(
+        IReadOnlyList<AircraftModel>? aircraft,
+        bool showTopDown,
+        bool showSpeechBubbles,
+        string? groundShownAirportId,
+        DateTime nowUtc
+    )
     {
         if (aircraft is null || aircraft.Count == 0)
         {
@@ -1606,7 +1635,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 continue;
             }
 
-            if (ac.IsOnGround && !showTopDown)
+            if (ac.IsOnGround && !showTopDown && !ShouldSurfaceGroundBubble(ac, showSpeechBubbles, groundShownAirportId, nowUtc))
             {
                 continue;
             }
@@ -1615,6 +1644,22 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// True when a ground aircraft carries an active speech bubble that no open ground view is
+    /// already showing — i.e. its airport differs from <paramref name="groundShownAirportId"/>
+    /// (or its airport is unknown), so the radar should surface it rather than hide it.
+    /// </summary>
+    private static bool ShouldSurfaceGroundBubble(AircraftModel ac, bool showSpeechBubbles, string? groundShownAirportId, DateTime nowUtc)
+    {
+        if (!showSpeechBubbles || ac.SpeechBubble is not { } bubble || bubble.ExpiresAt <= nowUtc)
+        {
+            return false;
+        }
+
+        return string.IsNullOrEmpty(ac.GroundAirportId)
+            || !string.Equals(ac.GroundAirportId, groundShownAirportId, StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose()

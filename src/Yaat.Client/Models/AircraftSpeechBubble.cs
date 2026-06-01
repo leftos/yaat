@@ -1,25 +1,41 @@
 namespace Yaat.Client.Models;
 
 /// <summary>
-/// Transient per-aircraft overlay shown on Radar and Ground views when the user has opted into
-/// speech bubbles (Settings → Display → Overlays) and a SAY-family verb (controller-issued) or
-/// RPO pilot transmission arrives via <c>TerminalEntryKind.Say</c> / <c>TerminalEntryKind.PilotSpeech</c>.
-/// The bubble carries the literal terminal-channel message text and an absolute UTC expiry; the
-/// renderer drops bubbles whose <see cref="ExpiresAt"/> has passed. A subsequent message for the
-/// same aircraft replaces the previous bubble (single slot, no queue).
+/// Visual style of a speech bubble. <see cref="Speech"/> covers controller SAY-family verbs
+/// and RPO pilot transmissions (green); <see cref="Warning"/> covers opt-in WARN-channel
+/// messages (amber).
 /// </summary>
-public sealed record AircraftSpeechBubble(string Text, DateTime ExpiresAt)
+public enum SpeechBubbleSeverity
+{
+    Speech,
+    Warning,
+}
+
+/// <summary>
+/// Transient per-aircraft overlay shown on Radar and Ground views when the user has opted into
+/// speech bubbles (Settings → Display → Overlays) and a SAY-family verb (controller-issued), an
+/// RPO pilot transmission, or — when separately opted in — a WARN-channel message arrives.
+/// The bubble carries the literal terminal-channel message text, an absolute UTC expiry, and a
+/// <see cref="SpeechBubbleSeverity"/> the renderer uses to pick its colour. The renderer drops
+/// bubbles whose <see cref="ExpiresAt"/> has passed. A subsequent message for the same aircraft
+/// replaces the previous bubble (single slot, no queue).
+/// </summary>
+public sealed record AircraftSpeechBubble(string Text, DateTime ExpiresAt, SpeechBubbleSeverity Severity)
 {
     /// <summary>
-    /// Content-length-derived display duration. Floor: 4 s (short calls don't blink). Ceiling: 12 s
-    /// (long position reports don't loiter forever). Linear between: ~12 chars/s reading speed
-    /// plus a 2 s buffer so the eye has time to land on the bubble before it starts counting down.
+    /// Content-length-derived display duration scaled by the user's
+    /// <c>SpeechBubbleDurationMultiplier</c> preference. Base: floor 4 s (short calls don't
+    /// blink), ceiling 12 s (long position reports don't loiter forever), linear between at
+    /// ~12 chars/s reading speed plus a 2 s buffer so the eye has time to land on the bubble.
+    /// The multiplier (1.0 = unchanged) scales the clamped base, so a higher value keeps long
+    /// messages up proportionally longer. Non-positive multipliers fall back to 1.0.
     /// </summary>
-    public static TimeSpan ComputeDuration(string text)
+    public static TimeSpan ComputeDuration(string text, double multiplier)
     {
         var length = text?.Length ?? 0;
         var seconds = Math.Clamp(2.0 + length / 12.0, 4.0, 12.0);
-        return TimeSpan.FromSeconds(seconds);
+        var scale = multiplier > 0 ? multiplier : 1.0;
+        return TimeSpan.FromSeconds(seconds * scale);
     }
 
     /// <summary>
@@ -27,21 +43,49 @@ public sealed record AircraftSpeechBubble(string Text, DateTime ExpiresAt)
     /// otherwise null. Exposed so the gating logic can be exercised by unit tests without
     /// fabricating a full <c>MainViewModel</c> + preferences + aircraft collection. Callers
     /// remain responsible for locating the target aircraft and attaching the bubble.
+    ///
+    /// <para>SAY / pilot-speech bubbles are suppressed in solo-training mode (TTS plays the pilot
+    /// voice instead). WARN bubbles are controller-facing — not TTS'd — so they show in solo mode
+    /// too, but only when both the master <paramref name="showSpeechBubbles"/> toggle and the
+    /// <paramref name="showWarningBubbles"/> opt-in are on.</para>
     /// </summary>
-    public static AircraftSpeechBubble? TryBuild(bool showSpeechBubbles, bool soloMode, TerminalEntryKind kind, string message, DateTime nowUtc)
+    public static AircraftSpeechBubble? TryBuild(
+        bool showSpeechBubbles,
+        bool showWarningBubbles,
+        bool soloMode,
+        TerminalEntryKind kind,
+        string message,
+        double durationMultiplier,
+        DateTime nowUtc
+    )
     {
-        if (!showSpeechBubbles || soloMode)
+        if (!showSpeechBubbles || string.IsNullOrEmpty(message))
         {
             return null;
         }
-        if (kind != TerminalEntryKind.Say && kind != TerminalEntryKind.PilotSpeech)
+
+        SpeechBubbleSeverity severity;
+        switch (kind)
         {
-            return null;
+            case TerminalEntryKind.Say:
+            case TerminalEntryKind.PilotSpeech:
+                if (soloMode)
+                {
+                    return null;
+                }
+                severity = SpeechBubbleSeverity.Speech;
+                break;
+            case TerminalEntryKind.Warning:
+                if (!showWarningBubbles)
+                {
+                    return null;
+                }
+                severity = SpeechBubbleSeverity.Warning;
+                break;
+            default:
+                return null;
         }
-        if (string.IsNullOrEmpty(message))
-        {
-            return null;
-        }
-        return new AircraftSpeechBubble(message, nowUtc + ComputeDuration(message));
+
+        return new AircraftSpeechBubble(message, nowUtc + ComputeDuration(message, durationMultiplier), severity);
     }
 }

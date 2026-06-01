@@ -809,7 +809,11 @@ public record AircraftDto(
     // by Yaat.Sim.AircraftStatusDescriber. The client displays it verbatim; SmartStatusSeverity
     // drives the column colour.
     string SmartStatus = "",
-    Yaat.Sim.AircraftStatusSeverity SmartStatusSeverity = Yaat.Sim.AircraftStatusSeverity.Normal
+    Yaat.Sim.AircraftStatusSeverity SmartStatusSeverity = Yaat.Sim.AircraftStatusSeverity.Normal,
+    // Airport id of the ground layout this aircraft is on (server AircraftGroundOps.LayoutAirportId,
+    // scenario primary airport as fallback). Null when airborne / unknown. Lets the radar surface a
+    // ground aircraft's speech bubble when no ground view is currently showing that airport.
+    string? GroundAirportId = null
 );
 
 public record LoadScenarioResultDto(

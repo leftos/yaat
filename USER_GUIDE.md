@@ -401,8 +401,11 @@ Enable **Settings > Display > Overlays > "Show speech bubbles for SAY and pilot 
 
 - **Click a bubble** to dismiss it early. Click-and-drag still pans the map normally — only a deliberate click clears the bubble.
 - **Render order** — aircraft with an active bubble are drawn on top of neighbors, so the bubble and its datablock are never obscured by overlapping datablocks.
-- **Off by default** (opt-in). Disabled entirely in solo-training mode, where the pilot voice TTS already plays the transmission audibly.
+- **Off by default** (opt-in). SAY and pilot bubbles are disabled entirely in solo-training mode, where the pilot voice TTS already plays the transmission audibly.
 - **Works on the Ground view too** — same pref, same rendering.
+- **Ground aircraft surface on the Radar view** when no Ground view is currently showing their airport. Taxiing aircraft are normally hidden on the radar, but if one makes a transmission while you're on the radar (or on a Ground view for a different airport), its bubble pops onto the radar so the prompt isn't missed. When the Ground view is already showing that airport, the bubble stays there and isn't duplicated onto the radar.
+- **Duration multiplier** — the nested **"Duration multiplier"** value (0.25–4.00, default 1.00) scales how long every bubble lingers. The length-based 4–12 s base is multiplied by this factor, so 2.00 keeps bubbles up roughly twice as long.
+- **Amber WARN bubbles** (opt-in) — tick **"Also show WARN messages as speech bubbles (amber)"** to also surface warning-channel messages (e.g. a cleared command queue, or a vector off procedure with no altitude) as an amber bubble on the relevant aircraft, distinct from the green pilot/SAY bubbles. WARN bubbles also show in solo-training mode, since warnings are for you (the controller) rather than the pilot.
 
 Video maps load automatically from the vNAS data API based on your [ARTCC](#glossary) ID.
 

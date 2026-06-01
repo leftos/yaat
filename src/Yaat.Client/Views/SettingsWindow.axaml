@@ -319,11 +319,36 @@
                         <StackPanel Spacing="4">
                             <CheckBox Content="Show speech bubbles for SAY and pilot transmissions"
                                       IsChecked="{Binding ShowSpeechBubbles}" />
-                            <TextBlock Text="When enabled, SAY-family verbs (SAY, SALT, SHDG, SPOS, SSPD, SMACH, SEAPP) and RPO pilot transmissions briefly overlay the aircraft on the Radar and Ground views with a transient bubble. Off in solo-training mode (TTS plays the pilot voice instead)."
+                            <TextBlock Text="When enabled, SAY-family verbs (SAY, SALT, SHDG, SPOS, SSPD, SMACH, SEAPP) and RPO pilot transmissions briefly overlay the aircraft on the Radar and Ground views with a transient bubble. Off in solo-training mode (TTS plays the pilot voice instead). A ground aircraft's bubble also appears on the Radar view when no Ground view is currently showing its airport, so prompts aren't missed."
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11"
                                        Margin="28,0,0,0" />
+                            <StackPanel Spacing="4"
+                                        IsVisible="{Binding ShowSpeechBubbles}"
+                                        Margin="28,4,0,0">
+                                <TextBlock Text="Duration multiplier:"
+                                           Foreground="{DynamicResource SubtleTextBrush}" />
+                                <NumericUpDown Value="{Binding SpeechBubbleDurationMultiplier}"
+                                               Minimum="0.25"
+                                               Maximum="4.0"
+                                               Increment="0.25"
+                                               FormatString="0.00"
+                                               HorizontalAlignment="Left"
+                                               Width="120" />
+                                <TextBlock Text="Scales how long a bubble stays on screen. Bubble length is derived from the message length (about 4–12 s); 1.00 leaves it unchanged, higher values keep bubbles up proportionally longer."
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11" />
+                                <CheckBox Content="Also show WARN messages as speech bubbles (amber)"
+                                          IsChecked="{Binding ShowWarningSpeechBubbles}"
+                                          Margin="0,4,0,0" />
+                                <TextBlock Text="When enabled, warning-channel messages (e.g. a cleared command queue or a vector off procedure without an altitude) also overlay the aircraft as an amber bubble, distinct from green pilot/SAY bubbles. Shown in solo-training mode too."
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           Margin="28,0,0,0" />
+                            </StackPanel>
                         </StackPanel>
                         <Separator Margin="0,4" />
                         <TextBlock Text="Windows"

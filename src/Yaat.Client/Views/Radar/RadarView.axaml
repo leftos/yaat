@@ -440,6 +440,7 @@
                                IsPlacingRangeRing="{Binding IsPlacingRangeRing}"
                                IsAdjustingRangeRingSize="{Binding IsAdjustingRangeRingSize, Mode=TwoWay}"
                                ShowTopDown="{Binding ShowTopDown}"
+                               GroundShownAirportId="{Binding $parent[Window].DataContext.GroundShownAirportId}"
                                PtlLengthMinutes="{Binding PtlLengthMinutes}"
                                PtlOwn="{Binding PtlOwn}"
                                PtlAll="{Binding PtlAll}"

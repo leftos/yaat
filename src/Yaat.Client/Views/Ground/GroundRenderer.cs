@@ -256,6 +256,10 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor SpeechBubbleFillColor = new(20, 60, 50, 220);
     private static readonly SKColor SpeechBubbleBorderColor = new(80, 220, 140);
 
+    // Amber variant for opt-in WARN-channel bubbles, matching the terminal Warning colour.
+    private static readonly SKColor WarningBubbleFillColor = new(70, 50, 10, 220);
+    private static readonly SKColor WarningBubbleBorderColor = new(230, 170, 40);
+
     private readonly SKPaint _bubbleFillPaint = new()
     {
         Color = SpeechBubbleFillColor,
@@ -266,6 +270,21 @@ public sealed class GroundRenderer : IDisposable
     private readonly SKPaint _bubbleBorderPaint = new()
     {
         Color = SpeechBubbleBorderColor,
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _bubbleFillPaintWarning = new()
+    {
+        Color = WarningBubbleFillColor,
+        Style = SKPaintStyle.Fill,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _bubbleBorderPaintWarning = new()
+    {
+        Color = WarningBubbleBorderColor,
         StrokeWidth = 1,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -1944,7 +1963,7 @@ public sealed class GroundRenderer : IDisposable
 
         if (drawBubble && ac.SpeechBubble is { } bubble)
         {
-            var bubbleRect = DrawSpeechBubble(canvas, layout.Rect, bubble.Text);
+            var bubbleRect = DrawSpeechBubble(canvas, layout.Rect, bubble.Text, bubble.Severity);
             if (bubbleRect is { } r)
             {
                 _lastBubbleRects[ac.Callsign] = r;
@@ -1955,7 +1974,7 @@ public sealed class GroundRenderer : IDisposable
     private const int SpeechBubbleMaxLineChars = 36;
     private const int SpeechBubbleMaxLines = 3;
 
-    private SKRect? DrawSpeechBubble(SKCanvas canvas, SKRect anchor, string text)
+    private SKRect? DrawSpeechBubble(SKCanvas canvas, SKRect anchor, string text, SpeechBubbleSeverity severity)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -1987,8 +2006,10 @@ public sealed class GroundRenderer : IDisposable
         float bottom = top + lines.Count * lineH + 2 * pad - 2;
         var rect = new SKRect(left, top, right, bottom);
 
-        canvas.DrawRoundRect(rect, 3f, 3f, _bubbleFillPaint);
-        canvas.DrawRoundRect(rect, 3f, 3f, _bubbleBorderPaint);
+        var fillPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleFillPaintWarning : _bubbleFillPaint;
+        var borderPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleBorderPaintWarning : _bubbleBorderPaint;
+        canvas.DrawRoundRect(rect, 3f, 3f, fillPaint);
+        canvas.DrawRoundRect(rect, 3f, 3f, borderPaint);
 
         float textX = left + pad;
         float baseline = top + pad + _bubbleTextPaint.TextSize;
@@ -2186,6 +2207,8 @@ public sealed class GroundRenderer : IDisposable
         _debugEdgeLabelPaint.Dispose();
         _bubbleFillPaint.Dispose();
         _bubbleBorderPaint.Dispose();
+        _bubbleFillPaintWarning.Dispose();
+        _bubbleBorderPaintWarning.Dispose();
         _bubbleTextPaint.Dispose();
     }
 }

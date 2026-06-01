@@ -86,13 +86,15 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// When the user has opted in to speech bubbles (Settings → Display → Overlays) and the
-    /// session is not in solo-training mode (where TTS already covers pilot transmissions),
-    /// attach a transient bubble to the matching aircraft for SAY-family and RPO pilot-speech
-    /// entries. The radar and ground renderers pick it up on the next frame. A second message
-    /// for the same callsign replaces the existing bubble (single slot, no queue). Unknown
-    /// callsigns are dropped silently. Gating is delegated to <see cref="AircraftSpeechBubble.TryBuild"/>
-    /// so the predicate can be unit-tested without fabricating a full view-model.
+    /// When the user has opted in to speech bubbles (Settings → Display → Overlays), attach a
+    /// transient bubble to the matching aircraft for SAY-family and RPO pilot-speech entries
+    /// (suppressed in solo-training mode, where TTS already covers pilot transmissions) and —
+    /// when the WARN opt-in is on — amber WARN-channel entries (shown in solo mode too, since
+    /// warnings are controller-facing and not TTS'd). The radar and ground renderers pick it up
+    /// on the next frame. A second message for the same callsign replaces the existing bubble
+    /// (single slot, no queue). Unknown / empty callsigns are dropped silently. Gating is
+    /// delegated to <see cref="AircraftSpeechBubble.TryBuild"/> so the predicate can be
+    /// unit-tested without fabricating a full view-model.
     /// </summary>
     private void MaybeAttachSpeechBubble(TerminalEntryKind kind, string callsign, string message)
     {
@@ -100,7 +102,15 @@ public partial class MainViewModel
         {
             return;
         }
-        var bubble = AircraftSpeechBubble.TryBuild(_preferences.ShowSpeechBubbles, SessionSoloTrainingMode, kind, message, DateTime.UtcNow);
+        var bubble = AircraftSpeechBubble.TryBuild(
+            _preferences.ShowSpeechBubbles,
+            _preferences.ShowWarningSpeechBubbles,
+            SessionSoloTrainingMode,
+            kind,
+            message,
+            _preferences.SpeechBubbleDurationMultiplier,
+            DateTime.UtcNow
+        );
         if (bubble is null)
         {
             return;

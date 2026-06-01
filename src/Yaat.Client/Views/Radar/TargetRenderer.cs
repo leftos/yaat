@@ -23,6 +23,11 @@ public sealed class TargetRenderer : IDisposable
     private static readonly SKColor SpeechBubbleBorderColor = new(80, 220, 140);
     private static readonly SKColor SpeechBubbleTextColor = SKColors.White;
 
+    // Amber variant for opt-in WARN-channel bubbles, matching the terminal Warning colour so a
+    // warning reads distinctly from a green pilot/SAY transmission.
+    private static readonly SKColor WarningBubbleFillColor = new(70, 50, 10, 220);
+    private static readonly SKColor WarningBubbleBorderColor = new(230, 170, 40);
+
     private readonly SKPaint _symbolPaint = new()
     {
         StrokeWidth = 1.5f,
@@ -84,6 +89,21 @@ public sealed class TargetRenderer : IDisposable
     private readonly SKPaint _bubbleBorderPaint = new()
     {
         Color = SpeechBubbleBorderColor,
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _bubbleFillPaintWarning = new()
+    {
+        Color = WarningBubbleFillColor,
+        Style = SKPaintStyle.Fill,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _bubbleBorderPaintWarning = new()
+    {
+        Color = WarningBubbleBorderColor,
         StrokeWidth = 1,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -294,7 +314,7 @@ public sealed class TargetRenderer : IDisposable
 
         if (drawBubble && ac.SpeechBubble is { } bubble)
         {
-            var bubbleRect = DrawSpeechBubble(canvas, blockRect, bubble.Text);
+            var bubbleRect = DrawSpeechBubble(canvas, blockRect, bubble.Text, bubble.Severity);
             if (bubbleRect is { } r)
             {
                 _lastBubbleRects[ac.Callsign] = r;
@@ -492,7 +512,7 @@ public sealed class TargetRenderer : IDisposable
     /// read as a single visual stack. Returns the painted rect so the canvas can hit-test
     /// clicks for the click-to-dismiss behavior, or null when nothing was drawn.
     /// </summary>
-    private SKRect? DrawSpeechBubble(SKCanvas canvas, SKRect anchor, string text)
+    private SKRect? DrawSpeechBubble(SKCanvas canvas, SKRect anchor, string text, SpeechBubbleSeverity severity)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -524,8 +544,10 @@ public sealed class TargetRenderer : IDisposable
         float bottom = top + lines.Count * lineH + 2 * pad - 2;
         var rect = new SKRect(left, top, right, bottom);
 
-        canvas.DrawRoundRect(rect, 3f, 3f, _bubbleFillPaint);
-        canvas.DrawRoundRect(rect, 3f, 3f, _bubbleBorderPaint);
+        var fillPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleFillPaintWarning : _bubbleFillPaint;
+        var borderPaint = severity == SpeechBubbleSeverity.Warning ? _bubbleBorderPaintWarning : _bubbleBorderPaint;
+        canvas.DrawRoundRect(rect, 3f, 3f, fillPaint);
+        canvas.DrawRoundRect(rect, 3f, 3f, borderPaint);
 
         float textX = left + pad;
         float baseline = top + pad + _bubbleTextPaint.TextSize;
@@ -653,6 +675,8 @@ public sealed class TargetRenderer : IDisposable
         _strikethroughPaint.Dispose();
         _bubbleFillPaint.Dispose();
         _bubbleBorderPaint.Dispose();
+        _bubbleFillPaintWarning.Dispose();
+        _bubbleBorderPaintWarning.Dispose();
         _bubbleTextPaint.Dispose();
     }
 }
