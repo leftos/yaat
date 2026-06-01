@@ -100,7 +100,8 @@ public static class FlightPhysics
         AutoCancelSpeedAtFinal(aircraft);
         UpdatePosition(aircraft, deltaSeconds, weather);
         UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
-        UpdateGiveWayResume(aircraft, aircraftLookup);
+        UpdateGroundStationaryTimer(aircraft, deltaSeconds);
+        UpdateGiveWayResume(aircraft, aircraftLookup, deltaSeconds);
         PilotObservationUpdater.Update(aircraft, aircraftLookup, weather, soloTrainingMode, rpoShowPilotSpeech);
     }
 
@@ -1176,12 +1177,40 @@ public static class FlightPhysics
         }
     }
 
-    private static void UpdateGiveWayResume(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup)
+    /// <summary>
+    /// Per-tick idle timer for ground aircraft. Accumulates the time an aircraft has been
+    /// stopped (so a held aircraft can tell how long its yield target has been stationary)
+    /// and resets the moment it moves or goes airborne.
+    /// </summary>
+    internal static void UpdateGroundStationaryTimer(AircraftState aircraft, double deltaSeconds)
+    {
+        if (aircraft.IsOnGround && aircraft.GroundSpeed <= GiveWayConstants.StationarySpeedThresholdKts)
+        {
+            aircraft.Ground.StationarySeconds += deltaSeconds;
+        }
+        else
+        {
+            aircraft.Ground.StationarySeconds = 0;
+        }
+    }
+
+    /// <summary>
+    /// Releases a direct GIVEWAY hold once the target is no longer in the way. The base
+    /// release is the bearing/heading geometry in <see cref="IsGiveWayMet"/>; layered on top
+    /// (direct holds only — deferred BEHIND conditions keep pure geometry) are three safety
+    /// nets: a route-intersection check that keeps holding while the two taxi routes still
+    /// cross ahead, a hold-age safety timeout, and a stalemate-bypass when the target has been
+    /// stationary and there is lateral room to pass it.
+    /// </summary>
+    internal static void UpdateGiveWayResume(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup, double deltaSeconds)
     {
         if (aircraft.Ground.Hold is not { Kind: HoldKind.GiveWay, YieldTarget: { } yieldTarget } || !aircraft.IsOnGround)
         {
+            aircraft.Ground.HoldElapsedSeconds = 0;
             return;
         }
+
+        aircraft.Ground.HoldElapsedSeconds += deltaSeconds;
 
         if (aircraftLookup is null)
         {
@@ -1192,17 +1221,82 @@ public static class FlightPhysics
         if (target is null || !target.IsOnGround)
         {
             // Target is gone or airborne — resume
-            aircraft.Ground.Hold = null;
+            ClearGiveWayHold(aircraft);
             return;
         }
 
-        // Check if give-way condition is met (target has passed)
+        // Safety timeout: a hold that has persisted far beyond any reasonable yield (e.g. a
+        // typo'd-but-real distant target that will never satisfy the geometry) auto-releases —
+        // but only when releasing won't drive straight into the target. A target still close and
+        // dead ahead keeps the hold (the conflict detector continues to manage proximity); a
+        // distant or laterally-clear target releases as intended.
+        if (aircraft.Ground.HoldElapsedSeconds >= GiveWayConstants.SafetyTimeoutSeconds)
+        {
+            bool clearToProceed =
+                GroundConflictDetector.HasWingspanLateralClearance(aircraft, target)
+                || GeoMath.DistanceNm(aircraft.Position, target.Position) > GiveWayConstants.SafetyTimeoutClearDistanceNm;
+            if (clearToProceed)
+            {
+                Log.LogInformation(
+                    "GIVEWAY safety timeout fired for {Callsign} after {Seconds:F0}s waiting on {Target}",
+                    aircraft.Callsign,
+                    aircraft.Ground.HoldElapsedSeconds,
+                    yieldTarget
+                );
+                ClearGiveWayHold(aircraft);
+            }
+
+            return;
+        }
+
         var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = yieldTarget };
 
         if (IsGiveWayMet(aircraft, trigger, aircraftLookup))
         {
-            aircraft.Ground.Hold = null;
+            // Geometry says the target is past, but if the two routes still share an upcoming
+            // node the target is still in our way at that intersection — keep holding.
+            if (GroundConflictDetector.ShareUpcomingNode(aircraft, target))
+            {
+                return;
+            }
+
+            ClearGiveWayHold(aircraft);
+            return;
         }
+
+        // Geometry says the target is still in the way. Break a stalemate: when the target has
+        // been stationary long enough and there is lateral room to bypass it, proceed. In a
+        // mutual yield (target is giving way to us) a deterministic callsign tie-break ensures
+        // only the lower-callsign aircraft releases first, so both never proceed on the same tick.
+        if (target.Ground.StationarySeconds < GiveWayConstants.TargetStationaryThresholdSeconds)
+        {
+            return;
+        }
+
+        bool mutualYield =
+            target.Ground.Hold is { Kind: HoldKind.GiveWay, YieldTarget: { } targetYield }
+            && string.Equals(targetYield, aircraft.Callsign, StringComparison.OrdinalIgnoreCase);
+        if (mutualYield && string.CompareOrdinal(aircraft.Callsign, target.Callsign) >= 0)
+        {
+            return;
+        }
+
+        if (GroundConflictDetector.HasWingspanLateralClearance(aircraft, target))
+        {
+            Log.LogInformation(
+                "GIVEWAY target-stationary fallback fired for {Callsign} bypassing {Target} (stationary {Seconds:F0}s)",
+                aircraft.Callsign,
+                yieldTarget,
+                target.Ground.StationarySeconds
+            );
+            ClearGiveWayHold(aircraft);
+        }
+    }
+
+    private static void ClearGiveWayHold(AircraftState aircraft)
+    {
+        aircraft.Ground.Hold = null;
+        aircraft.Ground.HoldElapsedSeconds = 0;
     }
 
     private static void UpdateBlockCompletion(AircraftState aircraft, CommandBlock block, double deltaSeconds)

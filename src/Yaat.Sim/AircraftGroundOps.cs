@@ -116,6 +116,22 @@ public class AircraftGroundOps
     /// </summary>
     public bool IsScriptedDeparture { get; set; }
 
+    /// <summary>
+    /// Seconds the current GIVEWAY hold has been active. Accumulated each tick by
+    /// <see cref="FlightPhysics.UpdateGiveWayResume"/> while <see cref="Hold"/> is a GIVEWAY
+    /// directive, reset to zero whenever no GIVEWAY hold is active. Drives the safety-timeout
+    /// auto-release so an aircraft never waits forever on a target that will never pass.
+    /// </summary>
+    public double HoldElapsedSeconds { get; set; }
+
+    /// <summary>
+    /// Seconds this aircraft has been stopped on the ground (ground speed at or below
+    /// <see cref="GiveWayConstants.StationarySpeedThresholdKts"/>). Reset when it moves or
+    /// goes airborne. A held aircraft reads its yield target's value to decide whether the
+    /// target-stationary stalemate-bypass fallback may fire.
+    /// </summary>
+    public double StationarySeconds { get; set; }
+
     public AircraftGroundOpsDto ToSnapshot() =>
         new()
         {
@@ -134,6 +150,8 @@ public class AircraftGroundOps
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
             IsScriptedDeparture = IsScriptedDeparture,
             IsExpeditingTaxi = IsExpeditingTaxi,
+            HoldElapsedSeconds = HoldElapsedSeconds,
+            StationarySeconds = StationarySeconds,
         };
 
     public static AircraftGroundOps FromSnapshot(AircraftGroundOpsDto dto, AirportGroundLayout? layout) =>
@@ -154,6 +172,8 @@ public class AircraftGroundOps
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,
             IsScriptedDeparture = dto.IsScriptedDeparture,
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
+            HoldElapsedSeconds = dto.HoldElapsedSeconds,
+            StationarySeconds = dto.StationarySeconds,
         };
 
     private static HoldDirective? HoldFromSnapshot(bool isHeld, string? giveWayTarget)

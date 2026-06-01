@@ -17,4 +17,10 @@ public sealed class AircraftGroundOpsDto
     public bool InitialCallupDecisionProcessed { get; init; }
     public bool IsScriptedDeparture { get; init; }
     public bool IsExpeditingTaxi { get; init; }
+
+    /// <summary>Seconds the current GIVEWAY hold has been active (drives the safety-timeout auto-release).</summary>
+    public double HoldElapsedSeconds { get; init; }
+
+    /// <summary>Seconds this aircraft has been stopped on the ground (drives the GIVEWAY target-stationary fallback).</summary>
+    public double StationarySeconds { get; init; }
 }

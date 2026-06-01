@@ -953,7 +953,7 @@ public static class GroundConflictDetector
         return null;
     }
 
-    private static bool ShareUpcomingNode(AircraftState subject, AircraftState reference)
+    internal static bool ShareUpcomingNode(AircraftState subject, AircraftState reference)
     {
         var routeA = subject.Ground.AssignedTaxiRoute;
         var routeB = reference.Ground.AssignedTaxiRoute;
@@ -963,5 +963,34 @@ public static class GroundConflictDetector
         }
 
         return FindSharedUpcomingNode(routeA, routeB) is not null;
+    }
+
+    /// <summary>
+    /// True when <paramref name="mover"/> could pass <paramref name="obstacle"/> with at least
+    /// half-wingspans plus <see cref="WingtipBufferFt"/> of lateral room, given the mover's
+    /// current heading. Mirrors the wingspan-bypass geometry in <see cref="ComputeClosingLimit"/>
+    /// (an obstacle abeam or behind the heading is never blocking). Used by
+    /// <see cref="FlightPhysics.UpdateGiveWayResume"/>'s stalemate-bypass fallback.
+    /// </summary>
+    internal static bool HasWingspanLateralClearance(AircraftState mover, AircraftState obstacle)
+    {
+        double bearing = GeoMath.BearingTo(mover.Position, obstacle.Position);
+        double angleDiff = HeadingDifference(mover.TrueHeading.Degrees, bearing);
+        if (angleDiff >= 90)
+        {
+            return true;
+        }
+
+        double? moverWing = FaaAircraftDatabase.Get(mover.AircraftType)?.WingspanFt;
+        double? obstacleWing = FaaAircraftDatabase.Get(obstacle.AircraftType)?.WingspanFt;
+        if (!moverWing.HasValue || !obstacleWing.HasValue)
+        {
+            return false;
+        }
+
+        double distFt = GeoMath.DistanceNm(mover.Position, obstacle.Position) * FtPerNm;
+        double lateralFt = distFt * Math.Sin(angleDiff * Math.PI / 180.0);
+        double requiredLateralFt = (moverWing.Value / 2) + (obstacleWing.Value / 2) + WingtipBufferFt;
+        return lateralFt > requiredLateralFt;
     }
 }

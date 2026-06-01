@@ -401,6 +401,10 @@ HoldDirective.cs               # Structured ground-hold directive: HoldKind { Ho
                                # Construct via HoldDirective.HoldPosition or
                                # HoldDirective.GiveWay(target). IsGiveWayFor(callsign)
                                # tests the pair relationship for the conflict detector.
+GiveWayConstants.cs            # Auto-release tuning for direct GIVEWAY holds (FlightPhysics.UpdateGiveWayResume):
+                               # safety-timeout (300s), target-stationary threshold (30s),
+                               # stationary speed threshold, timeout clear-distance. Direct holds
+                               # only — deferred BEHIND keeps pure-geometry release.
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
 Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/wake-advisory/field-proof events, ARTCC WakeDirectives, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
 Training/AircraftCompletion.cs     # Per-aircraft lifecycle stamps: spawn time, completion time, completion reason (Landed / Handed off / Dropped / Departed), filed route + operation classification used by the Session Report Aircraft tab.
