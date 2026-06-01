@@ -63,10 +63,13 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay to t=575 — 15 s into N172SP's first TouchAndGo (which started at
-        // t=560 in the recording). The next Upwind has NOT yet been queued by
-        // PhaseRunner (that only happens when TouchAndGo completes).
-        engine.Replay(recording, 575);
+        // Replay to t=1020 — 6 s into N172SP's second TouchAndGo (t=1014..1052).
+        // The first T/G (now t=597) can't be used: N172SP follows N569SX from t=404,
+        // so sequence-aware base-turn holding extends its downwind and the first T/G
+        // lands after the recorded EXT at t=594 (which arms ExtendNextUpwind, polluting
+        // the precondition). The second T/G is clean (ExtendNextUpwind=false, no follow)
+        // and no recorded N172SP command falls between it and the next Upwind at t=1052.
+        engine.Replay(recording, 1020);
 
         var aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
@@ -353,8 +356,10 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay to t=575 (during TouchAndGo, no pending Crosswind in queue yet).
-        engine.Replay(recording, 575);
+        // Replay to t=1020 (during N172SP's second, clean TouchAndGo — see
+        // ExtDuringTouchAndGo_ArmsNextUpwind for why the first T/G is unusable now
+        // that N172SP sequences behind N569SX). No pending Crosswind in queue yet.
+        engine.Replay(recording, 1020);
 
         var aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);

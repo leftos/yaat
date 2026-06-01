@@ -770,4 +770,130 @@ public class AirborneFollowTests : IDisposable
         Assert.True(cancelled, "Runaway watchdog should still fire when lead on same leg pulls away monotonically");
         Assert.Null(follower.Approach.FollowingCallsign);
     }
+
+    // -------------------------------------------------------------------------
+    // ShouldHoldForLeadSequencing: extend downwind to sequence behind an
+    // ahead lead instead of turning base early and overtaking it.
+    // -------------------------------------------------------------------------
+
+    private static readonly LatLon SeqThreshold = new(37.0, -122.0);
+
+    // Downwind axis = reciprocal of runway 28's 280° heading.
+    private static readonly TrueHeading SeqDownwindHeading = new(100.0);
+
+    /// <summary>Lat/lon of a point at along-track distance <paramref name="alongTrackNm"/>
+    /// from <see cref="SeqThreshold"/> along the downwind axis (larger = further out
+    /// in the approach direction = further back in the landing sequence).</summary>
+    private static (double Lat, double Lon) AtAlongTrack(double alongTrackNm)
+    {
+        var p = GeoMath.ProjectPoint(SeqThreshold, SeqDownwindHeading, alongTrackNm);
+        return (p.Lat, p.Lon);
+    }
+
+    private AircraftState FollowerOnDownwindAt(double alongTrackNm, string? leadCallsign, string type = "C172")
+    {
+        var (lat, lon) = AtAlongTrack(alongTrackNm);
+        return MakeAircraftOnPatternPhase<DownwindPhase>(
+            callsign: "FOLL",
+            type: type,
+            lat: lat,
+            lon: lon,
+            heading: SeqDownwindHeading.Degrees,
+            followingCallsign: leadCallsign
+        );
+    }
+
+    private AircraftState LeadOnPhaseAt<TPhase>(double alongTrackNm, string type = "C172")
+        where TPhase : Phase, new()
+    {
+        var (lat, lon) = AtAlongTrack(alongTrackNm);
+        return MakeAircraftOnPatternPhase<TPhase>(callsign: "LEAD", type: type, lat: lat, lon: lon, heading: 280);
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_True_WhenLeadAheadOnFinal_AndUnderSpaced()
+    {
+        // Follower on Downwind 0.5 nm out; lead on Final 0.86 nm out (just rolled
+        // out ahead). aFollower - aLead = -0.36 < 1.0 (piston desired) → hold.
+        var follower = FollowerOnDownwindAt(0.5, "LEAD");
+        var lead = LeadOnPhaseAt<FinalApproachPhase>(0.86);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+
+        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_True_WhenLeadAheadOnBase()
+    {
+        var follower = FollowerOnDownwindAt(0.5, "LEAD");
+        var lead = LeadOnPhaseAt<BasePhase>(0.9);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+
+        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_False_WhenFollowerAlreadyAdequatelyBehind()
+    {
+        // Follower has extended well downwind (2.5 nm out) while the lead is short
+        // final (0.3 nm). aFollower - aLead = 2.2 >= 1.0 → release, turn base.
+        var follower = FollowerOnDownwindAt(2.5, "LEAD");
+        var lead = LeadOnPhaseAt<FinalApproachPhase>(0.3);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_False_WhenLeadIsPatternFlowBehind()
+    {
+        // Lead is on an EARLIER leg (Upwind) — it is trailing, not leading. The
+        // base-turn hold must not fire; spacing for a trailing lead is the speed
+        // path's concern.
+        var follower = FollowerOnDownwindAt(0.5, "LEAD");
+        var lead = LeadOnPhaseAt<UpwindPhase>(0.5);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_False_WhenLeadOnSameLeg()
+    {
+        // Both on Downwind — only a strictly later leg counts as pattern-flow-ahead,
+        // so a co-leg lead does not trigger the sequencing hold (same-leg spacing is
+        // handled by the proximity / speed paths).
+        var follower = FollowerOnDownwindAt(0.3, "LEAD");
+        var lead = LeadOnPhaseAt<DownwindPhase>(0.9);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_False_WhenNoFollowOrLeadMissing()
+    {
+        var noFollow = FollowerOnDownwindAt(0.5, leadCallsign: null);
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(Ctx(noFollow), SeqThreshold, SeqDownwindHeading));
+
+        var orphan = FollowerOnDownwindAt(0.5, "GHOST");
+        var ctx = Ctx(orphan, lookup: _ => null);
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, SeqThreshold, SeqDownwindHeading));
+    }
+
+    [Fact]
+    public void ShouldHoldForLeadSequencing_WiderHoldForJetLead()
+    {
+        // A jet lead wants 3.0 nm of trail vs 1.0 for a piston. At a 1.5 nm sequence
+        // gap the piston follower would release but a jet follower must keep holding.
+        var followerBehindPiston = FollowerOnDownwindAt(1.8, "LEAD");
+        var pistonLead = LeadOnPhaseAt<FinalApproachPhase>(0.3, type: "C172");
+        var pistonCtx = Ctx(followerBehindPiston, lookup: cs => cs == "LEAD" ? pistonLead : null);
+        Assert.False(AirborneFollowHelper.ShouldHoldForLeadSequencing(pistonCtx, SeqThreshold, SeqDownwindHeading));
+
+        var followerBehindJet = FollowerOnDownwindAt(1.8, "LEAD");
+        var jetLead = LeadOnPhaseAt<FinalApproachPhase>(0.3, type: "B738");
+        var jetCtx = Ctx(followerBehindJet, lookup: cs => cs == "LEAD" ? jetLead : null);
+        Assert.True(AirborneFollowHelper.ShouldHoldForLeadSequencing(jetCtx, SeqThreshold, SeqDownwindHeading));
+    }
 }

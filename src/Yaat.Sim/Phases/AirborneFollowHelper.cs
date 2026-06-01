@@ -63,6 +63,23 @@ public static class AirborneFollowHelper
     private const double ExtendDownwindThreshold = 0.6;
 
     /// <summary>
+    /// Maximum nm of along-track a downwind follower will extend past its normal
+    /// base-turn point to sequence behind a pattern-flow-ahead lead. This is the
+    /// spatial bound on <see cref="ShouldHoldForLeadSequencing"/>: while the lead is
+    /// strictly leg-ahead the runaway watchdog in <see cref="CheckLeadLifecycle"/>
+    /// is suppressed, so this cap is the guard against an ahead lead crawling on a
+    /// long final. The instant the lead is no longer leg-ahead (it lands, despawns,
+    /// or the follower turns base) the watchdog resumes as the temporal guard.
+    /// 4.0 nm keeps the extension inside the FAA 7110.65 §4-8-1.3 circling-approach
+    /// area headroom while allowing the multi-nm downwind extensions that are normal
+    /// when sequencing in a busy pattern; the controller can still call the base turn
+    /// (TB) earlier or extend further (EXT) manually. When the cap forces the base
+    /// turn before adequate spacing is achieved, <see cref="Pattern.DownwindPhase"/>
+    /// emits a one-shot transmission so the controller can re-sequence.
+    /// </summary>
+    public const double MaxFollowExtensionNm = 4.0;
+
+    /// <summary>
     /// Seconds of monotonically increasing follower-to-lead gap after which the
     /// follow is auto-cancelled with an "unable to catch up" pilot transmission.
     /// Mirrors the original VfrFollowPhase constant; pattern-phase followers now
@@ -593,6 +610,75 @@ public static class AirborneFollowHelper
         }
 
         return shouldExtend;
+    }
+
+    /// <summary>
+    /// Returns true when a downwind follower must keep extending (hold its base
+    /// turn) to avoid rolling out on final ahead of, or too tightly behind, a lead
+    /// that is pattern-flow-AHEAD on the same runway (the lead is on a strictly
+    /// later leg — Base/Final/Landing — while the follower is still on Downwind).
+    ///
+    /// <para>
+    /// The decision uses a 1-D sequence coordinate: the signed along-track distance
+    /// from the threshold along <paramref name="downwindHeading"/> — the same axis
+    /// <see cref="Pattern.DownwindPhase"/> uses for its base-turn trigger. Larger =
+    /// further out in the approach direction = further back in the landing sequence.
+    /// Unlike straight-line follower-to-lead distance, this stays well-behaved after
+    /// the lead reverses onto final (where the straight-line gap inflates even as the
+    /// lead barely pulls ahead in sequence terms). The follower's own current
+    /// along-track is its projected final-rollout position, so the hold self-corrects
+    /// as the follower extends.
+    /// </para>
+    ///
+    /// <para>
+    /// Holds while <c>aFollower - aLead &lt; desired</c> — i.e. the follower would not
+    /// yet roll out at least the category desired distance behind the lead. The
+    /// caller bounds the hold spatially with <see cref="MaxFollowExtensionNm"/>; the
+    /// temporal bound (lead landed / despawned / same-leg divergence) lives in
+    /// <see cref="CheckLeadLifecycle"/>, which is suppressed while the lead is
+    /// leg-ahead, so the two caps are complementary.
+    /// </para>
+    /// </summary>
+    public static bool ShouldHoldForLeadSequencing(PhaseContext ctx, LatLon threshold, TrueHeading downwindHeading)
+    {
+        string? targetCallsign = ctx.Aircraft.Approach.FollowingCallsign;
+        if (targetCallsign is null)
+        {
+            return false;
+        }
+
+        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+        if (lead is null)
+        {
+            return false;
+        }
+
+        // Only sequence behind a lead that is genuinely ahead in pattern flow (a
+        // strictly later leg on the same runway). A trailing lead is the speed /
+        // proximity path's job, not the base-turn hold's.
+        if (!IsLeadPatternFlowAhead(ctx.Aircraft, lead))
+        {
+            return false;
+        }
+
+        double aFollower = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, threshold, downwindHeading);
+        double aLead = GeoMath.AlongTrackDistanceNm(lead.Position, threshold, downwindHeading);
+        double desired = DesiredDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
+
+        bool hold = (aFollower - aLead) < desired;
+        if (hold)
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: holding downwind to sequence behind {Target} (aFollower={AF:F2} aLead={AL:F2} desired={D:F1})",
+                ctx.Aircraft.Callsign,
+                targetCallsign,
+                aFollower,
+                aLead,
+                desired
+            );
+        }
+
+        return hold;
     }
 
     /// <summary>

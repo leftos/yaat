@@ -85,7 +85,12 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
             double vref = 0;
             double stabilizedGate = 0;
 
-            for (int t = 266; t <= 470; t++)
+            // N346G is the rear aircraft in the N9225L <- N436MS <- N346G follow
+            // chain. With sequence-aware base-turn holding it correctly extends its
+            // downwind to fall in behind N436MS rather than turning base early, so
+            // it reaches final later than the old (overtaking) behavior — it lands
+            // around t=588. The window runs to 640 to capture its full final.
+            for (int t = 266; t <= 640; t++)
             {
                 engine.ReplayOneSecond();
 

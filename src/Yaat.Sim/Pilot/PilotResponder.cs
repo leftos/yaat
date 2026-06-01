@@ -928,6 +928,20 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot transmission when a following aircraft has reached its maximum downwind
+    /// extension while sequencing behind a pattern-flow-ahead lead and must turn base
+    /// before it has the desired trail. Cues the controller to re-sequence (the
+    /// follower may roll out tight behind the lead). Output:
+    /// <c>"[N123AB] november one two three alpha bravo, turning base behind cessna five six niner sierra x-ray, spacing is tight."</c>
+    /// </summary>
+    public static string BuildSequenceTightTurningBase(AircraftState aircraft, string targetCallsign)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
+        return $"[{aircraft.Callsign}] {spoken}, turning base behind {targetSpoken}, spacing is tight.";
+    }
+
+    /// <summary>
     /// Pilot airborne-spawn check-in fired by <see cref="PilotProactive.TickAirborneCheckIn"/>
     /// the first tick an aircraft is observed airborne in solo-training mode and has not
     /// yet spoken to ATC. Branches on <see cref="SimScenarioState.StudentPositionType"/>
