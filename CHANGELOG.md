@@ -10,6 +10,8 @@
 - Optional amber WARN-message speech bubbles (Settings > Display > Overlays) overlay warning-channel messages on the aircraft, distinct from the green SAY/pilot bubbles. (#170)
 
 ### Fixed
+- Ghosting an aircraft (STARS AID + slew) that is already tracked by another position no longer steals the track from that position; the ghost is rejected with an ownership error. Ghosting an untracked aircraft, or one you already own, still works.
+- ERAM `QT` (start track) and `QT D` (drop track) no longer take or drop a track owned by another sector without authorization; both are rejected unless the `/OK` logic-check override is included, which forcefully steals the track as documented.
 - Aircraft cleared to cross a runway with `CROSS` now follow the painted taxi line through the crossing instead of cutting diagonally across the runway surface when the taxiway curves through the crossing (e.g. SFO H across 01L/19R).
 - Aircraft cleared to cross a runway now cross at normal taxi speed and keep rolling all the way across, instead of slowing to a lower crossing speed or braking toward a stop at the far side before continuing onto the next taxiway.
 - A runway crossing cleared before the aircraft reaches the hold line — an early `CROSS`, or an auto-cross taxi — is now flown as a proper crossing that tracks the painted taxi line across, instead of taxiing straight through; an aircraft still clearing the runway it just landed on is no longer treated as a new crossing of that runway.
