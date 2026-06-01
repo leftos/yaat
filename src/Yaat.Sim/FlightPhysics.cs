@@ -730,7 +730,7 @@ public static class FlightPhysics
         aircraft.Procedure.LastProcedureSpeedKts = null;
     }
 
-    /// <summary>Constant for bank angle formula: (π/180) × 1.6878 / 32.174 ≈ 0.0009146.</summary>
+    /// <summary>Constant for bank angle formula: (π/180) × 1.6878 / 32.174 ≈ 0.0009156.</summary>
     private const double BankAngleCoeff = Math.PI / 180.0 * 1.6878 / 32.174;
 
     /// <summary>

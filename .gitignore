@@ -40,7 +40,7 @@ tools/oak_layout_dump.json
 publish/
 releases/
 
-## Local scenario snapshots (downloaded via tools/refresh-scenarios.py)
+## Local scenario snapshots (downloaded via the yaat-server repo's tools/validate-all-scenarios.py)
 tests/Yaat.Sim.Tests/TestData/Scenarios/
 
 ## Opt-in LLM integration test models (see tests/Yaat.Client.Tests/TestData/llm/README.md)

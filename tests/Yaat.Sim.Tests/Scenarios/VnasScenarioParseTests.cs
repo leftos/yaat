@@ -7,7 +7,7 @@ namespace Yaat.Sim.Tests.Scenarios;
 /// <summary>
 /// Loads ARTCC training scenarios from local TestData snapshots and verifies that every
 /// preset command can be parsed by CommandParser.ParseCompound.
-/// Scenarios are NOT committed to the repo — download them locally with tools/refresh-scenarios.py.
+/// Scenarios are NOT committed to the repo — populate them via the sibling yaat-server repo's tools/validate-all-scenarios.py.
 /// Tests are skipped when the snapshot directory is empty or missing.
 /// </summary>
 [Collection("NavDbMutator")]
@@ -54,7 +54,7 @@ public class VnasScenarioParseTests
         var dir = Path.Combine(ScenariosRoot, artccId);
         if (!Directory.Exists(dir))
         {
-            _output.WriteLine($"No local scenarios for {artccId} — run: python tools/refresh-scenarios.py {artccId}");
+            _output.WriteLine($"No local scenarios for {artccId} — run in ../yaat-server: python tools/validate-all-scenarios.py --artcc {artccId}");
             return;
         }
 
@@ -62,7 +62,7 @@ public class VnasScenarioParseTests
 
         if (files.Count == 0)
         {
-            _output.WriteLine($"No scenario files in {dir} — run: python tools/refresh-scenarios.py {artccId}");
+            _output.WriteLine($"No scenario files in {dir} — run in ../yaat-server: python tools/validate-all-scenarios.py --artcc {artccId}");
             return;
         }
 
