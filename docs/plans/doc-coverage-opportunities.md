@@ -4,8 +4,8 @@
 > so future agents (and humans) stop re-parsing the same big, complex parts of the codebase on
 > every task. Produced by a 22-agent gap-analysis workflow over **both repos** (yaat + yaat-server).
 >
-> **Status:** **Tier 1 (#1–#7), Tier 2 (#8–#14), and the `logging.md` quick win (#15) all drafted + adversarially verified**
-> (✅ in the tables below). Only Tier-3 items #16–#18 remain candidates. Per-item
+> **Status:** **All 18 doc-coverage opportunities (#1–#18) drafted + adversarially verified**
+> (✅ in the tables below). Per-item
 > drafting material (complete outline, every footgun, the measured cold-read cost) is in the verbatim
 > appendix: [doc-coverage-opportunities.detail.md](doc-coverage-opportunities.detail.md).
 
@@ -60,9 +60,9 @@ Tiers are my synthesis over the agents' (mostly uniform) priority scores, ranked
 | # | Proposed doc | Scope (one line) | Effort | Churn | Cold-read cost |
 |---|---|---|---|---|---|
 | 15 | ✅ `logging.md` | `SimLog`/`AppLog`, the AsyncLocal-vs-static design, test-capture recipe | **S** | High-touch | ~290 LOC / 5 files |
-| 16 | `command-input-ux.md` | Client-side parse-once → autocomplete + signature help (pre-send) | M | Med | ~2.9K LOC / 9 files |
-| 17 | `weather-and-wind.md` | METAR/winds-aloft parsers, the 3 interpolation axes, declination | M | Med | ~1.8K LOC / 11–14 files, **2 repos** |
-| 18 | `airspace-database.md` | Class B/C containment + boundary-crossing; both consumers | M | Low-Med | ~900 LOC / 9 files, **2 repos** |
+| 16 | ✅ `command-input-ux.md` | Client-side parse-once → autocomplete + signature help (pre-send) | M | Med | ~2.9K LOC / 9 files |
+| 17 | ✅ `weather-and-wind.md` | METAR/winds-aloft parsers, the 3 interpolation axes, declination | M | Med | ~1.8K LOC / 11–14 files, **2 repos** |
+| 18 | ✅ `airspace-database.md` | Class B/C containment + boundary-crossing; both consumers | M | Low-Med | ~900 LOC / 9 files, **2 repos** |
 
 **Quick win:** #15 `logging.md` is S-effort, touches every file, and turns three scattered CLAUDE.md
 fragments into one reference — highest ROI-per-hour on the list.
@@ -240,8 +240,8 @@ places, and the 6 MB checked-in Brotli fixture.
 
 ## Next steps
 
-**Done:** Tier 1 (#1–#7), Tier 2 (#8–#14), and the #15 `logging.md` quick win — all drafted and adversarially verified;
-the incidental findings are resolved (see above).
+**Done:** all 18 opportunities (#1–#18) drafted, adversarially verified, and committed; the incidental findings are
+resolved (see above); the `ApplyRecordingResult` divergence is tracked in
+[open-issues/recording-result-bootstrap-divergence.md](open-issues/recording-result-bootstrap-divergence.md).
 
-**Remaining:** only Tier-3 #16 `command-input-ux.md`, #17 `weather-and-wind.md`, #18 `airspace-database.md`. Each is
-self-contained drafting work using its appendix block.
+**Remaining:** nothing — the backlog is fully drafted. Keep these docs in sync as the code evolves.

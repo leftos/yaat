@@ -25,6 +25,38 @@
 | **Snapshots/replay** | `StateSnapshotDto.cs`, `AircraftSnapshotDto.cs`, `RecordingArchive.cs`, `SimulationEngine.cs` |
 | **CRC protocol** | `CrcDtos*.cs` (wire format) → `DtoConverter.cs` (translation) → `CrcBroadcastService.cs` (dispatch) → `CrcWebSocketHandler.cs` (connection) |
 
+## Subsystem deep-dive docs
+
+The Task Index above tells you *which files*; these docs explain *how each subsystem works* — read the relevant one before a non-trivial change. (Full annotated list with summaries in [CLAUDE.md](../CLAUDE.md) → Reference Docs.)
+
+| Area | Deep-dive doc(s) |
+|------|------------------|
+| Command dispatch & per-domain handlers | [command-pipeline.md](command-pipeline.md), [command-handlers.md](command-handlers.md) |
+| Command input (autocomplete / signature help) | [command-input-ux.md](command-input-ux.md) |
+| Aircraft data model & `SimulationWorld` | [aircraft-data-model.md](aircraft-data-model.md) |
+| Flight physics, airspeed frames & constants | [flight-physics.md](flight-physics.md) |
+| Per-tick execution order | [tick-loop.md](tick-loop.md) |
+| Phase system (base contract) | [phases.md](phases.md) |
+| Airborne approach / pattern geometry | [approach-and-pattern-geometry.md](approach-and-pattern-geometry.md) |
+| Landing rollout & runway exit | [landing-and-runway-exit.md](landing-and-runway-exit.md) |
+| Ground stack (fillet / pathfinder / navigator) | [ground/README.md](ground/README.md) |
+| Navigation database & route expansion | [navigation-database.md](navigation-database.md) |
+| Conflict / alert / visual detection | [conflict-and-visual-detection.md](conflict-and-visual-detection.md) |
+| Weather & wind | [weather-and-wind.md](weather-and-wind.md) |
+| Airspace (Class B/C) & boundary crossing | [airspace-database.md](airspace-database.md) |
+| Scenario loading & aircraft generation | [scenario-loading-and-generation.md](scenario-loading-and-generation.md) |
+| Snapshots & replay | [snapshots-and-replay.md](snapshots-and-replay.md) |
+| Solo-training evaluation & scoring | [solo-training-evaluation.md](solo-training-evaluation.md) |
+| STARS/ERAM track sharing & consolidation | [track-sharing-and-consolidation.md](track-sharing-and-consolidation.md) |
+| CRC display state & broadcast | [crc-display-state.md](crc-display-state.md) |
+| Client↔server SignalR contract | [training-hub-contract.md](training-hub-contract.md), [server-rooms-and-hub.md](server-rooms-and-hub.md) |
+| Client MainViewModel & orchestration | [client-mainviewmodel.md](client-mainviewmodel.md) |
+| Radar display & rendering | [radar-rendering.md](radar-rendering.md) |
+| Flight strips / vTDLS | [flight-strips.md](flight-strips.md), [vtdls.md](vtdls.md) |
+| Speech (STT) & pilot speech (TTS) | [speech-recognition-pipeline.md](speech-recognition-pipeline.md), [solo-training-pilot-speech.md](solo-training-pilot-speech.md) |
+| Logging | [logging.md](logging.md) |
+| Test harness & fixtures | [test-harness.md](test-harness.md) |
+
 ## Integration Footguns
 
 - **Modify `AircraftState`** → must mirror changes in `AircraftSnapshotDto.cs` + add migration in `SnapshotSchemaMigrator.cs`
