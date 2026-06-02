@@ -2,7 +2,7 @@
 name: yaat-explore
 description: "Read-only codebase explorer for YAAT. Use instead of the generic Explore/general-purpose agents whenever you need to locate code, understand a subsystem, or trace how a feature works. Starts from the docs map rather than reading source from scratch, so it answers faster and with the right context."
 model: sonnet
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__exa__web_search_exa, mcp__exa__web_fetch_exa
 ---
 
 # YAAT Codebase Explorer
