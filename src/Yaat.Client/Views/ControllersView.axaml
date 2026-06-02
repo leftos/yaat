@@ -16,6 +16,18 @@
             <Setter Property="Padding" Value="16,1,8,1" />
             <Setter Property="MinHeight" Value="0" />
         </Style>
+        <!-- Flat, full-width facility header button. -->
+        <Style Selector="Button.grouphdr">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.grouphdr:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#14FFFFFF" />
+        </Style>
     </UserControl.Styles>
 
     <DockPanel>
@@ -43,23 +55,31 @@
                    TextWrapping="Wrap"
                    IsVisible="{Binding !OnlineControllers.Count}" />
 
-        <ScrollViewer>
-            <ItemsControl ItemsSource="{Binding ControllerGroups}" Margin="0,2,0,6">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding ControllerGroups}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ControllerGroupVm">
-                        <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
-                                  Background="Transparent"
-                                  BorderThickness="0"
-                                  Padding="0"
-                                  Margin="2,2,2,0">
-                            <Expander.Header>
-                                <TextBlock Text="{Binding Header}"
-                                           FontWeight="Bold"
-                                           FontSize="13"
-                                           Foreground="#2DD4BF" />
-                            </Expander.Header>
+                        <StackPanel>
+                            <Button Classes="grouphdr" Command="{Binding ToggleExpandedCommand}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Header}"
+                                               FontWeight="Bold"
+                                               FontSize="13"
+                                               Foreground="#2DD4BF" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="▾"
+                                               Foreground="#2DD4BF"
+                                               IsVisible="{Binding IsExpanded}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="▸"
+                                               Foreground="#2DD4BF"
+                                               IsVisible="{Binding !IsExpanded}" />
+                                </Grid>
+                            </Button>
                             <ListBox Classes="controllers"
                                      ItemsSource="{Binding Controllers}"
+                                     IsVisible="{Binding IsExpanded}"
                                      Background="Transparent"
                                      SelectionMode="Single"
                                      ScrollViewer.VerticalScrollBarVisibility="Disabled"
@@ -85,7 +105,7 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                        </Expander>
+                        </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

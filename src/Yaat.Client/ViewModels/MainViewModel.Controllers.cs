@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
@@ -11,35 +12,46 @@ namespace Yaat.Client.ViewModels;
 /// One facility group in the CRC-style controller list: a header (id + name) and its controllers.
 /// Collapse state is backed by a shared set so it survives list rebuilds on refresh.
 /// </summary>
-public sealed class ControllerGroupVm(
-    string facilityId,
-    string? facilityName,
-    IReadOnlyList<OnlineControllerDto> controllers,
-    HashSet<string> collapsedFacilities
-)
+public sealed partial class ControllerGroupVm : ObservableObject
 {
-    private readonly HashSet<string> _collapsedFacilities = collapsedFacilities;
+    private readonly HashSet<string> _collapsedFacilities;
 
-    public string FacilityId { get; } = facilityId;
-    public string? FacilityName { get; } = facilityName;
-    public string Header => string.IsNullOrEmpty(FacilityName) ? FacilityId : $"{FacilityId} - {FacilityName}";
-    public IReadOnlyList<OnlineControllerDto> Controllers { get; } = controllers;
-
-    public bool IsExpanded
+    public ControllerGroupVm(
+        string facilityId,
+        string? facilityName,
+        IReadOnlyList<OnlineControllerDto> controllers,
+        HashSet<string> collapsedFacilities
+    )
     {
-        get => !_collapsedFacilities.Contains(FacilityId);
-        set
+        FacilityId = facilityId;
+        FacilityName = facilityName;
+        Controllers = controllers;
+        _collapsedFacilities = collapsedFacilities;
+        _isExpanded = !collapsedFacilities.Contains(facilityId);
+    }
+
+    public string FacilityId { get; }
+    public string? FacilityName { get; }
+    public string Header => string.IsNullOrEmpty(FacilityName) ? FacilityId : $"{FacilityId} - {FacilityName}";
+    public IReadOnlyList<OnlineControllerDto> Controllers { get; }
+
+    [ObservableProperty]
+    private bool _isExpanded;
+
+    partial void OnIsExpandedChanged(bool value)
+    {
+        if (value)
         {
-            if (value)
-            {
-                _collapsedFacilities.Remove(FacilityId);
-            }
-            else
-            {
-                _collapsedFacilities.Add(FacilityId);
-            }
+            _collapsedFacilities.Remove(FacilityId);
+        }
+        else
+        {
+            _collapsedFacilities.Add(FacilityId);
         }
     }
+
+    [RelayCommand]
+    private void ToggleExpanded() => IsExpanded = !IsExpanded;
 }
 
 /// <summary>
