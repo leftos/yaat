@@ -29,8 +29,10 @@ airborne._** Everything below is bookkeeping around that one idea.
   **holds short** of it (the existing `HoldingShortPhase`) — it never takes the runway while held, so
   it doesn't block arrivals/crossings. Only runway *entry* (LUAW / takeoff) is withheld.
 
-**IFR only.** VFR departures never need a release (7110.65 §4-3-4, AIM §5-2-7.a.2) and depart normally
-even when their airport is armed.
+**IFR only.** A release gates an **IFR departure clearance** (7110.65 §4-3-4.b.1); a VFR aircraft isn't
+on an IFR clearance, so there's nothing to hold — it departs on the tower's own authority (cf. §4-3-9,
+which covers the only VFR↔release interaction: an IFR-filed aircraft electing to depart VFR). VFR
+departures therefore depart normally even when their airport is armed.
 
 ## State model
 
@@ -159,8 +161,15 @@ because the spawn jitter uses `World.Rng` and the auto-CTO jitter is a pure call
 | "Hold for release" / "Released" phraseology, release/void times | 7110.65 §4-3-4; AIM §5-2-7 |
 | Successive-departure spacing (interval defaults) | §5-8-3 (radar/1 NM, diverging), §3-9-6 (wake time intervals) |
 | Release → airborne delay 20–60 s; ground readback jitter 5–20 s | §3-9-5 (anticipating separation) + roll latency |
-| Default interval 1 min; 2 min behind wake; 3 min super/intersection | §5-8-3.a, §3-9-6, §3-9-7 |
-| VFR not gated | §4-3-4; AIM §5-2-7.a.2 |
+| Auto-interval spacing is controller-driven, in **minutes** | §4-3-4.c.2 ("RELEASED FOR DEPARTURE IN (number) MINUTES") |
+| VFR not gated (a release gates only the IFR clearance) | §4-3-4.b.1; §4-3-9 |
+
+v1 applies a **single uniform controller-supplied interval** (default 1 min) to a whole-queue
+release — it does **not** auto-derive a wake/category-aware interval. The FAA same-runway wake-time
+spacing (§3-9-6.f: 2 min behind a heavy/B757, 3 min behind a super; §3-9-7: +1 min for intersection
+departures) is a **tower (local controller)** duty — out of scope here, since the student is the radar
+controller (see the scope boundary below). A 1-minute default is conservative versus the §5-8-3.a
+radar minimum (~1 NM for diverging courses), which is appropriate for a trainer.
 
 **v1 scope boundary:** runtime enforcement of §3-9-6 wake/successive-departure separation *at the
 runway* (the tower can't roll the next until the prior cleared) is a tower-ops (M2) concern and is
