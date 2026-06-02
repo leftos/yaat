@@ -569,6 +569,8 @@ Aircraft automatically hold short at all runway crossings along the taxi route. 
 
 When you taxi to a hold-short point (via context menu or command), the runway is automatically assigned based on the closest threshold. Override with `RWY {id}` if needed.
 
+A `TAXI` clearance does not need to name the taxiway the aircraft is already on. When the cleared taxiways begin with one the aircraft can turn onto directly from its current taxiway, that current taxiway is added to the route automatically — `TAXI W` from W5 routes as `TAXI W5 W`, and `TAXI E RWY 28R` from C routes as `TAXI C E RWY 28R`. The current taxiway appears in the readback only when the route actually drives along it. When the current taxiway and the first cleared taxiway meet only across a runway, the inference does not apply and the runway crossing must still be cleared explicitly. An aircraft that has just exited a runway is implicitly cleared to finish crossing that same runway's hold-short bars when it receives a `TAXI`; any subsequent crossing of a different runway still requires `CROSS`.
+
 Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop. Use `BREAK` to temporarily override conflict avoidance for 15 seconds.
 
 ### Helicopter Commands

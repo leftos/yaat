@@ -238,6 +238,7 @@ After liftoff, the assigned departure turn is deferred until the aircraft is pas
 | Break | `BREAK` | `BREAK` | Parity (15s collision ignore) |
 | NODEL for taxi | — | `TAXI S T U @B12 NODEL` | YAAT-only, overrides "at parking" deletion |
 | Taxi variant resolution | — | Automatic | YAAT auto-extends taxiway variants (e.g., `TAXI W` → `W1`) when a numbered variant reaches the destination runway hold-short; picks closest variant to threshold when ambiguous |
+| Taxi current-taxiway inference | — | Automatic | YAAT prepends the taxiway the aircraft is already on when it joins the first cleared taxiway directly (`TAXI W` from W5 → `W5 W`; `TAXI E RWY 28R` from C → `C E RWY 28R`); the occupied taxiway is never flagged "not in authorized path". Skipped when the two meet only across a runway |
 | RWY (standalone) | Part of `RWY {rwy} TAXI` | `RWY 30` (assign runway without taxi) | YAAT adds standalone runway assignment |
 | Air taxi (helicopter) | — | `ATXI H1` | YAAT-only |
 

@@ -26,7 +26,15 @@ public sealed class TaxiRoute
     /// a route through RAMP, the RAMP↔D corner, then D C B reads <c>"RAMP D C B"</c>, not
     /// <c>"RAMP D - RAMP D C B"</c>. Drives the Aircraft List Info column and the DTO TaxiRoute field.
     /// </summary>
-    public string FormatTaxiwaySequence()
+    public string FormatTaxiwaySequence() => string.Join(" ", TaxiwaySequence());
+
+    /// <summary>
+    /// The cleared taxiways in order: distinct consecutive segment names with junction/membership
+    /// arcs (<c>"C - E"</c>) excluded. Shared by <see cref="FormatTaxiwaySequence"/> and
+    /// <see cref="ToSummary"/> so both render the same sequence — an arc is a transition between
+    /// taxiways, not a leg of one, and must never surface as a named token.
+    /// </summary>
+    private List<string> TaxiwaySequence()
     {
         var taxiways = new List<string>();
         string? last = null;
@@ -44,7 +52,7 @@ public sealed class TaxiRoute
             }
         }
 
-        return string.Join(" ", taxiways);
+        return taxiways;
     }
 
     /// <summary>
@@ -157,16 +165,7 @@ public sealed class TaxiRoute
     /// </summary>
     public string ToSummary()
     {
-        var parts = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var seg in Segments)
-        {
-            if (seen.Add(seg.TaxiwayName))
-            {
-                parts.Add(seg.TaxiwayName);
-            }
-        }
+        var parts = TaxiwaySequence();
 
         foreach (var hs in HoldShortPoints)
         {

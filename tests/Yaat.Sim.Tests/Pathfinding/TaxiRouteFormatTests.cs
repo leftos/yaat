@@ -96,4 +96,26 @@ public class TaxiRouteFormatTests
         var route = new TaxiRoute { Segments = [], HoldShortPoints = [] };
         Assert.Equal("", route.FormatTaxiwaySequence());
     }
+
+    [Fact]
+    public void ToSummary_SkipsMembershipArcs()
+    {
+        var c1 = Node(0, 37.700, -122.200);
+        var cj = Node(1, 37.701, -122.200);
+        var e1 = Node(2, 37.702, -122.200);
+        var e2 = Node(3, 37.703, -122.200);
+
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                Seg(Straight(c1, cj, "C"), c1, cj),
+                Seg(Arc(cj, e1, "C", "E"), cj, e1), // "C - E" membership arc — must not appear as a token
+                Seg(Straight(e1, e2, "E"), e1, e2),
+            ],
+            HoldShortPoints = [],
+        };
+
+        Assert.Equal("C E", route.ToSummary());
+    }
 }

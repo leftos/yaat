@@ -16,8 +16,9 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 
 1. `GroundCommandHandler.TryTaxi` / `TryTaxiAuto` (`src/Yaat.Sim/Commands/GroundCommandHandler.cs:15`, `:291`) is the dispatch target. `TryTaxiAuto` just builds an empty-path `TaxiCommand` and calls `TryTaxi` — so `TAXIAUTO RWY`/`TAXIAUTO @PARKING` is "a TAXI with no named taxiways". There is no separate auto pathfinder entry.
 2. `TryTaxi` resolves the start node from `(position, heading)` — `groundLayout.FindNearestNodeForTaxi(...)` (heading-aligned endpoint of the nearest edge) with `FindNearestNode` as the off-graph fallback (`GroundCommandHandler.cs:38`). **The pathfinder's contract is strictly node-to-node**; mid-segment snapping happens here, upstream.
-3. `TryTaxi` branches on destination kind into `ResolveParkingRoute` (`@parking`/`$spot`) or `ResolveStandardRoute` (runway / implicit endpoint), and computes the aircraft category via `AircraftCategorization.Categorize` (`GroundCommandHandler.cs:66`).
-4. Those resolvers call **`TaxiPathfinder`**'s static methods directly (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs`):
+3. `TryTaxi` infers the taxiway the aircraft is already on and prepends it to the named path when the controller omitted it (`GroundCommandHandler.cs`, guarded by `SharesDirectJunction`). The current taxiway (`aircraft.Ground.CurrentTaxiway`) is prepended only when the start node lies on it, the path doesn't already begin with it, and it shares a direct junction node with the first cleared taxiway — so `TAXI E` from C resolves as `TAXI C E` and `TAXI W` from W5 as `TAXI W5 W`, without the occupied taxiway tripping the unauthorized-taxiway flag or the bridge's hop cap. When the two meet only across a runway (no shared node) it is left to the runway-crossing bridge, so the crossing still needs an explicit clearance.
+4. `TryTaxi` branches on destination kind into `ResolveParkingRoute` (`@parking`/`$spot`) or `ResolveStandardRoute` (runway / implicit endpoint), and computes the aircraft category via `AircraftCategorization.Categorize` (`GroundCommandHandler.cs:66`).
+5. Those resolvers call **`TaxiPathfinder`**'s static methods directly (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs`):
 
 | Method | Signature | Purpose |
 |---|---|---|

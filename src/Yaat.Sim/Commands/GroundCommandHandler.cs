@@ -48,6 +48,29 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Cannot find position on taxiway graph");
         }
 
+        // Infer the taxiway the aircraft is already on. The controller clears a continuation
+        // ("TAXI E") without re-naming the taxiway the aircraft currently occupies; prepending it
+        // makes the explicit pathfinder start there instead of bridging onto the first cleared
+        // taxiway (which both flags the occupied taxiway "not in authorized path" and hard-fails
+        // when the bridge's hop cap can't reach it). Guards:
+        //   * start node actually lies on that taxiway — a stale CurrentTaxiway never injects a phantom leg;
+        //   * path doesn't already begin with it;
+        //   * the two taxiways share a direct junction node — i.e. the aircraft can turn straight from
+        //     its current taxiway onto the first cleared one. When they meet only across a runway (e.g.
+        //     SFO M↔H across 01L/19R, zero shared nodes) prepending would re-route the crossing through a
+        //     named-junction search instead of the runway-crossing bridge, so it is left to that path.
+        if (
+            taxi.Path.Count > 0
+            && aircraft.Ground.CurrentTaxiway is { Length: > 0 } currentTwy
+            && !taxi.Path[0].Equals(currentTwy, StringComparison.OrdinalIgnoreCase)
+            && startNode.Edges.Any(e => e.MatchesTaxiway(currentTwy))
+            && SharesDirectJunction(groundLayout, currentTwy, taxi.Path[0])
+        )
+        {
+            taxi = taxi with { Path = [currentTwy, .. taxi.Path] };
+            Log.LogDebug("[TryTaxi] {Callsign}: prepended current taxiway {Twy} to cleared path", aircraft.Callsign, currentTwy);
+        }
+
         Log.LogDebug(
             "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
             aircraft.Callsign,
@@ -112,6 +135,7 @@ internal static class GroundCommandHandler
         {
             HoldingShortPhase priorHold when priorHold.HoldShort.TargetName is { Length: > 0 } heldRwy => heldRwy,
             RunwayExitPhase exitPhase when exitPhase.RunwayId is { Length: > 0 } exitRwy => exitRwy,
+            HoldingAfterExitPhase afterExit when afterExit.RunwayId is { Length: > 0 } afterExitRwy => afterExitRwy,
             _ => null,
         };
         string? implicitCrossLabel = null;
@@ -315,6 +339,29 @@ internal static class GroundCommandHandler
         );
 
         return TryTaxi(aircraft, taxi, groundLayout, autoCrossRunway);
+    }
+
+    /// <summary>
+    /// True when a single graph node carries edges on both <paramref name="fromTaxiway"/> and
+    /// <paramref name="toTaxiway"/> — i.e. the two taxiways meet at a direct junction the explicit
+    /// pathfinder can turn through (mirrors <c>SegmentExpander.FindJunctionCandidates</c>). False when
+    /// they meet only across a runway (separate "X - RWY" / "Y - RWY" crossing arcs, no shared node),
+    /// where prepending the current taxiway would mis-route the crossing.
+    /// </summary>
+    private static bool SharesDirectJunction(AirportGroundLayout groundLayout, string fromTaxiway, string toTaxiway)
+    {
+        foreach (var node in groundLayout.GetNodesOnTaxiway(fromTaxiway))
+        {
+            foreach (var edge in node.Edges)
+            {
+                if (edge.MatchesTaxiway(toTaxiway))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static TaxiRoute? ResolveStandardRoute(
