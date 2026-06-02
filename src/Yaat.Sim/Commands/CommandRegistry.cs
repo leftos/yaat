@@ -524,8 +524,8 @@ public static class CommandRegistry
             Bare(MakeShortApproach, "Make Short Approach", "Pattern", false, ["SA", "MSA"]),
             Bare(MakeNormalApproach, "Make Normal Approach", "Pattern", false, ["MNA"]),
             Bare(Cancel270, "Cancel 270", "Pattern", false, ["NO270"]),
-            Bare(MakeLeft360, "Make Left 360", "Pattern", false, ["L360"]),
-            Bare(MakeRight360, "Make Right 360", "Pattern", false, ["R360"]),
+            Bare(MakeLeft360, "Make Left 360", "Pattern", false, ["L360", "ML3", "ML360"]),
+            Bare(MakeRight360, "Make Right 360", "Pattern", false, ["R360", "MR3", "MR360"]),
             Bare(MakeLeft270, "Make Left 270", "Pattern", false, ["L270"]),
             Bare(MakeRight270, "Make Right 270", "Pattern", false, ["R270"]),
             Cmd(

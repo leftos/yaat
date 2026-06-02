@@ -142,7 +142,7 @@
         { "verb": "EXT", "aliases": ["extend"], "description": "Extend current pattern leg (not base); EXT UPWIND/CW/DW rolls back one leg if late" },
         { "verb": "SA", "aliases": ["msa"], "description": "Short approach" },
         { "verb": "MNA", "aliases": [], "description": "Normal approach" },
-        { "verb": "L360 / R360", "aliases": [], "description": "Left / right 360" },
+        { "verb": "L360 / R360", "aliases": ["ml3", "ml360", "mr3", "mr360"], "description": "Left / right 360 (holding speed, resumes after)" },
         { "verb": "L270 / R270", "aliases": [], "description": "Left / right 270" },
         { "verb": "P270", "aliases": ["plan270"], "description": "Plan 270 at next turn" },
         { "verb": "NO270", "aliases": [], "description": "Cancel 270" },

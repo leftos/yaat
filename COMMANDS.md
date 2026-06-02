@@ -359,8 +359,8 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Extend leg | `EXT` | `EXTEND` | `EXT [leg]` |
 | Short approach | `SA` | `MSA` | — |
 | Normal approach | `MNA` | — | — |
-| Left 360 | `L360` | — | — |
-| Right 360 | `R360` | — | — |
+| Left 360 | `L360` | `ML3`, `ML360` | — |
+| Right 360 | `R360` | `MR3`, `MR360` | — |
 | Left 270 | `L270` | — | — |
 | Right 270 | `R270` | — | — |
 | Cancel 270 | `NO270` | — | — |
@@ -721,8 +721,8 @@ Pattern-entry verbs (`ELD`, `ERD`, `ELB`, `ERB`, `EF`, `ELC`, `ERC`) require the
 | `ELC 28R` / `ERC 28R` | Enter left/right crosswind, assign runway |
 | `SA` / `MSA` | Make short approach — compress the unflown pattern. Issue while on or before downwind/base; can be chained with `ERD`/`ERB` (e.g. `ERD 28R; SA`) to arm the upcoming leg. |
 | `MNA` | Make normal approach — clear an armed/active short approach. Same chaining semantics as `SA`. |
-| `L360` / `R360` | Left/right 360° orbit in the pattern (resumes same leg after) |
-| `L270` / `R270` | Left/right 270° turn (immediate) |
+| `L360` / `R360` (`ML3`/`ML360`, `MR3`/`MR360`) | Left/right 360° orbit in the pattern (resumes same leg after). Flies the orbit at holding speed, then resumes normal speed. |
+| `L270` / `R270` | Left/right 270° turn (immediate). Flies at holding speed, then resumes normal speed. |
 | `P270` / `PLAN270` | Plan a 270° turn at the next pattern turn point |
 | `NO270` | Cancel a 270 in progress or a planned 270 |
 | `PS 1.5` / `PATTSIZE 1.5` | Set pattern size (0.25–10.0 NM downwind offset) |
@@ -980,7 +980,7 @@ The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern argume
 | `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right orbits |
 | `HFIX {fix}` | Fly to fix, then hover |
 
-Any heading, altitude, or speed command clears the hold.
+Winged-aircraft holds (`HPPL`/`HPPR`, `HFIXL`/`HFIXR`) decelerate to holding speed while orbiting and resume normal speed when the hold is cancelled. Any heading, altitude, or speed command clears the hold.
 
 ### Track Operations
 

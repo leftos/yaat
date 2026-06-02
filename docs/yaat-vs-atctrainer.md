@@ -212,7 +212,7 @@ After liftoff, the assigned departure turn is deferred until the aircraft is pas
 | Make traffic | `MLT`/`MRT` | `MLT`/`MRT` + optional runway | YAAT adds cross-runway pattern |
 | Make 270 | — | `L270`/`R270` | YAAT adds direction (left/right 270) |
 | Plan 270 | `M2`/`M270` | `P270`/`PLAN270` | plans 270 at next pattern turn |
-| 360s | `ML3`/`MR3` (with count) | `L360`/`R360` | ATCTrainer supports count; YAAT single orbit |
+| 360s | `ML3`/`MR3` (with count) | `L360`/`R360` (aliases `ML3`/`ML360`, `MR3`/`MR360`) | ATCTrainer supports count; YAAT single orbit, flown at holding speed then resumes normal speed |
 | Short approach | `MSA` | `SA`/`MSA` | Same |
 | Pattern size | `PS`/`PATTSIZE`/`PSIZE` | `PS`/`PATTSIZE` | Same (YAAT uses NM, not multiplier) |
 | Circle airport | — | `CA`/`CIRCLE` | YAAT-only |

@@ -2997,7 +2997,7 @@
     "landingSpeed": 75,
     "landingDistance": 1476,
     "patternSpeed": 86,
-    "holdingSpeed": 220,
+    "holdingSpeed": 120,
     "length": 37,
     "standardTurnRateOverride": 0,
     "cruiseAltitude": 20800
@@ -3699,7 +3699,7 @@
     "landingSpeed": 85,
     "landingDistance": 1476,
     "patternSpeed": 97,
-    "holdingSpeed": 220,
+    "holdingSpeed": 150,
     "length": 54,
     "standardTurnRateOverride": 0,
     "cruiseAltitude": 22400
@@ -3855,7 +3855,7 @@
     "landingSpeed": 70,
     "landingDistance": 984,
     "patternSpeed": 80,
-    "holdingSpeed": 220,
+    "holdingSpeed": 120,
     "length": 49,
     "standardTurnRateOverride": 0,
     "cruiseAltitude": 20800
@@ -5688,7 +5688,7 @@
     "landingSpeed": 100,
     "landingDistance": 2460,
     "patternSpeed": 114,
-    "holdingSpeed": 220,
+    "holdingSpeed": 150,
     "length": 34,
     "standardTurnRateOverride": 0,
     "cruiseAltitude": 23200

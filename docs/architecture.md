@@ -541,9 +541,10 @@ LandingPhase.cs                # Flare→touchdown→rollout; continuous exit ev
 RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)
 GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern alt for VFR/pattern traffic)
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
-MakeTurnPhase.cs               # 360/270 turn tracking (cumulative degrees, exit heading); clones pattern phase for 360s
+MakeTurnPhase.cs               # 360/270 turn tracking (cumulative degrees, exit heading); clones pattern phase for 360s; slows to holding speed then resumes
 STurnPhase.cs                  # S-turn phase: alternating 30° deviations from final heading for spacing
-VfrHoldPhase.cs                # VFR hold: orbit at current position (HPP) or navigate-then-orbit at fix (HFIX)
+VfrHoldPhase.cs                # VFR hold: orbit at current position (HPP) or navigate-then-orbit at fix (HFIX); slows to holding speed then resumes
+ManeuverSpeedController.cs     # Shared holding-speed slow-down + resume for tight maneuvers (MakeTurn/VfrHold/STurn)
 AirspaceBoundaryHoldPhase.cs   # Solo-training VFR boundary hold outside Class B/C until the Bravo clearance or two-way-comms gate is satisfied.
 
 # Phases/Approach/

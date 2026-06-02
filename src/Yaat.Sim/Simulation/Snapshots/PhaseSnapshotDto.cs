@@ -442,6 +442,9 @@ public sealed class MakeTurnPhaseDto : PhaseDto
     public required double CumulativeTurn { get; init; }
     public required double LastHeadingDeg { get; init; }
     public required bool Exiting { get; init; }
+    public double? PriorTargetSpeed { get; init; }
+    public bool PriorHasExplicitSpeed { get; init; }
+    public bool SpeedReduced { get; init; }
 }
 
 public sealed class VfrHoldPhaseDto : PhaseDto
@@ -453,6 +456,9 @@ public sealed class VfrHoldPhaseDto : PhaseDto
     public required bool AtFix { get; init; }
     public required double CumulativeTurn { get; init; }
     public required double LastHeadingDeg { get; init; }
+    public double? PriorTargetSpeed { get; init; }
+    public bool PriorHasExplicitSpeed { get; init; }
+    public bool SpeedReduced { get; init; }
 }
 
 public sealed class AirspaceBoundaryHoldPhaseDto : PhaseDto
@@ -481,6 +487,9 @@ public sealed class STurnPhaseDto : PhaseDto
     public required double FinalHeadingDeg { get; init; }
     public required int TurnsCompleted { get; init; }
     public required bool TurningToFinal { get; init; }
+    public double? PriorTargetSpeed { get; init; }
+    public bool PriorHasExplicitSpeed { get; init; }
+    public bool SpeedReduced { get; init; }
 }
 
 public sealed class StopAndGoPhaseDto : PhaseDto

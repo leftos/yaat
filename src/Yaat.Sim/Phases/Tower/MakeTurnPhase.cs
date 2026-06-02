@@ -28,11 +28,14 @@ public sealed class MakeTurnPhase : Phase
     private double _cumulativeTurn;
     private TrueHeading _lastHeading;
     private bool _exiting;
+    private readonly ManeuverSpeedController _speed = new();
 
     public required TurnDirection Direction { get; init; }
     public required double TargetDegrees { get; init; }
 
     public override string Name => $"Turn{(Direction == TurnDirection.Left ? "L" : "R")}{TargetDegrees:F0}";
+
+    public override bool ManagesSpeed => true;
 
     public override PhaseDto ToSnapshot() =>
         new MakeTurnPhaseDto
@@ -46,6 +49,9 @@ public sealed class MakeTurnPhase : Phase
             CumulativeTurn = _cumulativeTurn,
             LastHeadingDeg = _lastHeading.Degrees,
             Exiting = _exiting,
+            PriorTargetSpeed = _speed.PriorTargetSpeed,
+            PriorHasExplicitSpeed = _speed.PriorHasExplicitSpeed,
+            SpeedReduced = _speed.SpeedReduced,
         };
 
     public static MakeTurnPhase FromSnapshot(MakeTurnPhaseDto dto)
@@ -58,6 +64,9 @@ public sealed class MakeTurnPhase : Phase
         phase._cumulativeTurn = dto.CumulativeTurn;
         phase._lastHeading = new TrueHeading(dto.LastHeadingDeg);
         phase._exiting = dto.Exiting;
+        phase._speed.PriorTargetSpeed = dto.PriorTargetSpeed;
+        phase._speed.PriorHasExplicitSpeed = dto.PriorHasExplicitSpeed;
+        phase._speed.SpeedReduced = dto.SpeedReduced;
         return phase;
     }
 
@@ -69,6 +78,9 @@ public sealed class MakeTurnPhase : Phase
         SetSustainedTurnTarget(ctx);
         ctx.Targets.NavigationRoute.Clear();
 
+        _speed.Capture(ctx);
+        _speed.Reduce(ctx);
+
         Log.LogDebug(
             "[MakeTurn] {Callsign}: started {Dir}{Deg}° from hdg {Hdg:F0}",
             ctx.Aircraft.Callsign,
@@ -76,6 +88,11 @@ public sealed class MakeTurnPhase : Phase
             TargetDegrees,
             _startHeading.Degrees
         );
+    }
+
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        _speed.Resume(ctx);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -143,6 +160,14 @@ public sealed class MakeTurnPhase : Phase
             CanonicalCommandType.Mach => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
+    }
+
+    public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
+    {
+        if (cmd is CanonicalCommandType.Speed or CanonicalCommandType.Mach)
+        {
+            _speed.CancelAutoResume();
+        }
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

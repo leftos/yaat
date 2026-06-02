@@ -18,6 +18,7 @@ public sealed class VfrHoldPhase : Phase
     private bool _atFix;
     private double _cumulativeTurn;
     private TrueHeading _lastHeading;
+    private readonly ManeuverSpeedController _speed = new();
 
     /// <summary>Fix name (for display). Null = hold present position.</summary>
     public string? FixName { get; init; }
@@ -49,6 +50,8 @@ public sealed class VfrHoldPhase : Phase
         }
     }
 
+    public override bool ManagesSpeed => true;
+
     public override PhaseDto ToSnapshot() =>
         new VfrHoldPhaseDto
         {
@@ -62,6 +65,9 @@ public sealed class VfrHoldPhase : Phase
             AtFix = _atFix,
             CumulativeTurn = _cumulativeTurn,
             LastHeadingDeg = _lastHeading.Degrees,
+            PriorTargetSpeed = _speed.PriorTargetSpeed,
+            PriorHasExplicitSpeed = _speed.PriorHasExplicitSpeed,
+            SpeedReduced = _speed.SpeedReduced,
         };
 
     public static VfrHoldPhase FromSnapshot(VfrHoldPhaseDto dto)
@@ -80,12 +86,16 @@ public sealed class VfrHoldPhase : Phase
         phase._atFix = dto.AtFix;
         phase._cumulativeTurn = dto.CumulativeTurn;
         phase._lastHeading = new TrueHeading(dto.LastHeadingDeg);
+        phase._speed.PriorTargetSpeed = dto.PriorTargetSpeed;
+        phase._speed.PriorHasExplicitSpeed = dto.PriorHasExplicitSpeed;
+        phase._speed.SpeedReduced = dto.SpeedReduced;
         return phase;
     }
 
     public override void OnStart(PhaseContext ctx)
     {
         _lastHeading = ctx.Aircraft.TrueHeading;
+        _speed.Capture(ctx);
 
         if (FixName is not null)
         {
@@ -113,6 +123,7 @@ public sealed class VfrHoldPhase : Phase
             }
             else
             {
+                _speed.Reduce(ctx);
                 SetOrbitTarget(ctx);
             }
 
@@ -138,12 +149,6 @@ public sealed class VfrHoldPhase : Phase
                 ctx.Targets.NavigationRoute.Clear();
                 Log.LogDebug("[VfrHold] {Callsign}: arrived at {Fix}, holding", ctx.Aircraft.Callsign, FixName);
 
-                double maxHold = AircraftPerformance.HoldingSpeed(ctx.AircraftType, ctx.Aircraft.Altitude);
-                if (ctx.Targets.TargetSpeed is null || ctx.Targets.TargetSpeed > maxHold)
-                {
-                    ctx.Targets.TargetSpeed = maxHold;
-                }
-
                 if (OrbitDirection is null)
                 {
                     ctx.Targets.TargetSpeed = 0;
@@ -152,6 +157,7 @@ public sealed class VfrHoldPhase : Phase
                 }
                 else
                 {
+                    _speed.Reduce(ctx);
                     SetOrbitTarget(ctx);
                 }
             }
@@ -198,6 +204,19 @@ public sealed class VfrHoldPhase : Phase
             CanonicalCommandType.Mach => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
+    }
+
+    public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
+    {
+        if (cmd is CanonicalCommandType.Speed or CanonicalCommandType.Mach)
+        {
+            _speed.CancelAutoResume();
+        }
+    }
+
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        _speed.Resume(ctx);
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

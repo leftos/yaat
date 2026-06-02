@@ -19,11 +19,14 @@ public sealed class STurnPhase : Phase
     private TrueHeading _finalHeading;
     private int _turnsCompleted;
     private bool _turningToFinal;
+    private readonly ManeuverSpeedController _speed = new();
 
     public required TurnDirection InitialDirection { get; init; }
     public int Count { get; init; } = 2;
 
     public override string Name => "S-Turns";
+
+    public override bool ManagesSpeed => true;
 
     public override PhaseDto ToSnapshot() =>
         new STurnPhaseDto
@@ -36,6 +39,9 @@ public sealed class STurnPhase : Phase
             FinalHeadingDeg = _finalHeading.Degrees,
             TurnsCompleted = _turnsCompleted,
             TurningToFinal = _turningToFinal,
+            PriorTargetSpeed = _speed.PriorTargetSpeed,
+            PriorHasExplicitSpeed = _speed.PriorHasExplicitSpeed,
+            SpeedReduced = _speed.SpeedReduced,
         };
 
     public static STurnPhase FromSnapshot(STurnPhaseDto dto)
@@ -47,6 +53,9 @@ public sealed class STurnPhase : Phase
         phase._finalHeading = new TrueHeading(dto.FinalHeadingDeg);
         phase._turnsCompleted = dto.TurnsCompleted;
         phase._turningToFinal = dto.TurningToFinal;
+        phase._speed.PriorTargetSpeed = dto.PriorTargetSpeed;
+        phase._speed.PriorHasExplicitSpeed = dto.PriorHasExplicitSpeed;
+        phase._speed.SpeedReduced = dto.SpeedReduced;
         return phase;
     }
 
@@ -59,12 +68,27 @@ public sealed class STurnPhase : Phase
         // Start the first turn
         SetNextTurnTarget(ctx);
 
+        _speed.Capture(ctx);
+
+        // 7110.65 §5-7-1.b.4: do not assign a speed adjustment inside the FAF / 5 nm final.
+        // S-turns are a lateral spacing tool; only slow to holding speed when issued outside that
+        // boundary (downwind/base or early vectors), never on an established short final.
+        if (!IsInsideFinalApproach(ctx))
+        {
+            _speed.Reduce(ctx);
+        }
+
         Log.LogDebug(
             "[STurn] {Callsign}: started, {Count} S-turns, initial {Dir}",
             ctx.Aircraft.Callsign,
             Count,
             InitialDirection == TurnDirection.Left ? "left" : "right"
         );
+    }
+
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        _speed.Resume(ctx);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -127,6 +151,17 @@ public sealed class STurnPhase : Phase
         }
     }
 
+    private static bool IsInsideFinalApproach(PhaseContext ctx)
+    {
+        if (ctx.Aircraft.Phases?.AssignedRunway is { } rwy)
+        {
+            double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude));
+            return dist <= 5.0;
+        }
+
+        return false;
+    }
+
     private TurnDirection GetCurrentTurnDirection()
     {
         // Alternate: even turns go initial direction, odd turns go opposite
@@ -147,6 +182,14 @@ public sealed class STurnPhase : Phase
             CanonicalCommandType.Mach => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
+    }
+
+    public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
+    {
+        if (cmd is CanonicalCommandType.Speed or CanonicalCommandType.Mach)
+        {
+            _speed.CancelAutoResume();
+        }
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()
