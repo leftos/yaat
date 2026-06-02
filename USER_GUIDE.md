@@ -1049,10 +1049,10 @@ Bookmarks are saved into the recording when you **Save Recording** or **Save Bug
 
 Under the **Scenario** menu:
 
-- **Save Recording...** — exports the current session (scenario + all recorded actions) to a `.yaat-recording.json` file
+- **Save Recording...** — exports the current session (scenario + all recorded actions) to a `.yaat-recording.zip` file
 - **Load Recording...** — loads a previously saved recording; enters playback mode at t=0
 
-Recordings are self-contained JSON files that include the scenario definition, RNG seed, weather state, and all user actions with timestamps. They can be shared between users for review or training.
+Recordings are self-contained archives that include the scenario definition, RNG seed, weather state, periodic state snapshots, and all user actions with timestamps. They can be shared between users for review or training.
 
 ---
 

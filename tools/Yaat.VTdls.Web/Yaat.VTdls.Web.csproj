@@ -46,18 +46,17 @@
            VStrips.Web's CopyToServerWwwroot. -->
       <_StaleWwwroot Include="$(YaatServerWwwroot)/**/*" />
     </ItemGroup>
-    <Delete
-      Files="@(_StaleWwwroot)"
-      Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
+    <Delete Files="@(_StaleWwwroot)" Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
     <Copy
       SourceFiles="@(_PublishedWasm)"
       DestinationFiles="@(_PublishedWasm->'$(YaatServerWwwroot)/%(RecursiveDir)%(Filename)%(Extension)')"
-      Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
-    <Message Importance="high"
-             Text="Yaat.VTdls.Web → $(YaatServerWwwroot)"
-             Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
-    <Message Importance="high"
-             Text="Skipped server-wwwroot copy: $(YaatServer)/src/Yaat.Server/Yaat.Server.csproj does not exist."
-             Condition="!Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
+      Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')"
+    />
+    <Message Importance="high" Text="Yaat.VTdls.Web → $(YaatServerWwwroot)" Condition="Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')" />
+    <Message
+      Importance="high"
+      Text="Skipped server-wwwroot copy: $(YaatServer)/src/Yaat.Server/Yaat.Server.csproj does not exist."
+      Condition="!Exists('$(YaatServer)/src/Yaat.Server/Yaat.Server.csproj')"
+    />
   </Target>
 </Project>
