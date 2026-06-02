@@ -773,6 +773,14 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsTimelineAvailable));
     }
 
+    [ObservableProperty]
+    private bool _dataGridAlternatingRowColor;
+
+    partial void OnDataGridAlternatingRowColorChanged(bool value)
+    {
+        _preferences.SetDataGridAlternatingRowColor(value);
+    }
+
     [RelayCommand]
     private void ResetGridLayout()
     {
@@ -1146,6 +1154,7 @@ public partial class MainViewModel : ObservableObject
         AircraftView.Filter = obj => obj is not AircraftModel ac || IsAircraftVisible(ac, _showOnlyActiveAircraft, _aircraftFilterText);
         _showOnlyActiveAircraft = _preferences.ShowOnlyActiveAircraft;
         _showTimelineBar = _preferences.ShowTimelineBar;
+        _dataGridAlternatingRowColor = _preferences.DataGridAlternatingRowColor;
 
         var hidden = _preferences.HiddenTerminalKinds;
         _showCommandEntries = !hidden.Contains(TerminalEntryKind.Command);

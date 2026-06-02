@@ -23,6 +23,7 @@ public partial class ColumnChooserWindow : Window
     public ObservableCollection<ColumnEntry> Entries { get; } = [];
     public bool Confirmed { get; private set; }
     public bool ShowOnlyActive { get; private set; }
+    public bool AlternatingRowColor { get; private set; }
     public SavedGridLayout? ImportedLayout { get; private set; }
 
     public ColumnChooserWindow()
@@ -35,6 +36,7 @@ public partial class ColumnChooserWindow : Window
     public ColumnChooserWindow(
         List<ColumnEntry> columns,
         bool showOnlyActive,
+        bool alternatingRowColor,
         Dictionary<string, double>? columnWidths,
         string? sortColumn,
         ListSortDirection? sortDirection,
@@ -56,6 +58,7 @@ public partial class ColumnChooserWindow : Window
 
         ColumnList.ItemsSource = Entries;
         ShowOnlyActiveCheckBox.IsChecked = showOnlyActive;
+        AlternatingRowColorCheckBox.IsChecked = alternatingRowColor;
 
         MoveTopButton.Click += OnMoveTop;
         MoveUpButton.Click += OnMoveUp;
@@ -343,6 +346,7 @@ public partial class ColumnChooserWindow : Window
     {
         Confirmed = true;
         ShowOnlyActive = ShowOnlyActiveCheckBox.IsChecked == true;
+        AlternatingRowColor = AlternatingRowColorCheckBox.IsChecked == true;
         Close();
     }
 

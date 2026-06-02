@@ -155,6 +155,7 @@ public sealed class UserPreferences
     public bool IsTerminalDocked => _data.IsTerminalDocked;
     public bool ShowOnlyActiveAircraft => _data.ShowOnlyActiveAircraft;
     public bool ShowTimelineBar => _data.ShowTimelineBar;
+    public bool DataGridAlternatingRowColor => _data.DataGridAlternatingRowColor;
     public string? LastScenarioFolder => _data.LastScenarioFolder;
     public string? LastWeatherFolder => _data.LastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
@@ -511,6 +512,12 @@ public sealed class UserPreferences
     public void SetShowOnlyActiveAircraft(bool value)
     {
         _data.ShowOnlyActiveAircraft = value;
+        Save();
+    }
+
+    public void SetDataGridAlternatingRowColor(bool value)
+    {
+        _data.DataGridAlternatingRowColor = value;
         Save();
     }
 
@@ -1164,6 +1171,7 @@ public sealed class UserPreferences
             WindowProfiles = GetFieldOr<List<SavedWindowProfile>>(obj, "windowProfiles", []),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
             ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
+            DataGridAlternatingRowColor = GetFieldOr(obj, "dataGridAlternatingRowColor", true),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
@@ -1405,6 +1413,7 @@ public sealed class UserPreferences
         public List<SavedWindowProfile> WindowProfiles { get; set; } = [];
         public bool ShowOnlyActiveAircraft { get; set; }
         public bool ShowTimelineBar { get; set; }
+        public bool DataGridAlternatingRowColor { get; set; } = true;
         public string? LastActiveRoomId { get; set; }
         public string? LastScenarioFolder { get; set; }
         public string? LastWeatherFolder { get; set; }

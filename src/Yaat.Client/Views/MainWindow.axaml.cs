@@ -806,6 +806,7 @@ public partial class MainWindow : Window
                 var chooser = new ColumnChooserWindow(
                     entries,
                     vm.ShowOnlyActiveAircraft,
+                    vm.DataGridAlternatingRowColor,
                     currentWidths,
                     _sortColumnKey,
                     _sortDirection,
@@ -873,6 +874,7 @@ public partial class MainWindow : Window
                 }
 
                 vm.ShowOnlyActiveAircraft = chooser.ShowOnlyActive;
+                vm.DataGridAlternatingRowColor = chooser.AlternatingRowColor;
                 SaveGridLayout(dataGrid, vm.Preferences);
             };
         };

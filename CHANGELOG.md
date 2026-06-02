@@ -13,6 +13,7 @@
 - The browser flight-strips app (`/vstrips/`) now shows a collapsible METAR bar at the top with the current training METAR for the facility you're viewing — the airport for a tower, or all of a TRACON's airports — so students working strips in the browser see the weather too, not just instructors and RPOs. It follows the facility switcher and updates as the weather changes; click the chevron to expand from the primary airport to every airport.
 
 ### Changed
+- The Aircraft List highlights the selected row clearly (even after focus leaves the grid), and alternating row shading can be toggled from the Choose Columns dialog.
 - **View > Copy View Settings** is now a comparison dialog instead of a submenu. It shows your current view settings beside the source's, grouped into sections (map position, video maps, range, PTL, brightness, labels, filters, and more) with the differing ones highlighted, and you tick exactly which sections to copy. The source can be another scenario or a saved window profile — so you can also copy window geometry, pop-out/dock states, and the Aircraft List column layout. Map-position rows are flagged when the source scenario is a different airport.
 
 ### Fixed

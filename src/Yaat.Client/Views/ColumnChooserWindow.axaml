@@ -42,6 +42,8 @@
 
         <CheckBox x:Name="ShowOnlyActiveCheckBox" Content="Show only active aircraft" Foreground="White" Margin="0,4,0,0" />
 
+        <CheckBox x:Name="AlternatingRowColorCheckBox" Content="Alternating row colors" Foreground="White" Margin="0,2,0,0" />
+
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
             <Button x:Name="OkButton" Content="OK" Padding="16,6" IsDefault="True" />
             <Button x:Name="CancelButton" Content="Cancel" Padding="16,6" IsCancel="True" />

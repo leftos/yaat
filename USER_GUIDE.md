@@ -202,11 +202,13 @@ The default view. Shows all aircraft in your scenario, grouped into **Active** a
 | Dist | Distance in NM from the reference fix (see [Distance Column](#distance-column)) |
 | Pending Cmds | Numbered pending command blocks. Shows `[Active]` for the current block, then `[1]`, `[2]`, etc. for queued blocks |
 
-Click an aircraft row to select it, or type a callsign in the command input and press the aircraft select key. Press **Esc** to deselect. Click a column header to sort; click again to reverse.
+Click an aircraft row to select it, or type a callsign in the command input and press the aircraft select key. The selected row is highlighted and expands to show a details pane beneath it; the highlight stays visible even after focus moves to the command input. Press **Esc** to deselect. Click a column header to sort; click again to reverse.
 
 Drag column headers to rearrange. **Right-click any column header** to open the Column Chooser, where you can show/hide columns and reorder them. Click **Reset to Defaults** to restore the original layout.
 
 **Show only active aircraft:** Use the checkbox in the Column Chooser to hide delayed aircraft. Column order, widths, visibility, sort state, and the active-only filter are remembered across sessions.
+
+**Alternating row colors:** A checkbox in the Column Chooser shades every other row for easier scanning. It's on by default; turn it off for plain uniform rows. The setting is remembered across sessions.
 
 **Import/Export layouts:** Use the **Export...** and **Import...** buttons in the Column Chooser to share grid layouts. Different training levels may benefit from different layouts — export one for each level and swap as needed.
 

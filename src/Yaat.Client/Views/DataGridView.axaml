@@ -17,6 +17,7 @@
              FontSize="12" />
     <DataGrid x:Name="AircraftGrid"
               ItemsSource="{Binding AircraftView}"
+              Classes.alternating="{Binding DataGridAlternatingRowColor}"
               AutoGenerateColumns="False"
               IsReadOnly="True"
               GridLinesVisibility="Horizontal"
