@@ -36,6 +36,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<CrcRoomMembersChangedDto>? CrcRoomMembersChanged;
     public event Action<WeatherChangedDto>? WeatherChanged;
     public event Action<ArrivalGeneratorsChangedDto>? ArrivalGeneratorsChanged;
+    public event Action<HeldDeparturesChangedDto>? HeldDeparturesChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
     public event Action? ScenarioUnloaded;
@@ -131,6 +132,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<WeatherChangedDto>("WeatherChanged", dto => WeatherChanged?.Invoke(dto));
 
         _connection.On<ArrivalGeneratorsChangedDto>("ArrivalGeneratorsChanged", dto => ArrivalGeneratorsChanged?.Invoke(dto));
+        _connection.On<HeldDeparturesChangedDto>("HeldDeparturesChanged", dto => HeldDeparturesChanged?.Invoke(dto));
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
 
@@ -831,7 +833,10 @@ public record AircraftDto(
     // Airport id of the ground layout this aircraft is on (server AircraftGroundOps.LayoutAirportId,
     // scenario primary airport as fallback). Null when airborne / unknown. Lets the radar surface a
     // ground aircraft's speech bubble when no ground view is currently showing that airport.
-    string? GroundAirportId = null
+    string? GroundAirportId = null,
+    // True when this ground departure is held for release. Drives the radar "Release (HFR)"
+    // context-menu item and a held badge.
+    bool HeldForRelease = false
 );
 
 public record LoadScenarioResultDto(
@@ -929,7 +934,8 @@ public record RoomStateDto(
     bool HasSoloParkingInitialCallupSource = false,
     bool HasSoloArrivalGeneratorSource = false,
     bool RpoShowPilotSpeech = false,
-    FlightStripsConfigDto? FlightStripsConfig = null
+    FlightStripsConfigDto? FlightStripsConfig = null,
+    RundownDto? Rundown = null
 );
 
 public record ScenarioLoadedDto(
@@ -963,6 +969,15 @@ public record ScenarioLoadedDto(
 public record ScenarioPositionDto(string Id, string Callsign, string Name);
 
 public record ArrivalGeneratorsChangedDto(List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig> Generators);
+
+/// <summary>One held departure in the hold-for-release rundown.</summary>
+public record HeldDepartureDto(string Callsign, string Airport, string AircraftType, string Destination, bool IsGroundDeparture, string Status);
+
+/// <summary>The hold-for-release rundown: airports currently armed and the departures held at them.</summary>
+public record RundownDto(List<string> ArmedAirports, List<HeldDepartureDto> Held);
+
+/// <summary>Pushed whenever the hold-for-release state changes (arm/disarm/release).</summary>
+public record HeldDeparturesChangedDto(RundownDto Rundown);
 
 public record SessionSettingsDto(
     string? AutoDeleteOverride,

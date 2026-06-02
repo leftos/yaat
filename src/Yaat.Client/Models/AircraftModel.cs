@@ -692,6 +692,12 @@ public partial class AircraftModel : ObservableObject
     /// </summary>
     public string? GroundAirportId { get; set; }
 
+    /// <summary>
+    /// True when this ground departure is held for release (hold-for-release armed at its airport).
+    /// Drives the radar "Release (HFR)" context-menu item and the held datablock badge.
+    /// </summary>
+    public bool IsHeldForRelease { get; set; }
+
     public static AircraftModel FromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
         var model = new AircraftModel
@@ -721,6 +727,7 @@ public partial class AircraftModel : ObservableObject
             AssignedRunway = dto.AssignedRunway,
             IsOnGround = dto.IsOnGround,
             GroundAirportId = dto.GroundAirportId,
+            IsHeldForRelease = dto.HeldForRelease,
             PhaseSequence = dto.PhaseSequence,
             ActivePhaseIndex = dto.ActivePhaseIndex,
             LandingClearance = dto.LandingClearance,
@@ -800,6 +807,7 @@ public partial class AircraftModel : ObservableObject
         AssignedRunway = dto.AssignedRunway;
         IsOnGround = dto.IsOnGround;
         GroundAirportId = dto.GroundAirportId;
+        IsHeldForRelease = dto.HeldForRelease;
         PhaseSequence = dto.PhaseSequence;
         ActivePhaseIndex = dto.ActivePhaseIndex;
         LandingClearance = dto.LandingClearance;

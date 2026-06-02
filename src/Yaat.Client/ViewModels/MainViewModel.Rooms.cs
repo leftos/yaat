@@ -629,6 +629,9 @@ public partial class MainViewModel
         // Do NOT send our preferences — use the session settings flyout to change them.
         ApplySessionSettingsFromRoom(state);
 
+        // Seed the hold-for-release rundown so a joining/reconnecting client shows existing holds.
+        ApplyRundown(state.Rundown);
+
         _ = RefreshCrcLobbyAsync();
         _ = FetchAssignmentsAsync();
     }

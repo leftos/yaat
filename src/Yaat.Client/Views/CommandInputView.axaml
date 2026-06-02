@@ -5,7 +5,7 @@
              x:Class="Yaat.Client.Views.CommandInputView">
 
     <Grid Margin="0,8,0,0"
-          ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
 
         <!-- Selected aircraft label -->
         <TextBlock Grid.Column="0"
@@ -267,6 +267,67 @@
                                   IsChecked="{Binding SessionValidateDctFixes}" />
 
                         <TextBlock Text="Changes apply to all RPOs in this session."
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Flyout>
+            </Button.Flyout>
+        </Button>
+
+        <!-- Hold-for-release rundown flyout -->
+        <Button Grid.Column="5"
+                Margin="8,0,0,0"
+                Content="Releases"
+                FontSize="12"
+                Padding="6,2"
+                ToolTip.Tip="Hold-for-release rundown"
+                IsVisible="{Binding HoldForReleaseActive}">
+            <Button.Flyout>
+                <Flyout Placement="TopEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
+                    <StackPanel Name="rundownRoot" Spacing="8" MinWidth="300" MaxHeight="420">
+                        <TextBlock Text="Departure Releases" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
+                        <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding Rundown}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Spacing="2" Margin="0,0,0,8">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                <TextBlock Grid.Column="0" Text="{Binding Header}" FontWeight="Bold" VerticalAlignment="Center" />
+                                                <Button Grid.Column="1"
+                                                        Content="Release next"
+                                                        FontSize="11"
+                                                        Padding="6,1"
+                                                        IsVisible="{Binding HasDepartures}"
+                                                        Command="{Binding #rundownRoot.DataContext.ReleaseNextAtAirportCommand}"
+                                                        CommandParameter="{Binding Airport}" />
+                                            </Grid>
+                                            <ItemsControl ItemsSource="{Binding Departures}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="10,1,0,1">
+                                                            <StackPanel Grid.Column="0">
+                                                                <TextBlock Text="{Binding Display}" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                                                                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource SubtleTextBrush}" FontSize="10" />
+                                                            </StackPanel>
+                                                            <Button Grid.Column="1"
+                                                                    Content="Release"
+                                                                    FontSize="11"
+                                                                    Padding="6,1"
+                                                                    VerticalAlignment="Center"
+                                                                    Command="{Binding #rundownRoot.DataContext.ReleaseDepartureCommand}"
+                                                                    CommandParameter="{Binding Callsign}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Text="Arm with HFR &lt;airport&gt;; release here or with REL."
                                    Foreground="{DynamicResource SubtleTextBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"

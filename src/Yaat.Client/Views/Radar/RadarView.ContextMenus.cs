@@ -98,6 +98,10 @@ public partial class RadarView
             {
                 menu.Items.Add(holdItem);
             }
+            if (ac.IsHeldForRelease)
+            {
+                menu.Items.Add(CreateMenuItem($"Release {callsign} (HFR)", () => vm.SendRawCommandAsync(callsign, initials, $"REL {callsign}")));
+            }
         }
 
         menu.Items.Add(new Separator());
