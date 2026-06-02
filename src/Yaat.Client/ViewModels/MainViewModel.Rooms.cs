@@ -632,6 +632,9 @@ public partial class MainViewModel
         // Seed the hold-for-release rundown so a joining/reconnecting client shows existing holds.
         ApplyRundown(state.Rundown);
 
+        // Seed active timers so a joining/reconnecting client shows the existing timers panel.
+        ApplyTimers(state.Timers);
+
         _ = RefreshCrcLobbyAsync();
         _ = FetchAssignmentsAsync();
     }

@@ -334,6 +334,7 @@
         { "verb": "TRATE", "aliases": [], "description": "Set turn rate (deg/sec, 0.5-45; bare=clear)" },
         { "verb": "WAIT", "aliases": ["delay"], "description": "Wait seconds before next cmd" },
         { "verb": "WAITD", "aliases": [], "description": "Wait until distance (nm) from fix" },
+        { "verb": "TIMER", "aliases": ["tmr"], "description": "Countdown reminder; SAYs text (or \"timer expired\") on expiry. Global or callsign-prefixed; TIMER CANCEL <id|ALL>" },
         { "verb": "ADD", "aliases": [], "description": "Add aircraft (rules wt eng brg dist alt)", "global": true },
         { "verb": "SPAWN", "aliases": [], "description": "Spawn now" },
         { "verb": "SPAWNDELAY", "aliases": [], "description": "Set spawn delay (seconds)" },

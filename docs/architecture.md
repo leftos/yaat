@@ -234,6 +234,7 @@ ViewModels/
   MainViewModel.Scenario.cs     # Partial: scenario load/unload
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
   MainViewModel.HoldForRelease.cs # Partial: hold-for-release rundown mirror + REL release commands (HeldDeparturesChanged handler, RoomStateDto.Rundown seed)
+  MainViewModel.Timers.cs       # Partial: TIMER countdown mirror + cancel command (TimersChanged handler, RoomStateDto.Timers seed, command-bar timers panel)
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler; retains raw METARs (Metars) for the METAR window
   MainViewModel.Controllers.cs  # Partial: online-controller list (OnlineControllers + CRC-grouped ControllerGroups) for the Controllers tab; refresh via GetOnlineControllers, re-fetched on CRC membership + scenario load/unload
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar/panel, global/scenario/airport scope, ground overrides, blank spacers)
@@ -764,7 +765,7 @@ ReplayTrackApplier.cs          # Replay-time dispatcher for track + AS-prefix co
 SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.
                                # Used by ReplayRangeWithVerification to surface drift between replay and recorded snapshots.
 ReplayResult.cs                # ReplayResult / SnapshotDriftReport / AircraftDrift / FieldDrift records.
-ScenarioQueues.cs              # DelayedSpawn (+ HeldForRelease), ScheduledTrigger, ScheduledPreset, ScheduledRelease, GeneratorState, DelayedHandoff
+ScenarioQueues.cs              # DelayedSpawn (+ HeldForRelease), ScheduledTrigger, ScheduledPreset, ScheduledRelease, ActiveTimer (TIMER countdowns), GeneratorState, DelayedHandoff
 HeldReleaseService.cs          # Hold-for-release: Arm/Disarm/Release an airport's IFR departures + BuildRundown. See docs/hold-for-release.md
 ConsolidationState.cs          # Thread-safe manual consolidation overrides
 

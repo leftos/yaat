@@ -783,6 +783,21 @@ public static class CommandRegistry
                 [O(null, [R("distance", "nm from fix")], "Wait until distance from fix")]
             ),
             Cmd(
+                CanonicalCommandType.Timer,
+                "Timer",
+                "Sim Control",
+                false,
+                ["TIMER", "TMR"],
+                [
+                    O(
+                        null,
+                        [R("duration", "mm:ss or seconds"), Opt("message", "free text")],
+                        "Set a timer; SAYs the message (or \"timer expired\") on expiry"
+                    ),
+                    O("Cancel", [L("CANCEL"), R("id", "timer id or ALL")], "Cancel a running timer"),
+                ]
+            ),
+            Cmd(
                 Add,
                 "Add Aircraft",
                 "Sim Control",

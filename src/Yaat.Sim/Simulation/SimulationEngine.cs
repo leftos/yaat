@@ -199,6 +199,7 @@ public sealed class SimulationEngine
             Scenario.Generators.Clear();
             Scenario.HeldDepartureAirports.Clear();
             Scenario.ReleaseQueue.Clear();
+            Scenario.ActiveTimers.Clear();
 
             if (scenarioDto.DelayedQueue is not null)
             {
@@ -240,6 +241,24 @@ public sealed class SimulationEngine
                             Airport = r.Airport,
                             Callsign = r.Callsign,
                             FireAtSeconds = r.FireAtSeconds,
+                        }
+                    );
+                }
+            }
+
+            Scenario.NextTimerId = scenarioDto.NextTimerId;
+            if (scenarioDto.ActiveTimers is not null)
+            {
+                foreach (var t in scenarioDto.ActiveTimers)
+                {
+                    Scenario.ActiveTimers.Add(
+                        new ActiveTimer
+                        {
+                            Id = t.Id,
+                            Callsign = t.Callsign,
+                            Message = t.Message,
+                            FireAtSeconds = t.FireAtSeconds,
+                            TotalSeconds = t.TotalSeconds,
                         }
                     );
                 }
@@ -516,6 +535,7 @@ public sealed class SimulationEngine
         ProcessTriggers();
         ProcessTimedPresets();
         ProcessReleaseQueue();
+        ProcessTimers();
         ProcessReleasedGroundDepartures();
 
         // Ensure ground layout is set
@@ -2003,6 +2023,39 @@ public sealed class SimulationEngine
             {
                 EmitTerminal("System", r.Callsign ?? "", $"[HFR] {result.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Fires due TIMER countdowns (set via the TIMER command). Mirrors <see cref="ProcessReleaseQueue"/>:
+    /// timers are gated on <see cref="SimScenarioState.ElapsedSeconds"/> so they count in sim time
+    /// (paused with the sim, scaled by sim rate). On expiry each emits a green SAY-style terminal
+    /// entry — the free-text message, or "timer expired" when none was given. Per-aircraft timers
+    /// whose aircraft has been deleted are dropped silently so they never attribute a SAY to a gone
+    /// aircraft.
+    /// </summary>
+    private void ProcessTimers()
+    {
+        var scenario = Scenario!;
+        if (scenario.ActiveTimers.Count == 0)
+        {
+            return;
+        }
+
+        scenario.ActiveTimers.RemoveAll(t => t.Callsign is not null && World.FindAircraft(t.Callsign) is null);
+
+        var due = scenario.ActiveTimers.Where(t => scenario.ElapsedSeconds >= t.FireAtSeconds).OrderBy(t => t.FireAtSeconds).ToList();
+        if (due.Count == 0)
+        {
+            return;
+        }
+
+        scenario.ActiveTimers.RemoveAll(t => scenario.ElapsedSeconds >= t.FireAtSeconds);
+
+        foreach (var t in due)
+        {
+            var message = string.IsNullOrWhiteSpace(t.Message) ? "timer expired" : t.Message;
+            EmitTerminal("Say", t.Callsign ?? "TIMER", message);
         }
     }
 

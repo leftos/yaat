@@ -5,7 +5,7 @@
              x:Class="Yaat.Client.Views.CommandInputView">
 
     <Grid Margin="0,8,0,0"
-          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+          ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
 
         <!-- Selected aircraft label -->
         <TextBlock Grid.Column="0"
@@ -328,6 +328,55 @@
                             </ItemsControl>
                         </ScrollViewer>
                         <TextBlock Text="Arm with HFR &lt;airport&gt;; release here or with REL."
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Flyout>
+            </Button.Flyout>
+        </Button>
+
+        <!-- Active timers flyout (live countdown + cancel) -->
+        <Button Grid.Column="6"
+                Margin="8,0,0,0"
+                Content="{Binding TimersSummary}"
+                FontSize="12"
+                Padding="6,2"
+                ToolTip.Tip="Active timers"
+                IsVisible="{Binding TimersActive}">
+            <Button.Flyout>
+                <Flyout Placement="TopEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
+                    <StackPanel Name="timersRoot" Spacing="8" MinWidth="280" MaxHeight="420">
+                        <TextBlock Text="Timers" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
+                        <ScrollViewer MaxHeight="340" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding ActiveTimers}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,1">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding Remaining}"
+                                                       FontFamily="{StaticResource MonoFont}"
+                                                       FontWeight="Bold"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Label}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <Button Grid.Column="2"
+                                                    Content="✕"
+                                                    FontSize="11"
+                                                    Padding="6,1"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip.Tip="Cancel timer"
+                                                    Command="{Binding #timersRoot.DataContext.CancelTimerCommand}"
+                                                    CommandParameter="{Binding Id}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <TextBlock Text="Set with TIMER &lt;mm:ss&gt; [text]; prefix a callsign to attribute it."
                                    Foreground="{DynamicResource SubtleTextBrush}"
                                    FontSize="10"
                                    TextWrapping="Wrap"

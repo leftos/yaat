@@ -314,6 +314,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 |---------|-----------|------|------------|
 | Wait (time) | `WAIT {seconds}` / `DELAY` | `WAIT {seconds}` | Same (YAAT's `DELAY` is for spawn delay, not wait) |
 | Wait (distance) | — | `WAITD {nm}` | **YAAT-only** |
+| Timer | — | `TIMER {mm:ss\|sec} [text]` (alias `TMR`), `TIMER CANCEL {id\|ALL}` | **YAAT-only** — countdown reminder; on expiry posts a green SAY (`text`, or `timer expired`). Global, or callsign-prefixed to attribute it. Visible/cancelable timers panel. |
 
 ### Spawn / Delay Control
 

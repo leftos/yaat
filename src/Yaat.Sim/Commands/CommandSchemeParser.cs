@@ -340,9 +340,12 @@ public static class CommandSchemeParser
     private static string? ParseCommandList(string remaining, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        // SAY consumes entire remainder as literal text — don't split on comma
+        // SAY and TIMER consume their entire remainder as literal text — don't split on comma
         var trimmedRemaining = remaining.TrimStart();
-        if (StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Say))
+        if (
+            StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Say)
+            || StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Timer)
+        )
         {
             var parsed = Parse(remaining.Trim(), scheme, out failure);
             return parsed is not null ? ToCanonical(parsed.Type, parsed.Argument) : null;
@@ -450,6 +453,7 @@ public static class CommandSchemeParser
         CanonicalCommandType.AppendDirectTo,
         CanonicalCommandType.ClearedForTakeoff,
         CanonicalCommandType.Say,
+        CanonicalCommandType.Timer,
         CanonicalCommandType.CreateFlightPlan,
         CanonicalCommandType.CreateVfrFlightPlan,
         CanonicalCommandType.CreateAbbreviatedFlightPlan,
@@ -729,7 +733,12 @@ public static class CommandSchemeParser
             }
             else if (
                 subCommandStart
-                && (token.Equals("SAY", StringComparison.OrdinalIgnoreCase) || token.Equals("SAYF", StringComparison.OrdinalIgnoreCase))
+                && (
+                    token.Equals("SAY", StringComparison.OrdinalIgnoreCase)
+                    || token.Equals("SAYF", StringComparison.OrdinalIgnoreCase)
+                    || token.Equals("TIMER", StringComparison.OrdinalIgnoreCase)
+                    || token.Equals("TMR", StringComparison.OrdinalIgnoreCase)
+                )
             )
             {
                 sb.Append(token);

@@ -37,6 +37,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<WeatherChangedDto>? WeatherChanged;
     public event Action<ArrivalGeneratorsChangedDto>? ArrivalGeneratorsChanged;
     public event Action<HeldDeparturesChangedDto>? HeldDeparturesChanged;
+    public event Action<TimersChangedDto>? TimersChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
     public event Action? ScenarioUnloaded;
@@ -148,6 +149,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
         _connection.On<ArrivalGeneratorsChangedDto>("ArrivalGeneratorsChanged", dto => ArrivalGeneratorsChanged?.Invoke(dto));
         _connection.On<HeldDeparturesChangedDto>("HeldDeparturesChanged", dto => HeldDeparturesChanged?.Invoke(dto));
+        _connection.On<TimersChangedDto>("TimersChanged", dto => TimersChanged?.Invoke(dto));
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
 
@@ -958,7 +960,8 @@ public record RoomStateDto(
     bool HasSoloArrivalGeneratorSource = false,
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null,
-    RundownDto? Rundown = null
+    RundownDto? Rundown = null,
+    List<TimerDto>? Timers = null
 );
 
 public record ScenarioLoadedDto(
@@ -1001,6 +1004,13 @@ public record RundownDto(List<string> ArmedAirports, List<HeldDepartureDto> Held
 
 /// <summary>Pushed whenever the hold-for-release state changes (arm/disarm/release).</summary>
 public record HeldDeparturesChangedDto(RundownDto Rundown);
+
+/// <summary>One active TIMER countdown for the timers panel. Callsign is null for a global
+/// (instructor) timer, or the aircraft the expiry SAY is attributed to.</summary>
+public record TimerDto(int Id, string? Callsign, string? Message, int RemainingSeconds, int TotalSeconds);
+
+/// <summary>Pushed whenever the active TIMER set changes (set/cancel/expire) or a second ticks down.</summary>
+public record TimersChangedDto(List<TimerDto> Timers);
 
 public record SessionSettingsDto(
     string? AutoDeleteOverride,

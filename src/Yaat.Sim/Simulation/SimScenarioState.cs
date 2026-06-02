@@ -34,6 +34,15 @@ public sealed class SimScenarioState
     /// </summary>
     public List<ScheduledRelease> ReleaseQueue { get; } = [];
 
+    /// <summary>
+    /// Active countdown timers set via the TIMER command. Fired by <c>ProcessTimers</c> against
+    /// <see cref="ElapsedSeconds"/>; each emits a green SAY-style terminal entry on expiry.
+    /// </summary>
+    public List<ActiveTimer> ActiveTimers { get; } = [];
+
+    /// <summary>Monotonic id source for <see cref="ActiveTimers"/> (deterministic, replay-safe).</summary>
+    public int NextTimerId { get; set; }
+
     // Settings affecting command dispatch
     public bool AutoClearedToLand { get; set; }
     public bool AutoCrossRunway { get; set; }
@@ -226,5 +235,19 @@ public sealed class SimScenarioState
                         })
                         .ToList()
                     : null,
+            ActiveTimers =
+                ActiveTimers.Count > 0
+                    ? ActiveTimers
+                        .Select(t => new ActiveTimerDto
+                        {
+                            Id = t.Id,
+                            Callsign = t.Callsign,
+                            Message = t.Message,
+                            FireAtSeconds = t.FireAtSeconds,
+                            TotalSeconds = t.TotalSeconds,
+                        })
+                        .ToList()
+                    : null,
+            NextTimerId = NextTimerId,
         };
 }

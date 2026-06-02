@@ -28,6 +28,7 @@ public enum CanonicalCommandType
     SimRate,
     Wait,
     WaitDistance,
+    Timer,
     LineUpAndWait,
     ClearedForTakeoff,
     CancelTakeoffClearance,

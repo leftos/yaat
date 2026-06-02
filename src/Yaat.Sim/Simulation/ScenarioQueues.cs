@@ -47,6 +47,28 @@ public sealed class ScheduledTrigger
     public required int FireAtSeconds { get; init; }
 }
 
+/// <summary>
+/// A countdown timer scheduled by the TIMER command. Fired by <c>ProcessTimers</c> against
+/// <c>ElapsedSeconds</c> (mirroring <see cref="ScheduledRelease"/>): on expiry it emits a green
+/// SAY-style terminal entry and is removed. Room-level (lives on <c>SimScenarioState</c>), so it
+/// ticks in sim time and survives snapshot round-trips.
+/// </summary>
+public sealed class ActiveTimer
+{
+    public required int Id { get; init; }
+
+    /// <summary>Null = global/instructor timer; set = the aircraft the expiry SAY is attributed to.</summary>
+    public string? Callsign { get; init; }
+
+    /// <summary>Free-text message; null/empty renders as "timer expired" at fire time.</summary>
+    public string? Message { get; init; }
+
+    public required double FireAtSeconds { get; init; }
+
+    /// <summary>Original duration in seconds — drives the countdown panel's total/label only.</summary>
+    public required double TotalSeconds { get; init; }
+}
+
 public sealed class ScheduledPreset
 {
     public required string Callsign { get; init; }

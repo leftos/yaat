@@ -350,9 +350,9 @@ public static class CommandParser
 
     private static List<ParsedCommand>? ParseCommandList(string input, string? aircraftRoute, TextWriter? debugLog = null)
     {
-        // SAY consumes entire remainder as literal text — don't split on comma
+        // SAY and TIMER consume their entire remainder as literal text — don't split on comma
         var trimmedInput = input.TrimStart();
-        if (StartsWithRegisteredAlias(trimmedInput, Say))
+        if (StartsWithRegisteredAlias(trimmedInput, Say) || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.Timer))
         {
             var cmd = Parse(input.Trim(), aircraftRoute);
             if (!cmd.IsSuccess)
@@ -681,6 +681,7 @@ public static class CommandParser
             SetTurnRate => ParseTurnRate(arg),
             Wait => ParseWaitSeconds(arg),
             WaitDistance => ParseWaitDistance(arg),
+            CanonicalCommandType.Timer => ParseTimer(arg),
             SpawnNow when arg is null => PR.Ok(new SpawnNowCommand()),
             SpawnDelay => ParseInt(arg, s => new SpawnDelayCommand(s)),
             HoldForRelease when arg is { Length: > 0 } => PR.Ok(new HoldForReleaseCommand(arg.Trim().ToUpperInvariant())),
@@ -1016,6 +1017,7 @@ public static class CommandParser
                 or HoldForRelease
                 or DisarmHoldForRelease
                 or ReleaseDeparture
+                or CanonicalCommandType.Timer
                 or Taxi
                 or CrossRunway
                 or HoldShort
@@ -2331,6 +2333,74 @@ public static class CommandParser
         }
 
         return PR.Fail("REL syntax: REL <airport|callsign> [interval-minutes]");
+    }
+
+    /// <summary>
+    /// Parses the TIMER argument. Set form: <c>&lt;duration&gt; [message]</c> where duration is
+    /// <c>mm:ss</c> or bare seconds and the rest is free-text (defaults to "timer expired" at fire
+    /// time). Cancel form: <c>CANCEL &lt;id&gt;</c> or <c>CANCEL ALL</c>.
+    /// </summary>
+    private static PR ParseTimer(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Fail("TIMER requires a duration (mm:ss or seconds) or CANCEL");
+        }
+
+        var trimmed = arg.Trim();
+        var firstSpace = trimmed.IndexOf(' ');
+        var firstToken = firstSpace < 0 ? trimmed : trimmed[..firstSpace];
+        var rest = firstSpace < 0 ? "" : trimmed[(firstSpace + 1)..].Trim();
+
+        if (firstToken.Equals("CANCEL", StringComparison.OrdinalIgnoreCase))
+        {
+            if (rest.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                return PR.Ok(new TimerCommand(null, null, IsCancel: true, CancelId: null, CancelAll: true));
+            }
+
+            if (int.TryParse(rest, out var id) && id >= 0)
+            {
+                return PR.Ok(new TimerCommand(null, null, IsCancel: true, CancelId: id, CancelAll: false));
+            }
+
+            return PR.Fail("TIMER CANCEL requires a timer id or ALL");
+        }
+
+        if (!TryParseDuration(firstToken, out var seconds))
+        {
+            return PR.Fail($"invalid timer duration '{firstToken}' (expected mm:ss or seconds)");
+        }
+
+        var message = rest.Length > 0 ? rest : null;
+        return PR.Ok(new TimerCommand(seconds, message, IsCancel: false, CancelId: null, CancelAll: false));
+    }
+
+    /// <summary>Parses a <c>mm:ss</c> or bare-seconds duration token into total seconds (&gt; 0).</summary>
+    internal static bool TryParseDuration(string token, out int seconds)
+    {
+        seconds = 0;
+        var colon = token.IndexOf(':');
+        if (colon >= 0)
+        {
+            var minPart = token[..colon];
+            var secPart = token[(colon + 1)..];
+            if (!int.TryParse(minPart, out var mins) || !int.TryParse(secPart, out var secs) || mins < 0 || secs < 0 || secs >= 60)
+            {
+                return false;
+            }
+
+            seconds = (mins * 60) + secs;
+            return seconds > 0;
+        }
+
+        if (int.TryParse(token, out var bare) && bare > 0)
+        {
+            seconds = bare;
+            return true;
+        }
+
+        return false;
     }
 
     private static PR ParseConsolidate(string? arg, bool full)

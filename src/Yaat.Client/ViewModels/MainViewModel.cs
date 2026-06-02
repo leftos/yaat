@@ -1229,6 +1229,7 @@ public partial class MainViewModel : ObservableObject
         _connection.WeatherChanged += OnWeatherChanged;
         _connection.ArrivalGeneratorsChanged += OnArrivalGeneratorsChanged;
         _connection.HeldDeparturesChanged += OnHeldDeparturesChanged;
+        _connection.TimersChanged += OnTimersChanged;
         _connection.PositionDisplayChanged += OnPositionDisplayChanged;
         _connection.ScenarioLoaded += OnScenarioLoaded;
         _connection.ScenarioUnloaded += OnScenarioUnloaded;
@@ -2131,6 +2132,29 @@ public partial class MainViewModel : ObservableObject
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
         }
+        if (parsed.Type == CanonicalCommandType.Timer)
+        {
+            if (string.IsNullOrWhiteSpace(parsed.Argument))
+            {
+                StatusText = "TIMER requires a duration (mm:ss or seconds) or CANCEL";
+                return;
+            }
+            var canonical = $"TIMER {parsed.Argument}";
+            try
+            {
+                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                AddHistory(canonical);
+                StatusText = CommandStatusResolver.Resolve(result, "TIMER");
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "TIMER failed");
+                StatusText = $"TIMER error: {ex.Message}";
+            }
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+        }
     }
 
     private async Task<bool> TryHandleRpoCommand(string commandText, AircraftModel? target, string originalInput)
@@ -2224,7 +2248,8 @@ public partial class MainViewModel : ObservableObject
                 or CanonicalCommandType.InitiateHandoffAll
                 or CanonicalCommandType.CoordinationAutoAck
                 or CanonicalCommandType.TaxiAll
-                or CanonicalCommandType.GhostTrack;
+                or CanonicalCommandType.GhostTrack
+                or CanonicalCommandType.Timer;
     }
 
     /// <summary>

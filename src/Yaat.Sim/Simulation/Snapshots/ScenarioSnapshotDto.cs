@@ -68,6 +68,10 @@ public sealed class ScenarioSnapshotDto
     // pending releases).
     public List<string>? HeldDepartureAirports { get; init; }
     public List<ScheduledReleaseDto>? ReleaseQueue { get; init; }
+
+    // Active TIMER countdowns. Optional so older snapshots deserialize cleanly (no timers).
+    public List<ActiveTimerDto>? ActiveTimers { get; init; }
+    public int NextTimerId { get; init; }
 }
 
 public sealed class DelayedSpawnDto
@@ -84,6 +88,15 @@ public sealed class ScheduledReleaseDto
     public required string Airport { get; init; }
     public string? Callsign { get; init; }
     public required double FireAtSeconds { get; init; }
+}
+
+public sealed class ActiveTimerDto
+{
+    public required int Id { get; init; }
+    public string? Callsign { get; init; }
+    public string? Message { get; init; }
+    public required double FireAtSeconds { get; init; }
+    public required double TotalSeconds { get; init; }
 }
 
 public sealed class ScheduledTriggerDto

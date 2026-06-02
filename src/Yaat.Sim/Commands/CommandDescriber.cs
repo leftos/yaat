@@ -150,6 +150,7 @@ public static class CommandDescriber
             WakeAdvisoryCommand => CanonicalCommandType.WakeAdvisory,
             WaitCommand => CanonicalCommandType.Wait,
             WaitDistanceCommand => CanonicalCommandType.WaitDistance,
+            TimerCommand => CanonicalCommandType.Timer,
             DeleteQueuedCommand => CanonicalCommandType.DeleteQueuedCommands,
             ShowQueuedCommand => CanonicalCommandType.ShowQueuedCommands,
             ChangeDestinationCommand => CanonicalCommandType.ChangeDestination,
@@ -758,6 +759,7 @@ public static class CommandDescriber
             HoldAtFixHoverCommand cmd => $"Hold at {cmd.FixName}",
             WaitCommand cmd => $"Wait {cmd.Seconds} seconds",
             WaitDistanceCommand cmd => $"Wait {cmd.DistanceNm} nm",
+            TimerCommand timer => DescribeTimerNatural(timer),
             AirTaxiCommand atxi => atxi.Destination is not null ? $"Air taxi to {atxi.Destination}" : "Air taxi",
             LandCommand land => land.IsTaxiway ? $"Land on taxiway {land.SpotName}" : $"Land at {land.SpotName}",
             ClearedTakeoffPresentCommand ctopp => DescribeCtoppNatural(ctopp),
@@ -837,6 +839,18 @@ public static class CommandDescriber
             HalfStripEditCommand cmd => $"Edit half-strip {cmd.StripId}",
             _ => command.ToString() ?? "?",
         };
+    }
+
+    private static string DescribeTimerNatural(TimerCommand timer)
+    {
+        if (timer.IsCancel)
+        {
+            return timer.CancelAll ? "Cancel all timers" : $"Cancel timer {timer.CancelId}";
+        }
+
+        var seconds = (int)(timer.Seconds ?? 0);
+        var duration = $"{seconds / 60}:{seconds % 60:D2}";
+        return string.IsNullOrWhiteSpace(timer.Message) ? $"Timer {duration}" : $"Timer {duration}: {timer.Message}";
     }
 
     private static string DescribeHalfStripCreateNatural(HalfStripCreateCommand cmd)

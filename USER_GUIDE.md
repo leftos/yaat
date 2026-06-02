@@ -671,6 +671,15 @@ Release them in any of these ways:
 
 A **Releases** button on the command bar (visible while any field is armed) opens a live rundown of what's held at each field, with per-departure and per-field release buttons. Released aircraft don't appear instantly — they take off after a short, realistic delay.
 
+### Timers
+
+Set a countdown reminder with `TIMER <mm:ss|seconds> [message]` (alias `TMR`). When it expires, a green SAY line appears in the terminal — your message, or `timer expired` if you didn't give one. Duration accepts `5:00`, `1:30`, or bare seconds like `90`.
+
+- `TIMER 5:00 release the next SWA` — a **global** instructor reminder; on expiry the terminal shows `TIMER → release the next SWA`.
+- `<callsign> TIMER 2:00 ready to copy` — attribute the timer to an aircraft; on expiry it reads as a SAY from that aircraft (`N172SP → ready to copy`).
+
+Timers count in **sim time** — they pause when the sim is paused and run faster at higher sim rates. A **timers** button on the command bar shows the soonest timer's live countdown; its flyout lists every running timer with a one-click cancel (`✕`). You can also cancel from the command bar with `TIMER CANCEL <id>` or clear them all with `TIMER CANCEL ALL`.
+
 ### Loading a Weather Profile
 
 ![Load Weather dialog](docs/user-guide/img/load-weather-dialog.png)

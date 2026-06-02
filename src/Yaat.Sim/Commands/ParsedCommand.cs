@@ -435,6 +435,14 @@ public record WaitCommand(double Seconds) : ParsedCommand;
 
 public record WaitDistanceCommand(double DistanceNm) : ParsedCommand;
 
+/// <summary>
+/// A countdown timer. Set form carries <see cref="Seconds"/> and optional free-text
+/// <see cref="Message"/> (defaults to "timer expired" at fire time). Cancel form sets
+/// <see cref="IsCancel"/> with either a specific <see cref="CancelId"/> or <see cref="CancelAll"/>.
+/// Global vs per-aircraft is conveyed by the dispatch callsign, not stored here.
+/// </summary>
+public record TimerCommand(double? Seconds, string? Message, bool IsCancel, int? CancelId, bool CancelAll) : ParsedCommand;
+
 public record CompoundCommand(List<ParsedBlock> Blocks)
 {
     /// <summary>

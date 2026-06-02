@@ -506,6 +506,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Release departure | `REL SJC` | `CTOA` | `REL N123` releases a specific aircraft; `REL SJC 2` releases the field's queue 2 min apart (global) |
 | Wait (seconds) | `WAIT 30` | — | — |
 | Wait (distance) | `WAITD 4` | — | — |
+| Timer | `TIMER 5:00 text` | `TMR` | Countdown reminder; on expiry posts a green SAY (`text`, or `timer expired`). Global, or prefix a callsign. `TIMER CANCEL <id\|ALL>` cancels |
 | Add aircraft | `ADD IFR H J ...` | — | — |
 | Force heading | `FHN 270` | — | — |
 | Force altitude | `CMN 240` | — | — |
@@ -1198,6 +1199,24 @@ Released departures don't pop airborne instantly — a held runway/airborne depa
 short readback delay) and departs normally. The **Releases** flyout on the command bar shows the live
 rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a
 one-click "Release (HFR)" item in its radar right-click menu.
+
+### Timer (TIMER / TMR)
+
+A countdown reminder. When it expires it posts a green SAY-style line to the terminal — the free-text
+message, or **`timer expired`** when none is given. Timers count in **sim time** (they pause when the
+sim is paused and scale with sim rate).
+
+| Command | Effect |
+|---------|--------|
+| `TIMER <mm:ss\|seconds> [text]` | Set a **global** reminder (no aircraft selected). On expiry the terminal shows `TIMER → text` (or `TIMER → timer expired`). |
+| `<callsign> TIMER <mm:ss\|seconds> [text]` | Set a timer **attributed to an aircraft** — on expiry the SAY is shown as `<callsign> → text`, like a normal SAY from that aircraft. |
+| `TIMER CANCEL <id>` | Cancel a specific timer by its id (shown in the timers panel). |
+| `TIMER CANCEL ALL` | Cancel every running timer. |
+
+Duration accepts `mm:ss` (`5:00`, `1:30`) or bare seconds (`90`). The message is free text and may
+contain commas. The **timers panel** on the command bar shows each running timer's live countdown
+(`mm:ss`), its label, and a one-click cancel (`✕`); the panel button's caption is the soonest timer's
+remaining time. `TMR` is an alias for `TIMER`.
 
 ### Add Aircraft (ADD)
 
