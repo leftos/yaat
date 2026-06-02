@@ -726,6 +726,7 @@ ScenarioValidator.cs           # Validates preset commands via CommandParser.Par
                                # ScenarioValidationResult, PresetParseFailure, ProcedureIssue, ProcedureIssueKind records
                                # Detects outdated procedure versions (VersionChanged) and missing procedures (NotFound)
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
+DepartureSpawnClassifier.cs    # IsHeldSpawnCandidate(loaded) — classifies a departure for hold-for-release spawn-gating
 AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator)
 SpawnRequest.cs                # Spawn descriptor
 ScenarioRatingTier.cs          # ScenarioRatingTier enum (Ungated/S3/C1/I1) + ScenarioRatingClassifier
@@ -759,7 +760,8 @@ ReplayTrackApplier.cs          # Replay-time dispatcher for track + AS-prefix co
 SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.
                                # Used by ReplayRangeWithVerification to surface drift between replay and recorded snapshots.
 ReplayResult.cs                # ReplayResult / SnapshotDriftReport / AircraftDrift / FieldDrift records.
-ScenarioQueues.cs              # DelayedSpawn, ScheduledTrigger, ScheduledPreset, GeneratorState, DelayedHandoff
+ScenarioQueues.cs              # DelayedSpawn (+ HeldForRelease), ScheduledTrigger, ScheduledPreset, ScheduledRelease, GeneratorState, DelayedHandoff
+HeldReleaseService.cs          # Hold-for-release: Arm/Disarm/Release an airport's IFR departures + BuildRundown. See docs/hold-for-release.md
 ConsolidationState.cs          # Thread-safe manual consolidation overrides
 
 # Simulation/Snapshots/

@@ -500,6 +500,9 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Say position | `SPOS` | — | Aircraft reports position relative to a route/DCT fix or sizeable airport |
 | Spawn now | `SPAWN` | — | — |
 | Spawn delay | `DELAY 120` | — | — |
+| Hold for release | `HFR SJC` | — | Arms hold-for-release for an airport's IFR departures (global) |
+| Disarm hold for release | `HFROFF SJC` | — | Auto-releases anything still held (global) |
+| Release departure | `REL SJC` | `CTOA` | `REL N123` releases a specific aircraft; `REL SJC 2` releases the field's queue 2 min apart (global) |
 | Wait (seconds) | `WAIT 30` | — | — |
 | Wait (distance) | `WAITD 4` | — | — |
 | Add aircraft | `ADD IFR H J ...` | — | — |
@@ -1165,6 +1168,26 @@ These commands target aircraft in the delayed spawn queue (shown with "Delayed" 
 |---------|--------|
 | `SPAWN` | Spawn the selected aircraft immediately |
 | `DELAY <n>` | Set spawn delay to N seconds from now (accepts M:SS, e.g., `DELAY 2:00`) |
+
+### Hold for Release (HFR / REL)
+
+Models the real-world departure-release coordination a TRACON provides to satellite towered
+airports: an IFR departure may not take off until released. These are global commands — the airport
+or callsign rides in the argument, no aircraft selection is needed.
+
+| Command | Effect |
+|---------|--------|
+| `HFR <airport>` | Arm hold-for-release for an airport. Its **IFR** departures are then held until released — those that spawn airborne/on-the-runway don't appear until released; those at parking/taxiway taxi out and **hold short** of the runway (they never take the runway while held). VFR departures are unaffected. |
+| `HFROFF <airport>` | Disarm the airport. Anything still held there is auto-released. |
+| `REL <airport>` (alias `CTOA <airport>`) | Release the **next pending** departure at that field (earliest-scheduled first). |
+| `REL <callsign>` | Release a specific held departure. |
+| `REL <airport> <minutes>` | Release the field's **whole** held queue, auto-spaced by the given interval in minutes (e.g. `REL SJC 2` = one every two minutes). |
+
+Released departures don't pop airborne instantly — a held runway/airborne departure appears after a
+20–60 s delay; a held ground departure is auto-cleared for takeoff once it's holding short (after a
+short readback delay) and departs normally. The **Releases** flyout on the command bar shows the live
+rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a
+one-click "Release (HFR)" item in its radar right-click menu.
 
 ### Add Aircraft (ADD)
 

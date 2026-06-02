@@ -150,6 +150,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `CrcRoomMembersChanged` | `CrcRoomMembersChangedDto` | `CrcRoomMembersChanged` |
 | `WeatherChanged` | `WeatherChangedDto` | `WeatherChanged` |
 | `ArrivalGeneratorsChanged` | `ArrivalGeneratorsChangedDto` | `ArrivalGeneratorsChanged` |
+| `HeldDeparturesChanged` | `HeldDeparturesChangedDto` (carries `RundownDto`) | `HeldDeparturesChanged` |
 | `PositionDisplayChanged` | `PositionDisplayConfigDto` | `PositionDisplayChanged` |
 | `ScenarioLoaded` | `ScenarioLoadedDto` | `ScenarioLoaded` (+ `StripsConfigChanged`) |
 | `ScenarioUnloaded` | *(none)* | `ScenarioUnloaded` (+ `StripsConfigChanged(null)`) |

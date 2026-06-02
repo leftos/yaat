@@ -629,6 +629,19 @@ Both API and local scenarios appear in the **Scenario > Load Recent Scenario** m
 
 **Scenario > Unload Scenario** removes all aircraft from the current scenario. A confirmation dialog appears if multiple clients are connected.
 
+### Hold for Release
+
+Model the departure-release coordination a TRACON provides to satellite towered airports: an IFR departure can't take off until you release it. Type `HFR <airport>` (e.g. `HFR SJC`) to arm a field — its IFR departures are then **held**. A departure that would appear airborne or lined up on the runway stays off-scope until released; a departure taxiing out **holds short** of the runway rather than taking it. VFR departures are never held.
+
+Release them in any of these ways:
+
+- `REL <airport>` (or `CTOA <airport>`) — release the next pending departure at that field.
+- `REL <callsign>` — release a specific aircraft (also available as a one-click **Release (HFR)** item in the aircraft's radar right-click menu).
+- `REL <airport> <minutes>` — release the field's whole held queue, auto-spaced by that many minutes (e.g. `REL SJC 2`).
+- `HFROFF <airport>` — disarm the field; anything still held is auto-released.
+
+A **Releases** button on the command bar (visible while any field is armed) opens a live rundown of what's held at each field, with per-departure and per-field release buttons. Released aircraft don't appear instantly — they take off after a short, realistic delay.
+
 ### Loading a Weather Profile
 
 ![Load Weather dialog](docs/user-guide/img/load-weather-dialog.png)
