@@ -418,6 +418,15 @@ Enable **Settings > Display > Overlays > "Show speech bubbles for SAY and pilot 
 - **Duration multiplier** — the nested **"Duration multiplier"** value (0.25–4.00, default 1.00) scales how long every bubble lingers. The length-based 4–12 s base is multiplied by this factor, so 2.00 keeps bubbles up roughly twice as long.
 - **Amber WARN bubbles** (opt-in) — tick **"Also show WARN messages as speech bubbles (amber)"** to also surface warning-channel messages (e.g. a cleared command queue, or a vector off procedure with no altitude) as an amber bubble on the relevant aircraft, distinct from the green pilot/SAY bubbles. WARN bubbles also show in solo-training mode, since warnings are for you (the controller) rather than the pilot.
 
+#### Mirroring the Student's STARS Scope
+
+The instructor radar can color and shape each aircraft's data block to match what the **student** sees on their STARS scope, so you can tell at a glance which tracks they own, which are pointed out to them, and how they've arranged their leader lines. These options live under **Settings > Display > Radar Display > Student Scope Sync** and only take effect when the scenario defines a student position.
+
+- **Sync datablock colors** (on by default) — each data block takes the student's STARS color: **white** = the student owns the track, **green** = owned by another controller (or untracked), **yellow** = pointed out to the student, **cyan** = highlighted by the student. An explicit RPO assignment tint still overrides the STARS color, and your own selection/highlight still take top priority.
+- **Mark limited datablocks with (LDB) / (PDB)** (on by default) — when the student sees only a limited block (an unassociated track) the callsign line is suffixed **(LDB)**; when they see a partial block (an associated track owned by another controller) it's suffixed **(PDB)**. You keep the full block; the marker just tells you what the student sees.
+- **Collapse datablocks to match the student** (off by default) — instead of the marker, render the reduced block the student actually sees: a one-line limited block for unassociated tracks, a short partial block for tracks owned by another controller.
+- **Sync leader-line direction** (off by default) — point each data block's leader line in the direction the student set in STARS. Data blocks you've dragged keep their position; use **Reset to student position** in the data block's right-click **Display** menu to snap one back so the leader sync re-applies.
+
 Video maps load automatically from the vNAS data API based on your [ARTCC](#glossary) ID.
 
 **Per-scenario persistence** — Radar view settings (maps, center, zoom, range rings, PTL, brightness, lock) are saved independently for each scenario.

@@ -581,6 +581,19 @@ public partial class RadarView
                 }
             )
         );
+        if (_canvas?.HasManualDataBlockOffset(callsign) ?? false)
+        {
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Reset to student position",
+                    () =>
+                    {
+                        _canvas?.ResetDataBlockOffset(callsign);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
         var isPathShown = vm.IsPathShown(callsign);
         menu.Items.Add(
             new MenuItem

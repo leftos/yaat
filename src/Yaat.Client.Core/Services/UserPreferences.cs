@@ -166,6 +166,10 @@ public sealed class UserPreferences
     public double SpeechBubbleDurationMultiplier => Math.Clamp(_data.SpeechBubbleDurationMultiplier, 0.25, 4.0);
     public bool ShowWarningSpeechBubbles => _data.ShowWarningSpeechBubbles;
     public bool AlwaysShowGroundBubblesOnRadar => _data.AlwaysShowGroundBubblesOnRadar;
+    public bool SyncStudentDatablockColors => _data.SyncStudentDatablockColors;
+    public bool MarkStudentLimitedDatablocks => _data.MarkStudentLimitedDatablocks;
+    public bool CollapseStudentDatablocks => _data.CollapseStudentDatablocks;
+    public bool SyncStudentLeaderDirection => _data.SyncStudentLeaderDirection;
     public bool AutoClearedToLandGnd => _data.AutoClearedToLandGnd;
     public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
@@ -643,6 +647,30 @@ public sealed class UserPreferences
     public void SetAlwaysShowGroundBubblesOnRadar(bool enabled)
     {
         _data.AlwaysShowGroundBubblesOnRadar = enabled;
+        Save();
+    }
+
+    public void SetSyncStudentDatablockColors(bool enabled)
+    {
+        _data.SyncStudentDatablockColors = enabled;
+        Save();
+    }
+
+    public void SetMarkStudentLimitedDatablocks(bool enabled)
+    {
+        _data.MarkStudentLimitedDatablocks = enabled;
+        Save();
+    }
+
+    public void SetCollapseStudentDatablocks(bool enabled)
+    {
+        _data.CollapseStudentDatablocks = enabled;
+        Save();
+    }
+
+    public void SetSyncStudentLeaderDirection(bool enabled)
+    {
+        _data.SyncStudentLeaderDirection = enabled;
         Save();
     }
 
@@ -1178,6 +1206,10 @@ public sealed class UserPreferences
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
+            SyncStudentDatablockColors = GetFieldOr(obj, "syncStudentDatablockColors", true),
+            MarkStudentLimitedDatablocks = GetFieldOr(obj, "markStudentLimitedDatablocks", true),
+            CollapseStudentDatablocks = GetFieldOr(obj, "collapseStudentDatablocks", false),
+            SyncStudentLeaderDirection = GetFieldOr(obj, "syncStudentLeaderDirection", false),
             AutoClearedToLandGnd = GetFieldOr(obj, "autoClearedToLandGnd", true),
             AutoClearedToLandTwr = GetFieldOr(obj, "autoClearedToLandTwr", false),
             AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
@@ -1425,6 +1457,10 @@ public sealed class UserPreferences
         public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;
         public bool ShowWarningSpeechBubbles { get; set; }
         public bool AlwaysShowGroundBubblesOnRadar { get; set; }
+        public bool SyncStudentDatablockColors { get; set; } = true;
+        public bool MarkStudentLimitedDatablocks { get; set; } = true;
+        public bool CollapseStudentDatablocks { get; set; }
+        public bool SyncStudentLeaderDirection { get; set; }
         public bool AutoClearedToLandGnd { get; set; } = true;
         public bool AutoClearedToLandTwr { get; set; }
         public bool AutoClearedToLandApp { get; set; } = true;

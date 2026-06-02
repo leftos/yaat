@@ -115,7 +115,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<int> HistoryCountProperty = AvaloniaProperty.Register<RadarCanvas, int>(nameof(HistoryCount));
 
-    private static readonly SKPoint DefaultDataBlockOffset = new(28, -28);
     private const float DataBlockPad = 3f;
     private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
 
@@ -379,6 +378,46 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public bool SyncStudentColors
+    {
+        get => _renderer.SyncStudentColors;
+        set
+        {
+            _renderer.SyncStudentColors = value;
+            MarkDirty();
+        }
+    }
+
+    public bool MarkStudentLimitedDatablocks
+    {
+        get => _renderer.MarkStudentLimitedDatablocks;
+        set
+        {
+            _renderer.MarkStudentLimitedDatablocks = value;
+            MarkDirty();
+        }
+    }
+
+    public bool CollapseStudentDatablocks
+    {
+        get => _renderer.CollapseStudentDatablocks;
+        set
+        {
+            _renderer.CollapseStudentDatablocks = value;
+            MarkDirty();
+        }
+    }
+
+    public bool SyncStudentLeaderDirection
+    {
+        get => _renderer.SyncStudentLeaderDirection;
+        set
+        {
+            _renderer.SyncStudentLeaderDirection = value;
+            MarkDirty();
+        }
+    }
+
     /// <summary>
     /// Airport id the user's ground view is currently showing (null when none). A ground
     /// aircraft is normally hidden on the radar, but when it has an active speech bubble and its
@@ -581,6 +620,22 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     /// <summary>Returns true if the callsign's datablock is currently minified.</summary>
     public bool IsMinified(string callsign) => _minifiedCallsigns.Contains(callsign);
+
+    /// <summary>
+    /// Clears any manual drag offset for the callsign so its datablock returns to the student's leader
+    /// direction (when leader-direction sync is on) or the default placement. Backs the radar
+    /// "Reset to student position" context-menu item.
+    /// </summary>
+    public void ResetDataBlockOffset(string callsign)
+    {
+        if (_dataBlockOffsets.Remove(callsign))
+        {
+            MarkDirty();
+        }
+    }
+
+    /// <summary>Returns true if the callsign's datablock has been manually dragged to a custom position.</summary>
+    public bool HasManualDataBlockOffset(string callsign) => _dataBlockOffsets.ContainsKey(callsign);
 
     /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
     public void SurfaceDataBlock(string callsign)
@@ -1004,7 +1059,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
                 _isDraggingDataBlock = true;
                 _dragCallsign = dataBlockAc.Callsign;
-                _dragStartOffset = _dataBlockOffsets.TryGetValue(dataBlockAc.Callsign, out var off) ? off : DefaultDataBlockOffset;
+                _dragStartOffset = ComputeDataBlockPlacement(dataBlockAc).Offset;
                 _dragStartMousePos = pos;
                 _dragThresholdMet = false;
                 e.Handled = true;
@@ -1282,44 +1337,49 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return best;
     }
 
-    private SKRect ComputeDataBlockRect(AircraftModel ac)
+    private SKRect ComputeDataBlockRect(AircraftModel ac) => ComputeDataBlockPlacement(ac).Rect;
+
+    /// <summary>
+    /// Computes the datablock's effective placement — the text-origin offset from the symbol and the
+    /// resulting bounds — using the same offset rules the renderer draws with: a manual drag offset
+    /// wins, else the student's leader direction when leader sync is on, else the default upper-right
+    /// offset. Hit testing uses the rect; drag start uses the offset so a leader-placed block whose
+    /// position hasn't been dragged doesn't jump on the first drag.
+    /// </summary>
+    private (SKPoint Offset, SKRect Rect) ComputeDataBlockPlacement(AircraftModel ac)
     {
+        SKPoint manualOffset = default;
+        bool hasManual = _dataBlockOffsets.TryGetValue(ac.Callsign, out manualOffset);
+
         // EuroScope path uses the bounds the renderer cached during the last frame so
         // hit testing always matches what's actually on screen.
         if (EuroScopeMode && !_minifiedCallsigns.Contains(ac.Callsign) && LastEuroScopeTags.TryGetValue(ac.Callsign, out var esResult))
         {
-            return esResult.Bounds;
+            return (hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset, esResult.Bounds);
         }
 
         var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-
-        SKPoint offset = DefaultDataBlockOffset;
-        if (_dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
-        {
-            offset = customOffset;
-        }
-
-        float blockX = sx + offset.X;
-        float blockY = sy + offset.Y;
-        float lineH = _hitTestPaint.TextSize + 2;
         bool isMinified = _minifiedCallsigns.Contains(ac.Callsign);
+        bool collapse =
+            !isMinified
+            && CollapseStudentDatablocks
+            && ac.StudentDatablockLevel is Yaat.Sim.StarsDatablockLevel.Limited or Yaat.Sim.StarsDatablockLevel.Partial;
 
-        if (isMinified)
+        if (isMinified || collapse)
         {
-            var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
-            var cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
-            string miniLine = cwt.Length > 0 ? $"{altHundreds} {cwt}" : altHundreds;
-            float miniW = _hitTestPaint.MeasureText(miniLine);
-            return new SKRect(
-                blockX - DataBlockPad,
-                blockY - _hitTestPaint.TextSize - DataBlockPad,
-                blockX + miniW + DataBlockPad,
-                blockY + DataBlockPad
-            );
+            IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : RadarDatablockLayout.BuildCollapsedLines(ac);
+            var reducedAtOrigin = RadarDatablockLayout.ReducedRect(lines, _hitTestPaint, 0, 0);
+            var reducedOffset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, reducedAtOrigin);
+            return (reducedOffset, RadarDatablockLayout.ReducedRect(lines, _hitTestPaint, sx + reducedOffset.X, sy + reducedOffset.Y));
         }
+
+        // Full block — measure a stable rect (handoff/warning slots always reserved) so the drag hit
+        // area doesn't pulse with the 500 ms flash, then position it with the renderer's offset rules.
+        string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
+        float lineH = _hitTestPaint.TextSize + 2;
 
         bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
-        string line1 = isVfr ? $"{ac.Callsign}*" : ac.Callsign;
+        string line1 = (isVfr ? $"{ac.Callsign}*" : ac.Callsign) + marker;
         var altH = ((int)ac.Altitude / 100).ToString("D3");
         var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
         var cwtCode = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
@@ -1356,12 +1416,23 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             lineCount++;
         }
 
-        return new SKRect(
+        var rectAtOrigin = new SKRect(
+            -DataBlockPad,
+            -_hitTestPaint.TextSize - DataBlockPad,
+            textW + DataBlockPad,
+            ((lineCount - 1) * lineH) + DataBlockPad
+        );
+        var offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, rectAtOrigin);
+        float blockX = sx + offset.X;
+        float blockY = sy + offset.Y;
+
+        var rect = new SKRect(
             blockX - DataBlockPad,
             blockY - _hitTestPaint.TextSize - DataBlockPad,
             blockX + textW + DataBlockPad,
-            blockY + (lineCount - 1) * lineH + DataBlockPad
+            blockY + ((lineCount - 1) * lineH) + DataBlockPad
         );
+        return (offset, rect);
     }
 
     public AircraftModel? FindAircraftAtPoint(Point screenPos)

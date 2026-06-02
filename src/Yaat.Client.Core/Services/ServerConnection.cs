@@ -851,7 +851,13 @@ public record AircraftDto(
     string? GroundAirportId = null,
     // True when this ground departure is held for release. Drives the radar "Release (HFR)"
     // context-menu item and a held badge.
-    bool HeldForRelease = false
+    bool HeldForRelease = false,
+    // Student-scope STARS view projected by the server (StarsDatablockClassifier) relative to the
+    // scenario's student position. Null when there is no student position. Drives the instructor
+    // radar's optional datablock color sync, LDB/PDB marker + collapse, and leader-direction sync.
+    Yaat.Sim.StarsDatablockColor? StudentDatablockColor = null,
+    Yaat.Sim.StarsDatablockLevel? StudentDatablockLevel = null,
+    int? StudentLeaderDirection = null
 );
 
 public record LoadScenarioResultDto(

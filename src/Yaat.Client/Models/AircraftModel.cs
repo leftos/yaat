@@ -651,6 +651,18 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private string _cwtCode = "";
 
+    // Student-scope STARS view projected by the server (StarsDatablockClassifier). Null when the
+    // scenario has no student position. Read by the radar renderer to optionally color the datablock,
+    // mark/collapse limited blocks, and orient the leader line to match the student's scope.
+    [ObservableProperty]
+    private Yaat.Sim.StarsDatablockColor? _studentDatablockColor;
+
+    [ObservableProperty]
+    private Yaat.Sim.StarsDatablockLevel? _studentDatablockLevel;
+
+    [ObservableProperty]
+    private int? _studentLeaderDirection;
+
     public string OwnerDisplay => OwnerSectorCode ?? Owner ?? "";
 
     public string HandoffDisplay => HandoffPeerSectorCode ?? HandoffPeer ?? "";
@@ -759,6 +771,9 @@ public partial class AircraftModel : ObservableObject
             ActiveApproachId = dto.ActiveApproachId,
             ExpectedApproach = dto.ExpectedApproach,
             CwtCode = dto.CwtCode,
+            StudentDatablockColor = dto.StudentDatablockColor,
+            StudentDatablockLevel = dto.StudentDatablockLevel,
+            StudentLeaderDirection = dto.StudentLeaderDirection,
             ActiveSidId = dto.ActiveSidId,
             ActiveStarId = dto.ActiveStarId,
             DepartureRunway = dto.DepartureRunway,
@@ -839,6 +854,9 @@ public partial class AircraftModel : ObservableObject
         ActiveApproachId = dto.ActiveApproachId;
         ExpectedApproach = dto.ExpectedApproach;
         CwtCode = dto.CwtCode;
+        StudentDatablockColor = dto.StudentDatablockColor;
+        StudentDatablockLevel = dto.StudentDatablockLevel;
+        StudentLeaderDirection = dto.StudentLeaderDirection;
         ActiveSidId = dto.ActiveSidId;
         ActiveStarId = dto.ActiveStarId;
         DepartureRunway = dto.DepartureRunway;

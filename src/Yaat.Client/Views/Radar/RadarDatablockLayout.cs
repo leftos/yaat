@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Yaat.Client.Models;
+using Yaat.Sim;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -11,6 +12,15 @@ internal readonly struct RadarDatablockLayout
 {
     private const float Pad = 3f;
     internal const string NoLandingClearanceText = "NoLndgClnc";
+
+    /// <summary>Default datablock placement: up and to the right of the symbol.</summary>
+    internal static readonly SKPoint DefaultOffset = new(28, -28);
+
+    /// <summary>STARS <c>LeaderDirection.Default</c> sentinel (matches <see cref="StarsDatablockClassifier.DefaultLeaderDirection"/>).</summary>
+    internal const int DefaultLeaderDirection = 5;
+
+    /// <summary>Pixel gap from the symbol to the near edge of the block when placing by leader direction.</summary>
+    private const float LeaderGap = 18f;
 
     public readonly SKRect Rect;
     public readonly float TextX;
@@ -45,10 +55,17 @@ internal readonly struct RadarDatablockLayout
         Line5 = line5;
     }
 
-    public static RadarDatablockLayout Compute(AircraftModel ac, float blockX, float blockY, SKPaint paint, bool showNoLandingClearance)
+    public static RadarDatablockLayout Compute(
+        AircraftModel ac,
+        float blockX,
+        float blockY,
+        SKPaint paint,
+        bool showNoLandingClearance,
+        string callsignMarker
+    )
     {
         bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
-        string line1 = isVfr ? $"{ac.Callsign}*" : ac.Callsign;
+        string line1 = (isVfr ? $"{ac.Callsign}*" : ac.Callsign) + callsignMarker;
 
         string altHundreds = ((int)ac.Altitude / 100).ToString("D3");
         string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
@@ -155,5 +172,112 @@ internal readonly struct RadarDatablockLayout
         }
 
         return baseType;
+    }
+
+    /// <summary>
+    /// "(LDB)" / "(PDB)" suffix (with a leading space) describing how the student's STARS scope shows
+    /// the track, or "" for a full datablock. Appended to the callsign line when the marker is enabled.
+    /// </summary>
+    public static string StudentLevelMarker(StarsDatablockLevel? level) =>
+        level switch
+        {
+            StarsDatablockLevel.Limited => " (LDB)",
+            StarsDatablockLevel.Partial => " (PDB)",
+            _ => "",
+        };
+
+    /// <summary>Single-line minified block: altitude (hundreds) + CWT category.</summary>
+    public static string BuildMinifiedLine(AircraftModel ac)
+    {
+        string altHundreds = ((int)ac.Altitude / 100).ToString("D3");
+        string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
+        return cwt.Length > 0 ? $"{altHundreds} {cwt}" : altHundreds;
+    }
+
+    /// <summary>
+    /// The reduced datablock the student actually sees when the instructor opts into LDB/FDB collapse,
+    /// matching STARS default content (CRC <c>BuildLdb</c>/<c>BuildPdb</c>):
+    /// <list type="bullet">
+    /// <item>Limited (LDB): beacon code + altitude. Ground speed is hidden unless the track is queried,
+    /// which the instructor mirror does not track, so it is omitted from the default view.</item>
+    /// <item>Partial (PDB): the FDB altitude line — altitude, the receiving sector during a handoff, and
+    /// ground-speed tens — plus scratchpad 1 when set.</item>
+    /// </list>
+    /// </summary>
+    public static IReadOnlyList<string> BuildCollapsedLines(AircraftModel ac)
+    {
+        string altHundreds = ((int)ac.Altitude / 100).ToString("D3");
+
+        if (ac.StudentDatablockLevel == StarsDatablockLevel.Partial)
+        {
+            string gsTens = ((int)ac.GroundSpeed / 10).ToString("D2");
+            string handoff = !string.IsNullOrEmpty(ac.HandoffDisplay) ? $"{ac.HandoffDisplay} " : "";
+            string line1 = $"{altHundreds} {handoff}{gsTens}";
+            return !string.IsNullOrEmpty(ac.Scratchpad1) ? [line1, ac.Scratchpad1!] : [line1];
+        }
+
+        string beacon = ac.BeaconCode > 0 ? ac.BeaconCode.ToString("0000") : "";
+        return beacon.Length > 0 ? [$"{beacon} {altHundreds}"] : [altHundreds];
+    }
+
+    /// <summary>Bounding rect of a reduced (minified/collapsed) block whose text origin is (blockX, blockY).</summary>
+    public static SKRect ReducedRect(IReadOnlyList<string> lines, SKPaint paint, float blockX, float blockY)
+    {
+        float lineH = paint.TextSize + 2;
+        float maxW = 0f;
+        for (int i = 0; i < lines.Count; i++)
+        {
+            maxW = MathF.Max(maxW, paint.MeasureText(lines[i]));
+        }
+
+        return new SKRect(blockX - Pad, blockY - paint.TextSize - Pad, blockX + maxW + Pad, blockY + ((lines.Count - 1) * lineH) + Pad);
+    }
+
+    /// <summary>
+    /// Resolves the datablock text-origin offset from the symbol. A manual drag offset always wins;
+    /// otherwise, when leader-direction sync is on and the student set a non-default direction, the
+    /// block is placed in that compass direction; failing both, the default upper-right offset is used.
+    /// <paramref name="rectAtOrigin"/> is the block's bounds when drawn at text origin (0, 0).
+    /// </summary>
+    public static SKPoint ResolveBlockOffset(AircraftModel ac, bool syncLeader, bool hasManual, SKPoint manual, SKRect rectAtOrigin)
+    {
+        if (hasManual)
+        {
+            return manual;
+        }
+
+        if (syncLeader && ac.StudentLeaderDirection is { } dir && dir != DefaultLeaderDirection)
+        {
+            return LeaderDirectionOffset(dir, rectAtOrigin);
+        }
+
+        return DefaultOffset;
+    }
+
+    private static SKPoint LeaderDirectionOffset(int dir, SKRect rectAtOrigin)
+    {
+        // STARS LeaderDirection enum mapped to a screen compass unit (screen Y is down, so North is
+        // negative Y): 1=SW 2=S 3=SE 4=W 6=E 7=NW 8=N 9=NE.
+        (int hx, int hy) = dir switch
+        {
+            8 => (0, -1),
+            9 => (1, -1),
+            6 => (1, 0),
+            3 => (1, 1),
+            2 => (0, 1),
+            1 => (-1, 1),
+            4 => (-1, 0),
+            7 => (-1, -1),
+            _ => (1, -1),
+        };
+
+        // The text-origin to rect-center vector is invariant under translation. Place the rect center
+        // in the chosen compass direction (gap + half-extent from the symbol) and back out the origin,
+        // which right-justifies left-side blocks so their text never overlaps the symbol.
+        float centerX = (rectAtOrigin.Left + rectAtOrigin.Right) / 2f;
+        float centerY = (rectAtOrigin.Top + rectAtOrigin.Bottom) / 2f;
+        float desiredCenterX = hx * (LeaderGap + (rectAtOrigin.Width / 2f));
+        float desiredCenterY = hy * (LeaderGap + (rectAtOrigin.Height / 2f));
+        return new SKPoint(desiredCenterX - centerX, desiredCenterY - centerY);
     }
 }

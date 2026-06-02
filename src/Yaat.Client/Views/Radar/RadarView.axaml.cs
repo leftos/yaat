@@ -513,6 +513,10 @@ public partial class RadarView : UserControl
         _canvas.FlashNoLandingClearance = prefs.FlashNoLandingClearance;
         _canvas.ShowSpeechBubbles = prefs.ShowSpeechBubbles;
         _canvas.AlwaysShowGroundBubblesOnRadar = prefs.AlwaysShowGroundBubblesOnRadar;
+        _canvas.SyncStudentColors = prefs.SyncStudentDatablockColors;
+        _canvas.MarkStudentLimitedDatablocks = prefs.MarkStudentLimitedDatablocks;
+        _canvas.CollapseStudentDatablocks = prefs.CollapseStudentDatablocks;
+        _canvas.SyncStudentLeaderDirection = prefs.SyncStudentLeaderDirection;
         _canvas.DatablockTextSize = prefs.RadarDatablockFontSize;
         Flyouts.FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
     }

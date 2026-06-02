@@ -17,6 +17,14 @@ public sealed class TargetRenderer : IDisposable
     private static readonly SKColor HistoryColor = new(0, 176, 255);
     private static readonly SKColor GroundColor = new(0, 200, 0);
 
+    // STARS datablock palette mirrored from CRC (DisplayElementTracks): owned=white, unowned=LimeGreen,
+    // pointout=yellow, highlighted=cyan. Applied to the datablock (and its leader) when the student
+    // STARS color sync is enabled, reflecting how the student's scope colors the track.
+    private static readonly SKColor StarsOwnedColor = SKColors.White;
+    private static readonly SKColor StarsUnownedColor = new(50, 205, 50);
+    private static readonly SKColor StarsPointoutColor = SKColors.Yellow;
+    private static readonly SKColor StarsHighlightColor = SKColors.Cyan;
+
     // Bubble pill colors — subtle teal-tinted background with a SAY-green border so the
     // bubble reads as a pilot-transmission overlay without competing with the datablock.
     private static readonly SKColor SpeechBubbleFillColor = new(20, 60, 50, 220);
@@ -162,6 +170,35 @@ public sealed class TargetRenderer : IDisposable
     public bool ShowSpeechBubbles { get; set; }
 
     /// <summary>
+    /// When true, color each datablock to match the student's STARS scope (white = owned by student,
+    /// green = owned by another, yellow = pointout, cyan = highlighted) from
+    /// <see cref="AircraftModel.StudentDatablockColor"/>. Default true (opt-out); driven by the
+    /// <c>SyncStudentDatablockColors</c> user preference.
+    /// </summary>
+    public bool SyncStudentColors { get; set; } = true;
+
+    /// <summary>
+    /// When true, append "(LDB)"/"(PDB)" to the callsign line when the student sees a limited /
+    /// partial datablock, while the instructor keeps the full block. Default true (opt-out); driven
+    /// by <c>MarkStudentLimitedDatablocks</c>. Suppressed when <see cref="CollapseStudentDatablocks"/>
+    /// renders the reduced block instead.
+    /// </summary>
+    public bool MarkStudentLimitedDatablocks { get; set; } = true;
+
+    /// <summary>
+    /// When true, render the reduced datablock the student actually sees (limited / partial) instead
+    /// of the instructor's full block. Default false (opt-in); driven by <c>CollapseStudentDatablocks</c>.
+    /// </summary>
+    public bool CollapseStudentDatablocks { get; set; }
+
+    /// <summary>
+    /// When true, orient each datablock's leader line in the direction the student set in STARS,
+    /// unless the block has a manual drag offset. Default false (opt-in); driven by
+    /// <c>SyncStudentLeaderDirection</c>.
+    /// </summary>
+    public bool SyncStudentLeaderDirection { get; set; }
+
+    /// <summary>
     /// Per-aircraft layout result captured during the last Render(). Populated only when
     /// <see cref="EuroScopeMode"/> is on. Consumed by RadarCanvas hit-testing.
     /// </summary>
@@ -294,8 +331,11 @@ public sealed class TargetRenderer : IDisposable
         }
 
         bool isHighlighted = highlightedCallsigns is not null && highlightedCallsigns.Contains(ac.Callsign);
+        // Student STARS color (when sync is on) sits below an explicit RPO tint but above the ground /
+        // white defaults, so the datablock reflects how the student's scope colors the track.
+        SKColor? studentColor = SyncStudentColors ? StudentDatablockColorFor(ac) : null;
         var baseSymbolColor = tintColor ?? (isOnGround ? GroundColor : SymbolColor);
-        var baseDbColor = tintColor ?? (isOnGround ? GroundColor : DataBlockColor);
+        var baseDbColor = tintColor ?? studentColor ?? (isOnGround ? GroundColor : DataBlockColor);
         var selectedColor = SelectedOverrideColor ?? SelectedColor;
         var symbolColor = isSelected ? selectedColor : baseSymbolColor;
         var dbColor =
@@ -321,6 +361,16 @@ public sealed class TargetRenderer : IDisposable
             }
         }
     }
+
+    private static SKColor? StudentDatablockColorFor(AircraftModel ac) =>
+        ac.StudentDatablockColor switch
+        {
+            StarsDatablockColor.Owned => StarsOwnedColor,
+            StarsDatablockColor.Unowned => StarsUnownedColor,
+            StarsDatablockColor.Pointout => StarsPointoutColor,
+            StarsDatablockColor.Highlighted => StarsHighlightColor,
+            _ => null,
+        };
 
     private void DrawPtlLine(SKCanvas canvas, MapViewport vp, float sx, float sy, AircraftModel ac, double minutes)
     {
@@ -364,47 +414,37 @@ public sealed class TargetRenderer : IDisposable
         bool isSelected
     )
     {
-        SKPoint offset = new(28, -28);
-        if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
-        {
-            offset = customOffset;
-        }
-
-        float blockX = cx + offset.X;
-        float blockY = cy + offset.Y;
-
         _dataBlockPaint.Color = color;
+
+        SKPoint manualOffset = default;
+        bool hasManualOffset = dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out manualOffset);
 
         if (EuroScopeMode && !isMinified)
         {
-            return DrawEuroScopeBlock(canvas, cx, cy, blockX, blockY, ac, color, isSelected);
+            // EuroScope tags keep manual/default placement; student-scope sync targets STARS tags only.
+            var esOffset = hasManualOffset ? manualOffset : RadarDatablockLayout.DefaultOffset;
+            return DrawEuroScopeBlock(canvas, cx, cy, cx + esOffset.X, cy + esOffset.Y, ac, color, isSelected);
         }
 
-        if (isMinified)
+        // Collapse to the reduced datablock the student actually sees (LDB/PDB) when enabled and the
+        // student does not see a full block. The instructor's manual minify toggle takes precedence.
+        bool collapse =
+            !isMinified && CollapseStudentDatablocks && ac.StudentDatablockLevel is StarsDatablockLevel.Limited or StarsDatablockLevel.Partial;
+
+        if (isMinified || collapse)
         {
-            // Minified: single line with altitude + CWT
-            string altHundreds = ((int)ac.Altitude / 100).ToString("D3");
-            string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
-            string miniLine = cwt.Length > 0 ? $"{altHundreds} {cwt}" : altHundreds;
-            float miniW = _dataBlockPaint.MeasureText(miniLine);
-
-            const float pad = 3f;
-            var blockRect = new SKRect(blockX - pad, blockY - _dataBlockPaint.TextSize - pad, blockX + miniW + pad, blockY + pad);
-
-            if (isSelected)
-            {
-                canvas.DrawRect(blockRect, _selectedBorderPaint);
-            }
-
-            var leaderEnd = ClampToBlockEdge(cx, cy, blockRect);
-            _leaderPaint.Color = color;
-            canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
-
-            canvas.DrawText(miniLine, blockX, blockY, _dataBlockPaint);
-            return blockRect;
+            IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : RadarDatablockLayout.BuildCollapsedLines(ac);
+            return DrawReducedBlock(canvas, cx, cy, ac, color, lines, isSelected, hasManualOffset, manualOffset);
         }
 
-        var layout = RadarDatablockLayout.Compute(ac, blockX, blockY, _dataBlockPaint, FlashNoLandingClearance);
+        // Full STARS block, optionally annotated with the student's (LDB)/(PDB) marker.
+        string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
+        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, _dataBlockPaint, FlashNoLandingClearance, marker).Rect;
+        var offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManualOffset, manualOffset, rectAtOrigin);
+        float blockX = cx + offset.X;
+        float blockY = cy + offset.Y;
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX, blockY, _dataBlockPaint, FlashNoLandingClearance, marker);
 
         if (isSelected)
         {
@@ -442,6 +482,42 @@ public sealed class TargetRenderer : IDisposable
         }
 
         return layout.Rect;
+    }
+
+    private SKRect DrawReducedBlock(
+        SKCanvas canvas,
+        float cx,
+        float cy,
+        AircraftModel ac,
+        SKColor color,
+        IReadOnlyList<string> lines,
+        bool isSelected,
+        bool hasManualOffset,
+        SKPoint manualOffset
+    )
+    {
+        var rectAtOrigin = RadarDatablockLayout.ReducedRect(lines, _dataBlockPaint, 0, 0);
+        var offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManualOffset, manualOffset, rectAtOrigin);
+        float blockX = cx + offset.X;
+        float blockY = cy + offset.Y;
+        var rect = RadarDatablockLayout.ReducedRect(lines, _dataBlockPaint, blockX, blockY);
+
+        if (isSelected)
+        {
+            canvas.DrawRect(rect, _selectedBorderPaint);
+        }
+
+        var leaderEnd = ClampToBlockEdge(cx, cy, rect);
+        _leaderPaint.Color = color;
+        canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
+
+        float lineH = _dataBlockPaint.TextSize + 2;
+        for (int i = 0; i < lines.Count; i++)
+        {
+            canvas.DrawText(lines[i], blockX, blockY + (i * lineH), _dataBlockPaint);
+        }
+
+        return rect;
     }
 
     private void DrawStrikethrough(SKCanvas canvas, float textX, float textBaseline, string text, SKPaint textPaint, SKColor color)

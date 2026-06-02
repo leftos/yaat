@@ -163,6 +163,26 @@ hit-rect width don't pulse with the flash (`RadarDatablockLayout.cs:73-90`; `Eur
 indicator does **not** reserve when off — the STARS hit-test path compensates by always sizing line 3 as if the handoff
 were present (`RadarCanvas.cs:1333-1334`, `BuildOwnerScratchpadLine` always includes the handoff for width).
 
+## Student-scope datablock view
+
+When the scenario has a student position, the server projects how that student's STARS scope shows each track —
+computed by `StarsDatablockClassifier` (Yaat.Sim) and carried on `AircraftStateDto.StudentDatablockColor` /
+`StudentDatablockLevel` / `StudentLeaderDirection`, surfaced on `AircraftModel`. `TargetRenderer` consumes these, gated
+by four `UserPreferences` toggles synced via `RadarView.SyncAssignmentTint`:
+
+- **`SyncStudentColors`** (default on) — `DrawOneAircraft` colors the datablock from `StudentDatablockColor`
+  (Owned→white, Unowned→green, Pointout→yellow, Highlighted→cyan) as the base color, below an RPO assignment tint but above
+  the ground/white defaults (`TargetRenderer.cs:283-304`).
+- **`MarkStudentLimitedDatablocks`** (default on) — appends `(LDB)`/`(PDB)` to the callsign line for the student's
+  Limited/Partial levels.
+- **`CollapseStudentDatablocks`** (default off) — renders the reduced block the student sees (`BuildCollapsedLines`) instead
+  of the full block + marker.
+- **`SyncStudentLeaderDirection`** (default off) — places the block in the student's leader direction via
+  `ResolveBlockOffset`/`LeaderDirectionOffset`; a manual drag offset always wins, and the data block's right-click
+  **Display > Reset to student position** clears the manual offset (`RadarCanvas.ResetDataBlockOffset`).
+
+The projection is null when there is no student position, so the renderer falls back to its prior behavior.
+
 ## Geometry computed twice — draw vs hit-test
 
 There is **no single source of truth** for the full-datablock rectangle. The geometry is computed independently on two
@@ -170,13 +190,21 @@ paths that must agree:
 
 - **Draw path** — `TargetRenderer.DrawLeaderAndDataBlock` calls `RadarDatablockLayout.Compute` (STARS) or
   `EuroScopeTagLayout.Layout` (EuroScope) and paints from the result (`TargetRenderer.cs:356-506`).
-- **Hit-test path** — `RadarCanvas.ComputeDataBlockRect` (`RadarCanvas.cs:1285-1365`) **re-derives** the line strings,
-  measures them with its own `_hitTestPaint` (`RadarCanvas.cs:124`), and rebuilds the rect by hand.
+- **Hit-test path** — `RadarCanvas.ComputeDataBlockPlacement` (`ComputeDataBlockRect` is a thin `.Rect` wrapper)
+  **re-derives** the line strings, measures them with its own `_hitTestPaint` (`RadarCanvas.cs:124`), and rebuilds the rect
+  by hand. It returns `(Offset, Rect)`: the rect feeds hit-testing, and the offset feeds drag-start so a leader-placed block
+  whose position hasn't been dragged doesn't jump on the first drag.
 
-If you add a datablock line in the layout struct without mirroring `ComputeDataBlockRect`, clicks land on the wrong rect or
-miss the new line entirely. There are pure-function tests on `RadarDatablockLayout.Compute` and `EuroScopeTagLayout.Layout`
-(`tests/Yaat.Client.Tests/Views/RadarDatablockLayoutTests.cs`, `EuroScopeTagLayoutTests.cs`), but **no test asserts parity
-between the draw layout and `ComputeDataBlockRect`** — the duplication is unguarded.
+If you add a datablock line in the layout struct without mirroring `ComputeDataBlockPlacement`, clicks land on the wrong
+rect or miss the new line entirely. There are pure-function tests on `RadarDatablockLayout.Compute` and
+`EuroScopeTagLayout.Layout` (`tests/Yaat.Client.Tests/Views/RadarDatablockLayoutTests.cs`, `EuroScopeTagLayoutTests.cs`), but
+**no test asserts parity between the draw layout and `ComputeDataBlockPlacement`** — the duplication is unguarded.
+
+**The student-scope additions ARE shared, deliberately.** Block placement (`ResolveBlockOffset`), the minified/collapsed
+line strings (`BuildMinifiedLine`/`BuildCollapsedLines`), the `(LDB)`/`(PDB)` marker (`StudentLevelMarker`), and the reduced
+rect (`ReducedRect`) are pure static helpers on `RadarDatablockLayout` that **both** the draw path and
+`ComputeDataBlockPlacement` call — so leader-direction offset, the marker width, and the collapsed-block geometry stay in
+sync across draw and hit-test without re-derivation. Only the full STARS block's line strings remain hand-mirrored.
 
 **EuroScope mode avoids the re-derivation.** When EuroScope mode is on (and the block isn't minified),
 `ComputeDataBlockRect` returns the `Bounds` the renderer cached during the last frame

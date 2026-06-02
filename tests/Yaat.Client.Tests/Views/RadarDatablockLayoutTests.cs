@@ -2,6 +2,7 @@ using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Radar;
+using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views;
 
@@ -37,7 +38,7 @@ public class RadarDatablockLayoutTests
         ac.TransponderMode = "C";
         using var paint = CreatePaint();
 
-        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false);
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
 
         Assert.Equal("", layout.Line4);
     }
@@ -49,7 +50,7 @@ public class RadarDatablockLayoutTests
         ac.TransponderMode = "Standby";
         using var paint = CreatePaint();
 
-        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false);
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
 
         Assert.Equal("ModeC", layout.Line4);
     }
@@ -61,10 +62,10 @@ public class RadarDatablockLayoutTests
         using var paint = CreatePaint();
 
         ac.TransponderMode = "C";
-        var charlie = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false);
+        var charlie = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
 
         ac.TransponderMode = "Standby";
-        var standby = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false);
+        var standby = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
 
         float delta = standby.Rect.Bottom - charlie.Rect.Bottom;
         Assert.Equal(charlie.LineHeight, delta, precision: 3);
@@ -78,10 +79,10 @@ public class RadarDatablockLayoutTests
         using var paint = CreatePaint();
 
         ac.TransponderMode = "C";
-        var withLine3Only = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false);
+        var withLine3Only = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
 
         ac.TransponderMode = "Standby";
-        var withBoth = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false);
+        var withBoth = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
 
         Assert.NotEqual("", withLine3Only.Line3);
         Assert.Equal("", withLine3Only.Line4);
@@ -106,7 +107,7 @@ public class RadarDatablockLayoutTests
         ac.CwtCode = "L";
         using var paint = CreatePaint();
 
-        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false);
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
 
         Assert.Contains("C182", layout.Line2);
     }
@@ -120,7 +121,7 @@ public class RadarDatablockLayoutTests
         ac.CwtCode = "L";
         using var paint = CreatePaint();
 
-        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false);
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
 
         Assert.Contains("PA28", layout.Line2);
         Assert.DoesNotContain("C182", layout.Line2);
@@ -133,7 +134,7 @@ public class RadarDatablockLayoutTests
         ac.NoLandingClearanceWarningActive = false;
         using var paint = CreatePaint();
 
-        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true);
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true, callsignMarker: "");
 
         Assert.Equal("", layout.Line5);
     }
@@ -145,7 +146,7 @@ public class RadarDatablockLayoutTests
         ac.NoLandingClearanceWarningActive = true;
         using var paint = CreatePaint();
 
-        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false);
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
 
         Assert.Equal("", layout.Line5);
     }
@@ -162,7 +163,7 @@ public class RadarDatablockLayoutTests
         // catch the on-phase too.
         for (int i = 0; i < 5; i++)
         {
-            var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true);
+            var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true, callsignMarker: "");
             Assert.Equal("", layout.Line5);
             // Sleep ~120 ms so the next iteration likely lands in the opposite half of the
             // 500 ms flash cycle — confirms the gate suppresses both halves.
@@ -183,7 +184,7 @@ public class RadarDatablockLayoutTests
         // ~120 ms intervals over ~1.4 s is enough to hit both halves at least once.
         for (int i = 0; i < 12 && (!seenOn || !seenOff); i++)
         {
-            var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true);
+            var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true, callsignMarker: "");
             if (layout.Line5 == "NoLndgClnc")
             {
                 seenOn = true;
@@ -206,13 +207,13 @@ public class RadarDatablockLayoutTests
         using var paint = CreatePaint();
 
         ac.NoLandingClearanceWarningActive = false;
-        var baseline = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true);
+        var baseline = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true, callsignMarker: "");
 
         ac.NoLandingClearanceWarningActive = true;
         var warningHeights = new HashSet<float>();
         for (int i = 0; i < 10; i++)
         {
-            var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true);
+            var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: true, callsignMarker: "");
             warningHeights.Add(layout.Rect.Height);
             Thread.Sleep(120);
         }
@@ -222,5 +223,59 @@ public class RadarDatablockLayoutTests
         Assert.Single(warningHeights);
         float delta = warningHeights.First() - baseline.Rect.Height;
         Assert.Equal(baseline.LineHeight, delta, precision: 3);
+    }
+
+    // --- Student-scope collapsed datablock content (mirrors CRC BuildLdb/BuildPdb) ---
+
+    [Fact]
+    public void CollapsedLdb_ShowsBeaconThenAltitude()
+    {
+        var ac = CreateModel();
+        ac.StudentDatablockLevel = StarsDatablockLevel.Limited;
+        ac.BeaconCode = 1200;
+        ac.Altitude = 3500;
+
+        var lines = RadarDatablockLayout.BuildCollapsedLines(ac);
+
+        // LDB default = beacon code + altitude; ground speed is hidden unless queried.
+        Assert.Equal(["1200 035"], lines);
+    }
+
+    [Fact]
+    public void CollapsedPdb_ShowsAltitudeHandoffGroundSpeed()
+    {
+        var ac = CreateModel();
+        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
+        ac.Altitude = 3500;
+        ac.GroundSpeed = 120;
+        ac.HandoffPeerSectorCode = "2S";
+
+        var lines = RadarDatablockLayout.BuildCollapsedLines(ac);
+
+        // PDB mirrors the FDB altitude line: altitude, receiving sector during handoff, ground-speed tens.
+        Assert.Equal(["035 2S 12"], lines);
+    }
+
+    [Fact]
+    public void CollapsedPdb_OmitsHandoffAndAddsScratchpadLine()
+    {
+        var ac = CreateModel();
+        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
+        ac.Altitude = 3500;
+        ac.GroundSpeed = 120;
+        ac.Scratchpad1 = "CCR";
+
+        var lines = RadarDatablockLayout.BuildCollapsedLines(ac);
+
+        Assert.Equal(["035 12", "CCR"], lines);
+    }
+
+    [Fact]
+    public void StudentLevelMarker_MapsEachLevel()
+    {
+        Assert.Equal(" (LDB)", RadarDatablockLayout.StudentLevelMarker(StarsDatablockLevel.Limited));
+        Assert.Equal(" (PDB)", RadarDatablockLayout.StudentLevelMarker(StarsDatablockLevel.Partial));
+        Assert.Equal("", RadarDatablockLayout.StudentLevelMarker(StarsDatablockLevel.Full));
+        Assert.Equal("", RadarDatablockLayout.StudentLevelMarker(null));
     }
 }

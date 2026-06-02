@@ -254,6 +254,30 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.ShowSpeechBubbles = value;
     }
 
+    public bool SyncStudentColors
+    {
+        get => _targetRenderer.SyncStudentColors;
+        set => _targetRenderer.SyncStudentColors = value;
+    }
+
+    public bool MarkStudentLimitedDatablocks
+    {
+        get => _targetRenderer.MarkStudentLimitedDatablocks;
+        set => _targetRenderer.MarkStudentLimitedDatablocks = value;
+    }
+
+    public bool CollapseStudentDatablocks
+    {
+        get => _targetRenderer.CollapseStudentDatablocks;
+        set => _targetRenderer.CollapseStudentDatablocks = value;
+    }
+
+    public bool SyncStudentLeaderDirection
+    {
+        get => _targetRenderer.SyncStudentLeaderDirection;
+        set => _targetRenderer.SyncStudentLeaderDirection = value;
+    }
+
     public float DatablockTextSize
     {
         get => _targetRenderer.DatablockTextSize;

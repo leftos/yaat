@@ -303,6 +303,42 @@
                                        Margin="28,0,0,0" />
                         </StackPanel>
                         <Separator Margin="0,4" />
+                        <TextBlock Text="Student Scope Sync"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <CheckBox Content="Sync datablock colors to the student's STARS scope"
+                                      IsChecked="{Binding SyncStudentDatablockColors}" />
+                            <TextBlock Text="Colors each datablock the way the student sees it in STARS: white = owned by the student, green = owned by another controller, yellow = pointed out to the student, cyan = highlighted by the student. Default on."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       Margin="28,0,0,0" />
+                            <CheckBox Content="Mark limited datablocks with (LDB) / (PDB)"
+                                      IsChecked="{Binding MarkStudentLimitedDatablocks}"
+                                      Margin="0,4,0,0" />
+                            <TextBlock Text="Appends (LDB) when the student sees only a limited (unassociated) datablock, and (PDB) when they see a partial datablock owned by another controller, while you keep the full datablock. Default on."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       Margin="28,0,0,0" />
+                            <CheckBox Content="Collapse datablocks to match the student's LDB/PDB/FDB"
+                                      IsChecked="{Binding CollapseStudentDatablocks}"
+                                      Margin="0,4,0,0" />
+                            <TextBlock Text="Instead of the (LDB)/(PDB) marker, render the reduced datablock the student actually sees — a limited block for unassociated tracks and a partial block for tracks owned by another controller. Default off."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       Margin="28,0,0,0" />
+                            <CheckBox Content="Sync leader-line direction to the student's scope"
+                                      IsChecked="{Binding SyncStudentLeaderDirection}"
+                                      Margin="0,4,0,0" />
+                            <TextBlock Text="Orients each datablock's leader line in the direction the student set in STARS. Datablocks you have dragged keep their position; use the radar right-click menu's 'Reset to student position' to snap one back. Default off."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       Margin="28,0,0,0" />
+                        </StackPanel>
+                        <Separator Margin="0,4" />
                         <TextBlock Text="Ground Display"
                                    FontWeight="SemiBold" />
                         <StackPanel Spacing="4">

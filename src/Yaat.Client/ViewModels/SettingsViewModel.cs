@@ -166,6 +166,18 @@ public partial class SettingsViewModel : ObservableObject
     private bool _alwaysShowGroundBubblesOnRadar;
 
     [ObservableProperty]
+    private bool _syncStudentDatablockColors;
+
+    [ObservableProperty]
+    private bool _markStudentLimitedDatablocks;
+
+    [ObservableProperty]
+    private bool _collapseStudentDatablocks;
+
+    [ObservableProperty]
+    private bool _syncStudentLeaderDirection;
+
+    [ObservableProperty]
     private bool _autoClearedToLandGnd;
 
     [ObservableProperty]
@@ -558,6 +570,10 @@ public partial class SettingsViewModel : ObservableObject
         _speechBubbleDurationMultiplier = _preferences.SpeechBubbleDurationMultiplier;
         _showWarningSpeechBubbles = _preferences.ShowWarningSpeechBubbles;
         _alwaysShowGroundBubblesOnRadar = _preferences.AlwaysShowGroundBubblesOnRadar;
+        _syncStudentDatablockColors = _preferences.SyncStudentDatablockColors;
+        _markStudentLimitedDatablocks = _preferences.MarkStudentLimitedDatablocks;
+        _collapseStudentDatablocks = _preferences.CollapseStudentDatablocks;
+        _syncStudentLeaderDirection = _preferences.SyncStudentLeaderDirection;
         _autoClearedToLandGnd = _preferences.AutoClearedToLandGnd;
         _autoClearedToLandTwr = _preferences.AutoClearedToLandTwr;
         _autoClearedToLandApp = _preferences.AutoClearedToLandApp;
@@ -683,6 +699,10 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSpeechBubbleDurationMultiplier(SpeechBubbleDurationMultiplier);
         _preferences.SetShowWarningSpeechBubbles(ShowWarningSpeechBubbles);
         _preferences.SetAlwaysShowGroundBubblesOnRadar(AlwaysShowGroundBubblesOnRadar);
+        _preferences.SetSyncStudentDatablockColors(SyncStudentDatablockColors);
+        _preferences.SetMarkStudentLimitedDatablocks(MarkStudentLimitedDatablocks);
+        _preferences.SetCollapseStudentDatablocks(CollapseStudentDatablocks);
+        _preferences.SetSyncStudentLeaderDirection(SyncStudentLeaderDirection);
         _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
@@ -1461,6 +1481,14 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnShowWarningSpeechBubblesChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnAlwaysShowGroundBubblesOnRadarChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnSyncStudentDatablockColorsChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnMarkStudentLimitedDatablocksChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnCollapseStudentDatablocksChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnSyncStudentLeaderDirectionChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     // ---------- CUDA backend install ----------
 
