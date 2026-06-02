@@ -10,6 +10,12 @@
         <Style Selector="TextBlock.dimmed">
             <Setter Property="Foreground" Value="#6E7479" />
         </Style>
+        <!-- Selectable controller rows span the full width. -->
+        <Style Selector="ListBox.controllers ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="16,1,8,1" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
     </UserControl.Styles>
 
     <DockPanel>
@@ -41,37 +47,45 @@
             <ItemsControl ItemsSource="{Binding ControllerGroups}" Margin="0,2,0,6">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ControllerGroupVm">
-                        <StackPanel Margin="0,6,0,0">
-                            <TextBlock Text="{Binding Header}"
-                                       FontWeight="Bold"
-                                       FontSize="13"
-                                       Foreground="#E0A33A"
-                                       Margin="8,0,8,2" />
-                            <ItemsControl ItemsSource="{Binding Controllers}">
-                                <ItemsControl.ItemTemplate>
+                        <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                  Background="Transparent"
+                                  BorderThickness="0"
+                                  Padding="0"
+                                  Margin="2,2,2,0">
+                            <Expander.Header>
+                                <TextBlock Text="{Binding Header}"
+                                           FontWeight="Bold"
+                                           FontSize="13"
+                                           Foreground="#2DD4BF" />
+                            </Expander.Header>
+                            <ListBox Classes="controllers"
+                                     ItemsSource="{Binding Controllers}"
+                                     Background="Transparent"
+                                     SelectionMode="Single"
+                                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="svc:OnlineControllerDto">
-                                        <Grid ColumnDefinitions="48,*,Auto"
-                                              Margin="16,1,8,1"
-                                              ToolTip.Tip="{Binding Tooltip}">
+                                        <Grid ColumnDefinitions="48,*,Auto" ToolTip.Tip="{Binding Tooltip}">
                                             <TextBlock Grid.Column="0"
                                                        Text="{Binding HandoffId}"
-                                                       Foreground="#4FC3F7"
+                                                       Foreground="White"
                                                        Classes.dimmed="{Binding !IsActive}" />
                                             <TextBlock Grid.Column="1"
                                                        Text="{Binding DisplayName}"
                                                        TextTrimming="CharacterEllipsis"
-                                                       Foreground="#4FC3F7"
+                                                       Foreground="White"
                                                        Classes.dimmed="{Binding !IsActive}" />
                                             <TextBlock Grid.Column="2"
                                                        Text="{Binding Frequency}"
                                                        Margin="12,0,0,0"
-                                                       Foreground="#9AA0A6"
+                                                       Foreground="White"
                                                        Classes.dimmed="{Binding !IsActive}" />
                                         </Grid>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Expander>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
