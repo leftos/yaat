@@ -51,4 +51,14 @@ public record FlightStripsStateDto(
 
 public record StripBayConfigDto(string Id, string Name, int NumberOfRacks, bool IsExternal = false);
 
-public record FlightStripsConfigDto(string FacilityId, string FacilityName, StripBayConfigDto[] Bays, bool HasTwoPrinters, bool SeparatorsLocked);
+public record FlightStripsConfigDto(
+    string FacilityId,
+    string FacilityName,
+    StripBayConfigDto[] Bays,
+    bool HasTwoPrinters,
+    bool SeparatorsLocked,
+    // Airports this facility controls — the airport for a tower, all underlying
+    // airports for a TRACON. Scopes the current-METAR display to the facility
+    // currently being viewed. Empty when the facility has no resolvable airports.
+    string[] UnderlyingAirports
+);

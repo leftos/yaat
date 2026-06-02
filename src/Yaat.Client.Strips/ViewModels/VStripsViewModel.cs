@@ -81,6 +81,32 @@ public partial class VStripsViewModel : ObservableObject
     [ObservableProperty]
     private string? _facilityName;
 
+    // ── Current METAR (scoped to the displayed facility's airports) ──
+
+    private IReadOnlyList<string> _latestMetars = [];
+    private string[] _facilityAirports = [];
+
+    /// <summary>
+    /// Raw METARs for the airports of the facility currently displayed in this
+    /// window, ordered to match the facility's airport list (primary first).
+    /// Bound by the collapsible METAR bar in the header.
+    /// </summary>
+    public ObservableCollection<StripMetarEntry> Metars { get; } = [];
+
+    /// <summary>The first/primary airport's METAR — shown on the collapsed bar.</summary>
+    public StripMetarEntry? PrimaryMetar => Metars.Count > 0 ? Metars[0] : null;
+
+    /// <summary>True when at least one in-scope METAR is available; hides the bar otherwise.</summary>
+    [ObservableProperty]
+    private bool _hasMetars;
+
+    /// <summary>True when the METAR bar is expanded to list every in-scope airport.</summary>
+    [ObservableProperty]
+    private bool _isMetarExpanded;
+
+    [RelayCommand]
+    private void ToggleMetarExpanded() => IsMetarExpanded = !IsMetarExpanded;
+
     [ObservableProperty]
     private bool _separatorsLocked;
 
@@ -127,6 +153,7 @@ public partial class VStripsViewModel : ObservableObject
 
         _transport.FlightStripsStateChanged += OnFlightStripsStateChanged;
         _transport.StripItemsChanged += OnStripItemsChanged;
+        _transport.MetarsChanged += OnMetarsChanged;
         if (_autoBootstrapFromScenarioLoaded)
         {
             _transport.StripsConfigChanged += OnStripsConfigChanged;
@@ -164,6 +191,8 @@ public partial class VStripsViewModel : ObservableObject
         Printer.Queue.Clear();
         _lastReceivedFullState = null;
         _lastReceivedItems = null;
+        _latestMetars = [];
+        RebuildMetars();
     }
 
     /// <summary>
@@ -219,6 +248,8 @@ public partial class VStripsViewModel : ObservableObject
                 FacilityId = null;
                 FacilityName = null;
                 SeparatorsLocked = false;
+                _facilityAirports = [];
+                RebuildMetars();
                 _items.Clear();
                 Printer.Queue.Clear();
                 return;
@@ -228,6 +259,10 @@ public partial class VStripsViewModel : ObservableObject
             FacilityName = config.FacilityName;
             SeparatorsLocked = config.SeparatorsLocked;
             Printer.HasTwoPrinters = config.HasTwoPrinters;
+
+            // Follow the displayed facility: re-scope the METAR bar to its airports.
+            _facilityAirports = config.UnderlyingAirports ?? [];
+            RebuildMetars();
 
             foreach (var bayDto in config.Bays)
             {
@@ -287,6 +322,74 @@ public partial class VStripsViewModel : ObservableObject
     {
         _lastReceivedItems = items;
         Dispatcher.UIThread.Post(() => ReconcileItems(items));
+    }
+
+    private void OnMetarsChanged(IReadOnlyList<string> metars) => Dispatcher.UIThread.Post(() => ApplyMetars(metars));
+
+    /// <summary>
+    /// Replaces the cached room METARs and rebuilds the in-scope
+    /// <see cref="Metars"/>. Synchronous public seam (mirrors
+    /// <see cref="ReconcileItems"/>) — <see cref="OnMetarsChanged"/> marshals to
+    /// the UI thread, tests call it directly.
+    /// </summary>
+    public void ApplyMetars(IReadOnlyList<string> metars)
+    {
+        _latestMetars = metars;
+        RebuildMetars();
+    }
+
+    /// <summary>
+    /// Rebuilds <see cref="Metars"/> from the latest broadcast, scoped to the
+    /// displayed facility's airports. Parses each raw METAR once, de-dupes by
+    /// station, and orders the result by the facility's airport list so the
+    /// primary airport leads the collapsed bar. When the facility has no
+    /// resolvable airports, shows every loaded METAR rather than a blank bar.
+    /// Must run on the UI thread.
+    /// </summary>
+    private void RebuildMetars()
+    {
+        Metars.Clear();
+
+        var byStation = new Dictionary<string, StripMetarEntry>(StringComparer.OrdinalIgnoreCase);
+        var ordered = new List<StripMetarEntry>();
+        foreach (var raw in _latestMetars)
+        {
+            var parsed = MetarParser.Parse(raw);
+            if (parsed is null)
+            {
+                continue;
+            }
+            var entry = new StripMetarEntry(parsed.StationId, raw.Trim());
+            if (byStation.TryAdd(parsed.StationId, entry))
+            {
+                ordered.Add(entry);
+            }
+        }
+
+        if (_facilityAirports.Length == 0)
+        {
+            foreach (var entry in ordered)
+            {
+                Metars.Add(entry);
+            }
+        }
+        else
+        {
+            foreach (var airport in _facilityAirports)
+            {
+                if (byStation.TryGetValue(MetarParser.ToIcao(airport), out var entry))
+                {
+                    Metars.Add(entry);
+                }
+            }
+        }
+
+        HasMetars = Metars.Count > 0;
+        if (!HasMetars)
+        {
+            IsMetarExpanded = false;
+        }
+        OnPropertyChanged(nameof(PrimaryMetar));
     }
 
     // ── Reconciliation ───────────────────────────────────────────

@@ -428,7 +428,7 @@ When weather is loaded, wind and altimeter are displayed in the top-left corner 
 
 The **Strips** tab is a YAAT-side reimplementation of CRC's vStrips. It renders the same flight-strip bays, racks, drag/drop, and keyboard shortcuts a real vStrips client would, so an instructor can push, annotate, and manage strips without students needing CRC's vStrips open.
 
-Strip state is owned by the server and broadcast to every client in the room — including any real CRC + vStrips clients connected to the same room. Mutations from CRC and the embedded tab all converge on the same authoritative state. The same view is also available in any browser at `/vstrips/` on the server (no install required), backed by the WASM [`Yaat.VStrips.Web`](tools/Yaat.VStrips.Web/) bundle.
+Strip state is owned by the server and broadcast to every client in the room — including any real CRC + vStrips clients connected to the same room. Mutations from CRC and the embedded tab all converge on the same authoritative state. The same view is also available in any browser at `/vstrips/` on the server (no install required), backed by the WASM [`Yaat.VStrips.Web`](tools/Yaat.VStrips.Web/) bundle. The browser strips (and TDLS) apps support the usual page-refresh shortcuts — **F5** and **Ctrl+R** (**Cmd+R** on macOS) — to reconnect after a hiccup.
 
 #### Opening the tab
 
@@ -447,6 +447,12 @@ Across the top of every strip view:
 - **Zoom controls** (− / % / +) — scales the racks area without affecting the header. Range 50%–150% in 10% steps; default 80% fits two racks comfortably on a 1080p screen.
 - **Trash zone** — drop a strip on the red bin to delete it.
 - **Printer** toggle — opens the printer modal (see below). Bound to **Tab** as well.
+
+#### Current METAR
+
+When weather is loaded, a thin **METAR bar** sits above the header showing the current training METAR — so students working the browser strips view see the same weather as instructors and RPOs, not just the controllers with a radar/METAR window. It is scoped to the **facility currently shown**: the airport for a tower, or all of the TRACON's airports. Switching the facility button re-scopes the bar.
+
+The bar shows the primary airport's raw METAR on one line; click the **▸** chevron to expand it to every in-scope airport, **▾** to collapse. The text is selectable so you can copy it. The bar hides itself when no weather is loaded.
 
 #### Bays and racks
 

@@ -39,7 +39,8 @@ public class VStripsViewModelTests
             FacilityName: "Fresno ATCT",
             Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
             HasTwoPrinters: false,
-            SeparatorsLocked: false
+            SeparatorsLocked: false,
+            UnderlyingAirports: []
         );
 
     private static StripItemDto FullStrip(string id, string callsign) =>
@@ -83,6 +84,14 @@ public class VStripsViewModelTests
         vm.FacilityId = config.FacilityId;
         vm.FacilityName = config.FacilityName;
         vm.SeparatorsLocked = config.SeparatorsLocked;
+
+        // Mirror ApplyBayConfig's facility-airport capture so the METAR filter
+        // (RebuildMetars) has the same scope it would in production.
+        var airportsField = typeof(VStripsViewModel).GetField(
+            "_facilityAirports",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+        )!;
+        airportsField.SetValue(vm, config.UnderlyingAirports);
     }
 
     // ── ReconcileItems ───────────────────────────────────────────
@@ -507,7 +516,8 @@ public class VStripsViewModelTests
                 new StripBayConfigDto("bay-nct", "NCT", 3, IsExternal: true),
             ],
             HasTwoPrinters: false,
-            SeparatorsLocked: false
+            SeparatorsLocked: false,
+            UnderlyingAirports: []
         );
 
     [Fact]
@@ -576,7 +586,8 @@ public class VStripsViewModelTests
                 FacilityName: "None",
                 Bays: [new StripBayConfigDto("bay-ext", "EXT", 1, IsExternal: true)],
                 HasTwoPrinters: false,
-                SeparatorsLocked: false
+                SeparatorsLocked: false,
+                UnderlyingAirports: []
             )
         );
 
@@ -641,5 +652,89 @@ public class VStripsViewModelTests
         ]);
 
         Assert.Equal(2, vm.ItemsByIdForTests.Count);
+    }
+
+    // ── Current-METAR bar (facility-scoped) ──────────────────────
+
+    private const string MetarSfo = "KSFO 281953Z 28012KT 10SM FEW015 18/12 A2992";
+    private const string MetarOak = "KOAK 281953Z 29010KT 10SM CLR 19/11 A2992";
+    private const string MetarSjc = "KSJC 281953Z 30008KT 10SM CLR 22/10 A2991";
+
+    private static FlightStripsConfigDto ConfigWithAirports(string facilityName, params string[] airports) =>
+        new(
+            FacilityId: "FAC1",
+            FacilityName: facilityName,
+            Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2)],
+            HasTwoPrinters: false,
+            SeparatorsLocked: false,
+            UnderlyingAirports: airports
+        );
+
+    [Fact]
+    public void ApplyMetars_FiltersToFacilityAirports_AndMatchesFaaToIcao()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, ConfigWithAirports("NCT", "SFO", "OAK")); // FAA ids → KSFO/KOAK
+
+        vm.ApplyMetars([MetarSfo, MetarOak, MetarSjc]);
+
+        Assert.True(vm.HasMetars);
+        Assert.Equal(["KSFO", "KOAK"], vm.Metars.Select(m => m.StationId));
+        Assert.DoesNotContain(vm.Metars, m => m.StationId == "KSJC");
+    }
+
+    [Fact]
+    public void ApplyMetars_OrdersByFacilityAirportList_PrimaryFirst()
+    {
+        var (vm, _) = MakeVm();
+        // OAK listed first → it leads the bar even though SFO arrives first.
+        SeedBays(vm, ConfigWithAirports("NCT", "OAK", "SFO"));
+
+        vm.ApplyMetars([MetarSfo, MetarOak]);
+
+        Assert.Equal("KOAK", vm.PrimaryMetar?.StationId);
+        Assert.Equal(["KOAK", "KSFO"], vm.Metars.Select(m => m.StationId));
+    }
+
+    [Fact]
+    public void ApplyMetars_EmptyFacilityAirports_ShowsAllAsFallback()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, ConfigWithAirports("NoStars")); // no airports resolved
+
+        vm.ApplyMetars([MetarSfo, MetarSjc]);
+
+        Assert.Equal(["KSFO", "KSJC"], vm.Metars.Select(m => m.StationId));
+    }
+
+    [Fact]
+    public void ApplyMetars_RefiltersWhenFacilitySwitches()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, ConfigWithAirports("NCT", "SFO", "OAK"));
+        vm.ApplyMetars([MetarSfo, MetarOak, MetarSjc]);
+        Assert.Equal(["KSFO", "KOAK"], vm.Metars.Select(m => m.StationId));
+
+        // Switch the window to a facility that only owns SJC; the same loaded
+        // weather now shows only that airport's METAR.
+        SeedBays(vm, ConfigWithAirports("RCT", "SJC"));
+        vm.ApplyMetars([MetarSfo, MetarOak, MetarSjc]);
+
+        Assert.Equal(["KSJC"], vm.Metars.Select(m => m.StationId));
+    }
+
+    [Fact]
+    public void ApplyMetars_ClearedWeather_EmptiesBar()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, ConfigWithAirports("NCT", "SFO"));
+        vm.ApplyMetars([MetarSfo]);
+        Assert.True(vm.HasMetars);
+
+        vm.ApplyMetars([]);
+
+        Assert.False(vm.HasMetars);
+        Assert.Empty(vm.Metars);
+        Assert.Null(vm.PrimaryMetar);
     }
 }

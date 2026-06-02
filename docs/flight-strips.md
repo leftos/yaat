@@ -561,3 +561,33 @@ The same view is also served as a browser app at `/vstrips/` from
 the yaat-server via the `tools/Yaat.VStrips.Web` WASM bundle, which
 references only `Yaat.Client.Strips` and talks to the server through
 its own SignalR `HubConnection`.
+
+## Current-METAR bar
+
+A collapsible METAR bar at the top of the strip view surfaces the active
+training METAR to the strips audience (students on the browser app),
+not just instructors/RPOs with a radar/METAR window.
+
+- **Data path.** The room-wide `WeatherChanged` broadcast already carries
+  the raw METAR strings. `IStripsTransport.MetarsChanged` exposes just
+  that list to the strip view: `BrowserStripsTransport` subscribes to the
+  `WeatherChanged` hub event (narrow `StripsWeatherDto` projection,
+  registered in `YaatStripsHubJsonContext`); the desktop `ServerConnection`
+  re-emits it from its existing `WeatherChanged` handler. `MetarsChanged`
+  is named distinctly so it doesn't clash with `ServerConnection`'s richer
+  `WeatherChanged` event.
+- **Facility scope.** `FlightStripsConfigDto.UnderlyingAirports` carries the
+  displayed facility's airports — resolved server-side by
+  `ArtccConfigService.ResolveFacilityAirports` (a TRACON's
+  `StarsConfiguration.InternalAirports`, or the union of its STARS areas'
+  `UnderlyingAirports`), with the scenario's `PrimaryAirportId` folded in for
+  a tower facility with no STARS. `VStripsViewModel.RebuildMetars` filters the
+  room METARs to those airports (FAA↔ICAO matched via `MetarParser.ToIcao`),
+  ordered with the primary airport first. Because the airport list rides on
+  the per-facility config, the bar follows the facility switcher. With no
+  resolvable airports it falls back to showing every loaded METAR.
+- **Join seed.** `RoomStateDto` doesn't carry METARs, so
+  `TrainingHub.JoinRoom` calls `ITrainingBroadcast.SendInitialWeatherToClientAsync`
+  (targeted at the joining connection, mirroring the strip/TDLS initial-state
+  seed) so a client joining mid-scenario sees the METAR immediately. This
+  benefits every client kind, not just the strips webapp.

@@ -67,6 +67,14 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     /// </summary>
     public event Action<FlightStripsConfigDto?>? StripsConfigChanged;
 
+    /// <summary>
+    /// Strip-side projection of <see cref="WeatherChanged"/> — just the raw
+    /// METAR strings, so the WASM-clean Strips assembly's
+    /// <c>IStripsTransport</c> doesn't take a dep on <see cref="WeatherChangedDto"/>.
+    /// Fired alongside <see cref="WeatherChanged"/> from the same hub handler.
+    /// </summary>
+    public event Action<IReadOnlyList<string>>? MetarsChanged;
+
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
     public async Task ConnectAsync(string serverUrl, CancellationToken ct = default)
@@ -129,7 +137,14 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
         _connection.On<CrcRoomMembersChangedDto>("CrcRoomMembersChanged", dto => CrcRoomMembersChanged?.Invoke(dto));
 
-        _connection.On<WeatherChangedDto>("WeatherChanged", dto => WeatherChanged?.Invoke(dto));
+        _connection.On<WeatherChangedDto>(
+            "WeatherChanged",
+            dto =>
+            {
+                WeatherChanged?.Invoke(dto);
+                MetarsChanged?.Invoke(dto.Metars ?? []);
+            }
+        );
 
         _connection.On<ArrivalGeneratorsChangedDto>("ArrivalGeneratorsChanged", dto => ArrivalGeneratorsChanged?.Invoke(dto));
         _connection.On<HeldDeparturesChangedDto>("HeldDeparturesChanged", dto => HeldDeparturesChanged?.Invoke(dto));

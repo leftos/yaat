@@ -41,6 +41,7 @@ public sealed class BrowserStripsTransport : IStripsTransport, IAsyncDisposable
     public event Action<FlightStripsConfigDto?>? StripsConfigChanged;
     public event Action<FlightStripsStateDto>? FlightStripsStateChanged;
     public event Action<List<StripItemDto>>? StripItemsChanged;
+    public event Action<IReadOnlyList<string>>? MetarsChanged;
 
     /// <summary>
     /// Server tells us a room bound to our CID has become available.
@@ -81,6 +82,7 @@ public sealed class BrowserStripsTransport : IStripsTransport, IAsyncDisposable
 
         _connection.On<FlightStripsStateDto>("FlightStripsStateChanged", dto => FlightStripsStateChanged?.Invoke(dto));
         _connection.On<List<StripItemDto>>("StripItemsChanged", items => StripItemsChanged?.Invoke(items));
+        _connection.On<StripsWeatherDto>("WeatherChanged", dto => MetarsChanged?.Invoke(dto.Metars ?? []));
         _connection.On<BrowserScenarioLoadedDto>("ScenarioLoaded", dto => StripsConfigChanged?.Invoke(dto.FlightStripsConfig));
         _connection.On("ScenarioUnloaded", () => StripsConfigChanged?.Invoke(null));
         _connection.On<string>("RoomRetired", _ => StripsConfigChanged?.Invoke(null));

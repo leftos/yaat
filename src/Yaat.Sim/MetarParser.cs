@@ -107,7 +107,7 @@ public static partial class MetarParser
         return null;
     }
 
-    internal static string ToIcao(string airportId)
+    public static string ToIcao(string airportId)
     {
         // If already 4 chars starting with K, assume ICAO
         if (airportId.Length == 4 && airportId[0] is 'K' or 'k')

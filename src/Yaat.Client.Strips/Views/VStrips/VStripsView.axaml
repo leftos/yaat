@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yaat.Client.ViewModels"
              xmlns:vstrips="using:Yaat.Client.Views.VStrips"
+             xmlns:svc="using:Yaat.Client.Services"
              x:Class="Yaat.Client.Views.VStrips.VStripsView"
              x:DataType="vm:VStripsViewModel"
              x:CompileBindings="True"
@@ -27,7 +28,56 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="36,*">
+    <Grid RowDefinitions="Auto,36,*">
+
+        <!-- Current-METAR bar (row 0). Visible whenever weather is loaded; shows
+             the displayed facility's airport METARs (the airport for a tower, all
+             underlying airports for a TRACON) so students see the training METAR,
+             not just instructors/RPOs. Collapsed shows the primary airport's raw
+             line; the chevron expands to every in-scope airport. -->
+        <Border Grid.Row="0"
+                IsVisible="{Binding HasMetars}"
+                Background="#1E1E22"
+                BorderBrush="#3A3A40"
+                BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="True" Margin="4,2">
+                <Button DockPanel.Dock="Left"
+                        Command="{Binding ToggleMetarExpandedCommand}"
+                        Background="Transparent" BorderThickness="0"
+                        Padding="4,0" Margin="0,0,4,0" MinWidth="20"
+                        ToolTip.Tip="Show/hide all airports">
+                    <Panel>
+                        <TextBlock Text="▾" IsVisible="{Binding IsMetarExpanded}"
+                                   FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#C0C0C0"/>
+                        <TextBlock Text="▸" IsVisible="{Binding !IsMetarExpanded}"
+                                   FontFamily="{StaticResource MonoFont}" FontSize="12" Foreground="#C0C0C0"/>
+                    </Panel>
+                </Button>
+                <TextBlock DockPanel.Dock="Left" Text="METAR"
+                           VerticalAlignment="Center" Margin="0,0,8,0"
+                           FontFamily="{StaticResource MonoFont}" FontSize="11"
+                           FontWeight="Bold" Foreground="#8AB4F8"/>
+                <!-- Collapsed: just the primary airport's raw METAR line. -->
+                <SelectableTextBlock Text="{Binding PrimaryMetar.Raw}"
+                                     IsVisible="{Binding !IsMetarExpanded}"
+                                     VerticalAlignment="Center"
+                                     TextTrimming="CharacterEllipsis"
+                                     FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                     Foreground="#D0D0D0"/>
+                <!-- Expanded: every in-scope airport, one raw line each. -->
+                <ItemsControl IsVisible="{Binding IsMetarExpanded}"
+                              ItemsSource="{Binding Metars}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="svc:StripMetarEntry">
+                            <SelectableTextBlock Text="{Binding Raw}"
+                                                 Margin="0,1"
+                                                 FontFamily="{StaticResource MonoFont}" FontSize="12"
+                                                 Foreground="#D0D0D0"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
+        </Border>
 
         <!-- Drag ghost overlay: absolutely-positioned Canvas that sits above
              every control (bay buttons, racks, printer panel) so the ghost
@@ -37,14 +87,14 @@
              drag finishes. IsHitTestVisible=false keeps hover/drop events
              flowing to the underlying drop targets. -->
         <Canvas x:Name="DragGhostCanvas"
-                Grid.Row="0" Grid.RowSpan="2"
+                Grid.Row="0" Grid.RowSpan="3"
                 ZIndex="1000"
                 IsHitTestVisible="False"/>
 
         <!-- Shared inline editor, instantiated once per VStripsView. Round 3
              annotation/half-strip/separator edits all reuse it via Open(). -->
         <vstrips:InlineTextEditPopup x:Name="InlineEditor"
-                                     Grid.Row="0" Grid.RowSpan="2"/>
+                                     Grid.Row="0" Grid.RowSpan="3"/>
 
         <!-- Disconnected banner: red strip pinned to the top of the workspace
              whenever the SignalR transport is down. While visible, the code-
@@ -54,7 +104,7 @@
              OnConnectionLost only clears strip CONTENTS, not the bay shells —
              so the controller still sees the workspace structure. -->
         <Border x:Name="DisconnectedBanner"
-                Grid.Row="1"
+                Grid.Row="2"
                 VerticalAlignment="Top"
                 HorizontalAlignment="Stretch"
                 Background="#992020"
@@ -74,7 +124,7 @@
         </Border>
 
         <!-- Header: bay buttons + trash + zoom + printer toggle -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="#252529">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="#252529">
 
             <!-- Facility switcher button — matches CRC's leftmost facility
                  indicator (docs/crc/img/header.png: BOS box on the left).
@@ -178,7 +228,7 @@
         <!-- Main area: selected bay's racks. Printer is now a full-area modal
              overlay (see below) rather than a side column, matching
              docs/crc/img/printer.png. -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                 <!-- LayoutTransformControl scales the racks area (including
                      strips, padding, and rack widths) without affecting the

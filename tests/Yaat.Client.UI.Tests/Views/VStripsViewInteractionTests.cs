@@ -491,7 +491,8 @@ public class VStripsViewInteractionTests
                 FacilityName: "Fresno ATCT",
                 Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
                 HasTwoPrinters: false,
-                SeparatorsLocked: true
+                SeparatorsLocked: true,
+                UnderlyingAirports: []
             )
         );
         var (_, _) = BootView(vm);
@@ -603,7 +604,8 @@ public class VStripsViewInteractionTests
             FacilityName: "Fresno ATCT",
             Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
             HasTwoPrinters: false,
-            SeparatorsLocked: false
+            SeparatorsLocked: false,
+            UnderlyingAirports: []
         );
 
     /// <summary>
@@ -623,7 +625,8 @@ public class VStripsViewInteractionTests
                 new StripBayConfigDto("bay-ext", "NCT", 5, IsExternal: true),
             ],
             HasTwoPrinters: false,
-            SeparatorsLocked: false
+            SeparatorsLocked: false,
+            UnderlyingAirports: []
         );
 
     private static StripItemDto FullStrip(string id) =>

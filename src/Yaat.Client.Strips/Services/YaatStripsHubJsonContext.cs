@@ -29,6 +29,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(AccessibleFacilityDto))]
 [JsonSerializable(typeof(List<AccessibleFacilityDto>))]
 [JsonSerializable(typeof(CommandResultDto))]
+[JsonSerializable(typeof(StripsWeatherDto))]
 // Browser-side method/event payload subsets. Server still sends the
 // broader DTOs (RoomStateDto, TrainingRoomInfoDto, ScenarioLoadedDto);
 // we deserialize into these narrower records so the WASM bundle

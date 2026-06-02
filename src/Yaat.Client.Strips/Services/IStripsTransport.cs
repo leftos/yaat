@@ -33,6 +33,15 @@ public interface IStripsTransport
     event Action<FlightStripsStateDto>? FlightStripsStateChanged;
     event Action<List<StripItemDto>>? StripItemsChanged;
 
+    /// <summary>
+    /// Raw METAR strings for the room's current weather. Fires on every weather
+    /// change and once on join (initial seed). Empty list means weather was
+    /// cleared. Named distinctly from the host's own weather event so the
+    /// desktop <c>ServerConnection</c> (which exposes a richer
+    /// <c>WeatherChanged</c>) can implement this without a name clash.
+    /// </summary>
+    event Action<IReadOnlyList<string>>? MetarsChanged;
+
     Task<List<AccessibleFacilityDto>> GetAccessibleFacilitiesAsync();
     Task<FlightStripsConfigDto?> GetFlightStripsConfigForFacilityAsync(string facilityId);
     Task<CommandResultDto> RequestFlightStripForAircraftAsync(string callsign);
