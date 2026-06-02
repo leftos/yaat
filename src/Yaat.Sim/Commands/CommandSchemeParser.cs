@@ -454,6 +454,7 @@ public static class CommandSchemeParser
         CanonicalCommandType.CreateVfrFlightPlan,
         CanonicalCommandType.CreateAbbreviatedFlightPlan,
         CanonicalCommandType.SetRemarks,
+        CanonicalCommandType.Note,
     ];
 
     private static ParsedInput? ParseTextArgCommand(string input, CommandScheme scheme)

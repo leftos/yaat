@@ -25,6 +25,10 @@ public sealed class TargetRenderer : IDisposable
     private static readonly SKColor StarsPointoutColor = SKColors.Yellow;
     private static readonly SKColor StarsHighlightColor = SKColors.Cyan;
 
+    // Instructor-note line color — amber/gold, distinct from white datablock text, red
+    // NoLndgClnc, green ground/SAY, and cyan highlight.
+    private static readonly SKColor NoteColor = new(255, 200, 60);
+
     // Bubble pill colors — subtle teal-tinted background with a SAY-green border so the
     // bubble reads as a pilot-transmission overlay without competing with the datablock.
     private static readonly SKColor SpeechBubbleFillColor = new(20, 60, 50, 220);
@@ -481,6 +485,15 @@ public sealed class TargetRenderer : IDisposable
             _dataBlockPaint.Color = prev;
         }
 
+        // Instructor note: always the bottom line of the block, drawn in amber.
+        if (layout.Line6.Length > 0)
+        {
+            var prev = _dataBlockPaint.Color;
+            _dataBlockPaint.Color = NoteColor;
+            canvas.DrawText(layout.Line6, layout.TextX, layout.TextY + (layout.LineCount - 1) * layout.LineHeight, _dataBlockPaint);
+            _dataBlockPaint.Color = prev;
+        }
+
         return layout.Rect;
     }
 
@@ -565,6 +578,15 @@ public sealed class TargetRenderer : IDisposable
             {
                 var prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = SKColors.Red;
+                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
+                _dataBlockPaint.Color = prev;
+                continue;
+            }
+
+            if (f.Field == TagFieldId.Note)
+            {
+                var prev = _dataBlockPaint.Color;
+                _dataBlockPaint.Color = NoteColor;
                 canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
                 continue;

@@ -212,4 +212,33 @@ public class EuroScopeTagLayoutTests
         var typeCwt = Assert.Single(result.Fields, f => f.Field == TagFieldId.TypeCwt);
         Assert.Contains("C182", typeCwt.Text);
     }
+
+    [Fact]
+    public void NoteField_AbsentWhenNoNote()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+
+        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+
+        Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Note);
+    }
+
+    [Fact]
+    public void NoteField_AppearsAtBottom_AndGrowsBounds_WhenSet()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+        float lineH = paint.TextSize + 2;
+
+        var baseline = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+
+        ac.Note = "Watch wake";
+        var withNote = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+
+        var note = Assert.Single(withNote.Fields, f => f.Field == TagFieldId.Note);
+        Assert.Equal("Watch wake", note.Text);
+        float delta = withNote.Bounds.Height - baseline.Bounds.Height;
+        Assert.Equal(lineH, delta, precision: 3);
+    }
 }

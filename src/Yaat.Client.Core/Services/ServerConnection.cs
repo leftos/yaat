@@ -857,7 +857,9 @@ public record AircraftDto(
     // radar's optional datablock color sync, LDB/PDB marker + collapse, and leader-direction sync.
     Yaat.Sim.StarsDatablockColor? StudentDatablockColor = null,
     Yaat.Sim.StarsDatablockLevel? StudentDatablockLevel = null,
-    int? StudentLeaderDirection = null
+    int? StudentLeaderDirection = null,
+    // Instructor freetext note shown as an extra datablock line on radar + ground. Instructor-only.
+    string Note = ""
 );
 
 public record LoadScenarioResultDto(

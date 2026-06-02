@@ -648,6 +648,13 @@ public partial class AircraftModel : ObservableObject
 
     public bool HasRemarks => !string.IsNullOrEmpty(Remarks);
 
+    /// <summary>Instructor freetext note, shown as an extra datablock line on radar + ground.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNote))]
+    private string _note = "";
+
+    public bool HasNote => !string.IsNullOrEmpty(Note);
+
     [ObservableProperty]
     private string _cwtCode = "";
 
@@ -732,6 +739,7 @@ public partial class AircraftModel : ObservableObject
             Destination = dto.Destination,
             Route = dto.Route,
             Remarks = dto.Remarks,
+            Note = dto.Note,
             FlightRules = dto.FlightRules,
             Status = dto.Status,
             PendingCommands = dto.PendingCommands,
@@ -815,6 +823,7 @@ public partial class AircraftModel : ObservableObject
         Destination = dto.Destination;
         Route = dto.Route;
         Remarks = dto.Remarks;
+        Note = dto.Note;
         FlightRules = dto.FlightRules;
         Status = dto.Status;
         PendingCommands = dto.PendingCommands;

@@ -19,6 +19,12 @@ public sealed class AircraftSnapshotDto
     /// </summary>
     public string AirportId { get; init; } = "";
 
+    /// <summary>
+    /// Instructor freetext datablock note. Non-required so older snapshots deserialize
+    /// cleanly with the default empty string.
+    /// </summary>
+    public string Note { get; init; } = "";
+
     // Position & Physics
     public required LatLon Position { get; init; }
     public required double TrueHeadingDeg { get; init; }

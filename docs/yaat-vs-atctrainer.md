@@ -246,6 +246,7 @@ After liftoff, the assigned departure turn is deferred until the aircraft is pas
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
 | Scratchpad | `SCRATCHPAD`/`SP` | `SP1`, `SP2` | YAAT has separate SP1/SP2 fields; bare `SP1`/`SP2` clears; undo/toggle on repeat |
+| Note | — | `NOTE {text}` | YAAT-only; instructor freetext datablock note (max 40), amber line on radar + ground, instructor-only (not on CRC); bare `NOTE` clears |
 | Strip move | `STRIP {bay}` | `STRIP {bay}[/{rack}[/{index}]]` | YAAT extends to rack/slot positioning; slash-compound 1-based |
 | Strip scan to external bay | — | `SCAN {bay}[/{rack}[/{index}]]` | YAAT-only; copies a strip into an external facility's bay (originator keeps its strip) |
 | Strip delete | — | `STRIPD` | YAAT-only |

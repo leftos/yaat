@@ -2487,6 +2487,10 @@ public sealed class SimulationEngine
             case RecordedCommandKind.SquawkAll:
                 HandleGlobalSquawkCommand(parsed!);
                 return;
+
+            case RecordedCommandKind.Note:
+                aircraft.Note = AircraftState.TruncateNote(((NoteCommand)parsed!).Text);
+                return;
         }
 
         var replayResult = CommandParser.ParseCompound(cmd.Command, aircraft.FlightPlan.Route);

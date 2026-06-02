@@ -503,6 +503,7 @@ public partial class RadarView
     {
         var menu = new MenuItem { Header = "Data Block" };
         menu.Items.Add(CreateInputMenuItem("Scratchpad...", "Text", input => vm.ScratchpadAsync(cs, init, input)));
+        menu.Items.Add(CreateInputMenuItem("Note...", "Note text (max 40)", input => vm.NoteAsync(cs, init, input)));
         menu.Items.Add(CreateInputMenuItem("Temporary altitude...", "Altitude", input => vm.TemporaryAltitudeAsync(cs, init, int.Parse(input))));
         menu.Items.Add(CreateInputMenuItem("Cruise...", "Altitude", input => vm.CruiseAsync(cs, init, int.Parse(input))));
         menu.Items.Add(CreateMenuItem("Annotate", () => vm.AnnotateAsync(cs, init)));

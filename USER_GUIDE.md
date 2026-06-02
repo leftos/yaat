@@ -363,7 +363,18 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 - **On a *different* aircraft (with one already selected)**: traffic actions issued to the **selected** aircraft — "{selected}: report {clicked} in sight" (RTIS), and once it has reported that traffic in sight, "{selected}: follow {clicked}". Right-clicking a different aircraft keeps your current selection.
 - **On the map**: always shows [FRD](COMMANDS.md#fix-radial-distance-frd) header (nearest fix + radial + distance) and "Copy FRD". With aircraft selected, also: "Fly heading {hdg}", "Direct to {FRD}", "Append direct to {FRD}", "Hold at {FRD} (left/right)", "Warp here ({FRD})"
 
-**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, handoff indicator, and scratchpads when set. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**.
+**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, handoff indicator, and scratchpads when set. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**. When an instructor [note](#assigning-a-note-to-an-aircraft) is set, an extra amber line is appended at the bottom of the block.
+
+#### Assigning a Note to an Aircraft
+
+A **note** is a freetext reminder you can pin to a specific aircraft — "watch wake", "exam: vector to final", "trainee struggling". It shows as an extra amber line at the bottom of the aircraft's datablock on **both** the radar and ground views and follows the aircraft across the two views, reconnects, and recordings. Notes are **instructor-only**: they are never sent to the students' CRC scopes. Each note is a single line, max 40 characters.
+
+Set or edit a note any of these ways:
+
+- **Command bar**: type `NOTE Watch wake` to set, or a bare `NOTE` to clear.
+- **Radar right-click** → **Data Block → Note…** (opens a text-entry popup).
+- **Ground right-click** → **Note…**, or **Aircraft List right-click** → **Note…**.
+- **EuroScope tag**: click the amber note line (when one is already set).
 
 #### EuroScope-Style Interactive Tags
 
@@ -387,6 +398,7 @@ Empty assigned fields show their identifier (`ASP`, `AHDG`, `(---)`) so the clic
 | **AHDG** field | Enters **heading mode** — see below. |
 | Assigned **runway** field | Runway flyout listing every runway end at the aircraft's departure (if on ground) or destination (if airborne) airport, sorted numerically. Dispatches `RWY <designator>`. Includes a Clear option. |
 | **Scratchpad 1/2** (`.XXX` / `+XXX`) | Text-entry popup with the current value pre-filled, plus EuroScope-convention preset chips (CLEA / NOTC / ST-UP / PUSH / TAXI / DEPA). Enter submits, Esc cancels. |
+| **Note** line (amber, bottom of tag when set) | Text-entry popup pre-filled with the current note. Enter submits, the Clear button (or a bare submit) clears it. |
 | **Squawk** | VFR / Standby / Normal / Ident / Random Squawk quick actions. For specific 4-digit codes use the typed command bar (`SQ 1234`). |
 | **Handoff** indicator | Text-entry popup for `HO <position>`. When an inbound handoff is pending, an "Accept handoff" button appears. |
 

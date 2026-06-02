@@ -278,4 +278,32 @@ public class RadarDatablockLayoutTests
         Assert.Equal("", RadarDatablockLayout.StudentLevelMarker(StarsDatablockLevel.Full));
         Assert.Equal("", RadarDatablockLayout.StudentLevelMarker(null));
     }
+
+    [Fact]
+    public void Note_BlankWhenNoNote()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("", layout.Line6);
+    }
+
+    [Fact]
+    public void Note_RendersAsLine6_AndGrowsRectByOneLine()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+
+        var baseline = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        ac.Note = "Watch wake";
+        var withNote = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("Watch wake", withNote.Line6);
+        Assert.Equal(baseline.LineCount + 1, withNote.LineCount);
+        float delta = withNote.Rect.Bottom - baseline.Rect.Bottom;
+        Assert.Equal(baseline.LineHeight, delta, precision: 3);
+    }
 }

@@ -144,6 +144,13 @@ public partial class RadarView : UserControl
                     OpenFieldPopup(ScratchpadFlyout.Build(_canvas, ac, mainVm.Radar, initials, slot: 2));
                 }
                 break;
+            case TagFieldId.Note:
+                if (_canvas is not null)
+                {
+                    var radarVm = mainVm.Radar;
+                    OpenFieldPopup(NoteFlyout.Build(_canvas, ac.Callsign, ac.Note, cmd => radarVm.SendRawCommandAsync(ac.Callsign, initials, cmd)));
+                }
+                break;
             case TagFieldId.Squawk:
                 ShowContextMenu(SquawkFlyout.Build(ac, mainVm.Radar, initials));
                 break;

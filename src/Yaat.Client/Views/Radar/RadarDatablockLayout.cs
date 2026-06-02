@@ -32,6 +32,12 @@ internal readonly struct RadarDatablockLayout
     public readonly string Line4;
     public readonly string Line5;
 
+    /// <summary>Instructor note line (amber), drawn at the bottom of the block. Empty when no note.</summary>
+    public readonly string Line6;
+
+    /// <summary>Total drawn lines, including any reserved warning slot and the note line.</summary>
+    public readonly int LineCount;
+
     private RadarDatablockLayout(
         SKRect rect,
         float textX,
@@ -41,7 +47,9 @@ internal readonly struct RadarDatablockLayout
         string line2,
         string line3,
         string line4,
-        string line5
+        string line5,
+        string line6,
+        int lineCount
     )
     {
         Rect = rect;
@@ -53,6 +61,8 @@ internal readonly struct RadarDatablockLayout
         Line3 = line3;
         Line4 = line4;
         Line5 = line5;
+        Line6 = line6;
+        LineCount = lineCount;
     }
 
     public static RadarDatablockLayout Compute(
@@ -83,13 +93,17 @@ internal readonly struct RadarDatablockLayout
         bool noLndgClncFlashOn = noLndgClncActive && (Environment.TickCount64 / 500 % 2 == 0);
         string line5 = noLndgClncFlashOn ? NoLandingClearanceText : "";
 
+        // Instructor note — always-on amber line at the bottom of the block when set.
+        string line6 = ac.HasNote ? ac.Note : "";
+
         float w1 = paint.MeasureText(line1);
         float w2 = paint.MeasureText(line2);
         float w3 = line3.Length > 0 ? paint.MeasureText(line3) : 0f;
         float w4 = line4.Length > 0 ? paint.MeasureText(line4) : 0f;
         // Reserve width for the warning line whenever it's active so the rect width doesn't pulse.
         float w5 = noLndgClncActive ? paint.MeasureText(NoLandingClearanceText) : 0f;
-        float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), w5);
+        float w6 = line6.Length > 0 ? paint.MeasureText(line6) : 0f;
+        float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), MathF.Max(w5, w6));
 
         int lineCount = 2;
         if (line3.Length > 0)
@@ -105,11 +119,15 @@ internal readonly struct RadarDatablockLayout
         {
             lineCount++;
         }
+        if (line6.Length > 0)
+        {
+            lineCount++;
+        }
 
         float lineH = paint.TextSize + 2;
         var rect = new SKRect(blockX - Pad, blockY - paint.TextSize - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
 
-        return new RadarDatablockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4, line5);
+        return new RadarDatablockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4, line5, line6, lineCount);
     }
 
     private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? handoffDisplay, string? sp1, string? sp2, string? assignedTo)

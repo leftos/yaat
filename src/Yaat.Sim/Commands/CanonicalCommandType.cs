@@ -224,6 +224,7 @@ public enum CanonicalCommandType
     CreateVfrFlightPlan,
     CreateAbbreviatedFlightPlan,
     SetRemarks,
+    Note,
     CancelIfr,
 
     // Strip operations

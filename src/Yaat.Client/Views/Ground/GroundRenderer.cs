@@ -26,7 +26,24 @@ internal readonly struct DataBlockLayout
     public readonly string Line3;
     public readonly string Line4;
 
-    private DataBlockLayout(SKRect rect, float textX, float textY, float lineHeight, string line1, string line2, string line3, string line4)
+    /// <summary>Instructor note line (amber), drawn at the bottom of the block. Empty when no note.</summary>
+    public readonly string Line5;
+
+    /// <summary>Total drawn lines, including the note line.</summary>
+    public readonly int LineCount;
+
+    private DataBlockLayout(
+        SKRect rect,
+        float textX,
+        float textY,
+        float lineHeight,
+        string line1,
+        string line2,
+        string line3,
+        string line4,
+        string line5,
+        int lineCount
+    )
     {
         Rect = rect;
         TextX = textX;
@@ -36,6 +53,8 @@ internal readonly struct DataBlockLayout
         Line2 = line2;
         Line3 = line3;
         Line4 = line4;
+        Line5 = line5;
+        LineCount = lineCount;
     }
 
     public static DataBlockLayout Compute(AircraftModel ac, float screenX, float screenY, SKPoint offset, SKPaint textPaint, bool isAirborne)
@@ -53,12 +72,15 @@ internal readonly struct DataBlockLayout
         // stale transponder indication. HoldStatusDisplay is non-empty exactly when one applies;
         // otherwise line4 reverts to SqStby.
         string line4 = !string.IsNullOrEmpty(ac.HoldStatusDisplay) ? ac.HoldStatusDisplay : (ac.TransponderMode == "Standby" ? "SqStby" : "");
+        // Instructor note — always-on amber line at the bottom of the block when set.
+        string line5 = ac.HasNote ? ac.Note : "";
 
         float w1 = textPaint.MeasureText(line1);
         float w2 = textPaint.MeasureText(line2);
         float w3 = line3.Length > 0 ? textPaint.MeasureText(line3) : 0;
         float w4 = line4.Length > 0 ? textPaint.MeasureText(line4) : 0;
-        float textW = MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4));
+        float w5 = line5.Length > 0 ? textPaint.MeasureText(line5) : 0;
+        float textW = MathF.Max(MathF.Max(w1, w2), MathF.Max(MathF.Max(w3, w4), w5));
         float lineH = textPaint.TextSize + 2;
         int lineCount = 2;
         if (line3.Length > 0)
@@ -69,10 +91,14 @@ internal readonly struct DataBlockLayout
         {
             lineCount++;
         }
+        if (line5.Length > 0)
+        {
+            lineCount++;
+        }
 
         var rect = new SKRect(blockX - Pad, blockY - textPaint.TextSize - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
 
-        return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4);
+        return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4, line5, lineCount);
     }
 
     public static readonly SKPoint DefaultOffset = new(30, -25);
@@ -108,6 +134,10 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor DrawHoverPreviewColor = new(255, 180, 50);
     private static readonly SKColor WaypointMarkerColor = new(255, 200, 0);
     private static readonly SKColor HoverRingColor = new(255, 255, 255, 160);
+
+    // Instructor-note line color — amber/gold, matches the radar note line and stays distinct
+    // from the white/cyan datablock text and green/blue ground markings.
+    private static readonly SKColor NoteColor = new(255, 200, 60);
 
     private const double AirborneMaxAglFt = 4000;
     private const double AirborneMaxRangeNm = 10;
@@ -1960,6 +1990,14 @@ public sealed class GroundRenderer : IDisposable
         if (layout.Line4.Length > 0)
         {
             canvas.DrawText(layout.Line4, layout.TextX, layout.TextY + layout.LineHeight * row, _dataBlockTextPaint);
+        }
+
+        // Instructor note: always the bottom line of the block, drawn in amber.
+        if (layout.Line5.Length > 0)
+        {
+            _dataBlockTextPaint.Color = NoteColor;
+            canvas.DrawText(layout.Line5, layout.TextX, layout.TextY + layout.LineHeight * (layout.LineCount - 1), _dataBlockTextPaint);
+            _dataBlockTextPaint.Color = dbColor;
         }
 
         if (drawBubble && ac.SpeechBubble is { } bubble)

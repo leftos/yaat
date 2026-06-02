@@ -902,6 +902,9 @@ public static class CommandParser
             CreateVfrFlightPlan => ParseCreateFlightPlan(arg, "VFR"),
             CreateAbbreviatedFlightPlan => ParseAbbreviatedFlightPlan(arg),
             SetRemarks when arg is not null => PR.Ok(new SetRemarksCommand(arg)),
+            // NOTE preserves case/spaces (freetext); a bare NOTE clears the note.
+            Note when arg is null => PR.Ok(new NoteCommand("")),
+            Note => PR.Ok(new NoteCommand(arg!)),
             CancelIfr when arg is null => PR.Ok(new CancelIfrCommand()),
             // Verbs with arg-required guards: return fail when arg missing (invalid usage)
             Mach

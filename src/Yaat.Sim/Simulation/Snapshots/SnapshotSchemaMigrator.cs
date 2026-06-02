@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 9;
+    public const int CurrentSchemaVersion = 10;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -77,6 +77,8 @@ public static class SnapshotSchemaMigrator
         //   pure phantom DA/VP data blocks. No data transformation — older snapshots
         //   default to false; for replay correctness that is the safe choice because the
         //   field only affects the YAAT Aircraft List filter, not simulation behavior.
+        // V9→V10: Added AircraftSnapshotDto.Note (instructor freetext datablock note).
+        //   No data transformation — older snapshots default to "" (no note).
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

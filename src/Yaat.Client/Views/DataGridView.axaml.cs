@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Radar.Flyouts;
 
 namespace Yaat.Client.Views;
 
@@ -182,6 +183,10 @@ public partial class DataGridView : UserControl
         var commandItem = new MenuItem { Header = "Command…" };
         commandItem.Click += (_, _) => CommandFlyout.Open(grid, callsign, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
         menu.Items.Add(commandItem);
+
+        var noteItem = new MenuItem { Header = "Note…" };
+        noteItem.Click += (_, _) => NoteFlyout.Open(grid, callsign, ac.Note, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        menu.Items.Add(noteItem);
         menu.Items.Add(new Separator());
 
         menu.Items.Add(FavoritesContextMenu.Build(vm, ac, callsign, initials));

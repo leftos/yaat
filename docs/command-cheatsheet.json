@@ -245,6 +245,7 @@
         { "verb": "HSD", "aliases": [], "description": "Delete half-strip (key)" },
         { "verb": "SP1", "aliases": ["sp"], "description": "Scratchpad 1 [text / bare=clear], max 3 chars (4 if facility allows)" },
         { "verb": "SP2", "aliases": [], "description": "Scratchpad 2 [text / bare=clear], max 3 chars (4 if facility allows)" },
+        { "verb": "NOTE", "aliases": [], "description": "Instructor note [text / bare=clear], max 40 chars, datablock + ground, not on CRC" },
         { "verb": "TEMPALT", "aliases": ["ta", "qq"], "description": "Temporary altitude" },
         { "verb": "CRUISE", "aliases": ["qz"], "description": "Cruise altitude" },
         { "verb": "PRA", "aliases": [], "description": "Pilot reported altitude (0 = clear)" }

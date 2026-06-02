@@ -815,6 +815,9 @@ public record CreateAbbreviatedFlightPlanCommand(
 
 public record SetRemarksCommand(string Text) : ParsedCommand;
 
+/// <summary>Instructor freetext note assigned to an aircraft (NOTE command). Empty text clears it.</summary>
+public record NoteCommand(string Text) : ParsedCommand;
+
 public record CancelIfrCommand : ParsedCommand;
 
 // Turn rate override

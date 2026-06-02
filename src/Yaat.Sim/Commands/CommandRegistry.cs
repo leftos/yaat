@@ -1251,6 +1251,14 @@ public static class CommandRegistry
                 [O(null, [], "Clear scratchpad 2"), O(null, [R("text", "up to 3 chars (4 if facility allows)")], "Set scratchpad 2")]
             ),
             Cmd(
+                Note,
+                "Note",
+                "Data Operations",
+                false,
+                ["NOTE"],
+                [O(null, [], "Clear note"), O(null, [R("text", "freetext note, max 40 chars")], "Set instructor note")]
+            ),
+            Cmd(
                 TemporaryAltitude,
                 "Temporary Altitude",
                 "Data Operations",

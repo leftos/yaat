@@ -43,6 +43,24 @@ public class AircraftState
     /// </summary>
     public string AirportId { get; set; } = "";
 
+    /// <summary>Maximum stored length of <see cref="Note"/>. Keeps the datablock line bounded.</summary>
+    public const int MaxNoteLength = 40;
+
+    /// <summary>
+    /// Instructor freetext note shown as an extra datablock line on the radar and
+    /// ground views. Server-synced and snapshot-serialized so it follows the aircraft
+    /// across views, reconnects, and recordings. Instructor-only — never projected to
+    /// CRC student scopes. Preserves case/spaces; capped at <see cref="MaxNoteLength"/> chars.
+    /// </summary>
+    public string Note { get; set; } = "";
+
+    /// <summary>Caps note text to <see cref="MaxNoteLength"/> characters (trailing whitespace trimmed).</summary>
+    public static string TruncateNote(string text)
+    {
+        var trimmed = text.TrimEnd();
+        return trimmed.Length > MaxNoteLength ? trimmed[..MaxNoteLength] : trimmed;
+    }
+
     /// <summary>Geographic position in degrees.</summary>
     public LatLon Position { get; set; }
 
@@ -286,6 +304,7 @@ public class AircraftState
             ScenarioId = dto.ScenarioId,
             Cid = dto.Cid,
             AirportId = dto.AirportId,
+            Note = dto.Note,
             Position = dto.Position,
             TrueHeading = new TrueHeading(dto.TrueHeadingDeg),
             TrueTrack = new TrueHeading(dto.TrueTrackDeg),
@@ -357,6 +376,7 @@ public class AircraftState
             ScenarioId = ScenarioId,
             Cid = Cid,
             AirportId = AirportId,
+            Note = Note,
             Position = Position,
             TrueHeadingDeg = TrueHeading.Degrees,
             TrueTrackDeg = TrueTrack.Degrees,

@@ -1416,6 +1416,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             lineCount++;
         }
 
+        // Instructor note line — must mirror RadarDatablockLayout.Compute so clicks hit the taller block.
+        if (ac.HasNote)
+        {
+            float w6 = _hitTestPaint.MeasureText(ac.Note);
+            textW = MathF.Max(textW, w6);
+            lineCount++;
+        }
+
         var rectAtOrigin = new SKRect(
             -DataBlockPad,
             -_hitTestPaint.TextSize - DataBlockPad,

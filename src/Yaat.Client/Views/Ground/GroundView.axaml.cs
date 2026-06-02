@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -398,6 +399,16 @@ public partial class GroundView : UserControl
                 () =>
                 {
                     CommandFlyout.Open(_canvas!, callsign, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
+                    return Task.CompletedTask;
+                }
+            )
+        );
+        menu.Items.Add(
+            CreateMenuItem(
+                "Note…",
+                () =>
+                {
+                    NoteFlyout.Open(_canvas!, callsign, ac?.Note ?? "", cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
                     return Task.CompletedTask;
                 }
             )

@@ -26,6 +26,7 @@ public enum TagFieldId
     Handoff,
     ModeC,
     NoLandingClearance,
+    Note,
 }
 
 /// <summary>One field's text and its bounding rect in canvas coordinates.</summary>
@@ -190,6 +191,19 @@ public static class EuroScopeTagLayout
                 x = originX;
                 AddField(fields, TagFieldId.NoLandingClearance, RadarDatablockLayout.NoLandingClearanceText, x, yTop, yBot, paint);
             }
+            lastLineYTop = yTop;
+        }
+
+        // Instructor note — always-on amber line at the bottom of the tag when set.
+        if (ac.HasNote)
+        {
+            float yTop = lastLineYTop + lineH;
+            float yBot = yTop + paint.TextSize;
+            x = originX;
+            x = AddField(fields, TagFieldId.Note, ac.Note, x, yTop, yBot, paint);
+            maxWidth = MathF.Max(maxWidth, x - originX);
+            lineCount++;
+            lastLineYTop = yTop;
         }
 
         var bounds = new SKRect(

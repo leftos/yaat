@@ -81,4 +81,32 @@ public class GroundDataBlockLayoutTests
         float delta = standby.Rect.Bottom - charlie.Rect.Bottom;
         Assert.Equal(charlie.LineHeight, delta, precision: 3);
     }
+
+    [Fact]
+    public void Note_BlankWhenNoNote()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+
+        Assert.Equal("", layout.Line5);
+    }
+
+    [Fact]
+    public void Note_RendersAsLine5_AndGrowsRectByOneLine()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+
+        var baseline = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+
+        ac.Note = "Trainee struggling";
+        var withNote = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+
+        Assert.Equal("Trainee struggling", withNote.Line5);
+        Assert.Equal(baseline.LineCount + 1, withNote.LineCount);
+        float delta = withNote.Rect.Bottom - baseline.Rect.Bottom;
+        Assert.Equal(baseline.LineHeight, delta, precision: 3);
+    }
 }

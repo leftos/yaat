@@ -420,6 +420,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Delete half-strip | `HSD Hello` | `HALFSTRIPDEL` | Also accepts `HSD HSTRIP_<id>` (UI default) |
 | Scratchpad 1 | `SP1 OAK` / `SP1` (clear) | — | Max 3 chars (4 if the facility enables 4-char scratchpads); longer entries are rejected with `FORMAT`. |
 | Scratchpad 2 | `SP2 I8R` / `SP2` (clear) | — | Max 3 chars (4 if the facility enables 4-char scratchpads); longer entries are rejected with `FORMAT`. |
+| Note | `NOTE Watch wake` / `NOTE` (clear) | — | Instructor freetext datablock note (max 40 chars, preserves case/spaces). Shown as an extra amber line on the radar and ground datablocks; not sent to CRC. |
 | Temp altitude | `TEMPALT 120` | `TA`, `TEMP`, `QQ` | — |
 | Cruise | `CRUISE 240` | `QZ` | — |
 | Pilot reported altitude | `PRA 250` / `PRA 0` (clear) | — | — |
@@ -1047,6 +1048,15 @@ Changing your active position also updates the radar display:
 STARS scratchpads hold at most **3 characters** (4 when the facility enables 4-character scratchpads). A longer entry is rejected with `FORMAT` and the existing value is left unchanged. The ASDE-X (`ASDXSP1`/`ASDXSP2`) and ERAM scratchpads are governed by their own rules and are not bound by this limit.
 
 Scratchpads support **undo/toggle**: entering the same value again restores the previous value, and clearing an already-cleared scratchpad restores the previous value.
+
+#### Note
+
+| Command | Effect |
+|---------|--------|
+| `NOTE Watch wake, exam prep` | Set the instructor note shown on the aircraft's datablock |
+| `NOTE` | Clear the note |
+
+`NOTE` is an **instructor freetext annotation** distinct from STARS scratchpads. It preserves case and spaces, is capped at **40 characters** (longer text is truncated), and renders as an extra **amber line at the bottom of the datablock** on both the radar (STARS and EuroScope tag styles) and ground views. It follows the aircraft across views, reconnects, and recordings, but is **instructor-only — it is never projected onto the student CRC STARS/Tower scopes**. Besides the command, a note can be set by right-clicking the aircraft (Data Block → Note… on the radar; Note… on the ground and aircraft-list menus; or clicking the note line on a EuroScope tag).
 
 #### Half-Strips
 

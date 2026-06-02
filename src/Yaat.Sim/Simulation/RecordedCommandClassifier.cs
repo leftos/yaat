@@ -44,6 +44,7 @@ public enum RecordedCommandKind
     SquawkAll,
     AcceptAllHandoffs,
     InitiateHandoffAll,
+    Note,
 }
 
 public static class RecordedCommandClassifier
@@ -88,6 +89,7 @@ public static class RecordedCommandClassifier
             SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand => new Classification(RecordedCommandKind.SquawkAll, parsed),
             AcceptAllHandoffsCommand => new Classification(RecordedCommandKind.AcceptAllHandoffs, parsed),
             InitiateHandoffAllCommand => new Classification(RecordedCommandKind.InitiateHandoffAll, parsed),
+            NoteCommand => new Classification(RecordedCommandKind.Note, parsed),
             _ => new Classification(RecordedCommandKind.Compound, parsed),
         };
     }

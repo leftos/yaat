@@ -1089,6 +1089,11 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, $"SP {text}", initials);
     }
 
+    public async Task NoteAsync(string callsign, string initials, string text)
+    {
+        await _sendCommand(callsign, $"NOTE {text}", initials);
+    }
+
     public async Task TemporaryAltitudeAsync(string callsign, string initials, int altitude)
     {
         await _sendCommand(callsign, $"TEMPALT {altitude}", initials);
