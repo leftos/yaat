@@ -247,7 +247,14 @@ public static class CommandRegistry
                 ["CMN"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Instantly set altitude")]
             ),
-            Cmd(ForceSpeed, "Force Speed", "Sim Control", false, ["SPDN", "SLN"], [O(null, [R("speed", "knots IAS")], "Instantly set speed")]),
+            Cmd(
+                ForceSpeed,
+                "Force Speed",
+                "Sim Control",
+                false,
+                ["SPDN", "SLN", "SPEEDN"],
+                [O(null, [R("speed", "knots IAS")], "Instantly set speed")]
+            ),
             Cmd(
                 Warp,
                 "Warp to Position",

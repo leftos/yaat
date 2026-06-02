@@ -114,4 +114,16 @@ public class CommandSchemeParserAliasTests
         Assert.NotNull(result);
         Assert.Equal("SAY READING YOU LOUD AND CLEAR", result.CanonicalString);
     }
+
+    [Theory]
+    [InlineData("SPEEDN 80")]
+    [InlineData("SPDN 80")]
+    [InlineData("SLN 80")]
+    public void ParseCompound_ForceSpeedAliases_ProduceCanonicalSpdn(string input)
+    {
+        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("SPDN 80", result.CanonicalString);
+    }
 }

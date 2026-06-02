@@ -158,9 +158,9 @@
       "name": "Hold",
       "rows": [
         { "verb": "HPPL / HPPR", "aliases": [], "description": "Hold present position 360 L/R" },
-        { "verb": "HPP", "aliases": [], "description": "Hold present position (hover)" },
+        { "verb": "HPP", "aliases": [], "description": "Hold present position (hover, helicopters only)" },
         { "verb": "HFIXL / HFIXR", "aliases": [], "description": "Hold at fix L/R turns" },
-        { "verb": "HFIX", "aliases": [], "description": "Hold/hover at fix" }
+        { "verb": "HFIX", "aliases": [], "description": "Hold/hover at fix (helicopters only)" }
       ],
       "notes": []
     },
@@ -350,7 +350,7 @@
       "rows": [
         { "verb": "FHN", "aliases": [], "description": "Instantly set heading" },
         { "verb": "CMN", "aliases": [], "description": "Instantly set altitude" },
-        { "verb": "SPDN", "aliases": ["sln"], "description": "Instantly set speed" },
+        { "verb": "SPDN", "aliases": ["sln", "speedn"], "description": "Instantly set speed" },
         { "verb": "WARP", "aliases": [], "description": "Teleport to FRD; optional hdg/alt/spd keep current" },
         { "verb": "WARPG", "aliases": [], "description": "Teleport on ground to location" }
       ],

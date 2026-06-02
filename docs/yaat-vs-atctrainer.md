@@ -338,7 +338,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
-| Force speed | `SLN`/`ISN {spd}` | `SPDN {spd}` | Different alias |
+| Force speed | `SLN`/`ISN {spd}` | `SPDN`/`SLN`/`SPEEDN {spd}` | YAAT accepts the ATCTrainer `SLN` alias plus `SPDN`/`SPEEDN` |
 | Show/Hide path | `SHOWPATH`/`HIDEPATH` | — | ATCTrainer-only |
 | Warp | — | `WARP {frd} [hdg] [alt] [spd]` | YAAT-only; trailing args optional, keep current values when omitted |
 | Warp on ground | — | `WARPG {twy1} {twy2}` | YAAT-only |

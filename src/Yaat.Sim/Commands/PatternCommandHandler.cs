@@ -1423,8 +1423,16 @@ internal static class PatternCommandHandler
         };
     }
 
+    private static bool IsHelicopter(AircraftState aircraft) =>
+        AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+
     internal static CommandResult TryHoldPresentPosition(AircraftState aircraft, TurnDirection? orbitDirection)
     {
+        if (orbitDirection is null && !IsHelicopter(aircraft))
+        {
+            return new CommandResult(false, "HPP (hover) requires a helicopter — use HPPL or HPPR for 360s");
+        }
+
         var phase = new VfrHoldPhase { OrbitDirection = orbitDirection };
 
         if (aircraft.Phases is not null)
@@ -1453,6 +1461,11 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryHoldAtFix(AircraftState aircraft, string fixName, double lat, double lon, TurnDirection? orbitDirection)
     {
+        if (orbitDirection is null && !IsHelicopter(aircraft))
+        {
+            return new CommandResult(false, "HFIX (hover) requires a helicopter — use HFIXL or HFIXR for holding turns");
+        }
+
         var phase = new VfrHoldPhase
         {
             FixName = fixName,

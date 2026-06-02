@@ -29,6 +29,9 @@
 - ATPA volumes now honor their configured excluded TCP list — aircraft tracked by a position in a volume's excluded-TCP list are no longer paired for in-trail spacing in that volume. Previously the exclusion list was silently ignored and every aircraft in the volume was sequenced.
 - An aircraft told to give way now resumes more reliably: it keeps holding while the other aircraft's taxi route still crosses its path ahead (instead of releasing the instant the other is no longer dead ahead), breaks a mutual give-way standstill once the other has been stopped a while and there's room to pass, and auto-resumes after 5 minutes if the named traffic never comes (e.g. a mistyped callsign) rather than waiting forever.
 - The browser flight-strips (`/vstrips/`) and TDLS apps no longer swallow the browser's refresh shortcuts — F5 and Ctrl+R (Cmd+R on macOS) now reload the page as expected.
+- Fixed-wing aircraft no longer hover on `HPP`/`HFIX`; the hover holds are rejected for them with guidance to `HPPL`/`HPPR` / `HFIXL`/`HFIXR` (helicopters still hover).
+- `SPEEDN` is now accepted as an alias for force speed (`SPDN`), alongside `SLN`.
+- A mistyped command after a callsign now names the unrecognized verb in the error instead of the callsign (e.g. `N929AW BOGUS` blames `BOGUS`, not `N929AW`).
 
 ## v0.5.0-beta [2026/05/31]
 

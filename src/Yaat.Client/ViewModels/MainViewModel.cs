@@ -1795,36 +1795,11 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            if (parseFailure is not null)
-            {
-                _log.LogWarning(
-                    "Command '{Verb}' {Reason} (expected: {Expected}) in input '{Input}'",
-                    parseFailure.Verb,
-                    parseFailure.Reason,
-                    parseFailure.Expected ?? "(unknown)",
-                    commandText
-                );
-                StatusText = parseFailure.Expected is { } expected
-                    ? $"\"{parseFailure.Verb}\" {parseFailure.Reason}. Expected: {expected}"
-                    : $"\"{parseFailure.Verb}\" {parseFailure.Reason}";
-            }
-            else
-            {
-                // If the first token is a known callsign, report the command as the problem
-                var tokens = commandText.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-                if (tokens.Length >= 2 && ResolveAircraft(tokens[0]) is not null)
-                {
-                    var cmdVerb = tokens[1].Split([' ', ',', ';'], 2)[0];
-                    _log.LogWarning("Unrecognized command '{Verb}' in input '{Input}'", cmdVerb, commandText);
-                    StatusText = $"Unrecognized command \"{cmdVerb}\" — type a command like FH 270, CM 240, CLAND";
-                }
-                else
-                {
-                    var verb = commandText.Split([' ', ',', ';'], 2)[0];
-                    _log.LogWarning("Unrecognized command '{Verb}' in input '{Input}'", verb, commandText);
-                    StatusText = $"Unrecognized command \"{verb}\" — type a command like FH 270, CM 240, CLAND";
-                }
-            }
+            // Never label a known callsign (partial or complete match) as the bad command —
+            // focus the error on the verb that follows it.
+            var commandError = CommandErrorFormatter.Format(commandText, parseFailure, scheme, Aircraft);
+            _log.LogWarning("Command '{Verb}' {Reason} in input '{Input}'", commandError.Verb, commandError.Reason, commandText);
+            StatusText = commandError.StatusText;
 
             return;
         }

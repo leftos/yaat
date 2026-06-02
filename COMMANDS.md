@@ -510,7 +510,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Add aircraft | `ADD IFR H J ...` | — | — |
 | Force heading | `FHN 270` | — | — |
 | Force altitude | `CMN 240` | — | — |
-| Force speed | `SPDN 250` | — | — |
+| Force speed | `SPDN 250` | `SLN`, `SPEEDN` | — |
 | Set turn rate | `TRATE 3` | — | — |
 | Warp | `WARP FRD [hdg] [alt] [spd]` | — | — |
 | Warp ground | `WARPG location` | — | — |
@@ -976,9 +976,9 @@ The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern argume
 | Command | Effect |
 |---------|--------|
 | `HPPL` / `HPPR` | Hold present position, left/right 360° orbits |
-| `HPP` | Hold present position (hover, for helicopters) |
+| `HPP` | Hold present position (hover) — **helicopters only**; fixed-wing aircraft are rejected and should use `HPPL`/`HPPR` |
 | `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right orbits |
-| `HFIX {fix}` | Fly to fix, then hover |
+| `HFIX {fix}` | Fly to fix, then hover — **helicopters only**; fixed-wing aircraft are rejected and should use `HFIXL`/`HFIXR` |
 
 Winged-aircraft holds (`HPPL`/`HPPR`, `HFIXL`/`HFIXR`) decelerate to holding speed while orbiting and resume normal speed when the hold is cancelled. Any heading, altitude, or speed command clears the hold.
 
@@ -1309,7 +1309,7 @@ When you need to immediately correct an aircraft's state (rather than waiting fo
 |---------|--------|
 | `FHN 270` | Force heading: immediately set heading to 270° |
 | `CMN 50` | Force altitude: immediately set altitude to 5,000 ft |
-| `SPDN 250` | Force speed: immediately set IAS to 250 knots |
+| `SPDN 250` | Force speed: immediately set IAS to 250 knots (aliases: `SLN`, `SPEEDN`) |
 | `TRATE 3` | Set turn rate: override default turn rate to 3°/sec (range 0.5–45; omit argument to clear) |
 
 These commands set the aircraft's state immediately — no gradual transition. Useful for RPO corrections when an aircraft is in the wrong state. `TRATE` overrides the category-based turn rate for fine control over vectoring behavior.
