@@ -1,5 +1,6 @@
-using System.Runtime.CompilerServices;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
@@ -7,7 +8,9 @@ namespace Yaat.Client.Views;
 
 public partial class MetarWindow : Window
 {
-    private static readonly ConditionalWeakTable<MainViewModel, MetarWindow> OpenWindows = new();
+    private readonly WindowGeometryHelper _geometryHelper;
+    private Key _alwaysOnTopKey = Key.None;
+    private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.None;
 
     public MetarWindow()
         : this(new UserPreferences()) { }
@@ -15,28 +18,31 @@ public partial class MetarWindow : Window
     public MetarWindow(UserPreferences preferences)
     {
         InitializeComponent();
-        new WindowGeometryHelper(this, preferences, "Metar", 520, 480).Restore();
+        _geometryHelper = new WindowGeometryHelper(this, preferences, "Metar", 520, 480);
+        _geometryHelper.Restore();
+        AlwaysOnTopContextMenu.Attach(this, _geometryHelper);
     }
 
-    public static void ShowOrActivate(MainViewModel vm, Window? owner)
+    protected override void OnLoaded(RoutedEventArgs e)
     {
-        if (OpenWindows.TryGetValue(vm, out var existing))
+        base.OnLoaded(e);
+
+        if (DataContext is MainViewModel vm && SettingsViewModel.ParseKeybind(vm.Preferences.AlwaysOnTopKey, out var key, out var mods))
         {
-            existing.Activate();
+            _alwaysOnTopKey = key;
+            _alwaysOnTopModifiers = mods;
+        }
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
+        {
+            _geometryHelper.ToggleTopmost();
+            e.Handled = true;
             return;
         }
 
-        var window = new MetarWindow(vm.Preferences) { DataContext = vm };
-        OpenWindows.Add(vm, window);
-        window.Closed += (_, _) => OpenWindows.Remove(vm);
-
-        if (owner is not null)
-        {
-            window.Show(owner);
-        }
-        else
-        {
-            window.Show();
-        }
+        base.OnKeyDown(e);
     }
 }

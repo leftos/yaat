@@ -79,13 +79,13 @@ This applies only to **planned** restarts announced by the server. An unexpected
 
 ![Main window after Ground View and Radar View have been popped out](docs/user-guide/img/main-window-popped-out.png)
 
-Each view can be popped out into its own window via **View > Pop Out Aircraft List / Ground View / Radar View**. When a view is popped out, its tab disappears from the main window and a separate window opens. Close the pop-out window (or uncheck the menu item) to dock it back as a tab.
+Each view can be popped out into its own window via **View > Pop Out Aircraft List / Ground View / Radar View / Controllers / METAR**. When a view is popped out, its tab disappears from the main window and a separate window opens. Close the pop-out window (or uncheck the menu item) to dock it back as a tab.
 
-All three views can be popped out simultaneously. Pop-out state and window positions are remembered across sessions.
+All views can be popped out simultaneously. Pop-out state and window positions are remembered across sessions.
 
 **Window Profiles** save and restore named window arrangements — geometry, dock/pop-out state, and DataGrid columns. Use **View > Window Profiles** to save the current layout under a name, switch between saved profiles, or rename and delete them. Useful for keeping separate GC and LC layouts and switching between them in one click.
 
-**Always on Top:** Press **Ctrl+Shift+T** (configurable in Settings > Advanced) while a pop-out window is focused to pin it above all other windows. You can also toggle this per window in Settings > Display > Windows (Main Window, Ground View, Radar View, Aircraft List, Terminal, Flight Strips, Favorites). On Windows, the toggle is also available in the title-bar system menu (right-click the title bar or click the window icon). On macOS, the toggle is in the menu bar under Window → Always on Top while the pop-out is focused. On Linux, your window manager's title-bar context menu typically provides a native "Always on Top" item that reflects the same state.
+**Always on Top:** Press **Ctrl+Shift+T** (configurable in Settings > Advanced) while a pop-out window is focused to pin it above all other windows, or **right-click the window** for an **Always On Top** toggle (available on every pop-out: Aircraft List, Ground, Radar, Controllers, METAR, Terminal, Favorites). You can also toggle this per window in Settings > Display > Windows (Main Window, Ground View, Radar View, Aircraft List, Terminal, Flight Strips, Favorites). On Windows, the toggle is also available in the title-bar system menu (right-click the title bar or click the window icon). On macOS, the toggle is in the menu bar under Window → Always on Top while the pop-out is focused. On Linux, your window manager's title-bar context menu typically provides a native "Always on Top" item that reflects the same state.
 
 ### Terminal Panel
 
@@ -646,7 +646,7 @@ The active weather name is shown in the terminal when weather is loaded or clear
 
 ### Viewing METARs
 
-**Scenario > View METAR...** opens a window listing the METAR string for each airport in the currently active weather, with the station id labeled. The text is selectable so you can copy it. The list reflects whatever weather is loaded — the scenario's default weather or a profile you loaded over it. If no weather is loaded, the window shows "No weather loaded."
+The **METAR** tab in the main window lists the METAR string for each airport in the currently active weather, with the station id labeled. The text is selectable so you can copy it; pop the tab out via **View > Pop Out METAR**. The list reflects whatever weather is loaded — the scenario's default weather or a profile you loaded over it. With **no weather loaded**, it shows default standard conditions (calm wind, 10SM, clear, 29.92) for each of the scenario's airports rather than nothing.
 
 For loaded weather profiles and timelines, the METARs are **reconstructed from the live simulated conditions** and re-issued like real observations: a routine METAR each hour at **:53Z**, plus an off-cycle **SPECI** whenever the wind, visibility, ceiling, or precipitation changes significantly (a basic subset of the real FAA SPECI criteria). The reported observation reflects the conditions at the moment it was issued and then holds steady until the next one — a realistic reporting lag. **Live weather** (Load Live Weather) keeps its real-world METARs unchanged.
 
@@ -1048,18 +1048,15 @@ Open **Room > Students...** to manage CRC clients:
 
 ### Controllers
 
-Open **Room > Controllers...** for a CRC-style list of the controllers in the current room, so you don't have to open CRC just to check who's covering what frequency. Each row shows:
+The **Controllers** tab in the main window lists the controllers in the current room in CRC's style, so you don't have to open CRC just to check who's covering what frequency. It combines live CRC-connected controllers with the scenario's auto-connect ATC positions. Pop it out into its own window via **View > Pop Out Controllers**.
 
-- **Callsign** — the position callsign (e.g. `SFO_DEP`)
-- **Freq** — the position frequency in MHz (e.g. `135.100`)
-- **TCP** — the position's tactical control position (e.g. `4U`), when it has one
-- **Position** — the radio name (e.g. `NorCal Approach`)
-- **Facility** — the facility id
-- **Controller** — the controller's real name (live CRC clients) or `YAAT` for scenario positions
-- **Status** — `Active` or `Standby`
-- **Source** — `CRC` for a live connected controller, or `Scenario` for an auto-connect ATC position defined by the loaded scenario
+Controllers are grouped by facility (the header shows the facility id and name). Each row shows:
 
-The list combines live CRC-connected controllers with the scenario's auto-connect ATC positions, and refreshes automatically when controllers connect or disconnect and when a scenario is loaded or unloaded. Use **Refresh** to re-fetch on demand.
+- the **handoff/sector ID** (e.g. `4U`),
+- the **position name** (matching CRC — the position name, not the callsign), and
+- the **frequency**, right-aligned (e.g. `135.100`).
+
+Inactive/standby positions are dimmed. Hover a row to see the callsign and controller name (scenario positions are marked). The list refreshes automatically when controllers connect or disconnect and when a scenario is loaded or unloaded; use **Refresh** to re-fetch on demand.
 
 ---
 

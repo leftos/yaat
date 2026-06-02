@@ -89,6 +89,8 @@ public class MainWindowLifecycleTests
         vm.IsDataGridPoppedOut = true;
         vm.IsGroundViewPoppedOut = true;
         vm.IsRadarViewPoppedOut = true;
+        vm.IsControllersPoppedOut = true;
+        vm.IsMetarPoppedOut = true;
         // Student strips entry is index 0 and must also be popped out for the
         // "every tab popped out" collapse case (commit f30f6b3). The TDLS
         // student entry — added once vTDLS landed — counts the same way.

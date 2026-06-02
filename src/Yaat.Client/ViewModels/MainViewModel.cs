@@ -385,6 +385,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isRadarViewPoppedOut;
 
+    [ObservableProperty]
+    private bool _isControllersPoppedOut;
+
+    [ObservableProperty]
+    private bool _isMetarPoppedOut;
+
     partial void OnIsTerminalDockedChanged(bool value)
     {
         _preferences.SetPoppedOut("Terminal", !value);
@@ -410,6 +416,18 @@ public partial class MainViewModel : ObservableObject
     partial void OnIsRadarViewPoppedOutChanged(bool value)
     {
         _preferences.SetPoppedOut("RadarView", value);
+        OnTabPoppedOutChanged();
+    }
+
+    partial void OnIsControllersPoppedOutChanged(bool value)
+    {
+        _preferences.SetPoppedOut("Controllers", value);
+        OnTabPoppedOutChanged();
+    }
+
+    partial void OnIsMetarPoppedOutChanged(bool value)
+    {
+        _preferences.SetPoppedOut("Metar", value);
         OnTabPoppedOutChanged();
     }
 
@@ -463,7 +481,7 @@ public partial class MainViewModel : ObservableObject
     {
         get
         {
-            if (!IsDataGridPoppedOut || !IsGroundViewPoppedOut || !IsRadarViewPoppedOut)
+            if (!IsDataGridPoppedOut || !IsGroundViewPoppedOut || !IsRadarViewPoppedOut || !IsControllersPoppedOut || !IsMetarPoppedOut)
             {
                 return true;
             }
@@ -502,14 +520,14 @@ public partial class MainViewModel : ObservableObject
 
     private int FindNextVisibleTabIndex(int currentIndex)
     {
-        // Tab 0: Aircraft List, Tab 1: Ground View, Tab 2: Radar View.
-        // Strips tabs follow at indices 3 .. 3 + StripsEntries.Count - 1, then
+        // Tab 0: Aircraft List, 1: Ground View, 2: Radar View, 3: Controllers, 4: METAR.
+        // Strips tabs follow at indices 5 .. 5 + StripsEntries.Count - 1, then
         // TDLS tabs at the next block — same order MainWindow.axaml.cs appends
         // them via tabControl.Items.Add. Walk all tabs (wrapping) and pick
         // the next still-docked one. Returns -1 only when every tab is
         // popped out — caller then leaves SelectedTabIndex alone since the
         // TabControl is hidden anyway.
-        var total = 3 + StripsEntries.Count + TdlsEntries.Count;
+        var total = 5 + StripsEntries.Count + TdlsEntries.Count;
         if (total <= 0)
         {
             return -1;
@@ -535,8 +553,12 @@ public partial class MainViewModel : ObservableObject
                 return !IsGroundViewPoppedOut;
             case 2:
                 return !IsRadarViewPoppedOut;
+            case 3:
+                return !IsControllersPoppedOut;
+            case 4:
+                return !IsMetarPoppedOut;
         }
-        var stripsBase = 3;
+        var stripsBase = 5;
         if (index >= stripsBase && index - stripsBase < StripsEntries.Count)
         {
             return !StripsEntries[index - stripsBase].IsPoppedOut;
@@ -1171,6 +1193,8 @@ public partial class MainViewModel : ObservableObject
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
         IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;
+        IsControllersPoppedOut = _preferences.IsControllersPoppedOut;
+        IsMetarPoppedOut = _preferences.IsMetarPoppedOut;
         IsTerminalDocked = _preferences.IsTerminalDocked;
         // Student Strips entry pop-out state persists across restarts. Non-student
         // per-facility entries are session-scoped and always start docked.

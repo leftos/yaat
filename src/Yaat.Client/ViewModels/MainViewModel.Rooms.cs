@@ -736,6 +736,7 @@ public partial class MainViewModel
         {
             Radar.ApplyPositionDisplayConfig(config);
             UpdateRadarWeatherDisplay();
+            UpdateDefaultMetarsIfNoWeather();
         });
     }
 

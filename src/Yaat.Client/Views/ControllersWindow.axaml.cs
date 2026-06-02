@@ -1,5 +1,6 @@
-using System.Runtime.CompilerServices;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
@@ -7,7 +8,9 @@ namespace Yaat.Client.Views;
 
 public partial class ControllersWindow : Window
 {
-    private static readonly ConditionalWeakTable<MainViewModel, ControllersWindow> OpenWindows = new();
+    private readonly WindowGeometryHelper _geometryHelper;
+    private Key _alwaysOnTopKey = Key.None;
+    private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.None;
 
     public ControllersWindow()
         : this(new UserPreferences()) { }
@@ -15,31 +18,31 @@ public partial class ControllersWindow : Window
     public ControllersWindow(UserPreferences preferences)
     {
         InitializeComponent();
-        new WindowGeometryHelper(this, preferences, "Controllers", 640, 420).Restore();
+        _geometryHelper = new WindowGeometryHelper(this, preferences, "Controllers", 360, 480);
+        _geometryHelper.Restore();
+        AlwaysOnTopContextMenu.Attach(this, _geometryHelper);
     }
 
-    public static void ShowOrActivate(MainViewModel vm, Window? owner)
+    protected override void OnLoaded(RoutedEventArgs e)
     {
-        if (OpenWindows.TryGetValue(vm, out var existing))
+        base.OnLoaded(e);
+
+        if (DataContext is MainViewModel vm && SettingsViewModel.ParseKeybind(vm.Preferences.AlwaysOnTopKey, out var key, out var mods))
         {
-            existing.Activate();
-            _ = vm.RefreshOnlineControllersCommand.ExecuteAsync(null);
+            _alwaysOnTopKey = key;
+            _alwaysOnTopModifiers = mods;
+        }
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
+        {
+            _geometryHelper.ToggleTopmost();
+            e.Handled = true;
             return;
         }
 
-        var window = new ControllersWindow(vm.Preferences) { DataContext = vm };
-        OpenWindows.Add(vm, window);
-        window.Closed += (_, _) => OpenWindows.Remove(vm);
-
-        if (owner is not null)
-        {
-            window.Show(owner);
-        }
-        else
-        {
-            window.Show();
-        }
-
-        _ = vm.RefreshOnlineControllersCommand.ExecuteAsync(null);
+        base.OnKeyDown(e);
     }
 }

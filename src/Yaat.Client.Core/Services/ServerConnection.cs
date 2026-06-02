@@ -1008,6 +1008,7 @@ public record CrcRoomMembersChangedDto(string RoomId, List<CrcRoomMemberDto> Mem
 
 public record OnlineControllerDto(
     string Callsign,
+    string Name,
     string Frequency,
     string? FacilityId,
     string? FacilityName,
@@ -1022,6 +1023,15 @@ public record OnlineControllerDto(
     public string StatusText => IsActive ? "Active" : "Standby";
 
     public string SourceText => IsScenarioPosition ? "Scenario" : "CRC";
+
+    /// <summary>Left-column handoff/sector id for the CRC-style list; falls back to the facility id.</summary>
+    public string HandoffId => !string.IsNullOrEmpty(Tcp) ? Tcp : (FacilityId ?? "");
+
+    /// <summary>CRC identifies controllers by position name, not callsign.</summary>
+    public string DisplayName => !string.IsNullOrEmpty(Name) ? Name : Callsign;
+
+    /// <summary>Hover tooltip: callsign + controller name.</summary>
+    public string Tooltip => $"{Callsign} — {RealName}" + (IsScenarioPosition ? " (scenario)" : "");
 }
 
 public record GroundLayoutDto(

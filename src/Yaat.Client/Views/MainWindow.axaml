@@ -43,9 +43,6 @@
                 <MenuItem Header="_Members..."
                           Command="{Binding ToggleRoomMembersPanelCommand}"
                           IsEnabled="{Binding IsInRoom}" />
-                <MenuItem Header="_Controllers..."
-                          x:Name="ControllersMenuItem"
-                          IsEnabled="{Binding IsInRoom}" />
                 <Separator />
                 <MenuItem Header="_Leave Room"
                           Command="{Binding LeaveRoomCommand}" />
@@ -63,6 +60,12 @@
                 <MenuItem Header="Pop Out _Radar View"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}" />
+                <MenuItem Header="Pop Out _Controllers"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding IsControllersPoppedOut, Mode=TwoWay}" />
+                <MenuItem Header="Pop Out _METAR"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding IsMetarPoppedOut, Mode=TwoWay}" />
                 <MenuItem Header="Open _Favorites Panel..."
                           x:Name="FavoritesPanelMenuItem" />
                 <!-- Strips submenu is populated from code-behind to mirror
@@ -119,9 +122,6 @@
                           Command="{Binding ClearWeatherCommand}" />
                 <MenuItem Header="Save Weather _As..."
                           Command="{Binding SaveWeatherCommand}" />
-                <MenuItem Header="View _METAR..."
-                          x:Name="MetarMenuItem"
-                          IsEnabled="{Binding IsInRoom}" />
                 <Separator />
                 <MenuItem Header="_New Weather..."
                           x:Name="NewWeatherMenuItem"
@@ -341,6 +341,16 @@
                          x:Name="RadarViewTab"
                          IsVisible="{Binding !IsRadarViewPoppedOut}">
                     <radar:RadarView DataContext="{Binding Radar}" />
+                </TabItem>
+                <TabItem Header="Controllers"
+                         x:Name="ControllersTab"
+                         IsVisible="{Binding !IsControllersPoppedOut}">
+                    <views:ControllersView />
+                </TabItem>
+                <TabItem Header="METAR"
+                         x:Name="MetarTab"
+                         IsVisible="{Binding !IsMetarPoppedOut}">
+                    <views:MetarView />
                 </TabItem>
                 <!-- Per-facility strips tabs are appended programmatically from
                      MainWindow.axaml.cs in response to MainViewModel.StripsEntries

@@ -256,7 +256,7 @@ public partial class MainViewModel
                 _allWeatherInfo = null;
                 Ground.WeatherInfo = null;
                 Radar.WeatherInfo = null;
-                Metars.Clear();
+                UpdateDefaultMetarsIfNoWeather();
             }
             else
             {
@@ -383,5 +383,55 @@ public partial class MainViewModel
     private void UpdateRadarWeatherDisplay()
     {
         Radar.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, Radar.WeatherAirports);
+    }
+
+    /// <summary>
+    /// When no weather profile is loaded, fills <see cref="Metars"/> with a standard default report
+    /// (calm wind, 10SM, clear, 29.92) for each scenario airport, so the METAR view reflects the
+    /// calm/standard conditions the sim already applies rather than showing nothing. No-op when real
+    /// weather is loaded (its METARs are already set by <see cref="PopulateMetars"/>).
+    /// </summary>
+    private void UpdateDefaultMetarsIfNoWeather()
+    {
+        if (HasActiveWeather)
+        {
+            return;
+        }
+
+        Metars.Clear();
+        var stamp = DateTime.UtcNow.ToString("ddHHmm", System.Globalization.CultureInfo.InvariantCulture) + "Z";
+        foreach (var icao in CollectScenarioAirportIcaos())
+        {
+            var display = (icao.Length == 4) && icao.StartsWith('K') ? icao[1..] : icao;
+            Metars.Add(new MetarEntry(display, $"{icao} {stamp} AUTO 00000KT 10SM CLR A2992"));
+        }
+    }
+
+    private List<string> CollectScenarioAirportIcaos()
+    {
+        var result = new List<string>();
+
+        void Add(string? id)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                return;
+            }
+
+            var upper = id.Trim().ToUpperInvariant();
+            var icao = upper.Length == 3 ? "K" + upper : upper;
+            if (!result.Contains(icao))
+            {
+                result.Add(icao);
+            }
+        }
+
+        foreach (var airport in Radar.WeatherAirports)
+        {
+            Add(airport);
+        }
+
+        Add(ActiveScenarioPrimaryAirportId);
+        return result;
     }
 }

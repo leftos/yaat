@@ -20,6 +20,7 @@ public partial class DataGridWindow : Window
         InitializeComponent();
         _geometryHelper = new WindowGeometryHelper(this, preferences, "DataGrid", 1000, 600);
         _geometryHelper.Restore();
+        AlwaysOnTopContextMenu.Attach(this, _geometryHelper);
     }
 
     protected override void OnLoaded(RoutedEventArgs e)

@@ -3,8 +3,10 @@
 ## Unreleased
 
 ### Added
-- **Room > Controllers...** opens a CRC-style controller list for the current room, so you can see who's online and on what frequency without opening CRC. Each row shows the callsign, frequency, TCP, position/radio name, facility, controller name, and active/standby status, and marks whether it's a live CRC controller or a scenario auto-connect position. The list updates as controllers connect or disconnect and as scenarios load or unload.
-- **Scenario > View METAR...** opens a window showing the METAR for each airport in the active weather (scenario default or a loaded override), with the station labeled and the text selectable for copy.
+- A **Controllers** tab shows the online controllers in the current room — both live CRC-connected controllers and the scenario's auto-connect ATC positions — without opening CRC. It uses CRC's layout: grouped by facility, with each row showing the handoff/sector ID, position name, and frequency; inactive positions are dimmed and the callsign + controller name appear in a hover tooltip. The list updates as controllers connect/disconnect and as scenarios load/unload.
+- A **METAR** tab shows the METAR for each airport in the active weather (scenario default or a loaded override), selectable for copy. With no weather loaded it shows default standard conditions (calm wind, 10SM, clear, 29.92) for each scenario airport.
+- Controllers and METAR are dockable tabs that can be popped out into their own windows (**View > Pop Out Controllers / Pop Out METAR**).
+- Pop-out windows (Aircraft List, Ground, Radar, Controllers, METAR, Terminal, Favorites) now have a right-click **Always On Top** toggle, in addition to the Settings keybind.
 - METARs for loaded weather are now reconstructed from the live simulated conditions and re-issued like real observations: a routine report each hour at :53Z, plus an off-cycle SPECI when the wind, visibility, ceiling, or precipitation changes significantly. Live-fetched weather keeps its real METARs unchanged.
 - When the simulator automatically slows one ground aircraft for another (a converging or in-trail conflict), the slowed aircraft's ground datablock now shows a "→{callsign} (auto)" badge so it's clear which traffic it's slowing for, instead of an unexplained slowdown. The right-click menu spells it out as "Yielding to" (converging) or "Following" (in trail). A controller-issued give-way still takes precedence.
 

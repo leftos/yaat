@@ -19,6 +19,7 @@ public partial class TerminalWindow : Window
         InitializeComponent();
         _geometryHelper = new WindowGeometryHelper(this, preferences, "Terminal", 700, 400);
         _geometryHelper.Restore();
+        AlwaysOnTopContextMenu.Attach(this, _geometryHelper);
     }
 
     protected override void OnLoaded(Avalonia.Interactivity.RoutedEventArgs e)

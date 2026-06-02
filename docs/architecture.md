@@ -233,7 +233,7 @@ ViewModels/
   MainViewModel.Scenario.cs     # Partial: scenario load/unload
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler; retains raw METARs (Metars) for the METAR window
-  MainViewModel.Controllers.cs  # Partial: online-controller list (OnlineControllers) for the Controllers window; refresh via GetOnlineControllers, re-fetched on CRC membership + scenario load/unload
+  MainViewModel.Controllers.cs  # Partial: online-controller list (OnlineControllers + CRC-grouped ControllerGroups) for the Controllers tab; refresh via GetOnlineControllers, re-fetched on CRC membership + scenario load/unload
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar/panel, global/scenario/airport scope, ground overrides, blank spacers)
   MainViewModel.Timeline.cs     # Partial: rewind timeline markers — color-coded finding ticks (red Safety, amber Warning, blue Coach) + grey command ticks; periodic refresh, click-to-rewind, hover details, per-aircraft filter from the Session Report Aircraft tab.
   TimelineMarkerVm.cs           # Per-marker view-model: timestamp, kind, severity, title, callsign, canonical command (commands only).
@@ -252,8 +252,12 @@ Views/
   CommandInputView.axaml.cs     # Keyboard: Esc/Up/Down/Tab/Enter for suggestions/history
   FavoritesBarView.axaml.cs     # Favorite command buttons bar and tabbed panel content (click/ctrl+click/right-click)
   FavoritesPanelWindow.axaml.cs # Pop-out favorite commands panel with saved geometry
-  ControllersWindow.axaml.cs    # Pop-out controller list (Room > Controllers...): callsign/freq/TCP/position/facility/name/status for live CRC + scenario positions
-  MetarWindow.axaml.cs          # Pop-out raw-METAR viewer (Scenario > View METAR...) bound to MainViewModel.Metars
+  ControllersView.axaml.cs      # Controllers tab content: CRC-style facility-grouped list (handoff id / position name / freq) over MainViewModel.ControllerGroups
+  ControllersWindow.axaml.cs    # Pop-out host for ControllersView (View > Pop Out Controllers)
+  MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars
+  MetarWindow.axaml.cs          # Pop-out host for MetarView (View > Pop Out METAR)
+  AlwaysOnTopContextMenu.cs     # Shared right-click "Always On Top" toggle attached to every pop-out window
+  FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
   FavoritesContextMenuModel.cs  # Pure model behind FavoritesContextMenu: resolves active favorites against the clicked aircraft for headless tests
   DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)

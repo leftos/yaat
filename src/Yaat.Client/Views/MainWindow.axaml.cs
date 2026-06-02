@@ -33,6 +33,8 @@ public partial class MainWindow : Window
     private DataGridWindow? _dataGridWindow;
     private GroundViewWindow? _groundViewWindow;
     private RadarViewWindow? _radarViewWindow;
+    private ControllersWindow? _controllersWindow;
+    private MetarWindow? _metarWindow;
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
     private ArrivalGeneratorsEditorWindow? _arrivalGeneratorsEditorWindow;
 
@@ -43,6 +45,8 @@ public partial class MainWindow : Window
     internal DataGridWindow? DataGridWindow => _dataGridWindow;
     internal GroundViewWindow? GroundViewWindow => _groundViewWindow;
     internal RadarViewWindow? RadarViewWindow => _radarViewWindow;
+    internal ControllersWindow? ControllersWindow => _controllersWindow;
+    internal MetarWindow? MetarWindow => _metarWindow;
     private bool _restoringGrid;
     private bool _isConfirmedClose;
     private bool _isMainWindowClosing;
@@ -184,18 +188,6 @@ public partial class MainWindow : Window
             favoritesPanelItem.Click += OnFavoritesPanelClick;
         }
 
-        var controllersItem = this.FindControl<MenuItem>("ControllersMenuItem");
-        if (controllersItem is not null)
-        {
-            controllersItem.Click += OnControllersClick;
-        }
-
-        var metarItem = this.FindControl<MenuItem>("MetarMenuItem");
-        if (metarItem is not null)
-        {
-            metarItem.Click += OnMetarClick;
-        }
-
         var crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
         if (crcItem is not null)
         {
@@ -256,6 +248,16 @@ public partial class MainWindow : Window
         if (vm.IsRadarViewPoppedOut)
         {
             OpenRadarViewWindow(vm);
+        }
+
+        if (vm.IsControllersPoppedOut)
+        {
+            OpenControllersWindow(vm);
+        }
+
+        if (vm.IsMetarPoppedOut)
+        {
+            OpenMetarWindow(vm);
         }
 
         if (!vm.IsTerminalDocked)
@@ -337,22 +339,6 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             FavoritesPanelWindow.ShowOrActivate(vm, this);
-        }
-    }
-
-    private void OnControllersClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (DataContext is MainViewModel vm)
-        {
-            ControllersWindow.ShowOrActivate(vm, this);
-        }
-    }
-
-    private void OnMetarClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (DataContext is MainViewModel vm)
-        {
-            MetarWindow.ShowOrActivate(vm, this);
         }
     }
 
@@ -1086,6 +1072,12 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.IsRadarViewPoppedOut):
                 HandleRadarViewPopOut(vm);
                 break;
+            case nameof(MainViewModel.IsControllersPoppedOut):
+                HandleControllersPopOut(vm);
+                break;
+            case nameof(MainViewModel.IsMetarPoppedOut):
+                HandleMetarPopOut(vm);
+                break;
             case nameof(MainViewModel.ActiveScenarioId):
                 RefreshRecentScenariosEnabled(vm);
                 break;
@@ -1171,6 +1163,30 @@ public partial class MainWindow : Window
         else
         {
             CloseRadarViewWindow();
+        }
+    }
+
+    private void HandleControllersPopOut(MainViewModel vm)
+    {
+        if (vm.IsControllersPoppedOut)
+        {
+            OpenControllersWindow(vm);
+        }
+        else
+        {
+            CloseControllersWindow();
+        }
+    }
+
+    private void HandleMetarPopOut(MainViewModel vm)
+    {
+        if (vm.IsMetarPoppedOut)
+        {
+            OpenMetarWindow(vm);
+        }
+        else
+        {
+            CloseMetarWindow();
         }
     }
 
@@ -1689,6 +1705,41 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OpenControllersWindow(MainViewModel vm)
+    {
+        _controllersWindow = new ControllersWindow(vm.Preferences) { DataContext = vm };
+        _controllersWindow.Closing += OnControllersWindowClosing;
+        _controllersWindow.Show();
+        _ = vm.RefreshOnlineControllersCommand.ExecuteAsync(null);
+    }
+
+    private void CloseControllersWindow()
+    {
+        if (_controllersWindow is not null)
+        {
+            _controllersWindow.Closing -= OnControllersWindowClosing;
+            _controllersWindow.Close();
+            _controllersWindow = null;
+        }
+    }
+
+    private void OpenMetarWindow(MainViewModel vm)
+    {
+        _metarWindow = new MetarWindow(vm.Preferences) { DataContext = vm };
+        _metarWindow.Closing += OnMetarWindowClosing;
+        _metarWindow.Show();
+    }
+
+    private void CloseMetarWindow()
+    {
+        if (_metarWindow is not null)
+        {
+            _metarWindow.Closing -= OnMetarWindowClosing;
+            _metarWindow.Close();
+            _metarWindow = null;
+        }
+    }
+
     // Pop-out close handlers revert the dock flag only when the user closed *this* window
     // manually. During app shutdown (X-button on MainWindow, File > Exit, Velopack restart,
     // CancelKeyPress) the pop-outs are closed by the framework and the persisted "popped
@@ -1732,6 +1783,24 @@ public partial class MainWindow : Window
             vm.IsRadarViewPoppedOut = false;
         }
         _radarViewWindow = null;
+    }
+
+    private void OnControllersWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
+        {
+            vm.IsControllersPoppedOut = false;
+        }
+        _controllersWindow = null;
+    }
+
+    private void OnMetarWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
+        {
+            vm.IsMetarPoppedOut = false;
+        }
+        _metarWindow = null;
     }
 
     private void RefreshRecentScenariosEnabled(MainViewModel vm)
@@ -1881,6 +1950,8 @@ public partial class MainWindow : Window
         vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
         vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
         vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
+        vm.IsControllersPoppedOut = profile.IsControllersPoppedOut;
+        vm.IsMetarPoppedOut = profile.IsMetarPoppedOut;
 
         // Defer geometry push and grid-layout apply so any windows that were
         // just opened by the toggle flips above have actually entered the

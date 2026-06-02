@@ -136,6 +136,8 @@ public sealed class UserPreferences
     public bool IsDataGridPoppedOut => _data.IsDataGridPoppedOut;
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
+    public bool IsControllersPoppedOut => _data.IsControllersPoppedOut;
+    public bool IsMetarPoppedOut => _data.IsMetarPoppedOut;
     public bool IsVStripsPoppedOut => _data.IsVStripsPoppedOut;
     public bool IsVTdlsPoppedOut => _data.IsVTdlsPoppedOut;
     public bool IsVTdlsDarkMode => _data.IsVTdlsDarkMode;
@@ -458,6 +460,8 @@ public sealed class UserPreferences
             "DataGrid" => _data.IsDataGridPoppedOut,
             "GroundView" => _data.IsGroundViewPoppedOut,
             "RadarView" => _data.IsRadarViewPoppedOut,
+            "Controllers" => _data.IsControllersPoppedOut,
+            "Metar" => _data.IsMetarPoppedOut,
             "VStrips" => _data.IsVStripsPoppedOut,
             "VTdls" => _data.IsVTdlsPoppedOut,
             "Terminal" => !_data.IsTerminalDocked,
@@ -478,6 +482,12 @@ public sealed class UserPreferences
                 break;
             case "RadarView":
                 _data.IsRadarViewPoppedOut = poppedOut;
+                break;
+            case "Controllers":
+                _data.IsControllersPoppedOut = poppedOut;
+                break;
+            case "Metar":
+                _data.IsMetarPoppedOut = poppedOut;
                 break;
             case "VStrips":
                 _data.IsVStripsPoppedOut = poppedOut;
@@ -1121,6 +1131,8 @@ public sealed class UserPreferences
             IsDataGridPoppedOut = GetFieldOr(obj, "isDataGridPoppedOut", false),
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
+            IsControllersPoppedOut = GetFieldOr(obj, "isControllersPoppedOut", false),
+            IsMetarPoppedOut = GetFieldOr(obj, "isMetarPoppedOut", false),
             IsVStripsPoppedOut = GetFieldOr(obj, "isVStripsPoppedOut", false),
             IsVTdlsPoppedOut = GetFieldOr(obj, "isVTdlsPoppedOut", false),
             IsVTdlsDarkMode = GetFieldOr(obj, "isVTdlsDarkMode", false),
@@ -1359,6 +1371,8 @@ public sealed class UserPreferences
         public bool IsDataGridPoppedOut { get; set; }
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }
+        public bool IsControllersPoppedOut { get; set; }
+        public bool IsMetarPoppedOut { get; set; }
         public bool IsVStripsPoppedOut { get; set; }
         public bool IsVTdlsPoppedOut { get; set; }
         public bool IsVTdlsDarkMode { get; set; }
@@ -1549,6 +1563,8 @@ public sealed class SavedWindowProfile
     public bool IsDataGridPoppedOut { get; set; }
     public bool IsGroundViewPoppedOut { get; set; }
     public bool IsRadarViewPoppedOut { get; set; }
+    public bool IsControllersPoppedOut { get; set; }
+    public bool IsMetarPoppedOut { get; set; }
 
     /// <summary>DataGrid column order / widths / sort / hidden columns at capture time.</summary>
     public SavedGridLayout? DataGridLayout { get; set; }

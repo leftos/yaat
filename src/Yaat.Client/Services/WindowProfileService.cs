@@ -49,6 +49,8 @@ public sealed class WindowProfileService
             IsDataGridPoppedOut = vm.IsDataGridPoppedOut,
             IsGroundViewPoppedOut = vm.IsGroundViewPoppedOut,
             IsRadarViewPoppedOut = vm.IsRadarViewPoppedOut,
+            IsControllersPoppedOut = vm.IsControllersPoppedOut,
+            IsMetarPoppedOut = vm.IsMetarPoppedOut,
             DataGridLayout = CloneGridLayout(_preferences.GridLayout),
         };
 
