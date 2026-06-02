@@ -877,6 +877,19 @@ public record SpawnNowCommand : ParsedCommand;
 
 public record SpawnDelayCommand(int Seconds) : ParsedCommand;
 
+/// <summary>Arm hold-for-release for an airport's IFR departures (<c>HFR &lt;airport&gt;</c>).</summary>
+public record HoldForReleaseCommand(string Airport) : ParsedCommand;
+
+/// <summary>Disarm hold-for-release for an airport (<c>HFROFF &lt;airport&gt;</c>); auto-releases anything still held.</summary>
+public record DisarmHoldForReleaseCommand(string Airport) : ParsedCommand;
+
+/// <summary>
+/// Release a held departure (<c>REL</c> / <c>CTOA</c>). <paramref name="Target"/> is an airport
+/// (release the next pending there, or the whole queue when <paramref name="IntervalSeconds"/> is
+/// set) or a specific callsign. Disambiguated against the held set at routing time.
+/// </summary>
+public record ReleaseDepartureCommand(string Target, int? IntervalSeconds = null) : ParsedCommand;
+
 public record AddAircraftCommand(string Args) : ParsedCommand;
 
 public record ConsolidateCommand(string ReceivingTcpCode, string SendingTcpCode, bool Full) : ParsedCommand;

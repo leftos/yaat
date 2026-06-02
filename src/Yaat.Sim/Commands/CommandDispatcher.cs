@@ -1351,6 +1351,16 @@ public static class CommandDispatcher
             return VfrRequiredResult;
         }
 
+        // Hold-for-release runway-entry gate: a held departure may not enter the runway (LUAW) or
+        // take off (CTO/CTOPP) until released. It stays holding short. Cleared by REL/CTOA.
+        if (aircraft.Ground.HeldForRelease && command is ClearedForTakeoffCommand or ClearedTakeoffPresentCommand or LineUpAndWaitCommand)
+        {
+            return new CommandResult(
+                false,
+                $"{aircraft.Callsign} is held for release at {aircraft.FlightPlan.Departure} — REL {aircraft.Callsign} first"
+            );
+        }
+
         if (CheckIfrDepartureCompatibility(command, aircraft) is { } ifrReject)
         {
             return ifrReject;

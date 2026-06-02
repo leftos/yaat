@@ -105,6 +105,11 @@ public enum CanonicalCommandType
     SpawnNow,
     SpawnDelay,
 
+    // Hold for release (departure-release control, airport-scoped)
+    HoldForRelease,
+    DisarmHoldForRelease,
+    ReleaseDeparture,
+
     // Track operations
     SetActivePosition,
     TrackAircraft,

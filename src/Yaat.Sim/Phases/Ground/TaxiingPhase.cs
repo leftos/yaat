@@ -564,6 +564,13 @@ public sealed class TaxiingPhase : Phase
             return;
         }
 
+        // Hold-for-release: a held departure must not consume a takeoff clearance issued before its
+        // airport was armed — it holds short of the runway until released (REL clears the flag).
+        if (ctx.Aircraft.Ground.HeldForRelease)
+        {
+            return;
+        }
+
         var lineup = new LineUpPhase();
         bool isHeli = ctx.Category == AircraftCategory.Helicopter;
         Phase takeoffPhase = isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase();

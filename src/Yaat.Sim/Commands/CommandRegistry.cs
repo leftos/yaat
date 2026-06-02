@@ -812,6 +812,37 @@ public static class CommandRegistry
                 ["SPAWNDELAY"],
                 [O(null, [R("seconds", "delay in seconds")], "Set deferred spawn delay")]
             ),
+            Cmd(
+                HoldForRelease,
+                "Hold for Release",
+                "Sim Control",
+                true,
+                ["HFR"],
+                [O(null, [R("airport", "airport ID")], "Arm hold-for-release for an airport's IFR departures")]
+            ),
+            Cmd(
+                DisarmHoldForRelease,
+                "Disarm Hold for Release",
+                "Sim Control",
+                true,
+                ["HFROFF"],
+                [O(null, [R("airport", "airport ID")], "Disarm hold-for-release (auto-releases anything still held)")]
+            ),
+            Cmd(
+                ReleaseDeparture,
+                "Release Departure",
+                "Sim Control",
+                true,
+                ["REL", "CTOA"],
+                [
+                    O(null, [R("target", "airport or callsign")], "Release the next pending departure at a field, or a specific callsign"),
+                    O(
+                        "Spaced",
+                        [R("airport", "airport ID"), R("interval", "minutes between releases")],
+                        "Release the whole field's queue, auto-spaced"
+                    ),
+                ]
+            ),
         ];
 
     private static CommandDefinition[] TrackCommands() =>

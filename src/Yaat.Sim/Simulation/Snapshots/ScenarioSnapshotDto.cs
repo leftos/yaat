@@ -63,12 +63,27 @@ public sealed class ScenarioSnapshotDto
 
     // Coordination channels (stored as serializable DTOs)
     public Dictionary<string, CoordinationChannelDto>? CoordinationChannels { get; init; }
+
+    // Hold-for-release. Optional so older snapshots deserialize cleanly (no airports armed, no
+    // pending releases).
+    public List<string>? HeldDepartureAirports { get; init; }
+    public List<ScheduledReleaseDto>? ReleaseQueue { get; init; }
 }
 
 public sealed class DelayedSpawnDto
 {
     public required string AircraftJson { get; init; }
     public required int SpawnAtSeconds { get; init; }
+
+    // Optional — defaults false so older snapshots deserialize with the spawn un-held.
+    public bool HeldForRelease { get; init; }
+}
+
+public sealed class ScheduledReleaseDto
+{
+    public required string Airport { get; init; }
+    public string? Callsign { get; init; }
+    public required double FireAtSeconds { get; init; }
 }
 
 public sealed class ScheduledTriggerDto

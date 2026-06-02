@@ -21,6 +21,19 @@ public sealed class SimScenarioState
     public List<ScheduledPreset> PresetQueue { get; } = [];
     public List<GeneratorState> Generators { get; } = [];
 
+    /// <summary>
+    /// Airports armed for hold-for-release (uppercased as stored on <c>FlightPlan.Departure</c>).
+    /// Single source of truth for "airport X is holding IFR departures for release." Mutated only by
+    /// the HFR/HFROFF handlers via <see cref="HeldReleaseService"/>.
+    /// </summary>
+    public HashSet<string> HeldDepartureAirports { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Pending auto-spaced releases (one entry per departure when a field's whole held queue is
+    /// released with an interval). Fired by <c>ProcessReleaseQueue</c> against <see cref="ElapsedSeconds"/>.
+    /// </summary>
+    public List<ScheduledRelease> ReleaseQueue { get; } = [];
+
     // Settings affecting command dispatch
     public bool AutoClearedToLand { get; set; }
     public bool AutoCrossRunway { get; set; }
@@ -153,7 +166,12 @@ public sealed class SimScenarioState
             DelayedQueue =
                 DelayedQueue.Count > 0
                     ? DelayedQueue
-                        .Select(d => new DelayedSpawnDto { AircraftJson = JsonSerializer.Serialize(d.Aircraft), SpawnAtSeconds = d.SpawnAtSeconds })
+                        .Select(d => new DelayedSpawnDto
+                        {
+                            AircraftJson = JsonSerializer.Serialize(d.Aircraft),
+                            SpawnAtSeconds = d.SpawnAtSeconds,
+                            HeldForRelease = d.HeldForRelease,
+                        })
                         .ToList()
                     : null,
             TriggerQueue =
@@ -196,5 +214,17 @@ public sealed class SimScenarioState
                         .ToList()
                     : null,
             CoordinationChannels = CoordinationChannelSnapshotMapper.ToSnapshotDictionary(CoordinationChannels),
+            HeldDepartureAirports = HeldDepartureAirports.Count > 0 ? HeldDepartureAirports.ToList() : null,
+            ReleaseQueue =
+                ReleaseQueue.Count > 0
+                    ? ReleaseQueue
+                        .Select(r => new ScheduledReleaseDto
+                        {
+                            Airport = r.Airport,
+                            Callsign = r.Callsign,
+                            FireAtSeconds = r.FireAtSeconds,
+                        })
+                        .ToList()
+                    : null,
         };
 }

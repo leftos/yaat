@@ -29,4 +29,13 @@ public sealed class AircraftGroundOpsDto
 
     /// <summary>Seconds this aircraft has been stopped on the ground (drives the GIVEWAY target-stationary fallback).</summary>
     public double StationarySeconds { get; init; }
+
+    /// <summary>True when this IFR departure is held for release (held short of the runway until released).</summary>
+    public bool HeldForRelease { get; init; }
+
+    /// <summary>True when a held ground departure has been released and is awaiting its auto-issued takeoff clearance.</summary>
+    public bool ReleasedForDeparture { get; init; }
+
+    /// <summary>Scenario-elapsed seconds at which the departure was released (drives the auto-CTO jitter).</summary>
+    public double ReleasedAtSeconds { get; init; }
 }

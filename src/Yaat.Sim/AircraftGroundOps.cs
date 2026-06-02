@@ -149,6 +149,32 @@ public class AircraftGroundOps
     /// </summary>
     public double StationarySeconds { get; set; }
 
+    /// <summary>
+    /// True when this IFR departure is held for release — its departure airport is armed for
+    /// hold-for-release and it has not yet been released. Set when the aircraft spawns at
+    /// parking/taxiway under an armed airport, or by the arm sweep when an airport is armed while
+    /// the aircraft is still on the ground pre-takeoff. While true, the runway-entry gate withholds
+    /// LUAW and takeoff clearance so the aircraft holds short of the runway; ground movement
+    /// (PUSH/TAXI up to the hold-short line) is never gated. Cleared by REL/CTOA or by disarming the
+    /// airport.
+    /// </summary>
+    public bool HeldForRelease { get; set; }
+
+    /// <summary>
+    /// Set by REL/CTOA on a held ground departure to authorize its takeoff. Once it is holding short
+    /// of its departure runway, the engine auto-issues a takeoff clearance (after a short jitter from
+    /// <see cref="ReleasedAtSeconds"/>) and the aircraft departs via the normal hold-short → takeoff
+    /// flow. Consumed once that auto-clearance fires.
+    /// </summary>
+    public bool ReleasedForDeparture { get; set; }
+
+    /// <summary>
+    /// Scenario-elapsed seconds at which this departure was released (see
+    /// <see cref="ReleasedForDeparture"/>). The engine waits a short deterministic jitter past this
+    /// before auto-issuing the takeoff clearance, simulating the tower clearing the released aircraft.
+    /// </summary>
+    public double ReleasedAtSeconds { get; set; }
+
     public AircraftGroundOpsDto ToSnapshot() =>
         new()
         {
@@ -171,6 +197,9 @@ public class AircraftGroundOps
             IsExpeditingTaxi = IsExpeditingTaxi,
             HoldElapsedSeconds = HoldElapsedSeconds,
             StationarySeconds = StationarySeconds,
+            HeldForRelease = HeldForRelease,
+            ReleasedForDeparture = ReleasedForDeparture,
+            ReleasedAtSeconds = ReleasedAtSeconds,
         };
 
     public static AircraftGroundOps FromSnapshot(AircraftGroundOpsDto dto, AirportGroundLayout? layout) =>
@@ -195,6 +224,9 @@ public class AircraftGroundOps
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
             HoldElapsedSeconds = dto.HoldElapsedSeconds,
             StationarySeconds = dto.StationarySeconds,
+            HeldForRelease = dto.HeldForRelease,
+            ReleasedForDeparture = dto.ReleasedForDeparture,
+            ReleasedAtSeconds = dto.ReleasedAtSeconds,
         };
 
     private static HoldDirective? HoldFromSnapshot(bool isHeld, string? giveWayTarget)

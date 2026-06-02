@@ -197,6 +197,8 @@ public sealed class SimulationEngine
             Scenario.PresetQueue.Clear();
             Scenario.DelayedHandoffQueue.Clear();
             Scenario.Generators.Clear();
+            Scenario.HeldDepartureAirports.Clear();
+            Scenario.ReleaseQueue.Clear();
 
             if (scenarioDto.DelayedQueue is not null)
             {
@@ -209,7 +211,37 @@ public sealed class SimulationEngine
                         aircraft.State.Ground.Layout = _groundData.GetLayout(layoutAirportId);
                     }
 
-                    Scenario.DelayedQueue.Add(new DelayedSpawn { Aircraft = aircraft, SpawnAtSeconds = d.SpawnAtSeconds });
+                    Scenario.DelayedQueue.Add(
+                        new DelayedSpawn
+                        {
+                            Aircraft = aircraft,
+                            SpawnAtSeconds = d.SpawnAtSeconds,
+                            HeldForRelease = d.HeldForRelease,
+                        }
+                    );
+                }
+            }
+
+            if (scenarioDto.HeldDepartureAirports is not null)
+            {
+                foreach (var airport in scenarioDto.HeldDepartureAirports)
+                {
+                    Scenario.HeldDepartureAirports.Add(airport);
+                }
+            }
+
+            if (scenarioDto.ReleaseQueue is not null)
+            {
+                foreach (var r in scenarioDto.ReleaseQueue)
+                {
+                    Scenario.ReleaseQueue.Add(
+                        new ScheduledRelease
+                        {
+                            Airport = r.Airport,
+                            Callsign = r.Callsign,
+                            FireAtSeconds = r.FireAtSeconds,
+                        }
+                    );
                 }
             }
 
@@ -411,7 +443,14 @@ public sealed class SimulationEngine
         foreach (var loaded in result.DelayedAircraft)
         {
             loaded.State.ScenarioId = Scenario.ScenarioId;
-            Scenario.DelayedQueue.Add(new DelayedSpawn { Aircraft = loaded, SpawnAtSeconds = loaded.SpawnDelaySeconds });
+            Scenario.DelayedQueue.Add(
+                new DelayedSpawn
+                {
+                    Aircraft = loaded,
+                    SpawnAtSeconds = loaded.SpawnDelaySeconds,
+                    HeldForRelease = DepartureSpawnClassifier.IsHeldSpawnCandidate(loaded),
+                }
+            );
         }
 
         // Queue triggers
@@ -476,6 +515,8 @@ public sealed class SimulationEngine
         ProcessGenerators(spawned);
         ProcessTriggers();
         ProcessTimedPresets();
+        ProcessReleaseQueue();
+        ProcessReleasedGroundDepartures();
 
         // Ensure ground layout is set
         if (scenario.PrimaryAirportId is not null && World.GroundLayout is null)
@@ -1672,10 +1713,21 @@ public sealed class SimulationEngine
         for (int i = scenario.DelayedQueue.Count - 1; i >= 0; i--)
         {
             var entry = scenario.DelayedQueue[i];
+
+            // Hold-for-release spawn gate: a held runway/airborne departure does not appear on the
+            // scope while its airport is armed — it spawns only when released (REL clears the flag).
+            if (HeldReleaseService.IsSpawnHeld(scenario, entry))
+            {
+                continue;
+            }
+
             if (scenario.ElapsedSeconds >= entry.SpawnAtSeconds)
             {
                 scenario.DelayedQueue.RemoveAt(i);
                 entry.Aircraft.State.SpawnedAtSeconds = scenario.ElapsedSeconds;
+                // A ground (parking/taxiway) departure spawning under an armed airport holds short
+                // until released — mark it now so the runway-entry gate withholds LUAW/CTO.
+                HeldReleaseService.MarkHeldOnSpawnIfArmed(scenario, entry.Aircraft.State);
                 World.AddAircraft(entry.Aircraft.State);
                 DispatchPresetCommands(entry.Aircraft);
                 spawned.Add(entry.Aircraft.State);
@@ -1926,6 +1978,101 @@ public sealed class SimulationEngine
             "Turboprop" => EngineKind.Turboprop,
             _ => EngineKind.Jet,
         };
+    }
+
+    private void ProcessReleaseQueue()
+    {
+        var scenario = Scenario!;
+        if (scenario.ReleaseQueue.Count == 0)
+        {
+            return;
+        }
+
+        var due = scenario.ReleaseQueue.Where(r => scenario.ElapsedSeconds >= r.FireAtSeconds).OrderBy(r => r.FireAtSeconds).ToList();
+        if (due.Count == 0)
+        {
+            return;
+        }
+
+        scenario.ReleaseQueue.RemoveAll(r => scenario.ElapsedSeconds >= r.FireAtSeconds);
+
+        foreach (var r in due)
+        {
+            var result = HeldReleaseService.Release(scenario, World, World.Rng, r.Callsign ?? r.Airport, null);
+            if (result.Success)
+            {
+                EmitTerminal("System", r.Callsign ?? "", $"[HFR] {result.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Auto-issues a takeoff clearance to released hold-for-release ground departures once they are
+    /// holding short of their departure runway, after a short deterministic tower-readback jitter.
+    /// </summary>
+    private void ProcessReleasedGroundDepartures()
+    {
+        var scenario = Scenario!;
+        foreach (var ac in World.GetSnapshot())
+        {
+            if (!ac.Ground.ReleasedForDeparture)
+            {
+                continue;
+            }
+
+            // Only once it has reached the hold-short line of its departure runway.
+            if (ac.Phases?.CurrentPhase is not HoldingShortPhase hs || hs.HoldShort.Reason != HoldShortReason.DestinationRunway)
+            {
+                continue;
+            }
+
+            if (scenario.ElapsedSeconds - ac.Ground.ReleasedAtSeconds < ReleaseAutoCtoJitterSeconds(ac.Callsign))
+            {
+                continue;
+            }
+
+            ac.Ground.ReleasedForDeparture = false;
+            AutoIssueTakeoffClearance(ac);
+        }
+    }
+
+    /// <summary>Deterministic 5–20 s tower-readback jitter from the callsign (FNV-1a; replay-safe, no RNG state).</summary>
+    private static double ReleaseAutoCtoJitterSeconds(string callsign)
+    {
+        uint h = 2166136261u;
+        foreach (var c in callsign)
+        {
+            h = (h ^ c) * 16777619u;
+        }
+        return HeldReleaseService.MinGroundReleaseAutoCtoJitterSeconds + (h % HeldReleaseService.GroundReleaseAutoCtoJitterRangeSeconds);
+    }
+
+    private void AutoIssueTakeoffClearance(AircraftState aircraft)
+    {
+        var parsed = CommandParser.ParseCompound("CTO", aircraft.FlightPlan.Route);
+        if (!parsed.IsSuccess)
+        {
+            _logger.LogWarning("Auto-CTO parse failed for released departure {Callsign}", aircraft.Callsign);
+            return;
+        }
+
+        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        var ctx = new DispatchContext(
+            groundLayout,
+            World.Rng,
+            World.Weather,
+            FindAircraft,
+            () => World.GetSnapshot(),
+            Scenario!.ValidateDctFixes,
+            Scenario!.AutoCrossRunway,
+            Scenario!.SoloTrainingMode,
+            Scenario!.RpoShowPilotSpeech,
+            _terminalEntries.Add,
+            Scenario!.ArtccConfig,
+            Scenario!.ElapsedSeconds
+        );
+        CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
+        EmitTerminal("System", aircraft.Callsign, "[HFR] Released — cleared for takeoff");
     }
 
     private void ProcessTimedPresets()

@@ -683,6 +683,11 @@ public static class CommandParser
             WaitDistance => ParseWaitDistance(arg),
             SpawnNow when arg is null => PR.Ok(new SpawnNowCommand()),
             SpawnDelay => ParseInt(arg, s => new SpawnDelayCommand(s)),
+            HoldForRelease when arg is { Length: > 0 } => PR.Ok(new HoldForReleaseCommand(arg.Trim().ToUpperInvariant())),
+            HoldForRelease => PR.Fail("HFR requires an airport"),
+            DisarmHoldForRelease when arg is { Length: > 0 } => PR.Ok(new DisarmHoldForReleaseCommand(arg.Trim().ToUpperInvariant())),
+            DisarmHoldForRelease => PR.Fail("HFROFF requires an airport"),
+            ReleaseDeparture => ParseRelease(arg),
             Add when arg is not null => PR.Ok(new AddAircraftCommand(arg)),
             // Tower
             LineUpAndWait when arg is null => PR.Ok(new LineUpAndWaitCommand()),
@@ -1005,6 +1010,9 @@ public static class CommandParser
                 or HoldAtFixHover
                 or SpawnNow
                 or SpawnDelay
+                or HoldForRelease
+                or DisarmHoldForRelease
+                or ReleaseDeparture
                 or Taxi
                 or CrossRunway
                 or HoldShort
@@ -2297,6 +2305,29 @@ public static class CommandParser
         }
 
         return PR.Ok(factory(value));
+    }
+
+    private static PR ParseRelease(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Fail("REL requires an airport or callsign");
+        }
+
+        var tokens = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var target = tokens[0].ToUpperInvariant();
+
+        if (tokens.Length == 1)
+        {
+            return PR.Ok(new ReleaseDepartureCommand(target));
+        }
+
+        if (tokens.Length == 2 && int.TryParse(tokens[1], out var minutes) && minutes > 0)
+        {
+            return PR.Ok(new ReleaseDepartureCommand(target, minutes * 60));
+        }
+
+        return PR.Fail("REL syntax: REL <airport|callsign> [interval-minutes]");
     }
 
     private static PR ParseConsolidate(string? arg, bool full)
