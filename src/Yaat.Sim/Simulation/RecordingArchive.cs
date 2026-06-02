@@ -110,6 +110,61 @@ public sealed class RecordingArchive : IDisposable
             ?? throw new InvalidOperationException("Failed to deserialize actions from recording archive.");
     }
 
+    /// <summary>
+    /// Reads user-authored timeline bookmarks from the archive's <c>bookmarks.json</c>
+    /// entry. Returns an empty list when the entry is absent (older recordings or sessions
+    /// where the user added none) — the entry is optional and not tracked in the manifest.
+    /// </summary>
+    public IReadOnlyList<TimelineBookmark> ReadBookmarks()
+    {
+        var entry = _zip.GetEntry("bookmarks.json");
+        if (entry is null)
+        {
+            return [];
+        }
+
+        var json = ReadUtf8Entry(entry);
+        var parsed = JsonSerializer.Deserialize<RecordingBookmarks>(json, RecordingJsonOptions.Default);
+        return parsed?.Bookmarks ?? [];
+    }
+
+    /// <summary>
+    /// Returns a copy of <paramref name="archiveBytes"/> with a <c>bookmarks.json</c> entry
+    /// holding <paramref name="bookmarks"/>. The archive is rebuilt entry-by-entry into a
+    /// fresh <see cref="ZipArchiveMode.Create"/> stream (Update mode is avoided — it buffers
+    /// the whole archive and reorders the Store/Brotli entries this format relies on). Any
+    /// pre-existing <c>bookmarks.json</c> is dropped so re-saving overwrites cleanly.
+    /// </summary>
+    public static byte[] WriteBookmarks(byte[] archiveBytes, IReadOnlyList<TimelineBookmark> bookmarks)
+    {
+        using var source = new MemoryStream(archiveBytes, writable: false);
+        using var sourceZip = new ZipArchive(source, ZipArchiveMode.Read);
+
+        using var output = new MemoryStream();
+        using (var destZip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var sourceEntry in sourceZip.Entries)
+            {
+                if (string.Equals(sourceEntry.FullName, "bookmarks.json", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var destEntry = destZip.CreateEntry(sourceEntry.FullName, CompressionLevel.NoCompression);
+                using var sourceStream = sourceEntry.Open();
+                using var destStream = destEntry.Open();
+                sourceStream.CopyTo(destStream);
+            }
+
+            var bookmarksJson = JsonSerializer.SerializeToUtf8Bytes(new RecordingBookmarks(1, bookmarks), RecordingJsonOptions.Default);
+            var bookmarksEntry = destZip.CreateEntry("bookmarks.json", CompressionLevel.NoCompression);
+            using var bookmarksStream = bookmarksEntry.Open();
+            bookmarksStream.Write(bookmarksJson);
+        }
+
+        return output.ToArray();
+    }
+
     public List<RecordedAction> ReadActionsForReplay()
     {
         var actions = ReadActions();

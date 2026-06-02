@@ -226,6 +226,9 @@ public partial class SettingsViewModel : ObservableObject
     private string _alwaysOnTopKeyDisplay = "Ctrl + Shift + T";
 
     [ObservableProperty]
+    private string _quickBookmarkKeyDisplay = "Ctrl + B";
+
+    [ObservableProperty]
     private bool _mainWindowTopmost;
 
     [ObservableProperty]
@@ -443,6 +446,7 @@ public partial class SettingsViewModel : ObservableObject
     private string _focusInputKeyName = "OemTilde";
     private string _takeControlKeyName = "Ctrl+T";
     private string _alwaysOnTopKeyName = "Ctrl+Shift+T";
+    private string _quickBookmarkKeyName = "Ctrl+B";
     private string _pttKeyName = "RightCtrl";
     private string? _captureTarget;
 
@@ -594,6 +598,8 @@ public partial class SettingsViewModel : ObservableObject
         _takeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
         _alwaysOnTopKeyName = _preferences.AlwaysOnTopKey;
         _alwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
+        _quickBookmarkKeyName = _preferences.QuickBookmarkKey;
+        _quickBookmarkKeyDisplay = KeyComboToDisplay(_quickBookmarkKeyName);
         _speechEnabled = _preferences.SpeechEnabled;
         _whisperModelSize = _preferences.WhisperModelSize;
         _llmModelPath = _preferences.LlmModelPath;
@@ -708,6 +714,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetTakeControlKey(_takeControlKeyName);
         _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
+        _preferences.SetQuickBookmarkKey(_quickBookmarkKeyName);
         _preferences.SetSpeechSettings(SpeechEnabled, WhisperModelSize, LlmModelPath, LlmGpuLayers, _pttKeyName, AutoFocusInputAfterSpeech);
         _preferences.SetSpeechSampleSettings(SpeechSampleCaptureEnabled, SpeechSampleCacheMaxMb);
         _preferences.SetAudioSettings(AudioInputDevice, AudioOutputDevice);
@@ -1096,6 +1103,12 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void StartQuickBookmarkKeyCapture()
+    {
+        StartKeyCaptureFor("QuickBookmark");
+    }
+
+    [RelayCommand]
     private void StartPttKeyCapture()
     {
         StartKeyCaptureFor("Ptt");
@@ -1118,6 +1131,9 @@ public partial class SettingsViewModel : ObservableObject
                 break;
             case "AlwaysOnTop":
                 AlwaysOnTopKeyDisplay = "Press a key combo...";
+                break;
+            case "QuickBookmark":
+                QuickBookmarkKeyDisplay = "Press a key combo...";
                 break;
             case "Ptt":
                 PttKeyDisplay = "Press a key combo...";
@@ -1162,6 +1178,10 @@ public partial class SettingsViewModel : ObservableObject
                 _alwaysOnTopKeyName = combo;
                 AlwaysOnTopKeyDisplay = KeyComboToDisplay(combo);
                 break;
+            case "QuickBookmark":
+                _quickBookmarkKeyName = combo;
+                QuickBookmarkKeyDisplay = KeyComboToDisplay(combo);
+                break;
             case "Ptt":
                 _pttKeyName = combo;
                 PttKeyDisplay = KeyComboToDisplay(combo);
@@ -1189,6 +1209,9 @@ public partial class SettingsViewModel : ObservableObject
                     break;
                 case "AlwaysOnTop":
                     AlwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
+                    break;
+                case "QuickBookmark":
+                    QuickBookmarkKeyDisplay = KeyComboToDisplay(_quickBookmarkKeyName);
                     break;
                 case "Ptt":
                     PttKeyDisplay = KeyComboToDisplay(_pttKeyName);

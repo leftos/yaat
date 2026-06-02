@@ -617,6 +617,7 @@ public partial class MainViewModel
             // whatever the server says (normally empty) so we don't carry
             // stale aircraft from a prior room.
             Aircraft.Clear();
+            ClearBookmarks();
             foreach (var dto in state.AllAircraft)
             {
                 var model = AircraftModel.FromDto(dto, ComputeDistance);

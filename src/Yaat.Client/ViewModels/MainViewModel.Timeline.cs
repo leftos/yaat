@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.ViewModels;
 
@@ -161,7 +162,13 @@ public partial class MainViewModel
                 return;
             }
 
-            await File.WriteAllBytesAsync(path, compressedBytes);
+            var bytesToSave = compressedBytes;
+            if (Bookmarks.Count > 0 && RecordingCompression.IsZipArchive(compressedBytes))
+            {
+                bytesToSave = RecordingArchive.WriteBookmarks(compressedBytes, SnapshotBookmarks());
+            }
+
+            await File.WriteAllBytesAsync(path, bytesToSave);
 
             StatusText = "Recording saved";
         }
@@ -232,10 +239,16 @@ public partial class MainViewModel
                 return;
             }
 
+            var recordingBytes = compressedBytes;
+            if (Bookmarks.Count > 0 && RecordingCompression.IsZipArchive(compressedBytes))
+            {
+                recordingBytes = RecordingArchive.WriteBookmarks(compressedBytes, SnapshotBookmarks());
+            }
+
             await using var stream = File.Create(path);
             using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
 
-            using var recordingStream = new MemoryStream(compressedBytes);
+            using var recordingStream = new MemoryStream(recordingBytes);
             using var recordingZip = new ZipArchive(recordingStream, ZipArchiveMode.Read);
             foreach (var sourceEntry in recordingZip.Entries)
             {
@@ -512,9 +525,11 @@ public partial class MainViewModel
                 return;
             }
 
+            var bookmarks = TryReadBookmarks(recordingBytes);
+
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                ApplyRecordingResult(result);
+                ApplyRecordingResult(result, bookmarks);
                 StatusText = $"Recording loaded: {result.ScenarioName}";
                 AddSystemEntry($"Recording loaded: {result.ScenarioName}");
             });
@@ -526,7 +541,27 @@ public partial class MainViewModel
         }
     }
 
-    internal void ApplyRecordingResult(RewindResultDto result)
+    /// <summary>
+    /// Reads timeline bookmarks embedded in a loaded recording's <c>bookmarks.json</c> entry.
+    /// Returns empty for legacy non-zip recordings (.br/.json) or archives without the entry;
+    /// the server already validated the bytes, so a parse failure here only means "no bookmarks".
+    /// </summary>
+    private IReadOnlyList<TimelineBookmark> TryReadBookmarks(byte[] recordingBytes)
+    {
+        try
+        {
+            using var ms = new MemoryStream(recordingBytes);
+            using var archive = RecordingArchive.Open(ms);
+            return archive.ReadBookmarks();
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "No timeline bookmarks read from recording (legacy format or none present)");
+            return [];
+        }
+    }
+
+    internal void ApplyRecordingResult(RewindResultDto result, IReadOnlyList<TimelineBookmark> bookmarks)
     {
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.ScenarioName;
@@ -570,6 +605,7 @@ public partial class MainViewModel
             }
         }
 
+        SetBookmarks(bookmarks);
         ShowTimelineBar = true;
     }
 

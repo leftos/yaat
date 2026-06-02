@@ -300,6 +300,7 @@ public sealed class UserPreferences
     public string FocusInputKey => _data.FocusInputKey;
     public string TakeControlKey => _data.TakeControlKey;
     public string AlwaysOnTopKey => _data.AlwaysOnTopKey;
+    public string QuickBookmarkKey => _data.QuickBookmarkKey;
     public bool SpeechEnabled => _data.SpeechEnabled;
     public string WhisperModelSize => _data.WhisperModelSize;
     public string LlmModelPath => _data.LlmModelPath;
@@ -718,6 +719,12 @@ public sealed class UserPreferences
     public void SetAlwaysOnTopKey(string key)
     {
         _data.AlwaysOnTopKey = key;
+        Save();
+    }
+
+    public void SetQuickBookmarkKey(string key)
+    {
+        _data.QuickBookmarkKey = key;
         Save();
     }
 
@@ -1231,6 +1238,7 @@ public sealed class UserPreferences
             FocusInputKey = GetFieldOr(obj, "focusInputKey", "OemTilde"),
             TakeControlKey = GetFieldOr(obj, "takeControlKey", "Ctrl+T"),
             AlwaysOnTopKey = GetFieldOr(obj, "alwaysOnTopKey", "Ctrl+Shift+T"),
+            QuickBookmarkKey = GetFieldOr(obj, "quickBookmarkKey", "Ctrl+B"),
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
             GroundShowRunwayLabels = GetFieldOr(obj, "groundShowRunwayLabels", true),
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
@@ -1492,6 +1500,7 @@ public sealed class UserPreferences
         public string FocusInputKey { get; set; } = "OemTilde";
         public string TakeControlKey { get; set; } = "Ctrl+T";
         public string AlwaysOnTopKey { get; set; } = "Ctrl+Shift+T";
+        public string QuickBookmarkKey { get; set; } = "Ctrl+B";
         public List<string> HiddenTerminalKinds { get; set; } = [];
         public bool GroundShowRunwayLabels { get; set; } = true;
         public bool GroundShowTaxiwayLabels { get; set; } = true;

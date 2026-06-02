@@ -490,6 +490,7 @@ public partial class MainViewModel
         }
 
         Aircraft.Clear();
+        ClearBookmarks();
         int delayed = 0;
         foreach (var dto in bootstrap.Aircraft)
         {
@@ -593,6 +594,7 @@ public partial class MainViewModel
         Radar.ClearShownPaths();
         Ground.ClearShownTaxiRoutes();
         Aircraft.Clear();
+        ClearBookmarks();
         InitialDelayedSpawnCount = 0;
         PendingDelayedSpawnCount = 0;
         Ground.ClearLayout();

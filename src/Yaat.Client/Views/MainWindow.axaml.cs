@@ -81,6 +81,16 @@ public partial class MainWindow : Window
             markerOverlay.AddHandler(PointerPressedEvent, OnTimelineMarkerPressed, RoutingStrategies.Bubble);
         }
 
+        var bookmarkOverlay = this.FindControl<ItemsControl>("BookmarkMarkerOverlay");
+        if (bookmarkOverlay is not null)
+        {
+            // Left-click seeks to the bookmark; right-click is handled by the tick's
+            // ContextMenu (Rename/Delete), so OnTimelineBookmarkPressed gates on left button.
+            bookmarkOverlay.AddHandler(PointerPressedEvent, OnTimelineBookmarkPressed, RoutingStrategies.Bubble);
+        }
+
+        vm.BookmarkNamePromptRequested += OnBookmarkNamePromptRequested;
+
         _windowProfileService = new WindowProfileService(vm.Preferences);
 
         var settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
@@ -2315,6 +2325,98 @@ public partial class MainWindow : Window
         }
     }
 
+    private TimelineBookmarkVm? _bookmarkBeingNamed;
+
+    private async void OnTimelineBookmarkPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is not Visual visual)
+        {
+            return;
+        }
+
+        // Right-click opens the tick's ContextMenu (Rename/Delete); only seek on left-click.
+        if (!e.GetCurrentPoint(visual).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        var control = visual as Control ?? visual.GetVisualAncestors().OfType<Control>().FirstOrDefault();
+        while (control is not null)
+        {
+            if (control.DataContext is TimelineBookmarkVm bookmark)
+            {
+                if (DataContext is MainViewModel vm)
+                {
+                    e.Handled = true;
+                    await vm.RewindToSeconds(bookmark.TimeSeconds);
+                }
+                return;
+            }
+            control = control.GetVisualParent() as Control;
+        }
+    }
+
+    private void OnBookmarkNamePromptRequested(TimelineBookmarkVm bookmark)
+    {
+        _bookmarkBeingNamed = bookmark;
+        var popup = this.FindControl<Popup>("BookmarkNamePopup");
+        var textBox = this.FindControl<TextBox>("BookmarkNameText");
+        if (popup is null || textBox is null)
+        {
+            return;
+        }
+
+        textBox.Text = bookmark.Name ?? string.Empty;
+        popup.IsOpen = true;
+        textBox.Focus();
+        textBox.SelectAll();
+    }
+
+    private void OnBookmarkNameKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            CommitBookmarkName();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseBookmarkNamePopup();
+            e.Handled = true;
+        }
+    }
+
+    private void OnBookmarkNameSubmit(object? sender, RoutedEventArgs e)
+    {
+        CommitBookmarkName();
+    }
+
+    private void OnBookmarkNameCancel(object? sender, RoutedEventArgs e)
+    {
+        CloseBookmarkNamePopup();
+    }
+
+    private void CommitBookmarkName()
+    {
+        var textBox = this.FindControl<TextBox>("BookmarkNameText");
+        if (_bookmarkBeingNamed is not null && textBox is not null)
+        {
+            var text = textBox.Text?.Trim();
+            _bookmarkBeingNamed.Name = string.IsNullOrEmpty(text) ? null : text;
+        }
+        CloseBookmarkNamePopup();
+    }
+
+    private void CloseBookmarkNamePopup()
+    {
+        var popup = this.FindControl<Popup>("BookmarkNamePopup");
+        if (popup is not null)
+        {
+            popup.IsOpen = false;
+        }
+        _bookmarkBeingNamed = null;
+    }
+
     private async void OnSessionReportClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm || !vm.IsConnected)
@@ -2596,6 +2698,8 @@ public partial class MainWindow : Window
     private KeyModifiers _takeControlModifiers = KeyModifiers.Control;
     private Key _alwaysOnTopKey = Key.T;
     private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.Control | KeyModifiers.Shift;
+    private Key _quickBookmarkKey = Key.B;
+    private KeyModifiers _quickBookmarkModifiers = KeyModifiers.Control;
     private Key _pttKey = Key.RightCtrl;
     private KeyModifiers _pttModifiers = KeyModifiers.None;
 
@@ -2658,6 +2762,12 @@ public partial class MainWindow : Window
         {
             _alwaysOnTopKey = topKey;
             _alwaysOnTopModifiers = topMods;
+        }
+
+        if (SettingsViewModel.ParseKeybind(prefs.QuickBookmarkKey, out var bmKey, out var bmMods))
+        {
+            _quickBookmarkKey = bmKey;
+            _quickBookmarkModifiers = bmMods;
         }
 
         if (SettingsViewModel.ParseKeybind(prefs.PttKey, out var pttKey, out var pttMods))
@@ -2877,6 +2987,18 @@ public partial class MainWindow : Window
         if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
         {
             _geometryHelper.ToggleTopmost();
+            e.Handled = true;
+            return;
+        }
+
+        if (
+            e.Key == _quickBookmarkKey
+            && e.KeyModifiers == _quickBookmarkModifiers
+            && DataContext is MainViewModel bookmarkVm
+            && bookmarkVm.IsTimelineAvailable
+        )
+        {
+            bookmarkVm.QuickAddBookmarkCommand.Execute(null);
             e.Handled = true;
             return;
         }

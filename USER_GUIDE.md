@@ -35,6 +35,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Helicopter operations](#helicopter-operations)
 - [Simulation Controls](#simulation-controls)
   - [Timeline / Rewind](#timeline--rewind)
+  - [Bookmarks](#bookmarks)
   - [Save / Load Recordings](#save--load-recordings)
 - [Multi-User Features](#multi-user-features)
   - [Aircraft Assignments](#aircraft-assignments)
@@ -1031,6 +1032,18 @@ After rewinding, the simulation enters **Playback Mode**. The timeline bar shows
 - Terminal entries broadcast normally — you can watch commands execute as they happened
 - The simulation auto-pauses when it reaches the end of the recorded tape
 - Press **Take Control** or issue any command to exit playback and resume live operation
+
+### Bookmarks
+
+Mark highlight moments on the timeline so you can scrub back to them later (a go-around, a conflict, a teaching point). Bookmark controls sit at the right end of the timeline bar:
+
+- **🔖** — add a bookmark at the current position and type an optional name. Leave the name blank to keep the timestamp default ("Bookmark 14:32"). The default keybind **Ctrl+B** drops an unnamed bookmark instantly (configurable under **Settings > Quick Bookmark Key**).
+- **◀🔖 / 🔖▶** — jump to the previous / next bookmark.
+- **Bookmarks ▾** — a list of all bookmarks (time + name); click one to jump, or use the ✎ / ✕ buttons to rename or delete.
+
+Bookmarks also appear as gold ticks on the rail above the slider — click a tick to seek, or right-click it to Rename/Delete. Bookmarks work in both live and playback modes.
+
+Bookmarks are saved into the recording when you **Save Recording** or **Save Bug Report Bundle**, and reappear when you load that recording — so your highlight marks travel with the file for debriefs. They are kept in memory during a live session; if you close without saving a recording, they are not retained. (After **Take Control** exits playback, existing bookmarks are kept; any beyond the current live time sit at the right edge of the bar.)
 
 ### Save / Load Recordings
 

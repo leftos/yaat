@@ -1123,6 +1123,25 @@
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />
                         </StackPanel>
+                        <StackPanel Spacing="4" Margin="0,8,0,0">
+                            <TextBlock Text="Quick Bookmark Key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="QuickBookmarkKeyButton"
+                                        Content="{Binding QuickBookmarkKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartQuickBookmarkKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key combo)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Pressing this key combo drops an unnamed bookmark on the timeline at the current position. Default: Ctrl+B"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
                         <Separator Margin="0,4" />
                         <CheckBox Content="Server Admin Mode"
                                   IsChecked="{Binding IsAdminMode}" />

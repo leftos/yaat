@@ -72,7 +72,10 @@ snapshots/NNN.json.br        # one per snapshot index
 layouts/{AirportId}.json.br  # deduplicated ground layouts (optional)
 weather.json                 # plain JSON (optional; gated by HasWeather)
 artcc-config.json.br         # ARTCC config JSON (optional; HasArtccConfig)
+bookmarks.json               # plain JSON (optional; user-authored timeline bookmarks)
 ```
+
+**`bookmarks.json`** is a client-only addition: the server-built archive never writes it. The client injects it at save time via `RecordingArchive.WriteBookmarks(bytes, …)` (a copy-into-fresh-`Create` rebuild, not Update mode) from `SaveRecording`/`SaveBugReportBundle`, and reads it back via `RecordingArchive.ReadBookmarks()` in `MainViewModel.LoadRecording`. It is not tracked in the manifest, so it is absent in older recordings — `ReadBookmarks()` returns `[]` then. The server's `RecordingArchive` reader ignores the entry (it only requires `manifest.json` and fetches known entries by name), the same way it tolerates the log entries inside a bug bundle.
 
 **`RecordedAction`** is a discriminated union via `[JsonDerivedType]`. The common members are `(ElapsedSeconds, $type)`; concrete types add their fields:
 

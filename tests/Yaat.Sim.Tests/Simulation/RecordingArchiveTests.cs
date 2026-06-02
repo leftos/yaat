@@ -642,6 +642,90 @@ public class RecordingArchiveTests
         Assert.Null(ac.Ground.LayoutAirportId);
     }
 
+    [Fact]
+    public void WriteBookmarks_ThenReadBookmarks_RoundTrips()
+    {
+        var recording = CreateTestRecording(snapshotCount: 2);
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        var bookmarks = new List<TimelineBookmark> { new("bm-12.000-0", 12.0, "Go-around"), new("bm-305.500-1", 305.5, null) };
+        var withBookmarks = RecordingArchive.WriteBookmarks(bytes, bookmarks);
+
+        using var ms = new MemoryStream(withBookmarks);
+        using var archive = RecordingArchive.Open(ms);
+
+        var read = archive.ReadBookmarks();
+        Assert.Equal(2, read.Count);
+        Assert.Equal("bm-12.000-0", read[0].Id);
+        Assert.Equal(12.0, read[0].TimeSeconds);
+        Assert.Equal("Go-around", read[0].Name);
+        Assert.Equal(305.5, read[1].TimeSeconds);
+        Assert.Null(read[1].Name);
+    }
+
+    [Fact]
+    public void ReadBookmarks_ReturnsEmpty_WhenEntryAbsent()
+    {
+        var recording = CreateTestRecording(snapshotCount: 1);
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        Assert.Empty(archive.ReadBookmarks());
+    }
+
+    [Fact]
+    public void WriteBookmarks_PreservesExistingEntries()
+    {
+        var recording = CreateTestRecording(snapshotCount: 3);
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        var withBookmarks = RecordingArchive.WriteBookmarks(bytes, [new("bm-0.000-0", 0.0, "Start")]);
+
+        using var ms = new MemoryStream(withBookmarks);
+        using var archive = RecordingArchive.Open(ms);
+
+        Assert.Equal(4, archive.Manifest.Version);
+        Assert.Equal(recording.ScenarioJson, archive.ReadScenarioJson());
+        Assert.Equal(recording.WeatherJson, archive.ReadWeatherJson());
+        Assert.Equal(3, archive.ReadActions().Count);
+        Assert.Equal(3, archive.Manifest.Snapshots.Count);
+        Assert.Equal(10.0, archive.ReadSnapshot(2).ElapsedSeconds);
+    }
+
+    [Fact]
+    public void WriteBookmarks_Overwrites_WithoutDuplicateEntry()
+    {
+        var recording = CreateTestRecording(snapshotCount: 1);
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        var first = RecordingArchive.WriteBookmarks(bytes, [new("bm-1.000-0", 1.0, "First")]);
+        var second = RecordingArchive.WriteBookmarks(first, [new("bm-2.000-0", 2.0, "Second")]);
+
+        using var ms = new MemoryStream(second);
+        using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
+        Assert.Single(zip.Entries, e => e.FullName == "bookmarks.json");
+
+        ms.Position = 0;
+        using var archive = RecordingArchive.Open(ms);
+        var read = archive.ReadBookmarks();
+        Assert.Equal("Second", Assert.Single(read).Name);
+    }
+
+    [Fact]
+    public void WriteBookmarks_EmptyList_RoundTripsEmpty()
+    {
+        var recording = CreateTestRecording(snapshotCount: 1);
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        var withBookmarks = RecordingArchive.WriteBookmarks(bytes, []);
+
+        using var ms = new MemoryStream(withBookmarks);
+        using var archive = RecordingArchive.Open(ms);
+        Assert.Empty(archive.ReadBookmarks());
+    }
+
     private static StateSnapshotDto CreateSnapshotWithAircraft(double elapsed, string callsign, string aircraftType)
     {
         var snapshot = CreateMinimalSnapshot(elapsed);
