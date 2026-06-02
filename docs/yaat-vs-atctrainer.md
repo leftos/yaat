@@ -263,7 +263,7 @@ After liftoff, the assigned departure turn is deferred until the aircraft is pas
 | Separator delete | — | `SEPD {bay}[/{rack}] {label-or-position}` | YAAT-only; label or 1-based position locator |
 | Blank create | — | `BLANK [{bay}[/{rack}[/{index}]]]` | YAAT-only; bare verb adds to printer queue |
 | Blank delete | — | `BLANKD {bay}[/{rack}]` | YAAT-only; blanks are fungible |
-| Act As | — | `AS` + per-command prefix | YAAT-only, allows user to act as any TCP for one command, or switch to that TCP as their primary for commands, independent of CRC |
+| Act As | — | `AS` + per-command prefix | YAAT-only, allows user to act as any TCP for one command, or switch to that TCP as their primary for commands, independent of CRC. Ownership and pointout commands (`HO`/`ACCEPT`/`CANCEL`/`DROP`/`PO`/`OK`/`PORJ`/`PORT`) infer the acting position from the track (owner; handoff target for `ACCEPT`; pointout recipient for `OK`/`PORJ`; sender for `PORT`), so `AS` is **not** required for them — unlike real STARS, where you must own a track to hand it off. `AS` is still needed for `TRACK` (claims an unowned track) and the no-arg `PO`. |
 | Reject pointout | — | `PORJ` | YAAT-only; rejects pending inbound pointout |
 | Retract pointout | — | `PORT` | YAAT-only; retracts your outbound pending pointout |
 | Ack conflict alert | — | `CAACK` | YAAT-only; acknowledges CA for a track |

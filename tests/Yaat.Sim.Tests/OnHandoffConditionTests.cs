@@ -198,7 +198,7 @@ public class OnHandoffConditionTests
         ac.Track.Owner = TrackOwner.CreateStars("OAK_GND", "ZOA", 3, "O");
         ac.Track.HandoffPeer = acceptor;
 
-        var result = TrackEngine.HandleAccept(ac, acceptor);
+        var result = TrackEngine.HandleAccept(ac);
 
         Assert.True(result.Success);
         Assert.True(ac.Track.HandoffAccepted);

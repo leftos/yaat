@@ -88,7 +88,7 @@ public class PointoutTests
         var originalPo = MakePendingPointout(2, "N", 1, "D");
         ac.Track.Pointout = originalPo;
 
-        var result = TrackEngine.HandlePointOut(ac, owner, MakeTcp(3, "B"), MakeTcp(1, "D"));
+        var result = TrackEngine.HandlePointOut(ac, MakeTcp(3, "B"), MakeTcp(1, "D"));
 
         Assert.False(result.Success);
         Assert.Same(originalPo, ac.Track.Pointout);
@@ -107,7 +107,7 @@ public class PointoutTests
 
         var newTarget = MakeTcp(3, "B");
         var senderTcp = MakeTcp(1, "D");
-        var result = TrackEngine.HandlePointOut(ac, owner, newTarget, senderTcp);
+        var result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp);
 
         Assert.True(result.Success);
         Assert.Equal("3B", ac.Track.Pointout!.Recipient.ToString());
@@ -125,7 +125,7 @@ public class PointoutTests
 
         var newTarget = MakeTcp(3, "B");
         var senderTcp = MakeTcp(1, "D");
-        var result = TrackEngine.HandlePointOut(ac, owner, newTarget, senderTcp);
+        var result = TrackEngine.HandlePointOut(ac, newTarget, senderTcp);
 
         Assert.True(result.Success);
         Assert.Equal("3B", ac.Track.Pointout!.Recipient.ToString());
@@ -145,7 +145,7 @@ public class PointoutTests
         ac.Track.HandoffInitiatedAt = 100;
 
         // Accept the handoff
-        TrackEngine.HandleAccept(ac, target);
+        TrackEngine.HandleAccept(ac);
 
         Assert.NotNull(ac.Track.Pointout);
         Assert.Equal(StarsPointoutStatus.Pending, ac.Track.Pointout.Status);
@@ -160,7 +160,7 @@ public class PointoutTests
         var ac = MakeAircraft(owner);
         ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
 
-        TrackEngine.HandleDrop(ac, owner);
+        TrackEngine.HandleDrop(ac);
 
         Assert.NotNull(ac.Track.Pointout);
         Assert.Equal(StarsPointoutStatus.Pending, ac.Track.Pointout.Status);
@@ -185,5 +185,43 @@ public class PointoutTests
 
         Assert.NotNull(ac.Track.Pointout);
         Assert.Equal(StarsPointoutStatus.Pending, ac.Track.Pointout.Status);
+    }
+
+    // ── Pointout responses infer the acting position from the pointout (no AS / identity) ──
+
+    [Fact]
+    public void HandleAcknowledge_AcceptsPendingPointout()
+    {
+        var ac = MakeAircraft();
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+
+        var result = TrackEngine.HandleAcknowledge(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
+    }
+
+    [Fact]
+    public void HandleRejectPointout_RejectsPendingPointout()
+    {
+        var ac = MakeAircraft();
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+
+        var result = TrackEngine.HandleRejectPointout(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(StarsPointoutStatus.Rejected, ac.Track.Pointout!.Status);
+    }
+
+    [Fact]
+    public void HandleRetractPointout_ClearsPendingPointout()
+    {
+        var ac = MakeAircraft();
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+
+        var result = TrackEngine.HandleRetractPointout(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Null(ac.Track.Pointout);
     }
 }

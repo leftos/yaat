@@ -991,9 +991,11 @@ By default, you operate as the scenario's student position. Use `AS` to act as a
 | Command | Effect |
 |---------|--------|
 | `AS 2B` | Set your active position to TCP 2B (persistent until changed) |
-| `N135BS AS 2B HO 3Y` | Act as 2B for this command only (prefix mode) |
+| `N135BS AS 2B TRACK` | Act as 2B for this command only (prefix mode) |
 
 Resolution order: per-command `AS` prefix > persistent active position > student position default.
+
+Ownership and pointout commands (`HO`, `ACCEPT`, `CANCEL`, `DROP`, `PO`, `OK`, `PORJ`, `PORT`) infer the acting position from the track itself — the current owner for `HO`/`CANCEL`/`DROP`/`PO`, the handoff target for `ACCEPT`, the pointout recipient for `OK`/`PORJ`, the pointout sender for `PORT` — so they never need an `AS` prefix. `AS` still matters for `TRACK` (which claims an unowned track and so must say who is claiming it), the no-argument `PO` (which needs your position to tell an acknowledge from a retract), and for setting your persistent active position.
 
 Changing your active position also updates the radar display:
 - **DCB map shortcuts** switch to the position's configured 3x2 map group.
@@ -1003,13 +1005,13 @@ Changing your active position also updates the radar display:
 
 | Command | Effect |
 |---------|--------|
-| `TRACK` | Initiate control — take ownership of the aircraft |
-| `DROP` | Terminate control — release ownership |
-| `HO 3Y` | Handoff to TCP 3Y (must own the aircraft) |
-| `HO C44` | Handoff to ERAM center sector 44 (must own the aircraft) |
+| `TRACK` | Initiate control — take ownership of the aircraft (claims as your active position) |
+| `DROP` | Terminate control — release ownership (acts as the current owner) |
+| `HO 3Y` | Handoff to TCP 3Y (initiated from the current owner) |
+| `HO C44` | Handoff to ERAM center sector 44 (initiated from the current owner) |
 | `HOF 3Y` | Force handoff to TCP 3Y (transfers ownership regardless of current owner) |
-| `ACCEPT` / `A` | Accept a pending inbound handoff |
-| `CANCEL` | Retract a pending outbound handoff |
+| `ACCEPT` / `A` | Accept a pending inbound handoff (acts as the handoff target) |
+| `CANCEL` | Retract a pending outbound handoff (acts as the current owner) |
 | `ACCEPTALL` | Accept all pending inbound handoffs (global — no callsign needed) |
 | `HOALL 3Y` | Handoff all your aircraft to TCP 3Y (global — no callsign needed) |
 | `PO 3Y` | Point out to TCP 3Y |

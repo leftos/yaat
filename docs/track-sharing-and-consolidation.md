@@ -12,7 +12,12 @@ There are two distinct layers and this doc owns only the upper one.
 - **Ownership state machine** — *who is tracking a target.* `AircraftTrack.Owner` / `HandoffPeer` / `Pointout`, mutated by
   `TrackEngine` (TRACK, DROP, HO, ACCEPT, CANCEL HO, POINTOUT, scratchpad, temp alt, …). These commands bypass `CommandDispatcher`
   entirely — see [command-pipeline.md](command-pipeline.md) (the track-command bypass section) and
-  [command-handlers.md](command-handlers.md).
+  [command-handlers.md](command-handlers.md). The ownership and pointout commands infer the *acting* position from the track itself —
+  the current `Owner` for HO/DROP/CANCEL/POINTOUT-initiate, the `HandoffPeer` for ACCEPT, the pointout `Recipient` for OK/PORJ, the
+  pointout `Sender` for PORT — rather than checking the issuer's resolved identity (the `AS` prefix / active position /
+  `StudentPosition` default). So an RPO ghosting many positions never needs `AS` for these. The exceptions still require an identity:
+  TRACK (claims an *unowned* track, so there is no track state to infer from) and the no-arg `PO` (needs the issuer's position to tell
+  an acknowledge from a retract).
 - **Scope-sharing layer (this doc)** — *how attended positions absorb unattended ones, and how display state is shared between
   positions.* The TCP consolidation hierarchy, manual consolidation overrides, full-consolidation track transfer, handoff
   redirection, per-track shared display state, and STARS/ERAM pointouts.
