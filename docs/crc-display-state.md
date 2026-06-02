@@ -81,6 +81,10 @@ Triggered by specific state changes:
 | `BroadcastToTopicSubscribersAsync` | generic by topic + facility filter |
 | `BroadcastToCrcClientsAsync` | room-wide with optional client/callsign filter |
 
+### Rewind / recording-load resync
+
+A timeline scrub (`RewindAsync` / `RewindFromSnapshotAsync`) or recording load (`LoadRecordingAsync` / `LoadRecordingArchiveAsync`) clears the world and rebuilds it at the target time. Because CRC is **additive**, the `RoomEngine` wrappers around those four operations capture the callsigns present *before* the reload and, on success, call `BroadcastDeletesAsync` for each (`ResyncCrcAfterReload`) so tracks not active at the target time don't linger on STARS / Tower Cab. They also re-broadcast `BroadcastOpenPositionsAsync` + `BroadcastStarsConsolidationAsync` so the owning-sector display matches the restored state. Aircraft present at the target time are re-added by the next periodic broadcast — the reload clears the change tracker, forcing a full re-send. `BroadcastDeletesAsync` also purges that callsign's `CrcVisibilityTracker` state, so a wholesale world swap doesn't leave stale "visible on STARS / Tower Cab" flags.
+
 ### Initial data on subscribe
 
 `CrcClientState.HandleSubscribe` calls `BuildInitialData(topic, _roomEngine)` so newly-subscribed clients see the current snapshot of that topic, not just future deltas. **If you forget to extend the initial-data builder when adding a field, mid-session subscribers won't see it until the next change.** This is the biggest footgun — see "Adding fields" below.

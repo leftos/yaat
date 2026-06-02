@@ -32,6 +32,7 @@
 - Fixed-wing aircraft no longer hover on `HPP`/`HFIX`; the hover holds are rejected for them with guidance to `HPPL`/`HPPR` / `HFIXL`/`HFIXR` (helicopters still hover).
 - `SPEEDN` is now accepted as an alias for force speed (`SPDN`), alongside `SLN`.
 - A mistyped command after a callsign now names the unrecognized verb in the error instead of the callsign (e.g. `N929AW BOGUS` blames `BOGUS`, not `N929AW`).
+- Scrubbing the replay timeline no longer leaves stale aircraft on CRC's STARS and Tower Cab views — tracks that aren't active at the scrubbed time are now cleared, and the open-position and consolidation displays are refreshed. Each track's owning controller is also preserved through a scrub in sessions recorded from this version onward.
 
 ## v0.5.0-beta [2026/05/31]
 
