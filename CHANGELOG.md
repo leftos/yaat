@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.6.0-beta [2026/06/01]
+
+### Highlights
+- Hold for release — hold a satellite field's IFR departures and release them on your schedule with `HFR`/`REL`, plus a Releases panel and one-click release from the radar menu.
+- Timeline bookmarks — mark moments on the timeline (a go-around, a conflict) and scrub back to them later; saved into recordings for debriefs.
+- Timers — set countdown reminders with `TIMER`, global or attributed to an aircraft, with a live countdown button on the command bar.
+- Controllers and METAR tabs — see the room's online controllers and each airport's METAR without opening CRC; both dockable and poppable into their own windows.
 
 ### Added
 - **Timers** — set a countdown reminder with `TIMER <mm:ss|seconds> [message]` (alias `TMR`). When it expires it posts a green SAY line — your message, or `timer expired` if you didn't give one. Use it bare as a global instructor reminder (`TIMER 5:00 release the next SWA`), or prefix a callsign to attribute it to an aircraft (`N172SP TIMER 2:00 ready to copy`). Timers count in sim time (they pause with the sim and scale with sim rate). A timers button on the command bar shows the soonest one's live countdown; its flyout lists every running timer with one-click cancel, and you can also cancel with `TIMER CANCEL <id>` / `TIMER CANCEL ALL`.

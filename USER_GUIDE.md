@@ -86,6 +86,8 @@ All views can be popped out simultaneously. Pop-out state and window positions a
 
 **Window Profiles** save and restore named window arrangements — geometry, dock/pop-out state, and DataGrid columns. Use **View > Window Profiles** to save the current layout under a name, switch between saved profiles, or rename and delete them. Useful for keeping separate GC and LC layouts and switching between them in one click.
 
+**Copy View Settings** (**View > Copy View Settings**) compares your current view settings against another source — a different scenario or a saved window profile — and copies only the sections you tick. The dialog shows each group side by side (map position, video maps, range, PTL, brightness, labels, filters, window geometry, pop-out/dock state, and the Aircraft List column layout) and highlights the rows that differ, so you can see exactly what would change before applying. Map-position rows are flagged when the source is a different airport.
+
 **Always on Top:** Press **Ctrl+Shift+T** (configurable in Settings > Advanced) while a pop-out window is focused to pin it above all other windows, or **right-click the window** for an **Always On Top** toggle (available on every pop-out: Aircraft List, Ground, Radar, Controllers, METAR, Terminal, Favorites). You can also toggle this per window in Settings > Display > Windows (Main Window, Ground View, Radar View, Aircraft List, Terminal, Flight Strips, Favorites). On Windows, the toggle is also available in the title-bar system menu (right-click the title bar or click the window icon). On macOS, the toggle is in the menu bar under Window → Always on Top while the pop-out is focused. On Linux, your window manager's title-bar context menu typically provides a native "Always on Top" item that reflects the same state.
 
 ### Terminal Panel
@@ -205,7 +207,7 @@ The default view. Shows all aircraft in your scenario, grouped into **Active** a
 
 Click an aircraft row to select it, or type a callsign in the command input and press the aircraft select key. The selected row is highlighted and expands to show a details pane beneath it; the highlight stays visible even after focus moves to the command input. Press **Esc** to deselect. Click a column header to sort; click again to reverse.
 
-Drag column headers to rearrange. **Right-click any column header** to open the Column Chooser, where you can show/hide columns and reorder them. Click **Reset to Defaults** to restore the original layout.
+Drag column headers to rearrange. **Right-click any column header** to open the Column Chooser, where you can show/hide columns and reorder them. The Column Chooser also has an **alternating-row shading** toggle if you prefer striped rows. Click **Reset to Defaults** to restore the original layout.
 
 **Show only active aircraft:** Use the checkbox in the Column Chooser to hide delayed aircraft. Column order, widths, visibility, sort state, and the active-only filter are remembered across sessions.
 
@@ -300,6 +302,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 - **On empty space**: left-click to deselect the current aircraft
 
 **Selecting vs. targeting.** Left-click selects the aircraft you're working. Right-clicking a *different* aircraft no longer changes the selection — it opens that aircraft's menu (and, when both are on the ground, the relative give-way / follow actions above), so you can keep one aircraft selected while pointing at others as traffic.
+
+**Automatic ground yields.** When the simulator slows one ground aircraft for another — a converging path or an in-trail follow — the slowed aircraft's ground datablock shows a **→{callsign} (auto)** badge naming the traffic it is yielding to, so an automatic slowdown is never unexplained. Its right-click menu spells it out as **Yielding to** (converging) or **Following** (in trail). A give-way you issue yourself still takes precedence over the automatic one.
 
 **Runway-end click target:** When an aircraft is selected, a small amber dot appears at every runway threshold. Left-click a dot to open the same "Taxi to runway" submenu produced by right-clicking a hold-short node — but anchored at the threshold, so you don't have to hunt for the right hold-short node. The submenu still offers the RWY (taxi onto the runway end), HS (hold short), and progressive crossing variants.
 
