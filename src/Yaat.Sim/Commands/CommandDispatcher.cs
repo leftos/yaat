@@ -181,6 +181,7 @@ public static class CommandDispatcher
             aircraft.Phases = null;
             aircraft.Targets.TurnRateOverride = null;
             aircraft.Targets.HasExplicitTurnRate = false;
+            aircraft.Targets.PreferredTurnDirection = null;
             AirborneFollowHelper.ClearFollowState(aircraft);
 
             if (clearedSummary is not null)
@@ -2123,6 +2124,7 @@ public static class CommandDispatcher
                             ac.Phases = null;
                             ac.Targets.TurnRateOverride = null;
                             ac.Targets.HasExplicitTurnRate = false;
+                            ac.Targets.PreferredTurnDirection = null;
                             AirborneFollowHelper.ClearFollowState(ac);
 
                             if (clearedSummary is not null)

@@ -59,7 +59,7 @@ The numbered "8/10-step" list in [tick-loop.md](tick-loop.md) is the canonical o
 | Field | Type | Written by | Read by physics in | Lifecycle |
 |---|---|---|---|---|
 | `TargetTrueHeading` | `TrueHeading?` | `UpdateNavigation`, phases, `FH`/turn handlers | `UpdateHeading` | Set each tick by nav while a route exists; nulled when the route is exhausted (`UpdateNavigation`) |
-| `PreferredTurnDirection` | `TurnDirection?` (Left/Right) | departure/turn handlers, phases | `UpdateHeading` (via `ResolveDirection`) | **Not** cleared per tick; cleared on heading snap or route exhaustion |
+| `PreferredTurnDirection` | `TurnDirection?` (Left/Right) | departure/turn handlers, phases | `UpdateHeading` (via `ResolveDirection`) | **Not** cleared per tick; cleared on heading snap, route exhaustion, or when a phase ends/is cleared (`Phase.OnEnd` + dispatcher phase-clear) |
 | `TurnRateOverride` | `double?` deg/s | pattern phases, `TRATE` | `UpdateHeading`, `UpdateNavigation` anticipation | Persists; null = category default |
 | `TargetAltitude` | `double?` ft MSL | `CM`/`DM` handlers, climb/descent planners, phases | `UpdateAltitude` (via `ResolveAltitudeGoal`) | **Self-nulls** on snap (±10 ft) |
 | `AltitudeFloor` / `AltitudeCeiling` | `double?` ft MSL | "maintain VFR at/above" / "at/below" handlers | `ResolveAltitudeGoal` | Persist until cleared |

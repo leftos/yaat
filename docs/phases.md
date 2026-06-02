@@ -92,7 +92,7 @@ When a command lands on an in-phase aircraft:
 3. **`ClearsPhase`** → run a **dry-run validation** on a clone (`DryRunValidate`). If valid, set `shouldClearPhases = true`. After the rest of the compound validates, `aircraft.Phases?.Clear()` runs and the command is dispatched normally. If dry-run fails, the phase is preserved and the user sees the validation error.
 4. **`Allowed`** → tower-command handler processes the command; remaining blocks queue normally.
 
-`Phases.Clear()` marks the active phase `Skipped`, all pending phases `Skipped`, calls each `OnEnd(ctx, Skipped)`, sets `aircraft.Phases = null`, clears `TurnRateOverride`, and emits a phase-cancellation summary via `PhaseClearSummary`.
+`Phases.Clear()` marks the active phase `Skipped`, all pending phases `Skipped`, calls each `OnEnd(ctx, Skipped)`, sets `aircraft.Phases = null`, clears `TurnRateOverride` and `PreferredTurnDirection` (so a torn-down turn phase can't bias the next lateral target — e.g. `L360` then `DCT`), and emits a phase-cancellation summary via `PhaseClearSummary`. Turn phases (`MakeTurnPhase`, `InitialClimbPhase`) also null `PreferredTurnDirection` in their own `OnEnd`, covering natural completion as well as force-clear.
 
 ## Phase catalog
 

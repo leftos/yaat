@@ -93,6 +93,13 @@ public sealed class MakeTurnPhase : Phase
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
         _speed.Resume(ctx);
+
+        // The orbit drives PreferredTurnDirection every tick so the turn keeps going past
+        // the heading-snap band. When the phase ends — whether it completes the loop or a
+        // command (e.g. DCT) clears it mid-turn — the bias must not leak into the next
+        // lateral target, or LNAV/UpdateHeading would turn the long way around toward the
+        // new heading. Mirrors InitialClimbPhase.OnEnd.
+        ctx.Targets.PreferredTurnDirection = null;
     }
 
     public override bool OnTick(PhaseContext ctx)
