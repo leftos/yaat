@@ -223,7 +223,8 @@ Services/
   DocLinks.cs                   # Static: GitHub URLs for user-facing docs (README/USER_GUIDE/COMMANDS/CHANGELOG/issues), pinned to release tag for installed builds, main for dev
   UrlLauncher.cs                # Static: opens HTTPS URLs in OS default browser (Process.Start with UseShellExecute)
   CallsignPrefixResolver.cs     # Pure resolver: partial callsign prefix → unique aircraft or list of matching candidates. Used by MainViewModel.SendCommandAsync to disambiguate `N12` when multiple aircraft match.
-  WindowProfileService.cs       # Saves/restores named window arrangements: per-window geometry + dock/pop-out state + DataGrid column layout. Persists to UserPreferences; surfaced via View → Window Profiles.
+  WindowProfileService.cs       # Saves/restores named window arrangements: per-window geometry + dock/pop-out state + DataGrid column layout. Persists to UserPreferences; surfaced via View → Window Profiles. StagePreferencesPartial applies a chosen subset for the Copy View Settings dialog.
+  ViewSettingsCopyCatalog.cs    # Shared catalog of Ground/Radar per-scenario view-setting groups (Key/Label/Describe/AreEqual/Copy). Single source of truth for both CopyViewSettingsDialog's diff rows and MainWindow's merge-on-copy.
   ShownRouteBuilder.cs          # Pure builder for the radar "Show flight path" overlay. Produces a multi-segment path: published route + procedure vector tail (5 nm arrow off the last STAR fix on FM/VM/VA legs) + the expected approach line (IAF/transition → FAF → threshold, FAC extended back 5 nm when no transition is named).
 
 ViewModels/
@@ -278,6 +279,7 @@ Views/
   TimelineMarkerCanvas.cs       # SkiaSharp canvas overlaying TimelineMarkerVm ticks above the rewind scrub slider; finding markers above, command markers slightly lower; supports hit-testing and hover tooltips.
   ManageWindowProfilesDialog.axaml(.cs)  # View → Window Profiles dialog: list saved profiles, switch, rename, delete
   SaveWindowProfileDialog.axaml(.cs)     # Name-entry dialog for saving the current window arrangement as a new profile
+  CopyViewSettingsDialog.axaml(.cs)      # View → Copy View Settings dialog: source picker (scenario or window profile), grouped Current-vs-Source diff with per-section checkboxes, airport-mismatch warning. Returns selected keys for MainWindow to apply via ViewSettingsCopyCatalog / WindowProfileService.
   CommandFlyout.cs              # Floating focused command-entry popup opened from aircraft right-click menus (radar/ground/flight list)
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
   HoldShortMenuHelper.cs        # Shared resolver: held runway from the "Holding Short {rwy}" phase, used by ground-map + aircraft-list cross/LUAW menu items

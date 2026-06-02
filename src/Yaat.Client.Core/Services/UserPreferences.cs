@@ -1049,6 +1049,27 @@ public sealed class UserPreferences
         Save();
     }
 
+    public string? GetScenarioAirport(string scenarioId)
+    {
+        return _data.ScenarioAirports.TryGetValue(scenarioId, out var airport) ? airport : null;
+    }
+
+    public void SetScenarioAirport(string scenarioId, string airportId)
+    {
+        if (string.IsNullOrEmpty(scenarioId) || string.IsNullOrEmpty(airportId))
+        {
+            return;
+        }
+
+        if (_data.ScenarioAirports.TryGetValue(scenarioId, out var existing) && existing == airportId)
+        {
+            return;
+        }
+
+        _data.ScenarioAirports[scenarioId] = airportId;
+        Save();
+    }
+
     private static SavedPrefs Load()
     {
         string json;
@@ -1473,6 +1494,11 @@ public sealed class UserPreferences
         public int GroundLabelFontSize { get; set; } = 13;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
 
+        // Per-scenario primary airport id (e.g. "KOAK"), keyed by ScenarioId. Recorded
+        // whenever a scenario is active so the Copy View Settings dialog can label map
+        // positions by airport and warn when copying view position across airports.
+        public Dictionary<string, string> ScenarioAirports { get; set; } = [];
+
         // Per-scenario up-arrow recall history. Keyed by ActiveScenarioId; values are
         // ordered newest-first, capped at 50 entries by MainViewModel before save.
         // Discarded for commands typed while no scenario is active.
@@ -1645,6 +1671,27 @@ public sealed class SavedRadarSettings
     public bool PtlAll { get; set; }
     public Dictionary<string, int>? BrightnessValues { get; set; }
     public int HistoryCount { get; set; }
+
+    public SavedRadarSettings Clone() =>
+        new()
+        {
+            EnabledStarsIds = [.. EnabledStarsIds],
+            CenterLat = CenterLat,
+            CenterLon = CenterLon,
+            RangeNm = RangeNm,
+            RangeRingCenterLat = RangeRingCenterLat,
+            RangeRingCenterLon = RangeRingCenterLon,
+            RangeRingSizeNm = RangeRingSizeNm,
+            ShowRangeRings = ShowRangeRings,
+            ShowFixes = ShowFixes,
+            IsPanZoomLocked = IsPanZoomLocked,
+            ShowTopDown = ShowTopDown,
+            PtlLengthMinutes = PtlLengthMinutes,
+            PtlOwn = PtlOwn,
+            PtlAll = PtlAll,
+            BrightnessValues = BrightnessValues is null ? null : new Dictionary<string, int>(BrightnessValues),
+            HistoryCount = HistoryCount,
+        };
 }
 
 public sealed class SavedGroundSettings
@@ -1659,4 +1706,19 @@ public sealed class SavedGroundSettings
     public GroundFilterMode ShowHoldShort { get; set; }
     public GroundFilterMode ShowParking { get; set; }
     public GroundFilterMode ShowSpot { get; set; }
+
+    public SavedGroundSettings Clone() =>
+        new()
+        {
+            CenterLat = CenterLat,
+            CenterLon = CenterLon,
+            Zoom = Zoom,
+            Rotation = Rotation,
+            IsPanZoomLocked = IsPanZoomLocked,
+            ShowRunwayLabels = ShowRunwayLabels,
+            ShowTaxiwayLabels = ShowTaxiwayLabels,
+            ShowHoldShort = ShowHoldShort,
+            ShowParking = ShowParking,
+            ShowSpot = ShowSpot,
+        };
 }

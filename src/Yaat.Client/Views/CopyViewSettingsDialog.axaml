@@ -1,0 +1,101 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.CopyViewSettingsDialog"
+        Title="Copy View Settings"
+        Width="680"
+        Height="620"
+        CanResize="True"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16"
+          RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
+
+        <TextBlock Grid.Row="0"
+                   x:Name="HeaderText"
+                   FontWeight="SemiBold"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Grid.Row="1"
+                    Orientation="Vertical"
+                    Spacing="6"
+                    Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <RadioButton x:Name="ScenarioRadio"
+                             GroupName="CopySource"
+                             Content="Scenario"
+                             Width="120"
+                             VerticalAlignment="Center" />
+                <ComboBox x:Name="ScenarioCombo"
+                          Width="460"
+                          HorizontalAlignment="Left" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <RadioButton x:Name="ProfileRadio"
+                             GroupName="CopySource"
+                             Content="Window profile"
+                             Width="120"
+                             VerticalAlignment="Center" />
+                <ComboBox x:Name="ProfileCombo"
+                          Width="460"
+                          HorizontalAlignment="Left" />
+            </StackPanel>
+        </StackPanel>
+
+        <Grid Grid.Row="2"
+              ColumnDefinitions="*,130,130,24"
+              Margin="0,12,0,4">
+            <StackPanel Grid.Column="0"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                <TextBlock Text="Setting"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="SelectAllButton"
+                        Content="All"
+                        Padding="8,2"
+                        FontSize="11" />
+                <Button x:Name="SelectNoneButton"
+                        Content="None"
+                        Padding="8,2"
+                        FontSize="11" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="Current" FontWeight="SemiBold" />
+            <TextBlock Grid.Column="2" Text="Source" FontWeight="SemiBold" />
+        </Grid>
+
+        <Border Grid.Row="3"
+                BorderThickness="1"
+                BorderBrush="#33FFFFFF"
+                CornerRadius="3">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="RowsPanel"
+                            Margin="6"
+                            Spacing="2" />
+            </ScrollViewer>
+        </Border>
+
+        <TextBlock Grid.Row="4"
+                   x:Name="WarningText"
+                   Margin="0,8,0,0"
+                   TextWrapping="Wrap"
+                   Foreground="#FFE0A030"
+                   IsVisible="False" />
+
+        <StackPanel Grid.Row="5"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <Button x:Name="CopyButton"
+                    Content="Copy Selected"
+                    Width="140"
+                    HorizontalContentAlignment="Center"
+                    IsDefault="True" />
+            <Button x:Name="CancelButton"
+                    Content="Cancel"
+                    Width="100"
+                    HorizontalContentAlignment="Center"
+                    IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

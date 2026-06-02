@@ -1386,6 +1386,11 @@ public partial class MainViewModel : ObservableObject
     partial void OnActiveScenarioPrimaryAirportIdChanged(string? value)
     {
         RefreshDisplayFavorites();
+
+        if (!string.IsNullOrEmpty(ActiveScenarioId) && !string.IsNullOrEmpty(value))
+        {
+            _preferences.SetScenarioAirport(ActiveScenarioId, value);
+        }
     }
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)

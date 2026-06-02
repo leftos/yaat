@@ -172,7 +172,7 @@ public partial class MainWindow : Window
         var copyViewItem = this.FindControl<MenuItem>("CopyViewSettingsMenuItem");
         if (copyViewItem is not null)
         {
-            copyViewItem.SubmenuOpened += OnCopyViewSettingsSubmenuOpened;
+            copyViewItem.Click += OnCopyViewSettingsClick;
         }
 
         var windowProfilesItem = this.FindControl<MenuItem>("WindowProfilesMenuItem");
@@ -2038,36 +2038,130 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnCopyViewSettingsSubmenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnCopyViewSettingsClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not MenuItem menu || DataContext is not MainViewModel vm)
+        if (DataContext is MainViewModel vm)
+        {
+            await OnCopyViewSettingsAsync(vm);
+        }
+    }
+
+    private async System.Threading.Tasks.Task OnCopyViewSettingsAsync(MainViewModel vm)
+    {
+        if (vm.ActiveScenarioId is null)
         {
             return;
         }
 
-        menu.Items.Clear();
-        var scenarios = vm.Preferences.GetSavedViewScenarioIds();
-
-        // Exclude the current scenario
-        scenarios.RemoveAll(s => s.ScenarioId == vm.ActiveScenarioId);
-
-        if (scenarios.Count == 0 || !vm.HasScenario)
+        var context = new CopyViewSettingsContext
         {
-            menu.Items.Add(new MenuItem { Header = "(No saved settings from other scenarios)", IsEnabled = false });
+            Preferences = vm.Preferences,
+            CurrentScenarioId = vm.ActiveScenarioId,
+            CurrentScenarioName = vm.ActiveScenarioName ?? vm.ActiveScenarioId,
+            CurrentAirport = vm.ActiveScenarioPrimaryAirportId,
+            CurrentGround = vm.Ground.CaptureSettings(),
+            CurrentRadar = vm.Radar.CaptureSettings(),
+            CurrentLayout = _windowProfileService.CaptureCurrent("(current)", vm),
+            ResolveMapName = vm.Radar.ResolveMapName,
+        };
+
+        var dlg = new CopyViewSettingsDialog(context);
+        await dlg.ShowDialog(this);
+        if (!dlg.Confirmed || dlg.SourceId is null)
+        {
             return;
         }
 
-        foreach (var (scenarioId, displayName) in scenarios)
+        if (dlg.SourceKind == CopySourceKind.Scenario)
         {
-            var id = scenarioId;
-            var item = new MenuItem { Header = displayName };
-            item.Click += (_, _) =>
+            ApplyScenarioViewCopy(vm, dlg.SourceId, dlg.SelectedKeys);
+        }
+        else
+        {
+            var profile = vm.Preferences.GetWindowProfile(dlg.SourceId);
+            if (profile is not null)
             {
-                vm.Ground.CopySettingsFrom(id);
-                vm.Radar.CopySettingsFrom(id);
-            };
-            menu.Items.Add(item);
+                await ApplyWindowProfilePartialAsync(vm, profile, dlg.SelectedKeys);
+            }
         }
+    }
+
+    private static void ApplyScenarioViewCopy(MainViewModel vm, string sourceScenarioId, IReadOnlyList<string> selectedKeys)
+    {
+        var selected = new HashSet<string>(selectedKeys);
+        var prefs = vm.Preferences;
+
+        var sourceGround = prefs.GetGroundSettings(sourceScenarioId);
+        if (sourceGround is not null && ViewSettingsCopyCatalog.GroundGroups.Any(g => selected.Contains(g.Key)))
+        {
+            var merged = vm.Ground.CaptureSettings();
+            foreach (var group in ViewSettingsCopyCatalog.GroundGroups)
+            {
+                if (selected.Contains(group.Key))
+                {
+                    group.Copy(sourceGround, merged);
+                }
+            }
+
+            vm.Ground.ApplyCopiedSettings(merged);
+        }
+
+        var sourceRadar = prefs.GetRadarSettings(sourceScenarioId);
+        if (sourceRadar is not null && ViewSettingsCopyCatalog.RadarGroups.Any(g => selected.Contains(g.Key)))
+        {
+            var merged = vm.Radar.CaptureSettings();
+            foreach (var group in ViewSettingsCopyCatalog.RadarGroups)
+            {
+                if (selected.Contains(group.Key))
+                {
+                    group.Copy(sourceRadar, merged);
+                }
+            }
+
+            vm.Radar.ApplyCopiedSettings(merged);
+        }
+
+        vm.StatusText = $"Copied {selected.Count} view-setting group(s) from the selected scenario";
+    }
+
+    private async System.Threading.Tasks.Task ApplyWindowProfilePartialAsync(
+        MainViewModel vm,
+        SavedWindowProfile profile,
+        IReadOnlyList<string> selectedKeys
+    )
+    {
+        var selected = new HashSet<string>(selectedKeys);
+        var geometryKeys = new HashSet<string>(selected.Where(k => k.StartsWith("geo:", StringComparison.Ordinal)).Select(k => k["geo:".Length..]));
+        var includeGrid = selected.Contains("columns");
+        var includePopouts = selected.Contains("popouts");
+
+        _windowProfileService.StagePreferencesPartial(profile, geometryKeys, includeGrid);
+
+        if (includePopouts)
+        {
+            vm.IsTerminalDocked = profile.IsTerminalDocked;
+            vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
+            vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
+            vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
+        }
+
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            foreach (var helper in WindowGeometryHelper.GetActiveHelpers())
+            {
+                if (geometryKeys.Contains(helper.WindowName) && profile.WindowGeometries.TryGetValue(helper.WindowName, out var geo))
+                {
+                    helper.ApplyGeometry(geo);
+                }
+            }
+
+            if (includeGrid && profile.DataGridLayout is not null)
+            {
+                ApplyGridLayoutToLiveGrids(vm);
+            }
+        });
+
+        vm.StatusText = $"Copied layout from profile \"{profile.Name}\"";
     }
 
     private async void OnRecentScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

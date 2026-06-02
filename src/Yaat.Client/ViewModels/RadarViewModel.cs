@@ -806,13 +806,8 @@ public partial class RadarViewModel : ObservableObject
         return RangeRingSizeSteps[0];
     }
 
-    private void SaveSettings()
+    public SavedRadarSettings CaptureSettings()
     {
-        if (_preferences is null || _activeScenarioId is null || _isRestoring)
-        {
-            return;
-        }
-
         var enabledIds = new List<int>();
         foreach (var t in MapToggles)
         {
@@ -828,7 +823,7 @@ public partial class RadarViewModel : ObservableObject
             brightnessDict[target.ToString()] = value;
         }
 
-        var settings = new SavedRadarSettings
+        return new SavedRadarSettings
         {
             EnabledStarsIds = enabledIds,
             CenterLat = CenterLat,
@@ -847,25 +842,39 @@ public partial class RadarViewModel : ObservableObject
             BrightnessValues = brightnessDict,
             HistoryCount = HistoryCount,
         };
-
-        _preferences.SetRadarSettings(_activeScenarioId, settings);
     }
 
-    public void CopySettingsFrom(string sourceScenarioId)
+    private void SaveSettings()
     {
-        if (_preferences is null || _activeScenarioId is null)
+        if (_preferences is null || _activeScenarioId is null || _isRestoring)
         {
             return;
         }
 
-        var saved = _preferences.GetRadarSettings(sourceScenarioId);
-        if (saved is null)
-        {
-            return;
-        }
+        _preferences.SetRadarSettings(_activeScenarioId, CaptureSettings());
+    }
 
-        ApplySettings(saved);
+    public void ApplyCopiedSettings(SavedRadarSettings merged)
+    {
+        ApplySettings(merged);
         SaveSettings();
+    }
+
+    /// <summary>
+    /// Returns a human-readable label ("{StarsId} {ShortName}") for an enabled video-map
+    /// STARS id, or the bare id when the map is not in the current facility's toggle list.
+    /// </summary>
+    public string ResolveMapName(int starsId)
+    {
+        foreach (var t in MapToggles)
+        {
+            if (t.StarsId == starsId)
+            {
+                return t.DisplayLabel;
+            }
+        }
+
+        return starsId.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private void RestoreSettings()

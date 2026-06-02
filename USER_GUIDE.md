@@ -604,7 +604,7 @@ Edit any field, then click **Amend** to send the changes to the server. The Amen
 
 ### Copying View Settings
 
-Use **View > Copy View Settings From...** to apply another scenario's Ground and Radar view settings to the current scenario. The submenu lists all scenarios with saved settings (excluding the current one).
+Use **View > Copy View Settings...** to open a comparison dialog that copies view settings into the current scenario. Pick a source — another **scenario** (its Ground and Radar view settings, including selected video maps, range, PTL, brightness, labels, and filters) or a saved **window profile** (window geometry, pop-out/dock states, and the Aircraft List column layout). The dialog shows your current value next to the source value for each setting, grouped into sections, and highlights the ones that differ. Tick the sections you want and choose **Copy Selected** — matching sections start unticked, so you only copy real changes. When the source scenario is at a different airport, the map-position rows are flagged, since copying them moves your view to that airport.
 
 ---
 

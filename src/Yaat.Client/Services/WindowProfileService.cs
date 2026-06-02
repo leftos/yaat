@@ -102,6 +102,43 @@ public sealed class WindowProfileService
         return liveKeys;
     }
 
+    /// <summary>
+    /// Like <see cref="StagePreferences"/> but only stages the geometry keys present in
+    /// <paramref name="selectedGeometryKeys"/>, and only replaces the cached DataGrid layout when
+    /// <paramref name="includeGrid"/> is set. Used by the Copy View Settings dialog to apply a
+    /// chosen subset of a saved profile. Returns the helper keys that were live before staging.
+    /// </summary>
+    public IReadOnlyList<string> StagePreferencesPartial(SavedWindowProfile profile, IReadOnlySet<string> selectedGeometryKeys, bool includeGrid)
+    {
+        var liveKeys = WindowGeometryHelper.GetActiveHelpers().Select(h => h.WindowName).ToArray();
+
+        var staged = 0;
+        foreach (var (key, geo) in profile.WindowGeometries)
+        {
+            if (!selectedGeometryKeys.Contains(key))
+            {
+                continue;
+            }
+
+            _preferences.SetWindowGeometry(key, Clone(geo));
+            staged++;
+        }
+
+        if (includeGrid && profile.DataGridLayout is not null)
+        {
+            _preferences.SetGridLayout(CloneGridLayout(profile.DataGridLayout) ?? new SavedGridLayout());
+        }
+
+        Log.LogInformation(
+            "Staged {Staged} of {Total} geometries from profile '{Name}' (grid={Grid})",
+            staged,
+            profile.WindowGeometries.Count,
+            profile.Name,
+            includeGrid
+        );
+        return liveKeys;
+    }
+
     private static SavedWindowGeometry Clone(SavedWindowGeometry source) =>
         new()
         {

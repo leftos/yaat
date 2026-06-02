@@ -86,11 +86,9 @@
                           ToggleType="CheckBox"
                           IsChecked="{Binding ShowTimelineBar, Mode=TwoWay}" />
                 <Separator />
-                <MenuItem Header="Copy View _Settings From..."
+                <MenuItem Header="Copy View _Settings..."
                           x:Name="CopyViewSettingsMenuItem"
-                          IsEnabled="{Binding HasScenario}">
-                    <MenuItem Header="(No saved settings)" IsEnabled="False" />
-                </MenuItem>
+                          IsEnabled="{Binding HasScenario}" />
                 <Separator />
                 <MenuItem Header="Window _Profiles"
                           x:Name="WindowProfilesMenuItem">

@@ -485,20 +485,9 @@ public partial class GroundViewModel : ObservableObject
         ShownAirportChanged?.Invoke();
     }
 
-    public void CopySettingsFrom(string sourceScenarioId)
+    public void ApplyCopiedSettings(SavedGroundSettings merged)
     {
-        if (Preferences is null || _activeScenarioId is null)
-        {
-            return;
-        }
-
-        var saved = Preferences.GetGroundSettings(sourceScenarioId);
-        if (saved is null)
-        {
-            return;
-        }
-
-        ApplySettings(saved);
+        ApplySettings(merged);
         SaveSettings();
     }
 
@@ -521,16 +510,8 @@ public partial class GroundViewModel : ObservableObject
         _isRestoring = false;
     }
 
-    private void SaveSettings()
-    {
-        if (Preferences is null || _activeScenarioId is null || _isRestoring)
-        {
-            return;
-        }
-
-        HasSavedView = true;
-
-        var settings = new SavedGroundSettings
+    public SavedGroundSettings CaptureSettings() =>
+        new()
         {
             CenterLat = ViewCenterLat,
             CenterLon = ViewCenterLon,
@@ -544,7 +525,15 @@ public partial class GroundViewModel : ObservableObject
             ShowSpot = ShowSpot,
         };
 
-        Preferences.SetGroundSettings(_activeScenarioId, settings);
+    private void SaveSettings()
+    {
+        if (Preferences is null || _activeScenarioId is null || _isRestoring)
+        {
+            return;
+        }
+
+        HasSavedView = true;
+        Preferences.SetGroundSettings(_activeScenarioId, CaptureSettings());
     }
 
     private void RestoreSettings()
