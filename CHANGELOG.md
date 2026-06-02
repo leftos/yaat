@@ -18,6 +18,7 @@
 ### Changed
 - The Aircraft List highlights the selected row clearly (even after focus leaves the grid), and alternating row shading can be toggled from the Choose Columns dialog.
 - **View > Copy View Settings** is now a comparison dialog instead of a submenu. It shows your current view settings beside the source's, grouped into sections (map position, video maps, range, PTL, brightness, labels, filters, and more) with the differing ones highlighted, and you tick exactly which sections to copy. The source can be another scenario or a saved window profile — so you can also copy window geometry, pop-out/dock states, and the Aircraft List column layout. Map-position rows are flagged when the source scenario is a different airport.
+- Creating a half-strip (right-click an empty rack → Add half-strip, or Ctrl+Shift+H) now puts the cursor in its first cell so you can type immediately.
 
 ### Fixed
 - ATPA volumes now honor their configured excluded TCP list — aircraft tracked by a position in a volume's excluded-TCP list are no longer paired for in-trail spacing in that volume. Previously the exclusion list was silently ignored and every aircraft in the volume was sequenced.

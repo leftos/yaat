@@ -32,6 +32,13 @@ public partial class VStripsViewModel : ObservableObject
     private readonly Dictionary<string, StripItemViewModel> _items = new(StringComparer.Ordinal);
     private readonly Dictionary<string, StripBayViewModel> _baysById = new(StringComparer.Ordinal);
 
+    // Set when this client dispatches HSC and cleared by the next reconcile that
+    // produces a new half-strip, which then gets RequestFocusFirstCell so the
+    // rendered FlightStripControl focuses its first inline cell. Scopes the
+    // auto-focus to locally-created strips — remote/CRC creates never set it.
+    // Mirrors StripPrinterViewModel.RequestFocusOnNewBlank's pending-flag shape.
+    private bool _pendingFocusOnNewHalfStrip;
+
     public ObservableCollection<StripBayViewModel> Bays { get; } = [];
     public StripPrinterViewModel Printer { get; } = new();
 
@@ -489,7 +496,13 @@ public partial class VStripsViewModel : ObservableObject
             }
             else
             {
-                _items[dto.Id] = new StripItemViewModel(dto);
+                var created = new StripItemViewModel(dto);
+                if (_pendingFocusOnNewHalfStrip && created.IsHalfStrip)
+                {
+                    created.RequestFocusFirstCell = true;
+                    _pendingFocusOnNewHalfStrip = false;
+                }
+                _items[dto.Id] = created;
             }
         }
     }
@@ -1007,6 +1020,10 @@ public partial class VStripsViewModel : ObservableObject
     {
         var canonical = VStripsCanonicalBuilder.BuildHalfStripCreate(bay.Name, rack, lines);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
+        // The new strip round-trips back via ReconcileItems; flag it there so the
+        // rendered control focuses its first cell. Set after dispatch (the broadcast
+        // is processed on a later dispatcher turn), mirroring PrintBlankStripAsync.
+        _pendingFocusOnNewHalfStrip = true;
     }
 
     public async Task CreateSeparatorAsync(SeparatorStyle style, StripBayViewModel bay, int rack, int? index, string? label)

@@ -737,4 +737,48 @@ public class VStripsViewModelTests
         Assert.Empty(vm.Metars);
         Assert.Null(vm.PrimaryMetar);
     }
+
+    // ── Auto-focus on half-strip create ──────────────────────────
+
+    [Fact]
+    public async Task CreateHalfStrip_MarksNewStripForFocus()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        await vm.CreateHalfStripAsync(bay, 0, []);
+        // Simulate the server's incremental broadcast for the new strip.
+        vm.ReconcileItems([HalfStrip("HSTRIP_new", "")]);
+
+        Assert.True(vm.ItemsByIdForTests["HSTRIP_new"].RequestFocusFirstCell);
+    }
+
+    [Fact]
+    public void NewHalfStrip_WithoutLocalCreate_IsNotMarkedForFocus()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+
+        // A half-strip arrives without this client issuing HSC (e.g. a remote
+        // controller created it). It must not steal focus.
+        vm.ReconcileItems([HalfStrip("HSTRIP_remote", "")]);
+
+        Assert.False(vm.ItemsByIdForTests["HSTRIP_remote"].RequestFocusFirstCell);
+    }
+
+    [Fact]
+    public async Task CreateHalfStrip_DoesNotMarkSubsequentFullStrip()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        await vm.CreateHalfStripAsync(bay, 0, []);
+        // The pending focus is consumed only by a new half-strip; a full strip
+        // that happens to arrive first must not claim it.
+        vm.ReconcileItems([FullStrip("STRIP_full", "UAL1")]);
+
+        Assert.False(vm.ItemsByIdForTests["STRIP_full"].RequestFocusFirstCell);
+    }
 }

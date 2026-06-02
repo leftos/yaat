@@ -557,6 +557,22 @@ reconciles via `ReconcileFullState`/`ReconcileItems`, and emits every
 user action as a canonical command through `_sendCommand`. Supports
 drag/drop, keyboard shortcuts, and offset/offset-reverse annotation.
 
+**Auto-focus on half-strip create.** When *this* client creates a
+half-strip (`HSC` via the empty-rack "Add half-strip" menu item or
+`Ctrl+Shift+H`), the new strip's first inline cell (`h0`) receives
+keyboard focus so the controller can type immediately.
+`CreateHalfStripAsync` sets `VStripsViewModel._pendingFocusOnNewHalfStrip`
+after dispatch; the next `ReconcileItems` pass that constructs a new
+half-strip VM consumes the flag and sets
+`StripItemViewModel.RequestFocusFirstCell`. `FlightStripControl`
+reads that flag once in `OnAttachedToVisualTree` and focuses the visible
+`h0` cell (`Dispatcher.Post` at `Loaded` priority). This relies on the
+server sending the incremental item broadcast *before* the full-state
+broadcast (`StripCommandHandler.HandleHalfStripCreateAsync`), so the VM
+is flagged before the control materializes. The flag is never set for
+remote/CRC-created strips, so focus is never stolen. Mirrors the
+`StripPrinterViewModel.RequestFocusOnNewBlank` pending-flag pattern.
+
 The same view is also served as a browser app at `/vstrips/` from
 the yaat-server via the `tools/Yaat.VStrips.Web` WASM bundle, which
 references only `Yaat.Client.Strips` and talks to the server through

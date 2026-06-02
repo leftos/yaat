@@ -24,6 +24,16 @@ public partial class StripItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 
+    /// <summary>
+    /// One-shot flag: when a half-strip was just created by this client's own
+    /// HSC, <see cref="VStripsViewModel.ReconcileItems"/> sets this true so the
+    /// rendered <c>FlightStripControl</c> moves keyboard focus into the first
+    /// inline cell on attach. The control reads it once and resets it — it is a
+    /// plain property (not <c>[ObservableProperty]</c>) because nothing binds to
+    /// it. Never set for remote/CRC-created strips, so focus is not stolen.
+    /// </summary>
+    public bool RequestFocusFirstCell { get; set; }
+
     public StripItemViewModel(StripItemDto dto)
     {
         _dto = dto;

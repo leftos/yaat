@@ -52,6 +52,35 @@ public partial class FlightStripControl : UserControl
         RefreshRouteBlocks();
     }
 
+    /// <summary>
+    /// Auto-focuses the first inline cell of a half-strip this client just
+    /// created. <see cref="VStripsViewModel.ReconcileItems"/> sets
+    /// <see cref="StripItemViewModel.RequestFocusFirstCell"/> on the new VM, and
+    /// this control reads it once on attach (the VM is already wired as
+    /// DataContext by then, because the incremental item broadcast runs before
+    /// the full-state placement that materializes this control). Focus is posted
+    /// at <see cref="DispatcherPriority.Loaded"/> so the cell is laid out first —
+    /// the same pattern as InlineTextEditPopup.
+    /// </summary>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        if (DataContext is StripItemViewModel { IsHalfStrip: true, RequestFocusFirstCell: true } vm)
+        {
+            vm.RequestFocusFirstCell = false;
+            Dispatcher.UIThread.Post(
+                () =>
+                {
+                    var cell = FirstVisibleHalfCell();
+                    cell?.Focus();
+                    cell?.SelectAll();
+                },
+                DispatcherPriority.Loaded
+            );
+        }
+    }
+
     private void OnVisualPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         // Redraw the barcode + disconnected overlay when the control resizes so
@@ -419,6 +448,21 @@ public partial class FlightStripControl : UserControl
         foreach (var descendant in this.GetVisualDescendants())
         {
             if (descendant is TextBox candidate && candidate.Tag is string candidateTag && candidateTag == tag)
+            {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    // The template has two "h0" cells (left grid for HalfStripLeft, right grid
+    // for HalfStripRight); only the side matching the strip type is effectively
+    // visible. Focus the visible one — Focus() on a hidden control is a no-op.
+    private TextBox? FirstVisibleHalfCell()
+    {
+        foreach (var descendant in this.GetVisualDescendants())
+        {
+            if (descendant is TextBox { Tag: "h0" } candidate && candidate.IsEffectivelyVisible)
             {
                 return candidate;
             }

@@ -581,7 +581,104 @@ public class VStripsViewInteractionTests
         Assert.False(banner.IsVisible);
     }
 
+    [AvaloniaFact]
+    public async Task CreateHalfStrip_FocusesFirstInlineCell()
+    {
+        // Creating a half-strip from this client (HSC) auto-focuses the strip's
+        // first inline cell (h0) so the controller can type immediately without
+        // clicking. Covers the embedded tab, popped-out window, and /vstrips/
+        // webapp — all share this VStripsView / FlightStripControl.
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var (_, view) = BootView(vm);
+
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        await vm.CreateHalfStripAsync(bay, 0, []);
+        Assert.Equal("HSC GROUND/1", captured[^1].Command);
+
+        // Simulate the server round-trip: incremental item first (creates the
+        // VM and marks it for focus), then full-state placement (materializes
+        // the FlightStripControl in rack 0) — the server's actual order.
+        vm.ReconcileItems([NewHalfStripDto("HSTRIP_abc12345")]);
+        vm.ReconcileFullState(HalfStripInBayState("HSTRIP_abc12345"));
+        RealizeContainers(view);
+
+        var h0 = FindVisibleH0(view, "HSTRIP_abc12345");
+        Assert.NotNull(h0);
+        Assert.True(h0!.IsFocused, "First half-strip cell (h0) should be focused after create");
+    }
+
+    [AvaloniaFact]
+    public void NewHalfStrip_NotLocallyCreated_DoesNotStealFocus()
+    {
+        // A half-strip created elsewhere (no local HSC) arrives via the same
+        // reconcile path but must NOT grab focus — that would interrupt the
+        // controller mid-task.
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var (_, view) = BootView(vm);
+
+        vm.ReconcileItems([NewHalfStripDto("HSTRIP_remote01")]);
+        vm.ReconcileFullState(HalfStripInBayState("HSTRIP_remote01"));
+        RealizeContainers(view);
+
+        var h0 = FindVisibleH0(view, "HSTRIP_remote01");
+        Assert.NotNull(h0);
+        Assert.False(h0!.IsFocused, "A remotely-created half-strip must not steal focus");
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
+
+    private static StripItemDto NewHalfStripDto(string id) =>
+        new(id, AircraftId: null, IsDisconnected: false, StripItemType.HalfStripLeft, IsOffset: false, FieldValues: [""]);
+
+    private static FlightStripsStateDto HalfStripInBayState(string id) =>
+        new(
+            PrinterItems: [],
+            BayItems:
+            [
+                new StripBayContentsDto(
+                    "bay-gnd",
+                    [
+                        [id],
+                        [],
+                    ]
+                ),
+            ],
+            NewItemInPrinter: false,
+            NewItemInArrivalPrinter: false,
+            NewItemInBayId: null,
+            ItemMovedOrCreatedBySessionId: null
+        );
+
+    private static TextBox? FindVisibleH0(VStripsView view, string stripId)
+    {
+        var stripControl = view.GetVisualDescendants()
+            .OfType<FlightStripControl>()
+            .SingleOrDefault(c => (c.DataContext as StripItemViewModel)?.Id == stripId);
+        return stripControl?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => (t.Tag as string) == "h0" && t.IsEffectivelyVisible);
+    }
+
+    // Re-realizes nested ItemsControls (the per-rack strips host) and flushes
+    // layout + dispatcher jobs after a post-boot reconcile, so a freshly-added
+    // FlightStripControl materializes and its Loaded-priority focus job runs.
+    private static void RealizeContainers(VStripsView view)
+    {
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        foreach (var itemsControl in view.GetVisualDescendants().OfType<ItemsControl>())
+        {
+            itemsControl.ApplyTemplate();
+            if (itemsControl.Presenter is ItemsPresenter presenter)
+            {
+                presenter.ApplyTemplate();
+            }
+        }
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+    }
 
     private static (VStripsViewModel Vm, List<(string Callsign, string Command)> Captured) MakeVm()
     {
