@@ -148,6 +148,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`approach-and-pattern-geometry.md`](docs/approach-and-pattern-geometry.md) — `Phases/Approach/`, `Phases/Pattern/`, `PatternGeometry`, `AirborneFollowHelper`, `HoldingEntryCalculator`, `ApproachEvaluator`
 - [`conflict-and-visual-detection.md`](docs/conflict-and-visual-detection.md) — `ConflictAlertDetector`, `GroundConflictDetector`, `AtpaProcessor`, `VisualDetection`, `WakeTurbulenceData`
 - [`scenario-loading-and-generation.md`](docs/scenario-loading-and-generation.md) — `ScenarioLoader`, `AircraftInitializer`/`AircraftGenerator`/`SpawnParser`, `GroundSpawnSnap`
+- [`hold-for-release.md`](docs/hold-for-release.md) — `HeldReleaseService`, `DepartureSpawnClassifier`, the HFR/REL gates + rundown broadcast (departure-release control)
 - [`solo-training-evaluation.md`](docs/solo-training-evaluation.md) — `SoloTrainingEvaluator`, `AircraftCompletion`, scoring findings
 - [`track-sharing-and-consolidation.md`](docs/track-sharing-and-consolidation.md) — `ConsolidationEngine`/`ConsolidationState`, `AircraftStarsState.SharedState`, `AircraftEramState`, `StarsConsolidation`
 - [`client-mainviewmodel.md`](docs/client-mainviewmodel.md) — any `MainViewModel` partial, `MainWindow.axaml.cs`, SignalR-driven client features

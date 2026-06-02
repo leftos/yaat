@@ -232,6 +232,7 @@ ViewModels/
   MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update), terminal broadcast handling, and PilotTransmissionBroadcast gate to PilotVoiceService.
   MainViewModel.Scenario.cs     # Partial: scenario load/unload
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
+  MainViewModel.HoldForRelease.cs # Partial: hold-for-release rundown mirror + REL release commands (HeldDeparturesChanged handler, RoomStateDto.Rundown seed)
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler; retains raw METARs (Metars) for the METAR window
   MainViewModel.Controllers.cs  # Partial: online-controller list (OnlineControllers + CRC-grouped ControllerGroups) for the Controllers tab; refresh via GetOnlineControllers, re-fetched on CRC membership + scenario load/unload
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar/panel, global/scenario/airport scope, ground overrides, blank spacers)

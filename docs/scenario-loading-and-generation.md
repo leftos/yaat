@@ -6,6 +6,9 @@
 > state, and four runtime queues fire spawns and presets after load. This doc maps both so you don't cold-read 3000 LOC to
 > answer "how did this aircraft reach this state at t=0".
 
+> **Related:** [`hold-for-release.md`](hold-for-release.md) covers how hold-for-release gates the spawn/queue path — a held
+> runway/airborne departure is skipped in `ProcessDelayedSpawns`, and a held ground departure is marked at spawn.
+
 A spawn-state bug almost always traces back to *how* the aircraft was constructed at spawn, and that answer is split across two
 pipelines that share almost no code:
 
