@@ -26,6 +26,9 @@ public readonly record struct MagneticHeading(double Degrees)
     /// <summary>Display-format as 001..360 (never zero).</summary>
     public int ToDisplayInt() => Degrees < 0.5 ? 360 : (int)Math.Round(Degrees);
 
+    /// <summary>Three-digit zero-padded controller display heading: "090", "005", "360".</summary>
+    public string ToDisplayString() => ToDisplayInt().ToString("D3", System.Globalization.CultureInfo.InvariantCulture);
+
     /// <summary>Signed angle from this heading to <paramref name="other"/>, in [-180, 180).</summary>
     public double SignedAngleTo(MagneticHeading other)
     {

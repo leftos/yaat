@@ -143,7 +143,7 @@
             <DataGridTextColumn Header="P.Alt" Binding="{Binding CruiseAltitudeDisplay}" Width="Auto" />
             <DataGridTextColumn Header="Remarks" Binding="{Binding Remarks}" Width="Auto" />
             <DataGridTextColumn Header="Squawk" Binding="{Binding BeaconCode, StringFormat=\{0:D4\}}" Width="Auto" />
-            <DataGridTextColumn Header="Hdg" Binding="{Binding Heading, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn Header="Hdg" Binding="{Binding HeadingDisplay}" Width="Auto" />
             <DataGridTextColumn Header="Alt" Binding="{Binding Altitude, StringFormat=\{0:F0\}}" Width="Auto" />
             <DataGridTextColumn Header="IAS" Binding="{Binding IndicatedAirspeed, StringFormat=\{0:F0\}}" Width="Auto" />
             <DataGridTextColumn Header="Mach" Binding="{Binding MachDisplay}" Width="Auto" />

@@ -82,7 +82,10 @@ public partial class AircraftModel : ObservableObject
     private LatLon _position;
 
     [ObservableProperty]
-    private double _heading;
+    [NotifyPropertyChangedFor(nameof(HeadingDisplay))]
+    private TrueHeading _heading;
+
+    public string HeadingDisplay => Heading.Degrees.ToString("F0", System.Globalization.CultureInfo.InvariantCulture);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MachDisplay))]
@@ -102,7 +105,7 @@ public partial class AircraftModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AssignedHeadingDisplay))]
-    private double? _assignedHeading;
+    private MagneticHeading? _assignedHeading;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AssignedHeadingDisplay))]
@@ -110,7 +113,7 @@ public partial class AircraftModel : ObservableObject
 
     public string AssignedHeadingDisplay =>
         !string.IsNullOrEmpty(NavigatingTo) ? NavigatingTo
-        : AssignedHeading.HasValue ? AssignedHeading.Value.ToString("F0")
+        : AssignedHeading.HasValue ? AssignedHeading.Value.Degrees.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
         : "";
 
     [ObservableProperty]
@@ -725,13 +728,13 @@ public partial class AircraftModel : ObservableObject
             AircraftType = dto.AircraftType,
             FiledAircraftType = dto.FiledAircraftType,
             Position = new LatLon(dto.Latitude, dto.Longitude),
-            Heading = dto.Heading,
+            Heading = new TrueHeading(dto.Heading),
             Altitude = dto.Altitude,
             GroundSpeed = dto.GroundSpeed,
             BeaconCode = dto.BeaconCode,
             TransponderMode = dto.TransponderMode,
             VerticalSpeed = dto.VerticalSpeed,
-            AssignedHeading = dto.AssignedHeading,
+            AssignedHeading = dto.AssignedHeading.HasValue ? new MagneticHeading(dto.AssignedHeading.Value) : null,
             NavigatingTo = dto.NavigatingTo,
             AssignedAltitude = dto.AssignedAltitude,
             AssignedSpeed = dto.AssignedSpeed,
@@ -809,13 +812,13 @@ public partial class AircraftModel : ObservableObject
     {
         FiledAircraftType = dto.FiledAircraftType;
         Position = new LatLon(dto.Latitude, dto.Longitude);
-        Heading = dto.Heading;
+        Heading = new TrueHeading(dto.Heading);
         Altitude = dto.Altitude;
         GroundSpeed = dto.GroundSpeed;
         BeaconCode = dto.BeaconCode;
         TransponderMode = dto.TransponderMode;
         VerticalSpeed = dto.VerticalSpeed;
-        AssignedHeading = dto.AssignedHeading;
+        AssignedHeading = dto.AssignedHeading.HasValue ? new MagneticHeading(dto.AssignedHeading.Value) : null;
         NavigatingTo = dto.NavigatingTo;
         AssignedAltitude = dto.AssignedAltitude;
         AssignedSpeed = dto.AssignedSpeed;

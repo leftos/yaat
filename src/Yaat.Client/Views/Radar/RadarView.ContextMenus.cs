@@ -275,7 +275,7 @@ public partial class RadarView
             }
             else if (ac.AssignedHeading.HasValue)
             {
-                hdgLabel = $"Heading (\u2192 {ac.AssignedHeading.Value:F0})";
+                hdgLabel = $"Heading (\u2192 {ac.AssignedHeading.Value.Degrees:F0})";
             }
         }
 
@@ -283,7 +283,7 @@ public partial class RadarView
         menu.Items.Add(CreateMenuItem("Present heading", () => vm.PresentHeadingAsync(cs, init)));
 
         var headings = BuildHeadingList();
-        var currentHdg = ac is not null ? (int)(Math.Round(ac.Heading / 5.0) * 5) : 360;
+        var currentHdg = ac is not null ? (int)(Math.Round(ac.Heading.Degrees / 5.0) * 5) : 360;
         if (currentHdg <= 0)
         {
             currentHdg = 360;
@@ -553,7 +553,7 @@ public partial class RadarView
         var warpItem = new MenuItem { Header = "Warp..." };
         warpItem.Click += (_, _) =>
         {
-            var hdg = ac is not null ? (int)Math.Round(ac.Heading) : 0;
+            var hdg = ac is not null ? (int)Math.Round(ac.Heading.Degrees) : 0;
             if (hdg <= 0)
             {
                 hdg = 360;
@@ -1269,7 +1269,7 @@ public partial class RadarView
                 menu.Items.Add(CreateMenuItem($"Hold at {target} (right)", () => vm.HoldAtFixRightAsync(callsign, initials, target)));
 
                 var warpFrd = target;
-                var warpHdg = (int)Math.Round(vm.SelectedAircraft.Heading);
+                var warpHdg = (int)Math.Round(vm.SelectedAircraft.Heading.Degrees);
                 if (warpHdg <= 0)
                 {
                     warpHdg = 360;

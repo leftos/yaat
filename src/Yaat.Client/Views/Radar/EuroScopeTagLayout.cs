@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Yaat.Client.Models;
+using Yaat.Sim;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -266,9 +267,9 @@ public static class EuroScopeTagLayout
 
     private static string FormatAssignedHeading(AircraftModel ac)
     {
-        if (ac.AssignedHeading is double hdg)
+        if (ac.AssignedHeading is MagneticHeading hdg)
         {
-            return $"H{(int)hdg:D3}";
+            return $"H{(int)hdg.Degrees:D3}";
         }
         return "AHDG";
     }

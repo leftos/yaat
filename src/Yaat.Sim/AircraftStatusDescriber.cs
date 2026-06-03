@@ -93,7 +93,7 @@ public static class AircraftStatusDescriber
         public string? NavigatingTo { get; init; }
         public string? FollowingCallsign { get; init; }
         public double? AssignedAltitude { get; init; }
-        public double? AssignedHeading { get; init; }
+        public MagneticHeading? AssignedHeading { get; init; }
 
         /// <summary>Climb target altitude (feet MSL) while in the InitialClimb phase; drives the "↑ {alt}" departure suffix.</summary>
         public double? TargetAltitude { get; init; }
@@ -134,7 +134,7 @@ public static class AircraftStatusDescriber
                 NavigatingTo = navNames.Count > 0 ? navNames[0] : "",
                 FollowingCallsign = ac.Approach.FollowingCallsign,
                 AssignedAltitude = ac.Targets.AssignedAltitude,
-                AssignedHeading = ac.Targets.AssignedMagneticHeading?.Degrees,
+                AssignedHeading = ac.Targets.AssignedMagneticHeading,
                 TargetAltitude = ac.Targets.TargetAltitude,
                 Departure = (ac.Phases?.CurrentPhase as InitialClimbPhase)?.Departure,
                 NavigationRouteCount = navNames.Count,
@@ -330,7 +330,7 @@ public static class AircraftStatusDescriber
             RunwayHeadingDeparture => "runway heading",
             DefaultDeparture => string.IsNullOrEmpty(i.NavigatingTo) ? "runway heading" : $"→ {i.NavigatingTo}",
             null => !string.IsNullOrEmpty(i.NavigatingTo) ? $"→ {i.NavigatingTo}"
-            : i.AssignedHeading.HasValue ? $"hdg {i.AssignedHeading.Value:F0}"
+            : i.AssignedHeading.HasValue ? $"hdg {i.AssignedHeading.Value.Degrees:F0}"
             : "",
             _ => "",
         };
@@ -437,7 +437,7 @@ public static class AircraftStatusDescriber
     {
         if (keep && i.AssignedHeading.HasValue)
         {
-            return $"{text}, hdg {i.AssignedHeading.Value:F0}";
+            return $"{text}, hdg {i.AssignedHeading.Value.Degrees:F0}";
         }
         return text;
     }

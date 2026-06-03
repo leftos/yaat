@@ -1777,7 +1777,7 @@ public partial class RadarViewModel : ObservableObject
             ac.Destination,
             ac.DepartureRunway,
             ac.DestinationRunway,
-            ac.AssignedHeading?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? ""
+            ac.AssignedHeading?.Degrees.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? ""
         );
     }
 

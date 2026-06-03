@@ -468,7 +468,7 @@ public class SmartStatusTests
             CurrentPhase = "InitialClimb",
             DepartureRunway = "28R",
             Departure = null,
-            AssignedHeading = 280,
+            AssignedHeading = new MagneticHeading(280),
             NavigatingTo = "",
         };
         Assert.Equal("Departing 28R, hdg 280", Text(v));
@@ -663,7 +663,7 @@ public class SmartStatusTests
             VerticalSpeed = 0,
             NavigatingTo = "",
             Altitude = 35000,
-            AssignedHeading = 270,
+            AssignedHeading = new MagneticHeading(270),
         };
         Assert.Equal("FL350, on course, hdg 270", Text(v));
     }
@@ -676,7 +676,7 @@ public class SmartStatusTests
             CurrentPhase = "Downwind",
             PatternDirection = "Left",
             AssignedRunway = "28R",
-            AssignedHeading = 90,
+            AssignedHeading = new MagneticHeading(90),
         };
         Assert.Equal("Left downwind 28R", Text(v));
     }
@@ -688,7 +688,7 @@ public class SmartStatusTests
         {
             CurrentPhase = "ProceedToFix",
             NavigatingTo = "OAKEY",
-            AssignedHeading = 270,
+            AssignedHeading = new MagneticHeading(270),
         };
         Assert.Equal("Proceeding to OAKEY, hdg 270", Text(v));
     }

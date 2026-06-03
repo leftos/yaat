@@ -215,7 +215,7 @@ public class ShownRouteBuilderTests
         {
             Callsign = "UAL789",
             Position = new LatLon(37.6, -122.4),
-            AssignedHeading = 250.0,
+            AssignedHeading = new MagneticHeading(250.0),
         };
 
         var (waypoints, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);

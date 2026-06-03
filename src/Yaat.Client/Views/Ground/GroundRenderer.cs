@@ -1607,7 +1607,7 @@ public sealed class GroundRenderer : IDisposable
             }
 
             bool isHeli = AircraftCategorization.Categorize(ac.AircraftType) == AircraftCategory.Helicopter;
-            float headingDeg = (float)(ac.Heading - vp.RotationDeg);
+            float headingDeg = (float)(ac.Heading.Degrees - vp.RotationDeg);
 
             if (isHeli)
             {

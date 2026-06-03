@@ -51,7 +51,7 @@ internal static class ShownRouteBuilder
         // fixes we suppress this; the polyline already shows where the aircraft is going.)
         if (waypoints.Count == 0 && tail is null && ac.AssignedHeading is { } hdg)
         {
-            tail = new VectorTail(ac.Position.Lat, ac.Position.Lon, hdg, TailLengthNm);
+            tail = new VectorTail(ac.Position.Lat, ac.Position.Lon, hdg.Degrees, TailLengthNm);
         }
 
         return (waypoints, tail);

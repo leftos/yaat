@@ -101,7 +101,7 @@ public class AircraftModelPhaseStatusTests
             PatternDirection = "Left",
             PatternEntryKind = "Direct",
             AssignedRunway = "28R",
-            AssignedHeading = 100,
+            AssignedHeading = new MagneticHeading(100),
         };
         Assert.Equal("Direct left downwind 28R", Text(v));
     }
@@ -253,7 +253,7 @@ public class AircraftModelPhaseStatusTests
             ClearedRunway = "28R",
             DepartureRunway = "28R",
             PatternDirection = "Left",
-            AssignedHeading = 123,
+            AssignedHeading = new MagneticHeading(123),
         };
         Assert.DoesNotContain("hdg", Text(v));
     }
@@ -266,7 +266,7 @@ public class AircraftModelPhaseStatusTests
     [InlineData("TurnL90")]
     public void HeadingSuffix_Kept_ForVectorPhases(string phase)
     {
-        var v = new AircraftStatusView { CurrentPhase = phase, AssignedHeading = 270 };
+        var v = new AircraftStatusView { CurrentPhase = phase, AssignedHeading = new MagneticHeading(270) };
         Assert.Contains("hdg 270", Text(v));
     }
 }

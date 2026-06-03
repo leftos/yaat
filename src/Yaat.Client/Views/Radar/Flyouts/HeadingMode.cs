@@ -72,7 +72,7 @@ public static class HeadingPreviewRenderer
         int snappedHdgMag = SnapHeadingTo5(cursorBearingMag);
         double newHeadingMag = snappedHdgMag;
         double newHeadingTrue = MagneticDeclination.MagneticToTrue(newHeadingMag, ac.Position);
-        double curHeadingTrue = ac.Heading;
+        double curHeadingTrue = ac.Heading.Degrees;
         double courseChange = GeoMath.SignedBearingDifference(curHeadingTrue, newHeadingTrue);
         double absCourseChange = Math.Abs(courseChange);
 

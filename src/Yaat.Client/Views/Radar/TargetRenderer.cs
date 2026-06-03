@@ -384,7 +384,7 @@ public sealed class TargetRenderer : IDisposable
         }
 
         var distNm = ac.GroundSpeed * minutes / 60.0;
-        var (endLat, endLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(ac.Heading), distNm);
+        var (endLat, endLon) = GeoMath.ProjectPoint(ac.Position, ac.Heading, distNm);
         var (ex, ey) = vp.LatLonToScreen(endLat, endLon);
 
         _ptlPaint.Color = SKColors.White;
