@@ -61,9 +61,24 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Set by the owning view to confirm the destructive, playback-ending Take Control. Returns
+    /// true to proceed, false to cancel. Null = no confirmation wired (proceeds immediately).
+    /// </summary>
+    public Func<Task<bool>>? TakeControlConfirmation { get; set; }
+
     [RelayCommand]
     private async Task TakeControl()
     {
+        if (IsPlaybackMode && TakeControlConfirmation is not null)
+        {
+            var confirmed = await TakeControlConfirmation();
+            if (!confirmed)
+            {
+                return;
+            }
+        }
+
         try
         {
             await _connection.TakeControlAsync();

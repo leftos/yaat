@@ -5,6 +5,9 @@
 ### Added
 - **Tools → Open TDLS in Browser** — opens the connected server's web vTDLS (`/vtdls/`) in your default browser with your CID, initials, ARTCC, and room prefilled, mirroring the existing **Open Strips in Browser**.
 
+### Changed
+- **Take Control** during recording playback now asks for confirmation before ending the replay; Cancel or Esc keeps you in playback.
+
 ### Fixed
 - Amending a flight plan with a non-US destination via CRC (e.g. a `KSFO → WSSS` Singapore departure) no longer silently reverts. The server was rejecting the whole amendment because the destination airport isn't in the US navigation database; international airports are now kept as filed instead. The same applies to the typed `FP`/`VP` flight-plan commands.
 - Clicking a sent clearance in the vTDLS **PDC** list now re-opens it read-only — the editor shows exactly what was issued with every field disabled and no Send button, so a sent PDC can't be edited or resent (Dump still works). Previously clicking a sent PDC did nothing.

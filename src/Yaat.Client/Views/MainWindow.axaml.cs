@@ -90,6 +90,7 @@ public partial class MainWindow : Window
         }
 
         vm.BookmarkNamePromptRequested += OnBookmarkNamePromptRequested;
+        vm.TakeControlConfirmation = ConfirmTakeControlAsync;
 
         _windowProfileService = new WindowProfileService(vm.Preferences);
 
@@ -2795,6 +2796,70 @@ public partial class MainWindow : Window
     private static bool IsModifierOnlyKey(Key key)
     {
         return key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin;
+    }
+
+    /// <summary>
+    /// Confirms the destructive, playback-ending Take Control. Wired into
+    /// <see cref="MainViewModel.TakeControlConfirmation"/> so the command gates on it. Returns
+    /// true when the user clicks "Take Control", false on Cancel/Esc.
+    /// </summary>
+    private async Task<bool> ConfirmTakeControlAsync()
+    {
+        var dialog = new Window
+        {
+            Title = "End playback and take control?",
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            ShowInTaskbar = false,
+        };
+
+        var confirmButton = new Button
+        {
+            Content = "Take Control",
+            Width = 110,
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+        };
+        var cancelButton = new Button
+        {
+            Content = "Cancel",
+            Width = 80,
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            IsCancel = true,
+        };
+
+        var confirmed = false;
+        confirmButton.Click += (_, _) =>
+        {
+            confirmed = true;
+            dialog.Close();
+        };
+        cancelButton.Click += (_, _) => dialog.Close();
+
+        dialog.Content = new StackPanel
+        {
+            Margin = new Avalonia.Thickness(20),
+            Spacing = 16,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "Taking control stops the replay and discards the playback timeline, switching to live control. This can't be undone.",
+                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                },
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    Spacing = 8,
+                    Children = { confirmButton, cancelButton },
+                },
+            },
+        };
+
+        await dialog.ShowDialog(this);
+        return confirmed;
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)

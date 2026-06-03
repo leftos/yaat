@@ -1037,7 +1037,7 @@ After rewinding, the simulation enters **Playback Mode**. The timeline bar shows
 - The simulation replays all previously recorded commands at their original timestamps
 - Terminal entries broadcast normally — you can watch commands execute as they happened
 - The simulation auto-pauses when it reaches the end of the recorded tape
-- Press **Take Control** or issue any command to exit playback and resume live operation
+- Press **Take Control** — you'll be asked to confirm, since this ends the replay and discards the playback timeline — or issue any command to exit playback and resume live operation
 
 ### Bookmarks
 
