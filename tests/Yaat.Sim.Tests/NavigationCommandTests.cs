@@ -255,6 +255,59 @@ public class NavigationCommandTests : IDisposable
         Assert.Contains("speed 210", result.Message);
     }
 
+    [Fact]
+    public void Cfix_MultipleOnRoute_AreAdditive_BothRestrictionsCoexist()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        aircraft.IndicatedAirspeed = 280;
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "ZOEEE", Position = new LatLon(37.7, -122.0) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CASST", Position = new LatLon(37.7, -121.8) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "BEPEA", Position = new LatLon(37.7, -121.6) });
+
+        CommandDispatcher.Dispatch(
+            new CrossFixCommand("ZOEEE", 37.7, -122.0, 10000, CrossFixAltitudeType.At, 250),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
+        CommandDispatcher.Dispatch(
+            new CrossFixCommand("CASST", 37.7, -121.8, 6000, CrossFixAltitudeType.At, 210),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        // CFIX is additive: the second CFIX does not clobber the first. The route is unchanged
+        // in length/order and both fixes carry their own restriction.
+        Assert.Equal(new[] { "ZOEEE", "CASST", "BEPEA" }, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
+
+        var zoeee = aircraft.Targets.NavigationRoute.First(f => f.Name == "ZOEEE");
+        Assert.Equal(250, zoeee.SpeedRestriction!.SpeedKts);
+        Assert.Equal(10000, zoeee.AltitudeRestriction!.Altitude1Ft);
+
+        var casst = aircraft.Targets.NavigationRoute.First(f => f.Name == "CASST");
+        Assert.Equal(210, casst.SpeedRestriction!.SpeedKts);
+        Assert.Equal(6000, casst.AltitudeRestriction!.Altitude1Ft);
+    }
+
+    [Fact]
+    public void Cfix_OnRoute_StampsInPlace_PreservesFixesBeforeAndAfter()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "ALPHA", Position = new LatLon(37.7, -122.2) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "BRAVO", Position = new LatLon(37.7, -122.0) });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "CHARLIE", Position = new LatLon(37.7, -121.8) });
+
+        CommandDispatcher.Dispatch(
+            new CrossFixCommand("BRAVO", 37.7, -122.0, 8000, CrossFixAltitudeType.At, null),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        // CFIX names a fix already on the route; it stamps that fix in place without dropping
+        // the fixes ahead of it (ALPHA) — it is a crossing restriction, not a reroute.
+        Assert.Equal(new[] { "ALPHA", "BRAVO", "CHARLIE" }, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
+        Assert.Equal(8000, aircraft.Targets.NavigationRoute.First(f => f.Name == "BRAVO").AltitudeRestriction!.Altitude1Ft);
+    }
+
     // --- DVIA ---
 
     [Fact]

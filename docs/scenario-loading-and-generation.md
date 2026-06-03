@@ -308,11 +308,15 @@ spawn:
 
 ### The CFIX composition case
 
-When the first immediate preset is a `CFIX` command and there are ≥ 2 immediate presets, they are **composed into one compound
-command** joined with `; ` and dispatched as a single `DispatchSinglePreset` call (`SimulationEngine.cs:2140`). The reason is the
-dimension-aware queue clearing in `CommandDispatcher`: dispatched separately, a later block (e.g. `CAPP`) clears the conflicting
-lateral+vertical dimensions of the earlier `CFIX`, losing its speed target. Composing them keeps the blocks as sequential entries
-in one `CommandQueue` so nothing is clobbered. This is the one place preset dispatch deviates from "one command at a time."
+`CFIX` is **additive** — `DispatchCrossFix` stamps the restriction on the named route fix in place, preserving the rest of the
+route and any restriction already on another fix. So multiple `CFIX` presets are dispatched independently and all their crossing
+restrictions land at spawn simultaneously.
+
+Composition is still needed for the **mixed** case: when a `CFIX` is followed by a non-`CFIX` command (e.g. `CFIX ...; CAPP`).
+Dispatched separately, the later block (`CAPP`) would rebuild the route and lose the `CFIX` restrictions, so the presets are
+**composed into one compound command** joined with `; ` and dispatched as a single `DispatchSinglePreset` call — the later block
+then waits in the `CommandQueue` until the crossing fix is reached. The composition path therefore triggers only when the presets
+are *not* all `CFIX` and the first one is a `CFIX`. This is the one place preset dispatch deviates from "one command at a time."
 
 Because presets go through the live dispatcher, they obey the same dry-run-validate / dimension-clearing / phase-gate rules as
 typed commands — a malformed preset is rejected and logged (`[Preset] Unparseable`), not silently dropped.
@@ -380,9 +384,10 @@ reattachment pattern.
 - **`AssertEveryTypeResolves` throws at startup.** Adding a `TypeTable` type without an `AircraftProfileDatabase` entry / correct
   category, or an `Airlines` entry without `AirlineFleets` data, crashes the server on boot. Run the data DBs' refresh tools and
   keep the table in sync.
-- **Presets run through the LIVE dispatcher** — they obey dry-run validation, dimension-aware clearing, and the phase gate. A
-  multi-preset sequence starting with `CFIX` must be composed into one compound (it is, automatically) or later blocks clear
-  earlier dimensions.
+- **Presets run through the LIVE dispatcher** — they obey dry-run validation, dimension-aware clearing, and the phase gate. `CFIX`
+  is additive (stamps the named route fix in place), so multiple `CFIX` presets dispatch independently; only a `CFIX` followed by a
+  non-`CFIX` command (e.g. `CFIX ...; CAPP`) is composed into one compound so the later block waits for the crossing fix instead of
+  rebuilding the route and clearing earlier restrictions.
 - **`ProcessGenerators` is suppressed during replay** when recorded spawns exist — generated arrivals are replayed verbatim from
   the action log, not regenerated. Don't add unconditional generator work in the tick path; gate it the same way.
 - **Rewind reuses the original `rngSeed`.** Determinism of the rewound session depends on it. Picking a fresh seed in

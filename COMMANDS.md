@@ -929,7 +929,7 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 
 JARR supports CIFP altitude/speed constraints when available. The airport prefix (`OAK.`) is optional — when omitted, the aircraft's destination airport is used. The entry fix specifies where to join the STAR; when omitted, the nearest fix ahead of the aircraft is used.
 
-CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for the next fix in the route, while `CFIX {fix} {altitude}` targets a specific named fix. Altitude prefixes: `A` = at or above, `B` = at or below, no prefix = at exactly. CFIX uses step-based descent/climb planning — the aircraft computes the exact vertical rate needed to arrive at the constraint altitude precisely at the fix.
+CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for the next fix in the route, while `CFIX {fix} {altitude}` targets a specific named fix. Altitude prefixes: `A` = at or above, `B` = at or below, no prefix = at exactly. CFIX uses step-based descent/climb planning — the aircraft computes the exact vertical rate needed to arrive at the constraint altitude precisely at the fix. CFIX is additive and applies in place: it stamps the restriction on the named fix without rerouting (the fixes ahead of it are kept), so multiple CFIX commands stack — each fix on the route retains its own restriction.
 
 **Constrained DCTF** — `DCTF FIX1/A080 FIX2/050 FIX3` attaches altitude constraints inline. The `/` suffix uses the same CFIX altitude format. All constraints are visible to the planner simultaneously, so the aircraft plans descent across multiple waypoints at once.
 

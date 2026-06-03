@@ -2520,12 +2520,13 @@ public sealed class SimulationEngine
             }
         }
 
-        // CFIX preset composition: when the first preset is a CFIX command and
-        // there are multiple presets, compose them into a single compound command.
-        // Without this, each DispatchCompound call clears conflicting dimensions
-        // from the previous (e.g. CAPP clears CFIX's lateral+vertical, losing
-        // the speed target). Composing keeps them as sequential blocks in one queue.
-        if (immediatePresets.Count >= 2 && immediatePresets[0].TrimStart().StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase))
+        // CFIX is additive — it stamps the named route fix in place — so multiple CFIX presets
+        // can be dispatched independently and all their crossing restrictions land at spawn.
+        // Compose into a single sequential compound only when a CFIX is followed by a non-CFIX
+        // command (e.g. "CFIX ...; CAPP"): that later command must wait until the crossing fix
+        // is reached, otherwise it would rebuild the route and lose the CFIX restrictions.
+        bool allCfix = immediatePresets.All(p => p.TrimStart().StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase));
+        if (!allCfix && immediatePresets.Count >= 2 && immediatePresets[0].TrimStart().StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase))
         {
             var composed = string.Join("; ", immediatePresets);
             DispatchSinglePreset(composed, loaded.State);

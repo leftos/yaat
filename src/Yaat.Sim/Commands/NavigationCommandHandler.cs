@@ -150,22 +150,6 @@ internal static class NavigationCommandHandler
         double? previousSpeed = cmd.Speed is not null ? aircraft.Targets.TargetSpeed : null;
         double? previousAssignedSpeed = cmd.Speed is not null ? aircraft.Targets.AssignedSpeed : null;
 
-        // Preserve route fixes that come after the cross fix so the aircraft
-        // continues on its route after reaching the fix (issue #70).
-        var remainingRoute = new List<NavigationTarget>();
-        bool foundCfix = false;
-        foreach (var target in aircraft.Targets.NavigationRoute)
-        {
-            if (foundCfix)
-            {
-                remainingRoute.Add(target);
-            }
-            else if (target.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase))
-            {
-                foundCfix = true;
-            }
-        }
-
         // Map CrossFixAltitudeType to CifpAltitudeRestrictionType
         var restrictionType = cmd.AltType switch
         {
@@ -174,21 +158,44 @@ internal static class NavigationCommandHandler
             _ => CifpAltitudeRestrictionType.At,
         };
 
-        var cfixTarget = new NavigationTarget
-        {
-            Name = cmd.FixName,
-            Position = new LatLon(cmd.FixLat, cmd.FixLon),
-            AltitudeRestriction = new CifpAltitudeRestriction(restrictionType, cmd.Altitude),
-            SpeedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null,
-            RevertAltitude = previousAlt,
-            RevertAssignedAltitude = previousAssignedAlt,
-            RevertSpeed = previousSpeed,
-            RevertAssignedSpeed = previousAssignedSpeed,
-        };
+        var altRestriction = new CifpAltitudeRestriction(restrictionType, cmd.Altitude);
+        var speedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null;
 
-        aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.NavigationRoute.Add(cfixTarget);
-        aircraft.Targets.NavigationRoute.AddRange(remainingRoute);
+        // CFIX names a fix that is already on the route. Stamp the restriction on that fix in
+        // place, preserving the rest of the route (fixes before and after) and any restriction
+        // already on another fix — so multiple CFIX commands are additive instead of clobbering
+        // one another. If the named fix is not on the route, fall back to proceeding direct to
+        // it (a single-fix route).
+        var existing = aircraft.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            existing.AltitudeRestriction = altRestriction;
+            existing.RevertAltitude = previousAlt;
+            existing.RevertAssignedAltitude = previousAssignedAlt;
+            if (speedRestriction is not null)
+            {
+                existing.SpeedRestriction = speedRestriction;
+                existing.RevertSpeed = previousSpeed;
+                existing.RevertAssignedSpeed = previousAssignedSpeed;
+            }
+        }
+        else
+        {
+            aircraft.Targets.NavigationRoute.Clear();
+            aircraft.Targets.NavigationRoute.Add(
+                new NavigationTarget
+                {
+                    Name = cmd.FixName,
+                    Position = new LatLon(cmd.FixLat, cmd.FixLon),
+                    AltitudeRestriction = altRestriction,
+                    SpeedRestriction = speedRestriction,
+                    RevertAltitude = previousAlt,
+                    RevertAssignedAltitude = previousAssignedAlt,
+                    RevertSpeed = previousSpeed,
+                    RevertAssignedSpeed = previousAssignedSpeed,
+                }
+            );
+        }
 
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
         // But do set AssignedAltitude for the datablock display.

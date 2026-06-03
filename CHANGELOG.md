@@ -48,6 +48,7 @@
 - Arrivals now **hold their crossing-restriction speeds**. After crossing a fix with an assigned "cross at" speed (e.g. "cross GUSHR at 210", or a STAR's "cross CASST at 210"), aircraft maintain that speed instead of accelerating back to 250 — including down the approach transition and after a depart-fix vector off the arrival. Previously they sped back up to default cruise the moment they passed the fix.
 - Aircraft no longer **slow to near-zero on final approach**. A speed limit misread from certain RNAV approaches (e.g. IAH RNAV 08R) was making aircraft try to fly the final segment at about 2 knots, decelerating to a near-stop ~5 miles out. The approach data is now parsed correctly (which also removes duplicate approach fixes), and a minimum-speed floor prevents any procedure restriction from ever commanding an unflyable speed.
 - Published **"at or above" crossing speeds** (a minimum, e.g. a STAR's "cross HHART at or above 230") are now flown as a floor: the aircraft holds at or above the speed through the fix instead of slowing down to it. Previously every procedure speed limit was read as a maximum, so a published minimum could wrongly cap the aircraft.
+- Multiple **"cross at" (CFIX) restrictions** now stack. Issuing a second cross-fix restriction (or loading a scenario with several on one route) no longer drops the earlier ones — each fix keeps its own restriction. CFIX also no longer reroutes: naming a fix already on the route applies the restriction in place instead of skipping the fixes ahead of it.
 
 ## v0.6.0-beta [2026/06/01]
 
