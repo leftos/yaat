@@ -182,6 +182,9 @@ public partial class MainViewModel : ObservableObject
     private bool _sessionAutoCrossRunway;
 
     [ObservableProperty]
+    private bool _sessionAutoPullUpToParallel;
+
+    [ObservableProperty]
     private bool _sessionValidateDctFixes = true;
 
     [ObservableProperty]
@@ -2330,6 +2333,7 @@ public partial class MainViewModel : ObservableObject
             _ = SendRpoShowPilotSpeech();
             _ = SendAutoClearedToLand();
             _ = SendAutoCrossRunway();
+            _ = SendAutoPullUpToParallel();
         }
     }
 
@@ -2486,6 +2490,7 @@ public partial class MainViewModel : ObservableObject
         SessionAutoAcceptDelaySeconds = dto.AutoAcceptDelaySeconds;
         SessionAutoClearedToLand = dto.AutoClearedToLand;
         SessionAutoCrossRunway = dto.AutoCrossRunway;
+        SessionAutoPullUpToParallel = dto.AutoPullUpToParallel;
         SessionValidateDctFixes = dto.ValidateDctFixes;
         SessionSoloTrainingMode = dto.SoloTrainingMode;
         SessionSoloParkingInitialCallupRatePercent = dto.SoloParkingInitialCallupRatePercent;
@@ -2509,6 +2514,7 @@ public partial class MainViewModel : ObservableObject
                 state.AutoAcceptDelaySeconds,
                 state.AutoClearedToLand,
                 state.AutoCrossRunway,
+                state.AutoPullUpToParallel,
                 state.ValidateDctFixes,
                 state.SoloTrainingMode,
                 state.SoloParkingInitialCallupRatePercent,
@@ -2530,6 +2536,7 @@ public partial class MainViewModel : ObservableObject
                 dto.AutoAcceptDelaySeconds,
                 dto.AutoClearedToLand,
                 dto.AutoCrossRunway,
+                dto.AutoPullUpToParallel,
                 dto.ValidateDctFixes,
                 dto.SoloTrainingMode,
                 dto.SoloParkingInitialCallupRatePercent,
@@ -2551,6 +2558,7 @@ public partial class MainViewModel : ObservableObject
                 result.AutoAcceptDelaySeconds,
                 result.AutoClearedToLand,
                 result.AutoCrossRunway,
+                result.AutoPullUpToParallel,
                 result.ValidateDctFixes,
                 result.SoloTrainingMode,
                 result.SoloParkingInitialCallupRatePercent,
@@ -2597,6 +2605,14 @@ public partial class MainViewModel : ObservableObject
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetAutoCrossRunwayAsync(value);
+        }
+    }
+
+    partial void OnSessionAutoPullUpToParallelChanged(bool value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetAutoPullUpToParallelAsync(value);
         }
     }
 
@@ -2863,6 +2879,18 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to set auto-cross-runway");
+        }
+    }
+
+    private async Task SendAutoPullUpToParallel()
+    {
+        try
+        {
+            await _connection.SetAutoPullUpToParallelAsync(_preferences.AutoPullUpToParallel);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set auto-pull-up-to-parallel");
         }
     }
 

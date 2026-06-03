@@ -171,6 +171,7 @@ public sealed class SimulationEngine
             Scenario.ElapsedSeconds = scenarioDto.ElapsedSeconds;
             Scenario.AutoClearedToLand = scenarioDto.AutoClearedToLand;
             Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
+            Scenario.AutoPullUpToParallel = scenarioDto.AutoPullUpToParallel;
             Scenario.ValidateDctFixes = scenarioDto.ValidateDctFixes;
             Scenario.SoloTrainingMode = scenarioDto.SoloTrainingMode;
             Scenario.SoloParkingInitialCallupRatePercent = scenarioDto.SoloParkingInitialCallupRatePercent;
@@ -1702,6 +1703,7 @@ public sealed class SimulationEngine
             Weather = World.Weather,
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
+            AutoPullUpToParallel = Scenario?.AutoPullUpToParallel ?? false,
             SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
             ScenarioId = Scenario?.ScenarioId,
             SoloParkingInitialCallupRatePercent = Scenario?.SoloParkingInitialCallupRatePercent ?? 100,
@@ -2630,6 +2632,13 @@ public sealed class SimulationEngine
                 {
                     scenario.AutoCrossRunway = acr;
                     World.ApplyAutoCrossToActiveTaxiRoutes(acr);
+                }
+                break;
+            case "AutoPullUpToParallel":
+                // Only affects future landing exits — no active-route walk needed.
+                if (bool.TryParse(setting.Value, out var apup))
+                {
+                    scenario.AutoPullUpToParallel = apup;
                 }
                 break;
             case "AutoAcceptDelay":

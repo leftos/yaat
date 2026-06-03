@@ -551,6 +551,14 @@ public sealed class RunwayExitPhase : Phase
         // close enough; teleporting to exact node coords causes overlap when
         // another aircraft is already there.
 
+        // Vacated between two parallels with a clear shot to the parallel runway's hold-short:
+        // auto-pull-up there (and hold short pending an explicit CROSS) instead of stopping at
+        // the landing runway's exit hold-short.
+        if (TryStartParallelCrossing(ctx))
+        {
+            return true;
+        }
+
         // Mark this hold-short as occupied so same-tick aircraft see it
         if (_holdShortNode is not null)
         {
@@ -570,6 +578,111 @@ public sealed class RunwayExitPhase : Phase
         );
 
         return true;
+    }
+
+    /// <summary>
+    /// When the aircraft vacated between two parallel runways and the parallel runway's hold-short
+    /// is reachable on the same exit taxiway with no intervening taxiway intersection (issue #175),
+    /// build a taxi route that pulls up to and holds short of the parallel — and continues across it
+    /// once an explicit CROSS clears the hold-short — then hand off to a <see cref="TaxiingPhase"/>.
+    /// Returns true when the auto-pull-up was started; false to fall through to the normal
+    /// hold-after-exit behavior. Gated on the <c>AutoPullUpToParallel</c> scenario setting.
+    /// </summary>
+    private bool TryStartParallelCrossing(PhaseContext ctx)
+    {
+        if (
+            !ctx.AutoPullUpToParallel
+            || ctx.GroundLayout is null
+            || _holdShortNode is null
+            || _exitTaxiway is null
+            || _runwayId is null
+            || _exitPath is null
+            || _exitPath.Count < 2
+        )
+        {
+            return false;
+        }
+
+        var comeFromNode = _exitPath[^2];
+        var crossing = ctx.GroundLayout.FindParallelRunwayCrossing(_holdShortNode, comeFromNode, _exitTaxiway, _runwayId);
+        if (crossing is not { } xing)
+        {
+            return false;
+        }
+
+        // Combined node path: pull-up (landingHS → parallel near HS) then crossing (near → far HS).
+        var fullPath = new List<GroundNode>(xing.PullUpPath);
+        fullPath.AddRange(xing.CrossingPath.Skip(1));
+
+        var segments = BuildRouteSegments(fullPath);
+        if (segments is null)
+        {
+            Log.LogWarning("[Exit] {Callsign}: could not build parallel-crossing route, holding after exit instead", ctx.Aircraft.Callsign);
+            return false;
+        }
+
+        var holdShorts = new List<HoldShortPoint>();
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(ctx.GroundLayout, segments, holdShorts);
+        foreach (var hs in holdShorts)
+        {
+            if (hs.Reason == HoldShortReason.RunwayCrossing)
+            {
+                hs.IsArrivalCrossing = true;
+            }
+        }
+
+        var route = new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
+        double lengthFt =
+            FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(ctx.Aircraft.AircraftType);
+        HoldShortAnnotator.ComputeHoldShortPositions(ctx.GroundLayout, route, lengthFt);
+
+        ctx.Aircraft.Ground.AssignedTaxiRoute = route;
+        ctx.Aircraft.Ground.CurrentTaxiway = _exitTaxiway;
+
+        // Pilot reports clear of the landing runway as it pulls up toward the parallel.
+        var clearText = Pilot.PilotResponder.BuildClearOfRunwayText(ctx.Aircraft, _runwayId, _exitTaxiway);
+        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+            ctx.Aircraft,
+            ctx.SoloTrainingMode,
+            ctx.RpoShowPilotSpeech,
+            ctx.StudentPositionType,
+            clearText,
+            Pilot.PilotResponder.SoloPositionsTower
+        );
+
+        ctx.Aircraft.Phases?.InsertAfterCurrent(new TaxiingPhase());
+
+        Log.LogDebug(
+            "[Exit] {Callsign}: auto pull-up between parallels — {Land} exit → hold short {Parallel} via {Twy}, route=[{Path}]",
+            ctx.Aircraft.Callsign,
+            _runwayId,
+            xing.ParallelRunwayId,
+            _exitTaxiway,
+            string.Join("→", fullPath.Select(n => n.Id))
+        );
+
+        return true;
+    }
+
+    /// <summary>
+    /// Build directional taxi-route segments along the exit taxiway for a node path of real,
+    /// adjacency-connected graph nodes. Returns null if any consecutive pair lacks a connecting edge.
+    /// </summary>
+    private List<TaxiRouteSegment>? BuildRouteSegments(List<GroundNode> path)
+    {
+        var segments = new List<TaxiRouteSegment>(path.Count - 1);
+        for (int i = 0; i < path.Count - 1; i++)
+        {
+            var edge = FindEdgeBetween(path[i], path[i + 1].Id);
+            if (edge is null)
+            {
+                return null;
+            }
+
+            segments.Add(new TaxiRouteSegment { TaxiwayName = _exitTaxiway!, Edge = edge.Directed(path[i], path[i + 1]) });
+        }
+
+        return segments;
     }
 
     private static IGroundEdge? FindEdgeBetween(GroundNode fromNode, int toNodeId)

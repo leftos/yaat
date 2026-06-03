@@ -46,6 +46,19 @@ public sealed class SimScenarioState
     // Settings affecting command dispatch
     public bool AutoClearedToLand { get; set; }
     public bool AutoCrossRunway { get; set; }
+
+    /// <summary>
+    /// When true, an aircraft that vacates a runway between two parallels auto-advances to hold
+    /// short of the parallel runway when it is reachable on the same exit taxiway with no
+    /// intervening taxiway intersection (issue #175). When false, the aircraft stops at the landing
+    /// runway's exit hold-short. Independent of <see cref="AutoCrossRunway"/> — the aircraft still
+    /// requires an explicit CROSS to cross the parallel.
+    ///
+    /// Defaults to false here so pre-feature recordings replay faithfully; the user-facing default
+    /// is opt-out (on), set from the client preference and pushed to the server at scenario load.
+    /// </summary>
+    public bool AutoPullUpToParallel { get; set; }
+
     public bool ValidateDctFixes { get; set; } = true;
 
     // When true, every successful command dispatch produces a deterministic pilot-readback
@@ -153,6 +166,7 @@ public sealed class SimScenarioState
             ElapsedSeconds = ElapsedSeconds,
             AutoClearedToLand = AutoClearedToLand,
             AutoCrossRunway = AutoCrossRunway,
+            AutoPullUpToParallel = AutoPullUpToParallel,
             ValidateDctFixes = ValidateDctFixes,
             SoloTrainingMode = SoloTrainingMode,
             SoloParkingInitialCallupRatePercent = SoloParkingInitialCallupRatePercent,

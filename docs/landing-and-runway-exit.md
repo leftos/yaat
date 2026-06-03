@@ -92,6 +92,15 @@ GroundNavigator handles the actual turn through the exit. It uses:
 - **Turn anticipation**: for turns ≥20°, the arrival threshold expands so the aircraft begins turning before reaching the node, creating a smooth arc.
 - **Heading-based speed scaling**: speed reduces proportionally to heading error (full speed at 0° error, 15% at ≥120°), modeling realistic ground steering constraints.
 
+## Parallel-Runway Auto-Pull-Up (issue #175)
+
+When an aircraft vacates **between two parallel runways** — e.g. lands OAK 28L, exits right onto G, and G crosses on to 28R ~500 ft away — `RunwayExitPhase.CompleteExit` can auto-advance it to hold short of the *parallel* runway instead of stopping at the landing runway's exit hold-short.
+
+- **Trigger** (`AirportGroundLayout.FindParallelRunwayCrossing`): walk the same exit taxiway forward from the landing-runway hold-short. If the next runway hold-short reached belongs to a *different, (anti-)parallel* runway with **no intervening taxiway intersection** in between, return its near-side and far-side hold-shorts plus the node paths. An intervening intersection (a node carrying a different taxiway) aborts the search — the controller may want to route the aircraft down that taxiway, so the aircraft stops at the landing exit (today's behavior). Forward direction comes from the exit path's tail node, so an outer-side exit (pointing back across the landing runway) finds nothing.
+- **Reuse, not new geometry**: `CompleteExit` synthesizes a normal `AssignedTaxiRoute` of **real nodes** `[landing-HS → parallel-near-HS → … → parallel-far-HS]`, annotates it with `HoldShortAnnotator.AddImplicitRunwayHoldShorts` + `ComputeHoldShortPositions` (which stops the nose *at* the parallel hold-short line, not past it), and hands off to a `TaxiingPhase`. The existing taxi machinery then drives the pull-up, stops short of the parallel, inserts the `HoldingShortPhase`, and — once a `CROSS` clears it — runs the `CrossingRunwayPhase` across and holds clear on the far side. No virtual nodes are added to the route (a negative `VirtualNode` id would drop the whole route on snapshot restore).
+- **Gating**: the `AutoPullUpToParallel` scenario setting (opt-out, on by default for live sessions via the client preference; off in `SimScenarioState` so pre-feature recordings replay faithfully). Independent of `AutoCrossRunway` — the pull-up **always** requires an explicit `CROSS`/`CROSS <rwy>`; it never auto-crosses the parallel.
+- **Solo phraseology**: the synthesized hold-short carries `HoldShortPoint.IsArrivalCrossing`, which suppresses the solo-mode "ready for departure" report — a landed aircraft crossing a parallel is not a departure. It still reports "holding short runway <parallel>".
+
 ## Constants
 
 | Constant | Jet | Turboprop | Piston | Helicopter |

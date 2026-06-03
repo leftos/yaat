@@ -1575,6 +1575,266 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// From a landing-runway exit hold-short, find an adjacent parallel runway to cross after
+    /// vacating. Walks the same exit taxiway forward (away from <paramref name="comeFromNode"/>)
+    /// to the parallel runway's near-side hold-short, then continues across that runway to its
+    /// far-side hold-short. Returns null when there is no parallel runway ahead, when an
+    /// intervening taxiway intersection is reached before the parallel hold-short (the controller
+    /// may want to route the aircraft down that taxiway), or when the next runway is not
+    /// (anti-)parallel to the landing runway.
+    /// </summary>
+    /// <param name="landingHoldShortNode">The hold-short the aircraft stopped at after vacating.</param>
+    /// <param name="comeFromNode">The node the aircraft arrived from (defines "forward").</param>
+    /// <param name="exitTaxiwayName">The taxiway the aircraft exited on.</param>
+    /// <param name="landingRunwayDesignator">The runway just landed on (e.g. "28L").</param>
+    public (
+        GroundNode NearHoldShort,
+        GroundNode FarHoldShort,
+        string ParallelRunwayId,
+        List<GroundNode> PullUpPath,
+        List<GroundNode> CrossingPath
+    )? FindParallelRunwayCrossing(GroundNode landingHoldShortNode, GroundNode comeFromNode, string exitTaxiwayName, string landingRunwayDesignator)
+    {
+        var pullUpPath = WalkToParallelNearHoldShort(landingHoldShortNode, comeFromNode.Id, exitTaxiwayName, landingRunwayDesignator);
+        if (pullUpPath is null)
+        {
+            return null;
+        }
+
+        var nearHoldShort = pullUpPath[^1];
+        if (nearHoldShort.RunwayId is not { } nearRunwayId || !IsParallelRunway(landingRunwayDesignator, nearRunwayId))
+        {
+            return null;
+        }
+
+        var crossingPath = WalkAcrossToFarHoldShort(nearHoldShort, pullUpPath[^2].Id, exitTaxiwayName, nearRunwayId);
+        if (crossingPath is null)
+        {
+            return null;
+        }
+
+        Log.LogDebug(
+            "[ParallelXing] {Land} HS #{Near} → cross {Rwy} → HS #{Far} via {Twy} pullUp=[{Pull}] crossing=[{Cross}]",
+            landingRunwayDesignator,
+            nearHoldShort.Id,
+            nearRunwayId,
+            crossingPath[^1].Id,
+            exitTaxiwayName,
+            string.Join("→", pullUpPath.Select(n => n.Id)),
+            string.Join("→", crossingPath.Select(n => n.Id))
+        );
+
+        return (nearHoldShort, crossingPath[^1], nearRunwayId.ToString(), pullUpPath, crossingPath);
+    }
+
+    /// <summary>
+    /// Walk the exit taxiway forward from the landing-runway hold-short to the first hold-short of
+    /// a different runway (the parallel near side). Returns the path [landingHS, …, nearHS] or null
+    /// at a dead end, an intervening taxiway intersection, or another landing-runway hold-short.
+    /// </summary>
+    private List<GroundNode>? WalkToParallelNearHoldShort(
+        GroundNode landingHoldShort,
+        int comeFromId,
+        string exitTaxiwayName,
+        string landingRunwayDesignator
+    )
+    {
+        const int maxHops = 10;
+        var path = new List<GroundNode> { landingHoldShort };
+        var current = landingHoldShort;
+        int prevId = comeFromId;
+
+        for (int hop = 0; hop < maxHops; hop++)
+        {
+            var next = StepForwardOnTaxiway(current, prevId, exitTaxiwayName);
+            if (next is null)
+            {
+                return null;
+            }
+
+            path.Add(next);
+
+            if (next.Type == GroundNodeType.RunwayHoldShort && next.RunwayId is { } rid)
+            {
+                // Another hold-short of the runway we just left is not a parallel crossing.
+                return rid.Contains(landingRunwayDesignator) ? null : path;
+            }
+
+            if (HasForeignTaxiwayBranch(next, exitTaxiwayName))
+            {
+                return null;
+            }
+
+            prevId = current.Id;
+            current = next;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Walk the exit taxiway forward from the parallel runway's near-side hold-short across the
+    /// runway to its far-side hold-short (same <see cref="RunwayIdentifier"/>, different node).
+    /// Returns the path [nearHS, …, farHS] or null.
+    /// </summary>
+    private List<GroundNode>? WalkAcrossToFarHoldShort(
+        GroundNode nearHoldShort,
+        int comeFromId,
+        string exitTaxiwayName,
+        RunwayIdentifier parallelRunway
+    )
+    {
+        const int maxHops = 10;
+        var path = new List<GroundNode> { nearHoldShort };
+        var current = nearHoldShort;
+        int prevId = comeFromId;
+
+        for (int hop = 0; hop < maxHops; hop++)
+        {
+            var next = StepForwardOnTaxiway(current, prevId, exitTaxiwayName);
+            if (next is null)
+            {
+                return null;
+            }
+
+            path.Add(next);
+
+            if (next.Type == GroundNodeType.RunwayHoldShort && next.RunwayId is { } rid && rid.Equals(parallelRunway) && next.Id != nearHoldShort.Id)
+            {
+                return path;
+            }
+
+            prevId = current.Id;
+            current = next;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Step to the single same-taxiway node ahead of <paramref name="current"/>, excluding the
+    /// node we came from (<paramref name="prevId"/>). Straight edges are preferred over fillet
+    /// arcs (the arcs are corner cuts onto the runway; the straight edge is the through-line).
+    /// Returns null at a dead end (no forward edge) or an ambiguous fork (more than one).
+    /// </summary>
+    private static GroundNode? StepForwardOnTaxiway(GroundNode current, int prevId, string taxiwayName)
+    {
+        GroundNode? straight = null;
+        int straightCount = 0;
+        GroundNode? arc = null;
+        int arcCount = 0;
+
+        foreach (var edge in current.Edges)
+        {
+            if (edge.IsRunwayCenterline || !edge.MatchesTaxiway(taxiwayName))
+            {
+                continue;
+            }
+
+            var other = edge.OtherNode(current);
+            if (other.Id == prevId)
+            {
+                continue;
+            }
+
+            if (edge is GroundArc)
+            {
+                arc = other;
+                arcCount++;
+            }
+            else
+            {
+                straight = other;
+                straightCount++;
+            }
+        }
+
+        if (straightCount == 1)
+        {
+            return straight;
+        }
+
+        if (straightCount == 0 && arcCount == 1)
+        {
+            return arc;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// True if <paramref name="node"/> has an incident edge belonging to a different taxiway — a
+    /// junction where another taxiway crosses or joins. Runway centerline edges and runway-crossing
+    /// junction arcs (which continue the taxiway across a runway) do not count.
+    /// </summary>
+    private static bool HasForeignTaxiwayBranch(GroundNode node, string taxiwayName)
+    {
+        foreach (var edge in node.Edges)
+        {
+            if (edge.IsRunwayCenterline || edge.MatchesTaxiway(taxiwayName))
+            {
+                continue;
+            }
+
+            if (edge is GroundArc { IsRunwayJunction: true })
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True if a runway end of <paramref name="candidate"/> is (anti-)parallel to
+    /// <paramref name="landingRunwayDesignator"/> — same magnetic orientation within 20°.
+    /// </summary>
+    private static bool IsParallelRunway(string landingRunwayDesignator, RunwayIdentifier candidate)
+    {
+        if (RunwayDesignatorHeading(landingRunwayDesignator) is not { } landingHeading)
+        {
+            return false;
+        }
+
+        return IsParallelHeading(landingHeading, RunwayDesignatorHeading(candidate.End1))
+            || IsParallelHeading(landingHeading, RunwayDesignatorHeading(candidate.End2));
+    }
+
+    private static bool IsParallelHeading(double landingHeading, double? candidateHeading)
+    {
+        if (candidateHeading is not { } heading)
+        {
+            return false;
+        }
+
+        const double toleranceDeg = 20.0;
+        double diff = Math.Abs(landingHeading - heading) % 360.0;
+        return (diff <= toleranceDeg) || (Math.Abs(diff - 180.0) <= toleranceDeg) || (diff >= 360.0 - toleranceDeg);
+    }
+
+    /// <summary>
+    /// Magnetic heading (degrees) implied by a runway designator's leading number (e.g. "28L" → 280).
+    /// Returns null when no leading digits are present.
+    /// </summary>
+    private static double? RunwayDesignatorHeading(string designator)
+    {
+        int numLen = 0;
+        while (numLen < designator.Length && char.IsAsciiDigit(designator[numLen]))
+        {
+            numLen++;
+        }
+
+        if (numLen == 0)
+        {
+            return null;
+        }
+
+        return (int.Parse(designator[..numLen]) % 36) * 10.0;
+    }
+
+    /// <summary>
     /// Seed the BFS queue from cluster nodes. When <paramref name="arcsOnly"/> is true,
     /// only arc edges are seeded; when false, only straight edges. Called in two passes
     /// (arcs first) so arcs claim the visited set before straight shortcuts can.

@@ -38,6 +38,13 @@ public sealed class PhaseContext
     public bool AutoClearedToLand { get; init; }
 
     /// <summary>
+    /// When true, an aircraft vacating a runway between two parallels auto-advances to hold short of
+    /// the parallel runway when it is reachable on the same exit taxiway with no intervening taxiway
+    /// intersection (issue #175). The aircraft still requires an explicit CROSS to cross the parallel.
+    /// </summary>
+    public bool AutoPullUpToParallel { get; init; }
+
+    /// <summary>
     /// When true, the simulator plays all pilots and emits readbacks / proactive comms via
     /// <c>PilotResponder</c>. Phases gate any pilot-side speech (e.g.,
     /// <c>AtParkingPhase</c>'s spawn check-in) on this flag so instructor-mode users see

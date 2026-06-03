@@ -14,6 +14,12 @@ public sealed class ScenarioSnapshotDto
     // Settings
     public required bool AutoClearedToLand { get; init; }
     public required bool AutoCrossRunway { get; init; }
+
+    // Optional — defaults to false so older snapshots and bundles (which predate issue #175)
+    // replay faithfully without the parallel-runway auto-pull-up. New snapshots carry the actual
+    // scenario value (true by default on live sessions).
+    public bool AutoPullUpToParallel { get; init; }
+
     public required bool ValidateDctFixes { get; init; }
     public required bool IsPaused { get; init; }
     public required double SimRate { get; init; }

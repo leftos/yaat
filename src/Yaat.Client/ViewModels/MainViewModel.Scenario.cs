@@ -430,6 +430,7 @@ public partial class MainViewModel
         _ = SendRpoShowPilotSpeech();
         _ = SendAutoClearedToLand();
         _ = SendAutoCrossRunway();
+        _ = SendAutoPullUpToParallel();
     }
 
     private void OnScenarioLoaded(ScenarioLoadedDto dto)
@@ -599,7 +600,7 @@ public partial class MainViewModel
         PendingDelayedSpawnCount = 0;
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
-        ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, false, 100, 100, 0, false, false, false));
+        ApplySessionSettings(new SessionSettingsDto(null, null, -1, false, false, true, true, false, 100, 100, 0, false, false, false));
 
         // Scenario positions are gone; refresh to leave only live CRC controllers (if any).
         _ = RefreshOnlineControllersAsync();

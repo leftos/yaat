@@ -193,6 +193,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _autoCrossRunway;
 
     [ObservableProperty]
+    private bool _autoPullUpToParallel;
+
+    [ObservableProperty]
     private bool _soloTrainingMode;
 
     [ObservableProperty]
@@ -583,6 +586,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoClearedToLandApp = _preferences.AutoClearedToLandApp;
         _autoClearedToLandCtr = _preferences.AutoClearedToLandCtr;
         _autoCrossRunway = _preferences.AutoCrossRunway;
+        _autoPullUpToParallel = _preferences.AutoPullUpToParallel;
         _soloTrainingMode = _preferences.SoloTrainingMode;
         _soloGoAroundProbabilityPercent = _preferences.SoloGoAroundProbabilityPercent;
         _rpoShowPilotSpeech = _preferences.RpoShowPilotSpeech;
@@ -709,7 +713,14 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetMarkStudentLimitedDatablocks(MarkStudentLimitedDatablocks);
         _preferences.SetCollapseStudentDatablocks(CollapseStudentDatablocks);
         _preferences.SetSyncStudentLeaderDirection(SyncStudentLeaderDirection);
-        _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);
+        _preferences.SetSimulationShortcuts(
+            AutoClearedToLandGnd,
+            AutoClearedToLandTwr,
+            AutoClearedToLandApp,
+            AutoClearedToLandCtr,
+            AutoCrossRunway,
+            AutoPullUpToParallel
+        );
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetTakeControlKey(_takeControlKeyName);

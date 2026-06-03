@@ -175,6 +175,7 @@ public sealed class UserPreferences
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
     public bool AutoClearedToLandCtr => _data.AutoClearedToLandCtr;
     public bool AutoCrossRunway => _data.AutoCrossRunway;
+    public bool AutoPullUpToParallel => _data.AutoPullUpToParallel;
     public bool SoloTrainingMode => _data.SoloTrainingMode;
     public int SoloParkingInitialCallupRatePercent => Math.Clamp(_data.SoloParkingInitialCallupRatePercent, 0, 200);
     public int SoloArrivalGeneratorRatePercent => Math.Clamp(_data.SoloArrivalGeneratorRatePercent, 0, 100);
@@ -680,7 +681,8 @@ public sealed class UserPreferences
         bool autoClearedToLandTwr,
         bool autoClearedToLandApp,
         bool autoClearedToLandCtr,
-        bool autoCrossRunway
+        bool autoCrossRunway,
+        bool autoPullUpToParallel
     )
     {
         _data.AutoClearedToLandGnd = autoClearedToLandGnd;
@@ -688,6 +690,7 @@ public sealed class UserPreferences
         _data.AutoClearedToLandApp = autoClearedToLandApp;
         _data.AutoClearedToLandCtr = autoClearedToLandCtr;
         _data.AutoCrossRunway = autoCrossRunway;
+        _data.AutoPullUpToParallel = autoPullUpToParallel;
         Save();
     }
 
@@ -1222,6 +1225,7 @@ public sealed class UserPreferences
             AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
             AutoClearedToLandCtr = GetFieldOr(obj, "autoClearedToLandCtr", true),
             AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
+            AutoPullUpToParallel = GetFieldOr(obj, "autoPullUpToParallel", true),
             SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
             SoloParkingInitialCallupRatePercent = GetFieldOr(obj, "soloParkingInitialCallupRatePercent", 100),
             SoloArrivalGeneratorRatePercent = GetFieldOr(obj, "soloArrivalGeneratorRatePercent", 100),
@@ -1474,6 +1478,7 @@ public sealed class UserPreferences
         public bool AutoClearedToLandApp { get; set; } = true;
         public bool AutoClearedToLandCtr { get; set; } = true;
         public bool AutoCrossRunway { get; set; }
+        public bool AutoPullUpToParallel { get; set; } = true;
         public bool SoloTrainingMode { get; set; }
         public int SoloParkingInitialCallupRatePercent { get; set; } = 100;
         public int SoloArrivalGeneratorRatePercent { get; set; } = 100;

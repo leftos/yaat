@@ -4,6 +4,7 @@
 
 ### Added
 - **Tools → Open TDLS in Browser** — opens the connected server's web vTDLS (`/vtdls/`) in your default browser with your CID, initials, ARTCC, and room prefilled, mirroring the existing **Open Strips in Browser**.
+- An aircraft that lands and vacates **between two parallel runways** (e.g. SFO 19L or OAK 28L exiting onto a taxiway that crosses both) now automatically pulls up to **hold short of the parallel runway** when that hold-short is the next thing along the same taxiway with no intersection in between — instead of stopping at the landing runway's exit. From there a single `CROSS` (or `CROSS 19R`) takes it across without first issuing a `TAXI`. The auto-pull-up is on by default and can be turned off in **Settings**; either way the aircraft always waits for an explicit `CROSS` before entering the parallel.
 
 ### Changed
 - **Take Control** during recording playback now asks for confirmation before ending the replay; Cancel or Esc keeps you in playback.

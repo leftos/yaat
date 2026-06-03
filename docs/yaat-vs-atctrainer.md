@@ -407,6 +407,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 | BREAK command | 15-second collision ignore | Not available |
 | Implicit hold-short | Not documented | Yes — automatic at all runway crossings |
 | Auto-cross runways | Default behavior | Optional setting — aircraft cross runways automatically |
+| Parallel-runway pull-up after landing | Not documented | Yes — vacating between parallels auto-advances to hold short of the parallel runway (opt-out setting); a bare `CROSS` then crosses it without a prior `TAXI` |
 
 ### Command Delay
 

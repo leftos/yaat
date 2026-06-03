@@ -565,6 +565,8 @@ While a pushback is already in progress, a **heading-only** `PUSH FACE C` / `PUS
 
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts.
 
+When an aircraft lands and vacates **between two parallel runways** and the parallel runway's hold-short is the next thing along the same exit taxiway with no intersection in between (e.g. SFO 19L exit G → 19R, OAK 28L exit G/H → 28R), it automatically pulls up to hold short of the parallel runway. A bare `CROSS` (or `CROSS 19R`) then takes it across without a prior `TAXI`. This auto-pull-up is on by default and can be disabled in **Settings**; it always waits for an explicit `CROSS` before entering the parallel.
+
 `HS` can be issued to a taxiing aircraft to add a hold-short point at the first upcoming intersection with the given taxiway or runway along the remaining route.
 
 When you taxi to a hold-short point (via context menu or command), the runway is automatically assigned based on the closest threshold. Override with `RWY {id}` if needed.

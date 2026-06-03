@@ -263,6 +263,9 @@
                         <CheckBox Content="Auto Cross-Runway"
                                   IsChecked="{Binding SessionAutoCrossRunway}" />
 
+                        <CheckBox Content="Auto Pull-Up to Parallel"
+                                  IsChecked="{Binding SessionAutoPullUpToParallel}" />
+
                         <CheckBox Content="Validate DCT Fixes"
                                   IsChecked="{Binding SessionValidateDctFixes}" />
 

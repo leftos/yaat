@@ -37,4 +37,11 @@ public sealed class HoldShortPointDto
     /// hold-shorts.
     /// </summary>
     public bool ClearedByAutoCross { get; init; }
+
+    /// <summary>
+    /// True when this runway-crossing hold-short was synthesized for an arrival auto-pulling-up to
+    /// hold short of a parallel runway after landing (issue #175). Defaults to false on legacy
+    /// snapshots. Suppresses the solo "ready for departure" report for the landed aircraft.
+    /// </summary>
+    public bool IsArrivalCrossing { get; init; }
 }

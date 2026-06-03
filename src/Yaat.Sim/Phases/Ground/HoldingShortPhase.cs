@@ -61,6 +61,7 @@ public sealed class HoldingShortPhase : Phase
             ctx.SoloTrainingMode
             && !_hasAnnouncedReady
             && _holdShort.Reason != HoldShortReason.ExplicitHoldShort
+            && !_holdShort.IsArrivalCrossing
             && _holdShort.TargetName is { Length: > 0 } runwayId
         )
         {
