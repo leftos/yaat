@@ -128,13 +128,41 @@ public class ImplicitConnectorTests
         var startNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("L")));
         Assert.NotNull(startNode);
 
-        var ctx = SearchContext.Compile(layout, startNode!.Id, ["L", "F"], null, null, null, null, null, AircraftCategory.Jet, null, null);
+        var ctx = SearchContext.Compile(
+            layout,
+            startNode!.Id,
+            ["L", "F"],
+            null,
+            null,
+            null,
+            null,
+            null,
+            AircraftCategory.Jet,
+            null,
+            null,
+            null,
+            null
+        );
 
         Assert.NotNull(ctx.AuthorizedTaxiways);
         Assert.Contains("LF", ctx.AuthorizedTaxiways!);
 
         // A non-adjacent clearance does not authorize LF.
-        var ctx2 = SearchContext.Compile(layout, startNode.Id, ["L", "A", "F"], null, null, null, null, null, AircraftCategory.Jet, null, null);
+        var ctx2 = SearchContext.Compile(
+            layout,
+            startNode.Id,
+            ["L", "A", "F"],
+            null,
+            null,
+            null,
+            null,
+            null,
+            AircraftCategory.Jet,
+            null,
+            null,
+            null,
+            null
+        );
         Assert.NotNull(ctx2.AuthorizedTaxiways);
         Assert.DoesNotContain("LF", ctx2.AuthorizedTaxiways!);
     }

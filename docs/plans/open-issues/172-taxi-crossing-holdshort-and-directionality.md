@@ -1,8 +1,8 @@
 # Handoff: taxi crossing / hold-short precedence + directionality hints
 
-> **Status:** **W1–W6 implemented and verified (2026-06-03); only W7 remains.** Originated
+> **Status:** **W1–W7 all implemented and verified (2026-06-03).** Originated
 > from issue #172 (JBU577 "taxi spin"). Mentor (Maxim, ZOA) consulted; FAA references checked and
-> aviation-sim-expert-reviewed.
+> aviation-sim-expert-reviewed. This issue's work is complete — the file can be archived once merged.
 > **Recording:** `tests/Yaat.Sim.Tests/TestData/issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip`.
 
 This is a fresh-agent handoff. It bundles one bug fix and several related controller capabilities that all
@@ -224,26 +224,35 @@ especially should be confirmed with the mentor.
   real-world phraseology (§3-7-2.a.2 NOTE), so an advisory like "crossing clearance issued without onward
   taxi/hold-short" could nudge trainees toward complete phraseology. Backlog only.
 
-### W7 — Per-taxiway turn-direction hints `>` / `<` (NEW) — PROPOSAL
-- **Problem:** controllers say "right on A, taxi A B C" — and disambiguate turns mid-route too. YAAT has no
+### W7 — Per-taxiway turn-direction hints `>` / `<` (NEW) — DONE
+- **Problem:** controllers say "right on A, taxi A B C" — and disambiguate turns mid-route too. YAAT had no
   way to express which way to turn **onto a given taxiway** at its junction; that ambiguity is behind several
   #172 mis-turns (both the start direction AND mid-route junction picks).
-- **Proposed syntax:** a `>` (right) or `<` (left) prefix on **any** taxiway token, applied per taxiway at the
-  junction where the route turns onto it — not just the first. `TAXI >A B C` = "right onto A";
-  `TAXI <A B <C D` = "left onto A, then B (as resolved), left onto C, then D". Hints are optional per token; an
-  un-prefixed taxiway keeps the pathfinder's own choice.
-- **Proposed design:** the taxi command carries a per-token turn hint (Left/Right/None) alongside each taxiway
-  name — the path is no longer a bare `List<string>`, and the **canonical form must round-trip the hints**.
-  The pathfinder's junction selection (`SegmentExpander.RouteNamedToNamed` / `FindJunctionCandidates` + the
-  directional-anchor scoring) prefers, at each transition onto a hinted taxiway, the junction/onward-direction
-  whose turn matches the hint; for the first taxiway the start-anchoring uses it to choose which way to enter.
-  This is the controller's explicit override for the junction-selection ambiguity family (SKW3359/SIA31).
-- **Files:** `CommandSchemeParser` (lexer/grammar — strip `>`/`<` per token; fragile, re-validate every
-  `CommandSchemeParserTests` case), the taxi command record + canonical form (per-token hint field),
-  `SegmentExpander` junction scoring + `GroundCommandHandler.TryTaxi` start-anchoring, `CommandInputController`
-  autocomplete/signature-help, `COMMANDS.md` + cheatsheet (×3) + `USER_GUIDE.md` + `docs/yaat-vs-atctrainer.md`.
-- **Tests:** an airport where a junction admits both turns — `>X` takes the right junction/leg, `<X` the left,
-  at both the first taxiway and a mid-route taxiway (`… <C …`); verify the canonical form preserves the hints.
+- **Syntax (shipped):** a `>` (right) or `<` (left) prefix on **any** taxiway token, applied per taxiway at the
+  junction where the route turns onto it. `TAXI >A B C` = "right onto A"; `TAXI <A B <C D` = "left onto A,
+  then B (as resolved), left onto C, then D". Hints are optional per token; an un-prefixed taxiway keeps the
+  pathfinder's own choice. **Best-effort:** an unrealisable hint never strands the route.
+- **How it landed:**
+  - **Parse + round-trip:** `GroundCommandParser.ParseTaxiTokens` strips the glyph into a parallel
+    `List<TurnDirection?>` (`TaxiCommand.PathTurnHints`, index-aligned with `Path`). The wire canonical is the
+    raw argument string (`CommandSchemeParser.ToCanonical` = verb + verbatim arg), so the glyph round-trips to
+    the server automatically; the display canonical (`CommandDescriber.FormatTaxiCanonical`) re-emits it and the
+    natural echo says "right on A". No `CommandSchemeParser` lexer change was needed (the original proposal
+    over-scoped this). The current-taxiway prepend + trailing-runway-removal sites keep the parallel list aligned.
+  - **Pathfinder bias:** `ExplicitPathOptions` / `SearchContext` carry `PathTurnHints` + `StartHeadingTrue`;
+    `WaypointToken.TurnHint` carries the per-token hint. `SegmentExpander.RouteNamedToNamed` adds two additive,
+    finite penalties (`< TailUnresolvablePenaltyNm`, so best-effort): `TurnHintOntoTaxiwayPenalty` (mid-route —
+    prefer the junction whose onward edge on the hinted taxiway turns the hinted way from the arrival bearing)
+    and `FirstTaxiwayTurnHintPenalty` (first taxiway — the initial edge direction vs `StartHeadingTrue`). The
+    single-taxiway case (`TAXI >A`) biases `WalkToNaturalTerminus` via `ResolveTurnHintBias`.
+  - **Autocomplete:** no change needed — TAXI path tokens have no value suggester today, so the glyph passes
+    through harmlessly.
+- **Tests:** `GroundCommandParserTurnHintTests` (parse + canonical round-trip), `Issue172TurnHintTests`
+  (real-OAK single-taxiway right/left flip via heading; synthetic two-junction mid-route flip; synthetic
+  two-entry first-taxiway flip). All green; 267 ground/pathfinder regression tests unaffected.
+- **Known follow-up (out of W7 scope):** the pilot SPOKEN readback does not voice the taxi route at all today
+  (`PhraseologyVerbalizer` line ~266: the variadic `{path…}` capture isn't extracted), so turn words aren't
+  spoken. Voicing the full taxi route (with turns) is a separate enhancement.
 
 ---
 
@@ -256,7 +265,9 @@ especially should be confirmed with the mentor.
 4. ~~**W6** (`TAXI J CROSS 28R` direction hint)~~ — DONE. Crossed-runway directional anchor + terminate just
    past the crossing; also delivered the terminal `TAXI <twy> CROSS <rwy>` form W4 found to be W6-dependent.
 5. ~~**W5** (pull-forward command)~~ — DONE as `CLRWY`; drives to the ½-length tail-clearance node and holds.
-6. **W7** (`>`/`<` hints) — parser-heavy, fragile test surface; can land independently.
+6. ~~**W7** (`>`/`<` hints)~~ — DONE. Glyph parsed into `TaxiCommand.PathTurnHints`; junction-selection bias in
+   `SegmentExpander` (best-effort). The `CommandSchemeParser` lexer change the proposal feared was unnecessary
+   (canonical is the raw arg string).
 
 Cross-repo: run `pwsh tools/test-all.ps1` (W1/W2 touch `Yaat.Sim` shared by yaat-server). Update `COMMANDS.md`,
 `docs/command-cheatsheet.json` + HTML cheatsheet, `USER_GUIDE.md`, `docs/yaat-vs-atctrainer.md`, and
@@ -265,7 +276,7 @@ Cross-repo: run `pwsh tools/test-all.ps1` (W1/W2 touch `Yaat.Sim` shared by yaat
 ## Open decisions for the implementing agent (confirm with the user / mentor)
 - ~~W5: the pull-forward command's verb + RPO phraseology.~~ DECIDED: `CLRWY` (alias `CLEARRWY`), readback
   "clearing the runway, holding"; stops at the ½-length tail-clearance node.
-- W7: confirm the hint tokens (`>`/`<`) — they apply per-taxiway anywhere in the instruction
-  (e.g. `TAXI <A B <C D`); decide how the canonical form encodes them and how they render in autocomplete/echo.
+- ~~W7: confirm the hint tokens (`>`/`<`) and canonical encoding.~~ DECIDED + SHIPPED: `>A`/`<A` glyph prefix,
+  round-trips verbatim in the canonical, best-effort, full per-token (first + mid-route).
 - W1b: the precise taxiway-hold-short stop offset (nose-at-bar vs a buffer) when it conflicts with a runway.
 - W3: runtime-warning surface (datablock flag vs terminal note vs both).

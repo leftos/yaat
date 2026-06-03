@@ -1571,7 +1571,7 @@ public static class CommandDescriber
     private static string FormatTaxiCanonical(TaxiCommand taxi)
     {
         var parts = new List<string> { "TAXI" };
-        parts.AddRange(taxi.Path);
+        parts.AddRange(TaxiPathTokensWithHints(taxi));
         if (taxi.DestinationSpot is not null)
         {
             parts.Add($"${taxi.DestinationSpot}");
@@ -1586,23 +1586,77 @@ public static class CommandDescriber
 
     private static string FormatTaxiNatural(TaxiCommand taxi)
     {
-        var displayPath = taxi.Path.Where(t => !NodeRefToken.IsNodeReference(t)).ToList();
+        var displayPath = FormatTaxiNaturalPath(taxi);
+        bool hasPath = displayPath.Length > 0;
 
         if (taxi.DestinationSpot is not null)
         {
-            return displayPath.Count > 0
-                ? $"Taxi via {string.Join(" ", displayPath)} to spot {taxi.DestinationSpot}"
-                : $"Taxi to spot {taxi.DestinationSpot}";
+            return hasPath ? $"Taxi via {displayPath} to spot {taxi.DestinationSpot}" : $"Taxi to spot {taxi.DestinationSpot}";
         }
 
         if (taxi.DestinationParking is not null)
         {
-            return displayPath.Count > 0
-                ? $"Taxi via {string.Join(" ", displayPath)} to parking {taxi.DestinationParking}"
-                : $"Taxi to parking {taxi.DestinationParking}";
+            return hasPath ? $"Taxi via {displayPath} to parking {taxi.DestinationParking}" : $"Taxi to parking {taxi.DestinationParking}";
         }
 
-        return displayPath.Count > 0 ? $"Taxi via {string.Join(" ", displayPath)}" : "Taxi";
+        return hasPath ? $"Taxi via {displayPath}" : "Taxi";
+    }
+
+    /// <summary>
+    /// Re-emits the taxi path tokens with their turn-direction glyphs (<c>&gt;A</c>, <c>&lt;C</c>) so the
+    /// terminal canonical round-trips the hints through the server's <c>ParseTaxiTokens</c>. Returns the
+    /// bare path unchanged when no taxiway carries a hint.
+    /// </summary>
+    private static IReadOnlyList<string> TaxiPathTokensWithHints(TaxiCommand taxi)
+    {
+        var hints = taxi.PathTurnHints;
+        if (hints is null)
+        {
+            return taxi.Path;
+        }
+
+        var tokens = new List<string>(taxi.Path.Count);
+        for (int i = 0; i < taxi.Path.Count; i++)
+        {
+            string glyph = (i < hints.Count ? hints[i] : null) switch
+            {
+                TurnDirection.Right => ">",
+                TurnDirection.Left => "<",
+                _ => "",
+            };
+            tokens.Add(glyph + taxi.Path[i]);
+        }
+
+        return tokens;
+    }
+
+    /// <summary>
+    /// Human-readable taxi path with node-reference tokens dropped and turn hints spoken as
+    /// "right on A" / "left on C". Falls back to the bare taxiway list when no token carries a hint.
+    /// </summary>
+    private static string FormatTaxiNaturalPath(TaxiCommand taxi)
+    {
+        var hints = taxi.PathTurnHints;
+        var rendered = new List<string>(taxi.Path.Count);
+        for (int i = 0; i < taxi.Path.Count; i++)
+        {
+            if (NodeRefToken.IsNodeReference(taxi.Path[i]))
+            {
+                continue;
+            }
+
+            var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
+            rendered.Add(
+                hint switch
+                {
+                    TurnDirection.Right => $"right on {taxi.Path[i]}",
+                    TurnDirection.Left => $"left on {taxi.Path[i]}",
+                    _ => taxi.Path[i],
+                }
+            );
+        }
+
+        return string.Join(" ", rendered);
     }
 
     private static string FormatTaxiAllCanonical(TaxiAllCommand taxiAll)

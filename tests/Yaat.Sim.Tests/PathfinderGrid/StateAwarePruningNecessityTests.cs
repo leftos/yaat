@@ -222,7 +222,9 @@ public class StateAwarePruningNecessityTests
             explicitHoldShortRunways: null,
             category: AircraftCategory.Jet,
             preference: RoutePreference.FewestTurns,
-            diagnosticLog: null
+            diagnosticLog: null,
+            waypointTurnHints: null,
+            startHeadingTrue: null
         ) with
         {
             // This sweep proves state-aware-pruning soundness (production's node-id closed set vs the

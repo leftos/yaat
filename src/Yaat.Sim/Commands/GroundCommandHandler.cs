@@ -86,6 +86,7 @@ internal static class GroundCommandHandler
         //     named-junction search instead of the runway-crossing bridge, so it is left to that path.
         // Remember the as-cleared path so the prepend can be undone below if it strands the route.
         var pathAsCleared = taxi.Path;
+        var pathTurnHintsAsCleared = taxi.PathTurnHints;
         bool prependedCurrentTaxiway = false;
         if (
             taxi.Path.Count > 0
@@ -95,7 +96,14 @@ internal static class GroundCommandHandler
             && SharesDirectJunction(groundLayout, currentTwy, taxi.Path[0])
         )
         {
-            taxi = taxi with { Path = [currentTwy, .. taxi.Path] };
+            // The aircraft is already on currentTwy, so it makes no turn onto it: prepend a null hint
+            // to keep PathTurnHints index-aligned with Path. The controller's hint on the first cleared
+            // taxiway thereby becomes the (mid-route) turn from currentTwy onto it.
+            taxi = taxi with
+            {
+                Path = [currentTwy, .. taxi.Path],
+                PathTurnHints = taxi.PathTurnHints is null ? null : [null, .. taxi.PathTurnHints],
+            };
             prependedCurrentTaxiway = true;
             Log.LogDebug("[TryTaxi] {Callsign}: prepended current taxiway {Twy} to cleared path", aircraft.Callsign, currentTwy);
         }
@@ -115,11 +123,12 @@ internal static class GroundCommandHandler
 
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
+        double startHeadingTrueDeg = aircraft.TrueHeading.Degrees;
         TaxiRoute? ResolveRoute(TaxiCommand command, out string? reason)
         {
             return (command.DestinationParking is not null || command.DestinationSpot is not null)
-                ? ResolveParkingRoute(groundLayout, startNode, command, out reason, category)
-                : ResolveStandardRoute(groundLayout, startNode, command, out reason, category);
+                ? ResolveParkingRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg)
+                : ResolveStandardRoute(groundLayout, startNode, command, out reason, category, startHeadingTrueDeg);
         }
 
         var route = ResolveRoute(taxi, out string? failReason);
@@ -138,7 +147,7 @@ internal static class GroundCommandHandler
                 aircraft.Callsign,
                 failReason ?? "no route"
             );
-            taxi = taxi with { Path = pathAsCleared };
+            taxi = taxi with { Path = pathAsCleared, PathTurnHints = pathTurnHintsAsCleared };
             route = ResolveRoute(taxi, out failReason);
         }
 
@@ -414,7 +423,8 @@ internal static class GroundCommandHandler
         GroundNode startNode,
         TaxiCommand taxi,
         out string? failReason,
-        AircraftCategory category
+        AircraftCategory category,
+        double startHeadingTrueDeg
     )
     {
         // Empty path + destination runway → A* to nearest hold-short node
@@ -441,6 +451,8 @@ internal static class GroundCommandHandler
                 DestinationRunway = taxi.DestinationRunway,
                 AirportId = groundLayout.AirportId,
                 DestinationHintNode = crossAnchor,
+                PathTurnHints = taxi.PathTurnHints,
+                StartHeadingTrue = startHeadingTrueDeg,
             },
             category
         );
@@ -543,7 +555,8 @@ internal static class GroundCommandHandler
         GroundNode startNode,
         TaxiCommand taxi,
         out string? failReason,
-        AircraftCategory category
+        AircraftCategory category,
+        double startHeadingTrueDeg
     )
     {
         failReason = null;
@@ -597,6 +610,8 @@ internal static class GroundCommandHandler
                 DestinationRunway = taxi.DestinationRunway,
                 AirportId = groundLayout.AirportId,
                 DestinationHintNode = destNode,
+                PathTurnHints = taxi.PathTurnHints,
+                StartHeadingTrue = startHeadingTrueDeg,
             },
             category
         );

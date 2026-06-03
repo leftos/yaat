@@ -545,6 +545,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `TAXI S T U @B12 NODEL` | Taxi via S, T, U to parking B12 (exempt from auto-delete) |
 | `TAXI #42 #18 #95` | Taxi via exact node IDs (used by draw route; see Ground View debug overlay) |
 | `TAXI A #42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |
+| `TAXI >A B <C D` | Taxi via A, B, C, D with turn-direction hints: right onto A, left onto C (the `>`/`<` glyph biases which way the aircraft turns onto that taxiway) |
 | `HOLD` / `HP` | Hold position (stop wherever on the ground) |
 | `RES` / `RESUME` | Resume taxi after HOLD or release a runway hold-short (explicit or crossing). Does not apply at the destination runway hold — use CTO or LUAW. |
 | `RES CROSS 28R 28L` | Resume taxi AND pre-clear listed crossings on the rest of the route (unordered set). Hold-shorts for any runway NOT in the list still stop the aircraft until a fresh CROSS. Fails the whole command if a listed runway has no matching upcoming crossing, or if it appears only as the destination runway. |
@@ -577,6 +578,8 @@ When an aircraft lands and vacates **between two parallel runways** and the para
 When a `TAXI` clearance ends on a taxiway with no downstream destination (no runway, parking `@`, spot `$`, or hold-short) — e.g. `TAXI G B` — and that final taxiway runs both ways from where the route reaches it, the aircraft stops at the intersection rather than guessing a direction along it. Issue a follow-up taxi to send it either way (e.g. `TAXI B Q A @F11`). A final taxiway that only leads one way from the junction is taxied normally.
 
 When a `TAXI` clearance names a `CROSS <rwy>` but no taxiway, parking, or spot past it (e.g. `TAXI G CROSS 28R`), the crossed runway becomes the direction anchor: the route heads toward and across that runway and stops just past the far side, where the aircraft holds clear awaiting further instructions. This resolves the direction even when the taxiway crosses more than one runway — `TAXI G CROSS 28R` from an aircraft that just exited the parallel 28L heads toward 28R, not back across 28L. (When the clearance also names a real destination, e.g. `RWY 30 TAXI G CROSS 28R`, the destination anchors direction and `CROSS 28R` is purely a crossing pre-clearance, as before.)
+
+A taxiway token may carry an optional turn-direction hint: prefix `>` for a right turn or `<` for a left turn onto that taxiway (e.g. `TAXI >A B <C D` = right onto A, then B, left onto C, then D — no space between the glyph and the taxiway). The hint applies at the junction where the route turns onto the named taxiway: for the first taxiway it picks the start direction relative to the aircraft's current heading; for later taxiways it prefers the junction whose turn matches the hint. Hints are a best-effort preference — when the geometry only admits the other direction the pathfinder still routes (it never strands the clearance), and an unprefixed taxiway keeps the pathfinder's own choice. (In a `PUSH` command the same `>`/`<` glyphs instead mean face/tail; they are turn hints only in `TAXI`.)
 
 When you taxi to a hold-short point (via context menu or command), the runway is automatically assigned based on the closest threshold. Override with `RWY {id}` if needed.
 

@@ -59,7 +59,9 @@ public static class TaxiPathfinder
             explicitHoldShortRunways: options.ExplicitHoldShorts,
             category: category,
             preference: null,
-            diagnosticLog: options.DiagnosticLog
+            diagnosticLog: options.DiagnosticLog,
+            waypointTurnHints: options.PathTurnHints,
+            startHeadingTrue: options.StartHeadingTrue
         );
 
         var (route, failure) = SegmentExpander.Run(ctx);
@@ -91,7 +93,9 @@ public static class TaxiPathfinder
             explicitHoldShortRunways: null,
             category: category,
             preference: RoutePreference.FewestTurns,
-            diagnosticLog: null
+            diagnosticLog: null,
+            waypointTurnHints: null,
+            startHeadingTrue: null
         );
 
         var (route, _) = RunWithAvoidance(ctx);
@@ -231,7 +235,9 @@ public static class TaxiPathfinder
             explicitHoldShortRunways: null,
             category: category,
             preference: preference,
-            diagnosticLog: null
+            diagnosticLog: null,
+            waypointTurnHints: null,
+            startHeadingTrue: null
         );
 
         // authorizedTaxiways is not part of SearchContext.Compile's signature; use with-expression

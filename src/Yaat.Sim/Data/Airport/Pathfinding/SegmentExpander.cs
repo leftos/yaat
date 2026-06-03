@@ -348,20 +348,23 @@ public static class SegmentExpander
     // Waypoint resolution
     // -----------------------------------------------------------------------
 
-    private sealed record WaypointToken(string Name, bool IsNodeRef, int ResolvedNodeId);
+    private sealed record WaypointToken(string Name, bool IsNodeRef, int ResolvedNodeId, TurnDirection? TurnHint);
 
     private static List<WaypointToken> ResolveWaypoints(SearchContext ctx)
     {
+        var hints = ctx.WaypointTurnHints;
         var result = new List<WaypointToken>(ctx.WaypointSequence.Count);
-        foreach (string token in ctx.WaypointSequence)
+        for (int i = 0; i < ctx.WaypointSequence.Count; i++)
         {
+            string token = ctx.WaypointSequence[i];
+            var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
             if (token.StartsWith('#') && int.TryParse(token.AsSpan(1), out int nodeId))
             {
-                result.Add(new WaypointToken(token, IsNodeRef: true, ResolvedNodeId: nodeId));
+                result.Add(new WaypointToken(token, IsNodeRef: true, ResolvedNodeId: nodeId, TurnHint: hint));
             }
             else
             {
-                result.Add(new WaypointToken(token, IsNodeRef: false, ResolvedNodeId: -1));
+                result.Add(new WaypointToken(token, IsNodeRef: false, ResolvedNodeId: -1, TurnHint: hint));
             }
         }
 
@@ -472,6 +475,15 @@ public static class SegmentExpander
         // hold-short sits the opposite way along the named taxiway. The bias only breaks ties on
         // the first step; once moving, admissibility constrains direction as before.
         var bias = ResolveTerminusBias(head, waypoint.Name, ctx);
+
+        // Single-taxiway clearance with a turn hint (e.g. "TAXI >A"): there is no junction transition
+        // to bias, so steer the first (momentum-free) step toward the hinted turn from the aircraft's
+        // current heading. Only when no destination bias already gives a direction and this is the
+        // first taxiway (no preceding one).
+        if (bias is null && precedingTaxiway is null && waypoint.TurnHint is { } firstHint && ctx.StartHeadingTrue is { } startHeading)
+        {
+            bias = ResolveTurnHintBias(head, waypoint.Name, startHeading, firstHint, ctx);
+        }
 
         // No downstream constraint and reached by transitioning from a different taxiway: stop at
         // that intersection rather than committing to a direction along the final taxiway. "TAXI G B"
@@ -1021,10 +1033,17 @@ public static class SegmentExpander
             double continuationCost = useTailProbe
                 ? ProbeTailCost(segHead!, tokens, index + 1, ctx)
                 : ComputeLookaheadPenalty(junctionNode, toTaxiway, lookaheadAnchor);
-            double totalCost = cost + continuationCost;
+
+            // Turn-direction hints (issue #172 W7): prefer the junction that realises the controller's
+            // >/< turn. Both penalties are additive and finite (< the tail-unresolvable penalty), so a
+            // hint only re-ranks otherwise-feasible candidates and never strands the route — best-effort.
+            double hintCost =
+                TurnHintOntoTaxiwayPenalty(junctionNode, toTaxiway, segHead!.ArrivalBearing, tokens, index)
+                + FirstTaxiwayTurnHintPenalty(segEdges, tokens, index, ctx);
+            double totalCost = cost + continuationCost + hintCost;
 
             ctx.DiagnosticLog?.Invoke(
-                $"[junction-pick] {fromTaxiway}→{toTaxiway} candidate={junctionNode.Id} cost={cost:F3} continuation+={continuationCost:F3} total={totalCost:F3}"
+                $"[junction-pick] {fromTaxiway}→{toTaxiway} candidate={junctionNode.Id} cost={cost:F3} continuation+={continuationCost:F3} hint+={hintCost:F3} total={totalCost:F3}"
             );
 
             if (totalCost < bestCost)
@@ -1086,6 +1105,136 @@ public static class SegmentExpander
         // Every toTaxiway-edge moves away from the anchor — picking this junction would
         // require a U-turn on toTaxiway to reach the next-next taxiway.
         return LookaheadMisalignedPenaltyNm;
+    }
+
+    // -----------------------------------------------------------------------
+    // Turn-direction hints (issue #172 W7)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Penalty (nm) added to a junction candidate whose turn onto the hinted taxiway does not match the
+    /// controller's <c>&gt;</c>/<c>&lt;</c> hint. Large enough to dominate any real taxi-distance or
+    /// look-ahead difference so the hinted turn wins whenever it is feasible, but well below
+    /// <see cref="TailUnresolvablePenaltyNm"/> so an infeasible hint never strands the route (best-effort).
+    /// </summary>
+    private const double TurnHintMismatchPenaltyNm = 50.0;
+
+    /// <summary>Minimum signed turn (deg) for an edge to count as a left/right turn rather than straight-through.</summary>
+    private const double TurnHintDeadbandDeg = 10.0;
+
+    /// <summary>Signed turn from <paramref name="fromBearing"/> to <paramref name="toBearing"/> in (-180, 180]; positive is right (clockwise).</summary>
+    private static double SignedTurnDeg(double fromBearing, double toBearing)
+    {
+        double d = (toBearing - fromBearing) % 360.0;
+        if (d > 180.0)
+        {
+            d -= 360.0;
+        }
+        else if (d <= -180.0)
+        {
+            d += 360.0;
+        }
+
+        return d;
+    }
+
+    private static bool TurnMatchesHint(double signedTurnDeg, TurnDirection hint) =>
+        hint == TurnDirection.Right ? signedTurnDeg > TurnHintDeadbandDeg : signedTurnDeg < -TurnHintDeadbandDeg;
+
+    /// <summary>
+    /// Penalise a junction candidate when the hint on the taxiway being entered (token
+    /// <paramref name="fromIndex"/>+1) cannot be realised there: zero when at least one of the
+    /// junction's onward edges on that taxiway turns the hinted way from the arrival bearing, else
+    /// <see cref="TurnHintMismatchPenaltyNm"/>. No hint on the entered taxiway ⇒ zero.
+    /// </summary>
+    private static double TurnHintOntoTaxiwayPenalty(
+        GroundNode junction,
+        string toTaxiway,
+        double arrivalBearing,
+        IReadOnlyList<WaypointToken> tokens,
+        int fromIndex
+    )
+    {
+        if (fromIndex + 1 >= tokens.Count || tokens[fromIndex + 1].TurnHint is not { } hint)
+        {
+            return 0.0;
+        }
+
+        foreach (var edge in junction.Edges)
+        {
+            if (!edge.MatchesTaxiway(toTaxiway))
+            {
+                continue;
+            }
+
+            var neighbor = edge.OtherNode(junction);
+            double departure = edge.Directed(junction, neighbor).DepartureBearing;
+            if (TurnMatchesHint(SignedTurnDeg(arrivalBearing, departure), hint))
+            {
+                return 0.0;
+            }
+        }
+
+        return TurnHintMismatchPenaltyNm;
+    }
+
+    /// <summary>
+    /// Penalise a first-taxiway junction candidate (token 0) when the initial direction along that
+    /// taxiway — the departure bearing of the candidate's first edge — does not match the hint on
+    /// token 0 relative to the aircraft's current heading (<see cref="SearchContext.StartHeadingTrue"/>).
+    /// This is how "right onto A" picks which way along A the route starts. Zero unless this is the
+    /// first segment, token 0 carries a hint, and the start heading is known.
+    /// </summary>
+    private static double FirstTaxiwayTurnHintPenalty(
+        IReadOnlyList<DirectionalEdge> segEdges,
+        IReadOnlyList<WaypointToken> tokens,
+        int fromIndex,
+        SearchContext ctx
+    )
+    {
+        if (
+            fromIndex != 0
+            || tokens.Count == 0
+            || tokens[0].TurnHint is not { } hint
+            || ctx.StartHeadingTrue is not { } startHeading
+            || segEdges.Count == 0
+        )
+        {
+            return 0.0;
+        }
+
+        return TurnMatchesHint(SignedTurnDeg(startHeading, segEdges[0].DepartureBearing), hint) ? 0.0 : TurnHintMismatchPenaltyNm;
+    }
+
+    /// <summary>
+    /// First-step bias for a single-taxiway clearance with a turn hint (e.g. <c>TAXI &gt;A</c>): the
+    /// position of the neighbour reached by the taxiway edge whose departure from the start is the
+    /// hinted turn relative to <paramref name="startHeadingTrue"/>. Null when no edge matches — the
+    /// terminus walk then keeps its admissibility-only direction.
+    /// </summary>
+    private static LatLon? ResolveTurnHintBias(PartialRoute head, string taxiwayName, double startHeadingTrue, TurnDirection hint, SearchContext ctx)
+    {
+        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var node))
+        {
+            return null;
+        }
+
+        foreach (var edge in node.Edges)
+        {
+            if (!edge.MatchesTaxiway(taxiwayName))
+            {
+                continue;
+            }
+
+            var neighbor = edge.OtherNode(node);
+            double departure = edge.Directed(node, neighbor).DepartureBearing;
+            if (TurnMatchesHint(SignedTurnDeg(startHeadingTrue, departure), hint))
+            {
+                return neighbor.Position;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

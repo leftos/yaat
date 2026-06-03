@@ -80,7 +80,9 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             explicitHoldShortRunways: null,
             category: category,
             preference: null,
-            diagnosticLog: log
+            diagnosticLog: log,
+            waypointTurnHints: null,
+            startHeadingTrue: null
         );
     }
 
@@ -415,7 +417,9 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             explicitHoldShortRunways: null,
             category: AircraftCategory.Jet,
             preference: null,
-            diagnosticLog: null
+            diagnosticLog: null,
+            waypointTurnHints: null,
+            startHeadingTrue: null
         );
 
         var (route, failure) = SegmentExpander.Run(searchCtx);
@@ -574,7 +578,9 @@ public class SegmentExpanderTests(ITestOutputHelper output)
             explicitHoldShortRunways: null,
             category: AircraftCategory.Jet,
             preference: null,
-            diagnosticLog: s => output.WriteLine(s)
+            diagnosticLog: s => output.WriteLine(s),
+            waypointTurnHints: null,
+            startHeadingTrue: null
         );
 
         var (route, failure) = SegmentExpander.Run(ctx);

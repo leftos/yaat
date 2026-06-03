@@ -185,7 +185,8 @@
       ],
       "notes": [
         "TAXI mods: `RWY` `HS` `CROSS` `NODEL` `@parking` `$spot`",
-        "`TAXI <twy> CROSS <rwy>` (no dest): cross that runway and hold just past — the runway sets the direction"
+        "`TAXI <twy> CROSS <rwy>` (no dest): cross that runway and hold just past — the runway sets the direction",
+        "Turn hints: `>A` = right onto A, `<A` = left onto A (best-effort; unprefixed = pathfinder's choice). In PUSH, `>`/`<` mean face/tail instead"
       ]
     },
     {

@@ -247,7 +247,16 @@ internal static class GroundCommandParser
         }
 
         return PR.Ok(
-            new TaxiCommand(taxi.Path, taxi.HoldShorts, destRunway, taxi.NoDelete, taxi.DestinationParking, taxi.CrossRunways, taxi.DestinationSpot)
+            new TaxiCommand(
+                taxi.Path,
+                taxi.HoldShorts,
+                destRunway,
+                taxi.NoDelete,
+                taxi.DestinationParking,
+                taxi.CrossRunways,
+                taxi.DestinationSpot,
+                taxi.PathTurnHints
+            )
         );
     }
 
@@ -265,6 +274,7 @@ internal static class GroundCommandParser
         }
 
         var path = new List<string>();
+        var pathTurnHints = new List<TurnDirection?>();
         var holdShorts = new List<string>();
         List<string>? crossRunways = null;
         string? destRunway = null;
@@ -338,6 +348,7 @@ internal static class GroundCommandParser
             if (token.StartsWith('#') && token.Length > 1)
             {
                 path.Add(token);
+                pathTurnHints.Add(null);
                 continue;
             }
 
@@ -347,7 +358,10 @@ internal static class GroundCommandParser
             }
             else
             {
-                path.Add(token.ToUpperInvariant());
+                // A leading > / < prefixes a per-taxiway turn-direction hint ("> A" = right onto A).
+                var (hint, name) = StripTurnHint(token);
+                path.Add(name.ToUpperInvariant());
+                pathTurnHints.Add(hint);
             }
         }
 
@@ -359,8 +373,13 @@ internal static class GroundCommandParser
             {
                 destRunway = last;
                 path.RemoveAt(path.Count - 1);
+                pathTurnHints.RemoveAt(pathTurnHints.Count - 1);
             }
         }
+
+        // Carry hints only when at least one taxiway was actually prefixed; otherwise leave null so
+        // the common un-hinted command is unchanged and the parallel list never desyncs from Path.
+        List<TurnDirection?>? turnHints = pathTurnHints.Exists(h => h is not null) ? pathTurnHints : null;
 
         // Allow empty path when parking/spot destination is set (A* will find the route)
         if (path.Count == 0 && destParking is null && destSpot is null)
@@ -368,7 +387,30 @@ internal static class GroundCommandParser
             return PR.Fail("empty taxi route");
         }
 
-        return PR.Ok(new TaxiCommand(path, holdShorts, destRunway, noDelete, destParking, crossRunways, destSpot));
+        return PR.Ok(new TaxiCommand(path, holdShorts, destRunway, noDelete, destParking, crossRunways, destSpot, turnHints));
+    }
+
+    /// <summary>
+    /// Splits an optional leading turn-direction glyph off a taxiway token: <c>&gt;A</c> → (Right, "A"),
+    /// <c>&lt;B7</c> → (Left, "B7"), <c>C</c> → (null, "C"). A bare glyph with no following name is left
+    /// intact (returned as the name) so it fails the later taxiway lookup rather than adding an empty leg.
+    /// </summary>
+    private static (TurnDirection? Hint, string Name) StripTurnHint(string token)
+    {
+        if (token.Length > 1)
+        {
+            if (token[0] == '>')
+            {
+                return (TurnDirection.Right, token[1..]);
+            }
+
+            if (token[0] == '<')
+            {
+                return (TurnDirection.Left, token[1..]);
+            }
+        }
+
+        return (null, token);
     }
 
     /// <summary>

@@ -74,6 +74,19 @@ public sealed record SearchContext(
     public bool IsForbiddenMove(int fromId, int toId) => OneWayMode == OneWayMode.HardExclude && ForbiddenOneWayMoves.Contains((fromId, toId));
 
     /// <summary>
+    /// Per-taxiway turn-direction hints (issue #172 W7), index-aligned with <see cref="WaypointSequence"/>:
+    /// entry <c>i</c> is the turn the aircraft should make onto <c>WaypointSequence[i]</c> (null = no hint).
+    /// Null when no token carries a hint. Read only by <see cref="SegmentExpander"/> junction selection.
+    /// </summary>
+    public IReadOnlyList<TurnDirection?>? WaypointTurnHints { get; init; }
+
+    /// <summary>
+    /// The aircraft's current true heading in degrees, the turn reference for a hint on the first
+    /// taxiway. Null when unknown or irrelevant (auto routes, mid-route-only hints).
+    /// </summary>
+    public double? StartHeadingTrue { get; init; }
+
+    /// <summary>
     /// Build a <see cref="SearchContext"/> from parsed command inputs.
     /// Resolves destination token to a node id, assembles authorized-taxiway set,
     /// and reads category limits. Pure — does not mutate the layout.
@@ -89,7 +102,9 @@ public sealed record SearchContext(
         IReadOnlyList<string>? explicitHoldShortRunways,
         AircraftCategory category,
         RoutePreference? preference,
-        Action<string>? diagnosticLog
+        Action<string>? diagnosticLog,
+        IReadOnlyList<TurnDirection?>? waypointTurnHints,
+        double? startHeadingTrue
     )
     {
         var holdShorts = explicitHoldShortRunways is { Count: > 0 }
@@ -121,6 +136,8 @@ public sealed record SearchContext(
             AvoidMode = avoidMode,
             ForbiddenOneWayMoves = forbiddenOneWay,
             OneWayMode = oneWayMode,
+            WaypointTurnHints = waypointTurnHints,
+            StartHeadingTrue = startHeadingTrue,
         };
     }
 

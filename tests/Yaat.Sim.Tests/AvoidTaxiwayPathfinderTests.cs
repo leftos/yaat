@@ -184,13 +184,29 @@ public class AvoidTaxiwayPathfinderTests
             null,
             AircraftCategory.Jet,
             RoutePreference.FewestTurns,
+            null,
+            null,
             null
         );
         Assert.Equal(AvoidTaxiwayMode.HardExclude, auto.AvoidMode);
         Assert.Contains("S", auto.AvoidedTaxiways);
 
         // A controller-named (explicit) sequence is never re-routed around an avoided taxiway.
-        var explicitCtx = SearchContext.Compile(layout, ga1.Id, ["C", "B"], null, null, null, dest.Id, null, AircraftCategory.Jet, null, null);
+        var explicitCtx = SearchContext.Compile(
+            layout,
+            ga1.Id,
+            ["C", "B"],
+            null,
+            null,
+            null,
+            dest.Id,
+            null,
+            AircraftCategory.Jet,
+            null,
+            null,
+            null,
+            null
+        );
         Assert.Equal(AvoidTaxiwayMode.Off, explicitCtx.AvoidMode);
     }
 

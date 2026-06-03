@@ -361,6 +361,13 @@ public record PushbackCommand(
     string? DestinationSpot
 ) : ParsedCommand;
 
+/// <summary>
+/// A taxi clearance via named taxiways. <see cref="PathTurnHints"/> carries an optional per-taxiway
+/// turn-direction hint (from the <c>&gt;</c>/<c>&lt;</c> glyph the controller may prefix on a token,
+/// e.g. <c>TAXI &gt;A B &lt;C</c>): when non-null it has the same length as <see cref="Path"/> and
+/// entry <c>i</c> is the turn the aircraft should make onto <c>Path[i]</c> (null = no hint, pathfinder's
+/// own choice). The hint biases junction selection only — it never overrides an otherwise-required route.
+/// </summary>
 public record TaxiCommand(
     List<string> Path,
     List<string> HoldShorts,
@@ -368,7 +375,8 @@ public record TaxiCommand(
     bool NoDelete = false,
     string? DestinationParking = null,
     List<string>? CrossRunways = null,
-    string? DestinationSpot = null
+    string? DestinationSpot = null,
+    List<TurnDirection?>? PathTurnHints = null
 ) : ParsedCommand;
 
 /// <summary>
