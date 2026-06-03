@@ -458,6 +458,7 @@ internal static class ArgumentSuggester
         }
 
         var approaches = NavigationDatabase.Instance.GetApproaches(targetAircraft.Destination);
+        string normalizedPartial = NavigationDatabase.NormalizeApproachShorthand(partial);
         foreach (var approach in approaches)
         {
             if (suggestions.Count >= maxSuggestions)
@@ -465,7 +466,11 @@ internal static class ArgumentSuggester
                 return;
             }
 
-            if (partial.Length > 0 && !approach.ApproachId.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            if (
+                partial.Length > 0
+                && !approach.ApproachId.StartsWith(partial, StringComparison.OrdinalIgnoreCase)
+                && !approach.ApproachId.StartsWith(normalizedPartial, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 continue;
             }

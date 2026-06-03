@@ -86,6 +86,43 @@ public class ApproachDatabaseTests
         Assert.Equal("I28R", result);
     }
 
+    [Theory]
+    [InlineData("I7L", "I07L")] // single-letter type + no-leading-zero runway (FAA style)
+    [InlineData("ILS7L", "I07L")] // spelled-out type + no-leading-zero runway
+    [InlineData("L6R", "L06R")] // LOC, different single-digit runway
+    [InlineData("7L", "I07L")] // runway-only, no-leading-zero, highest priority wins
+    [InlineData("I07L", "I07L")] // canonical zero-padded form still resolves
+    [InlineData("I25R", "I25R")] // two-digit runway unaffected by normalization
+    public void ResolveApproachId_NoLeadingZeroRunway_NormalizesAndResolves(string shorthand, string expectedId)
+    {
+        var db = GetNavDb();
+        if (db is null)
+        {
+            return;
+        }
+
+        // KLAX has single-digit runways 06/07 with ILS, LOC and RNAV approaches in the test CIFP.
+        var result = db.ResolveApproachId("LAX", shorthand);
+        Assert.Equal(expectedId, result);
+    }
+
+    [Theory]
+    [InlineData("I8R", "I08R", true)] // single-letter type, no leading zero
+    [InlineData("ILS8R", "I08R", true)] // spelled-out type, no leading zero
+    [InlineData("ILS28R", "I28R", true)] // spelled-out type, two-digit runway
+    [InlineData("ILS", "I08R", true)] // type word alone surfaces all its approaches
+    [InlineData("LOC6R", "L06R", true)] // spelled LOC → L code
+    [InlineData("RNAV6L", "H06LZ", true)] // spelled RNAV → H code
+    [InlineData("i8r", "I08R", true)] // case-insensitive
+    [InlineData("I8R", "I08L", false)] // different runway side
+    [InlineData("28R", "I28R", false)] // runway-only never prefixes a type-coded id
+    public void NormalizeApproachShorthand_AsPrefix_MatchesCanonicalId(string typed, string storedId, bool shouldMatch)
+    {
+        // Mirrors the autocomplete suggester filter: storedId.StartsWith(normalized, OrdinalIgnoreCase).
+        string normalized = NavigationDatabase.NormalizeApproachShorthand(typed);
+        Assert.Equal(shouldMatch, storedId.StartsWith(normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public void ResolveApproachId_UnknownShorthand_ReturnsNull()
     {

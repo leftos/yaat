@@ -1825,6 +1825,29 @@ public sealed class NavigationDatabase
         return NormalizeAirport(a).Equals(NormalizeAirport(b), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Canonicalizes an approach shorthand prefix for display and prefix-matching: maps a spelled-out
+    /// type word to its single-letter CIFP code (<c>ILS</c>→<c>I</c>, <c>RNAV</c>→<c>H</c>, …) and
+    /// zero-pads a single-digit runway number (<c>8R</c>→<c>08R</c>) so a FAA-style no-leading-zero
+    /// entry aligns with the stored <c>I08R</c> form. Returns the input unchanged when no approach
+    /// type prefix is recognized.
+    /// </summary>
+    public static string NormalizeApproachShorthand(string shorthand)
+    {
+        if (string.IsNullOrEmpty(shorthand))
+        {
+            return shorthand;
+        }
+
+        var (code, remainder) = TryStripTypePrefix(shorthand);
+        if (code is null)
+        {
+            return shorthand;
+        }
+
+        return code.Value + RunwayIdentifier.NormalizeDesignator(remainder);
+    }
+
     private static (char? TypeCode, string? Runway, string? Variant)? ParseShorthand(string s)
     {
         var (typeCode, rest) = TryStripTypePrefix(s);
@@ -1847,7 +1870,7 @@ public sealed class NavigationDatabase
                 i++;
             }
 
-            string runway = rest[..i];
+            string runway = RunwayIdentifier.NormalizeDesignator(rest[..i]);
             string? variant = i < rest.Length ? rest[i..] : null;
 
             return (typeCode, runway, variant);
@@ -1868,7 +1891,7 @@ public sealed class NavigationDatabase
 
             if (i > 0 && i == s.Length)
             {
-                return (null, s, null);
+                return (null, RunwayIdentifier.NormalizeDesignator(s), null);
             }
         }
 
