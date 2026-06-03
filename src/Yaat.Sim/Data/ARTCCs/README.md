@@ -10,20 +10,18 @@ ARTCCs/
     FixPronunciations/
       ambiguous.json
       visual.json
-    TaxiRoutes/
-      koak-routes.json
-    AvoidTaxiways/
+    Airports/
       oak.json
     InitialContactTransfers/
       zoa-initial-contact-transfers.json
     WakeDirectives/
       oak-wake-directives.json
   ZMA/
-    TaxiRoutes/
-      kfll-routes.json
+    Airports/
+      fll.json
 ```
 
-Each loader scans `ARTCCs/*/{Category}/*.json`. Files whose category folder doesn't match the loader are ignored — `Data/ARTCCs/ZOA/CustomFixes/foo.json` is read by `CustomFixLoader`, not by `TaxiRouteLoader`.
+Each loader scans `ARTCCs/*/{Category}/*.json`. Files whose category folder doesn't match the loader are ignored — `Data/ARTCCs/ZOA/CustomFixes/foo.json` is read by `CustomFixLoader`, not by `AirportSidecarLoader`.
 
 The categories below describe the JSON schema for each. None are required; an ARTCC folder may contain any subset.
 
@@ -138,75 +136,51 @@ Don't add hints for fixes whose spelling already decodes naturally — unnecessa
 
 ---
 
-## TaxiRoutes
+## Airports
 
-Per-airport preset taxi routes surfaced in the right-click "Preset taxi route" submenu on the ground view. Each preset is a one-click shortcut for an SOP-aligned `TAXI` command — useful where the auto-router doesn't follow local best practice.
-
-Each file is a JSON object scoped to one airport. The `path` is whatever you'd type after `TAXI` in the command bar:
-
-```json
-{
-  "airportId": "KFLL",
-  "routes": [
-    {
-      "name": "DEP 10R via T-T3-B",
-      "path": "T T3 B",
-      "destinationRunway": "10R",
-      "tags": ["dep", "10R"]
-    }
-  ]
-}
-```
-
-### Field reference
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `airportId` | string | Yes (file-level) | ICAO of the airport these routes apply to |
-| `routes[].name` | string | Yes | Display name in the menu |
-| `routes[].path` | string | Yes | Whitespace-separated taxiway names |
-| `routes[].destinationRunway` | string | No | Runway hold-short (e.g. `"10R"`) |
-| `routes[].destinationParking` | string | No | Parking destination (e.g. `"G7"`) |
-| `routes[].destinationSpot` | string | No | Spot destination |
-| `routes[].tags` | string[] | No | Reserved for future menu filtering |
-
-At most one of the three `destination*` fields may be set on a single route. Routes whose path can't be walked from the aircraft's current position are silently dropped from the menu — so a KOAK route won't surface when right-clicking an aircraft at KSFO.
-
-Restart YAAT to pick up edits to route JSONs.
-
----
-
-## AvoidTaxiways
-
-Per-airport taxiways the **automatic** pathfinder should avoid in route suggestions — the routes generated for the right-click "taxi to…" menu, `TAXIAUTO`/`TAXIALL`, the auto-extension of an explicit path into a parking, and any other auto-route. Use this where a taxiway is technically usable but locally undesirable for routine routing (e.g. a perimeter/cargo lead such as taxiway S at OAK).
-
-The avoidance is **strict but not absolute**: an avoided taxiway is never used when any avoiding route to the destination exists, but it *is* used when the destination is only reachable through it (e.g. parking spots that hang off it). Explicit controller commands that name the taxiway — `TAXI S …` — are obeyed verbatim and never re-routed.
-
-Each file is a JSON object scoped to one airport:
+The unified per-airport ground sidecar. One JSON file per airport (`Airports/{airport}.json`) carrying every per-airport ground-routing override. Each file is scoped to one airport via `airportId` (ICAO or FAA — `KOAK` and `OAK` both match). All sections are optional; a file may carry any subset. Multiple files for the same airport are merged.
 
 ```json
 {
   "airportId": "KOAK",
-  "taxiways": [
-    {
-      "name": "S",
-      "notes": "Perimeter/cargo ramp lead; not used for routine auto-taxi."
-    }
+  "avoidTaxiways": [
+    { "name": "S", "notes": "Perimeter/cargo ramp lead; not used for routine auto-taxi." }
+  ],
+  "taxiRoutes": [
+    { "name": "TERMINAL to 30", "path": "T U W", "destinationRunway": "30", "tags": ["dep", "30"] }
   ]
 }
 ```
 
-### Field reference
+Restart YAAT to pick up edits to these JSONs.
+
+### `avoidTaxiways`
+
+Taxiways the **automatic** pathfinder should avoid in route suggestions — the routes generated for the right-click "taxi to…" menu, `TAXIAUTO`/`TAXIALL`, the auto-extension of an explicit path into a parking, and any other auto-route. Use this where a taxiway is technically usable but locally undesirable for routine routing (e.g. a perimeter/cargo lead such as taxiway S at OAK).
+
+The avoidance is **strict but not absolute**: an avoided taxiway is never used when any avoiding route to the destination exists, but it *is* used when the destination is only reachable through it (e.g. parking spots that hang off it). Explicit controller commands that name the taxiway — `TAXI S …` — are obeyed verbatim and never re-routed.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `airportId` | string | Yes (file-level) | ICAO or FAA ident of the airport (`KOAK` and `OAK` both match) |
-| `taxiways[].name` | string | Yes | Taxiway name to avoid, matched case-insensitively against the route's taxiway names |
-| `taxiways[].notes` | string | No | Human-readable rationale (SOP reference, condition). Informational only |
+| `avoidTaxiways[].name` | string | Yes | Taxiway name to avoid, matched case-insensitively against the route's taxiway names |
+| `avoidTaxiways[].notes` | string | No | Human-readable rationale (SOP reference, condition). Informational only |
 
-Names are case-insensitive and de-duplicated per file. Multiple files for the same airport are merged. An entry with a blank name, or a file with no valid entries, is skipped with a warning.
+Names are case-insensitive and de-duplicated per file. An entry with a blank name is skipped with a warning.
 
-Restart YAAT to pick up edits to avoid-taxiway JSONs.
+### `taxiRoutes`
+
+Per-airport preset taxi routes surfaced in the right-click "Preset taxi route" submenu on the ground view. Each preset is a one-click shortcut for an SOP-aligned `TAXI` command — useful where the auto-router doesn't follow local best practice. The `path` is whatever you'd type after `TAXI` in the command bar.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `taxiRoutes[].name` | string | Yes | Display name in the menu |
+| `taxiRoutes[].path` | string | Yes | Whitespace-separated taxiway names |
+| `taxiRoutes[].destinationRunway` | string | No | Runway hold-short (e.g. `"10R"`) |
+| `taxiRoutes[].destinationParking` | string | No | Parking destination (e.g. `"G7"`) |
+| `taxiRoutes[].destinationSpot` | string | No | Spot destination |
+| `taxiRoutes[].tags` | string[] | No | Reserved for future menu filtering |
+
+At most one of the three `destination*` fields may be set on a single route. Routes whose path can't be walked from the aircraft's current position are silently dropped from the menu — so a KOAK route won't surface when right-clicking an aircraft at KSFO.
 
 ---
 

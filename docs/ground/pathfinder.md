@@ -49,7 +49,7 @@ The pathfinder uses a single cost function (`RouteCostFunction.IncrementalCost`)
 
 ### Avoided taxiways (per-ARTCC)
 
-An ARTCC can mark taxiways an airport's **auto** routes should avoid via `Data/ARTCCs/{ARTCC}/AvoidTaxiways/{airport}.json` (loaded into `NavigationDatabase.AvoidTaxiways`; see `Data/ARTCCs/README.md`). `SearchContext.Compile` resolves the set for `Layout.AirportId` and sets `AvoidMode = HardExclude` **only for auto routes** (empty waypoint sequence); an explicit named-taxiway path keeps `AvoidMode = Off`, so `SegmentExpander` and controller `TAXI` commands are never re-routed.
+An ARTCC can mark taxiways an airport's **auto** routes should avoid via the `avoidTaxiways` section of the unified per-airport sidecar `Data/ARTCCs/{ARTCC}/Airports/{airport}.json` (loaded into `NavigationDatabase.AirportSidecars`; see `Data/ARTCCs/README.md`). `SearchContext.Compile` resolves the set for `Layout.AirportId` via `AirportSidecars.GetAvoidedTaxiways` and sets `AvoidMode = HardExclude` **only for auto routes** (empty waypoint sequence); an explicit named-taxiway path keeps `AvoidMode = Off`, so `SegmentExpander` and controller `TAXI` commands are never re-routed.
 
 `TaxiPathfinder.FindRoute`/`FindRoutes` run a **two pass** search via `RunWithAvoidance`:
 

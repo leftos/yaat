@@ -78,15 +78,3 @@ public sealed class TaxiRouteDefinition
         return sb.ToString();
     }
 }
-
-/// <summary>
-/// On-disk file shape: one airport's worth of routes per JSON file.
-/// </summary>
-internal sealed class TaxiRoutesFile
-{
-    [JsonPropertyName("airportId")]
-    public string AirportId { get; set; } = "";
-
-    [JsonPropertyName("routes")]
-    public List<TaxiRouteDefinition> Routes { get; set; } = [];
-}

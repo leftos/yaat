@@ -749,17 +749,17 @@ public partial class GroundView : UserControl
             return null;
         }
 
-        TaxiRouteCatalog catalog;
+        AirportSidecarCatalog catalog;
         try
         {
-            catalog = NavigationDatabase.Instance.TaxiRoutes;
+            catalog = NavigationDatabase.Instance.AirportSidecars;
         }
         catch (InvalidOperationException)
         {
             return null;
         }
 
-        var routes = catalog.GetRoutesForAirport(layout.AirportId);
+        var routes = catalog.GetTaxiRoutes(layout.AirportId);
         if (routes.Count == 0)
         {
             return null;

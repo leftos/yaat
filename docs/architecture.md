@@ -624,11 +624,9 @@ Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways
                                # Access via NavigationDatabase.Instance (initialized at startup, SetInstance for tests).
 Data/RouteExpander.cs          # Static: expands route strings (SID/STAR/airway/fix tokens) into ordered fix lists
 Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading from Data/ARTCCs/{ARTCC}/CustomFixes/*.json
-Data/TaxiRouteDefinition.cs / TaxiRouteLoader.cs / TaxiRouteCatalog.cs  # Per-airport preset taxi routes from Data/ARTCCs/{ARTCC}/TaxiRoutes/*.json
-                               # Validation against airport graph is lazy at menu-build time via TaxiPathfinder.ResolveExplicitPath.
-                               # Right-click "Preset taxi route" submenu in GroundView surfaces applicable routes per aircraft.
-Data/AvoidTaxiwayDefinition.cs / AvoidTaxiwayLoader.cs / AvoidTaxiwayCatalog.cs  # Per-airport taxiways the AUTO pathfinder avoids, from Data/ARTCCs/{ARTCC}/AvoidTaxiways/*.json
-                               # Read by SearchContext.Compile (NavigationDatabase.AvoidTaxiways) for auto routes only; two-pass in TaxiPathfinder uses an avoided taxiway only when the destination is otherwise unreachable. Explicit TAXI unaffected.
+Data/TaxiRouteDefinition.cs    # Per-route value type (path tokens, destination, canonical-command synthesis) carried in the sidecar's taxiRoutes section.
+Data/AirportSidecarDefinition.cs / AirportSidecarLoader.cs / AirportSidecarCatalog.cs  # Unified per-airport ground sidecar from Data/ARTCCs/{ARTCC}/Airports/{airport}.json (avoidTaxiways + taxiRoutes sections).
+                               # NavigationDatabase.AirportSidecars exposes GetAvoidedTaxiways / GetTaxiRoutes. avoidTaxiways read by SearchContext.Compile for auto routes only (two-pass: avoided taxiway used only when destination otherwise unreachable; explicit TAXI unaffected). taxiRoutes validated lazily at menu-build time via TaxiPathfinder.ResolveExplicitPath; surfaced in GroundView's right-click "Preset taxi route" submenu.
 Data/InitialContactTransferRule.cs / InitialContactTransferLoader.cs / InitialContactTransferCatalog.cs
                                # ARTCC/airport SOP exceptions for pilot initial-contact comm transfer, loaded from Data/ARTCCs/{ARTCC}/InitialContactTransfers/*.json.
 Data/WakeDirectiveRule.cs / WakeDirectiveLoader.cs / WakeDirectiveCatalog.cs
@@ -636,7 +634,7 @@ Data/WakeDirectiveRule.cs / WakeDirectiveLoader.cs / WakeDirectiveCatalog.cs
 Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry.
 Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspacePoint.cs / AirspaceClass.cs # Airspace model primitives plus crossing result.
 Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
-Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, TaxiRoutes, AvoidTaxiways, InitialContactTransfers, WakeDirectives — see Data/ARTCCs/README.md).
+Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, Airports, InitialContactTransfers, WakeDirectives — see Data/ARTCCs/README.md).
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
 Data/VideoMapMetadata.cs       # Video map metadata model

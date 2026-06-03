@@ -44,7 +44,7 @@ public sealed record SearchContext(
 
     /// <summary>
     /// Taxiway names the AUTO router should avoid at this airport, resolved from
-    /// <see cref="NavigationDatabase.AvoidTaxiways"/> keyed by <c>Layout.AirportId</c>. Empty when the
+    /// <see cref="NavigationDatabase.AirportSidecars"/> keyed by <c>Layout.AirportId</c>. Empty when the
     /// feature is off or the airport is unconfigured. Honoured only by <see cref="AutoRouter"/> /
     /// <see cref="RouteCostFunction"/> in auto mode; <see cref="SegmentExpander"/> (explicit named-taxiway
     /// paths) never reads it, so controller <c>TAXI</c> commands are unaffected.
@@ -103,7 +103,7 @@ public sealed record SearchContext(
     private static IReadOnlySet<string> ResolveAvoidedTaxiways(AirportGroundLayout layout)
     {
         var db = NavigationDatabase.InstanceOrNull;
-        return db is null ? EmptyAvoidedTaxiways : db.AvoidTaxiways.GetAvoidedTaxiways(layout.AirportId);
+        return db is null ? EmptyAvoidedTaxiways : db.AirportSidecars.GetAvoidedTaxiways(layout.AirportId);
     }
 
     /// <summary>

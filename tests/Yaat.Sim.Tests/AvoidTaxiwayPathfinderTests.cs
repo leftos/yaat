@@ -153,10 +153,10 @@ public class AvoidTaxiwayPathfinderTests
             return;
         }
 
-        var avoided = NavigationDatabase.Instance.AvoidTaxiways.GetAvoidedTaxiways("OAK");
+        var avoided = NavigationDatabase.Instance.AirportSidecars.GetAvoidedTaxiways("OAK");
         Assert.Contains("S", avoided);
         // Same set resolves via the ICAO form.
-        Assert.Contains("S", NavigationDatabase.Instance.AvoidTaxiways.GetAvoidedTaxiways("KOAK"));
+        Assert.Contains("S", NavigationDatabase.Instance.AirportSidecars.GetAvoidedTaxiways("KOAK"));
     }
 
     [Fact]

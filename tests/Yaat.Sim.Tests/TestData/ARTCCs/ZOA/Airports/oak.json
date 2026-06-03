@@ -1,6 +1,6 @@
 {
   "airportId": "KOAK",
-  "routes": [
+  "taxiRoutes": [
     {
       "name": "DEP 30 via W",
       "path": "W",

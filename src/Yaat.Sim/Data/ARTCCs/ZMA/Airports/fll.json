@@ -1,6 +1,6 @@
 {
   "airportId": "KFLL",
-  "routes": [
+  "taxiRoutes": [
     {
       "name": "DEP 10R via T-T3-B",
       "path": "T T3 B",

@@ -129,8 +129,7 @@ public sealed class NavigationDatabase
         LoadFixPronunciations(artccsBaseDir);
         InitialContactTransfers = LoadInitialContactTransfers(artccsBaseDir);
         WakeDirectives = LoadWakeDirectives(artccsBaseDir);
-        TaxiRoutes = LoadTaxiRoutes(artccsBaseDir);
-        AvoidTaxiways = LoadAvoidTaxiways(artccsBaseDir);
+        AirportSidecars = LoadAirportSidecars(artccsBaseDir);
         AllFixNames = BuildSortedNames();
     }
 
@@ -142,25 +141,17 @@ public sealed class NavigationDatabase
         _cifpFilePath = "";
         InitialContactTransfers = InitialContactTransferCatalog.Empty;
         WakeDirectives = WakeDirectiveCatalog.Empty;
-        TaxiRoutes = TaxiRouteCatalog.Empty;
-        AvoidTaxiways = AvoidTaxiwayCatalog.Empty;
+        AirportSidecars = AirportSidecarCatalog.Empty;
         AllFixNames = [];
     }
 
     /// <summary>
-    /// Per-ARTCC custom taxi route presets, indexed by airport ICAO. Loaded from
-    /// <c>Data/TaxiRoutes/{ARTCC}/*.json</c> at construction; consumed by the client's
-    /// aircraft right-click menu to surface SOP-aligned taxi routes per airport.
+    /// Unified per-airport ground sidecars, loaded from <c>Data/ARTCCs/{ARTCC}/Airports/*.json</c> at
+    /// construction. Carries per-airport ground-routing overrides — avoided taxiways (consulted by
+    /// <see cref="Yaat.Sim.Data.Airport.Pathfinding.SearchContext"/> for auto-routes only) and preset
+    /// taxi routes (consumed by the client's aircraft right-click menu).
     /// </summary>
-    public TaxiRouteCatalog TaxiRoutes { get; }
-
-    /// <summary>
-    /// Per-ARTCC per-airport taxiways the AUTO taxi pathfinder should avoid, loaded from
-    /// <c>Data/ARTCCs/{ARTCC}/AvoidTaxiways/*.json</c>. Consulted by
-    /// <see cref="Yaat.Sim.Data.Airport.Pathfinding.SearchContext"/> for auto-routes only;
-    /// explicit <c>TAXI</c> commands that name an avoided taxiway are unaffected.
-    /// </summary>
-    public AvoidTaxiwayCatalog AvoidTaxiways { get; }
+    public AirportSidecarCatalog AirportSidecars { get; }
 
     /// <summary>
     /// ARTCC-specific pilot initial-contact transfer exceptions, indexed by ARTCC, airport,
@@ -1663,32 +1654,18 @@ public sealed class NavigationDatabase
         );
     }
 
-    private static TaxiRouteCatalog LoadTaxiRoutes(string baseDir)
+    private static AirportSidecarCatalog LoadAirportSidecars(string baseDir)
     {
-        var loadResult = TaxiRouteLoader.LoadAll(baseDir);
+        var loadResult = AirportSidecarLoader.LoadAll(baseDir);
 
         foreach (var warning in loadResult.Warnings)
         {
-            Log.LogWarning("Taxi route: {Warning}", warning);
+            Log.LogWarning("Airport sidecar: {Warning}", warning);
         }
 
-        Log.LogInformation("Taxi routes: {Count} loaded from {BaseDir}", loadResult.Routes.Count, baseDir);
+        Log.LogInformation("Airport sidecars: {Count} airport(s) loaded from {BaseDir}", loadResult.Airports.Count, baseDir);
 
-        return new TaxiRouteCatalog(loadResult.Routes);
-    }
-
-    private static AvoidTaxiwayCatalog LoadAvoidTaxiways(string baseDir)
-    {
-        var loadResult = AvoidTaxiwayLoader.LoadAll(baseDir);
-
-        foreach (var warning in loadResult.Warnings)
-        {
-            Log.LogWarning("Avoid taxiway: {Warning}", warning);
-        }
-
-        Log.LogInformation("Avoid taxiways: {Count} airport(s) loaded from {BaseDir}", loadResult.Airports.Count, baseDir);
-
-        return new AvoidTaxiwayCatalog(loadResult.Airports);
+        return new AirportSidecarCatalog(loadResult.Airports);
     }
 
     private static InitialContactTransferCatalog LoadInitialContactTransfers(string baseDir)
