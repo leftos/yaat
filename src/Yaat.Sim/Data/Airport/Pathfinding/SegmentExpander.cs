@@ -282,8 +282,12 @@ public static class SegmentExpander
             }
             else
             {
-                // Last waypoint: walk to natural terminus of the taxiway (or the node itself for node-refs).
-                var (segEdges, newHead, failure) = ExpandLastWaypoint(current, token, ctx);
+                // Last waypoint: walk to natural terminus of the taxiway (or the node itself for
+                // node-refs). The named taxiway it was reached FROM (when any) lets a bare final
+                // taxiway with no downstream constraint stop at that junction instead of walking off
+                // in an arbitrary direction.
+                string? precedingTaxiway = (i > 0 && !tokens[i - 1].IsNodeRef) ? tokens[i - 1].Name : null;
+                var (segEdges, newHead, failure) = ExpandLastWaypoint(current, token, precedingTaxiway, ctx);
                 if (failure is not null)
                 {
                     return (null, null, failure);
@@ -402,6 +406,7 @@ public static class SegmentExpander
     private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure) ExpandLastWaypoint(
         PartialRoute head,
         WaypointToken waypoint,
+        string? precedingTaxiway,
         SearchContext ctx
     )
     {
@@ -451,7 +456,74 @@ public static class SegmentExpander
         // hold-short sits the opposite way along the named taxiway. The bias only breaks ties on
         // the first step; once moving, admissibility constrains direction as before.
         var bias = ResolveTerminusBias(head, waypoint.Name, ctx);
+
+        // No downstream constraint and reached by transitioning from a different taxiway: stop at
+        // that intersection rather than committing to a direction along the final taxiway. "TAXI G B"
+        // leaves the aircraft at the pure G/B intersection so the controller can then turn it either
+        // way on B with a follow-up taxi; walking B here is direction-blind and picks a wrong way.
+        // A destination (handled above) or a hold-short on the taxiway (a non-null bias) gives a
+        // direction, so those keep walking.
+        if (precedingTaxiway is not null && bias is null && ctx.Destination.Kind == DestinationKind.EndOfLastTaxiway)
+        {
+            var terminate = TerminateAtTransitionJunction(head, precedingTaxiway, waypoint.Name, ctx);
+            if (terminate is not null)
+            {
+                return terminate.Value;
+            }
+        }
+
         return WalkToNaturalTerminus(head, waypoint.Name, ctx, bias);
+    }
+
+    /// <summary>
+    /// Stop the route at the pure intersection of <paramref name="precedingTaxiway"/> and
+    /// <paramref name="finalTaxiway"/> instead of walking the final taxiway. Used for a bare final
+    /// taxiway with no downstream constraint (e.g. <c>TAXI G B</c>): the aircraft arrives at the
+    /// junction and holds, ready to be turned either way on the final taxiway by a follow-up taxi.
+    /// Routes from the current head along the preceding taxiway to the canonical (pre-fillet, lowest
+    /// id) crossing node.
+    ///
+    /// <para>Only fires when the final taxiway extends in more than one direction from the
+    /// intersection — that is the case where a direction must be guessed (and was guessed wrong). A
+    /// final taxiway that leaves the junction only one way (a stub) is unambiguous, so the caller
+    /// walks it normally. Returns null — caller falls back to the natural-terminus walk — when the
+    /// intersection is unknown, unambiguous, or unreachable on the preceding taxiway.</para>
+    /// </summary>
+    private static (List<DirectionalEdge>? Edges, PartialRoute? Head, PathfindingFailure? Failure)? TerminateAtTransitionJunction(
+        PartialRoute head,
+        string precedingTaxiway,
+        string finalTaxiway,
+        SearchContext ctx
+    )
+    {
+        var intersection = ctx.Layout.FindIntersectionNode(precedingTaxiway, finalTaxiway);
+        if (intersection is null)
+        {
+            return null;
+        }
+
+        int finalTaxiwayDirections = 0;
+        foreach (var edge in intersection.Edges)
+        {
+            if (edge.MatchesTaxiway(finalTaxiway))
+            {
+                finalTaxiwayDirections++;
+            }
+        }
+
+        if (finalTaxiwayDirections < 2)
+        {
+            return null;
+        }
+
+        var (edges, junctionHead, _) = LocalSearchToJunction(head, precedingTaxiway, intersection.Id, ctx);
+        if (edges is null || junctionHead is null)
+        {
+            return null;
+        }
+
+        ctx.DiagnosticLog?.Invoke($"[terminus-junction] {precedingTaxiway}/{finalTaxiway} stop={intersection.Id} edges={edges.Count}");
+        return (edges, junctionHead, null);
     }
 
     /// <summary>
@@ -1464,51 +1536,74 @@ public static class SegmentExpander
     /// </summary>
     private static LatLon? ResolveTerminusBias(PartialRoute head, string taxiwayName, SearchContext ctx)
     {
-        if (
-            ctx.Destination.Kind == DestinationKind.Runway
-            && ctx.Destination.RunwayId is { } runwayId
-            && ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode)
-        )
+        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode))
         {
-            GroundNode? best = null;
-            double bestDistNm = double.MaxValue;
-            foreach (var node in ctx.Layout.Nodes.Values)
+            return null;
+        }
+
+        // Runway designators that pull the terminus walk in a definite direction: the destination
+        // runway (taxiing TO it) and any runway the controller named as an explicit hold-short. Both
+        // put a hold-short node on the final taxiway the walk should head toward — without this a
+        // "TAXI B K HS 10R" walk picks an arbitrary direction along K and heads away from 10R.
+        var targets = new List<string>();
+        if (ctx.Destination.Kind == DestinationKind.Runway && ctx.Destination.RunwayId is { } runwayId)
+        {
+            targets.Add(runwayId);
+        }
+
+        foreach (string holdShort in ctx.ExplicitHoldShorts)
+        {
+            targets.Add(holdShort);
+        }
+
+        if (targets.Count == 0)
+        {
+            return null;
+        }
+
+        GroundNode? best = null;
+        double bestDistNm = double.MaxValue;
+        foreach (var node in ctx.Layout.Nodes.Values)
+        {
+            bool isTarget = false;
+            foreach (string target in targets)
             {
-                if (!IsRunwayHoldShort(node.Id, runwayId, ctx))
+                if (IsRunwayHoldShort(node.Id, target, ctx))
                 {
-                    continue;
-                }
-
-                bool onTaxiway = false;
-                foreach (var edge in node.Edges)
-                {
-                    if (edge.MatchesTaxiway(taxiwayName))
-                    {
-                        onTaxiway = true;
-                        break;
-                    }
-                }
-
-                if (!onTaxiway)
-                {
-                    continue;
-                }
-
-                double distNm = GeoMath.DistanceNm(node.Position, headNode.Position);
-                if (distNm < bestDistNm)
-                {
-                    bestDistNm = distNm;
-                    best = node;
+                    isTarget = true;
+                    break;
                 }
             }
 
-            if (best is not null)
+            if (!isTarget)
             {
-                return best.Position;
+                continue;
+            }
+
+            bool onTaxiway = false;
+            foreach (var edge in node.Edges)
+            {
+                if (edge.MatchesTaxiway(taxiwayName))
+                {
+                    onTaxiway = true;
+                    break;
+                }
+            }
+
+            if (!onTaxiway)
+            {
+                continue;
+            }
+
+            double distNm = GeoMath.DistanceNm(node.Position, headNode.Position);
+            if (distNm < bestDistNm)
+            {
+                bestDistNm = distNm;
+                best = node;
             }
         }
 
-        return null;
+        return best?.Position;
     }
 
     // -----------------------------------------------------------------------

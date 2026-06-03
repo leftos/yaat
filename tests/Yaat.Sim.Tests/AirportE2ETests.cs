@@ -116,14 +116,22 @@ public class AirportE2ETests
 
         var ac = MakeGroundAircraft(position: parking.Position);
 
-        // TAXI D C — D south to C junction
+        // TAXI D C — taxi up D and stop at the D/C intersection. With no downstream destination and
+        // C passing through the junction both ways, the route does not commit a direction along C;
+        // the aircraft holds at the junction, ready to be turned either way on C by a follow-up taxi.
         var taxi = new TaxiCommand(["D", "C"], []);
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
 
         Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
 
-        Assert.Contains(ac.Ground.AssignedTaxiRoute!.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(ac.Ground.AssignedTaxiRoute.Segments, s => string.Equals(s.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase));
+        var route = ac.Ground.AssignedTaxiRoute!;
+        Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
+
+        // Reaches the D/C intersection but does not walk along C.
+        var dcJunction = layout.FindIntersectionNode("D", "C");
+        Assert.NotNull(dcJunction);
+        Assert.Equal(dcJunction.Id, route.Segments[^1].ToNodeId);
+        Assert.DoesNotContain(route.Segments, s => string.Equals(s.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
