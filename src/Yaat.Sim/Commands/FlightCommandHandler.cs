@@ -8,6 +8,14 @@ namespace Yaat.Sim.Commands;
 
 internal static class FlightCommandHandler
 {
+    /// <summary>
+    /// Minimum speed (KIAS) ATC may assign a helicopter via a radar speed instruction
+    /// (7110.65 §5-7-3.5: "assign a speed not less than 60 knots"). A plain SPD below this is
+    /// floored to it; the force-speed command (SPEEDN / SPDN / SLN) bypasses the floor and may
+    /// command any speed (the §5-7-3.6 "operationally advantageous" exception).
+    /// </summary>
+    private const int HelicopterMinRadarSpeedKts = 60;
+
     internal static CommandResult ApplyHeading(FlyHeadingCommand cmd, AircraftState aircraft)
     {
         var prev = PreviousLateralGuidance(aircraft);
@@ -200,39 +208,47 @@ internal static class FlightCommandHandler
         // ATC speed supersedes the procedural last-published-speed memory.
         aircraft.Procedure.LastProcedureSpeedKts = null;
 
-        aircraft.Targets.AssignedSpeed = cmd.Speed;
+        // ATC can't assign a helicopter below the radar-speed minimum; floor a plain SPD to it.
+        // Only airborne — ground taxi speed is governed separately. The force-speed command
+        // (SPEEDN -> ApplyForceSpeed) bypasses this and may command any speed.
+        var spdCat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        bool flooredForHeli =
+            spdCat == AircraftCategory.Helicopter && !aircraft.IsOnGround && cmd.Speed > 0 && cmd.Speed < HelicopterMinRadarSpeedKts;
+        int effectiveSpeed = flooredForHeli ? HelicopterMinRadarSpeedKts : cmd.Speed;
+
+        aircraft.Targets.AssignedSpeed = effectiveSpeed;
 
         switch (cmd.Modifier)
         {
             case SpeedModifier.Floor:
-                aircraft.Targets.SpeedFloor = cmd.Speed;
+                aircraft.Targets.SpeedFloor = effectiveSpeed;
                 aircraft.Targets.SpeedCeiling = null;
                 aircraft.Targets.TargetSpeed = null;
                 break;
             case SpeedModifier.Ceiling:
-                aircraft.Targets.SpeedCeiling = cmd.Speed;
+                aircraft.Targets.SpeedCeiling = effectiveSpeed;
                 aircraft.Targets.SpeedFloor = null;
                 aircraft.Targets.TargetSpeed = null;
                 break;
             default:
-                aircraft.Targets.TargetSpeed = cmd.Speed;
+                aircraft.Targets.TargetSpeed = effectiveSpeed;
                 aircraft.Targets.SpeedFloor = null;
                 aircraft.Targets.SpeedCeiling = null;
                 break;
         }
 
-        // Helicopter min radar speed warning per §5-7-3.e.5
-        var spdCat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        if (spdCat == AircraftCategory.Helicopter && cmd.Speed > 0 && cmd.Speed < 60)
+        if (flooredForHeli)
         {
-            aircraft.PendingWarnings.Add($"Speed {cmd.Speed} below helicopter minimum 60 KIAS [7110.65 §5-7-3.e.5]");
+            aircraft.PendingWarnings.Add(
+                $"Speed {cmd.Speed} below helicopter minimum; floored to {HelicopterMinRadarSpeedKts} KIAS [7110.65 §5-7-3.5]"
+            );
         }
 
         return cmd.Modifier switch
         {
-            SpeedModifier.Floor => CommandDispatcher.Ok($"Maintain {cmd.Speed} knots or greater"),
-            SpeedModifier.Ceiling => CommandDispatcher.Ok($"Do not exceed {cmd.Speed} knots"),
-            _ => CommandDispatcher.Ok($"Speed {cmd.Speed}"),
+            SpeedModifier.Floor => CommandDispatcher.Ok($"Maintain {effectiveSpeed} knots or greater"),
+            SpeedModifier.Ceiling => CommandDispatcher.Ok($"Do not exceed {effectiveSpeed} knots"),
+            _ => CommandDispatcher.Ok($"Speed {effectiveSpeed}"),
         };
     }
 
@@ -341,6 +357,8 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyForceSpeed(ForceSpeedCommand cmd, AircraftState aircraft)
     {
+        // Force-speed is an immediate override and intentionally exempt from the helicopter
+        // radar-speed floor in ApplySpeed — it may command any speed.
         aircraft.IndicatedAirspeed = cmd.Speed;
         aircraft.Targets.TargetSpeed = cmd.Speed;
         aircraft.Targets.AssignedSpeed = cmd.Speed;

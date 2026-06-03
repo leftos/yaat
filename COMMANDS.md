@@ -950,6 +950,8 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 
 **Floor and ceiling** — `SPD 210+` sets a minimum speed; the aircraft accelerates only if below 210 but maintains its current speed if already faster. `SPD 210-` sets a maximum; the aircraft decelerates only if above 210. Both are enforced continuously and respect the 250-knot limit below 10,000 ft. An exact speed command (`SPD 210`) clears any active floor or ceiling.
 
+**Helicopter minimum** — a `SPD` value below 60 KIAS issued to an airborne helicopter is floored to 60 (the 7110.65 §5-7-3.5 minimum for radar-vectored helicopters), with a warning. Use the force-speed command (`SPDN`/`SPEEDN`) to command a lower speed.
+
 **VFR altitude floor/ceiling (`CM A` / `CM B`)** — alongside the hard `CM 240` assignment, `CM A{altitude}` clears the aircraft to maintain VFR at or above the given altitude (floor) and `CM B{altitude}` at or below (ceiling). The altitude accepts shorthand or full notation via `AltitudeResolver` (`CM A025` = `CM A2500` = at or above 2,500 ft). The aircraft is free to drift inside the band; the boundary is what the controller assigns. **VFR aircraft only** — the command is rejected for IFR. A plain `CM {altitude}` (or any other hard altitude assignment) clears any active floor or ceiling.
 
 **ATFN (at final)** — `ATFN {distance}` is a compound-block condition that fires when the aircraft is within the specified distance (in NM) of the assigned runway threshold. Use it to set up staged speed reductions on approach: `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.

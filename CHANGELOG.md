@@ -7,6 +7,8 @@
 
 ### Changed
 - **Take Control** during recording playback now asks for confirmation before ending the replay; Cancel or Esc keeps you in playback.
+- A plain `SPD` instruction to a helicopter below 60 KIAS is now floored to 60 (the 7110.65 §5-7-3.5 minimum for radar-vectored helicopters), with a warning noting the floor. Use the force-speed command (`SPEEDN`) to command a lower speed.
+- A relocating helicopter (`ATXI`/`LAND`) now swings onto the destination spot faster as it slows toward the hover, instead of the slower coordinated-flight turn rate it used at cruise.
 
 ### Fixed
 - Amending a flight plan with a non-US destination via CRC (e.g. a `KSFO → WSSS` Singapore departure) no longer silently reverts. The server was rejecting the whole amendment because the destination airport isn't in the US navigation database; international airports are now kept as filed instead. The same applies to the typed `FP`/`VP` flight-plan commands.

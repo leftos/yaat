@@ -226,4 +226,24 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
         var phase = new HelicopterLandingPhase();
         Assert.True(phase.CanAcceptCommand(cmd).IsAllowed, $"{cmd} should be handled in-phase during the descent");
     }
+
+    // Air-taxi steering turn rate scales with groundspeed: the hover pedal-turn rate (30 deg/s)
+    // at 0 kt down to the standard airborne rate (5 deg/s) at the 40 kt cruise speed and above.
+    [Theory]
+    [InlineData(0.0, 30.0)]
+    [InlineData(40.0, 5.0)]
+    [InlineData(80.0, 5.0)]
+    [InlineData(20.0, 17.5)]
+    public void AirTaxi_SteerTurnRate_ScalesWithGroundspeed(double groundSpeedKts, double expected)
+    {
+        Assert.Equal(expected, AirTaxiPhase.SteerTurnRate(AircraftCategory.Helicopter, groundSpeedKts), 3);
+    }
+
+    [Fact]
+    public void AirTaxi_SteerTurnRate_FasterNearHover()
+    {
+        double hover = AirTaxiPhase.SteerTurnRate(AircraftCategory.Helicopter, 0);
+        double cruise = AirTaxiPhase.SteerTurnRate(AircraftCategory.Helicopter, 40);
+        Assert.True(hover > cruise, $"heli should pivot faster near hover ({hover:F1}) than at cruise ({cruise:F1})");
+    }
 }

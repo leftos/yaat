@@ -104,6 +104,7 @@ public sealed class AirTaxiPhase : Phase
             else
             {
                 ctx.Targets.TargetTrueHeading = new TrueHeading(GeoMath.BearingTo(ctx.Aircraft.Position, target));
+                ApplySteerTurnRate(ctx);
                 return false;
             }
         }
@@ -120,6 +121,7 @@ public sealed class AirTaxiPhase : Phase
         // here is fragile: a stale ControlTargets.TargetTrueHeading would override it every tick.
         double brg = GeoMath.BearingTo(ctx.Aircraft.Position, target);
         ctx.Targets.TargetTrueHeading = new TrueHeading(brg);
+        ApplySteerTurnRate(ctx);
 
         _timeSinceLastLog += ctx.DeltaSeconds;
         if (_timeSinceLastLog >= LogIntervalSeconds)
@@ -153,7 +155,43 @@ public sealed class AirTaxiPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
+        // Release the groundspeed-scaled steering turn rate so the next phase / the command queue
+        // reverts to the category default. Leave a user-issued explicit turn rate (TRATE) intact.
+        if (!ctx.Targets.HasExplicitTurnRate)
+        {
+            ctx.Targets.TurnRateOverride = null;
+        }
+
         Log.LogDebug("[AirTaxi] {Callsign}: ended ({Status})", ctx.Aircraft.Callsign, endStatus);
+    }
+
+    /// <summary>
+    /// Drive the steering turn rate from groundspeed: a helicopter pivots far faster at low speed
+    /// than the coordinated airborne rate, so scale from the air-taxi cruise rate up to the hover
+    /// pedal-turn rate as the heli slows, letting it swing onto the spot. A user-issued explicit
+    /// turn rate (TRATE) is respected and left untouched.
+    /// </summary>
+    private static void ApplySteerTurnRate(PhaseContext ctx)
+    {
+        if (ctx.Targets.HasExplicitTurnRate)
+        {
+            return;
+        }
+
+        ctx.Targets.TurnRateOverride = SteerTurnRate(ctx.Category, ctx.Aircraft.GroundSpeed);
+    }
+
+    /// <summary>
+    /// Linear interpolation of turn rate (deg/s) by groundspeed: the category hover (ground)
+    /// pedal-turn rate at 0 kt, the standard airborne rate at air-taxi cruise speed and above.
+    /// </summary>
+    internal static double SteerTurnRate(AircraftCategory category, double groundSpeedKts)
+    {
+        double cruiseRate = CategoryPerformance.TurnRate(category);
+        double hoverRate = CategoryPerformance.GroundTurnRate(category);
+        double cruiseSpeed = CategoryPerformance.AirTaxiSpeed(category);
+        double t = cruiseSpeed > 0 ? Math.Clamp(groundSpeedKts / cruiseSpeed, 0.0, 1.0) : 1.0;
+        return hoverRate + (cruiseRate - hoverRate) * t;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
