@@ -176,6 +176,12 @@ public partial class MainViewModel : ObservableObject
     private int _sessionAutoAcceptDelaySeconds = -1;
 
     [ObservableProperty]
+    private int _sessionCommandRunDelayMinSeconds;
+
+    [ObservableProperty]
+    private int _sessionCommandRunDelayMaxSeconds;
+
+    [ObservableProperty]
     private bool _sessionAutoClearedToLand;
 
     [ObservableProperty]
@@ -2327,6 +2333,7 @@ public partial class MainViewModel : ObservableObject
         if (ActiveRoomId is not null)
         {
             _ = SendAutoAcceptDelay();
+            _ = SendCommandRunDelay();
             _ = SendAutoDeleteMode();
             _ = SendValidateDctFixes();
             _ = SendSoloTrainingMode();
@@ -2459,6 +2466,18 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private async Task SendCommandRunDelay()
+    {
+        try
+        {
+            await _connection.SetCommandRunDelayAsync(_preferences.CommandRunDelayMinSeconds, _preferences.CommandRunDelayMaxSeconds);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set command run delay");
+        }
+    }
+
     private async Task SendAutoDeleteMode()
     {
         try
@@ -2488,6 +2507,8 @@ public partial class MainViewModel : ObservableObject
         ActiveAutoDeleteMode = dto.EffectiveAutoDeleteMode;
         SessionAutoDeleteIndex = AutoDeleteModeToIndex(dto.AutoDeleteOverride);
         SessionAutoAcceptDelaySeconds = dto.AutoAcceptDelaySeconds;
+        SessionCommandRunDelayMinSeconds = dto.CommandRunDelayMinSeconds;
+        SessionCommandRunDelayMaxSeconds = dto.CommandRunDelayMaxSeconds;
         SessionAutoClearedToLand = dto.AutoClearedToLand;
         SessionAutoCrossRunway = dto.AutoCrossRunway;
         SessionAutoPullUpToParallel = dto.AutoPullUpToParallel;
@@ -2522,7 +2543,9 @@ public partial class MainViewModel : ObservableObject
                 state.SoloGoAroundProbabilityPercent,
                 state.HasSoloParkingInitialCallupSource,
                 state.HasSoloArrivalGeneratorSource,
-                state.RpoShowPilotSpeech
+                state.RpoShowPilotSpeech,
+                state.CommandRunDelayMinSeconds,
+                state.CommandRunDelayMaxSeconds
             )
         );
     }
@@ -2544,7 +2567,9 @@ public partial class MainViewModel : ObservableObject
                 dto.SoloGoAroundProbabilityPercent,
                 dto.HasSoloParkingInitialCallupSource,
                 dto.HasSoloArrivalGeneratorSource,
-                dto.RpoShowPilotSpeech
+                dto.RpoShowPilotSpeech,
+                dto.CommandRunDelayMinSeconds,
+                dto.CommandRunDelayMaxSeconds
             )
         );
     }
@@ -2566,7 +2591,9 @@ public partial class MainViewModel : ObservableObject
                 result.SoloGoAroundProbabilityPercent,
                 result.HasSoloParkingInitialCallupSource,
                 result.HasSoloArrivalGeneratorSource,
-                result.RpoShowPilotSpeech
+                result.RpoShowPilotSpeech,
+                result.CommandRunDelayMinSeconds,
+                result.CommandRunDelayMaxSeconds
             )
         );
     }
@@ -2588,6 +2615,22 @@ public partial class MainViewModel : ObservableObject
         if (!_isApplyingSessionSettings)
         {
             _ = _connection.SetAutoAcceptDelayAsync(value);
+        }
+    }
+
+    partial void OnSessionCommandRunDelayMinSecondsChanged(int value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetCommandRunDelayAsync(SessionCommandRunDelayMinSeconds, SessionCommandRunDelayMaxSeconds);
+        }
+    }
+
+    partial void OnSessionCommandRunDelayMaxSecondsChanged(int value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetCommandRunDelayAsync(SessionCommandRunDelayMinSeconds, SessionCommandRunDelayMaxSeconds);
         }
     }
 

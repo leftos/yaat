@@ -1396,6 +1396,12 @@ Optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simplify t
 
 Handoffs to unattended positions can be automatically accepted after a configurable delay. Enable in **Settings > General > Auto-accept handoffs**.
 
+#### Command Run Delay
+
+A teaching aid that makes aircraft take time to comply with your instructions, simulating how long a real pilot needs to read back the clearance and set up the FMC / autopilot panel. Set a **min–max range (seconds)** in **Settings > General > Command run delay** (or live, per session, in the session-settings flyout on the command bar). Each command waits a random delay in that range before the aircraft acts — set both to the same number for a fixed delay, or set the max to 0 to turn it off (the default). A few seconds (3–8) is realistic.
+
+When a delay is active you get an immediate terminal acknowledgement — *"Pilot complying in 5s"* — so you know the command was received and the aircraft is about to respond; the heading/altitude/speed/route change (and, in solo training, the pilot's read-back) then plays out after the delay. Track and coordination commands are never delayed, and **frequency changes** (e.g. `CON`) switch immediately — only the pilot's flight-deck actions lag. Commands you time yourself with `WAIT`/`BEHIND` keep their own timing and don't get an extra reaction delay; conditional commands (`LV`/`AT`) take the delay to *arm* and then fire when the condition is met (so with a large delay an `AT FIX` action can begin slightly past the fix). The delay is a blanket reaction model — it does not shorten for "expedite"/"immediately"-style urgency.
+
 #### Auto-Delete
 
 Scenarios can define an `autoDeleteMode` that removes aircraft after landing or parking. Override in **Settings > General > Auto-Delete Aircraft** (options: "Use Scenario Setting", "Never", "On Landing", "On Parking").

@@ -183,6 +183,8 @@ public sealed class SimulationEngine
             Scenario.RpoShowPilotSpeech = scenarioDto.RpoShowPilotSpeech;
             Scenario.IsPaused = scenarioDto.IsPaused;
             Scenario.SimRate = scenarioDto.SimRate;
+            Scenario.CommandRunDelayMinSeconds = scenarioDto.CommandRunDelayMinSeconds;
+            Scenario.CommandRunDelayMaxSeconds = scenarioDto.CommandRunDelayMaxSeconds;
             Scenario.AutoAcceptDelay = TimeSpan.FromSeconds(scenarioDto.AutoAcceptDelaySeconds);
             Scenario.IsStudentTowerPosition = scenarioDto.IsStudentTowerPosition;
             Scenario.ScenarioAutoDeleteMode = scenarioDto.ScenarioAutoDeleteMode;
@@ -431,6 +433,7 @@ public sealed class SimulationEngine
     {
         World.Clear();
         World.Rng = new SerializableRandom(rngSeed);
+        World.ReactionDelayRng = new SerializableRandom(rngSeed);
         ApproachEvaluator.Reset();
         SoloTrainingEvaluator.Reset();
 
@@ -1294,27 +1297,41 @@ public sealed class SimulationEngine
             return new CommandResult(false, $"Failed to parse command: {command} — {parseResult.Reason}");
         }
 
-        var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
-        var dispatchCtx = new DispatchContext(
-            groundLayout,
-            World.Rng,
-            World.Weather,
-            FindAircraft,
-            () => World.GetSnapshot(),
-            Scenario?.ValidateDctFixes ?? true,
-            Scenario?.AutoCrossRunway ?? false,
-            Scenario?.SoloTrainingMode ?? false,
-            Scenario?.RpoShowPilotSpeech ?? false,
-            _terminalEntries.Add,
-            Scenario?.ArtccConfig,
-            Scenario?.ElapsedSeconds ?? 0
-        );
-        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
+        bool soloTrainingMode = Scenario?.SoloTrainingMode ?? false;
+
+        // Pilot-reaction delay (command-run delay): when active, defer the whole dispatch by a sampled
+        // number of seconds and acknowledge immediately so the controller knows the command landed and
+        // the sim isn't frozen. The aircraft begins complying when the deferral fires.
+        CommandResult result;
+        var reactionDelay = TryDeferCommandForReaction(aircraft, parseResult.Value!);
+        if (reactionDelay is double reactionSeconds)
+        {
+            result = new CommandResult(true, $"Pilot complying in {(int)Math.Round(reactionSeconds)}s");
+        }
+        else
+        {
+            var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+            var dispatchCtx = new DispatchContext(
+                groundLayout,
+                World.Rng,
+                World.Weather,
+                FindAircraft,
+                () => World.GetSnapshot(),
+                Scenario?.ValidateDctFixes ?? true,
+                Scenario?.AutoCrossRunway ?? false,
+                Scenario?.SoloTrainingMode ?? false,
+                Scenario?.RpoShowPilotSpeech ?? false,
+                _terminalEntries.Add,
+                Scenario?.ArtccConfig,
+                Scenario?.ElapsedSeconds ?? 0
+            );
+            result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
+        }
 
         if (result.Success)
         {
             aircraft.HasControllerAcknowledgedInitialContact = true;
-            if (dispatchCtx.SoloTrainingMode)
+            if (soloTrainingMode)
             {
                 SoloTrainingEvaluator.RecordControllerCommand(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
                 PilotRequestTracker.ApplyControllerResponse(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0);
@@ -1325,7 +1342,7 @@ public sealed class SimulationEngine
                 World.AcknowledgeControllerResponse(aircraft.Callsign);
             }
         }
-        else if (dispatchCtx.SoloTrainingMode)
+        else if (soloTrainingMode)
         {
             QueueSoloUnableIfNeeded(aircraft, result);
         }
@@ -1335,7 +1352,7 @@ public sealed class SimulationEngine
         // readbacks. Transparent (squawk/ident/say) and phase-handled paths all funnel
         // through DispatchCompound, so this catches everything successful from the student's
         // perspective.
-        if (result.Success && dispatchCtx.SoloTrainingMode)
+        if (result.Success && soloTrainingMode)
         {
             var activityLevel = World.ActiveFrequency.GetActivityLevel(Scenario?.ElapsedSeconds ?? 0);
             var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(parseResult.Value!, aircraft, PilotPersonality.Varied, activityLevel);
@@ -1352,6 +1369,106 @@ public sealed class SimulationEngine
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// If a command-run delay is active, enqueue <paramref name="compound"/> as a pilot-reaction
+    /// deferred dispatch and return the delay in seconds; otherwise return null and the caller
+    /// dispatches immediately. The delay simulates the time a pilot needs to set up the FMC / autopilot
+    /// after the controller issues an instruction.
+    ///
+    /// Commands carrying explicit leading timing — a WAIT/WAITD or a BEHIND give-way condition — are NOT
+    /// reaction-delayed: the controller's explicit timing already models the wait, and those produce
+    /// their own deferred dispatch inside <see cref="CommandDispatcher.DispatchCompound"/>.
+    ///
+    /// Sampling draws from <see cref="SimulationWorld.ReactionDelayRng"/> (never the shared RNG) so it
+    /// can't perturb replay-critical emergent events. The returned value is the actual delay applied
+    /// (after the order-preserving clamp); the server bakes it into the recorded command so replays
+    /// reproduce it exactly rather than re-sampling.
+    /// </summary>
+    public double? TryDeferCommandForReaction(AircraftState aircraft, CompoundCommand compound)
+    {
+        var scenario = Scenario;
+        if (scenario is null || scenario.CommandRunDelayMaxSeconds <= 0)
+        {
+            return null;
+        }
+
+        if (HasExplicitLeadingTiming(compound))
+        {
+            return null;
+        }
+
+        // Pure frequency-change / radio-contact commands are not reaction-delayed: the AIM (4-2-3)
+        // expects a pilot to switch frequency "as soon as possible", and holding the aircraft on the
+        // current frequency for several seconds would teach a backwards habit. A mixed compound
+        // (e.g. "FH 270; CON TWR") is still delayed as a whole — only a purely-comm compound is exempt.
+        if (IsPureCommCompound(compound))
+        {
+            return null;
+        }
+
+        int max = scenario.CommandRunDelayMaxSeconds;
+        int min = Math.Clamp(scenario.CommandRunDelayMinSeconds, 0, max);
+        int sampled = min >= max ? max : World.ReactionDelayRng.Next(min, max + 1);
+
+        // Preserve issue order: a command issued later must never start complying before one issued
+        // earlier. Clamp this command's delay so it fires no sooner than any already-pending reaction
+        // deferral on the same aircraft (ProcessDeferredDispatches applies same-tick expiries FIFO).
+        double clampFloor = 0;
+        foreach (var pending in aircraft.DeferredDispatches)
+        {
+            if (pending.IsReactionDelay && pending.RemainingSeconds > clampFloor)
+            {
+                clampFloor = pending.RemainingSeconds;
+            }
+        }
+
+        double seconds = Math.Max(sampled, clampFloor);
+        aircraft.DeferredDispatches.Add(new DeferredDispatch(seconds, compound) { SourceText = compound.SourceText, IsReactionDelay = true });
+        return seconds;
+    }
+
+    private static bool HasExplicitLeadingTiming(CompoundCommand compound)
+    {
+        if (compound.Blocks.Count == 0)
+        {
+            return false;
+        }
+
+        var first = compound.Blocks[0];
+        if (first.Condition is GiveWayCondition)
+        {
+            return true;
+        }
+
+        foreach (var cmd in first.Commands)
+        {
+            if (cmd is WaitCommand or WaitDistanceCommand)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsPureCommCompound(CompoundCommand compound)
+    {
+        bool hasAny = false;
+        foreach (var block in compound.Blocks)
+        {
+            foreach (var cmd in block.Commands)
+            {
+                hasAny = true;
+                if (cmd is not (ContactCommand or FrequencyChangeApprovedCommand or AcknowledgePilotContactCommand))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return hasAny;
     }
 
     private static void QueueSoloUnableIfNeeded(AircraftState aircraft, CommandResult result)
@@ -1544,62 +1661,84 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            for (int i = aircraft.DeferredDispatches.Count - 1; i >= 0; i--)
+            // Tick timers / evaluate conditions in insertion order and collect the deferrals that are
+            // ready this sub-tick. Dispatching FIFO (rather than the old reverse walk) guarantees that
+            // several commands expiring on the same sub-tick — e.g. two reaction-delayed commands the
+            // order-preserving clamp parked on the same fire time — apply in the order they were issued.
+            List<DeferredDispatch>? ready = null;
+            foreach (var d in aircraft.DeferredDispatches)
             {
-                var d = aircraft.DeferredDispatches[i];
-
+                bool isReady;
                 if (d.GiveWayTarget is not null)
                 {
-                    if (!IsGiveWayDeferredMet(aircraft, d.GiveWayTarget))
+                    isReady = IsGiveWayDeferredMet(aircraft, d.GiveWayTarget);
+                    if (isReady && aircraft.Ground.Hold is { Kind: HoldKind.GiveWay })
                     {
-                        continue;
-                    }
-
-                    // Condition met — clear any active GIVEWAY hold so the payload can dispatch
-                    // cleanly. HoldPosition holds are NOT cleared (a controller's explicit HOLD
-                    // should not be overridden by a deferred BEHIND condition firing).
-                    if (aircraft.Ground.Hold is { Kind: HoldKind.GiveWay })
-                    {
+                        // Condition met — clear any active GIVEWAY hold so the payload can dispatch
+                        // cleanly. HoldPosition holds are NOT cleared (a controller's explicit HOLD
+                        // should not be overridden by a deferred BEHIND condition firing).
                         aircraft.Ground.Hold = null;
                     }
                 }
                 else if (d.IsDistanceBased)
                 {
-                    double distNm = aircraft.GroundSpeed * deltaSeconds / 3600.0;
-                    d.RemainingDistanceNm -= distNm;
-                    if (d.RemainingDistanceNm > 0)
-                    {
-                        continue;
-                    }
+                    d.RemainingDistanceNm -= aircraft.GroundSpeed * deltaSeconds / 3600.0;
+                    isReady = d.RemainingDistanceNm <= 0;
                 }
                 else
                 {
                     d.RemainingSeconds -= deltaSeconds;
-                    if (d.RemainingSeconds > 0)
+                    isReady = d.RemainingSeconds <= 0;
+                }
+
+                if (isReady)
+                {
+                    (ready ??= []).Add(d);
+                }
+            }
+
+            if (ready is null)
+            {
+                continue;
+            }
+
+            foreach (var d in ready)
+            {
+                aircraft.DeferredDispatches.Remove(d);
+            }
+
+            // DispatchCompound clears DeferredDispatches to supersede pending waits when a NEW command
+            // is issued; a deferred RE-dispatch must not cancel its still-pending siblings (e.g. a second
+            // reaction-delayed command waiting its turn). Detach the survivors across the dispatch and
+            // restore them ahead of any deferral a payload itself adds, preserving issue order.
+            var survivingDeferrals = new List<DeferredDispatch>(aircraft.DeferredDispatches);
+            aircraft.DeferredDispatches.Clear();
+
+            foreach (var d in ready)
+            {
+                // Reaction delays (the command-run delay) fire silently — the controller already saw
+                // the "complying in Ns" acknowledgement when the command was issued. WAIT/BEHIND/distance
+                // deferrals were explicitly requested, so they still announce themselves.
+                if (!d.IsReactionDelay)
+                {
+                    var payloadDesc = DescribeDeferredPayload(d);
+                    string conditionDesc;
+                    if (d.GiveWayTarget is not null)
                     {
-                        continue;
+                        conditionDesc = $"Give-way cleared ({d.GiveWayTarget})";
                     }
-                }
+                    else if (d.IsDistanceBased)
+                    {
+                        conditionDesc = "Distance reached";
+                    }
+                    else
+                    {
+                        conditionDesc = "WAIT expired";
+                    }
 
-                aircraft.DeferredDispatches.RemoveAt(i);
-
-                var payloadDesc = DescribeDeferredPayload(d);
-                string conditionDesc;
-                if (d.GiveWayTarget is not null)
-                {
-                    conditionDesc = $"Give-way cleared ({d.GiveWayTarget})";
+                    _logger.LogInformation("[Deferred] {Callsign}: {Condition} → {Payload}", aircraft.Callsign, conditionDesc, payloadDesc);
+                    EmitTerminal("System", aircraft.Callsign, $"[Deferred] {conditionDesc} → {payloadDesc}");
                 }
-                else if (d.IsDistanceBased)
-                {
-                    conditionDesc = "Distance reached";
-                }
-                else
-                {
-                    conditionDesc = "WAIT expired";
-                }
-
-                _logger.LogInformation("[Deferred] {Callsign}: {Condition} → {Payload}", aircraft.Callsign, conditionDesc, payloadDesc);
-                EmitTerminal("System", aircraft.Callsign, $"[Deferred] {conditionDesc} → {payloadDesc}");
 
                 var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
                 var deferredCtx = new DispatchContext(
@@ -1617,6 +1756,11 @@ public sealed class SimulationEngine
                     Scenario?.ElapsedSeconds ?? 0
                 );
                 CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
+            }
+
+            if (survivingDeferrals.Count > 0)
+            {
+                aircraft.DeferredDispatches.InsertRange(0, survivingDeferrals);
             }
         }
     }
@@ -2472,7 +2616,9 @@ public sealed class SimulationEngine
         }
     }
 
-    private void ReplayCommand(RecordedCommand cmd)
+    // Public for tests (replay-determinism of the command-run delay); production drives this through
+    // the Replay / FastForwardTo entry points.
+    public void ReplayCommand(RecordedCommand cmd)
     {
         // Track and AS-prefix commands run before the aircraft-exists guard so per-connection
         // active-position state still updates when the addressed aircraft hasn't spawned yet
@@ -2551,6 +2697,22 @@ public sealed class SimulationEngine
         var replayResult = CommandParser.ParseCompound(cmd.Command, aircraft.FlightPlan.Route);
         if (!replayResult.IsSuccess)
         {
+            return;
+        }
+
+        // Recorded command-run delay: reproduce the exact delay sampled at the live run rather than
+        // re-rolling (a re-roll would draw from a divergent RNG state and break determinism). The
+        // deferral fires through ProcessDeferredDispatches during replay ticking, exactly as it did live.
+        if (cmd.ReactionDelaySeconds is double recordedReactionSeconds)
+        {
+            aircraft.DeferredDispatches.Add(
+                new DeferredDispatch(recordedReactionSeconds, replayResult.Value!) { SourceText = cmd.Command, IsReactionDelay = true }
+            );
+            if (Scenario?.SoloTrainingMode == true)
+            {
+                SoloTrainingEvaluator.RecordControllerCommand(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
+                PilotRequestTracker.ApplyControllerResponse(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0);
+            }
             return;
         }
 
@@ -2645,6 +2807,18 @@ public sealed class SimulationEngine
                 if (int.TryParse(setting.Value, out var seconds))
                 {
                     scenario.AutoAcceptDelay = seconds < 0 ? TimeSpan.FromSeconds(-1) : TimeSpan.FromSeconds(Math.Clamp(seconds, 0, 60));
+                }
+                break;
+            case "CommandRunDelayMinSeconds":
+                if (int.TryParse(setting.Value, out var crdMin))
+                {
+                    scenario.CommandRunDelayMinSeconds = Math.Clamp(crdMin, 0, 60);
+                }
+                break;
+            case "CommandRunDelayMaxSeconds":
+                if (int.TryParse(setting.Value, out var crdMax))
+                {
+                    scenario.CommandRunDelayMaxSeconds = Math.Clamp(crdMax, 0, 60);
                 }
                 break;
             case "AutoDeleteMode":

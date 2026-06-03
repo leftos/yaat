@@ -424,6 +424,7 @@ public partial class MainViewModel
         ApplySessionSettingsFromLoadScenarioResult(result);
 
         _ = SendAutoAcceptDelay();
+        _ = SendCommandRunDelay();
         _ = SendAutoDeleteMode();
         _ = SendValidateDctFixes();
         _ = SendSoloTrainingMode();

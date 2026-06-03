@@ -301,6 +301,13 @@ public sealed class DeferredDispatch
     /// </summary>
     public string? SourceText { get; init; }
 
+    /// <summary>
+    /// True when this is an automatic pilot-reaction delay (the command-run delay) rather than a
+    /// controller-authored WAIT/BEHIND. Reaction delays fire silently (no "[Deferred]" terminal line):
+    /// the controller already saw the "complying in Ns" acknowledgement when the command was issued.
+    /// </summary>
+    public bool IsReactionDelay { get; init; }
+
     public DeferredDispatch(double seconds, Commands.CompoundCommand payload)
     {
         RemainingSeconds = seconds;
@@ -328,6 +335,7 @@ public sealed class DeferredDispatch
             IsDistanceBased = IsDistanceBased,
             GiveWayTarget = GiveWayTarget,
             SourceText = SourceText,
+            IsReactionDelay = IsReactionDelay,
         };
 
     public static DeferredDispatch? FromSnapshot(DeferredDispatchDto dto)
@@ -353,6 +361,6 @@ public sealed class DeferredDispatch
             return new DeferredDispatch(parseResult.Value!, dto.RemainingDistanceNm) { SourceText = dto.SourceText };
         }
 
-        return new DeferredDispatch(dto.RemainingSeconds, parseResult.Value!) { SourceText = dto.SourceText };
+        return new DeferredDispatch(dto.RemainingSeconds, parseResult.Value!) { SourceText = dto.SourceText, IsReactionDelay = dto.IsReactionDelay };
     }
 }

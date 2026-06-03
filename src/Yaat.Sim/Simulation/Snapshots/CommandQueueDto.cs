@@ -57,4 +57,8 @@ public sealed class DeferredDispatchDto
     public required bool IsDistanceBased { get; init; }
     public string? GiveWayTarget { get; init; }
     public string? SourceText { get; init; }
+
+    // Optional — defaults false so older snapshots deserialize as controller-authored WAIT/BEHIND
+    // deferrals (predates the command-run delay).
+    public bool IsReactionDelay { get; init; }
 }

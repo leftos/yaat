@@ -151,6 +151,17 @@ public sealed class SimScenarioState
     // alongside navigation/custom data; not snapshotted.
     public WakeDirectiveCatalog WakeDirectives { get; set; } = WakeDirectiveCatalog.Empty;
 
+    /// <summary>
+    /// Pilot-reaction "command run delay" range. When <see cref="CommandRunDelayMaxSeconds"/> &gt; 0,
+    /// each pilot-actionable command takes effect a sampled [min, max] seconds after the controller
+    /// issues it, simulating the time a pilot needs to set up the FMC / autopilot panel. 0/0 disables
+    /// (the default — opt-in teaching tool). Equal min and max produce a fixed delay. The user-facing
+    /// default lives in client UserPreferences (also 0) and is pushed to the server at scenario load.
+    /// </summary>
+    public int CommandRunDelayMinSeconds { get; set; }
+
+    public int CommandRunDelayMaxSeconds { get; set; }
+
     // Timing and settings
     public TimeSpan AutoAcceptDelay { get; set; } = TimeSpan.FromSeconds(5);
     public bool IsStudentTowerPosition { get; set; }
@@ -178,6 +189,8 @@ public sealed class SimScenarioState
             RpoShowPilotSpeech = RpoShowPilotSpeech,
             IsPaused = IsPaused,
             SimRate = SimRate,
+            CommandRunDelayMinSeconds = CommandRunDelayMinSeconds,
+            CommandRunDelayMaxSeconds = CommandRunDelayMaxSeconds,
             AutoAcceptDelaySeconds = AutoAcceptDelay.TotalSeconds,
             IsStudentTowerPosition = IsStudentTowerPosition,
             ScenarioAutoDeleteMode = ScenarioAutoDeleteMode,

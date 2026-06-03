@@ -25,6 +25,16 @@ public sealed class SimulationWorld
     internal const int CompletedAircraftCapacity = 500;
 
     public SerializableRandom Rng { get; set; } = new SerializableRandom(0);
+
+    /// <summary>
+    /// Dedicated RNG for sampling per-command pilot-reaction delays (the command-run delay). Kept
+    /// separate from <see cref="Rng"/> so reaction sampling never perturbs the shared RNG stream that
+    /// drives replay-critical emergent events (spontaneous go-arounds, generator spawn timing).
+    /// Live-only: replays reproduce the exact delay baked into the recorded command rather than
+    /// re-sampling, so this RNG is never consumed during replay and is intentionally not snapshotted.
+    /// </summary>
+    public SerializableRandom ReactionDelayRng { get; set; } = new SerializableRandom(0);
+
     public WeatherProfile? Weather { get; set; }
     public AirportGroundLayout? GroundLayout { get; set; }
     public FrequencyState ActiveFrequency { get; } = new();

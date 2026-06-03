@@ -413,8 +413,9 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 
 | Aspect | ATCTrainer | YAAT |
 |--------|-----------|------|
-| Delayable commands | Yes — static delay on "Delayable" commands; configurable in seconds | `WAIT` for wait N seconds, `WAITD` for wait N flying miles |
-| Syntax error timing | Errors shown after delay completes | Immediate |
+| Automatic command-run delay | Yes — static delay on "Delayable" commands; configurable in seconds | Yes — configurable min–max range (random per command; equal = fixed), simulating pilot reaction / FMC setup. Off by default. Frequency changes and `WAIT`/`BEHIND`-timed commands are exempt |
+| Per-command explicit delay | — | `WAIT` for wait N seconds, `WAITD` for wait N flying miles |
+| Command-received feedback | Errors shown after delay completes | Immediate "Pilot complying in Ns" acknowledgement; the maneuver (and solo read-back) follow after the delay. Parse errors are still immediate |
 
 ### Private Messages
 

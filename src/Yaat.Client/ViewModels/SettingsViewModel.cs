@@ -142,6 +142,12 @@ public partial class SettingsViewModel : ObservableObject
     private int _autoAcceptDelaySeconds;
 
     [ObservableProperty]
+    private int _commandRunDelayMinSeconds;
+
+    [ObservableProperty]
+    private int _commandRunDelayMaxSeconds;
+
+    [ObservableProperty]
     private int _selectedAutoDeleteIndex;
 
     [ObservableProperty]
@@ -569,6 +575,8 @@ public partial class SettingsViewModel : ObservableObject
         _adminPassword = _preferences.AdminPassword;
         _autoAcceptEnabled = _preferences.AutoAcceptEnabled;
         _autoAcceptDelaySeconds = _preferences.AutoAcceptDelaySeconds;
+        _commandRunDelayMinSeconds = _preferences.CommandRunDelayMinSeconds;
+        _commandRunDelayMaxSeconds = _preferences.CommandRunDelayMaxSeconds;
         _selectedAutoDeleteIndex = AutoDeleteOverrideToIndex(_preferences.AutoDeleteOverride);
         _validateDctFixes = _preferences.ValidateDctFixes;
         _euroScopeMode = _preferences.EuroScopeMode;
@@ -696,6 +704,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetTrainingKey(TrainingKey);
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
+        _preferences.SetCommandRunDelay(CommandRunDelayMinSeconds, CommandRunDelayMaxSeconds);
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
         _preferences.SetValidateDctFixes(ValidateDctFixes);
         _preferences.SetRpoShowPilotSpeech(RpoShowPilotSpeech);

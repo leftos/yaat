@@ -162,6 +162,28 @@
                         </StackPanel>
                     </StackPanel>
                     <StackPanel Spacing="4">
+                        <TextBlock Text="Command run delay (seconds):"
+                                   Foreground="{DynamicResource SubtleTextBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="Min" VerticalAlignment="Center" Foreground="{DynamicResource SubtleTextBrush}" />
+                            <NumericUpDown Value="{Binding CommandRunDelayMinSeconds}"
+                                           Minimum="0"
+                                           Maximum="60"
+                                           Increment="1"
+                                           Width="110" />
+                            <TextBlock Text="Max" VerticalAlignment="Center" Foreground="{DynamicResource SubtleTextBrush}" />
+                            <NumericUpDown Value="{Binding CommandRunDelayMaxSeconds}"
+                                           Minimum="0"
+                                           Maximum="60"
+                                           Increment="1"
+                                           Width="110" />
+                        </StackPanel>
+                        <TextBlock Text="Simulates pilot reaction / FMC setup time: commands take effect after a random delay in this range (set both equal for a fixed delay). A few seconds (e.g. 3-8) is realistic. Frequency changes are never delayed. Set max to 0 to disable."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
                         <TextBlock Text="Default Auto-Delete:"
                                    Foreground="{DynamicResource SubtleTextBrush}" />
                         <ComboBox ItemsSource="{Binding AutoDeleteOptions}"

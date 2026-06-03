@@ -482,6 +482,12 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("SetAutoAcceptDelay", seconds);
     }
 
+    public async Task SetCommandRunDelayAsync(int minSeconds, int maxSeconds)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetCommandRunDelay", minSeconds, maxSeconds);
+    }
+
     public async Task SetAutoDeleteModeAsync(string? mode)
     {
         EnsureConnected();
@@ -905,7 +911,9 @@ public record LoadScenarioResultDto(
     // Non-null implies Success == false; the message is a human-readable explanation the
     // client surfaces directly. Distinct from Warnings: gate denials get this dedicated field
     // so the UI can render them differently from general load issues.
-    string? AccessDeniedReason = null
+    string? AccessDeniedReason = null,
+    int CommandRunDelayMinSeconds = 0,
+    int CommandRunDelayMaxSeconds = 0
 );
 
 /// <summary>
@@ -969,7 +977,9 @@ public record RoomStateDto(
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null,
     RundownDto? Rundown = null,
-    List<TimerDto>? Timers = null
+    List<TimerDto>? Timers = null,
+    int CommandRunDelayMinSeconds = 0,
+    int CommandRunDelayMaxSeconds = 0
 );
 
 public record ScenarioLoadedDto(
@@ -998,7 +1008,9 @@ public record ScenarioLoadedDto(
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null,
     List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
-    List<ScenarioPositionDto>? Positions = null
+    List<ScenarioPositionDto>? Positions = null,
+    int CommandRunDelayMinSeconds = 0,
+    int CommandRunDelayMaxSeconds = 0
 );
 
 public record ScenarioPositionDto(string Id, string Callsign, string Name);
@@ -1035,7 +1047,9 @@ public record SessionSettingsDto(
     int SoloGoAroundProbabilityPercent,
     bool HasSoloParkingInitialCallupSource,
     bool HasSoloArrivalGeneratorSource,
-    bool RpoShowPilotSpeech
+    bool RpoShowPilotSpeech,
+    int CommandRunDelayMinSeconds = 0,
+    int CommandRunDelayMaxSeconds = 0
 );
 
 public record RoomMemberDto(string Cid, string Initials, string ArtccId);

@@ -46,6 +46,11 @@ public sealed class ScenarioSnapshotDto
     // orange-Warning behavior for sim-initiated pilot transmissions.
     public bool RpoShowPilotSpeech { get; init; }
 
+    // Command-run delay (pilot-reaction). Optional — defaults to 0 (disabled) so older snapshots and
+    // bundles replay with no command-run delay.
+    public int CommandRunDelayMinSeconds { get; init; }
+    public int CommandRunDelayMaxSeconds { get; init; }
+
     // Timing
     public required double AutoAcceptDelaySeconds { get; init; }
     public required bool IsStudentTowerPosition { get; init; }

@@ -132,6 +132,8 @@ public sealed class UserPreferences
     public SavedGridLayout? GridLayout => _data.GridLayout;
     public bool AutoAcceptEnabled => _data.AutoAcceptEnabled;
     public int AutoAcceptDelaySeconds => _data.AutoAcceptDelaySeconds;
+    public int CommandRunDelayMinSeconds => _data.CommandRunDelayMinSeconds;
+    public int CommandRunDelayMaxSeconds => _data.CommandRunDelayMaxSeconds;
     public string AutoDeleteOverride => _data.AutoDeleteOverride;
     public bool IsDataGridPoppedOut => _data.IsDataGridPoppedOut;
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
@@ -382,6 +384,14 @@ public sealed class UserPreferences
     {
         _data.AutoAcceptEnabled = enabled;
         _data.AutoAcceptDelaySeconds = Math.Clamp(delaySeconds, 0, 60);
+        Save();
+    }
+
+    public void SetCommandRunDelay(int minSeconds, int maxSeconds)
+    {
+        int max = Math.Clamp(maxSeconds, 0, 60);
+        _data.CommandRunDelayMaxSeconds = max;
+        _data.CommandRunDelayMinSeconds = Math.Clamp(minSeconds, 0, max);
         Save();
     }
 
@@ -1193,6 +1203,8 @@ public sealed class UserPreferences
             GridLayout = GetFieldOr<SavedGridLayout?>(obj, "gridLayout", null),
             AutoAcceptEnabled = GetFieldOr(obj, "autoAcceptEnabled", true),
             AutoAcceptDelaySeconds = GetFieldOr(obj, "autoAcceptDelaySeconds", 5),
+            CommandRunDelayMinSeconds = GetFieldOr(obj, "commandRunDelayMinSeconds", 0),
+            CommandRunDelayMaxSeconds = GetFieldOr(obj, "commandRunDelayMaxSeconds", 0),
             AutoDeleteOverride = GetFieldOr(obj, "autoDeleteOverride", ""),
             IsDataGridPoppedOut = GetFieldOr(obj, "isDataGridPoppedOut", false),
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
@@ -1440,6 +1452,8 @@ public sealed class UserPreferences
         public SavedGridLayout? GridLayout { get; set; }
         public bool AutoAcceptEnabled { get; set; } = true;
         public int AutoAcceptDelaySeconds { get; set; } = 5;
+        public int CommandRunDelayMinSeconds { get; set; }
+        public int CommandRunDelayMaxSeconds { get; set; }
         public string AutoDeleteOverride { get; set; } = "";
         public bool IsDataGridPoppedOut { get; set; }
         public bool IsGroundViewPoppedOut { get; set; }

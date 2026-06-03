@@ -257,6 +257,16 @@
                             </StackPanel>
                         </StackPanel>
 
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Command Run Delay:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <NumericUpDown Value="{Binding SessionCommandRunDelayMinSeconds}" Minimum="0" Maximum="60" Increment="1" Width="80" FormatString="0" Foreground="{DynamicResource TextControlForeground}" />
+                                <TextBlock Text="to" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                                <NumericUpDown Value="{Binding SessionCommandRunDelayMaxSeconds}" Minimum="0" Maximum="60" Increment="1" Width="80" FormatString="0" Foreground="{DynamicResource TextControlForeground}" />
+                                <TextBlock Text="sec (max 0 = off)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+
                         <CheckBox Content="Auto Cleared-to-Land"
                                   IsChecked="{Binding SessionAutoClearedToLand}" />
 

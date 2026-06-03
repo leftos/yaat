@@ -13,7 +13,15 @@ namespace Yaat.Sim.Simulation;
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
-    : RecordedAction(ElapsedSeconds);
+    : RecordedAction(ElapsedSeconds)
+{
+    /// <summary>
+    /// Final pilot-reaction delay in seconds applied to this command at the original live run, or null
+    /// if no command-run delay was active. Baked in so replays reproduce the exact delay rather than
+    /// re-sampling — re-sampling on replay would draw from a divergent RNG state and break determinism.
+    /// </summary>
+    public double? ReactionDelaySeconds { get; init; }
+}
 
 public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment) : RecordedAction(ElapsedSeconds);
 
