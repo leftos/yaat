@@ -1530,25 +1530,11 @@ public static class CommandDispatcher
             case HoldAtFixHoverCommand hfixH:
                 return PatternCommandHandler.TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null);
 
-            // Hold/resume during air taxi (airborne, so ground handler's IsOnGround check would reject)
-            case HoldPositionCommand when currentPhase is AirTaxiPhase:
-                aircraft.Ground.Hold = HoldDirective.HoldPosition;
-                return Ok("Hold position");
-            case ResumeCommand airTaxiResume when currentPhase is AirTaxiPhase:
-            {
-                var preClear = GroundCommandHandler.TryPreClearRouteCrossings(aircraft, airTaxiResume.CrossRunways);
-                if (!preClear.Success)
-                {
-                    return preClear;
-                }
-                var addHs = GroundCommandHandler.TryAddExplicitHoldShorts(aircraft, groundLayout, airTaxiResume.HoldShorts);
-                if (!addHs.Success)
-                {
-                    return addHs;
-                }
-                aircraft.Ground.Hold = null;
-                return Ok("Resume taxi");
-            }
+            // A helicopter air-taxiing or relocating is held with HPP (hover present position),
+            // which routes through the hold-command cases above into a VfrHold hover; to continue
+            // the relocation the controller re-issues ATXI/LAND @spot. The ground HOLD/RES verbs
+            // don't apply to an airborne heli — they fall through to TryHoldPosition/TryResumeTaxi,
+            // which reject with an on-the-ground message.
             case ResumeCommand hsResume
                 when currentPhase
                     is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort or HoldShortReason.RunwayCrossing } holdShort:
@@ -1685,10 +1671,40 @@ public static class CommandDispatcher
             Category = cat,
             DeltaSeconds = 0,
             Runway = runway,
-            FieldElevation = runway?.ElevationFt ?? 0,
+            FieldElevation = runway?.ElevationFt ?? ResolveFieldElevation(aircraft, groundLayout),
             GroundLayout = groundLayout,
             Logger = Log,
         };
+    }
+
+    /// <summary>
+    /// Field elevation (ft MSL) for an aircraft without an assigned runway — parked, taxiing, or a
+    /// helicopter air-taxi / relocation with no runway. Resolves the operating airport's elevation
+    /// rather than defaulting to 0 MSL, so a heli air-taxiing to a helipad descends to field level
+    /// (at a non-sea-level airport, nowhere near 0). Prefers <see cref="AircraftState.AirportId"/>
+    /// (the stable scenario-set operational airport), then the ground-layout airport, then the
+    /// flight-plan departure/destination.
+    /// </summary>
+    internal static double ResolveFieldElevation(AircraftState aircraft, AirportGroundLayout? groundLayout)
+    {
+        var navDb = NavigationDatabase.Instance;
+        if (aircraft.AirportId is { Length: > 0 } operatingAirport && navDb.GetAirportElevation(operatingAirport) is { } opElev)
+        {
+            return opElev;
+        }
+        if (groundLayout?.AirportId is { Length: > 0 } layoutAirport && navDb.GetAirportElevation(layoutAirport) is { } layoutElev)
+        {
+            return layoutElev;
+        }
+        if (aircraft.FlightPlan.Departure is { Length: > 0 } departure && navDb.GetAirportElevation(departure) is { } depElev)
+        {
+            return depElev;
+        }
+        if (aircraft.FlightPlan.Destination is { Length: > 0 } destination && navDb.GetAirportElevation(destination) is { } destElev)
+        {
+            return destElev;
+        }
+        return 0;
     }
 
     internal static RunwayInfo? ResolveRunway(AircraftState aircraft, string runwayId)

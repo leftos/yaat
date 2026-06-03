@@ -1697,7 +1697,7 @@ public sealed class SimulationEngine
             DeltaSeconds = deltaSeconds,
             Logger = _logger,
             Runway = runway,
-            FieldElevation = runway?.ElevationFt ?? 0,
+            FieldElevation = runway?.ElevationFt ?? CommandDispatcher.ResolveFieldElevation(aircraft, groundLayout),
             GroundLayout = groundLayout,
             Weather = World.Weather,
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,

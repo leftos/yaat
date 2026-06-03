@@ -591,6 +591,8 @@ Helicopters are detected automatically from the ICAO type designator. They use t
 | `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position) |
 | `LAND H1 NODEL` | Land at H1, exempt from auto-delete |
 
+While air-taxiing or on final to a spot (`ATXI`/`LAND`), `HPP` hovers the helicopter in place (re-issue `ATXI`/`LAND` to continue); any normal airborne command (`FH`, a turn, `CM`/`DM`, `SPD`, `DCT`) pulls it out of the relocation and flies the new clearance (a bare heading holds the current altitude). The ground `HOLD`/`RES` verbs don't apply to an airborne helicopter.
+
 Helicopters can also use all standard tower commands (`CTO`, `CLAND`, `LUAW`, `TG`, `SG`, `GA`) with runway assignments — they hover-taxi onto the runway, hold position, and take off/land like fixed-wing aircraft. This is typical for IFR operations. `CTO` requires a runway; `CTOPP` does not.
 
 For hovering in place or at a fix, use `HPP` and `HFIX <fix>` (see [Hold Commands](#hold-commands) below — both are no-orbit variants intended for helicopters).

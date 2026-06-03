@@ -1011,6 +1011,8 @@ Helicopters are detected automatically from the ICAO type designator (`H60`, `EC
 
 `ATXI` accepts every destination form: bare or `@`-prefixed parking/helipad IDs, bare or `$`-prefixed taxiway spots, and runway designators (targets the named threshold). Helicopters can also use the standard tower commands (`CTO`, `CLAND`, `LUAW`, etc.) when assigned to a runway — typical for IFR ops.
 
+While a helicopter is mid-air-taxi (or on final to a spot via `LAND`), `HPP` hovers it in place (re-issue `ATXI`/`LAND` to continue); any normal airborne command — `FH`, a turn, `CM`/`DM`, `SPD`, `DCT` — pulls it out of the relocation and flies the new clearance (a bare heading holds its current altitude). The ground `HOLD`/`RES` verbs don't apply to an airborne helicopter.
+
 **See [Helicopter Commands in COMMANDS.md](COMMANDS.md#helicopter-commands)** for all departure modifiers, spawning helicopter aircraft, and the full command list.
 
 ---

@@ -914,7 +914,6 @@ internal static class GroundCommandHandler
             FollowingPhase => "while following",
             HoldingShortPhase hs => hs.HoldShort.TargetName is { } target ? $"already short of {target}" : "already holding short",
             HoldingInPositionPhase or HoldingAfterPushbackPhase or HoldingAfterExitPhase => "already in position",
-            AirTaxiPhase => "during air taxi",
             _ => null,
         };
 

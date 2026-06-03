@@ -37,9 +37,22 @@ public sealed class AirTaxiPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        double fieldElev = ctx.Aircraft.Phases?.AssignedRunway?.ElevationFt ?? ctx.Aircraft.Altitude;
+        // Drop stale steering targets left by whatever the heli was doing before the air-taxi
+        // (a prior FH/CM leaves TargetTrueHeading + AssignedMagneticHeading/AssignedAltitude set;
+        // HelicopterTakeoff leaves a runway-heading target). Without this, FlightPhysics.UpdateHeading
+        // keeps snapping the heli back to the old heading every tick, so it flies a frozen heading
+        // straight past the spot instead of homing on it.
+        ctx.Targets.TargetTrueHeading = null;
+        ctx.Targets.AssignedMagneticHeading = null;
+        ctx.Targets.AssignedAltitude = null;
+        ctx.Targets.PreferredTurnDirection = null;
+        ctx.Targets.NavigationRoute.Clear();
+
+        // Field elevation comes from the airport (resolved in PhaseContext), not the current
+        // altitude. An airborne heli given ATXI/LAND must descend to the pad at field level, not
+        // hold an air-taxi altitude 100 ft above wherever it happened to be.
         double aglTarget = CategoryPerformance.AirTaxiAltitudeAgl(ctx.Category);
-        _targetAltitude = fieldElev + aglTarget;
+        _targetAltitude = ctx.FieldElevation + aglTarget;
 
         double maxSpeed = CategoryPerformance.AirTaxiSpeed(ctx.Category);
         ctx.Targets.TargetSpeed = maxSpeed;
@@ -90,9 +103,7 @@ public sealed class AirTaxiPhase : Phase
             }
             else
             {
-                double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, target);
-                double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-                ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
+                ctx.Targets.TargetTrueHeading = new TrueHeading(GeoMath.BearingTo(ctx.Aircraft.Position, target));
                 return false;
             }
         }
@@ -104,11 +115,11 @@ public sealed class AirTaxiPhase : Phase
         ctx.Targets.TargetSpeed = (dist >= BrakeStartNm) ? maxSpeed : maxSpeed * (dist / BrakeStartNm);
         ctx.Targets.TargetAltitude = _targetAltitude;
 
-        // Always navigate toward the target so any overshoot self-corrects.
+        // Always steer toward the target via the standard heading target (FlightPhysics.UpdateHeading
+        // turns the heli) so any overshoot self-corrects. Setting ctx.Aircraft.TrueHeading directly
+        // here is fragile: a stale ControlTargets.TargetTrueHeading would override it every tick.
         double brg = GeoMath.BearingTo(ctx.Aircraft.Position, target);
-        double turnRate = AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
-        double maxTurnAmount = turnRate * ctx.DeltaSeconds;
-        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, brg, maxTurnAmount);
+        ctx.Targets.TargetTrueHeading = new TrueHeading(brg);
 
         _timeSinceLastLog += ctx.DeltaSeconds;
         if (_timeSinceLastLog >= LogIntervalSeconds)
@@ -147,15 +158,13 @@ public sealed class AirTaxiPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        return cmd switch
-        {
-            CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
-            CanonicalCommandType.Resume => CommandAcceptance.Allowed,
-            CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected("helicopter is air-taxiing; only HOLD/RES, a new ATXI/LAND, or DEL apply"),
-        };
+        // Any airborne maneuvering command (FH, turns, CM/DM, SPD, DCT, a new ATXI/LAND, DEL) pulls
+        // the heli out of the air-taxi and hands control to the command queue. HPP (hover present
+        // position) and a re-issued ATXI/LAND are routed by the dispatcher's tower-command path
+        // before this gate; the ground HOLD/RES verbs don't apply to an airborne heli. The
+        // dispatcher dry-runs the command before clearing the phase, so ground commands that can't
+        // apply airborne (TAXI/PUSH) are rejected without orphaning the phase.
+        return CommandAcceptance.ClearsPhase;
     }
 
     public override PhaseDto ToSnapshot() =>

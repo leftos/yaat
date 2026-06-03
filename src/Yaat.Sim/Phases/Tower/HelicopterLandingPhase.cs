@@ -99,15 +99,16 @@ public sealed class HelicopterLandingPhase : Phase
             };
         }
 
-        // Before touchdown, go-around is always possible for helicopters
+        // Before touchdown, GA and EL/ER/EXIT are handled in-phase; every other airborne
+        // maneuvering command (FH, turns, CM/DM, SPD, DCT, DEL) pulls the heli off the descent
+        // and back to the command queue. The dispatcher dry-runs before clearing the phase.
         return cmd switch
         {
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
-            CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected("helicopter is on final to a landing spot; only GA, EL/ER/EXIT, or DEL apply"),
+            _ => CommandAcceptance.ClearsPhase,
         };
     }
 }
