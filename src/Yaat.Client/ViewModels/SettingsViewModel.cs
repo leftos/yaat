@@ -363,6 +363,18 @@ public partial class SettingsViewModel : ObservableObject
     private int _groundLabelFontSize;
 
     [ObservableProperty]
+    private int _terminalFontSize;
+
+    [ObservableProperty]
+    private int _interfaceFontSize;
+
+    [ObservableProperty]
+    private int _stripsZoomPercent;
+
+    [ObservableProperty]
+    private int _tdlsZoomPercent;
+
+    [ObservableProperty]
     private bool _groundHideDataBlocksByDefault;
 
     [ObservableProperty]
@@ -671,6 +683,10 @@ public partial class SettingsViewModel : ObservableObject
         _radarFlyoutFontSize = _preferences.RadarFlyoutFontSize;
         _groundDatablockFontSize = _preferences.GroundDatablockFontSize;
         _groundLabelFontSize = _preferences.GroundLabelFontSize;
+        _terminalFontSize = _preferences.TerminalFontSize;
+        _interfaceFontSize = _preferences.InterfaceFontSize;
+        _stripsZoomPercent = _preferences.StripsZoomPercent;
+        _tdlsZoomPercent = _preferences.TdlsZoomPercent;
         _groundHideDataBlocksByDefault = _preferences.GroundHideDataBlocksByDefault;
         LoadMacros();
     }
@@ -791,12 +807,18 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
         _preferences.SetAutoExpandSuggestionOnEnter(AutoExpandSuggestionOnEnter);
         _preferences.SetFontSizes(
-            radarDatablock: RadarDatablockFontSize,
-            radarFlyout: RadarFlyoutFontSize,
-            groundDatablock: GroundDatablockFontSize,
-            groundLabel: GroundLabelFontSize,
-            dataGrid: DataGridFontSize
+            new FontSizePrefs(
+                RadarDatablock: RadarDatablockFontSize,
+                RadarFlyout: RadarFlyoutFontSize,
+                GroundDatablock: GroundDatablockFontSize,
+                GroundLabel: GroundLabelFontSize,
+                DataGrid: DataGridFontSize,
+                Terminal: TerminalFontSize,
+                Interface: InterfaceFontSize
+            )
         );
+        _preferences.SetStripsZoomPercent(StripsZoomPercent);
+        _preferences.SetTdlsZoomPercent(TdlsZoomPercent);
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
         SaveMacros();
         Saved = true;
@@ -1512,6 +1534,14 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnGroundDatablockFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnGroundLabelFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnInterfaceFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnStripsZoomPercentChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTdlsZoomPercentChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnGroundHideDataBlocksByDefaultChanged(bool value) => VisualSettingsChanged?.Invoke();
 

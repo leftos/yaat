@@ -3,6 +3,12 @@
              x:Class="Yaat.Client.App"
              RequestedThemeVariant="Dark">
     <Application.Resources>
+        <!-- Interface font sizes. Updated live from UserPreferences.InterfaceFontSize
+             via App.ApplyInterfaceFontSize so the global control styles below resize
+             across every window and the embedded Strips/TDLS panels. -->
+        <x:Double x:Key="UiFontSize">12</x:Double>
+        <x:Double x:Key="UiFontSizeSubtle">11</x:Double>
+        <x:Double x:Key="UiFontSizeHeader">13</x:Double>
         <SolidColorBrush x:Key="SubtleTextBrush" Color="#B0B0B0" />
         <!-- Embedded JetBrains Mono is primary so the strip view renders the
              same monospace shape on desktop and in the WASM browser tab.
@@ -42,18 +48,20 @@
         <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
         <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
 
-        <!-- Smaller default font for data-dense ATC display -->
+        <!-- Smaller default font for data-dense ATC display. FontSize is driven by
+             the UiFontSize dynamic resource so the Interface font-size preference
+             rescales tabs, buttons, lists, and panels live. -->
         <Style Selector="TextBlock">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
         </Style>
         <Style Selector="TextBox">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
         </Style>
         <Style Selector="Button">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
         </Style>
         <Style Selector="ComboBox">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
         </Style>
         <Style Selector="DataGridColumnHeader">
             <Setter Property="FontSize" Value="12" />
@@ -83,7 +91,7 @@
             <Setter Property="Fill" Value="{DynamicResource DataGridSelectedRowHoverBrush}" />
         </Style>
         <Style Selector="TabItem">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
         </Style>
 
         <!-- Heading styles -->
@@ -97,7 +105,7 @@
         </Style>
         <Style Selector="TextBlock.subtle">
             <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSubtle}" />
         </Style>
     </Application.Styles>
 </Application>

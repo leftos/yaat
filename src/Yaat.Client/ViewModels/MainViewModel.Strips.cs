@@ -47,7 +47,10 @@ public partial class MainViewModel
         // New entry — constructed with autoBootstrapFromScenarioLoaded=false so
         // it doesn't try to auto-apply the student's scenario config. Instead
         // we switch it to the requested facility immediately via the RPC.
-        var vm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials, autoBootstrapFromScenarioLoaded: false);
+        var vm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials, autoBootstrapFromScenarioLoaded: false)
+        {
+            ZoomScale = _preferences.StripsZoomPercent / 100.0,
+        };
         var entry = new VStripsDockEntryViewModel(vm, isStudentEntry: false);
         StripsEntries.Add(entry);
 
@@ -69,6 +72,17 @@ public partial class MainViewModel
             return;
         }
         StripsEntries.Remove(entry);
+    }
+
+    /// <summary>Applies a page-zoom percent to every open strips tab. Used by the
+    /// Settings live preview / apply / revert paths.</summary>
+    public void ApplyStripsZoomPercent(int percent)
+    {
+        double scale = percent / 100.0;
+        foreach (var entry in StripsEntries)
+        {
+            entry.Vm.ZoomScale = scale;
+        }
     }
 
     private void OnStripsEntriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -93,11 +107,13 @@ public partial class MainViewModel
     private void SubscribeStripsEntry(VStripsDockEntryViewModel entry)
     {
         entry.PropertyChanged += OnStripsEntryPropertyChanged;
+        entry.Vm.PropertyChanged += OnStripsZoomChanged;
     }
 
     private void UnsubscribeStripsEntry(VStripsDockEntryViewModel entry)
     {
         entry.PropertyChanged -= OnStripsEntryPropertyChanged;
+        entry.Vm.PropertyChanged -= OnStripsZoomChanged;
     }
 
     private void OnStripsEntryPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -110,5 +126,23 @@ public partial class MainViewModel
             }
             OnTabPoppedOutChanged();
         }
+    }
+
+    /// <summary>
+    /// Persists the strips page-zoom whenever the user adjusts it via the panel's
+    /// on-panel zoom buttons so it survives restarts. Suppressed while the Settings
+    /// dialog is open — those transient preview values must not be written.
+    /// </summary>
+    private void OnStripsZoomChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(VStripsViewModel.ZoomScale) || sender is not VStripsViewModel vm)
+        {
+            return;
+        }
+        if (IsSettingsPreviewActive)
+        {
+            return;
+        }
+        _preferences.SetStripsZoomPercent((int)Math.Round(vm.ZoomScale * 100));
     }
 }

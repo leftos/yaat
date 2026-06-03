@@ -21,6 +21,7 @@
             <TextBox Text="{Binding CommandText}"
                      CaretIndex="{Binding CommandCaretIndex, Mode=TwoWay}"
                      Watermark="Enter command (FH 270, CM 240...)"
+                     FontSize="{Binding TerminalFontSize}"
                      x:Name="CommandInput">
                 <TextBox.ContextFlyout>
                     <MenuFlyout>

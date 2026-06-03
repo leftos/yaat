@@ -61,6 +61,10 @@ public partial class MainWindow : Window
         var vm = new MainViewModel(new AvaloniaFilePickerService(this));
         DataContext = vm;
 
+        // Apply the saved Interface font size into the app-level dynamic resources
+        // so tabs/buttons/lists/panels render at the user's preferred size from launch.
+        App.ApplyInterfaceFontSize(vm.Preferences.InterfaceFontSize);
+
         _geometryHelper = new WindowGeometryHelper(this, vm.Preferences, "Main", 1200, 700);
         _geometryHelper.Restore();
         _geometryHelper.SetBaseTitle(vm.WindowTitle);
@@ -2557,6 +2561,15 @@ public partial class MainWindow : Window
         var snapshotUnassignedTintEnabled = vm.Preferences.UnassignedTintEnabled;
         var snapshotUnassignedTintColor = vm.Preferences.UnassignedTintColor;
         var snapshotSelectedColor = vm.Preferences.SelectedColor;
+        var snapshotTerminalFontSize = vm.TerminalFontSize;
+        var snapshotInterfaceFontSize = vm.Preferences.InterfaceFontSize;
+        var snapshotStripsZoomPercent = vm.Preferences.StripsZoomPercent;
+        var snapshotTdlsZoomPercent = vm.Preferences.TdlsZoomPercent;
+
+        // Suppress the strips on-panel zoom-persist path while the dialog is open so
+        // transient preview values aren't written to preferences (final value is
+        // persisted by the dialog's Save).
+        vm.IsSettingsPreviewActive = true;
 
         var dialog = new SettingsWindow(vm.Preferences, vm.AudioCapture, vm.SpeechSampleStore);
         var settingsVm = dialog.DataContext as SettingsViewModel;
@@ -2580,6 +2593,10 @@ public partial class MainWindow : Window
             // Apply final saved state (non-visual settings like keybinds, command scheme)
             vm.RefreshCommandScheme();
             vm.DataGridScale = vm.Preferences.DataGridFontSize / 12.0;
+            vm.TerminalFontSize = vm.Preferences.TerminalFontSize;
+            App.ApplyInterfaceFontSize(vm.Preferences.InterfaceFontSize);
+            vm.ApplyStripsZoomPercent(vm.Preferences.StripsZoomPercent);
+            vm.ApplyTdlsZoomPercent(vm.Preferences.TdlsZoomPercent);
             vm.RefreshIsSpeechEnabledFromPrefs();
             vm.RefreshWindowTitleFromPrefs();
             ApplyKeybinds(vm.Preferences);
@@ -2598,11 +2615,17 @@ public partial class MainWindow : Window
             vm.Ground.VideoMapOverlayBrightness = snapshotMapBrightness;
             vm.Ground.YaatLayoutBrightness = snapshotGndBrightness;
             vm.DataGridScale = snapshotDataGridScale;
+            vm.TerminalFontSize = snapshotTerminalFontSize;
+            App.ApplyInterfaceFontSize(snapshotInterfaceFontSize);
+            vm.ApplyStripsZoomPercent(snapshotStripsZoomPercent);
+            vm.ApplyTdlsZoomPercent(snapshotTdlsZoomPercent);
             vm.Preferences.SetAssignmentTint(snapshotAssignmentTintEnabled, snapshotAssignmentTintColor);
             vm.Preferences.SetUnassignedTint(snapshotUnassignedTintEnabled, snapshotUnassignedTintColor);
             vm.Preferences.SetSelectedColor(snapshotSelectedColor);
             SyncAllRadarViewTint();
         }
+
+        vm.IsSettingsPreviewActive = false;
 
         return;
 
@@ -2620,6 +2643,10 @@ public partial class MainWindow : Window
                 vm.Ground.VideoMapOverlayBrightness = settingsVm.GroundVideoMapOverlayBrightness;
                 vm.Ground.YaatLayoutBrightness = settingsVm.GroundYaatLayoutBrightness;
                 vm.DataGridScale = settingsVm.DataGridFontSize / 12.0;
+                vm.TerminalFontSize = settingsVm.TerminalFontSize;
+                App.ApplyInterfaceFontSize(settingsVm.InterfaceFontSize);
+                vm.ApplyStripsZoomPercent(settingsVm.StripsZoomPercent);
+                vm.ApplyTdlsZoomPercent(settingsVm.TdlsZoomPercent);
                 vm.Preferences.SetAssignmentTint(settingsVm.AssignmentTintEnabled, settingsVm.AssignmentTintColor);
                 vm.Preferences.SetUnassignedTint(settingsVm.UnassignedTintEnabled, settingsVm.UnassignedTintColor);
                 vm.Preferences.SetSelectedColor(settingsVm.SelectedColor);

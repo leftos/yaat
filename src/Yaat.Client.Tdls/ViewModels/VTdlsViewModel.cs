@@ -72,6 +72,14 @@ public partial class VTdlsViewModel : ObservableObject
     [ObservableProperty]
     private bool _isDarkMode;
 
+    /// <summary>
+    /// Page-zoom scale applied to the whole vTDLS surface via a LayoutTransformControl
+    /// (web-style zoom, mirroring the strips panel). 1.0 = 100%. The host seeds this
+    /// from the TDLS zoom preference; this VM stays preference-free.
+    /// </summary>
+    [ObservableProperty]
+    private double _zoomScale = 1.0;
+
     partial void OnSelectedItemChanged(TdlsItemViewModel? oldValue, TdlsItemViewModel? newValue)
     {
         if (oldValue is not null)

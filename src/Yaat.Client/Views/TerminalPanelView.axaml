@@ -102,7 +102,7 @@
                        IsReadOnly="True"
                        ShowLineNumbers="False"
                        FontFamily="{StaticResource MonoFont}"
-                       FontSize="12"
+                       FontSize="{Binding TerminalFontSize}"
                        WordWrap="True"
                        Background="#1A1A1E"
                        Foreground="White"

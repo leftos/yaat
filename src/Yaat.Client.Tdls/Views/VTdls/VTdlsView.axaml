@@ -65,6 +65,12 @@
         </Style>
     </UserControl.Styles>
 
+    <!-- Page-zoom wrapper: scales the whole vTDLS surface uniformly (web-style
+         zoom), driven by VTdlsViewModel.ZoomScale from the TDLS zoom preference. -->
+    <LayoutTransformControl>
+        <LayoutTransformControl.LayoutTransform>
+            <ScaleTransform ScaleX="{Binding ZoomScale}" ScaleY="{Binding ZoomScale}" />
+        </LayoutTransformControl.LayoutTransform>
     <Grid RowDefinitions="28,Auto,*,Auto,22">
 
         <!-- ── Top chrome bar (header) ─────────────────────────────────────
@@ -449,4 +455,5 @@
                        Padding="8,4"/>
         </Border>
     </Grid>
+    </LayoutTransformControl>
 </UserControl>

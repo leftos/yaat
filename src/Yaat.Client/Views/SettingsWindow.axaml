@@ -263,7 +263,7 @@
                     <StackPanel Margin="12" Spacing="12">
                         <TextBlock Text="Font Sizes"
                                    FontWeight="SemiBold" />
-                        <Grid ColumnDefinitions="200,120" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
+                        <Grid ColumnDefinitions="200,120" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Aircraft List"
                                        Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
                             <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding DataGridFontSize}"
@@ -284,8 +284,24 @@
                                        Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
                             <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding GroundLabelFontSize}"
                                            Minimum="8" Maximum="24" Increment="1" />
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Terminal (output + input)"
+                                       Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="5" Grid.Column="1" Value="{Binding TerminalFontSize}"
+                                           Minimum="8" Maximum="24" Increment="1" />
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Interface (tabs, buttons, lists)"
+                                       Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="6" Grid.Column="1" Value="{Binding InterfaceFontSize}"
+                                           Minimum="8" Maximum="24" Increment="1" />
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="Strips Zoom %"
+                                       Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="7" Grid.Column="1" Value="{Binding StripsZoomPercent}"
+                                           Minimum="50" Maximum="200" Increment="10" />
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="vTDLS Zoom %"
+                                       Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="8" Grid.Column="1" Value="{Binding TdlsZoomPercent}"
+                                           Minimum="50" Maximum="200" Increment="10" />
                         </Grid>
-                        <TextBlock Text="Defaults: 12 for datablocks/lists, 13 for ground labels. Aircraft list also responds to Ctrl+Plus / Ctrl+Minus / Ctrl+0 while focused."
+                        <TextBlock Text="Defaults: 12 for datablocks/lists/terminal/interface, 13 for ground labels, Strips 80% / vTDLS 100%. Aircraft list also responds to Ctrl+Plus / Ctrl+Minus / Ctrl+0 while focused; Strips also has on-panel zoom buttons."
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource SubtleTextBrush}"
                                    FontSize="11" />

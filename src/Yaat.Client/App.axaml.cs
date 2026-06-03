@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -15,6 +16,25 @@ public class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+    }
+
+    /// <summary>
+    /// Pushes the user's Interface font size into the application-level dynamic
+    /// resources the global control styles bind to. Updates propagate live to every
+    /// window plus the embedded Strips/TDLS panels (one shared Application). The
+    /// subtle-text size tracks one point below the base, floored at 8.
+    /// </summary>
+    public static void ApplyInterfaceFontSize(int size)
+    {
+        if (Current is null)
+        {
+            return;
+        }
+
+        int clamped = Math.Clamp(size, 8, 24);
+        Current.Resources["UiFontSize"] = (double)clamped;
+        Current.Resources["UiFontSizeSubtle"] = (double)Math.Max(8, clamped - 1);
+        Current.Resources["UiFontSizeHeader"] = (double)(clamped + 1);
     }
 
     public override void OnFrameworkInitializationCompleted()

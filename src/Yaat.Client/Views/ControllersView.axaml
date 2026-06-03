@@ -65,7 +65,7 @@
                                     <TextBlock Grid.Column="0"
                                                Text="{Binding Header}"
                                                FontWeight="Bold"
-                                               FontSize="13"
+                                               FontSize="{DynamicResource UiFontSizeHeader}"
                                                Foreground="#2DD4BF" />
                                     <TextBlock Grid.Column="1"
                                                Text="▾"

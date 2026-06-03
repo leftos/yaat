@@ -587,6 +587,15 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private double _dataGridScale = 1.0;
 
+    /// <summary>Terminal output + command-input font size (points). Seeded from
+    /// <see cref="UserPreferences.TerminalFontSize"/>; applied via XAML bindings.</summary>
+    [ObservableProperty]
+    private double _terminalFontSize = 12;
+
+    /// <summary>True while the Settings dialog is open so the strips on-panel zoom
+    /// persistence path skips the transient values pushed during live preview.</summary>
+    public bool IsSettingsPreviewActive { get; set; }
+
     [ObservableProperty]
     private string _distanceReferenceFix = "";
 
@@ -1184,7 +1193,10 @@ public partial class MainViewModel : ObservableObject
         Radar.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
         // Student entry is always the first strips entry. Additional
         // per-facility entries are appended via OpenStripsEntryForFacilityAsync.
-        var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials);
+        var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
+        {
+            ZoomScale = _preferences.StripsZoomPercent / 100.0,
+        };
         StripsEntries.Add(new VStripsDockEntryViewModel(studentVm, isStudentEntry: true));
         // Subscribe so a strip tab being popped out / docked feeds the same
         // tab-visibility bookkeeping as the three fixed tabs (collapses the
@@ -1201,6 +1213,7 @@ public partial class MainViewModel : ObservableObject
         var studentTdlsVm = new VTdlsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
         {
             IsDarkMode = _preferences.IsVTdlsDarkMode,
+            ZoomScale = _preferences.TdlsZoomPercent / 100.0,
         };
         TdlsEntries.Add(new VTdlsDockEntryViewModel(studentTdlsVm, isStudentEntry: true));
         // SubscribeTdlsEntry hooks both entry-level (pop-out) and VM-level
@@ -1209,6 +1222,7 @@ public partial class MainViewModel : ObservableObject
         TdlsEntries.CollectionChanged += OnTdlsEntriesCollectionChanged;
 
         _dataGridScale = _preferences.DataGridFontSize / 12.0;
+        _terminalFontSize = _preferences.TerminalFontSize;
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
         IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;

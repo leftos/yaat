@@ -28,6 +28,21 @@ public sealed partial class SavedServer : ObservableObject
     }
 }
 
+/// <summary>
+/// The user-configurable absolute font sizes (points) applied as true font sizes.
+/// Bundled into one record so <see cref="UserPreferences.SetFontSizes"/> stays a
+/// single-parameter call rather than a long positional list.
+/// </summary>
+public readonly record struct FontSizePrefs(
+    int RadarDatablock,
+    int RadarFlyout,
+    int GroundDatablock,
+    int GroundLabel,
+    int DataGrid,
+    int Terminal,
+    int Interface
+);
+
 public sealed class UserPreferences
 {
     private static readonly ILogger Log = AppLog.CreateLogger<UserPreferences>();
@@ -369,6 +384,10 @@ public sealed class UserPreferences
     public int RadarFlyoutFontSize => _data.RadarFlyoutFontSize;
     public int GroundDatablockFontSize => _data.GroundDatablockFontSize;
     public int GroundLabelFontSize => _data.GroundLabelFontSize;
+    public int TerminalFontSize => _data.TerminalFontSize;
+    public int InterfaceFontSize => _data.InterfaceFontSize;
+    public int StripsZoomPercent => _data.StripsZoomPercent;
+    public int TdlsZoomPercent => _data.TdlsZoomPercent;
 
     /// <summary>Raised when any font-size preference changes (debounced via the single Save call).</summary>
     public event Action? FontSizesChanged;
@@ -880,15 +899,35 @@ public sealed class UserPreferences
         FontSizesChanged?.Invoke();
     }
 
-    public void SetFontSizes(int radarDatablock, int radarFlyout, int groundDatablock, int groundLabel, int dataGrid)
+    public void SetFontSizes(FontSizePrefs sizes)
     {
-        _data.RadarDatablockFontSize = Math.Clamp(radarDatablock, 8, 24);
-        _data.RadarFlyoutFontSize = Math.Clamp(radarFlyout, 8, 24);
-        _data.GroundDatablockFontSize = Math.Clamp(groundDatablock, 8, 24);
-        _data.GroundLabelFontSize = Math.Clamp(groundLabel, 8, 24);
-        _data.DataGridFontSize = Math.Clamp(dataGrid, 8, 24);
+        _data.RadarDatablockFontSize = Math.Clamp(sizes.RadarDatablock, 8, 24);
+        _data.RadarFlyoutFontSize = Math.Clamp(sizes.RadarFlyout, 8, 24);
+        _data.GroundDatablockFontSize = Math.Clamp(sizes.GroundDatablock, 8, 24);
+        _data.GroundLabelFontSize = Math.Clamp(sizes.GroundLabel, 8, 24);
+        _data.DataGridFontSize = Math.Clamp(sizes.DataGrid, 8, 24);
+        _data.TerminalFontSize = Math.Clamp(sizes.Terminal, 8, 24);
+        _data.InterfaceFontSize = Math.Clamp(sizes.Interface, 8, 24);
         Save();
         FontSizesChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Persists the strips panel page-zoom (percent). Written both from Settings
+    /// and from the strips view's on-panel zoom buttons; no <see cref="FontSizesChanged"/>
+    /// fan-out since the zoom is applied straight to the strips view-models.
+    /// </summary>
+    public void SetStripsZoomPercent(int percent)
+    {
+        _data.StripsZoomPercent = Math.Clamp(percent, 50, 200);
+        Save();
+    }
+
+    /// <summary>Persists the vTDLS panel page-zoom (percent). Written from Settings.</summary>
+    public void SetTdlsZoomPercent(int percent)
+    {
+        _data.TdlsZoomPercent = Math.Clamp(percent, 50, 200);
+        Save();
     }
 
     public void SetGroundLabelFilters(bool runways, bool taxiways, GroundFilterMode holdShort, GroundFilterMode parking, GroundFilterMode spot)
@@ -1565,6 +1604,10 @@ public sealed class UserPreferences
         public int RadarFlyoutFontSize { get; set; } = 12;
         public int GroundDatablockFontSize { get; set; } = 12;
         public int GroundLabelFontSize { get; set; } = 13;
+        public int TerminalFontSize { get; set; } = 12;
+        public int InterfaceFontSize { get; set; } = 12;
+        public int StripsZoomPercent { get; set; } = 80;
+        public int TdlsZoomPercent { get; set; } = 100;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];
 
         // Per-scenario primary airport id (e.g. "KOAK"), keyed by ScenarioId. Recorded

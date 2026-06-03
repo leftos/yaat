@@ -43,12 +43,24 @@ public partial class MainViewModel
         var vm = new VTdlsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
         {
             IsDarkMode = _preferences.IsVTdlsDarkMode,
+            ZoomScale = _preferences.TdlsZoomPercent / 100.0,
         };
         var entry = new VTdlsDockEntryViewModel(vm, isStudentEntry: false);
         TdlsEntries.Add(entry);
 
         await vm.SwitchFacilityAsync(facilityId);
         await vm.RefreshAccessibleFacilitiesAsync();
+    }
+
+    /// <summary>Applies a page-zoom percent to every open vTDLS tab. Used by the
+    /// Settings live preview / apply / revert paths.</summary>
+    public void ApplyTdlsZoomPercent(int percent)
+    {
+        double scale = percent / 100.0;
+        foreach (var entry in TdlsEntries)
+        {
+            entry.Vm.ZoomScale = scale;
+        }
     }
 
     private void OnTdlsDarkModeChanged(object? sender, PropertyChangedEventArgs e)

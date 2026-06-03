@@ -34,7 +34,7 @@
                             <StackPanel Spacing="2">
                                 <TextBlock Text="{Binding StationId}"
                                            FontWeight="SemiBold"
-                                           FontSize="11"
+                                           FontSize="{DynamicResource UiFontSizeSubtle}"
                                            Foreground="{DynamicResource SubtleTextBrush}" />
                                 <SelectableTextBlock Text="{Binding Raw}"
                                                      TextWrapping="Wrap"
