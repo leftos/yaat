@@ -265,4 +265,129 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
         Assert.Equal(13, route.Segments[0].ToNodeId); // AW — went left (west) onto A
         Assert.Equal(14, route.Segments[^1].ToNodeId); // BW
     }
+
+    // -----------------------------------------------------------------------
+    // Hint-unable advisory: when the hinted turn isn't reachable, the route still resolves (best-effort)
+    // but a warning is added so the TAXI echo tells the controller the aircraft turned the other way.
+
+    // Taxiway A leaves the start S only to the east — a single direction.
+    private static AirportGroundLayout OneWayFirstTaxiwayLayout()
+    {
+        var s = Node(20, 37.700, -122.200);
+        var ae = Node(21, 37.700, -122.197); // east of S only
+
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        layout.Nodes[s.Id] = s;
+        layout.Nodes[ae.Id] = ae;
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [s, ae],
+                TaxiwayName = "A",
+                DistanceNm = GeoMath.DistanceNm(s.Position, ae.Position),
+            }
+        );
+        layout.RebuildAdjacencyLists();
+        return layout;
+    }
+
+    private static TaxiRoute? ResolveOneWayFirst(TurnDirection aHint, out string? failReason) =>
+        TaxiPathfinder.ResolveExplicitPath(
+            OneWayFirstTaxiwayLayout(),
+            fromNodeId: 20,
+            taxiwayNames: ["A"],
+            out failReason,
+            new ExplicitPathOptions
+            {
+                AirportId = "TEST",
+                PathTurnHints = [aHint],
+                StartHeadingTrue = 0.0,
+            },
+            AircraftCategory.Jet
+        );
+
+    [Fact]
+    public void FirstTaxiway_UnrealisableHint_RoutesAnyway_AndAdvises()
+    {
+        // Heading north, A only goes east (a right turn). A "<A" (left) request can't be honored.
+        var route = ResolveOneWayFirst(TurnDirection.Left, out string? failReason);
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+        Assert.Equal(21, route.Segments[0].ToNodeId); // still taxis the only way (east)
+        Assert.Contains(route.Warnings, w => w.Contains("Unable left turn onto A"));
+    }
+
+    [Fact]
+    public void FirstTaxiway_RealisableHint_AddsNoAdvisory()
+    {
+        var route = ResolveOneWayFirst(TurnDirection.Right, out string? failReason);
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("turn onto A"));
+    }
+
+    // Taxiway B joins A only on the east side of A1 — a single turn direction at the junction.
+    private static AirportGroundLayout OneWayOntoLayout()
+    {
+        var a0 = Node(1, 37.700, -122.200);
+        var a1 = Node(2, 37.702, -122.200);
+        var a2 = Node(3, 37.704, -122.200);
+        var br = Node(4, 37.702, -122.197); // B east off A1 only
+
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        foreach (var n in new[] { a0, a1, a2, br })
+        {
+            layout.Nodes[n.Id] = n;
+        }
+
+        void Edge(GroundNode x, GroundNode y, string twy) =>
+            layout.Edges.Add(
+                new GroundEdge
+                {
+                    Nodes = [x, y],
+                    TaxiwayName = twy,
+                    DistanceNm = GeoMath.DistanceNm(x.Position, y.Position),
+                }
+            );
+
+        Edge(a0, a1, "A");
+        Edge(a1, a2, "A");
+        Edge(a1, br, "B");
+        layout.RebuildAdjacencyLists();
+        return layout;
+    }
+
+    private static TaxiRoute? ResolveOneWayOnto(TurnDirection bHint, out string? failReason) =>
+        TaxiPathfinder.ResolveExplicitPath(
+            OneWayOntoLayout(),
+            fromNodeId: 1,
+            taxiwayNames: ["A", "B"],
+            out failReason,
+            new ExplicitPathOptions { AirportId = "TEST", PathTurnHints = [null, bHint] },
+            AircraftCategory.Jet
+        );
+
+    [Fact]
+    public void MidRoute_UnrealisableHint_RoutesAnyway_AndAdvises()
+    {
+        // Northbound on A, B only leaves A1 to the east (a right turn). A "<B" request can't be honored.
+        var route = ResolveOneWayOnto(TurnDirection.Left, out string? failReason);
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+        Assert.Equal(4, route.Segments[^1].ToNodeId); // still reaches B (the only way)
+        Assert.Contains(route.Warnings, w => w.Contains("Unable left turn onto B"));
+    }
+
+    [Fact]
+    public void MidRoute_RealisableHint_AddsNoAdvisory()
+    {
+        var route = ResolveOneWayOnto(TurnDirection.Right, out string? failReason);
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+        Assert.DoesNotContain(route.Warnings, w => w.Contains("turn onto B"));
+    }
 }

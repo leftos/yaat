@@ -390,6 +390,13 @@ public static class RouteMaterialiser
     {
         var warnings = new List<string>();
 
+        // Turn-direction hints (issue #172 W7) the resolver couldn't honor — advise the controller that
+        // the aircraft turned the other way. De-duplicated in case a hint was evaluated more than once.
+        foreach (string advisory in ctx.TurnHintAdvisories.Distinct())
+        {
+            warnings.Add(advisory);
+        }
+
         // Mandatory connectors the resolver had to bridge between cleared taxiways with no direct
         // junction. Notify the controller of each insertion, and suppress the generic
         // "unauthorized" warning for those connector taxiways — they were not a deviation.

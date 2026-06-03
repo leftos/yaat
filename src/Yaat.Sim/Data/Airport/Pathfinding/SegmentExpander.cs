@@ -483,6 +483,12 @@ public static class SegmentExpander
         if (bias is null && precedingTaxiway is null && waypoint.TurnHint is { } firstHint && ctx.StartHeadingTrue is { } startHeading)
         {
             bias = ResolveTurnHintBias(head, waypoint.Name, startHeading, firstHint, ctx);
+            if (bias is null)
+            {
+                // No edge on this taxiway departs the hinted way from the aircraft's heading — the turn
+                // can't be honored, so advise the controller (the terminus walk still picks a direction).
+                ctx.TurnHintAdvisories.Add(TurnHintAdvisory(waypoint.Name, firstHint));
+            }
         }
 
         // No downstream constraint and reached by transitioning from a different taxiway: stop at
@@ -1017,6 +1023,9 @@ public static class SegmentExpander
 
         // For each junction candidate, run a bounded local search from the current head.
         (List<DirectionalEdge>? bestEdges, PartialRoute? bestHead, double bestCost) = (null, null, double.MaxValue);
+        GroundNode? bestJunction = null;
+        List<DirectionalEdge>? bestSegEdges = null;
+        double bestArrivalBearing = 0.0;
 
         foreach (var junctionNode in junctionCandidates)
         {
@@ -1051,6 +1060,29 @@ public static class SegmentExpander
                 bestCost = totalCost;
                 bestEdges = segEdges;
                 bestHead = segHead;
+                bestJunction = junctionNode;
+                bestSegEdges = segEdges;
+                bestArrivalBearing = segHead!.ArrivalBearing;
+            }
+        }
+
+        // Record an advisory when the committed junction couldn't honor a turn hint (the hinted-direction
+        // edge wasn't available there). Only at the top level — probes resolve with enableLookahead off, so
+        // their speculative picks never reach the controller. The penalty helpers return 0 when there is no
+        // hint, so a non-zero result is exactly "hinted but unhonored".
+        if (enableLookahead && bestEdges is not null && bestJunction is not null && bestSegEdges is not null)
+        {
+            if (
+                TurnHintOntoTaxiwayPenalty(bestJunction, toTaxiway, bestArrivalBearing, tokens, index) > 0
+                && tokens[index + 1].TurnHint is { } ontoHint
+            )
+            {
+                ctx.TurnHintAdvisories.Add(TurnHintAdvisory(toTaxiway, ontoHint));
+            }
+
+            if (FirstTaxiwayTurnHintPenalty(bestSegEdges, tokens, index, ctx) > 0 && tokens[0].TurnHint is { } firstHint)
+            {
+                ctx.TurnHintAdvisories.Add(TurnHintAdvisory(tokens[0].Name, firstHint));
             }
         }
 
@@ -1140,6 +1172,17 @@ public static class SegmentExpander
 
     private static bool TurnMatchesHint(double signedTurnDeg, TurnDirection hint) =>
         hint == TurnDirection.Right ? signedTurnDeg > TurnHintDeadbandDeg : signedTurnDeg < -TurnHintDeadbandDeg;
+
+    /// <summary>
+    /// Controller-facing advisory when a turn hint couldn't be honored: the route turned the other way
+    /// because the hinted direction wasn't reachable at the committed junction. Surfaced in the TAXI echo.
+    /// </summary>
+    private static string TurnHintAdvisory(string taxiway, TurnDirection requested)
+    {
+        string requestedWord = requested == TurnDirection.Right ? "right" : "left";
+        string otherWord = requested == TurnDirection.Right ? "left" : "right";
+        return $"Unable {requestedWord} turn onto {taxiway} — taxiing {otherWord} instead";
+    }
 
     /// <summary>
     /// Penalise a junction candidate when the hint on the taxiway being entered (token
