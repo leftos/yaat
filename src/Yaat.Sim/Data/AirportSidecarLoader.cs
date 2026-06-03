@@ -79,8 +79,42 @@ public static class AirportSidecarLoader
             {
                 AvoidTaxiways = ParseAvoidTaxiways(file, filePath, result),
                 TaxiRoutes = ParseTaxiRoutes(file, filePath, airportId, result),
+                ImplicitConnectors = ParseImplicitConnectors(file, filePath, result),
             }
         );
+    }
+
+    private static List<ImplicitConnectorEntry> ParseImplicitConnectors(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var connectors = new List<ImplicitConnectorEntry>();
+        for (int i = 0; i < file.ImplicitConnectors.Count; i++)
+        {
+            var entry = file.ImplicitConnectors[i];
+            if (string.IsNullOrWhiteSpace(entry.Connector))
+            {
+                result.Warnings.Add($"{filePath}: implicitConnectors[{i}] missing connector, skipping");
+                continue;
+            }
+
+            if (entry.Between.Count != 2 || entry.Between.Any(string.IsNullOrWhiteSpace))
+            {
+                result.Warnings.Add(
+                    $"{filePath}: implicitConnectors[{i}] ({entry.Connector}) requires exactly 2 non-blank 'between' taxiways, skipping"
+                );
+                continue;
+            }
+
+            connectors.Add(
+                new ImplicitConnectorEntry
+                {
+                    Connector = entry.Connector.Trim().ToUpperInvariant(),
+                    Between = [.. entry.Between.Select(b => b.Trim().ToUpperInvariant())],
+                    Notes = entry.Notes,
+                }
+            );
+        }
+
+        return connectors;
     }
 
     private static List<AvoidTaxiwayEntry> ParseAvoidTaxiways(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)

@@ -20,10 +20,32 @@ public sealed class AvoidTaxiwayEntry
 }
 
 /// <summary>
+/// One implicitly-allowed named connector taxiway. A connector taxiway (e.g. <c>"LF"</c>) is normally
+/// a letter-only taxiway that the controller must name explicitly. This entry authorizes it implicitly,
+/// but only contextually — when the controller's cleared sequence places the two <see cref="Between"/>
+/// taxiways adjacent (unordered). So <c>{ connector: "LF", between: ["L","F"] }</c> authorizes <c>LF</c>
+/// for <c>TAXI L F</c> (and <c>TAXI F L</c>) but not for <c>TAXI L A F</c>.
+/// </summary>
+public sealed class ImplicitConnectorEntry
+{
+    /// <summary>The connector taxiway name to authorize, e.g. <c>"LF"</c>.</summary>
+    [JsonPropertyName("connector")]
+    public string Connector { get; set; } = "";
+
+    /// <summary>The two taxiways this connector bridges (exactly 2, unordered).</summary>
+    [JsonPropertyName("between")]
+    public List<string> Between { get; set; } = [];
+
+    /// <summary>Optional human-readable rationale. Informational only.</summary>
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+
+/// <summary>
 /// On-disk shape of a unified per-airport ground sidecar: one airport per JSON file under
 /// <c>Data/ARTCCs/{ARTCC}/Airports/{airport}.json</c>. Consolidates the per-airport ground-routing
-/// overrides (avoided taxiways, preset taxi routes) that were previously split across sibling category
-/// folders. Unknown sections are ignored, so a file may carry any subset of the sections.
+/// overrides (avoided taxiways, preset taxi routes, implicit connectors) that were previously split
+/// across sibling category folders. Unknown sections are ignored, so a file may carry any subset.
 /// </summary>
 internal sealed class AirportSidecarFile
 {
@@ -35,6 +57,9 @@ internal sealed class AirportSidecarFile
 
     [JsonPropertyName("taxiRoutes")]
     public List<TaxiRouteDefinition> TaxiRoutes { get; set; } = [];
+
+    [JsonPropertyName("implicitConnectors")]
+    public List<ImplicitConnectorEntry> ImplicitConnectors { get; set; } = [];
 }
 
 /// <summary>
@@ -45,4 +70,5 @@ public sealed record AirportSidecar(string AirportId)
 {
     public IReadOnlyList<AvoidTaxiwayEntry> AvoidTaxiways { get; init; } = [];
     public IReadOnlyList<TaxiRouteDefinition> TaxiRoutes { get; init; } = [];
+    public IReadOnlyList<ImplicitConnectorEntry> ImplicitConnectors { get; init; } = [];
 }

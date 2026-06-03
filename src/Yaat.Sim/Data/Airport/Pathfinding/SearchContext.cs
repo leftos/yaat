@@ -77,7 +77,7 @@ public sealed record SearchContext(
             ? (IReadOnlySet<string>)new HashSet<string>(explicitHoldShortRunways, StringComparer.OrdinalIgnoreCase)
             : (IReadOnlySet<string>)new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var authorized = BuildAuthorizedTaxiwaySet(waypointSequence);
+        var authorized = BuildAuthorizedTaxiwaySet(waypointSequence, ResolveImplicitConnectors(layout));
 
         var destination = ResolveDestination(layout, destinationRunway, destinationParking, destinationSpot, destinationNodeId);
 
@@ -107,12 +107,28 @@ public sealed record SearchContext(
     }
 
     /// <summary>
+    /// Looks up the implicitly-allowed named connectors for <paramref name="layout"/>'s airport from the
+    /// global <see cref="NavigationDatabase"/>. Best-effort: empty when no database is initialized or the
+    /// airport is unconfigured.
+    /// </summary>
+    private static IReadOnlyList<ImplicitConnectorEntry> ResolveImplicitConnectors(AirportGroundLayout layout)
+    {
+        var db = NavigationDatabase.InstanceOrNull;
+        return db is null ? [] : db.AirportSidecars.GetImplicitConnectors(layout.AirportId);
+    }
+
+    /// <summary>
     /// Build the authorized-taxiway set from the waypoint sequence.
     /// Letter-only taxiway names (e.g., "A", "Y") become the authorization boundary.
     /// Numbered taxiways (e.g., "A1", "AY1") are excluded — they are always free.
+    /// An implicit connector (e.g. "LF") is added when the sequence places its two
+    /// <c>between</c> taxiways adjacent (unordered) — so it is authorized for "L F" but not "L A F".
     /// Returns null when the sequence is empty (auto-route — all taxiways allowed).
     /// </summary>
-    private static IReadOnlySet<string>? BuildAuthorizedTaxiwaySet(IReadOnlyList<string> waypointSequence)
+    internal static IReadOnlySet<string>? BuildAuthorizedTaxiwaySet(
+        IReadOnlyList<string> waypointSequence,
+        IReadOnlyList<ImplicitConnectorEntry> implicitConnectors
+    )
     {
         if (waypointSequence.Count == 0)
         {
@@ -128,7 +144,41 @@ public sealed record SearchContext(
             }
         }
 
+        AddContextualConnectors(waypointSequence, implicitConnectors, set);
+
         return set.Count == 0 ? null : set;
+    }
+
+    private static void AddContextualConnectors(
+        IReadOnlyList<string> waypointSequence,
+        IReadOnlyList<ImplicitConnectorEntry> implicitConnectors,
+        HashSet<string> set
+    )
+    {
+        if (implicitConnectors.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i + 1 < waypointSequence.Count; i++)
+        {
+            string a = waypointSequence[i];
+            string b = waypointSequence[i + 1];
+            foreach (var connector in implicitConnectors)
+            {
+                if (connector.Between.Count == 2 && PairMatches(connector.Between[0], connector.Between[1], a, b))
+                {
+                    set.Add(connector.Connector);
+                }
+            }
+        }
+    }
+
+    private static bool PairMatches(string x, string y, string a, string b)
+    {
+        bool forward = x.Equals(a, StringComparison.OrdinalIgnoreCase) && y.Equals(b, StringComparison.OrdinalIgnoreCase);
+        bool reverse = x.Equals(b, StringComparison.OrdinalIgnoreCase) && y.Equals(a, StringComparison.OrdinalIgnoreCase);
+        return forward || reverse;
     }
 
     /// <summary>

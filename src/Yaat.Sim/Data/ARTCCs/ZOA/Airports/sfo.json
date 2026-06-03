@@ -1,0 +1,10 @@
+{
+  "airportId": "KSFO",
+  "implicitConnectors": [
+    {
+      "connector": "LF",
+      "between": ["L", "F"],
+      "notes": "LF is the short connector bridging taxiways L and F. Authorized implicitly only when the controller routes L adjacent to F (TAXI L F / TAXI F L)."
+    }
+  ]
+}

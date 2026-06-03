@@ -182,6 +182,24 @@ Per-airport preset taxi routes surfaced in the right-click "Preset taxi route" s
 
 At most one of the three `destination*` fields may be set on a single route. Routes whose path can't be walked from the aircraft's current position are silently dropped from the menu — so a KOAK route won't surface when right-clicking an aircraft at KSFO.
 
+### `implicitConnectors`
+
+Short named connector taxiways that should be treated as authorized **only when the controller's cleared sequence places their two `between` taxiways adjacent**. A connector like SFO's `LF` is a letter-only taxiway, so by default a `TAXI L F` that bridges L and F via LF draws an "unauthorized taxiway" penalty/warning even though LF is the obvious connector. Listing it here authorizes it contextually — for `TAXI L F` (and `TAXI F L`) but not for `TAXI L A F`.
+
+```json
+"implicitConnectors": [
+  { "connector": "LF", "between": ["L", "F"], "notes": "LF bridges L and F." }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `implicitConnectors[].connector` | string | Yes | Connector taxiway name to authorize, e.g. `"LF"` |
+| `implicitConnectors[].between` | string[] | Yes | Exactly two taxiway names the connector bridges (unordered) |
+| `implicitConnectors[].notes` | string | No | Human-readable rationale. Informational only |
+
+Authorization is scoped to explicit `TAXI` clearances (it has no effect on auto-routes). Names are case-insensitive. An entry whose `between` is not exactly two non-blank names is skipped with a warning.
+
 ---
 
 ## InitialContactTransfers

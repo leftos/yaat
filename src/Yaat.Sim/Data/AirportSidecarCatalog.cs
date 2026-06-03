@@ -15,6 +15,7 @@ public sealed class AirportSidecarCatalog
 
     private readonly Dictionary<string, HashSet<string>> _avoidByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<TaxiRouteDefinition>> _routesByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<ImplicitConnectorEntry>> _connectorsByAirport = new(StringComparer.OrdinalIgnoreCase);
 
     public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports)
     {
@@ -28,6 +29,7 @@ public sealed class AirportSidecarCatalog
             string key = NavigationDatabase.NormalizeAirport(airport.AirportId);
             MergeAvoidedTaxiways(key, airport.AvoidTaxiways);
             MergeTaxiRoutes(key, airport.TaxiRoutes);
+            MergeImplicitConnectors(key, airport.ImplicitConnectors);
         }
     }
 
@@ -69,6 +71,22 @@ public sealed class AirportSidecarCatalog
         list.AddRange(routes);
     }
 
+    private void MergeImplicitConnectors(string key, IReadOnlyList<ImplicitConnectorEntry> connectors)
+    {
+        if (connectors.Count == 0)
+        {
+            return;
+        }
+
+        if (!_connectorsByAirport.TryGetValue(key, out var list))
+        {
+            list = [];
+            _connectorsByAirport[key] = list;
+        }
+
+        list.AddRange(connectors);
+    }
+
     /// <summary>
     /// Set of taxiway names the AUTO router should avoid at the given airport. Never null — returns an
     /// empty set when the airport has no configured avoided taxiways.
@@ -97,5 +115,21 @@ public sealed class AirportSidecarCatalog
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
         return _routesByAirport.TryGetValue(key, out var list) ? list : [];
+    }
+
+    /// <summary>
+    /// Implicitly-allowed named connectors at the given airport. Never null — returns an empty list when
+    /// the airport has no configured connectors. The pathfinder authorizes a connector only when the
+    /// controller's cleared sequence places its two <c>between</c> taxiways adjacent.
+    /// </summary>
+    public IReadOnlyList<ImplicitConnectorEntry> GetImplicitConnectors(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _connectorsByAirport.TryGetValue(key, out var list) ? list : [];
     }
 }
