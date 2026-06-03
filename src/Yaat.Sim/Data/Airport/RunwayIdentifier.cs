@@ -159,6 +159,14 @@ public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
 
     /// <summary>
     /// Pads a single-digit runway number to two digits (e.g., "1R" → "01R", "9" → "09").
+    /// Two-digit and non-numeric designators are returned unchanged. Public wrapper over the
+    /// same normalization applied to <see cref="End1"/>/<see cref="End2"/>, so callers can align
+    /// a free-form designator with the stored ends.
+    /// </summary>
+    public static string NormalizeDesignator(string designator) => Normalize(designator);
+
+    /// <summary>
+    /// Pads a single-digit runway number to two digits (e.g., "1R" → "01R", "9" → "09").
     /// Two-digit and non-numeric designators are returned unchanged.
     /// </summary>
     private static string Normalize(string designator)

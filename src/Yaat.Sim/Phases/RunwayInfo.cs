@@ -13,7 +13,21 @@ public sealed class RunwayInfo
 {
     public required string AirportId { get; init; }
     public required RunwayIdentifier Id { get; init; }
-    public required string Designator { get; init; }
+
+    private readonly string _designator = "";
+
+    /// <summary>
+    /// Active approach-end designator, normalized to the same zero-padded form as
+    /// <see cref="RunwayIdentifier.End1"/>/<c>End2</c> (e.g. "2" → "02"). A raw single-digit
+    /// designator would otherwise fail the <see cref="IsEnd1"/> end-selection comparison — flipping
+    /// the runway to the opposite end — and would not match the "RWY02/20" centerline edges the
+    /// runway-exit search walks.
+    /// </summary>
+    public required string Designator
+    {
+        get => _designator;
+        init => _designator = RunwayIdentifier.NormalizeDesignator(value);
+    }
 
     public required double Lat1 { get; init; }
     public required double Lon1 { get; init; }
