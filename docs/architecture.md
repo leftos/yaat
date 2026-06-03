@@ -88,7 +88,7 @@ tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_A
 tools/mcp/exa-stdio.ps1           # Exa stdio adapter that reads EXA_API_KEY from the environment when a local authenticated Exa MCP is preferred.
 ```
 
-See [installer-release.md](installer-release.md) for the Velopack packaging, auto-update, CRC install prompt, and tag-driven `release.yml` pipeline.
+See [installer-release.md](installer-release.md) for the Velopack packaging, auto-update, CRC install prompt, and tag-driven `release.yml` pipeline. macOS code signing/notarization (Developer ID certs, entitlements + `Info.plist` template in `build/macos/`, the eight `MACOS_*` secrets) is set up via [macos-code-signing.md](macos-code-signing.md).
 
 ## Yaat.Client.Strips — WASM-clean strip layer (`src/Yaat.Client.Strips/`)
 

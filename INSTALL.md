@@ -36,11 +36,11 @@ chmod +x YaatClient-<ver>-linux.AppImage
 
 On some distros you'll also need `libfontconfig1` and `libfreetype6` for text rendering — see [Linux prerequisites](#linux-prerequisites) below.
 
-**macOS package:** double-click `YaatClient-<ver>-osx-Setup.pkg`. macOS Gatekeeper may block the first launch; if so, right-click the installed app → **Open** → **Open** again.
+**macOS package:** double-click `YaatClient-<ver>-osx-Setup.pkg` and follow the installer. The package is signed and notarized by Apple, so it opens without a Gatekeeper warning. The first time you use push-to-talk, macOS asks for microphone permission — click **Allow**.
 
 **Windows portable:** the zip contains flat files (the executable plus its native dependencies). Create an empty folder, extract the zip into it, then double-click `Yaat.Client.exe`. Don't extract into Downloads — the app expects all its sibling files in the same folder.
 
-**macOS portable:** the zip contains `Yaat.Client.app`. Unzip it, then double-click the `.app` (or drag it to `/Applications`). Gatekeeper may block the first launch — right-click → **Open** → **Open** to allow it.
+**macOS portable:** the zip contains `Yaat.Client.app`. Unzip it, then double-click the `.app` (or drag it to `/Applications`). It's notarized, so it opens normally on first launch.
 
 ### Step 3: Connect and run a scenario
 

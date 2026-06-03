@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Hardened-runtime entitlements for the notarized YAAT Client .app.
+
+    The first four keys are the set Microsoft documents as required for a
+    self-contained .NET app to pass notarization (the CoreCLR JITs code and
+    loads native libraries — libSkiaSharp, HarfBuzz, LM-Kit — that are not
+    signed under our Team ID):
+    https://learn.microsoft.com/dotnet/core/install/macos-notarization-issues
+
+    The audio-input entitlement is YAAT-specific: AudioCaptureService records
+    the microphone via PortAudio for push-to-talk speech recognition, which
+    macOS denies under the hardened runtime without it. The matching
+    NSMicrophoneUsageDescription string lives in the bundle Info.plist.
+  -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+</dict>
+</plist>

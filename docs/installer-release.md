@@ -12,9 +12,29 @@ The version lives in `Directory.Build.props` at the yaat repo root (`<Version>`)
 
 - **Windows** — `YaatClient-win-Setup.exe` and a `*-win-Portable.zip`.
 - **Linux** — `YaatClient.AppImage` (self-contained; serves as both installer and portable).
-- **macOS** — `YaatClient-osx-Setup.pkg` and a `*-osx-Portable.zip` (a `.icns` is generated from `icon.png` via `sips` + `iconutil`).
+- **macOS** — `YaatClient-osx-Setup.pkg` and a `*-osx-Portable.zip`, both signed and notarized (see below). A `.icns` is generated from `icon.png` via `sips` + `iconutil`, and a custom `Info.plist` (from `build/macos/Info.plist.template`) carries `NSMicrophoneUsageDescription` for push-to-talk capture.
 
 Portable archives bundle the single-file exe plus sibling native DLLs (libSkiaSharp, HarfBuzz, LM-Kit) and run without install or auto-update.
+
+## Code signing and notarization (macOS)
+
+The macOS `.app` and `.pkg` are signed with Apple Developer ID certificates and
+notarized by Apple, so they launch without a Gatekeeper warning and auto-update
+silently. `vpk pack` drives the whole flow: it codesigns the bundle under the
+hardened runtime with `build/macos/Yaat.Client.entitlements`, submits it to
+`notarytool`, staples the ticket, then repeats for the `.pkg`.
+
+Signing is **conditional on secrets being present** — exactly like the
+`LMKIT_LICENSE_KEY` fallback. When the `MACOS_*` secrets are not configured (a
+fork, or before setup), the `package-macos` job logs a warning and produces an
+unsigned package that still installs but trips Gatekeeper. Windows and Linux are
+unaffected; Windows installers remain unsigned (SmartScreen still warns).
+
+The entitlements file grants the four hardened-runtime keys Microsoft documents
+for self-contained .NET apps (JIT, unsigned executable memory, dyld env vars,
+disabled library validation) plus `com.apple.security.device.audio-input` for
+`AudioCaptureService`. Setting up the certificates and the eight required GitHub
+secrets is a one-time task documented in [`macos-code-signing.md`](macos-code-signing.md).
 
 ## Auto-update
 
@@ -31,7 +51,7 @@ Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 1. **version** — reads `<Version>` from `Directory.Build.props` and the short SHA.
 2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body.
 3. **build** — `dotnet publish` of `src/Yaat.Client` for `win-x64`, `linux-x64`, `osx-arm64`.
-4. **package-win / package-linux / package-macos** — `vpk pack` per platform.
+4. **package-win / package-linux / package-macos** — `vpk pack` per platform. `package-macos` additionally imports the Developer ID certificates and an App Store Connect API key into a temporary keychain, then signs + notarizes (skipped when the `MACOS_*` secrets are absent).
 5. **release** — assembles `release/`, builds the release body from highlights + changelog + a download table, and publishes via `softprops/action-gh-release` with the default `GITHUB_TOKEN`.
 
 ### Discord announcement quirk

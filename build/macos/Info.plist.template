@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Custom Info.plist for the macOS .app bundle, supplied to vpk via the plist
+  option. vpk copies this file verbatim (it does not merge with or template
+  Velopack's generated plist), so the keys below mirror Velopack's PlistWriter
+  output and must stay in sync with it across vpk upgrades. The one addition
+  Velopack does not emit is NSMicrophoneUsageDescription, which macOS requires
+  before it will grant AudioCaptureService microphone access for push-to-talk
+  speech input.
+
+  release.yml substitutes the version placeholders before packing:
+    SHORT_VERSION placeholder becomes the numeric version, e.g. 0.6.0 (any
+    prerelease tag stripped); BUNDLE_VERSION placeholder becomes the full
+    version, e.g. 0.6.0-beta.
+-->
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>YAAT Client</string>
+  <key>CFBundleIdentifier</key>
+  <string>dev.leftos.yaat</string>
+  <key>CFBundleVersion</key>
+  <string>__BUNDLE_VERSION__</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleSignature</key>
+  <string>????</string>
+  <key>CFBundleExecutable</key>
+  <string>Yaat.Client</string>
+  <key>CFBundleIconFile</key>
+  <string>icon.icns</string>
+  <key>CFBundleShortVersionString</key>
+  <string>__SHORT_VERSION__</string>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>YAAT uses your microphone for push-to-talk voice recognition of ATC commands.</string>
+</dict>
+</plist>
