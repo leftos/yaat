@@ -96,8 +96,18 @@ public sealed class SimScenarioState
     public WeatherTimeline? WeatherTimeline { get; set; }
 
     // Discrete reported-METAR issuance (routine at :53, SPECI on significant change).
-    // Null when weather reconstruction is disabled (live-fetched weather, replay, restore).
+    // Null during replay/playback and whenever no dynamic re-issuance is active; the server tick
+    // loop rebuilds it from MetarReissuanceEnabled when returning to live.
     public MetarIssuer? MetarIssuer { get; set; }
+
+    // Whether dynamic METAR re-issuance is intended for the current weather (true for file/API
+    // weather, false for live-fetched weather). Persisted so it survives snapshot restore, replay,
+    // and recording load — MetarIssuer itself is runtime-only and torn down on every replay.
+    public bool MetarReissuanceEnabled { get; set; }
+
+    // The last-applied weather JSON (timeline or static profile). Persisted so RestoreFromSnapshot
+    // can rebuild WeatherTimeline (which is otherwise lost on a snapshot-based rewind).
+    public string? WeatherSourceJson { get; set; }
 
     // Scenario metadata
     public string? InitialWeatherJson { get; set; }
@@ -187,6 +197,8 @@ public sealed class SimScenarioState
             HasSoloArrivalGeneratorSource = HasSoloArrivalGeneratorSource,
             NextSoloParkingInitialCallupSlotSeconds = NextSoloParkingInitialCallupSlotSeconds,
             RpoShowPilotSpeech = RpoShowPilotSpeech,
+            MetarReissuanceEnabled = MetarReissuanceEnabled,
+            WeatherSourceJson = WeatherSourceJson,
             IsPaused = IsPaused,
             SimRate = SimRate,
             CommandRunDelayMinSeconds = CommandRunDelayMinSeconds,

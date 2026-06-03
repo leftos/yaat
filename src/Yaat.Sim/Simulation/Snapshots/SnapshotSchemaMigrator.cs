@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 10;
+    public const int CurrentSchemaVersion = 11;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -79,6 +79,10 @@ public static class SnapshotSchemaMigrator
         //   field only affects the YAAT Aircraft List filter, not simulation behavior.
         // V9→V10: Added AircraftSnapshotDto.Note (instructor freetext datablock note).
         //   No data transformation — older snapshots default to "" (no note).
+        // V10→V11: Added ScenarioSnapshotDto.MetarReissuanceEnabled + WeatherSourceJson so dynamic
+        //   METAR re-issuance and v2 weather-timeline evolution survive a snapshot-based rewind.
+        //   No data transformation — older snapshots default to false / null, matching the prior
+        //   behavior where both stopped after rewind until weather was reloaded.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

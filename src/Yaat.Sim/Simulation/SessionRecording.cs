@@ -14,6 +14,13 @@ public sealed class SessionRecording
     public string? WeatherJson { get; init; }
 
     /// <summary>
+    /// Whether the recorded session's weather had dynamic METAR re-issuance enabled (file/API
+    /// weather). Carried in the archive manifest so a loaded recording can resume dynamic METARs
+    /// after Take Control. Defaults false for older bundles.
+    /// </summary>
+    public bool MetarReissuanceEnabled { get; init; }
+
+    /// <summary>
     /// JSON-serialized ARTCC configuration captured at record time. Bundled into the
     /// archive as <c>artcc-config.json.br</c>; replay deserializes it into
     /// <c>SimScenarioState.ArtccConfig</c> so TCP/ERAM resolution works without a live

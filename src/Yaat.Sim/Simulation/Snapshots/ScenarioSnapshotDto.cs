@@ -51,6 +51,13 @@ public sealed class ScenarioSnapshotDto
     public int CommandRunDelayMinSeconds { get; init; }
     public int CommandRunDelayMaxSeconds { get; init; }
 
+    // Dynamic-weather reconstruction. Optional — older snapshots default to disabled / no source,
+    // matching the pre-fix behavior where dynamic METARs and timeline evolution stopped after a
+    // snapshot-based rewind. New snapshots carry the live intent and the source JSON used to rebuild
+    // WeatherTimeline on restore.
+    public bool MetarReissuanceEnabled { get; init; }
+    public string? WeatherSourceJson { get; init; }
+
     // Timing
     public required double AutoAcceptDelaySeconds { get; init; }
     public required bool IsStudentTowerPosition { get; init; }

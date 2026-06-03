@@ -25,7 +25,13 @@ public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, str
 
 public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment) : RecordedAction(ElapsedSeconds);
 
-public sealed record RecordedWeatherChange(double ElapsedSeconds, string? WeatherJson) : RecordedAction(ElapsedSeconds);
+/// <summary>
+/// A weather load (<see cref="WeatherJson"/> non-null) or clear (<see cref="WeatherJson"/> null).
+/// <see cref="ReconstructMetars"/> records whether dynamic METAR re-issuance was intended for this
+/// load (true for file/API weather, false for live-fetched weather); replay uses it to restore the
+/// re-issuer after returning to live. Recordings written before this field deserialize it as false.
+/// </summary>
+public sealed record RecordedWeatherChange(double ElapsedSeconds, string? WeatherJson, bool ReconstructMetars) : RecordedAction(ElapsedSeconds);
 
 public sealed record RecordedSettingChange(double ElapsedSeconds, string Setting, string? Value) : RecordedAction(ElapsedSeconds);
 

@@ -181,6 +181,22 @@ public sealed class SimulationEngine
             Scenario.HasSoloArrivalGeneratorSource = scenarioDto.HasSoloArrivalGeneratorSource;
             Scenario.NextSoloParkingInitialCallupSlotSeconds = scenarioDto.NextSoloParkingInitialCallupSlotSeconds;
             Scenario.RpoShowPilotSpeech = scenarioDto.RpoShowPilotSpeech;
+            Scenario.MetarReissuanceEnabled = scenarioDto.MetarReissuanceEnabled;
+            Scenario.WeatherSourceJson = scenarioDto.WeatherSourceJson;
+
+            // Rebuild the forward-evolving weather timeline from the persisted source — otherwise it
+            // is lost on a snapshot-based rewind and the weather freezes. World.Weather keeps the
+            // snapshot's collapsed profile (restored above) as the authoritative current state.
+            Scenario.WeatherTimeline = null;
+            if (scenarioDto.WeatherSourceJson is { } weatherSourceJson)
+            {
+                var weatherParse = WeatherTimelineParser.Parse(weatherSourceJson);
+                if (weatherParse.IsTimeline)
+                {
+                    Scenario.WeatherTimeline = weatherParse.Timeline;
+                }
+            }
+
             Scenario.IsPaused = scenarioDto.IsPaused;
             Scenario.SimRate = scenarioDto.SimRate;
             Scenario.CommandRunDelayMinSeconds = scenarioDto.CommandRunDelayMinSeconds;
@@ -1093,6 +1109,10 @@ public sealed class SimulationEngine
         if (recording.WeatherJson is not null)
         {
             ApplyWeatherJson(recording.WeatherJson);
+            if (Scenario is not null)
+            {
+                Scenario.MetarReissuanceEnabled = recording.MetarReissuanceEnabled;
+            }
         }
 
         // Deserialize the bundled ARTCC config so TrackResolver's TCP/ERAM fallback works
@@ -2551,6 +2571,10 @@ public sealed class SimulationEngine
                 if (weather.WeatherJson is not null)
                 {
                     ApplyWeatherJson(weather.WeatherJson);
+                    if (Scenario is not null)
+                    {
+                        Scenario.MetarReissuanceEnabled = weather.ReconstructMetars;
+                    }
                 }
                 else
                 {
@@ -2558,6 +2582,8 @@ public sealed class SimulationEngine
                     if (Scenario is not null)
                     {
                         Scenario.WeatherTimeline = null;
+                        Scenario.WeatherSourceJson = null;
+                        Scenario.MetarReissuanceEnabled = false;
                     }
                 }
                 break;
@@ -2960,6 +2986,7 @@ public sealed class SimulationEngine
             if (Scenario is not null)
             {
                 Scenario.WeatherTimeline = parseResult.Timeline;
+                Scenario.WeatherSourceJson = weatherJson;
             }
             World.Weather = parseResult.Timeline!.GetWeatherAt(Scenario?.ElapsedSeconds ?? 0);
         }
@@ -2968,6 +2995,7 @@ public sealed class SimulationEngine
             if (Scenario is not null)
             {
                 Scenario.WeatherTimeline = null;
+                Scenario.WeatherSourceJson = weatherJson;
             }
             World.Weather = parseResult.Profile;
         }

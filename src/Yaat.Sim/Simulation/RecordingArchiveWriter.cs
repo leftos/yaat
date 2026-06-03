@@ -18,6 +18,7 @@ public sealed class RecordingArchiveWriter : IDisposable
     private bool _finished;
     private int _actionCount;
     private bool _hasWeather;
+    private bool _metarReissuanceEnabled;
     private bool _hasArtccConfig;
 
     public RecordingArchiveWriter(Stream output)
@@ -30,7 +31,7 @@ public sealed class RecordingArchiveWriter : IDisposable
         WriteBrotliEntry("scenario.json.br", scenarioJson);
     }
 
-    public void WriteWeather(string? weatherJson)
+    public void WriteWeather(string? weatherJson, bool metarReissuanceEnabled)
     {
         if (weatherJson is null)
         {
@@ -38,6 +39,7 @@ public sealed class RecordingArchiveWriter : IDisposable
         }
 
         _hasWeather = true;
+        _metarReissuanceEnabled = metarReissuanceEnabled;
         WriteUtf8Entry("weather.json", weatherJson);
     }
 
@@ -124,6 +126,7 @@ public sealed class RecordingArchiveWriter : IDisposable
             TotalElapsedSeconds = totalElapsedSeconds,
             ActionCount = _actionCount,
             HasWeather = _hasWeather,
+            MetarReissuanceEnabled = _metarReissuanceEnabled,
             HasArtccConfig = _hasArtccConfig,
             ScenarioName = scenarioName,
             ScenarioId = scenarioId,
@@ -150,7 +153,7 @@ public sealed class RecordingArchiveWriter : IDisposable
         using (var writer = new RecordingArchiveWriter(ms))
         {
             writer.WriteScenario(recording.ScenarioJson);
-            writer.WriteWeather(recording.WeatherJson);
+            writer.WriteWeather(recording.WeatherJson, recording.MetarReissuanceEnabled);
             writer.WriteArtccConfig(recording.ArtccConfigJson);
             writer.WriteActions(recording.Actions);
 

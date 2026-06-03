@@ -13,6 +13,14 @@ public sealed class RecordingManifest
     public bool HasWeather { get; init; }
 
     /// <summary>
+    /// Whether the recorded session's weather had dynamic METAR re-issuance enabled (file/API
+    /// weather rather than live-fetched). Lets a loaded recording resume dynamic METARs after Take
+    /// Control even when the weather was set only at scenario start (no recorded weather change to
+    /// carry the intent). Bundles written before this field deserialize as false.
+    /// </summary>
+    public bool MetarReissuanceEnabled { get; init; }
+
+    /// <summary>
     /// True when the archive bundles the ARTCC configuration (entry
     /// <c>artcc-config.json.br</c>) used at record time. Self-contained recordings
     /// can replay without consulting the live server config — important for
