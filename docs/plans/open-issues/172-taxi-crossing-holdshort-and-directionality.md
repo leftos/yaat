@@ -1,6 +1,6 @@
 # Handoff: taxi crossing / hold-short precedence + directionality hints
 
-> **Status:** **W1 (the spin fix) is implemented and verified (2026-06-03); W2–W7 remain.** Originated
+> **Status:** **W1–W4 implemented and verified (2026-06-03); W5–W7 remain.** Originated
 > from issue #172 (JBU577 "taxi spin"). Mentor (Maxim, ZOA) consulted; FAA references checked and
 > aviation-sim-expert-reviewed.
 > **Recording:** `tests/Yaat.Sim.Tests/TestData/issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip`.
@@ -138,12 +138,27 @@ especially should be confirmed with the mentor.
   is the controller's job, 7110.65 3-7-4; the pilot voice stays the plain "holding short of B").
 - **Tests:** issuance warning on the echo; the runtime note fires while JBU577 holds.
 
-### W4 — Verify "clear the runway & hold just past it" (capability exists)
-- **Design:** confirm `TAXI <twy> CROSS <rwy>` (no trailing HS) crosses and `HoldingInPosition`s ½-length past
-  the far bars — for the OAK case the aircraft stops just past 28R **before** the J/C fork. Add a regression
-  test; no new code expected (works per the existing-code map). See W6 for the `C`-as-direction-hint nuance.
-- **Tests:** E2E at OAK: `TAXI J CROSS 28R` (after W6) and/or a synthetic route ending in a crossing → auto-hold
-  just past the runway.
+### W4 — Verify "clear the runway & hold just past it" (capability exists) ✅ DONE (2026-06-03)
+- **Verified** via a faithful OAK recording-replay (`4d4344011a72.zip`, N427MX lands 28L, exits north onto
+  G, is cleared `TAXI G C HS 28R` then `RES` to cross 28R). The aircraft holds short of 28R, crosses it via
+  `CrossingRunwayPhase`, and settles in `HoldingInPositionPhase` just past the far-side bars (601 ft from the
+  entry bars, 146 ft past the far bars near the G/C junction) — it **clears the runway and holds just past**,
+  with no stop-short (tail over the bars) and no reversal. This is the positive counterpart to the JBU577 spin
+  and the W1 **Fix-B non-regression**: with no binding taxiway hold-short within a fuselage past the exit, the
+  ½-length tail-clearance append is **not** suppressed, so the aircraft clears the runway.
+- **Test:** `Issue172CrossNoHoldShortTerminalTests.CrossingWithNoBindingTaxiwayHoldShort_ClearsRunwayAndHoldsJustPast_WithoutStoppingShort`
+  — test-only, no production change. (Complements `OakCrossThenHoldOnNextTaxiwayTests`, which asserts "lands on
+  C near #350" but not the cleared-the-far-bars / no-reversal property.)
+- **Finding — the clean `TAXI <twy> CROSS <rwy>` form is W6-dependent, not "no new code":** issuing
+  `TAXI G CROSS 28R` (single taxiway + `CROSS`, no onward taxiway) from mid-G does **not** produce the terminal
+  crossing the W4 design assumed. (a) From the 28L hold-short it anchors the **wrong direction** (back toward
+  28L) — the direction-by-crossed-runway anchoring is exactly W6. (b) Even positioned unambiguously between the
+  runways, the resolved route carries **no `RunwayCrossing` hold-short**, so it taxis across 28R in plain
+  `TaxiingPhase` (never `CrossingRunwayPhase`) and walks G to its no-destination cap past the crossing — it
+  never terminates *at* the runway. So the pure `route.IsComplete → HoldingInPosition ½-length-past` branch and
+  the `TAXI <twy> CROSS <rwy>` ergonomics both fall under **W6** (fold the regression `TAXI J CROSS 28R` E2E
+  into W6 once the anchoring lands). The *capability* (cross & hold just past, via a route that has a proper
+  crossing structure) is confirmed by the test above.
 
 ### W5 — "Pull forward" command (NEW) — PROPOSAL
 - **Problem:** an aircraft holding short of a taxiway with its tail over a runway (W2) needs a way to be moved
@@ -204,8 +219,10 @@ especially should be confirmed with the mentor.
 1. **W1 + W1b + W2** (the spin fix + precedence + state) — core, highest value, sensitive navigator/crossing
    code. Land with the JBU577 replay test first (TDD).
 2. **W3** (warnings) — depends on W2's state flag.
-3. **W4** (verify capability) — cheap regression once W6 lands (or before, with a synthetic route).
-4. **W6** (`TAXI J CROSS 28R` direction hint) — parser + pathfinder anchoring.
+3. ~~**W4** (verify capability)~~ — DONE via recording-replay; the `TAXI J CROSS 28R` E2E folds into W6.
+4. **W6** (`TAXI J CROSS 28R` direction hint) — parser + pathfinder anchoring. Also delivers the terminal
+   `TAXI <twy> CROSS <rwy>` form W4 found to be W6-dependent (direction anchoring + a proper crossing
+   structure that terminates at the runway).
 5. **W5** (pull-forward command) — new verb; depends on W2 (the state it resolves).
 6. **W7** (`>`/`<` hints) — parser-heavy, fragile test surface; can land independently.
 
