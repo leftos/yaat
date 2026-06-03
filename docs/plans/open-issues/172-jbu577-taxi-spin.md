@@ -1,6 +1,6 @@
 # Issue #172 (split) — JBU577 taxi spin
 
-> **Status:** deferred from #172 (2026-06-03). Not yet reproduced in a test; may share a root with the SKW3359 A→B fork (see [172-skw3359-ab-fork.md](172-skw3359-ab-fork.md)).
+> **Status:** deferred from #172 (2026-06-03). Not yet reproduced in a test. (The SKW3359 A→B detour once thought to share its root was confirmed operator error — the controller should have issued `E` — and closed; it is not a bug.)
 > **Source:** SFO recording `issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip` (in TestData). **Labels:** bug, ground-cmds.
 
 ## Symptom
@@ -23,8 +23,9 @@ junctions). The spin is the aircraft failing to settle on a direction at one of 
 ## Suspected area
 
 Junction-candidate selection / entry-alignment at the G/B area, or `GroundNavigator` pure-pursuit
-entry alignment. **Likely shares a root with the SKW3359 A→B fork** (poor junction selection across
-non-directly-connected taxiways). Re-test JBU577 after that fix lands — it may already be closed.
+entry alignment. A spin/orbit is incorrect behavior regardless of route quality, so this stands as a
+genuine bug on its own (the SKW3359 A→B detour previously suspected to share its root was confirmed
+operator error and closed). Reproduce the spin from the recording before changing code.
 
 ## TDD target
 

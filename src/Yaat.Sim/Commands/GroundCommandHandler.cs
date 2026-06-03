@@ -84,6 +84,9 @@ internal static class GroundCommandHandler
         //     its current taxiway onto the first cleared one. When they meet only across a runway (e.g.
         //     SFO M↔H across 01L/19R, zero shared nodes) prepending would re-route the crossing through a
         //     named-junction search instead of the runway-crossing bridge, so it is left to that path.
+        // Remember the as-cleared path so the prepend can be undone below if it strands the route.
+        var pathAsCleared = taxi.Path;
+        bool prependedCurrentTaxiway = false;
         if (
             taxi.Path.Count > 0
             && aircraft.Ground.CurrentTaxiway is { Length: > 0 } currentTwy
@@ -93,6 +96,7 @@ internal static class GroundCommandHandler
         )
         {
             taxi = taxi with { Path = [currentTwy, .. taxi.Path] };
+            prependedCurrentTaxiway = true;
             Log.LogDebug("[TryTaxi] {Callsign}: prepended current taxiway {Twy} to cleared path", aircraft.Callsign, currentTwy);
         }
 
@@ -109,17 +113,33 @@ internal static class GroundCommandHandler
             taxi.DestinationSpot ?? "(none)"
         );
 
-        TaxiRoute? route;
-        string? failReason;
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
-        if (taxi.DestinationParking is not null || taxi.DestinationSpot is not null)
+        TaxiRoute? ResolveRoute(TaxiCommand command, out string? reason)
         {
-            route = ResolveParkingRoute(groundLayout, startNode, taxi, out failReason, category);
+            return (command.DestinationParking is not null || command.DestinationSpot is not null)
+                ? ResolveParkingRoute(groundLayout, startNode, command, out reason, category)
+                : ResolveStandardRoute(groundLayout, startNode, command, out reason, category);
         }
-        else
+
+        var route = ResolveRoute(taxi, out string? failReason);
+
+        // The current-taxiway prepend above is an optimization: start on the taxiway the aircraft
+        // occupies rather than bridging onto the first cleared one. When the aircraft sits at the far
+        // end of a stub connector, prepending forces the route back to that connector's only junction
+        // with the first cleared taxiway, which can strand the onward transition — SIA31 holding at the
+        // NE end of the B5 spot got "B5 B B1 …", routing B5 back to the B5/B junction (node 117) and
+        // making B→B1 infeasible. When the prepended path yields no route, drop the prepend and bridge
+        // directly onto the first cleared taxiway (the original, un-prepended behaviour).
+        if (route is null && prependedCurrentTaxiway)
         {
-            route = ResolveStandardRoute(groundLayout, startNode, taxi, out failReason, category);
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: prepended-path resolution failed ({Reason}); retrying without the current-taxiway prepend",
+                aircraft.Callsign,
+                failReason ?? "no route"
+            );
+            taxi = taxi with { Path = pathAsCleared };
+            route = ResolveRoute(taxi, out failReason);
         }
 
         if (route is null)
