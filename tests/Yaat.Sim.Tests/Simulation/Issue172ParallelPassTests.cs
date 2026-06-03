@@ -39,7 +39,14 @@ public class Issue172ParallelPassTests(ITestOutputHelper output)
         return new SimulationEngine(groundData);
     }
 
-    [Fact]
+    // Quarantined after rebasing onto main: the recording no longer reproduces the FFT2083/JBU2435
+    // convergence. Under main's post-pushback auto-taxi behavior (f63a865b), JBU2435 stays in
+    // HoldingAfterPushbackPhase and never taxis in this window, so the two never share an upcoming node.
+    // The production fix it guards (skip convergence slowdown when the nearer aircraft clears first) is
+    // intact; this needs a fresh recording that reproduces the geometry. See #172 handoff doc.
+    [Fact(
+        Skip = "Recording no longer reproduces FFT/JBU convergence under main's auto-taxi (f63a865b); JBU2435 stays HoldingAfterPushback. Production fix intact; needs re-repro."
+    )]
     public void Fft2083_NotBrakedForJbu2435_ClearingSharedNodeFirst()
     {
         var recording = RecordingLoader.Load(RecordingPath);

@@ -4,6 +4,16 @@
 > from issue #172 (JBU577 "taxi spin"). Mentor (Maxim, ZOA) consulted; FAA references checked and
 > aviation-sim-expert-reviewed. This issue's work is complete — the file can be archived once merged.
 > **Recording:** `tests/Yaat.Sim.Tests/TestData/issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip`.
+>
+> **Post-merge note (2026-06-03):** rebased onto current main. SFO geojson was refreshed on main, so
+> the `Issue172TerminusDirectionTests` node constants were updated (G/B 155→156, K 10R hold-shorts
+> 849/857→848/856) and its wrong-way guard made layout-robust. `Issue172ParallelPassTests` was
+> **quarantined** (`Skip`): under main's post-pushback auto-taxi behavior (`f63a865b`), **JBU2435 no
+> longer taxis** in the recording window (it stays in `HoldingAfterPushbackPhase`), so the FFT2083/JBU2435
+> convergence the test exercised no longer occurs. The production fix it guarded (skip convergence
+> slowdown when the nearer aircraft clears first) is intact. **Follow-up:** confirm whether JBU2435 not
+> taxiing is correct under the new auto-taxi behavior or a regression, and re-capture a recording that
+> reproduces the parallel-pass geometry.
 
 This is a fresh-agent handoff. It bundles one bug fix and several related controller capabilities that all
 concern **which direction an aircraft goes during taxi/crossing** and **what "hold short" means when it

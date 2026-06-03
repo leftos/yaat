@@ -21,15 +21,13 @@ namespace Yaat.Sim.Tests.Pathfinding;
 public class Issue172TerminusDirectionTests(ITestOutputHelper output)
 {
     // SFO: node 867 = 01L/19R hold-short on taxiway G (arrival exit); the pure (pre-fillet) G/B
-    // intersection is node 155 (tangent-cut fillet nodes 1395-1398 surround it).
+    // intersection is node 156 (tangent-cut fillet nodes 1398-1401 surround it).
     private const int GHoldShortNode = 867;
-    private const int GbIntersection = 155;
+    private const int GbIntersection = 156;
 
-    // SFO: node 152 = pure F1/B intersection; K crosses 10R/28L at hold-short nodes 849 and 857,
-    // and 10L/28R at 830/831. Node 46 is K's far (south) terminus — the wrong-way stop.
+    // SFO: node 152 = pure F1/B intersection; K crosses 10R/28L at hold-short nodes 848 and 856.
     private const int F1bIntersection = 152;
-    private static readonly int[] Rwy10RHoldShortsOnK = [849, 857];
-    private const int KSouthTerminus = 46;
+    private static readonly int[] Rwy10RHoldShortsOnK = [848, 856];
 
     private static AirportGroundLayout? SfoLayout(ITestOutputHelper output)
     {
@@ -98,8 +96,11 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
 
         output.WriteLine($"terminus={route.Segments[^1].ToNodeId} segs={route.Segments.Count}");
 
-        // The K walk reaches the 10R/28L hold-short instead of heading to K's far (south) terminus.
-        Assert.Contains(route.Segments, s => Rwy10RHoldShortsOnK.Contains(s.ToNodeId));
-        Assert.DoesNotContain(route.Segments, s => s.ToNodeId == KSouthTerminus);
+        // The K walk reaches the 10R/28L hold-short and stops there, rather than heading off the wrong
+        // way toward K's far terminus (the original bug walked K away from the hold-short). Asserting the
+        // route stops within a node of the hold-short is robust to layout renumbering.
+        int lastHoldShortIdx = route.Segments.FindLastIndex(s => Rwy10RHoldShortsOnK.Contains(s.ToNodeId));
+        Assert.True(lastHoldShortIdx >= 0, "route never reached a 10R hold-short on K");
+        Assert.True(route.Segments.Count - lastHoldShortIdx <= 2, "route walked well past the 10R hold-short the wrong way");
     }
 }
