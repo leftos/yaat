@@ -552,6 +552,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `CROSS` | Bare — clear the next uncleared hold-short on the route, runway or taxiway, whether the aircraft is already holding short or still taxiing toward it. Clears exactly one hold-short; the aircraft still stops at any subsequent ones. |
 | `CROSS 28L` | Cross runway 28L (clears hold-short) |
 | `CROSS B` | Cross taxiway B (clears hold-short) |
+| `TAXI G CROSS 28R` | Taxi via G, cross 28R, and hold just past it. With no taxiway named past the crossing, the crossed runway sets the direction — the aircraft heads toward and across it (even when G also crosses another runway behind), then holds clear on the far side. |
 | `CROSS; HOLD` | Bare CROSS plus chained HOLD: cross the runway and halt right after clearing the far-side hold bars (HOLD fires only when CrossingRunwayPhase completes). |
 | `HS B` | Hold short at the next intersection with taxiway B |
 | `HS 28L` | Hold short at the next runway 28L crossing |
@@ -572,6 +573,8 @@ When an aircraft lands and vacates **between two parallel runways** and the para
 `HS` can be issued to a taxiing aircraft to add a hold-short point at the first upcoming intersection with the given taxiway or runway along the remaining route.
 
 When a `TAXI` clearance ends on a taxiway with no downstream destination (no runway, parking `@`, spot `$`, or hold-short) — e.g. `TAXI G B` — and that final taxiway runs both ways from where the route reaches it, the aircraft stops at the intersection rather than guessing a direction along it. Issue a follow-up taxi to send it either way (e.g. `TAXI B Q A @F11`). A final taxiway that only leads one way from the junction is taxied normally.
+
+When a `TAXI` clearance names a `CROSS <rwy>` but no taxiway, parking, or spot past it (e.g. `TAXI G CROSS 28R`), the crossed runway becomes the direction anchor: the route heads toward and across that runway and stops just past the far side, where the aircraft holds clear awaiting further instructions. This resolves the direction even when the taxiway crosses more than one runway — `TAXI G CROSS 28R` from an aircraft that just exited the parallel 28L heads toward 28R, not back across 28L. (When the clearance also names a real destination, e.g. `RWY 30 TAXI G CROSS 28R`, the destination anchors direction and `CROSS 28R` is purely a crossing pre-clearance, as before.)
 
 When you taxi to a hold-short point (via context menu or command), the runway is automatically assigned based on the closest threshold. Override with `RWY {id}` if needed.
 

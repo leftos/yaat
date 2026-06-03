@@ -1,6 +1,6 @@
 # Handoff: taxi crossing / hold-short precedence + directionality hints
 
-> **Status:** **W1–W4 implemented and verified (2026-06-03); W5–W7 remain.** Originated
+> **Status:** **W1–W4 and W6 implemented and verified (2026-06-03); W5 and W7 remain.** Originated
 > from issue #172 (JBU577 "taxi spin"). Mentor (Maxim, ZOA) consulted; FAA references checked and
 > aviation-sim-expert-reviewed.
 > **Recording:** `tests/Yaat.Sim.Tests/TestData/issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip`.
@@ -178,18 +178,39 @@ especially should be confirmed with the mentor.
 - **Tests:** after JBU577 holds short of B (tail over runway), issue the command → it pulls forward to clear
   RWY 01L/19R and holds, warning clears.
 
-### W6 — Directionality via the crossed runway: `TAXI J CROSS 28R` (NEW) — PROPOSAL
-- **Problem:** `TAXI J C CROSS 28R` mis-treats `C` as a route taxiway when the controller only means it as a
-  *direction hint* (which way along J / which fork) — the aircraft walks J all the way to the J/C junction.
-- **Proposed design:** allow `TAXI <twy> CROSS <rwy>` where the **named runway's crossing point on `<twy>` is
-  the directional anchor** (analogous to `--pf-dest-rwy` / destination-runway anchoring the pathfinder already
-  does). The aircraft walks `<twy>` *toward* the 28R crossing and stops just past it (W4) — no intermediate
-  taxiway needed. The crossed runway disambiguates direction the way a named next-taxiway would.
-- **Files:** `CommandSchemeParser` (recognize `<twy> CROSS <rwy>` shape), `GroundCommandHandler.TryTaxi` /
-  the pathfinder anchoring (`SegmentExpander` / runway hold-short anchor logic already exists for destination
-  runways — `ResolveRunwayHoldShortAnchorOnTaxiway`).
-- **Tests:** OAK `TAXI J CROSS 28R` routes along J toward the 28R crossing (correct fork) and holds just past;
-  contrast with the old `TAXI J C CROSS 28R`.
+### W6 — Directionality via the crossed runway: `TAXI J CROSS 28R` (NEW) ✅ DONE (2026-06-03)
+- **Problem:** `TAXI <twy> CROSS <rwy>` did not use the crossed runway for direction — `CROSS <rwy>` only
+  pre-cleared the crossing. When `<twy>` crosses two runways (e.g. G crosses both 28L and 28R at OAK), the
+  route could resolve the wrong way (back across the runway behind). It also never terminated at the crossing.
+- **Implemented (aviation-sim-expert-reviewed), per the user's three design decisions** (terminate just past
+  the crossing; anchor only as the directional cue when there's no other destination; whole-route — including
+  the start direction):
+  - **`GroundCommandHandler.ResolveCrossedRunwayAnchor` / `ResolveCrossedRunwayFarSideHoldShort`** — when a
+    `TAXI` has `CROSS <rwy>` and no destination runway / parking / spot, resolve the crossed runway's hold-short
+    on the **far side** of the start (the one reached only by crossing the runway — the farther of the runway's
+    two hold-shorts on the named taxiways) and pass it as `ExplicitPathOptions.DestinationHintNode`. The
+    farthest-along crossed runway wins for multiple `CROSS`.
+  - **`SegmentExpander.ResolveTerminus`** — a `DestinationKind.Node` destination on the final taxiway now routes
+    straight to it via `LocalSearchToJunction` (the direction-correct walk parking already uses), so the route
+    heads toward and across the runway and stops at the far bars instead of the direction-blind terminus walk.
+    Reuses existing node-routing; the only callers producing a `Node` destination on an explicit path are spot/
+    parking (routed via their own channel) and this anchor, so the change is isolated.
+  - Result: the route crosses the runway (a `RunwayCrossing` hold-short is annotated), `CrossingRunwayPhase`
+    fires (pre-cleared by the `CROSS` keyword), and it terminates in `HoldingInPositionPhase` just past the far
+    bars (W4). With a real destination, `CROSS <rwy>` stays a pure pre-clearance and the destination anchors.
+- **Tests:** `Issue172TaxiCrossRunwayAnchorTests` — `TAXI G CROSS 28R` from the ambiguous 28L-hold-short start
+  routes north across 28R (not back toward 28L) and holds 18 ft past the far bars; `TAXI J CROSS 28R` (synthetic
+  spawn on J) routes along J across 28R and holds 12 ft past. 325-test ground/pathfinder/Issue172 suite green.
+- **Scope note:** the anchor steers the **final** named taxiway's direction/terminus (the single-taxiway case is
+  the start-direction disambiguation). For a multi-taxiway route where the crossing is on an *earlier* leg
+  (e.g. `TAXI G C CROSS 28R`, 28R crossed on G with C past it), the far node isn't on the last taxiway, so the
+  anchor no-ops and the existing next-taxiway lookahead handles direction — graceful, no regression.
+- **Aviation review (2026-06-03): approved, ship.** Confirmed against 7110.65 §3-7-2 (a crossing clearance is
+  inherently directional — taxi toward/over the named runway) and AIM §4-3-21.b (auto-hold once fully past the
+  far holding-position markings → the ½-length-past terminus is correct). Optional future nicety (NOT a
+  correctness gap, not gating): a bare `CROSS <rwy>` with no onward taxi/hold-short is slightly under-specified
+  real-world phraseology (§3-7-2.a.2 NOTE), so an advisory like "crossing clearance issued without onward
+  taxi/hold-short" could nudge trainees toward complete phraseology. Backlog only.
 
 ### W7 — Per-taxiway turn-direction hints `>` / `<` (NEW) — PROPOSAL
 - **Problem:** controllers say "right on A, taxi A B C" — and disambiguate turns mid-route too. YAAT has no
@@ -219,10 +240,9 @@ especially should be confirmed with the mentor.
 1. **W1 + W1b + W2** (the spin fix + precedence + state) — core, highest value, sensitive navigator/crossing
    code. Land with the JBU577 replay test first (TDD).
 2. **W3** (warnings) — depends on W2's state flag.
-3. ~~**W4** (verify capability)~~ — DONE via recording-replay; the `TAXI J CROSS 28R` E2E folds into W6.
-4. **W6** (`TAXI J CROSS 28R` direction hint) — parser + pathfinder anchoring. Also delivers the terminal
-   `TAXI <twy> CROSS <rwy>` form W4 found to be W6-dependent (direction anchoring + a proper crossing
-   structure that terminates at the runway).
+3. ~~**W4** (verify capability)~~ — DONE via recording-replay; the `TAXI J CROSS 28R` E2E landed with W6.
+4. ~~**W6** (`TAXI J CROSS 28R` direction hint)~~ — DONE. Crossed-runway directional anchor + terminate just
+   past the crossing; also delivered the terminal `TAXI <twy> CROSS <rwy>` form W4 found to be W6-dependent.
 5. **W5** (pull-forward command) — new verb; depends on W2 (the state it resolves).
 6. **W7** (`>`/`<` hints) — parser-heavy, fragile test surface; can land independently.
 

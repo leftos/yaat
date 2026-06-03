@@ -423,6 +423,13 @@ internal static class GroundCommandHandler
             return ResolveRunwayRouteByAStar(groundLayout, startNode, taxi.DestinationRunway, out failReason, category);
         }
 
+        // Crossed-runway directional anchor (issue #172 W6): when CROSS <rwy> is the only directional
+        // cue (no destination runway / parking / spot), route the named taxiway(s) toward and across
+        // the crossed runway and stop just past it. The far-side hold-short becomes the route terminus,
+        // which disambiguates the start direction the way a named destination would — without it,
+        // "TAXI G CROSS 28R" from a taxiway that crosses two runways can head the wrong way.
+        GroundNode? crossAnchor = ResolveCrossedRunwayAnchor(groundLayout, startNode, taxi);
+
         return TaxiPathfinder.ResolveExplicitPath(
             groundLayout,
             startNode.Id,
@@ -433,9 +440,74 @@ internal static class GroundCommandHandler
                 ExplicitHoldShorts = taxi.HoldShorts,
                 DestinationRunway = taxi.DestinationRunway,
                 AirportId = groundLayout.AirportId,
+                DestinationHintNode = crossAnchor,
             },
             category
         );
+    }
+
+    /// <summary>
+    /// Resolve the routing anchor for a <c>TAXI &lt;twy&gt; CROSS &lt;rwy&gt;</c> with no other destination
+    /// (issue #172 W6). The anchor is the crossed runway's hold-short on the <b>far side</b> of the start
+    /// — the one reached only after crossing the runway — so the explicit pathfinder routes toward and
+    /// across the runway and terminates just past it. Returns null (no anchor; legacy behaviour) when there
+    /// is a real destination, no <c>CROSS</c> keyword, no named taxiways, or the runway lacks a near/far
+    /// hold-short pair on the named taxiways. The farthest-along crossed runway wins, so a route that
+    /// crosses several runways stops just past the last one.
+    /// </summary>
+    private static GroundNode? ResolveCrossedRunwayAnchor(AirportGroundLayout layout, GroundNode startNode, TaxiCommand taxi)
+    {
+        if (
+            taxi.Path.Count == 0
+            || taxi.DestinationRunway is not null
+            || taxi.DestinationParking is not null
+            || taxi.DestinationSpot is not null
+            || taxi.CrossRunways is not { Count: > 0 } crossings
+        )
+        {
+            return null;
+        }
+
+        for (int i = crossings.Count - 1; i >= 0; i--)
+        {
+            if (ResolveCrossedRunwayFarSideHoldShort(layout, startNode, taxi.Path, crossings[i]) is { } anchor)
+            {
+                Log.LogDebug("[TryTaxi] CROSS {Rwy} anchors route toward far-side hold-short node {Anchor}", crossings[i], anchor.Id);
+                return anchor;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Find the crossed runway's hold-short on the far side of <paramref name="startNode"/> — the one
+    /// reachable only by crossing the runway. Both of the runway's hold-shorts on the named taxiways lie
+    /// on opposite sides of the runway, so the far one is the farther from the start. Returns null when
+    /// the runway has fewer than two hold-shorts on the named taxiways (no near/far pair to anchor with).
+    /// </summary>
+    private static GroundNode? ResolveCrossedRunwayFarSideHoldShort(
+        AirportGroundLayout layout,
+        GroundNode startNode,
+        List<string> namedTaxiways,
+        string crossedRunwayId
+    )
+    {
+        var onNamed = new List<GroundNode>();
+        foreach (var node in layout.GetRunwayHoldShortNodes(crossedRunwayId))
+        {
+            if (node.Edges.Any(e => namedTaxiways.Any(t => e.MatchesTaxiway(t))))
+            {
+                onNamed.Add(node);
+            }
+        }
+
+        if (onNamed.Count < 2)
+        {
+            return null;
+        }
+
+        return onNamed.MaxBy(n => GeoMath.DistanceNm(startNode.Position, n.Position));
     }
 
     private static TaxiRoute? ResolveRunwayRouteByAStar(

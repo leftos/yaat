@@ -449,6 +449,22 @@ public static class SegmentExpander
             }
         }
 
+        // Crossed-runway anchor (issue #172 W6): a Node destination sitting ON the final taxiway is the
+        // far-side hold-short of a crossed runway (TAXI <twy> CROSS <rwy>). Route straight to it along the
+        // taxiway and stop — the same direction-correct walk a parking destination uses — so the route
+        // heads toward and across the runway and terminates just past the far bars, instead of the
+        // direction-blind terminus walk picking the wrong way (e.g. back across a parallel runway behind).
+        if (ctx.Destination.Kind == DestinationKind.Node && ctx.Destination.TargetNodeId is { } crossDestId && head.HeadNodeId != crossDestId)
+        {
+            var (toCrossEdges, toCrossHead, _) = LocalSearchToJunction(head, waypoint.Name, crossDestId, ctx);
+            if (toCrossEdges is not null)
+            {
+                return (toCrossEdges, toCrossHead, null);
+            }
+            // Node not reachable along this taxiway (the crossing is on an earlier leg): fall through to
+            // the natural-terminus walk, where the next named taxiway already anchors direction.
+        }
+
         // Named taxiway at end: walk to natural terminus, biased toward the destination at the
         // first (momentum-free) step. The greedy walk is otherwise direction-blind and picks an
         // arbitrary admissible direction — wrong when the aircraft starts mid-taxiway facing away

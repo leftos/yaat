@@ -182,7 +182,10 @@
         { "verb": "TAXIALL", "aliases": [], "description": "Taxi all to destination", "global": true },
         { "verb": "BREAK", "aliases": [], "description": "Break conflict" }
       ],
-      "notes": ["TAXI mods: `RWY` `HS` `CROSS` `NODEL` `@parking` `$spot`"]
+      "notes": [
+        "TAXI mods: `RWY` `HS` `CROSS` `NODEL` `@parking` `$spot`",
+        "`TAXI <twy> CROSS <rwy>` (no dest): cross that runway and hold just past — the runway sets the direction"
+      ]
     },
     {
       "id": "helicopter",
