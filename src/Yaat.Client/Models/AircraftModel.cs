@@ -79,13 +79,15 @@ public partial class AircraftModel : ObservableObject
     public string DisplayAircraftType => string.IsNullOrWhiteSpace(FiledAircraftType) ? AircraftType : FiledAircraftType;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeadingDisplay))]
     private LatLon _position;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HeadingDisplay))]
     private TrueHeading _heading;
 
-    public string HeadingDisplay => Heading.Degrees.ToString("F0", System.Globalization.CultureInfo.InvariantCulture);
+    /// <summary>Live heading in magnetic, 3-digit zero-padded for display (matches the assigned-heading frame).</summary>
+    public string HeadingDisplay => Heading.ToMagnetic(MagneticDeclination.GetDeclination(Position)).ToDisplayString();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MachDisplay))]
@@ -113,7 +115,7 @@ public partial class AircraftModel : ObservableObject
 
     public string AssignedHeadingDisplay =>
         !string.IsNullOrEmpty(NavigatingTo) ? NavigatingTo
-        : AssignedHeading.HasValue ? AssignedHeading.Value.Degrees.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
+        : AssignedHeading.HasValue ? AssignedHeading.Value.ToDisplayString()
         : "";
 
     [ObservableProperty]

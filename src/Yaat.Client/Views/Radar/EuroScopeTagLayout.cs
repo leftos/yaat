@@ -269,7 +269,7 @@ public static class EuroScopeTagLayout
     {
         if (ac.AssignedHeading is MagneticHeading hdg)
         {
-            return $"H{(int)hdg.Degrees:D3}";
+            return $"H{hdg.ToDisplayString()}";
         }
         return "AHDG";
     }

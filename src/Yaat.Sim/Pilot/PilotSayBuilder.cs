@@ -341,11 +341,7 @@ public static class PilotSayBuilder
     }
 
     /// <summary>Three-digit zero-padded heading: "270", "005", "360".</summary>
-    internal static string PlainHeading(int hdg)
-    {
-        hdg = NormalizeHeading(hdg);
-        return hdg.ToString("D3", System.Globalization.CultureInfo.InvariantCulture);
-    }
+    internal static string PlainHeading(int hdg) => new MagneticHeading(hdg).ToDisplayString();
 
     /// <summary>Plain Mach: "0.78", "0.65", "0.80".</summary>
     internal static string PlainMach(double mach) => Math.Round(mach, 2).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);

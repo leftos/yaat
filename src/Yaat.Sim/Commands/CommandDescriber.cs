@@ -1326,7 +1326,7 @@ public static class CommandDescriber
         }
         if (ga.AssignedMagneticHeading is not null || ga.TargetAltitude is not null)
         {
-            return $"GA {(ga.AssignedMagneticHeading?.Degrees.ToString("000") ?? "RH")} {ga.TargetAltitude}";
+            return $"GA {(ga.AssignedMagneticHeading?.ToDisplayString() ?? "RH")} {ga.TargetAltitude}";
         }
         return "GA";
     }
@@ -1344,7 +1344,7 @@ public static class CommandDescriber
         }
         if (ga.AssignedMagneticHeading is not null)
         {
-            msg += $", fly heading {ga.AssignedMagneticHeading.Value.Degrees:000}";
+            msg += $", fly heading {ga.AssignedMagneticHeading.Value.ToDisplayString()}";
         }
         if (ga.TargetAltitude is not null)
         {

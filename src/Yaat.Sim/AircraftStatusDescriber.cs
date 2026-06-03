@@ -325,19 +325,19 @@ public static class AircraftStatusDescriber
             ClosedTrafficDeparture ct => $"{ct.Direction.ToString().ToLowerInvariant()} traffic",
             OnCourseDeparture => "on course",
             DirectFixDeparture d => $"→ {d.FixName}",
-            FlyHeadingDeparture fh => FormatHeadingLateral(fh.Direction, fh.MagneticHeading.Degrees),
+            FlyHeadingDeparture fh => FormatHeadingLateral(fh.Direction, fh.MagneticHeading),
             RelativeTurnDeparture rt => $"{rt.Direction.ToString().ToLowerInvariant()} turn {rt.Degrees}°",
             RunwayHeadingDeparture => "runway heading",
             DefaultDeparture => string.IsNullOrEmpty(i.NavigatingTo) ? "runway heading" : $"→ {i.NavigatingTo}",
             null => !string.IsNullOrEmpty(i.NavigatingTo) ? $"→ {i.NavigatingTo}"
-            : i.AssignedHeading.HasValue ? $"hdg {i.AssignedHeading.Value.Degrees:F0}"
+            : i.AssignedHeading.HasValue ? $"hdg {i.AssignedHeading.Value.ToDisplayString()}"
             : "",
             _ => "",
         };
     }
 
-    private static string FormatHeadingLateral(TurnDirection? dir, double deg) =>
-        dir is null ? $"hdg {deg:F0}" : $"{dir.ToString()!.ToLowerInvariant()} turn hdg {deg:F0}";
+    private static string FormatHeadingLateral(TurnDirection? dir, MagneticHeading hdg) =>
+        dir is null ? $"hdg {hdg.ToDisplayString()}" : $"{dir.ToString()!.ToLowerInvariant()} turn hdg {hdg.ToDisplayString()}";
 
     private static string FormatApproachNavStatus(AircraftStatusView i)
     {
@@ -437,7 +437,7 @@ public static class AircraftStatusDescriber
     {
         if (keep && i.AssignedHeading.HasValue)
         {
-            return $"{text}, hdg {i.AssignedHeading.Value.Degrees:F0}";
+            return $"{text}, hdg {i.AssignedHeading.Value.ToDisplayString()}";
         }
         return text;
     }

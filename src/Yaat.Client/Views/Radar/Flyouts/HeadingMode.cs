@@ -132,11 +132,9 @@ public static class HeadingPreviewRenderer
         canvas.DrawLine(arcEndScreen.X, arcEndScreen.Y, curSx, curSy, linePaint);
 
         // Label near snapped end-point.
-        int hdgInt = ((snappedHdgMag - 1 + 360) % 360) + 1; // map 0 -> 360 to keep the standard 001..360 form
+        string hdgStr = new MagneticHeading(snappedHdgMag).ToDisplayString();
         string label =
-            ac.GroundSpeed > 1
-                ? $"{hdgInt:D3}M  {cursorDistNm:0.0}nm  {FormatEta(cursorDistNm, ac.GroundSpeed)}"
-                : $"{hdgInt:D3}M  {cursorDistNm:0.0}nm";
+            ac.GroundSpeed > 1 ? $"{hdgStr}M  {cursorDistNm:0.0}nm  {FormatEta(cursorDistNm, ac.GroundSpeed)}" : $"{hdgStr}M  {cursorDistNm:0.0}nm";
 
         DrawLabel(canvas, label, curSx + 12, curSy - 8, textPaint);
     }

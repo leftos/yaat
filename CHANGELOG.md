@@ -21,6 +21,7 @@
 - Clicking a sent clearance in the vTDLS **PDC** list now re-opens it read-only — the editor shows exactly what was issued with every field disabled and no Send button, so a sent PDC can't be edited or resent (Dump still works). Previously clicking a sent PDC did nothing.
 - vTDLS clearances now leave the **PDC** list once the aircraft is tracked on STARS by any controller (it has left clearance delivery), instead of lingering until the 2-hour timeout.
 - Replaying a recording now shows the controller's commands in the terminal as playback reaches them — the same `[Command]` lines (with the original initials and callsign) you see live — so you can follow what moved each aircraft instead of watching them maneuver silently. Commands surface only as forward playback reaches their timestamps, not in a burst during a rewind/seek.
+- The aircraft-list **Hdg** column now reads in magnetic, matching the **AHdg** (assigned heading) column and what you'd read off a heading bug. It previously showed true heading, so it could differ from AHdg by the local magnetic variation (~13° in the Bay Area) even when the aircraft was flying its assigned heading. All headings shown in the UI — the Hdg/AHdg columns, the aircraft-list status text, and the radar right-click heading menu — are now displayed as 3-digit numbers (`090`, `005`, `360`) instead of `90`/`5`.
 
 ## v0.6.0-beta [2026/06/01]
 

@@ -275,7 +275,7 @@ public partial class RadarView
             }
             else if (ac.AssignedHeading.HasValue)
             {
-                hdgLabel = $"Heading (\u2192 {ac.AssignedHeading.Value.Degrees:F0})";
+                hdgLabel = $"Heading (\u2192 {ac.AssignedHeading.Value.ToDisplayString()})";
             }
         }
 
@@ -1258,7 +1258,9 @@ public partial class RadarView
                 heading = 360;
             }
 
-            menu.Items.Add(CreateMenuItem($"Fly heading {heading:D3}", () => vm.FlyHeadingAsync(callsign, initials, heading)));
+            menu.Items.Add(
+                CreateMenuItem($"Fly heading {new MagneticHeading(heading).ToDisplayString()}", () => vm.FlyHeadingAsync(callsign, initials, heading))
+            );
 
             if (frdString is not null)
             {

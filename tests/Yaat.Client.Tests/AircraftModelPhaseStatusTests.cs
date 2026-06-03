@@ -269,4 +269,20 @@ public class AircraftModelPhaseStatusTests
         var v = new AircraftStatusView { CurrentPhase = phase, AssignedHeading = new MagneticHeading(270) };
         Assert.Contains("hdg 270", Text(v));
     }
+
+    [Theory]
+    [InlineData(90, "hdg 090")]
+    [InlineData(5, "hdg 005")]
+    [InlineData(360, "hdg 360")]
+    [InlineData(0, "hdg 360")]
+    public void HeadingSuffix_ThreeDigitZeroPadded(int hdg, string expected)
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "ProceedToFix",
+            NavigatingTo = "OAKEY",
+            AssignedHeading = new MagneticHeading(hdg),
+        };
+        Assert.Contains(expected, Text(v));
+    }
 }
