@@ -201,6 +201,18 @@ class BundleReader:
 # ---------------------------------------------------------------------------
 
 
+def force_utf8_stdio() -> None:
+    """Make stdout/stderr UTF-8 so bundle content with non-ASCII characters
+    (e.g. the U+2713 check mark in preset commands, or unicode in routes and
+    remarks) doesn't crash on Windows' legacy cp1252 console. The
+    ``backslashreplace`` error handler is a fallback for the rare stream that
+    cannot switch to UTF-8."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def write_output(text: str, out_path: Path | None) -> None:
     if out_path is None:
         sys.stdout.write(text)
@@ -1586,6 +1598,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    force_utf8_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)
