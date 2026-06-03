@@ -69,13 +69,13 @@ SendCommandAsync(callsign, command, initials)
 
 Track commands go to `TrackEngine.Dispatch` (pure logic in `Yaat.Sim`) — `TrackCommandHandler` is a thin adapter. The replay applier (`ReplayTrackApplier`) shares this engine, so live and replay paths always agree.
 
-After validation, every command is recorded for replay: `Record(new RecordedCommand(scenario.ElapsedSeconds, callsign, command, initials, connectionId))`. **Including rejected ones** — replay needs a faithful history, not a clean one.
+After validation, every command is recorded for replay: `Record(new RecordedCommand(scenario.ElapsedSeconds, callsign, command, initials, connectionId) { ReactionDelaySeconds = … })` — the pilot-reaction delay, if any, is baked in so replays reproduce it exactly (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)). **Including rejected ones** — replay needs a faithful history, not a clean one.
 
 ### 5. CommandDispatcher.DispatchCompound
 
 (`src/Yaat.Sim/Commands/CommandDispatcher.cs`)
 
-`DispatchCompound(aircraft, compound, ctx)` is the entry point for non-track, non-coordination, non-strip commands. The big moves:
+`DispatchCompound(aircraft, compound, ctx)` is the entry point for non-track, non-coordination, non-strip commands. It first checks for a leading `WAIT`/`WAITD`/`BEHIND` and short-circuits to a **deferred dispatch** (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)); otherwise the big moves:
 
 1. **Phase gate.** If `aircraft.Phases?.CurrentPhase` exists, route through `DispatchWithPhase`. The phase's `CanAcceptCommand` is consulted (see [phases.md](phases.md)). `Rejected` returns immediately. `ClearsPhase` defers clearing until validation passes.
 2. **Dry-run validation.** The full compound is run on a clone of the aircraft (`DryRunValidate`). If any block fails (e.g. unknown fix, illegal intercept), the user gets the error and **state is unchanged**.
@@ -143,6 +143,30 @@ Adding a new contextual flag to handlers? Add it to `DispatchContext`, set it at
 
 `RD`, `RDH`, `RDR`, `RDACK`, `RDAUTO` — STARS coordination items between TCPs. Channels are resolved from ARTCC config; items auto-expire 5 min after ack.
 
+## Deferred dispatch — WAIT, BEHIND, and the command-run delay
+
+(`DeferredDispatch` in `src/Yaat.Sim/CommandQueue.cs`; ticked by `SimulationEngine.ProcessDeferredDispatches`)
+
+Distinct from the CommandQueue (§6): a queued `CommandBlock` holds *part* of an already-dispatched compound behind a trigger and writes `ControlTargets` when the trigger fires. A `DeferredDispatch` instead holds the **entire un-dispatched compound** and re-runs it through `DispatchCompound` from scratch when its timer/condition expires — phases, queue clearing, and validation all happen fresh at fire time, not at issue time. Each aircraft owns a `DeferredDispatches` list (snapshot-serialized).
+
+Three things create a deferred dispatch:
+
+1. **`TryDeferLeadingWait`** (inside `DispatchCompound`, before the phase gate) — a leading `WAIT n` (seconds) or `WAITD nm` (flying miles). The WAIT is stripped; the remaining blocks become the payload.
+2. **`TryDeferGiveWay`** (inside `DispatchCompound`) — a leading `BEHIND <callsign>` give-way condition. The payload dispatches once the named aircraft has passed.
+3. **Command-run delay** — `SimulationEngine.TryDeferCommandForReaction`, called from `SendCommand` / `RoomEngine.HandleStandardCmd` *around* `DispatchCompound` (not inside it). The configurable pilot-reaction delay (issue #180): when active, the whole compound is deferred a sampled `[min,max]` seconds; the controller gets an immediate "Pilot complying in Ns" acknowledgement and the aircraft acts when the timer expires.
+
+`ProcessDeferredDispatches` (a per-tick step) ticks every aircraft's `DeferredDispatches` each 0.25 s sub-tick — decrementing seconds, accumulating distance, or evaluating the give-way condition — and re-dispatches the payload through `DispatchCompound` on expiry. WAIT/BEHIND/distance expiries emit a `[Deferred] … →` terminal line; reaction delays fire silently (the controller already saw the acknowledgement at issue time).
+
+### Command-run delay specifics
+
+- **Scope.** Applies to anything reaching the standard dispatch path: flight/nav/approach/hold/ground plus squawk/ident/say. Track/coordination/strip commands are routed away earlier (see above) and never reach it. *Pure* frequency-change/contact compounds (`ContactCommand` / `FrequencyChangeApprovedCommand` / `AcknowledgePilotContactCommand`) are exempt — AIM 4-2-3 expects a pilot to switch frequency ASAP — while a mixed compound (`FH 270; CON TWR`) is delayed as a whole. Commands carrying explicit timing (leading `WAIT`/`WAITD`/`BEHIND`) are not additionally reaction-delayed.
+- **Replay determinism.** Live sampling draws from a *dedicated* `SimulationWorld.ReactionDelayRng`, never the shared `World.Rng`, so it can't perturb the RNG sequence driving emergent events (go-arounds, generator spawns). The sampled value is baked into `RecordedCommand.ReactionDelaySeconds`; `SimulationEngine.ReplayCommand` recreates the deferral from that recorded value and never re-samples — re-sampling would draw from a divergent RNG state and break determinism.
+- **Issue order.** `TryDeferCommandForReaction` clamps each new reaction delay so it fires no sooner than any already-pending one, and `ProcessDeferredDispatches` applies same-tick expiries FIFO — so two rapid commands always take effect in the order issued.
+
+### The clears-on-supersede invariant
+
+`DispatchCompound` calls `aircraft.DeferredDispatches.Clear()` so a **new** controller command cancels pending WAITs (the new instruction supersedes). A deferred **re-dispatch** must *not* cancel its siblings, so `ProcessDeferredDispatches` detaches the surviving (not-yet-ready) deferrals across the dispatch and restores them afterward. Without this, two stacked reaction-delayed (or WAIT) commands would wipe each other when the first fires.
+
 ## Pitfalls
 
 - **Heading/altitude/speed are NOT track commands.** They take `HandleStandardCmd` → `CommandDispatcher`. Track commands are STARS ownership ops. Easy to confuse because both involve callsigns.
@@ -153,3 +177,4 @@ Adding a new contextual flag to handlers? Add it to `DispatchContext`, set it at
 - **Phase clearing is post-validation.** `ClearsPhase` does not immediately clear — validation runs first on a clone, then the phase is cleared, then commands apply. This protects against half-applied compound commands.
 - **Dimension-aware clearing isn't all-or-nothing.** A new heading command clears queued lateral blocks but leaves a queued altitude block alone. If you find yourself adding `aircraft.CommandQueue.Clear()` to a handler, you're probably bypassing this design.
 - **`SimulationWorld.AddAircraft` is replacement-safe.** It drops any same-callsign entry (case-insensitive) before appending and logs a warning. Spawn wins over a pre-existing user-typed VP/DA ghost — don't add per-call-site dedup. A logged replacement is expected when a scenario spawn collides with a ghost; two scenario spawn paths firing for one callsign is a bug.
+- **A deferred re-dispatch must not cancel sibling deferrals.** `DispatchCompound` clears `DeferredDispatches` to supersede pending WAITs on a *new* command, so `ProcessDeferredDispatches` detaches and restores the survivors around a re-dispatch. If you rework deferred dispatch, keep that — otherwise a firing WAIT or command-run delay silently wipes the others. See [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay).
