@@ -8,12 +8,15 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
-/// Issue #172 sub-case (JBU577 taxi spin): JBU577 landed at SFO, was given
-/// <c>TAXI G B HS B</c> + <c>CROSS</c>, then at t=514 <c>TAXI B M1 Y @B5</c>
-/// (echo <c>G B M1 Y AY2 A M2 M3 RAMP @B5</c>). It then turned back toward the runway and
-/// toward B again — failing to settle on a direction at one of the route's junctions — and the
-/// controller deleted it at t=878. This reproduces the taxi and asserts it does not orbit.
+/// Issue #172 sub-case (JBU577 taxi spin). After landing at SFO, JBU577 was given
+/// <c>TAXI G B HS B</c> (+ <c>CROSS</c>) to cross RWY 01L/19R on taxiway G and hold short of B just
+/// beyond. B's hold-short (node 1398) sits only ~74 ft past the runway far-side hold-short (node 867) —
+/// shorter than the aircraft — so the runway-crossing tail clearance overshoots B and the navigator
+/// reverses ~180° (back toward the runway, then toward B) to reach the hold-short. Visible t≈470–495.
 ///
+/// These are diagnostic scaffolds for the fix in
+/// <c>docs/plans/open-issues/172-taxi-crossing-holdshort-and-directionality.md</c> (work item W1): turn
+/// them into an assertion test (taxis straight, crosses, holds short of B, no 180° reversal, no orbit).
 /// Recording: issue172-sfo-taxiing-recording (ZOA/SFO).
 /// </summary>
 public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
