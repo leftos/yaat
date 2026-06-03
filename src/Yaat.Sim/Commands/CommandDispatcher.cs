@@ -1634,6 +1634,8 @@ public static class CommandDispatcher
 
             case BreakConflictCommand:
                 return GroundCommandHandler.TryBreakConflict(aircraft);
+            case ClearRunwayCommand:
+                return GroundCommandHandler.TryClearRunway(aircraft, groundLayout);
             case GoCommand:
                 return GroundCommandHandler.TryGo(aircraft);
 

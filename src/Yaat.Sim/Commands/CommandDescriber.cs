@@ -113,6 +113,7 @@ public static class CommandDescriber
             ExitTaxiwayCommand => CanonicalCommandType.ExitTaxiway,
             TaxiAllCommand => CanonicalCommandType.TaxiAll,
             BreakConflictCommand => CanonicalCommandType.BreakConflict,
+            ClearRunwayCommand => CanonicalCommandType.ClearRunway,
             GoCommand => CanonicalCommandType.Go,
             SayCommand => CanonicalCommandType.Say,
             SaySpeedCommand => CanonicalCommandType.SaySpeed,
@@ -513,6 +514,7 @@ public static class CommandDescriber
             ExitTaxiwayCommand et => $"EXIT {et.Taxiway}",
             TaxiAllCommand taxiAll => FormatTaxiAllCanonical(taxiAll),
             BreakConflictCommand => "BREAK",
+            ClearRunwayCommand => "CLRWY",
             GoCommand => "GO",
             SayCommand say => $"SAY {say.Text}",
             SaySpeedCommand => "SSPD",
@@ -777,6 +779,7 @@ public static class CommandDescriber
             ExitTaxiwayCommand et => $"Exit at {et.Taxiway}",
             TaxiAllCommand taxiAll => FormatTaxiAllNatural(taxiAll),
             BreakConflictCommand => "Break conflict",
+            ClearRunwayCommand => "Continue forward, clear of the runway, then hold",
             GoCommand => "Begin takeoff roll",
             SayCommand say => say.Text,
             SaySpeedCommand => "Say speed",
@@ -962,7 +965,8 @@ public static class CommandDescriber
                 or HoldShortCommand
                 or FollowGroundCommand
                 or GiveWayCommand
-                or BreakConflictCommand;
+                or BreakConflictCommand
+                or ClearRunwayCommand;
     }
 
     internal static bool IsPhaseTransparent(CanonicalCommandType type)

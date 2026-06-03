@@ -418,6 +418,13 @@ public record TaxiAllCommand(string? DestinationRunway = null, string? Destinati
 
 public record BreakConflictCommand : ParsedCommand;
 
+/// <summary>
+/// CLRWY — pull an aircraft holding short of a taxiway with its tail over a runway (issue #172 W2 state)
+/// forward just until it is clear of the runway, then hold in position. Valid only from that tail-over-runway
+/// hold; rejected otherwise.
+/// </summary>
+public record ClearRunwayCommand : ParsedCommand;
+
 public record GoCommand : ParsedCommand;
 
 // Exit commands

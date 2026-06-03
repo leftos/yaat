@@ -755,6 +755,7 @@ public static class CommandRegistry
                 [O(null, [R("destination", "runway or @parking")], "Auto-route taxi to runway or parking (A* pathfinding)")]
             ),
             Bare(BreakConflict, "Break Conflict", "Ground", false, ["BREAK"]),
+            Bare(ClearRunway, "Clear Runway", "Ground", false, ["CLRWY", "CLEARRWY"]),
             Bare(Go, "Begin Takeoff Roll", "Tower", false, ["GO"]),
         ];
 

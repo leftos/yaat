@@ -260,6 +260,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Hold position | `HOLD` | `HP` | — |
 | Resume taxi | `RES` | `RESUME` | `RES CROSS 28R 28L HS 20` |
 | Cross runway/HS | `CROSS 28L` | `CROSS` (bare) | `CROSS; HOLD` |
+| Clear the runway | `CLRWY` | `CLEARRWY` | — |
 | Hold short | `HS B` | — | — |
 | Assign runway | `RWY 30` | — | — |
 | Exit left | `EL` | `EXITL` | — |
@@ -554,6 +555,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `CROSS B` | Cross taxiway B (clears hold-short) |
 | `TAXI G CROSS 28R` | Taxi via G, cross 28R, and hold just past it. With no taxiway named past the crossing, the crossed runway sets the direction — the aircraft heads toward and across it (even when G also crosses another runway behind), then holds clear on the far side. |
 | `CROSS; HOLD` | Bare CROSS plus chained HOLD: cross the runway and halt right after clearing the far-side hold bars (HOLD fires only when CrossingRunwayPhase completes). |
+| `CLRWY` / `CLEARRWY` | Pull an aircraft holding short of a taxiway with its tail over a runway forward until it is just clear of the runway (½ a length past the bars), then hold. Only valid in that tail-over-runway hold — it arises when a hold-short of a taxiway sits closer than the aircraft's own length past a runway it just crossed (e.g. `TAXI G B HS B` across 01L/19R at SFO). Resolves the "runway not clear" warning. |
 | `HS B` | Hold short at the next intersection with taxiway B |
 | `HS 28L` | Hold short at the next runway 28L crossing |
 | `RWY 30` | Assign runway 30 (override runway assignment without taxi) |

@@ -94,6 +94,7 @@ public enum CanonicalCommandType
     ExitTaxiway,
     TaxiAll,
     BreakConflict,
+    ClearRunway,
     Go,
 
     // Helicopter commands

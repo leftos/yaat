@@ -1640,6 +1640,60 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok("Break conflict");
     }
 
+    /// <summary>
+    /// CLRWY — pull an aircraft holding short of a taxiway with its tail over a runway (issue #172 W2 state)
+    /// forward just until it is clear of the runway, then hold. The taxiway hold-short is superseded and the
+    /// hold released, so the aircraft resumes its route to the terminus just past the runway (where the hold
+    /// positions it nose-at-the-junction, body back across the taxiway line, tail just clear of the runway
+    /// bars) and holds in position. Clearing the tail-over state releases the occupied runway hold-short node
+    /// (the "runway not clear" warning). Valid only from the tail-over-runway hold.
+    /// </summary>
+    internal static CommandResult TryClearRunway(AircraftState aircraft, AirportGroundLayout? groundLayout)
+    {
+        if (!aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "CLRWY requires aircraft on the ground");
+        }
+
+        if (aircraft.Phases?.CurrentPhase is not HoldingShortPhase holdPhase || holdPhase.HoldShort.TailOverRunwayNodeId is not { } runwayNodeId)
+        {
+            return new CommandResult(false, "CLRWY only applies when holding short of a taxiway with the tail over a runway");
+        }
+
+        // The approach node is the route node on the runway side of the crossed hold-short, so the
+        // ½-length tail-clearance offset projects forward (away from the runway).
+        int approachNodeId = aircraft.Ground.AssignedTaxiRoute?.Segments.FirstOrDefault(s => s.ToNodeId == runwayNodeId)?.FromNodeId ?? -1;
+        if (
+            groundLayout is null
+            || approachNodeId < 0
+            || !groundLayout.Nodes.ContainsKey(approachNodeId)
+            || !groundLayout.Nodes.ContainsKey(runwayNodeId)
+        )
+        {
+            return new CommandResult(false, "Unable to pull forward — runway-clearance geometry unavailable");
+        }
+
+        // Supersede the binding taxiway hold-short and release the hold (resolving the tail-over-runway
+        // state, which releases the occupied runway node), then drive forward ½ aircraft length past the
+        // runway bars and hold there — clear of the runway behind it (issue #172 W5).
+        holdPhase.HoldShort.IsCleared = true;
+        holdPhase.HoldShort.TailOverRunwayNodeId = null;
+
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new ClearRunwayPhase(runwayNodeId, approachNodeId));
+        aircraft.Phases.Add(new HoldingInPositionPhase());
+        aircraft.Phases.Start(ctx);
+
+        Log.LogInformation(
+            "[ClearRunway] {Callsign}: pulling forward clear of RWY node {Rwy} from hold-short of {Target}",
+            aircraft.Callsign,
+            runwayNodeId,
+            holdPhase.HoldShort.TargetName ?? "taxiway"
+        );
+        return CommandDispatcher.Ok("clearing the runway, holding");
+    }
+
     internal static CommandResult TryGo(AircraftState aircraft)
     {
         if (aircraft.Phases?.CurrentPhase is not StopAndGoPhase stopAndGo)

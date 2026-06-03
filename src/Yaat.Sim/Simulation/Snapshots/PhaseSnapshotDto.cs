@@ -192,6 +192,7 @@ public sealed class PatternWaypointsDto
 
 [JsonDerivedType(typeof(HoldingShortPhaseDto), "HoldingShort")]
 [JsonDerivedType(typeof(CrossingRunwayPhaseDto), "CrossingRunway")]
+[JsonDerivedType(typeof(ClearRunwayPhaseDto), "ClearRunway")]
 [JsonDerivedType(typeof(AirTaxiPhaseDto), "AirTaxi")]
 [JsonDerivedType(typeof(HoldingInPositionPhaseDto), "HoldingInPosition")]
 [JsonDerivedType(typeof(HoldingAfterPushbackPhaseDto), "HoldingAfterPushback")]
@@ -287,6 +288,17 @@ public sealed class CrossingRunwayPhaseDto : PhaseDto
     /// reason as <see cref="Navigator"/>. Defaults to 0 for legacy snapshots.
     /// </summary>
     public int CrossingRouteSegmentIndex { get; init; }
+}
+
+/// <summary>
+/// Snapshot for <see cref="Yaat.Sim.Phases.Ground.ClearRunwayPhase"/> (issue #172 W5). Carries the runway
+/// hold-short node and the approach (runway-side) node; the navigator is rebuilt on the first OnTick after
+/// restore, like <see cref="CrossingRunwayPhaseDto"/>.
+/// </summary>
+public sealed class ClearRunwayPhaseDto : PhaseDto
+{
+    public required int RunwayNodeId { get; init; }
+    public required int ApproachNodeId { get; init; }
 }
 
 public sealed class AirTaxiPhaseDto : PhaseDto

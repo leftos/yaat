@@ -757,6 +757,7 @@ public static class CommandParser
             TaxiAll => GroundCommandParser.ParseTaxiAll(arg),
             TaxiAuto => GroundCommandParser.ParseTaxiAuto(arg),
             BreakConflict when arg is null => PR.Ok(new BreakConflictCommand()),
+            ClearRunway when arg is null => PR.Ok(new ClearRunwayCommand()),
             CanonicalCommandType.Go when arg is null => PR.Ok(new GoCommand()),
             ExitLeft when arg is null or "NODEL" => PR.Ok(new ExitLeftCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true)),
             ExitLeft => PR.Ok(new ExitLeftCommand(false, arg.Trim().ToUpperInvariant())),

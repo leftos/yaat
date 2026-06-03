@@ -124,6 +124,12 @@ public sealed class HoldingShortPhase : Phase
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedTakeoffPresent => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldShort => CommandAcceptance.Allowed,
+            // CLRWY is dispatched ahead of this gate (CommandDispatcher.TryApplyTowerCommand), which
+            // replaces the phase with a ClearRunwayPhase; Allowed here keeps the phase intact for that
+            // handler on any path that does reach the gate.
+            CanonicalCommandType.ClearRunway => _holdShort.TailOverRunwayNodeId is not null
+                ? CommandAcceptance.Allowed
+                : CommandAcceptance.Rejected("CLRWY only applies when holding short of a taxiway with the tail over a runway"),
             CanonicalCommandType.Resume => _holdShort.Reason == HoldShortReason.DestinationRunway
                 ? CommandAcceptance.Rejected(
                     $"holding short of destination runway {_holdShort.TargetName ?? "runway"} — RES does not apply (issue CTO or LUAW)"

@@ -1,6 +1,6 @@
 # Handoff: taxi crossing / hold-short precedence + directionality hints
 
-> **Status:** **W1–W4 and W6 implemented and verified (2026-06-03); W5 and W7 remain.** Originated
+> **Status:** **W1–W6 implemented and verified (2026-06-03); only W7 remains.** Originated
 > from issue #172 (JBU577 "taxi spin"). Mentor (Maxim, ZOA) consulted; FAA references checked and
 > aviation-sim-expert-reviewed.
 > **Recording:** `tests/Yaat.Sim.Tests/TestData/issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip`.
@@ -160,23 +160,35 @@ especially should be confirmed with the mentor.
   into W6 once the anchoring lands). The *capability* (cross & hold just past, via a route that has a proper
   crossing structure) is confirmed by the test above.
 
-### W5 — "Pull forward" command (NEW) — PROPOSAL
+### W5 — "Pull forward" command `CLRWY` (NEW) ✅ DONE (2026-06-03)
 - **Problem:** an aircraft holding short of a taxiway with its tail over a runway (W2) needs a way to be moved
   forward until it's clear of the runway, then hold — the controller resolves the encroachment.
-- **Proposed behavior:** advance the aircraft forward along its current taxiway/route just enough that its
-  **tail clears the runway behind it** (i.e. to the ½-length-past-the-far-bars runway-clear point), then
-  `HoldingInPosition`. It supersedes the taxiway hold-short that was binding (the aircraft now enters the
-  taxiway minimally). Idempotent if already clear.
-- **Proposed command (NAME/PHRASEOLOGY TBD with mentor):** a new `CanonicalCommandType` — working name `FWD`
-  (or "pull up / continue forward, clear of the runway"). Functionally it re-targets the navigator to the
-  runway-clear point and resumes. Real ATC has no standard verb for this; pick a YAAT verb + a plain-language
-  RPO phrasing. Must be in `CommandScheme.Default()` + `CommandRegistry.All` (completeness tests enforce this),
-  documented in `COMMANDS.md` + `docs/command-cheatsheet.json` + the HTML cheatsheet, and reviewed by
-  `aviation-sim-expert`.
-- **Files:** `ParsedCommand.cs` / `CanonicalCommandType`, `CommandScheme`, `CommandRegistry`, a handler
-  (likely `GroundCommandHandler`), `CommandDispatcher` routing.
-- **Tests:** after JBU577 holds short of B (tail over runway), issue the command → it pulls forward to clear
-  RWY 01L/19R and holds, warning clears.
+- **Implemented as `CLRWY` (alias `CLEARRWY`)** (user-chosen verb; user decisions: tail-over-runway-only scope;
+  stop at the ½-length tail-clearance node, not the junction):
+  - **Plumbing:** new `CanonicalCommandType.ClearRunway` + `ClearRunwayCommand` record + parser case +
+    `CommandRegistry.All` (`Bare(ClearRunway, "Clear Runway", "Ground", …, ["CLRWY","CLEARRWY"])`, which feeds
+    `CommandScheme.Default()`) + `CommandDescriber` (canonical `CLRWY`, natural "Clear the runway", ground
+    classification) + `CommandDispatcher.TryApplyTowerCommand` routes it to `GroundCommandHandler.TryClearRunway`.
+  - **Handler (`GroundCommandHandler.TryClearRunway`):** valid only when the current phase is a
+    `HoldingShortPhase` whose `HoldShort.TailOverRunwayNodeId` is set (else a clear rejection). It supersedes
+    that taxiway hold-short (`IsCleared`, clears `TailOverRunwayNodeId` → releases the occupied runway node),
+    then installs `[ClearRunwayPhase, HoldingInPositionPhase]`.
+  - **New `ClearRunwayPhase`** (modeled on `CrossingRunwayPhase`): drives a `GroundNavigator` to a virtual node
+    `VirtualNode.OffsetPast(runwayNode, approachNode, ½ aircraft length)` — the **same** ½-length tail-clearance
+    node a crossing-with-no-hold-short stops at (the one W1 Fix B suppresses here) — then completes into
+    `HoldingInPositionPhase`. Snapshotted via `ClearRunwayPhaseDto` (runway + approach node ids; navigator
+    rebuilt lazily on restore, like the crossing phase); registered in `PhaseSnapshotDto` `JsonDerivedType` +
+    `PhaseList.FromSnapshot`. Pilot/RPO readback: "clearing the runway, holding".
+- **Test:** `Issue172Jbu577ClearRunwayTests` — JBU577 holding short of B (tail over 01L/19R, runway node
+  occupied) → `CLRWY` → pulls forward from center 8 ft to ~72 ft (½ length) past the runway bars, at B's hold
+  line (#1398), **not** the junction (#155, ~148 ft past); holds; runway node released.
+- **Aviation review (2026-06-03): approved, ship.** Confirmed against 7110.65 §3-7-4 / §3-10-6.c (controller's
+  duty to move a runway-fouling aircraft; aircraft don't self-reverse — no standard 7110.65 verb exists, so a
+  YAAT verb is appropriate) and AIM §4-3-21.b (clear-of-runway = all parts past the holding-position markings,
+  then hold; nose protruding onto the taxiway is explicitly sanctioned). The ½-length offset is anchored at the
+  `RunwayHoldShort` node (the hold-short line), not the runway edge/centerline — verified correct. Phraseology:
+  read-back stays present-progressive "clearing the runway, holding"; the controller-facing natural form renders
+  as a real instruction ("Continue forward, clear of the runway, then hold"), not the input token.
 
 ### W6 — Directionality via the crossed runway: `TAXI J CROSS 28R` (NEW) ✅ DONE (2026-06-03)
 - **Problem:** `TAXI <twy> CROSS <rwy>` did not use the crossed runway for direction — `CROSS <rwy>` only
@@ -243,7 +255,7 @@ especially should be confirmed with the mentor.
 3. ~~**W4** (verify capability)~~ — DONE via recording-replay; the `TAXI J CROSS 28R` E2E landed with W6.
 4. ~~**W6** (`TAXI J CROSS 28R` direction hint)~~ — DONE. Crossed-runway directional anchor + terminate just
    past the crossing; also delivered the terminal `TAXI <twy> CROSS <rwy>` form W4 found to be W6-dependent.
-5. **W5** (pull-forward command) — new verb; depends on W2 (the state it resolves).
+5. ~~**W5** (pull-forward command)~~ — DONE as `CLRWY`; drives to the ½-length tail-clearance node and holds.
 6. **W7** (`>`/`<` hints) — parser-heavy, fragile test surface; can land independently.
 
 Cross-repo: run `pwsh tools/test-all.ps1` (W1/W2 touch `Yaat.Sim` shared by yaat-server). Update `COMMANDS.md`,
@@ -251,7 +263,8 @@ Cross-repo: run `pwsh tools/test-all.ps1` (W1/W2 touch `Yaat.Sim` shared by yaat
 `docs/architecture.md` for any new command/syntax. `aviation-sim-expert` review for W1b/W2/W5.
 
 ## Open decisions for the implementing agent (confirm with the user / mentor)
-- W5: the pull-forward command's verb + RPO phraseology.
+- ~~W5: the pull-forward command's verb + RPO phraseology.~~ DECIDED: `CLRWY` (alias `CLEARRWY`), readback
+  "clearing the runway, holding"; stops at the ½-length tail-clearance node.
 - W7: confirm the hint tokens (`>`/`<`) — they apply per-taxiway anywhere in the instruction
   (e.g. `TAXI <A B <C D`); decide how the canonical form encodes them and how they render in autocomplete/echo.
 - W1b: the precise taxiway-hold-short stop offset (nose-at-bar vs a buffer) when it conflicts with a runway.

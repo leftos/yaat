@@ -352,6 +352,7 @@ public sealed class PhaseList
         {
             HoldingShortPhaseDto d => HoldingShortPhase.FromSnapshot(d),
             CrossingRunwayPhaseDto d => CrossingRunwayPhase.FromSnapshot(d),
+            ClearRunwayPhaseDto d => ClearRunwayPhase.FromSnapshot(d),
             AirTaxiPhaseDto d => AirTaxiPhase.FromSnapshot(d),
             HoldingInPositionPhaseDto d => HoldingInPositionPhase.FromSnapshot(d),
             HoldingAfterPushbackPhaseDto d => HoldingAfterPushbackPhase.FromSnapshot(d),
