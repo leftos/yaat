@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Tools → Open TDLS in Browser** — opens the connected server's web vTDLS (`/vtdls/`) in your default browser with your CID, initials, ARTCC, and room prefilled, mirroring the existing **Open Strips in Browser**.
+
+### Fixed
+- Clicking a sent clearance in the vTDLS **PDC** list now re-opens it read-only — the editor shows exactly what was issued with every field disabled and no Send button, so a sent PDC can't be edited or resent (Dump still works). Previously clicking a sent PDC did nothing.
+- vTDLS clearances now leave the **PDC** list once the aircraft is tracked on STARS by any controller (it has left clearance delivery), instead of lingering until the 2-hour timeout.
+
 ## v0.6.0-beta [2026/06/01]
 
 ### Highlights

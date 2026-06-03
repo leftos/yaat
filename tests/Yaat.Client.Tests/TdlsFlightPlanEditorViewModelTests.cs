@@ -66,7 +66,7 @@ public class TdlsFlightPlanEditorViewModelTests
     [Fact]
     public void Constructor_AppliesTransitionDefaults_WhenNoSeed()
     {
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null, isReadOnly: false);
 
         // The constructor seeds SelectedSid + SelectedTransition from the
         // facility defaults. Transition defaults apply during construction so
@@ -88,7 +88,7 @@ public class TdlsFlightPlanEditorViewModelTests
         // Send button greyed out. After the SelectedItem refactor, an item picked
         // by ApplyTransitionDefaults registers as set immediately.
         var cfg = BuildConfig(mandatorySid: true, mandatoryExpect: true, mandatoryDepFreq: true);
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false);
 
         Assert.NotNull(editor.SelectedDepFreq);
         Assert.Equal("120.9", editor.SelectedDepFreq?.Value);
@@ -100,7 +100,7 @@ public class TdlsFlightPlanEditorViewModelTests
     public void IsSendEnabled_False_WhenMandatoryFieldMissing()
     {
         var cfg = BuildConfig(mandatoryExpect: true);
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false);
 
         // Wipe Expect — that's mandatory in this config; Send must lock.
         editor.Expect = null;
@@ -127,11 +127,68 @@ public class TdlsFlightPlanEditorViewModelTests
             DepFreq: "121.4"
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null, isReadOnly: false);
 
         Assert.Equal("20 MIN", editor.Expect);
         Assert.Equal("7000", editor.InitialAlt);
         Assert.Equal("121.4", editor.DepFreq);
+    }
+
+    [Fact]
+    public void ReadOnly_SeededFromSentClearance_IsNotEditableAndCannotSend()
+    {
+        // Selecting a Sent PDC opens the editor read-only, seeded from the
+        // issued clearance. Every field reflects the seed, the panel reports
+        // itself non-editable, and Send is locked even though all mandatory
+        // fields are populated.
+        var cfg = BuildConfig();
+        var seed = new ClearanceDto(
+            Expect: "20 MIN",
+            Sid: "OAKLAND4",
+            Transition: "ALTAM",
+            Climbout: null,
+            Climbvia: null,
+            InitialAlt: "7000",
+            ContactInfo: null,
+            LocalInfo: null,
+            DepFreq: "121.4"
+        );
+
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null, isReadOnly: true);
+
+        Assert.True(editor.IsReadOnly);
+        Assert.False(editor.IsEditable);
+        Assert.Equal("20 MIN", editor.Expect);
+        Assert.Equal("7000", editor.InitialAlt);
+        Assert.Equal("121.4", editor.DepFreq);
+        // Mandatory fields are all set, but read-only still blocks Send/F12.
+        Assert.False(editor.IsSendEnabled);
+    }
+
+    [Fact]
+    public void ReadOnly_DoesNotBackfillTransitionDefaultsIntoBlankSeedFields()
+    {
+        // A sent PDC issued with a blank Expect must keep it blank in review —
+        // read-only construction skips ApplyTransitionDefaults, so the FE
+        // default ("10 MIN") is NOT pulled in.
+        var cfg = BuildConfig();
+        var seed = new ClearanceDto(
+            Expect: null,
+            Sid: "OAKLAND4",
+            Transition: "ALTAM",
+            Climbout: null,
+            Climbvia: null,
+            InitialAlt: null,
+            ContactInfo: null,
+            LocalInfo: null,
+            DepFreq: null
+        );
+
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null, isReadOnly: true);
+
+        Assert.Null(editor.Expect);
+        Assert.Null(editor.InitialAlt);
+        Assert.Null(editor.DepFreq);
     }
 
     [Fact]
@@ -153,7 +210,7 @@ public class TdlsFlightPlanEditorViewModelTests
             CruiseAltitude: 35000
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp);
+        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp, isReadOnly: false);
 
         Assert.Equal("OAKLAND4", editor.SelectedSid?.Id);
         Assert.Equal("ALTAM", editor.SelectedTransition?.Id);
@@ -176,7 +233,7 @@ public class TdlsFlightPlanEditorViewModelTests
             CruiseAltitude: 35000
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp);
+        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp, isReadOnly: false);
 
         Assert.Equal("OAKLAND4", editor.SelectedSid?.Id);
         Assert.Equal("ALTAM", editor.SelectedTransition?.Id);
@@ -198,7 +255,7 @@ public class TdlsFlightPlanEditorViewModelTests
             CruiseAltitude: 0
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: fp);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: fp, isReadOnly: false);
 
         // Falls back to the facility's DefaultSidId (and its default transition).
         Assert.Equal("OAKLAND4", editor.SelectedSid?.Id);
@@ -208,7 +265,7 @@ public class TdlsFlightPlanEditorViewModelTests
     [Fact]
     public void ToClearanceDto_RoundTripsCurrentEditorState()
     {
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null, isReadOnly: false);
 
         var clearance = editor.ToClearanceDto();
 

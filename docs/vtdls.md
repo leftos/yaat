@@ -194,7 +194,7 @@ so they can follow the student's PDC stream while focused on radar.
 | Controller force-WILCOs              | Same as auto-WILCO; scheduler entry cleared                   |
 | Controller dumps                     | Item removed from `Items`; (facility, callsign) → `Dumped`    |
 | TTL > 2 hours since `CreatedUtc`     | `ProcessTdlsExpiry` removes the item; lockout NOT set         |
-| Aircraft activates on departure      | (Future) — item removed; currently relies on TTL              |
+| Aircraft tracked on STARS by anyone  | `ProcessTdlsTrackRemoval` removes the item (any status); lockout NOT set |
 
 ## Multi-facility tabs and the consolidated parent view
 
@@ -228,6 +228,12 @@ Subsequent connect follows the same shape as vStrips: `FindRoomForMyCid`
 The browser app's `JoinRoom` uses `ClientKind.VTdls`, so the room
 terminal log marks the participant as `(vTDLS)` for everyone else.
 
+The desktop client opens this app via **Tools → Open TDLS in Browser**
+(`MainViewModel.OpenTdlsInBrowserCommand`), which shells out to the
+default browser with `{server}/vtdls/?cid=…&initials=…&artcc=…&room=…`
+prefilled from the live connection — the vTDLS analog of **Open Strips
+in Browser**.
+
 ## Phraseology compliance notes
 
 PDC content phraseology follows AIM 5-2-2 (Pre-Departure Clearance
@@ -250,7 +256,30 @@ field can't be issued — same enforcement upstream's vTDLS does. The
 footer status "MANDATORY FIELD NOT SET — Expect, Initial Alt" mirrors
 upstream's matching error.
 
+### Reviewing a sent PDC (read-only)
+
+Selecting an item in the **PDC** list (Sent / Wilco) re-opens the
+flight-plan editor seeded from the issued clearance
+(`TdlsItemViewModel.SentPayload`) but in **read-only** mode
+(`TdlsFlightPlanEditorViewModel.IsReadOnly`): every dropdown is
+disabled, the Send button is hidden, and `IsSendEnabled` is forced
+false so F12 can't resend. Read-only construction skips
+`ApplyTransitionDefaults`, so the panel shows exactly what was issued
+and never back-fills FE defaults into fields that were sent blank. The
+footer reads "CLEARANCE TYPE: PDC — SENT (READ ONLY)". Dump and Cancel
+remain available. (Selecting a Pending DCL item opens the same editor
+editable, `IsReadOnly == false`.)
+
 Auto-WILCO at ~3 s simulates the real FMS auto-acknowledgement (which
 fires near-instantly). The 2-hour TTL matches upstream's policy. Both
 are tunable via `SimScenarioState.TdlsWilcoDelaySeconds` and a
 session-snapshot constant if needed.
+
+`ProcessTdlsTrackRemoval` (also in `ProcessPostPhysics`) removes any
+TDLS item — Pending or Sent/Wilco — once its aircraft is tracked on
+STARS by any controller (a non-null `AircraftTrack.Owner`). A tracked
+departure has left the clearance-delivery workflow, so the strip clears
+from every vTDLS client. It reads live `Track.Owner` each tick, so it
+catches every ownership source (explicit `TRACK`, handoff accept,
+auto-track), and sets no `Dumped` lockout — the removal is an automatic
+lifecycle event, not a controller dump.

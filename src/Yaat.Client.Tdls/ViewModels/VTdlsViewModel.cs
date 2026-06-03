@@ -81,14 +81,32 @@ public partial class VTdlsViewModel : ObservableObject
         if (newValue is not null)
         {
             newValue.IsSelected = true;
-            // Editor is opened only for Pending items (DCL). PDC items are
-            // post-send and immutable — the controller can only dump or wait.
+            // Pending items (DCL) open the editable compose editor. Sent/Wilco
+            // items (PDC) open the same editor seeded from the issued clearance
+            // but read-only — the controller reviews what was sent; no edits or
+            // resend, only Dump (handled separately).
             if (newValue.Status == TdlsStatus.Pending && Config is not null)
             {
-                Editor = new TdlsFlightPlanEditorViewModel(newValue.AircraftId, Config, seed: null, flightPlan: newValue.FlightPlan)
+                Editor = new TdlsFlightPlanEditorViewModel(
+                    newValue.AircraftId,
+                    Config,
+                    seed: null,
+                    flightPlan: newValue.FlightPlan,
+                    isReadOnly: false
+                )
                 {
                     OnSendRequested = OnEditorSendRequested,
                 };
+            }
+            else if (newValue.SentPayload is not null && Config is not null)
+            {
+                Editor = new TdlsFlightPlanEditorViewModel(
+                    newValue.AircraftId,
+                    Config,
+                    seed: newValue.SentPayload,
+                    flightPlan: newValue.FlightPlan,
+                    isReadOnly: true
+                );
             }
             else
             {

@@ -131,8 +131,16 @@ public partial class VTdlsView : UserControl
         // shows when the controller has an editor open with missing fields.
         if (DataContext is VTdlsViewModel { Editor: { } editor })
         {
-            FooterStatus.Text = editor.IsSendEnabled ? "CLEARANCE TYPE: PDC" : $"MANDATORY FIELD NOT SET — {editor.MissingMandatoryFieldNames}";
-            FooterStatus.Foreground = editor.IsSendEnabled ? Brushes.White : Brushes.OrangeRed;
+            if (editor.IsReadOnly)
+            {
+                FooterStatus.Text = "CLEARANCE TYPE: PDC — SENT (READ ONLY)";
+                FooterStatus.Foreground = Brushes.White;
+            }
+            else
+            {
+                FooterStatus.Text = editor.IsSendEnabled ? "CLEARANCE TYPE: PDC" : $"MANDATORY FIELD NOT SET — {editor.MissingMandatoryFieldNames}";
+                FooterStatus.Foreground = editor.IsSendEnabled ? Brushes.White : Brushes.OrangeRed;
+            }
         }
         else
         {

@@ -602,12 +602,12 @@ Pop-out state for the student strips entry is saved in `preferences.json` under 
 
 The **vTDLS** tab is YAAT's emulation of vNAS's [Tower Data Link Services](https://tdls.virtualnas.net/) web app — the Pre-Departure Clearance (PDC) console real controllers use to issue clearances over data-link. It opens next to **Strips** under **View → vTDLS** as soon as the server tells the client which TDLS facilities the student position can access (typically the position's own ATCT, plus any consolidated child facilities when working a parent TRACON).
 
-vTDLS state lives on the server and broadcasts over SignalR — there is no CRC topic counterpart, so trainees do not see a vTDLS view in their CRC. The same display is also available in any browser at `/vtdls/` on the server (no install), backed by the WASM `Yaat.VTdls.Web` bundle.
+vTDLS state lives on the server and broadcasts over SignalR — there is no CRC topic counterpart, so trainees do not see a vTDLS view in their CRC. The same display is also available in any browser at `/vtdls/` on the server (no install), backed by the WASM `Yaat.VTdls.Web` bundle. While connected, **Tools → Open TDLS in Browser** opens that page in your default browser with your CID/initials/ARTCC/room prefilled — the vTDLS counterpart to **Open Strips in Browser**.
 
 #### Lists
 
 - **DCL** (top, full width, column-wrapping) — Pending PDCs. A callsign appears here automatically when a flight plan is filed at a TDLS-configured facility (no controller action needed, just like real life). Pre-files generate entries too.
-- **PDC** (bottom-left) — Sent and Wilco'd clearances. Items stay in this list until the aircraft activates on departure or the 2-hour TTL fires.
+- **PDC** (bottom-left) — Sent and Wilco'd clearances. Items stay in this list until the aircraft is tracked on STARS by any controller (it has left clearance delivery), or the 2-hour TTL fires.
 - **CPDLC** (bottom-right) — Permanently empty. VATSIM does not simulate CPDLC; the panel is rendered for visual parity with upstream.
 
 #### Issuing a PDC
@@ -617,6 +617,8 @@ Click a callsign in the DCL list to open the flight-plan editor at the bottom of
 - **Send (F12)** — issues the PDC. The pilot's clearance is applied silently (no voice readback) and RPOs in the room see a terminal entry: `[TDLS PDC sent at OAK] Expect=10 MIN, SID=OAKLAND4.ALTAM, Maintain=5000, DepFreq=120.9`. Roughly 3 seconds later the item auto-flips to Wilco.
 - **Dump (F4)** — removes the PDC. Terminal: the (facility, callsign) pair can no longer be auto-queued this session. Clearance must now be given by voice.
 - **F10** — closes the flight-plan editor without sending; the DCL entry stays.
+
+Click a callsign in the **PDC** list to re-open the editor on the clearance that was sent, **read-only** — the fields show exactly what was issued, every dropdown is disabled, and there is no Send button (a sent PDC can't be edited or resent). The footer reads **CLEARANCE TYPE: PDC — SENT (READ ONLY)**. Dump (F4) still works.
 
 #### Multi-facility tabs
 

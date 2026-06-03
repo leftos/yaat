@@ -32,6 +32,12 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// <summary>Read-only filed flight-plan snapshot rendered above the dropdowns. Null when the aircraft has no filed plan yet (pre-filing window).</summary>
     public TdlsFlightPlanInfoDto? FlightPlan { get; }
 
+    /// <summary>True when the editor is showing an already-sent PDC for review — every dropdown is disabled, Send is hidden, and no resend is possible. False for the normal compose-a-new-PDC flow.</summary>
+    public bool IsReadOnly { get; }
+
+    /// <summary>Convenience inverse of <see cref="IsReadOnly"/> for binding control IsEnabled/IsVisible.</summary>
+    public bool IsEditable => !IsReadOnly;
+
     /// <summary>SIDs offered by the facility. Display via <c>Name</c>; the canonical command uses <c>Id</c>.</summary>
     public ObservableCollection<TdlsSidDto> Sids { get; } = [];
 
@@ -128,17 +134,24 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(MissingMandatoryFieldNames))]
     private bool _canSend;
 
-    /// <summary>True when every mandatory field is set. Bound to the Send button's IsEnabled.</summary>
-    public bool IsSendEnabled => CanSend;
+    /// <summary>True when every mandatory field is set and the editor is editable. Bound to the Send button's IsEnabled; also gates the F12 send shortcut.</summary>
+    public bool IsSendEnabled => CanSend && !IsReadOnly;
 
     /// <summary>Human-readable list of mandatory fields that are still blank — drives the footer status string.</summary>
     public string MissingMandatoryFieldNames => string.Join(", ", EnumerateMissingMandatoryFields());
 
-    public TdlsFlightPlanEditorViewModel(string callsign, TdlsConfigDto config, ClearanceDto? seed, TdlsFlightPlanInfoDto? flightPlan)
+    public TdlsFlightPlanEditorViewModel(
+        string callsign,
+        TdlsConfigDto config,
+        ClearanceDto? seed,
+        TdlsFlightPlanInfoDto? flightPlan,
+        bool isReadOnly
+    )
     {
         Callsign = callsign;
         _config = config;
         FlightPlan = flightPlan;
+        IsReadOnly = isReadOnly;
 
         foreach (var sid in config.Sids)
         {
@@ -208,7 +221,12 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         // Pre-existing seed values are preserved; blank fields pick up the
         // transition's FE-defined defaults. Mirrors upstream behavior where
         // selecting a SID+transition pre-populates the empty editor fields.
-        ApplyTransitionDefaults(_selectedTransition);
+        // Skipped when read-only: a sent-PDC review must show exactly what was
+        // issued, never back-fill defaults into fields that were sent blank.
+        if (!isReadOnly)
+        {
+            ApplyTransitionDefaults(_selectedTransition);
+        }
 
         RecomputeCanSend();
     }

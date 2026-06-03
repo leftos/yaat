@@ -107,7 +107,7 @@ public partial class MainViewModel
     /// Gated on <see cref="IsConnected"/> because the URL only points at a real
     /// server while we're connected.
     /// </summary>
-    [RelayCommand(CanExecute = nameof(CanOpenStripsInBrowser))]
+    [RelayCommand(CanExecute = nameof(CanOpenWebClientInBrowser))]
     private Task OpenStripsInBrowserAsync()
     {
         if (string.IsNullOrEmpty(_connectedServerUrl))
@@ -148,7 +148,54 @@ public partial class MainViewModel
         return Task.CompletedTask;
     }
 
-    private bool CanOpenStripsInBrowser() => IsConnected && !string.IsNullOrEmpty(_connectedServerUrl);
+    /// <summary>
+    /// Tools → Open vTDLS in Browser. Builds <c>{server}/vtdls/?cid=&amp;
+    /// initials=&amp;artcc=&amp;room=</c> from the live connection state and
+    /// shells out to the user's default browser, exactly like
+    /// <see cref="OpenStripsInBrowserAsync"/> but targeting the vTDLS WASM client.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOpenWebClientInBrowser))]
+    private Task OpenTdlsInBrowserAsync()
+    {
+        if (string.IsNullOrEmpty(_connectedServerUrl))
+        {
+            return Task.CompletedTask;
+        }
+
+        var baseUrl = _connectedServerUrl.TrimEnd('/');
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_preferences.VatsimCid))
+        {
+            qs.Add($"cid={Uri.EscapeDataString(_preferences.VatsimCid)}");
+        }
+        if (!string.IsNullOrWhiteSpace(_preferences.UserInitials))
+        {
+            qs.Add($"initials={Uri.EscapeDataString(_preferences.UserInitials)}");
+        }
+        if (!string.IsNullOrWhiteSpace(_preferences.ArtccId))
+        {
+            qs.Add($"artcc={Uri.EscapeDataString(_preferences.ArtccId)}");
+        }
+        if (!string.IsNullOrWhiteSpace(ActiveRoomId))
+        {
+            qs.Add($"room={Uri.EscapeDataString(ActiveRoomId)}");
+        }
+        var query = qs.Count > 0 ? "?" + string.Join("&", qs) : "";
+        var url = $"{baseUrl}/vtdls/{query}";
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "OpenTdlsInBrowser failed for {Url}", url);
+            StatusText = "Failed to open browser";
+        }
+        return Task.CompletedTask;
+    }
+
+    private bool CanOpenWebClientInBrowser() => IsConnected && !string.IsNullOrEmpty(_connectedServerUrl);
 
     [RelayCommand(CanExecute = nameof(CanCreateRoom))]
     private async Task CreateRoomAsync()

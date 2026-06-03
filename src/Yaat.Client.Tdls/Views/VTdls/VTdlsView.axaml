@@ -270,6 +270,7 @@
                               ItemsSource="{Binding Expects}"
                               SelectedItem="{Binding SelectedExpect}"
                               DisplayMemberBinding="{Binding Value}"
+                              IsEnabled="{Binding IsEditable}"
                               HorizontalAlignment="Stretch"
                               Margin="0,2,4,0"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
@@ -287,6 +288,7 @@
                               ItemsSource="{Binding Sids}"
                               SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
                               DisplayMemberBinding="{Binding Name}"
+                              IsEnabled="{Binding IsEditable}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="SID"/>
@@ -294,6 +296,7 @@
                               ItemsSource="{Binding Transitions}"
                               SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
                               DisplayMemberBinding="{Binding Name}"
+                              IsEnabled="{Binding IsEditable}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Transition"/>
@@ -301,6 +304,7 @@
                               ItemsSource="{Binding Climbouts}"
                               SelectedItem="{Binding SelectedClimbout}"
                               DisplayMemberBinding="{Binding Value}"
+                              IsEnabled="{Binding IsEditable}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Climb out"/>
@@ -308,6 +312,7 @@
                               ItemsSource="{Binding Climbvias}"
                               SelectedItem="{Binding SelectedClimbvia}"
                               DisplayMemberBinding="{Binding Value}"
+                              IsEnabled="{Binding IsEditable}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Climb via"/>
@@ -315,6 +320,7 @@
                               ItemsSource="{Binding InitialAlts}"
                               SelectedItem="{Binding SelectedInitialAlt}"
                               DisplayMemberBinding="{Binding Value}"
+                              IsEnabled="{Binding IsEditable}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Maintain"/>
@@ -328,6 +334,7 @@
                               ItemsSource="{Binding ContactInfos}"
                               SelectedItem="{Binding SelectedContactInfo}"
                               DisplayMemberBinding="{Binding Value}"
+                              IsEnabled="{Binding IsEditable}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Contact info"/>
@@ -341,6 +348,7 @@
                               ItemsSource="{Binding DepFreqs}"
                               SelectedItem="{Binding SelectedDepFreq}"
                               DisplayMemberBinding="{Binding Value}"
+                              IsEnabled="{Binding IsEditable}"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Departure frequency"/>
                 </Grid>
@@ -351,16 +359,20 @@
                               ItemsSource="{Binding LocalInfos}"
                               SelectedItem="{Binding SelectedLocalInfo}"
                               DisplayMemberBinding="{Binding Value}"
+                              IsEnabled="{Binding IsEditable}"
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Local info"/>
                 </Grid>
 
                 <!-- Buttons row: Dump bottom-left, Edit + Cancel + Send
-                     bottom-right (Edit is a disabled placeholder — upstream
-                     uses it for re-opening a Sent PDC in read-only mode,
-                     which isn't implemented yet). Big top margin to match
-                     the vertical breathing room in the upstream screenshot. -->
+                     bottom-right. Edit is a disabled parity placeholder
+                     (upstream uses it to switch a read-only Sent PDC back to
+                     editable; YAAT opens the read-only review by clicking the
+                     PDC item directly). Send is hidden when the editor is
+                     read-only — a sent PDC can't be resent. Big top margin to
+                     match the vertical breathing room in the upstream
+                     screenshot. -->
                 <Grid ColumnDefinitions="*,Auto" Margin="0,24,0,0">
                     <Button Grid.Column="0" Content="Dump"
                             Click="OnDumpClick"
@@ -373,15 +385,16 @@
                                 IsEnabled="False"
                                 FontFamily="{StaticResource MonoFont}" FontSize="11"
                                 Padding="12,3"
-                                ToolTip.Tip="Re-open a Sent PDC for review (not yet implemented)"/>
+                                ToolTip.Tip="Edit — parity placeholder; review a sent PDC by selecting it in the PDC list"/>
                         <Button Content="Cancel"
                                 Click="OnCancelClick"
                                 FontFamily="{StaticResource MonoFont}" FontSize="11"
                                 Padding="12,3"
-                                ToolTip.Tip="Cancel (F10) — close the editor without sending"/>
+                                ToolTip.Tip="Cancel (F10) — close the editor"/>
                         <Button Content="Send"
                                 Command="{Binding SendCommand}"
                                 IsEnabled="{Binding IsSendEnabled}"
+                                IsVisible="{Binding IsEditable}"
                                 FontFamily="{StaticResource MonoFont}" FontSize="11"
                                 FontWeight="Bold"
                                 Padding="12,3"

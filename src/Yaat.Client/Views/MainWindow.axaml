@@ -150,6 +150,9 @@
                 <MenuItem Header="Open Strips in _Browser"
                           Command="{Binding OpenStripsInBrowserCommand}"
                           ToolTip.Tip="Open the connected server's web vStrips in your default browser" />
+                <MenuItem Header="Open _TDLS in Browser"
+                          Command="{Binding OpenTdlsInBrowserCommand}"
+                          ToolTip.Tip="Open the connected server's web vTDLS in your default browser" />
                 <Separator />
                 <MenuItem Header="Configure _CRC Environments"
                           x:Name="ConfigureCrcMenuItem" />
