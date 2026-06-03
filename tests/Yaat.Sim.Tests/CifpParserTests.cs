@@ -563,6 +563,49 @@ public class CifpParserTests
         }
     }
 
+    [Fact]
+    public void ParseApproaches_RealKiahH08Ry_SkipsContinuationRecord_NoDuplicateMatonNoPhantomSpeed()
+    {
+        // Real CIFP for KIAH ILS 08R (H08RY). The FAF MATON has a primary record and an
+        // ARINC 424 continuation record (continuation-record-number '2' at col 38). The
+        // continuation's reserved padding carries a stray "2" in the speed-limit columns.
+        // Issue #184: the parser must skip continuation records, so MATON appears exactly
+        // once and never carries a phantom 2-knot speed restriction.
+        var lines = new[]
+        {
+            RealCifpLines.KiahH08RyCommon010Jelli,
+            RealCifpLines.KiahH08RyCommon011Reign,
+            RealCifpLines.KiahH08RyCommon012Eelpo,
+            RealCifpLines.KiahH08RyCommon020MatonPrimary,
+            RealCifpLines.KiahH08RyCommon020MatonContinuation,
+            RealCifpLines.KiahH08RyCommon030Rw08R,
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KIAH");
+
+            Assert.Single(approaches);
+            var common = approaches[0].CommonLegs;
+
+            // MATON appears exactly once (continuation record did not create a duplicate leg).
+            Assert.Equal(1, common.Count(l => l.FixIdentifier == "MATON"));
+
+            // No leg carries the phantom 2-knot restriction from the continuation padding.
+            Assert.DoesNotContain(common, l => l.Speed is { SpeedKts: 2 });
+
+            // The MATON FAF has no published speed restriction at all (the primary record is blank).
+            var maton = common.First(l => l.FixIdentifier == "MATON");
+            Assert.Null(maton.Speed);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
     // --- SID/STAR parser tests ---
 
     [Fact]
@@ -953,4 +996,28 @@ internal static class RealCifpLines
 
     public const string KabqI03Nodme020BibquAf =
         "SUSAP KABQK2FI03   ANODME 020BIBQUK2PC0EE BL   AF ABQ K2      163901000230    D   + 08000                           0 DS   138142305";
+
+    // --- KIAH ILS 08R H08RY, "H" common segment (final + missed) ---
+    // The FAF MATON has TWO records: a primary (continuation-record-number '1' at col 38)
+    // and a continuation ('2'). The continuation's reserved padding puts a stray "2" in the
+    // speed-limit columns (99-101), which the parser must NOT read as a 2-knot restriction;
+    // it must also not produce a duplicate MATON leg.
+    // To regenerate: grep '^SUSAP KIAHK4FH08RY H ' tests/Yaat.Sim.Tests/TestData/FAACIFP18.gz (after gunzip)
+    public const string KiahH08RyCommon010Jelli =
+        "SUSAP KIAHK4FH08RY H      010JELLIK4PC0E  I    IF                                 + 05000     18000                 A FS   220221811";
+
+    public const string KiahH08RyCommon011Reign =
+        "SUSAP KIAHK4FH08RY H      011REIGNK4PC0E    010TF                                 + 04000                           A FS   220231811";
+
+    public const string KiahH08RyCommon012Eelpo =
+        "SUSAP KIAHK4FH08RY H      012EELPOK4PC0E    010TF                                 + 03000                           A FS   220241811";
+
+    public const string KiahH08RyCommon020MatonPrimary =
+        "SUSAP KIAHK4FH08RY H      020MATONK4PC1E  F 010TF                                 + 02000                 RW08R K4PGA FS   220251310";
+
+    public const string KiahH08RyCommon020MatonContinuation =
+        "SUSAP KIAHK4FH08RY H      020MATONK4PC2W                                                A031A142A132                  FS   220261406";
+
+    public const string KiahH08RyCommon030Rw08R =
+        "SUSAP KIAHK4FH08RY H      030RW08RK4PG0GY M 031TF                                   00149             -300          A FS   220271811";
 }

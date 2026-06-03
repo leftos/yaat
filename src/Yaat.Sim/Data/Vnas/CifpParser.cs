@@ -435,6 +435,17 @@ public static partial class CifpParser
 
     private static RawProcedureLeg? ParseProcedureLeg(string line)
     {
+        // Continuation record number at position 39 (0-indexed: 38). Primary records carry
+        // ' ', '0', or '1'; continuation records ('2'-'9', 'A'-'Z') repeat the fix with a
+        // different field layout (e.g. the speed-limit columns become reserved padding). We
+        // only parse primary records — otherwise the padding is misread as leg data (a stray
+        // "2" in the speed-limit columns becomes a 2-knot restriction) and the fix is
+        // duplicated. See CifpParserTests.ParseApproaches_RealKiahH08Ry_*.
+        if (line.Length > 38 && line[38] is not (' ' or '0' or '1'))
+        {
+            return null;
+        }
+
         // Procedure ID at positions 14-19 (0-indexed: 13-18)
         string procedureId = line[13..19].Trim();
         if (procedureId.Length == 0)

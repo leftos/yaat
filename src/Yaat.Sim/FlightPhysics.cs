@@ -494,7 +494,7 @@ public static class FlightPhysics
                 continue;
             }
 
-            double constraintSpeed = restriction.SpeedKts;
+            double constraintSpeed = ClampFixSpeedToApproachFloor(aircraft, restriction.SpeedKts);
 
             // 14 CFR 91.117: cap at 250 KIAS below 10,000 ft MSL
             if (aircraft.Altitude < 10_000 && !speedLimitWaived)
@@ -618,6 +618,30 @@ public static class FlightPhysics
     }
 
     /// <summary>
+    /// Clamps a fix/restriction-derived target speed to a flyable minimum — the aircraft's
+    /// final-approach speed (FAS). No published speed restriction may legitimately require an
+    /// aircraft to fly below the speed it would hold on short final, so a corrupt CIFP value
+    /// (e.g. a continuation-record padding artifact parsed as 2 kt) cannot near-stop the
+    /// aircraft in flight. Logs a warning so the underlying data problem stays visible.
+    /// </summary>
+    private static double ClampFixSpeedToApproachFloor(AircraftState aircraft, double restrictionKts)
+    {
+        double fas = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
+        if (restrictionKts >= fas)
+        {
+            return restrictionKts;
+        }
+
+        Log.LogWarning(
+            "[Speed] {Callsign}: fix speed restriction {Restr:F0}kt is below final-approach speed {Fas:F0}kt — clamping (check CIFP data)",
+            aircraft.Callsign,
+            restrictionKts,
+            fas
+        );
+        return fas;
+    }
+
+    /// <summary>
     /// Applies altitude and speed constraints from a navigation target when via mode is active.
     /// SID via mode enforces climb restrictions; STAR via mode enforces descent restrictions.
     /// </summary>
@@ -656,7 +680,7 @@ public static class FlightPhysics
 
         if (target.SpeedRestriction is { } spd && !aircraft.Procedure.SpeedRestrictionsDeleted)
         {
-            double targetSpeed = spd.SpeedKts;
+            double targetSpeed = ClampFixSpeedToApproachFloor(aircraft, spd.SpeedKts);
 
             // 14 CFR 91.117: cap speed restrictions at 250 KIAS below 10,000 ft MSL.
             if (!aircraft.IsOnGround && aircraft.Altitude < 10_000)

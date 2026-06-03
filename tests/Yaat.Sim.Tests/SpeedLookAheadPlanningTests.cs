@@ -281,4 +281,33 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
 
         // On ground, speed planning should not apply procedure constraints
     }
+
+    [Fact]
+    public void ApplyFixConstraints_AbsurdlyLowFixSpeed_ClampedToApproachSpeed()
+    {
+        // Issue #184 defense-in-depth: a bad CIFP value drove a fix speed restriction to 2kt,
+        // nearly stopping the aircraft in flight. No fix restriction may drive the target below
+        // the aircraft's final-approach speed (FAS).
+        var aircraft = CreateAircraft(ias: 200, altitude: 3400, type: "B738");
+        var faf = MakeFix("FAF", 3.0, speed: new CifpSpeedRestriction(2, IsMaximum: true));
+
+        FlightPhysics.ApplyFixConstraints(aircraft, faf);
+
+        double fas = AircraftPerformance.ApproachSpeed("B738", AircraftCategory.Jet);
+        Assert.NotNull(aircraft.Targets.TargetSpeed);
+        Assert.Equal(fas, aircraft.Targets.TargetSpeed!.Value, precision: 1);
+        Assert.True(aircraft.Targets.TargetSpeed > 100, $"Target speed should be flyable, got {aircraft.Targets.TargetSpeed}");
+    }
+
+    [Fact]
+    public void ApplyFixConstraints_NormalFixSpeed_NotClamped()
+    {
+        // A normal restriction (210kt) is well above FAS and must pass through unchanged.
+        var aircraft = CreateAircraft(ias: 250, altitude: 8000, type: "B738");
+        var fix = MakeFix("CNSTR", 3.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+
+        FlightPhysics.ApplyFixConstraints(aircraft, fix);
+
+        Assert.Equal(210, aircraft.Targets.TargetSpeed!.Value, precision: 1);
+    }
 }
