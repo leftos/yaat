@@ -249,6 +249,7 @@ public static class PhraseologyVerbalizer
             CrossRunwayCommand c when c.RunwayId is { } r => Map("rwy", SpellRunway(r)),
             HoldShortCommand h => Map("holdshort", SpellRunway(h.Target)),
             AssignRunwayCommand a => Map("rwy", SpellRunway(a.RunwayId)),
+            TaxiCommand taxi => TaxiArgs(taxi),
             ExitTaxiwayCommand e => Map("taxiway", SpellTaxiway(e.Taxiway)),
             ExitLeftCommand e when e.Taxiway is { } t => Map("taxiway", SpellTaxiway(t)),
             ExitRightCommand e when e.Taxiway is { } t => Map("taxiway", SpellTaxiway(t)),
@@ -263,11 +264,77 @@ public static class PhraseologyVerbalizer
             HoldAtFixOrbitCommand h => Map("fix", SpellFix(h.FixName)),
             HoldAtFixHoverCommand h => Map("fix", SpellFix(h.FixName)),
 
-            // Pushback / Taxi: the variadic {path...} capture isn't extracted yet, so the
-            // verbalizer falls through to the rule's literal "taxi" / "pushback" keywords with
-            // no path-list filled in.
+            // Pushback's {path...} capture isn't extracted yet, so the verbalizer falls through to the
+            // rule's literal "pushback" keyword with no path filled in.
             _ => Empty(),
         };
+
+    /// <summary>
+    /// Extracts the spoken-readback captures for a TAXI clearance: the route path (with turn words),
+    /// the destination runway, hold-shorts, and crossings. <see cref="PickPreferredRule"/> then selects
+    /// the richest matching rule, so a path-only command reads "taxi via …" while a full clearance reads
+    /// "runway … taxi via … cross runway … hold short of …". An empty path (node-refs only) yields no
+    /// captures, so the command produces no readback (a draw-route debug taxi isn't voiced).
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> TaxiArgs(TaxiCommand taxi)
+    {
+        string path = SpellTaxiPath(taxi);
+        if (string.IsNullOrEmpty(path))
+        {
+            return Empty();
+        }
+
+        var dict = new Dictionary<string, string> { ["path"] = path };
+        if (taxi.DestinationRunway is { Length: > 0 } rwy)
+        {
+            dict["rwy"] = SpellRunway(rwy);
+        }
+
+        if (taxi.HoldShorts is { Count: > 0 } holdShorts)
+        {
+            dict["holdshort"] = string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? SpellRunway(h) : SpellTaxiway(h)));
+        }
+
+        if (taxi.CrossRunways is { Count: > 0 } crossRunways)
+        {
+            dict["crossrwy"] = string.Join(" and ", crossRunways.Select(SpellRunway));
+        }
+
+        return dict;
+    }
+
+    /// <summary>
+    /// Renders a taxi path as comma-separated spoken taxiways, prefixing a hinted taxiway with its turn
+    /// ("right on bravo" / "left on charlie") — the action form a pilot echoes for the controller's
+    /// "make right/left turn onto &lt;taxiway&gt;" (7110.65 §3-7-2 NOTE, AIM 4-3-17). Node-reference
+    /// tokens (#NNNN) are dropped — they have no spoken form.
+    /// </summary>
+    private static string SpellTaxiPath(TaxiCommand taxi)
+    {
+        var hints = taxi.PathTurnHints;
+        var parts = new List<string>(taxi.Path.Count);
+        for (int i = 0; i < taxi.Path.Count; i++)
+        {
+            string name = taxi.Path[i];
+            if (name.StartsWith('#'))
+            {
+                continue;
+            }
+
+            string spelled = SpellTaxiway(name);
+            var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
+            parts.Add(
+                hint switch
+                {
+                    TurnDirection.Right => $"right on {spelled}",
+                    TurnDirection.Left => $"left on {spelled}",
+                    _ => spelled,
+                }
+            );
+        }
+
+        return string.Join(", ", parts);
+    }
 
     private static IReadOnlyDictionary<string, string> Map(string k, string v) => new Dictionary<string, string> { [k] = v };
 

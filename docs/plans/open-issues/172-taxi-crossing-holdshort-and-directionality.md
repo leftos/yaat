@@ -250,9 +250,14 @@ especially should be confirmed with the mentor.
 - **Tests:** `GroundCommandParserTurnHintTests` (parse + canonical round-trip), `Issue172TurnHintTests`
   (real-OAK single-taxiway right/left flip via heading; synthetic two-junction mid-route flip; synthetic
   two-entry first-taxiway flip). All green; 267 ground/pathfinder regression tests unaffected.
-- **Known follow-up (out of W7 scope):** the pilot SPOKEN readback does not voice the taxi route at all today
-  (`PhraseologyVerbalizer` line ~266: the variadic `{path…}` capture isn't extracted), so turn words aren't
-  spoken. Voicing the full taxi route (with turns) is a separate enhancement.
+- **Follow-ups (both DONE):**
+  - *Hint-unable advisory* — when a `>`/`<` turn can't be honored, the resolver records an advisory
+    (`SearchContext.TurnHintAdvisories` → `route.Warnings`) so the TAXI echo notes "Unable left turn onto B
+    — taxiing right instead". Best-effort routing is unchanged.
+  - *Spoken taxi readback* — the pilot now voices the route via the rule-inversion verbalizer
+    (`PhraseologyVerbalizer.TaxiArgs`/`SpellTaxiPath` fill the previously-empty `{path…}` + `{rwy}`/`{holdshort}`/
+    `{crossrwy}` captures), including turns as "right on bravo"/"left on charlie" (aviation-reviewed against
+    AIM 4-3-17/4-3-18, 7110.65 §3-7-2).
 
 ---
 
