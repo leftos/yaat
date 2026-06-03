@@ -57,8 +57,14 @@ public static class VirtualNode
     /// Offset BACKWARD from a node along the route toward the approach direction.
     /// Walks route segments in reverse if the offset exceeds the immediate approach edge.
     /// Used for hold-short setbacks where the aircraft stops before reaching the node.
+    ///
+    /// When <paramref name="stopAtRunwayHoldShort"/> is set, the walk clamps at a
+    /// <see cref="GroundNodeType.RunwayHoldShort"/> node rather than projecting past it: a taxiway
+    /// hold-short just beyond a runway crossing would otherwise set the stop point back onto the
+    /// runway the aircraft just crossed. Clamped, the aircraft holds at the runway hold-short line
+    /// (tail over the bars) instead of reversing onto the runway.
     /// </summary>
-    public static GroundNode OffsetBefore(AirportGroundLayout layout, TaxiRoute route, int nodeId, double offsetNm)
+    public static GroundNode OffsetBefore(AirportGroundLayout layout, TaxiRoute route, int nodeId, double offsetNm, bool stopAtRunwayHoldShort)
     {
         if (!layout.Nodes.TryGetValue(nodeId, out var node))
         {
@@ -86,6 +92,14 @@ public static class VirtualNode
                 currentId = approachId;
                 currentNode = approachNode;
                 continue;
+            }
+
+            if (stopAtRunwayHoldShort && approachNode.Type == GroundNodeType.RunwayHoldShort && remaining > edgeLen)
+            {
+                // Stopping farther back would land on the runway just crossed. Clamp at the
+                // runway hold-short line: the aircraft holds at the downstream taxiway line with
+                // its tail over the bars instead of reversing onto the runway.
+                return Create(approachNode.Position.Lat, approachNode.Position.Lon);
             }
 
             if (remaining <= edgeLen)

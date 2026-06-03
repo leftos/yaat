@@ -317,26 +317,76 @@ internal static class HoldShortAnnotator
             // aircraft length so the aircraft center (position) stops with its nose at the node.
             if ((hs.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway) || (hsNode.Type == GroundNodeType.RunwayHoldShort))
             {
-                var vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm);
+                var vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm, stopAtRunwayHoldShort: false);
                 hs.Latitude = vn.Position.Lat;
                 hs.Longitude = vn.Position.Lon;
                 continue;
             }
 
-            // Taxiway hold-short: offset back from intersection along approach edge.
-            var twyVn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, taxiwayOffsetNm);
+            // Taxiway hold-short: offset back from intersection along approach edge. When the
+            // hold-short sits just past a runway the route crosses, the runway-exit hold-short is
+            // closer than the normal aircraftLength+30 setback, which would place the stop behind
+            // the runway. Cap to the nose-at-line setback (½ length) and clamp at the runway
+            // hold-short so the aircraft holds at the taxiway line with its tail over the bars —
+            // never reversing onto the runway it just crossed.
+            bool justPastRunway = ApproachPassesRunwayHoldShort(layout, route, hs.NodeId, taxiwayOffsetNm);
+            double twyOffsetNm = justPastRunway ? runwayHalfLengthNm : taxiwayOffsetNm;
+            var twyVn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, twyOffsetNm, stopAtRunwayHoldShort: justPastRunway);
             hs.Latitude = twyVn.Position.Lat;
             hs.Longitude = twyVn.Position.Lon;
 
             Log.LogDebug(
-                "[HoldShortAnnotator] Taxiway HS at node {NodeId} for {Target}: offset {OffsetFt:F0}ft back from intersection ({Lat:F6}, {Lon:F6})",
+                "[HoldShortAnnotator] Taxiway HS at node {NodeId} for {Target}: offset {OffsetFt:F0}ft back from intersection ({Lat:F6}, {Lon:F6}){RwyNote}",
                 hs.NodeId,
                 hs.TargetName,
-                taxiwayOffsetNm * GeoMath.FeetPerNm,
+                twyOffsetNm * GeoMath.FeetPerNm,
                 twyVn.Position.Lat,
-                twyVn.Position.Lon
+                twyVn.Position.Lon,
+                justPastRunway ? " [capped: just past a runway crossing]" : ""
             );
         }
+    }
+
+    /// <summary>
+    /// Walks the route backward from <paramref name="nodeId"/> up to <paramref name="withinNm"/> and
+    /// reports whether a <see cref="GroundNodeType.RunwayHoldShort"/> node lies within that distance —
+    /// i.e. the taxiway hold-short sits just past a runway the route crosses.
+    /// </summary>
+    private static bool ApproachPassesRunwayHoldShort(AirportGroundLayout layout, TaxiRoute route, int nodeId, double withinNm)
+    {
+        double remaining = withinNm;
+        int currentId = nodeId;
+        for (int guard = 0; remaining > 0 && guard <= route.Segments.Count; guard++)
+        {
+            int approachId = -1;
+            foreach (var seg in route.Segments)
+            {
+                if (seg.ToNodeId == currentId)
+                {
+                    approachId = seg.FromNodeId;
+                    break;
+                }
+            }
+
+            if (
+                approachId < 0
+                || !layout.Nodes.TryGetValue(approachId, out var approachNode)
+                || !layout.Nodes.TryGetValue(currentId, out var curNode)
+            )
+            {
+                break;
+            }
+
+            if (approachNode.Type == GroundNodeType.RunwayHoldShort)
+            {
+                return true;
+            }
+
+            remaining -= GeoMath.DistanceNm(curNode.Position, approachNode.Position);
+            currentId = approachId;
+        }
+
+        return false;
     }
 
     /// <summary>

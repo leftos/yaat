@@ -209,11 +209,17 @@ public sealed class CrossingRunwayPhase : Phase
             slice.Add(route.Segments[i]);
         }
 
-        // Append a virtual past-target segment for tail clearance (½ aircraft length).
+        // Append a virtual past-target segment for tail clearance (½ aircraft length) — unless a
+        // binding taxiway hold-short sits within a fuselage length past the exit. There the aircraft
+        // cannot both clear the runway and hold short of the taxiway, so hold-short-of-taxiway wins:
+        // the crossing ends at the exit node and the onward TaxiingPhase stops the aircraft at the
+        // taxiway hold line with its tail over the runway bars (issue #172). Overshooting ½ length
+        // past the exit would carry it past that hold line and force a ~180° reversal back to it.
         if (ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var targetNode))
         {
             double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
             double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+            bool bindingTaxiwayHoldShortAhead = BindingTaxiwayHoldShortWithin(route, exitIdx, lengthFt / GeoMath.FeetPerNm, ctx.GroundLayout);
 
             GroundNode? approachForOffset = null;
             if (ctx.GroundLayout.Nodes.TryGetValue(slice[^1].FromNodeId, out var prevNode))
@@ -225,7 +231,7 @@ public sealed class CrossingRunwayPhase : Phase
                 approachForOffset = apNode;
             }
 
-            if (approachForOffset is not null)
+            if (!bindingTaxiwayHoldShortAhead && approachForOffset is not null)
             {
                 var virtualTarget = VirtualNode.OffsetPast(ctx.GroundLayout, targetNode, approachForOffset, halfLengthNm);
                 slice.Add(VirtualNode.CreateSegment(targetNode, virtualTarget, slice[^1].TaxiwayName));
@@ -256,6 +262,41 @@ public sealed class CrossingRunwayPhase : Phase
             _navigator.MaxSpeedKts,
             _navigator.MinSpeedKts
         );
+    }
+
+    /// <summary>
+    /// Whether the route has a binding (uncleared) taxiway hold-short within <paramref name="withinNm"/>
+    /// downstream of the crossing exit (segment index <paramref name="exitIdx"/>). A taxiway hold-short
+    /// this close means the aircraft cannot fit a full fuselage between the runway it just crossed and
+    /// the taxiway line — so the ½-length tail-clearance overshoot must be suppressed. Downstream runway
+    /// hold-shorts (a subsequent crossing or a departure hold) are excluded.
+    /// </summary>
+    private static bool BindingTaxiwayHoldShortWithin(TaxiRoute route, int exitIdx, double withinNm, AirportGroundLayout layout)
+    {
+        double accumulated = 0;
+        for (int i = exitIdx + 1; i < route.Segments.Count; i++)
+        {
+            var seg = route.Segments[i];
+            if (!layout.Nodes.TryGetValue(seg.FromNodeId, out var from) || !layout.Nodes.TryGetValue(seg.ToNodeId, out var to))
+            {
+                break;
+            }
+
+            accumulated += GeoMath.DistanceNm(from.Position, to.Position);
+
+            var hs = route.GetHoldShortAt(seg.ToNodeId);
+            if (hs is not null && !hs.IsCleared && to.Type != GroundNodeType.RunwayHoldShort && accumulated <= withinNm)
+            {
+                return true;
+            }
+
+            if (accumulated > withinNm)
+            {
+                break;
+            }
+        }
+
+        return false;
     }
 
     public override PhaseDto ToSnapshot() =>

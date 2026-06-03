@@ -1,7 +1,8 @@
 # Handoff: taxi crossing / hold-short precedence + directionality hints
 
-> **Status:** scoped & root-caused (2026-06-03), ready to implement. Originated from issue #172 (JBU577
-> "taxi spin"). Mentor (Maxim, ZOA) consulted; FAA references checked. **Nothing implemented yet.**
+> **Status:** **W1 (the spin fix) is implemented and verified (2026-06-03); W2–W7 remain.** Originated
+> from issue #172 (JBU577 "taxi spin"). Mentor (Maxim, ZOA) consulted; FAA references checked and
+> aviation-sim-expert-reviewed.
 > **Recording:** `tests/Yaat.Sim.Tests/TestData/issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip`.
 
 This is a fresh-agent handoff. It bundles one bug fix and several related controller capabilities that all
@@ -36,14 +37,17 @@ excluded for stop targets (`!isStopTarget`, `GroundNavigator.cs:659`), so it rev
 **"Hold short of [taxiway]" binds and takes precedence even when the aircraft cannot also clear the runway.**
 The aircraft stops at the taxiway hold-short with its **tail hanging over the runway bars**; the runway is
 **not clear**; the trainer **warns the controller**. It never backtracks. FAA basis (local refs — DO NOT
-web-search; read the files):
-- **AIM 2-3-3** (`.claude/reference/faa/aim/chap02_sec03.md`) — a commanded hold-short is a hard stop (no part
-  crosses the bars); a runway is "not clear" until all parts cross the marking.
-- **7110.65 3-10-5 NOTE 1 + .c** (`.claude/reference/faa/7110.65/chap03_sec10.md`) — does not authorize rolling
-  past the subsequent hold-short to clear the runway; controller **must protect** the intersection when an
-  aircraft must enter it to clear the runway → trigger for the controller warning.
-- **AIM 4-3-21.b** (`.claude/reference/faa/aim/chap04_sec03.md`) — `CROSS` with the hold-short omitted is the
-  existing way to say "clear the runway and stop just past it" (auto-hold past the bars). No new verb for that.
+web-search; read the files. Citations corrected per aviation-sim-expert review 2026-06-03):
+- **AIM 2-3-5.3** (`.claude/reference/faa/aim/chap02_sec03.md`) — a commanded hold-short is a hard stop: the
+  aircraft must stop so **no part extends beyond** the hold line. **AIM 2-3-5.1** — a runway is "not clear"
+  until the entire aircraft is past the marking.
+- **7110.65 3-7-4** (`.claude/reference/faa/7110.65/chap03_sec07.md`) — the **controller must protect** the
+  runway/intersection when an aircraft must enter it (here, hangs its tail over the bars) → trigger for the
+  controller warning. **3-7-2** — "cross without delay" governs the crossing itself.
+- **AIM 4-3-21.a** (`.claude/reference/faa/aim/chap04_sec03.md`) — an aircraft does **not** reverse on a runway/
+  taxiway; the hold-short-of-taxiway stop overrides the desire to clear the runway (there is no FAA verb for
+  "cross and stop clear"; `CROSS` with the hold-short omitted is the existing auto-hold-past-the-bars default
+  the trailing `HS <twy>` overrides).
 
 Any aviation-behavior change here must be re-reviewed by `aviation-sim-expert` (include the standard
 "read the local FAA files, do not web-search" note).
@@ -80,27 +84,34 @@ Any aviation-behavior change here must be re-reviewed by `aviation-sim-expert` (
 Each item: problem → proposed design → key files → tests. **Designs marked (PROPOSAL) need review** — phraseology
 especially should be confirmed with the mentor.
 
-### W1 — Fix the spin: stop at the taxiway hold-short, never backtrack
-- **Problem:** the post-crossing navigator reverses ~180° to reach a hold-short the crossing carried it past.
-- **Design:** when a binding taxiway hold-short falls within the runway-crossing tail-clearance distance, the
-  aircraft must **stop at the hold-short as it arrives** — no ½-length overshoot past the runway, no reverse.
-  Two interacting fixes likely needed: (a) the hold-short stop **offset** must not project *behind* a runway
-  hold-short the aircraft just cleared (cap the backward offset; see W1b); (b) the navigator/`CrossingRunway
-  →Taxiing` handoff must not produce a backward segment to an already-passed stop node — prefer "stop here"
-  over "reverse to the node." Reuse the existing advance-on-pass machinery; do not relax precise arrival for
-  normal hold-shorts.
-- **W1b (offset):** for a taxiway hold-short, the stop position should place the **nose at the taxiway hold
-  line**, with the body extending back (over the runway if unavoidable) — not `aircraftLength + 30 ft` behind
-  the node when that lands inside a runway. Decide the correct offset semantics with `aviation-sim-expert`.
-- **Files:** `GroundNavigator.cs` (TickStraight overshoot/arrival, `:583–673`), `TaxiingPhase.cs`
-  (`BuildPreClearedCrossingPhases`, `SetupCurrentSegment`), `HoldShortAnnotator.cs` / `VirtualNode.cs`.
-- **Tests:** replay test (JBU577 `TAXI G B HS B`): crosses, holds short of B, **no 180° reversal, no orbit**
-  (`ThrowOnOrbit` + `Issue165` stuck-<5 kt signature). Precedent `Issue172Wja1521CurrentTaxiwayTests`,
-  `Issue165SkwTaxiSpinTests`.
-- **Repro scaffold (untracked):** `tests/Yaat.Sim.Tests/Simulation/Issue172Jbu577TaxiSpinTests.cs` already
-  exists with diagnostic methods that replay the bundle and log JBU577's trajectory/conflict/nav state
-  (the spin is visible t≈470–495). Turn its diagnostics into the W1 assertion test; it also documents the
-  t=444 `TAXI G B HS B` window and the `TickForwardPastDelete` technique.
+### W1 — Fix the spin: stop at the taxiway hold-short, never backtrack ✅ DONE (2026-06-03)
+- **Problem:** the post-crossing navigator reversed ~180° to reach a hold-short the crossing carried it past.
+- **Implemented as three changes (all in `Yaat.Sim`, aviation-sim-expert-reviewed):**
+  - **Fix A (offset, "W1b")** — `HoldShortAnnotator.ComputeHoldShortPositions` + `VirtualNode.OffsetBefore`
+    (new `stopAtRunwayHoldShort` param): when a taxiway hold-short's `aircraftLength+30 ft` setback walks back
+    through a runway hold-short the route just crossed, cap it to the nose-at-line setback (½ length) and clamp
+    at the runway hold-short so the stop never projects behind the runway. New helper
+    `ApproachPassesRunwayHoldShort` detects the runway-adjacency.
+  - **Fix B (suppress overshoot)** — `CrossingRunwayPhase.TryBuildCrossingRoute`: when a binding (uncleared)
+    taxiway hold-short lies within a fuselage length past the exit (gap `D < L`, so the aircraft can't be both
+    clear of the runway and short of the taxiway), skip the ½-length tail-clearance virtual node. The crossing
+    ends at the exit and the onward `TaxiingPhase` stops at the taxiway line (tail over the bars). New helper
+    `BindingTaxiwayHoldShortWithin`. Covers both the pre-cleared and resume crossing paths (shared method).
+  - **Fix C (navigator backstop)** — `GroundNavigator.TickStraight`: a stop target already passed along-track
+    (`alongNm >= edgeLengthNm`) arrives in place rather than steering ~180° backward onto it. Narrowly gated;
+    does not change normal forward hold-short arrival. (Defense-in-depth — A+B fix JBU577 geometrically; C did
+    not need to fire for it.)
+- **W1b semantics (aviation-confirmed):** nose at the taxiway hold line (center ½ length back from the node),
+  zero buffer; the ½-length runway-hold-short clamp is correct for the aircraft-longer-than-2×-gap case.
+  FAA: AIM 2-3-5.3/2-3-5.1 (hard stop, runway not clear), 4-3-21.a (no reversing), 7110.65 3-7-4 (controller
+  protects → W3 warning), 3-7-2 (cross without delay).
+- **Test:** `Issue172Jbu577TaxiSpinTests.Jbu577_CrossesAndHoldsShortOfB_WithoutReversing` — full replay
+  (`Replay(0)` + `ReplayOneSecond` to t=513, before the `TAXI B M1 Y @B5` extension at t=514). Asserts no
+  ~180° heading reversal, no backward retreat toward the runway, holds short of B facing the crossing
+  direction, no orbit. (Went red on the current code first: "reversed ~180° … 180° from crossing heading.")
+- **Ripple note:** the broader hold-short-offset change shifted dense-replay timing enough to add one mild
+  1-tick ETA-gate cap in `Issue172ParallelPassTests`; that test was relaxed to assert no *sustained* yield
+  (its guarded bug was a ~25 s brake) rather than zero ticks. Full `tools/test-all.ps1` green both repos.
 
 ### W2 — Hold-short-of-taxiway precedence + "runway not clear" state
 - **Problem:** when HS-of-taxiway conflicts with clearing the runway, the sim must keep the aircraft short of

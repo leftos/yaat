@@ -9,14 +9,21 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// Issue #172 sub-case (JBU577 taxi spin). After landing at SFO, JBU577 was given
-/// <c>TAXI G B HS B</c> (+ <c>CROSS</c>) to cross RWY 01L/19R on taxiway G and hold short of B just
-/// beyond. B's hold-short (node 1398) sits only ~74 ft past the runway far-side hold-short (node 867) —
-/// shorter than the aircraft — so the runway-crossing tail clearance overshoots B and the navigator
-/// reverses ~180° (back toward the runway, then toward B) to reach the hold-short. Visible t≈470–495.
+/// <c>TAXI G B HS B</c> (t=444) + <c>CROSS</c> (t=447) to cross RWY 01L/19R on taxiway G and hold
+/// short of B just beyond. On G the nodes run NW: 867 (runway far-side hold-short) -> 1398 (B's join,
+/// ~74 ft NW) -> 155 (G/B junction). 867->1398 is shorter than the aircraft, so it cannot be both fully
+/// clear of the runway and short of B.
 ///
-/// These are diagnostic scaffolds for the fix in
-/// <c>docs/plans/open-issues/172-taxi-crossing-holdshort-and-directionality.md</c> (work item W1): turn
-/// them into an assertion test (taxis straight, crosses, holds short of B, no 180° reversal, no orbit).
+/// Bug (verified by replay): the crossing carries the aircraft ½ length past 867 and the taxiway
+/// hold-short stop is offset <c>aircraftLength + 30 ft</c> behind node 1398 — which lands behind the
+/// runway. The navigator then reverses ~180° (crossing heading ≈298° -> ≈118°) and drives ~187 ft back
+/// SE toward the runway to reach it, holding short facing backward. Desired: stop at B's hold line as it
+/// arrives, nose at the line with the tail over the runway bars, NO 180° reversal, NO backward drive.
+/// (Representing the "runway not clear" state and warning the controller are work items W2/W3.)
+///
+/// Replay window: the route is extended by <c>TAXI B M1 Y @B5</c> at t=514, so the crossing + hold-short
+/// behavior is asserted up to t=513 via faithful <see cref="SimulationEngine.ReplayOneSecond"/> (which
+/// applies the recorded CROSS at t=447 — <see cref="SimulationEngine.TickOneSecond"/> would drop it).
 /// Recording: issue172-sfo-taxiing-recording (ZOA/SFO).
 /// </summary>
 public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
@@ -47,7 +54,7 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Jbu577_TickByTick_Diagnostic()
+    public void Jbu577_CrossesAndHoldsShortOfB_WithoutReversing()
     {
         var recording = RecordingLoader.Load(RecordingPath);
         var engine = BuildEngine();
@@ -57,115 +64,136 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
         }
 
         engine.Replay(recording, 0);
-        for (int t = 1; t <= 880; t++)
+
+        // Stop before TAXI B M1 Y @B5 (t=514) extends the route — assert only the
+        // TAXI G B HS B crossing + hold-short-of-B behavior.
+        const int WindowEnd = 513;
+
+        bool sawCrossing = false;
+        bool sawHoldShort = false;
+        double crossingHeading = double.NaN;
+        bool haveRef = false;
+        double refLat = 0;
+        double refLon = 0;
+        double maxForwardFt = double.MinValue;
+        double worstRetreatFt = 0;
+        int worstRetreatTick = -1;
+        double maxHeadingDevDeg = 0;
+        int worstHeadingTick = -1;
+        string lastPhase = "(none)";
+        double lastHeading = double.NaN;
+
+        for (int t = 1; t <= WindowEnd; t++)
         {
             try
             {
                 engine.ReplayOneSecond();
             }
-            catch (Exception ex)
+            catch (InvalidOperationException ex)
             {
-                output.WriteLine($"t={t}: EXCEPTION {ex.GetType().Name}: {ex.Message}");
-                break;
+                Assert.Fail($"t={t}: orbit/invariant breach during JBU577 taxi — {ex.Message}");
             }
 
             var ac = engine.FindAircraft("JBU577");
-            if (ac is null)
+            if (ac is null || t < 444)
             {
-                if (t >= 510)
+                continue;
+            }
+
+            string phase = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
+            double hdg = ac.TrueHeading.Degrees;
+            var pos = ac.Position;
+            lastPhase = phase;
+            lastHeading = hdg;
+
+            if (phase == "CrossingRunwayPhase")
+            {
+                sawCrossing = true;
+                crossingHeading = hdg; // steady ≈298° across the runway
+                if (!haveRef)
                 {
-                    output.WriteLine($"t={t}: (despawned)");
+                    haveRef = true;
+                    refLat = pos.Lat;
+                    refLon = pos.Lon;
+                }
+            }
+
+            if (sawCrossing && !double.IsNaN(crossingHeading))
+            {
+                double dev = GeoMath.AbsBearingDifference(hdg, crossingHeading);
+                if (dev > maxHeadingDevDeg)
+                {
+                    maxHeadingDevDeg = dev;
+                    worstHeadingTick = t;
                 }
 
-                continue;
+                double fwdFt = ForwardProgressFt(refLat, refLon, pos.Lat, pos.Lon, crossingHeading);
+                if (fwdFt > maxForwardFt)
+                {
+                    maxForwardFt = fwdFt;
+                }
+                double retreat = maxForwardFt - fwdFt;
+                if (retreat > worstRetreatFt)
+                {
+                    worstRetreatFt = retreat;
+                    worstRetreatTick = t;
+                }
             }
 
-            if (t < 420)
+            if (phase == "HoldingShortPhase")
             {
-                continue;
+                sawHoldShort = true;
             }
 
-            var route = ac.Ground.AssignedTaxiRoute;
-            string phaseName = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
-            int segIdx = route?.CurrentSegmentIndex ?? -1;
-            int segTotal = route?.Segments.Count ?? 0;
-            int target = (route is not null && segIdx >= 0 && segIdx < segTotal) ? route.Segments[segIdx].ToNodeId : -1;
-            string sl = ac.Ground.SpeedLimit is { } s ? $"{s:F0}" : "-";
-            string ay = ac.Ground.AutoYieldTarget ?? "-";
-            output.WriteLine(
-                $"t={t, 3} ias={ac.IndicatedAirspeed, 5:F1} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees, 5:F1} phase={phaseName} seg={segIdx}/{segTotal}->{target} sl={sl} ay={ay} cbreak={ac.Ground.ConflictBreakRemainingSeconds:F0}"
-            );
+            output.WriteLine($"t={t, 3} ias={ac.IndicatedAirspeed, 5:F1} pos=({pos.Lat:F6},{pos.Lon:F6}) hdg={hdg, 5:F1} phase={phase}");
         }
+
+        Assert.True(sawCrossing, "JBU577 never entered CrossingRunwayPhase — expected it to cross RWY 01L/19R on taxiway G.");
+        Assert.True(
+            maxForwardFt > 50.0,
+            $"JBU577 made no meaningful progress across the runway (maxForward={maxForwardFt:F0}ft) — degenerate, it did not actually cross."
+        );
+
+        // The spin: heading reverses ~180° from the crossing direction. A clean hold-short of B keeps the
+        // aircraft facing ~NW (the crossing direction) as it stops nose-at-the-line.
+        Assert.True(
+            maxHeadingDevDeg < 135.0,
+            $"JBU577 reversed ~180° after crossing — max heading deviation {maxHeadingDevDeg:F0}° from the crossing heading "
+                + $"{crossingHeading:F0}° at t={worstHeadingTick}. It must hold short of B without turning back toward the runway."
+        );
+
+        // The spin's other signature: it drives backward (SE) toward the runway to reach a hold-short the
+        // crossing carried it past. A correct stop arrives at B's hold line and stays — no retreat.
+        Assert.True(
+            worstRetreatFt < 50.0,
+            $"JBU577 drove backward {worstRetreatFt:F0}ft toward the runway at t={worstRetreatTick} after crossing — "
+                + "it must stop at B's hold line as it arrives, not reverse to a hold-short behind the runway."
+        );
+
+        Assert.True(sawHoldShort, "JBU577 never reached HoldingShortPhase — expected it to hold short of B.");
+        Assert.Equal("HoldingShortPhase", lastPhase);
+        Assert.True(
+            GeoMath.AbsBearingDifference(lastHeading, crossingHeading) < 90.0,
+            $"JBU577 settled facing {lastHeading:F0}° — holding short of B should keep it facing ~the crossing direction "
+                + $"({crossingHeading:F0}° NW), not reversed back toward the runway."
+        );
     }
 
     /// <summary>
-    /// Tick the engine forward past the recording's t=878 delete so the full taxi to @B5 plays out
-    /// (the controller deleted JBU577 before it finished). Replays to t=600 (post-crossing, taxiing
-    /// the resolved route), then advances with <see cref="SimulationEngine.TickOneSecond"/> — which
-    /// does not apply the recorded DEL — and logs the trajectory.
+    /// Signed distance (ft) from the reference point to <paramref name="lat"/>/<paramref name="lon"/>
+    /// projected onto the crossing direction. Positive = forward (across the runway), negative = backward
+    /// (retreating toward the runway).
     /// </summary>
-    [Fact]
-    public void Jbu577_TickForwardPastDelete_Diagnostic()
+    private static double ForwardProgressFt(double refLat, double refLon, double lat, double lon, double forwardHeadingDeg)
     {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
+        double distNm = GeoMath.DistanceNm(new LatLon(refLat, refLon), new LatLon(lat, lon));
+        if (distNm < 1e-9)
         {
-            return;
+            return 0;
         }
 
-        engine.Replay(recording, 446);
-        var ac0 = engine.FindAircraft("JBU577");
-        if (ac0 is null)
-        {
-            output.WriteLine("JBU577 not present at t=446");
-            return;
-        }
-
-        var r0 = ac0.Ground.AssignedTaxiRoute;
-        output.WriteLine($"@446 route ({r0?.Segments.Count} segs): {r0?.ToSummary()}  curIdx={r0?.CurrentSegmentIndex}");
-        if (r0 is not null)
-        {
-            var layout = new TestAirportGroundData().GetLayout("SFO");
-            for (int i = 0; i < r0.Segments.Count; i++)
-            {
-                var s = r0.Segments[i];
-                double brg =
-                    layout is not null && layout.Nodes.TryGetValue(s.FromNodeId, out var fn) && layout.Nodes.TryGetValue(s.ToNodeId, out var tn)
-                        ? GeoMath.BearingTo(fn.Position, tn.Position)
-                        : double.NaN;
-                output.WriteLine(
-                    $"  seg[{i}] {s.TaxiwayName, -6} {s.FromNodeId, 5}->{s.ToNodeId, -5} brg={brg, 5:F1} edgeArr={s.Edge.ArrivalBearing, 5:F1} dep={s.Edge.DepartureBearing, 5:F1}"
-                );
-            }
-        }
-
-        for (int t = 601; t <= 1000; t++)
-        {
-            try
-            {
-                engine.TickOneSecond();
-            }
-            catch (Exception ex)
-            {
-                output.WriteLine($"t={t}: EXCEPTION {ex.GetType().Name}: {ex.Message}");
-                break;
-            }
-
-            var ac = engine.FindAircraft("JBU577");
-            if (ac is null)
-            {
-                output.WriteLine($"t={t}: (gone)");
-                break;
-            }
-
-            var route = ac.Ground.AssignedTaxiRoute;
-            string phaseName = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
-            int segIdx = route?.CurrentSegmentIndex ?? -1;
-            int segTotal = route?.Segments.Count ?? 0;
-            output.WriteLine(
-                $"t={t, 4} ias={ac.IndicatedAirspeed, 5:F1} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees, 5:F1} phase={phaseName} seg={segIdx}/{segTotal}"
-            );
-        }
+        double bearing = GeoMath.BearingTo(new LatLon(refLat, refLon), new LatLon(lat, lon));
+        double angle = GeoMath.AbsBearingDifference(bearing, forwardHeadingDeg);
+        return distNm * GeoMath.FeetPerNm * Math.Cos(angle * Math.PI / 180.0);
     }
 }

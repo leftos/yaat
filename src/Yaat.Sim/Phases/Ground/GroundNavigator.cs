@@ -658,7 +658,13 @@ public sealed class GroundNavigator
         // the aircraft must arrive precisely at the node rather than pass it.
         bool passedAlongTrack = (edgeLengthNm >= 1e-9) && (alongNm >= edgeLengthNm) && !isStopTarget && !isLastSegment;
 
-        if (straightArrived || overshot || stalledAtThreshold || passedAlongTrack)
+        // A stop target the aircraft has already passed along-track cannot be reached without
+        // reversing ~180°. Arrive in place (stop here) instead of steering backward onto it. This
+        // fires only once the aircraft is past the stop — a normal approach (alongNm < edgeLengthNm)
+        // still arrives precisely at the hold-short line via straightArrived. (Issue #172.)
+        bool stopTargetBehind = isStopTarget && (edgeLengthNm >= 1e-9) && (alongNm >= edgeLengthNm);
+
+        if (straightArrived || overshot || stalledAtThreshold || passedAlongTrack || stopTargetBehind)
         {
             // Corrective nudge toward next segment bearing, bounded by turn rate.
             // Skipped for a sharp upcoming corner: the entry-alignment slow-turn
