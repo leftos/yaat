@@ -73,7 +73,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     {
         var aircraft = CreateAircraft(ias: 280, altitude: 12000);
         // Fix 2nm ahead with 210kt constraint — should trigger decel immediately
-        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         Log(aircraft, "before tick");
@@ -90,7 +90,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         var aircraft = CreateAircraft(ias: 210, altitude: 12000);
         // Fix 1nm ahead with 250kt constraint — 40kt delta / 2.5 kts/s = 16s accel time.
         // At ~256kt GS, 1nm = ~14s — well within the 1.1× margin window.
-        var fix = MakeFix("CNSTR", 1.0, speed: new CifpSpeedRestriction(250, IsMaximum: false));
+        var fix = MakeFix("CNSTR", 1.0, speed: new CifpSpeedRestriction(250, CifpSpeedRestrictionType.AtOrAbove));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         Log(aircraft, "before tick");
@@ -121,7 +121,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     public void NoPlanningWhenAlreadyAtConstraintSpeed()
     {
         var aircraft = CreateAircraft(ias: 210, altitude: 12000);
-        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         FlightPhysics.Update(aircraft, 0.25);
@@ -136,7 +136,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     {
         var aircraft = CreateAircraft(ias: 280, altitude: 12000);
         // Fix 50nm ahead — at 280kt GS that's ~10 minutes away, well beyond decel time
-        var fix = MakeFix("CNSTR", 50.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 50.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         FlightPhysics.Update(aircraft, 0.25);
@@ -154,7 +154,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     {
         var aircraft = CreateAircraft(ias: 280, altitude: 12000);
         aircraft.Targets.HasExplicitSpeedCommand = true;
-        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         FlightPhysics.Update(aircraft, 0.25);
@@ -171,7 +171,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     {
         var aircraft = CreateAircraft(ias: 280, altitude: 12000);
         aircraft.Procedure.SpeedRestrictionsDeleted = true;
-        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         FlightPhysics.Update(aircraft, 0.25);
@@ -188,7 +188,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     {
         var aircraft = CreateAircraft(ias: 280, altitude: 35000);
         aircraft.Targets.TargetMach = 0.78;
-        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         FlightPhysics.Update(aircraft, 0.25);
@@ -202,7 +202,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     {
         var aircraft = CreateAircraft(ias: 280, altitude: 12000);
         aircraft.Targets.SpeedFloor = 230;
-        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 2.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         FlightPhysics.Update(aircraft, 0.25);
@@ -219,7 +219,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         aircraft.Targets.SpeedCeiling = 240;
         // Fix 1nm ahead: 260kt constraint clamped to 240. Delta=40, accelRate=2 → 20s * 1.1 = 22s.
         // GS ≈ 238kt → 1nm = 15.1s < 22s → triggers.
-        var fix = MakeFix("CNSTR", 1.0, speed: new CifpSpeedRestriction(260, IsMaximum: false));
+        var fix = MakeFix("CNSTR", 1.0, speed: new CifpSpeedRestriction(260, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         FlightPhysics.Update(aircraft, 0.25);
@@ -235,7 +235,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         var aircraft = CreateAircraft(ias: 280, altitude: 8000);
         // Fix 0.5nm ahead — close enough to trigger. 30kt delta / 3.5 kts/s = 8.6s.
         // At ~319kt GS, 0.5nm = ~5.6s — well within the window.
-        var fix = MakeFix("CNSTR", 0.5, speed: new CifpSpeedRestriction(280, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 0.5, speed: new CifpSpeedRestriction(280, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         Log(aircraft, "before tick");
@@ -255,8 +255,8 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
 
         // First fix at 0.5nm: 250kt — close enough to trigger (30kt delta / 3.5 = 8.6s,
         // 0.5nm at ~342kt GS = ~5.3s — triggers). Second fix at 2nm: 210kt.
-        var fix1 = MakeFix("FIX1", 0.5, speed: new CifpSpeedRestriction(250, IsMaximum: true));
-        var fix2 = MakeFix("FIX2", 2.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix1 = MakeFix("FIX1", 0.5, speed: new CifpSpeedRestriction(250, CifpSpeedRestrictionType.AtOrBelow));
+        var fix2 = MakeFix("FIX2", 2.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix1);
         aircraft.Targets.NavigationRoute.Add(fix2);
 
@@ -274,7 +274,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     {
         var aircraft = CreateAircraft(ias: 20, altitude: 0);
         aircraft.IsOnGround = true;
-        var fix = MakeFix("CNSTR", 0.5, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 0.5, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         FlightPhysics.Update(aircraft, 0.25);
@@ -289,7 +289,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         // nearly stopping the aircraft in flight. No fix restriction may drive the target below
         // the aircraft's final-approach speed (FAS).
         var aircraft = CreateAircraft(ias: 200, altitude: 3400, type: "B738");
-        var faf = MakeFix("FAF", 3.0, speed: new CifpSpeedRestriction(2, IsMaximum: true));
+        var faf = MakeFix("FAF", 3.0, speed: new CifpSpeedRestriction(2, CifpSpeedRestrictionType.AtOrBelow));
 
         FlightPhysics.ApplyFixConstraints(aircraft, faf);
 
@@ -304,7 +304,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
     {
         // A normal restriction (210kt) is well above FAS and must pass through unchanged.
         var aircraft = CreateAircraft(ias: 250, altitude: 8000, type: "B738");
-        var fix = MakeFix("CNSTR", 3.0, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var fix = MakeFix("CNSTR", 3.0, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
 
         FlightPhysics.ApplyFixConstraints(aircraft, fix);
 
@@ -318,7 +318,7 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         // maintain 210 (published as a ceiling), not accelerate back to 250 default cruise
         // while flying the remaining (unrestricted) fixes.
         var aircraft = CreateAircraft(ias: 210, altitude: 8000, type: "B738");
-        var restricted = MakeFix("GUSHR", 0.3, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var restricted = MakeFix("GUSHR", 0.3, speed: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         var next = MakeFix("BEPEA", 8.0);
         aircraft.Targets.NavigationRoute.Add(restricted);
         aircraft.Targets.NavigationRoute.Add(next);
@@ -330,5 +330,58 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         Assert.Contains(aircraft.Targets.NavigationRoute, f => f.Name == "BEPEA");
         Assert.NotNull(aircraft.Targets.SpeedCeiling);
         Assert.Equal(210, aircraft.Targets.SpeedCeiling!.Value, precision: 1);
+    }
+
+    [Fact]
+    public void Sequencing_AtOrAboveFix_PublishesSpeedFloor_NotCeiling()
+    {
+        // ARINC 424 §5.261 minimum ("cross HHART at or above 230"): crossing the fix must
+        // establish a SpeedFloor, never a SpeedCeiling that would cap the aircraft below it.
+        var aircraft = CreateAircraft(ias: 250, altitude: 11000, type: "B738");
+        var restricted = MakeFix("HHART", 0.3, speed: new CifpSpeedRestriction(230, CifpSpeedRestrictionType.AtOrAbove));
+        var next = MakeFix("BOPPR", 8.0);
+        aircraft.Targets.NavigationRoute.Add(restricted);
+        aircraft.Targets.NavigationRoute.Add(next);
+
+        FlightPhysics.Update(aircraft, 0.25);
+
+        Assert.DoesNotContain(aircraft.Targets.NavigationRoute, f => f.Name == "HHART");
+        Assert.Null(aircraft.Targets.SpeedCeiling);
+        Assert.NotNull(aircraft.Targets.SpeedFloor);
+        Assert.Equal(230, aircraft.Targets.SpeedFloor!.Value, precision: 1);
+    }
+
+    [Fact]
+    public void LookAhead_AtOrAboveFix_FastAircraft_DoesNotDecelerate()
+    {
+        // A minimum restriction must never trigger an early deceleration: the aircraft may
+        // legally cross faster. The fix is close enough (0.5nm) that a maximum would trigger
+        // decel — a minimum must not, so no decel target is planned.
+        var aircraft = CreateAircraft(ias: 280, altitude: 12000, type: "B738");
+        var fix = MakeFix("HHART", 0.5, speed: new CifpSpeedRestriction(230, CifpSpeedRestrictionType.AtOrAbove));
+        aircraft.Targets.NavigationRoute.Add(fix);
+
+        FlightPhysics.Update(aircraft, 0.25);
+
+        Assert.Null(aircraft.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void ApplyFixConstraints_AtOrAbove_SetsFloor_DoesNotLowerTarget()
+    {
+        // Via-mode minimum restriction establishes a floor; it must not pull TargetSpeed down
+        // toward the minimum the way an at-or-below restriction does.
+        var aircraft = CreateAircraft(ias: 280, altitude: 15000, type: "B738");
+        aircraft.Procedure.StarViaMode = true;
+        var target = MakeFix("HHART", 3.0, speed: new CifpSpeedRestriction(230, CifpSpeedRestrictionType.AtOrAbove));
+
+        FlightPhysics.ApplyFixConstraints(aircraft, target);
+
+        Assert.NotNull(aircraft.Targets.SpeedFloor);
+        Assert.Equal(230, aircraft.Targets.SpeedFloor!.Value, precision: 1);
+        if (aircraft.Targets.TargetSpeed is { } ts)
+        {
+            Assert.True(ts > 230, $"AtOrAbove must not lower TargetSpeed to the minimum, got {ts}");
+        }
     }
 }

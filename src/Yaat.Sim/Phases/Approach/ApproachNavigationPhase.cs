@@ -126,7 +126,7 @@ public sealed class ApproachNavigationPhase : Phase
                 {
                     Name = future.Name,
                     Position = new LatLon(future.Latitude, future.Longitude),
-                    SpeedRestriction = future.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, IsMaximum: true) : null,
+                    SpeedRestriction = future.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, CifpSpeedRestrictionType.AtOrBelow) : null,
                     IsFlyOver = future.IsFlyOver,
                 }
             );

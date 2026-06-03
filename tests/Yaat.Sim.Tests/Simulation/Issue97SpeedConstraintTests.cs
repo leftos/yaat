@@ -115,7 +115,7 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
         var failures = new List<string>();
         foreach (var (fix, ias) in iasAtFix)
         {
-            if (!constraintsByFix.TryGetValue(fix, out var restr) || !restr.IsMaximum)
+            if (!constraintsByFix.TryGetValue(fix, out var restr) || restr.Type == CifpSpeedRestrictionType.AtOrAbove)
             {
                 continue;
             }
@@ -154,7 +154,9 @@ public class Issue97SpeedConstraintTests(ITestOutputHelper output)
         output.WriteLine($"At t=50: IAS={aircraft.IndicatedAirspeed:F0} alt={aircraft.Altitude:F0}");
         output.WriteLine($"NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
 
-        bool routeHasSpeedConstraint = aircraft.Targets.NavigationRoute.Any(n => n.SpeedRestriction is { IsMaximum: true });
+        bool routeHasSpeedConstraint = aircraft.Targets.NavigationRoute.Any(n =>
+            n.SpeedRestriction is { Type: not CifpSpeedRestrictionType.AtOrAbove }
+        );
         Assert.True(routeHasSpeedConstraint, "Test precondition: at least one nav-route fix must have a max speed constraint at t=50");
 
         double initialIas = aircraft.IndicatedAirspeed;

@@ -575,7 +575,7 @@ internal static class FlightCommandHandler
 
             if (cmd.SpeedConstraints is not null && cmd.SpeedConstraints.TryGetValue(i, out var spd))
             {
-                speedRestriction = new CifpSpeedRestriction(spd, true);
+                speedRestriction = new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow);
                 if (i == lastConstrainedIdx)
                 {
                     revertSpeed = aircraft.Targets.TargetSpeed;

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -77,7 +78,7 @@ public class StarSpeedAfterTerminatingFixTests(ITestOutputHelper output)
         Assert.NotNull(berksFix);
         Assert.NotNull(berksFix.SpeedRestriction);
         Assert.Equal(TerminatingFixSpeedKts, berksFix.SpeedRestriction.SpeedKts);
-        Assert.True(berksFix.SpeedRestriction.IsMaximum);
+        Assert.NotEqual(CifpSpeedRestrictionType.AtOrAbove, berksFix.SpeedRestriction.Type);
 
         // Tick until BERKS is sequenced. Cap at 2400s (40 min) — same window the
         // sibling Issue77 test uses for ARRTU/BERKS.

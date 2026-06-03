@@ -1666,7 +1666,7 @@ public static class ApproachCommandHandler
                     Name = fix.Name,
                     Position = new LatLon(fix.Latitude, fix.Longitude),
                     AltitudeRestriction = fix.Altitude,
-                    SpeedRestriction = fix.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, IsMaximum: true) : null,
+                    SpeedRestriction = fix.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, CifpSpeedRestrictionType.AtOrBelow) : null,
                     IsFlyOver = fix.IsFlyOver,
                 }
             );

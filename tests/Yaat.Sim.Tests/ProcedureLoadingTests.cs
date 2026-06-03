@@ -109,7 +109,7 @@ public class ProcedureLoadingTests
                     CifpPathTerminator.TF,
                     null,
                     new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 10000),
-                    new CifpSpeedRestriction(250, true),
+                    new CifpSpeedRestriction(250, CifpSpeedRestrictionType.AtOrBelow),
                     CifpFixRole.None,
                     40,
                     null,
@@ -185,7 +185,7 @@ public class ProcedureLoadingTests
                     CifpPathTerminator.TF,
                     null,
                     new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000),
-                    new CifpSpeedRestriction(250, true),
+                    new CifpSpeedRestriction(250, CifpSpeedRestrictionType.AtOrBelow),
                     CifpFixRole.None,
                     30,
                     null,
@@ -484,7 +484,18 @@ public class ProcedureLoadingTests
                 null,
                 null
             ),
-            new("PORTE", CifpPathTerminator.TF, null, null, new CifpSpeedRestriction(200, true), CifpFixRole.None, 20, null, null, null),
+            new(
+                "PORTE",
+                CifpPathTerminator.TF,
+                null,
+                null,
+                new CifpSpeedRestriction(200, CifpSpeedRestrictionType.AtOrBelow),
+                CifpFixRole.None,
+                20,
+                null,
+                null,
+                null
+            ),
         };
 
         var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);

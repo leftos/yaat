@@ -186,7 +186,7 @@ public class ProcedureConstraintTests
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(spd: new CifpSpeedRestriction(210, IsMaximum: true));
+        var target = MakeTarget(spd: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         Assert.Equal(210, aircraft.Targets.TargetSpeed);
@@ -200,7 +200,7 @@ public class ProcedureConstraintTests
 
         var target = MakeTarget(
             alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000),
-            spd: new CifpSpeedRestriction(210, IsMaximum: true)
+            spd: new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow)
         );
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
@@ -254,7 +254,7 @@ public class ProcedureConstraintTests
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(spd: new CifpSpeedRestriction(280, IsMaximum: true));
+        var target = MakeTarget(spd: new CifpSpeedRestriction(280, CifpSpeedRestrictionType.AtOrBelow));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         // Speed restriction of 280 should be capped to 250 below 10,000 ft
@@ -268,7 +268,7 @@ public class ProcedureConstraintTests
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        var target = MakeTarget(spd: new CifpSpeedRestriction(280, IsMaximum: true));
+        var target = MakeTarget(spd: new CifpSpeedRestriction(280, CifpSpeedRestrictionType.AtOrBelow));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         // Above 10,000 ft — no cap
@@ -319,7 +319,7 @@ public class ProcedureConstraintTests
                 Name = "FIX2",
                 Position = new LatLon(38.0, -122.0),
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 7000),
-                SpeedRestriction = new CifpSpeedRestriction(230, IsMaximum: true),
+                SpeedRestriction = new CifpSpeedRestriction(230, CifpSpeedRestrictionType.AtOrBelow),
             }
         );
 

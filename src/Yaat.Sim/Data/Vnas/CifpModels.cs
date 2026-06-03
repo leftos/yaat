@@ -11,7 +11,20 @@ public enum CifpAltitudeRestrictionType
 
 public sealed record CifpAltitudeRestriction(CifpAltitudeRestrictionType Type, int Altitude1Ft, int? Altitude2Ft = null);
 
-public sealed record CifpSpeedRestriction(int SpeedKts, bool IsMaximum);
+/// <summary>
+/// ARINC 424 §5.261 "Speed Limit Description". Determines how a procedure speed limit is
+/// observed: <see cref="AtOrBelow"/> (maximum, the '-' qualifier), <see cref="AtOrAbove"/>
+/// (minimum, the '+' qualifier), or <see cref="Mandatory"/> (a charted speed with no
+/// qualifier — flown as a do-not-exceed ceiling, matching how unqualified speeds are flown).
+/// </summary>
+public enum CifpSpeedRestrictionType
+{
+    AtOrBelow,
+    AtOrAbove,
+    Mandatory,
+}
+
+public sealed record CifpSpeedRestriction(int SpeedKts, CifpSpeedRestrictionType Type);
 
 public enum CifpFixRole
 {

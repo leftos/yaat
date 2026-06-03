@@ -509,13 +509,10 @@ public static partial class CifpParser
 
         var altitude = ParseAltitudeRestriction(altDesc, alt1Str, alt2Str);
 
-        // Speed limit at chars 99-101
-        string speedStr = line.Length > 101 ? line[99..102].Trim() : "";
-        CifpSpeedRestriction? speed = null;
-        if (int.TryParse(speedStr, out int speedKts) && speedKts > 0)
-        {
-            speed = new CifpSpeedRestriction(speedKts, true);
-        }
+        // Speed limit at chars 99-101; ARINC 424 §5.261 speed-limit description at char 117.
+        string speedStr = line.Length > 101 ? line[99..102] : "";
+        char speedDesc = line.Length > 117 ? line[117] : ' ';
+        CifpSpeedRestriction? speed = ParseSpeedRestriction(speedStr, speedDesc);
 
         // Column ranges below match cifparse PrimaryIndices
         // (reference/cifp/cifparse/src/cifparse/records/procedure/widths.py).
@@ -860,6 +857,28 @@ public static partial class CifpParser
         };
 
         return new CifpAltitudeRestriction(type, alt1.Value, alt2);
+    }
+
+    /// <summary>
+    /// Parses a procedure-leg speed limit (ARINC 424 §5.72 value, §5.261 description).
+    /// '+' is a minimum (at or above), '-' a maximum (at or below), and a blank qualifier a
+    /// charted speed with no qualifier (Mandatory). Returns null for an absent or zero speed.
+    /// </summary>
+    internal static CifpSpeedRestriction? ParseSpeedRestriction(string speedStr, char description)
+    {
+        if (!int.TryParse(speedStr.Trim(), out int speedKts) || speedKts <= 0)
+        {
+            return null;
+        }
+
+        var type = description switch
+        {
+            '+' => CifpSpeedRestrictionType.AtOrAbove,
+            '-' => CifpSpeedRestrictionType.AtOrBelow,
+            _ => CifpSpeedRestrictionType.Mandatory,
+        };
+
+        return new CifpSpeedRestriction(speedKts, type);
     }
 
     internal static int? ParseArinc424Altitude(string s)

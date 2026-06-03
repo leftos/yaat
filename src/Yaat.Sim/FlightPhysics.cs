@@ -184,10 +184,22 @@ public static class FlightPhysics
             // (often unrestricted) fixes. An explicit ATC speed wins and is left untouched.
             if (sequenced.SpeedRestriction is { } crossedSpeed && !aircraft.Targets.HasExplicitSpeedCommand)
             {
-                double ceilingKts = ClampFixSpeedToApproachFloor(aircraft, crossedSpeed.SpeedKts);
-                aircraft.Targets.SpeedCeiling = aircraft.Targets.SpeedCeiling is { } existingCeiling
-                    ? Math.Min(existingCeiling, ceilingKts)
-                    : ceilingKts;
+                if (crossedSpeed.Type == CifpSpeedRestrictionType.AtOrAbove)
+                {
+                    // 7110.65 5-7-1.h.4: a "cross at or above" speed is a minimum. Publish it as
+                    // a floor so the aircraft holds at or above it past the fix — never a ceiling
+                    // that would cap it to the minimum.
+                    aircraft.Targets.SpeedFloor = aircraft.Targets.SpeedFloor is { } existingFloor
+                        ? Math.Max(existingFloor, crossedSpeed.SpeedKts)
+                        : crossedSpeed.SpeedKts;
+                }
+                else
+                {
+                    double ceilingKts = ClampFixSpeedToApproachFloor(aircraft, crossedSpeed.SpeedKts);
+                    aircraft.Targets.SpeedCeiling = aircraft.Targets.SpeedCeiling is { } existingCeiling
+                        ? Math.Min(existingCeiling, ceilingKts)
+                        : ceilingKts;
+                }
             }
 
             if (route.Count == 0)
@@ -526,6 +538,14 @@ public static class FlightPhysics
                 constraintSpeed = Math.Min(constraintSpeed, ceiling);
             }
 
+            // A minimum ("at or above") restriction must never trigger a deceleration: the
+            // aircraft may legally cross faster. Only act on it to accelerate up to the floor
+            // when currently slower (fall through); otherwise skip it.
+            if ((restriction.Type == CifpSpeedRestrictionType.AtOrAbove) && (aircraft.IndicatedAirspeed > constraintSpeed))
+            {
+                continue;
+            }
+
             double speedDelta = Math.Abs(aircraft.IndicatedAirspeed - constraintSpeed);
             if (speedDelta < SpeedSnapKts)
             {
@@ -693,31 +713,42 @@ public static class FlightPhysics
 
         if (target.SpeedRestriction is { } spd && !aircraft.Procedure.SpeedRestrictionsDeleted)
         {
-            double targetSpeed = ClampFixSpeedToApproachFloor(aircraft, spd.SpeedKts);
-
-            // 14 CFR 91.117: cap speed restrictions at 250 KIAS below 10,000 ft MSL.
-            if (!aircraft.IsOnGround && aircraft.Altitude < 10_000)
+            if (spd.Type == CifpSpeedRestrictionType.AtOrAbove)
             {
-                targetSpeed = Math.Min(targetSpeed, 250);
+                // Minimum crossing speed: establish a floor (the 91.117 cap is enforced against
+                // the floor in UpdateSpeed). Do not pull TargetSpeed down toward the minimum the
+                // way an at-or-below restriction does, and don't record it as a terminating
+                // ceiling memory.
+                aircraft.Targets.SpeedFloor = aircraft.Targets.SpeedFloor is { } existingFloor ? Math.Max(existingFloor, spd.SpeedKts) : spd.SpeedKts;
             }
-
-            // Clamp via-mode speed to active floor/ceiling
-            if (aircraft.Targets.SpeedFloor is { } floor)
+            else
             {
-                targetSpeed = Math.Max(targetSpeed, floor);
+                double targetSpeed = ClampFixSpeedToApproachFloor(aircraft, spd.SpeedKts);
+
+                // 14 CFR 91.117: cap speed restrictions at 250 KIAS below 10,000 ft MSL.
+                if (!aircraft.IsOnGround && aircraft.Altitude < 10_000)
+                {
+                    targetSpeed = Math.Min(targetSpeed, 250);
+                }
+
+                // Clamp via-mode speed to active floor/ceiling
+                if (aircraft.Targets.SpeedFloor is { } floor)
+                {
+                    targetSpeed = Math.Max(targetSpeed, floor);
+                }
+
+                if (aircraft.Targets.SpeedCeiling is { } ceiling)
+                {
+                    targetSpeed = Math.Min(targetSpeed, ceiling);
+                }
+
+                aircraft.Targets.TargetSpeed = targetSpeed;
+
+                // AIM 5-4-1 NOTE 2: remember the last published speed so that if the
+                // procedure terminates without further ATC instruction the aircraft
+                // does not accelerate beyond it.
+                aircraft.Procedure.LastProcedureSpeedKts = targetSpeed;
             }
-
-            if (aircraft.Targets.SpeedCeiling is { } ceiling)
-            {
-                targetSpeed = Math.Min(targetSpeed, ceiling);
-            }
-
-            aircraft.Targets.TargetSpeed = targetSpeed;
-
-            // AIM 5-4-1 NOTE 2: remember the last published speed so that if the
-            // procedure terminates without further ATC instruction the aircraft
-            // does not accelerate beyond it.
-            aircraft.Procedure.LastProcedureSpeedKts = targetSpeed;
         }
     }
 

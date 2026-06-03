@@ -333,7 +333,7 @@ public class SpeedPhysicsTests
         {
             Name = "SUNOL",
             Position = new LatLon(37.5, -121.9),
-            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(250, false),
+            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(250, Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
         };
 
         FlightPhysics.ApplyFixConstraints(ac, target);
@@ -354,7 +354,7 @@ public class SpeedPhysicsTests
         {
             Name = "SUNOL",
             Position = new LatLon(37.5, -121.9),
-            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(200, false),
+            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(200, Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
         };
 
         FlightPhysics.ApplyFixConstraints(ac, target);
@@ -375,7 +375,7 @@ public class SpeedPhysicsTests
         {
             Name = "SUNOL",
             Position = new LatLon(37.5, -121.9),
-            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(260, false),
+            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(260, Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
         };
 
         FlightPhysics.ApplyFixConstraints(ac, target);
@@ -400,7 +400,7 @@ public class SpeedPhysicsTests
         {
             Name = "SUNOL",
             Position = new LatLon(37.5, -121.9),
-            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(200, false),
+            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(200, Data.Vnas.CifpSpeedRestrictionType.AtOrBelow),
         };
 
         FlightPhysics.ApplyFixConstraints(ac, target);

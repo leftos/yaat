@@ -179,7 +179,7 @@ internal static class NavigationCommandHandler
             Name = cmd.FixName,
             Position = new LatLon(cmd.FixLat, cmd.FixLon),
             AltitudeRestriction = new CifpAltitudeRestriction(restrictionType, cmd.Altitude),
-            SpeedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, true) : null,
+            SpeedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, CifpSpeedRestrictionType.AtOrBelow) : null,
             RevertAltitude = previousAlt,
             RevertAssignedAltitude = previousAssignedAlt,
             RevertSpeed = previousSpeed,
@@ -1088,7 +1088,7 @@ internal static class NavigationCommandHandler
                         Name = route[i].Name,
                         Position = route[i].Position,
                         AltitudeRestriction = route[i].AltitudeRestriction,
-                        SpeedRestriction = new CifpSpeedRestriction(speed, true),
+                        SpeedRestriction = new CifpSpeedRestriction(speed, CifpSpeedRestrictionType.AtOrBelow),
                         IsFlyOver = route[i].IsFlyOver,
                     };
                     found = true;

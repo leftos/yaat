@@ -146,7 +146,7 @@ public class NavigationCommandTests : IDisposable
             {
                 Name = "CASST",
                 Position = new LatLon(37.6, -121.9),
-                SpeedRestriction = new CifpSpeedRestriction(210, IsMaximum: true),
+                SpeedRestriction = new CifpSpeedRestriction(210, CifpSpeedRestrictionType.AtOrBelow),
                 AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 6000),
             }
         );

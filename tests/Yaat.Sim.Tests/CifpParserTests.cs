@@ -735,6 +735,72 @@ public class CifpParserTests
     }
 
     [Fact]
+    public void ParseStars_RealKiahDoobi3_ReadsSpeedLimitDescription()
+    {
+        // ARINC 424 §5.261: HHART carries "230 +" → AtOrAbove (a minimum); the blank-qualifier
+        // legs (DOOBI 250, BOPPR 210) → Mandatory. The parser must read the description at
+        // column 117, not assume every speed limit is a maximum.
+        var lines = new[]
+        {
+            RealCifpLines.KiahDoobi3AllLeg010Doobi,
+            RealCifpLines.KiahDoobi3AllLeg020HhartAtOrAbove230,
+            RealCifpLines.KiahDoobi3AllLeg030Boppr,
+            RealCifpLines.KiahDoobi3AllLeg040Odiss,
+            RealCifpLines.KiahDoobi3AllLeg050Bozzz,
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var stars = CifpParser.ParseStars(tmpFile, "KIAH");
+
+            Assert.Single(stars);
+            var allLegs = stars[0]
+                .CommonLegs.Concat(stars[0].EnrouteTransitions.Values.SelectMany(t => t.Legs))
+                .Concat(stars[0].RunwayTransitions.Values.SelectMany(t => t.Legs))
+                .ToList();
+
+            var hhart = allLegs.First(l => l.FixIdentifier == "HHART");
+            Assert.NotNull(hhart.Speed);
+            Assert.Equal(CifpSpeedRestrictionType.AtOrAbove, hhart.Speed.Type);
+            Assert.Equal(230, hhart.Speed.SpeedKts);
+
+            var doobi = allLegs.First(l => l.FixIdentifier == "DOOBI");
+            Assert.NotNull(doobi.Speed);
+            Assert.Equal(CifpSpeedRestrictionType.Mandatory, doobi.Speed.Type);
+            Assert.Equal(250, doobi.Speed.SpeedKts);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    // ARINC 424 §5.261 speed-limit description: '+' = at or above (minimum), '-' = at or below
+    // (maximum), blank = charted speed with no qualifier (Mandatory).
+    [Theory]
+    [InlineData("230", '+', CifpSpeedRestrictionType.AtOrAbove, 230)]
+    [InlineData("230", '-', CifpSpeedRestrictionType.AtOrBelow, 230)]
+    [InlineData("280", ' ', CifpSpeedRestrictionType.Mandatory, 280)]
+    public void ParseSpeedRestriction_VariousTypes(string speedStr, char desc, CifpSpeedRestrictionType expectedType, int expectedKts)
+    {
+        var result = CifpParser.ParseSpeedRestriction(speedStr, desc);
+
+        Assert.NotNull(result);
+        Assert.Equal(expectedType, result.Type);
+        Assert.Equal(expectedKts, result.SpeedKts);
+    }
+
+    [Theory]
+    [InlineData("", ' ')]
+    [InlineData("000", '-')]
+    public void ParseSpeedRestriction_EmptyOrZero_ReturnsNull(string speedStr, char desc)
+    {
+        Assert.Null(CifpParser.ParseSpeedRestriction(speedStr, desc));
+    }
+
+    [Fact]
     public void ParseSids_WrongAirport_ReturnsEmpty()
     {
         var lines = new[] { BuildSidStarLine('D', "KSFO", "PORTE3", "", 10, "PORTE") };
@@ -963,6 +1029,25 @@ internal static class RealCifpLines
 
     public const string KsfoCiity3Rw10LLeg040CiityAtOrAbove5000 =
         "SUSAP KSFOK2DCIITY34RW10L 040CIITYK2PC0EE      TF                                 + 05000                                  145571509";
+
+    // --- KIAH DOOBI3 STAR, common "ALL" segment (exercises ARINC 424 §5.261 speed-limit desc) ---
+    // Source: FAACIFP18 (grep '^SUSAP KIAHK4EDOOBI35ALL'). HHART carries "230 +" (a minimum,
+    // AtOrAbove); DOOBI/BOPPR/ODISS/BOZZZ carry blank-qualifier speeds (Mandatory).
+
+    public const string KiahDoobi3AllLeg010Doobi =
+        "SUSAP KIAHK4EDOOBI35ALL   010DOOBIK4PC0E       IF                                 B 170001500018000250                     213252506";
+
+    public const string KiahDoobi3AllLeg020HhartAtOrAbove230 =
+        "SUSAP KIAHK4EDOOBI35ALL   020HHARTK4PC0E       TF                                 B 1300010000     230               +     213262506";
+
+    public const string KiahDoobi3AllLeg030Boppr =
+        "SUSAP KIAHK4EDOOBI35ALL   030BOPPRK4PC0E       TF                                 + 09000          210                     213272506";
+
+    public const string KiahDoobi3AllLeg040Odiss =
+        "SUSAP KIAHK4EDOOBI35ALL   040ODISSK4PC0E       TF                                 + 08000          210                     213282506";
+
+    public const string KiahDoobi3AllLeg050Bozzz =
+        "SUSAP KIAHK4EDOOBI35ALL   050BOZZZK4PC0EE      TF                                   08000          210                     213292506";
 
     // --- KOTH RNAV(GPS) RWY 5 H05-Z, DEROY transition (contains RF curved-final segments) ---
     // Source: FAACIFP18 lines 281582-281587 (DEROY transition) + 281530 (CFLTZ terminal waypoint)
