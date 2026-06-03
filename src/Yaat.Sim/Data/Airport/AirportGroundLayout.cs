@@ -768,6 +768,32 @@ public sealed class AirportGroundLayout
         return best;
     }
 
+    /// <summary>
+    /// Nearest node within <paramref name="maxDistFt"/> that has at least one edge on
+    /// <paramref name="taxiwayName"/>, or null when none is in range. Used to anchor a taxi
+    /// command's start node to the first cleared taxiway when the heading-biased start-node
+    /// heuristic lands on an adjacent parallel taxiway (post-pushback).
+    /// </summary>
+    public GroundNode? FindNearestNodeOnTaxiway(LatLon position, string taxiwayName, double maxDistFt)
+    {
+        double maxDistNm = maxDistFt / GeoMath.FeetPerNm;
+        GroundNode? best = null;
+        double bestDistNm = double.MaxValue;
+        foreach (var node in GetNodesOnTaxiway(taxiwayName))
+        {
+            double dist = GeoMath.DistanceNm(position, node.Position);
+            if (dist > maxDistNm || dist >= bestDistNm)
+            {
+                continue;
+            }
+
+            bestDistNm = dist;
+            best = node;
+        }
+
+        return best;
+    }
+
     public GroundNode? FindNearestNode(double lat, double lon)
     {
         GroundNode? best = null;

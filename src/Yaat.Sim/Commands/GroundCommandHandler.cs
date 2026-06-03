@@ -37,6 +37,31 @@ internal static class GroundCommandHandler
         var startNode =
             groundLayout.FindNearestNodeForTaxi(aircraft.Position, aircraft.TrueHeading) ?? groundLayout.FindNearestNode(aircraft.Position);
 
+        // Anchor the start node to the first cleared taxiway when the aircraft is sitting on a node
+        // of it. The heading-biased FindNearestNodeForTaxi can land on an adjacent parallel taxiway
+        // after a directional pushback (the aircraft's heading aligns with the neighbour's edge, not
+        // its own taxiway's), which then makes the named first taxiway "unreachable" — WJA1521 pushed
+        // onto M4 but the start node resolved onto the parallel M5, so "TAXI M4 M2 ..." was rejected.
+        // Only overrides when the on-taxiway node is at least as close as the heuristic's pick.
+        if (
+            startNode is not null
+            && taxi.Path.Count > 0
+            && !taxi.Path[0].StartsWith('#')
+            && !startNode.Edges.Any(e => e.MatchesTaxiway(taxi.Path[0]))
+            && groundLayout.FindNearestNodeOnTaxiway(aircraft.Position, taxi.Path[0], maxDistFt: 100.0) is { } onFirstCleared
+            && GeoMath.DistanceNm(aircraft.Position, onFirstCleared.Position) <= GeoMath.DistanceNm(aircraft.Position, startNode.Position)
+        )
+        {
+            Log.LogDebug(
+                "[TryTaxi] {Callsign}: start node {Old} is not on cleared {Twy}; anchoring to nearer on-taxiway node {New}",
+                aircraft.Callsign,
+                startNode.Id,
+                taxi.Path[0],
+                onFirstCleared.Id
+            );
+            startNode = onFirstCleared;
+        }
+
         if (startNode is null)
         {
             Log.LogWarning(
