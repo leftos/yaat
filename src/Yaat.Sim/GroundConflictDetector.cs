@@ -264,7 +264,7 @@ public static class GroundConflictDetector
                         break;
 
                     case PairKind.Crossing:
-                        ResolveCrossing(a, stateA, dirA, b, stateB, dirB, distFt, diagnosticLog);
+                        ResolveCrossing(a, stateA, dirA, b, stateB, dirB, distFt, layout is not null, diagnosticLog);
                         break;
                 }
             }
@@ -641,7 +641,7 @@ public static class GroundConflictDetector
         }
         if (!skipHeadOn && dirA is not null && dirB is not null && a.GroundSpeed > 0 && b.GroundSpeed > 0)
         {
-            ResolveHeadOn(a, dirA.Value, b, dirB.Value, distFt);
+            ResolveHeadOn(a, dirA.Value, b, dirB.Value, distFt, arbitrate: true);
         }
     }
 
@@ -753,6 +753,7 @@ public static class GroundConflictDetector
         MovementState stateB,
         double? dirB,
         double distFt,
+        bool routesKnown,
         Action<string>? diagnosticLog
     )
     {
@@ -792,6 +793,11 @@ public static class GroundConflictDetector
         var limitForA = closeDirA is { } da ? ComputeClosingLimit(a, da, b, stateB, distFt, diagnosticLog) : null;
         var limitForB = closeDirB is { } db ? ComputeClosingLimit(b, db, a, stateA, distFt, diagnosticLog) : null;
 
+        diagnosticLog?.Invoke(
+            $"  [Crossing] {a.Callsign}(dir={closeDirA?.ToString("F0") ?? "none"},gs={a.GroundSpeed:F1})→limit={limitForA?.Limit.ToString("F1") ?? "null"} "
+                + $"{b.Callsign}(dir={closeDirB?.ToString("F0") ?? "none"},gs={b.GroundSpeed:F1})→limit={limitForB?.Limit.ToString("F1") ?? "null"} dist={distFt:F0}ft"
+        );
+
         if (limitForA is { Limit: <= 0 } && limitForB is { Limit: <= 0 })
         {
             // Crossing collision course: both would stop. Pick one holder
@@ -805,10 +811,12 @@ public static class GroundConflictDetector
         {
             if (limitForA is { } resultA)
             {
+                diagnosticLog?.Invoke($"  [Crossing] one-sided: {a.Callsign} limited {resultA.Limit:F1} ({resultA.Reason}) for {b.Callsign}");
                 ApplyMinLimit(a, resultA.Limit, resultA.Reason, b, distFt);
             }
             if (limitForB is { } resultB)
             {
+                diagnosticLog?.Invoke($"  [Crossing] one-sided: {b.Callsign} limited {resultB.Limit:F1} ({resultB.Reason}) for {a.Callsign}");
                 ApplyMinLimit(b, resultB.Limit, resultB.Reason, a, distFt);
             }
         }
@@ -816,11 +824,11 @@ public static class GroundConflictDetector
         // Head-on fallback: two aircraft actually moving toward each other.
         if (closeDirA is { } da3 && closeDirB is { } db3 && a.GroundSpeed > 0 && b.GroundSpeed > 0)
         {
-            ResolveHeadOn(a, da3, b, db3, distFt);
+            ResolveHeadOn(a, da3, b, db3, distFt, arbitrate: routesKnown);
         }
     }
 
-    private static void ResolveHeadOn(AircraftState a, double dirA, AircraftState b, double dirB, double distFt)
+    private static void ResolveHeadOn(AircraftState a, double dirA, AircraftState b, double dirB, double distFt, bool arbitrate)
     {
         double headingDiff = HeadingDifference(dirA, dirB);
         if (headingDiff < HeadOnMinHeadingDiffDeg)
@@ -834,11 +842,28 @@ public static class GroundConflictDetector
         }
 
         double bearingAtoB = GeoMath.BearingTo(a.Position, b.Position);
-        if (HeadingDifference(dirA, bearingAtoB) < 90)
+        if (HeadingDifference(dirA, bearingAtoB) >= 90)
         {
-            ApplyMinLimit(a, 0, "head-on", b, distFt);
-            ApplyMinLimit(b, 0, "head-on", a, distFt);
+            return;
         }
+
+        if (arbitrate)
+        {
+            // The pair is a Crossing on the ground graph — i.e. they are on different, non-converging
+            // edges, so their routes diverge past this point (a true same-corridor head-on would have
+            // classified as SameEdgeHeadOn). Stopping BOTH gridlocks them — and a turning aircraft is
+            // momentarily anti-parallel to a neighbour it will turn away from. Hold one deterministically
+            // and let the other proceed; its closing-proximity limit still fires if they actually close.
+            var holder = string.CompareOrdinal(a.Callsign, b.Callsign) >= 0 ? a : b;
+            var mover = ReferenceEquals(holder, a) ? b : a;
+            ApplyMinLimit(holder, 0, "head-on hold", mover, distFt);
+            return;
+        }
+
+        // No ground graph to confirm diverging routes (e.g. off-graph): treat as a genuine collision
+        // course and stop both.
+        ApplyMinLimit(a, 0, "head-on", b, distFt);
+        ApplyMinLimit(b, 0, "head-on", a, distFt);
     }
 
     // --- Helpers ---
@@ -928,13 +953,16 @@ public static class GroundConflictDetector
 
         if (existing is null || maxSpeed < existing)
         {
-            Log.LogTrace(
+            Log.LogDebug(
                 "[Conflict] {Callsign}: limit={Limit:F0}kts, reason={Reason}, other={Other}, dist={Dist:F0}ft",
                 aircraft.Callsign,
                 maxSpeed,
                 reason ?? "proximity",
                 other?.Callsign ?? "?",
                 distFt ?? 0
+            );
+            DebugSink?.Invoke(
+                $"    [ApplyMinLimit] {aircraft.Callsign}: limit={maxSpeed:F1} (was {existing?.ToString("F1") ?? "none"}) reason={reason ?? "proximity"} other={other?.Callsign ?? "?"} dist={distFt?.ToString("F0") ?? "?"}ft"
             );
         }
     }

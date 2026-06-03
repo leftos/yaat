@@ -571,6 +571,8 @@ When an aircraft lands and vacates **between two parallel runways** and the para
 
 `HS` can be issued to a taxiing aircraft to add a hold-short point at the first upcoming intersection with the given taxiway or runway along the remaining route.
 
+When a `TAXI` clearance ends on a taxiway with no downstream destination (no runway, parking `@`, spot `$`, or hold-short) — e.g. `TAXI G B` — and that final taxiway runs both ways from where the route reaches it, the aircraft stops at the intersection rather than guessing a direction along it. Issue a follow-up taxi to send it either way (e.g. `TAXI B Q A @F11`). A final taxiway that only leads one way from the junction is taxied normally.
+
 When you taxi to a hold-short point (via context menu or command), the runway is automatically assigned based on the closest threshold. Override with `RWY {id}` if needed.
 
 A `TAXI` clearance does not need to name the taxiway the aircraft is already on. When the cleared taxiways begin with one the aircraft can turn onto directly from its current taxiway, that current taxiway is added to the route automatically — `TAXI W` from W5 routes as `TAXI W5 W`, and `TAXI E RWY 28R` from C routes as `TAXI C E RWY 28R`. The current taxiway appears in the readback only when the route actually drives along it. When the current taxiway and the first cleared taxiway meet only across a runway, the inference does not apply and the runway crossing must still be cleared explicitly. An aircraft that has just exited a runway is implicitly cleared to finish crossing that same runway's hold-short bars when it receives a `TAXI`; any subsequent crossing of a different runway still requires `CROSS`.
