@@ -82,10 +82,28 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchDepartFix(DepartFixCommand cmd, AircraftState aircraft)
     {
+        // Preserve any crossing restriction already assigned to the depart fix (e.g. a
+        // preceding `CFIX CASST 6000 210`). "Depart FIX heading" proceeds direct to the fix
+        // and then turns — it must not discard a cross-at altitude/speed the controller set
+        // on that same fix, otherwise the aircraft sails over it at default cruise (issue #184).
+        var existing = aircraft.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
+
         // Block 0 (immediate): navigate to fix (navigation phase — clear assigned heading)
         aircraft.Targets.AssignedMagneticHeading = null;
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = cmd.FixName, Position = new LatLon(cmd.FixLat, cmd.FixLon) });
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = cmd.FixName,
+                Position = new LatLon(cmd.FixLat, cmd.FixLon),
+                AltitudeRestriction = existing?.AltitudeRestriction,
+                SpeedRestriction = existing?.SpeedRestriction,
+                RevertAltitude = existing?.RevertAltitude,
+                RevertAssignedAltitude = existing?.RevertAssignedAltitude,
+                RevertSpeed = existing?.RevertSpeed,
+                RevertAssignedSpeed = existing?.RevertAssignedSpeed,
+            }
+        );
 
         // Block 1: on reaching fix, fly heading (controller heading)
         var departBlock = new CommandBlock
@@ -99,6 +117,16 @@ internal static class NavigationCommandHandler
             },
             ApplyAction = ac =>
             {
+                // A crossing-restriction speed assigned at this fix is an ATC-assigned speed,
+                // not a published one — it persists through the depart vector until an approach
+                // or via clearance (7110.65 5-7-1.h.4 / NOTE after h.5). Publish it as a ceiling
+                // so the aircraft does not accelerate back to default cruise after the turn.
+                var departFix = ac.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
+                if (departFix?.SpeedRestriction is { } crossingSpeed && !ac.Targets.HasExplicitSpeedCommand)
+                {
+                    ac.Targets.SpeedCeiling = crossingSpeed.SpeedKts;
+                }
+
                 ac.Targets.NavigationRoute.Clear();
                 ac.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(ac.Declination);
                 ac.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
@@ -949,12 +977,10 @@ internal static class NavigationCommandHandler
         var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, navDb);
         TrueHeading finalCourse = facResult.Course;
 
-        // Cancel existing speed restrictions per 7110.65 §5-7-1.a.4
-        aircraft.Targets.TargetSpeed = null;
-        aircraft.Targets.AssignedSpeed = null;
-        aircraft.Targets.SpeedFloor = null;
-        aircraft.Targets.SpeedCeiling = null;
-        aircraft.Procedure.LastProcedureSpeedKts = null;
+        // JFAC/JLOC is a lateral "join the localizer" vector, not an approach clearance: it does
+        // NOT cancel a previously assigned speed (7110.65 §5-7-4 / §5-7-1.h.4 only on approach
+        // clearance, resume-normal, or descend-via). Keep the assigned speed and any STAR
+        // crossing-speed ceiling — the aircraft holds them through the intercept until CAPP.
 
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -993,6 +1019,8 @@ internal static class NavigationCommandHandler
             Procedure = procedure,
             MapAltitudeFt = ApproachCommandHandler.ExtractMapAltitude(procedure),
             MapDistanceNm = ApproachCommandHandler.ExtractMapDistance(procedure, approachRunway),
+            // Lateral intercept only: hold altitude on the final approach course until CAPP.
+            LateralInterceptOnly = true,
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };

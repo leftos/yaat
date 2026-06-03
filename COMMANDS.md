@@ -811,11 +811,11 @@ Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can b
 | `PTAC PH PA` | PTAC with present heading/altitude, auto-resolve approach from expected approach or runway |
 | `PTAC 280 PA` | PTAC with explicit heading 280, present altitude, auto-resolve approach |
 | `PTACF 280 025 ILS30` | Forced PTAC — same as PTAC but bypasses the 30° capture-angle gate in `InterceptCoursePhase`. Aircraft captures the FAC regardless of intercept cut, overshoots laterally, and S-turns back onto the localizer under `FinalApproachPhase` control. Use when vectoring onto final at a steep angle is intentional. All `PTACF` forms mirror `PTAC` (`PTACF PH PA ILS30`, `PTACF PH PA`, `PTACF 280 PA`, bare `PTACF`). |
-| `JFAC ILS28R` | Join final approach course (intercept and fly the localizer) |
+| `JFAC ILS28R` | Join final approach course / localizer — **lateral only**: turn to intercept and track the final approach course while holding the last assigned altitude and speed. Does **not** authorize a glideslope descent; issue `CAPP` to clear the aircraft for the approach (begin the descent). |
 | `APPS` | List available approaches for the aircraft's destination airport |
 | `APPS OAK` | List available approaches at a specific airport |
 
-`JFAC` also accepts aliases `JLOC` and `JF`.
+`JFAC` also accepts aliases `JLOC` and `JF`. Unlike `CAPP`, `JFAC`/`JLOC` is a vector to join the localizer, not an approach clearance: the aircraft maintains its assigned altitude and speed and descends on the glideslope only after a subsequent `CAPP`.
 
 **Rich approach forms** — All approach commands (CAPP, JAPP, CAPPSI, JAPPSI, CAPPF, JAPPF) support combining navigation with the clearance (note: `PTAC`/`PTACF` do not; they're always heading+altitude+clearance in one shot):
 

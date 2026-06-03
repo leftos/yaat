@@ -310,4 +310,25 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
 
         Assert.Equal(210, aircraft.Targets.TargetSpeed!.Value, precision: 1);
     }
+
+    [Fact]
+    public void SequencingCrossingRestrictedFix_PublishesSpeedCeiling_NoReaccelToCruise()
+    {
+        // Issue #184 (bugs #4/#5): after crossing a "cross at 210" fix the aircraft must
+        // maintain 210 (published as a ceiling), not accelerate back to 250 default cruise
+        // while flying the remaining (unrestricted) fixes.
+        var aircraft = CreateAircraft(ias: 210, altitude: 8000, type: "B738");
+        var restricted = MakeFix("GUSHR", 0.3, speed: new CifpSpeedRestriction(210, IsMaximum: true));
+        var next = MakeFix("BEPEA", 8.0);
+        aircraft.Targets.NavigationRoute.Add(restricted);
+        aircraft.Targets.NavigationRoute.Add(next);
+
+        FlightPhysics.Update(aircraft, 0.25);
+
+        // GUSHR sequenced, BEPEA remains, and the crossing speed is retained as a ceiling.
+        Assert.DoesNotContain(aircraft.Targets.NavigationRoute, f => f.Name == "GUSHR");
+        Assert.Contains(aircraft.Targets.NavigationRoute, f => f.Name == "BEPEA");
+        Assert.NotNull(aircraft.Targets.SpeedCeiling);
+        Assert.Equal(210, aircraft.Targets.SpeedCeiling!.Value, precision: 1);
+    }
 }

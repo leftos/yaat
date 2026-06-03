@@ -134,6 +134,38 @@ public class NavigationCommandTests : IDisposable
         Assert.Empty(aircraft.Targets.NavigationRoute);
     }
 
+    [Fact]
+    public void Depart_PreservesCrossFixRestriction_AndPublishesCeilingOnTurn()
+    {
+        // Issue #184 bug #4: `CFIX CASST 6000 210` then `DEPART CASST 267`. The depart must
+        // not discard the cross-at restriction it lands on, and after the turn the assigned
+        // crossing speed persists as a ceiling (7110.65 5-7-1.h.4).
+        var aircraft = MakeAircraft(heading: 090, altitude: 7000);
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "CASST",
+                Position = new LatLon(37.6, -121.9),
+                SpeedRestriction = new CifpSpeedRestriction(210, IsMaximum: true),
+                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 6000),
+            }
+        );
+
+        var cmd = new DepartFixCommand("CASST", 37.6, -121.9, new MagneticHeading(267));
+        CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        // The restriction survives the "direct CASST" rebuild.
+        var fix = Assert.Single(aircraft.Targets.NavigationRoute);
+        Assert.Equal("CASST", fix.Name);
+        Assert.Equal(210, fix.SpeedRestriction?.SpeedKts);
+        Assert.Equal(6000, fix.AltitudeRestriction?.Altitude1Ft);
+
+        // On reaching CASST the depart block turns the aircraft and pins the crossing speed.
+        aircraft.Queue.Blocks[0].ApplyAction?.Invoke(aircraft);
+        Assert.Equal(267, aircraft.Targets.TargetTrueHeading?.Degrees);
+        Assert.Equal(210, aircraft.Targets.SpeedCeiling);
+    }
+
     // --- CFIX ---
 
     [Fact]

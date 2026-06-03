@@ -1008,8 +1008,12 @@ public class ApproachCommandHandlerTests
     }
 
     [Fact]
-    public void Jfac_ClearsAssignedSpeedAndAssignedHeading()
+    public void Jfac_KeepsAssignedSpeed_ClearsAssignedHeading()
     {
+        // JFAC/JLOC is a lateral "join the localizer" vector, not an approach clearance:
+        // it does NOT cancel a previously assigned speed (7110.65 5-7-1.h.4 — only an
+        // approach/climb-via/descend-via clearance cancels assigned speeds). It does clear
+        // the assigned heading because the approach phases take over lateral steering.
         var aircraft = MakeAircraft();
         aircraft.Targets.TargetSpeed = 210;
         aircraft.Targets.AssignedSpeed = 210;
@@ -1021,8 +1025,9 @@ public class ApproachCommandHandlerTests
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
-        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.Equal(210, aircraft.Targets.AssignedSpeed);
         Assert.Null(aircraft.Targets.AssignedMagneticHeading);
+        Assert.True(aircraft.Phases?.ActiveApproach?.LateralInterceptOnly, "JFAC must mark the clearance lateral-only");
     }
 
     // --- HoldingPatternPhase command acceptance ---

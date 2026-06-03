@@ -32,6 +32,18 @@ public sealed class ApproachClearance
     /// <summary>True when the controller forced the clearance (skip intercept validation).</summary>
     public bool Force { get; init; }
 
+    /// <summary>
+    /// True when the clearance authorizes only a LATERAL intercept of the final approach
+    /// course / localizer (JFAC/JLOC) — the aircraft turns to intercept and tracks the course
+    /// but HOLDS its assigned altitude and is NOT cleared to descend on the glideslope. An
+    /// approach clearance (CAPP) sets this false, which authorizes the glideslope descent.
+    /// Mutable so CAPP can upgrade an established lateral intercept in place. See
+    /// <see cref="Approach.FinalApproachPhase"/>. Defaults false (fully cleared approach), so
+    /// pre-feature snapshots round-trip to legacy descend-on-intercept behavior.
+    /// 7110.65 §5-9-3 NOTE / §5-9-4.c.2; AIM §5-4-7.a.6.
+    /// </summary>
+    public bool LateralInterceptOnly { get; set; }
+
     /// <summary>Resolved CIFP procedure data, if available.</summary>
     public CifpApproachProcedure? Procedure { get; init; }
 
@@ -81,6 +93,7 @@ public sealed class ApproachClearance
             FinalApproachAnchorLon = FinalApproachAnchorLon,
             StraightIn = StraightIn,
             Force = Force,
+            LateralInterceptOnly = LateralInterceptOnly,
             MapAltitudeFt = MapAltitudeFt,
             MapDistanceNm = MapDistanceNm,
             InterceptCaptureDistanceNm = InterceptCaptureDistanceNm,
@@ -100,6 +113,7 @@ public sealed class ApproachClearance
             FinalApproachAnchorLon = dto.FinalApproachAnchorLon,
             StraightIn = dto.StraightIn,
             Force = dto.Force,
+            LateralInterceptOnly = dto.LateralInterceptOnly,
             MapAltitudeFt = dto.MapAltitudeFt,
             MapDistanceNm = dto.MapDistanceNm,
             InterceptCaptureDistanceNm = dto.InterceptCaptureDistanceNm,

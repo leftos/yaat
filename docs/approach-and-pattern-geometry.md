@@ -444,7 +444,7 @@ Which command handler builds which phase (parsing/dispatch live in
 
 | Command | Handler | Phases built |
 |---|---|---|
-| **JFAC** (join final / vectored intercept) | `NavigationCommandHandler.DispatchJfac` (`:973`) | `InterceptCoursePhase` (no `ForcedIntercept`) → `FinalApproachPhase` → landing |
+| **JFAC** / **JLOC** (join localizer / final approach course — **lateral only**) | `NavigationCommandHandler.DispatchJfac` (`:906`) | `InterceptCoursePhase` (no `ForcedIntercept`) → `FinalApproachPhase` → landing, with `ApproachClearance.LateralInterceptOnly = true` |
 | **CAPP** (cleared approach) — implied PTAC (on vectors, no nav route) | `ApproachCommandHandler.TryClearedApproach` (`:143`) | `InterceptCoursePhase` (`ForcedIntercept = cmd.Force`) → `FinalApproachPhase` → landing |
 | **CAPP** — published procedure | `ApproachCommandHandler.TryClearedApproach` (`:189`+) | optional `ProcedureTurnPhase` / hold-in-lieu `HoldingPatternPhase` → `ApproachNavigationPhase` → `FinalApproachPhase` → landing |
 | **JAPP** (join approach) | `ApproachCommandHandler.TryJoinApproach` (`:330`) | `ApproachNavigationPhase` (+ HILPT hold) → `FinalApproachPhase` → landing |
@@ -456,6 +456,12 @@ Which command handler builds which phase (parsing/dispatch live in
 
 ## Footguns & pitfalls
 
+- **`JFAC`/`JLOC` is lateral-only — `FinalApproachPhase` must not descend until `CAPP`.** `DispatchJfac` sets
+  `ApproachClearance.LateralInterceptOnly = true` and keeps the assigned altitude/speed. `FinalApproachPhase` checks
+  that flag (`OnStart` skips the approach decel; `OnTick` holds the assigned altitude and skips the glideslope /
+  go-around / landing logic) so the aircraft tracks the localizer level until `CAPP` clears the flag (a fresh
+  clearance from `BuildClearance` defaults it false → descent authorized). The whole `InterceptCourse → FinalApproach`
+  chain is identical to `CAPP`'s; only the flag distinguishes "joined the localizer" from "cleared for the approach."
 - **Pattern legs do NOT complete on waypoint arrival.** `DownwindPhase` completes on along-track past the base-turn
   point; `BasePhase` completes when cross-track from the extended centerline ≤ turn radius. Editing the waypoints
   without understanding the along-track / cross-track trigger model produces aircraft that overshoot or turn early.

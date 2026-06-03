@@ -71,6 +71,14 @@ public sealed class ApproachClearanceDto
 
     public required bool StraightIn { get; init; }
     public required bool Force { get; init; }
+
+    /// <summary>
+    /// True when only a lateral intercept is authorized (JFAC/JLOC) and the aircraft holds
+    /// altitude until cleared for the approach (CAPP). Defaults false; pre-feature snapshots
+    /// omit it and round-trip to legacy descend-on-intercept behavior.
+    /// </summary>
+    public bool LateralInterceptOnly { get; init; }
+
     public int? MapAltitudeFt { get; init; }
     public double? MapDistanceNm { get; init; }
     public double? InterceptCaptureDistanceNm { get; init; }

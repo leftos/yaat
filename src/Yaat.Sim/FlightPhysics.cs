@@ -177,6 +177,19 @@ public static class FlightPhysics
                 aircraft.Targets.AssignedSpeed = sequenced.RevertAssignedSpeed;
             }
 
+            // AIM 5-4-1 NOTE 2 / 7110.65 5-7-1.h.7 NOTE 3: once at a "cross at" speed the
+            // pilot maintains it until ATC reassigns or the approach speed takes over.
+            // Publish the crossed restriction as a ceiling so the auto altitude-band schedule
+            // cannot accelerate the aircraft back to default cruise while flying the remaining
+            // (often unrestricted) fixes. An explicit ATC speed wins and is left untouched.
+            if (sequenced.SpeedRestriction is { } crossedSpeed && !aircraft.Targets.HasExplicitSpeedCommand)
+            {
+                double ceilingKts = ClampFixSpeedToApproachFloor(aircraft, crossedSpeed.SpeedKts);
+                aircraft.Targets.SpeedCeiling = aircraft.Targets.SpeedCeiling is { } existingCeiling
+                    ? Math.Min(existingCeiling, ceilingKts)
+                    : ceilingKts;
+            }
+
             if (route.Count == 0)
             {
                 if (aircraft.Approach.PendingClearance is { } pending)

@@ -314,6 +314,14 @@ public sealed class FinalApproachPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
+        // Lateral intercept only (JFAC/JLOC, no CAPP): keep the aircraft's assigned speed —
+        // a localizer join does not start the approach deceleration. OnTick holds altitude
+        // and skips the FAS/config decel until CAPP authorizes the approach.
+        if (clearance?.LateralInterceptOnly == true)
+        {
+            return;
+        }
+
         double approachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
         double configSpeed = approachSpeed * ConfigSpeedMultiplier;
         double decelRate = AircraftPerformance.DecelRate(ctx.AircraftType, ctx.Category);
@@ -454,11 +462,15 @@ public sealed class FinalApproachPhase : Phase
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
         DistanceToThresholdNm = distNm;
 
+        // JFAC/JLOC lateral intercept without CAPP: track the final approach course but hold
+        // the assigned altitude and assigned speed. No approach deceleration here.
+        bool lateralOnly = ctx.Aircraft.Phases?.ActiveApproach?.LateralInterceptOnly == true;
+
         // Two-stage decel. FAS gate fires first (Vref by ~2 NM); if the aircraft is
         // outside that trigger but still above configuration speed (1.3·Vref), the
         // configuration gate fires to start the first-stage bleed. Both respect
         // controller-issued speed commands.
-        if (!_fasSet && !ctx.Targets.HasExplicitSpeedCommand)
+        if (!lateralOnly && !_fasSet && !ctx.Targets.HasExplicitSpeedCommand)
         {
             double fas = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double decelRate = AircraftPerformance.DecelRate(ctx.AircraftType, ctx.Category);
@@ -625,6 +637,17 @@ public sealed class FinalApproachPhase : Phase
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, aimPoint);
 
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
+
+        // JFAC/JLOC lateral intercept without CAPP: hold the assigned altitude on the final
+        // approach course — no glideslope descent, no minimums/go-around/landing logic — until
+        // CAPP clears LateralInterceptOnly. AIM §5-4-7.a.6 / §5-4-14.b.1: maintain the last
+        // assigned altitude until cleared for the approach and established on the glideslope.
+        if (lateralOnly)
+        {
+            ctx.Targets.TargetAltitude = ctx.Targets.AssignedAltitude ?? ctx.Aircraft.Altitude;
+            ctx.Targets.DesiredVerticalRate = null;
+            return false;
+        }
 
         // Target: glideslope altitude at current distance (true 3°/6° path).
         // Only follow GS once the aircraft is at/above it. Below GS and not yet captured,
