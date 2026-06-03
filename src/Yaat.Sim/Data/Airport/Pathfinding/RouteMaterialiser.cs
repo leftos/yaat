@@ -71,6 +71,7 @@ public static class RouteMaterialiser
     {
         var holdShorts = new List<HoldShortPoint>();
         var seen = new HashSet<int>();
+        var taxiwayHoldShortTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Entry/exit pairing by encounter order (ported from HoldShortAnnotator): the first
         // RunwayHoldShort node for a runway is the entry side (annotate); the second distinct
@@ -137,9 +138,18 @@ public static class RouteMaterialiser
                 continue;
             }
 
-            // Check explicit hold-shorts that target a taxiway name (non-runway).
+            // Check explicit hold-shorts that target a taxiway name (non-runway). Annotate each
+            // target at most once, at the first route node adjacent to it. A hold-short of a
+            // taxiway the route runs ALONG (e.g. "TAXI G B HS B") is adjacent to every node on
+            // that taxiway; without this per-target guard the summary echoes "HS B" once per node
+            // ("G B HS B HS B HS B …"). Mirrors the per-runway enteredRunways guard above.
             foreach (string holdShortTarget in ctx.ExplicitHoldShorts)
             {
+                if (taxiwayHoldShortTargets.Contains(holdShortTarget))
+                {
+                    continue;
+                }
+
                 foreach (var edge in node.Edges)
                 {
                     if (edge.MatchesTaxiway(holdShortTarget))
@@ -152,6 +162,7 @@ public static class RouteMaterialiser
                                 TargetName = holdShortTarget,
                             }
                         );
+                        taxiwayHoldShortTargets.Add(holdShortTarget);
                         break;
                     }
                 }

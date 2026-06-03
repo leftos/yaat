@@ -167,12 +167,22 @@ public sealed class TaxiRoute
     {
         var parts = TaxiwaySequence();
 
+        // Emit each explicit hold-short once; collapse consecutive duplicates of the same target
+        // so a route that touches one taxiway hold-short at several nodes reads "HS B", not
+        // "HS B HS B HS B". The source annotator already de-duplicates; this is a display backstop.
+        string? lastHoldShort = null;
         foreach (var hs in HoldShortPoints)
         {
             if (hs.Reason == HoldShortReason.ExplicitHoldShort && hs.TargetName is not null)
             {
+                if (string.Equals(hs.TargetName, lastHoldShort, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 parts.Add("HS");
                 parts.Add(hs.TargetName);
+                lastHoldShort = hs.TargetName;
             }
         }
 
