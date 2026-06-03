@@ -394,6 +394,8 @@ public static class RouteMaterialiser
             }
         }
 
+        AddOneWayWarnings(segments, ctx, warnings);
+
         if (ctx.AuthorizedTaxiways is null)
         {
             return warnings;
@@ -425,6 +427,29 @@ public static class RouteMaterialiser
         }
 
         return warnings;
+    }
+
+    /// <summary>
+    /// In one-way <see cref="OneWayMode.Warn"/> mode (explicit clearances and the auto fallback), flag any
+    /// materialised segment that traverses a one-way span against its allowed direction. Auto routes
+    /// (<see cref="OneWayMode.HardExclude"/>) never reach here with a wrong-way segment — they are gated
+    /// in <see cref="AutoRouter"/> — so no warning is needed for them.
+    /// </summary>
+    private static void AddOneWayWarnings(List<TaxiRouteSegment> segments, SearchContext ctx, List<string> warnings)
+    {
+        if (ctx.OneWayMode != OneWayMode.Warn || ctx.ForbiddenOneWayMoves.Count == 0)
+        {
+            return;
+        }
+
+        var warned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var seg in segments)
+        {
+            if (ctx.ForbiddenOneWayMoves.Contains((seg.FromNodeId, seg.ToNodeId)) && warned.Add(seg.TaxiwayName))
+            {
+                warnings.Add($"Taxiing {seg.TaxiwayName} against one-way direction");
+            }
+        }
     }
 
     /// <summary>

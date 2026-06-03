@@ -200,6 +200,37 @@ Short named connector taxiways that should be treated as authorized **only when 
 
 Authorization is scoped to explicit `TAXI` clearances (it has no effect on auto-routes). Names are case-insensitive. An entry whose `between` is not exactly two non-blank names is skipped with a warning.
 
+### `oneWayEdges`
+
+Taxiway segments that may only be taxied in one direction. Each constraint is an ordered `path` of waypoints; the **allowed travel direction is the order of the path** (first → last). `point` is `[lon, lat]` (GeoJSON order — copy-pasteable straight from the airport map), and `taxiway` is the taxiway you *expect* that vertex to land on (a validation hint — a warning is logged if a future map shifts the vertex off it).
+
+```json
+"oneWayEdges": [
+  {
+    "notes": "Taxiway A one-way NE-bound between the T9 crossing and the B-row",
+    "block": "reverse",
+    "path": [
+      { "point": [-122.392652, 37.619842], "taxiway": "A" },
+      { "point": [-122.392258, 37.620439], "taxiway": "A" }
+    ]
+  }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `oneWayEdges[].path` | object[] | Yes (≥2) | Ordered waypoints; allowed direction is first → last |
+| `oneWayEdges[].path[].point` | number[2] | Yes | `[lon, lat]` of the vertex (GeoJSON order) |
+| `oneWayEdges[].path[].taxiway` | string | No | Expected taxiway at this vertex (validation hint) |
+| `oneWayEdges[].block` | string | No | `"reverse"` (default — one-way, forbid against-order) or `"both"` (closed segment / forbidden turn) |
+| `oneWayEdges[].notes` | string | No | Human-readable rationale. Informational only |
+
+Each waypoint is snapped to the nearest graph node; consecutive waypoints that are directly connected forbid that one edge, while two endpoints on the same taxiway have the whole span between them filled by a taxiway-restricted search. Consecutive waypoints **need not share a taxiway**, so the same construct expresses one-way transitions and forbidden turns across a junction; a path of N points traces a curve.
+
+**Enforcement.** Auto-routing (`TAXIAUTO`, right-click "taxi to…") never travels a one-way the wrong way — except, like avoided taxiways, when a destination is *only* reachable against it, in which case the route resolves with a warning. An explicit `TAXI` clearance that names the wrong-way taxiway is honored but flagged with a "Taxiing X against one-way direction" warning.
+
+One-way taxiway restrictions are **local SOP / facility conventions** — they are not codified in FAA 7110.65. Author them from an ARTCC-approved SOP or LOA, not from a regulation reference.
+
 ---
 
 ## InitialContactTransfers

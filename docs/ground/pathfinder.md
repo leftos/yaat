@@ -58,6 +58,15 @@ An ARTCC can mark taxiways an airport's **auto** routes should avoid via the `av
 
 Exclusion is by the **resolved** taxiway name: a junction arc that *continues along* the avoided taxiway is excluded, while one that merely *crosses* it (continuing another taxiway) is not. When the avoided set is empty or the airport is unconfigured, `AvoidMode = Off` and `RunWithAvoidance` is a single, unchanged search — no second pass, no added cost.
 
+### One-way taxiways (per-ARTCC)
+
+The `oneWayEdges` section of the sidecar declares taxiway spans that may only be taxied one direction (see `Data/ARTCCs/README.md` for the coordinate-polyline authoring form). `OneWayResolver.Resolve` snaps each authored waypoint to the nearest graph node and converts the constraint into a set of **forbidden directed moves** `(fromId, toId)` — the reverse of each edge along the allowed-direction span (both directions when `block: "both"`). The set is cached per `AirportGroundLayout` via a `ConditionalWeakTable`, so a re-downloaded map re-resolves against its new node ids.
+
+`SearchContext.Compile` resolves the set for `Layout.AirportId` and picks a mode: `OneWayMode.HardExclude` for **auto routes** (empty waypoint sequence) and `OneWayMode.Warn` for **explicit** named-taxiway paths. Enforcement has two chokepoints, mirroring the avoid/two-pass split:
+
+1. **Hard gate (auto).** `AutoRouter.RunAstar` skips any edge whose `(headNode, nextNode)` move satisfies `ctx.IsForbiddenMove` — true only in `HardExclude`. `RunWithAvoidance` relaxes this to `Warn` on pass 2 when a destination is reachable only against the one-way, so it still resolves (with a warning) rather than failing.
+2. **Warn detector (explicit + fallback).** `RouteMaterialiser.BuildWarnings` scans the materialised segments and emits `"Taxiing X against one-way direction"` for any segment whose directed move is in `ctx.ForbiddenOneWayMoves` while `OneWayMode == Warn`. Every route funnels through `Materialise`, so explicit paths (and the auto fallback) are flagged regardless of which `SegmentExpander` search produced the segment — no per-expansion-site wiring needed.
+
 ### Geometric correctness is a constraint, not a post-filter
 
 An inadmissible junction is simply not an edge in the search graph from that arrival direction. `GeometricAdmissibility.IsAdmissible` (`src/Yaat.Sim/Data/Airport/Pathfinding/GeometricAdmissibility.cs:86`) **hard-rejects** any edge whose heading change from the current arrival bearing exceeds the per-category limit:

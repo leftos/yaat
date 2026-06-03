@@ -60,6 +60,9 @@ internal sealed class AirportSidecarFile
 
     [JsonPropertyName("implicitConnectors")]
     public List<ImplicitConnectorEntry> ImplicitConnectors { get; set; } = [];
+
+    [JsonPropertyName("oneWayEdges")]
+    public List<OneWayConstraintEntry> OneWayEdges { get; set; } = [];
 }
 
 /// <summary>
@@ -71,4 +74,5 @@ public sealed record AirportSidecar(string AirportId)
     public IReadOnlyList<AvoidTaxiwayEntry> AvoidTaxiways { get; init; } = [];
     public IReadOnlyList<TaxiRouteDefinition> TaxiRoutes { get; init; } = [];
     public IReadOnlyList<ImplicitConnectorEntry> ImplicitConnectors { get; init; } = [];
+    public IReadOnlyList<OneWayConstraint> OneWayEdges { get; init; } = [];
 }

@@ -80,8 +80,68 @@ public static class AirportSidecarLoader
                 AvoidTaxiways = ParseAvoidTaxiways(file, filePath, result),
                 TaxiRoutes = ParseTaxiRoutes(file, filePath, airportId, result),
                 ImplicitConnectors = ParseImplicitConnectors(file, filePath, result),
+                OneWayEdges = ParseOneWayEdges(file, filePath, result),
             }
         );
+    }
+
+    private static List<OneWayConstraint> ParseOneWayEdges(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var constraints = new List<OneWayConstraint>();
+        for (int i = 0; i < file.OneWayEdges.Count; i++)
+        {
+            var entry = file.OneWayEdges[i];
+            if (entry.Path.Count < 2)
+            {
+                result.Warnings.Add($"{filePath}: oneWayEdges[{i}] needs at least 2 path points, skipping");
+                continue;
+            }
+
+            var points = ParseOneWayPath(entry, filePath, i, result);
+            if (points is null)
+            {
+                continue;
+            }
+
+            bool blockBoth = ParseBlockMode(entry.Block, filePath, i, result);
+            constraints.Add(new OneWayConstraint(points, blockBoth, entry.Notes));
+        }
+
+        return constraints;
+    }
+
+    private static List<OneWayPoint>? ParseOneWayPath(OneWayConstraintEntry entry, string filePath, int i, AirportSidecarLoadResult result)
+    {
+        var points = new List<OneWayPoint>(entry.Path.Count);
+        foreach (var wp in entry.Path)
+        {
+            if (wp.Point.Length != 2)
+            {
+                result.Warnings.Add($"{filePath}: oneWayEdges[{i}] point must be [lon, lat], skipping constraint");
+                return null;
+            }
+
+            string? taxiway = string.IsNullOrWhiteSpace(wp.Taxiway) ? null : wp.Taxiway.Trim().ToUpperInvariant();
+            points.Add(new OneWayPoint(Lat: wp.Point[1], Lon: wp.Point[0], Taxiway: taxiway));
+        }
+
+        return points;
+    }
+
+    private static bool ParseBlockMode(string? block, string filePath, int i, AirportSidecarLoadResult result)
+    {
+        if (string.IsNullOrWhiteSpace(block) || block.Equals("reverse", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (block.Equals("both", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        result.Warnings.Add($"{filePath}: oneWayEdges[{i}] unknown block '{block}' (expected 'reverse' or 'both'), defaulting to reverse");
+        return false;
     }
 
     private static List<ImplicitConnectorEntry> ParseImplicitConnectors(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)

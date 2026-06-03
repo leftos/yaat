@@ -228,6 +228,16 @@ public static class AutoRouter
                     continue;
                 }
 
+                // One-way hard exclusion (auto routes only — OneWayMode is Warn for explicit paths, which
+                // are allowed the wrong way but flagged by RouteMaterialiser). When this pass finds no
+                // route, TaxiPathfinder re-runs with OneWayMode relaxed to Warn so a destination reachable
+                // only against a one-way still resolves.
+                if (ctx.IsForbiddenMove(current.HeadNodeId, nextNode.Id))
+                {
+                    rejected++;
+                    continue;
+                }
+
                 // Geometric admissibility gate.
                 if (!GeometricAdmissibility.IsAdmissible(current, edge, nextNode, ctx.Category))
                 {

@@ -41,6 +41,7 @@ public sealed record SearchContext(
 )
 {
     private static readonly IReadOnlySet<string> EmptyAvoidedTaxiways = new HashSet<string>();
+    private static readonly IReadOnlySet<(int, int)> EmptyForbiddenMoves = new HashSet<(int, int)>();
 
     /// <summary>
     /// Taxiway names the AUTO router should avoid at this airport, resolved from
@@ -53,6 +54,24 @@ public sealed record SearchContext(
 
     /// <summary>How the avoided taxiways are enforced for this search; see <see cref="AvoidTaxiwayMode"/>.</summary>
     public AvoidTaxiwayMode AvoidMode { get; init; } = AvoidTaxiwayMode.Off;
+
+    /// <summary>
+    /// Directed node moves <c>(fromId, toId)</c> forbidden by this airport's one-way taxiway constraints,
+    /// resolved from <see cref="NavigationDatabase.AirportSidecars"/> against <c>Layout</c>. Empty when the
+    /// airport has none. See <see cref="OneWayResolver"/>.
+    /// </summary>
+    public IReadOnlySet<(int From, int To)> ForbiddenOneWayMoves { get; init; } = EmptyForbiddenMoves;
+
+    /// <summary>How one-way constraints are enforced for this search; see <see cref="Pathfinding.OneWayMode"/>.</summary>
+    public OneWayMode OneWayMode { get; init; } = OneWayMode.Off;
+
+    /// <summary>
+    /// True when traversing <paramref name="fromId"/> → <paramref name="toId"/> is hard-forbidden by an
+    /// active one-way constraint. Only <see cref="Pathfinding.OneWayMode.HardExclude"/> (auto-routes)
+    /// hard-blocks; in <see cref="Pathfinding.OneWayMode.Warn"/> the move is allowed and surfaced as a
+    /// route warning by <see cref="RouteMaterialiser"/> instead.
+    /// </summary>
+    public bool IsForbiddenMove(int fromId, int toId) => OneWayMode == OneWayMode.HardExclude && ForbiddenOneWayMoves.Contains((fromId, toId));
 
     /// <summary>
     /// Build a <see cref="SearchContext"/> from parsed command inputs.
@@ -87,11 +106,32 @@ public sealed record SearchContext(
         var avoidedTaxiways = ResolveAvoidedTaxiways(layout);
         var avoidMode = (avoidedTaxiways.Count > 0) && (waypointSequence.Count == 0) ? AvoidTaxiwayMode.HardExclude : AvoidTaxiwayMode.Off;
 
+        // One-way constraints hard-exclude the wrong direction on auto routes; an explicit named-taxiway
+        // path (waypointSequence non-empty) is allowed to traverse the wrong way but is flagged with a
+        // warning by RouteMaterialiser.
+        var forbiddenOneWay = ResolveOneWayMoves(layout);
+        var oneWayMode =
+            forbiddenOneWay.Count == 0 ? OneWayMode.Off
+            : waypointSequence.Count == 0 ? OneWayMode.HardExclude
+            : OneWayMode.Warn;
+
         return new SearchContext(layout, startNodeId, destination, waypointSequence, authorized, holdShorts, category, preference, diagnosticLog)
         {
             AvoidedTaxiways = avoidedTaxiways,
             AvoidMode = avoidMode,
+            ForbiddenOneWayMoves = forbiddenOneWay,
+            OneWayMode = oneWayMode,
         };
+    }
+
+    /// <summary>
+    /// Resolves the forbidden directed moves for <paramref name="layout"/>'s one-way constraints via
+    /// <see cref="OneWayResolver"/> (per-layout cached). Empty when no database is initialized or the
+    /// airport is unconfigured.
+    /// </summary>
+    private static IReadOnlySet<(int, int)> ResolveOneWayMoves(AirportGroundLayout layout)
+    {
+        return NavigationDatabase.InstanceOrNull is null ? EmptyForbiddenMoves : OneWayResolver.GetForbiddenMoves(layout);
     }
 
     /// <summary>

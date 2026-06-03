@@ -118,6 +118,22 @@ public class AirportSidecarCatalogTests
         Assert.Empty(AirportSidecarCatalog.Empty.GetAvoidedTaxiways("KOAK"));
         Assert.Empty(AirportSidecarCatalog.Empty.GetAvoidedTaxiways(""));
         Assert.Empty(AirportSidecarCatalog.Empty.GetTaxiRoutes("KOAK"));
+        Assert.Empty(AirportSidecarCatalog.Empty.GetOneWayConstraints("KOAK"));
+    }
+
+    [Fact]
+    public void GetOneWayConstraints_ByIcaoAndFaa()
+    {
+        var constraint = new OneWayConstraint(
+            [new OneWayPoint(37.61, -122.39, "A"), new OneWayPoint(37.62, -122.38, "A")],
+            BlockBoth: false,
+            Notes: null
+        );
+        var catalog = new AirportSidecarCatalog([new AirportSidecar("KSFO") { OneWayEdges = [constraint] }]);
+
+        Assert.Single(catalog.GetOneWayConstraints("KSFO"));
+        Assert.Single(catalog.GetOneWayConstraints("SFO"));
+        Assert.Empty(catalog.GetOneWayConstraints("KOAK"));
     }
 
     [Fact]

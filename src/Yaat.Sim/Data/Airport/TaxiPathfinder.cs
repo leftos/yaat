@@ -174,16 +174,18 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// Runs the A* auto-router with two-pass avoided-taxiway semantics. When the context carries
-    /// avoided taxiways (auto mode only — <see cref="AvoidTaxiwayMode.HardExclude"/>), pass 1
-    /// hard-excludes them; only if pass 1 finds no route does pass 2 run with the avoided taxiways
-    /// permitted under a heavy soft penalty, so a destination reachable only through an avoided
-    /// taxiway still resolves while using it minimally. With no avoided taxiways the mode is
-    /// <see cref="AvoidTaxiwayMode.Off"/> and this is a single, unchanged search.
+    /// Runs the A* auto-router with two-pass hard-gate semantics. Pass 1 hard-excludes avoided taxiways
+    /// (<see cref="AvoidTaxiwayMode.HardExclude"/>) and one-way wrong-way moves
+    /// (<see cref="OneWayMode.HardExclude"/>). Only if pass 1 finds no route does pass 2 relax those hard
+    /// gates — avoided taxiways become a heavy soft penalty, one-way wrong-way moves become permitted but
+    /// warned — so a destination reachable only through an avoided taxiway or against a one-way still
+    /// resolves while deviating minimally. With neither hard gate active this is a single, unchanged search.
     /// </summary>
     private static (TaxiRoute? Route, PathfindingFailure? Failure) RunWithAvoidance(SearchContext ctx)
     {
-        if (ctx.AvoidMode != AvoidTaxiwayMode.HardExclude)
+        bool hardAvoid = ctx.AvoidMode == AvoidTaxiwayMode.HardExclude;
+        bool hardOneWay = ctx.OneWayMode == OneWayMode.HardExclude;
+        if (!hardAvoid && !hardOneWay)
         {
             return AutoRouter.Run(ctx);
         }
@@ -194,8 +196,19 @@ public static class TaxiPathfinder
             return pass1;
         }
 
-        ctx.DiagnosticLog?.Invoke("[avoid] pass 1 (hard-exclude) found no route; retrying with soft penalty");
-        return AutoRouter.Run(ctx with { AvoidMode = AvoidTaxiwayMode.SoftPenalty });
+        ctx.DiagnosticLog?.Invoke("[avoid/one-way] pass 1 (hard-exclude) found no route; retrying with gates relaxed");
+        var relaxed = ctx;
+        if (hardAvoid)
+        {
+            relaxed = relaxed with { AvoidMode = AvoidTaxiwayMode.SoftPenalty };
+        }
+
+        if (hardOneWay)
+        {
+            relaxed = relaxed with { OneWayMode = OneWayMode.Warn };
+        }
+
+        return AutoRouter.Run(relaxed);
     }
 
     private static SearchContext BuildNodeContext(

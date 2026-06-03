@@ -253,4 +253,46 @@ public class AirportSidecarLoaderTests
             Directory.Delete(tempDir, recursive: true);
         }
     }
+
+    [Fact]
+    public void LoadAll_ParsesOneWayEdges_AndValidates()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "Airports");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(categoryDir, "sfo.json"),
+                """
+                {
+                  "airportId": "KSFO",
+                  "oneWayEdges": [
+                    { "block": "both", "path": [ { "point": [-122.39, 37.61], "taxiway": "a" }, { "point": [-122.38, 37.62] } ] },
+                    { "path": [ { "point": [-122.39, 37.61] } ] },
+                    { "path": [ { "point": [1, 2, 3], "taxiway": "X" }, { "point": [4, 5] } ] }
+                  ]
+                }
+                """
+            );
+
+            var result = AirportSidecarLoader.LoadAll(tempDir);
+
+            var airport = Assert.Single(result.Airports);
+            var constraint = Assert.Single(airport.OneWayEdges);
+            Assert.True(constraint.BlockBoth);
+            Assert.Equal(2, constraint.Path.Count);
+            // point is [lon, lat] → Lat=37.61, Lon=-122.39; taxiway upper-cased.
+            Assert.Equal(37.61, constraint.Path[0].Lat);
+            Assert.Equal(-122.39, constraint.Path[0].Lon);
+            Assert.Equal("A", constraint.Path[0].Taxiway);
+            Assert.Null(constraint.Path[1].Taxiway);
+            // The single-point path and the malformed-coordinate path are both skipped with warnings.
+            Assert.Equal(2, result.Warnings.Count);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
 }

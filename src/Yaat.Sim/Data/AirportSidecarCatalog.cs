@@ -16,6 +16,7 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, HashSet<string>> _avoidByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<TaxiRouteDefinition>> _routesByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ImplicitConnectorEntry>> _connectorsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<OneWayConstraint>> _oneWayByAirport = new(StringComparer.OrdinalIgnoreCase);
 
     public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports)
     {
@@ -30,6 +31,7 @@ public sealed class AirportSidecarCatalog
             MergeAvoidedTaxiways(key, airport.AvoidTaxiways);
             MergeTaxiRoutes(key, airport.TaxiRoutes);
             MergeImplicitConnectors(key, airport.ImplicitConnectors);
+            MergeOneWayConstraints(key, airport.OneWayEdges);
         }
     }
 
@@ -87,6 +89,22 @@ public sealed class AirportSidecarCatalog
         list.AddRange(connectors);
     }
 
+    private void MergeOneWayConstraints(string key, IReadOnlyList<OneWayConstraint> constraints)
+    {
+        if (constraints.Count == 0)
+        {
+            return;
+        }
+
+        if (!_oneWayByAirport.TryGetValue(key, out var list))
+        {
+            list = [];
+            _oneWayByAirport[key] = list;
+        }
+
+        list.AddRange(constraints);
+    }
+
     /// <summary>
     /// Set of taxiway names the AUTO router should avoid at the given airport. Never null — returns an
     /// empty set when the airport has no configured avoided taxiways.
@@ -131,5 +149,21 @@ public sealed class AirportSidecarCatalog
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
         return _connectorsByAirport.TryGetValue(key, out var list) ? list : [];
+    }
+
+    /// <summary>
+    /// One-way taxiway constraints at the given airport. Never null — returns an empty list when the
+    /// airport has none. Resolved against a concrete layout by
+    /// <see cref="Yaat.Sim.Data.Airport.Pathfinding.OneWayResolver"/>.
+    /// </summary>
+    public IReadOnlyList<OneWayConstraint> GetOneWayConstraints(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _oneWayByAirport.TryGetValue(key, out var list) ? list : [];
     }
 }

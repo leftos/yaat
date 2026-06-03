@@ -9,6 +9,7 @@
 - The command cheatsheet (**Help → Command Cheatsheet**) now lists keyboard shortcuts grouped per view — command input, global/window, radar, ground, aircraft list, flight strips, and vTDLS — alongside the command reference. The same per-view breakdown is in the User Guide.
 - **More font-size controls** in **Settings → Display**: a **Terminal** size (output log + command input), an **Interface** size that scales the tabs/buttons/lists and the Controllers / METAR panels, and **Strips Zoom** / **vTDLS Zoom** page-zoom percents (50–200%) that enlarge those panels — handy on high-DPI displays where vTDLS was getting small. Strips zoom (including the on-panel +/− buttons) is now remembered across restarts.
 - The conditional list (`SHOWAT`, alias `SHOWCOND`) and the **Pending Cmds** column now include pending `WAIT`/`BEHIND` commands alongside trigger-gated ones; delete any conditional by index with `DELAT N` (aliases `DELCOND`/`DC`).
+- **Per-airport taxi rules** — facility data can now declare **one-way taxiway** segments and short named **connectors** per airport (in the ground sidecar). Auto-taxi routing avoids sending an aircraft the wrong way down a one-way taxiway, and an explicit `TAXI` the wrong way is flagged with a warning. SFO now recognizes the **LF** connector, so `TAXI L F` there no longer raises a spurious "not in authorized path" warning.
 
 ### Changed
 - **Take Control** during recording playback now asks for confirmation before ending the replay; Cancel or Esc keeps you in playback.
