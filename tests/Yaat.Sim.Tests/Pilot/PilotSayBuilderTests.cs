@@ -332,6 +332,46 @@ public class PilotSayBuilderTests
         Assert.Equal(expected, PilotSayBuilder.FriendlyAirportName(raw));
     }
 
+    // ── BuildHeading ─────────────────────────────────────────────────────────
+    // A pilot reports MAGNETIC heading, not the aircraft's true heading. The current
+    // heading (and any turn target) is converted true→magnetic at the aircraft's
+    // position before being read back, then rounded to the nearest 5°.
+
+    private static string ExpectedMagneticReadback(double trueDeg, LatLon pos)
+    {
+        double mag = MagneticDeclination.TrueToMagnetic(trueDeg, pos.Lat, pos.Lon);
+        int rounded = (int)(Math.Round(mag / 5.0) * 5) % 360;
+        return (rounded <= 0 ? 360 : rounded).ToString("D3");
+    }
+
+    [Fact]
+    public void BuildHeading_StraightAndLevel_ReportsMagneticNotTrue()
+    {
+        // SFO area carries ~13°E declination, so magnetic is well clear of the 270 true heading.
+        var pos = new LatLon(37.62, -122.38);
+        var ac = MakeAircraftAt(pos.Lat, pos.Lon);
+        ac.TrueHeading = new TrueHeading(270);
+
+        var result = PilotSayBuilder.BuildHeading(ac);
+
+        Assert.Equal($"Heading {ExpectedMagneticReadback(270, pos)}", result);
+        Assert.NotEqual("Heading 270", result); // the old true-heading bug
+    }
+
+    [Fact]
+    public void BuildHeading_Turning_ReportsMagneticCurrentAndTarget()
+    {
+        var pos = new LatLon(37.62, -122.38);
+        var ac = MakeAircraftAt(pos.Lat, pos.Lon);
+        ac.TrueHeading = new TrueHeading(130);
+        ac.BankAngle = -10; // negative bank = turning left
+        ac.Targets.TargetTrueHeading = new TrueHeading(90);
+
+        var result = PilotSayBuilder.BuildHeading(ac);
+
+        Assert.Equal($"Heading {ExpectedMagneticReadback(130, pos)}, turning left {ExpectedMagneticReadback(90, pos)}", result);
+    }
+
     [Fact]
     public void FindNearestSizeableAirport_FiltersByRunwayLength()
     {

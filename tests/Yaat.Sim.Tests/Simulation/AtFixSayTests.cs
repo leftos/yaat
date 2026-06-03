@@ -141,8 +141,12 @@ public class AtFixSayTests(ITestOutputHelper output)
 
         var entry = Assert.Single(captured, e => e.Kind == "SayHeading");
         Assert.Equal("TST01", entry.Callsign);
-        // Aircraft heading 360 north → "Heading 360" (plain three-digit form)
-        Assert.Equal("Heading 360", entry.Message);
+        // A pilot reports MAGNETIC heading: true 360 north converts to magnetic at the
+        // aircraft's position (ZOA, ~13°E declination), rounded to the nearest 5°.
+        double magnetic = MagneticDeclination.TrueToMagnetic(ac.TrueHeading.Degrees, ac.Position.Lat, ac.Position.Lon);
+        int rounded = (int)(Math.Round(magnetic / 5.0) * 5) % 360;
+        Assert.Equal($"Heading {(rounded <= 0 ? 360 : rounded):D3}", entry.Message);
+        Assert.NotEqual("Heading 360", entry.Message); // not the old true-heading value
     }
 
     [Fact]

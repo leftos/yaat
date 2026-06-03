@@ -36,7 +36,9 @@ public static class PilotSayBuilder
 
     public static string BuildHeading(AircraftState aircraft)
     {
-        int hdg = NormalizeHeading(RoundToNearest(aircraft.TrueHeading.Degrees, 5));
+        // A pilot reports magnetic heading, not the airframe's true heading.
+        double declination = MagneticDeclination.GetDeclination(aircraft.Position);
+        int hdg = NormalizeHeading(RoundToNearest(aircraft.TrueHeading.ToMagnetic(declination).Degrees, 5));
         bool isTurning = Math.Abs(aircraft.BankAngle) > 1.0;
         string? turnDir = isTurning ? (aircraft.BankAngle < 0 ? "left" : "right") : null;
 
@@ -48,7 +50,7 @@ public static class PilotSayBuilder
 
         if (isTurning && aircraft.Targets.TargetTrueHeading is { } targetHdg)
         {
-            int targetRounded = NormalizeHeading(RoundToNearest(targetHdg.Degrees, 5));
+            int targetRounded = NormalizeHeading(RoundToNearest(targetHdg.ToMagnetic(declination).Degrees, 5));
             return $"Heading {PlainHeading(hdg)}, turning {turnDir} {PlainHeading(targetRounded)}";
         }
 
