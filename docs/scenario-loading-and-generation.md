@@ -324,9 +324,12 @@ There are two server entry points that build a scenario, and they are deliberate
 - **`LoadScenarioAsync`** (`ScenarioLifecycleService.cs:107`) — the live load. Picks a fresh `rngSeed`, runs `ScenarioLoader.Load`,
   ensures the ARTCC config is loaded, builds `SimScenarioState`, sets the ground layout, resolves track positions / coordination
   channels / strip bays / TDLS configs, then spawns immediate aircraft (+ presets + auto-track), queues delayed aircraft, stamps
-  deferred aircraft, queues triggers, and initializes generators. `LoadScenarioByIdAsync` (`:51`) is the ARTCC-tab front door:
-  it pulls the **canonical** JSON from the server catalog (not the client payload) and applies the rating gate before delegating
-  — client JSON tampering can't bypass the gate on that path.
+  deferred aircraft, queues triggers, and initializes generators. The ARTCC-tab path does **not** call this directly — instead
+  the client first calls the `GetScenarioJsonById` query, which routes to `ResolveGatedJsonAsync` (`:51`): that pulls the
+  **canonical** JSON from the server catalog (not the client payload), applies the rating gate against the canonical
+  MinimumRating, and returns the JSON. The client then runs the normal difficulty/pacing setup and loads it back via
+  `LoadScenario` — so catalog loads get the same difficulty prompt as local-file loads, and client JSON tampering still can't
+  obtain gated content (the gate is enforced at fetch).
 - **`ReloadForRewindAsync`** (`:638`) — the rewind twin. Takes the **provided** `rngSeed` (not a fresh one) and the saved
   scenario JSON, runs the *same* `ScenarioLoader.Load` + spawn/queue setup, but skips broadcasting (caller sets
   `IsBroadcastSuppressed`) and the pacing-override recording. After reload, the caller in `RecordingManager`

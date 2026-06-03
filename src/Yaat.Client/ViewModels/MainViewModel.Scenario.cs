@@ -249,18 +249,16 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// ARTCC-tab load path. The client only forwards the vNAS scenario id; the server
-    /// resolves the canonical JSON from its catalog cache and applies the rating gate
-    /// against the canonical MinimumRating. Returns AccessDeniedReason when the user's
-    /// training key doesn't unlock the scenario, which is surfaced to the user inline.
+    /// ARTCC-tab load path. Fetches the canonical scenario JSON from the server (gated by the
+    /// training-key check against the canonical MinimumRating), then runs it through the standard
+    /// JSON load pipeline — so catalog loads get the same difficulty and solo-pacing setup as
+    /// local-file loads. Surfaces the gate denial inline when the key doesn't unlock the scenario.
     /// </summary>
     public async Task LoadScenarioFromIdAsync(string apiScenarioId, string? displayName = null)
     {
-        ScenarioFilePath = displayName ?? apiScenarioId;
         try
         {
-            var soloGoAround = _preferences.GetSoloGoAroundProbability(apiScenarioId);
-            var result = await _connection.LoadScenarioByIdAsync(apiScenarioId, _preferences.TrainingKey, 100, 100, soloGoAround);
+            var result = await _connection.GetScenarioJsonByIdAsync(apiScenarioId, _preferences.TrainingKey);
 
             if (result.AccessDeniedReason is { } reason)
             {
@@ -270,25 +268,14 @@ public partial class MainViewModel
                 return;
             }
 
-            if (result.Success)
+            if (result.Json is null)
             {
-                ApplyScenarioResult(result);
-                _preferences.AddRecentScenario("", result.Name, apiScenarioId);
-                _log.LogInformation(
-                    "Scenario loaded by id: '{Name}' ({Id}), {Count} aircraft, {Delayed} delayed",
-                    result.Name,
-                    result.ScenarioId,
-                    result.AircraftCount,
-                    result.DelayedCount
-                );
-                StatusText = $"Loaded '{result.Name}': {result.AllAircraft.Count} aircraft";
-                AddSystemEntry($"Scenario loaded: {result.Name} ({result.AllAircraft.Count} aircraft)");
-            }
-            else
-            {
-                _log.LogWarning("Scenario load failed");
+                _log.LogWarning("Scenario fetch by id returned no JSON");
                 StatusText = "Scenario load failed";
+                return;
             }
+
+            await LoadScenarioFromJsonAsync(result.Json, displayName ?? apiScenarioId, apiScenarioId);
         }
         catch (Exception ex)
         {

@@ -286,27 +286,15 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     }
 
     /// <summary>
-    /// ARTCC-tab load path. Sends only the scenario id; the server resolves the canonical
-    /// JSON from its catalog and applies the rating gate against canonical metadata, so
-    /// edits to a local copy of the JSON cannot bypass the gate on this path.
+    /// ARTCC-tab load path, step 1. Resolves the canonical scenario JSON from the server's catalog,
+    /// gated by the rating-key check, so the client can run the difficulty/pacing setup before
+    /// loading it back via <see cref="LoadScenarioAsync"/>. A non-null AccessDeniedReason means the
+    /// key doesn't unlock the scenario (or the client isn't in a room) and no JSON is returned.
     /// </summary>
-    public async Task<LoadScenarioResultDto> LoadScenarioByIdAsync(
-        string scenarioId,
-        string accessKey,
-        int soloParkingInitialCallupRatePercent,
-        int soloArrivalGeneratorRatePercent,
-        int soloGoAroundProbabilityPercent
-    )
+    public async Task<ScenarioJsonResultDto> GetScenarioJsonByIdAsync(string scenarioId, string accessKey)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<LoadScenarioResultDto>(
-            "LoadScenarioById",
-            scenarioId,
-            accessKey,
-            soloParkingInitialCallupRatePercent,
-            soloArrivalGeneratorRatePercent,
-            soloGoAroundProbabilityPercent
-        );
+        return await _connection!.InvokeAsync<ScenarioJsonResultDto>("GetScenarioJsonById", scenarioId, accessKey);
     }
 
     /// <summary>
@@ -908,10 +896,6 @@ public record LoadScenarioResultDto(
     FlightStripsConfigDto? FlightStripsConfig = null,
     List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
     List<ScenarioPositionDto>? Positions = null,
-    // Non-null implies Success == false; the message is a human-readable explanation the
-    // client surfaces directly. Distinct from Warnings: gate denials get this dedicated field
-    // so the UI can render them differently from general load issues.
-    string? AccessDeniedReason = null,
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0
 );
@@ -929,6 +913,14 @@ public sealed record ScenarioSummaryDto(string Id, string Name, string ArtccId, 
 /// "N scenarios hidden — requires training access key" affordance.
 /// </summary>
 public sealed record ScenarioCatalogResponseDto(ScenarioSummaryDto[] Visible, int HiddenByGateCount);
+
+/// <summary>
+/// Wire shape for ServerConnection.GetScenarioJsonByIdAsync. Mirrors the server's
+/// ScenarioJsonResultDto. Exactly one of Json / AccessDeniedReason is non-null: a non-null
+/// AccessDeniedReason carries a human-readable gate-denial (or not-in-a-room / not-found) message
+/// the client surfaces directly.
+/// </summary>
+public sealed record ScenarioJsonResultDto(string? Json, string? AccessDeniedReason);
 
 public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
 

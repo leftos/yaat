@@ -67,7 +67,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetActiveRoomsAsync()` | `GetActiveRooms` | `GetActiveRooms()` `:217` |
 | `FindRoomForMyCidAsync(cid)` | `FindRoomForMyCid` | `FindRoomForMyCid(cid)` `:228` |
 | `LoadScenarioAsync(json, …rates)` | `LoadScenario` | `LoadScenario(...)` `:297` |
-| `LoadScenarioByIdAsync(id, key, …rates)` | `LoadScenarioById` | `LoadScenarioById(...)` `:327` |
+| `GetScenarioJsonByIdAsync(id, key)` | `GetScenarioJsonById` | `GetScenarioJsonById(id, key)` `:336` |
 | `GetScenariosAsync(accessKey)` | `GetScenarios` | `GetScenarios(accessKey)` `:365` |
 | `ValidateTrainingKeyAsync(artccId, key)` | `ValidateTrainingKey` | `ValidateTrainingKey(...)` `:397` |
 | `UnloadScenarioAircraftAsync()` | `UnloadScenarioAircraft` | `UnloadScenarioAircraft()` `:449` |
