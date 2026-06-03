@@ -149,16 +149,70 @@ The command bar at the bottom is where you type and send commands. See [Commands
 
 > **macOS:** Substitute **⌘ (Cmd)** for **Ctrl** in all shortcuts below.
 
+Keys marked *(default)* are configurable under **Settings > Advanced / Keybinds**.
+
+#### Command Input
+
 | Key | Action |
 |-----|--------|
 | Enter | Send command. If a suggestion is highlighted, expand it first (toggle in **Settings > Advanced > Command Input**) |
 | Tab | Accept the highlighted suggestion (or first if none highlighted) |
-| Up | Navigate suggestions or recall older history |
-| Down | Navigate suggestions or recall newer history |
-| Escape | Dismiss suggestions / deselect aircraft / close dialog |
-| Numpad + | Select aircraft matching typed callsign (configurable in Settings > Advanced) |
-| ~ (tilde) | Focus the command input from anywhere in the app (configurable in Settings > Advanced) |
-| Ctrl+T | Take control of the selected aircraft (configurable in Settings > Advanced) |
+| Up / Down | Navigate suggestions, or recall command history |
+| Esc | Dismiss suggestions, else deselect aircraft and clear input |
+| Alt+Up / Alt+Down | Cycle command variant (signature-help overload — e.g. the multiple forms of `PUSH`) |
+| Numpad + | Select aircraft matching the typed callsign *(default)* |
+
+#### Global / Window
+
+| Key | Action |
+|-----|--------|
+| ~ (tilde) | Focus the command input from anywhere in the app *(default)* |
+| Ctrl+T | Take control of the selected aircraft *(default)* |
+| Ctrl+Shift+T | Toggle window always-on-top *(default)* |
+| Ctrl+B | Drop a quick timeline bookmark *(default)* |
+| Right Ctrl | Push-to-talk for speech recognition *(default)* |
+
+#### Radar View
+
+| Key | Action |
+|-----|--------|
+| Esc | Exit heading mode, or cancel route / range-ring placement |
+| Enter | Confirm the drawn route |
+| Backspace | Undo the last route waypoint |
+| Click | Place a route waypoint (while drawing) |
+| Ctrl+Click | Open the flight-plan editor for an aircraft |
+| Scroll | Zoom in / out |
+
+Route drawing and heading mode start from the aircraft right-click menu.
+
+#### Ground View
+
+| Key | Action |
+|-----|--------|
+| Esc | Cancel route drawing |
+| Backspace | Undo the last waypoint |
+| Click | Place a taxi-route waypoint (while drawing) |
+| Ctrl+D | Toggle the debug-info overlay |
+
+#### Aircraft List
+
+| Key | Action |
+|-----|--------|
+| Ctrl+Plus | Increase grid font size |
+| Ctrl+Minus | Decrease grid font size |
+| Ctrl+0 | Reset grid font size |
+| Esc | Clear the search box and refocus the grid |
+| Double-click | Open the flight-plan editor for a row |
+
+#### vTDLS
+
+| Key | Action |
+|-----|--------|
+| F4 | Dump the selected item |
+| F10 | Close the flight-plan editor |
+| F12 | Send the clearance |
+
+**Flight Strips** have an extensive set of bay/strip keyboard shortcuts — see [Flight Strips ▸ Keyboard shortcuts](#keyboard-shortcuts-1).
 
 ---
 

@@ -440,7 +440,9 @@ ${sections}
     } else {
       const open = new Set(profile.cats);
       for (const c of cats) {
-        const shouldOpen = open.has(c.id);
+        // Keyboard-shortcut groups are always shown — a training-role profile
+        // never collapses them.
+        const shouldOpen = open.has(c.id) || c.id.startsWith('keys-');
         c.open = shouldOpen;
         if (shouldOpen) delete collapsed[c.id];
         else collapsed[c.id] = true;

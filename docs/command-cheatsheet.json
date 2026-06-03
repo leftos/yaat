@@ -367,6 +367,98 @@
         { "verb": "UNTIL", "aliases": [], "description": "Until fix/dist", "examples": ["SPD 210 UNTIL SUNOL"] }
       ],
       "notes": []
+    },
+    {
+      "id": "keys-command-input",
+      "name": "Keys — Command Input",
+      "rows": [
+        { "verb": "Enter", "aliases": [], "description": "Send command (expands the highlighted suggestion first if that option is on)" },
+        { "verb": "Tab", "aliases": [], "description": "Accept the highlighted suggestion (first if none highlighted)" },
+        { "verb": "Up / Down", "aliases": [], "description": "Navigate suggestions, otherwise recall command history" },
+        { "verb": "Esc", "aliases": [], "description": "Dismiss suggestions, else deselect aircraft and clear input" },
+        { "verb": "Alt+Up / Alt+Down", "aliases": [], "description": "Cycle command variant (signature-help overload)" },
+        { "verb": "Numpad +", "aliases": [], "description": "Select aircraft matching the typed callsign" }
+      ],
+      "notes": ["Aircraft-select key (`Numpad +`) is configurable in Settings ▸ Advanced."]
+    },
+    {
+      "id": "keys-global",
+      "name": "Keys — Global / Window",
+      "rows": [
+        { "verb": "~", "aliases": [], "description": "Focus the command input from anywhere" },
+        { "verb": "Ctrl+T", "aliases": [], "description": "Take control of the selected aircraft" },
+        { "verb": "Ctrl+Shift+T", "aliases": [], "description": "Toggle window always-on-top" },
+        { "verb": "Ctrl+B", "aliases": [], "description": "Drop a quick timeline bookmark" },
+        { "verb": "Right Ctrl", "aliases": [], "description": "Push-to-talk (speech recognition)" }
+      ],
+      "notes": ["Defaults shown — all are configurable in Settings ▸ Advanced / Keybinds.", "macOS: substitute Cmd for Ctrl."]
+    },
+    {
+      "id": "keys-radar",
+      "name": "Keys — Radar View",
+      "rows": [
+        { "verb": "Esc", "aliases": [], "description": "Exit heading mode / cancel route or range-ring placement" },
+        { "verb": "Enter", "aliases": [], "description": "Confirm the drawn route" },
+        { "verb": "Backspace", "aliases": [], "description": "Undo the last route waypoint" },
+        { "verb": "Click", "aliases": [], "description": "Place a route waypoint (while drawing)" },
+        { "verb": "Ctrl+Click", "aliases": [], "description": "Open the flight-plan editor for an aircraft" },
+        { "verb": "Scroll", "aliases": [], "description": "Zoom in / out" }
+      ],
+      "notes": ["Route drawing and heading mode start from the aircraft right-click menu."]
+    },
+    {
+      "id": "keys-ground",
+      "name": "Keys — Ground View",
+      "rows": [
+        { "verb": "Esc", "aliases": [], "description": "Cancel route drawing" },
+        { "verb": "Backspace", "aliases": [], "description": "Undo the last waypoint" },
+        { "verb": "Click", "aliases": [], "description": "Place a taxi-route waypoint (while drawing)" },
+        { "verb": "Ctrl+D", "aliases": [], "description": "Toggle the debug-info overlay" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "keys-aircraft-list",
+      "name": "Keys — Aircraft List",
+      "rows": [
+        { "verb": "Ctrl+Plus", "aliases": [], "description": "Increase grid font size" },
+        { "verb": "Ctrl+Minus", "aliases": [], "description": "Decrease grid font size" },
+        { "verb": "Ctrl+0", "aliases": [], "description": "Reset grid font size" },
+        { "verb": "Esc", "aliases": [], "description": "Clear the search box and refocus the grid" },
+        { "verb": "Double-click", "aliases": [], "description": "Open the flight-plan editor for a row" }
+      ],
+      "notes": []
+    },
+    {
+      "id": "keys-strips",
+      "name": "Keys — Flight Strips",
+      "rows": [
+        { "verb": "PageUp / PageDown", "aliases": [], "description": "Previous / next bay" },
+        { "verb": "Arrows", "aliases": [], "description": "Move selection (or pick the first strip)" },
+        { "verb": "Ctrl+Arrows", "aliases": [], "description": "Move the selected strip" },
+        { "verb": "Enter", "aliases": [], "description": "Edit a half-strip's lines or a separator's label" },
+        { "verb": "Delete / Backspace", "aliases": [], "description": "Delete the selected strip" },
+        { "verb": "Tab", "aliases": [], "description": "Toggle the printer panel" },
+        { "verb": "Esc", "aliases": [], "description": "Deselect strip (else toggle printer panel)" },
+        { "verb": "Ctrl+Shift+H", "aliases": [], "description": "Add a half-strip" },
+        { "verb": "Ctrl+Shift+S", "aliases": [], "description": "Add a separator" },
+        { "verb": "Ctrl+Shift+← / →", "aliases": [], "description": "Slide half-strip / cycle separator style" },
+        { "verb": "Shift+← / →", "aliases": [], "description": "Toggle offset on the selected strip" },
+        { "verb": "Ctrl+Alt+← / →", "aliases": [], "description": "Cycle facility" },
+        { "verb": "Ctrl+Alt+1–9", "aliases": [], "description": "Move strip to bay N (or select bay N)" },
+        { "verb": "Ctrl+1–9", "aliases": [], "description": "Edit annotation box on a full strip" }
+      ],
+      "notes": ["Strips need keyboard focus — click the strip view first."]
+    },
+    {
+      "id": "keys-tdls",
+      "name": "Keys — vTDLS",
+      "rows": [
+        { "verb": "F4", "aliases": [], "description": "Dump the selected item" },
+        { "verb": "F10", "aliases": [], "description": "Close the flight-plan editor" },
+        { "verb": "F12", "aliases": [], "description": "Send the clearance" }
+      ],
+      "notes": []
     }
   ]
 }
