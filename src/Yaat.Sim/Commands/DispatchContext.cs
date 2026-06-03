@@ -28,6 +28,13 @@ namespace Yaat.Sim.Commands;
 /// position to a frequency through it. Callers without an ARTCC config (parser tests,
 /// minimal harnesses) leave it null and CT falls back to the verbatim target callsign for
 /// the spoken facility name with no frequency component.</para>
+///
+/// <para><see cref="PreserveConditionals"/> is true only when a deferred dispatch fires its
+/// payload (<see cref="Simulation.SimulationEngine"/> deferred path). A firing deferral is
+/// the execution of an already-issued conditional, not a fresh controller command, so its
+/// payload must not supersede sibling pending conditionals: it preserves triggered queue
+/// blocks and leaves other deferred dispatches intact. Every other dispatch (fresh live
+/// command, preset, replay) passes false.</para>
 /// </summary>
 public sealed record DispatchContext(
     AirportGroundLayout? GroundLayout,
@@ -41,5 +48,6 @@ public sealed record DispatchContext(
     bool RpoShowPilotSpeech,
     Action<TerminalEntry>? TerminalEmitter,
     ArtccConfigRoot? ArtccConfig,
-    double ScenarioElapsedSeconds
+    double ScenarioElapsedSeconds,
+    bool PreserveConditionals
 );

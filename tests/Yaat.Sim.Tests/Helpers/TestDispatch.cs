@@ -26,7 +26,8 @@ internal static class TestDispatch
         bool rpoShowPilotSpeech = false,
         Action<TerminalEntry>? terminalEmitter = null,
         ArtccConfigRoot? artccConfig = null,
-        double scenarioElapsedSeconds = 0
+        double scenarioElapsedSeconds = 0,
+        bool preserveConditionals = false
     ) =>
         new(
             groundLayout,
@@ -40,6 +41,7 @@ internal static class TestDispatch
             rpoShowPilotSpeech,
             terminalEmitter,
             artccConfig,
-            scenarioElapsedSeconds
+            scenarioElapsedSeconds,
+            preserveConditionals
         );
 }

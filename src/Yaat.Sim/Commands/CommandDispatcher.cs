@@ -111,9 +111,12 @@ public static class CommandDispatcher
                 if (result.Success && compound.Blocks.Count > 1)
                 {
                     var phaseIncomingDims = CommandDescriber.GetCompoundDimensions(compound);
-                    var phasePreserved = ClearConflictingBlocks(aircraft, phaseIncomingDims, ctx, out var phaseDropped);
+                    var phasePreserved = ClearConflictingBlocks(aircraft, phaseIncomingDims, ctx, ctx.PreserveConditionals, out var phaseDropped);
                     EmitQueueClearWarning(aircraft, phaseDropped, compound);
-                    aircraft.DeferredDispatches.Clear();
+                    if (!ctx.PreserveConditionals)
+                    {
+                        aircraft.DeferredDispatches.Clear();
+                    }
 
                     var modifierMessages = new List<string>();
                     var remainingBlocks = new List<ParsedBlock>();
@@ -191,13 +194,27 @@ public static class CommandDispatcher
             }
         }
 
-        // Selectively clear queue: remove only blocks whose dimensions conflict with the
-        // incoming command. Non-conflicting pending blocks are preserved and re-appended
-        // after the new blocks.
-        var incomingDims = CommandDescriber.GetCompoundDimensions(compound);
-        var preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx, out var dropped);
-        EmitQueueClearWarning(aircraft, dropped, compound);
-        aircraft.DeferredDispatches.Clear();
+        // Conditional incoming commands are purely additive: append the triggered block
+        // without disturbing existing queue blocks or pending deferred dispatches. A fresh
+        // immediate command supersedes (dimension-aware clear + cancel pending WAITs); a
+        // firing deferral (ctx.PreserveConditionals) supersedes conflicting *untriggered*
+        // work but keeps triggered conditionals and other deferrals.
+        bool conditionalIncoming = IsConditionalIncoming(compound);
+        List<CommandBlock> preserved;
+        if (conditionalIncoming)
+        {
+            preserved = [];
+        }
+        else
+        {
+            var incomingDims = CommandDescriber.GetCompoundDimensions(compound);
+            preserved = ClearConflictingBlocks(aircraft, incomingDims, ctx, ctx.PreserveConditionals, out var dropped);
+            EmitQueueClearWarning(aircraft, dropped, compound);
+            if (!ctx.PreserveConditionals)
+            {
+                aircraft.DeferredDispatches.Clear();
+            }
+        }
 
         int firstNewBlockIdx = aircraft.Queue.Blocks.Count;
         var messages = EnqueueBlocks(compound, 0, aircraft, ctx);
@@ -269,6 +286,17 @@ public static class CommandDispatcher
         return new CommandResult(true, fullMessage);
     }
 
+    /// <summary>
+    /// True when the incoming compound leads with a precondition (AT / LV / ATFN / ONHO /
+    /// ONHS / DistanceFinal / AtGroundEntity). Leading bare-WAIT and leading-BEHIND are
+    /// already siphoned into deferred dispatches by <see cref="TryDeferLeadingWait"/> /
+    /// <see cref="TryDeferGiveWay"/> before this is consulted, so a conditional incoming
+    /// compound is one the controller (or a preset) wants to fire when its trigger is met.
+    /// Such commands are purely additive — they never clear sibling conditionals or pending
+    /// deferred dispatches; only a fresh immediate command supersedes pending work.
+    /// </summary>
+    private static bool IsConditionalIncoming(CompoundCommand compound) => compound.Blocks.Count > 0 && compound.Blocks[0].Condition is not null;
+
     private static bool IsAllTransparent(CompoundCommand compound)
     {
         foreach (var block in compound.Blocks)
@@ -339,9 +367,11 @@ public static class CommandDispatcher
             return ApplyCommand(command, aircraft, ctx);
         }
 
-        // Selectively clear queue: remove only blocks whose dimensions conflict
+        // Selectively clear queue: remove only blocks whose dimensions conflict. This single-
+        // command path is always a fresh immediate command (a precondition is a block-level
+        // attribute, absent here), so it supersedes — preserveTriggeredBlocks stays false.
         var singleDims = CommandDescriber.GetCommandDimension(command);
-        var singlePreserved = ClearConflictingBlocks(aircraft, singleDims, ctx, out var singleDropped);
+        var singlePreserved = ClearConflictingBlocks(aircraft, singleDims, ctx, preserveTriggeredBlocks: false, out var singleDropped);
         EmitQueueClearWarning(aircraft, singleDropped, new CompoundCommand([new ParsedBlock(null, [command])]));
         aircraft.Queue.Blocks.AddRange(singlePreserved);
 
@@ -1826,14 +1856,20 @@ public static class CommandDispatcher
         AircraftState aircraft,
         CommandDimension incomingDimensions,
         DispatchContext ctx,
+        bool preserveTriggeredBlocks,
         out List<string> droppedDescriptions
     )
     {
         var queue = aircraft.Queue;
         droppedDescriptions = [];
 
-        // Fast path: All/None → clear everything (original behavior)
-        if ((incomingDimensions & CommandDimension.All) == CommandDimension.All || incomingDimensions == CommandDimension.None)
+        // Fast path: All/None → clear everything (original behavior). Skipped when
+        // preserving triggered blocks (a firing deferral must keep pending conditionals)
+        // so the per-block loop below can spare them.
+        if (
+            !preserveTriggeredBlocks
+            && ((incomingDimensions & CommandDimension.All) == CommandDimension.All || incomingDimensions == CommandDimension.None)
+        )
         {
             int fastStart = queue.CurrentBlockIndex + (queue.CurrentBlock is { IsApplied: true } ? 1 : 0);
             for (int i = fastStart; i < queue.Blocks.Count; i++)
@@ -1865,6 +1901,15 @@ public static class CommandDispatcher
         for (int i = pendingStart; i < queue.Blocks.Count; i++)
         {
             var block = queue.Blocks[i];
+
+            // A firing deferral preserves pending conditionals verbatim — only fresh
+            // immediate commands supersede triggered blocks.
+            if (preserveTriggeredBlocks && block.Trigger is not null)
+            {
+                preserved.Add(block);
+                continue;
+            }
+
             var split = SplitBlockNonConflicting(block, incomingDimensions, ctx);
             if (split is null)
             {

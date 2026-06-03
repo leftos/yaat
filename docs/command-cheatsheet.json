@@ -306,8 +306,8 @@
       "id": "queue",
       "name": "Queue",
       "rows": [
-        { "verb": "DELAT", "aliases": ["cxl", "clr"], "description": "Delete queued commands [index]" },
-        { "verb": "SHOWAT", "aliases": [], "description": "Show queued commands" }
+        { "verb": "DELAT", "aliases": ["delcond", "dc", "cxl", "clr"], "description": "Delete conditional(s) [index] — queue blocks + WAIT/BEHIND" },
+        { "verb": "SHOWAT", "aliases": ["showcond"], "description": "Show the conditional list" }
       ],
       "notes": []
     },

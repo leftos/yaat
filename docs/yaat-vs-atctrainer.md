@@ -353,10 +353,10 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | Cancel IFR | — | `CIFR` | YAAT-only. Changes aircraft from IFR to VFR. Required before issuing VFR-only commands (pattern entry, VFR holds, TG/SG/LA/COPT) to IFR aircraft. |
 | Remarks | `REMARKS {text}` | `REMARKS {text}` (`REM`) | Parity; also available via FPE |
 | Cleared | `CLRD` | — | ATCTrainer-only (YAAT uses clearance column instead) |
-| Delete at | `DELAT` | `DELAT` / `DELAT {n}` | Parity; YAAT adds per-block delete by number |
+| Delete at | `DELAT` | `DELAT` / `DELAT {n}` (`DELCOND`, `DC`) | Parity; YAAT adds per-conditional delete by number and spans WAIT/BEHIND deferrals |
 | Open chat | `OPENCHAT {controller}` | — | ATCTrainer-only |
 | Operations/Stats | `OPS`/`STATS` | — | ATCTrainer-only |
-| Show at | `SHOWAT` | `SHOWAT` | Parity; output is ephemeral (only sender sees it) |
+| Show at | `SHOWAT` | `SHOWAT` (`SHOWCOND`) | Parity; lists the full conditional list (queue blocks + WAIT/BEHIND); output is ephemeral (only sender sees it) |
 | Chat messages | No specifix prefixes, chat messages can be misinterpreted as commands | `'msg`, `/msg`, `>msg` | YAAT has dedicated chat prefixes |
 
 ## Behavioral Differences

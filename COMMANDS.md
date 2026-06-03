@@ -168,25 +168,27 @@ LV 050 WAIT 10; FH 090
 ```
 At 5,000 ft, wait 10 seconds, then fly heading 090.
 
-### Clearing the Pending Queue
+### The Conditional List
 
-When you re-issue a command that conflicts with one already in flight, YAAT only supersedes the **same control surface** (altitude, lateral, or speed) — orthogonal pending blocks survive on purpose. For example, after `DM 020, DCT VPCOL; ERD 28R`, re-issuing `DM 025` updates the altitude target but leaves `DCT VPCOL` flying and the queued `ERD 28R` waiting.
+Commands gated by a precondition — `AT`/`LV` (altitude or fix), `ONHO` (on handoff), `ATFN` (intercept), `BEHIND` (give-way), and `WAIT`/`WAITD` (time/distance) — accumulate into a single **conditional list**: an unordered set of pending instructions that each fire when their own trigger is met. Conditionals are **additive** — issuing one never cancels the others. A scenario or controller can pre-load `WAIT 120 RWY 18L TAXI N B`, `ONHO CM 120`, and `AT 6000 DCT MUNCH` on a departure and all three stand: it taxis at the 120s mark, climbs on handoff, and turns direct at 6,000 ft.
 
-To wipe the rest of the pending queue, issue **`CXL`** (or `CLR`, or `DELAT`) as a follow-up command:
+A freshly-issued **immediate** command (one with no precondition) still supersedes: it clears the conditional list and replaces the conflicting active control surface. When you re-issue an immediate command that conflicts with one already in flight, YAAT supersedes only the **same control surface** (altitude, lateral, or speed) — orthogonal active targets survive. For example, after `DM 020, DCT VPCOL`, re-issuing `DM 025` updates the altitude target but leaves `DCT VPCOL` flying.
+
+`SHOWAT` (alias `SHOWCOND`) lists the conditional list with each entry's live status; the same entries appear in the **Pending Cmds** column. To wipe the whole list, issue **`CXL`** (or `CLR`, `DELAT`, `DELCOND`, `DC`) as a follow-up command:
 
 ```
 DM 025
 CXL
 ```
 
-`CXL` removes every pending block but does not touch the aircraft's currently active commands. To also drop an active `DCT` or heading hold, add `FPH` (fly present heading) before clearing:
+`CXL` removes every pending conditional but does not touch the aircraft's currently active commands. To also drop an active `DCT` or heading hold, add `FPH` (fly present heading) before clearing:
 
 ```
 DM 025, FPH
 CXL
 ```
 
-Use `DELAT 3` (or `CXL 3` / `CLR 3`) to remove a specific pending block by its 1-based index — see `SHOWAT` to list pending blocks.
+Use `DELAT 3` (or `DELCOND 3` / `DC 3` / `CXL 3` / `CLR 3`) to remove a specific conditional by its 1-based index from `SHOWAT` — including a pending `WAIT`/`BEHIND` deferral, not just precondition-gated queue blocks.
 
 ---
 
@@ -490,8 +492,8 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Delete aircraft | `DEL` | `X` | — |
 | Auto-delete on hold-short | `ONHS DEL` | — | Queues a delete that fires when the aircraft reaches HoldingAfterExit after landing. Datablock shows a trailing `*` while armed. |
 | Cancel auto-delete | `NODEL` | — | Strips any queued `ONHS DEL` and re-arms `AutoDeleteExempt` so scenario-level auto-delete also won't touch the aircraft. Distinct from the `NODEL` *modifier* on `CLAND`/`TAXI`/`EL`/`ER`/`EXIT`/`LAND`, which sets the exempt flag at the time those commands are issued. |
-| Delete queued commands | `DELAT` / `DELAT 2` | `CXL`, `CLR` | — |
-| Show queued commands | `SHOWAT` | — | — |
+| Delete conditional(s) | `DELAT` / `DELAT 2` | `DELCOND`, `DC`, `CXL`, `CLR` | — |
+| Show conditional list | `SHOWAT` | `SHOWCOND` | — |
 | Say | `SAY text` | `SAYF` | — |
 | Say speed | `SSPD` | — | Aircraft reports current speed (includes Mach at/above FL240) |
 | Say mach | `SMACH` | — | Aircraft reports current Mach number |

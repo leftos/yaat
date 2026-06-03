@@ -1323,7 +1323,8 @@ public sealed class SimulationEngine
                 Scenario?.RpoShowPilotSpeech ?? false,
                 _terminalEntries.Add,
                 Scenario?.ArtccConfig,
-                Scenario?.ElapsedSeconds ?? 0
+                Scenario?.ElapsedSeconds ?? 0,
+                PreserveConditionals: false
             );
             result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
         }
@@ -1753,7 +1754,8 @@ public sealed class SimulationEngine
                     Scenario?.RpoShowPilotSpeech ?? false,
                     _terminalEntries.Add,
                     Scenario?.ArtccConfig,
-                    Scenario?.ElapsedSeconds ?? 0
+                    Scenario?.ElapsedSeconds ?? 0,
+                    PreserveConditionals: true
                 );
                 CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
             }
@@ -2268,7 +2270,8 @@ public sealed class SimulationEngine
             Scenario!.RpoShowPilotSpeech,
             _terminalEntries.Add,
             Scenario!.ArtccConfig,
-            Scenario!.ElapsedSeconds
+            Scenario!.ElapsedSeconds,
+            PreserveConditionals: false
         );
         CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
         EmitTerminal("System", aircraft.Callsign, "[HFR] Released — cleared for takeoff");
@@ -2329,7 +2332,8 @@ public sealed class SimulationEngine
                 scenario.RpoShowPilotSpeech,
                 _terminalEntries.Add,
                 scenario.ArtccConfig,
-                scenario.ElapsedSeconds
+                scenario.ElapsedSeconds,
+                PreserveConditionals: false
             );
             CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
 
@@ -2431,7 +2435,8 @@ public sealed class SimulationEngine
             Scenario!.RpoShowPilotSpeech,
             _terminalEntries.Add,
             Scenario!.ArtccConfig,
-            Scenario!.ElapsedSeconds
+            Scenario!.ElapsedSeconds,
+            PreserveConditionals: false
         );
         CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
@@ -2729,7 +2734,8 @@ public sealed class SimulationEngine
             Scenario?.RpoShowPilotSpeech ?? false,
             _terminalEntries.Add,
             Scenario?.ArtccConfig,
-            Scenario?.ElapsedSeconds ?? 0
+            Scenario?.ElapsedSeconds ?? 0,
+            PreserveConditionals: false
         );
         var replayDispatchResult = CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
         if (replayDispatchResult.Success)
@@ -2969,26 +2975,8 @@ public sealed class SimulationEngine
 
     private static void ReplayDeleteQueued(AircraftState aircraft, int? blockNumber)
     {
-        var queue = aircraft.Queue;
-        int pendingStart = queue.CurrentBlockIndex + 1;
-        int pendingCount = queue.Blocks.Count - pendingStart;
-
-        if (pendingCount <= 0)
-        {
-            return;
-        }
-
-        if (blockNumber is null)
-        {
-            queue.Blocks.RemoveRange(pendingStart, pendingCount);
-        }
-        else
-        {
-            int idx = blockNumber.Value;
-            if (idx >= 1 && idx <= pendingCount)
-            {
-                queue.Blocks.RemoveAt(pendingStart + idx - 1);
-            }
-        }
+        // Mirror the live DELAT/DELCOND handler exactly (queue blocks + deferred dispatches)
+        // so replay reproduces deletions deterministically.
+        ConditionalList.Delete(aircraft, blockNumber);
     }
 }

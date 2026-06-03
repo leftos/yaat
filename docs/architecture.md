@@ -487,9 +487,12 @@ Commands/CommandSchemeParser.cs     # Parse/ParseCompound (;/, syntax); ExpandSp
 Commands/CommandSignature.cs        # Records: CommandParameter, CommandSignature, CommandSignatureSet; FromDefinition factory
 Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interaction), ApplyCommand (thin routing switch),
                                     # TryApplyTowerCommand, queue infrastructure, condition conversion, shared utilities
-                                    # ClearConflictingBlocks: dimension-aware selective queue clearing
+                                    # IsConditionalIncoming: conditional commands are additive (no clear); only immediate supersede
+                                    # ClearConflictingBlocks: dimension-aware selective queue clearing (preserveTriggeredBlocks for deferred firing)
                                     # SplitBlockNonConflicting: splits mixed-dimension blocks on partial conflicts
-Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunway
+Commands/ConditionalList.cs         # Unified conditional list: pending queue trigger blocks + DeferredDispatches (WAIT/WAITD/BEHIND)
+                                    # Enumerate/ToLines/Delete — backs SHOWAT/SHOWCOND, Pending Cmds column, DELAT/DELCOND/DC; excludes reaction-delay deferrals
+Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft/ListAircraft, ValidateDctFixes, AutoCrossRunway, PreserveConditionals
                                     # Bundled at SimulationEngine/RoomEngine call sites; threaded through all internal helpers
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands
 Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depart/cross fix, JARR STAR resolution,
