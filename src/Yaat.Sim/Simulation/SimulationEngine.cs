@@ -1816,6 +1816,14 @@ public sealed class SimulationEngine
         _terminalEntries.Add(new TerminalEntry(kind, callsign, message));
     }
 
+    /// <summary>
+    /// Computes the hold-short nodes currently occupied by a holding or exiting aircraft from live
+    /// aircraft state. Includes runway hold-short nodes an aircraft's tail hangs over while holding
+    /// short of a taxiway (issue #172). The per-tick cache is transient, so this recomputes on demand —
+    /// for diagnostics and tests querying between ticks.
+    /// </summary>
+    public IReadOnlySet<int> ComputeOccupiedHoldShortNodes() => BuildOccupiedHoldShortNodes();
+
     private HashSet<int> BuildOccupiedHoldShortNodes()
     {
         var occupied = new HashSet<int>();
@@ -1824,6 +1832,15 @@ public sealed class SimulationEngine
             if (ac.Phases?.CurrentPhase is HoldingShortPhase hs)
             {
                 occupied.Add(hs.HoldShort.NodeId);
+
+                // Tail-over-runway (issue #172): an aircraft holding short of a taxiway with its tail
+                // over a runway also occupies that runway's hold-short node, so arrivals don't plan to
+                // use the exit it is blocking. Read from the route — it survives snapshot restore,
+                // unlike the phase's reconstructed HoldShort copy.
+                if (ac.Ground.AssignedTaxiRoute?.GetHoldShortAt(hs.HoldShort.NodeId)?.TailOverRunwayNodeId is { } tailOverNode)
+                {
+                    occupied.Add(tailOverNode);
+                }
                 continue;
             }
 

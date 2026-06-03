@@ -44,4 +44,10 @@ public sealed class HoldShortPointDto
     /// snapshots. Suppresses the solo "ready for departure" report for the landed aircraft.
     /// </summary>
     public bool IsArrivalCrossing { get; init; }
+
+    /// <summary>
+    /// Runway hold-short node the aircraft's tail hangs over while holding short of this taxiway
+    /// (issue #172 tail-over-runway state). Null in the normal case and on legacy snapshots.
+    /// </summary>
+    public int? TailOverRunwayNodeId { get; init; }
 }

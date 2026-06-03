@@ -15,6 +15,7 @@
 - **Take Control** during recording playback now asks for confirmation before ending the replay; Cancel or Esc keeps you in playback.
 - A plain `SPD` instruction to a helicopter below 60 KIAS is now floored to 60 (the 7110.65 §5-7-3.5 minimum for radar-vectored helicopters), with a warning noting the floor. Use the force-speed command (`SPEEDN`) to command a lower speed.
 - A relocating helicopter (`ATXI`/`LAND`) now swings onto the destination spot faster as it slows toward the hover, instead of the slower coordinated-flight turn rate it used at cruise.
+- The trainer now warns you when a taxi clearance can't clear a runway. If you hold an aircraft short of a taxiway immediately past a runway crossing where the gap is shorter than the aircraft (e.g. `TAXI G B HS B` across SFO 01L/19R), the TAXI echo flags that it will be unable to clear the runway, and a terminal note advises the runway is not clear while it holds with its tail over the bars. Arrivals to that runway no longer plan to use the exit it is blocking.
 
 ### Fixed
 - Dynamic METARs no longer stop updating after you scrub the timeline, load a recording, or restore a saved session. Weather loaded from a file or the editor re-issues observations (a routine at :53 and SPECIs on significant change) and, for time-based weather, keeps evolving — previously all of that froze after a rewind until you reloaded the weather by hand. Live-fetched real weather is still left untouched as before.

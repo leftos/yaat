@@ -57,6 +57,20 @@ public sealed class HoldingShortPhase : Phase
                 : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, target);
         PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText, warningText);
 
+        // Tail-over-runway (issue #172 W3): the aircraft holds at the taxiway line with its tail still
+        // over the runway behind it. Protecting the runway is the controller's job (7110.65 3-7-4), not
+        // something the pilot reports — so surface it on the controller/terminal warning lane only,
+        // never as a pilot transmission, and never with the combined "01L/19R" in a pilot's mouth.
+        if (
+            _holdShort.TailOverRunwayNodeId is { } tailNode
+            && ctx.GroundLayout is { } groundLayout
+            && groundLayout.Nodes.TryGetValue(tailNode, out var tailRwyNode)
+            && tailRwyNode.RunwayId is { } tailRwy
+        )
+        {
+            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} not clear of RWY {tailRwy} — tail over the hold-short bars");
+        }
+
         if (
             ctx.SoloTrainingMode
             && !_hasAnnouncedReady

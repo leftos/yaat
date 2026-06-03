@@ -113,28 +113,30 @@ especially should be confirmed with the mentor.
   1-tick ETA-gate cap in `Issue172ParallelPassTests`; that test was relaxed to assert no *sustained* yield
   (its guarded bug was a ~25 s brake) rather than zero ticks. Full `tools/test-all.ps1` green both repos.
 
-### W2 — Hold-short-of-taxiway precedence + "runway not clear" state
+### W2 — Hold-short-of-taxiway precedence + "runway not clear" state ✅ DONE (2026-06-03)
 - **Problem:** when HS-of-taxiway conflicts with clearing the runway, the sim must keep the aircraft short of
   the taxiway (tail over the runway), and represent the runway as occupied/not-clear.
-- **Design:** the aircraft holds at the taxiway hold line (W1); a per-aircraft flag marks "tail over runway
-  X / unable to clear" so detection (`GroundConflictDetector` / runway-occupancy) and the W3 warning can use
-  it. Confirm with `aviation-sim-expert` whether runway-occupancy logic needs to treat this aircraft as on the
-  runway.
-- **Files:** `AircraftState.cs` / `AircraftGroundOps.cs` (new flag), `GroundConflictDetector.cs` (occupancy),
-  the hold path in `TaxiingPhase.ArriveAtNode`.
-- **Tests:** assert the flag/state is set when JBU577 holds short of B; assert it is *not* set for a normal
-  taxiway hold-short with room.
+- **Implemented (aviation-sim-expert-reviewed):**
+  - State lives on the route's `HoldShortPoint.TailOverRunwayNodeId` (the runway hold-short node the tail
+    overhangs) — not a new per-aircraft flag. Set in `HoldShortAnnotator.ComputeHoldShortPositions` when the
+    crossed runway's gap is shorter than the fuselage (new `FindCrossedRunwayHoldShort` helper). Snapshotted
+    via `HoldShortPointDto`.
+  - **Occupancy:** the sim has no general "runway in use" gate — occupancy is a set of occupied hold-short
+    *nodes* consumed by arrival exit-planning. `SimulationEngine.BuildOccupiedHoldShortNodes` now adds the
+    overhung runway node, so an arrival to that runway won't plan to use the exit the tail blocks. Aviation
+    confirmed this partial-realism is sufficient; broader cross/land blocking is a future nice-to-have (the
+    node is already in the right structure to feed it).
+- **Tests:** `Issue172Jbu577TailOverRunwayTests` — the B hold-short is tagged with the runway node; the node
+  is occupied while JBU577 holds; the runway-crossing HS is never tagged.
 
-### W3 — Warnings, both at issuance and at runtime
-- **Issuance:** when `TAXI … HS <twy>` is issued and `<twy>`'s hold-short falls within a fuselage of a runway
-  the route crosses/exits, append a route warning ("unable to fully clear RWY X — tail over the hold-short
-  bars") → shows in the TAXI echo (existing `route.Warnings` channel).
-- **Runtime:** when the aircraft actually holds in that state, surface a controller-facing warning — a new
-  per-aircraft datablock flag (model on `NoLandingClearanceWarningActive`) and/or a terminal note from the
-  hold phase. Per **7110.65 3-10-5.c**.
-- **Files:** `RouteMaterialiser.cs` / `GroundCommandHandler.cs` (issuance), `AircraftState.cs` +
-  `RadarDatablockLayout.cs` + the hold phase (runtime).
-- **Tests:** assert both warnings fire for JBU577; neither fires for a normal hold-short.
+### W3 — Warnings, both at issuance and at runtime ✅ DONE (2026-06-03)
+- **Issuance:** `HoldShortAnnotator.ComputeHoldShortPositions` appends a `route.Warnings` entry
+  ("holding short of B leaves the tail over RWY 01L/19R — unable to clear the runway") → shows on the TAXI
+  echo. (The runtime warning surface is a **terminal note only**, not a datablock flag — user decision.)
+- **Runtime:** `HoldingShortPhase.OnStart` emits a controller-side terminal note ("… not clear of RWY X —
+  tail over the hold-short bars") on the warning lane only — never as a pilot transmission (runway protection
+  is the controller's job, 7110.65 3-7-4; the pilot voice stays the plain "holding short of B").
+- **Tests:** issuance warning on the echo; the runtime note fires while JBU577 holds.
 
 ### W4 — Verify "clear the runway & hold just past it" (capability exists)
 - **Design:** confirm `TAXI <twy> CROSS <rwy>` (no trailing HS) crosses and `HoldingInPosition`s ½-length past

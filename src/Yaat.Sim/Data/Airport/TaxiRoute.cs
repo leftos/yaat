@@ -232,6 +232,7 @@ public sealed class TaxiRoute
                     Longitude = hs.Longitude,
                     ClearedByAutoCross = hs.ClearedByAutoCross,
                     IsArrivalCrossing = hs.IsArrivalCrossing,
+                    TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                 })
                 .ToList(),
             Description = ToSummary(),
@@ -291,6 +292,7 @@ public sealed class TaxiRoute
                         IsArrivalCrossing = hs.IsArrivalCrossing,
                         Latitude = hs.Latitude,
                         Longitude = hs.Longitude,
+                        TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                     }
                 );
             }
@@ -360,4 +362,12 @@ public sealed class HoldShortPoint
     /// Computed hold-short position longitude. See <see cref="Latitude"/>.
     /// </summary>
     public double? Longitude { get; set; }
+
+    /// <summary>
+    /// When this taxiway hold-short sits within a fuselage length past a runway the route crosses, the
+    /// aircraft holds at the taxiway line with its tail over the runway's hold-short bars and cannot
+    /// fully clear the runway (issue #172). This is the runway hold-short node the tail hangs over; the
+    /// runway is "not clear" while the aircraft holds here. Null in the normal case.
+    /// </summary>
+    public int? TailOverRunwayNodeId { get; set; }
 }
