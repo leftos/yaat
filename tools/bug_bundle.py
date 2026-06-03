@@ -438,13 +438,16 @@ def cmd_track(args: argparse.Namespace) -> int:
                     row[cs] = None
                     continue
                 pos = ac.get("Position") or {}
+                targets = ac.get("Targets") or {}
                 row[cs] = {
                     "lat": pos.get("Lat"),
                     "lon": pos.get("Lon"),
                     "alt": ac["Altitude"],
+                    "vs": ac.get("VerticalSpeed"),
                     "ias": ac["IndicatedAirspeed"],
                     "hdg": ac["TrueHeadingDeg"],
-                    "tgt_spd": (ac.get("Targets") or {}).get("TargetSpeed"),
+                    "tgt_spd": targets.get("TargetSpeed"),
+                    "aalt": targets.get("AssignedAltitude"),
                     "following": (ac.get("Approach") or {}).get("FollowingCallsign"),
                     "phase": _phase_name(ac),
                 }
@@ -483,8 +486,11 @@ def cmd_track(args: argparse.Namespace) -> int:
         header_cols = ["t"]
         for cs in callsigns:
             header_cols.append(f"{cs}.phase")
+            header_cols.append(f"{cs}.alt")
+            header_cols.append(f"{cs}.vs")
             header_cols.append(f"{cs}.ias")
             header_cols.append(f"{cs}.tgt")
+            header_cols.append(f"{cs}.aAlt")
             header_cols.append(f"{cs}.foll")
         if args.pair:
             header_cols.extend(["gap_nm", "best", "runaway_s"])
@@ -495,12 +501,17 @@ def cmd_track(args: argparse.Namespace) -> int:
             for cs in callsigns:
                 d = row.get(cs)
                 if d is None:
-                    parts.extend(["-", "-", "-", "-"])
+                    parts.extend(["-", "-", "-", "-", "-", "-", "-"])
                 else:
                     tgt = d["tgt_spd"]
+                    vs = d["vs"]
+                    aalt = d["aalt"]
                     parts.append(f"{d['phase']:<14}")
+                    parts.append(f"{d['alt']:6.0f}")
+                    parts.append(f"{vs:5.0f}" if isinstance(vs, (int, float)) else "  -  ")
                     parts.append(f"{d['ias']:5.1f}")
                     parts.append(f"{tgt:5.1f}" if isinstance(tgt, (int, float)) else "  -  ")
+                    parts.append(f"{aalt:6.0f}" if isinstance(aalt, (int, float)) else "   -  ")
                     parts.append(f"{(d['following'] or '-'):<7}")
             if args.pair:
                 gap = row.get("gap_nm")
