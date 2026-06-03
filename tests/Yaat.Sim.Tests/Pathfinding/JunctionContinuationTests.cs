@@ -200,21 +200,17 @@ public class JunctionContinuationTests
         // junction (B before B3) and the second A comes after B3 — never B3 taken off the first A.
         AssertOrderedSubsequence(instructed, runs);
 
-        // A and B1 have no direct junction at SFO, so the resolver inserts a connector. Under the
-        // soft detour policy it prefers the numbered B2 connector over an unauthorized full letter
-        // taxiway — that must surface as an informative notification naming only the truly-inserted
-        // connector (B2), not cleared taxiways (B3), and never as an "unauthorized taxiway" warning.
-        Assert.Contains(
-            route.Warnings,
-            w => w.Contains("A and B1", StringComparison.OrdinalIgnoreCase) && w.Contains("B2", StringComparison.OrdinalIgnoreCase)
-        );
+        // On the current SFO layout (vNAS data-api), taxiway A and B1 share a direct junction
+        // (node 1159, carrying an A/B1 fillet arc), so the resolver bridges A→B1 with no inserted
+        // connector. There must therefore be no "A and B1 do not connect directly" notification —
+        // and in particular none that drags in a cleared taxiway such as B3.
         Assert.DoesNotContain(
             route.Warnings,
-            w => w.Contains("A and B1", StringComparison.OrdinalIgnoreCase) && w.Contains("B3", StringComparison.OrdinalIgnoreCase)
+            w => w.Contains("A and B1", StringComparison.OrdinalIgnoreCase) && w.Contains("do not connect", StringComparison.OrdinalIgnoreCase)
         );
 
-        // The leading RAMP (parking bridge from D8) and the mandatory B2 connector must not be
-        // flagged as "not in authorized path" deviations.
+        // The leading RAMP (parking bridge from D8) must not be flagged as a "not in authorized
+        // path" deviation, and walking A directly to the B1 junction is on cleared taxiways.
         Assert.DoesNotContain(route.Warnings, w => w.Contains("not in authorized path", StringComparison.OrdinalIgnoreCase));
     }
 

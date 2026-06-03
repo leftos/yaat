@@ -193,10 +193,18 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
         }
     }
 
-    // Regression guard for the issue #165 orbit: the SFO E->B junction (node 142) must
-    // not produce a 180-degree U-turn that strands SKW3404 sub-5 kt for an extended
-    // window. The pathfinder resolves the junction cleanly, so the worst stuck episode
-    // outside any hold-short stays well under the 20s threshold.
+    // Regression guard for the issue #165 orbit: the navigator must not strand SKW3404
+    // sub-5 kt for an extended window on a CLEAR path (a 180-degree U-turn / on-axis spin
+    // at a fillet vertex with nothing physically blocking it). The pathfinder resolves the
+    // junctions cleanly, so the worst navigator-internal stuck episode stays well under the
+    // 20s threshold.
+    //
+    // Legitimate reasons to sit below the threshold are exempt: hold-short / lineup / crossing
+    // phases, and a ground-conflict hold (GroundConflictDetector capping Ground.SpeedLimit while
+    // yielding to traffic). On the current vNAS SFO layout the recording's ambient SWA2208 taxis
+    // the reciprocal of SKW3404 down single-lane taxiway A, so the two correctly stop head-on —
+    // that traffic standoff is a routing-deconfliction limitation tracked separately, not the
+    // #165 orbit, and must not be misread as one here.
     [Fact]
     public void Skw3404_DoesNotOrbitDuringTaxi()
     {
@@ -240,7 +248,13 @@ public class Issue165SkwTaxiSpinTests(ITestOutputHelper output)
                 || phaseName.Contains("HoldingAfterPushback", StringComparison.Ordinal)
                 || phaseName.Contains("CrossingRunway", StringComparison.Ordinal);
 
-            if (ac.IndicatedAirspeed < StuckThresholdKts && !atHoldShort)
+            // GroundConflictDetector caps Ground.SpeedLimit below the stuck threshold when this
+            // aircraft is yielding to / stopped for conflicting traffic. That is a legitimate
+            // reason to be slow — distinct from the navigator-internal orbit (clear path, no cap)
+            // this test guards. Exempt it so a genuine traffic standoff is not counted as an orbit.
+            bool conflictHeld = ac.Ground.SpeedLimit is { } speedCap && speedCap < StuckThresholdKts;
+
+            if (ac.IndicatedAirspeed < StuckThresholdKts && !atHoldShort && !conflictHeld)
             {
                 if (consecutiveStuckSec == 0)
                 {
