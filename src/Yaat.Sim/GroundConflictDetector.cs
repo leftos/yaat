@@ -70,6 +70,19 @@ public static class GroundConflictDetector
     private const double FtPerNm = 6076.12;
     private const double ConvergenceLookaheadFt = 1500.0;
     private const double ConvergenceSlowdownFt = 400.0;
+
+    // Convergence ETA gate: skip the slowdown when the nearer aircraft will clear the shared node at
+    // least this many seconds before the farther aircraft reaches it — the crossing is already clear,
+    // so braking the farther aircraft achieves nothing.
+    private const double ConvergenceClearanceBufferSec = 10.0;
+
+    // The nearer aircraft must be moving faster than this for the ETA gate to trust that it clears
+    // first; below it, keep the slowdown (a near-stopped "winner" might not clear in time).
+    private const double ConvergenceMinWinnerSpeedKts = 3.0;
+
+    // Unrestricted taxi speed assumed for the farther aircraft's arrival ETA, so an aircraft already
+    // capped by this rule does not feed its reduced speed back in and oscillate.
+    private const double ConvergenceNominalTaxiSpeedKts = 12.0;
     private const double SearchRangeNm = 0.3;
     private const double SelfPinSpeedEpsilonKts = 0.5;
     private const double SelfPinLimitEpsilonKts = 0.5;
@@ -500,6 +513,28 @@ public static class GroundConflictDetector
         AircraftState yielder = distA > distB ? a : b;
         AircraftState winner = distA > distB ? b : a;
         double yielderDistFt = Math.Max(distAFt, distBFt);
+        double winnerDistFt = Math.Min(distAFt, distBFt);
+
+        // ETA gate: if the nearer aircraft (winner) will clear the shared node well before the
+        // farther aircraft (yielder) reaches it, there is no real conflict at the node — braking the
+        // yielder only slows it for a crossing that is already clear. Estimate the winner's time to
+        // fully clear the node (it must be genuinely moving for this to be trustworthy) and the
+        // yielder's time to arrive at an unrestricted taxi speed (so a yielder already capped by this
+        // rule does not oscillate).
+        if (winner.IndicatedAirspeed > ConvergenceMinWinnerSpeedKts)
+        {
+            double winnerLengthFt = FaaAircraftDatabase.Get(winner.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt;
+            double winnerClearSec = (winnerDistFt + winnerLengthFt) / (winner.IndicatedAirspeed * FtPerNm / 3600.0);
+            double yielderSpeedKts = Math.Max(yielder.IndicatedAirspeed, ConvergenceNominalTaxiSpeedKts);
+            double yielderArriveSec = yielderDistFt / (yielderSpeedKts * FtPerNm / 3600.0);
+            if (yielderArriveSec > winnerClearSec + ConvergenceClearanceBufferSec)
+            {
+                diagnosticLog?.Invoke(
+                    $"  [Convergence] shared node={sharedNodeId.Value}: {winner.Callsign} clears in {winnerClearSec:F0}s, {yielder.Callsign} arrives in {yielderArriveSec:F0}s — no slowdown (clears first)"
+                );
+                return;
+            }
+        }
 
         double limitSpeed;
         if (conflictDistFt <= DefaultStopDistanceFt)
@@ -924,7 +959,7 @@ public static class GroundConflictDetector
         return seg.Edge.DistanceNm;
     }
 
-    private static int? FindSharedUpcomingNode(TaxiRoute routeA, TaxiRoute routeB)
+    internal static int? FindSharedUpcomingNode(TaxiRoute routeA, TaxiRoute routeB)
     {
         double lookaheadNm = ConvergenceLookaheadFt / FtPerNm;
 

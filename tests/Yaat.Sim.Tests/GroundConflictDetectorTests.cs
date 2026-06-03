@@ -234,6 +234,94 @@ public class GroundConflictDetectorTests
         Assert.True(anyLimited, "Expected convergence detection to limit at least one aircraft");
     }
 
+    /// <summary>
+    /// Convergence layout with the two start nodes at very different distances from the shared node:
+    /// N0 (yielder) is ~1000 ft from N2, N1 (winner) is ~150 ft from N2. Used to exercise the ETA
+    /// gate that skips the slowdown when the nearer aircraft clears the shared node first.
+    /// </summary>
+    private static (AirportGroundLayout Layout, GroundNode N0, GroundNode N1, GroundNode N2) BuildAsymmetricConvergenceLayout()
+    {
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        var n2 = new GroundNode
+        {
+            Id = 2,
+            Position = new LatLon(BaseLat, BaseLon),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var n0 = new GroundNode
+        {
+            Id = 0,
+            Position = new LatLon(BaseLat - 10 * OffsetLatPer100Ft, BaseLon),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var n1 = new GroundNode
+        {
+            Id = 1,
+            Position = new LatLon(BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon),
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+
+        var edge02 = new GroundEdge
+        {
+            Nodes = [n0, n2],
+            TaxiwayName = "A",
+            DistanceNm = 1000.0 / FtPerNm,
+        };
+        var edge12 = new GroundEdge
+        {
+            Nodes = [n1, n2],
+            TaxiwayName = "B",
+            DistanceNm = 150.0 / FtPerNm,
+        };
+
+        n0.Edges.Add(edge02);
+        n1.Edges.Add(edge12);
+        n2.Edges.AddRange([edge02, edge12]);
+        layout.Nodes[0] = n0;
+        layout.Nodes[1] = n1;
+        layout.Nodes[2] = n2;
+        layout.Edges.AddRange([edge02, edge12]);
+        layout.RebuildAdjacencyLists();
+        return (layout, n0, n1, n2);
+    }
+
+    [Fact]
+    public void Convergence_NearerAircraftClearsFirst_FartherIsNotSlowed()
+    {
+        var (layout, n0, n1, _) = BuildAsymmetricConvergenceLayout();
+
+        var routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
+        var routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
+
+        // A (yielder) is ~1000 ft from the shared node; B (winner) is ~150 ft and moving fast, so it
+        // clears the node well before A arrives. A must not be slowed.
+        var a = MakeAircraft("A", n0.Position, heading: 0, gs: 8, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft("B", n1.Position, heading: 180, gs: 25, taxiRoute: routeB, phase: new TaxiingPhase());
+
+        GroundConflictDetector.ApplySpeedLimits([a, b], layout);
+
+        Assert.Null(a.Ground.SpeedLimit);
+        Assert.Null(a.Ground.AutoYieldTarget);
+    }
+
+    [Fact]
+    public void Convergence_NearStoppedWinner_FartherStillSlows()
+    {
+        var (layout, n0, n1, _) = BuildAsymmetricConvergenceLayout();
+
+        var routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
+        var routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));
+
+        // The nearer aircraft B is essentially stopped (<= 3 kt), so it cannot be trusted to clear
+        // the node first — the gate keeps the slowdown and the farther aircraft A yields.
+        var a = MakeAircraft("A", n0.Position, heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft("B", n1.Position, heading: 180, gs: 2, taxiRoute: routeB, phase: new TaxiingPhase());
+
+        GroundConflictDetector.ApplySpeedLimits([a, b], layout);
+
+        Assert.NotNull(a.Ground.SpeedLimit);
+    }
+
     [Fact]
     public void Convergence_AnnotatesYielderWithAutoYieldTarget()
     {
