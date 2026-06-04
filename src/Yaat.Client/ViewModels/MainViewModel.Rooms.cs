@@ -789,8 +789,15 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             Radar.ApplyPositionDisplayConfig(config);
-            UpdateRadarWeatherDisplay();
-            UpdateDefaultMetarsIfNoWeather();
+            if (HasActiveWeather)
+            {
+                UpdateRadarWeatherDisplay();
+            }
+            else
+            {
+                // Re-scope the default METARs and weather overlays to the new position's airports.
+                ApplyDefaultWeatherIfNoWeather();
+            }
         });
     }
 

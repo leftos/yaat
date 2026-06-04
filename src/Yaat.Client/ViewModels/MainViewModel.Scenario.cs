@@ -516,7 +516,7 @@ public partial class MainViewModel
         _ = RefreshOnlineControllersAsync();
 
         // With no weather loaded yet, show default standard METARs for the scenario's airports.
-        UpdateDefaultMetarsIfNoWeather();
+        ApplyDefaultWeatherIfNoWeather();
     }
 
     private async Task BootstrapStudentTdlsAsync(string? primaryAirportId)
@@ -593,8 +593,8 @@ public partial class MainViewModel
         // Scenario positions are gone; refresh to leave only live CRC controllers (if any).
         _ = RefreshOnlineControllersAsync();
 
-        // No scenario airports → clear the default METARs.
-        UpdateDefaultMetarsIfNoWeather();
+        // No scenario airports → clear the default METARs and weather overlays.
+        ApplyDefaultWeatherIfNoWeather();
     }
 }
 

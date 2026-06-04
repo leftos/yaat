@@ -253,10 +253,7 @@ public partial class MainViewModel
             if (dto.Name is null)
             {
                 SetActiveWeatherJson(null);
-                _allWeatherInfo = null;
-                Ground.WeatherInfo = null;
-                Radar.WeatherInfo = null;
-                UpdateDefaultMetarsIfNoWeather();
+                ApplyDefaultWeatherIfNoWeather();
             }
             else
             {
@@ -386,25 +383,31 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// When no weather profile is loaded, fills <see cref="Metars"/> with a standard default report
-    /// (calm wind, 10SM, clear, 29.92) for each scenario airport, so the METAR view reflects the
-    /// calm/standard conditions the sim already applies rather than showing nothing. No-op when real
-    /// weather is loaded (its METARs are already set by <see cref="PopulateMetars"/>).
+    /// When no weather profile is loaded, fills the METAR view AND the radar/ground per-airport
+    /// wind/altimeter overlays with a standard default report (calm wind, 10SM, clear, 29.92) for
+    /// each scenario airport, so every weather surface reflects the calm/standard conditions the sim
+    /// already applies rather than showing nothing. No-op when real weather is loaded.
     /// </summary>
-    private void UpdateDefaultMetarsIfNoWeather()
+    private void ApplyDefaultWeatherIfNoWeather()
     {
         if (HasActiveWeather)
         {
             return;
         }
 
-        Metars.Clear();
-        var stamp = DateTime.UtcNow.ToString("ddHHmm", System.Globalization.CultureInfo.InvariantCulture) + "Z";
+        var now = DateTime.UtcNow;
+        var defaults = new List<string>();
         foreach (var icao in CollectScenarioAirportIcaos())
         {
-            var display = (icao.Length == 4) && icao.StartsWith('K') ? icao[1..] : icao;
-            Metars.Add(new MetarEntry(display, $"{icao} {stamp} AUTO 00000KT 10SM CLR A2992"));
+            defaults.Add(DefaultMetar.Build(icao, now));
         }
+
+        PopulateMetars(defaults);
+
+        var allInfo = ExtractAllWeatherDisplay(defaults);
+        _allWeatherInfo = allInfo;
+        Radar.WeatherInfo = FilterWeatherForPosition(allInfo, Radar.WeatherAirports);
+        Ground.WeatherInfo = PickGroundWeather(allInfo, Ground.Layout?.AirportId);
     }
 
     private List<string> CollectScenarioAirportIcaos()

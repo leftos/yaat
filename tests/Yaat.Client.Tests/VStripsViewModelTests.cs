@@ -724,18 +724,52 @@ public class VStripsViewModelTests
     }
 
     [Fact]
-    public void ApplyMetars_ClearedWeather_EmptiesBar()
+    public void ApplyMetars_NoWeather_ShowsDefaultMetar()
     {
+        // No weather loaded → the bar shows the calm/standard default the sim applies for the
+        // facility's airports (matching the desktop METAR panel), rather than hiding.
         var (vm, _) = MakeVm();
+        vm.SetConnected(true);
         SeedBays(vm, ConfigWithAirports("NCT", "SFO"));
         vm.ApplyMetars([MetarSfo]);
         Assert.True(vm.HasMetars);
 
         vm.ApplyMetars([]);
 
+        Assert.True(vm.HasMetars);
+        Assert.Equal(["KSFO"], vm.Metars.Select(m => m.StationId));
+        Assert.Contains("AUTO 00000KT 10SM CLR A2992", vm.PrimaryMetar!.Raw);
+    }
+
+    [Fact]
+    public void ApplyMetars_NoWeather_Disconnected_EmptiesBar()
+    {
+        // Disconnected clients show no live data — the default must not be fabricated.
+        var (vm, _) = MakeVm();
+        vm.SetConnected(true);
+        SeedBays(vm, ConfigWithAirports("NCT", "SFO"));
+        vm.ApplyMetars([]);
+        Assert.True(vm.HasMetars);
+
+        vm.SetConnected(false);
+
         Assert.False(vm.HasMetars);
         Assert.Empty(vm.Metars);
         Assert.Null(vm.PrimaryMetar);
+    }
+
+    [Fact]
+    public void ApplyMetars_NoWeather_EmptyFacilityAirports_StaysEmpty()
+    {
+        // A facility with no resolvable airports has nothing to synthesize a default for.
+        var (vm, _) = MakeVm();
+        vm.SetConnected(true);
+        SeedBays(vm, ConfigWithAirports("NoStars"));
+
+        vm.ApplyMetars([]);
+
+        Assert.False(vm.HasMetars);
+        Assert.Empty(vm.Metars);
     }
 
     // ── Auto-focus on half-strip create ──────────────────────────

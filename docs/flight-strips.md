@@ -602,6 +602,12 @@ not just instructors/RPOs with a radar/METAR window.
   ordered with the primary airport first. Because the airport list rides on
   the per-facility config, the bar follows the facility switcher. With no
   resolvable airports it falls back to showing every loaded METAR.
+- **No-weather default.** When connected with no weather loaded (empty METAR
+  list), `RebuildMetars` synthesizes a standard default report per facility
+  airport via `DefaultMetar.Build` (calm wind, 10SM, clear, 29.92) so the bar
+  matches the desktop METAR panel instead of hiding. Gated on `IsConnected`,
+  so a dropped connection leaves the bar empty rather than fabricating a stale
+  report.
 - **Join seed.** `RoomStateDto` doesn't carry METARs, so
   `TrainingHub.JoinRoom` calls `ITrainingBroadcast.SendInitialWeatherToClientAsync`
   (targeted at the joining connection, mirroring the strip/TDLS initial-state

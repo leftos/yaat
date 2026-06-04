@@ -391,6 +391,19 @@ public partial class VStripsViewModel : ObservableObject
             }
         }
 
+        // No weather loaded → show the calm/standard default the sim applies, one per facility
+        // airport, so the bar matches the desktop METAR panel rather than hiding. Gated on
+        // IsConnected so the disconnect path (which also calls RebuildMetars with empty metars)
+        // leaves the bar empty instead of fabricating a stale report.
+        if (Metars.Count == 0 && IsConnected && _latestMetars.Count == 0 && _facilityAirports.Length > 0)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var airport in _facilityAirports)
+            {
+                Metars.Add(new StripMetarEntry(MetarParser.ToIcao(airport), DefaultMetar.Build(airport, now)));
+            }
+        }
+
         HasMetars = Metars.Count > 0;
         if (!HasMetars)
         {

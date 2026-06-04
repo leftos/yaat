@@ -435,6 +435,7 @@ WeatherTimelineParser.cs       # Static v1/v2 auto-detection parser: checks for 
 WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360),
                                # IasToTas/TasToIas/MachToIas/IasToMach (ISA compressible-flow equations), ComputeWindCorrectionAngle
 MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record
+DefaultMetar.cs                # Static: builds the no-weather default METAR (calm/10SM/CLR/29.92) shared by the METAR panel, radar/ground overlay, vStrips bar
 MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm
 ReportedConditions.cs          # Snapshot of modeled surface weather for one station (true wind, vis, sky/ceiling, altimeter, precip)
 MetarComposer.cs               # Static: reconstructs a reported METAR by patching dynamic groups into a base METAR (AIM 7-1-28)

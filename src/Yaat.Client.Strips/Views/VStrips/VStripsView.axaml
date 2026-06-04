@@ -30,10 +30,11 @@
 
     <Grid RowDefinitions="Auto,36,*">
 
-        <!-- Current-METAR bar (row 0). Visible whenever weather is loaded; shows
-             the displayed facility's airport METARs (the airport for a tower, all
-             underlying airports for a TRACON) so students see the training METAR,
-             not just instructors/RPOs. Collapsed shows the primary airport's raw
+        <!-- Current-METAR bar (row 0). Shows the displayed facility's airport METARs
+             (the airport for a tower, all underlying airports for a TRACON) so students
+             see the training METAR, not just instructors/RPOs. When connected with no
+             weather loaded it shows a standard default report (calm/10SM/CLR/29.92),
+             matching the desktop METAR panel. Collapsed shows the primary airport's raw
              line; the chevron expands to every in-scope airport. -->
         <Border Grid.Row="0"
                 IsVisible="{Binding HasMetars}"
