@@ -113,15 +113,16 @@ public sealed class AtpaProcessor
 
     private static double ComputeRequiredSeparation(AircraftState lead, AircraftState follower, bool twoPointFiveEnabled)
     {
-        if (twoPointFiveEnabled)
-        {
-            return 2.5;
-        }
-
-        // FAA wake turbulence separation based on the LEAD aircraft weight class (TBL 5-5-2).
-        var leadClass = WakeTurbulenceData.WakeClassForType(lead.AircraftType, AircraftCategorization.Categorize(lead.AircraftType));
-        var followerClass = WakeTurbulenceData.WakeClassForType(follower.AircraftType, AircraftCategorization.Categorize(follower.AircraftType));
-        return WakeTurbulenceData.OnApproachSeparationNm(leadClass, followerClass);
+        // FAA CWT mile-based wake separation (7110.65 TBL 5-5-2), floored at the applicable terminal radar
+        // minimum. Wake still binds under reduced 2.5 NM final separation (7110.65 5-5-4 para 10).
+        var radarFloor = twoPointFiveEnabled ? 2.5 : 3.0;
+        var wake = WakeTurbulenceData.OnApproachWakeSeparationNm(
+            lead.AircraftType,
+            AircraftCategorization.Categorize(lead.AircraftType),
+            follower.AircraftType,
+            AircraftCategorization.Categorize(follower.AircraftType)
+        );
+        return Math.Max(radarFloor, wake);
     }
 
     private static bool IsExcludedByTcp(AtpaVolumeConfig volume, AircraftState ac, Dictionary<string, string> tcpCodeByUlid)

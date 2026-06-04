@@ -1975,6 +1975,7 @@ public sealed class SimulationEngine
     private const double SpawnRetryBackoffSeconds = 5.0;
     private const double FinalCorridorHalfWidthNm = 2.0;
     private const double FinalCorridorMarginNm = 3.0;
+    private const double TerminalRadarFloorNm = 3.0;
 
     private void ProcessGenerators(List<AircraftState> spawned)
     {
@@ -2097,18 +2098,20 @@ public sealed class SimulationEngine
 
     /// <summary>
     /// Minimum in-trail gap (nm) the new arrival must sit behind the rearmost aircraft inbound to the
-    /// runway: the larger (binding) of the generator's configured <c>IntervalDistance</c> and the 7110.65
-    /// Table 5-5-2 wake-turbulence minimum for the leader/follower pair. The two constraints bind, they do
-    /// not add — a 5 nm author spacing behind a non-wake leader stays 5 nm, while a heavy leader can widen
-    /// it to the wake minimum.
+    /// runway: the largest (binding) of the generator's configured <c>IntervalDistance</c>, the 3 NM
+    /// terminal radar floor, and the 7110.65 Table 5-5-2 wake-turbulence minimum for the leader/follower
+    /// pair. The constraints bind, they do not add — a 5 nm author spacing behind a non-wake leader stays
+    /// 5 nm, while a heavy leader can widen it to the wake minimum. The follower's specific type is not yet
+    /// chosen at placement time, so the wake floor uses the coarse weight-class minima (the leader's class
+    /// still reflects its CWT category); ATPA spacing uses the precise per-type CWT minima.
     /// </summary>
     private static double SpacingGapNm(GeneratorState gen, AircraftState leader, WeightClass followerWeight)
     {
-        var wakeFloor = WakeTurbulenceData.OnApproachSeparationNm(
+        var wakeFloor = WakeTurbulenceData.OnApproachWakeSeparationNm(
             WakeTurbulenceData.WakeClassForType(leader.AircraftType, AircraftCategorization.Categorize(leader.AircraftType)),
             WakeClassForWeight(followerWeight)
         );
-        return Math.Max(gen.Config.IntervalDistance, wakeFloor);
+        return Math.Max(gen.Config.IntervalDistance, Math.Max(TerminalRadarFloorNm, wakeFloor));
     }
 
     private static WakeTurbulenceData.WakeClass WakeClassForWeight(WeightClass weight) =>

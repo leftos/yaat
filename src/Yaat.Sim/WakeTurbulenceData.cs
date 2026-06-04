@@ -44,8 +44,8 @@ public static class WakeTurbulenceData
             return cwt switch
             {
                 "A" => WakeClass.Super, // Super (A388)
-                "B" or "C" => WakeClass.Heavy, // Heavy (B77W, B763)
-                "D" or "E" or "F" or "G" => WakeClass.Large, // B757, Large, Upper/Lower Medium
+                "B" or "C" or "D" => WakeClass.Heavy, // Heavy widebodies (B77W, B763, B744/A339/IL76)
+                "E" or "F" or "G" => WakeClass.Large, // B757 (E), Upper/Lower Large, regional jets (G)
                 "H" or "I" => WakeClass.Small, // Upper Small, Small
                 _ => WakeClass.Large,
             };
@@ -60,26 +60,97 @@ public static class WakeTurbulenceData
     }
 
     /// <summary>
-    /// FAA wake-turbulence radar separation required on final approach (7110.65 TBL 5-5-2), in nm,
-    /// for a follower behind a leader. Baseline (no wake constraint) is the 3 nm terminal radar floor.
+    /// On-approach wake-turbulence separation (nm) a FOLLOWER must trail a LEADER to the same runway,
+    /// using the FAA CWT (Consolidated Wake Turbulence) mile-based minima in 7110.65 TBL 5-5-2, keyed by
+    /// each aircraft's CWT category (A-I) when both are known. The mile-based CWT minima are tighter and
+    /// more efficient than the legacy weight-class minima and are authorized by the .65. Returns 0 when
+    /// the pair carries no wake requirement (the caller applies its own radar minimum — 3 NM, or 2.5 NM on
+    /// final under FUSION). Falls back to the coarse weight-class minima when a CWT category is unavailable.
     /// </summary>
-    public static double OnApproachSeparationNm(WakeClass lead, WakeClass follower) =>
+    public static double OnApproachWakeSeparationNm(
+        string leaderType,
+        AircraftCategory leaderCategory,
+        string followerType,
+        AircraftCategory followerCategory
+    )
+    {
+        var leadCwt = GetCwt(leaderType);
+        var followCwt = GetCwt(followerType);
+        if (leadCwt is not null && followCwt is not null)
+        {
+            // Both CWT categories known: use the precise TBL 5-5-2 cell (a pair absent from the table
+            // carries no wake requirement).
+            return CwtOnApproachMinimaNm.TryGetValue((leadCwt[0], followCwt[0]), out var nm) ? nm : 0.0;
+        }
+
+        // Fall back to the coarse weight-class minima when a CWT category is unavailable.
+        return OnApproachWakeSeparationNm(WakeClassForType(leaderType, leaderCategory), WakeClassForType(followerType, followerCategory));
+    }
+
+    /// <summary>
+    /// Coarse legacy weight-class on-approach wake separation (nm), 0 when none is required. Used as the
+    /// fallback when a CWT category is unavailable, and directly when only a weight class is known (e.g.
+    /// the arrival generator, whose follower type is not yet chosen).
+    /// </summary>
+    public static double OnApproachWakeSeparationNm(WakeClass lead, WakeClass follower) =>
         lead switch
         {
             WakeClass.Super => follower switch
             {
                 WakeClass.Small => 8.0,
                 WakeClass.Large => 7.0,
-                _ => 6.0,
+                WakeClass.Heavy => 6.0,
+                _ => 0.0,
             },
             WakeClass.Heavy => follower switch
             {
                 WakeClass.Small => 6.0,
                 WakeClass.Large => 5.0,
-                _ => 4.0,
+                WakeClass.Heavy => 4.0,
+                _ => 0.0,
             },
-            _ => 3.0,
+            _ => 0.0,
         };
+
+    /// <summary>
+    /// FAA CWT on-approach wake minima (7110.65 TBL 5-5-2): minimum miles a follower must trail a leader,
+    /// keyed by their CWT category pair (leader, follower). Pairs absent from the table carry no wake
+    /// requirement (the standard terminal radar minimum applies).
+    /// </summary>
+    private static readonly Dictionary<(char Lead, char Follow), double> CwtOnApproachMinimaNm = new()
+    {
+        [('A', 'B')] = 5.0,
+        [('A', 'C')] = 6.0,
+        [('A', 'D')] = 6.0,
+        [('A', 'E')] = 7.0,
+        [('A', 'F')] = 7.0,
+        [('A', 'G')] = 7.0,
+        [('A', 'H')] = 8.0,
+        [('A', 'I')] = 8.0,
+        [('B', 'B')] = 3.0,
+        [('B', 'C')] = 4.0,
+        [('B', 'D')] = 4.0,
+        [('B', 'E')] = 5.0,
+        [('B', 'F')] = 5.0,
+        [('B', 'G')] = 5.0,
+        [('B', 'H')] = 5.0,
+        [('B', 'I')] = 6.0,
+        [('C', 'E')] = 3.5,
+        [('C', 'F')] = 3.5,
+        [('C', 'G')] = 3.5,
+        [('C', 'H')] = 5.0,
+        [('C', 'I')] = 6.0,
+        [('D', 'B')] = 3.0,
+        [('D', 'C')] = 4.0,
+        [('D', 'D')] = 4.0,
+        [('D', 'E')] = 5.0,
+        [('D', 'F')] = 5.0,
+        [('D', 'G')] = 5.0,
+        [('D', 'H')] = 6.0,
+        [('D', 'I')] = 6.0,
+        [('E', 'I')] = 4.0,
+        [('F', 'I')] = 4.0,
+    };
 
     /// <summary>
     /// Max visual detection range (nm) for a target aircraft — the distance at which
