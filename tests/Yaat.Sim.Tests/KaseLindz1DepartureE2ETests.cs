@@ -186,4 +186,132 @@ public class KaseLindz1DepartureE2ETests
         Assert.NotEqual("DepartureProcedure", ac.Phases.CurrentPhase?.Name);
         Assert.Contains(ac.Targets.NavigationRoute, n => n.Name == "JNC");
     }
+
+    /// <summary>
+    /// Full pipeline from a standing start on the runway: ground roll → rotate → initial climb →
+    /// the charted VA/VI/CF procedure → enroute transition, driven through the real phase runner and
+    /// FlightPhysics. Proves the whole departure flow (not just the climb segment) flies LINDZ1 as
+    /// charted.
+    /// </summary>
+    [Fact]
+    public void FullDeparture_FromTakeoffRoll_FliesLindz1AsCharted()
+    {
+        var rwy = Kase33();
+        if (rwy is null)
+        {
+            _output.WriteLine("KASE RWY33 not in test nav data — skipping.");
+            return;
+        }
+
+        // Lined up at the runway 33 threshold, stationary, ready for takeoff.
+        var ac = new AircraftState
+        {
+            Callsign = "UAL456",
+            AircraftType = "B738",
+            Position = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude),
+            TrueHeading = rwy.TrueHeading,
+            Altitude = rwy.ElevationFt,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KASE",
+                Destination = "KSFO",
+                Route = "LINDZ1 LINDZ JNC BEVRR KATTS INYOE DYAMD5",
+                CruiseAltitude = 33000,
+                FlightRules = "IFR",
+            },
+        };
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+
+        var holding = new HoldingInPositionPhase();
+        ac.Phases.Add(holding);
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var cto = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holding,
+            ClearanceType.ClearedForTakeoff,
+            new DefaultDeparture(),
+            assignedAltitude: null,
+            NullLogger.Instance
+        );
+        Assert.True(cto.Success, cto.Message);
+
+        var cat = AircraftCategorization.Categorize(ac.AircraftType);
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = cat,
+            DeltaSeconds = 1.0,
+            Runway = rwy,
+            FieldElevation = rwy.ElevationFt,
+            Logger = NullLogger.Instance,
+        };
+        ac.Phases.SkipTo<TakeoffPhase>(ctx);
+
+        var lindzPos = NavigationDatabase.Instance.GetFixPosition("LINDZ");
+        Assert.NotNull(lindzPos);
+        var lindz = new LatLon(lindzPos!.Value.Lat, lindzPos.Value.Lon);
+        double rwyTrue = rwy.TrueHeading.Degrees;
+
+        bool becameAirborne = false;
+        var phaseSeq = new List<string>();
+        var samples = new List<(int T, double Alt, double Hdg, double Tgt, double Dist)>();
+
+        for (int t = 0; t < 420; t++)
+        {
+            PhaseRunner.Tick(ac, ctx);
+            FlightPhysics.Update(ac, 1.0, null, null);
+
+            string phase = ac.Phases.CurrentPhase?.Name ?? "(none)";
+            if (phaseSeq.Count == 0 || phaseSeq[^1] != phase)
+            {
+                phaseSeq.Add(phase);
+            }
+            if (!ac.IsOnGround)
+            {
+                becameAirborne = true;
+            }
+
+            double tgt = ac.Targets.TargetTrueHeading?.Degrees ?? -1;
+            double dist = GeoMath.DistanceNm(ac.Position, lindz);
+            samples.Add((t, ac.Altitude, ac.TrueHeading.Degrees, tgt, dist));
+            if (t % 20 == 0)
+            {
+                _output.WriteLine(
+                    $"t={t, 3} {phase, -18} grnd={(ac.IsOnGround ? 'Y' : 'N')} alt={ac.Altitude, 6:F0} hdg={ac.TrueHeading.Degrees, 3:F0} ias={ac.IndicatedAirspeed, 3:F0} distLINDZ={dist:F1}"
+                );
+            }
+            if (ac.Targets.NavigationRoute.Count > 0 && phase is not ("DepartureProcedure" or "InitialClimb" or "Takeoff"))
+            {
+                break;
+            }
+        }
+
+        // Flew the full phase progression from the ground roll.
+        Assert.True(becameAirborne, "aircraft never lifted off");
+        Assert.Contains("Takeoff", phaseSeq);
+        Assert.Contains("InitialClimb", phaseSeq);
+        Assert.Contains("DepartureProcedure", phaseSeq);
+
+        double decl = ac.Declination;
+        double viTrue = new MagneticHeading(273).ToTrue(decl).Degrees;
+        double cfTrue = new MagneticHeading(303).ToTrue(decl).Degrees;
+
+        // Climbed to ≥9100 before the climbing LEFT turn (not a direct-to-LINDZ turn at 400 AGL).
+        var leftTurn = samples.FirstOrDefault(s => !ac.IsOnGround && s.Alt > rwy.ElevationFt + 600 && s.Hdg < rwyTrue - 10);
+        Assert.True(leftTurn.Dist > 0, "aircraft never started the left turn");
+        Assert.True(leftTurn.Alt >= 9100, $"left turn began at {leftTurn.Alt:F0} ft — should be ≥9100 (VA gate)");
+
+        // Flew the 273° leg, then intercepted and tracked the 303° back course to LINDZ.
+        Assert.Contains(samples, s => Math.Abs(s.Tgt - viTrue) < 6 && s.Alt >= 9100);
+        Assert.Contains(samples, s => Math.Abs(s.Tgt - cfTrue) < 6);
+        Assert.True(samples[^1].Dist < 0.6, $"never reached LINDZ — closest {samples.Min(s => s.Dist):F2} nm");
+
+        // Handed off to the enroute transition after overflying LINDZ.
+        Assert.NotEqual("DepartureProcedure", ac.Phases.CurrentPhase?.Name);
+        Assert.Contains(ac.Targets.NavigationRoute, n => n.Name == "JNC");
+    }
 }
