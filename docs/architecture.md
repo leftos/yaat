@@ -578,6 +578,7 @@ CrossingRunwayPhase / HoldingAfterExitPhase / FollowingPhase
 GroundNavigator.cs           # Core ground nav: closed-form arc playback (plays the real cubic Bezier), pure-pursuit tracking, turn-rate-feasibility corner-speed cap, entry-alignment rounding, orbit invariant
 RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
+ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-short of a taxiway sitting closer than its own length past a crossed runway) forward until just clear (½ length past the bars), then holds
 
 # Pilot/ — solo-training pilot AI (deterministic readbacks)
 Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → spoken-English readback string.

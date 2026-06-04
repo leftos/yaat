@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.0-beta [2026/06/04]
+
+### Highlights
+- Command run delay — optionally make aircraft pause a configurable random moment before complying with each instruction, simulating pilot readback time (off by default).
+- Aircraft now read back taxi clearances aloud — route, hold-shorts, runway crossings, and destination — instead of taxiing silently.
+- Generated arrivals now pick airlines in proportion to each airport's real traffic, so dominant carriers appear about as often as they actually arrive.
+- More font-size controls (Settings → Display): separate Terminal and Interface sizes, plus Strips and vTDLS page zoom, remembered across restarts.
 
 ### Added
 - **Command run delay** — optionally make aircraft take a configurable random delay before complying with each instruction (Settings > General or the command-bar flyout), simulating pilot readback/setup time; off by default, with an immediate "complying in Ns" acknowledgement.
