@@ -756,6 +756,8 @@ RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. 
                                # static fn. Drives the switch in both SimulationEngine.ReplayCommand and the server's
                                # RecordingManager.ReplayCommand so the parse-and-decide flow stays in lockstep across repos.
                                # Compound is the default arm — both single-parse failure and the catch-all route to it.
+                               # Timer / HFR / REL replay kinds route to TimerCommandReplayer + HeldReleaseService.
+TimerCommandReplayer.cs        # Replay-time TIMER apply (set/cancel ActiveTimers on SimScenarioState); live dispatch in RoomEngine
 RecordingCompression.cs        # Brotli compress/decompress; auto-detects Brotli, gzip, or plain JSON on read
 RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loading, layout reading, seek API
                                # ToBaseSessionRecording (no snapshots), FindNearestSnapshotIndex, ReadSnapshotAt, ReadArtccConfigJson
