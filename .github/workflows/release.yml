@@ -345,7 +345,8 @@ jobs:
             --mainExe Yaat.Client
             --packTitle "YAAT Client"
             --icon "$ICNS_PATH"
-            --bundleId dev.leftos.yaat
+            # No --bundleId: vpk rejects it alongside --plist ("choose one").
+            # CFBundleIdentifier lives in the plist (dev.leftos.yaat).
             --plist "$PLIST_PATH"
             --outputDir releases
           )
