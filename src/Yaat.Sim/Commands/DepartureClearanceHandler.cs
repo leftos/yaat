@@ -14,7 +14,8 @@ internal sealed record DepartureRouteResult(
     string? SidId,
     double? DepartureHeadingMagnetic = null,
     bool RvSidDeferHeadingUntilMinAlt = false,
-    bool RvSidHoldRunwayHeading = false
+    bool RvSidHoldRunwayHeading = false,
+    List<ProcedureLeg>? ProcedureLegs = null
 );
 
 internal static class DepartureClearanceHandler
@@ -366,6 +367,7 @@ internal static class DepartureClearanceHandler
                 SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
                 RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,
                 RvSidHoldRunwayHeading = routeResult?.RvSidHoldRunwayHeading ?? false,
+                DepartureProcedureLegs = routeResult?.ProcedureLegs,
                 IsVfr = aircraft.FlightPlan.IsVfr,
                 CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
             };
@@ -822,7 +824,12 @@ internal static class DepartureClearanceHandler
         AppendPostSidEnrouteFixes(targets, routeTokens, sid, targets[^1].Name);
         StripNearDepartureTargets(targets, aircraft.FlightPlan.Departure);
 
-        return targets.Count > 0 ? new DepartureRouteResult(targets, sid.ProcedureId) : null;
+        // Typed legs preserve the VA/VI/VM/CA heading legs and course-tracked CF that the flat
+        // resolver drops. Non-null only when the SID actually has coded heading/intercept legs;
+        // plain TF/CF SIDs keep the flat direct-to-fix path unchanged.
+        var procedureLegs = ProcedureLegResolver.ExtractActiveDepartureLegs(ProcedureLegResolver.Resolve(orderedLegs));
+
+        return targets.Count > 0 ? new DepartureRouteResult(targets, sid.ProcedureId, ProcedureLegs: procedureLegs) : null;
     }
 
     /// <summary>
@@ -1244,6 +1251,7 @@ internal static class DepartureClearanceHandler
             SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = routeResult?.RvSidDeferHeadingUntilMinAlt ?? false,
             RvSidHoldRunwayHeading = routeResult?.RvSidHoldRunwayHeading ?? false,
+            DepartureProcedureLegs = routeResult?.ProcedureLegs,
             IsVfr = aircraft.FlightPlan.IsVfr,
             CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
         };

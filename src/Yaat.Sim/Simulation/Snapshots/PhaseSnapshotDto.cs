@@ -232,6 +232,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(ProcedureTurnPhaseDto), "ProcedureTurn")]
 [JsonDerivedType(typeof(ApproachNavigationPhaseDto), "ApproachNavigation")]
 [JsonDerivedType(typeof(InterceptCoursePhaseDto), "InterceptCourse")]
+[JsonDerivedType(typeof(DepartureProcedurePhaseDto), "DepartureProcedure")]
 public abstract class PhaseDto
 {
     public required int Status { get; init; }
@@ -563,6 +564,8 @@ public sealed class InitialClimbPhaseDto : PhaseDto
     public required double RvSidHandoffElapsed { get; init; } = 0.0;
     public bool RvSidDeferHeadingUntilMinAlt { get; init; }
     public bool RvSidHoldRunwayHeading { get; init; }
+    public List<ProcedureLegDto>? DepartureProcedureLegs { get; init; }
+    public bool ProceduralDeparture { get; init; }
 }
 
 public sealed class LineUpPhaseDto : PhaseDto
@@ -809,4 +812,17 @@ public sealed class InterceptCoursePhaseDto : PhaseDto
     public double? RunwayHeadingCacheDeg { get; init; }
     public required bool ApproachSpeedSet { get; init; }
     public required bool ForcedIntercept { get; init; }
+}
+
+public sealed class DepartureProcedurePhaseDto : PhaseDto
+{
+    public required List<ProcedureLegDto> Legs { get; init; }
+    public required List<NavigationTargetDto> PostRoute { get; init; }
+    public int? AssignedAltitude { get; init; }
+    public required int CruiseAltitude { get; init; }
+    public required int LegIndex { get; init; }
+    public required bool Overridden { get; init; }
+    public LatLon? LegEntryPosition { get; init; }
+    public double? PreviousSignedCrossTrack { get; init; }
+    public double LegElapsedSeconds { get; init; }
 }

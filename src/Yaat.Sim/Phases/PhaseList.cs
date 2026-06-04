@@ -392,6 +392,7 @@ public sealed class PhaseList
             ProcedureTurnPhaseDto d => ProcedureTurnPhase.FromSnapshot(d),
             ApproachNavigationPhaseDto d => ApproachNavigationPhase.FromSnapshot(d),
             InterceptCoursePhaseDto d => InterceptCoursePhase.FromSnapshot(d),
+            DepartureProcedurePhaseDto d => DepartureProcedurePhase.FromSnapshot(d),
             _ => throw new InvalidOperationException($"Unknown phase DTO type: {dto.GetType().Name}"),
         };
 

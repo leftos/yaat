@@ -41,6 +41,10 @@ public sealed class InitialClimbPhase : Phase
     private bool _rvSidActive;
     private double _rvSidHandoffElapsed;
 
+    // Typed-leg SID (VA/VI/CF…): hold runway heading to the TERPS gate, then hand off to
+    // DepartureProcedurePhase to fly the coded legs. Derived in OnStart; snapshotted for replay.
+    private bool _proceduralDeparture;
+
     public override string Name => "InitialClimb";
 
     public override PhaseDto ToSnapshot() =>
@@ -70,6 +74,8 @@ public sealed class InitialClimbPhase : Phase
             RvSidHandoffElapsed = _rvSidHandoffElapsed,
             RvSidDeferHeadingUntilMinAlt = RvSidDeferHeadingUntilMinAlt,
             RvSidHoldRunwayHeading = RvSidHoldRunwayHeading,
+            DepartureProcedureLegs = DepartureProcedureLegs?.Select(l => l.ToSnapshot()).ToList(),
+            ProceduralDeparture = _proceduralDeparture,
         };
 
     public static InitialClimbPhase FromSnapshot(InitialClimbPhaseDto dto)
@@ -87,6 +93,7 @@ public sealed class InitialClimbPhase : Phase
             SidDepartureHeadingMagnetic = dto.SidDepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = dto.RvSidDeferHeadingUntilMinAlt,
             RvSidHoldRunwayHeading = dto.RvSidHoldRunwayHeading,
+            DepartureProcedureLegs = dto.DepartureProcedureLegs?.Select(ProcedureLeg.FromSnapshot).ToList(),
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
@@ -103,6 +110,7 @@ public sealed class InitialClimbPhase : Phase
         phase._deferredTurnApplied = dto.VfrTurnApplied;
         phase._rvSidActive = dto.RvSidActive;
         phase._rvSidHandoffElapsed = dto.RvSidHandoffElapsed;
+        phase._proceduralDeparture = dto.ProceduralDeparture;
         return phase;
     }
 
@@ -140,6 +148,13 @@ public sealed class InitialClimbPhase : Phase
     /// </summary>
     public bool RvSidHoldRunwayHeading { get; init; }
 
+    /// <summary>
+    /// Coded leading SID legs (VA/VI/VM/CA/CF) to fly via <see cref="DepartureProcedurePhase"/>.
+    /// When set, InitialClimb holds runway heading to the TERPS gate, then spawns the procedure
+    /// phase and completes instead of turning direct to the first fix.
+    /// </summary>
+    public List<ProcedureLeg>? DepartureProcedureLegs { get; init; }
+
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
@@ -174,13 +189,17 @@ public sealed class InitialClimbPhase : Phase
             _rvSidActive = true;
         }
 
+        // Typed-leg SID needs an assigned runway to anchor the TERPS gate; without one
+        // (e.g. cleared present position) fall back to the flat direct-to-fix route.
+        _proceduralDeparture = DepartureProcedureLegs is { Count: > 0 } && ctx.Runway is not null;
+
         // Defer the assigned departure turn until the aircraft is past the DER AND at
         // a safe minimum altitude. VFR uses pattern altitude − 300 ft (AIM 4-3-2); IFR
         // uses field elevation + 400 ft (TERPS criterion — IFR ODP design assumes no
         // turns below 400 ft above DER). RV SIDs with a CA/track leg before the VM leg
         // also defer the vectors heading until that gate (runway heading until ~400 ft AGL).
         bool rvDeferVectorsHeading = isRvSid && RvSidDeferHeadingUntilMinAlt && ctx.Runway is not null;
-        bool deferTurn = ctx.Runway is not null && (DepartureRequiresTurn() || rvDeferVectorsHeading);
+        bool deferTurn = ctx.Runway is not null && (DepartureRequiresTurn() || rvDeferVectorsHeading || _proceduralDeparture);
         if (deferTurn)
         {
             _deferredTurnApplied = false;
@@ -190,7 +209,7 @@ public sealed class InitialClimbPhase : Phase
             _deferredTurnAltitude = IsVfr
                 ? _fieldElevation + CategoryPerformance.PatternAltitudeAgl(ctx.Category) - VfrPatternAltMarginFt
                 : _fieldElevation + IfrTurnAglFloor;
-            if (rvDeferVectorsHeading)
+            if (rvDeferVectorsHeading || _proceduralDeparture)
             {
                 ctx.Targets.TargetTrueHeading = _runwayHeading;
             }
@@ -246,6 +265,11 @@ public sealed class InitialClimbPhase : Phase
             if (pastDer && altReached)
             {
                 _deferredTurnApplied = true;
+                if (_proceduralDeparture)
+                {
+                    SpawnDepartureProcedure(ctx);
+                    return true;
+                }
                 ApplyDepartureTurn(ctx);
             }
         }
@@ -271,7 +295,12 @@ public sealed class InitialClimbPhase : Phase
         bool altitudeDone = _phaseCompletionAltitude is null || ctx.Aircraft.Altitude >= _phaseCompletionAltitude.Value;
 
         bool complete;
-        if (_rvSidActive)
+        if (_proceduralDeparture)
+        {
+            // Only the TERPS-gate hand-off to DepartureProcedurePhase (return true above) ends this phase.
+            complete = false;
+        }
+        else if (_rvSidActive)
         {
             complete = false;
         }
@@ -383,6 +412,27 @@ public sealed class InitialClimbPhase : Phase
     private bool DepartureRequiresTurn()
     {
         return Departure is not (null or DefaultDeparture or RunwayHeadingDeparture);
+    }
+
+    /// <summary>
+    /// Hand off to <see cref="DepartureProcedurePhase"/> to fly the coded SID legs. Inserted
+    /// immediately after this phase so it becomes active when InitialClimb completes at the gate.
+    /// </summary>
+    private void SpawnDepartureProcedure(PhaseContext ctx)
+    {
+        var proc = new DepartureProcedurePhase
+        {
+            Legs = DepartureProcedureLegs!,
+            PostRoute = DepartureRoute ?? [],
+            AssignedAltitude = AssignedAltitude,
+            CruiseAltitude = CruiseAltitude,
+        };
+        ctx.Aircraft.Phases?.InsertAfterCurrent(proc);
+        Log.LogDebug(
+            "[InitialClimb] {Callsign}: TERPS gate reached, handing off to DepartureProcedurePhase ({Count} coded legs)",
+            ctx.Aircraft.Callsign,
+            DepartureProcedureLegs!.Count
+        );
     }
 
     /// <summary>

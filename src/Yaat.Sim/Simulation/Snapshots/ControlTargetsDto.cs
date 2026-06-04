@@ -47,3 +47,17 @@ public sealed class SpeedRestrictionDto
     public required int Type { get; init; }
     public required int Speed { get; init; }
 }
+
+public sealed class ProcedureLegDto
+{
+    public required int Type { get; init; }
+    public string? FixName { get; init; }
+    public LatLon? FixPosition { get; init; }
+    public double? CourseMagnetic { get; init; }
+    public double? TargetAltitudeFt { get; init; }
+    public bool TerminatesOnNextLegIntercept { get; init; }
+    public string? Turn { get; init; }
+    public AltitudeRestrictionDto? AltitudeRestriction { get; init; }
+    public SpeedRestrictionDto? SpeedRestriction { get; init; }
+    public required bool IsFlyOver { get; init; }
+}

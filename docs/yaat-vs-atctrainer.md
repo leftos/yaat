@@ -182,6 +182,8 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 
 After liftoff, the assigned departure turn is deferred until the aircraft is past the departure end of runway AND at or above the minimum safe altitude — pattern altitude − 300 ft for VFR (AIM 4-3-2) or 400 ft above field elevation for IFR (TERPS criterion). ATCTrainer applies the turn immediately at Vr.
 
+YAAT also flies charted SID legs coded as headings or courses rather than fixes. A departure such as the **LINDZ ONE** out of Aspen ("climb heading 343° to 9100, then climbing left turn to 273° to intercept the I-PKN back course to LINDZ") climbs to the charted altitude before turning, flies the charted turn, then intercepts and tracks the published course to the fix — handing off to the normal route once the coded legs are flown. ATCTrainer flies straight out on runway heading and cannot make the turn or join the back course.
+
 ### Approach
 
 | Command | ATCTrainer | YAAT | Difference |
