@@ -179,9 +179,44 @@ function Read-CsvRows {
     }
 }
 
-function Read-OpenFlightsAirlines {
-    param([Parameter(Mandatory = $true)][string]$Path)
+function Test-AirlineNameConsistent {
+    param([string]$A, [string]$B)
 
+    if ([string]::IsNullOrWhiteSpace($A) -or [string]::IsNullOrWhiteSpace($B)) {
+        return $false
+    }
+
+    $na = ($A -replace '[^a-zA-Z0-9]', '').ToLowerInvariant()
+    $nb = ($B -replace '[^a-zA-Z0-9]', '').ToLowerInvariant()
+    if ($na -eq $nb) {
+        return $true
+    }
+    if ($na.Length -ge 4 -and $nb.Length -ge 4) {
+        if ($na.StartsWith($nb) -or $nb.StartsWith($na) -or $na.Contains($nb) -or $nb.Contains($na)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Read-OpenFlightsAirlines {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][hashtable]$FleetNames
+    )
+
+    # OpenFlights reuses 2-letter IATA codes across defunct and current carriers, and the file lists
+    # multiple airlines per code. A naive last-wins map lets a defunct foreign carrier shadow the real one
+    # (e.g. "8C" -> Shanxi Airlines [inactive] -> ICAO CXI, displayed under airline-fleets.json's Corendon;
+    # "N3" -> Omskavia [inactive] -> OMS displayed as SalamAir). Two guards fix this:
+    #   1. Trust an INACTIVE airline's mapping only when its name matches the curated fleet airline that
+    #      would actually be displayed for that ICAO. This drops the mislabels and lets the correct
+    #      inactive-but-real carrier win the code (8C -> ATN / Air Transport International).
+    #   2. Prefer a mapping whose ICAO is a curated (displayable) fleet airline over one that is not, so a
+    #      real US carrier keeps its code when that code is also an active foreign airline YAAT does not
+    #      model (e.g. "EM" -> Empire Airlines, not the unmodeled active alternative). Among equally-curated
+    #      candidates, last wins (file order); the curated overrides applied later always take precedence.
     $map = @{}
     $parser = [Microsoft.VisualBasic.FileIO.TextFieldParser]::new($Path)
     try {
@@ -194,11 +229,27 @@ function Read-OpenFlightsAirlines {
                 continue
             }
 
+            $name = $fields[1]
             $iata = $fields[3]
             $icao = $fields[4]
-            if (![string]::IsNullOrWhiteSpace($iata) -and $iata -ne "\N" -and ![string]::IsNullOrWhiteSpace($icao) -and $icao -ne "\N") {
-                $map[$iata.Trim().ToUpperInvariant()] = $icao.Trim().ToUpperInvariant()
+            $activeFlag = if ($fields.Length -ge 8) { $fields[7] } else { "Y" }
+            if ([string]::IsNullOrWhiteSpace($iata) -or $iata -eq "\N" -or [string]::IsNullOrWhiteSpace($icao) -or $icao -eq "\N") {
+                continue
             }
+
+            $iataU = $iata.Trim().ToUpperInvariant()
+            $icaoU = $icao.Trim().ToUpperInvariant()
+            $isActive = ($activeFlag.Trim().ToUpperInvariant() -eq "Y")
+
+            if (-not $isActive -and -not (Test-AirlineNameConsistent $name $FleetNames[$icaoU])) {
+                continue
+            }
+
+            if ($map.ContainsKey($iataU) -and $FleetNames.ContainsKey($map[$iataU]) -and -not $FleetNames.ContainsKey($icaoU)) {
+                continue
+            }
+
+            $map[$iataU] = $icaoU
         }
     }
     finally {
@@ -473,16 +524,20 @@ if ($BtsSegmentFiles.Count -eq 0) {
 }
 
 $airportInfo = Read-OurAirports $ourAirportsPath
-$carrierMap = Read-OpenFlightsAirlines $openFlightsAirlinesPath
-$overrides = Get-CarrierOverrides
-foreach ($key in $overrides.Keys) {
-    $carrierMap[$key] = $overrides[$key]
-}
 
 $fleetJson = Get-Content -Path "src/Yaat.Sim/Data/airline-fleets.json" -Raw | ConvertFrom-Json
 $knownFleetAirlines = @{}
+$fleetNames = @{}
 foreach ($property in $fleetJson.by_airline.PSObject.Properties) {
-    $knownFleetAirlines[$property.Name.ToUpperInvariant()] = $true
+    $icaoKey = $property.Name.ToUpperInvariant()
+    $knownFleetAirlines[$icaoKey] = $true
+    $fleetNames[$icaoKey] = $property.Value.name
+}
+
+$carrierMap = Read-OpenFlightsAirlines -Path $openFlightsAirlinesPath -FleetNames $fleetNames
+$overrides = Get-CarrierOverrides
+foreach ($key in $overrides.Keys) {
+    $carrierMap[$key] = $overrides[$key]
 }
 
 $targetSet = @{}
