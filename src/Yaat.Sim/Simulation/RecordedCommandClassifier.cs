@@ -45,6 +45,10 @@ public enum RecordedCommandKind
     AcceptAllHandoffs,
     InitiateHandoffAll,
     Note,
+    Timer,
+    HoldForRelease,
+    DisarmHoldForRelease,
+    ReleaseDeparture,
 }
 
 public static class RecordedCommandClassifier
@@ -90,6 +94,10 @@ public static class RecordedCommandClassifier
             AcceptAllHandoffsCommand => new Classification(RecordedCommandKind.AcceptAllHandoffs, parsed),
             InitiateHandoffAllCommand => new Classification(RecordedCommandKind.InitiateHandoffAll, parsed),
             NoteCommand => new Classification(RecordedCommandKind.Note, parsed),
+            TimerCommand => new Classification(RecordedCommandKind.Timer, parsed),
+            HoldForReleaseCommand => new Classification(RecordedCommandKind.HoldForRelease, parsed),
+            DisarmHoldForReleaseCommand => new Classification(RecordedCommandKind.DisarmHoldForRelease, parsed),
+            ReleaseDepartureCommand => new Classification(RecordedCommandKind.ReleaseDeparture, parsed),
             _ => new Classification(RecordedCommandKind.Compound, parsed),
         };
     }

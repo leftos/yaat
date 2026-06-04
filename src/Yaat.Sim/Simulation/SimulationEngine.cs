@@ -2856,6 +2856,38 @@ public sealed class SimulationEngine
                 World.RemoveAircraft(cmd.Callsign);
                 return;
 
+            case RecordedCommandKind.Timer:
+                if (Scenario is not null && parsed is TimerCommand timerCmd)
+                {
+                    TimerCommandReplayer.Apply(timerCmd, Scenario, World, cmd.Callsign);
+                }
+
+                return;
+
+            case RecordedCommandKind.HoldForRelease:
+                if (Scenario is not null && parsed is HoldForReleaseCommand hfr)
+                {
+                    HeldReleaseService.Arm(Scenario, World, hfr.Airport);
+                }
+
+                return;
+
+            case RecordedCommandKind.DisarmHoldForRelease:
+                if (Scenario is not null && parsed is DisarmHoldForReleaseCommand hfrOff)
+                {
+                    HeldReleaseService.Disarm(Scenario, World, hfrOff.Airport);
+                }
+
+                return;
+
+            case RecordedCommandKind.ReleaseDeparture:
+                if (Scenario is not null && parsed is ReleaseDepartureCommand rel)
+                {
+                    HeldReleaseService.Release(Scenario, World, World.Rng, rel.Target, rel.IntervalSeconds);
+                }
+
+                return;
+
             case RecordedCommandKind.Coordination:
                 // RD/RDH/RDR/RDACK/RDAUTO mutate state owned by yaat-server only.
                 _logger.LogDebug("Replay: skipping coordination command {Cmd} for {Callsign} (no Sim-side handler)", cmd.Command, cmd.Callsign);
