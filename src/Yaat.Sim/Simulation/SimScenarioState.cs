@@ -245,7 +245,6 @@ public sealed class SimScenarioState
                             ConfigJson = JsonSerializer.Serialize(g.Config),
                             Runway = g.Runway.ToSnapshot(),
                             NextSpawnSeconds = g.NextSpawnSeconds,
-                            NextSpawnDistance = g.NextSpawnDistance,
                             IsExhausted = g.IsExhausted,
                         })
                         .ToList()

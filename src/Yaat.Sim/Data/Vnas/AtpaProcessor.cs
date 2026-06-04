@@ -118,57 +118,10 @@ public sealed class AtpaProcessor
             return 2.5;
         }
 
-        // FAA wake turbulence separation based on the LEAD aircraft weight class.
-        // Uses CWT (A-I) when available, falls back to AircraftCategory.
-        var leadCwt = WakeTurbulenceData.GetCwt(lead.AircraftType);
-        var followerCwt = WakeTurbulenceData.GetCwt(follower.AircraftType);
-
-        var leadClass = MapCwtToWeightClass(leadCwt, AircraftCategorization.Categorize(lead.AircraftType));
-        var followerClass = MapCwtToWeightClass(followerCwt, AircraftCategorization.Categorize(follower.AircraftType));
-
-        return leadClass switch
-        {
-            WeightClass.Super => followerClass switch
-            {
-                WeightClass.Super => 6.0,
-                WeightClass.Heavy => 6.0,
-                WeightClass.Large => 7.0,
-                WeightClass.Small => 8.0,
-                _ => 6.0,
-            },
-            WeightClass.Heavy => followerClass switch
-            {
-                WeightClass.Heavy => 4.0,
-                WeightClass.Large => 5.0,
-                WeightClass.Small => 6.0,
-                _ => 4.0,
-            },
-            _ => 3.0,
-        };
-    }
-
-    private static WeightClass MapCwtToWeightClass(string? cwt, AircraftCategory fallback)
-    {
-        if (cwt is not null)
-        {
-            return cwt switch
-            {
-                "A" => WeightClass.Super, // Super (A388)
-                "B" or "C" => WeightClass.Heavy, // Heavy (B77W, B763)
-                "D" or "E" or "F" or "G" => WeightClass.Large, // B757, Large, Upper/Lower Medium
-                "H" or "I" => WeightClass.Small, // Upper Small, Small
-                _ => WeightClass.Large,
-            };
-        }
-
-        return fallback switch
-        {
-            AircraftCategory.Jet => WeightClass.Large,
-            AircraftCategory.Turboprop => WeightClass.Large,
-            AircraftCategory.Piston => WeightClass.Small,
-            AircraftCategory.Helicopter => WeightClass.Small,
-            _ => WeightClass.Large,
-        };
+        // FAA wake turbulence separation based on the LEAD aircraft weight class (TBL 5-5-2).
+        var leadClass = WakeTurbulenceData.WakeClassForType(lead.AircraftType, AircraftCategorization.Categorize(lead.AircraftType));
+        var followerClass = WakeTurbulenceData.WakeClassForType(follower.AircraftType, AircraftCategorization.Categorize(follower.AircraftType));
+        return WakeTurbulenceData.OnApproachSeparationNm(leadClass, followerClass);
     }
 
     private static bool IsExcludedByTcp(AtpaVolumeConfig volume, AircraftState ac, Dictionary<string, string> tcpCodeByUlid)
@@ -257,13 +210,5 @@ public sealed class AtpaProcessor
         }
 
         return map;
-    }
-
-    private enum WeightClass
-    {
-        Super,
-        Heavy,
-        Large,
-        Small,
     }
 }

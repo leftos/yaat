@@ -135,7 +135,6 @@ public sealed class GeneratorStateDto
     public required string ConfigJson { get; init; }
     public required RunwayInfoDto Runway { get; init; }
     public required double NextSpawnSeconds { get; init; }
-    public required double NextSpawnDistance { get; init; }
     public required bool IsExhausted { get; init; }
 }
 

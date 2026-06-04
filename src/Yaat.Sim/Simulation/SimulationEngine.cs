@@ -23,6 +23,22 @@ namespace Yaat.Sim.Simulation;
 /// </summary>
 public record struct TickPrePhysicsResult(List<AircraftState> SpawnedAircraft);
 
+/// <summary>
+/// Diagnostic record of one arrival-generator spawn. Lets the time-first spawn cadence and placement
+/// be inspected and asserted in tests. <see cref="RearmostAtSpawnNm"/> is null when the corridor was
+/// empty (the arrival spawned at <c>InitialDistance</c>); <see cref="RequiredGapNm"/> is then 0 — otherwise
+/// it is the binding in-trail gap (max of <c>IntervalDistance</c> and the wake minimum) the arrival was
+/// placed behind the rearmost.
+/// </summary>
+public readonly record struct GeneratorSpawnRecord(
+    string GeneratorId,
+    string Callsign,
+    double ElapsedSeconds,
+    double SpawnDistanceNm,
+    double? RearmostAtSpawnNm,
+    double RequiredGapNm
+);
+
 public sealed class SimulationEngine
 {
     private const int PhysicsSubTickRate = 4;
@@ -58,6 +74,11 @@ public sealed class SimulationEngine
     public BeaconCodePool BeaconCodePool { get; } = new();
     public TowerListTracker TowerListTracker { get; } = new();
     public ConflictAlertState ConflictAlerts { get; } = new();
+
+    private readonly List<GeneratorSpawnRecord> _generatorSpawnLog = [];
+
+    /// <summary>Diagnostic log of arrival-generator spawns (distance, spacing, timing) for the session.</summary>
+    public IReadOnlyList<GeneratorSpawnRecord> GeneratorSpawnLog => _generatorSpawnLog;
 
     /// <summary>
     /// Diagnostic per-tick timing buckets. Keyed by bucket name (e.g. "PrePhysics",
@@ -332,7 +353,6 @@ public sealed class SimulationEngine
                             Config = config,
                             Runway = RunwayInfo.FromSnapshot(g.Runway),
                             NextSpawnSeconds = g.NextSpawnSeconds,
-                            NextSpawnDistance = g.NextSpawnDistance,
                             IsExhausted = g.IsExhausted,
                         }
                     );
@@ -499,6 +519,7 @@ public sealed class SimulationEngine
         }
 
         // Initialize generators
+        _generatorSpawnLog.Clear();
         foreach (var genConfig in result.Generators)
         {
             var runway = NavigationDatabase.Instance.GetRunway(result.PrimaryAirportId ?? "", genConfig.Runway);
@@ -514,7 +535,6 @@ public sealed class SimulationEngine
                     Config = genConfig,
                     Runway = runway,
                     NextSpawnSeconds = genConfig.StartTimeOffset,
-                    NextSpawnDistance = genConfig.InitialDistance,
                 }
             );
         }
@@ -1952,6 +1972,10 @@ public sealed class SimulationEngine
         }
     }
 
+    private const double SpawnRetryBackoffSeconds = 5.0;
+    private const double FinalCorridorHalfWidthNm = 2.0;
+    private const double FinalCorridorMarginNm = 3.0;
+
     private void ProcessGenerators(List<AircraftState> spawned)
     {
         var scenario = Scenario!;
@@ -1963,23 +1987,22 @@ public sealed class SimulationEngine
             return;
         }
 
+        var ratePercent = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
+        if (ratePercent <= 0)
+        {
+            return;
+        }
+
         foreach (var gen in scenario.Generators)
         {
-            if (ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent) <= 0)
-            {
-                continue;
-            }
-
             if (gen.IsExhausted)
             {
                 continue;
             }
-
-            if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
+            if (scenario.ElapsedSeconds < gen.Config.StartTimeOffset)
             {
                 continue;
             }
-
             if (scenario.ElapsedSeconds > gen.Config.MaxTime)
             {
                 gen.IsExhausted = true;
@@ -1992,78 +2015,210 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            var weight = ResolveWeight(gen.Config, World.Rng);
-            var engine = ResolveEngine(gen.Config.EngineType);
-
-            var request = new SpawnRequest
-            {
-                Rules = FlightRulesKind.Ifr,
-                Weight = weight,
-                Engine = engine,
-                PositionType = SpawnPositionType.OnFinal,
-                RunwayId = gen.Config.Runway,
-                FinalDistanceNm = gen.NextSpawnDistance,
-                PreferredAirlineAirportId = scenario.PrimaryAirportId,
-            };
-
-            var existing = World.GetSnapshot();
-            var groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
-            var (state, error) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, existing, groundLayout, World.Rng);
-
-            if (state is null)
-            {
-                _logger.LogWarning("Generator '{Id}' spawn failed at t={T}s: {Error}", gen.Config.Id, scenario.ElapsedSeconds, error);
-                AdvanceGenerator(gen, World.Rng, scenario.SoloArrivalGeneratorRatePercent);
-                continue;
-            }
-
-            state.ScenarioId = scenario.ScenarioId;
-            state.Ground.Layout = groundLayout;
-            state.SpawnedAtSeconds = scenario.ElapsedSeconds;
-
-            World.AddAircraft(state);
-            spawned.Add(state);
-            RecordGeneratedAircraftSpawn(state);
-
-            EmitTerminal("System", state.Callsign, $"[Spawn] Generated ({gen.Config.Id})");
-
-            _logger.LogInformation(
-                "Generator '{Id}' spawned {Callsign} ({Type}) at {Dist}nm on RWY {Runway}, t={T}s",
-                gen.Config.Id,
-                state.Callsign,
-                state.AircraftType,
-                gen.NextSpawnDistance,
-                gen.Config.Runway,
-                scenario.ElapsedSeconds
-            );
-
-            AdvanceGenerator(gen, World.Rng, scenario.SoloArrivalGeneratorRatePercent);
+            TrySpawnArrival(gen, ratePercent, spawned);
         }
     }
 
-    private static void AdvanceGenerator(GeneratorState gen, Random rng, int ratePercent)
+    /// <summary>
+    /// Time-first spawn: <see cref="ScenarioGeneratorConfig.IntervalTime"/> drives cadence (when the next
+    /// arrival is due). When due, the new arrival is placed at the back of the stream at
+    /// <c>D = max(InitialDistance, rearmostDistance + gap)</c>, where <c>gap</c> is the larger (binding) of
+    /// the configured <c>IntervalDistance</c> and the 7110.65 wake minimum. The placement is capped at
+    /// <c>MaxDistance</c>: if no room exists within the cap the spawn waits (retry backoff) so the cap is
+    /// never exceeded. An empty corridor has no rearmost, so the arrival spawns exactly at
+    /// <c>InitialDistance</c> — the cold start needs no special case.
+    /// </summary>
+    private void TrySpawnArrival(GeneratorState gen, int ratePercent, List<AircraftState> spawned)
     {
-        if (ScenarioPacing.ClampArrivalGeneratorPercent(ratePercent) <= 0)
+        var scenario = Scenario!;
+        if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
         {
-            gen.NextSpawnSeconds = double.PositiveInfinity;
             return;
         }
 
+        var weight = ResolveWeight(gen.Config, World.Rng);
+        var engine = ResolveEngine(gen.Config.EngineType);
+        var rearmost = RearmostInbound(gen);
+
+        double gap;
+        double placement;
+        if (rearmost is null)
+        {
+            gap = 0;
+            placement = gen.Config.InitialDistance;
+        }
+        else
+        {
+            var (leaderDistance, leader) = rearmost.Value;
+            gap = SpacingGapNm(gen, leader, weight);
+            placement = Math.Max(gen.Config.InitialDistance, leaderDistance + gap);
+        }
+
+        if (placement > gen.Config.MaxDistance)
+        {
+            // No room within the corridor cap — wait and retry so the average rate is preserved.
+            if (rearmost is null)
+            {
+                _logger.LogWarning(
+                    "Generator '{Id}' cannot place arrival: InitialDistance {Init}nm exceeds MaxDistance {Max}nm",
+                    gen.Config.Id,
+                    gen.Config.InitialDistance,
+                    gen.Config.MaxDistance
+                );
+            }
+            gen.NextSpawnSeconds = scenario.ElapsedSeconds + SpawnRetryBackoffSeconds;
+            return;
+        }
+
+        var state = SpawnGeneratedArrival(gen, placement, weight, engine);
+        if (state is null)
+        {
+            gen.NextSpawnSeconds = scenario.ElapsedSeconds + SpawnRetryBackoffSeconds;
+            return;
+        }
+
+        spawned.Add(state);
+        _generatorSpawnLog.Add(
+            new GeneratorSpawnRecord(gen.Config.Id, state.Callsign, scenario.ElapsedSeconds, placement, rearmost?.DistanceNm, gap)
+        );
+        gen.NextSpawnSeconds = scenario.ElapsedSeconds + EffectiveSpawnIntervalSeconds(gen, ratePercent);
+    }
+
+    private double EffectiveSpawnIntervalSeconds(GeneratorState gen, int ratePercent)
+    {
         var interval = ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(gen.Config.IntervalTime, ratePercent);
         if (gen.Config.RandomizeInterval)
         {
-            double jitter = interval * 0.25;
-            interval += (rng.NextDouble() * 2 - 1) * jitter;
-            interval = Math.Max(interval, 30);
+            var jitter = interval * 0.25;
+            interval += ((World.Rng.NextDouble() * 2) - 1) * jitter;
         }
+        return Math.Max(interval, SpawnRetryBackoffSeconds);
+    }
 
-        gen.NextSpawnSeconds += interval;
+    /// <summary>
+    /// Minimum in-trail gap (nm) the new arrival must sit behind the rearmost aircraft inbound to the
+    /// runway: the larger (binding) of the generator's configured <c>IntervalDistance</c> and the 7110.65
+    /// Table 5-5-2 wake-turbulence minimum for the leader/follower pair. The two constraints bind, they do
+    /// not add — a 5 nm author spacing behind a non-wake leader stays 5 nm, while a heavy leader can widen
+    /// it to the wake minimum.
+    /// </summary>
+    private static double SpacingGapNm(GeneratorState gen, AircraftState leader, WeightClass followerWeight)
+    {
+        var wakeFloor = WakeTurbulenceData.OnApproachSeparationNm(
+            WakeTurbulenceData.WakeClassForType(leader.AircraftType, AircraftCategorization.Categorize(leader.AircraftType)),
+            WakeClassForWeight(followerWeight)
+        );
+        return Math.Max(gen.Config.IntervalDistance, wakeFloor);
+    }
 
-        gen.NextSpawnDistance += gen.Config.IntervalDistance;
-        if (gen.NextSpawnDistance > gen.Config.MaxDistance)
+    private static WakeTurbulenceData.WakeClass WakeClassForWeight(WeightClass weight) =>
+        weight switch
         {
-            gen.NextSpawnDistance = gen.Config.InitialDistance;
+            WeightClass.Heavy => WakeTurbulenceData.WakeClass.Heavy,
+            WeightClass.Small => WakeTurbulenceData.WakeClass.Small,
+            _ => WakeTurbulenceData.WakeClass.Large,
+        };
+
+    /// <summary>
+    /// Airborne aircraft inside the runway's final-approach corridor (any generator's arrivals plus
+    /// manual adds), each with its along-final distance-to-threshold (nm). Used so concurrent streams to
+    /// the same runway don't overlap and the cold-start seed doesn't double up on existing traffic.
+    /// </summary>
+    private List<(double DistanceNm, AircraftState Aircraft)> CorridorAircraft(GeneratorState gen)
+    {
+        var rwy = gen.Runway;
+        var threshold = new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude);
+        var outbound = new TrueHeading((rwy.TrueHeading.Degrees + 180.0) % 360.0);
+        var maxAlong = gen.Config.MaxDistance + FinalCorridorMarginNm;
+
+        var result = new List<(double DistanceNm, AircraftState Aircraft)>();
+        foreach (var ac in World.GetSnapshot())
+        {
+            if (ac.IsOnGround)
+            {
+                continue;
+            }
+            var cross = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Position, threshold, outbound));
+            if (cross > FinalCorridorHalfWidthNm)
+            {
+                continue;
+            }
+            var along = GeoMath.AlongTrackDistanceNm(ac.Position, threshold, outbound);
+            if (along <= 0 || along > maxAlong)
+            {
+                continue;
+            }
+            result.Add((along, ac));
         }
+        return result;
+    }
+
+    /// <summary>
+    /// Rearmost (greatest distance-to-threshold) aircraft in the runway's final-approach corridor, or
+    /// null when the corridor is empty.
+    /// </summary>
+    private (double DistanceNm, AircraftState Aircraft)? RearmostInbound(GeneratorState gen)
+    {
+        (double DistanceNm, AircraftState Aircraft)? rearmost = null;
+        foreach (var entry in CorridorAircraft(gen))
+        {
+            if (rearmost is null || entry.DistanceNm > rearmost.Value.DistanceNm)
+            {
+                rearmost = entry;
+            }
+        }
+        return rearmost;
+    }
+
+    /// <summary>
+    /// Builds, adds, records, and announces one generated arrival placed <c>OnFinal</c> at
+    /// <paramref name="distanceNm"/> with the already-resolved <paramref name="weight"/> and
+    /// <paramref name="engine"/>. Returns the spawned state, or null if generation failed.
+    /// </summary>
+    private AircraftState? SpawnGeneratedArrival(GeneratorState gen, double distanceNm, WeightClass weight, EngineKind engine)
+    {
+        var scenario = Scenario!;
+        var request = new SpawnRequest
+        {
+            Rules = FlightRulesKind.Ifr,
+            Weight = weight,
+            Engine = engine,
+            PositionType = SpawnPositionType.OnFinal,
+            RunwayId = gen.Config.Runway,
+            FinalDistanceNm = distanceNm,
+            PreferredAirlineAirportId = scenario.PrimaryAirportId,
+        };
+
+        var existing = World.GetSnapshot();
+        var groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
+        var (state, error) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, existing, groundLayout, World.Rng);
+
+        if (state is null)
+        {
+            _logger.LogWarning("Generator '{Id}' spawn failed at t={T}s: {Error}", gen.Config.Id, scenario.ElapsedSeconds, error);
+            return null;
+        }
+
+        state.ScenarioId = scenario.ScenarioId;
+        state.Ground.Layout = groundLayout;
+        state.SpawnedAtSeconds = scenario.ElapsedSeconds;
+
+        World.AddAircraft(state);
+        RecordGeneratedAircraftSpawn(state);
+
+        EmitTerminal("System", state.Callsign, $"[Spawn] Generated ({gen.Config.Id})");
+
+        _logger.LogInformation(
+            "Generator '{Id}' spawned {Callsign} ({Type}) at {Dist:F1}nm on RWY {Runway}, t={T}s",
+            gen.Config.Id,
+            state.Callsign,
+            state.AircraftType,
+            distanceNm,
+            gen.Config.Runway,
+            scenario.ElapsedSeconds
+        );
+
+        return state;
     }
 
     private bool TryReserveSoloParkingInitialCallupSlot(double nowSeconds)
@@ -2952,10 +3107,9 @@ public sealed class SimulationEngine
 
     /// <summary>
     /// Replaces the live arrival-generator list with the parsed JSON. Each generator is
-    /// rescheduled "from now" — NextSpawnSeconds = elapsed + intervalTime,
-    /// NextSpawnDistance = initialDistance, IsExhausted = false. Already-spawned aircraft
-    /// from prior generators keep flying. Returns warnings; the swap is best-effort per
-    /// generator (entries with unresolvable runways are dropped with a warning).
+    /// rescheduled "from now" — NextSpawnSeconds = elapsed + intervalTime, IsExhausted = false.
+    /// Already-spawned aircraft keep flying. Returns warnings; the swap is best-effort per generator
+    /// (entries with unresolvable runways are dropped with a warning).
     /// </summary>
     public List<string> ApplyArrivalGeneratorsJson(string generatorsJson)
     {
@@ -3004,7 +3158,6 @@ public sealed class SimulationEngine
                     NextSpawnSeconds =
                         scenario.ElapsedSeconds
                         + ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(cfg.IntervalTime, scenario.SoloArrivalGeneratorRatePercent),
-                    NextSpawnDistance = cfg.InitialDistance,
                     IsExhausted = false,
                 }
             );

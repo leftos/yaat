@@ -275,13 +275,24 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
 - **`ProcessDelayedSpawns`** (`:1669`) — iterates `DelayedQueue` backward; when `ElapsedSeconds >= SpawnAtSeconds`, removes the
   entry, stamps `SpawnedAtSeconds`, adds to world, dispatches presets, emits a `[Spawn] Delayed` terminal line and any
   auto-track messages.
-- **`ProcessGenerators`** (`:1698`) — skipped entirely during replay/playback when recorded aircraft spawns exist (those are
-  replayed verbatim, not regenerated). For each non-exhausted generator past its `NextSpawnSeconds`: if past `MaxTime` it
-  exhausts; otherwise it builds an `OnFinal` `SpawnRequest` at the generator's current `NextSpawnDistance`, calls
-  `AircraftGenerator.Generate`, adds the aircraft, records the spawn for replay (`RecordGeneratedAircraftSpawn`), and advances
-  the generator (`AdvanceGenerator`, `:1787` — bumps `NextSpawnSeconds` by the pacing-scaled interval with optional ±25% jitter,
-  and steps `NextSpawnDistance`, wrapping at `MaxDistance` back to `InitialDistance`). The solo-training arrival-rate percent
-  (via `ScenarioPacing`) can clamp the generator off entirely.
+- **`ProcessGenerators`** — skipped entirely during replay/playback when recorded aircraft spawns exist (those are replayed
+  verbatim, not regenerated). Each non-exhausted generator past its `StartTimeOffset` (and not past `MaxTime`) feeds arrivals
+  onto the runway's final via `SpawnGeneratedArrival` (builds an `OnFinal` arrival, adds it, records it for replay via
+  `RecordGeneratedAircraftSpawn`). The model is **time-first** (`TrySpawnArrival`):
+  - **Cadence**: `IntervalTime` (pacing-scaled, optional ±25% jitter via `EffectiveSpawnIntervalSeconds`) drives *when* the next
+    arrival is due — the only spawn trigger is `ElapsedSeconds >= NextSpawnSeconds`. At load `NextSpawnSeconds = StartTimeOffset`,
+    so the first arrival fires as soon as the generator activates.
+  - **Placement** (`#2`, back of the stream, bounded): when due, the arrival is placed at
+    `D = max(InitialDistance, rearmost + gap)`, where `gap = SpacingGapNm` is the larger (binding) of the configured
+    `IntervalDistance` and the 7110.65 Table 5-5-2 wake-turbulence minimum for the leader/follower pair (the two constraints
+    *bind*, they do not add). `rearmost` is the rearmost aircraft inbound to the runway (`RearmostInbound`, a final-approach
+    corridor query). `D` is capped at `MaxDistance`: if no room exists within the cap the spawn **waits** (defers via
+    `SpawnRetryBackoffSeconds`) rather than exceeding it. An empty corridor has no `rearmost`, so the arrival spawns exactly at
+    `InitialDistance` — the cold start needs no special case.
+  Consequences: a long `IntervalTime` drains the corridor between spawns, so arrivals keep entering near `InitialDistance`,
+  time-spaced; a short `IntervalTime` packs the stream back toward `MaxDistance` at `gap` spacing, then throttles on "no room".
+  Each spawn appends a `GeneratorSpawnRecord` to `GeneratorSpawnLog` (diagnostic). The solo-training arrival-rate percent (via
+  `ScenarioPacing`) widens the interval and can clamp the generator off entirely.
 - **`ProcessTriggers`** (`:1994`) — fires `ScheduledTrigger`s whose `FireAtSeconds` elapsed via `ExecuteGlobalCommand`, which
   only handles the global squawk commands (`SQALL`/`SNALL`/`SSALL`).
 - **`ProcessTimedPresets`** (`:1931`) — fires `ScheduledPreset`s whose `FireAtSeconds` elapsed: parses the command with
@@ -355,8 +366,8 @@ The four queues are part of the scenario snapshot so a rewind checkpoint can res
 
 - `DelayedQueue` → `DelayedSpawnDto` with the `LoadedAircraft` JSON-serialized whole (and `SpawnAtSeconds`).
 - `TriggerQueue`, `PresetQueue` → command + fire-time DTOs.
-- `Generators` → `GeneratorStateDto` with the config JSON-serialized plus the runtime cursor (`NextSpawnSeconds`,
-  `NextSpawnDistance`, `IsExhausted`) and the runway snapshot.
+- `Generators` → `GeneratorStateDto` with the config JSON-serialized plus the runtime cursor (`NextSpawnSeconds` — the time-first
+  cadence cursor — and `IsExhausted`) and the runway snapshot.
 
 `SimulationEngine.RestoreFromSnapshot` (`SimulationEngine.cs:142`) clears and rebuilds all four queues from the DTOs. The one
 runtime-only field that does not survive JSON is `AircraftState.Ground.Layout` (it's `[JsonIgnore]`d in `AircraftGroundOps.cs:20`)

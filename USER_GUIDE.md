@@ -857,7 +857,7 @@ The editor has two panels:
 - **Left panel** — generator list with **+ Add** / **- Remove** buttons. Each row summarizes its runway, engine, weight category, and interval time.
 - **Right panel** — selected generator details, grouped into Identity (id, runway), Spawn rate (initial/max/interval distances, interval/start-offset/max time, randomize-interval toggle), Aircraft (engine type, weight category, randomize-weight toggle), and an optional AutoTrack block (position, handoff delay, scratchpad, cleared altitude).
 
-**Reschedule on Apply:** When you click **Apply to Sim**, every generator is rescheduled from now — `NextSpawnSeconds = elapsed + intervalTime`, distance reset to `initialDistance`. Aircraft already spawned by previous generators keep flying; only future spawns are affected.
+**Reschedule on Apply:** When you click **Apply to Sim**, every generator is rescheduled from now. Aircraft already spawned by previous generators keep flying; only future spawns are affected.
 
 - **Apply to Sim** sends the new generator list to the server and applies it immediately.
 - **Revert** restores the editor to the state it had when the window was opened (does not undo edits already applied to the sim).

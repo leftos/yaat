@@ -23,6 +23,64 @@ public static class WakeTurbulenceData
         return _cwtLookup.TryGetValue(baseType, out var cwt) && !string.IsNullOrEmpty(cwt) ? cwt : null;
     }
 
+    /// <summary>Coarse wake-turbulence weight class for separation purposes.</summary>
+    public enum WakeClass
+    {
+        Small,
+        Large,
+        Heavy,
+        Super,
+    }
+
+    /// <summary>
+    /// Wake-turbulence weight class for an aircraft type. Uses CWT (A-I) when available,
+    /// otherwise categorizes by engine type.
+    /// </summary>
+    public static WakeClass WakeClassForType(string aircraftType, AircraftCategory fallbackCategory)
+    {
+        var cwt = GetCwt(aircraftType);
+        if (cwt is not null)
+        {
+            return cwt switch
+            {
+                "A" => WakeClass.Super, // Super (A388)
+                "B" or "C" => WakeClass.Heavy, // Heavy (B77W, B763)
+                "D" or "E" or "F" or "G" => WakeClass.Large, // B757, Large, Upper/Lower Medium
+                "H" or "I" => WakeClass.Small, // Upper Small, Small
+                _ => WakeClass.Large,
+            };
+        }
+
+        return fallbackCategory switch
+        {
+            AircraftCategory.Piston => WakeClass.Small,
+            AircraftCategory.Helicopter => WakeClass.Small,
+            _ => WakeClass.Large,
+        };
+    }
+
+    /// <summary>
+    /// FAA wake-turbulence radar separation required on final approach (7110.65 TBL 5-5-2), in nm,
+    /// for a follower behind a leader. Baseline (no wake constraint) is the 3 nm terminal radar floor.
+    /// </summary>
+    public static double OnApproachSeparationNm(WakeClass lead, WakeClass follower) =>
+        lead switch
+        {
+            WakeClass.Super => follower switch
+            {
+                WakeClass.Small => 8.0,
+                WakeClass.Large => 7.0,
+                _ => 6.0,
+            },
+            WakeClass.Heavy => follower switch
+            {
+                WakeClass.Small => 6.0,
+                WakeClass.Large => 5.0,
+                _ => 4.0,
+            },
+            _ => 3.0,
+        };
+
     /// <summary>
     /// Max visual detection range (nm) for a target aircraft — the distance at which
     /// a pilot with normal vision, actively scanning, can first visually acquire the

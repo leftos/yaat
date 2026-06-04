@@ -126,12 +126,10 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
         Assert.Equal("28L", a.Config.Runway);
         Assert.Equal("Heavy", a.Config.WeightCategory);
         Assert.Equal(elapsedAtApply + 120, a.NextSpawnSeconds);
-        Assert.Equal(12, a.NextSpawnDistance);
         Assert.False(a.IsExhausted);
 
         Assert.Equal("gen-B", b.Config.Id);
         Assert.Equal(elapsedAtApply + 240, b.NextSpawnSeconds);
-        Assert.Equal(8, b.NextSpawnDistance);
     }
 
     [Fact]
@@ -241,5 +239,5 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
     }
 
     private static List<string> SnapshotIds(IReadOnlyList<GeneratorState> gens) =>
-        gens.Select(g => $"{g.Config.Id}:{g.Config.Runway}:{g.NextSpawnSeconds}:{g.NextSpawnDistance}").ToList();
+        gens.Select(g => $"{g.Config.Id}:{g.Config.Runway}:{g.NextSpawnSeconds}").ToList();
 }

@@ -80,7 +80,9 @@ public sealed class GeneratorState
 {
     public required ScenarioGeneratorConfig Config { get; init; }
     public required RunwayInfo Runway { get; init; }
+
+    /// <summary>Next scheduled spawn time (<c>IntervalTime</c> cadence; bumped on a no-room defer).</summary>
     public double NextSpawnSeconds { get; set; }
-    public double NextSpawnDistance { get; set; }
+
     public bool IsExhausted { get; set; }
 }

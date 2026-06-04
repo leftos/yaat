@@ -648,7 +648,6 @@ public class SnapshotRoundTripTests
                             WidthFt = 150,
                         },
                         NextSpawnSeconds = 180.5,
-                        NextSpawnDistance = 8.0,
                         IsExhausted = false,
                     },
                 ],
@@ -667,7 +666,6 @@ public class SnapshotRoundTripTests
         Assert.Equal("KOAK", gen.Runway.AirportId);
         Assert.Equal("28R", gen.Runway.Designator);
         Assert.Equal(180.5, gen.NextSpawnSeconds);
-        Assert.Equal(8.0, gen.NextSpawnDistance);
         Assert.False(gen.IsExhausted);
     }
 
