@@ -178,45 +178,32 @@ internal static class ProcedureLegResolver
     }
 
     /// <summary>
-    /// Returns the leading prefix of coded legs a departure procedure phase should fly, or null
-    /// when the procedure has no heading/intercept legs (plain TF/CF SIDs keep the flat direct-to-fix
-    /// path). The prefix runs up to and including the last coded leg (heading/intercept/course-to-fix);
-    /// everything after it is plain fix-to-fix that <c>FlightPhysics</c> flies from NavigationRoute.
+    /// Returns the maximal LEADING run of coded legs (heading/intercept legs plus course-to-fix)
+    /// that a departure procedure phase should fly, or null when the procedure opens with a plain
+    /// fix leg. The run stops at the first plain fix (TF/DF/IF/Arc); those interior fixes stay in
+    /// the NavigationRoute so <c>FlightPhysics</c> flies them with full turn anticipation rather
+    /// than the phase's simpler steering. So a SID that opens with VA/VI (LINDZ) or a CF on the
+    /// runway course is flown as charted, while later fix-to-fix legs are unaffected.
     /// </summary>
     public static List<ProcedureLeg>? ExtractActiveDepartureLegs(List<ProcedureLeg> legs)
     {
-        bool needsPhase = legs.Any(l =>
-            l.Type
-                is ProcedureLegType.HeadingToAltitude
-                    or ProcedureLegType.CourseToAltitude
-                    or ProcedureLegType.HeadingToIntercept
-                    or ProcedureLegType.CourseToIntercept
-                    or ProcedureLegType.HeadingToManual
-        );
-        if (!needsPhase)
+        int runEnd = 0;
+        while (runEnd < legs.Count && IsCodedLeg(legs[runEnd].Type))
         {
-            return null;
+            runEnd++;
         }
 
-        int lastCoded = -1;
-        for (int i = 0; i < legs.Count; i++)
-        {
-            if (
-                legs[i].Type
-                is ProcedureLegType.HeadingToAltitude
-                    or ProcedureLegType.CourseToAltitude
-                    or ProcedureLegType.HeadingToIntercept
-                    or ProcedureLegType.CourseToIntercept
-                    or ProcedureLegType.HeadingToManual
-                    or ProcedureLegType.CourseToFix
-            )
-            {
-                lastCoded = i;
-            }
-        }
-
-        return lastCoded < 0 ? null : legs.Take(lastCoded + 1).ToList();
+        return runEnd == 0 ? null : legs.Take(runEnd).ToList();
     }
+
+    private static bool IsCodedLeg(ProcedureLegType type) =>
+        type
+            is ProcedureLegType.HeadingToAltitude
+                or ProcedureLegType.CourseToAltitude
+                or ProcedureLegType.HeadingToIntercept
+                or ProcedureLegType.CourseToIntercept
+                or ProcedureLegType.HeadingToManual
+                or ProcedureLegType.CourseToFix;
 
     private static void ExpandArc(List<ProcedureLeg> result, LatLon center, double radiusNm, LatLon previousFix, LatLon terminatorFix, bool turnRight)
     {
