@@ -21,6 +21,11 @@ public class Issue172ParallelPassTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue172-sfo-taxiing-recording.yaat-bug-report-bundle.zip";
 
+    // Full-precision SFO snapshot the recording was captured against. The shared
+    // TestData/sfo.geojson is served with truncated coordinate precision, which shifts
+    // fillet/spot nodes enough to break JBU2435's recorded TAXI route resolution on replay.
+    private const string PinnedSfoPath = "TestData/issue172-sfo.geojson";
+
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
@@ -29,7 +34,7 @@ public class Issue172ParallelPassTests(ITestOutputHelper output)
             return null;
         }
 
-        var groundData = new TestAirportGroundData();
+        var groundData = new PinnedSfoGroundData(PinnedSfoPath);
         if (groundData.GetLayout("SFO") is null)
         {
             return null;
@@ -39,14 +44,13 @@ public class Issue172ParallelPassTests(ITestOutputHelper output)
         return new SimulationEngine(groundData);
     }
 
-    // Quarantined after rebasing onto main: the recording no longer reproduces the FFT2083/JBU2435
-    // convergence. Under main's post-pushback auto-taxi behavior (f63a865b), JBU2435 stays in
-    // HoldingAfterPushbackPhase and never taxis in this window, so the two never share an upcoming node.
-    // The production fix it guards (skip convergence slowdown when the nearer aircraft clears first) is
-    // intact; this needs a fresh recording that reproduces the geometry. See #172 handoff doc.
-    [Fact(
-        Skip = "Recording no longer reproduces FFT/JBU convergence under main's auto-taxi (f63a865b); JBU2435 stays HoldingAfterPushback. Production fix intact; needs re-repro."
-    )]
+    // The recording reproduces the FFT2083/JBU2435 parallel pass only against the layout it was
+    // captured on. Pinned to the committed full-precision SFO snapshot (PinnedSfoPath): the shared
+    // sfo.geojson was re-downloaded with truncated coordinate precision, which shifted fillet/spot
+    // nodes enough that JBU2435's recorded `TAXI M3 M2 $2` could no longer reach spot 2 from the
+    // end of M2 and was rejected on replay — leaving JBU2435 in HoldingAfterPushbackPhase so the
+    // two never shared a node. The pin restores the convergence (shared node 413) deterministically.
+    [Fact]
     public void Fft2083_NotBrakedForJbu2435_ClearingSharedNodeFirst()
     {
         var recording = RecordingLoader.Load(RecordingPath);
@@ -56,7 +60,7 @@ public class Issue172ParallelPassTests(ITestOutputHelper output)
             return;
         }
 
-        var layout = new TestAirportGroundData().GetLayout("SFO");
+        var layout = new PinnedSfoGroundData(PinnedSfoPath).GetLayout("SFO");
         Assert.NotNull(layout);
 
         engine.Replay(recording, 1555);

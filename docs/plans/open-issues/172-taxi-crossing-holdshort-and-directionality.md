@@ -8,12 +8,25 @@
 > **Post-merge note (2026-06-03):** rebased onto current main. SFO geojson was refreshed on main, so
 > the `Issue172TerminusDirectionTests` node constants were updated (G/B 155→156, K 10R hold-shorts
 > 849/857→848/856) and its wrong-way guard made layout-robust. `Issue172ParallelPassTests` was
-> **quarantined** (`Skip`): under main's post-pushback auto-taxi behavior (`f63a865b`), **JBU2435 no
-> longer taxis** in the recording window (it stays in `HoldingAfterPushbackPhase`), so the FFT2083/JBU2435
-> convergence the test exercised no longer occurs. The production fix it guarded (skip convergence
-> slowdown when the nearer aircraft clears first) is intact. **Follow-up:** confirm whether JBU2435 not
-> taxiing is correct under the new auto-taxi behavior or a regression, and re-capture a recording that
-> reproduces the parallel-pass geometry.
+> temporarily quarantined because JBU2435 stopped taxiing in the recording window — first attributed
+> to the `f63a865b` "auto-taxi" change.
+>
+> **Resolution (2026-06-04):** investigated and **un-quarantined**. The quarantine attribution was
+> wrong — there is no post-pushback auto-taxi mechanism (`HoldingAfterPushbackPhase` only exits on an
+> explicit `TAXI`), and `f63a865b` does not touch route resolution. The real cause was the SFO geojson
+> refresh itself: it re-serialized coordinates with **truncated precision** (101 KB → 73 KB, geometry
+> identical to sub-meter), which renumbered fillet/spot nodes and shifted them just enough that
+> JBU2435's recorded `TAXI M3 M2 $2` could no longer reach spot 2 from the end of M2. The command was
+> rejected on replay (`SegmentExpander`: "Cannot reach destination from end of taxi path"), so JBU2435
+> stayed in `HoldingAfterPushbackPhase` and never reached the shared node. This is a test-fixture
+> drift only — the live vNAS layout is full precision. Fixes:
+> - `Issue172ParallelPassTests` is pinned to a committed full-precision SFO snapshot
+>   (`TestData/issue172-sfo.geojson`, served by `PinnedSfoGroundData`) and un-skipped; it again
+>   reproduces the FFT2083/JBU2435 convergence on shared node 413.
+> - New `Issue172RealLayoutEtaGateTests` covers the convergence-ETA gate directly on the real (current)
+>   SFO M1×M3 crossing, derived by taxiway name so it survives future precision refreshes.
+> - `SimulationEngine.ReplayCommand` now logs replayed commands that fail to parse or are rejected on
+>   dispatch (this is what surfaced the silent route-resolution rejection).
 
 This is a fresh-agent handoff. It bundles one bug fix and several related controller capabilities that all
 concern **which direction an aircraft goes during taxi/crossing** and **what "hold short" means when it

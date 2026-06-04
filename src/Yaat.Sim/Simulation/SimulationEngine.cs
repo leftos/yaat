@@ -2746,6 +2746,12 @@ public sealed class SimulationEngine
         var replayResult = CommandParser.ParseCompound(cmd.Command, aircraft.FlightPlan.Route);
         if (!replayResult.IsSuccess)
         {
+            _logger.LogDebug(
+                "[Replay] {Callsign}: recorded command '{Command}' failed to parse on replay — {Reason}",
+                cmd.Callsign,
+                cmd.Command,
+                replayResult.Reason
+            );
             return;
         }
 
@@ -2789,6 +2795,19 @@ public sealed class SimulationEngine
                 SoloTrainingEvaluator.RecordControllerCommand(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
                 PilotRequestTracker.ApplyControllerResponse(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0);
             }
+        }
+        else
+        {
+            // Debug, not Warning: recordings faithfully replay commands that were rejected during the
+            // live session too (e.g. TDLSS to a parked aircraft), so a rejection here is usually
+            // expected, not a divergence. Enable this category at Debug to surface a command that
+            // stopped taking effect because the replay layout drifted from the captured one.
+            _logger.LogDebug(
+                "[Replay] {Callsign}: recorded command '{Command}' was rejected on replay — {Message}",
+                aircraft.Callsign,
+                cmd.Command,
+                replayDispatchResult.Message
+            );
         }
     }
 
