@@ -314,6 +314,13 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     (`RecordGeneratedSpawn`) *after* the server applies the owner, so the recorded snapshot replays with owner/scratchpad
     intact; a spawn **without** autotrack is recorded eagerly in `SpawnGeneratedArrival` (no owner to wait for). The eager-in-sim
     record would otherwise capture an untracked state and replay would lose the autotrack.
+  - **AutoTrack altitudes (`interimAltitude` / `clearedAltitude`).** `AutoTrackConditions` carries both (vNAS-faithful;
+    `interimAltitude` was previously dropped on deserialize). They are inherited **datablock-display** state and never touch the
+    aircraft's flight target. `ApplyAutoTrackConditions` (server) resolves each STARS hundreds-of-feet string (stripping a leading
+    qualifier like `"P040"`) and wires them to the **ERAM datablock only**: `interim → Eram.InterimAltitude`,
+    `cleared → Eram.ControllerEnteredAltitude`. The STARS datablock is deliberately **not** populated from these fields (the old
+    `cleared → Stars.TemporaryAltitude` mapping was removed) pending confirmation of whether/how non-ERAM (STARS) scenarios use
+    them.
 - **`ProcessTriggers`** (`:1994`) — fires `ScheduledTrigger`s whose `FireAtSeconds` elapsed via `ExecuteGlobalCommand`, which
   only handles the global squawk commands (`SQALL`/`SNALL`/`SSALL`).
 - **`ProcessTimedPresets`** (`:1931`) — fires `ScheduledPreset`s whose `FireAtSeconds` elapsed: parses the command with

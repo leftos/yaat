@@ -190,6 +190,9 @@ public class AutoTrackConditions
     [JsonPropertyName("scratchPad")]
     public string? ScratchPad { get; set; }
 
+    [JsonPropertyName("interimAltitude")]
+    public string? InterimAltitude { get; set; }
+
     [JsonPropertyName("clearedAltitude")]
     public string? ClearedAltitude { get; set; }
 }
