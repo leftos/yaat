@@ -2038,8 +2038,8 @@ public sealed class SimulationEngine
             return;
         }
 
-        var weight = ResolveWeight(gen.Config, World.Rng);
         var engine = ResolveEngine(gen.Config.EngineType);
+        var weight = ResolveWeight(gen.Config, engine, World.Rng);
         var rearmost = RearmostInbound(gen);
 
         double gap;
@@ -2315,17 +2315,11 @@ public sealed class SimulationEngine
         }
     }
 
-    private static WeightClass ResolveWeight(ScenarioGeneratorConfig config, Random rng)
+    private static WeightClass ResolveWeight(ScenarioGeneratorConfig config, EngineKind engine, Random rng)
     {
         if (config.RandomizeWeightCategory)
         {
-            var roll = rng.NextDouble();
-            return roll switch
-            {
-                < 0.15 => WeightClass.Small,
-                < 0.85 => WeightClass.Large,
-                _ => WeightClass.Heavy,
-            };
+            return RandomWeightForEngine(engine, rng);
         }
 
         return config.WeightCategory switch
@@ -2335,6 +2329,38 @@ public sealed class SimulationEngine
             "Heavy" => WeightClass.Heavy,
             _ => WeightClass.Large,
         };
+    }
+
+    /// <summary>
+    /// Rolls a random arrival weight class conditioned on the generator's fixed engine type, for the
+    /// <c>randomizeWeightCategory</c> option. The split (aviation-reviewed) only assigns probability to
+    /// classes that have a real type pool for the engine, so a randomized turboprop/piston generator
+    /// never rolls a class that would only degrade through the fallback chain to a nonsensical type:
+    /// <list type="bullet">
+    /// <item>Jet — 3% Small (bizjet), 32% SmallPlus (regional), 55% Large (mainline narrow-body), 10% Heavy (widebody).</item>
+    /// <item>Turboprop — 35% Small (light), 65% SmallPlus (commuter). No large/heavy turboprop exists.</item>
+    /// <item>Piston — always Small.</item>
+    /// </list>
+    /// These are sane generic defaults for a busy US airport; the real mix is airport-specific (widebody
+    /// share especially varies from ~0 at a regional hub to ~25% at an international gateway).
+    /// </summary>
+    public static WeightClass RandomWeightForEngine(EngineKind engine, Random rng)
+    {
+        switch (engine)
+        {
+            case EngineKind.Piston:
+                return WeightClass.Small;
+            case EngineKind.Turboprop:
+                return rng.NextDouble() < 0.35 ? WeightClass.Small : WeightClass.SmallPlus;
+            default:
+                return rng.NextDouble() switch
+                {
+                    < 0.03 => WeightClass.Small,
+                    < 0.35 => WeightClass.SmallPlus,
+                    < 0.90 => WeightClass.Large,
+                    _ => WeightClass.Heavy,
+                };
+        }
     }
 
     private static EngineKind ResolveEngine(string engineType)
