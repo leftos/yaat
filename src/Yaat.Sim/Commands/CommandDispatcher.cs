@@ -83,6 +83,16 @@ public static class CommandDispatcher
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
 
+        // CAPP on an aircraft already established on a JFAC/JLOC lateral join authorizes the
+        // glideslope descent in place — it does not tear the join down and rebuild it (which
+        // would emit a spurious "… cancelled by CAPP" warning). The aircraft is already tracking
+        // the localizer; CAPP just clears it to descend.
+        var lateralUpgrade = TryUpgradeLateralJoinInPlace(compound, aircraft);
+        if (lateralUpgrade is not null)
+        {
+            return lateralUpgrade;
+        }
+
         // Capture the active phase before dispatch so post-clear logic (e.g.
         // auto-attaching the AfterRunwayCrossing trigger when CROSS clears a
         // runway hold-short) can inspect it after the phase has been cleared.
@@ -296,6 +306,62 @@ public static class CommandDispatcher
     /// deferred dispatches; only a fresh immediate command supersedes pending work.
     /// </summary>
     private static bool IsConditionalIncoming(CompoundCommand compound) => compound.Blocks.Count > 0 && compound.Blocks[0].Condition is not null;
+
+    /// <summary>
+    /// CAPP issued to an aircraft already established on a JFAC/JLOC lateral join authorizes the
+    /// glideslope descent on the SAME approach in place — flipping <c>LateralInterceptOnly</c> off
+    /// rather than tearing the join down and rebuilding it (which would emit a spurious
+    /// "… cancelled by CAPP" warning). Returns the clearance result when it handled the upgrade,
+    /// or <c>null</c> to fall through to normal CAPP dispatch (forced CAPPF, a different approach,
+    /// AT/DCT/maintain-altitude forms, or any aircraft not on a lateral join).
+    /// </summary>
+    private static CommandResult? TryUpgradeLateralJoinInPlace(CompoundCommand compound, AircraftState aircraft)
+    {
+        if (compound.Blocks.Count != 1)
+        {
+            return null;
+        }
+
+        var block = compound.Blocks[0];
+        if (block.Condition is not null || block.Commands.Count != 1 || block.Commands[0] is not ClearedApproachCommand capp)
+        {
+            return null;
+        }
+
+        // Only a plain, immediate, non-forced CAPP upgrades in place. Forced (CAPPF), AT/DCT
+        // fixes, and a maintain-until-altitude form rebuild the approach via the full handler.
+        if (capp.Force || (capp.AtFix is not null) || (capp.DctFix is not null) || (capp.CrossFixAltitude is not null))
+        {
+            return null;
+        }
+
+        var clearance = aircraft.Phases?.ActiveApproach;
+        if (clearance is null || !clearance.LateralInterceptOnly)
+        {
+            return null;
+        }
+
+        // A CAPP naming a different approach than the one being joined must re-clear properly.
+        if (capp.ApproachId is not null)
+        {
+            string airport = capp.AirportCode ?? ResolveAirport(aircraft);
+            string? resolvedId = NavigationDatabase.Instance.ResolveApproachId(airport, capp.ApproachId);
+            if (resolvedId is null || !resolvedId.Equals(clearance.ApproachId, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+        }
+
+        // Authorize the descent on the join already in progress. The glideslope still gates on the
+        // aircraft's lateral establishment (5°/0.15nm) — a relaxed join is not a PTACF forced
+        // intercept, so ForcedInterceptCapture stays false and the gate is not bypassed even from a
+        // steep cut. Cancel speed adjustments per 7110.65 §5-7-1 (approach clearances cancel
+        // previously assigned speeds).
+        clearance.LateralInterceptOnly = false;
+        aircraft.Targets.TargetSpeed = null;
+
+        return Ok($"Cleared {clearance.ApproachId} approach, runway {clearance.RunwayId}");
+    }
 
     private static bool IsAllTransparent(CompoundCommand compound)
     {

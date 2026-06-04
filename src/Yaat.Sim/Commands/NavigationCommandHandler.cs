@@ -1002,13 +1002,20 @@ internal static class NavigationCommandHandler
 
         ApproachCommandHandler.ClearPendingApproach(aircraft);
 
-        // Build phase sequence: InterceptCourse → FinalApproach → Landing
+        // Build phase sequence: InterceptCourse → FinalApproach → Landing.
+        // RelaxedJoin: a "join the localizer/FAC" instruction (often appended to a vector,
+        // e.g. "FH 220, JLOC") arms the join — the aircraft keeps flying its assigned heading
+        // and turns onto the localizer when it intercepts, at any cut, never busting through
+        // (7110.65 §5-9-2 limits the controller's vector, not this relaxed join). Kept distinct
+        // from ForcedIntercept so the glideslope gate stays scoped to PTACF: the lateral-only
+        // hold means no descent until CAPP.
         var interceptPhase = new InterceptCoursePhase
         {
             FinalApproachCourse = finalCourse,
             ThresholdLat = approachRunway.ThresholdLatitude,
             ThresholdLon = approachRunway.ThresholdLongitude,
             ApproachId = resolvedId,
+            RelaxedJoin = true,
         };
 
         var finalPhase = new FinalApproachPhase();

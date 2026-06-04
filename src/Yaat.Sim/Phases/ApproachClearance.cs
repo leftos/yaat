@@ -82,6 +82,15 @@ public sealed class ApproachClearance
     /// </summary>
     public double? InterceptCaptureAngleDeg { get; set; }
 
+    /// <summary>
+    /// True when the localizer was captured by a PTACF FORCED intercept (which intentionally
+    /// overshoots and S-turns back). FinalApproachPhase bypasses the glideslope-established gate
+    /// for these so they are not stranded high. A relaxed JFAC/JLOC join captures at any angle too
+    /// but sets this false — it holds the assigned altitude until established before descending.
+    /// Set by InterceptCoursePhase.Capture(). Defaults false.
+    /// </summary>
+    public bool ForcedInterceptCapture { get; set; }
+
     public ApproachClearanceDto ToSnapshot() =>
         new()
         {
@@ -98,6 +107,7 @@ public sealed class ApproachClearance
             MapDistanceNm = MapDistanceNm,
             InterceptCaptureDistanceNm = InterceptCaptureDistanceNm,
             InterceptCaptureAngleDeg = InterceptCaptureAngleDeg,
+            ForcedInterceptCapture = ForcedInterceptCapture,
             MapHold = MapHold?.ToSnapshot(),
             MissedApproachFixes = MissedApproachFixes.Count > 0 ? MissedApproachFixes.Select(f => f.ToSnapshot()).ToList() : null,
         };
@@ -118,6 +128,7 @@ public sealed class ApproachClearance
             MapDistanceNm = dto.MapDistanceNm,
             InterceptCaptureDistanceNm = dto.InterceptCaptureDistanceNm,
             InterceptCaptureAngleDeg = dto.InterceptCaptureAngleDeg,
+            ForcedInterceptCapture = dto.ForcedInterceptCapture,
             MapHold = dto.MapHold is not null ? MissedApproachHold.FromSnapshot(dto.MapHold) : null,
             MissedApproachFixes = dto.MissedApproachFixes?.Select(ApproachFix.FromSnapshot).ToList() ?? [],
         };

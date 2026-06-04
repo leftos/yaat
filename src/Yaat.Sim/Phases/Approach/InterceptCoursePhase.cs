@@ -28,6 +28,14 @@ namespace Yaat.Sim.Phases.Approach;
 /// angle, overshoot laterally, and S-turn back under FinalApproachPhase control.
 /// The approach clearance is preserved regardless of intercept geometry.
 ///
+/// <see cref="RelaxedJoin"/> (JFAC / JLOC) also bypasses the capture-angle gate, but it
+/// is a relaxed armed join, not a forced/steered intercept: the aircraft keeps flying its
+/// assigned vector (e.g. "FH 220, JLOC") and turns to join the localizer when it reaches it,
+/// at whatever cut the vector produces — it never busts through. The 7110.65 §5-9-2
+/// intercept-angle limits constrain the controller's vector ("judged by the controller"),
+/// not this join, so a steeper cut is flown rather than refused. It is kept distinct from
+/// <see cref="ForcedIntercept"/> so the glideslope-established gate stays scoped to PTACF.
+///
 /// Times out after <see cref="MaxElapsedSeconds"/> if the aircraft never
 /// reaches the centerline (e.g., flying parallel).
 /// </summary>
@@ -64,6 +72,16 @@ public sealed partial class InterceptCoursePhase : Phase
     /// </summary>
     public bool ForcedIntercept { get; init; }
 
+    /// <summary>
+    /// When true (JFAC / JLOC), bypass the 30° capture-angle gate the same way
+    /// <see cref="ForcedIntercept"/> does — a relaxed armed join: the aircraft flies its
+    /// assigned vector and joins the localizer/FAC when it intercepts, at any cut, never
+    /// reporting passing through it. Kept separate from <see cref="ForcedIntercept"/>
+    /// because this join does NOT authorize the glideslope-established bypass: it holds the
+    /// assigned altitude until CAPP and must be laterally established before descending.
+    /// </summary>
+    public bool RelaxedJoin { get; init; }
+
     public override string Name => "InterceptCourse";
 
     public override void OnStart(PhaseContext ctx)
@@ -80,11 +98,11 @@ public sealed partial class InterceptCoursePhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        // When ForcedIntercept is set, the capture-angle gate is effectively unbounded
-        // (180° is the theoretical maximum between two headings). The bust-through branch
-        // at the centerline-crossing check becomes unreachable, so the aircraft always
-        // captures regardless of how steep the cut is.
-        double maxAlignmentDeg = ForcedIntercept ? 180.0 : BustThroughAlignmentDeg;
+        // When ForcedIntercept (PTACF) or RelaxedJoin (JFAC/JLOC) is set, the capture-angle
+        // gate is effectively unbounded (180° is the theoretical maximum between two headings).
+        // The bust-through branch at the centerline-crossing check becomes unreachable, so the
+        // aircraft always joins the localizer regardless of how steep the cut is.
+        double maxAlignmentDeg = (ForcedIntercept || RelaxedJoin) ? 180.0 : BustThroughAlignmentDeg;
 
         // For parallel-offset approaches the FAC line does not pass through the runway
         // threshold, so we measure cross-track against the published anchor (e.g. the LDA's
@@ -265,12 +283,15 @@ public sealed partial class InterceptCoursePhase : Phase
             double captureDistNm = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(ThresholdLat, ThresholdLon));
             clearance.InterceptCaptureDistanceNm = captureDistNm;
             clearance.InterceptCaptureAngleDeg = aircraftHeading.AbsAngleTo(FinalApproachCourse);
+            // Only a PTACF forced intercept bypasses the glideslope-established gate. A relaxed
+            // JFAC/JLOC join captures at any angle too, but must hold altitude until established.
+            clearance.ForcedInterceptCapture = ForcedIntercept;
 
             CheckInterceptLegality(ctx, clearance, captureDistNm, aircraftHeading);
         }
 
         double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
-        if (ForcedIntercept && headingDiff > BustThroughAlignmentDeg)
+        if ((ForcedIntercept || RelaxedJoin) && headingDiff > BustThroughAlignmentDeg)
         {
             Log.LogInformation(
                 "[InterceptCourse] {Callsign}: forced capture ({Reason}) — hdgDiff={HD:F1}° > {Gate:F0}°, expect lateral overshoot and S-turn recovery",
@@ -409,6 +430,7 @@ public sealed partial class InterceptCoursePhase : Phase
             RunwayHeadingCacheDeg = _runwayHeadingCache?.Degrees,
             ApproachSpeedSet = _approachSpeedSet,
             ForcedIntercept = ForcedIntercept,
+            RelaxedJoin = RelaxedJoin,
         };
 
     public static InterceptCoursePhase FromSnapshot(InterceptCoursePhaseDto dto)
@@ -420,6 +442,7 @@ public sealed partial class InterceptCoursePhase : Phase
             ThresholdLon = dto.ThresholdLon,
             ApproachId = dto.ApproachId,
             ForcedIntercept = dto.ForcedIntercept,
+            RelaxedJoin = dto.RelaxedJoin,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;

@@ -83,6 +83,12 @@ public sealed class ApproachClearanceDto
     public double? MapDistanceNm { get; init; }
     public double? InterceptCaptureDistanceNm { get; init; }
     public double? InterceptCaptureAngleDeg { get; init; }
+
+    /// <summary>True when a PTACF forced intercept captured the localizer (the glideslope-
+    /// established gate is bypassed for it). Optional (defaults false) so older snapshots and
+    /// relaxed JFAC/JLOC joins round-trip to the gated behavior.</summary>
+    public bool ForcedInterceptCapture { get; init; }
+
     public MissedApproachHoldDto? MapHold { get; init; }
     public List<ApproachFixDto>? MissedApproachFixes { get; init; }
 }
@@ -820,6 +826,10 @@ public sealed class InterceptCoursePhaseDto : PhaseDto
     public double? RunwayHeadingCacheDeg { get; init; }
     public required bool ApproachSpeedSet { get; init; }
     public required bool ForcedIntercept { get; init; }
+
+    /// <summary>JFAC/JLOC relaxed armed join (captures at any cut). Optional (defaults
+    /// false) so recordings made before the field deserialize cleanly.</summary>
+    public bool RelaxedJoin { get; init; }
 }
 
 public sealed class DepartureProcedurePhaseDto : PhaseDto

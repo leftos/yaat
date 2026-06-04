@@ -19,7 +19,8 @@ public class FinalApproachGlideslopeEstablishedTests
         double headingOffsetDeg,
         double lateralOffsetNm,
         double? captureAngleDeg,
-        string approachId = "I28R"
+        string approachId = "I28R",
+        bool forcedInterceptCapture = false
     )
     {
         var rwy = TestRunwayFactory.Make(
@@ -63,6 +64,7 @@ public class FinalApproachGlideslopeEstablishedTests
             RunwayId = "28R",
             FinalApproachCourse = rwy.TrueHeading,
             InterceptCaptureAngleDeg = captureAngleDeg,
+            ForcedInterceptCapture = forcedInterceptCapture,
         };
 
         ac.Phases = new PhaseList
@@ -126,12 +128,25 @@ public class FinalApproachGlideslopeEstablishedTests
     [Fact]
     public void ForcedIntercept_OffCourse_BypassesGate_CapturesGlideslope()
     {
-        // Capture angle > 30° marks a forced intercept (PTACF / implied-PTAC) that S-turns back.
-        var (phase, ctx) = Setup(headingOffsetDeg: 20, lateralOffsetNm: 0, captureAngleDeg: 45);
+        // A PTACF forced intercept (ForcedInterceptCapture, capture angle > 30°) S-turns back and
+        // bypasses the lateral GS gate. A relaxed JFAC/JLOC join at the same steep angle would not.
+        var (phase, ctx) = Setup(headingOffsetDeg: 20, lateralOffsetNm: 0, captureAngleDeg: 45, forcedInterceptCapture: true);
 
         phase.OnTick(ctx);
 
         Assert.True(GsCaptured(phase), "Forced intercept bypasses the lateral GS gate.");
+    }
+
+    [Fact]
+    public void RelaxedJoin_OffCourseAtSteepAngle_DoesNotBypassGate()
+    {
+        // A relaxed JFAC/JLOC join can capture at a steep cut too, but unlike a PTACF it must hold
+        // its altitude until laterally established — it does not bypass the GS gate.
+        var (phase, ctx) = Setup(headingOffsetDeg: 20, lateralOffsetNm: 0, captureAngleDeg: 45, forcedInterceptCapture: false);
+
+        phase.OnTick(ctx);
+
+        Assert.False(GsCaptured(phase), "A relaxed join (not forced) must establish before the glideslope captures.");
     }
 
     [Fact]

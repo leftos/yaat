@@ -947,25 +947,28 @@ public sealed class FinalApproachPhase : Phase
     /// <summary>
     /// Whether the aircraft is laterally established on the final approach course closely enough to
     /// begin the glideslope descent: within <see cref="GsEstablishedHeadingDeg"/> of the FAC and
-    /// <see cref="GsEstablishedCrossTrackNm"/> of centerline. Forced intercepts (PTACF / implied-PTAC,
-    /// recorded with a capture angle steeper than the bust-through gate) and visual approaches bypass
-    /// the gate — the former intentionally S-turn back onto course, the latter have no electronic
-    /// glideslope. AIM 5-4-7 / 7110.65 5-9-4 ("until established on the localizer, cleared ILS").
+    /// <see cref="GsEstablishedCrossTrackNm"/> of centerline. PTACF forced intercepts (which
+    /// intentionally S-turn back onto course) and visual approaches bypass the gate — the former
+    /// would otherwise be stranded high, the latter have no electronic glideslope. A relaxed
+    /// JFAC/JLOC join is NOT bypassed even from a steep cut: it held its altitude until CAPP and
+    /// must settle onto the localizer before descending. AIM 5-4-7 / 7110.65 5-9-4 ("until
+    /// established on the localizer, cleared ILS").
     /// </summary>
     private bool IsLaterallyEstablishedForGs(PhaseContext ctx, double absCrossTrackNm)
     {
         // The gate is an instrument-approach concept: only an aircraft vectored to an electronic
         // final must be established on the localizer before starting down. Bypass it for finals
         // without an approach clearance (pattern/visual turning final), pattern traffic, visual
-        // approaches (no electronic glideslope), and forced intercepts (which intentionally S-turn
-        // back onto course and would otherwise be stranded high).
+        // approaches (no electronic glideslope), and PTACF forced intercepts (which intentionally
+        // S-turn back onto course and would otherwise be stranded high).
         var clearance = ctx.Aircraft.Phases?.ActiveApproach;
         if (clearance is null || _isPatternTraffic)
         {
             return true;
         }
 
-        bool forcedIntercept = clearance.InterceptCaptureAngleDeg is { } angle && (angle > ForcedInterceptCaptureAngleDeg);
+        bool forcedIntercept =
+            clearance.ForcedInterceptCapture && clearance.InterceptCaptureAngleDeg is { } angle && (angle > ForcedInterceptCaptureAngleDeg);
         bool visualApproach = clearance.ApproachId.StartsWith("VIS", StringComparison.Ordinal);
         if (forcedIntercept || visualApproach)
         {
