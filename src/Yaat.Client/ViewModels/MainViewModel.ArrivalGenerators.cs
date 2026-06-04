@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.ViewModels;
@@ -18,16 +19,19 @@ public partial class MainViewModel
 
     public string? LoadedScenarioJson { get; private set; }
 
-    public IReadOnlyList<string> LatestRunwayIds
+    public IReadOnlyList<string> LatestRunwayIds => UnionRunwayIds(Ground.DomainLayout, LatestArrivalGenerators);
+
+    /// <summary>
+    /// The runway-end IDs offered by the generator editor: the union of the active ground layout's
+    /// runway ends and the runways already configured on the loaded generators. Unioning the loaded
+    /// generators in means an existing generator's runway always appears even before the ground layout
+    /// has finished loading (the editor can open first) — or for a runway the layout doesn't list.
+    /// </summary>
+    internal static List<string> UnionRunwayIds(AirportGroundLayout? layout, IReadOnlyList<ScenarioGeneratorConfig> generators)
     {
-        get
+        var ends = new List<string>();
+        if (layout is not null)
         {
-            var layout = Ground.DomainLayout;
-            if (layout is null)
-            {
-                return [];
-            }
-            var ends = new List<string>();
             foreach (var rwy in layout.Runways)
             {
                 foreach (var part in rwy.EndDesignators)
@@ -38,8 +42,15 @@ public partial class MainViewModel
                     }
                 }
             }
-            return ends;
         }
+        foreach (var gen in generators)
+        {
+            if (!string.IsNullOrEmpty(gen.Runway) && !ends.Contains(gen.Runway))
+            {
+                ends.Add(gen.Runway);
+            }
+        }
+        return ends;
     }
 
     internal void StashLoadedScenarioJson(string scenarioJson)

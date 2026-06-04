@@ -855,7 +855,7 @@ YAAT supports a **v2 weather JSON format** that defines time-based weather evolu
 The editor has two panels:
 
 - **Left panel** — generator list with **+ Add** / **- Remove** buttons. Each row summarizes its runway, engine, weight category, and interval time.
-- **Right panel** — selected generator details, grouped into Identity (id, runway), Spawn rate (initial/max/interval distances, interval/start-offset/max time, randomize-interval toggle), Aircraft (engine type, weight category, randomize-weight toggle), and an optional AutoTrack block (position, handoff delay, scratchpad, cleared altitude).
+- **Right panel** — selected generator details, grouped into Identity (id, and an editable runway box that suggests the airport's runways plus any already used by the loaded generators — you can also type a runway directly), Spawn rate (initial/max/interval distances, interval/start-offset/max time, randomize-interval toggle), Aircraft (engine type, weight category, randomize-weight toggle — checking **Randomize weight category** disables the weight box, since it overrides the selection and picks a realistic mix for the chosen engine), and an optional AutoTrack block (position, handoff delay, scratchpad, cleared altitude).
 
 **Reschedule on Apply:** When you click **Apply to Sim**, every generator is rescheduled from now. Aircraft already spawned by previous generators keep flying; only future spawns are affected.
 

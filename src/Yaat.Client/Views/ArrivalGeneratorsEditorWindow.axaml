@@ -61,9 +61,12 @@
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Id" VerticalAlignment="Center" Margin="0,2,8,2" />
                         <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding Id}" Margin="0,2" />
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Runway" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <ComboBox Grid.Row="1" Grid.Column="1"
-                                  ItemsSource="{Binding RunwayOptions}"
-                                  SelectedItem="{Binding Runway}" Margin="0,2" />
+                        <AutoCompleteBox Grid.Row="1" Grid.Column="1"
+                                         ItemsSource="{Binding RunwayOptions}"
+                                         Text="{Binding Runway, Mode=TwoWay}"
+                                         FilterMode="ContainsOrdinal"
+                                         MinimumPrefixLength="0"
+                                         Watermark="e.g. 28R" Margin="0,2" />
                     </Grid>
 
                     <TextBlock Text="Spawn rate" FontWeight="Bold" />
