@@ -174,6 +174,11 @@ SignalR's `JsonHubProtocol` calls `JsonSerializer.Serialize<object>(...)` on eve
 metadata throws `JsonSerializerIsReflectionDisabled` **at first use, with no compile error**. The desktop client falls
 through to reflection and works fine — so a forgotten registration is invisible until someone runs the browser client.
 
+`HubJsonContractTests` (`tests/Yaat.Client.Tests`) closes part of that gap: it reflects over every public `Task<T>`
+method on `ServerConnection` (each one an `InvokeAsync<T>` wrapper) and fails the build when a Core-owned return type is
+missing from `YaatHubJsonContext`. It covers **Core return types only** — broadcast (`.On<T>`) payloads, method
+arguments, and the Strips/Tdls contexts aren't reflectable from the method surface and stay unguarded.
+
 The fix is a `[JsonSerializable]` registration in one of **three** source-generated contexts, inserted at the head of the
 resolver chain in the `AddJsonProtocol` callback inside `ServerConnection.ConnectAsync` (`ServerConnection.cs:103`-`106`),
 at chain positions **0 / 1 / 2**:

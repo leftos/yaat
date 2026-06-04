@@ -66,6 +66,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(ScenarioSummaryDto))]
 [JsonSerializable(typeof(ScenarioSummaryDto[]))]
 [JsonSerializable(typeof(ScenarioCatalogResponseDto))]
+[JsonSerializable(typeof(ScenarioJsonResultDto))]
 // List<AccessibleFacilityDto>, FlightStripsConfigDto, CommandResultDto live
 // in YaatStripsHubJsonContext.
 [JsonSerializable(typeof(UnloadScenarioResultDto))]
