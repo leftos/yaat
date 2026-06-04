@@ -209,9 +209,9 @@ It does **not** apply to `Parking` (already on a graph node), `OnRunway`/`OnFina
 grammar is `{rules} {weight} {engine} {position…} [type] [*airline]`:
 
 - **rules** — `I`/`IFR` or `V`/`VFR`.
-- **weight** — `S` (small), `L` (large), `H` (heavy).
-- **engine** — `P` (piston), `T` (turboprop), `J` (jet). `ValidateCombo` (`:338`) rejects the three impossible combos
-  (Heavy+Piston, Heavy+Turboprop, Small+Jet).
+- **weight** — `S` (small), `S+` (smallplus — regional/commuter feed), `L` (large — mainline narrow-body), `H` (heavy).
+- **engine** — `P` (piston), `T` (turboprop), `J` (jet). `ValidateCombo` (`:338`) rejects the four impossible combos
+  (Heavy+Piston, Heavy+Turboprop, Small+Jet, SmallPlus+Piston).
 - **position** — index 3 onward, one of five variants (see table below).
 
 The trailing overrides (an explicit type like `B738`, an airline like `*UAL`) are parsed **right-to-left from the end, stopping
@@ -258,10 +258,18 @@ The `@`-prefix disambiguation (`:71`) is the trickiest: `@FIX 5000` (a numeric s
 5. **Position.** Switches on `SpawnPositionType` to the matching `Generate*` method, each of which uses the same
    `AircraftInitializer` / `GlideSlopeGeometry` as the loader.
 
+The `TypeTable` buckets span four weight tiers: `Small` (GA/light), `SmallPlus` (regional jets `CRJ7`/`E170`/`E75L`/`E145`/`E135`
+and commuter turboprops `AT72`/`DH8C`/`SF34`/`B190`/`B350`), `Large` (mainline narrow-body only — `B737`/`A320` family), and
+`Heavy`. SmallPlus has no piston bucket (it falls back to `Small`). The weight↔CWT split matters for wake spacing: a SmallPlus
+follower maps to the coarse `Large` wake class (`SimulationEngine.WakeClassForWeight`), while each spawned type's precise CWT
+still drives ATPA. The `Large+Turboprop` bucket does not exist — there is no CWT "Large" turboprop.
+
 The bucket↔fleet coupling is validated at startup by `AssertEveryTypeResolves` (`:42`): every `TypeTable` type must resolve
-through both `AircraftProfileDatabase` and `AircraftCategorization` (with the expected category), and every curated airline in
-`Airlines` must exist in `AirlineFleets`. It throws loudly rather than degrading to category-default performance or pairing
-`SWA` with an `A320`. This table is tuned often — keep it in sync with the data DBs or the startup assertion fails.
+through both `AircraftProfileDatabase` and `AircraftCategorization` (with the expected category), every **jet** type must resolve
+to a CWT category (so a non-resolvable designator like `E175`-instead-of-`E75L` can't silently go wake-unknown), and every
+curated airline in `Airlines` must exist in `AirlineFleets`. It throws loudly rather than degrading to category-default
+performance or pairing `SWA` with an `A320`. This table is tuned often — keep it in sync with the data DBs or the startup
+assertion fails.
 
 `BuildAddFlightPlan` (`:101`) encodes the cold-call vs filed split: a VFR `ADD` builds a blank `AircraftFlightPlan`
 (`HasFlightPlan=false`) — the controller files later; an IFR `ADD` builds a filed plan with the generated type so STARS/strips

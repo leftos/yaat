@@ -19,9 +19,10 @@ public static class AircraftGenerator
         [(WeightClass.Small, EngineKind.Piston)] = ["C172", "C182", "P28A", "SR22", "BE36", "C150", "C152"],
         [(WeightClass.Small, EngineKind.Turboprop)] = ["C208", "PC12", "BE20", "P180"],
         [(WeightClass.Small, EngineKind.Jet)] = ["C25A", "C525", "C500", "C501", "C550", "C560"],
+        [(WeightClass.SmallPlus, EngineKind.Turboprop)] = ["AT72", "DH8C", "SF34", "B190", "B350"],
+        [(WeightClass.SmallPlus, EngineKind.Jet)] = ["CRJ7", "E170", "E75L", "E145", "E135"],
         [(WeightClass.Large, EngineKind.Piston)] = ["AC68", "BE60", "BE58", "C421"],
-        [(WeightClass.Large, EngineKind.Turboprop)] = ["AT72", "DH8C", "B190", "SF34"],
-        [(WeightClass.Large, EngineKind.Jet)] = ["CRJ7", "CRJ9", "E170", "E145", "B737", "B738", "B739", "A319", "A320", "A321"],
+        [(WeightClass.Large, EngineKind.Jet)] = ["B737", "B738", "B739", "A319", "A320", "A321"],
         [(WeightClass.Heavy, EngineKind.Jet)] = ["A332", "A333", "B763", "B764", "B772", "B788", "B744"],
     };
 
@@ -61,6 +62,15 @@ public static class AircraftGenerator
                 if (cat != expectedCat)
                 {
                     problems.Add($"{weight}+{engine}: type '{type}' categorized as {cat}, expected {expectedCat}");
+                }
+
+                // Jet pools feed wake-separation spacing, so every jet type must resolve to a CWT
+                // category — otherwise it silently degrades to the coarse weight-class default. This
+                // catches non-resolvable designators (e.g. "E175" instead of the real "E75L") that the
+                // profile and category checks above miss.
+                if (engine == EngineKind.Jet && WakeTurbulenceData.GetCwt(type) is null)
+                {
+                    problems.Add($"{weight}+{engine}: jet type '{type}' has no CWT category — wake separation would fall back to the coarse default");
                 }
             }
         }

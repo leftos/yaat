@@ -22,7 +22,7 @@ public partial class ArrivalGeneratorsEditorViewModel : ObservableObject
 
     public IReadOnlyList<string> EngineOptions { get; } = ["Jet", "Turboprop", "Piston"];
 
-    public IReadOnlyList<string> WeightOptions { get; } = ["Small", "Large", "Heavy"];
+    public IReadOnlyList<string> WeightOptions { get; } = ["Small", "SmallPlus", "Large", "Heavy"];
 
     [ObservableProperty]
     private GeneratorRowViewModel? _selectedGenerator;

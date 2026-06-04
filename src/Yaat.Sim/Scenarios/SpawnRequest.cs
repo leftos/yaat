@@ -9,6 +9,7 @@ public enum FlightRulesKind
 public enum WeightClass
 {
     Small,
+    SmallPlus,
     Large,
     Heavy,
 }

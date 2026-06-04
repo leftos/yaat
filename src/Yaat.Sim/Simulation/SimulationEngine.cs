@@ -2120,6 +2120,9 @@ public sealed class SimulationEngine
         {
             WeightClass.Heavy => WakeTurbulenceData.WakeClass.Heavy,
             WeightClass.Small => WakeTurbulenceData.WakeClass.Small,
+            // SmallPlus spans CWT G (weightCode Large) and H (weightCode Small); Large is the
+            // conservative-realistic coarse class for the on-approach wake floor behind it.
+            WeightClass.SmallPlus => WakeTurbulenceData.WakeClass.Large,
             _ => WakeTurbulenceData.WakeClass.Large,
         };
 
@@ -2328,7 +2331,7 @@ public sealed class SimulationEngine
         return config.WeightCategory switch
         {
             "Small" => WeightClass.Small,
-            "SmallPlus" => WeightClass.Large,
+            "SmallPlus" => WeightClass.SmallPlus,
             "Heavy" => WeightClass.Heavy,
             _ => WeightClass.Large,
         };

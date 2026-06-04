@@ -46,8 +46,9 @@ public class AircraftGeneratorTypeTableTests
     [InlineData(WeightClass.Small, EngineKind.Piston)]
     [InlineData(WeightClass.Small, EngineKind.Turboprop)]
     [InlineData(WeightClass.Small, EngineKind.Jet)]
+    [InlineData(WeightClass.SmallPlus, EngineKind.Turboprop)]
+    [InlineData(WeightClass.SmallPlus, EngineKind.Jet)]
     [InlineData(WeightClass.Large, EngineKind.Piston)]
-    [InlineData(WeightClass.Large, EngineKind.Turboprop)]
     [InlineData(WeightClass.Large, EngineKind.Jet)]
     [InlineData(WeightClass.Heavy, EngineKind.Jet)]
     public void EveryBucketHasAtLeastTwoTypes(WeightClass weight, EngineKind engine)

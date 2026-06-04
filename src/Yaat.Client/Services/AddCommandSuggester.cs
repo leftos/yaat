@@ -61,7 +61,8 @@ internal static class AddCommandSuggester
                     suggestions,
                     maxSuggestions,
                     ("S", "Small — GA/light aircraft"),
-                    ("L", "Large — Regional/narrow-body"),
+                    ("S+", "SmallPlus — Regional/commuter"),
+                    ("L", "Large — Narrow-body"),
                     ("H", "Heavy — Wide-body")
                 );
                 break;
@@ -147,6 +148,7 @@ internal static class AddCommandSuggester
         return token.ToUpperInvariant() switch
         {
             "S" => WeightClass.Small,
+            "S+" => WeightClass.SmallPlus,
             "L" => WeightClass.Large,
             "H" => WeightClass.Heavy,
             _ => null,
@@ -181,11 +183,12 @@ internal static class AddCommandSuggester
                 ("P", "Piston — " + FormatTypes(weight, EngineKind.Piston)),
                 ("T", "Turboprop — " + FormatTypes(weight, EngineKind.Turboprop)),
             ],
-            WeightClass.Large =>
+            WeightClass.SmallPlus =>
             [
                 ("T", "Turboprop — " + FormatTypes(weight, EngineKind.Turboprop)),
                 ("J", "Jet — " + FormatTypes(weight, EngineKind.Jet)),
             ],
+            WeightClass.Large => [("J", "Jet — " + FormatTypes(weight, EngineKind.Jet))],
             WeightClass.Heavy => [("J", "Jet — " + FormatTypes(weight, EngineKind.Jet))],
             _ => [],
         };

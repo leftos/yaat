@@ -17,7 +17,7 @@ public static class SpawnParser
 
         if (!TryParseWeight(tokens[1], out var weight))
         {
-            return (null, $"Invalid weight class '{tokens[1]}'. Use S (small), L (large), or H (heavy)");
+            return (null, $"Invalid weight class '{tokens[1]}'. Use S (small), S+ (smallplus), L (large), or H (heavy)");
         }
 
         if (!TryParseEngine(tokens[2], out var engine))
@@ -300,6 +300,11 @@ public static class SpawnParser
             weight = WeightClass.Small;
             return true;
         }
+        if (upper == "S+")
+        {
+            weight = WeightClass.SmallPlus;
+            return true;
+        }
         if (upper == "L")
         {
             weight = WeightClass.Large;
@@ -348,6 +353,10 @@ public static class SpawnParser
         if (weight == WeightClass.Small && engine == EngineKind.Jet)
         {
             return "Invalid combo: Small + Jet doesn't exist";
+        }
+        if (weight == WeightClass.SmallPlus && engine == EngineKind.Piston)
+        {
+            return "Invalid combo: SmallPlus + Piston doesn't exist";
         }
         return null;
     }

@@ -1260,7 +1260,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 | Parameter | Values |
 |-----------|--------|
 | Rules | `I`/`IFR` (instrument) or `V`/`VFR` (visual) |
-| Weight | `S` (small/GA), `L` (large), `H` (heavy) |
+| Weight | `S` (small/GA), `S+` (smallplus — regional/commuter), `L` (large/narrow-body), `H` (heavy) |
 | Engine | `P` (piston), `T` (turboprop), `J` (jet) |
 
 **Position arguments:**
@@ -1279,9 +1279,12 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 
 | | Piston (P) | Turboprop (T) | Jet (J) |
 |---|---|---|---|
-| Small (S) | C172, C182, PA28, SR22 | C208, PC12, BE20 | — |
-| Large (L) | — | DH8D, AT76, AT72 | B738, A320, E170, E175, CRJ9 |
-| Heavy (H) | — | — | B77L, B772, A332, B789, B744, A359 |
+| Small (S) | C172, C182, P28A, SR22 | C208, PC12, BE20 | — |
+| SmallPlus (S+) | — | AT72, DH8C, SF34, B190, B350 | CRJ7, E170, E75L, E145, E135 |
+| Large (L) | — | — | B737, B738, B739, A319, A320, A321 |
+| Heavy (H) | — | — | B763, B764, B772, B788, B744, A332, A333 |
+
+SmallPlus is the regional/commuter feed (regional jets and commuter turboprops); Large is mainline narrow-body only.
 
 IFR aircraft get a random airline callsign (e.g., UAL1234). VFR aircraft get an N-number (e.g., N1234A).
 

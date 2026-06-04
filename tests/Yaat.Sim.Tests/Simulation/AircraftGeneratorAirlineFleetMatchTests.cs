@@ -23,7 +23,8 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
     [Theory]
     [InlineData(WeightClass.Large, EngineKind.Jet)]
     [InlineData(WeightClass.Heavy, EngineKind.Jet)]
-    [InlineData(WeightClass.Large, EngineKind.Turboprop)]
+    [InlineData(WeightClass.SmallPlus, EngineKind.Jet)]
+    [InlineData(WeightClass.SmallPlus, EngineKind.Turboprop)]
     public void GeneratedTypeIsOperatedByGeneratedAirline(WeightClass weight, EngineKind engine)
     {
         TestVnasData.EnsureInitialized();
