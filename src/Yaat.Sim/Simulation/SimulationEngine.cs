@@ -18,10 +18,20 @@ using Yaat.Sim.Training;
 namespace Yaat.Sim.Simulation;
 
 /// <summary>
-/// Result from <see cref="SimulationEngine.TickPrePhysics"/>. Lists aircraft spawned this tick
-/// so the server can broadcast spawn events.
+/// Result from <see cref="SimulationEngine.TickPrePhysics"/>. <see cref="SpawnedAircraft"/> lists the
+/// delayed-queue aircraft spawned this tick; <see cref="GeneratorSpawns"/> lists the arrival-generator
+/// spawns paired with their autotrack configuration. The server broadcasts both and, for generator
+/// spawns that carry autotrack, applies the owner/scratchpad/handoff before broadcasting.
 /// </summary>
-public record struct TickPrePhysicsResult(List<AircraftState> SpawnedAircraft);
+public record struct TickPrePhysicsResult(List<AircraftState> SpawnedAircraft, List<GeneratorSpawn> GeneratorSpawns);
+
+/// <summary>
+/// One arrival-generator spawn this tick paired with its generator's <see cref="AutoTrackConditions"/>
+/// (null when the generator has none). Threaded out of the sim so the server can apply the autotrack and
+/// record the spawn AFTER, so the owner/scratchpad land in the initial broadcast and the recorded
+/// snapshot replays with them intact (the eager in-sim recording would capture an untracked state).
+/// </summary>
+public readonly record struct GeneratorSpawn(AircraftState State, AutoTrackConditions? AutoTrack);
 
 /// <summary>
 /// Diagnostic record of one arrival-generator spawn. Lets the time-first spawn cadence and placement
@@ -566,13 +576,14 @@ public sealed class SimulationEngine
         var scenario = Scenario;
         if (scenario is null)
         {
-            return new TickPrePhysicsResult([]);
+            return new TickPrePhysicsResult([], []);
         }
 
         var spawned = new List<AircraftState>();
+        var generatorSpawns = new List<GeneratorSpawn>();
 
         ProcessDelayedSpawns(spawned);
-        ProcessGenerators(spawned);
+        ProcessGenerators(generatorSpawns);
         ProcessTriggers();
         ProcessTimedPresets();
         ProcessReleaseQueue();
@@ -585,7 +596,7 @@ public sealed class SimulationEngine
             World.GroundLayout = _groundData.GetLayout(scenario.PrimaryAirportId);
         }
 
-        return new TickPrePhysicsResult(spawned);
+        return new TickPrePhysicsResult(spawned, generatorSpawns);
     }
 
     /// <summary>
@@ -1978,7 +1989,7 @@ public sealed class SimulationEngine
     private const double FinalCorridorMarginNm = 3.0;
     private const double TerminalRadarFloorNm = 3.0;
 
-    private void ProcessGenerators(List<AircraftState> spawned)
+    private void ProcessGenerators(List<GeneratorSpawn> generatorSpawns)
     {
         var scenario = Scenario!;
         if (
@@ -2017,7 +2028,7 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            TrySpawnArrival(gen, ratePercent, spawned);
+            TrySpawnArrival(gen, ratePercent, generatorSpawns);
         }
     }
 
@@ -2030,7 +2041,7 @@ public sealed class SimulationEngine
     /// never exceeded. An empty corridor has no rearmost, so the arrival spawns exactly at
     /// <c>InitialDistance</c> — the cold start needs no special case.
     /// </summary>
-    private void TrySpawnArrival(GeneratorState gen, int ratePercent, List<AircraftState> spawned)
+    private void TrySpawnArrival(GeneratorState gen, int ratePercent, List<GeneratorSpawn> generatorSpawns)
     {
         var scenario = Scenario!;
         if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
@@ -2079,7 +2090,7 @@ public sealed class SimulationEngine
             return;
         }
 
-        spawned.Add(state);
+        generatorSpawns.Add(new GeneratorSpawn(state, gen.Config.AutoTrackConfiguration));
         _generatorSpawnLog.Add(
             new GeneratorSpawnRecord(gen.Config.Id, state.Callsign, scenario.ElapsedSeconds, placement, rearmost?.DistanceNm, gap)
         );
@@ -2211,7 +2222,14 @@ public sealed class SimulationEngine
         state.SpawnedAtSeconds = scenario.ElapsedSeconds;
 
         World.AddAircraft(state);
-        RecordGeneratedAircraftSpawn(state);
+
+        // A generator without autotrack has no owner/scratchpad to wait for, so record it now. When the
+        // generator carries an AutoTrackConfiguration, the server applies it then calls RecordGeneratedSpawn
+        // so the recorded snapshot captures the owner/scratchpad and replays with them intact.
+        if (gen.Config.AutoTrackConfiguration is null)
+        {
+            RecordGeneratedAircraftSpawn(state);
+        }
 
         EmitTerminal("System", state.Callsign, $"[Spawn] Generated ({gen.Config.Id})");
 
@@ -2728,6 +2746,14 @@ public sealed class SimulationEngine
     }
 
     // --- Replay helpers ---
+
+    /// <summary>
+    /// Records a generated arrival's spawn for replay AFTER the server has applied its autotrack
+    /// configuration, so the recorded snapshot carries the owner / scratchpad / temporary altitude.
+    /// Generated arrivals without an autotrack configuration are instead recorded eagerly at spawn
+    /// (see <see cref="SpawnGeneratedArrival"/>); this method is only for the autotrack-bearing path.
+    /// </summary>
+    public void RecordGeneratedSpawn(AircraftState state) => RecordGeneratedAircraftSpawn(state);
 
     private void RecordGeneratedAircraftSpawn(AircraftState state)
     {

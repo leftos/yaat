@@ -285,8 +285,8 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   auto-track messages.
 - **`ProcessGenerators`** — skipped entirely during replay/playback when recorded aircraft spawns exist (those are replayed
   verbatim, not regenerated). Each non-exhausted generator past its `StartTimeOffset` (and not past `MaxTime`) feeds arrivals
-  onto the runway's final via `SpawnGeneratedArrival` (builds an `OnFinal` arrival, adds it, records it for replay via
-  `RecordGeneratedAircraftSpawn`). The model is **time-first** (`TrySpawnArrival`):
+  onto the runway's final via `SpawnGeneratedArrival` (builds an `OnFinal` arrival, adds it to the world). The model is
+  **time-first** (`TrySpawnArrival`):
   - **Cadence**: `IntervalTime` (pacing-scaled, optional ±25% jitter via `EffectiveSpawnIntervalSeconds`) drives *when* the next
     arrival is due — the only spawn trigger is `ElapsedSeconds >= NextSpawnSeconds`. At load `NextSpawnSeconds = StartTimeOffset`,
     so the first arrival fires as soon as the generator activates.
@@ -301,6 +301,14 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   time-spaced; a short `IntervalTime` packs the stream back toward `MaxDistance` at `gap` spacing, then throttles on "no room".
   Each spawn appends a `GeneratorSpawnRecord` to `GeneratorSpawnLog` (diagnostic). The solo-training arrival-rate percent (via
   `ScenarioPacing`) widens the interval and can clamp the generator off entirely.
+  - **AutoTrack threading (server-side application).** Generator spawns leave the sim in
+    `TickPrePhysicsResult.GeneratorSpawns` — each a `GeneratorSpawn(State, AutoTrackConditions?)` carrying the generator's
+    `AutoTrackConfiguration`. The server's `TickProcessor.ProcessPrePhysics` runs each autotrack-bearing spawn through the same
+    `ApplyAutoTrackConditions` scenario aircraft use (owner + scratchpad + a delayed handoff to the student) **before**
+    broadcasting it, so the owner is in the first datablock. Replay-safety: a spawn **with** autotrack is recorded
+    (`RecordGeneratedSpawn`) *after* the server applies the owner, so the recorded snapshot replays with owner/scratchpad
+    intact; a spawn **without** autotrack is recorded eagerly in `SpawnGeneratedArrival` (no owner to wait for). The eager-in-sim
+    record would otherwise capture an untracked state and replay would lose the autotrack.
 - **`ProcessTriggers`** (`:1994`) — fires `ScheduledTrigger`s whose `FireAtSeconds` elapsed via `ExecuteGlobalCommand`, which
   only handles the global squawk commands (`SQALL`/`SNALL`/`SSALL`).
 - **`ProcessTimedPresets`** (`:1931`) — fires `ScheduledPreset`s whose `FireAtSeconds` elapsed: parses the command with
