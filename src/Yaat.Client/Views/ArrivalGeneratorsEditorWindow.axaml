@@ -95,10 +95,9 @@
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Weight" VerticalAlignment="Center" Margin="0,2,8,2" />
                         <ComboBox Grid.Row="1" Grid.Column="1"
                                   ItemsSource="{Binding WeightOptions}"
-                                  SelectedItem="{Binding WeightCategory}"
-                                  IsEnabled="{Binding !RandomizeWeightCategory}" Margin="0,2" />
+                                  SelectedItem="{Binding WeightCategory}" Margin="0,2" />
                     </Grid>
-                    <CheckBox Content="Randomize weight category (overrides the selection above)" IsChecked="{Binding RandomizeWeightCategory}" Margin="8,0,0,0" />
+                    <CheckBox Content="Randomize weight category (varies around the weight selected above)" IsChecked="{Binding RandomizeWeightCategory}" Margin="8,0,0,0" />
 
                     <TextBlock Text="AutoTrack (optional)" FontWeight="Bold" />
                     <CheckBox Content="Enable AutoTrack" IsChecked="{Binding AutoTrackEnabled}" Margin="8,0,0,0" />

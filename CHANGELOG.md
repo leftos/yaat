@@ -25,7 +25,7 @@
 ### Fixed
 - Arrival generators now sustain a realistic in-trail stream paced by their configured time interval and the wake-turbulence minimum, instead of emitting a long line of aircraft at once.
 - Arrival generators set to **SmallPlus** now spawn the regional/commuter feed (regional jets, commuter turboprops) instead of mainline narrow-bodies; Large is mainline-only and `ADD` gains an `S+` token.
-- A generator's **Randomize weight** now rolls a realistic mix matched to its engine type instead of a fixed 15%-small/85%-large split that never included regionals; the weight dropdown disables while it's checked.
+- A generator's **Randomize weight** now varies the class around the configured weight, bounded to nearby classes — a Small/SmallPlus generator stays light and mixes in general-aviation (N-number) traffic, while a Large/Heavy generator never drops below the regional feed — so a short-runway generator no longer spawns a mainline jet; previously it ignored the configured weight and used a fixed 15%-small/85%-large split.
 - The arrival-generator editor's **Runway** field is now an editable box with suggestions that always lists the runways already configured, even before the ground layout finishes loading.
 - Aircraft from an arrival generator with an **AutoTrack** config now spawn already owned by the configured position with the scratchpad set and hand off to the student after the delay, like scenario-loaded aircraft.
 - Arrival generators with no **max time** now run the whole session instead of stopping after an hour, and those with no **in-trail distance** space at the radar/wake minimum instead of a fabricated 5 NM.

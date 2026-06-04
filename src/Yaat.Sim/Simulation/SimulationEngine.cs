@@ -2330,50 +2330,76 @@ public sealed class SimulationEngine
 
     private static WeightClass ResolveWeight(ScenarioGeneratorConfig config, EngineKind engine, Random rng)
     {
-        if (config.RandomizeWeightCategory)
-        {
-            return RandomWeightForEngine(engine, rng);
-        }
+        var baseWeight = ParseWeightCategory(config.WeightCategory);
+        return config.RandomizeWeightCategory ? RandomWeightForEngine(engine, baseWeight, rng) : baseWeight;
+    }
 
-        return config.WeightCategory switch
+    private static WeightClass ParseWeightCategory(string category) =>
+        category switch
         {
             "Small" => WeightClass.Small,
             "SmallPlus" => WeightClass.SmallPlus,
             "Heavy" => WeightClass.Heavy,
             _ => WeightClass.Large,
         };
-    }
 
     /// <summary>
-    /// Rolls a random arrival weight class conditioned on the generator's fixed engine type, for the
-    /// <c>randomizeWeightCategory</c> option. The split (aviation-reviewed) only assigns probability to
-    /// classes that have a real type pool for the engine, so a randomized turboprop/piston generator
-    /// never rolls a class that would only degrade through the fallback chain to a nonsensical type:
+    /// The weight classes a randomize-weight generator may roll, with their relative shares, bounded to a
+    /// band around the generator's configured base weight (aviation-reviewed). Bounding keeps a generator
+    /// from feeding a runway an aircraft it can't take — a Small/SmallPlus generator (short runway) never
+    /// rolls a mainline jet, and a Large/Heavy generator never drops below the regional feed:
     /// <list type="bullet">
-    /// <item>Jet — 3% Small (bizjet), 32% SmallPlus (regional), 55% Large (mainline narrow-body), 10% Heavy (widebody).</item>
-    /// <item>Turboprop — 35% Small (light), 65% SmallPlus (commuter). No large/heavy turboprop exists.</item>
-    /// <item>Piston — always Small.</item>
+    /// <item>Small / SmallPlus — {Small, SmallPlus} (light GA + regional feed).</item>
+    /// <item>Large — {SmallPlus, Large, Heavy}.</item>
+    /// <item>Heavy — {Large, Heavy}.</item>
     /// </list>
-    /// These are sane generic defaults for a busy US airport; the real mix is airport-specific (widebody
-    /// share especially varies from ~0 at a regional hub to ~25% at an international gateway).
+    /// The configured base class always carries the plurality of the mix.
     /// </summary>
-    public static WeightClass RandomWeightForEngine(EngineKind engine, Random rng)
-    {
-        switch (engine)
+    private static IReadOnlyList<(WeightClass Weight, double Share)> BaseWeightBand(WeightClass baseWeight) =>
+        baseWeight switch
         {
-            case EngineKind.Piston:
-                return WeightClass.Small;
-            case EngineKind.Turboprop:
-                return rng.NextDouble() < 0.35 ? WeightClass.Small : WeightClass.SmallPlus;
-            default:
-                return rng.NextDouble() switch
-                {
-                    < 0.03 => WeightClass.Small,
-                    < 0.35 => WeightClass.SmallPlus,
-                    < 0.90 => WeightClass.Large,
-                    _ => WeightClass.Heavy,
-                };
+            WeightClass.Small => [(WeightClass.Small, 0.65), (WeightClass.SmallPlus, 0.35)],
+            WeightClass.SmallPlus => [(WeightClass.Small, 0.35), (WeightClass.SmallPlus, 0.65)],
+            WeightClass.Large => [(WeightClass.SmallPlus, 0.25), (WeightClass.Large, 0.65), (WeightClass.Heavy, 0.10)],
+            WeightClass.Heavy => [(WeightClass.Large, 0.40), (WeightClass.Heavy, 0.60)],
+            _ => [(WeightClass.Large, 1.0)],
+        };
+
+    /// <summary>
+    /// Rolls a random arrival weight class for the <c>randomizeWeightCategory</c> option, bounded to the
+    /// <see cref="BaseWeightBand"/> around the generator's configured base weight and then intersected with
+    /// the classes that actually have a type pool for the generator's fixed <paramref name="engine"/> (per
+    /// <see cref="AircraftGenerator.GetTypesForCombo"/>). The intersection is what keeps a randomized
+    /// turboprop/piston generator from rolling a class that would only degrade through the fallback chain to
+    /// a nonsensical type — no Large/Heavy turboprop exists, and piston is Small singles or Large twins with
+    /// nothing between. A Small-class roll resolves to general-aviation types (bizjets, light pistons, light
+    /// turboprops) that no scheduled airline operates, so those spawns come up under N-number callsigns.
+    /// </summary>
+    public static WeightClass RandomWeightForEngine(EngineKind engine, WeightClass baseWeight, Random rng)
+    {
+        var band = BaseWeightBand(baseWeight).Where(e => AircraftGenerator.GetTypesForCombo(e.Weight, engine) is not null).ToList();
+
+        if (band.Count == 0)
+        {
+            // Misconfigured base/engine combo (e.g. a Heavy turboprop generator, whose whole band has no
+            // pool). Fall back to a uniform roll over the classes the engine does have a pool for, so the
+            // spawn still resolves to a real type instead of degrading through the fallback chain.
+            band = Enum.GetValues<WeightClass>()
+                .Where(w => AircraftGenerator.GetTypesForCombo(w, engine) is not null)
+                .Select(w => (Weight: w, Share: 1.0))
+                .ToList();
         }
+
+        var pick = rng.NextDouble() * band.Sum(e => e.Share);
+        foreach (var entry in band)
+        {
+            pick -= entry.Share;
+            if (pick <= 0)
+            {
+                return entry.Weight;
+            }
+        }
+        return band[^1].Weight;
     }
 
     private static EngineKind ResolveEngine(string engineType)
