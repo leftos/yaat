@@ -195,7 +195,11 @@ public static class FlightPhysics
                     aircraft.Targets.SpeedCeiling = lastProcSpeed;
                 }
 
-                aircraft.Targets.TargetTrueHeading = null;
+                // FM terminator (most US STARs): fly the published outbound course and await
+                // vectors, instead of holding the heading the aircraft happened to arrive on.
+                aircraft.Targets.TargetTrueHeading = sequenced.TerminalCourseMagnetic is { } fmCourse
+                    ? new MagneticHeading(fmCourse).ToTrue(aircraft.Declination)
+                    : null;
                 aircraft.Targets.PreferredTurnDirection = null;
                 ClearProcedureState(aircraft);
                 return;

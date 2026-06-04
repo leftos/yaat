@@ -1053,9 +1053,16 @@ internal static class DepartureClearanceHandler
                 continue;
             }
 
-            // Deduplicate adjacent identical fix names
+            // Deduplicate adjacent identical fix names. A common pattern is a TF/CF to a fix
+            // followed by an FM "fly course from that fix, expect vectors" leg on the same fix
+            // (ends most US STARs) — carry the FM outbound course onto the existing target so the
+            // collapse doesn't discard it.
             if (targets.Count > 0 && string.Equals(targets[^1].Name, leg.FixIdentifier, StringComparison.OrdinalIgnoreCase))
             {
+                if (leg.PathTerminator == CifpPathTerminator.FM && leg.OutboundCourse is { } fmCourse)
+                {
+                    targets[^1].TerminalCourseMagnetic = fmCourse;
+                }
                 previousFixPos = (pos.Value.Lat, pos.Value.Lon);
                 continue;
             }
@@ -1115,6 +1122,7 @@ internal static class DepartureClearanceHandler
                         leg.IsFlyOver
                         || leg.FixRole is CifpFixRole.FAF or CifpFixRole.MAP
                         || leg.PathTerminator is CifpPathTerminator.HA or CifpPathTerminator.HF or CifpPathTerminator.HM,
+                    TerminalCourseMagnetic = leg.PathTerminator == CifpPathTerminator.FM ? leg.OutboundCourse : null,
                 }
             );
 

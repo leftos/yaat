@@ -164,6 +164,13 @@ public class NavigationTarget
     public CifpSpeedRestriction? SpeedRestriction { get; set; }
     public bool IsFlyOver { get; init; }
 
+    /// <summary>
+    /// Published outbound course (magnetic) to fly after sequencing this terminating fix when the
+    /// route is then empty — the ARINC-424 FM "fly course, expect vectors" leg that ends most US
+    /// STARs. Null for ordinary fixes (the aircraft holds its arrival heading at route end).
+    /// </summary>
+    public double? TerminalCourseMagnetic { get; set; }
+
     /// <summary>TargetAltitude to restore after sequencing past this fix (CFIX/drawn-route revert).</summary>
     public double? RevertAltitude { get; set; }
 
@@ -197,6 +204,7 @@ public class NavigationTarget
             RevertAssignedAltitude = RevertAssignedAltitude,
             RevertSpeed = RevertSpeed,
             RevertAssignedSpeed = RevertAssignedSpeed,
+            TerminalCourseMagnetic = TerminalCourseMagnetic,
         };
 
     public static NavigationTarget FromSnapshot(NavigationTargetDto dto) =>
@@ -219,5 +227,6 @@ public class NavigationTarget
             RevertAssignedAltitude = dto.RevertAssignedAltitude,
             RevertSpeed = dto.RevertSpeed,
             RevertAssignedSpeed = dto.RevertAssignedSpeed,
+            TerminalCourseMagnetic = dto.TerminalCourseMagnetic,
         };
 }

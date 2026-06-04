@@ -33,6 +33,7 @@ public sealed class NavigationTargetDto
     public double? RevertAssignedAltitude { get; init; }
     public double? RevertSpeed { get; init; }
     public double? RevertAssignedSpeed { get; init; }
+    public double? TerminalCourseMagnetic { get; init; }
 }
 
 public sealed class AltitudeRestrictionDto
