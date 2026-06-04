@@ -742,11 +742,15 @@ public static class AircraftGenerator
             return null;
         }
 
-        var totalWeight = compatible.Sum(a => Math.Sqrt(Math.Max(1, a.Arrivals)));
+        // Weight linearly by real arrival count so the generated carrier mix matches each airport's actual
+        // traffic share -- a dominant carrier (e.g. Southwest at Oakland) shows up proportionally often and
+        // the long tail of carriers with a handful of yearly arrivals stays rare. (A square-root weighting
+        // over-represented that tail by ~100x.)
+        var totalWeight = compatible.Sum(a => (double)Math.Max(1, a.Arrivals));
         var pick = rng.NextDouble() * totalWeight;
         foreach (var entry in compatible)
         {
-            pick -= Math.Sqrt(Math.Max(1, entry.Arrivals));
+            pick -= Math.Max(1, entry.Arrivals);
             if (pick <= 0)
             {
                 return entry.Icao;
