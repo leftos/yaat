@@ -87,7 +87,7 @@ public partial class GeneratorRowViewModel : ObservableObject
             MaxDistance = cfg.MaxDistance,
             IntervalDistance = cfg.IntervalDistance,
             StartTimeOffset = cfg.StartTimeOffset,
-            MaxTime = cfg.MaxTime,
+            MaxTime = cfg.MaxTime ?? 3600,
             IntervalTime = cfg.IntervalTime,
             RandomizeInterval = cfg.RandomizeInterval,
             RandomizeWeightCategory = cfg.RandomizeWeightCategory,

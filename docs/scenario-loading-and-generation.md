@@ -286,7 +286,12 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
 - **`ProcessGenerators`** — skipped entirely during replay/playback when recorded aircraft spawns exist (those are replayed
   verbatim, not regenerated). Each non-exhausted generator past its `StartTimeOffset` (and not past `MaxTime`) feeds arrivals
   onto the runway's final via `SpawnGeneratedArrival` (builds an `OnFinal` arrival, adds it to the world). The model is
-  **time-first** (`TrySpawnArrival`):
+  **time-first** (`TrySpawnArrival`). **Config nullability mirrors the vNAS model:** `MaxTime` is `int?` — **null means no
+  time-based exhaustion** (the stream runs for the whole session), which is what most published scenarios want since they omit
+  the field; only a non-null `MaxTime` exhausts the generator. `IntervalDistance` defaults to `0` when omitted (no author
+  distance floor), so spacing falls back to the radar/wake minimum rather than a fabricated 5 nm. (`InitialDistance` is always
+  present in the live corpus, so YAAT keeps its sane 10 nm fallback rather than vNAS's literal `0`, which would spawn on the
+  threshold.) The model is:
   - **Cadence**: `IntervalTime` (pacing-scaled, optional ±25% jitter via `EffectiveSpawnIntervalSeconds`) drives *when* the next
     arrival is due — the only spawn trigger is `ElapsedSeconds >= NextSpawnSeconds`. At load `NextSpawnSeconds = StartTimeOffset`,
     so the first arrival fires as soon as the generator activates.
@@ -399,6 +404,10 @@ reattachment pattern.
   type (or none).
 - **The `Coordinates`/`FixOrFrd` speed default is mode-dependent.** Both altitude and speed omitted → speed 0 (ground spawn).
   Only one omitted → `-1` → resolved to a category default. Don't assume omitted speed always means a default cruise speed.
+- **Generator `MaxTime` is `int?`; null means run forever, not "stop at 3600".** Most published scenarios omit `maxTime`, so the
+  generator must keep feeding traffic for the whole session — only a non-null value exhausts it. Likewise an omitted
+  `intervalDistance` resolves to `0` (radar/wake floor only), not a 5 nm author floor. Don't reintroduce non-null numeric
+  defaults on these fields: that silently truncates real scenarios' arrival streams or widens their spacing.
 - **Approach inheritance is destination-gated.** `PrimaryApproach` only flows to aircraft destined for (or matching) the primary
   airport. An arrival to a different field will never pick it up; don't "fix" a missing approach by widening the inheritance.
 - **The route-build call must pass `includeAllTransitionsOnMismatch: false`.** A new flying-route call site that takes the `true`

@@ -2016,15 +2016,10 @@ public sealed class SimulationEngine
             {
                 continue;
             }
-            if (scenario.ElapsedSeconds > gen.Config.MaxTime)
+            if (gen.Config.MaxTime is { } maxTime && scenario.ElapsedSeconds > maxTime)
             {
                 gen.IsExhausted = true;
-                _logger.LogInformation(
-                    "Generator '{Id}' exhausted at t={T}s (maxTime={MaxTime})",
-                    gen.Config.Id,
-                    scenario.ElapsedSeconds,
-                    gen.Config.MaxTime
-                );
+                _logger.LogInformation("Generator '{Id}' exhausted at t={T}s (maxTime={MaxTime})", gen.Config.Id, scenario.ElapsedSeconds, maxTime);
                 continue;
             }
 

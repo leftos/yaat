@@ -219,14 +219,19 @@ public class ScenarioGeneratorConfig
     [JsonPropertyName("maxDistance")]
     public double MaxDistance { get; set; } = 50;
 
+    // vNAS leaves intervalDistance null when omitted (no author distance floor). 0 means the spacing
+    // gap falls back to the radar/wake minimum; a positive value binds (not adds) as the in-trail floor.
     [JsonPropertyName("intervalDistance")]
-    public double IntervalDistance { get; set; } = 5;
+    public double IntervalDistance { get; set; }
 
     [JsonPropertyName("startTimeOffset")]
     public int StartTimeOffset { get; set; }
 
+    // Nullable to mirror the vNAS model: null means "no time-based exhaustion" -- the stream runs for the
+    // whole session rather than stopping at a hard-coded default.
     [JsonPropertyName("maxTime")]
-    public int MaxTime { get; set; } = 3600;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxTime { get; set; }
 
     [JsonPropertyName("intervalTime")]
     public int IntervalTime { get; set; } = 300;
