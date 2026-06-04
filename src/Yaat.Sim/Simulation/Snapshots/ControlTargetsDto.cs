@@ -47,6 +47,25 @@ public sealed class SpeedRestrictionDto
 {
     public required int Type { get; init; }
     public required int Speed { get; init; }
+
+    // Legacy snapshots only ever wrote Type=1 (the old IsMaximum=true), so 0 and 1 both map back to
+    // AtOrBelow; new restriction types use distinct codes. Kept in one place so every snapshot
+    // round-trip that carries a speed restriction shares the same wire mapping.
+    public static int ToTypeCode(Data.Vnas.CifpSpeedRestrictionType type) =>
+        type switch
+        {
+            Data.Vnas.CifpSpeedRestrictionType.AtOrAbove => 2,
+            Data.Vnas.CifpSpeedRestrictionType.Mandatory => 3,
+            _ => 1,
+        };
+
+    public static Data.Vnas.CifpSpeedRestrictionType FromTypeCode(int type) =>
+        type switch
+        {
+            2 => Data.Vnas.CifpSpeedRestrictionType.AtOrAbove,
+            3 => Data.Vnas.CifpSpeedRestrictionType.Mandatory,
+            _ => Data.Vnas.CifpSpeedRestrictionType.AtOrBelow,
+        };
 }
 
 public sealed class ProcedureLegDto

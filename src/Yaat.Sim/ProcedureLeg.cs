@@ -103,7 +103,7 @@ public sealed class ProcedureLeg
                 }
                 : null,
             SpeedRestriction = SpeedRestriction is not null
-                ? new SpeedRestrictionDto { Type = SpeedRestriction.IsMaximum ? 1 : 0, Speed = SpeedRestriction.SpeedKts }
+                ? new SpeedRestrictionDto { Type = SpeedRestrictionDto.ToTypeCode(SpeedRestriction.Type), Speed = SpeedRestriction.SpeedKts }
                 : null,
             IsFlyOver = IsFlyOver,
         };
@@ -131,7 +131,7 @@ public sealed class ProcedureLeg
                 )
                 : null,
             SpeedRestriction = dto.SpeedRestriction is not null
-                ? new CifpSpeedRestriction(dto.SpeedRestriction.Speed, dto.SpeedRestriction.Type == 1)
+                ? new CifpSpeedRestriction(dto.SpeedRestriction.Speed, SpeedRestrictionDto.FromTypeCode(dto.SpeedRestriction.Type))
                 : null,
             IsFlyOver = dto.IsFlyOver,
         };

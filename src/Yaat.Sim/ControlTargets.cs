@@ -197,7 +197,7 @@ public class NavigationTarget
                 }
                 : null,
             SpeedRestriction = SpeedRestriction is not null
-                ? new SpeedRestrictionDto { Type = SpeedRestrictionTypeToDto(SpeedRestriction.Type), Speed = SpeedRestriction.SpeedKts }
+                ? new SpeedRestrictionDto { Type = SpeedRestrictionDto.ToTypeCode(SpeedRestriction.Type), Speed = SpeedRestriction.SpeedKts }
                 : null,
             IsFlyOver = IsFlyOver,
             RevertAltitude = RevertAltitude,
@@ -220,7 +220,7 @@ public class NavigationTarget
                 )
                 : null,
             SpeedRestriction = dto.SpeedRestriction is not null
-                ? new CifpSpeedRestriction(dto.SpeedRestriction.Speed, SpeedRestrictionTypeFromDto(dto.SpeedRestriction.Type))
+                ? new CifpSpeedRestriction(dto.SpeedRestriction.Speed, SpeedRestrictionDto.FromTypeCode(dto.SpeedRestriction.Type))
                 : null,
             IsFlyOver = dto.IsFlyOver,
             RevertAltitude = dto.RevertAltitude,
@@ -228,23 +228,5 @@ public class NavigationTarget
             RevertSpeed = dto.RevertSpeed,
             RevertAssignedSpeed = dto.RevertAssignedSpeed,
             TerminalCourseMagnetic = dto.TerminalCourseMagnetic,
-        };
-
-    // SpeedRestrictionDto.Type: legacy snapshots only ever wrote 1 (the old IsMaximum=true),
-    // so 0/1 must both round-trip to AtOrBelow. New types use distinct codes.
-    private static int SpeedRestrictionTypeToDto(CifpSpeedRestrictionType type) =>
-        type switch
-        {
-            CifpSpeedRestrictionType.AtOrAbove => 2,
-            CifpSpeedRestrictionType.Mandatory => 3,
-            _ => 1,
-        };
-
-    private static CifpSpeedRestrictionType SpeedRestrictionTypeFromDto(int type) =>
-        type switch
-        {
-            2 => CifpSpeedRestrictionType.AtOrAbove,
-            3 => CifpSpeedRestrictionType.Mandatory,
-            _ => CifpSpeedRestrictionType.AtOrBelow,
         };
 }
