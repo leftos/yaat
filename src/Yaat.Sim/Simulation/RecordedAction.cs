@@ -21,6 +21,14 @@ public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, str
     /// re-sampling — re-sampling on replay would draw from a divergent RNG state and break determinism.
     /// </summary>
     public double? ReactionDelaySeconds { get; init; }
+
+    /// <summary>
+    /// Airborne spawn jitter in seconds drawn for an immediate single <c>REL</c> of a held
+    /// runway/airborne departure, or null for ground releases, auto-spaced (queued) releases, and
+    /// non-<c>REL</c> commands. Baked in so replays reproduce the exact spawn time rather than
+    /// re-sampling — re-sampling on replay would draw from a divergent RNG state and break determinism.
+    /// </summary>
+    public int? SpawnJitterSeconds { get; init; }
 }
 
 public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment) : RecordedAction(ElapsedSeconds);

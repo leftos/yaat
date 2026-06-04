@@ -35,6 +35,16 @@ public sealed class SimulationWorld
     /// </summary>
     public SerializableRandom ReactionDelayRng { get; set; } = new SerializableRandom(0);
 
+    /// <summary>
+    /// Dedicated RNG for sampling the immediate-release airborne spawn jitter (the <c>REL</c> command's
+    /// spawn delay). Kept separate from <see cref="Rng"/> so command-time release sampling — which
+    /// arrives async relative to the tick loop — never perturbs the shared RNG stream that drives
+    /// replay-critical emergent events (generator spawn timing, go-around rolls). Live-only: replays
+    /// reproduce the exact jitter baked into the recorded <c>REL</c> command rather than re-sampling, so
+    /// this RNG is never consumed during replay and is intentionally not snapshotted.
+    /// </summary>
+    public SerializableRandom ReleaseJitterRng { get; set; } = new SerializableRandom(0);
+
     public WeatherProfile? Weather { get; set; }
     public AirportGroundLayout? GroundLayout { get; set; }
     public FrequencyState ActiveFrequency { get; } = new();

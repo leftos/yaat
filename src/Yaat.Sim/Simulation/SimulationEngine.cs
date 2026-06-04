@@ -470,6 +470,7 @@ public sealed class SimulationEngine
         World.Clear();
         World.Rng = new SerializableRandom(rngSeed);
         World.ReactionDelayRng = new SerializableRandom(rngSeed);
+        World.ReleaseJitterRng = new SerializableRandom(rngSeed);
         ApproachEvaluator.Reset();
         SoloTrainingEvaluator.Reset();
 
@@ -2883,7 +2884,7 @@ public sealed class SimulationEngine
             case RecordedCommandKind.ReleaseDeparture:
                 if (Scenario is not null && parsed is ReleaseDepartureCommand rel)
                 {
-                    HeldReleaseService.Release(Scenario, World, World.Rng, rel.Target, rel.IntervalSeconds);
+                    HeldReleaseService.ReplayRelease(Scenario, World, rel.Target, rel.IntervalSeconds, cmd.SpawnJitterSeconds);
                 }
 
                 return;

@@ -24,7 +24,16 @@ public sealed record HeldDeparture(
 );
 
 /// <summary>Result of arming/disarming/releasing — the server projects these into terminal/log lines.</summary>
-public sealed record HeldReleaseResult(bool Success, string Message);
+public sealed record HeldReleaseResult(bool Success, string Message)
+{
+    /// <summary>
+    /// Airborne spawn jitter (s) drawn for an immediate single release of a held runway/airborne
+    /// departure. The server bakes this onto the recorded <c>REL</c> command so replay reproduces the
+    /// spawn time without consuming RNG. Null for ground releases, auto-spaced (queued) releases, and
+    /// failures.
+    /// </summary>
+    public int? SpawnJitterSeconds { get; init; }
+}
 
 /// <summary>
 /// Pure state mutator for hold-for-release: arm/disarm an airport, release a departure, and build the
@@ -113,6 +122,36 @@ public static class HeldReleaseService
         SerializableRandom rng,
         string target,
         int? intervalSeconds
+    ) => ReleaseCore(scenario, world, rng, bakedJitter: null, target, intervalSeconds);
+
+    /// <summary>
+    /// Replay entry for <c>REL</c>. Reproduces a live release deterministically: the immediate
+    /// airborne path uses <paramref name="bakedJitterSeconds"/> (the value drawn live and baked onto
+    /// the recorded command) instead of sampling, so no RNG is consumed and the shared
+    /// <see cref="SimulationWorld.Rng"/> stream stays aligned with the original run. A legacy recording
+    /// with no baked jitter falls back to <see cref="MinSpawnReleaseDelaySeconds"/> — still
+    /// deterministic and RNG-free (the spawn itself replays from a recorded spawn action).
+    /// </summary>
+    public static HeldReleaseResult ReplayRelease(
+        SimScenarioState scenario,
+        SimulationWorld world,
+        string target,
+        int? intervalSeconds,
+        int? bakedJitterSeconds
+    ) => ReleaseCore(scenario, world, rng: null, bakedJitter: bakedJitterSeconds ?? (int)MinSpawnReleaseDelaySeconds, target, intervalSeconds);
+
+    /// <summary>
+    /// Shared body for <see cref="Release"/> (live, <paramref name="rng"/> drives the airborne jitter)
+    /// and <see cref="ReplayRelease"/> (replay, <paramref name="bakedJitter"/> drives it). Exactly one
+    /// of the two is non-null on the immediate-airborne path.
+    /// </summary>
+    private static HeldReleaseResult ReleaseCore(
+        SimScenarioState scenario,
+        SimulationWorld world,
+        SerializableRandom? rng,
+        int? bakedJitter,
+        string target,
+        int? intervalSeconds
     )
     {
         var normalized = target.Trim().ToUpperInvariant();
@@ -120,7 +159,7 @@ public static class HeldReleaseService
         // Callsign form: release that specific held departure.
         if (FindHeldByCallsign(scenario, world, normalized) is { } held)
         {
-            return ReleaseOne(scenario, world, rng, held);
+            return ReleaseOneCore(scenario, world, rng, bakedJitter, held);
         }
 
         // Airport form.
@@ -132,10 +171,13 @@ public static class HeldReleaseService
 
         if (intervalSeconds is not { } interval || atField.Count == 1)
         {
-            return ReleaseOne(scenario, world, rng, atField[0]);
+            return ReleaseOneCore(scenario, world, rng, bakedJitter, atField[0]);
         }
 
-        // Auto-spaced release of the whole field's queue: schedule each in pending order.
+        // Auto-spaced release of the whole field's queue: schedule each in pending order. No jitter is
+        // drawn here — each scheduled release fires later from the tick loop (ProcessReleaseQueue),
+        // which draws its airborne jitter from the snapshot-restored shared RNG and so reproduces on
+        // replay without baking.
         for (var i = 0; i < atField.Count; i++)
         {
             scenario.ReleaseQueue.Add(
@@ -158,7 +200,16 @@ public static class HeldReleaseService
     /// randomized airborne delay; for a held ground departure, clears the hold so the holding-short
     /// auto-CTO fires.
     /// </summary>
-    public static HeldReleaseResult ReleaseOne(SimScenarioState scenario, SimulationWorld world, SerializableRandom rng, HeldDeparture held)
+    public static HeldReleaseResult ReleaseOne(SimScenarioState scenario, SimulationWorld world, SerializableRandom rng, HeldDeparture held) =>
+        ReleaseOneCore(scenario, world, rng, bakedJitter: null, held);
+
+    private static HeldReleaseResult ReleaseOneCore(
+        SimScenarioState scenario,
+        SimulationWorld world,
+        SerializableRandom? rng,
+        int? bakedJitter,
+        HeldDeparture held
+    )
     {
         if (held.IsGroundDeparture)
         {
@@ -183,9 +234,12 @@ public static class HeldReleaseService
         }
 
         entry.HeldForRelease = false;
-        var jitter = rng.Next((int)MinSpawnReleaseDelaySeconds, (int)MaxSpawnReleaseDelaySeconds + 1);
+        var jitter =
+            bakedJitter
+            ?? rng?.Next((int)MinSpawnReleaseDelaySeconds, (int)MaxSpawnReleaseDelaySeconds + 1)
+            ?? throw new InvalidOperationException("ReleaseOneCore requires either a baked jitter or an RNG to sample.");
         entry.SpawnAtSeconds = (int)scenario.ElapsedSeconds + jitter;
-        return new HeldReleaseResult(true, $"{held.Callsign} released");
+        return new HeldReleaseResult(true, $"{held.Callsign} released") { SpawnJitterSeconds = jitter };
     }
 
     /// <summary>

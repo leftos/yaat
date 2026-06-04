@@ -389,6 +389,9 @@ SimLog.cs                      # Static logger factory for Yaat.Sim; Initialize(
 SerializableRandom.cs          # Xoshiro256** PRNG with serializable state (RngState record); drop-in Random replacement
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
+                               # Rng (snapshotted) + live-only ReactionDelayRng / ReleaseJitterRng (NOT snapshotted):
+                               # command-run delay + REL spawn jitter sample off the dedicated RNGs and bake the value into
+                               # the recording, so replay reproduces it without perturbing the shared Rng stream.
 CommandQueue.cs                # CommandBlock (trigger + closure + TrackedCommands), BlockTrigger
                                # CommandDimension flags (Lateral|Vertical|Speed) for dimension-aware queue clearing
                                # ReadyToAdvance: lateral gates block advancement; altitude/speed are fire-and-forget
@@ -759,11 +762,14 @@ SimScenarioState.cs            # Per-scenario runtime state: queues, settings, A
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle
 RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange, AircraftSpawn
+                               # RecordedCommand bakes ReactionDelaySeconds + SpawnJitterSeconds (nullable) for replay determinism
 RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. RecordedCommandKind enum + Classify(string)
                                # static fn. Drives the switch in both SimulationEngine.ReplayCommand and the server's
                                # RecordingManager.ReplayCommand so the parse-and-decide flow stays in lockstep across repos.
                                # Compound is the default arm — both single-parse failure and the catch-all route to it.
                                # Timer / HFR / REL replay kinds route to TimerCommandReplayer + HeldReleaseService.
+                               # REL replays via HeldReleaseService.ReplayRelease using the baked SpawnJitterSeconds
+                               # (zero RNG draws); live REL draws from World.ReleaseJitterRng and bakes the value.
 TimerCommandReplayer.cs        # Replay-time TIMER apply (set/cancel ActiveTimers on SimScenarioState); live dispatch in RoomEngine
 RecordingCompression.cs        # Brotli compress/decompress; auto-detects Brotli, gzip, or plain JSON on read
 RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loading, layout reading, seek API
