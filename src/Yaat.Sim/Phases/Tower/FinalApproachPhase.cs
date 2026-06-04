@@ -25,6 +25,23 @@ public sealed class FinalApproachPhase : Phase
     private const double MinimumsNoClearanceWarningBufferFt = 1000.0;
     private const double InterceptCrossTrackThresholdNm = 0.1;
     private const double InterceptHeadingThresholdDeg = 15.0;
+
+    /// <summary>
+    /// Lateral-established gate for starting the glideslope descent: the aircraft must be within
+    /// this many degrees of the final approach course (well inside the 7110.65 §5-9-2 intercept
+    /// ceiling) before glideslope capture, so it does not descend while still slewing onto course.
+    /// </summary>
+    private const double GsEstablishedHeadingDeg = 5.0;
+
+    /// <summary>Cross-track tolerance for the glideslope lateral-established gate ("on centerline").</summary>
+    private const double GsEstablishedCrossTrackNm = 0.15;
+
+    /// <summary>
+    /// A recorded intercept capture angle steeper than the normal 30° bust-through gate marks a
+    /// force-captured intercept (PTACF / implied-PTAC) that will S-turn onto course — it bypasses
+    /// the lateral glideslope gate (which would otherwise leave it high while it recovers).
+    /// </summary>
+    private const double ForcedInterceptCaptureAngleDeg = 30.0;
     private const double AimPointMinNm = 0.1;
 
     /// <summary>
@@ -655,7 +672,7 @@ public sealed class FinalApproachPhase : Phase
         // either) and wait for the GS to descend to meet the aircraft from above. Aircraft must
         // never fly UP to capture a glideslope.
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation, _gsAngleDeg);
-        if (!_gsCaptured && (ctx.Aircraft.Altitude >= gsAltitude - GsCaptureWindowFt))
+        if (!_gsCaptured && (ctx.Aircraft.Altitude >= gsAltitude - GsCaptureWindowFt) && IsLaterallyEstablishedForGs(ctx, absXte))
         {
             _gsCaptured = true;
         }
@@ -913,6 +930,51 @@ public sealed class FinalApproachPhase : Phase
         return Math.Max(mapAgl + OffsetRampStartBufferAgl, MinOffsetRampStartAgl);
     }
 
+    /// <summary>
+    /// Heading difference from the published final approach course. Keeps a runway-heading fallback
+    /// to absorb magnetic-variation noise when the FAC and runway heading are within
+    /// <see cref="IsAlignedToleranceDeg"/> of each other (Issue #101) — but never for genuine offset
+    /// approaches (LDA, RNAV with an offset CF leg, VOR offset like KCCR S19R), where tracking the
+    /// runway centerline must not count as established on the offset course.
+    /// </summary>
+    private double ComputeFacHeadingDiff(PhaseContext ctx)
+    {
+        double facDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(_finalApproachCourse);
+        double facVsRwy = _finalApproachCourse.AbsAngleTo(_runwayHeading);
+        return facVsRwy < IsAlignedToleranceDeg ? Math.Min(facDiff, ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading)) : facDiff;
+    }
+
+    /// <summary>
+    /// Whether the aircraft is laterally established on the final approach course closely enough to
+    /// begin the glideslope descent: within <see cref="GsEstablishedHeadingDeg"/> of the FAC and
+    /// <see cref="GsEstablishedCrossTrackNm"/> of centerline. Forced intercepts (PTACF / implied-PTAC,
+    /// recorded with a capture angle steeper than the bust-through gate) and visual approaches bypass
+    /// the gate — the former intentionally S-turn back onto course, the latter have no electronic
+    /// glideslope. AIM 5-4-7 / 7110.65 5-9-4 ("until established on the localizer, cleared ILS").
+    /// </summary>
+    private bool IsLaterallyEstablishedForGs(PhaseContext ctx, double absCrossTrackNm)
+    {
+        // The gate is an instrument-approach concept: only an aircraft vectored to an electronic
+        // final must be established on the localizer before starting down. Bypass it for finals
+        // without an approach clearance (pattern/visual turning final), pattern traffic, visual
+        // approaches (no electronic glideslope), and forced intercepts (which intentionally S-turn
+        // back onto course and would otherwise be stranded high).
+        var clearance = ctx.Aircraft.Phases?.ActiveApproach;
+        if (clearance is null || _isPatternTraffic)
+        {
+            return true;
+        }
+
+        bool forcedIntercept = clearance.InterceptCaptureAngleDeg is { } angle && (angle > ForcedInterceptCaptureAngleDeg);
+        bool visualApproach = clearance.ApproachId.StartsWith("VIS", StringComparison.Ordinal);
+        if (forcedIntercept || visualApproach)
+        {
+            return true;
+        }
+
+        return (absCrossTrackNm < GsEstablishedCrossTrackNm) && (ComputeFacHeadingDiff(ctx) < GsEstablishedHeadingDeg);
+    }
+
     private void CheckInterceptDistance(PhaseContext ctx, double distNm)
     {
         if (_interceptChecked || SkipInterceptCheck || ctx.Runway is null)
@@ -932,16 +994,7 @@ public sealed class FinalApproachPhase : Phase
         );
 
         // Establishment check: aircraft must be aligned with the published final approach course.
-        // For Issue #101 we kept a runway-heading fallback to absorb mag-variation noise where
-        // the published FAC differs from the runway-number heading by ~5-10°. Apply that
-        // fallback only when the FAC and runway heading are within IsAlignedToleranceDeg of
-        // each other — for genuine offset approaches (LDA, RNAV with offset CF leg, VOR offset
-        // like KCCR S19R) the runway heading must NOT be accepted as "established", or an
-        // aircraft tracking the runway centerline would silently pass establishment without
-        // ever flying the published course.
-        double facDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(_finalApproachCourse);
-        double facVsRwy = _finalApproachCourse.AbsAngleTo(_runwayHeading);
-        double headingDiff = facVsRwy < IsAlignedToleranceDeg ? Math.Min(facDiff, ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading)) : facDiff;
+        double headingDiff = ComputeFacHeadingDiff(ctx);
 
         if (crossTrack >= InterceptCrossTrackThresholdNm || headingDiff >= InterceptHeadingThresholdDeg)
         {

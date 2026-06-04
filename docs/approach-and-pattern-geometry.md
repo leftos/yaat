@@ -214,9 +214,20 @@ construction call-sites below.
 **Turn anticipation.** Rather than waiting to cross the centerline, the phase computes a lead distance equal to
 the turn radius (`turnRadiusNm = groundSpeed / (turnRate · 62.832)`) and begins the capture turn when
 `crossTrack ≤ leadDistNm` (`InterceptCoursePhase.cs:139`), provided the intercept is legal. This prevents lateral
-overshoot and lets `FinalApproachPhase` begin the glideslope descent immediately. There is also an
-already-on-course fast path (`crossTrack < AlreadyOnCourseThresholdNm = 0.15`) and a sign-flip centerline-crossing
-detector (`InterceptCoursePhase.cs:169`) as the fallback when anticipation didn't fire.
+overshoot and hands the (possibly still-turning) aircraft to `FinalApproachPhase` early so the turn-on completes
+under lateral tracking. There is also an already-on-course fast path
+(`crossTrack < AlreadyOnCourseThresholdNm = 0.15`) and a sign-flip centerline-crossing detector
+(`InterceptCoursePhase.cs:169`) as the fallback when anticipation didn't fire.
+
+> **Glideslope descent waits for lateral establishment, not capture.** The early/anticipated capture hands off
+> while the aircraft may still be up to 30° off the FAC; `FinalApproachPhase` does **not** start the glideslope
+> descent (`_gsCaptured`) until the aircraft is laterally established — within `GsEstablishedHeadingDeg = 5°` of the
+> FAC **and** within `GsEstablishedCrossTrackNm = 0.15 nm` of centerline (`IsLaterallyEstablishedForGs`). This
+> reproduces "maintain until established on the localizer, cleared ILS" (AIM 5-4-7 / 7110.65 5-9-4): the aircraft
+> holds the assigned altitude through the turn-on, then descends. The gate is bypassed when there is no approach
+> clearance (pattern/visual turning final), for pattern traffic, for visual approaches (`VIS` prefix), and for
+> forced intercepts (`InterceptCaptureAngleDeg > 30°`, which intentionally S-turn back and would otherwise be
+> stranded high). The 91.117 250-kt cap and the level-off-then-intercept-from-below logic are unchanged.
 
 **The three heading-diff checks (mag-var tolerance).** The capture/bust-through decision must tolerate the gap
 between the published FAC, the runway-number heading, and the controller's assigned magnetic heading. A two-way
