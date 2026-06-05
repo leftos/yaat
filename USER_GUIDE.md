@@ -337,7 +337,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 **Datablock.** Each aircraft's ground datablock shows the callsign, then its CWT wake category and type as `cwt/type` with the destination (e.g. `E/B738 SFO`) — matching the radar view; an unknown type or category just shows whichever part is known. Airborne aircraft add an altitude line, and a hold / squawk-standby / auto-yield status line and any instructor note appear below.
 
 **Right-click context menus:**
-- **On a node** (with aircraft selected): up to 4 route options ("Taxi via T U W") computed via K-shortest paths. Routes that cross runways automatically append crossing commands. Also: "Push to {spot}" (parking nodes), "Draw taxi route...", "Custom taxi...", and "Warp here".
+- **Anywhere on the ground (with aircraft selected)** — the click snaps to the nearest node, so the menu appears even on an open stretch of runway or taxiway with no node directly under the cursor: up to 4 route options ("Taxi via T U W") computed via K-shortest paths. Routes that cross runways automatically append crossing commands. Also: "Push to {spot}" (parking nodes), "Draw taxi route...", "Custom taxi...", and "Warp here".
 - **On an aircraft** — items vary by phase:
   - *At Parking*: "Push back" (default), "Push back, face {taxiway}" per connected edge, "Push back to..." submenu listing the closest 30 named parking/spot/helipad nodes (sorted by distance)
   - *Pushback / Taxiing / Following*: "Hold position"

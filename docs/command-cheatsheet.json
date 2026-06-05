@@ -86,7 +86,7 @@
         { "verb": "CAPPSI / JAPPSI", "aliases": [], "description": "Straight-in approach" },
         { "verb": "CAPPF / JAPPF", "aliases": [], "description": "Force approach (bypass checks)" },
         { "verb": "JFAC", "aliases": ["jloc", "jf"], "description": "Join final approach course [id]" },
-        { "verb": "JARR", "aliases": ["arr", "star"], "description": "Join STAR (star entry_fix)" },
+        { "verb": "JARR", "aliases": ["arr", "star"], "description": "Join STAR (star [entry_fix] [runway])" },
         { "verb": "JAWY", "aliases": [], "description": "Join airway" },
         { "verb": "JRADO", "aliases": ["jrad"], "description": "Join radial outbound (fix bearing)" },
         { "verb": "JRADI", "aliases": ["jicrs"], "description": "Join radial inbound (fix bearing)" },

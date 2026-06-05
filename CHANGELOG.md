@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.1-beta [2026/06/04]
+
+### Highlights
+- **Descend via the STAR** — `DVIA` now descends arrivals on their STAR's published crossing restrictions, even without a prior `JARR`, instead of firing silently and leaving them level.
+- **`JARR` by landing runway** — `JARR TEJAS5 27` selects that runway's STAR transition and sets the destination runway.
+- **Final approach lines up with the centerline** — ILS finals no longer track about a degree off to one side of the localizer.
+- **Departures hold their SID's initial altitude** — an IFR departure cleared without an altitude climbs to and holds its SID's published initial altitude until you climb it.
 
 ### Added
 - Ground view aircraft datablocks now show the CWT wake category alongside the type as `cwt/type` (e.g. `E/B738`), matching the radar view.
