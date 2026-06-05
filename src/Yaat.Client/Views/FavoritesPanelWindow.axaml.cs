@@ -23,7 +23,6 @@ public partial class FavoritesPanelWindow : Window
         InitializeComponent();
         _geometryHelper = new WindowGeometryHelper(this, preferences, "FavoritesPanel", 900, 620);
         _geometryHelper.Restore();
-        AlwaysOnTopContextMenu.Attach(this, _geometryHelper);
     }
 
     public static void ShowOrActivate(MainViewModel vm, Window? owner)

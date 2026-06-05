@@ -262,7 +262,6 @@ Views/
   ControllersWindow.axaml.cs    # Pop-out host for ControllersView (View > Pop Out Controllers)
   MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars
   MetarWindow.axaml.cs          # Pop-out host for MetarView (View > Pop Out METAR)
-  AlwaysOnTopContextMenu.cs     # Shared right-click "Always On Top" toggle attached to every pop-out window
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
   FavoritesContextMenu.cs       # Builds the Favorite Commands submenu attached to aircraft right-click menus (list/ground/radar)
   FavoritesContextMenuModel.cs  # Pure model behind FavoritesContextMenu: resolves active favorites against the clicked aircraft for headless tests

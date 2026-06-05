@@ -20,7 +20,6 @@ public partial class MetarWindow : Window
         InitializeComponent();
         _geometryHelper = new WindowGeometryHelper(this, preferences, "Metar", 520, 480);
         _geometryHelper.Restore();
-        AlwaysOnTopContextMenu.Attach(this, _geometryHelper);
     }
 
     protected override void OnLoaded(RoutedEventArgs e)

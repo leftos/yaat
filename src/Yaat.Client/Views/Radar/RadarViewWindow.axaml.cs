@@ -20,7 +20,6 @@ public partial class RadarViewWindow : Window
         InitializeComponent();
         _geometryHelper = new WindowGeometryHelper(this, preferences, "RadarView", 800, 600);
         _geometryHelper.Restore();
-        AlwaysOnTopContextMenu.Attach(this, _geometryHelper);
     }
 
     protected override void OnLoaded(RoutedEventArgs e)

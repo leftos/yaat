@@ -20,7 +20,6 @@ public partial class ControllersWindow : Window
         InitializeComponent();
         _geometryHelper = new WindowGeometryHelper(this, preferences, "Controllers", 360, 480);
         _geometryHelper.Restore();
-        AlwaysOnTopContextMenu.Attach(this, _geometryHelper);
     }
 
     protected override void OnLoaded(RoutedEventArgs e)

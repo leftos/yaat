@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Right-clicking a pop-out window (Aircraft List, Ground, Radar, Controllers, METAR, Terminal, Favorites) no longer opens an "Always On Top" context menu over the window body. Toggle Always on Top from Settings, the configurable hotkey, or — on Windows — the title-bar system menu (right-click the title bar or click the window icon).
+
 ## v0.7.0-beta [2026/06/04]
 
 ### Highlights
