@@ -666,7 +666,7 @@ When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a h
 
 All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see [Altitude Arguments](#altitude-arguments)). A bare number (1-360) without a modifier prefix is interpreted as a heading: `CTO 270` = fly heading 270, `CTO 270 050` = fly heading 270, climb to 5,000 ft.
 
-When a CTO carries no explicit climb altitude, an IFR departure on a SID climbs to and maintains the SID's published initial ("maintain") altitude from the facility's vTDLS configuration (e.g. KIAH 4,000 ft, KHOU 5,000 ft) until you issue a climb (`CM`/`CD`). A later climb command supersedes the cap; VFR departures and airports without a published initial altitude are unaffected.
+When a CTO carries no explicit climb altitude, an IFR departure on a SID climbs to and maintains the SID's published initial ("maintain") altitude from the facility's vTDLS configuration (e.g. KIAH 4,000 ft, KHOU 5,000 ft) until you issue a climb (`CM`). A later climb command supersedes the cap; VFR departures and airports without a published initial altitude are unaffected.
 
 Append `CWT` after any CTO form to include "caution wake turbulence" in the takeoff clearance and record wake-advisory proof: `CTO CWT`, `CTO 270 CWT`, `CTO DCT SUNOL CWT`.
 

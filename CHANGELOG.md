@@ -5,7 +5,7 @@
 ### Added
 - Ground view aircraft datablocks now show the CWT wake category alongside the type as `cwt/type` (e.g. `E/B738`), matching the radar view.
 - `JARR` now accepts the landing runway as an argument — `JARR TEJAS5 27` selects that runway's STAR transition and sets the destination runway; combine it with an entry fix as `JARR TEJAS5 RIDLR 27`.
-- IFR departures cleared without an altitude (e.g. a `CTO` with only a heading) now climb to and hold their SID's published initial altitude from the facility's vTDLS configuration (e.g. KIAH 4,000 ft, KHOU 5,000 ft) until you issue a climb; a later `CM`/`CD` supersedes it.
+- IFR departures cleared without an altitude (e.g. a `CTO` with only a heading) now climb to and hold their SID's published initial altitude from the facility's vTDLS configuration (e.g. KIAH 4,000 ft, KHOU 5,000 ft) until you issue a climb; a later `CM` supersedes it.
 
 ### Fixed
 - Arrivals now descend via the STAR: `DVIA` ("descend via") activates the STAR filed in the aircraft's route and applies its published crossing restrictions even without a prior `JARR`, instead of firing silently and leaving the aircraft level.
