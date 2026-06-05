@@ -176,7 +176,11 @@ internal readonly struct RadarDatablockLayout
         return parts.Count > 0 ? string.Join(" ", parts) : null;
     }
 
-    private static string FormatCwtType(string cwt, string aircraftType)
+    /// <summary>
+    /// Joins a CWT category and aircraft type as <c>cwt/type</c> (e.g. <c>E/B738</c>), falling back to
+    /// whichever side is present. Shared with the ground view datablock (Views.Ground.DataBlockLayout).
+    /// </summary>
+    internal static string FormatCwtType(string cwt, string aircraftType)
     {
         string baseType = aircraftType.Trim();
         if (cwt.Length > 0 && baseType.Length > 0)

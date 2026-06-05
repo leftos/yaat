@@ -4,6 +4,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
+using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
@@ -65,7 +66,12 @@ internal readonly struct DataBlockLayout
         // Suffix '*' marks aircraft pre-armed for auto-delete on hold-short (ONHS DEL).
         string line1 = ac.AutoDeletePending ? $"{ac.Callsign}*" : ac.Callsign;
         string dest = ac.Destination.StartsWith('K') ? ac.Destination[1..] : ac.Destination;
-        string line2 = string.IsNullOrEmpty(dest) ? ac.AircraftType : $"{ac.AircraftType} {dest}";
+        // CWT category prepended to the physical type as "cwt/type" (e.g. "E/B738"), mirroring the
+        // radar STARS datablock. Ground stays on the physical AircraftType (tower-cab "out the window"
+        // surface), unlike the radar surfaces which use DisplayAircraftType.
+        string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
+        string cwtType = RadarDatablockLayout.FormatCwtType(cwt, ac.AircraftType);
+        string line2 = string.IsNullOrEmpty(dest) ? cwtType : (cwtType.Length > 0 ? $"{cwtType} {dest}" : dest);
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
         // Ground hold / auto-yield takes precedence on line4 over the SqStby transponder hint —
         // a HOLDPOSITION, GIVEWAY, or auto-detected yield is operationally more important than a

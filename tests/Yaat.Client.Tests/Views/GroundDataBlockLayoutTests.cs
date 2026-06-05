@@ -29,6 +29,42 @@ public class GroundDataBlockLayoutTests
     }
 
     [Fact]
+    public void Line2_IncludesCwt_WhenCwtCodePresent()
+    {
+        var ac = CreateModel();
+        ac.CwtCode = "E";
+        using var paint = CreatePaint();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+
+        Assert.Equal("E/B738 SFO", layout.Line2);
+    }
+
+    [Fact]
+    public void Line2_OmitsCwt_WhenCwtCodeEmpty()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+
+        Assert.Equal("B738 SFO", layout.Line2);
+    }
+
+    [Fact]
+    public void Line2_CwtWithoutDestination()
+    {
+        var ac = CreateModel();
+        ac.CwtCode = "E";
+        ac.Destination = "";
+        using var paint = CreatePaint();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+
+        Assert.Equal("E/B738", layout.Line2);
+    }
+
+    [Fact]
     public void NoSqStby_WhenTransponderModeIsCharlie_OnGround()
     {
         var ac = CreateModel();
