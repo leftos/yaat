@@ -112,17 +112,27 @@ the behavior but stay unverified by the suite.
   server and `StartIncrementTiming_MatchesReplay` now guards the real server path.
 - 720 server tests pass; characterization tests green.
 
-**Part 2 — per-room lock (TODO, thread-safety + async-race robustness):**
-- Add `SemaphoreSlim TickGate` to `TrainingRoom`; the tick holds it; mutating entry points acquire it.
-- **Footgun found:** `RoomEngine` mutators NEST — `SendCommandAsync` internally calls
-  `HandleSpawnNowCmd`/`HandleSpawnDelayCmd` and other recording sub-handlers. A non-reentrant
-  `SemaphoreSlim` gated on each mutator method would **deadlock**. The lock must be acquired at the
-  **outermost entry-point boundary** (the `TrainingHub` SignalR methods + the CRC websocket handlers),
-  where each logical operation enters from a background thread — internal `RoomEngine` calls then don't
-  re-acquire. Identify every hub/CRC mutating entry; gate there. Hold across the synchronous mutation;
-  broadcasts (SignalR sends, non-blocking) can stay inside the gate or move just outside.
-- Test: a command issued while a tick is "in progress" serializes (never mutates mid-physics); final
-  state == replay.
+**Part 2 — per-room lock (DONE, thread-safety + async-race robustness):**
+- Added a non-reentrant `SemaphoreSlim` gate to `TrainingRoom` with `EnterTickGateAsync()` /
+  `ExitTickGate()` (tick loop) and `GuardAsync(...)` helpers (mutations).
+- `SimulationHostedService.RunTickLoop` holds the gate per room across the whole per-second
+  processing (extracted into `ProcessRoomSecond`), so a command cannot interleave mid-physics.
+- Acquired at the **outermost boundaries only**, never inside `RoomEngine`, so the non-reentrant
+  semaphore never nests (the **footgun**: `RoomEngine` mutators and replay/playback callbacks like
+  `Engine.AmendFlightPlan` run under an already-held gate; gating them would deadlock):
+  - Every mutating `TrainingHub` SignalR method wraps its single `RoomEngine` mutation in
+    `room.GuardAsync(...)` (broadcasts/manifest builds stay outside; `LoadRecording` gates only the
+    load, not the chunk upload). `RequestNewBeaconCode`/`RequestFlightStripForAircraft`/`TakeControl`
+    became `async` to gate.
+  - `CrcClientState.HandleInvocation` gates the whole invocation dispatch (extracted into
+    `DispatchInvocationAsync`) whenever a room is bound — one choke point covers all CRC mutations.
+- Tests: `CommandTickSyncTests` Part 2 — the gate blocks a mutation while held and runs it after
+  release, serializes concurrent mutations (never overlap), and is released when a mutation throws.
+
+This was implemented to address the "PCM8702 didn't depart 28L, it was stuck" report: the departure
+was stuck live but departed cleanly in deterministic replay/scenario-run
+(`Issue2Pcm28LStuckTests`), pointing at the mid-physics command race as the only remaining
+live↔replay divergence vector.
 
 ## Notes
 
