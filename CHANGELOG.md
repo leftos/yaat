@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Automatic ATPA approach cones ("P-cones") now appear in CRC STARS for arrivals established on final — the variable-length cone STARS draws ahead of a trailing aircraft toward the one it is following, sized to the required wake/radar separation and shaded monitor, caution, or alert as the gap tightens. They previously never appeared at any facility, because the server never told CRC which cone to draw, the approach volumes were oriented down the runway instead of up the final (so no arrival was ever counted as inside one), and parallel-runway volumes were mis-aligned by the airport's magnetic variation.
+
 ## v0.7.1-beta [2026/06/04]
 
 ### Highlights

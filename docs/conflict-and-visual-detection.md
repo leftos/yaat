@@ -139,9 +139,15 @@ returns a `Dictionary<callsign, AtpaResult>` consumed by `CrcBroadcastService` a
 
 For each `AtpaVolumeConfig`, `ProcessVolume` collects aircraft that pass **four** filters:
 
-1. **`AtpaVolumeGeometry.IsInside`** (`AtpaVolumeGeometry.cs:15`) — a threshold-anchored rectangle: altitude between
-   `Floor` and `Ceiling` (**in hundreds of feet** — see footgun), ground track within `MaximumHeadingDeviation` of the
-   volume's `MagneticHeading`, along-track 0..`Length` nm, cross-track within `WidthLeft`/`WidthRight` (**in feet**).
+1. **`AtpaVolumeGeometry.IsInside`** — a threshold-anchored rectangle that extends **OUTBOUND** from the threshold
+   (the reciprocal of the approach course — aircraft established on the final sit behind the threshold relative to the
+   landing direction; projecting along the course instead excludes every real arrival): altitude between `Floor` and
+   `Ceiling` (**in hundreds of feet** — see footgun), ground track within `MaximumHeadingDeviation` of the volume's true
+   approach course, along-track 0..`Length` nm out the final, cross-track within `WidthLeft`/`WidthRight` (**in feet**).
+   The true approach course comes from **`VolumeTrueHeadingDeg`**, which resolves the actual runway true heading from the
+   configured threshold (the config's `magneticHeading` is rounded to the runway designator, so declination-converting it
+   would rotate the volume off closely-spaced parallels and pull the neighboring runway's traffic in); it falls back to
+   the configured heading as true when no runway matches.
 2. **`IsExcludedByTcp`** (`AtpaProcessor.cs:174`) — drops aircraft whose track owner's `{Subset}{SectorId}` TCP code
    matches one of the volume's `ExcludedTcpIds`. The excluded ULIDs are resolved to codes via the same ULID→`{Subset}{SectorId}`
    map (`BuildTcpCodeMap`) used for the monitor/alert cones, then compared against the owner's code.
@@ -167,8 +173,12 @@ comes from `ComputeRequiredSeparation` (`AtpaProcessor.cs:114`):
 | **Heavy** | — | 4.0 | 5.0 | 6.0 |
 | **Large / smaller** | 3.0 | 3.0 | 3.0 | 3.0 |
 
-`AtpaMonitorTcps` (always populated from the volume's `Monitor`-cone TCPs) and `AtpaAlertTcps` (populated only when
-`actual < required`) drive the monitor-vs-alert cone display. Each follower's result is keyed by callsign and the **most
+**Cone state** (`AtpaConeState`, set by `DetermineConeState`) is the live advisory level, mapped by `DtoConverter` to the
+STARS track's `TpaType` (Key 30 / `RemoteTpaType`), which is what CRC actually switches on to draw the cone: **Monitor**
+when spacing is healthy, **Warning** (caution/yellow) when a loss is predicted within 45 s, **Alert** (orange) when
+already lost or predicted within 24 s. The two **static** adaptation lists tell CRC which positions may see each cone:
+`AtpaMonitorTcps` = the volume's `AlertAndMonitor` TCPs; `AtpaAlertTcps` = its `Alert` **and** `AlertAndMonitor` TCPs
+(the vNAS `AtpaConeType` enum is `{ Alert, AlertAndMonitor }` — not `Monitor`). Each follower's result is keyed by callsign and the **most
 recent volume wins** — real STARS shows only one ATPA pairing per aircraft.
 
 ---

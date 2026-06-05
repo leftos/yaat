@@ -3,11 +3,24 @@ using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Data.Vnas;
 
+/// <summary>
+/// In-trail ATPA cone state for a track, per the STARS rules in the CRC manual (docs/crc/stars.md):
+/// Monitor while separation is healthy, Warning when a loss is predicted within 45 s, Alert when
+/// separation is already lost or predicted within 24 s.
+/// </summary>
+public enum AtpaConeState
+{
+    Monitor,
+    Warning,
+    Alert,
+}
+
 /// <summary>Separation result for one aircraft relative to the aircraft immediately ahead in its ATPA volume.</summary>
 public record AtpaResult(
     string TargetTrackId,
     double AllowedSeparation,
     double ActualSeparation,
+    AtpaConeState ConeState,
     List<string> AtpaMonitorTcps,
     List<string> AtpaAlertTcps
 );
@@ -84,9 +97,11 @@ public sealed class AtpaProcessor
         // Sort ascending: closest to threshold first (lead aircraft at index 0)
         inVolume.Sort((x, y) => x.DistFromThreshold.CompareTo(y.DistFromThreshold));
 
-        // Resolve TCP lists for this volume once
-        var monitorTcpCodes = ResolveTcpCodes(volume.Tcps, "Monitor", tcpCodeByUlid);
-        var alertTcpCodes = ResolveTcpCodes(volume.Tcps, "Alert", tcpCodeByUlid);
+        // Resolve TCP lists for this volume once. vNAS adapts each TCP with AtpaConeType
+        // { Alert, AlertAndMonitor } (Data/Facilities/AtpaConeType.cs): AlertAndMonitor positions
+        // display the monitor cone; both Alert and AlertAndMonitor positions display alert/warning cones.
+        var monitorTcpCodes = ResolveTcpCodes(volume.Tcps, monitorList: true, tcpCodeByUlid);
+        var alertTcpCodes = ResolveTcpCodes(volume.Tcps, monitorList: false, tcpCodeByUlid);
 
         // Each aircraft (except the lead) gets a result referencing the aircraft ahead
         for (int i = 1; i < inVolume.Count; i++)
@@ -96,17 +111,20 @@ public sealed class AtpaProcessor
 
             var actual = GeoMath.DistanceNm(follower.Position, lead.Position);
             var required = ComputeRequiredSeparation(lead, follower, volume.TwoPointFiveApproachEnabled);
+            var closureKt = follower.GroundSpeed - lead.GroundSpeed;
+            var coneState = DetermineConeState(actual, required, closureKt);
 
-            var alertTcps = alertTcpCodes.Count > 0 && actual < required ? alertTcpCodes : [];
-
+            // The monitor/alert TCP code lists are static volume adaptation (who is allowed to see the
+            // cone); the live cone state above is what drives Monitor vs Warning vs Alert rendering.
             // Overwrite: if this callsign already has a result from a prior volume, the most recent wins.
             // Real STARS shows only one ATPA pairing per aircraft at a time.
             results[follower.Callsign] = new AtpaResult(
                 TargetTrackId: $"CALLSIGN{lead.Callsign}",
                 AllowedSeparation: required,
                 ActualSeparation: actual,
+                ConeState: coneState,
                 AtpaMonitorTcps: monitorTcpCodes,
-                AtpaAlertTcps: alertTcps
+                AtpaAlertTcps: alertTcpCodes
             );
         }
     }
@@ -123,6 +141,48 @@ public sealed class AtpaProcessor
             AircraftCategorization.Categorize(follower.AircraftType)
         );
         return Math.Max(radarFloor, wake);
+    }
+
+    /// <summary>Predicted-violation horizon (seconds) for the Alert cone — 7110.65 STARS ATPA / CRC manual.</summary>
+    internal const double AlertHorizonSeconds = 24.0;
+
+    /// <summary>Predicted-violation horizon (seconds) for the Warning cone — CRC manual (docs/crc/stars.md).</summary>
+    internal const double WarningHorizonSeconds = 45.0;
+
+    /// <summary>
+    /// Selects the ATPA cone state for an in-trail pair from the current separation and closure rate.
+    /// Alert when separation is already lost or predicted lost within <see cref="AlertHorizonSeconds"/>;
+    /// Warning when predicted lost within <see cref="WarningHorizonSeconds"/>; Monitor otherwise.
+    /// Closure is the trailing track's ground-speed overtake of the leader (knots); a non-positive
+    /// closure means the gap is steady or opening, so no future violation is predicted.
+    /// The time-to-violation is linear closure — a first-order approximation. Real STARS projects the
+    /// trailing track forward along its modeled deceleration profile; both established on the same final
+    /// at similar speeds, the linear estimate is conservative and close enough for the cone color.
+    /// </summary>
+    public static AtpaConeState DetermineConeState(double actualNm, double allowedNm, double closureKt)
+    {
+        if (actualNm <= allowedNm)
+        {
+            return AtpaConeState.Alert;
+        }
+
+        if (closureKt <= 0.0)
+        {
+            return AtpaConeState.Monitor;
+        }
+
+        var secondsToViolation = (actualNm - allowedNm) / (closureKt / 3600.0);
+        if (secondsToViolation <= AlertHorizonSeconds)
+        {
+            return AtpaConeState.Alert;
+        }
+
+        if (secondsToViolation <= WarningHorizonSeconds)
+        {
+            return AtpaConeState.Warning;
+        }
+
+        return AtpaConeState.Monitor;
     }
 
     private static bool IsExcludedByTcp(AtpaVolumeConfig volume, AircraftState ac, Dictionary<string, string> tcpCodeByUlid)
@@ -180,12 +240,22 @@ public sealed class AtpaProcessor
         return false;
     }
 
-    private static List<string> ResolveTcpCodes(List<AtpaVolumeTcpConfig> volumeTcps, string coneType, Dictionary<string, string> tcpCodeByUlid)
+    private const string ConeTypeAlert = "Alert";
+    private const string ConeTypeAlertAndMonitor = "AlertAndMonitor";
+
+    /// <summary>
+    /// Resolves the volume's TCP adaptation list to "{Subset}{SectorId}" codes. With
+    /// <paramref name="monitorList"/> true, returns the AlertAndMonitor-adapted positions (monitor
+    /// cone viewers); false returns the Alert and AlertAndMonitor positions (alert/warning viewers).
+    /// </summary>
+    private static List<string> ResolveTcpCodes(List<AtpaVolumeTcpConfig> volumeTcps, bool monitorList, Dictionary<string, string> tcpCodeByUlid)
     {
         var codes = new List<string>();
         foreach (var vtcp in volumeTcps)
         {
-            if (!vtcp.ConeType.Equals(coneType, StringComparison.OrdinalIgnoreCase))
+            var isMonitor = vtcp.ConeType.Equals(ConeTypeAlertAndMonitor, StringComparison.OrdinalIgnoreCase);
+            var isAlert = isMonitor || vtcp.ConeType.Equals(ConeTypeAlert, StringComparison.OrdinalIgnoreCase);
+            if (monitorList ? !isMonitor : !isAlert)
             {
                 continue;
             }

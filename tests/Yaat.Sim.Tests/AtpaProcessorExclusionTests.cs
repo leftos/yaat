@@ -15,16 +15,16 @@ public class AtpaProcessorExclusionTests
 
     public AtpaProcessorExclusionTests() => TestVnasData.EnsureInitialized();
 
-    private static AircraftState MakeApproachAircraft(string callsign, double distanceNorthNm, TrackOwner owner)
+    private static AircraftState MakeApproachAircraft(string callsign, double distanceOnFinalNm, TrackOwner owner)
     {
-        // Threshold at (37.0, -122.0); volume points due north. Place the aircraft that many
-        // nm north of the threshold (1 nm latitude ≈ 1/60°), tracking north so it reads as
-        // "inside" and "established on approach".
+        // Threshold at (37.0, -122.0); approach course is due north (000). Aircraft established on the
+        // final sit SOUTH of the threshold (the volume extends back up the final, opposite the landing
+        // direction) and track north toward it, so they read as "inside" and "established on approach".
         var ac = new AircraftState
         {
             Callsign = callsign,
             AircraftType = "B738",
-            Position = new LatLon(37.0 + (distanceNorthNm / 60.0), -122.0),
+            Position = new LatLon(37.0 - (distanceOnFinalNm / 60.0), -122.0),
             TrueHeading = new TrueHeading(0),
             TrueTrack = new TrueHeading(0),
             Altitude = 3000,
