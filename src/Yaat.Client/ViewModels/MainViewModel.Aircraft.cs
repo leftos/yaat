@@ -138,7 +138,7 @@ public partial class MainViewModel
         _pilotVoice.Enqueue(dto, _preferences.PilotVoiceVolume, _preferences.PilotVoiceRadioFxEnabled);
     }
 
-    private void OnAircraftUpdated(AircraftDto dto)
+    internal void OnAircraftUpdated(AircraftDto dto)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
@@ -165,6 +165,10 @@ public partial class MainViewModel
                 {
                     PendingDelayedSpawnCount++;
                 }
+                // A full refresh re-filters and re-sorts the view. The DataGridCollectionView's
+                // incremental sorted-insert on Add mis-places a new row when the active filter has
+                // shrunk the view (it appends at the bottom instead of sorting in), so rebuild.
+                RefreshAircraftView();
             }
 
             Radar.RefreshShownPaths();
@@ -218,6 +222,8 @@ public partial class MainViewModel
                 {
                     PendingDelayedSpawnCount++;
                 }
+                // See OnAircraftUpdated: rebuild so a new row sorts into place under the active filter.
+                RefreshAircraftView();
             }
         });
     }
