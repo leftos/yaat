@@ -947,4 +947,75 @@ public class GroundConflictDetectorTests
         Assert.Null(a.Ground.SpeedLimit);
         Assert.Null(b.Ground.SpeedLimit);
     }
+
+    // -------------------------------------------------------------------------
+    // Converging merge: one-holds-one-goes (no mutual-stop deadlock at a merge)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Two departures converging on a shared node that begins a single shared lane (a taxiway
+    /// merge), within stop distance of each other, must be sequenced one-at-a-time: the
+    /// merge-order leader (nearer the shared node) proceeds while the other holds. Regression
+    /// for the OAK U/W (node 17) JSX177-vs-SWA897 deadlock, where the convergence safety-net
+    /// pinned BOTH aircraft to zero. Uses the real bundle geometry (node 17 plus both aircraft
+    /// positions, ~110 ft apart, headings ~92° apart so both close on each other).
+    /// </summary>
+    [Fact]
+    public void ConvergingMerge_WithinStopDistance_WinnerProceeds_YielderHolds()
+    {
+        TestVnasData.EnsureInitialized();
+        if (!Yaat.Sim.Data.Faa.FaaAircraftDatabase.IsInitialized)
+        {
+            return;
+        }
+
+        // JSX177 (twy W, nearer node 17) and SWA897 (twy U, farther) both converge on node 17,
+        // then share the lane onward (17 -> 676). Real lengths make the ~110 ft gap fall inside
+        // the combined stop distance, so the current safety net pins both to zero.
+        var node17 = new LatLon(37.706607311591235, -122.21819280404034);
+        var layout = new AirportGroundLayout { AirportId = "OAK" };
+        layout.Nodes[17] = new GroundNode
+        {
+            Id = 17,
+            Position = node17,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+
+        var edge = new GroundEdge
+        {
+            Nodes = [layout.Nodes[17], layout.Nodes[17]],
+            TaxiwayName = "W",
+            DistanceNm = 110.0 / FtPerNm,
+        };
+
+        var winnerRoute = MakeRoute(MakeSeg(677, 17, "W", edge), MakeSeg(17, 676, "W", edge));
+        var yielderRoute = MakeRoute(MakeSeg(679, 17, "U", edge), MakeSeg(17, 676, "W", edge));
+
+        var winner = MakeAircraft(
+            "JSX177",
+            new LatLon(37.70671679458664, -122.21835798527978),
+            heading: 129,
+            gs: 8,
+            taxiRoute: winnerRoute,
+            phase: new TaxiingPhase()
+        );
+        var yielder = MakeAircraft(
+            "SWA897",
+            new LatLon(37.70679525153174, -122.21799088712922),
+            heading: 221,
+            gs: 8,
+            taxiRoute: yielderRoute,
+            phase: new TaxiingPhase()
+        );
+
+        GroundConflictDetector.ApplySpeedLimits([winner, yielder], layout);
+
+        // The merge-order follower (farther from node 17) holds.
+        Assert.Equal(0.0, yielder.Ground.SpeedLimit);
+        // The merge-order leader (nearer node 17) must proceed, not deadlock at zero.
+        Assert.True(
+            winner.Ground.SpeedLimit is null || winner.Ground.SpeedLimit > 0,
+            $"Merge-order leader (nearer node 17) must proceed, got limit={winner.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
+        );
+    }
 }

@@ -168,12 +168,13 @@ The runway-exit/landing side has its own tuning that interacts with the navigato
 
 ### Ground conflict detection / mutual proximity-stop deadlock
 
-`GroundConflictDetector` (`src/Yaat.Sim/GroundConflictDetector.cs`) runs between the phase tick and physics and caps `Ground.SpeedLimit`, which the navigator honors. It classifies each aircraft pair into exactly one `PairKind` and resolves it. Two deadlock-avoidance mechanisms matter when reading navigator behavior:
+`GroundConflictDetector` (`src/Yaat.Sim/GroundConflictDetector.cs`) runs between the phase tick and physics and caps `Ground.SpeedLimit`, which the navigator honors. It classifies each aircraft pair into exactly one `PairKind` and resolves it with a uniform **one-holds-one-goes** rule: exactly one aircraft of a close-range conflicting pair is held while the other proceeds — it never stops both. The deterministic holder per kind:
 
-- **SameEdgeHeadOn** picks a deterministic holder (more remaining route, tie-break by callsign) so the pair doesn't pin both aircraft — the earlier "both stop" rule deadlocked once two routes resolved onto one single-lane segment (`GroundConflictDetector.cs:437`).
-- **Self-pin recovery** (`GroundConflictDetector.cs:341`): a routed aircraft clamped to gs ≈ 0 / SpeedLimit ≈ 0 with no explicit hold reclassifies as `Stationary`, opening the wingspan-lateral-clearance bypass so nearby movers can pass beside it the next tick.
+- **SameEdgeHeadOn** (opposite directions on one edge): holder = more remaining route, tie-break by callsign (`ResolveSameEdgeHeadOn`) — the earlier "both stop" rule deadlocked once two routes resolved onto one single-lane segment.
+- **Converging merge** (routes share an upcoming node from different edges, then often continue on one shared lane): holder = the aircraft **farther** from the shared node; the nearer one (the merge-order leader) proceeds through the intersection first and the holder follows in trail. The closing-proximity safety net is merge-aware (`ApplyConvergenceClosing`) — without it the symmetric closing check pinned **both** aircraft at the merge (the OAK U/W node-17 JSX177-vs-SWA897 deadlock), because at a true merge there is no lateral room for the wingspan-bypass to open. Distance-to-the-shared-node is an acknowledged stand-in for controller merge precedence (real sequencing is closer to time-to-intersection); aviation-reviewed against 7110.65 §3-7-2/§3-7-3 (FOLLOW/BEHIND).
+- **Crossing** (paths cross, no shared node): mutual stop → one deterministic holder (callsign) proceeds, the other holds.
 
-A mutual proximity-stop deadlock is still possible in pathological geometry, and may be a routing-layer issue rather than a navigator one (AMX669 was routed the wrong way *before* it deadlocked). When the navigator appears "stuck", check `Ground.SpeedLimit` and the `[Classify]` / `[Pair]` diagnostic log lines before assuming a navigator bug.
+A residual mutual proximity-stop is still possible in pathological geometry, but is usually a **routing-layer** issue, not a detector one: two independently-resolved routes assigned opposing directions on a single-lane segment (AMX669 / SKW3404-vs-SWA2208 class) deadlock *correctly* — one holds until the routing or controller resolves it. That is a separate pathfinder concern. When the navigator appears "stuck", check `Ground.SpeedLimit` and the `[Classify]` / `[Pair]` diagnostic log lines before assuming a navigator bug.
 
 ### Snapshot round-trip is intentionally lossy
 

@@ -30,11 +30,6 @@
 //     fallback (both stop) applies only to near-anti-parallel approaches
 //     (>= HeadOnMinHeadingDiffDeg); oblique crossings use the holder arbitration.
 //
-// Self-pin recovery: a routed aircraft pinned at gs≈0 / SpeedLimit≈0 with no
-// active Hold classifies as Stationary. Treats the pinned aircraft as a parked
-// obstacle so the lateral-clearance bypass opens for nearby movers on the next
-// tick.
-//
 // Hold classification: a routed aircraft with Ground.Hold set (HOLDPOSITION or
 // GIVEWAY) classifies as Stationary. It won't move until the resume condition
 // fires (FlightPhysics.UpdateGiveWayResume for GIVEWAY, operator RES for either),
@@ -84,8 +79,6 @@ public static class GroundConflictDetector
     // capped by this rule does not feed its reduced speed back in and oscillate.
     private const double ConvergenceNominalTaxiSpeedKts = 12.0;
     private const double SearchRangeNm = 0.3;
-    private const double SelfPinSpeedEpsilonKts = 0.5;
-    private const double SelfPinLimitEpsilonKts = 0.5;
 
     // A head-on requires near-anti-parallel headings. Oblique crossings (e.g. an
     // aircraft exiting a runway toward its hold-short passing one taxiing to the
@@ -250,18 +243,19 @@ public static class GroundConflictDetector
                         break;
 
                     case PairKind.Converging:
-                        ResolveConvergence(a, b, layout!, diagnosticLog);
-                        // Closing proximity is the physical-overlap safety net even
-                        // when convergence already picked a yielder — if the winner
-                        // is geometrically about to hit the yielder it must still
-                        // stop. The wingspan-lateral-clearance bypass in
-                        // ApplyClosingLimit handles the merge geometry; what we get
-                        // from the Classify() upgrade is that a self-pinned
-                        // yielder reclassifies as Stationary on the next tick so
-                        // the bypass opens up naturally. We skip head-on here —
-                        // convergence already resolved the pair-level decision.
-                        ApplyCrossingChecks(a, stateA, dirA, b, stateB, dirB, distFt, skipHeadOn: true, diagnosticLog);
+                    {
+                        var convWinner = ResolveConvergence(a, b, layout!, diagnosticLog);
+                        // Closing-proximity is the physical-overlap safety net, but at a true
+                        // merge (both routes onto the shared node's lane) there is no lateral
+                        // room for the wingspan bypass to open — applied symmetrically it pins
+                        // BOTH aircraft to zero (a deadlock). When convergence has chosen a
+                        // winner and both would stop, hold only the yielder so the winner (the
+                        // merge-order leader, nearer the shared node) proceeds — mirroring
+                        // ResolveCrossing's one-holds-one-goes. Head-on is skipped: convergence
+                        // already made the pair-level decision.
+                        ApplyConvergenceClosing(a, stateA, dirA, b, stateB, dirB, distFt, convWinner, diagnosticLog);
                         break;
+                    }
 
                     case PairKind.Crossing:
                         ResolveCrossing(a, stateA, dirA, b, stateB, dirB, distFt, layout is not null, diagnosticLog);
@@ -346,23 +340,8 @@ public static class GroundConflictDetector
             return (MovementState.Pushing, pushHdg.Degrees);
         }
 
-        // Self-pin recovery: a route-bearing aircraft that has been clamped to
-        // gs≈0 and SpeedLimit≈0 without any explicit hold is effectively parked
-        // until the conflict resolves. Treating it as Stationary lets the
-        // wingspan-lateral-clearance bypass open up for nearby movers, so a
-        // third aircraft (or the original mover-pair) can pass beside it on
-        // the next tick. Aircraft that ARE legitimately held caught earlier;
-        // this catches the unexpected pin case where the detector itself
-        // bottomed an aircraft out.
         if (ac.Ground.AssignedTaxiRoute?.CurrentSegment is not null)
         {
-            bool selfPinned =
-                ac.GroundSpeed <= SelfPinSpeedEpsilonKts && ac.Ground.SpeedLimit is { } lim && lim <= SelfPinLimitEpsilonKts && !ac.Ground.IsImmobile;
-            if (selfPinned)
-            {
-                return (MovementState.Stationary, null);
-            }
-
             return (MovementState.Taxiing, ac.TrueHeading.Degrees);
         }
 
@@ -493,7 +472,15 @@ public static class GroundConflictDetector
         // overlap, but the holder being stopped should resolve the standoff.
     }
 
-    private static void ResolveConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout, Action<string>? diagnosticLog)
+    /// <summary>
+    /// Resolves a Converging pair (routes share an upcoming node from different edges). Slows the
+    /// yielder (the aircraft farther from the shared node) and annotates it with the winner as its
+    /// auto-yield target. Returns the chosen <b>winner</b> (the merge-order leader, nearer the
+    /// shared node) so the caller's closing-proximity safety net can let it proceed instead of
+    /// pinning both; returns <c>null</c> when no decision was made (no shared node, or the ETA gate
+    /// cleared the crossing).
+    /// </summary>
+    private static AircraftState? ResolveConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout, Action<string>? diagnosticLog)
     {
         var routeA = a.Ground.AssignedTaxiRoute!;
         var routeB = b.Ground.AssignedTaxiRoute!;
@@ -501,7 +488,7 @@ public static class GroundConflictDetector
         int? sharedNodeId = FindSharedUpcomingNode(routeA, routeB);
         if (sharedNodeId is null || !layout.Nodes.TryGetValue(sharedNodeId.Value, out var node))
         {
-            return;
+            return null;
         }
 
         double distA = GeoMath.DistanceNm(a.Position, node.Position);
@@ -532,7 +519,7 @@ public static class GroundConflictDetector
                 diagnosticLog?.Invoke(
                     $"  [Convergence] shared node={sharedNodeId.Value}: {winner.Callsign} clears in {winnerClearSec:F0}s, {yielder.Callsign} arrives in {yielderArriveSec:F0}s — no slowdown (clears first)"
                 );
-                return;
+                return null;
             }
         }
 
@@ -557,9 +544,61 @@ public static class GroundConflictDetector
 
         ApplyMinLimit(yielder, limitSpeed, "convergence", winner, conflictDistFt);
         yielder.Ground.AutoYieldTarget = winner.Callsign;
-        // No closing-proximity for the winner — convergence is
-        // authoritative for this pair. The next tick reclassifies; if the
-        // geometry shifts to truly crossing/head-on, that layer will catch it.
+        return winner;
+    }
+
+    /// <summary>
+    /// Closing-proximity safety net for a Converging pair. Runs <see cref="ComputeClosingLimit"/>
+    /// both ways, exactly like <see cref="ApplyCrossingChecks"/> (head-on skipped), EXCEPT that
+    /// when convergence has chosen a <paramref name="winner"/> and BOTH aircraft would be stopped
+    /// (a merge mutual-stop) only the yielder is held, so the winner proceeds through the shared
+    /// node instead of both deadlocking at zero. When <paramref name="winner"/> is null (the ETA
+    /// gate cleared the crossing, or there is no shared node) it preserves the original symmetric
+    /// behavior.
+    /// </summary>
+    private static void ApplyConvergenceClosing(
+        AircraftState a,
+        MovementState stateA,
+        double? dirA,
+        AircraftState b,
+        MovementState stateB,
+        double? dirB,
+        double distFt,
+        AircraftState? winner,
+        Action<string>? diagnosticLog
+    )
+    {
+        if (winner is null)
+        {
+            ApplyCrossingChecks(a, stateA, dirA, b, stateB, dirB, distFt, skipHeadOn: true, diagnosticLog);
+            return;
+        }
+
+        bool winnerIsA = ReferenceEquals(winner, a);
+        var yielder = winnerIsA ? b : a;
+        double? winnerDir = winnerIsA ? dirA : dirB;
+        var winnerState = winnerIsA ? stateA : stateB;
+        double? yielderDir = winnerIsA ? dirB : dirA;
+        var yielderState = winnerIsA ? stateB : stateA;
+
+        var winnerLimit = winnerDir is { } wd ? ComputeClosingLimit(winner, wd, yielder, yielderState, distFt, diagnosticLog) : null;
+        var yielderLimit = yielderDir is { } yd ? ComputeClosingLimit(yielder, yd, winner, winnerState, distFt, diagnosticLog) : null;
+
+        if (winnerLimit is { Limit: <= 0 } && yielderLimit is { Limit: <= 0 })
+        {
+            diagnosticLog?.Invoke($"  [Convergence] merge mutual-stop: {yielder.Callsign} holds, {winner.Callsign} proceeds");
+            ApplyMinLimit(yielder, 0, "convergence merge hold", winner, distFt);
+            return;
+        }
+
+        if (winnerLimit is { } rw)
+        {
+            ApplyMinLimit(winner, rw.Limit, rw.Reason, yielder, distFt);
+        }
+        if (yielderLimit is { } ry)
+        {
+            ApplyMinLimit(yielder, ry.Limit, ry.Reason, winner, distFt);
+        }
     }
 
     private static void ResolvePushbackYield(

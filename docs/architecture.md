@@ -407,8 +407,9 @@ GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit
                                # Single-pass pair classifier (SameEdgeTrailing/SameEdgeHeadOn/
                                # Converging/Crossing/Pushback/Stationary). Honors Ground.Hold
                                # (HoldPosition or GiveWay) via IsImmobile predicate for
-                               # parked-obstacle classification; self-pin recovery for
-                               # un-held but conflict-pinned aircraft. DebugSink logs the
+                               # parked-obstacle classification. Every close-range conflict
+                               # resolves one-holds-one-goes (deterministic holder, never both
+                               # stopped), incl. converging-merge arbitration. DebugSink logs the
                                # specific hold kind so the controller GIVEWAY relationship is
                                # observable ("ControllerGiveWay A→B" pair line).
 HoldDirective.cs               # Structured ground-hold directive: HoldKind { HoldPosition,

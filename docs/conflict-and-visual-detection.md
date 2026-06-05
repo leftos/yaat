@@ -98,9 +98,9 @@ airport list comes from `starsConfig.InternalAirports`.
 ## Ground conflict detection — `GroundConflictDetector`
 
 This is the only motion-affecting detector. **The resolution algorithms (the seven `PairKind` handlers, the
-`SameEdgeHeadOn` deadlock-break, self-pin recovery) are owned by [ground/navigator.md](ground/navigator.md)** — read
+`SameEdgeHeadOn` deadlock-break, the converging-merge arbitration) are owned by [ground/navigator.md](ground/navigator.md)** — read
 that for the per-kind behavior, the `[Classify]` / `[Pair]` diagnostic logging, and how the navigator honors the cap.
-Summary only here:
+Every close-range conflict resolves **one-holds-one-goes** (deterministic holder, never both stopped). Summary only here:
 
 `ApplySpeedLimits` (`GroundConflictDetector.cs:113`) clears every aircraft's `Ground.SpeedLimit` to `null` at the start
 of the sub-tick, then for each pair classifies into exactly **one** of seven `PairKind`s (`:97`) and runs that handler,
@@ -113,18 +113,19 @@ writing the minimum surviving cap onto `Ground.SpeedLimit`:
 | `Pushback` | A pushing aircraft is involved |
 | `SameEdgeTrailing` | Same edge, same direction (`ToNodeId` matches) — trailing aircraft caps to follow |
 | `SameEdgeHeadOn` | Same edge, opposite direction — deterministic holder picked (more remaining route, callsign tie-break) |
-| `Converging` | Paths converge toward a shared node |
+| `Converging` | Routes share an upcoming node from different edges — yielder (farther from the node) holds, merge-order leader (nearer) proceeds through first |
 | `Crossing` | Paths cross |
 
 The navigator reads `Ground.SpeedLimit` via `ClampBySpeedLimit` (`GroundNavigator.cs:1113`) and never overruns it.
 
 For `Converging` and `SameEdgeTrailing` the chosen yielder also gets a **display-only** annotation —
 `Ground.AutoYieldTarget` (the other callsign) plus `Ground.AutoYieldIsFollowing` (true for in-trail). Both reset to
-their defaults at the top of `ApplySpeedLimits` and re-derive each tick, exactly like `SpeedLimit`. They do **not** set
-`Hold`/`IsImmobile` (the aircraft still slows, never fully stops on their account); they drive the client's
-"→{target} (auto)" ground datablock badge and the "Yielding to" / "Following" right-click wording, distinct from a
-controller GIVEWAY. The wire carries them on `AircraftStateDto.AutoYieldTarget`/`AutoYieldIsFollowing` (in the
-`TrainingDtoFingerprint` so the badge updates live).
+their defaults at the top of `ApplySpeedLimits` and re-derive each tick, exactly like `SpeedLimit`. The annotation
+itself does **not** set `Hold`/`IsImmobile` and does not move the aircraft — the `SpeedLimit` cap does that (for a
+converging-merge yielder within stop distance the cap is a full stop until the leader pulls away, then it follows in
+trail). The annotation drives the client's "→{target} (auto)" ground datablock badge and the "Yielding to" /
+"Following" right-click wording, distinct from a controller GIVEWAY. The wire carries them on
+`AircraftStateDto.AutoYieldTarget`/`AutoYieldIsFollowing` (in the `TrainingDtoFingerprint` so the badge updates live).
 
 ---
 
@@ -373,8 +374,8 @@ here and have `aviation-sim-expert` review against the local FAA references.
 - [tick-loop.md](tick-loop.md) — per-tick ordering: where ground (pre-physics sub-tick), CA (PostPhysics), and visual
   (PostPhysics + observation step) run, and the broadcast cadence ATPA rides.
 - [ground/navigator.md](ground/navigator.md) — the authoritative reference for `GroundConflictDetector`'s resolution
-  algorithms (per-`PairKind` handlers, `SameEdgeHeadOn` deadlock-break, self-pin recovery) and how the navigator honors
-  `Ground.SpeedLimit`.
+  algorithms (per-`PairKind` handlers, `SameEdgeHeadOn` deadlock-break, converging-merge arbitration) and how the
+  navigator honors `Ground.SpeedLimit`.
 - [flight-physics.md](flight-physics.md) — `BankAngle`, `GroundSpeed`, `VerticalSpeed`, and `TrueTrack` production (the
   inputs these detectors extrapolate from).
 - [phases.md](phases.md) — phase names and the contract that `GroundConflictDetector` string-matches against.

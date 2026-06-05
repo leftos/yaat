@@ -15,6 +15,7 @@
 - Rewinding the timeline no longer loses why an aircraft is holding short (destination runway vs. runway crossing), which could break automatic departure release after `REL` and the runway-crossing commands after a rewind.
 - Cross-runway closed-traffic departures (e.g. `CTO MRT 28R` from runway 33) line up and depart on the departure runway, then join the other runway's pattern.
 - Cancelling a takeoff clearance (`CTOC`) mid-line-up holds the aircraft in position immediately; a fresh `CTO` resumes the line-up and departs.
+- Two taxiing aircraft converging onto the same taxiway intersection (a merge) no longer deadlock nose-to-nose with both stopped — the one farther from the intersection now holds while the nearer one taxis through, then follows it in trail.
 
 ## v0.7.0-beta [2026/06/04]
 
