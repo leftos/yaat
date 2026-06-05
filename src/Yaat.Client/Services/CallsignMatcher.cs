@@ -61,6 +61,14 @@ internal static class CallsignMatcher
             return (matches[0], Outcome.UniqueSubstring, matches);
         }
 
+        // Multiple matches: exclude delayed/unspawned aircraft from ambiguity.
+        // If only one active aircraft matches, treat it as the unique match.
+        var activeMatches = matches.Where(a => !a.IsDelayed).ToList();
+        if (activeMatches.Count == 1)
+        {
+            return (activeMatches[0], Outcome.UniqueSubstring, activeMatches);
+        }
+
         return (null, Outcome.Ambiguous, matches);
     }
 

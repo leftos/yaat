@@ -9,14 +9,14 @@ public class CallsignPrefixResolverTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
 
-    private static AircraftModel Ac(string callsign)
+    private static AircraftModel Ac(string callsign, bool delayed = false)
     {
-        return new AircraftModel { Callsign = callsign };
+        return new AircraftModel { Callsign = callsign, Status = delayed ? "Delayed (30s)" : "" };
     }
 
     private static IReadOnlyCollection<AircraftModel> Aircraft(params string[] callsigns)
     {
-        return callsigns.Select(Ac).ToArray();
+        return callsigns.Select(cs => Ac(cs)).ToArray();
     }
 
     [Fact]
@@ -115,5 +115,27 @@ public class CallsignPrefixResolverTests
         var result = CallsignPrefixResolver.Resolve("N99 FH 270", Scheme, Aircraft("N1234"));
 
         Assert.IsType<CallsignPrefixResolver.NotAPrefix>(result);
+    }
+
+    [Fact]
+    public void Resolved_OneActiveOneDelayed_ResolvesToActive()
+    {
+        var aircraft = new AircraftModel[] { Ac("N1234"), Ac("N1256", delayed: true) };
+        var result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, aircraft);
+
+        var resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
+        Assert.Equal("N1234", resolved.Aircraft.Callsign);
+        Assert.Equal("FH 270", resolved.Remainder);
+    }
+
+    [Fact]
+    public void Ambiguous_TwoActiveMatchesWithDelayedThird_StillAmbiguous()
+    {
+        var aircraft = new AircraftModel[] { Ac("N1234"), Ac("N1256"), Ac("N1289", delayed: true) };
+        var result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, aircraft);
+
+        var ambiguous = Assert.IsType<CallsignPrefixResolver.Ambiguous>(result);
+        Assert.Contains("N1234", ambiguous.Message);
+        Assert.Contains("N1256", ambiguous.Message);
     }
 }
