@@ -31,7 +31,33 @@ public sealed class VfrFollowPhase : Phase
     /// <summary>Maximum distance follower-to-lead allowed at pattern join — guards against joining a stale pattern when the lead has moved.</summary>
     public const double MaxJoinGapNm = 5.0;
 
+    /// <summary>
+    /// Minimum in-trail spacing (follower distance-to-threshold minus the lead's) before
+    /// sequencing onto a straight-in lead's final. Keeps the follower genuinely behind the
+    /// traffic (AIM 4-3-4.4 "no cutting in front") and at the same-runway separation floor
+    /// for a light single behind same/lighter traffic (7110.65 3-10-3); a heavier lead
+    /// raises the requirement to its wake minimum (see <see cref="TryJoinLeadFinal"/>).
+    /// </summary>
+    public const double SameRunwayInTrailFloorNm = 1.5;
+
+    /// <summary>Maximum cross-track from the extended centerline allowed when committing the turn onto a straight-in lead's final.</summary>
+    public const double MaxFinalJoinCrossTrackNm = 1.0;
+
+    /// <summary>Maximum intercept angle (track vs final approach course) allowed when committing onto final — the standard 30° final intercept.</summary>
+    public const double MaxFinalJoinInterceptDeg = 30.0;
+
+    /// <summary>Never newly turn a follower onto final closer than this to the threshold.</summary>
+    public const double MinFinalJoinDistNm = 0.5;
+
     public string TargetCallsign { get; private set; }
+
+    /// <summary>
+    /// The runway the followed traffic is landing on, captured while the lead is
+    /// airborne on a straight-in final/landing. Lets the follower be sequenced onto
+    /// that runway's final even after the lead has touched down, instead of cancelling
+    /// the follow and levelling off over the field.
+    /// </summary>
+    private RunwayInfo? _leadLandingRunway;
 
     public override string Name => "VFR Follow";
     public override bool ManagesSpeed => true;
@@ -56,6 +82,30 @@ public sealed class VfrFollowPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        var lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
+
+        // Remember the lead's landing runway while it is established on a straight-in
+        // final/landing, so the follower can be sequenced onto that runway even after
+        // the lead touches down. Pattern-flying leads are handled by TryJoinLeadPattern.
+        if (
+            lead is { IsOnGround: false }
+            && lead.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase
+            && lead.Phases.AssignedRunway is { } leadRunway
+        )
+        {
+            _leadLandingRunway = leadRunway;
+        }
+
+        // Lead-landed sequencing: if the traffic we were following has landed and we
+        // know its runway, follow it onto that runway's final to await a landing
+        // clearance — rather than cancelling the follow and free-flying level over the
+        // field. Runs before CheckLeadLifecycle, which would otherwise cancel here.
+        if (lead is { IsOnGround: true } && _leadLandingRunway is { } landedRunway)
+        {
+            SequenceOntoFinal(ctx, landedRunway);
+            return true;
+        }
+
         // Lead-not-found / lead-on-ground / runaway-distance checks are shared
         // with pattern-phase followers via AirborneFollowHelper.CheckLeadLifecycle.
         // It mutates Approach.FollowingCallsign + the runaway state on the follower
@@ -67,11 +117,19 @@ public sealed class VfrFollowPhase : Phase
         }
 
         // CheckLeadLifecycle already verified the lead exists.
-        var lead = ctx.AircraftLookup!.Invoke(TargetCallsign)!;
+        lead = ctx.AircraftLookup!.Invoke(TargetCallsign)!;
         double gapNm = GeoMath.DistanceNm(ctx.Aircraft.Position, lead.Position);
 
         // If the lead is in a pattern, see if we're close enough to join.
         if (TryJoinLeadPattern(ctx, lead, gapNm))
+        {
+            // Phase list has been replaced — this phase is no longer current.
+            return true;
+        }
+
+        // If the lead is on a straight-in final/landing (no pattern waypoints to join),
+        // sequence onto its runway's final once we are trailing and aligned.
+        if (TryJoinLeadFinal(ctx, lead))
         {
             // Phase list has been replaced — this phase is no longer current.
             return true;
@@ -241,6 +299,153 @@ public sealed class VfrFollowPhase : Phase
     }
 
     /// <summary>
+    /// If the lead is established on a straight-in final/landing to a known runway
+    /// (no extractable pattern waypoints — e.g. an IFR aircraft that never flew a
+    /// VFR circuit) and the follower is genuinely trailing it and aligned for a sane
+    /// intercept, sequence the follower onto that runway's final and return true.
+    /// The final chain is built without a landing clearance, so the follower descends
+    /// behind the traffic and holds for a separate CLAND (FAA 7110.65 3-10-6).
+    /// </summary>
+    private bool TryJoinLeadFinal(PhaseContext ctx, AircraftState lead)
+    {
+        if (lead.IsOnGround)
+        {
+            return false;
+        }
+        if (lead.Phases?.CurrentPhase is not (FinalApproachPhase or LandingPhase))
+        {
+            return false;
+        }
+        if (lead.Phases.AssignedRunway is not { } runway)
+        {
+            return false;
+        }
+
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        double followerDistNm = GeoMath.DistanceNm(ctx.Aircraft.Position, threshold);
+        double leadDistNm = GeoMath.DistanceNm(lead.Position, threshold);
+        double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, threshold, runway.TrueHeading));
+        double interceptDeg = ctx.Aircraft.TrueTrack.AbsAngleTo(runway.TrueHeading);
+
+        // In-trail floor: stay genuinely behind the traffic (AIM 4-3-4.4 "no cutting in
+        // front") and no closer than the same-runway separation minimum (7110.65 3-10-3) —
+        // or the wake-turbulence minimum when the lead is heavier (TBL 5-5-2). Until that
+        // spacing exists, keep pursuing rather than rolling onto final too close.
+        double leadWakeMinNm = WakeTurbulenceData.OnApproachWakeSeparationNm(
+            lead.AircraftType,
+            AircraftCategorization.Categorize(lead.AircraftType),
+            ctx.AircraftType,
+            ctx.Category
+        );
+        double requiredInTrailNm = Math.Max(SameRunwayInTrailFloorNm, leadWakeMinNm);
+        if (followerDistNm - leadDistNm < requiredInTrailNm)
+        {
+            return false;
+        }
+        // Don't newly turn onto final unreasonably close to the threshold.
+        if (followerDistNm < MinFinalJoinDistNm)
+        {
+            return false;
+        }
+        // Sane visual intercept: near the extended centerline at a shallow angle.
+        if (crossTrackNm > MaxFinalJoinCrossTrackNm)
+        {
+            return false;
+        }
+        if (interceptDeg > MaxFinalJoinInterceptDeg)
+        {
+            return false;
+        }
+
+        SequenceOntoFinal(ctx, runway);
+        return true;
+    }
+
+    /// <summary>
+    /// Replace the follower's phase list with a straight-in final + landing chain for
+    /// <paramref name="runway"/>, copying the follower's own category and inferring
+    /// pattern direction from which side of the centerline it is on. No landing
+    /// clearance is set — the follower descends behind the lead and awaits CLAND
+    /// (going around at minimums if never cleared, per FinalApproachPhase).
+    ///
+    /// The chain is led by a <see cref="PatternEntryPhase"/> that flies the follower
+    /// onto the extended centerline before the final-approach phase. This both routes
+    /// an offset follower onto the centerline at a sane intercept and defers the
+    /// runway-dependent <see cref="FinalApproachPhase"/> to a later tick — its OnStart
+    /// needs <c>ctx.Runway</c>, which is only populated from the new AssignedRunway on
+    /// the tick after the swap. (Starting FinalApproachPhase directly here would run its
+    /// OnStart with the stale follow-phase context whose Runway is null.)
+    /// </summary>
+    private void SequenceOntoFinal(PhaseContext ctx, RunwayInfo runway)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var finalCourse = runway.TrueHeading;
+        double crossTrack = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, threshold, finalCourse);
+        var direction = crossTrack >= 0 ? PatternDirection.Right : PatternDirection.Left;
+
+        // Entry point on the extended centerline, led ahead of the follower's
+        // perpendicular foot by its cross-track so the join is a ~45° intercept rather
+        // than a square turn. Clamp so the entry never lands at/behind the threshold.
+        double alongFinalNm = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, threshold, finalCourse.ToReciprocal());
+        double entryDistNm = Math.Max(alongFinalNm - Math.Abs(crossTrack), MinFinalJoinDistNm);
+        var entry = GeoMath.ProjectPoint(threshold, finalCourse.ToReciprocal(), entryDistNm);
+        double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
+        double entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDistNm, runway.ElevationFt, gsAngle);
+
+        var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+        var circuit = PatternBuilder.BuildCircuit(
+            runway,
+            ctx.Category,
+            direction,
+            PatternEntryLeg.Final,
+            touchAndGo: false,
+            finalDistanceNm: null,
+            patternSizeNm: null,
+            altitudeOverrideFt: null,
+            airportRunways: airportRunways
+        );
+
+        var phases = ctx.Aircraft.Phases ?? new PhaseList();
+        phases.Clear(ctx);
+        ctx.Aircraft.Phases = new PhaseList
+        {
+            AssignedRunway = runway,
+            TrafficDirection = direction,
+            PatternRunway = runway,
+        };
+        ctx.Aircraft.Phases.Add(
+            new PatternEntryPhase
+            {
+                EntryLat = entry.Lat,
+                EntryLon = entry.Lon,
+                PatternAltitude = entryAltitude,
+                Kind = PatternEntryKind.Final,
+            }
+        );
+        foreach (var p in circuit)
+        {
+            ctx.Aircraft.Phases.Add(p);
+        }
+
+        // Keep the follow target so FinalApproachPhase keeps tightening spacing behind
+        // the lead; reset runaway tracking since pattern-phase spacing differs from the
+        // free-flight pursuit (mirrors TryJoinLeadPattern).
+        ctx.Aircraft.Approach.FollowingCallsign = TargetCallsign;
+        AirborneFollowHelper.ResetRunawayTracking(ctx.Aircraft);
+        ctx.Aircraft.Procedure.DestinationRunway = runway.Designator;
+
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: sequenced onto {Rwy} final behind {Lead} ({Dir}) — awaiting landing clearance",
+            ctx.Aircraft.Callsign,
+            runway.Designator,
+            TargetCallsign,
+            direction
+        );
+
+        ctx.Aircraft.Phases.Start(ctx);
+    }
+
+    /// <summary>
     /// Returns the lead's current pattern waypoints if the lead is in a pattern
     /// leg phase (Downwind/Base/Crosswind/Upwind). When the lead is in
     /// <see cref="PatternEntryPhase"/> — navigating to downwind abeam before
@@ -352,12 +557,17 @@ public sealed class VfrFollowPhase : Phase
             ElapsedSeconds = ElapsedSeconds,
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
             TargetCallsign = TargetCallsign,
+            LeadLandingRunway = _leadLandingRunway?.ToSnapshot(),
         };
 
     public static VfrFollowPhase FromSnapshot(VfrFollowPhaseDto dto)
     {
         var phase = new VfrFollowPhase(dto.TargetCallsign) { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
+        if (dto.LeadLandingRunway is not null)
+        {
+            phase._leadLandingRunway = RunwayInfo.FromSnapshot(dto.LeadLandingRunway);
+        }
         return phase;
     }
 }

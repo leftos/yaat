@@ -865,7 +865,7 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270);
 
             case FollowCommand follow:
-                return TryAirborneFollow(aircraft, follow);
+                return TryAirborneFollow(aircraft, follow, ctx);
 
             // --- Flight plan ---
             case CancelIfrCommand:
@@ -2525,7 +2525,7 @@ public static class CommandDispatcher
             _ => ge.Token,
         };
 
-    private static CommandResult TryAirborneFollow(AircraftState aircraft, FollowCommand follow)
+    private static CommandResult TryAirborneFollow(AircraftState aircraft, FollowCommand follow, DispatchContext ctx)
     {
         // FOLLOW is VFR-only — IFR traffic uses CVA FOLLOW for visual separation.
         if (!aircraft.FlightPlan.IsVfr)
@@ -2552,6 +2552,17 @@ public static class CommandDispatcher
         if (string.IsNullOrEmpty(target))
         {
             return new CommandResult(false, "Unable, say traffic callsign");
+        }
+
+        // Visual separation — and therefore FOLLOW — is not authorized behind a super
+        // (7110.65 §7-2-1; AIM §5-5-11.2.5). Reject when the lead resolves to a super.
+        if (
+            ctx.FindAircraft?.Invoke(target) is { } lead
+            && WakeTurbulenceData.WakeClassForType(lead.AircraftType, AircraftCategorization.Categorize(lead.AircraftType))
+                == WakeTurbulenceData.WakeClass.Super
+        )
+        {
+            return new CommandResult(false, $"Unable, visual separation not authorized behind super {target}");
         }
 
         // If the follower is already in a pattern phase, just update the target —

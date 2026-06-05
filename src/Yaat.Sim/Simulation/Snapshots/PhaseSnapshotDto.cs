@@ -773,6 +773,7 @@ public sealed class UpwindPhaseDto : PhaseDto
 public sealed class VfrFollowPhaseDto : PhaseDto
 {
     public required string TargetCallsign { get; init; }
+    public RunwayInfoDto? LeadLandingRunway { get; init; }
 }
 
 // --- Approach phases ---

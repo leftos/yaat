@@ -417,6 +417,31 @@ full circuit copied from the lead's runway/direction/altitude, gated on **three*
 On join it resets the runaway tracking (`ResetRunawayTracking`) because pattern-tight spacing dynamics differ from
 free-flight, and skips `PatternEntryPhase` if the follower is already established on the downwind leg.
 
+**Straight-in lead — `TryJoinLeadFinal`.** When the lead is on a straight-in final/landing to a known runway but
+has *no* pattern-leg waypoints to copy (e.g. an IFR aircraft that spawned directly onto `FinalApproachPhase`),
+`TryJoinLeadPattern` returns null and `TryJoinLeadFinal` takes over. It sequences the follower onto that runway's
+final once the in-trail spacing (`followerDist − leadDist`) is at least `requiredInTrail = max(SameRunwayInTrailFloorNm
+= 1.5, WakeTurbulenceData.OnApproachWakeSeparationNm(lead → follower))` and the follower is aligned for a sane
+intercept (`|cross-track| ≤ MaxFinalJoinCrossTrackNm = 1.0`, `intercept ≤ MaxFinalJoinInterceptDeg = 30°`, not inside
+`MinFinalJoinDistNm = 0.5`). The in-trail floor keeps the follower genuinely behind the traffic (AIM §4-3-4.4 — no
+cutting in front, since 1.5 > 0) and at the 7110.65 §3-10-3 same-runway minimum for a light single behind same/lighter
+traffic, rising to the CWT wake minimum (TBL 5-5-2) for a heavier lead. (FOLLOW itself is rejected at command time when
+the lead is a super — visual separation prohibited, 7110.65 §7-2-1.) `SequenceOntoFinal` builds `PatternEntryPhase →
+FinalApproachPhase → LandingPhase` for the lead's runway with the follower's own category and `FollowingCallsign`
+preserved, but sets **no** `LandingClearance` — the follower descends on the glideslope behind the lead and holds for a
+separate `CLAND`, going around at minimums if never cleared.
+
+The leading `PatternEntryPhase` is load-bearing: `FinalApproachPhase.OnStart` needs `ctx.Runway`, which `PreTick`
+only populates from the new `AssignedRunway` on the tick *after* the phase-list swap. Routing through
+`PatternEntryPhase` (which tolerates a null runway at start and aligns the follower onto the extended centerline)
+defers `FinalApproachPhase` to a valid-runway tick — the same reason the pattern auto-join path begins with a
+`PatternEntryPhase`.
+
+The lead's runway is captured each tick into `_leadLandingRunway` (serialized in `VfrFollowPhaseDto`) while the
+lead is airborne on final/landing, so if the lead touches down before the follower has rolled onto final, the
+follower is still sequenced onto that runway's final (the lead-landed fallback in `OnTick`) instead of cancelling
+the follow and levelling off over the field.
+
 ## Approach scoring — `ApproachEvaluator` + `ApproachScore`
 
 `ApproachScore` (`src/Yaat.Sim/Phases/ApproachScore.cs`) captures intercept metrics at establishment (angle,
