@@ -459,13 +459,21 @@ internal static class GroundCommandHandler
     }
 
     /// <summary>
-    /// Resolve the routing anchor for a <c>TAXI &lt;twy&gt; CROSS &lt;rwy&gt;</c> with no other destination
+    /// Resolve the routing anchor for a <c>TAXI &lt;twy...&gt; CROSS &lt;rwy&gt;</c> with no other destination
     /// (issue #172 W6). The anchor is the crossed runway's hold-short on the <b>far side</b> of the start
     /// — the one reached only after crossing the runway — so the explicit pathfinder routes toward and
     /// across the runway and terminates just past it. Returns null (no anchor; legacy behaviour) when there
     /// is a real destination, no <c>CROSS</c> keyword, no named taxiways, or the runway lacks a near/far
-    /// hold-short pair on the named taxiways. The farthest-along crossed runway wins, so a route that
-    /// crosses several runways stops just past the last one.
+    /// hold-short pair on the <b>last</b> named taxiway. The farthest-along crossed runway wins, so a route
+    /// that crosses several runways stops just past the last one.
+    ///
+    /// <para>The anchor is matched against the <em>last</em> named taxiway only. The anchor sets the route
+    /// terminus just past the crossed runway, which is correct only when that runway is crossed by the
+    /// final leg. When an earlier taxiway crosses the runway and a later taxiway continues past it (e.g.
+    /// <c>TAXI C B CROSS 33</c>, where 33 is crossed on C and B continues beyond), terminating at the
+    /// runway would truncate the route before the last taxiway is reached. There the route walks through to
+    /// the last taxiway's natural terminus and direction is disambiguated by the look-ahead toward the next
+    /// named taxiway; the <c>CROSS</c> keyword still clears the runway crossing post-resolution.</para>
     /// </summary>
     private static GroundNode? ResolveCrossedRunwayAnchor(AirportGroundLayout layout, GroundNode startNode, TaxiCommand taxi)
     {
@@ -480,9 +488,10 @@ internal static class GroundCommandHandler
             return null;
         }
 
+        string lastTaxiway = taxi.Path[^1];
         for (int i = crossings.Count - 1; i >= 0; i--)
         {
-            if (ResolveCrossedRunwayFarSideHoldShort(layout, startNode, taxi.Path, crossings[i]) is { } anchor)
+            if (ResolveCrossedRunwayFarSideHoldShort(layout, startNode, lastTaxiway, crossings[i]) is { } anchor)
             {
                 Log.LogDebug("[TryTaxi] CROSS {Rwy} anchors route toward far-side hold-short node {Anchor}", crossings[i], anchor.Id);
                 return anchor;
@@ -494,32 +503,33 @@ internal static class GroundCommandHandler
 
     /// <summary>
     /// Find the crossed runway's hold-short on the far side of <paramref name="startNode"/> — the one
-    /// reachable only by crossing the runway. Both of the runway's hold-shorts on the named taxiways lie
-    /// on opposite sides of the runway, so the far one is the farther from the start. Returns null when
-    /// the runway has fewer than two hold-shorts on the named taxiways (no near/far pair to anchor with).
+    /// reachable only by crossing the runway. Both of the runway's hold-shorts on <paramref name="lastTaxiway"/>
+    /// lie on opposite sides of the runway, so the far one is the farther from the start. Returns null when
+    /// the runway has fewer than two hold-shorts on the last taxiway (no near/far pair to anchor with —
+    /// the runway is not crossed by the route's final leg, so it should not terminate the route).
     /// </summary>
     private static GroundNode? ResolveCrossedRunwayFarSideHoldShort(
         AirportGroundLayout layout,
         GroundNode startNode,
-        List<string> namedTaxiways,
+        string lastTaxiway,
         string crossedRunwayId
     )
     {
-        var onNamed = new List<GroundNode>();
+        var onLast = new List<GroundNode>();
         foreach (var node in layout.GetRunwayHoldShortNodes(crossedRunwayId))
         {
-            if (node.Edges.Any(e => namedTaxiways.Any(t => e.MatchesTaxiway(t))))
+            if (node.Edges.Any(e => e.MatchesTaxiway(lastTaxiway)))
             {
-                onNamed.Add(node);
+                onLast.Add(node);
             }
         }
 
-        if (onNamed.Count < 2)
+        if (onLast.Count < 2)
         {
             return null;
         }
 
-        return onNamed.MaxBy(n => GeoMath.DistanceNm(startNode.Position, n.Position));
+        return onLast.MaxBy(n => GeoMath.DistanceNm(startNode.Position, n.Position));
     }
 
     private static TaxiRoute? ResolveRunwayRouteByAStar(

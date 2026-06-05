@@ -7,6 +7,7 @@
 
 ### Fixed
 - Right-clicking a pop-out window (Aircraft List, Ground, Radar, Controllers, METAR, Terminal, Favorites) no longer opens an "Always On Top" context menu over the window body. Toggle Always on Top from Settings, the configurable hotkey, or — on Windows — the title-bar system menu (right-click the title bar or click the window icon).
+- A `TAXI` clearance with a `CROSS <rwy>` clause is no longer rejected with "can't reach <taxiway> without crossing runway" when the crossed runway lies on an earlier named taxiway and a later taxiway follows (e.g. `TAXI C B CROSS 33`); the route now continues onto the last taxiway instead of stopping at the runway.
 
 ## v0.7.0-beta [2026/06/04]
 
