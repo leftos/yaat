@@ -583,9 +583,17 @@ public record PilotReportedAltitudeCommand(int AltitudeHundreds) : ParsedCommand
 
 public record LeaderDirectionCommand(int Direction) : ParsedCommand;
 
-public record JRingCommand(bool Enable) : ParsedCommand;
+/// <summary>
+/// Instructor TPA J-Ring overlay on YAAT's own radar (emulates STARS <c>*J</c>). <see cref="Size"/>
+/// is the ring radius in nm (1-30, per CRC); non-null only when <see cref="Enable"/> is true.
+/// </summary>
+public record JRingCommand(bool Enable, double? Size) : ParsedCommand;
 
-public record ConeCommand(bool Enable) : ParsedCommand;
+/// <summary>
+/// Instructor TPA Cone overlay on YAAT's own radar (emulates STARS <c>*P</c>). <see cref="Size"/>
+/// is the cone length in nm (1-30, per CRC); non-null only when <see cref="Enable"/> is true.
+/// </summary>
+public record ConeCommand(bool Enable, double? Size) : ParsedCommand;
 
 public record GhostTrackCommand(string Callsign, string? AirportCode, string? RunwayId, double? Latitude, double? Longitude) : ParsedCommand;
 

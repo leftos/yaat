@@ -406,8 +406,8 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Leader direction | `LDR 3` | — | — |
-| J-Ring | `JRING` (clear) / `JRING ON` (set) | — | — |
-| Cone | `CONE` (clear) / `CONE ON` (set) | — | — |
+| J-Ring | `JRING 3` (radius nm) / `JRING` (clear) | — | — |
+| Cone | `CONE 5` (length nm) / `CONE` (clear) | — | — |
 
 ### Strip / Data Operations
 
@@ -1125,8 +1125,10 @@ Because of this rule, a single-token global delete like `HSD Ground` is interpre
 | `PRA 250` | Set pilot reported altitude (in hundreds; `PRA 0` clears) |
 | `ONHO` / `ONH` | Toggle on-handoff status |
 | `LDR 3` | Set leader line direction (1-9; `LDR 5` = default) |
-| `JRING` / `JRING ON` | Clear / set J-Ring |
-| `CONE` / `CONE ON` | Clear / set cone |
+| `JRING 3` / `JRING` | Draw a TPA J-Ring of radius 3 NM on **your** radar (1-30 NM); bare `JRING` clears it |
+| `CONE 5` / `CONE` | Draw a TPA Cone of length 5 NM along the target's track on **your** radar (1-30 NM); bare `CONE` clears it |
+
+`JRING` and `CONE` are instructor-only proximity tools that emulate the STARS TPA J-Ring / Cone (`*J` / `*P`) on YAAT's own radar view. They are **never** drawn on the student's CRC scope — the student's automatic ATPA "P-cones" and their own manual TPA graphics are unaffected. The Cone's wedge angle defaults to the CRC-exact 2° and is adjustable under Settings → Display → Overlays.
 
 #### vTDLS (Pre-Departure Clearance)
 

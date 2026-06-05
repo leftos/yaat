@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Instructor TPA J-Rings and Cones now draw on your own radar. `JRING 3` (or the radar **Display → J-ring** menu) draws a 3 NM ring around a target; `CONE 5` (or **Display → Cone**) draws a 5 NM cone projecting along its track — both sized 1–30 NM and labelled with the distance, emulating the STARS `*J` / `*P` proximity tools. They are instructor-only and never appear on the student's CRC. The cone's wedge matches CRC's razor-thin 2° by default and is adjustable under **Settings → Display → Overlays**. (Previously `JRING`/`CONE` drew nothing and discarded the size; the manual cone also leaked onto the student's scope.)
+
 ### Fixed
 - Automatic ATPA approach cones ("P-cones") now appear in CRC STARS for arrivals established on final — the variable-length cone STARS draws ahead of a trailing aircraft toward the one it is following, sized to the required wake/radar separation and shaded monitor, caution, or alert as the gap tightens. They previously never appeared at any facility, because the server never told CRC which cone to draw, the approach volumes were oriented down the runway instead of up the final (so no arrival was ever counted as inside one), and parallel-runway volumes were mis-aligned by the airport's magnetic variation.
 

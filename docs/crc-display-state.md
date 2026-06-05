@@ -94,6 +94,7 @@ A timeline scrub (`RewindAsync` / `RewindFromSnapshotAsync`) or recording load (
 Pure transformations from internal state to wire DTOs:
 
 - `ToStarsTrack(ac)` — `AircraftState` → `StarsTrackDto` (coast phase, ATPA targets, owner, line, scratchpads, temp alt, cruise, …).
+  - `StarsTrackDto.TpaType` (Key 30, CRC's `RemoteTpaType`) is **reserved for the automatic ATPA cone** — it is set only from the server-computed `AtpaResult` cone state via `MapAtpaTpaType`. The instructor's manual `JRING`/`CONE` (`ac.Stars.TpaType` + `TpaSize`) is **not** mapped here: it is an instructor-only overlay drawn on YAAT's own radar (`AircraftStateDto.TpaType`/`TpaSize` → `TargetRenderer`), never projected to the student's CRC. CRC controllers draw their own manual TPA graphics locally and sync them via shared track state.
 - `ToFlightPlan(ac)` — filed alt/route/clearance.
 - `ToEramTarget` / `ToEramTrack` / `ToEramDataBlock` — position-based ERAM symbology.
 - `ToAsdexTarget` / `ToAsdexTrack` — airport range/altitude envelope filtering.

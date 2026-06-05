@@ -525,6 +525,7 @@ public partial class RadarView : UserControl
         _canvas.CollapseStudentDatablocks = prefs.CollapseStudentDatablocks;
         _canvas.SyncStudentLeaderDirection = prefs.SyncStudentLeaderDirection;
         _canvas.DatablockTextSize = prefs.RadarDatablockFontSize;
+        _canvas.TpaConeHalfAngleDegrees = prefs.TpaConeHalfAngleDegrees;
         Flyouts.FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
     }
 

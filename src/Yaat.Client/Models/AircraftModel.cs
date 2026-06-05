@@ -675,6 +675,14 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private int? _studentLeaderDirection;
 
+    /// <summary>Instructor TPA overlay on YAAT's radar (emulates STARS *J/*P): 0=None, 1=J-Ring, 2=Cone.</summary>
+    [ObservableProperty]
+    private int _tpaType;
+
+    /// <summary>TPA J-Ring radius / Cone length in nm (only meaningful when <see cref="TpaType"/> != 0).</summary>
+    [ObservableProperty]
+    private double _tpaSize;
+
     public string OwnerDisplay => OwnerSectorCode ?? Owner ?? "";
 
     public string HandoffDisplay => HandoffPeerSectorCode ?? HandoffPeer ?? "";
@@ -787,6 +795,8 @@ public partial class AircraftModel : ObservableObject
             StudentDatablockColor = dto.StudentDatablockColor,
             StudentDatablockLevel = dto.StudentDatablockLevel,
             StudentLeaderDirection = dto.StudentLeaderDirection,
+            TpaType = dto.TpaType,
+            TpaSize = dto.TpaSize,
             ActiveSidId = dto.ActiveSidId,
             ActiveStarId = dto.ActiveStarId,
             DepartureRunway = dto.DepartureRunway,
@@ -871,6 +881,8 @@ public partial class AircraftModel : ObservableObject
         StudentDatablockColor = dto.StudentDatablockColor;
         StudentDatablockLevel = dto.StudentDatablockLevel;
         StudentLeaderDirection = dto.StudentLeaderDirection;
+        TpaType = dto.TpaType;
+        TpaSize = dto.TpaSize;
         ActiveSidId = dto.ActiveSidId;
         ActiveStarId = dto.ActiveStarId;
         DepartureRunway = dto.DepartureRunway;

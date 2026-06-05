@@ -276,8 +276,8 @@ YAAT also flies charted SID legs coded as headings or courses rather than fixes.
 | Inhibit conflict alert | — | `CAINH` / `CAI` | YAAT-only; toggles CA inhibit |
 | Pilot reported altitude | — | `PRA {hundreds}` | YAAT-only; `PRA 0` clears |
 | Leader direction | — | `LDR {1-9}` | YAAT-only; `LDR 5` = default |
-| J-Ring | — | `JRING` / `JRING ON` | YAAT-only; toggle J-Ring |
-| Cone | — | `CONE` / `CONE ON` | YAAT-only; toggle cone |
+| J-Ring | — | `JRING {nm}` / `JRING` | YAAT-only; instructor TPA J-Ring (radius 1-30 NM) on YAAT's radar; bare clears |
+| Cone | — | `CONE {nm}` / `CONE` | YAAT-only; instructor TPA Cone (length 1-30 NM) on YAAT's radar; bare clears |
 | Ghost track | — | `GHOST {cs} [apt] {rwy}` | YAAT-only; creates ghost track staggered off runway end |
 
 ### Coordination (YAAT-only)

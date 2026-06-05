@@ -459,6 +459,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public double TpaConeHalfAngleDegrees
+    {
+        get => _renderer.TpaConeHalfAngleDegrees;
+        set
+        {
+            _renderer.TpaConeHalfAngleDegrees = value;
+            MarkDirty();
+        }
+    }
+
     public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _renderer.LastEuroScopeTags;
 
     public IReadOnlyDictionary<string, SKRect> LastBubbleRects => _renderer.LastBubbleRects;

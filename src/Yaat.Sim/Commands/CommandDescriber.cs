@@ -566,6 +566,8 @@ public static class CommandDescriber
             CreateAbbreviatedFlightPlanCommand cmd => FormatDaCanonical(cmd),
             SetRemarksCommand cmd => $"REMARKS {cmd.Text}",
             NoteCommand cmd => cmd.Text.Length > 0 ? $"NOTE {cmd.Text}" : "NOTE",
+            JRingCommand cmd => cmd.Enable ? $"JRING {FormatTpaSize(cmd.Size)}" : "JRING",
+            ConeCommand cmd => cmd.Enable ? $"CONE {FormatTpaSize(cmd.Size)}" : "CONE",
             StripMoveCommand cmd => FormatTokenizedCanonical("STRIP", cmd.Tokens),
             StripScanCommand cmd => FormatTokenizedCanonical("SCAN", cmd.Tokens),
             StripDeleteCommand => "STRIPD",
@@ -596,6 +598,9 @@ public static class CommandDescriber
         var list = tokens ?? [];
         return list.Count == 0 ? verb : $"{verb} {string.Join(' ', list)}";
     }
+
+    /// <summary>Formats a TPA J-Ring radius / Cone length in nm without a trailing ".0" (e.g. 3, 3.5).</summary>
+    private static string FormatTpaSize(double? size) => (size ?? 0.0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
     private static string FormatHalfStripOffsetOrSlideCanonical(string verb, string? bayName, int? rack, string? lookupKey)
     {
@@ -837,6 +842,8 @@ public static class CommandDescriber
             CreateAbbreviatedFlightPlanCommand cmd => DescribeDaNatural(cmd),
             SetRemarksCommand cmd => $"Set remarks: {cmd.Text}",
             NoteCommand cmd => cmd.Text.Length > 0 ? $"Set note: {cmd.Text}" : "Clear note",
+            JRingCommand cmd => cmd.Enable ? $"J-Ring {FormatTpaSize(cmd.Size)} NM" : "Clear J-Ring",
+            ConeCommand cmd => cmd.Enable ? $"Cone {FormatTpaSize(cmd.Size)} NM" : "Clear cone",
             HalfStripCreateCommand cmd => DescribeHalfStripCreateNatural(cmd),
             HalfStripAmendCommand cmd => DescribeHalfStripAmendNatural(cmd),
             HalfStripDeleteCommand cmd => DescribeHalfStripDeleteNatural(cmd),

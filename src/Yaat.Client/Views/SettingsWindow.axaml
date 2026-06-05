@@ -440,6 +440,20 @@
                                            FontSize="11"
                                            Margin="28,0,0,0" />
                             </StackPanel>
+                            <TextBlock Text="Instructor TPA cone half-angle (°):"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       Margin="0,8,0,0" />
+                            <NumericUpDown Value="{Binding TpaConeHalfAngleDegrees}"
+                                           Minimum="1"
+                                           Maximum="30"
+                                           Increment="1"
+                                           FormatString="0.#"
+                                           HorizontalAlignment="Left"
+                                           Width="120" />
+                            <TextBlock Text="Width of the instructor J-Ring/Cone overlay's cone, drawn on your radar to emulate the STARS TPA cone (CONE / *P). CRC draws a razor-thin 2° cone along the aircraft's track; raise this to make the wedge easier to read on your scope. The J-Ring is unaffected, and the overlay is never shown on the student's CRC. Default 2°."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
                         </StackPanel>
                         <Separator Margin="0,4" />
                         <TextBlock Text="Windows"

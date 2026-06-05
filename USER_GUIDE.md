@@ -445,6 +445,10 @@ Set or edit a note any of these ways:
 - **Ground right-click** → **Note…**, or **Aircraft List right-click** → **Note…**.
 - **EuroScope tag**: click the amber note line (when one is already set).
 
+#### TPA J-Rings and Cones
+
+The radar right-click **Display** menu offers **J-ring** and **Cone** submenus — instructor-only proximity tools that emulate the STARS TPA J-Ring (`*J`) and Cone (`*P`) on **your** radar without touching the student's CRC scope. Pick a preset distance (or type `JRING 3` / `CONE 5`, 1–30 NM) to draw a blue ring of that radius, or a blue cone of that length projecting along the target's track, with the size labelled beside it; **Clear** (or a bare `JRING` / `CONE`) removes it. A track shows one or the other at a time, just like STARS. The Cone matches CRC's razor-thin 2° wedge by default — widen it for legibility under **Settings > Display > Overlays > "Instructor TPA cone half-angle"**.
+
 #### EuroScope-Style Interactive Tags
 
 Enable **Settings > Display > Radar Display > "EuroScope-style interactive tags"** to switch the radar tag layout to a EuroScope pseudopilot-style block where individual fields are clickable. The setting is global and off by default. With it on, every aircraft data block has four lines:

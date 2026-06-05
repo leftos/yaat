@@ -819,10 +819,10 @@ public static class CommandParser
                 new LeaderDirectionCommand(ldr)
             ),
             LeaderDirection => PR.Fail("leader direction must be 1-9"),
-            JRing when arg is null => PR.Ok(new JRingCommand(false)),
-            JRing => PR.Ok(new JRingCommand(true)),
-            Cone when arg is null => PR.Ok(new ConeCommand(false)),
-            Cone => PR.Ok(new ConeCommand(true)),
+            JRing when arg is null => PR.Ok(new JRingCommand(false, null)),
+            JRing => ParseTpaSize(arg, size => new JRingCommand(true, size)),
+            Cone when arg is null => PR.Ok(new ConeCommand(false, null)),
+            Cone => ParseTpaSize(arg, size => new ConeCommand(true, size)),
             GhostTrack when arg is not null => ParseGhostTrackArg(arg),
             // Data operations
             Annotate when arg is not null => ParseStripAnnotate(arg),
@@ -1136,6 +1136,25 @@ public static class CommandParser
         // same canonical altitude. Same convention as ParseCfixAltitudeToken / AltitudeResolver.
         var hundreds = value < 1000 ? value : value / 100;
         return PR.Ok(factory(hundreds));
+    }
+
+    /// <summary>Min/max TPA J-Ring radius / Cone length in nm (CRC allowable range 1-30 NM).</summary>
+    private const double TpaSizeMinNm = 1.0;
+    private const double TpaSizeMaxNm = 30.0;
+
+    private static PR ParseTpaSize(string? arg, Func<double, ParsedCommand> factory)
+    {
+        if (arg is null || !double.TryParse(arg.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var size))
+        {
+            return PR.Fail("TPA size must be a number");
+        }
+
+        if (size < TpaSizeMinNm || size > TpaSizeMaxNm)
+        {
+            return PR.Fail($"TPA size must be {TpaSizeMinNm:0}-{TpaSizeMaxNm:0} NM");
+        }
+
+        return PR.Ok(factory(size));
     }
 
     private static PR ParseGhostTrackArg(string arg)

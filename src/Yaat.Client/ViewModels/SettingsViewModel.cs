@@ -353,6 +353,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _radarDatablockFontSize;
 
+    /// <summary>Instructor TPA Cone half-angle in degrees (2° = CRC-exact needle; larger = wider wedge).</summary>
+    [ObservableProperty]
+    private double _tpaConeHalfAngleDegrees;
+
     [ObservableProperty]
     private int _radarFlyoutFontSize;
 
@@ -680,6 +684,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoExpandSuggestionOnEnter = _preferences.AutoExpandSuggestionOnEnter;
         _dataGridFontSize = _preferences.DataGridFontSize;
         _radarDatablockFontSize = _preferences.RadarDatablockFontSize;
+        _tpaConeHalfAngleDegrees = _preferences.TpaConeHalfAngleDegrees;
         _radarFlyoutFontSize = _preferences.RadarFlyoutFontSize;
         _groundDatablockFontSize = _preferences.GroundDatablockFontSize;
         _groundLabelFontSize = _preferences.GroundLabelFontSize;
@@ -738,6 +743,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetMarkStudentLimitedDatablocks(MarkStudentLimitedDatablocks);
         _preferences.SetCollapseStudentDatablocks(CollapseStudentDatablocks);
         _preferences.SetSyncStudentLeaderDirection(SyncStudentLeaderDirection);
+        _preferences.SetTpaConeHalfAngleDegrees(TpaConeHalfAngleDegrees);
         _preferences.SetSimulationShortcuts(
             AutoClearedToLandGnd,
             AutoClearedToLandTwr,
@@ -1528,6 +1534,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnDataGridFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnRadarDatablockFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTpaConeHalfAngleDegreesChanged(double value) => VisualSettingsChanged?.Invoke();
 
     partial void OnRadarFlyoutFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 

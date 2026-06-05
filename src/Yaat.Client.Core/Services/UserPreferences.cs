@@ -187,6 +187,7 @@ public sealed class UserPreferences
     public bool MarkStudentLimitedDatablocks => _data.MarkStudentLimitedDatablocks;
     public bool CollapseStudentDatablocks => _data.CollapseStudentDatablocks;
     public bool SyncStudentLeaderDirection => _data.SyncStudentLeaderDirection;
+    public double TpaConeHalfAngleDegrees => _data.TpaConeHalfAngleDegrees;
     public bool AutoClearedToLandGnd => _data.AutoClearedToLandGnd;
     public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
@@ -702,6 +703,16 @@ public sealed class UserPreferences
     public void SetSyncStudentLeaderDirection(bool enabled)
     {
         _data.SyncStudentLeaderDirection = enabled;
+        Save();
+    }
+
+    /// <summary>Min/max instructor TPA Cone half-angle in degrees (CRC-exact 2° up to a legible wedge).</summary>
+    public const double TpaConeHalfAngleMin = 1.0;
+    public const double TpaConeHalfAngleMax = 30.0;
+
+    public void SetTpaConeHalfAngleDegrees(double degrees)
+    {
+        _data.TpaConeHalfAngleDegrees = Math.Clamp(degrees, TpaConeHalfAngleMin, TpaConeHalfAngleMax);
         Save();
     }
 
@@ -1271,6 +1282,7 @@ public sealed class UserPreferences
             MarkStudentLimitedDatablocks = GetFieldOr(obj, "markStudentLimitedDatablocks", true),
             CollapseStudentDatablocks = GetFieldOr(obj, "collapseStudentDatablocks", false),
             SyncStudentLeaderDirection = GetFieldOr(obj, "syncStudentLeaderDirection", false),
+            TpaConeHalfAngleDegrees = GetFieldOr(obj, "tpaConeHalfAngleDegrees", 2.0),
             AutoClearedToLandGnd = GetFieldOr(obj, "autoClearedToLandGnd", true),
             AutoClearedToLandTwr = GetFieldOr(obj, "autoClearedToLandTwr", false),
             AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
@@ -1526,6 +1538,7 @@ public sealed class UserPreferences
         public bool MarkStudentLimitedDatablocks { get; set; } = true;
         public bool CollapseStudentDatablocks { get; set; }
         public bool SyncStudentLeaderDirection { get; set; }
+        public double TpaConeHalfAngleDegrees { get; set; } = 2.0;
         public bool AutoClearedToLandGnd { get; set; } = true;
         public bool AutoClearedToLandTwr { get; set; }
         public bool AutoClearedToLandApp { get; set; } = true;

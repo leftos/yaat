@@ -26,6 +26,7 @@ public sealed class AircraftStarsStateDto
     public required bool IsMsawInhibited { get; init; }
     public required bool IsDuplicateBeaconInhibited { get; init; }
     public int? TpaType { get; init; }
+    public double TpaSize { get; init; }
     public int? GlobalLeaderDirection { get; init; }
     public Dictionary<string, SharedStateDto>? SharedState { get; init; }
 }

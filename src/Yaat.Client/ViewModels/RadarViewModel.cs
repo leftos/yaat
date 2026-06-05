@@ -1379,12 +1379,14 @@ public partial class RadarViewModel : ObservableObject
 
     public async Task JRingAsync(string callsign, string initials, double? radiusNm)
     {
-        await _sendCommand(callsign, radiusNm.HasValue ? $"JRING {radiusNm.Value}" : "JRING", initials);
+        var arg = radiusNm?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        await _sendCommand(callsign, arg is not null ? $"JRING {arg}" : "JRING", initials);
     }
 
-    public async Task ConeAsync(string callsign, string initials, double? radiusNm)
+    public async Task ConeAsync(string callsign, string initials, double? lengthNm)
     {
-        await _sendCommand(callsign, radiusNm.HasValue ? $"CONE {radiusNm.Value}" : "CONE", initials);
+        var arg = lengthNm?.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        await _sendCommand(callsign, arg is not null ? $"CONE {arg}" : "CONE", initials);
     }
 
     public async Task BlankAsync(string callsign, string initials)

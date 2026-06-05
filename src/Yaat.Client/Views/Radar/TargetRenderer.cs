@@ -29,6 +29,13 @@ public sealed class TargetRenderer : IDisposable
     // NoLndgClnc, green ground/SAY, and cyan highlight.
     private static readonly SKColor NoteColor = new(255, 200, 60);
 
+    // STARS TPA graphics color (CRC's TCW value, DisplayElementTracks: Color.FromArgb(90, 180, 255)) —
+    // used for the instructor J-Ring / Cone overlay so it reads like the TPA graphics a controller sees.
+    private static readonly SKColor TpaColor = new(90, 180, 255);
+
+    private const int TpaJRing = 1;
+    private const int TpaCone = 2;
+
     // Bubble pill colors — subtle teal-tinted background with a SAY-green border so the
     // bubble reads as a pilot-transmission overlay without competing with the datablock.
     private static readonly SKColor SpeechBubbleFillColor = new(20, 60, 50, 220);
@@ -91,6 +98,30 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
+    private readonly SKPaint _tpaPaint = new()
+    {
+        Color = TpaColor,
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _tpaTextPaint = new()
+    {
+        TextSize = 11,
+        Color = TpaColor,
+        IsAntialias = true,
+        SubpixelText = true,
+        Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
+    };
+
+    private readonly SKPaint _tpaLabelBackingPaint = new()
+    {
+        Color = SKColors.Black,
+        Style = SKPaintStyle.Fill,
+        IsAntialias = true,
+    };
+
     private readonly SKPaint _bubbleFillPaint = new()
     {
         Color = SpeechBubbleFillColor,
@@ -129,6 +160,13 @@ public sealed class TargetRenderer : IDisposable
         SubpixelText = true,
         Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
     };
+
+    /// <summary>
+    /// Half-angle (degrees) of the instructor TPA Cone overlay. CRC draws the manual TPA cone as a
+    /// razor-thin ±2° needle along the ground track; this is exposed so it can be widened for
+    /// legibility via the <c>TpaConeHalfAngleDegrees</c> user preference. Default 2° (CRC-exact).
+    /// </summary>
+    public double TpaConeHalfAngleDegrees { get; set; } = 2.0;
 
     /// <summary>Local user's initials for assignment tint matching.</summary>
     public string? LocalUserInitials { get; set; }
@@ -353,6 +391,11 @@ public sealed class TargetRenderer : IDisposable
             DrawPtlLine(canvas, vp, sx, sy, ac, ptlLengthMinutes);
         }
 
+        if (ac.TpaType != 0 && ac.TpaSize > 0)
+        {
+            DrawTpaGraphic(canvas, vp, sx, sy, ac);
+        }
+
         DrawPositionSymbol(canvas, sx, sy, symbolColor);
         var blockRect = DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, isMinified, isSelected);
 
@@ -389,6 +432,87 @@ public sealed class TargetRenderer : IDisposable
 
         _ptlPaint.Color = SKColors.White;
         canvas.DrawLine(sx, sy, ex, ey, _ptlPaint);
+    }
+
+    /// <summary>
+    /// Draws the instructor TPA overlay (emulating STARS *J/*P) on YAAT's own radar. A J-Ring is a
+    /// circle of radius <see cref="AircraftModel.TpaSize"/> nm centered on the target; a Cone is a thin
+    /// wedge projecting from the target along its track for <see cref="AircraftModel.TpaSize"/> nm. Both
+    /// are geo-anchored (ring/wedge vertices are projected, not pixel-scaled) so they stay accurate at
+    /// any zoom, and carry a numeric size label like CRC's optional TPA size display.
+    /// </summary>
+    private void DrawTpaGraphic(SKCanvas canvas, MapViewport vp, float sx, float sy, AircraftModel ac)
+    {
+        if (ac.TpaType == TpaJRing)
+        {
+            DrawTpaJRing(canvas, vp, ac);
+        }
+        else if (ac.TpaType == TpaCone)
+        {
+            DrawTpaCone(canvas, vp, sx, sy, ac);
+        }
+    }
+
+    private void DrawTpaJRing(SKCanvas canvas, MapViewport vp, AircraftModel ac)
+    {
+        using var path = new SKPath();
+        for (int deg = 0; deg <= 360; deg += 5)
+        {
+            var (lat, lon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(deg), ac.TpaSize);
+            var (px, py) = vp.LatLonToScreen(lat, lon);
+            if (deg == 0)
+            {
+                path.MoveTo(px, py);
+            }
+            else
+            {
+                path.LineTo(px, py);
+            }
+        }
+
+        path.Close();
+        canvas.DrawPath(path, _tpaPaint);
+
+        // Size label at the south edge of the ring (clear of the typical NE datablock).
+        var (lblLat, lblLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(180), ac.TpaSize);
+        var (lx, ly) = vp.LatLonToScreen(lblLat, lblLon);
+        DrawTpaSizeLabel(canvas, lx, ly, ac.TpaSize);
+    }
+
+    private void DrawTpaCone(SKCanvas canvas, MapViewport vp, float sx, float sy, AircraftModel ac)
+    {
+        // CRC projects the cone along ground track; YAAT draws its leader line along Heading, so the
+        // cone shares that axis to stay visually consistent with the rest of the YAAT target.
+        var axis = ac.Heading.Degrees;
+        var (leftLat, leftLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis + TpaConeHalfAngleDegrees), ac.TpaSize);
+        var (rightLat, rightLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis - TpaConeHalfAngleDegrees), ac.TpaSize);
+        var (lx, ly) = vp.LatLonToScreen(leftLat, leftLon);
+        var (rx, ry) = vp.LatLonToScreen(rightLat, rightLon);
+
+        using var path = new SKPath();
+        path.MoveTo(sx, sy);
+        path.LineTo(lx, ly);
+        path.LineTo(rx, ry);
+        path.Close();
+        canvas.DrawPath(path, _tpaPaint);
+
+        // Size label at the cone's midpoint along the track axis (mirrors CRC).
+        var (midLat, midLon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(axis), ac.TpaSize / 2.0);
+        var (mx, my) = vp.LatLonToScreen(midLat, midLon);
+        DrawTpaSizeLabel(canvas, mx, my, ac.TpaSize);
+    }
+
+    private void DrawTpaSizeLabel(SKCanvas canvas, float centerX, float centerY, double sizeNm)
+    {
+        var text = sizeNm.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        var width = _tpaTextPaint.MeasureText(text);
+        var height = _tpaTextPaint.TextSize;
+        var baselineX = centerX - (width / 2f);
+        var baselineY = centerY + (height / 2f);
+
+        // Black backing rect keeps the value legible over targets / video maps (mirrors CRC's RenderQuad).
+        canvas.DrawRect(baselineX - 2f, baselineY - height - 1f, width + 4f, height + 4f, _tpaLabelBackingPaint);
+        canvas.DrawText(text, baselineX, baselineY, _tpaTextPaint);
     }
 
     private static bool ShouldShowPtl(AircraftModel ac, bool ptlOwn, bool ptlAll)
@@ -776,5 +900,8 @@ public sealed class TargetRenderer : IDisposable
         _bubbleFillPaintWarning.Dispose();
         _bubbleBorderPaintWarning.Dispose();
         _bubbleTextPaint.Dispose();
+        _tpaPaint.Dispose();
+        _tpaTextPaint.Dispose();
+        _tpaLabelBackingPaint.Dispose();
     }
 }

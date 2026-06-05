@@ -627,10 +627,10 @@ public partial class RadarView
 
         var cone = new MenuItem { Header = "Cone" };
         cone.Items.Add(CreateMenuItem("Clear", () => vm.ConeAsync(callsign, GetInitials(), null)));
-        foreach (var r in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
+        foreach (var l in new[] { 1.0, 2.0, 3.0, 5.0, 10.0 })
         {
-            var radius = r;
-            cone.Items.Add(CreateMenuItem($"{radius:0} nm", () => vm.ConeAsync(callsign, GetInitials(), radius)));
+            var length = l;
+            cone.Items.Add(CreateMenuItem($"{length:0} nm", () => vm.ConeAsync(callsign, GetInitials(), length)));
         }
 
         menu.Items.Add(cone);

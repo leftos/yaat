@@ -233,10 +233,10 @@
       "name": "Display",
       "rows": [
         { "verb": "LDR", "aliases": [], "description": "Leader line direction (1-9)" },
-        { "verb": "JRING", "aliases": [], "description": "J-Ring [radius / bare=clear]" },
-        { "verb": "CONE", "aliases": [], "description": "Cone [radius / bare=clear]" }
+        { "verb": "JRING", "aliases": [], "description": "J-Ring radius nm 1-30 [bare=clear]" },
+        { "verb": "CONE", "aliases": [], "description": "Cone length nm 1-30 [bare=clear]" }
       ],
-      "notes": []
+      "notes": ["JRING/CONE are instructor-only TPA tools drawn on your radar (emulating STARS *J/*P); never shown on the student's CRC."]
     },
     {
       "id": "data-strips",

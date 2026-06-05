@@ -284,6 +284,12 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.DatablockTextSize = value;
     }
 
+    public double TpaConeHalfAngleDegrees
+    {
+        get => _targetRenderer.TpaConeHalfAngleDegrees;
+        set => _targetRenderer.TpaConeHalfAngleDegrees = value;
+    }
+
     public IReadOnlyDictionary<string, EuroScopeTagResult> LastEuroScopeTags => _targetRenderer.LastEuroScopeTags;
 
     public IReadOnlyDictionary<string, SKRect> LastBubbleRects => _targetRenderer.LastBubbleRects;

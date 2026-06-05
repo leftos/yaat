@@ -861,7 +861,11 @@ public record AircraftDto(
     Yaat.Sim.StarsDatablockLevel? StudentDatablockLevel = null,
     int? StudentLeaderDirection = null,
     // Instructor freetext note shown as an extra datablock line on radar + ground. Instructor-only.
-    string Note = ""
+    string Note = "",
+    // Instructor TPA overlay on YAAT's own radar (emulates STARS *J/*P). TpaType: 0=None, 1=J-Ring,
+    // 2=Cone. TpaSize is the J-Ring radius / Cone length in nm. Instructor-only; never on the student's CRC.
+    int TpaType = 0,
+    double TpaSize = 0
 );
 
 public record LoadScenarioResultDto(

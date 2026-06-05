@@ -33,6 +33,7 @@ public class AircraftStarsState
     public bool IsMsawInhibited { get; set; }
     public bool IsDuplicateBeaconInhibited { get; set; }
     public int? TpaType { get; set; }
+    public double TpaSize { get; set; }
     public int? GlobalLeaderDirection { get; set; }
     public Dictionary<string, StarsTrackSharedState> SharedState { get; set; } = [];
 
@@ -63,6 +64,7 @@ public class AircraftStarsState
             IsMsawInhibited = IsMsawInhibited,
             IsDuplicateBeaconInhibited = IsDuplicateBeaconInhibited,
             TpaType = TpaType,
+            TpaSize = TpaSize,
             GlobalLeaderDirection = GlobalLeaderDirection,
             SharedState = SharedState.Count > 0 ? SharedState.ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot()) : null,
         };
@@ -94,6 +96,7 @@ public class AircraftStarsState
             IsMsawInhibited = dto.IsMsawInhibited,
             IsDuplicateBeaconInhibited = dto.IsDuplicateBeaconInhibited,
             TpaType = dto.TpaType,
+            TpaSize = dto.TpaSize,
             GlobalLeaderDirection = dto.GlobalLeaderDirection,
             SharedState = dto.SharedState is not null
                 ? dto.SharedState.ToDictionary(kv => kv.Key, kv => StarsTrackSharedState.FromSnapshot(kv.Value))

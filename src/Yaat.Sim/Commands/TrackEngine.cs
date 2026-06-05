@@ -394,16 +394,20 @@ public static class TrackEngine
     private const int TpaJRing = 1;
     private const int TpaCone = 2;
 
-    public static CommandResult HandleJRing(AircraftState ac, bool enable)
+    public static CommandResult HandleJRing(AircraftState ac, bool enable, double? size)
     {
         ac.Stars.TpaType = enable ? TpaJRing : null;
-        return new CommandResult(true, $"J-Ring {(enable ? "on" : "off")} for {ac.Callsign}");
+        ac.Stars.TpaSize = enable ? (size ?? 0.0) : 0.0;
+        var detail = enable ? $"on ({ac.Stars.TpaSize:0.#} NM)" : "off";
+        return new CommandResult(true, $"J-Ring {detail} for {ac.Callsign}");
     }
 
-    public static CommandResult HandleCone(AircraftState ac, bool enable)
+    public static CommandResult HandleCone(AircraftState ac, bool enable, double? size)
     {
         ac.Stars.TpaType = enable ? TpaCone : null;
-        return new CommandResult(true, $"Cone {(enable ? "on" : "off")} for {ac.Callsign}");
+        ac.Stars.TpaSize = enable ? (size ?? 0.0) : 0.0;
+        var detail = enable ? $"on ({ac.Stars.TpaSize:0.#} NM)" : "off";
+        return new CommandResult(true, $"Cone {detail} for {ac.Callsign}");
     }
 
     /// <summary>
@@ -531,8 +535,8 @@ public static class TrackEngine
             RetractPointoutCommand => HandleRetractPointout(ac),
             PilotReportedAltitudeCommand pra => HandlePilotReportedAltitude(ac, pra.AltitudeHundreds),
             LeaderDirectionCommand ldr => HandleLeaderDirection(ac, ldr.Direction),
-            JRingCommand jr => HandleJRing(ac, jr.Enable),
-            ConeCommand cone => HandleCone(ac, cone.Enable),
+            JRingCommand jr => HandleJRing(ac, jr.Enable, jr.Size),
+            ConeCommand cone => HandleCone(ac, cone.Enable, cone.Size),
             Scratchpad1Command sp1 => HandleScratchpad1(ac, sp1.Text, maxScratchpad),
             Scratchpad2Command sp2 => HandleScratchpad2(ac, sp2.Text, maxScratchpad),
             AsdexEditCommand asdexEdit => HandleAsdexEdit(ac, asdexEdit.Field, asdexEdit.Text),
