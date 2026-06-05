@@ -292,6 +292,19 @@ internal static class NavigationCommandHandler
     {
         var navDb = NavigationDatabase.Instance;
 
+        // Resolve a controller-typed STAR id that may omit the version digit (JARR TEJAS → TEJAS5).
+        if (aircraft.FlightPlan.Destination is { } destination && !string.IsNullOrEmpty(destination))
+        {
+            cmd = cmd with { StarId = navDb.ResolveCommandStarId(destination, cmd.StarId) };
+        }
+
+        // A runway-transition argument (JARR star 27) also designates the landing runway, so the
+        // CIFP runway-transition lookup and downstream approach selection use it.
+        if (cmd.RunwayTransition is { } runwayArg)
+        {
+            aircraft.Procedure.DestinationRunway = runwayArg;
+        }
+
         // Try CIFP STAR first for constrained navigation targets
         var cifpResult = TryResolveStarFromCifp(cmd, aircraft);
         if (cifpResult is not null)
@@ -1075,9 +1088,12 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchDescendVia(DescendViaCommand cmd, AircraftState aircraft)
     {
-        if (aircraft.Procedure.ActiveStarId is null)
+        // "Descend via the [STAR]" only requires the STAR to be in the cleared route (AIM 5-4-1.a.2);
+        // no separate join step is needed. If no STAR is active yet, activate the one in the filed
+        // route and overlay its published crossing restrictions onto the live lateral route.
+        if (aircraft.Procedure.ActiveStarId is null && !TryActivateFiledStar(aircraft))
         {
-            return new CommandResult(false, "No active STAR — descend via requires an active STAR");
+            return new CommandResult(false, "No active STAR — descend via requires a STAR in the filed route");
         }
 
         aircraft.Procedure.StarViaMode = true;
@@ -1140,6 +1156,83 @@ internal static class NavigationCommandHandler
             {
                 FlightPhysics.ApplyFixConstraints(aircraft, target);
                 break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Activates the STAR named in the aircraft's filed route when none is active yet, so a bare
+    /// <c>DVIA</c> works without a prior <c>JARR</c> (the STAR being in the cleared route is the only
+    /// real-world precondition). Sets <see cref="AircraftProcedure.ActiveStarId"/> and overlays the
+    /// published CIFP altitude/speed restrictions onto the existing (already-sequenced) lateral route
+    /// by fix name — it does not rebuild the route, so fixes the aircraft has already passed are not
+    /// re-added. Returns false when the filed route contains no resolvable STAR.
+    /// </summary>
+    private static bool TryActivateFiledStar(AircraftState aircraft)
+    {
+        var navDb = NavigationDatabase.Instance;
+        var destination = aircraft.FlightPlan.Destination;
+        if (string.IsNullOrEmpty(destination) || string.IsNullOrWhiteSpace(aircraft.FlightPlan.Route))
+        {
+            return false;
+        }
+
+        foreach (var token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            // Filed routes carry versioned STAR names (e.g. TEJAS5), so the strict route-token
+            // resolver is correct here — a bare fix must not be mistaken for a STAR.
+            if (navDb.ResolveStarId(token) is not { } resolvedStarId)
+            {
+                continue;
+            }
+
+            var star = navDb.GetStar(destination, resolvedStarId);
+            if (star is null)
+            {
+                continue;
+            }
+
+            OverlayStarRestrictions(aircraft, star);
+            aircraft.Procedure.ActiveStarId = resolvedStarId;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Copies each published altitude/speed restriction from <paramref name="star"/> onto the matching
+    /// fix (by name) already present in the aircraft's navigation route, reusing the same leg→target
+    /// resolution as <c>JARR</c> so the constraint semantics are identical.
+    /// </summary>
+    private static void OverlayStarRestrictions(AircraftState aircraft, CifpStarProcedure star)
+    {
+        var allLegs = new List<CifpLeg>();
+        foreach (var transition in star.EnrouteTransitions.Values)
+        {
+            allLegs.AddRange(transition.Legs);
+        }
+        allLegs.AddRange(star.CommonLegs);
+        foreach (var transition in star.RunwayTransitions.Values)
+        {
+            allLegs.AddRange(transition.Legs);
+        }
+
+        var byName = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
+        foreach (var target in DepartureClearanceHandler.ResolveLegsToTargets(allLegs))
+        {
+            if ((target.AltitudeRestriction is not null || target.SpeedRestriction is not null) && !byName.ContainsKey(target.Name))
+            {
+                byName[target.Name] = target;
+            }
+        }
+
+        foreach (var fix in aircraft.Targets.NavigationRoute)
+        {
+            if (byName.TryGetValue(fix.Name, out var source))
+            {
+                fix.AltitudeRestriction = source.AltitudeRestriction;
+                fix.SpeedRestriction = source.SpeedRestriction;
             }
         }
     }

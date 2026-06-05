@@ -666,6 +666,8 @@ When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a h
 
 All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see [Altitude Arguments](#altitude-arguments)). A bare number (1-360) without a modifier prefix is interpreted as a heading: `CTO 270` = fly heading 270, `CTO 270 050` = fly heading 270, climb to 5,000 ft.
 
+When a CTO carries no explicit climb altitude, an IFR departure on a SID climbs to and maintains the SID's published initial ("maintain") altitude from the facility's vTDLS configuration (e.g. KIAH 4,000 ft, KHOU 5,000 ft) until you issue a climb (`CM`/`CD`). A later climb command supersedes the cap; VFR departures and airports without a published initial altitude are unaffected.
+
 Append `CWT` after any CTO form to include "caution wake turbulence" in the takeoff clearance and record wake-advisory proof: `CTO CWT`, `CTO 270 CWT`, `CTO DCT SUNOL CWT`.
 
 **IFR aircraft** can only use bare `CTO` (default SID/route departure) or `CTO` with a numeric heading (`CTO 270`, `CTO H270`, `CTO RH270`, etc.). Pattern exit and runway-relative modifiers (`MRC`, `MRD`, `MRH` / `MSO` / `RH`, `OC`, `MLT`, `DCT`, etc.) are VFR-only — dispatch rejects them with a message naming the IFR restriction so the controller can reissue with a vector or let the SID run.
@@ -909,8 +911,10 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 | `ADCT SUNOL` | Append direct to — adds SUNOL to the end of the current route |
 | `ADCTF SUNOL` | Append force direct to — appends without route validation |
 | `JARR OAK.SALI2` | Join [STAR](#glossary): navigate to nearest fix on the SALI2 arrival into OAK |
-| `JARR SALI2` | Join STAR by name (airport inferred from destination) |
+| `JARR SALI2` | Join STAR by name (airport inferred from destination; version digit optional, e.g. `SALI`) |
 | `JARR SALI2 KENNO` | Join STAR via specific entry fix KENNO |
+| `JARR SALI2 28R` | Join STAR for landing runway 28R (selects the runway transition, sets the destination runway) |
+| `JARR SALI2 KENNO 28R` | Join STAR via entry fix KENNO for runway 28R |
 | `JARR OAK.SALI2 KENNO` | Join STAR with both airport qualifier and entry fix |
 | `JAWY V25` | Join airway: intercept and join airway V25, following fixes in the direction of travel |
 | `JRADO SJC 150` | Join radial outbound: fly to SJC VOR, then outbound on the 150° radial |
@@ -928,7 +932,7 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 
 `JAWY` intercepts and joins a named airway (e.g., V25, J80). The aircraft flies its present heading until it intercepts the airway segment, then turns onto the airway course and follows the fix sequence in the direction of travel.
 
-JARR supports CIFP altitude/speed constraints when available. The airport prefix (`OAK.`) is optional — when omitted, the aircraft's destination airport is used. The entry fix specifies where to join the STAR; when omitted, the nearest fix ahead of the aircraft is used.
+JARR supports CIFP altitude/speed constraints when available. The airport prefix (`OAK.`) is optional — when omitted, the aircraft's destination airport is used. The STAR name's version digit is optional (`SALI` resolves to the current `SALI2`). The second argument is an entry fix (e.g. `KENNO`) unless it looks like a runway (e.g. `28R`, `27`), in which case it selects the runway transition and sets the landing runway; a third argument combines both (`JARR SALI2 KENNO 28R`). When the entry fix is omitted, the nearest fix ahead of the aircraft is used.
 
 CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for the next fix in the route, while `CFIX {fix} {altitude}` targets a specific named fix. Altitude prefixes: `A` = at or above, `B` = at or below, no prefix = at exactly. CFIX uses step-based descent/climb planning — the aircraft computes the exact vertical rate needed to arrive at the constraint altitude precisely at the fix. CFIX is additive and applies in place: it stamps the restriction on the named fix without rerouting (the fixes ahead of it are kept), so multiple CFIX commands stack — each fix on the route retains its own restriction.
 
@@ -940,6 +944,8 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 |-----------|---------|-----------------|------------------|
 | SID (after CTO) | **ON** — aircraft follows published climb restrictions | `CVIA` (re-enable after CM override) | `CM` (any altitude command) |
 | STAR (after JARR) | **OFF** — aircraft maintains altitude, follows lateral path only | `DVIA` (enable descent restrictions) | `DM` (any altitude command) |
+
+`DVIA` no longer requires a prior `JARR`: when no STAR is active, it activates the STAR filed in the flight-plan route and applies that STAR's published crossing restrictions before descending.
 
 `CVIA 190` and `DVIA 240` enable via mode with an altitude cap/floor — "climb/descend via, except maintain." `FH`, `DCT`, and heading commands clear the entire procedure (lateral path + via mode).
 

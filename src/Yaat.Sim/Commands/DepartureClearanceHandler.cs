@@ -35,6 +35,27 @@ internal static class DepartureClearanceHandler
         }
     }
 
+    /// <summary>
+    /// Resolves and stores the departure's published SID initial-altitude cap (the TDLS "maintain"
+    /// altitude, e.g. KIAH 4000 / KHOU 5000) on the aircraft so <see cref="InitialClimbPhase"/> holds
+    /// it when no altitude is commanded. Only IFR departures on a SID get a value; VFR clears it. The
+    /// SID and enroute transition come from the filed route's first two tokens (e.g. "BLTWY7 CRIED").
+    /// </summary>
+    internal static void StoreSidInitialAltitude(AircraftState aircraft, ArtccConfigRoot? artccConfig)
+    {
+        if (aircraft.FlightPlan.IsVfr)
+        {
+            aircraft.Procedure.SidInitialAltitudeFt = null;
+            return;
+        }
+
+        var tokens = (aircraft.FlightPlan.Route ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string? sidId = tokens.Length > 0 ? tokens[0] : null;
+        string? transitionId = tokens.Length > 1 ? tokens[1] : null;
+
+        aircraft.Procedure.SidInitialAltitudeFt = artccConfig.GetSidInitialAltitudeFt(aircraft.FlightPlan.Departure ?? "", sidId, transitionId);
+    }
+
     internal static CommandResult TryClearedForTakeoff(ClearedForTakeoffCommand cto, AircraftState aircraft, LinedUpAndWaitingPhase luaw)
     {
         if (aircraft.Phases?.AssignedRunway is null)

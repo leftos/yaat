@@ -137,6 +137,64 @@ public class ProcedureVersionResolutionTests
         Assert.Equal("CNDEL6", result.ProcedureId);
     }
 
+    // ── Command-only version-less STAR resolution (issue #187: `JARR TEJAS` must resolve `TEJAS5`) ──
+    // Uses real navdata. ResolveCommandStarId is for controller-typed STAR names only; the global
+    // route-token resolver (ResolveStarId) must stay strict so RouteExpander/ScenarioLoader don't
+    // misclassify a bare fix (e.g. the fix TEJAS) as the STAR TEJAS5.
+
+    [Fact]
+    public void ResolveCommandStarId_VersionlessBaseName_ResolvesToCurrentVersion()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return; // navdata absent — silent skip
+        }
+
+        var resolved = navDb.ResolveCommandStarId("KIAH", "TEJAS");
+
+        // Version-agnostic: real current version is TEJAS5 today but must not break on a cycle bump.
+        Assert.Equal("TEJAS", NavigationDatabase.StripTrailingDigits(resolved));
+        Assert.NotEqual("TEJAS", resolved);
+    }
+
+    [Fact]
+    public void ResolveCommandStarId_ExactVersionedId_ReturnsUnchanged()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        Assert.Equal("DRLLR5", navDb.ResolveCommandStarId("KIAH", "DRLLR5"));
+    }
+
+    [Fact]
+    public void ResolveCommandStarId_UnknownStar_ReturnsInputUnchanged()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        Assert.Equal("NOPE", navDb.ResolveCommandStarId("KIAH", "NOPE"));
+    }
+
+    [Fact]
+    public void ResolveStarId_VersionlessBaseName_StaysNull_SoRouteExpanderDoesNotMisclassifyFix()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        // The fix TEJAS must NOT resolve to the STAR TEJAS5 via the route-token classifier.
+        Assert.Null(navDb.ResolveStarId("TEJAS"));
+    }
+
     // ── ScenarioLoader version resolution ──
 
     [Fact]

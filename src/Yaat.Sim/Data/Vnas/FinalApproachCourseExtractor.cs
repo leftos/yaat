@@ -47,7 +47,13 @@ public static class FinalApproachCourseExtractor
     /// </returns>
     public static FinalApproachCourseResult Extract(CifpApproachProcedure procedure, RunwayInfo runway, NavigationDatabase navDb)
     {
-        double declination = MagneticDeclination.GetDeclination(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        // Convert published magnetic courses with the airport's CIFP variation of record (the
+        // declination the procedure was charted against), not the live WMM declination. The two drift
+        // apart across AIRAC epochs, and that drift is what pushes an aligned localizer off the runway
+        // centerline (issue #187). Fall back to WMM only when the CIFP airport record is unavailable.
+        double declination =
+            navDb.GetAirportMagneticVariation(runway.AirportId)
+            ?? MagneticDeclination.GetDeclination(runway.ThresholdLatitude, runway.ThresholdLongitude);
 
         var (mapLeg, mapIndex) = FindMapLeg(procedure.CommonLegs);
         if (mapLeg is null)

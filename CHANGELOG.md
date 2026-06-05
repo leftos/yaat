@@ -4,8 +4,14 @@
 
 ### Added
 - Ground view aircraft datablocks now show the CWT wake category alongside the type as `cwt/type` (e.g. `E/B738`), matching the radar view.
+- `JARR` now accepts the landing runway as an argument — `JARR TEJAS5 27` selects that runway's STAR transition and sets the destination runway; combine it with an entry fix as `JARR TEJAS5 RIDLR 27`.
+- IFR departures cleared without an altitude (e.g. a `CTO` with only a heading) now climb to and hold their SID's published initial altitude from the facility's vTDLS configuration (e.g. KIAH 4,000 ft, KHOU 5,000 ft) until you issue a climb; a later `CM`/`CD` supersedes it.
 
 ### Fixed
+- Arrivals now descend via the STAR: `DVIA` ("descend via") activates the STAR filed in the aircraft's route and applies its published crossing restrictions even without a prior `JARR`, instead of firing silently and leaving the aircraft level.
+- `JARR` accepts a STAR name without its version digit (`TEJAS` resolves to the current `TEJAS5`).
+- Final approach courses now line up with the runway centerline. They are converted from the published magnetic course using the airport's charted magnetic variation rather than the live value, so an aircraft no longer tracks about a degree off to one side of the localizer on a long final.
+- A deferred or preset command that can't apply when it finally fires now reports a warning in the terminal instead of vanishing silently.
 - Right-clicking a pop-out window (Aircraft List, Ground, Radar, Controllers, METAR, Terminal, Favorites) no longer opens an "Always On Top" context menu over the window body. Toggle Always on Top from Settings, the configurable hotkey, or — on Windows — the title-bar system menu (right-click the title bar or click the window icon).
 - A `TAXI` clearance with a `CROSS <rwy>` clause is no longer rejected with "can't reach <taxiway> without crossing runway" when the crossed runway lies on an earlier named taxiway and a later taxiway follows (e.g. `TAXI C B CROSS 33`); the route now continues onto the last taxiway instead of stopping at the runway.
 - A VFR aircraft told to **FOLLOW** traffic that is on a straight-in final (e.g. an IFR arrival on the ILS) is now sequenced onto that runway's final behind the traffic and descends there to await a landing clearance, instead of trailing it level at pattern altitude and flying over the runway when the traffic lands.

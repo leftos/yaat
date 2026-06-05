@@ -1138,4 +1138,81 @@ public static class ArtccConfigResolver
     /// </summary>
     public static bool IsAutoConsolidation(this ArtccConfigRoot config, string facilityId) =>
         config.FindFacility(facilityId)?.StarsConfiguration?.AutomaticConsolidation ?? false;
+
+    /// <summary>
+    /// The published initial ("maintain") altitude in feet for an IFR departure on the given SID and
+    /// enroute transition, from the departure airport's TDLS config: the transition's
+    /// <c>DefaultInitialAlt</c> when set, otherwise the facility's primary <c>InitialAlts</c> value
+    /// (some facilities, e.g. KIAH, leave the per-transition default blank and rely on the list).
+    /// Returns null when the airport has no TDLS config, the SID isn't configured, or no value is published.
+    /// </summary>
+    public static int? GetSidInitialAltitudeFt(this ArtccConfigRoot? config, string departureAirportId, string? sidId, string? transitionId)
+    {
+        if (config?.Facility is null || string.IsNullOrWhiteSpace(departureAirportId))
+        {
+            return null;
+        }
+
+        var tdls = FindTdlsConfigForAirport(config.Facility, NormalizeFaaAirport(departureAirportId));
+        if (tdls is null)
+        {
+            return null;
+        }
+
+        string? raw = null;
+        if (!string.IsNullOrWhiteSpace(sidId))
+        {
+            var sid = tdls.Sids.FirstOrDefault(s => s.Name.Equals(sidId, StringComparison.OrdinalIgnoreCase));
+            if (sid is not null)
+            {
+                var transition = transitionId is not null
+                    ? sid.Transitions.FirstOrDefault(t => t.Name.Equals(transitionId, StringComparison.OrdinalIgnoreCase))
+                    : null;
+                raw =
+                    transition?.DefaultInitialAlt
+                    ?? sid.Transitions.Select(t => t.DefaultInitialAlt).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+            }
+        }
+
+        raw ??= tdls.InitialAlts.FirstOrDefault()?.Value;
+        return ParseTdlsAltitudeFt(raw);
+    }
+
+    private static TdlsConfig? FindTdlsConfigForAirport(FacilityConfig facility, string normalizedAirport)
+    {
+        if (facility.TdlsConfiguration is not null && NormalizeFaaAirport(facility.Id).Equals(normalizedAirport, StringComparison.OrdinalIgnoreCase))
+        {
+            return facility.TdlsConfiguration;
+        }
+
+        foreach (var child in facility.ChildFacilities)
+        {
+            var found = FindTdlsConfigForAirport(child, normalizedAirport);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static string NormalizeFaaAirport(string airportId) => airportId.Length == 4 && (airportId[0] is 'K' or 'k') ? airportId[1..] : airportId;
+
+    private static int? ParseTdlsAltitudeFt(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        // TDLS initial altitudes are published as full feet: "4000", "5000", sometimes "4000FT".
+        var span = raw.AsSpan().Trim();
+        if (span.EndsWith("FT", StringComparison.OrdinalIgnoreCase))
+        {
+            span = span[..^2].Trim();
+        }
+
+        return int.TryParse(span, out int ft) && ft > 0 ? ft : null;
+    }
 }

@@ -181,7 +181,10 @@ internal static class ApproachCommandParser
     }
 
     /// <summary>
-    /// Parses JARR starId [transition].
+    /// Parses the JARR overloads: <c>JARR star</c>, <c>JARR star entryFix</c>,
+    /// <c>JARR star runway</c>, and <c>JARR star entryFix runway</c>. In the two-token form a
+    /// runway-shaped token (e.g. <c>27</c>, <c>26R</c>) is the runway transition; anything else
+    /// is the enroute entry fix. The STAR id may omit its version digit (resolved in the handler).
     /// </summary>
     internal static PR ParseJarr(string? arg)
     {
@@ -197,8 +200,57 @@ internal static class ApproachCommandParser
         }
 
         var starId = tokens[0].ToUpperInvariant();
-        var transition = tokens.Length > 1 ? tokens[1].ToUpperInvariant() : null;
-        return PR.Ok(new JoinStarCommand(starId, transition));
+        string? entryFix = null;
+        string? runwayTransition = null;
+
+        if (tokens.Length == 2)
+        {
+            var second = tokens[1].ToUpperInvariant();
+            if (IsRunwayDesignator(second))
+            {
+                runwayTransition = second;
+            }
+            else
+            {
+                entryFix = second;
+            }
+        }
+        else if (tokens.Length >= 3)
+        {
+            entryFix = tokens[1].ToUpperInvariant();
+            runwayTransition = tokens[2].ToUpperInvariant();
+        }
+
+        return PR.Ok(new JoinStarCommand(starId, entryFix, runwayTransition));
+    }
+
+    /// <summary>
+    /// True when <paramref name="token"/> looks like a runway designator (1–36 with an optional
+    /// L/C/R suffix). Enroute transition / fix names never match this shape, so it cleanly
+    /// separates the runway-transition argument from the entry-fix argument in <c>JARR star X</c>.
+    /// </summary>
+    private static bool IsRunwayDesignator(string token)
+    {
+        int digitLen = token.Length;
+        if (digitLen > 0 && token[^1] is 'L' or 'C' or 'R')
+        {
+            digitLen--;
+        }
+
+        if (digitLen is < 1 or > 2)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < digitLen; i++)
+        {
+            if (!char.IsDigit(token[i]))
+            {
+                return false;
+            }
+        }
+
+        return int.TryParse(token[..digitLen], out var n) && n is >= 1 and <= 36;
     }
 
     internal static PR ParseJawy(string? arg)
@@ -472,7 +524,7 @@ internal static class ApproachCommandParser
         if (!int.TryParse(parts[0], out var value) || value <= 0)
         {
             // Non-numeric arg: treat as STAR name (e.g., "DVIA HHOOD5" = join STAR + descend via)
-            return PR.Ok(new JoinStarCommand(parts[0].ToUpperInvariant(), parts.Length > 1 ? parts[1].ToUpperInvariant() : null));
+            return PR.Ok(new JoinStarCommand(parts[0].ToUpperInvariant(), parts.Length > 1 ? parts[1].ToUpperInvariant() : null, null));
         }
 
         // Altitude in hundreds

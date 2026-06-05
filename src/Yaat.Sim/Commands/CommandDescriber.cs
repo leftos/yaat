@@ -532,7 +532,8 @@ public static class CommandDescriber
             ClearedApproachStraightInCommand cmd => $"CAPPSI {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
             JoinApproachStraightInCommand cmd => $"JAPPSI {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
             JoinFinalApproachCourseCommand cmd => cmd.ApproachId is not null ? $"JFAC {cmd.ApproachId}" : "JFAC",
-            JoinStarCommand cmd => cmd.Transition is not null ? $"JARR {cmd.StarId} {cmd.Transition}" : $"JARR {cmd.StarId}",
+            JoinStarCommand cmd => "JARR "
+                + string.Join(" ", new[] { cmd.StarId, cmd.Transition, cmd.RunwayTransition }.Where(s => !string.IsNullOrEmpty(s))),
             JoinAirwayCommand cmd => $"JAWY {cmd.AirwayId}",
             JoinRadialOutboundCommand cmd => $"JRADO {cmd.FixName}{cmd.Radial:000}",
             JoinRadialInboundCommand cmd => $"JRADI {cmd.FixName}{cmd.Radial:000}",
@@ -800,7 +801,7 @@ public static class CommandDescriber
             JoinFinalApproachCourseCommand cmd => cmd.ApproachId is not null
                 ? $"Join final approach course, {cmd.ApproachId}"
                 : "Join final approach course",
-            JoinStarCommand cmd => cmd.Transition is not null ? $"Join {cmd.StarId} arrival via {cmd.Transition}" : $"Join {cmd.StarId} arrival",
+            JoinStarCommand cmd => FormatJarrNatural(cmd),
             JoinAirwayCommand cmd => $"Join airway {cmd.AirwayId}",
             JoinRadialOutboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial outbound",
             JoinRadialInboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial inbound",
@@ -1704,6 +1705,13 @@ public static class CommandDescriber
         var clearedVerb = cmd.Forced ? "forced cleared" : "cleared";
         var approachPart = cmd.ApproachId is not null ? $", {clearedVerb} {cmd.ApproachId} approach" : $", {clearedVerb} approach";
         return $"{headingPart}, {altPart}{approachPart}";
+    }
+
+    private static string FormatJarrNatural(JoinStarCommand cmd)
+    {
+        var via = cmd.Transition is not null ? $" via {cmd.Transition}" : "";
+        var runway = cmd.RunwayTransition is not null ? $", runway {cmd.RunwayTransition}" : "";
+        return $"Join {cmd.StarId} arrival{via}{runway}";
     }
 
     private static string FormatCvaCanonical(ClearedVisualApproachCommand cmd)

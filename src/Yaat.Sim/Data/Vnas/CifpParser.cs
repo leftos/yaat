@@ -1091,6 +1091,59 @@ public static partial class CifpParser
         return navaids;
     }
 
+    /// <summary>
+    /// Reads the airport reference (PA) record's magnetic variation of record — the declination the
+    /// published procedure courses were charted against, in east-positive degrees. Returns null when
+    /// the airport record is absent or marked true-oriented. Converting published magnetic courses with
+    /// this variation (rather than the current WMM declination) keeps them aligned with the runways
+    /// they were drawn for; the two drift apart as the live magnetic field changes across AIRAC epochs.
+    /// </summary>
+    public static double? ParseAirportMagneticVariation(string cifpFilePath, string airportIcao)
+    {
+        string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
+
+        foreach (var line in File.ReadLines(cifpFilePath))
+        {
+            // PA = airport reference point (subsection A). These records are shorter than the
+            // ~130-char procedure records, so they don't share the approach parser's length gate.
+            if (line.Length < 56 || !line.StartsWith("SUSAP", StringComparison.Ordinal) || line[12] != 'A')
+            {
+                continue;
+            }
+
+            if (!line[6..10].Equals(normalizedIcao, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return ParseArinc424MagneticVariation(line.AsSpan(51, 5));
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Parses an ARINC 424 magnetic-variation field: a hemisphere char (E/W, or T for a true-oriented
+    /// airport) followed by four digits giving degrees to a tenth — e.g. <c>"E0030"</c> = +3.0°,
+    /// <c>"W0110"</c> = -11.0°. East is positive (true = magnetic + variation). Null on a malformed field.
+    /// </summary>
+    internal static double? ParseArinc424MagneticVariation(ReadOnlySpan<char> field)
+    {
+        if (field.Length < 5 || !int.TryParse(field[1..5], out int tenths))
+        {
+            return null;
+        }
+
+        double magnitude = tenths / 10.0;
+        return field[0] switch
+        {
+            'E' => magnitude,
+            'W' => -magnitude,
+            'T' => 0.0,
+            _ => null,
+        };
+    }
+
     internal static double? ParseArinc424Latitude(ReadOnlySpan<char> s)
     {
         if (s.Length < 9)

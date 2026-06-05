@@ -202,6 +202,32 @@ public class FinalApproachCourseExtractorTests
     }
 
     [Fact]
+    public void Extract_KiahI26R_AlignedIls_MatchesRunwayCenterline()
+    {
+        // Issue #187: KIAH ILS 26R publishes a 267° MAGNETIC final course. The runway's magnetic
+        // bearing (CIFP PG record) is also 267.0° and its geometric true heading is ~269.95°, so the
+        // localizer is aligned with the runway and the variation of record is ~+3.0°E (CIFP PA
+        // record E0030). Converting 267° with the current WMM declination (~+1.7°) instead yields
+        // ~268.7° true — ~1.24° north of the centerline. With the correct (CIFP) variation the FAC
+        // lands on the runway centerline.
+        var loaded = Load("IAH", "I26R", "26R");
+        if (loaded is null)
+        {
+            return;
+        }
+        var (navDb, procedure, runway) = loaded.Value;
+
+        var result = FinalApproachCourseExtractor.Extract(procedure, runway, navDb);
+
+        double diff = Math.Abs(GeoMath.SignedBearingDifference(result.Course.Degrees, runway.TrueHeading.Degrees));
+        Assert.True(
+            diff < 0.7,
+            $"KIAH I26R is an aligned ILS; FAC {result.Course.Degrees:F2}° should match runway {runway.TrueHeading.Degrees:F2}° (diff {diff:F2}°)"
+        );
+        Assert.Null(result.AnchorLat);
+    }
+
+    [Fact]
     public void Extract_KccrR19R_AlignedRnav_ReturnsCourseFromBearing()
     {
         // KCCR RNAV (GPS) RWY 19R: aligned RNAV with TF legs (no OutboundCourse). The extractor

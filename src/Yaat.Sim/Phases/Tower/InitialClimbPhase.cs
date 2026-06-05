@@ -605,6 +605,14 @@ public sealed class InitialClimbPhase : Phase
             return assigned;
         }
 
+        // 1b. SID transition published initial altitude (TDLS "maintain" altitude). An IFR departure
+        // cleared with no explicit altitude climbs to and maintains its SID's published initial
+        // altitude until ATC issues a climb (7110.65 4-3-2). VFR and off-SID departures leave it unset.
+        if (!IsVfr && ctx.Aircraft.Procedure.SidInitialAltitudeFt is { } sidInitialAlt)
+        {
+            return sidInitialAlt;
+        }
+
         // 2. Closed traffic → pattern altitude
         if (Departure is ClosedTrafficDeparture)
         {

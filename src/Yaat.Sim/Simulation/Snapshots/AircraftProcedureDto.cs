@@ -13,4 +13,5 @@ public sealed class AircraftProcedureDto
     public required bool SpeedRestrictionsDeleted { get; init; }
     public required bool IsExpediting { get; init; }
     public double? LastProcedureSpeedKts { get; init; }
+    public int? SidInitialAltitudeFt { get; init; }
 }

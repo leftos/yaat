@@ -1809,7 +1809,14 @@ public sealed class SimulationEngine
                     Scenario?.ElapsedSeconds ?? 0,
                     PreserveConditionals: true
                 );
-                CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
+                var deferredResult = CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
+                if (!deferredResult.Success)
+                {
+                    // A deferred/preset command that fails when it finally fires (e.g. a DVIA whose STAR
+                    // never activated) used to vanish silently after the optimistic line above — surface it.
+                    _logger.LogWarning("[Deferred] {Callsign}: dispatch failed — {Message}", aircraft.Callsign, deferredResult.Message);
+                    EmitTerminal("Warning", aircraft.Callsign, $"[Deferred] could not apply: {deferredResult.Message}");
+                }
             }
 
             if (survivingDeferrals.Count > 0)

@@ -472,7 +472,7 @@ public class NavigationCommandTests : IDisposable
         var navDb = TestNavDbFactory.WithNavData();
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
-        var cmd = new JoinStarCommand("NONEXIST", null);
+        var cmd = new JoinStarCommand("NONEXIST", null, null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
@@ -496,7 +496,7 @@ public class NavigationCommandTests : IDisposable
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft(heading: 180);
-        var cmd = new JoinStarCommand("SUNOL1", "KENNO");
+        var cmd = new JoinStarCommand("SUNOL1", "KENNO", null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
@@ -525,7 +525,7 @@ public class NavigationCommandTests : IDisposable
 
         // Aircraft heading south, SUNOL is to the south
         var aircraft = MakeAircraft(heading: 180, lat: 37.65, lon: -121.85);
-        var cmd = new JoinStarCommand("SUNOL1", null);
+        var cmd = new JoinStarCommand("SUNOL1", null, null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
@@ -549,7 +549,7 @@ public class NavigationCommandTests : IDisposable
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft();
-        var cmd = new JoinStarCommand("SUNOL1", "NOSUCH");
+        var cmd = new JoinStarCommand("SUNOL1", "NOSUCH", null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
@@ -573,7 +573,7 @@ public class NavigationCommandTests : IDisposable
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft();
-        var cmd = new JoinStarCommand("EMZOH4", "COREZ");
+        var cmd = new JoinStarCommand("EMZOH4", "COREZ", null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
@@ -599,7 +599,7 @@ public class NavigationCommandTests : IDisposable
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft();
-        var cmd = new JoinStarCommand("EMZOH4", "COREZ");
+        var cmd = new JoinStarCommand("EMZOH4", "COREZ", null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
@@ -626,7 +626,7 @@ public class NavigationCommandTests : IDisposable
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft();
-        var cmd = new JoinStarCommand("EMZOH4", "NOSUCH");
+        var cmd = new JoinStarCommand("EMZOH4", "NOSUCH", null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
@@ -832,7 +832,7 @@ public class NavigationCommandTests : IDisposable
         using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft(heading: 180);
-        var cmd = new JoinStarCommand("EMPTY1", null);
+        var cmd = new JoinStarCommand("EMPTY1", null, null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 

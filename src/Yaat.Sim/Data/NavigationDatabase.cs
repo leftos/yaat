@@ -46,6 +46,7 @@ public sealed class NavigationDatabase
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpStarProcedure>> _starCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpApproachProcedure>> _approachCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _supplementarySidCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, double?> _airportMagVarCache = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly string _cifpFilePath;
     private readonly string? _supplementaryCifpFilePath;
@@ -971,6 +972,45 @@ public sealed class NavigationDatabase
         return stars.FirstOrDefault(s => StripTrailingDigits(s.ProcedureId).Equals(baseName, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Resolves a controller-typed STAR identifier — which may omit the version digit
+    /// (e.g. <c>"TEJAS"</c> → <c>"TEJAS5"</c>) or be a stale version — to the current
+    /// procedure id at the given airport. Searches CIFP first, then the NavData bodies.
+    /// Returns <paramref name="rawId"/> unchanged when nothing matches (the caller's
+    /// subsequent <see cref="GetStar"/>/<see cref="GetStarBody"/> then fails naturally).
+    /// <para>
+    /// Unlike <see cref="ResolveStarId"/>, this matches a bare digit-less base name, so it
+    /// must only be used for explicit pilot/controller commands (JARR), never for classifying
+    /// flight-plan route tokens — otherwise a fix named like a STAR (the fix TEJAS vs the
+    /// TEJAS5 arrival) would be misread as the procedure.
+    /// </para>
+    /// </summary>
+    public string ResolveCommandStarId(string airportCode, string rawId)
+    {
+        var stars = GetStars(airportCode);
+        if (stars.Any(s => s.ProcedureId.Equals(rawId, StringComparison.OrdinalIgnoreCase)) || _starBodies.ContainsKey(rawId))
+        {
+            return rawId;
+        }
+
+        string baseName = StripTrailingDigits(rawId);
+        var cifpMatch = stars.FirstOrDefault(s => StripTrailingDigits(s.ProcedureId).Equals(baseName, StringComparison.OrdinalIgnoreCase));
+        if (cifpMatch is not null)
+        {
+            return cifpMatch.ProcedureId;
+        }
+
+        foreach (var key in _starBodies.Keys)
+        {
+            if (StripTrailingDigits(key).Equals(baseName, StringComparison.OrdinalIgnoreCase))
+            {
+                return key;
+            }
+        }
+
+        return rawId;
+    }
+
     public IReadOnlyList<CifpStarProcedure> GetStars(string airportCode)
     {
         string normalized = NormalizeAirport(airportCode);
@@ -1734,6 +1774,35 @@ public sealed class NavigationDatabase
     {
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
         return CifpParser.ParseApproaches(_cifpFilePath, icao);
+    }
+
+    /// <summary>
+    /// The airport's magnetic variation of record (east-positive degrees) from the CIFP airport (PA)
+    /// record — the declination the published procedure courses were charted against. Returns null when
+    /// unavailable (no CIFP, or no record for the airport). Prefer this over the live WMM declination
+    /// when converting a published magnetic procedure course to true, so the course stays aligned with
+    /// the runway it was drawn for. Lazily parsed and cached per airport.
+    /// </summary>
+    public double? GetAirportMagneticVariation(string airportCode)
+    {
+        if (string.IsNullOrWhiteSpace(airportCode))
+        {
+            return null;
+        }
+
+        string normalized = NormalizeAirport(airportCode);
+        return _airportMagVarCache.GetOrAdd(normalized, LoadAirportMagneticVariation);
+    }
+
+    private double? LoadAirportMagneticVariation(string normalizedAirport)
+    {
+        if (string.IsNullOrEmpty(_cifpFilePath) || !File.Exists(_cifpFilePath))
+        {
+            return null;
+        }
+
+        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+        return CifpParser.ParseAirportMagneticVariation(_cifpFilePath, icao);
     }
 
     /// <summary>

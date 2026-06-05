@@ -545,7 +545,7 @@ LineUpGeometry.cs              # Pure geometry: classifies aircraft pose as Alig
 LineUpArcPlayback.cs           # Closed-form circular-arc playback (invariant I2: position and heading are functions of a single scalar)
 LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
-InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode; RV SID heading hold until handoff+5s; hands off to DepartureProcedurePhase at the TERPS gate for charted heading/course SID legs
+InitialClimbPhase.cs           # Climb to 1500ft AGL, assigned, or the SID's published TDLS initial-altitude cap (AircraftProcedure.SidInitialAltitudeFt); activates SID via mode; RV SID heading hold until handoff+5s; hands off to DepartureProcedurePhase at the TERPS gate for charted heading/course SID legs
 DepartureProcedurePhase.cs     # Flies charted ARINC-424 SID legs: VA (heading→alt), VI/CI (heading/course→intercept), VM (heading→manual), CA (course→alt), course-tracked CF; then loads NavigationRoute for the fix-to-fix remainder
 FinalApproachPhase.cs          # Glideslope; no-clearance warning/go-around at DA/MDA when published, otherwise 200ft AGL; illegal intercept check (§5-9-1)
 LandingPhase.cs                # Flare→touchdown→rollout; continuous exit evaluation (resolve→brake→commit/abandon→relax preference); LAHSO-aware
@@ -727,11 +727,12 @@ ArtccConfig.cs                 # ARTCC config models (ArtccConfigRoot, FacilityC
 ArtccConfigResolver.cs         # Pure-function resolvers as extension methods on ArtccConfigRoot:
                                # ResolvePosition / ResolveTcpCode / ResolveEramCode / FindPositionByCallsign / FindTcpByCode /
                                # ExpandTcpShorthand / GetCoordinationChannels / GetAllAsdexAirports / GetAllTowerCabAirports /
-                               # GetAllAccessibleStripBays / GetAccessibleFacilities / GetConsolidationItems / GetConsolidationOwner / etc.
+                               # GetAllAccessibleStripBays / GetAccessibleFacilities / GetConsolidationItems / GetConsolidationOwner /
+                               # GetSidInitialAltitudeFt (departure TDLS initial-altitude cap) / etc.
                                # Server's ArtccConfigService delegates to these; replay applier uses them via TrackResolver.
 ArtccAccessRecords.cs          # AccessibleBay, AccessibleFacility, AsdexAirportInfo, TowerCabAirportInfo records used by the resolvers.
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
-CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E); FAF fixes, terminal waypoints
+CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E), airport magnetic variation (A); FAF fixes, terminal waypoints
                                # ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix resolution
 CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSidProcedure, CifpStarProcedure, CifpLeg, CifpTransition
                                # CifpLeg: ArcRadiusNm, ArcCenterLat/Lon (RF), RecommendedNavaidId, Theta, Rho (AF)

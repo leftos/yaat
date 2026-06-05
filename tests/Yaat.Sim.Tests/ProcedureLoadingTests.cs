@@ -249,7 +249,7 @@ public class ProcedureLoadingTests
 
         var navDb = CreateNavDb(star: CreateTestStar());
         using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
+        var cmd = new JoinStarCommand("BDEGA3", "BDEGA", null);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
@@ -280,11 +280,122 @@ public class ProcedureLoadingTests
 
         var navDb = CreateNavDb(star: CreateTestStar());
         using var _ = NavigationDatabase.ScopedOverride(navDb);
-        var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
+        var cmd = new JoinStarCommand("BDEGA3", "BDEGA", null);
         CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
         Assert.False(aircraft.Procedure.StarViaMode);
+    }
+
+    // --- JARR overloads (issue #187) ---
+
+    [Fact]
+    public void Jarr_VersionlessStarId_ResolvesToCurrentVersion()
+    {
+        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        aircraft.Altitude = 20000;
+
+        var navDb = CreateNavDb(star: CreateTestStar());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        // `JARR BDEGA` (version digit omitted) must resolve to the current BDEGA3.
+        var cmd = new JoinStarCommand("BDEGA", "BDEGA", null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
+    }
+
+    [Fact]
+    public void Jarr_RunwayTransitionArg_SetsDestinationRunwayAndAppendsTransition()
+    {
+        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        aircraft.Altitude = 20000;
+
+        var navDb = CreateNavDb(star: CreateTestStar());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        // `JARR BDEGA3 28R`: the runway-transition argument designates runway 28R, so the RW28R
+        // transition (fix BRIXX) is appended and DestinationRunway is set.
+        var cmd = new JoinStarCommand("BDEGA3", "BDEGA", "28R");
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("28R", aircraft.Procedure.DestinationRunway);
+        Assert.Contains(aircraft.Targets.NavigationRoute, t => t.Name == "BRIXX");
+    }
+
+    [Fact]
+    public void Jarr_VersionlessStarWithRunwayTransition_BothResolved()
+    {
+        // The exact shape from the issue bundle: `JARR DRLLR 26R` style.
+        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        aircraft.Altitude = 20000;
+
+        var navDb = CreateNavDb(star: CreateTestStar());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var cmd = new JoinStarCommand("BDEGA", null, "28R");
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
+        Assert.Equal("28R", aircraft.Procedure.DestinationRunway);
+        Assert.Contains(aircraft.Targets.NavigationRoute, t => t.Name == "BRIXX");
+    }
+
+    // --- DVIA self-resolve from filed route (issue #187) ---
+
+    [Fact]
+    public void Dvia_NoActiveStar_SelfResolvesStarFromFiledRouteAndOverlaysRestrictions()
+    {
+        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        aircraft.Altitude = 20000;
+
+        // Simulate PopulateNavigationRoute: the lateral STAR fixes are present but carry no
+        // restrictions, and no STAR is active (the bundle's failure mode).
+        foreach (var name in new[] { "BDEGA", "CEDES", "FAITH" })
+        {
+            aircraft.Targets.NavigationRoute.Add(
+                new NavigationTarget { Name = name, Position = new LatLon(DefaultFixes[name].Lat, DefaultFixes[name].Lon) }
+            );
+        }
+        Assert.Null(aircraft.Procedure.ActiveStarId);
+
+        var navDb = CreateNavDb(star: CreateTestStar());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("BDEGA3", aircraft.Procedure.ActiveStarId);
+        Assert.True(aircraft.Procedure.StarViaMode);
+
+        // Published crossing restrictions overlaid onto the existing (already-sequenced) fixes,
+        // without re-adding any fixes.
+        Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
+        var cedes = aircraft.Targets.NavigationRoute.First(t => t.Name == "CEDES");
+        Assert.NotNull(cedes.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.AtOrBelow, cedes.AltitudeRestriction!.Type);
+        Assert.Equal(12000, cedes.AltitudeRestriction.Altitude1Ft);
+        var faith = aircraft.Targets.NavigationRoute.First(t => t.Name == "FAITH");
+        Assert.NotNull(faith.SpeedRestriction);
+        Assert.Equal(250, faith.SpeedRestriction!.SpeedKts);
+    }
+
+    [Fact]
+    public void Dvia_NoStarInFiledRoute_StillFails()
+    {
+        var aircraft = CreateIfrAircraft("KSFO DIRECT KSFO");
+        aircraft.Altitude = 20000;
+
+        var navDb = CreateNavDb(star: CreateTestStar());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var result = CommandDispatcher.Dispatch(new DescendViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.Null(aircraft.Procedure.ActiveStarId);
     }
 
     // --- SID resolution ---
@@ -872,7 +983,7 @@ public class ProcedureLoadingTests
         aircraft.TrueTrack = new TrueHeading(150);
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28L") };
 
-        var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
+        var cmd = new JoinStarCommand("BDEGA3", "BDEGA", null);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);

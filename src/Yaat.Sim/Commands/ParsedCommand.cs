@@ -757,7 +757,7 @@ public record JoinApproachStraightInCommand(string ApproachId, string? AirportCo
 
 public record JoinFinalApproachCourseCommand(string? ApproachId) : ParsedCommand;
 
-public record JoinStarCommand(string StarId, string? Transition) : ParsedCommand;
+public record JoinStarCommand(string StarId, string? Transition, string? RunwayTransition) : ParsedCommand;
 
 public record JoinAirwayCommand(string AirwayId) : ParsedCommand;
 

@@ -38,6 +38,14 @@ public class AircraftProcedure
     /// </summary>
     public double? LastProcedureSpeedKts { get; set; }
 
+    /// <summary>
+    /// Published initial ("maintain") altitude in feet for this aircraft's departure SID transition,
+    /// from the airport's TDLS config (e.g. KIAH 4000, KHOU 5000). When set, an IFR departure with no
+    /// explicit clearance altitude climbs to and maintains it until ATC issues a climb (7110.65 4-3-2).
+    /// Null when off a SID, VFR, or the airport publishes no initial altitude.
+    /// </summary>
+    public int? SidInitialAltitudeFt { get; set; }
+
     public AircraftProcedureDto ToSnapshot() =>
         new()
         {
@@ -52,6 +60,7 @@ public class AircraftProcedure
             SpeedRestrictionsDeleted = SpeedRestrictionsDeleted,
             IsExpediting = IsExpediting,
             LastProcedureSpeedKts = LastProcedureSpeedKts,
+            SidInitialAltitudeFt = SidInitialAltitudeFt,
         };
 
     public static AircraftProcedure FromSnapshot(AircraftProcedureDto dto) =>
@@ -68,5 +77,6 @@ public class AircraftProcedure
             SpeedRestrictionsDeleted = dto.SpeedRestrictionsDeleted,
             IsExpediting = dto.IsExpediting,
             LastProcedureSpeedKts = dto.LastProcedureSpeedKts,
+            SidInitialAltitudeFt = dto.SidInitialAltitudeFt,
         };
 }

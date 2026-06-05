@@ -1463,6 +1463,14 @@ public static class CommandDispatcher
             return ifrReject;
         }
 
+        // Cache the SID's published initial-altitude cap so an IFR departure with no commanded
+        // altitude holds it through the initial climb (issue #187). Resolved here where the ARTCC
+        // TDLS config is in scope; consumed later by InitialClimbPhase.ResolveTargetAltitude.
+        if (command is ClearedForTakeoffCommand or LineUpAndWaitCommand or ClearedTakeoffPresentCommand)
+        {
+            DepartureClearanceHandler.StoreSidInitialAltitude(aircraft, ctx.ArtccConfig);
+        }
+
         switch (command)
         {
             case ClearedForTakeoffCommand cto:
