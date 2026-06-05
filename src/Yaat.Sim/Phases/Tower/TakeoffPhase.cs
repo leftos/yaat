@@ -69,10 +69,13 @@ public sealed class TakeoffPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
+        // Cross-runway closed traffic takes off on the DEPARTURE runway, not the
+        // pattern runway carried in AssignedRunway/ctx.Runway.
+        var rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
         _fieldElevation = ctx.FieldElevation;
-        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
-        _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Position.Lat;
-        _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Position.Lon;
+        _runwayHeading = rwy?.TrueHeading ?? ctx.Aircraft.TrueHeading;
+        _thresholdLat = rwy?.ThresholdLatitude ?? ctx.Aircraft.Position.Lat;
+        _thresholdLon = rwy?.ThresholdLongitude ?? ctx.Aircraft.Position.Lon;
         _departure = Departure;
 
         ctx.Aircraft.IsOnGround = true;

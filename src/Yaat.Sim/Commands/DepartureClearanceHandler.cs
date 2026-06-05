@@ -499,6 +499,9 @@ internal static class DepartureClearanceHandler
         {
             if (p is LineUpPhase active && p.Status == PhaseStatus.Active)
             {
+                // Re-clearing for takeoff lifts a prior CTOC hold-position so the
+                // aircraft resumes the line-up and departs.
+                active.HoldPosition = false;
                 var upgradeCtx = CommandDispatcher.BuildMinimalContext(aircraft);
                 active.TryUpgradeToRolling(upgradeCtx);
                 break;
@@ -608,20 +611,21 @@ internal static class DepartureClearanceHandler
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
-        var circuit = PatternBuilder.BuildCircuit(
-            patternRunway,
-            cat,
-            ct.Direction,
-            PatternEntryLeg.Upwind,
-            true,
-            null,
-            sizeOv,
-            altOv,
-            airportRunways
-        );
+        // Cross-runway closed traffic (e.g. takeoff 33, make right traffic 28R): the
+        // first circuit climbs out on the DEPARTURE runway then joins the PATTERN
+        // runway's downwind. Same-runway closed traffic flies a normal upwind-entry
+        // circuit on the one runway.
+        bool crossRunway = !string.Equals(patternRunway.Designator, fallbackRunway.Designator, StringComparison.OrdinalIgnoreCase);
+        var circuit = crossRunway
+            ? PatternBuilder.BuildCrossRunwayDepartureCircuit(fallbackRunway, patternRunway, cat, ct.Direction, true, sizeOv, altOv, airportRunways)
+            : PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true, null, sizeOv, altOv, airportRunways);
+
         phases.Phases.AddRange(circuit);
         phases.PatternRunway = patternRunway;
+        // AssignedRunway carries the pattern runway (circuit/final/landing read it).
+        // DepartureRunway carries the takeoff runway for lineup/takeoff when they differ.
         phases.AssignedRunway = patternRunway;
+        phases.DepartureRunway = crossRunway ? fallbackRunway : null;
     }
 
     /// <summary>
@@ -1288,7 +1292,7 @@ internal static class DepartureClearanceHandler
             luawCancel.Departure = null;
             luawCancel.AssignedAltitude = null;
             aircraft.Targets.AssignedAltitude = null;
-            return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
+            return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold in position{CommandDispatcher.RunwayLabel(aircraft)}");
         }
         if (currentPhase is LineUpPhase lineup)
         {
@@ -1386,7 +1390,11 @@ internal static class DepartureClearanceHandler
                 upcomingLuaw.Departure = null;
                 upcomingLuaw.AssignedAltitude = null;
                 aircraft.Targets.AssignedAltitude = null;
-                return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
+                // Hold position immediately — do not continue rolling onto the
+                // runway (7110.65 §3-9-11). The upcoming LUAW (now unsatisfied)
+                // makes the aircraft hold if a fresh CTO later resumes the line-up.
+                lineup.HoldPosition = true;
+                return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold in position{CommandDispatcher.RunwayLabel(aircraft)}");
             }
             if (p is TakeoffPhase or HelicopterTakeoffPhase)
             {
@@ -1396,7 +1404,10 @@ internal static class DepartureClearanceHandler
                 lineup.RollingMode = false;
                 phases.Insert(i, new LinedUpAndWaitingPhase());
                 aircraft.Targets.AssignedAltitude = null;
-                return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
+                // Hold position immediately — stop where we are rather than
+                // completing the line-up onto the centerline (7110.65 §3-9-11).
+                lineup.HoldPosition = true;
+                return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold in position{CommandDispatcher.RunwayLabel(aircraft)}");
             }
         }
 

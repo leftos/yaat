@@ -743,16 +743,25 @@ public class DepartureClearanceHandlerTests
         );
 
         Assert.True(result.Success);
-        // AssignedRunway switches to the pattern runway (28R)
+        // AssignedRunway carries the pattern runway (28R) — the circuit/final/landing phases read it.
         Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
         // PatternRunway is the pattern runway (28R)
         Assert.NotNull(ac.Phases.PatternRunway);
         Assert.Equal("28R", ac.Phases.PatternRunway!.Designator);
+        // DepartureRunway carries the takeoff runway (33) — lineup/takeoff phases read it.
+        Assert.Equal("33", ac.Phases.DepartureRunway?.Designator);
         // Pattern direction is set
         Assert.Equal(PatternDirection.Right, ac.Phases.TrafficDirection);
-        // Circuit phases use the pattern runway's geometry
+        // First circuit climbs out on the departure runway (33) then joins 28R:
+        // Upwind on 33's geometry (~330° in this test), then a MidfieldCrossing join leg.
         var upwind = ac.Phases.Phases.OfType<UpwindPhase>().FirstOrDefault();
         Assert.NotNull(upwind);
+        Assert.NotNull(upwind!.Waypoints);
+        Assert.True(
+            Math.Abs(upwind.Waypoints!.UpwindHeading.Degrees - 330.0) < 5.0,
+            $"First upwind should be on runway 33 (~330°) but was {upwind.Waypoints.UpwindHeading.Degrees:F0}°"
+        );
+        Assert.Contains(ac.Phases.Phases, p => p is MidfieldCrossingPhase);
     }
 
     [Fact]
@@ -1276,6 +1285,8 @@ public class DepartureClearanceHandlerTests
         Assert.False(luaw.Requirements.First(r => r.Type == ClearanceType.ClearedForTakeoff).IsSatisfied);
         Assert.Null(luaw.Departure);
         Assert.Null(luaw.AssignedAltitude);
+        // Hold position immediately rather than completing the line-up (7110.65 §3-9-11).
+        Assert.True(lineup.HoldPosition, "CTOC must set HoldPosition so the aircraft stops where it is");
     }
 
     [Fact]
@@ -1308,6 +1319,29 @@ public class DepartureClearanceHandlerTests
             inserted!.Requirements.First(r => r.Type == ClearanceType.ClearedForTakeoff).IsSatisfied,
             "inserted LUAW must NOT have CTO pre-satisfied"
         );
+        // Hold position immediately rather than rolling onto the centerline (7110.65 §3-9-11).
+        Assert.True(lineup.HoldPosition, "CTOC must set HoldPosition so the aircraft stops where it is");
+    }
+
+    [Fact]
+    public void TryCancelTakeoff_DuringLineUp_ThenReclear_ClearsHoldPosition()
+    {
+        // CTOC sets HoldPosition; a fresh CTO must lift it so the aircraft resumes
+        // the line-up and departs.
+        var ac = MakeAircraft();
+        ac.Phases!.AssignedRunway = DefaultRunway();
+        var lineup = new LineUpPhase { Status = PhaseStatus.Active, RollingMode = true };
+        ac.Phases.Add(lineup);
+        ac.Phases.Add(new TakeoffPhase());
+
+        var cancel = DepartureClearanceHandler.TryCancelTakeoff(ac, lineup);
+        Assert.True(cancel.Success);
+        Assert.True(lineup.HoldPosition);
+
+        var recleared = DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance(ac, new DefaultDeparture(), null, Logger);
+
+        Assert.True(recleared.Success, $"re-clear rejected: {recleared.Message}");
+        Assert.False(lineup.HoldPosition, "re-clearing for takeoff must lift the CTOC hold-position");
     }
 
     [Fact]

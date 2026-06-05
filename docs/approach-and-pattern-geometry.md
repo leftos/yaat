@@ -109,6 +109,21 @@ Every sequence ends with `FinalApproachPhase` then a landing phase (`HelicopterL
 next full circuit from upwind for auto-cycling traffic; `UpdateWaypoints` (`PatternBuilder.cs:101`) re-points the
 waypoints of all pending/active pattern phases (used when the pattern is resized live).
 
+### Cross-runway closed-traffic departure — `BuildCrossRunwayDepartureCircuit`
+
+`CTO MRT 28R` from runway 33 ("cleared for takeoff rwy 33, make right traffic rwy 28R") departs one runway and
+joins the pattern of another. `DepartureClearanceHandler.ApplyClosedTraffic` detects this (pattern runway ≠
+takeoff runway) and builds the first circuit via `PatternBuilder.BuildCrossRunwayDepartureCircuit`:
+`UpwindPhase` (waypoints from the **departure** runway) → `MidfieldCrossingPhase` (`BiasTurnToPatternSide=true`,
+waypoints from the **pattern** runway) → `DownwindPhase`/`BasePhase`/`FinalApproachPhase`/`TouchAndGoPhase`
+(pattern runway). Per AIM 4-3-2 the departure/upwind leg belongs to the departure runway; downwind/base/final
+belong to the landing runway. The departure runway is carried on `PhaseList.DepartureRunway` (read by
+`LineUpPhase`/`LinedUpAndWaitingPhase`/`TakeoffPhase`), while `AssignedRunway`/`PatternRunway` hold the pattern
+runway (read by the circuit/final/landing phases). Subsequent circuits auto-cycle entirely on the pattern runway
+(`BuildNextCircuit`, which reads `PatternRunway ?? AssignedRunway`). `MidfieldCrossingPhase.BiasTurnToPatternSide`
+forces the initial join turn toward the assigned side (released once roughly pointed at the join target); it is
+left `false` for arrival / wrong-side joins so their established shortest-turn behavior is unchanged.
+
 **The critical model: legs complete on along-track / cross-track, NOT waypoint arrival.** A pattern leg phase does
 not "arrive at" the next waypoint — it measures the aircraft's projection onto the leg axis and fires when the
 along-track or cross-track crosses a threshold. Editing the waypoints without understanding this trigger model

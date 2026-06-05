@@ -13,6 +13,8 @@
 - A command issued at the same instant the server advances a simulation tick could be applied mid-physics, occasionally producing behaviour that didn't match the deterministic replay — for example an aircraft cleared for takeoff that never started its roll. Command application is now serialized against the tick, so live behaviour matches replay.
 - Ground view: with an aircraft selected, right-clicking anywhere now offers the taxi-route and **Warp here** menu by snapping to the nearest node, instead of only when the click lands within a node's hit radius — so you can warp an aircraft onto an open stretch of runway or taxiway that has no node directly under the cursor.
 - Rewinding the timeline no longer loses why an aircraft is holding short (destination runway vs. runway crossing), which could break automatic departure release after `REL` and the runway-crossing commands after a rewind.
+- Cross-runway closed-traffic departures (e.g. `CTO MRT 28R` from runway 33) line up and depart on the departure runway, then join the other runway's pattern.
+- Cancelling a takeoff clearance (`CTOC`) mid-line-up holds the aircraft in position immediately; a fresh `CTO` resumes the line-up and departs.
 
 ## v0.7.0-beta [2026/06/04]
 

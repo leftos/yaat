@@ -15,6 +15,7 @@ public sealed class PhaseListDto
     public string? ClearedRunwayId { get; init; }
     public int? TrafficDirection { get; init; }
     public RunwayInfoDto? PatternRunway { get; init; }
+    public RunwayInfoDto? DepartureRunway { get; init; }
     public int? RequestedExit { get; init; }
     public ApproachClearanceDto? ActiveApproach { get; init; }
     public LahsoTargetDto? LahsoHoldShort { get; init; }
@@ -606,6 +607,13 @@ public sealed class LineUpPhaseDto : PhaseDto
     /// the phase re-derives it from the phase list at the next OnStart.
     /// </summary>
     public bool RollingMode { get; init; }
+
+    /// <summary>
+    /// CTOC hold-position state at snapshot time. Non-required, defaults false so
+    /// pre-feature snapshots round-trip unchanged. Restored by
+    /// <see cref="LineUpPhase.FromSnapshot"/> so a held aircraft stays held on replay.
+    /// </summary>
+    public bool HoldPosition { get; init; }
 }
 
 public sealed class LinedUpAndWaitingPhaseDto : PhaseDto
@@ -701,6 +709,12 @@ public sealed class MidfieldCrossingPhaseDto : PhaseDto
     public PatternWaypointsDto? Waypoints { get; init; }
     public required double TargetLat { get; init; }
     public required double TargetLon { get; init; }
+
+    /// <summary>
+    /// Initial-turn bias toward the assigned pattern side. Non-required, defaults false
+    /// so pre-feature snapshots and arrival/wrong-side joins round-trip unchanged.
+    /// </summary>
+    public bool BiasTurnToPatternSide { get; init; }
 }
 
 public sealed class TeardropReentryPhaseDto : PhaseDto

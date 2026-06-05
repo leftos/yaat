@@ -159,10 +159,21 @@ public sealed class PhaseList
     /// <summary>
     /// When set, the pattern circuit uses a different runway than the takeoff runway.
     /// Used for cross-runway closed traffic (e.g., takeoff 33, pattern for 28R).
-    /// ApplyClosedTraffic sets both PatternRunway and AssignedRunway to this value.
-    /// PhaseRunner uses this for auto-cycle.
+    /// <see cref="AssignedRunway"/> holds this pattern runway (so the circuit/final/landing
+    /// phases use it); <see cref="DepartureRunway"/> holds the takeoff runway. PhaseRunner
+    /// uses this for auto-cycle.
     /// </summary>
     public RunwayInfo? PatternRunway { get; set; }
+
+    /// <summary>
+    /// When set, the lineup/takeoff phases use this runway instead of
+    /// <see cref="AssignedRunway"/>. Populated for cross-runway closed traffic where the
+    /// takeoff runway differs from the pattern runway (e.g., takeoff 33, pattern for 28R):
+    /// <see cref="AssignedRunway"/> is the pattern runway (28R) while this is the departure
+    /// runway (33). Null for same-runway operations, where lineup/takeoff fall back to
+    /// <see cref="AssignedRunway"/>. Read by LineUpPhase/LinedUpAndWaitingPhase/TakeoffPhase.
+    /// </summary>
+    public RunwayInfo? DepartureRunway { get; set; }
 
     /// <summary>
     /// Controller-requested exit preference. Set by EL/ER/EXIT commands,
@@ -326,6 +337,7 @@ public sealed class PhaseList
             ClearedRunwayId = dto.ClearedRunwayId,
             TrafficDirection = dto.TrafficDirection.HasValue ? (PatternDirection)dto.TrafficDirection.Value : null,
             PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
+            DepartureRunway = dto.DepartureRunway is not null ? RunwayInfo.FromSnapshot(dto.DepartureRunway) : null,
             ActiveApproach = dto.ActiveApproach is not null ? ApproachClearance.FromSnapshot(dto.ActiveApproach) : null,
             LahsoHoldShort = dto.LahsoHoldShort is not null ? LahsoTarget.FromSnapshot(dto.LahsoHoldShort) : null,
         };
@@ -406,6 +418,7 @@ public sealed class PhaseList
             ClearedRunwayId = ClearedRunwayId,
             TrafficDirection = TrafficDirection.HasValue ? (int)TrafficDirection.Value : null,
             PatternRunway = PatternRunway?.ToSnapshot(),
+            DepartureRunway = DepartureRunway?.ToSnapshot(),
             RequestedExit = RequestedExit?.Side is not null ? (int)RequestedExit.Side.Value : null,
             ActiveApproach = ActiveApproach?.ToSnapshot(),
             LahsoHoldShort = LahsoHoldShort?.ToSnapshot(),

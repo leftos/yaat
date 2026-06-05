@@ -24,6 +24,15 @@ public sealed class MidfieldCrossingPhase : Phase
 
     public PatternWaypoints? Waypoints { get; set; }
 
+    /// <summary>
+    /// When true, the initial join turn is biased toward the assigned pattern side
+    /// (<see cref="PatternWaypoints.Direction"/>) rather than the geometric shortest way.
+    /// Set for the cross-runway departure join (climb out on the departure runway, then
+    /// turn the correct way onto the pattern runway's downwind). Left false for arrival /
+    /// wrong-side joins, which keep their established shortest-turn behavior.
+    /// </summary>
+    public bool BiasTurnToPatternSide { get; init; }
+
     public override string Name => "MidfieldCrossing";
     public override bool ManagesSpeed => true;
 
@@ -41,7 +50,15 @@ public sealed class MidfieldCrossingPhase : Phase
         // Set heading toward midfield target
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
-        ctx.Targets.PreferredTurnDirection = null;
+        // Cross-runway departure join: bias the initial turn toward the assigned pattern
+        // side so the aircraft turns the correct way onto the pattern instead of the
+        // geometric shortest way (which can roll across the extended centerline /
+        // departure path the wrong direction — AIM 4-3-3, 4-3-5). Released in OnTick once
+        // roughly pointed at the target; DownwindPhase clears it on entry regardless.
+        // Arrival / wrong-side joins keep their established shortest-turn behavior.
+        ctx.Targets.PreferredTurnDirection = BiasTurnToPatternSide
+            ? (Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right)
+            : null;
         ctx.Targets.NavigationRoute.Clear();
 
         // Large/turbine cross at TPA+500 (AIM 4-3-3.1.b); pistons/helicopters
@@ -63,6 +80,17 @@ public sealed class MidfieldCrossingPhase : Phase
         // Continuously update heading toward the midfield target
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
+
+        // Once roughly pointed at the target, release the initial-turn bias so ongoing
+        // small corrections take the natural (shortest) direction and a moving bearing
+        // can't force a wrong-way loop.
+        if (
+            (ctx.Targets.PreferredTurnDirection is not null)
+            && (Math.Abs(GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, bearing)) < 30.0)
+        )
+        {
+            ctx.Targets.PreferredTurnDirection = null;
+        }
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
 
@@ -89,11 +117,16 @@ public sealed class MidfieldCrossingPhase : Phase
             Waypoints = Waypoints?.ToSnapshot(),
             TargetLat = _targetLat,
             TargetLon = _targetLon,
+            BiasTurnToPatternSide = BiasTurnToPatternSide,
         };
 
     public static MidfieldCrossingPhase FromSnapshot(MidfieldCrossingPhaseDto dto)
     {
-        var phase = new MidfieldCrossingPhase { Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null };
+        var phase = new MidfieldCrossingPhase
+        {
+            Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
+            BiasTurnToPatternSide = dto.BiasTurnToPatternSide,
+        };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase._targetLat = dto.TargetLat;

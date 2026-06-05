@@ -95,6 +95,46 @@ public static class PatternBuilder
     }
 
     /// <summary>
+    /// Build the first circuit for a cross-runway closed-traffic departure (e.g. takeoff
+    /// runway 33, make right traffic runway 28R). The upwind leg is flown on the
+    /// <paramref name="departureRunway"/>'s extended centerline (where the aircraft actually
+    /// lifts off); a <see cref="MidfieldCrossingPhase"/> then connects to the
+    /// <paramref name="patternRunway"/>'s downwind, and the rest of the circuit
+    /// (downwind/base/final) belongs to the pattern runway. Subsequent circuits are built
+    /// entirely from the pattern runway by the auto-cycle.
+    ///
+    /// Per AIM 4-3-2: departure/upwind belong to the departure runway; downwind/base/final
+    /// belong to the landing (pattern) runway.
+    /// </summary>
+    public static List<Phase> BuildCrossRunwayDepartureCircuit(
+        RunwayInfo departureRunway,
+        RunwayInfo patternRunway,
+        AircraftCategory category,
+        PatternDirection direction,
+        bool touchAndGo,
+        double? patternSizeNm,
+        double? altitudeOverrideFt,
+        IReadOnlyList<RunwayInfo>? airportRunways
+    )
+    {
+        var departureWaypoints = PatternGeometry.Compute(departureRunway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways);
+        var patternWaypoints = PatternGeometry.Compute(patternRunway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways);
+
+        var phases = new List<Phase>
+        {
+            new UpwindPhase { Waypoints = departureWaypoints },
+            new MidfieldCrossingPhase { Waypoints = patternWaypoints, BiasTurnToPatternSide = true },
+            new DownwindPhase { Waypoints = patternWaypoints },
+            new BasePhase { Waypoints = patternWaypoints },
+            new FinalApproachPhase(),
+        };
+        Phase landingPhase = category == AircraftCategory.Helicopter ? new HelicopterLandingPhase() : new LandingPhase();
+        phases.Add(touchAndGo ? new TouchAndGoPhase() : landingPhase);
+
+        return phases;
+    }
+
+    /// <summary>
     /// Update waypoints on all active/pending pattern phases in the list.
     /// Returns true if any pattern phases were found.
     /// </summary>

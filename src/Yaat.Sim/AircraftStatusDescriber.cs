@@ -76,6 +76,13 @@ public static class AircraftStatusDescriber
         public string AssignedRunway { get; init; } = "";
         public string ClearedRunway { get; init; } = "";
         public string DepartureRunway { get; init; } = "";
+
+        /// <summary>
+        /// Runway the aircraft lines up / takes off on. Equals <see cref="AssignedRunway"/>
+        /// except for cross-runway closed traffic, where it is the departure runway while
+        /// AssignedRunway holds the pattern runway. Used by the lineup/takeoff status text.
+        /// </summary>
+        public string LineupRunway { get; init; } = "";
         public string? CrossingRunwayId { get; init; }
         public string? ExitingRunwayId { get; init; }
         public string CurrentTaxiway { get; init; } = "";
@@ -117,6 +124,7 @@ public static class AircraftStatusDescriber
                 AssignedRunway = ac.Phases?.AssignedRunway?.Designator ?? "",
                 ClearedRunway = ac.Phases?.ClearedRunwayId ?? "",
                 DepartureRunway = ac.Procedure.DepartureRunway ?? "",
+                LineupRunway = ac.Phases?.DepartureRunway?.Designator ?? ac.Phases?.AssignedRunway?.Designator ?? "",
                 CrossingRunwayId = ExtractCrossingRunwayId(ac.Phases),
                 ExitingRunwayId = ExtractExitingRunwayId(ac.Phases),
                 CurrentTaxiway = ac.Ground.CurrentTaxiway ?? "",
@@ -182,6 +190,9 @@ public static class AircraftStatusDescriber
     private static (string Text, AircraftStatusSeverity Severity) ComputePhaseStatus(AircraftStatusView i)
     {
         var dir = string.IsNullOrEmpty(i.PatternDirection) ? "" : i.PatternDirection.ToLowerInvariant();
+        // Runway the aircraft lines up / takes off on. Equals AssignedRunway except for
+        // cross-runway closed traffic. Fall back to AssignedRunway for partial views.
+        var lineupRwy = string.IsNullOrEmpty(i.LineupRunway) ? i.AssignedRunway : i.LineupRunway;
         var text = i.CurrentPhase switch
         {
             "At Parking" => string.IsNullOrEmpty(i.ParkingSpot) ? "at parking" : $"at parking {i.ParkingSpot}",
@@ -191,9 +202,9 @@ public static class AircraftStatusDescriber
             "Taxiing" => FormatTaxiStatus(i),
             "AirTaxi" => string.IsNullOrEmpty(i.AssignedRunway) ? "air taxi" : $"air taxi to {i.AssignedRunway}",
             "Crossing Runway" => FormatCrossingRunwayStatus(i),
-            "LiningUp" => $"lining up {i.AssignedRunway}",
-            "LinedUpAndWaiting" => $"LUAW {i.AssignedRunway}",
-            "Takeoff" or "Takeoff-H" => $"takeoff {i.AssignedRunway}",
+            "LiningUp" => $"lining up {lineupRwy}",
+            "LinedUpAndWaiting" => $"LUAW {lineupRwy}",
+            "Takeoff" or "Takeoff-H" => $"takeoff {lineupRwy}",
             "InitialClimb" => FormatInitialClimbStatus(i),
             "InterceptCourse" => string.IsNullOrEmpty(i.ActiveApproachId) ? "intercepting course" : $"intercepting {i.ActiveApproachId}",
             "ApproachNav" => FormatApproachNavStatus(i),

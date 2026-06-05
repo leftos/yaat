@@ -282,6 +282,36 @@ public class SmartStatusTests
     }
 
     [Fact]
+    public void LiningUp_CrossRunway_ShowsDepartureRunway()
+    {
+        // Cross-runway closed traffic (takeoff 33, pattern 28R): AssignedRunway is the
+        // pattern runway, but the lineup/takeoff status must show the departure runway.
+        Assert.Equal(
+            "Lining up 33",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "LiningUp",
+                    AssignedRunway = "28R",
+                    LineupRunway = "33",
+                    IsOnGround = true,
+                }
+            )
+        );
+        Assert.Equal(
+            "Takeoff 33",
+            Text(
+                new AircraftStatusView
+                {
+                    CurrentPhase = "Takeoff",
+                    AssignedRunway = "28R",
+                    LineupRunway = "33",
+                }
+            )
+        );
+    }
+
+    [Fact]
     public void InitialClimb_WithSid()
     {
         Assert.Equal(

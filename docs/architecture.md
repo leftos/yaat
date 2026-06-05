@@ -535,7 +535,7 @@ Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff/Land/Opt
 Phases/RunwayInfo.cs           # Runway geometry
 Phases/GlideSlopeGeometry.cs   # Altitude/descent rate calculations (3° default)
 Phases/PatternGeometry.cs      # 7 pattern waypoints from RunwayInfo + category + direction
-Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, UpdateWaypoints
+Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, BuildCrossRunwayDepartureCircuit, UpdateWaypoints
 Phases/PhaseClearSummary.cs    # Builds short label ("pattern to RWY 28R", "approach to RWY 28R", or phase Name) for the cancellation warning surfaced when a command clears the active phase chain
 
 # Phases/Tower/

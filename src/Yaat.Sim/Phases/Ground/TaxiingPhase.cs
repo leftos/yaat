@@ -645,7 +645,10 @@ public sealed class TaxiingPhase : Phase
 
             if (dep.Departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
             {
-                Commands.DepartureClearanceHandler.ApplyClosedTraffic(ct, ctx.Aircraft, phases, dep.PatternRunway ?? rwy, removeInitialClimb: false);
+                // rwy is the departure runway here (AssignedRunway hasn't yet been
+                // overwritten to the pattern runway). ApplyClosedTraffic resolves the
+                // pattern runway from ct.RunwayId and detects the cross-runway case.
+                Commands.DepartureClearanceHandler.ApplyClosedTraffic(ct, ctx.Aircraft, phases, rwy, removeInitialClimb: false);
             }
         }
 

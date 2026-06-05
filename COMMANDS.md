@@ -641,7 +641,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) — VFR only |
 | `CTO MLT 28L` | Cleared for takeoff, make left traffic runway 28L (cross-runway pattern) — VFR only |
 | `CTO CWT` / `CTO 270 CWT` / `CTO DCT SUNOL CWT` | Cleared for takeoff and caution wake turbulence. `CWT` can follow any `CTO` form. |
-| `CTOC` | Cancel takeoff clearance. Mid-roll abort works below V1 (≈ Vr − 5 kts); above V1 the aircraft is committed and CTOC is rejected. |
+| `CTOC` | Cancel takeoff clearance, hold in position. While the aircraft is lining up onto the runway it stops immediately where it is (does not continue onto the centerline); a fresh `CTO` resumes the line-up and departs. If already lined up and waiting, it holds. Mid-roll abort works below V1 (≈ Vr − 5 kts); above V1 the aircraft is committed and CTOC is rejected. |
 | `CLAND` / `CL` / `FS` | Cleared to land (full stop). Requires airborne aircraft with an assigned runway; rejected with feedback otherwise. |
 | `CLAND NODEL` | Cleared to land (exempt from auto-delete after landing) |
 | `CLAND CWT` / `CLAND NODEL CWT` | Cleared to land and caution wake turbulence. |
@@ -693,7 +693,7 @@ For a **radar-vectors SID** (e.g. NIMI6 off KOAK), the published departure headi
 | `MRT {rwy}` / `MLT {rwy}` | Cross-runway closed traffic (pattern for a different runway) | VFR only |
 | `MRT [rwy] [alt]` / `MLT [rwy] [alt]` | Closed traffic with optional altitude override (e.g., `CTO MLT 28R 15` = left traffic 28R at 1,500 ft) | VFR only |
 
-**Cross-runway pattern** — `CTO MRT 28R` from runway 33 clears the aircraft for takeoff on runway 33 and enters right traffic for runway 28R. The pattern circuit (upwind, crosswind, downwind, base, final) is built for the pattern runway, not the takeoff runway.
+**Cross-runway pattern** — `CTO MRT 28R` from runway 33 clears the aircraft for takeoff on runway 33 and enters right traffic for runway 28R. The aircraft lines up and departs on the **departure runway** (33), climbs the upwind on runway 33's extended centerline, then turns toward the assigned pattern side and joins the **pattern runway** (28R) downwind. Downwind, base, and final are flown for the pattern runway (28R); subsequent circuits stay entirely on the pattern runway. (Per AIM 4-3-2: the departure/upwind leg belongs to the departure runway; downwind/base/final belong to the landing runway.)
 
 **Altitude resolution** — when no altitude is specified, the target depends on flight rules and departure type:
 

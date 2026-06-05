@@ -57,15 +57,17 @@ public sealed class LinedUpAndWaitingPhase : Phase
     {
         ctx.Aircraft.IsOnGround = true;
         ctx.Targets.TargetSpeed = 0;
-        if (ctx.Runway is not null)
+        // Cross-runway closed traffic holds aligned with the DEPARTURE runway.
+        var rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
+        if (rwy is not null)
         {
-            ctx.Targets.TargetTrueHeading = ctx.Runway.TrueHeading;
+            ctx.Targets.TargetTrueHeading = rwy.TrueHeading;
         }
 
         Log.LogDebug(
             "[LineUp] {Callsign}: lined up and waiting, rwy={Rwy}, pos=({Lat:F6},{Lon:F6})",
             ctx.Aircraft.Callsign,
-            ctx.Runway?.Designator ?? "?",
+            rwy?.Designator ?? "?",
             ctx.Aircraft.Position.Lat,
             ctx.Aircraft.Position.Lon
         );
@@ -81,7 +83,7 @@ public sealed class LinedUpAndWaitingPhase : Phase
             && !ctx.Aircraft.HasAnnouncedLinedUpReady
             && ctx.Aircraft.Phases?.DepartureClearance is null
             && ElapsedSeconds >= LinedUpReadyDelaySeconds
-            && ctx.Runway is { } rwy
+            && (ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway) is { } rwy
         )
         {
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");

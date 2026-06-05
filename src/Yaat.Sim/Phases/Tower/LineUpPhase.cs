@@ -130,6 +130,16 @@ public sealed class LineUpPhase : Phase
     /// </summary>
     public bool RollingMode { get; internal set; }
 
+    /// <summary>
+    /// Set by <see cref="DepartureClearanceHandler.TryCancelTakeoff"/> (CTOC) while the
+    /// aircraft is mid-line-up. When true the aircraft stops at its current position and
+    /// holds (does not continue onto the runway centerline, does not complete the phase),
+    /// per 7110.65 §3-9-11 — cancelling a takeoff clearance means hold position, not
+    /// line-up-and-wait. Cleared when a fresh takeoff clearance re-clears the aircraft
+    /// (<see cref="DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance"/>).
+    /// </summary>
+    public bool HoldPosition { get; internal set; }
+
     /// <summary>Working copy of the arc/slow-turn playback state. Valid during Arc, PivotTurn1, PivotTurn2.</summary>
     private LineUpArcPlayback _arcState;
 
@@ -151,7 +161,11 @@ public sealed class LineUpPhase : Phase
         // in hand at insertion time and the LUAW phase was omitted).
         RollingMode = DetectRollingModeFromPhaseList(ctx);
 
-        if (ctx.Runway is null)
+        // For cross-runway closed traffic the aircraft lines up on the DEPARTURE
+        // runway, not the pattern runway carried in AssignedRunway/ctx.Runway.
+        var rwy = ctx.Aircraft.Phases?.DepartureRunway ?? ctx.Runway;
+
+        if (rwy is null)
         {
             Fault(ctx, "ctx.Runway is null");
             return;
@@ -167,7 +181,7 @@ public sealed class LineUpPhase : Phase
             return;
         }
 
-        var plan = LineUpGeometry.Compute(ctx.Runway, ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon, ctx.Aircraft.TrueHeading, ctx.Category);
+        var plan = LineUpGeometry.Compute(rwy, ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon, ctx.Aircraft.TrueHeading, ctx.Category);
         PathPlan = plan;
 
         if (plan.Kind == LineUpPathKind.Fault)
@@ -220,6 +234,14 @@ public sealed class LineUpPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // CTOC mid-line-up: hold position where we are. Stop and stay in the
+        // phase until a fresh takeoff clearance clears HoldPosition.
+        if (HoldPosition)
+        {
+            ctx.Targets.TargetSpeed = 0;
+            return false;
+        }
+
         if (PathPlan is null)
         {
             return TickFaulted(ctx);
@@ -595,11 +617,17 @@ public sealed class LineUpPhase : Phase
             PerpAligned = false,
             OnCenterline = false,
             RollingMode = RollingMode,
+            HoldPosition = HoldPosition,
         };
 
     public static LineUpPhase FromSnapshot(LineUpPhaseDto dto)
     {
-        var phase = new LineUpPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
+        var phase = new LineUpPhase
+        {
+            Status = (PhaseStatus)dto.Status,
+            ElapsedSeconds = dto.ElapsedSeconds,
+            HoldPosition = dto.HoldPosition,
+        };
         phase.RestoreRequirements(dto.Requirements);
         return phase;
     }
