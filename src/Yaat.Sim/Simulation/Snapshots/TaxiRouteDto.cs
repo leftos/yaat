@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Airport;
+
 namespace Yaat.Sim.Simulation.Snapshots;
 
 /// <summary>
@@ -28,6 +30,13 @@ public sealed class HoldShortPointDto
     public required bool IsSatisfied { get; init; }
     public double? Latitude { get; init; }
     public double? Longitude { get; init; }
+
+    /// <summary>
+    /// Why the route holds short here (destination runway / runway crossing / explicit HSC).
+    /// Null on legacy snapshots (schema &lt; 12); restore then falls back to ExplicitHoldShort,
+    /// the value those snapshots were reconstructed with before this field existed.
+    /// </summary>
+    public HoldShortReason? Reason { get; init; }
 
     /// <summary>
     /// Tracks whether <see cref="IsSatisfied"/> was driven by the AutoCrossRunway

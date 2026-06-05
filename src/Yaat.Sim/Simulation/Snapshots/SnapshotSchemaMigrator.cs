@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 11;
+    public const int CurrentSchemaVersion = 12;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -83,6 +83,11 @@ public static class SnapshotSchemaMigrator
         //   METAR re-issuance and v2 weather-timeline evolution survive a snapshot-based rewind.
         //   No data transformation — older snapshots default to false / null, matching the prior
         //   behavior where both stopped after rewind until weather was reloaded.
+        // V11→V12: Added HoldShortPointDto.Reason + HoldingShortPhaseDto.Reason so the hold-short
+        //   reason (DestinationRunway / RunwayCrossing / ExplicitHoldShort) survives a snapshot
+        //   restore instead of being reclassified. No data transformation — older snapshots default
+        //   to null, and FromSnapshot falls back to the prior hardcoded reason (ExplicitHoldShort for
+        //   taxi-route hold-shorts, RunwayCrossing for HoldingShortPhase), preserving restore behavior.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

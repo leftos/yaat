@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Simulation.Snapshots;
@@ -266,6 +267,13 @@ public sealed class HoldingShortPhaseDto : PhaseDto
 {
     public required int HoldShortNodeId { get; init; }
     public required string RunwayId { get; init; }
+
+    /// <summary>
+    /// Why the aircraft holds short (destination runway / runway crossing / explicit HSC).
+    /// Null on legacy snapshots (schema &lt; 12); restore then falls back to RunwayCrossing,
+    /// the value those snapshots were reconstructed with before this field existed.
+    /// </summary>
+    public HoldShortReason? Reason { get; init; }
 
     /// <summary>
     /// Set after this phase instance fired its solo-training pilot check-in. Per-phase-instance

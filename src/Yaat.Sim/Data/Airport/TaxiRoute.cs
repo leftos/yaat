@@ -230,6 +230,7 @@ public sealed class TaxiRoute
                     IsSatisfied = hs.IsCleared,
                     Latitude = hs.Latitude,
                     Longitude = hs.Longitude,
+                    Reason = hs.Reason,
                     ClearedByAutoCross = hs.ClearedByAutoCross,
                     IsArrivalCrossing = hs.IsArrivalCrossing,
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
@@ -285,7 +286,7 @@ public sealed class TaxiRoute
                     new HoldShortPoint
                     {
                         NodeId = hs.NodeId,
-                        Reason = HoldShortReason.ExplicitHoldShort,
+                        Reason = hs.Reason ?? HoldShortReason.ExplicitHoldShort,
                         TargetName = hs.RunwayId,
                         IsCleared = hs.IsSatisfied,
                         ClearedByAutoCross = hs.ClearedByAutoCross,

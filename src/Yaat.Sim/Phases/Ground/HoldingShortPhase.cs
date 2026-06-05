@@ -155,6 +155,7 @@ public sealed class HoldingShortPhase : Phase
             Requirements = SnapshotRequirements(),
             HoldShortNodeId = _holdShort.NodeId,
             RunwayId = _holdShort.TargetName ?? string.Empty,
+            Reason = _holdShort.Reason,
             HasAnnouncedReady = _hasAnnouncedReady,
         };
 
@@ -163,7 +164,7 @@ public sealed class HoldingShortPhase : Phase
         var holdShort = new HoldShortPoint
         {
             NodeId = dto.HoldShortNodeId,
-            Reason = HoldShortReason.RunwayCrossing,
+            Reason = dto.Reason ?? HoldShortReason.RunwayCrossing,
             TargetName = string.IsNullOrEmpty(dto.RunwayId) ? null : dto.RunwayId,
         };
 
