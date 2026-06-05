@@ -1046,12 +1046,17 @@ public class PatternCommandHandlerTests
     }
 
     [Fact]
-    public void TryEnterPattern_Final_CloseInButMisaligned_FallsThroughToLoopCheck()
+    public void TryEnterPattern_Final_MisalignedOnCenterline_JoinsAtAltitudeAwareDistance()
     {
         var rwy = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found");
-        // 3.5 NM out (close-in zone for jets) but heading 35° off the runway — outside
-        // the 30° angle-off envelope, so the close-in path is skipped and the standard
-        // loop check runs. With this geometry, the loop check rejects ("short final").
+        // 3.5 NM out on the centerline at ~1100 ft AGL (≈ the 3° glideslope altitude
+        // there), but heading 35° off the runway — outside the close-in angle envelope,
+        // so the altitude-aware "make straight-in" applies. The aircraft isn't established
+        // (35° off heading); it can comfortably reach the glideslope by a closer final, so
+        // EF shortcuts it in toward the jet minimum (2.0 NM) and queues a short
+        // PatternEntryPhase to align — rather than rejecting "short final" the way the old
+        // fixed-far-entry loop check did (that entry sat behind the aircraft, forcing a
+        // reversal). The join is never sent outbound (capped at the 3.5 NM along-track).
         var (lat, lon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 3.5);
         var ac = MakeAircraft(lat: lat, lon: lon, altitude: (int)rwy.ElevationFt + 1100);
         ac.AircraftType = "B738";
@@ -1061,8 +1066,18 @@ public class PatternCommandHandlerTests
 
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28L", null);
 
-        Assert.False(result.Success);
-        Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(ac.Phases!.Phases, p => p is FinalApproachPhase);
+        // Shortcut to ~2.0 NM (jet minimum final), inside the 3.5 NM along-track.
+        var entry = ac.Phases.Phases.OfType<PatternEntryPhase>().FirstOrDefault();
+        Assert.NotNull(entry);
+        double entryToThresholdNm = GeoMath.DistanceNm(
+            new LatLon(entry.EntryLat, entry.EntryLon),
+            new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude)
+        );
+        Assert.InRange(entryToThresholdNm, 1.8, 3.5);
+        // Descends to the glideslope by the join → no "too high" warning.
+        Assert.Empty(ac.PendingWarnings);
     }
 
     [Fact]

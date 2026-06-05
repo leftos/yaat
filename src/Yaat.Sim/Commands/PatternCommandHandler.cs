@@ -223,13 +223,65 @@ internal static class PatternCommandHandler
             }
         }
 
-        // For Final entry: reject if the maneuver would create a 360° loop.
+        // For a Final entry with no explicit distance on a DIAGONAL (misaligned) join
+        // that isn't the close-in case: "make straight-in". The aircraft descends
+        // immediately on the diagonal cut-in toward the runway and joins final as CLOSE
+        // to the threshold as it can while still reaching the glideslope by the join — a
+        // shortcut, not a fixed base. A low aircraft shortcuts to the minimum final; a
+        // higher one (which needs more descent room) joins farther out. Capped at the
+        // aircraft's along-track so EF never routes it outbound / farther from the field.
+        // Aligned aircraft (within the close-in angle envelope) keep the existing
+        // fixed-distance / close-in behavior — they already cut in at a shallow angle. When
+        // the aircraft is too high to lose its altitude on the diagonal even at the capped
+        // join, a controller-facing warning is raised below (the command still succeeds).
+        double? finalEntryDistanceNm = null;
+        bool straightInTooHigh = false;
+        if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && finalDistanceNm is null && !isCloseInFinal)
+        {
+            var airportRunwaysAa = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+            var (sizeOvAa, altOvAa) = PatternGeometry.ResolveAuthoredOverrides(
+                runway,
+                aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                aircraft.Pattern.SizeOverrideNm,
+                aircraft.Pattern.AltitudeOverrideFt
+            );
+            waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOvAa, altOvAa, airportRunwaysAa);
+
+            double alongTrackOutboundAa = GeoMath.AlongTrackDistanceNm(
+                aircraft.Position,
+                new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
+                waypoints.FinalHeading.ToReciprocal()
+            );
+            double angleOffDegAa = aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading);
+            if (alongTrackOutboundAa > 0 && angleOffDegAa > MaxCloseInFinalAngleOffDeg(alongTrackOutboundAa, category))
+            {
+                // Returns null when the capped join is inside the category minimum final.
+                // finalEntryDistanceNm then stays null and the loop check below handles the
+                // geometry as before — this path only changes a diagonal join the aircraft
+                // has room for. (An explicit reject for the inside-minimum case diverged
+                // several recordings where an aircraft gets EF close-in/diagonal — e.g. a
+                // re-clearance on short final — that the fixed fallback already absorbs.)
+                finalEntryDistanceNm = ComputeAltitudeAwareFinalEntryDistanceNm(
+                    aircraft,
+                    runway,
+                    category,
+                    waypoints,
+                    alongTrackOutboundAa,
+                    out straightInTooHigh
+                );
+            }
+        }
+
+        // For Final entry: reject if the maneuver would create a 360° loop. Skipped when
+        // the altitude-aware join is in play (finalEntryDistanceNm) — that entry is, by
+        // construction, never placed beyond the aircraft's along-track, so the reverse-to-
+        // a-far-entry loop this guards against cannot form.
         // Compute the two heading changes: (1) turn from current heading to the
         // bearing toward the entry point, (2) turn from arrival bearing at the
         // entry point to the runway (approach) heading. If BOTH exceed 90°, the
         // total turn approaches 360° — the aircraft must reverse to the entry
         // point and then reverse again to align with final. That's a loop.
-        if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && !isCloseInFinal)
+        if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && !isCloseInFinal && finalEntryDistanceNm is null)
         {
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
@@ -428,7 +480,7 @@ internal static class PatternCommandHandler
         {
             var (entryLat, entryLon) = useAircraftPositionAsEntry
                 ? (aircraft.Position.Lat, aircraft.Position.Lon)
-                : GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm, category);
+                : GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm ?? finalEntryDistanceNm, category);
             double distToEntry = GeoMath.DistanceNm(aircraft.Position, new LatLon(entryLat, entryLon));
 
             if (distToEntry > 1.0)
@@ -493,6 +545,15 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Phases = phases;
+
+        // EF capped the straight-in join at the aircraft's along-track (it can't be
+        // sent outbound), but the aircraft is too high to descend over the remaining
+        // cut-in + final path. Surface a controller-facing warning so the RPO can
+        // call it out / pick a different approach; the clearance still stands.
+        if (straightInTooHigh)
+        {
+            aircraft.PendingWarnings.Add($"{aircraft.Callsign} unable to descend for straight-in {runway.Designator} — too high");
+        }
 
         var legDesc =
             entryLeg == PatternEntryLeg.Final
@@ -1591,6 +1652,74 @@ internal static class PatternCommandHandler
         total += Math.Max(0.0, turnMid - uTurnThresholdDeg);
         total += Math.Max(0.0, turnAbeam - uTurnThresholdDeg);
         return total;
+    }
+
+    /// <summary>
+    /// Altitude-aware Final entry distance for a diagonal EF join (no explicit distance).
+    /// The aircraft descends immediately on the diagonal cut-in toward the runway, so it
+    /// joins final as CLOSE to the threshold as it can while still reaching the glideslope
+    /// altitude by the join — a "make straight-in" shortcut. The closest stabilized final
+    /// (<see cref="MinimumPerpendicularBaseFinalDistanceNm"/>) is the floor; an aircraft
+    /// too high to lose its altitude on the diagonal at the pattern descent rate joins
+    /// farther out (longer final = more descent room); capped at
+    /// <paramref name="alongTrackOutboundNm"/> so EF never routes the aircraft outbound.
+    /// Returns <c>null</c> when even the minimum final exceeds the along-track cap (no room
+    /// for a stable final from this position) — defer to the fixed-distance fallback + loop
+    /// check. <paramref name="tooHighToDescend"/> is set when, even at the capped join, the
+    /// diagonal can't absorb the descent at the category rate — a controller-facing warning,
+    /// not a rejection.
+    /// </summary>
+    private static double? ComputeAltitudeAwareFinalEntryDistanceNm(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        AircraftCategory category,
+        PatternWaypoints waypoints,
+        double alongTrackOutboundNm,
+        out bool tooHighToDescend
+    )
+    {
+        tooHighToDescend = false;
+
+        double minFinalNm = MinimumPerpendicularBaseFinalDistanceNm(category);
+        if (alongTrackOutboundNm < minFinalNm)
+        {
+            // The along-track cap is inside the minimum final — no room to establish a
+            // stable final from here. Defer to the fixed-distance fallback + loop check.
+            return null;
+        }
+
+        double feetPerNm = GlideSlopeGeometry.FeetPerNm(GlideSlopeGeometry.AngleForCategory(category));
+        double altitudeToLoseFt = aircraft.Altitude - runway.ElevationFt;
+        double crossTrackAbsNm = Math.Abs(
+            GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon), waypoints.FinalHeading)
+        );
+        double descentRateFpm = CategoryPerformance.PatternDescentRate(category);
+        double approachSpeedKt = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, category);
+
+        // Walk candidate join distances from the closest stabilized final outward to the
+        // along-track cap. Take the FIRST (closest) where the aircraft, descending at the
+        // pattern rate over the diagonal cut-in, can reach the glideslope altitude at the
+        // join. A low aircraft satisfies this at the minimum final (closest shortcut); a
+        // higher one needs a longer final; capped at along-track (never outbound).
+        const double stepNm = 0.05;
+        for (double joinNm = minFinalNm; joinNm <= alongTrackOutboundNm + 1e-9; joinNm += stepNm)
+        {
+            double candidateNm = Math.Min(joinNm, alongTrackOutboundNm);
+            double alongGapNm = alongTrackOutboundNm - candidateNm;
+            double diagonalNm = Math.Sqrt((alongGapNm * alongGapNm) + (crossTrackAbsNm * crossTrackAbsNm));
+            double descentNeededOnDiagonalFt = altitudeToLoseFt - (candidateNm * feetPerNm);
+            double diagonalMinutes = diagonalNm / (approachSpeedKt / 60.0);
+            double descentAvailableFt = descentRateFpm * diagonalMinutes;
+            if (descentAvailableFt >= descentNeededOnDiagonalFt)
+            {
+                return candidateNm;
+            }
+        }
+
+        // Even at the along-track cap the aircraft can't lose its altitude on the diagonal
+        // at the pattern descent rate. Join at the cap and flag a controller-facing warning.
+        tooHighToDescend = true;
+        return alongTrackOutboundNm;
     }
 
     /// <summary>

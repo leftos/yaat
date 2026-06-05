@@ -219,6 +219,39 @@ debug log describe the band loosely as "TPA+500 → TPA"; the actual per-waypoin
 +500 is where the aircraft *starts*, handed in by `MidfieldCrossingPhase`.) After the route drains, `DownwindPhase`
 takes over with the aircraft already tracking the 45° intercept course.
 
+### Final entry distance (EF) — `PatternCommandHandler`
+
+`EF` ("enter final", `PatternEntryLeg.Final`, no explicit distance) places the join point on the extended
+centerline through one of three paths in `TryEnterPattern`:
+
+1. **Close-in aligned** (`isCloseInFinal`, `PatternCommandHandler.cs:158`): aircraft inside the standard
+   glideslope-TPA intercept distance, within the close-in angle envelope (`MaxCloseInFinalAngleOffDeg`: 30° at
+   ≥2 nm / 20° inside 2 nm / 45° helicopters), and able to descend over the path. It anchors the entry at the
+   aircraft's **current position** (a straight-in; `useAircraftPositionAsEntry`).
+2. **Altitude-aware "make straight-in"** (`ComputeAltitudeAwareFinalEntryDistanceNm`): aircraft *outside* that
+   angle envelope (a diagonal/base join) and on the approach side. The aircraft **descends immediately on the
+   diagonal cut-in** toward the runway and joins final as **close to the threshold as it can** while still reaching
+   the glideslope altitude by the join — a shortcut, not a fixed base. The helper walks candidate join distances
+   outward from the category minimum final (`MinimumPerpendicularBaseFinalDistanceNm`: jet/TP 2.0, piston 1.0,
+   heli 0.5 nm) and takes the **first (closest)** at which the aircraft, descending at the category
+   `PatternDescentRate` over the diagonal `sqrt(alongGap² + crossTrack²)`, can lose enough altitude to be on the
+   3° (6° heli) glideslope at the join. So a low aircraft (or any aircraft with a long diagonal to descend on)
+   shortcuts to the minimum final; a higher one — needing more descent room — joins a longer final. It is
+   **capped at the aircraft's along-track-outbound distance** so `EF` never routes the aircraft outbound / behind
+   its present position (which also makes the loop check inapplicable — the reverse-to-a-far-entry geometry can't
+   form — so it is skipped when this distance is set, `PatternCommandHandler.cs:232`). When even the minimum final
+   exceeds the along-track cap the helper returns `null` and the fixed fallback (path 3 below) handles the
+   geometry. The `PatternEntryPhase` descends to the glideslope altitude at the join (`PatternCommandHandler.cs:454`),
+   then `FinalApproachPhase` tracks the 3° slope inbound.
+3. **Fixed fallback**: aligned aircraft *outside* the close-in distance (and explicit-distance `EF`) keep the
+   fixed glideslope-TPA entry (`PatternAltitudeAgl / FeetPerNm`) plus the loop-feasibility check.
+
+When the altitude-aware join is capped at along-track but the aircraft still cannot lose its altitude over the
+cut-in + final at the category `PatternDescentRate`, `EF` succeeds but raises an `AircraftState.PendingWarnings`
+entry ("unable to descend for straight-in … — too high") — a controller-facing advisory, not radio phraseology.
+The angle envelope is an airmanship analogy to TBL 5-9-1, not a regulatory VFR-pattern mandate (AIM 4-3-3 does not
+quantify an intercept angle).
+
 ## Approach intercept — `InterceptCoursePhase`
 
 `InterceptCoursePhase` (`src/Yaat.Sim/Phases/Approach/InterceptCoursePhase.cs`) flies the assigned intercept

@@ -22,6 +22,7 @@
 - Cross-runway closed-traffic departures (e.g. `CTO MRT 28R` from runway 33) line up and depart on the departure runway, then join the other runway's pattern.
 - Cancelling a takeoff clearance (`CTOC`) mid-line-up holds the aircraft in position immediately; a fresh `CTO` resumes the line-up and departs.
 - Two taxiing aircraft converging onto the same taxiway intersection (a merge) no longer deadlock nose-to-nose with both stopped — the one farther from the intersection now holds while the nearer one taxis through, then follows it in trail.
+- `EF` (enter final) now flies an altitude-aware straight-in — a diagonal aircraft descends and cuts in close to the threshold instead of a fixed ~3-mile base, joining a longer final (or warning the controller) only when too high to descend in time.
 
 ## v0.7.0-beta [2026/06/04]
 
