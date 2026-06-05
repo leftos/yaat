@@ -10,6 +10,7 @@
 - A `TAXI` clearance with a `CROSS <rwy>` clause is no longer rejected with "can't reach <taxiway> without crossing runway" when the crossed runway lies on an earlier named taxiway and a later taxiway follows (e.g. `TAXI C B CROSS 33`); the route now continues onto the last taxiway instead of stopping at the runway.
 - A VFR aircraft told to **FOLLOW** traffic that is on a straight-in final (e.g. an IFR arrival on the ILS) is now sequenced onto that runway's final behind the traffic and descends there to await a landing clearance, instead of trailing it level at pattern altitude and flying over the runway when the traffic lands.
 - The Aircraft List, sorted by any column with **Only Active** on, now slots a newly-active aircraft into sorted position instead of dropping it at the bottom.
+- Ground view: with an aircraft selected, right-clicking anywhere now offers the taxi-route and **Warp here** menu by snapping to the nearest node, instead of only when the click lands within a node's hit radius — so you can warp an aircraft onto an open stretch of runway or taxiway that has no node directly under the cursor.
 
 ## v0.7.0-beta [2026/06/04]
 

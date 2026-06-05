@@ -1003,6 +1003,17 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 RunwayThresholdRightClicked?.Invoke(hit.RunwayEnd, screenPos);
                 return true;
             }
+
+            // Fallback: with an aircraft selected, snap a right-click anywhere to the nearest
+            // ground node so the node menu (taxi route + "Warp here") is always reachable — not
+            // only within the node hit radius. Lets the controller drop a stuck aircraft onto an
+            // open stretch of runway/taxiway that has no graph node under the cursor.
+            var nearest = FindNearestNode(screenPos);
+            if (nearest is not null)
+            {
+                NodeRightClicked?.Invoke(nearest.Id, screenPos);
+                return true;
+            }
         }
 
         return false;
@@ -1010,15 +1021,23 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     public GroundNodeDto? FindNodeAtPoint(Point screenPos)
     {
+        const float hitRadius = 20f;
+        var nearest = FindNearestNode(screenPos, out float dist);
+        return dist <= hitRadius ? nearest : null;
+    }
+
+    /// <summary>The ground node closest to <paramref name="screenPos"/> regardless of distance, or null if no layout is loaded.</summary>
+    public GroundNodeDto? FindNearestNode(Point screenPos) => FindNearestNode(screenPos, out _);
+
+    private GroundNodeDto? FindNearestNode(Point screenPos, out float distance)
+    {
+        distance = float.MaxValue;
         if (Layout is null)
         {
             return null;
         }
 
-        const float hitRadius = 20f;
         GroundNodeDto? closest = null;
-        float closestDist = hitRadius;
-
         foreach (var node in Layout.Nodes)
         {
             var (sx, sy) = Viewport.LatLonToScreen(node.Latitude, node.Longitude);
@@ -1026,9 +1045,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             var dy = (float)screenPos.Y - sy;
             var dist = MathF.Sqrt(dx * dx + dy * dy);
 
-            if (dist < closestDist)
+            if (dist < distance)
             {
-                closestDist = dist;
+                distance = dist;
                 closest = node;
             }
         }
