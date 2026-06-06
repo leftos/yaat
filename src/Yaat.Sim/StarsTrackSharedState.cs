@@ -11,6 +11,7 @@ public sealed class StarsTrackSharedState
     public bool WasPreviouslyOwned { get; set; }
     public int TpaType { get; set; } // StarsTpaType enum, 0=None
     public double TpaSize { get; set; }
+    public bool IsRecentlyAcceptedIncomingPointout { get; set; }
 
     public SharedStateDto ToSnapshot() =>
         new()
@@ -22,6 +23,7 @@ public sealed class StarsTrackSharedState
             WasPreviouslyOwned = WasPreviouslyOwned,
             TpaType = TpaType,
             TpaSize = TpaSize,
+            IsRecentlyAcceptedIncomingPointout = IsRecentlyAcceptedIncomingPointout,
         };
 
     public static StarsTrackSharedState FromSnapshot(SharedStateDto dto) =>
@@ -34,5 +36,6 @@ public sealed class StarsTrackSharedState
             WasPreviouslyOwned = dto.WasPreviouslyOwned,
             TpaType = dto.TpaType,
             TpaSize = dto.TpaSize,
+            IsRecentlyAcceptedIncomingPointout = dto.IsRecentlyAcceptedIncomingPointout,
         };
 }

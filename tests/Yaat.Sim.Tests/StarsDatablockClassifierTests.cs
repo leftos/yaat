@@ -90,11 +90,27 @@ public class StarsDatablockClassifierTests
     }
 
     [Fact]
+    public void SharedState_IsKeyedByTcpId_NotSubsetSectorCode()
+    {
+        // Regression: writers (CRC handler, TickProcessor) key SharedState by Tcp.Id (the ULID).
+        // The classifier must look up by the same key, not by ToString() ("{Subset}{SectorId}").
+        Assert.NotEqual(StudentTcp.Id, StudentTcp.ToString());
+
+        var ac = Aircraft();
+        ac.Track.Owner = OtherPosition;
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsHighlighted = true };
+
+        var view = Classify(ac);
+
+        Assert.Equal(StarsDatablockColor.Highlighted, view.Color);
+    }
+
+    [Fact]
     public void HighlightedByStudent_IsCyan()
     {
         var ac = Aircraft();
         ac.Track.Owner = OtherPosition;
-        ac.Stars.SharedState[StudentTcp.ToString()] = new StarsTrackSharedState { IsHighlighted = true };
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsHighlighted = true };
 
         var view = Classify(ac);
 
@@ -106,12 +122,52 @@ public class StarsDatablockClassifierTests
     {
         var ac = Aircraft();
         ac.Track.Owner = StudentPosition;
-        ac.Stars.SharedState[StudentTcp.ToString()] = new StarsTrackSharedState { IsHighlighted = true };
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsHighlighted = true };
 
         var view = Classify(ac);
 
         Assert.Equal(StarsDatablockColor.Highlighted, view.Color);
         Assert.Equal(StarsDatablockLevel.Full, view.Level);
+    }
+
+    [Fact]
+    public void RecentlyAcceptedPointout_IsYellowFullBlock()
+    {
+        var ac = Aircraft();
+        ac.Track.Owner = OtherPosition;
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsRecentlyAcceptedIncomingPointout = true };
+
+        var view = Classify(ac);
+
+        Assert.Equal(StarsDatablockColor.Pointout, view.Color);
+        Assert.Equal(StarsDatablockLevel.Full, view.Level);
+    }
+
+    [Fact]
+    public void RecentlyAcceptedPointout_DoesNotOverrideOwnedWhite()
+    {
+        // A track the student owns stays white even if the recently-accepted flag lingers — CRC only
+        // colors an owned track yellow for a forced pointout, which YAAT does not model.
+        var ac = Aircraft();
+        ac.Track.Owner = StudentPosition;
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsRecentlyAcceptedIncomingPointout = true };
+
+        var view = Classify(ac);
+
+        Assert.Equal(StarsDatablockColor.Owned, view.Color);
+        Assert.Equal(StarsDatablockLevel.Full, view.Level);
+    }
+
+    [Fact]
+    public void HighlightOverridesRecentlyAcceptedPointout()
+    {
+        var ac = Aircraft();
+        ac.Track.Owner = OtherPosition;
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { IsRecentlyAcceptedIncomingPointout = true, IsHighlighted = true };
+
+        var view = Classify(ac);
+
+        Assert.Equal(StarsDatablockColor.Highlighted, view.Color);
     }
 
     [Fact]
@@ -132,7 +188,7 @@ public class StarsDatablockClassifierTests
     {
         var ac = Aircraft();
         ac.Track.Owner = OtherPosition;
-        ac.Stars.SharedState[StudentTcp.ToString()] = new StarsTrackSharedState { WasPreviouslyOwned = true };
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { WasPreviouslyOwned = true };
 
         var view = Classify(ac);
 
@@ -145,7 +201,7 @@ public class StarsDatablockClassifierTests
     {
         var ac = Aircraft();
         ac.Track.Owner = OtherPosition;
-        ac.Stars.SharedState[StudentTcp.ToString()] = new StarsTrackSharedState { ForceFdb = true };
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { ForceFdb = true };
 
         var view = Classify(ac);
 
@@ -159,7 +215,7 @@ public class StarsDatablockClassifierTests
         var ac = Aircraft();
         ac.Track.Owner = StudentPosition;
         ac.Stars.GlobalLeaderDirection = 8; // N
-        ac.Stars.SharedState[StudentTcp.ToString()] = new StarsTrackSharedState { LeaderDirection = 2 }; // S
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { LeaderDirection = 2 }; // S
 
         var view = Classify(ac);
 
@@ -171,7 +227,7 @@ public class StarsDatablockClassifierTests
     {
         var ac = Aircraft();
         ac.Track.Owner = StudentPosition;
-        ac.Stars.SharedState[StudentTcp.ToString()] = new StarsTrackSharedState { LeaderDirection = 6 }; // E
+        ac.Stars.SharedState[StudentTcp.Id] = new StarsTrackSharedState { LeaderDirection = 6 }; // E
 
         var view = Classify(ac);
 

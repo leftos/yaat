@@ -187,6 +187,10 @@ public sealed class SharedStateDto
     public required bool WasPreviouslyOwned { get; init; }
     public required int TpaType { get; init; }
     public required double TpaSize { get; init; }
+
+    // Not required: added after recordings that already serialize SharedState existed, so older
+    // snapshots lacking the field must deserialize to false rather than fail.
+    public bool IsRecentlyAcceptedIncomingPointout { get; init; }
 }
 
 public sealed class PositionDto

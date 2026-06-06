@@ -55,7 +55,9 @@ public static class StarsDatablockClassifier
         }
 
         var track = aircraft.Track;
-        aircraft.Stars.SharedState.TryGetValue(studentTcp.ToString(), out var shared);
+        // SharedState is keyed by Tcp.Id (the ULID) — matching every writer (CRC handler,
+        // TickProcessor). ToString() yields the "{Subset}{SectorId}" code, which never matches.
+        aircraft.Stars.SharedState.TryGetValue(studentTcp.Id, out var shared);
 
         bool isOwnedByStudent = track.Owner is not null && studentPosition.MatchesPosition(track.Owner);
         bool isHandoffIn =
@@ -64,8 +66,13 @@ public static class StarsDatablockClassifier
         bool wasPreviouslyOwned = shared?.WasPreviouslyOwned ?? false;
         bool isHighlighted = shared?.IsHighlighted ?? false;
         bool forceFdb = shared?.ForceFdb ?? false;
+        // CRC BuildFdb folds a recently-accepted incoming pointout into its pointout "flag": the track
+        // shows yellow (when the student doesn't own it) and is forced to a full data block until the
+        // student slews it to clear. Treat it like a pending pointout to the student.
+        bool isRecentlyAcceptedPointout = shared?.IsRecentlyAcceptedIncomingPointout ?? false;
         bool isPointoutToStudent =
-            track.Pointout is not null && track.Pointout.Recipient.Equals(studentTcp) && (track.Pointout.IsPending || track.Pointout.IsAccepted);
+            isRecentlyAcceptedPointout
+            || (track.Pointout is not null && track.Pointout.Recipient.Equals(studentTcp) && (track.Pointout.IsPending || track.Pointout.IsAccepted));
 
         // "Involved" = the student controls or is directly receiving the track (CRC: owned / previously
         // owned / incoming handoff). These show the owned (white) color and a full data block.

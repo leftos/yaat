@@ -6,6 +6,7 @@
 - The session-settings (⚙) flyout adds a **Show Pilot Speech (RPO)** toggle to switch sim-initiated pilot reports between green pilot speech and orange warnings live.
 
 ### Fixed
+- The radar now mirrors the **student's** STARS scope as intended: each datablock takes the student's color (cyan when the student highlights a track; white/green/yellow by who owns it, including yellow for a pointout the student accepted) and, with the **leader-direction** option enabled (Settings > Display > Student Scope Sync), follows the student's leader line. The feature had shipped inert — every datablock kept the instructor's own default color and placement no matter what the student did on their scope — because the student's per-position scope state was never matched to the aircraft.
 - Saving the Settings window no longer alters the running session; its scenario/simulation settings are load-time defaults, and live changes go through the gear flyout.
 - The session-settings flyout's Command Run Delay range fields are no longer clipped — the values and spinner buttons now display fully.
 
