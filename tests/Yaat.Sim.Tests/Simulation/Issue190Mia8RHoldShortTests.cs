@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue190-mia-8r-hold-short-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/c000c2b0afc8.zip";
     private const string Callsign = "ENY3516";
     private const string DestinationRunway = "08R";
     private const int TaxiAutoStartNodeId = 304;

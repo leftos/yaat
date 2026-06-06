@@ -8,7 +8,7 @@ namespace Yaat.Sim.Tests.Simulation;
 
 public class Issue192MiaGateEntryTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue192-mia-d-gate-entry-recording.zip";
+    private const string RecordingPath = "TestData/c000c2b0afc8.zip";
     private const string TargetParking = "D32";
 
     private SimulationEngine? BuildEngine()

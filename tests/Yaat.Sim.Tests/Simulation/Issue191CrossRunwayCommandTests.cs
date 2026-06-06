@@ -24,7 +24,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue191-mia-cross-runway-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/c000c2b0afc8.zip";
     private const string RecordedCallsign = "ENY3516";
     private const string FocusedCallsign = "ENY191";
     private const string CrossRunway = "08R";
