@@ -7,6 +7,7 @@ using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Client.Views.Ground;
@@ -1079,6 +1080,14 @@ public sealed class GroundRenderer : IDisposable
                     || !nodeLatLon.TryGetValue(arcDto.FromNodeId, out var fromLL)
                     || !nodeLatLon.TryGetValue(arcDto.ToNodeId, out var toLL)
                 )
+                {
+                    continue;
+                }
+
+                // Hairpin fillets no fixed-wing aircraft can taxi (turn exceeds the most permissive
+                // fixed-wing heading-change limit) are never routed by the pathfinder; drawing them
+                // clutters the view with taxi lines aircraft never use.
+                if (arcDto.TurnAngleDeg > CategoryLimits.MaxHeadingChangeDeg(AircraftCategory.Piston))
                 {
                     continue;
                 }

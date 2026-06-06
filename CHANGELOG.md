@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- The ground view no longer draws fillet corners no aircraft can taxi (sharp >155° hairpins the pathfinder never routes), reducing clutter.
 - Instructor TPA J-Rings and Cones now draw on your own radar. `JRING 3` (or the radar **Display → J-ring** menu) draws a 3 NM ring around a target; `CONE 5` (or **Display → Cone**) draws a 5 NM cone projecting along its track — both sized 1–30 NM and labelled with the distance, emulating the STARS `*J` / `*P` proximity tools. They are instructor-only and never appear on the student's CRC. The cone's wedge matches CRC's razor-thin 2° by default and is adjustable under **Settings → Display → Overlays**. (Previously `JRING`/`CONE` drew nothing and discarded the size; the manual cone also leaked onto the student's scope.)
 
 ### Fixed

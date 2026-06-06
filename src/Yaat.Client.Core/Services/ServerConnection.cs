@@ -1127,7 +1127,8 @@ public record GroundArcDto(
     double P2Lat,
     double P2Lon,
     double MinRadiusOfCurvatureFt,
-    double DistanceNm
+    double DistanceNm,
+    double TurnAngleDeg
 );
 
 public record GroundRunwayDto(string Name, List<double[]> Coordinates, double WidthFt);

@@ -295,7 +295,7 @@ Views/Ground/
   GroundView.axaml.cs           # Ground view control with context menus + layer toggles (SAT/MAP/GND)
   GroundViewWindow.axaml.cs     # Pop-out ground window
   GroundCanvas.cs               # SkiaSharp canvas with StyledProperties + hit-testing
-  GroundRenderer.cs             # Stateless SkiaSharp ground renderer (3 layers: satellite, video map, YAAT layout)
+  GroundRenderer.cs             # Stateless SkiaSharp ground renderer (3 layers: satellite, video map, YAAT layout); skips never-driven >155° hairpin fillet arcs
 
 Views/Radar/
   RadarView.axaml.cs            # Radar view control with DCB (range, map shortcuts, FIX, LOCK)
