@@ -424,13 +424,20 @@ desired distance, the follow is auto-cancelled with an "unable to maintain separ
 `PatternEntryPhase = 0`, `Upwind = 1`, `Crosswind = 2`, `Downwind = 3`, `Base = 4`, `FinalApproach = 5`,
 `Landing/TouchAndGo = 6`; non-pattern phases return null.
 
-`IsLeadPatternFlowAhead` (lead strictly later leg) and `IsLeadPatternFlowBehind` (lead earlier leg, or same leg
-broken by phase `ElapsedSeconds`) use this index, gated on both aircraft being on the **same runway**:
+`IsLeadPatternFlowAhead` (lead strictly later leg — **plus the same-Downwind-leg case where the lead is extending**)
+and `IsLeadPatternFlowBehind` (lead earlier leg, or same leg broken by phase `ElapsedSeconds`) use this index, gated
+on both aircraft being on the **same runway**:
 
 - **`IsLeadPatternFlowBehind`** ⇒ the spacing helper returns the baseline (don't slow down for a lead that hasn't
   reached the follower's leg yet — pulling the follower to Vref produces multi-minute downwind extensions).
 - **`IsLeadPatternFlowAhead`** ⇒ the **runaway watchdog is suppressed** (gap growth is expected geometry while the
   lead is leg-ahead on a parallel-opposite track), and the follower may extend downwind to sequence.
+  - **Extended-downwind exception:** a lead on the **same Downwind leg** but with `DownwindPhase.IsExtended` (set by
+    `EXT`) also counts as flow-ahead. The lead has explicitly deferred its base turn, so it stays ahead in the
+    landing sequence despite sharing the follower's leg index. Without this, a follower on the same downwind turned
+    base at its fixed point and rolled out on final ahead of the aircraft it was told to follow (and the runaway
+    watchdog then spuriously cancelled the follow). Generic same-leg pairs are still *not* flow-ahead — a lead that
+    is merely outpacing the follower without holding out is exactly what the watchdog should catch.
 
 **The runaway watchdog** (`CheckLeadLifecycle`, `AirborneFollowHelper.cs:120`) cancels a follow when:
 

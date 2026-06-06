@@ -318,6 +318,15 @@ public static class AirborneFollowHelper
     /// follower turns base). The runaway-distance watchdog should not fire here:
     /// pattern flow guarantees the gap will close again once the follower
     /// transitions toward the lead's leg.
+    ///
+    /// <para>
+    /// One same-leg case also counts as flow-ahead: a lead on an <em>extended</em>
+    /// Downwind (<see cref="Pattern.DownwindPhase.IsExtended"/>, set by EXT) has
+    /// explicitly deferred its base turn, so it stays ahead in the landing sequence
+    /// even though it shares the follower's Downwind leg index. Treating it as
+    /// flow-ahead lets the follower hold its base turn to sequence behind it and
+    /// keeps the runaway watchdog suppressed while both run outbound.
+    /// </para>
     /// </summary>
     private static bool IsLeadPatternFlowAhead(AircraftState follower, AircraftState lead)
     {
@@ -337,11 +346,21 @@ public static class AirborneFollowHelper
         {
             return false;
         }
-        // Strict leg-ahead only. Same-leg cases are intentionally NOT short-
-        // circuited: when both aircraft are on parallel tracks heading the same
-        // way, gap growth is no longer "expected pattern geometry" — it means
-        // the lead is genuinely outpacing the follower, which is what the
-        // watchdog exists to catch.
+        // Same-leg exception: an extended-downwind lead has explicitly deferred
+        // its base turn (EXT), so it remains ahead in the landing sequence despite
+        // sharing the follower's Downwind leg index. Without this the follower
+        // turns base at its fixed point and rolls out on final ahead of the very
+        // aircraft it was told to follow.
+        if ((leadLeg == followerLeg) && lead.Phases?.CurrentPhase is DownwindPhase { IsExtended: true })
+        {
+            return true;
+        }
+
+        // Otherwise strict leg-ahead only. Generic same-leg cases are intentionally
+        // NOT short-circuited: when both aircraft are on parallel tracks heading the
+        // same way and the lead is not holding out, gap growth is no longer
+        // "expected pattern geometry" — it means the lead is genuinely outpacing the
+        // follower, which is what the watchdog exists to catch.
         return leadLeg > followerLeg;
     }
 
