@@ -2343,19 +2343,12 @@ public partial class MainViewModel : ObservableObject
 
     public void RefreshCommandScheme()
     {
+        // Reloads the command-input macro cache after a Settings save. Command-scheme verb
+        // aliases are read live from _preferences.CommandScheme by the parser, so nothing else
+        // needs refreshing here. Session settings (auto-delete, command run delay, auto
+        // pull-up, etc.) are deliberately NOT pushed: those are the loading RPO's defaults
+        // applied once at scenario load and changed mid-session only via the gear flyout.
         _commandInput.Macros = _preferences.Macros;
-        if (ActiveRoomId is not null)
-        {
-            _ = SendAutoAcceptDelay();
-            _ = SendCommandRunDelay();
-            _ = SendAutoDeleteMode();
-            _ = SendValidateDctFixes();
-            _ = SendSoloTrainingMode();
-            _ = SendRpoShowPilotSpeech();
-            _ = SendAutoClearedToLand();
-            _ = SendAutoCrossRunway();
-            _ = SendAutoPullUpToParallel();
-        }
     }
 
     private void SetRadarAirportPosition(string? airportId)

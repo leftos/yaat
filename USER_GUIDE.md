@@ -1402,7 +1402,7 @@ The **Local Files** tab is not gated. Trainer authors and developers can load an
 
 #### Simulation Shortcuts
 
-Optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simplify tower operations for trainees:
+Optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simplify tower operations for trainees. The values you set here are your **defaults**, applied when *you* load a scenario; they no longer change a session that's already running. To adjust these for the live session — which affects every RPO in it — use the session-settings (⚙) flyout on the command bar instead.
 
 - **Auto-clear aircraft to land** — Aircraft on final are automatically cleared to land without requiring a CLAND command. Configured per position type (GND, TWR, APP, CTR). Defaults: GND on, TWR off, APP on, CTR on — so only tower controllers must issue explicit landing clearances.
 - **Aircraft cross runways automatically** — Taxiing aircraft cross runways without stopping for a CROSS command. Explicit hold-short commands and destination runway hold-shorts still apply.

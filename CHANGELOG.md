@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- The session-settings (⚙) flyout adds a **Show Pilot Speech (RPO)** toggle to switch sim-initiated pilot reports between green pilot speech and orange warnings live.
+
+### Fixed
+- Saving the Settings window no longer alters the running session; its scenario/simulation settings are load-time defaults, and live changes go through the gear flyout.
+- The session-settings flyout's Command Run Delay range fields are no longer clipped — the values and spinner buttons now display fully.
+
 ## v0.7.2-beta [2026/06/05]
 
 ### Highlights
