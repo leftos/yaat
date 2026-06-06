@@ -771,6 +771,47 @@ public class AirborneFollowTests : IDisposable
         Assert.Null(follower.Approach.FollowingCallsign);
     }
 
+    /// <summary>
+    /// Same leg, but the lead has been told to EXTEND it (here Crosswind). The gap
+    /// grows as the lead runs outbound, yet this is the controller deliberately
+    /// holding the lead ahead in the sequence — not the lead getting away. The
+    /// runaway watchdog must NOT cancel the follow. Companion to
+    /// <see cref="CheckLeadLifecycle_StillCancels_WhenSameLegAndGapGrows"/>: the only
+    /// difference is the lead's <c>IsExtended</c> flag, and it flips the outcome.
+    /// </summary>
+    [Fact]
+    public void CheckLeadLifecycle_DoesNotCancel_WhenSameLegLeadExtended()
+    {
+        const string LeadCallsign = "LEAD";
+
+        var follower = MakeAircraftOnPatternPhase<CrosswindPhase>(
+            callsign: "FOLL",
+            type: "C172",
+            lat: 37.00,
+            lon: -122.0,
+            heading: 10,
+            followingCallsign: LeadCallsign
+        );
+        var lead = MakeAircraftOnPatternPhase<CrosswindPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, heading: 10);
+        ((CrosswindPhase)lead.Phases!.CurrentPhase!).IsExtended = true;
+
+        bool cancelled = false;
+        for (int i = 0; i < 35; i++)
+        {
+            // Lead runs outbound on its extended crosswind — gap grows monotonically.
+            lead.Position = new LatLon(lead.Position.Lat + 0.001, lead.Position.Lon);
+            var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
+            if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
+            {
+                cancelled = true;
+                break;
+            }
+        }
+
+        Assert.False(cancelled, "Runaway watchdog must not cancel a follow while the lead is extending its (same) pattern leg.");
+        Assert.Equal(LeadCallsign, follower.Approach.FollowingCallsign);
+    }
+
     // -------------------------------------------------------------------------
     // ShouldHoldForLeadSequencing: extend downwind to sequence behind an
     // ahead lead instead of turning base early and overtaking it.

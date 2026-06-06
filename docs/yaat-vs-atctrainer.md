@@ -154,7 +154,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | CTO runway heading | `CTORH` | `CTO RH`/`CTO MRH`/`CTO MSO` | YAAT supports as modifier |
 | GA heading (± alt) | — | `GA 270`, `GA 270 5000`, `GA RH 2000` | **YAAT-only** |
 | GA + traffic pattern | — | `GA MRT`, `GA MLT` (VFR/visual only) | **YAAT-only** |
-| Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CLAND`/`CL` | **YAAT-only** optional explicit landing clearance |
+| Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CLAND [runway]`/`CL` | **YAAT-only** optional explicit landing clearance; `CLAND 28R` can pre-clear a following aircraft that has no runway yet (armed, applied when it joins the traffic's final) |
 | Wake advisory | — | `CWT`, `CTO ... CWT`, `CLAND ... CWT` | **YAAT-only** standalone caution-wake-turbulence advisory and clearance suffix |
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |
 | Cleared for option | — | `COPT` | **YAAT-only** |
@@ -196,7 +196,7 @@ YAAT also flies charted SID legs coded as headings or courses rather than fixes.
 | Rich approach forms | — | `CAPP AT SUNOL ILS28R`, `CAPP DCT SUNOL ILS28R` | YAAT-only — combines navigation + clearance |
 | Expect approach | — | `EAPP I28R` | YAAT-only — sets expected approach, assigns `DestinationRunway`, programs approach fixes for DCT, and extends an active STAR with the runway transition |
 | Visual approach | — | `CVA 28R` (+ LEFT/RIGHT/FOLLOW) | YAAT-only |
-| Follow (airborne VFR) | — | `FOLLOW [callsign]`/`FOL` | YAAT-only — VFR-only, requires traffic-in-sight proof (`RTIS`/`RTISF` in RPO mode, structured `RTIS` in solo training). Callsign argument is **optional**: bare `FOLLOW` defaults to the most recently reported in-sight traffic. From any airborne state: pursues lead (heading + speed with spacing correction) and auto-joins the lead's pattern when within 3 nm of the downwind abeam point; if the lead is on a straight-in final (no VFR pattern — e.g. an IFR ILS arrival), sequences the follower onto that runway's final to descend behind the traffic and hold for a separate `CLAND`. Altitude held per controller assignment until sequenced onto final. Rejected behind a super. |
+| Follow (airborne VFR) | — | `FOLLOW [callsign]`/`FOL` | YAAT-only — VFR-only, requires traffic-in-sight proof (`RTIS`/`RTISF` in RPO mode, structured `RTIS` in solo training). Callsign argument is **optional**: bare `FOLLOW` defaults to the most recently reported in-sight traffic. From any airborne state: pursues lead (heading + speed with spacing correction) and auto-joins the lead's pattern when within 3 nm of the downwind abeam point; if the lead is on a straight-in final (no VFR pattern — e.g. an IFR ILS arrival), sequences the follower onto that runway's final to descend behind the traffic and hold for a separate `CLAND` (which can be pre-armed with `CLAND [runway]` while still following). Altitude held per controller assignment until sequenced onto final. Rejected behind a super. |
 | Report field in sight | — | `RFIS 11 18` / `RFIS` | YAAT-only — structured form required in solo training; bare shorthand is RPO-only |
 | Report field (forced) | — | `RFISF` | YAAT-only — RPO-only, bypasses visual detection |
 | Report traffic in sight | — | `RTIS 3 5 W B737 024` / `RTIS <callsign>` | YAAT-only — structured form required in solo training; callsign shorthand is RPO-only |

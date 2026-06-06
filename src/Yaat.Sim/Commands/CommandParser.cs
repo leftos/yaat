@@ -1809,6 +1809,7 @@ public static class CommandParser
         var tokens = SplitTokens(arg);
         bool noDelete = false;
         bool cautionWakeTurbulence = false;
+        string? runwayId = null;
         foreach (var token in tokens)
         {
             if (token.Equals("NODEL", StringComparison.OrdinalIgnoreCase) && !noDelete)
@@ -1819,13 +1820,17 @@ public static class CommandParser
             {
                 cautionWakeTurbulence = true;
             }
+            else if (runwayId is null && IsRunwayDesignator(token))
+            {
+                runwayId = token.ToUpperInvariant();
+            }
             else
             {
-                return PR.Fail("CL does not accept a runway argument; assign runway first with a pattern entry command");
+                return PR.Fail($"unexpected CL argument '{token}'");
             }
         }
 
-        return PR.Ok(new ClearedToLandCommand(noDelete) { CautionWakeTurbulence = cautionWakeTurbulence });
+        return PR.Ok(new ClearedToLandCommand(noDelete) { CautionWakeTurbulence = cautionWakeTurbulence, RunwayId = runwayId });
     }
 
     private static PR ParseReportFieldInSight(string? arg)

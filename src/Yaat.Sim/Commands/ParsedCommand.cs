@@ -249,6 +249,14 @@ public record GoAroundCommand(MagneticHeading? AssignedMagneticHeading, int? Tar
 public record ClearedToLandCommand(bool NoDelete = false) : ParsedCommand
 {
     public bool CautionWakeTurbulence { get; init; }
+
+    /// <summary>
+    /// Optional landing runway. Lets a controller clear an aircraft that has no
+    /// assigned runway yet — e.g. one still following traffic — to land on a named
+    /// runway (<c>CLAND 28R</c>). Null = use the aircraft's already-assigned runway
+    /// (or, while following, inherit the lead's runway when it joins the pattern).
+    /// </summary>
+    public string? RunwayId { get; init; }
 }
 
 public record LandAndHoldShortCommand(string CrossingRunwayId) : ParsedCommand;

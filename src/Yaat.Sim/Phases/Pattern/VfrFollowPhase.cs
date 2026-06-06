@@ -246,8 +246,13 @@ public sealed class VfrFollowPhase : Phase
         );
         bool alreadyOnDownwind = trackToDownwindDelta <= 30.0 && aircraftAlongTrack >= abeamAlongTrack;
 
-        // Replace the follower's phase list entirely.
+        // Replace the follower's phase list entirely. Capture any armed landing
+        // clearance first: a CLAND issued while the follower was still pursuing its
+        // lead set it on this pursuit phase list, and the rebuilt circuit must carry
+        // it over (see ApplyArmedLandingClearance).
         var phases = ctx.Aircraft.Phases ?? new PhaseList();
+        var armedClearance = phases.LandingClearance;
+        string? armedClearedRunwayId = phases.ClearedRunwayId;
         phases.Clear(ctx);
         ctx.Aircraft.Phases = new PhaseList
         {
@@ -292,6 +297,7 @@ public sealed class VfrFollowPhase : Phase
         ctx.Aircraft.Approach.FollowingCallsign = TargetCallsign;
         AirborneFollowHelper.ResetRunawayTracking(ctx.Aircraft);
         ctx.Aircraft.Procedure.DestinationRunway = leadRunway.Designator;
+        ApplyArmedLandingClearance(ctx.Aircraft, armedClearance, armedClearedRunwayId, leadRunway);
 
         // Start the first phase in the new list.
         ctx.Aircraft.Phases.Start(ctx);
@@ -406,6 +412,8 @@ public sealed class VfrFollowPhase : Phase
         );
 
         var phases = ctx.Aircraft.Phases ?? new PhaseList();
+        var armedClearance = phases.LandingClearance;
+        string? armedClearedRunwayId = phases.ClearedRunwayId;
         phases.Clear(ctx);
         ctx.Aircraft.Phases = new PhaseList
         {
@@ -433,6 +441,7 @@ public sealed class VfrFollowPhase : Phase
         ctx.Aircraft.Approach.FollowingCallsign = TargetCallsign;
         AirborneFollowHelper.ResetRunawayTracking(ctx.Aircraft);
         ctx.Aircraft.Procedure.DestinationRunway = runway.Designator;
+        ApplyArmedLandingClearance(ctx.Aircraft, armedClearance, armedClearedRunwayId, runway);
 
         Log.LogDebug(
             "[VfrFollow] {Callsign}: sequenced onto {Rwy} final behind {Lead} ({Dir}) — awaiting landing clearance",
@@ -443,6 +452,44 @@ public sealed class VfrFollowPhase : Phase
         );
 
         ctx.Aircraft.Phases.Start(ctx);
+    }
+
+    /// <summary>
+    /// Carry an armed landing clearance (set by <c>CLAND</c> while the follower was
+    /// still pursuing its lead) onto the freshly built pattern/final chain so the
+    /// follower lands behind the traffic without a second clearance. A bare CLAND
+    /// (<paramref name="armedRunwayId"/> null) lands on whichever runway the follower
+    /// joins; a named runway is honored only if it matches that runway — otherwise the
+    /// follower keeps descending behind the traffic and awaits an explicit CLAND on the
+    /// actual runway, so it never auto-lands on a runway the controller didn't clear.
+    /// </summary>
+    private void ApplyArmedLandingClearance(AircraftState aircraft, ClearanceType? armedClearance, string? armedRunwayId, RunwayInfo runway)
+    {
+        if ((armedClearance is not ClearanceType.ClearedToLand) || aircraft.Phases is null)
+        {
+            return;
+        }
+
+        if ((armedRunwayId is not null) && !string.Equals(armedRunwayId, runway.Designator, StringComparison.OrdinalIgnoreCase))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: armed to land {Armed} but joining {Actual} behind {Lead}; awaiting explicit clearance",
+                aircraft.Callsign,
+                armedRunwayId,
+                runway.Designator,
+                TargetCallsign
+            );
+            return;
+        }
+
+        aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        aircraft.Phases.ClearedRunwayId = runway.Designator;
+        Log.LogDebug(
+            "[VfrFollow] {Callsign}: applied armed landing clearance on {Rwy} behind {Lead}",
+            aircraft.Callsign,
+            runway.Designator,
+            TargetCallsign
+        );
     }
 
     /// <summary>

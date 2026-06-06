@@ -403,7 +403,7 @@ public static class CommandRegistry
                 "Tower",
                 false,
                 ["CLAND", "CL", "FS"],
-                [O(null, [], "Cleared to land")],
+                [O(null, [], "Cleared to land"), O(null, [R("runway", "runway")], "Cleared to land on runway")],
                 [Mod("NODEL", null, false), Mod("CWT", null, false)]
             ),
             Cmd(

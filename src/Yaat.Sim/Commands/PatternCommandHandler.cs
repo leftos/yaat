@@ -2022,30 +2022,71 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Cannot clear to land — aircraft is on the ground");
         }
 
-        if (aircraft.Phases.AssignedRunway is null)
+        bool following = aircraft.Approach.FollowingCallsign is not null;
+
+        // Immediate clearance: the aircraft is already established on an approach or
+        // pattern with an assigned runway. Replace the approach ending with a landing.
+        if (aircraft.Phases.AssignedRunway is { } assignedRunway)
         {
-            return new CommandResult(false, "Cannot clear to land — no runway assigned");
+            if ((ctl.RunwayId is not null) && !string.Equals(ctl.RunwayId, assignedRunway.Designator, StringComparison.OrdinalIgnoreCase))
+            {
+                return new CommandResult(
+                    false,
+                    $"Cannot clear for runway {ctl.RunwayId} — {aircraft.Callsign} is established for runway {assignedRunway.Designator}"
+                );
+            }
+
+            var isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+            Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();
+            if (CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landingCtl))
+            {
+                aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
+                aircraft.Phases.ClearedRunwayId = assignedRunway.Designator;
+                aircraft.Phases.TrafficDirection = null;
+                // CLAND signals full-stop intent — drop persistent pattern direction so
+                // PhaseRunner.cs:70 takes the post-landing exit branch instead of auto-
+                // cycling another circuit from a stale MLT/MRT.
+                aircraft.Pattern.TrafficDirection = null;
+                if (ctl.NoDelete)
+                {
+                    aircraft.Ground.AutoDeleteExempt = true;
+                }
+                return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}");
+            }
+
+            if (!following)
+            {
+                return new CommandResult(false, "Cannot clear to land — no pending approach (assign an approach or pattern entry first)");
+            }
+            // A following aircraft with a runway but no pending approach falls through to
+            // the deferred (armed) clearance below.
         }
 
-        var isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
-        Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();
-        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landingCtl))
+        // Deferred (armed) clearance: a following aircraft has no runway/approach yet
+        // because it is still pursuing its lead. Remember the clearance — VfrFollowPhase
+        // applies it when the follower joins the pattern. A named runway is matched
+        // against the lead's runway at join; a bare CLAND inherits the lead's runway.
+        if (following)
         {
-            return new CommandResult(false, "Cannot clear to land — no pending approach (assign an approach or pattern entry first)");
+            aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
+            aircraft.Phases.ClearedRunwayId = ctl.RunwayId;
+            if (ctl.NoDelete)
+            {
+                aircraft.Ground.AutoDeleteExempt = true;
+            }
+            string rwyClause = ctl.RunwayId is not null ? $" runway {ctl.RunwayId}" : "";
+            return CommandDispatcher.Ok($"Cleared to land{rwyClause}, will land behind {aircraft.Approach.FollowingCallsign}");
         }
 
-        aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway.Designator;
-        aircraft.Phases.TrafficDirection = null;
-        // CLAND signals full-stop intent — drop persistent pattern direction so
-        // PhaseRunner.cs:70 takes the post-landing exit branch instead of auto-
-        // cycling another circuit from a stale MLT/MRT.
-        aircraft.Pattern.TrafficDirection = null;
-        if (ctl.NoDelete)
+        if (ctl.RunwayId is not null)
         {
-            aircraft.Ground.AutoDeleteExempt = true;
+            return new CommandResult(
+                false,
+                $"Cannot clear for runway {ctl.RunwayId} — {aircraft.Callsign} has no approach; use EF {ctl.RunwayId} or have it follow traffic first"
+            );
         }
-        return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}");
+
+        return new CommandResult(false, "Cannot clear to land — no runway assigned");
     }
 
     internal static CommandResult TryLandAndHoldShort(LandAndHoldShortCommand lahso, AircraftState aircraft, AirportGroundLayout? groundLayout)

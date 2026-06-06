@@ -114,7 +114,7 @@
         { "verb": "CTOC", "aliases": [], "description": "Cancel takeoff clearance" },
         { "verb": "GO", "aliases": [], "description": "Begin takeoff roll" },
         { "verb": "GA", "aliases": [], "description": "Go around [heading]" },
-        { "verb": "CLAND", "aliases": ["cl", "fs"], "description": "Cleared to land (NODEL mod)" },
+        { "verb": "CLAND", "aliases": ["cl", "fs"], "description": "Cleared to land [runway] (arms while following)" },
         { "verb": "LAHSO", "aliases": [], "description": "Land and hold short of runway" },
         { "verb": "CLC", "aliases": ["ctlc"], "description": "Cancel landing clearance" },
         { "verb": "TG", "aliases": [], "description": "Touch and go [rwy / MLT / MRT]" },

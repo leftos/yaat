@@ -185,6 +185,92 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// "Follow that traffic, cleared to land runway 28R." The controller clears the
+    /// follower to land while it is still pursuing its lead and has no runway of its
+    /// own. <c>CLAND 28R</c> arms the clearance; when <see cref="VfrFollowPhase"/>
+    /// sequences the follower onto 28R final, the clearance carries over and the
+    /// follower lands without a second CLAND.
+    /// </summary>
+    [Fact]
+    public void Follower_LandsOnArmedClearance_ClandRunwayWhileFollowing()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var recording = archive.ToBaseSessionRecording();
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            engine.Replay(recording, 0);
+            var snapshot = archive.ReadSnapshotAt(740);
+            if (snapshot is null)
+            {
+                return;
+            }
+            engine.RestoreFromSnapshot(snapshot.State);
+            int start = (int)snapshot.ElapsedSeconds;
+
+            // Advance a few seconds so FOLLOW (t=742) installs VfrFollowPhase.
+            engine.ReplayRange(start, 760, recording.Actions);
+            var follower = engine.FindAircraft(Follower);
+            Assert.NotNull(follower);
+            Assert.True(
+                follower.Phases?.CurrentPhase is VfrFollowPhase,
+                $"Precondition: follower should still be following at t=760, got {follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"}"
+            );
+            Assert.Null(follower.Phases?.AssignedRunway);
+
+            // Clear it to land 28R while it has no runway of its own — arms the clearance.
+            var cland = engine.SendCommand(Follower, "CLAND 28R");
+            Assert.True(cland.Success, $"CLAND 28R should arm while following: {cland.Message}");
+            Assert.Equal(ClearanceType.ClearedToLand, follower.Phases?.LandingClearance);
+
+            // Sequence onto 28R final — the armed clearance carries onto the rebuilt chain.
+            engine.ReplayRange(760, 830, recording.Actions);
+            follower = engine.FindAircraft(Follower);
+            Assert.NotNull(follower);
+            Assert.True(
+                follower.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase,
+                $"Follower should be on 28R final by t=830, got {follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"}"
+            );
+            Assert.Equal("28R", follower.Phases?.AssignedRunway?.Designator);
+            Assert.Equal(ClearanceType.ClearedToLand, follower.Phases?.LandingClearance);
+
+            // No second CLAND: it lands on the armed clearance. Physics-only ticks avoid
+            // the recorded DEL at t=929.
+            bool landed = false;
+            for (int t = 0; t < 240; t++)
+            {
+                engine.TickOneSecond();
+                follower = engine.FindAircraft(Follower);
+                if (follower is null)
+                {
+                    break;
+                }
+                if (follower.IsOnGround)
+                {
+                    landed = true;
+                    break;
+                }
+            }
+
+            Assert.NotNull(follower);
+            Assert.True(
+                landed,
+                $"Follower should land on the armed clearance without a second CLAND; phase {follower.Phases?.CurrentPhase?.GetType().Name ?? "(null)"}, alt {follower.Altitude:F0}ft"
+            );
+        }
+    }
+
+    /// <summary>
     /// Visual separation — and therefore FOLLOW — is not authorized behind a super
     /// (7110.65 §7-2-1; AIM §5-5-11.2.5). FOLLOW behind an A388 must be rejected, while
     /// FOLLOW behind ordinary traffic still succeeds.

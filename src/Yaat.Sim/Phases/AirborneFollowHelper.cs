@@ -310,6 +310,15 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
+    /// True when <paramref name="phase"/> is a pattern leg the controller has told
+    /// the aircraft to EXTEND (<c>EXT</c>) — Downwind, Crosswind, or Upwind. An
+    /// extended leg never self-completes, so the aircraft holds it until told to
+    /// turn, deferring its place in the landing sequence.
+    /// </summary>
+    private static bool IsExtendedPatternLeg(Phase? phase) =>
+        phase is DownwindPhase { IsExtended: true } or CrosswindPhase { IsExtended: true } or UpwindPhase { IsExtended: true };
+
+    /// <summary>
     /// True when both aircraft are flying patterns to the same runway and the
     /// lead is on a LATER pattern leg than the follower — geographic gap growth
     /// during the follower's current leg is expected (e.g. follower on Downwind
@@ -321,11 +330,12 @@ public static class AirborneFollowHelper
     ///
     /// <para>
     /// One same-leg case also counts as flow-ahead: a lead on an <em>extended</em>
-    /// Downwind (<see cref="Pattern.DownwindPhase.IsExtended"/>, set by EXT) has
-    /// explicitly deferred its base turn, so it stays ahead in the landing sequence
-    /// even though it shares the follower's Downwind leg index. Treating it as
-    /// flow-ahead lets the follower hold its base turn to sequence behind it and
-    /// keeps the runaway watchdog suppressed while both run outbound.
+    /// pattern leg (<see cref="IsExtendedPatternLeg"/> — Downwind, Crosswind, or
+    /// Upwind with <c>IsExtended</c> set by EXT) has explicitly deferred its
+    /// progression, so it stays ahead in the landing sequence even though it shares
+    /// the follower's leg index. Treating it as flow-ahead lets a downwind follower
+    /// hold its base turn to sequence behind it and keeps the runaway watchdog
+    /// suppressed while both run outbound.
     /// </para>
     /// </summary>
     private static bool IsLeadPatternFlowAhead(AircraftState follower, AircraftState lead)
@@ -346,12 +356,13 @@ public static class AirborneFollowHelper
         {
             return false;
         }
-        // Same-leg exception: an extended-downwind lead has explicitly deferred
-        // its base turn (EXT), so it remains ahead in the landing sequence despite
-        // sharing the follower's Downwind leg index. Without this the follower
-        // turns base at its fixed point and rolls out on final ahead of the very
-        // aircraft it was told to follow.
-        if ((leadLeg == followerLeg) && lead.Phases?.CurrentPhase is DownwindPhase { IsExtended: true })
+        // Same-leg exception: a lead told to EXTEND its current pattern leg
+        // (downwind, crosswind, or upwind) has explicitly deferred its progression,
+        // so it stays ahead in the landing sequence despite sharing the follower's
+        // leg index. Without this a same-leg follower turns base at its fixed point
+        // and rolls out ahead of the aircraft it was told to follow, and the runaway
+        // watchdog spuriously cancels the follow as the lead runs outbound.
+        if ((leadLeg == followerLeg) && IsExtendedPatternLeg(lead.Phases?.CurrentPhase))
         {
             return true;
         }

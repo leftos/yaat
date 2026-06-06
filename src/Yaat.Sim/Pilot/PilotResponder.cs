@@ -153,7 +153,7 @@ public static class PilotResponder
             ),
             AcknowledgePilotContactCommand => null,
             ClearedToLandCommand cland => AppendWakeAdvisoryClause(
-                BuildRunwayInstructionClause(aircraft, "cleared to land"),
+                BuildRunwayInstructionClause(aircraft, "cleared to land", explicitRunwayId: cland.RunwayId),
                 cland.CautionWakeTurbulence
             ) ?? PhraseologyVerbalizer.Verbalize(cland, personality, activityLevel),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
