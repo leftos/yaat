@@ -237,6 +237,33 @@ public sealed class RecordingArchive : IDisposable
         return layouts;
     }
 
+    public string? ReadAirportGeoJson(string airportId)
+    {
+        if (Manifest.AirportGeoJsonIds is not { Count: > 0 } ids)
+        {
+            return null;
+        }
+
+        var declaredId = ids.FirstOrDefault(id => id.Equals(airportId, StringComparison.OrdinalIgnoreCase));
+        return declaredId is null ? null : ReadBrotliEntry($"airport-geojson/{declaredId}.geojson.br");
+    }
+
+    public Dictionary<string, string> ReadAllAirportGeoJsons()
+    {
+        var geoJsons = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (Manifest.AirportGeoJsonIds is not { Count: > 0 })
+        {
+            return geoJsons;
+        }
+
+        foreach (var airportId in Manifest.AirportGeoJsonIds)
+        {
+            geoJsons[airportId] = ReadBrotliEntry($"airport-geojson/{airportId}.geojson.br");
+        }
+
+        return geoJsons;
+    }
+
     // --- Snapshot seek API ---
 
     /// <summary>

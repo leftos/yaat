@@ -42,6 +42,12 @@ public sealed class RecordingManifest
     /// Present in v4+ archives. Null or empty for v3.
     /// </summary>
     public List<string>? LayoutAirportIds { get; init; }
+
+    /// <summary>
+    /// Airport IDs whose original source GeoJSON is stored as separate Brotli entries in the archive.
+    /// Null or empty for archives written before source GeoJSON bundling.
+    /// </summary>
+    public List<string>? AirportGeoJsonIds { get; init; }
 }
 
 /// <summary>

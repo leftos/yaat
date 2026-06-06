@@ -198,6 +198,8 @@ public class TimerCommandTests
     private sealed class NullGroundData : IAirportGroundData
     {
         public AirportGroundLayout? GetLayout(string airportId) => null;
+
+        public string? GetSourceGeoJson(string airportId) => null;
     }
 }
 

@@ -23,6 +23,10 @@ public static class GeoJsonParser
     /// <summary>Max distance to connect a parking spot to a taxiway (nm).</summary>
     private const double ParkingConnectMaxNm = 0.15;
 
+    private const double GateGroupAnchorConnectMaxNm = 0.24;
+
+    private const double ConnectorEndpointReuseMaxNm = 10.0 / GeoMath.FeetPerNm;
+
     private static readonly JsonDocumentOptions LenientJsonOptions = new() { AllowTrailingCommas = true };
 
     /// <summary>Strips leading zeros from JSON number literals (e.g. 03 → 3) that are invalid per RFC 8259.</summary>
@@ -246,6 +250,7 @@ public static class GeoJsonParser
         }
 
         // Step 6: Create parking nodes and connect to nearest taxiway
+        var parkingNodes = new List<GroundNode>();
         foreach (var pkg in parkings)
         {
             int id = nextNodeId++;
@@ -259,8 +264,9 @@ public static class GeoJsonParser
                 Origin = "GeoJson:parking",
             };
             layout.Nodes[id] = node;
+            parkingNodes.Add(node);
 
-            ConnectParkingToTaxiway(node, layout);
+            ConnectParkingToTaxiway(node, layout, ref nextNodeId);
         }
 
         // Step 6b: Create helipad nodes and connect to nearest taxiway (larger radius)
@@ -278,8 +284,10 @@ public static class GeoJsonParser
             };
             layout.Nodes[id] = node;
 
-            ConnectToNearestTaxiway(node, layout, HelipadConnectMaxNm);
+            ConnectToNearestTaxiway(node, layout, HelipadConnectMaxNm, ref nextNodeId);
         }
+
+        ConnectGateGroupsToAnchors(parkingNodes, layout);
 
         // Step 7: Wire up adjacency lists
         layout.RebuildAdjacencyLists();
@@ -303,9 +311,113 @@ public static class GeoJsonParser
         return layout;
     }
 
-    private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout)
+    private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout, ref int nextNodeId)
     {
-        ConnectToNearestTaxiway(parking, layout, ParkingConnectMaxNm);
+        ConnectToNearestTaxiway(parking, layout, ParkingConnectMaxNm, ref nextNodeId);
+    }
+
+    private static void ConnectGateGroupsToAnchors(IReadOnlyList<GroundNode> parkingNodes, AirportGroundLayout layout)
+    {
+        foreach (var gate in parkingNodes)
+        {
+            if (!TryExtractGatePrefix(gate.Name, out string prefix))
+            {
+                continue;
+            }
+
+            var anchor = FindConnectedGateAnchor(prefix, gate, parkingNodes, layout);
+            if (anchor is null)
+            {
+                continue;
+            }
+
+            if (HasDirectEdge(layout, gate.Id, anchor.Id))
+            {
+                continue;
+            }
+
+            layout.Edges.Add(
+                new GroundEdge
+                {
+                    Nodes = [gate, anchor],
+                    TaxiwayName = "RAMP",
+                    DistanceNm = GeoMath.DistanceNm(gate.Position, anchor.Position),
+                    Origin = "GeoJson:gate-group-connector",
+                }
+            );
+        }
+    }
+
+    private static bool TryExtractGatePrefix(string? name, out string prefix)
+    {
+        prefix = "";
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        int digitIndex = -1;
+        for (int i = 0; i < name.Length; i++)
+        {
+            if (char.IsDigit(name[i]))
+            {
+                digitIndex = i;
+                break;
+            }
+
+            if (!char.IsLetter(name[i]))
+            {
+                return false;
+            }
+        }
+
+        if (digitIndex <= 0)
+        {
+            return false;
+        }
+
+        prefix = name[..digitIndex];
+        return true;
+    }
+
+    private static GroundNode? FindConnectedGateAnchor(
+        string prefix,
+        GroundNode gate,
+        IReadOnlyList<GroundNode> parkingNodes,
+        AirportGroundLayout layout
+    )
+    {
+        GroundNode? best = null;
+        double bestDistanceNm = double.MaxValue;
+
+        foreach (var candidate in parkingNodes)
+        {
+            if (!string.Equals(candidate.Name, prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!layout.Edges.Any(e => e.HasNode(candidate.Id)))
+            {
+                continue;
+            }
+
+            double distanceNm = GeoMath.DistanceNm(gate.Position, candidate.Position);
+            if (distanceNm > GateGroupAnchorConnectMaxNm || distanceNm >= bestDistanceNm)
+            {
+                continue;
+            }
+
+            best = candidate;
+            bestDistanceNm = distanceNm;
+        }
+
+        return best;
+    }
+
+    private static bool HasDirectEdge(AirportGroundLayout layout, int fromNodeId, int toNodeId)
+    {
+        return layout.Edges.Any(e => e.HasNode(fromNodeId) && e.HasNode(toNodeId));
     }
 
     /// <summary>
@@ -407,43 +519,110 @@ public static class GeoJsonParser
         return count;
     }
 
-    private static void ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm)
+    private static void ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm, ref int nextNodeId)
     {
-        GroundNode? nearest = null;
-        double nearestDist = double.MaxValue;
+        var target = FindNearestConnectorTarget(node, layout);
 
-        foreach (var candidate in layout.Nodes.Values)
-        {
-            if (candidate.Id == node.Id || candidate.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
-            {
-                continue;
-            }
-
-            double dist = GeoMath.DistanceNm(node.Position, candidate.Position);
-
-            if (dist < nearestDist)
-            {
-                nearestDist = dist;
-                nearest = candidate;
-            }
-        }
-
-        if (nearest is null || nearestDist > maxDistNm)
+        if (target is null || target.Value.DistanceNm > maxDistNm)
         {
             return;
         }
 
+        var targetNode = ResolveConnectorTargetNode(target.Value, layout, ref nextNodeId);
         var edge = new GroundEdge
         {
-            Nodes = [node, nearest],
+            Nodes = [node, targetNode],
             TaxiwayName = "RAMP",
-            DistanceNm = nearestDist,
-            Origin = "GeoJson:taxiway-edge",
+            DistanceNm = GeoMath.DistanceNm(node.Position, targetNode.Position),
+            Origin = "GeoJson:parking-connector",
         };
 
         layout.Edges.Add(edge);
         // Node adjacency lists are wired up in Step 7 — don't add here to avoid duplicates.
     }
+
+    private static ConnectorTarget? FindNearestConnectorTarget(GroundNode node, AirportGroundLayout layout)
+    {
+        ConnectorTarget? best = null;
+        foreach (var edge in layout.Edges)
+        {
+            if (!CanConnectToEdge(edge))
+            {
+                continue;
+            }
+
+            var (footLat, footLon, alongNm, _) = GeoMath.FootOfPerpendicular(
+                node.Position.Lat,
+                node.Position.Lon,
+                edge.Nodes[0].Position.Lat,
+                edge.Nodes[0].Position.Lon,
+                edge.Nodes[1].Position.Lat,
+                edge.Nodes[1].Position.Lon
+            );
+            double distanceNm = GeoMath.DistanceNm(node.Position.Lat, node.Position.Lon, footLat, footLon);
+            if (best is null || distanceNm < best.Value.DistanceNm)
+            {
+                best = new ConnectorTarget(edge, distanceNm, footLat, footLon, alongNm);
+            }
+        }
+
+        return best;
+    }
+
+    private static bool CanConnectToEdge(GroundEdge edge)
+    {
+        if (edge.IsRamp || edge.IsRunwayCenterline || edge.IsRunwayCrossingLink)
+        {
+            return false;
+        }
+
+        return edge.Nodes.All(static n => n.Type is not GroundNodeType.Parking and not GroundNodeType.Helipad);
+    }
+
+    private static GroundNode ResolveConnectorTargetNode(ConnectorTarget target, AirportGroundLayout layout, ref int nextNodeId)
+    {
+        var edge = target.Edge;
+        var fromNode = edge.Nodes[0];
+        var toNode = edge.Nodes[1];
+
+        if (target.AlongNm <= ConnectorEndpointReuseMaxNm)
+        {
+            return fromNode;
+        }
+
+        if (edge.DistanceNm - target.AlongNm <= ConnectorEndpointReuseMaxNm)
+        {
+            return toNode;
+        }
+
+        var splitNode = new GroundNode
+        {
+            Id = nextNodeId++,
+            Position = new LatLon(target.FootLat, target.FootLon),
+            Type = GroundNodeType.TaxiwayIntersection,
+            Origin = $"GeoJson:parking-connector-split({edge.TaxiwayName})",
+        };
+
+        layout.Nodes[splitNode.Id] = splitNode;
+        layout.Edges.Remove(edge);
+
+        layout.Edges.Add(CreateSplitEdge(fromNode, splitNode, edge));
+        layout.Edges.Add(CreateSplitEdge(splitNode, toNode, edge));
+        return splitNode;
+    }
+
+    private static GroundEdge CreateSplitEdge(GroundNode fromNode, GroundNode toNode, GroundEdge source)
+    {
+        return new GroundEdge
+        {
+            Nodes = [fromNode, toNode],
+            TaxiwayName = source.TaxiwayName,
+            DistanceNm = GeoMath.DistanceNm(fromNode.Position, toNode.Position),
+            Origin = $"GeoJson:parking-connector-split({source.Origin ?? source.TaxiwayName})",
+        };
+    }
+
+    private readonly record struct ConnectorTarget(GroundEdge Edge, double DistanceNm, double FootLat, double FootLon, double AlongNm);
 
     private static ParkingFeature ParseParking(JsonElement props, JsonElement geom)
     {

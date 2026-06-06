@@ -65,11 +65,13 @@ A recording is a ZIP with this layout:
 ```
 manifest.json                # Version, RngSeed, ActionCount, HasWeather,
                              # HasArtccConfig, ArtccId, ScenarioId/Name,
-                             # Snapshots[], LayoutAirportIds[]
+                             # Snapshots[], LayoutAirportIds[], AirportGeoJsonIds[]
 scenario.json.br             # Brotli-compressed scenario JSON
 actions.json.br              # Brotli-compressed RecordedAction[]
 snapshots/NNN.json.br        # one per snapshot index
 layouts/{AirportId}.json.br  # deduplicated ground layouts (optional)
+airport-geojson/{AirportId}.geojson.br
+                             # original airport GeoJSON sources (optional)
 weather.json                 # plain JSON (optional; gated by HasWeather)
 artcc-config.json.br         # ARTCC config JSON (optional; HasArtccConfig)
 bookmarks.json               # plain JSON (optional; user-authored timeline bookmarks)

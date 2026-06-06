@@ -35,7 +35,7 @@ internal sealed class TestAirportGroundData : IAirportGroundData
 
     public AirportGroundLayout? GetLayout(string airportId)
     {
-        string shortId = airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
+        string shortId = NormalizeShortId(airportId);
         var key = (_filletMode, shortId);
 
         lock (CacheLock)
@@ -45,7 +45,7 @@ internal sealed class TestAirportGroundData : IAirportGroundData
                 return cached;
             }
 
-            string path = Path.Combine(TestDataDir, $"{shortId.ToLowerInvariant()}.geojson");
+            string path = GetGeoJsonPath(shortId);
             AirportGroundLayout? layout = null;
 
             if (File.Exists(path))
@@ -56,5 +56,21 @@ internal sealed class TestAirportGroundData : IAirportGroundData
             Cache[key] = layout;
             return layout;
         }
+    }
+
+    public string? GetSourceGeoJson(string airportId)
+    {
+        string path = GetGeoJsonPath(NormalizeShortId(airportId));
+        return File.Exists(path) ? File.ReadAllText(path) : null;
+    }
+
+    private static string NormalizeShortId(string airportId)
+    {
+        return airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
+    }
+
+    private static string GetGeoJsonPath(string shortId)
+    {
+        return Path.Combine(TestDataDir, $"{shortId.ToLowerInvariant()}.geojson");
     }
 }

@@ -15,6 +15,8 @@ public sealed class RecordingArchiveWriter : IDisposable
     private readonly ZipArchive _zip;
     private readonly List<SnapshotIndexEntry> _snapshotIndex = [];
     private readonly List<string> _layoutAirportIds = [];
+    private readonly List<string> _airportGeoJsonIds = [];
+    private readonly HashSet<string> _airportGeoJsonIdSet = new(StringComparer.OrdinalIgnoreCase);
     private bool _finished;
     private int _actionCount;
     private bool _hasWeather;
@@ -89,6 +91,27 @@ public sealed class RecordingArchiveWriter : IDisposable
         WriteBrotliEntry($"layouts/{layout.AirportId}.json.br", jsonBytes);
     }
 
+    public void WriteAirportGeoJson(string airportId, string geoJson)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            throw new ArgumentException("Airport ID is required.", nameof(airportId));
+        }
+
+        if (string.IsNullOrWhiteSpace(geoJson))
+        {
+            throw new ArgumentException("Airport source GeoJSON is required.", nameof(geoJson));
+        }
+
+        if (!_airportGeoJsonIdSet.Add(airportId))
+        {
+            return;
+        }
+
+        _airportGeoJsonIds.Add(airportId);
+        WriteBrotliEntry($"airport-geojson/{airportId}.geojson.br", geoJson);
+    }
+
     /// <summary>
     /// Write an arbitrary entry to the archive (e.g., log files from bug report bundles).
     /// </summary>
@@ -135,6 +158,7 @@ public sealed class RecordingArchiveWriter : IDisposable
             RecordedBy = recordedBy,
             Snapshots = _snapshotIndex,
             LayoutAirportIds = _layoutAirportIds.Count > 0 ? _layoutAirportIds : null,
+            AirportGeoJsonIds = _airportGeoJsonIds.Count > 0 ? _airportGeoJsonIds : null,
         };
 
         var manifestJson = JsonSerializer.SerializeToUtf8Bytes(manifest, RecordingJsonOptions.Default);

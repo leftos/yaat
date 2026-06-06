@@ -250,6 +250,24 @@ public class RecordingArchiveTests
     }
 
     [Fact]
+    public void OldBundleManifest_WithoutAirportGeoJsonIds_DeserializesAsNull()
+    {
+        var oldStyleManifest = """
+            {
+              "Version": 4,
+              "RngSeed": 42,
+              "TotalElapsedSeconds": 0,
+              "ActionCount": 0,
+              "HasWeather": false,
+              "Snapshots": []
+            }
+            """;
+        var manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
+        Assert.NotNull(manifest);
+        Assert.Null(manifest!.AirportGeoJsonIds);
+    }
+
+    [Fact]
     public void NoWeather_ReturnsNull()
     {
         var recording = new SessionRecording
@@ -383,6 +401,49 @@ public class RecordingArchiveTests
         Assert.Equal(2, layouts.Count);
         Assert.True(layouts.ContainsKey("KOAK"));
         Assert.True(layouts.ContainsKey("KSFO"));
+    }
+
+    [Fact]
+    public void ReadAirportGeoJson_RoundTripsSourceGeoJson()
+    {
+        const string airportId = "KOAK";
+        const string sourceGeoJson = """{"type":"FeatureCollection","features":[]}""";
+
+        using var ms = new MemoryStream();
+        using (var writer = new RecordingArchiveWriter(ms))
+        {
+            writer.WriteScenario("{}");
+            writer.WriteActions([]);
+            writer.WriteAirportGeoJson(airportId, sourceGeoJson);
+            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+        }
+
+        ms.Position = 0;
+        using var archive = RecordingArchive.Open(ms);
+
+        Assert.NotNull(archive.Manifest.AirportGeoJsonIds);
+        Assert.Contains(airportId, archive.Manifest.AirportGeoJsonIds);
+        Assert.Equal(sourceGeoJson, archive.ReadAirportGeoJson(airportId));
+        Assert.Equal(sourceGeoJson, archive.ReadAirportGeoJson("koak"));
+        Assert.Equal(sourceGeoJson, Assert.Single(archive.ReadAllAirportGeoJsons()).Value);
+    }
+
+    [Fact]
+    public void WriteAirportGeoJson_DeduplicatesByAirportId()
+    {
+        using var ms = new MemoryStream();
+        using (var writer = new RecordingArchiveWriter(ms))
+        {
+            writer.WriteScenario("{}");
+            writer.WriteActions([]);
+            writer.WriteAirportGeoJson("KOAK", """{"type":"FeatureCollection","features":[]}""");
+            writer.WriteAirportGeoJson("koak", """{"ignored":true}""");
+            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+        }
+
+        ms.Position = 0;
+        using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
+        Assert.Single(zip.Entries, e => e.FullName.StartsWith("airport-geojson/", StringComparison.Ordinal));
     }
 
     [Fact]

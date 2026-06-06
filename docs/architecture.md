@@ -651,7 +651,7 @@ Data/VideoMapData.cs           # Video map data structures (lines, labels, filte
 Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 
 # Data/Airport/
-IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGroundLayout?
+IAirportGroundData.cs          # Interface: GetLayout(airportId) + GetSourceGeoJson(airportId)
 AirportLayoutDownloader.cs     # Fetches airport ground GeoJSON from vNAS training API; caches under %LOCALAPPDATA%/yaat/cache/airports/
 AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt), DirectionalEdge (traversal direction)
                                # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops; returns Side), FindExitFromCenterline (walk centerlines, returns side+walk node), FindOnSidePreferredExit (lookahead: defer off-side, prefer later on-side), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
@@ -773,12 +773,12 @@ RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. 
                                # (zero RNG draws); live REL draws from World.ReleaseJitterRng and bakes the value.
 TimerCommandReplayer.cs        # Replay-time TIMER apply (set/cancel ActiveTimers on SimScenarioState); live dispatch in RoomEngine
 RecordingCompression.cs        # Brotli compress/decompress; auto-detects Brotli, gzip, or plain JSON on read
-RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loading, layout reading, seek API
+RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loading, layout/source-GeoJSON reading, seek API
                                # ToBaseSessionRecording (no snapshots), FindNearestSnapshotIndex, ReadSnapshotAt, ReadArtccConfigJson
                                # ReadBookmarks / static WriteBookmarks (client-injected bookmarks.json; optional, manifest-untracked)
 TimelineBookmark.cs            # TimelineBookmark + RecordingBookmarks records (the bookmarks.json payload)
-RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated ground layouts + bundled ArtccConfig
-RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, HasArtccConfig, metadata
+RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated layouts/source GeoJSON + bundled ArtccConfig
+RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, AirportGeoJsonIds, HasArtccConfig, metadata
 RecordingJsonOptions.cs        # Shared JsonSerializerOptions for recording serialization
 
 # Simulation/Replay/

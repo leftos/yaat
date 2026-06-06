@@ -40,13 +40,22 @@ internal sealed class PinnedSfoGroundData : IAirportGroundData
         {
             if (!_loaded)
             {
-                _sfo = File.Exists(_sfoGeoJsonPath)
-                    ? GeoJsonParser.Parse("SFO", File.ReadAllText(_sfoGeoJsonPath), null, FilletMode.Standard)
-                    : null;
+                _sfo = File.Exists(_sfoGeoJsonPath) ? GeoJsonParser.Parse("SFO", File.ReadAllText(_sfoGeoJsonPath), null, FilletMode.Standard) : null;
                 _loaded = true;
             }
 
             return _sfo;
         }
+    }
+
+    public string? GetSourceGeoJson(string airportId)
+    {
+        string shortId = airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
+        if (!string.Equals(shortId, "SFO", StringComparison.OrdinalIgnoreCase))
+        {
+            return _fallback.GetSourceGeoJson(airportId);
+        }
+
+        return File.Exists(_sfoGeoJsonPath) ? File.ReadAllText(_sfoGeoJsonPath) : null;
     }
 }

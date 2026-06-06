@@ -39,9 +39,11 @@ Recordings use a ZIP archive (`.zip`) with individually Brotli-compressed entrie
 | `manifest.json` | Version, metadata, snapshot timestamps |
 | `scenario.json.br` | Full scenario JSON |
 | `actions.json.br` | All recorded actions with timestamps |
-| `weather.json.br` | Weather profile |
+| `weather.json` | Weather profile |
+| `artcc-config.json.br` | ARTCC config used at recording time |
 | `snapshots/{t}.json.br` | State snapshot at time `t` (on-demand loading) |
 | `layouts/{airportId}.json.br` | Ground layouts (deduplicated, shared across aircraft) |
+| `airport-geojson/{airportId}.geojson.br` | Original airport GeoJSON source used to build the layout |
 
 Each snapshot (`StateSnapshotDto`) captures: all aircraft (position, physics, control targets, command queue, phases, track ownership, scratchpads, procedures), scenario state (queues, generators, settings, coordination), and RNG state. Snapshots are versioned via `SchemaVersion` with a migration chain (`SnapshotSchemaMigrator`).
 
@@ -92,6 +94,9 @@ python tools/bug_bundle.py snapshot <bundle> --at 182 --callsign UAL238 --out .t
 
 # Actions the user took (to find the triggering command)
 python tools/bug_bundle.py actions <bundle>
+
+# Original airport GeoJSON bundled with the recording, if present
+python tools/bug_bundle.py layouts <bundle> --geojson --airport OAK --out .tmp/oak.geojson
 
 # Extract logs for grepping
 python tools/bug_bundle.py logs <bundle>

@@ -15,6 +15,7 @@ Subcommands:
     scenario  Decompress scenario.json.br.
     weather   Print weather.json (if present).
     layouts   List ground layout airport IDs, or dump one with --airport / all with --all.
+              Pass --geojson to list/dump original airport GeoJSON entries instead.
     logs      Extract yaat-client.log / yaat-server.log to .tmp/ (or --out-dir).
     install   Copy bundle into tests/Yaat.Sim.Tests/TestData/ with issue{N}-{desc}-... naming.
               Either a local path, or --issue N to fetch the attachment from a GitHub issue.
@@ -28,6 +29,8 @@ V4 bundle layout (ZIP at root):
     actions.json.br             Brotli-compressed user actions list
     snapshots/NNN.json.br       one Brotli-compressed snapshot per index
     layouts/<airport>.json.br   deduplicated ground layouts (optional)
+    airport-geojson/<airport>.geojson.br
+                                original airport GeoJSON sources (optional)
     weather.json                plain JSON (optional; HasWeather in manifest)
     artcc-config.json.br        Brotli-compressed ARTCC config (optional; HasArtccConfig in manifest)
     yaat-client.log             plain text (bug bundles only)
@@ -37,7 +40,7 @@ Legacy bug bundles contain a nested `recording.yaat-recording.zip` with the same
 inner layout and logs at the outer root; this script handles both.
 
 Requires: brotli (pip install brotli). Manifest/log/weather work without it,
-but scenario/actions/snapshots/layouts need brotli to decompress.
+but scenario/actions/snapshots/layouts/airport-geojson need brotli to decompress.
 """
 
 from __future__ import annotations
@@ -195,6 +198,9 @@ class BundleReader:
     def read_layout(self, airport_id: str) -> str:
         return self.read_brotli_text(f"layouts/{airport_id}.json.br")
 
+    def read_airport_geojson(self, airport_id: str) -> str:
+        return self.read_brotli_text(f"airport-geojson/{airport_id}.geojson.br")
+
 
 # ---------------------------------------------------------------------------
 # Output helper
@@ -264,6 +270,7 @@ def cmd_info(args: argparse.Namespace) -> int:
         m = reader.manifest
         logs = reader.log_entries
         layouts = m.get("LayoutAirportIds") or []
+        airport_geojsons = m.get("AirportGeoJsonIds") or []
         try:
             callsigns = _aircraft_callsigns_at_t0(reader)
         except Exception as e:  # brotli missing or decompression error
@@ -278,6 +285,7 @@ def cmd_info(args: argparse.Namespace) -> int:
                 "manifest": m,
                 "logs": logs,
                 "layouts": layouts,
+                "airport_geojsons": airport_geojsons,
                 "aircraft_callsigns_t0": callsigns,
             }
             if callsign_err:
@@ -300,6 +308,10 @@ def cmd_info(args: argparse.Namespace) -> int:
         lines.append(f"  HasWeather:          {m.get('HasWeather')}")
         lines.append(f"  HasArtccConfig:      {m.get('HasArtccConfig', False)}")
         lines.append(f"  Layouts ({len(layouts)}):         {', '.join(layouts) if layouts else '(none)'}")
+        lines.append(
+            f"  Airport GeoJSON ({len(airport_geojsons)}): "
+            f"{', '.join(airport_geojsons) if airport_geojsons else '(none)'}"
+        )
         lines.append(f"  Logs ({len(logs)}):            {', '.join(logs) if logs else '(none)'}")
         if callsign_err:
             lines.append(f"  Aircraft at t=0:     <error: {callsign_err}>")
@@ -1106,34 +1118,38 @@ def cmd_artcc_config(args: argparse.Namespace) -> int:
 
 def cmd_layouts(args: argparse.Namespace) -> int:
     with BundleReader(args.bundle) as reader:
-        layout_ids = reader.manifest.get("LayoutAirportIds") or []
+        ids_field = "AirportGeoJsonIds" if args.geojson else "LayoutAirportIds"
+        entry_ids = reader.manifest.get(ids_field) or []
 
         if args.all:
-            out_dir = args.out_dir or (DEFAULT_TMP / f"{args.bundle.stem}.layouts")
+            suffix = "airport-geojson" if args.geojson else "layouts"
+            out_dir = args.out_dir or (DEFAULT_TMP / f"{args.bundle.stem}.{suffix}")
             out_dir.mkdir(parents=True, exist_ok=True)
-            for aid in layout_ids:
-                text = pretty_json(reader.read_layout(aid))
-                path = out_dir / f"{aid}.json"
+            for aid in entry_ids:
+                text = reader.read_airport_geojson(aid) if args.geojson else pretty_json(reader.read_layout(aid))
+                path = out_dir / f"{aid}.geojson" if args.geojson else out_dir / f"{aid}.json"
                 path.write_text(text, encoding="utf-8", newline="\n")
                 print(f"wrote {path}")
             return 0
 
         if args.airport:
-            if args.airport not in layout_ids:
+            if args.airport not in entry_ids:
+                label = "airport GeoJSON" if args.geojson else "bundle layouts"
                 print(
-                    f"error: airport '{args.airport}' not in bundle layouts.\n"
-                    f"       available: {', '.join(layout_ids) if layout_ids else '(none)'}",
+                    f"error: airport '{args.airport}' not in {label}.\n"
+                    f"       available: {', '.join(entry_ids) if entry_ids else '(none)'}",
                     file=sys.stderr,
                 )
                 return 1
-            write_output(pretty_json(reader.read_layout(args.airport)), args.out)
+            text = reader.read_airport_geojson(args.airport) if args.geojson else pretty_json(reader.read_layout(args.airport))
+            write_output(text, args.out)
             return 0
 
         # Default: list airport IDs
-        if not layout_ids:
-            print("(no ground layouts in manifest)")
+        if not entry_ids:
+            print("(no airport GeoJSON in manifest)" if args.geojson else "(no ground layouts in manifest)")
         else:
-            for aid in layout_ids:
+            for aid in entry_ids:
                 print(aid)
     return 0
 
@@ -1339,6 +1355,16 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
         except Exception as e:
             yield f"failed to decompress {name}: {e}"
 
+    for aid in m.get("AirportGeoJsonIds") or []:
+        name = f"airport-geojson/{aid}.geojson.br"
+        if name not in reader.archive_entries:
+            yield f"missing airport GeoJSON entry: {name}"
+            continue
+        try:
+            reader.read_airport_geojson(aid)
+        except Exception as e:
+            yield f"failed to decompress {name}: {e}"
+
     if m.get("HasWeather") and "weather.json" not in reader.archive_entries:
         yield "manifest HasWeather=true but weather.json missing"
 
@@ -1355,7 +1381,7 @@ def _validate_one(reader: BundleReader) -> Iterator[str]:
 def cmd_trim(args: argparse.Namespace) -> int:
     """Drop snapshots past --max-seconds (or keep only first --max-snapshots) to shrink the bundle.
 
-    Actions, scenario, weather, ARTCC config, layouts, and logs are preserved unchanged.
+    Actions, scenario, weather, ARTCC config, layouts, airport GeoJSON, and logs are preserved unchanged.
     The manifest's Snapshots index is rewritten to match the surviving snapshot files.
     TotalElapsedSeconds is left alone — it reflects the original recording duration and
     is informational, not load-bearing for replay or snapshot lookup.
@@ -1566,6 +1592,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_out_arg(p_lay)
     p_lay.add_argument("--airport", type=str, default=None, help="dump one layout by airport id")
     p_lay.add_argument("--all", action="store_true", help="dump every layout into --out-dir")
+    p_lay.add_argument("--geojson", action="store_true", help="list/dump original airport GeoJSON entries instead of parsed layouts")
     p_lay.add_argument("--out-dir", type=Path, default=None, help="directory for --all output")
     p_lay.set_defaults(func=cmd_layouts)
 
@@ -1583,7 +1610,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--issue",
         type=int,
         default=None,
-        help="GitHub issue number; required when fetching from GitHub, optional when installing a local bundle (omit for descriptive non-numbered name)",
+        help=(
+            "GitHub issue number; required when fetching from GitHub, optional when installing "
+            "a local bundle"
+        ),
     )
     p_ins.add_argument("--desc", type=str, required=True, help="kebab-case slug for filename")
     p_ins.add_argument("--owner", type=str, default="leftos", help="GitHub owner (default: leftos)")
