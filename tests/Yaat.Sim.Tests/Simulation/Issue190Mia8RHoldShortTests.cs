@@ -248,5 +248,10 @@ public class Issue190Mia8RHoldShortTests(ITestOutputHelper output)
             string shortId = airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
             return layouts.TryGetValue(shortId, out var layout) ? layout : _fallback.GetLayout(airportId);
         }
+
+        public string? GetSourceGeoJson(string airportId)
+        {
+            return _fallback.GetSourceGeoJson(airportId);
+        }
     }
 }

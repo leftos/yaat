@@ -290,5 +290,7 @@ public sealed class Issue191CrossRunwayCommandTests(ITestOutputHelper output)
             string shortId = airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
             return string.Equals(shortId, layout.AirportId, StringComparison.OrdinalIgnoreCase) ? layout : null;
         }
+
+        public string? GetSourceGeoJson(string airportId) => null;
     }
 }
