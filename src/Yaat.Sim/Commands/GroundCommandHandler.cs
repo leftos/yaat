@@ -1226,6 +1226,12 @@ internal static class GroundCommandHandler
                 return new CommandResult(false, $"Cannot cross destination runway {holdPhase.HoldShort.TargetName}; use LUAW or CTO");
             }
 
+            var continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase);
+            if (!continuation.Success)
+            {
+                return continuation;
+            }
+
             holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
             return CommandDispatcher.Ok($"Cross {target}");
         }
@@ -1292,6 +1298,123 @@ internal static class GroundCommandHandler
         return string.Equals(targetName, arg, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static CommandResult TryPrepareCompletedRouteCrossing(AircraftState aircraft, HoldingShortPhase holdPhase)
+    {
+        if (aircraft.Ground.AssignedTaxiRoute is { IsComplete: false })
+        {
+            return CommandDispatcher.Ok("");
+        }
+
+        if (aircraft.Phases is not { } phases || phases.Phases.Skip(phases.CurrentIndex + 1).Any(static p => p is CrossingRunwayPhase))
+        {
+            return CommandDispatcher.Ok("");
+        }
+
+        if (!IsRunwayHoldShort(aircraft, holdPhase.HoldShort, out var runwayId))
+        {
+            return CommandDispatcher.Ok("");
+        }
+
+        var layout = aircraft.Ground.Layout;
+        if (layout is null)
+        {
+            return new CommandResult(false, "No airport ground layout available");
+        }
+
+        var crossing = FindCompletedRouteCrossing(aircraft, layout, holdPhase.HoldShort.NodeId, runwayId);
+        if (crossing is null)
+        {
+            return new CommandResult(false, $"No crossing route found for {holdPhase.HoldShort.TargetName ?? "runway"}");
+        }
+
+        crossing.Route.CurrentSegmentIndex = crossing.Route.Segments.Count;
+        aircraft.Ground.AssignedTaxiRoute = crossing.Route;
+        phases.ReplaceUpcoming([
+            new CrossingRunwayPhase(holdPhase.HoldShort.NodeId, crossing.ExitNodeId, runwayId.ToString()),
+            new HoldingInPositionPhase(),
+        ]);
+        return CommandDispatcher.Ok("");
+    }
+
+    private static bool IsRunwayHoldShort(AircraftState aircraft, HoldShortPoint holdShort, out RunwayIdentifier runwayId)
+    {
+        runwayId = default;
+        var layout = aircraft.Ground.Layout;
+        if (
+            layout is null
+            || !layout.Nodes.TryGetValue(holdShort.NodeId, out var node)
+            || node.Type != GroundNodeType.RunwayHoldShort
+            || node.RunwayId is not { } nodeRunwayId
+        )
+        {
+            return false;
+        }
+
+        runwayId = nodeRunwayId;
+        return true;
+    }
+
+    private static CompletedRouteCrossing? FindCompletedRouteCrossing(
+        AircraftState aircraft,
+        AirportGroundLayout layout,
+        int holdShortNodeId,
+        RunwayIdentifier runwayId
+    )
+    {
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        CompletedRouteCrossing? best = null;
+        double bestDistance = double.MaxValue;
+
+        foreach (var candidate in layout.Nodes.Values)
+        {
+            if (
+                candidate.Id == holdShortNodeId
+                || candidate.Type != GroundNodeType.RunwayHoldShort
+                || candidate.RunwayId is not { } candidateRunway
+                || !candidateRunway.Equals(runwayId)
+            )
+            {
+                continue;
+            }
+
+            var route = TaxiPathfinder.FindRoute(layout, holdShortNodeId, candidate.Id, category);
+            if (route is null || !RouteTraversesRunway(route, runwayId))
+            {
+                continue;
+            }
+
+            if (route.TotalDistanceNm >= bestDistance)
+            {
+                continue;
+            }
+
+            if (route.GetHoldShortAt(candidate.Id) is { } exitHoldShort)
+            {
+                exitHoldShort.IsCleared = true;
+            }
+
+            best = new CompletedRouteCrossing(route, candidate.Id);
+            bestDistance = route.TotalDistanceNm;
+        }
+
+        return best;
+    }
+
+    private static bool RouteTraversesRunway(TaxiRoute route, RunwayIdentifier runwayId)
+    {
+        foreach (var segment in route.Segments)
+        {
+            if (segment.Edge.Edge.MatchesRunway(runwayId.End1) || segment.Edge.Edge.MatchesRunway(runwayId.End2))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private sealed record CompletedRouteCrossing(TaxiRoute Route, int ExitNodeId);
+
     /// <summary>
     /// Bare <c>CROSS</c> (no runway argument). Clears exactly one — the next
     /// uncleared hold-short — either the current <see cref="HoldingShortPhase"/>
@@ -1306,6 +1429,12 @@ internal static class GroundCommandHandler
             if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway)
             {
                 return new CommandResult(false, $"Cannot cross destination runway {holdPhase.HoldShort.TargetName}; use LUAW or CTO");
+            }
+
+            var continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase);
+            if (!continuation.Success)
+            {
+                return continuation;
             }
 
             holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);

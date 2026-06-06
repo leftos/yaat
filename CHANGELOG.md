@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- `CROSS <rwy>` now moves aircraft across a runway from a hold-short even when the previous taxi route ended there.
 - `CLAND 28R` clears an aircraft to land on a named runway — including one still following traffic, which is cleared up front and lands behind the traffic when it joins the final without a second clearance.
 - The session-settings (⚙) flyout adds a **Show Pilot Speech (RPO)** toggle to switch sim-initiated pilot reports between green pilot speech and orange warnings live.
 
