@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.7.2-beta [2026/06/05]
+
+### Highlights
+- **Instructor range rings and cones** — `JRING 3` draws a 3 NM ring and `CONE 5` a 5 NM track-projection cone around a target on your own radar (1–30 NM); also on the radar **Display** menu.
+- **Approach cones now appear in CRC STARS** — arrivals established on final get the automatic ATPA approach cone drawn ahead of them, shaded as the gap to the aircraft they're following tightens.
+- **Rewind keeps track ownership** — scrubbing the timeline and resuming no longer reverts every aircraft back to you; each keeps the controller it had at the rewind point.
 
 ### Added
 - The ground view no longer draws fillet corners no aircraft can taxi (sharp >155° hairpins the pathfinder never routes), reducing clutter.
