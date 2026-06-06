@@ -548,9 +548,7 @@ internal static class GroundCommandHandler
             return null;
         }
 
-        var targetHs = TaxiPathfinder.FindFullLengthLineupHoldShort(groundLayout, startNode, runwayId, holdShortNodes);
-
-        var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, targetHs.Id, category);
+        var route = TaxiPathfinder.FindRunwayRoute(groundLayout, startNode, runwayId, category);
         if (route is null)
         {
             failReason = $"No route to runway {runwayId} hold-short";

@@ -103,6 +103,78 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
+    /// Find an auto-route from <paramref name="startNode"/> toward <paramref name="runwayId"/>,
+    /// materialized as a runway destination so the route ends at the first destination hold-short
+    /// encountered rather than crossing the runway to a far-side target node.
+    /// </summary>
+    public static TaxiRoute? FindRunwayRoute(AirportGroundLayout layout, GroundNode startNode, string runwayId, AircraftCategory category)
+    {
+        var holdShortNodes = layout.GetRunwayHoldShortNodes(runwayId);
+        if (holdShortNodes.Count == 0)
+        {
+            return null;
+        }
+
+        var runwayContext = SearchContext.Compile(
+            layout,
+            startNode.Id,
+            waypointSequence: [],
+            destinationRunway: runwayId,
+            destinationParking: null,
+            destinationSpot: null,
+            destinationNodeId: null,
+            explicitHoldShortRunways: null,
+            category: category,
+            preference: RoutePreference.FewestTurns,
+            diagnosticLog: null,
+            waypointTurnHints: null,
+            startHeadingTrue: null
+        );
+
+        var reference = RouteMaterialiser.ResolveRunwayThreshold(layout.AirportId, runwayId) ?? startNode.Position;
+        var candidates = holdShortNodes.OrderBy(n => GeoMath.DistanceNm(reference, n.Position)).ToList();
+        TaxiRoute? fallbackRoute = null;
+
+        foreach (var targetHs in candidates)
+        {
+            var routeToTarget = FindRoute(layout, startNode.Id, targetHs.Id, category);
+            if (routeToTarget is null)
+            {
+                continue;
+            }
+
+            var route = RouteMaterialiser.Materialise(routeToTarget.Segments.Select(static s => s.Edge).ToList(), runwayContext, []);
+            fallbackRoute ??= route;
+            if ((EndsAtDestinationRunwayHoldShort(route, layout, runwayId)) && (!TraversesDestinationRunwaySurface(route, runwayId)))
+            {
+                return route;
+            }
+        }
+
+        return fallbackRoute;
+    }
+
+    private static bool EndsAtDestinationRunwayHoldShort(TaxiRoute route, AirportGroundLayout layout, string runwayId)
+    {
+        if (route.Segments.Count == 0)
+        {
+            return false;
+        }
+
+        int finalNodeId = route.Segments[^1].ToNodeId;
+        return (layout.Nodes.TryGetValue(finalNodeId, out var node))
+            && (node.Type == GroundNodeType.RunwayHoldShort)
+            && (node.RunwayId is { } nodeRunwayId)
+            && (nodeRunwayId.Contains(runwayId))
+            && (route.HoldShortPoints.Any(hs => (hs.NodeId == finalNodeId) && (hs.Reason == HoldShortReason.DestinationRunway)));
+    }
+
+    private static bool TraversesDestinationRunwaySurface(TaxiRoute route, string runwayId)
+    {
+        return route.Segments.Any(segment => (segment.Edge.Edge.IsRunwayCenterline) && (segment.Edge.Edge.MatchesRunway(runwayId)));
+    }
+
+    /// <summary>
     /// Find up to <paramref name="maxRoutes"/> distinct routes between two nodes.
     /// When <paramref name="preference"/> is null, all three strategies
     /// (FewestTurns, Shortest, Fastest) are evaluated and results merged.

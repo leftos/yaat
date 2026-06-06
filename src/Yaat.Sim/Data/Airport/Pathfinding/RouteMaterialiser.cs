@@ -33,11 +33,19 @@ public static class RouteMaterialiser
         var holdShorts = AnnotateHoldShorts(segments, ctx);
 
         // Step 3: Truncate to one segment past the last required stop.
-        int truncateAt = FindTruncationIndex(segments, holdShorts, ctx);
-        if (truncateAt >= 0 && truncateAt < segments.Count - 1)
+        var runwaySurfaceEntry = FindDestinationRunwaySurfaceEntry(segments, holdShorts, ctx);
+        int truncateAt = runwaySurfaceEntry?.TruncateAt ?? FindTruncationIndex(segments, holdShorts, ctx);
+        if (runwaySurfaceEntry is { TruncateAt: < 0 } entry)
+        {
+            segments = [];
+            holdShorts = holdShorts.Where(hs => hs.NodeId == entry.HoldShortNodeId).ToList();
+        }
+        else if (truncateAt >= 0 && truncateAt < segments.Count - 1)
         {
             segments = segments.Take(truncateAt + 1).ToList();
-            holdShorts = holdShorts.Where(hs => segments.Any(s => s.ToNodeId == hs.NodeId)).ToList();
+            holdShorts = holdShorts
+                .Where(hs => segments.Any(s => s.ToNodeId == hs.NodeId) || hs.NodeId == runwaySurfaceEntry?.HoldShortNodeId)
+                .ToList();
         }
 
         // Step 4: Warnings for unauthorized letter taxiways traversed, plus informative
@@ -171,6 +179,59 @@ public static class RouteMaterialiser
 
         return holdShorts;
     }
+
+    private static (int TruncateAt, int HoldShortNodeId)? FindDestinationRunwaySurfaceEntry(
+        List<TaxiRouteSegment> segments,
+        List<HoldShortPoint> holdShorts,
+        SearchContext ctx
+    )
+    {
+        if ((ctx.Destination.Kind != DestinationKind.Runway) || (ctx.Destination.RunwayId is not { } runwayId))
+        {
+            return null;
+        }
+
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (SegmentEndsAtDestinationHoldShort(segments[i], runwayId, ctx))
+            {
+                return null;
+            }
+
+            if (!SegmentTraversesRunwaySurface(segments[i], runwayId))
+            {
+                continue;
+            }
+
+            int holdShortNodeId = segments[i].FromNodeId;
+            if (!holdShorts.Any(hs => (hs.NodeId == holdShortNodeId) && (hs.Reason == HoldShortReason.DestinationRunway)))
+            {
+                holdShorts.Add(
+                    new HoldShortPoint
+                    {
+                        NodeId = holdShortNodeId,
+                        Reason = HoldShortReason.DestinationRunway,
+                        TargetName = runwayId,
+                    }
+                );
+            }
+
+            return (i - 1, holdShortNodeId);
+        }
+
+        return null;
+    }
+
+    private static bool SegmentEndsAtDestinationHoldShort(TaxiRouteSegment segment, string runwayId, SearchContext ctx)
+    {
+        return (ctx.Layout.Nodes.TryGetValue(segment.ToNodeId, out var node))
+            && (node.Type == GroundNodeType.RunwayHoldShort)
+            && (node.RunwayId is { } nodeRunwayId)
+            && (nodeRunwayId.Contains(runwayId));
+    }
+
+    private static bool SegmentTraversesRunwaySurface(TaxiRouteSegment segment, string runwayId) =>
+        (segment.Edge.Edge.IsRunwayCenterline) && (segment.Edge.Edge.MatchesRunway(runwayId));
 
     /// <summary>
     /// When the route begins at a runway hold-short and the aircraft is mid-crossing (there is a

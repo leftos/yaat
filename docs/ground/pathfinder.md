@@ -4,7 +4,7 @@
 
 ## Architecture
 
-The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:10`) is a `public static class` with four static entry points: `ResolveExplicitPath`, `FindRoute`, `FindRoutes`, and `FindFullLengthLineupHoldShort`. All production callers invoke these directly. The implementation is unified — no dual-path selector, no variant adapter — and lives under `src/Yaat.Sim/Data/Airport/Pathfinding/`.
+The **`TaxiPathfinder`** (`src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs:10`) is a `public static class` with five static entry points: `ResolveExplicitPath`, `FindRoute`, `FindRunwayRoute`, `FindRoutes`, and `FindFullLengthLineupHoldShort`. All production callers invoke these directly. The implementation is unified — no dual-path selector, no variant adapter — and lives under `src/Yaat.Sim/Data/Airport/Pathfinding/`.
 
 **Caveat for any agent working on the pathfinder:** membership-matched junction arcs, V-shaped taxiways, and tighter fillet arcs are *correct-but-different* geometry. When something breaks on the graph, **adapt the pathfinder — do not "fix" the graph** (membership junction arcs are legitimate turn-connectors).
 
@@ -24,13 +24,14 @@ A `TAXI`/`TAXIAUTO` command reaches the pathfinder through the command pipeline 
 |---|---|---|
 | `ResolveExplicitPath` | `(AirportGroundLayout, int fromNodeId, List<string> taxiwayNames, out string? failReason, ExplicitPathOptions, AircraftCategory)` | Controller-named taxiway sequence (explicit mode) → `TaxiRoute` or failure message. Implemented via `SegmentExpander`. |
 | `FindRoute` | `(AirportGroundLayout, int fromNodeId, int toNodeId, AircraftCategory)` | Single best node→node route using FewestTurns preference; A* over full layout. |
+| `FindRunwayRoute` | `(AirportGroundLayout, GroundNode startNode, string runwayId, AircraftCategory)` | Empty-path runway destination route. Tries full-length hold-short candidates in threshold order and returns the first route that reaches a real destination runway hold-short without traversing that runway surface. |
 | `FindRoutes` | `(AirportGroundLayout, int fromNodeId, int toNodeId, RoutePreference?, int maxRoutes, IReadOnlySet<string>? authorizedTaxiways, AircraftCategory)` | Up to N distinct node→node routes; when `preference` is null, runs all three strategies (FewestTurns, Shortest, Fastest) and deduplicates. |
 | `FindFullLengthLineupHoldShort` | `(AirportGroundLayout, GroundNode startNode, string runwayId, List<GroundNode> holdShortNodes)` | Pick the canonical lineup hold-short closest to the runway threshold. |
 
 So there are **two modes**, both reaching the same internal machinery:
 
 - **Explicit-path mode** — the controller named taxiways (`TAXI A E B B3`). `ResolveExplicitPath` → `SegmentExpander` stitches the declared sequence together and verifies drivability. Authorization is hard: named letter-only taxiways are a boundary.
-- **Auto-route mode** — no named path (`TAXI 28L`, `TAXI @D8`, mid-route reroute, parking extension). `FindRoute`/`FindRoutes` → `AutoRouter` A* chooses the taxiways too. There is also a `ResolveRunwayRouteByAStar` shortcut for `TAXI <RWY>` with an empty path: it picks the lineup hold-short via `FindFullLengthLineupHoldShort`, then `FindRoute`s to it (`GroundCommandHandler.cs:341`).
+- **Auto-route mode** — no named path (`TAXI 28L`, `TAXI @D8`, mid-route reroute, parking extension). `FindRoute`/`FindRoutes` → `AutoRouter` A* chooses the taxiways too. Empty-path runway destinations use `FindRunwayRoute`: it evaluates runway hold-shorts in threshold order, materializes each as a runway destination, and prefers the first route that stops at a real near-side destination hold-short without traversing the destination runway surface. This prevents the full-length target choice from crossing the departure runway to a geometrically closer opposite-side hold-short.
 
 After the route returns, `GroundCommandHandler` owns everything the pathfinder does **not**: dynamic hold-short stop positions (`HoldShortAnnotator.ComputeHoldShortPositions`), implicit first-crossing clearance, `TaxiRouteAutoCross`, `CROSS`-keyword pre-clearing, runway auto-detection, and phase handoff to `TaxiingPhase`. The pathfinder produces the *unauthorized-baseline* route; clearance flagging is downstream.
 
@@ -110,7 +111,7 @@ Preference multipliers: `FewestTurns` ×5 on turn + transition; `Shortest` zeroe
 
 **Truncation rules** (`src/Yaat.Sim/Data/Airport/Pathfinding/RouteMaterialiser.cs:233`):
 
-- **Runway destination → the route ends *exactly* at its lineup hold-short** (the **first** hold-short of the destination runway the route reaches — the near-side bar), with **no `+1` buffer** and overriding every other rule. A departure taxis *up to* its runway and holds; it never crosses its own departure runway, so first-match is the lineup. Taking the *last* match instead would extend the route across the runway to the far-side bar of the same crossing (both physical sides share the combined `28R/10L` id) — which gridlocks following traffic. Proceeding onto / across the runway is clearance-gated by Line-Up / Crossing phases, never baked into the taxi route.
+- **Runway destination → the route ends *exactly* at its lineup hold-short** (the **first** hold-short of the destination runway the route reaches — the near-side bar), with **no `+1` buffer** and overriding every other rule. A departure taxis *up to* its runway and holds; it never crosses its own departure runway, so first-match is the lineup. Taking the *last* match instead would extend the route across the runway to the far-side bar of the same crossing (both physical sides share the combined `28R/10L` id) — which gridlocks following traffic. Proceeding onto / across the runway is clearance-gated by Line-Up / Crossing phases, never baked into the taxi route. If a graph route reaches a destination runway centerline segment before encountering a typed `RunwayHoldShort`, the materialiser adds a destination hold at the surface-entry node and truncates before the centerline as a fallback guard; `FindRunwayRoute` still prefers candidate routes that terminate at a real typed hold-short.
 - **An en-route explicit hold-short crossed before reaching the last cleared taxiway** (`TAXI G C HS 28R`, no further runway destination) stops the route *one segment onto* that last cleared taxiway (`crossHoldTruncateAt` / `FindLastClearedTaxiwayEntry`) — the aircraft crosses and settles just past the junction, not stranded on the near side. This rule is **moot for a runway destination**, where the runway lies beyond the last cleared taxiway and the lineup-terminus rule wins.
 - **Node / parking / spot destination** → one segment past the destination node (the `+1` buffer gives the navigator somewhere to aim).
 - Otherwise → the natural terminus (last segment).
@@ -205,7 +206,7 @@ Both live in `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs`.
 
 | File | Role |
 |---|---|
-| `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` | Entry point: four static methods (`ResolveExplicitPath`, `FindRoute`, `FindRoutes`, `FindFullLengthLineupHoldShort`) that compile `SearchContext` and delegate to drivers. |
+| `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` | Entry point: five static methods (`ResolveExplicitPath`, `FindRoute`, `FindRunwayRoute`, `FindRoutes`, `FindFullLengthLineupHoldShort`) that compile `SearchContext` and delegate to drivers. |
 | `src/Yaat.Sim/Data/Airport/ExplicitPathOptions.cs` | `RoutePreference` enum + `ExplicitPathOptions` input class. |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs` | Explicit-mode driver: junction selection with look-ahead, variant resolution, mandatory-connector insertion. |
 | `src/Yaat.Sim/Data/Airport/Pathfinding/AutoRouter.cs` | Auto-mode A*: flat best-first search over the full layout. |
