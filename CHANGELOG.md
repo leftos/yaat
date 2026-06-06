@@ -7,7 +7,7 @@
 - The session-settings (⚙) flyout adds a **Show Pilot Speech (RPO)** toggle to switch sim-initiated pilot reports between green pilot speech and orange warnings live.
 
 ### Fixed
-- Departures taxiing to a runway now stop at the near-side hold-short instead of crossing the departure runway.
+- Taxi routes to a runway now consistently stop at the near-side hold-short when matching hold-shorts are reachable on multiple sides.
 - A VFR aircraft told to follow traffic that is then sent to extend its pattern now stays behind it, instead of turning base early and rolling out on final ahead of the aircraft it was sequencing behind.
 - The radar now mirrors the **student's** STARS scope as intended: each datablock takes the student's color (cyan when the student highlights a track; white/green/yellow by who owns it, including yellow for a pointout the student accepted) and, with the **leader-direction** option enabled (Settings > Display > Student Scope Sync), follows the student's leader line. The feature had shipped inert — every datablock kept the instructor's own default color and placement no matter what the student did on their scope — because the student's per-position scope state was never matched to the aircraft.
 - Saving the Settings window no longer alters the running session; its scenario/simulation settings are load-time defaults, and live changes go through the gear flyout.
