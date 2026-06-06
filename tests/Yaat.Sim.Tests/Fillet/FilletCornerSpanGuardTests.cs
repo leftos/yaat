@@ -91,6 +91,7 @@ public class FilletCornerSpanGuardTests
     [InlineData("sfo")]
     [InlineData("oak")]
     [InlineData("fll")]
+    [InlineData("iah")]
     public void EdgeSplit_NoZeroDistanceEdges(string shortId)
     {
         TestVnasData.EnsureInitialized();

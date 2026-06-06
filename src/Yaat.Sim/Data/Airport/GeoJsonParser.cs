@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport.Pathfinding;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -24,8 +25,6 @@ public static class GeoJsonParser
     private const double ParkingConnectMaxNm = 0.15;
 
     private const double GateGroupAnchorConnectMaxNm = 0.24;
-
-    private const double ConnectorEndpointReuseMaxNm = 10.0 / GeoMath.FeetPerNm;
 
     private static readonly JsonDocumentOptions LenientJsonOptions = new() { AllowTrailingCommas = true };
 
@@ -266,7 +265,7 @@ public static class GeoJsonParser
             layout.Nodes[id] = node;
             parkingNodes.Add(node);
 
-            ConnectParkingToTaxiway(node, layout, ref nextNodeId);
+            ConnectParkingToTaxiway(node, layout);
         }
 
         // Step 6b: Create helipad nodes and connect to nearest taxiway (larger radius)
@@ -284,7 +283,7 @@ public static class GeoJsonParser
             };
             layout.Nodes[id] = node;
 
-            ConnectToNearestTaxiway(node, layout, HelipadConnectMaxNm, ref nextNodeId);
+            ConnectToNearestTaxiway(node, layout, HelipadConnectMaxNm);
         }
 
         ConnectGateGroupsToAnchors(parkingNodes, layout);
@@ -311,9 +310,9 @@ public static class GeoJsonParser
         return layout;
     }
 
-    private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout, ref int nextNodeId)
+    private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout)
     {
-        ConnectToNearestTaxiway(parking, layout, ParkingConnectMaxNm, ref nextNodeId);
+        ConnectToNearestTaxiway(parking, layout, ParkingConnectMaxNm);
     }
 
     private static void ConnectGateGroupsToAnchors(IReadOnlyList<GroundNode> parkingNodes, AirportGroundLayout layout)
@@ -519,7 +518,7 @@ public static class GeoJsonParser
         return count;
     }
 
-    private static void ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm, ref int nextNodeId)
+    private static void ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm)
     {
         var target = FindNearestConnectorTarget(node, layout);
 
@@ -528,16 +527,40 @@ public static class GeoJsonParser
             return;
         }
 
-        var targetNode = ResolveConnectorTargetNode(target.Value, layout, ref nextNodeId);
-        var edge = new GroundEdge
-        {
-            Nodes = [node, targetNode],
-            TaxiwayName = "RAMP",
-            DistanceNm = GeoMath.DistanceNm(node.Position, targetNode.Position),
-            Origin = "GeoJson:parking-connector",
-        };
+        // Attach to the perpendicular-nearest taxiway EDGE's nearest existing vertex — no edge
+        // splitting. Selecting the edge by perpendicular distance is what steers a gate onto the
+        // closest taxiway line (e.g. MIA's south D-gates onto the concourse alley rather than the
+        // Euclidean-nearest node on taxiway N). Connecting to a real vertex keeps every geojson
+        // node ID stable and never mints a coincident split node or a zero-distance RAMP edge.
+        var edge = target.Value.Edge;
+        var nearer = target.Value.AlongNm <= edge.DistanceNm - target.Value.AlongNm ? edge.Nodes[0] : edge.Nodes[1];
+        var farther = ReferenceEquals(nearer, edge.Nodes[0]) ? edge.Nodes[1] : edge.Nodes[0];
 
-        layout.Edges.Add(edge);
+        // The nearer vertex is normally the right attachment, but if it sits within a fillet no-op
+        // of the parking node (gate essentially on the vertex) the connector would be zero-distance;
+        // fall back to the far endpoint, which is non-degenerate on any real taxiway edge.
+        var endpoint = GeoMath.DistanceNm(node.Position, nearer.Position) < GeometricAdmissibility.NoOpEdgeThresholdNm ? farther : nearer;
+        double connectorNm = GeoMath.DistanceNm(node.Position, endpoint.Position);
+        if (connectorNm < GeometricAdmissibility.NoOpEdgeThresholdNm)
+        {
+            Log.LogDebug(
+                "Skipping zero-distance parking connector for {Name} (node {Id}): coincident with taxiway vertex {VertexId}",
+                node.Name,
+                node.Id,
+                endpoint.Id
+            );
+            return;
+        }
+
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [node, endpoint],
+                TaxiwayName = "RAMP",
+                DistanceNm = connectorNm,
+                Origin = "GeoJson:parking-connector",
+            }
+        );
         // Node adjacency lists are wired up in Step 7 — don't add here to avoid duplicates.
     }
 
@@ -562,7 +585,7 @@ public static class GeoJsonParser
             double distanceNm = GeoMath.DistanceNm(node.Position.Lat, node.Position.Lon, footLat, footLon);
             if (best is null || distanceNm < best.Value.DistanceNm)
             {
-                best = new ConnectorTarget(edge, distanceNm, footLat, footLon, alongNm);
+                best = new ConnectorTarget(edge, distanceNm, alongNm);
             }
         }
 
@@ -579,50 +602,7 @@ public static class GeoJsonParser
         return edge.Nodes.All(static n => n.Type is not GroundNodeType.Parking and not GroundNodeType.Helipad);
     }
 
-    private static GroundNode ResolveConnectorTargetNode(ConnectorTarget target, AirportGroundLayout layout, ref int nextNodeId)
-    {
-        var edge = target.Edge;
-        var fromNode = edge.Nodes[0];
-        var toNode = edge.Nodes[1];
-
-        if (target.AlongNm <= ConnectorEndpointReuseMaxNm)
-        {
-            return fromNode;
-        }
-
-        if (edge.DistanceNm - target.AlongNm <= ConnectorEndpointReuseMaxNm)
-        {
-            return toNode;
-        }
-
-        var splitNode = new GroundNode
-        {
-            Id = nextNodeId++,
-            Position = new LatLon(target.FootLat, target.FootLon),
-            Type = GroundNodeType.TaxiwayIntersection,
-            Origin = $"GeoJson:parking-connector-split({edge.TaxiwayName})",
-        };
-
-        layout.Nodes[splitNode.Id] = splitNode;
-        layout.Edges.Remove(edge);
-
-        layout.Edges.Add(CreateSplitEdge(fromNode, splitNode, edge));
-        layout.Edges.Add(CreateSplitEdge(splitNode, toNode, edge));
-        return splitNode;
-    }
-
-    private static GroundEdge CreateSplitEdge(GroundNode fromNode, GroundNode toNode, GroundEdge source)
-    {
-        return new GroundEdge
-        {
-            Nodes = [fromNode, toNode],
-            TaxiwayName = source.TaxiwayName,
-            DistanceNm = GeoMath.DistanceNm(fromNode.Position, toNode.Position),
-            Origin = $"GeoJson:parking-connector-split({source.Origin ?? source.TaxiwayName})",
-        };
-    }
-
-    private readonly record struct ConnectorTarget(GroundEdge Edge, double DistanceNm, double FootLat, double FootLon, double AlongNm);
+    private readonly record struct ConnectorTarget(GroundEdge Edge, double DistanceNm, double AlongNm);
 
     private static ParkingFeature ParseParking(JsonElement props, JsonElement geom)
     {
