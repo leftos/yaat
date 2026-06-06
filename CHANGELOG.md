@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.3-beta [2026/06/06]
+
+### Highlights
+- **Clear an aircraft to land on a specific runway** — `CLAND 28R`, including one still following traffic (cleared up front, then lands behind the traffic).
+- **Cross a runway after a completed taxi** — `CROSS <rwy>` now works from a hold-short where the previous taxi route ended.
+- **The radar now mirrors the student's STARS scope** — each datablock takes the student's color and (optionally) leader-line direction as intended; previously this shipped inert and every datablock kept your own default.
+- **VFR sequencing holds behind an extending lead** — an aircraft told to follow traffic that is then sent to extend its pattern stays behind it instead of turning base early and rolling out ahead.
 
 ### Added
 - `CROSS <rwy>` now moves aircraft across a runway from a hold-short even when the previous taxi route ended there.
