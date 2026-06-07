@@ -2103,7 +2103,7 @@ public static class SegmentExpander
                 null,
                 new PathfindingFailure(
                     FailureKind.DestinationUnreachable,
-                    $"Taxiway {lastTaxiwayName} does not reach runway {destinationRunway} — specify a connecting taxiway.",
+                    $"Taxiway {lastTaxiwayName} does not reach runway {RunwayIdentifier.ToDisplayDesignator(destinationRunway)} — specify a connecting taxiway.",
                     lastTaxiwayName,
                     $"{lastTaxiwayName} → {destinationRunway}",
                     null
@@ -2152,7 +2152,7 @@ public static class SegmentExpander
                 null,
                 new PathfindingFailure(
                     FailureKind.TransitionAmbiguous,
-                    $"Runway {destinationRunway} is served by both {string.Join(" and ", candidateList)} from {lastTaxiwayName} — specify {string.Join(" or ", candidateList)}",
+                    $"Runway {RunwayIdentifier.ToDisplayDesignator(destinationRunway)} is served by both {string.Join(" and ", candidateList)} from {lastTaxiwayName} — specify {string.Join(" or ", candidateList)}",
                     lastTaxiwayName,
                     $"{lastTaxiwayName} → {destinationRunway}",
                     candidateList[0]

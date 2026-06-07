@@ -533,10 +533,11 @@ public sealed class SimulationEngine
         _generatorSpawnLog.Clear();
         foreach (var genConfig in result.Generators)
         {
-            var runway = NavigationDatabase.Instance.GetRunway(result.PrimaryAirportId ?? "", genConfig.Runway);
+            var runwayId = genConfig.Runway ?? "";
+            var runway = NavigationDatabase.Instance.GetRunway(result.PrimaryAirportId ?? "", runwayId);
             if (runway is null)
             {
-                result.Warnings.Add($"Generator '{genConfig.Id}': runway {genConfig.Runway} not found");
+                result.Warnings.Add($"Generator '{genConfig.Id}': runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found");
                 continue;
             }
 
@@ -3166,10 +3167,11 @@ public sealed class SimulationEngine
         var newStates = new List<GeneratorState>();
         foreach (var cfg in configs)
         {
-            var runway = navDb.GetRunway(airportId, cfg.Runway);
+            var runwayId = cfg.Runway ?? "";
+            var runway = navDb.GetRunway(airportId, runwayId);
             if (runway is null)
             {
-                warnings.Add($"Generator '{cfg.Id}': runway {cfg.Runway} not found at {airportId}");
+                warnings.Add($"Generator '{cfg.Id}': runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found at {airportId}");
                 continue;
             }
 

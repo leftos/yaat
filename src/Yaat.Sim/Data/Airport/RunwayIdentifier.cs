@@ -166,6 +166,56 @@ public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     public static string NormalizeDesignator(string designator) => Normalize(designator);
 
     /// <summary>
+    /// Strips the leading zero from zero-padded single-digit runway designators for display,
+    /// the inverse of <see cref="NormalizeDesignator"/>. FAA convention omits the leading zero,
+    /// so this is the form shown to users (UI labels, command results, TTS): "08R" → "8R",
+    /// "09" → "9". Robust to combined identifiers and prefixed forms — every space/slash-delimited
+    /// token is de-padded independently ("08R/26L" → "8R/26L", "26L/08R" → "26L/8R",
+    /// "RWY 08R" → "RWY 8R"). Two-digit and non-numeric tokens are returned unchanged.
+    /// </summary>
+    public static string ToDisplayDesignator(string designator)
+    {
+        var result = "";
+        int start = 0;
+        for (int i = 0; i <= designator.Length; i++)
+        {
+            if (i == designator.Length || designator[i] is ' ' or '/')
+            {
+                result += DePadToken(designator[start..i]);
+                if (i < designator.Length)
+                {
+                    result += designator[i];
+                }
+
+                start = i + 1;
+            }
+        }
+
+        return result;
+    }
+
+    private static string DePadToken(string token)
+    {
+        if (token.Length >= 2 && token[0] == '0' && char.IsAsciiDigit(token[1]))
+        {
+            return token[1..];
+        }
+
+        return token;
+    }
+
+    /// <summary>
+    /// FAA-style display form of the combined identifier ("08R/26L" → "8R/26L"), de-padding
+    /// each end. Mirrors <see cref="ToString"/> for user-facing labels.
+    /// </summary>
+    public string ToDisplayString()
+    {
+        string e1 = DePadToken(End1);
+        string e2 = DePadToken(End2);
+        return string.Equals(e1, e2, StringComparison.OrdinalIgnoreCase) ? e1 : $"{e1}/{e2}";
+    }
+
+    /// <summary>
     /// Pads a single-digit runway number to two digits (e.g., "1R" → "01R", "9" → "09").
     /// Two-digit and non-numeric designators are returned unchanged.
     /// </summary>

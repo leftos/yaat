@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -116,7 +117,10 @@ public static class ApproachCommandHandler
                 AppendApproachFixesToNavRoute(aircraft, trimmedFixes);
 
                 string deferredPrefix = cmd.Force ? "Force: cleared" : "Cleared";
-                return new CommandResult(true, $"{deferredPrefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
+                return new CommandResult(
+                    true,
+                    $"{deferredPrefix} {procedure.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")}"
+                );
             }
         }
 
@@ -166,7 +170,10 @@ public static class ApproachCommandHandler
 
             StartPhases(aircraft);
             string impliedPrefix = cmd.Force ? "Force: cleared" : "Cleared";
-            return new CommandResult(true, $"{impliedPrefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
+            return new CommandResult(
+                true,
+                $"{impliedPrefix} {procedure.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")}"
+            );
         }
 
         // Handle rich CAPP forms: AT fix, DCT fix — prepend to approach fixes
@@ -229,7 +236,10 @@ public static class ApproachCommandHandler
         StartPhases(aircraft);
 
         string cappPrefix = cmd.Force ? "Force: cleared" : "Cleared";
-        return new CommandResult(true, $"{cappPrefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
+        return new CommandResult(
+            true,
+            $"{cappPrefix} {procedure.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")}"
+        );
     }
 
     public static CommandResult TryJoinApproach(string approachId, string? airportCode, bool force, bool straightIn, AircraftState aircraft)
@@ -338,7 +348,10 @@ public static class ApproachCommandHandler
 
         string baseVerb = straightIn ? "Cleared straight-in" : "Join";
         string prefix = force ? $"Force: {baseVerb.ToLowerInvariant()}" : baseVerb;
-        return new CommandResult(true, $"{prefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
+        return new CommandResult(
+            true,
+            $"{prefix} {procedure.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")}"
+        );
     }
 
     public static CommandResult TryPtac(PositionTurnAltitudeClearanceCommand cmd, AircraftState aircraft)
@@ -410,7 +423,7 @@ public static class ApproachCommandHandler
         string ptacPrefix = cmd.Forced ? "Force: turn" : "Turn";
         return new CommandResult(
             true,
-            $"{ptacPrefix} heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {procedure.Runway}"
+            $"{ptacPrefix} heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")}"
         );
     }
 
@@ -455,7 +468,7 @@ public static class ApproachCommandHandler
         var runway = navDb.GetRunway(airport, cmd.RunwayId);
         if (runway is null)
         {
-            return new CommandResult(false, $"Unknown runway {cmd.RunwayId} at {airport}");
+            return new CommandResult(false, $"Unknown runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)} at {airport}");
         }
 
         var approachRunway = runway.Designator.Equals(cmd.RunwayId, StringComparison.OrdinalIgnoreCase) ? runway : runway.ForApproach(cmd.RunwayId);
@@ -593,7 +606,7 @@ public static class ApproachCommandHandler
 
         StartPhases(aircraft);
 
-        var msg = $"Cleared visual approach runway {cmd.RunwayId}";
+        var msg = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)}";
         if (cmd.FollowCallsign is not null)
         {
             msg += $", follow {cmd.FollowCallsign}";
@@ -810,7 +823,7 @@ public static class ApproachCommandHandler
         var runway = navDb.GetRunway(airport, procedure.Runway);
         if (runway is null)
         {
-            return ResolvedApproach.Fail($"Unknown runway {procedure.Runway} at {airport}");
+            return ResolvedApproach.Fail($"Unknown runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")} at {airport}");
         }
 
         var approachRunway = runway.Designator.Equals(procedure.Runway, StringComparison.OrdinalIgnoreCase)

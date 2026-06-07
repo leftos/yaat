@@ -342,8 +342,9 @@ internal static class HoldShortAnnotator
             {
                 hs.TailOverRunwayNodeId = cr.RunwayNodeId;
                 string rwy =
-                    layout.Nodes.TryGetValue(cr.RunwayNodeId, out var rwyNode) && rwyNode.RunwayId is { } rid ? rid.ToString() : "the runway";
-                string warning = $"holding short of {hs.TargetName} leaves the tail over RWY {rwy} — unable to clear the runway";
+                    layout.Nodes.TryGetValue(cr.RunwayNodeId, out var rwyNode) && rwyNode.RunwayId is { } rid ? rid.ToDisplayString() : "the runway";
+                string warning =
+                    $"holding short of {RunwayIdentifier.ToDisplayDesignator(hs.TargetName ?? "")} leaves the tail over RWY {rwy} — unable to clear the runway";
                 if (!route.Warnings.Contains(warning))
                 {
                     route.Warnings.Add(warning);

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -171,7 +172,7 @@ public sealed class DownwindPhase : Phase
                 _midfieldBroadcastIssued = true;
                 if (!HasLandingClearance(ctx))
                 {
-                    string runwayId = ctx.Runway?.Designator ?? "unknown";
+                    string runwayId = RunwayIdentifier.ToDisplayDesignator(ctx.Runway?.Designator ?? "unknown");
                     if (ctx.SoloTrainingMode && ctx.Aircraft.FlightPlan.IsVfr)
                     {
                         PilotResponder.QueueSoloPilotTransmission(

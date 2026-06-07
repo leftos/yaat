@@ -73,7 +73,7 @@ public static class AutoRouter
                     null,
                     new PathfindingFailure(
                         FailureKind.DestinationUnreachable,
-                        $"No hold-short nodes found for runway {ctx.Destination.RunwayId}.",
+                        $"No hold-short nodes found for runway {RunwayIdentifier.ToDisplayDesignator(ctx.Destination.RunwayId ?? "")}.",
                         null,
                         null,
                         ctx.Destination.RunwayId

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -20,7 +21,7 @@ public sealed class RunwayHoldingPhase : Phase
         _crossingRunwayId = crossingRunwayId;
     }
 
-    public override string Name => $"Holding Short RWY {_crossingRunwayId}";
+    public override string Name => $"Holding Short RWY {RunwayIdentifier.ToDisplayDesignator(_crossingRunwayId)}";
 
     public override PhaseDto ToSnapshot() =>
         new RunwayHoldingPhaseDto

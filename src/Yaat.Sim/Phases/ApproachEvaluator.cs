@@ -1,4 +1,5 @@
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Phases;
 
@@ -78,7 +79,7 @@ public sealed class ApproachEvaluator
         string gsSign = score.GlideSlopeDeviationFt >= 0 ? "+" : "";
         string gsDetail = $"GS {gsSign}{score.GlideSlopeDeviationFt:F0}ft";
         string side = score.GlideSlopeDeviationFt >= 0 ? "above" : "below";
-        return $"Landed Rwy {score.RunwayId} — Grade: {grade} ({gsDetail} {side})";
+        return $"Landed Rwy {RunwayIdentifier.ToDisplayDesignator(score.RunwayId)} — Grade: {grade} ({gsDetail} {side})";
     }
 
     /// <summary>Clears all stored scores. Called on scenario unload.</summary>

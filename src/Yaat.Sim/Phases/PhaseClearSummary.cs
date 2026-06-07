@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -51,13 +52,13 @@ internal static class PhaseClearSummary
         if (patternFamilyCount >= 2 && patternFamilyCount == totalRemaining)
         {
             var runwayId = phases.PatternRunway?.Designator ?? phases.AssignedRunway?.Designator;
-            return runwayId is not null ? $"pattern to RWY {runwayId}" : "pattern";
+            return runwayId is not null ? $"pattern to RWY {RunwayIdentifier.ToDisplayDesignator(runwayId)}" : "pattern";
         }
 
         if (current is FinalApproachPhase or InterceptCoursePhase or ApproachNavigationPhase or ProcedureTurnPhase or HoldingPatternPhase)
         {
             var runwayId = phases.AssignedRunway?.Designator ?? phases.ActiveApproach?.RunwayId;
-            return runwayId is not null ? $"approach to RWY {runwayId}" : "approach";
+            return runwayId is not null ? $"approach to RWY {RunwayIdentifier.ToDisplayDesignator(runwayId)}" : "approach";
         }
 
         return current.Name;

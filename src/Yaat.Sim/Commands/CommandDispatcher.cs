@@ -360,7 +360,7 @@ public static class CommandDispatcher
         clearance.LateralInterceptOnly = false;
         aircraft.Targets.TargetSpeed = null;
 
-        return Ok($"Cleared {clearance.ApproachId} approach, runway {clearance.RunwayId}");
+        return Ok($"Cleared {clearance.ApproachId} approach, runway {RunwayIdentifier.ToDisplayDesignator(clearance.RunwayId)}");
     }
 
     private static bool IsAllTransparent(CompoundCommand compound)
@@ -1851,7 +1851,7 @@ public static class CommandDispatcher
     internal static string RunwayLabel(AircraftState aircraft)
     {
         var runway = aircraft.Phases?.AssignedRunway;
-        return runway is not null ? $", Runway {runway.Designator}" : "";
+        return runway is not null ? $", Runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)}" : "";
     }
 
     internal static GroundNode? FindTaxiwayIntersection(AirportGroundLayout layout, string taxiway1, string taxiway2)

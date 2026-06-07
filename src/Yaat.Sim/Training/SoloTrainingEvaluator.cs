@@ -2690,8 +2690,8 @@ public sealed class SoloTrainingEvaluator
             };
             string runwayText =
                 violation.Relation.Kind == RunwayRelationKind.SameActive
-                    ? violation.RunwayId
-                    : $"{violation.Succeeding.RunwayId} against {violation.Preceding.RunwayId}";
+                    ? RunwayIdentifier.ToDisplayDesignator(violation.RunwayId)
+                    : $"{RunwayIdentifier.ToDisplayDesignator(violation.Succeeding.RunwayId)} against {RunwayIdentifier.ToDisplayDesignator(violation.Preceding.RunwayId)}";
             string description =
                 $"{violation.Succeeding.Callsign} used runway {runwayText} behind "
                 + $"{violation.Preceding.Callsign} before {relationText} separation existed.";

@@ -259,7 +259,7 @@ internal static class DepartureClearanceHandler
         var runway = CommandDispatcher.ResolveRunway(aircraft, depHoldShort.TargetName);
         if (runway is null)
         {
-            return new CommandResult(false, $"Cannot resolve runway {depHoldShort.TargetName}");
+            return new CommandResult(false, $"Cannot resolve runway {RunwayIdentifier.ToDisplayDesignator(depHoldShort.TargetName ?? "")}");
         }
 
         // Consistency: if RWY assigned a runway that doesn't share a physical runway
@@ -269,7 +269,7 @@ internal static class DepartureClearanceHandler
         {
             return new CommandResult(
                 false,
-                $"Taxi route ends at {runway.Designator} but {assigned.Designator} is the assigned runway — re-taxi or re-assign with RWY"
+                $"Taxi route ends at {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} but {RunwayIdentifier.ToDisplayDesignator(assigned.Designator)} is the assigned runway — re-taxi or re-assign with RWY"
             );
         }
 
@@ -543,9 +543,10 @@ internal static class DepartureClearanceHandler
         int? assignedAltitude
     )
     {
+        var displayRunway = RunwayIdentifier.ToDisplayDesignator(runwayId);
         if (clearanceType == ClearanceType.ClearedForTakeoff)
         {
-            var msg = $"Cleared for takeoff runway {runwayId}";
+            var msg = $"Cleared for takeoff runway {displayRunway}";
             msg += FormatDepartureInstructionSuffix(departure);
             if (assignedAltitude is not null)
             {
@@ -554,7 +555,7 @@ internal static class DepartureClearanceHandler
             return CommandDispatcher.Ok(msg);
         }
 
-        return CommandDispatcher.Ok($"Line up and wait runway {runwayId}");
+        return CommandDispatcher.Ok($"Line up and wait runway {displayRunway}");
     }
 
     internal static string FormatDepartureInstructionSuffix(DepartureInstruction departure)
@@ -577,7 +578,7 @@ internal static class DepartureClearanceHandler
             DirectFixDeparture { Direction: TurnDirection.Right } dfd => $", turn right direct {dfd.FixName}",
             DirectFixDeparture dfd => $", direct {dfd.FixName}",
             ClosedTrafficDeparture ct when ct.RunwayId is not null =>
-                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic runway {ct.RunwayId}",
+                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic runway {RunwayIdentifier.ToDisplayDesignator(ct.RunwayId)}",
             ClosedTrafficDeparture ct => $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
             _ => "",
         };

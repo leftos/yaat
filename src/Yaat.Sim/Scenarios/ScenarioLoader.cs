@@ -363,7 +363,7 @@ public static class ScenarioLoader
         var rwy = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
         if (rwy is null)
         {
-            warnings.Add($"{ac.AircraftId}: Could not find runway {runwayId} at {airportId}");
+            warnings.Add($"{ac.AircraftId}: Could not find runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} at {airportId}");
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"OnRunway ({airportId}/{runwayId} not found)");
         }
 
@@ -411,7 +411,7 @@ public static class ScenarioLoader
         var rwy = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
         if (rwy is null)
         {
-            warnings.Add($"{ac.AircraftId}: Could not find runway {runwayId} at {airportId}");
+            warnings.Add($"{ac.AircraftId}: Could not find runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} at {airportId}");
             return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"OnFinal ({airportId}/{runwayId} not found)");
         }
 

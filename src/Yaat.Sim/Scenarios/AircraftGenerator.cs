@@ -413,7 +413,7 @@ public static class AircraftGenerator
         var rwy = NavigationDatabase.Instance.GetRunway(airportId, request.RunwayId);
         if (rwy is null)
         {
-            return (null, $"Could not find runway {request.RunwayId} at {airportId}");
+            return (null, $"Could not find runway {RunwayIdentifier.ToDisplayDesignator(request.RunwayId)} at {airportId}");
         }
 
         var category = AircraftCategorization.Categorize(aircraftType);
@@ -471,7 +471,7 @@ public static class AircraftGenerator
         var rwy = NavigationDatabase.Instance.GetRunway(airportId, request.RunwayId);
         if (rwy is null)
         {
-            return (null, $"Could not find runway {request.RunwayId} at {airportId}");
+            return (null, $"Could not find runway {RunwayIdentifier.ToDisplayDesignator(request.RunwayId)} at {airportId}");
         }
 
         double gsAngle = Phases.GlideSlopeGeometry.AngleForCategory(category);

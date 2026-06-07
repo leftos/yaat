@@ -121,12 +121,14 @@ public static class AircraftStatusDescriber
                 GroundSpeed = ac.GroundSpeed,
                 VerticalSpeed = ac.VerticalSpeed,
                 Altitude = ac.Altitude,
-                AssignedRunway = ac.Phases?.AssignedRunway?.Designator ?? "",
-                ClearedRunway = ac.Phases?.ClearedRunwayId ?? "",
-                DepartureRunway = ac.Procedure.DepartureRunway ?? "",
-                LineupRunway = ac.Phases?.DepartureRunway?.Designator ?? ac.Phases?.AssignedRunway?.Designator ?? "",
-                CrossingRunwayId = ExtractCrossingRunwayId(ac.Phases),
-                ExitingRunwayId = ExtractExitingRunwayId(ac.Phases),
+                AssignedRunway = RunwayIdentifier.ToDisplayDesignator(ac.Phases?.AssignedRunway?.Designator ?? ""),
+                ClearedRunway = RunwayIdentifier.ToDisplayDesignator(ac.Phases?.ClearedRunwayId ?? ""),
+                DepartureRunway = RunwayIdentifier.ToDisplayDesignator(ac.Procedure.DepartureRunway ?? ""),
+                LineupRunway = RunwayIdentifier.ToDisplayDesignator(
+                    ac.Phases?.DepartureRunway?.Designator ?? ac.Phases?.AssignedRunway?.Designator ?? ""
+                ),
+                CrossingRunwayId = ExtractCrossingRunwayId(ac.Phases) is { } crossing ? RunwayIdentifier.ToDisplayDesignator(crossing) : null,
+                ExitingRunwayId = ExtractExitingRunwayId(ac.Phases) is { } exiting ? RunwayIdentifier.ToDisplayDesignator(exiting) : null,
                 CurrentTaxiway = ac.Ground.CurrentTaxiway ?? "",
                 TaxiRoute = ac.Ground.AssignedTaxiRoute?.FormatTaxiwaySequence() ?? "",
                 ParkingSpot = ac.Ground.ParkingSpot ?? "",
@@ -379,6 +381,7 @@ public static class AircraftStatusDescriber
             {
                 return "holding short";
             }
+            target = RunwayIdentifier.ToDisplayDesignator(target);
             bool isRunway = char.IsDigit(target[0]);
             var twy = i.CurrentTaxiway;
             if (isRunway)

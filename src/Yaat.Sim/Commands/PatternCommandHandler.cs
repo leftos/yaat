@@ -64,7 +64,7 @@ internal static class PatternCommandHandler
             var resolved = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
             if (resolved is null)
             {
-                return new CommandResult(false, $"Runway {runwayId} not found at {airportId}");
+                return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found at {airportId}");
             }
 
             aircraft.Phases ??= new PhaseList();
@@ -552,7 +552,9 @@ internal static class PatternCommandHandler
         // call it out / pick a different approach; the clearance still stands.
         if (straightInTooHigh)
         {
-            aircraft.PendingWarnings.Add($"{aircraft.Callsign} unable to descend for straight-in {runway.Designator} — too high");
+            aircraft.PendingWarnings.Add(
+                $"{aircraft.Callsign} unable to descend for straight-in {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} — too high"
+            );
         }
 
         var legDesc =
@@ -583,7 +585,7 @@ internal static class PatternCommandHandler
             var resolved = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
             if (resolved is null)
             {
-                return new CommandResult(false, $"Runway {runwayId} not found at {airportId}");
+                return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(runwayId)} not found at {airportId}");
             }
 
             aircraft.Phases ??= new PhaseList();
@@ -1877,7 +1879,7 @@ internal static class PatternCommandHandler
             phases.ClearedRunwayId = newRunway.Designator;
         }
         finalApproach.RetargetRunway(newRunway, GlideSlopeGeometry.AngleForCategory(category));
-        return CommandDispatcher.Ok($"Sidestep, runway {newRunway.Designator}");
+        return CommandDispatcher.Ok($"Sidestep, runway {RunwayIdentifier.ToDisplayDesignator(newRunway.Designator)}");
     }
 
     /// <summary>
@@ -2035,7 +2037,7 @@ internal static class PatternCommandHandler
             {
                 return new CommandResult(
                     false,
-                    $"Cannot clear for runway {ctl.RunwayId} — {aircraft.Callsign} is established for runway {assignedRunway.Designator}"
+                    $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} — {aircraft.Callsign} is established for runway {RunwayIdentifier.ToDisplayDesignator(assignedRunway.Designator)}"
                 );
             }
 
@@ -2077,7 +2079,7 @@ internal static class PatternCommandHandler
             {
                 aircraft.Ground.AutoDeleteExempt = true;
             }
-            string rwyClause = ctl.RunwayId is not null ? $" runway {ctl.RunwayId}" : "";
+            string rwyClause = ctl.RunwayId is not null ? $" runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)}" : "";
             return CommandDispatcher.Ok($"Cleared to land{rwyClause}, will land behind {aircraft.Approach.FollowingCallsign}");
         }
 
@@ -2085,7 +2087,7 @@ internal static class PatternCommandHandler
         {
             return new CommandResult(
                 false,
-                $"Cannot clear for runway {ctl.RunwayId} — {aircraft.Callsign} has no approach; use EF {ctl.RunwayId} or have it follow traffic first"
+                $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} — {aircraft.Callsign} has no approach; use EF {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} or have it follow traffic first"
             );
         }
 
@@ -2115,21 +2117,27 @@ internal static class PatternCommandHandler
         var landingGround = groundLayout.FindGroundRunway(runway.Designator);
         if (landingGround is null)
         {
-            return new CommandResult(false, $"Landing runway {runway.Designator} not found in ground layout");
+            return new CommandResult(false, $"Landing runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} not found in ground layout");
         }
 
         // Find the crossing runway in the ground layout
         var crossingGround = groundLayout.FindGroundRunway(lahso.CrossingRunwayId);
         if (crossingGround is null)
         {
-            return new CommandResult(false, $"Crossing runway {lahso.CrossingRunwayId} not found in ground layout");
+            return new CommandResult(
+                false,
+                $"Crossing runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)} not found in ground layout"
+            );
         }
 
         // Compute the intersection point
         var intersection = RunwayIntersectionCalculator.FindIntersection(landingGround, crossingGround);
         if (intersection is null)
         {
-            return new CommandResult(false, $"Runway {runway.Designator} does not intersect runway {lahso.CrossingRunwayId}");
+            return new CommandResult(
+                false,
+                $"Runway {RunwayIdentifier.ToDisplayDesignator(runway.Designator)} does not intersect runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)}"
+            );
         }
 
         // Compute hold-short distance from threshold
@@ -2142,7 +2150,10 @@ internal static class PatternCommandHandler
 
         if (holdShortDistNm < 0.1)
         {
-            return new CommandResult(false, $"Hold-short point too close to threshold for runway {lahso.CrossingRunwayId}");
+            return new CommandResult(
+                false,
+                $"Hold-short point too close to threshold for runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)}"
+            );
         }
 
         // Compute the hold-short lat/lon on the landing runway centerline
@@ -2169,7 +2180,9 @@ internal static class PatternCommandHandler
         // LAHSO is always full-stop — drop persistent pattern direction.
         aircraft.Pattern.TrafficDirection = null;
 
-        return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, hold short runway {lahso.CrossingRunwayId}");
+        return CommandDispatcher.Ok(
+            $"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, hold short runway {RunwayIdentifier.ToDisplayDesignator(lahso.CrossingRunwayId)}"
+        );
     }
 
     internal static CommandResult TryCancelLandingClearance(AircraftState aircraft)

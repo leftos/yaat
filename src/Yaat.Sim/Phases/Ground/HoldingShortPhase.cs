@@ -26,7 +26,8 @@ public sealed class HoldingShortPhase : Phase
 
     public HoldShortPoint HoldShort => _holdShort;
 
-    public override string Name => _holdShort.TargetName is not null ? $"Holding Short {_holdShort.TargetName}" : "Holding Short";
+    public override string Name =>
+        _holdShort.TargetName is not null ? $"Holding Short {RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName)}" : "Holding Short";
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -47,7 +48,7 @@ public sealed class HoldingShortPhase : Phase
         );
 
         // Generate notification
-        string target = _holdShort.TargetName ?? "unknown";
+        string target = RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName ?? "unknown");
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort ? $"holding short of {target}" : $"holding short runway {target}";
         string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
@@ -68,7 +69,7 @@ public sealed class HoldingShortPhase : Phase
             && tailRwyNode.RunwayId is { } tailRwy
         )
         {
-            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} not clear of RWY {tailRwy} — tail over the hold-short bars");
+            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} not clear of RWY {tailRwy.ToDisplayString()} — tail over the hold-short bars");
         }
 
         if (
@@ -132,7 +133,7 @@ public sealed class HoldingShortPhase : Phase
                 : CommandAcceptance.Rejected("CLRWY only applies when holding short of a taxiway with the tail over a runway"),
             CanonicalCommandType.Resume => _holdShort.Reason == HoldShortReason.DestinationRunway
                 ? CommandAcceptance.Rejected(
-                    $"holding short of destination runway {_holdShort.TargetName ?? "runway"} — RES does not apply (issue CTO or LUAW)"
+                    $"holding short of destination runway {RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName ?? "runway")} — RES does not apply (issue CTO or LUAW)"
                 )
                 : CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,

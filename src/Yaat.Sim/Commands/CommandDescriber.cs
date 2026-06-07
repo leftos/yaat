@@ -719,7 +719,7 @@ public static class CommandDescriber
             ClearedForTakeoffCommand cto => DescribeCtoNatural(cto),
             CancelTakeoffClearanceCommand => "Cancel takeoff clearance",
             ClearedToLandCommand cmd => DescribeClearedToLandNatural(cmd),
-            LandAndHoldShortCommand cmd => $"Cleared to land, hold short runway {cmd.CrossingRunwayId}",
+            LandAndHoldShortCommand cmd => $"Cleared to land, hold short runway {RunwayIdentifier.ToDisplayDesignator(cmd.CrossingRunwayId)}",
             CancelLandingClearanceCommand => "Cancel landing clearance",
             GoAroundCommand ga => DescribeGaNatural(ga),
             EnterLeftDownwindCommand eld => DescribePatternEntryNatural("left downwind", eld.RunwayId, null),
@@ -775,7 +775,9 @@ public static class CommandDescriber
             TaxiCommand taxi => FormatTaxiNatural(taxi),
             HoldPositionCommand => "Hold position",
             ResumeCommand resume => FormatResumeNatural(resume),
-            CrossRunwayCommand cross => cross.RunwayId is null ? "Cross next hold-short" : $"Cross runway {cross.RunwayId}",
+            CrossRunwayCommand cross => cross.RunwayId is null
+                ? "Cross next hold-short"
+                : $"Cross runway {RunwayIdentifier.ToDisplayDesignator(cross.RunwayId)}",
             HoldShortCommand hs => $"Hold short of {hs.Target}",
             FollowCommand follow => $"Follow {follow.TargetCallsign}",
             FollowGroundCommand follow => $"Follow {follow.TargetCallsign} (ground)",
@@ -1234,7 +1236,7 @@ public static class CommandDescriber
             DirectFixDeparture { Direction: TurnDirection.Right } dfd => $", turn right direct {dfd.FixName}",
             DirectFixDeparture dfd => $", direct {dfd.FixName}",
             ClosedTrafficDeparture ct when ct.RunwayId is not null =>
-                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic runway {ct.RunwayId}",
+                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic runway {RunwayIdentifier.ToDisplayDesignator(ct.RunwayId)}",
             ClosedTrafficDeparture ct => $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
             _ => "",
         };
@@ -1397,7 +1399,7 @@ public static class CommandDescriber
         var msg = $"Enter {legName}";
         if (runwayId is not null)
         {
-            msg += $", Runway {runwayId}";
+            msg += $", Runway {RunwayIdentifier.ToDisplayDesignator(runwayId)}";
         }
 
         if (distNm is not null)
@@ -1694,7 +1696,9 @@ public static class CommandDescriber
             return $"Taxi all to parking {taxiAll.DestinationParking}";
         }
 
-        return taxiAll.DestinationRunway is not null ? $"Taxi all to runway {taxiAll.DestinationRunway}" : "Taxi all";
+        return taxiAll.DestinationRunway is not null
+            ? $"Taxi all to runway {RunwayIdentifier.ToDisplayDesignator(taxiAll.DestinationRunway)}"
+            : "Taxi all";
     }
 
     private static string FormatPtacCanonical(PositionTurnAltitudeClearanceCommand cmd)
@@ -1717,7 +1721,7 @@ public static class CommandDescriber
     private static string FormatJarrNatural(JoinStarCommand cmd)
     {
         var via = cmd.Transition is not null ? $" via {cmd.Transition}" : "";
-        var runway = cmd.RunwayTransition is not null ? $", runway {cmd.RunwayTransition}" : "";
+        var runway = cmd.RunwayTransition is not null ? $", runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayTransition)}" : "";
         return $"Join {cmd.StarId} arrival{via}{runway}";
     }
 
@@ -1745,7 +1749,7 @@ public static class CommandDescriber
 
     private static string FormatCvaNatural(ClearedVisualApproachCommand cmd)
     {
-        var msg = $"Cleared visual approach runway {cmd.RunwayId}";
+        var msg = $"Cleared visual approach runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)}";
         if (cmd.TrafficDirection is PatternDirection.Left)
         {
             msg += ", left traffic";

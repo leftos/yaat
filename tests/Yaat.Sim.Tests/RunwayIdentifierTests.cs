@@ -156,6 +156,40 @@ public class RunwayIdentifierTests
         Assert.True(id.Contains("01R"));
     }
 
+    [Theory]
+    [InlineData("08R", "8R")]
+    [InlineData("09", "9")]
+    [InlineData("01L", "1L")]
+    [InlineData("28R", "28R")]
+    [InlineData("10", "10")]
+    [InlineData("36", "36")]
+    // Token-aware: combined identifiers and prefixed forms de-pad each end, either order.
+    [InlineData("08R/26L", "8R/26L")]
+    [InlineData("26L/08R", "26L/8R")]
+    [InlineData("RWY 08R", "RWY 8R")]
+    [InlineData("28R/10L", "28R/10L")]
+    public void ToDisplayDesignator_StripsLeadingZero(string padded, string expected)
+    {
+        Assert.Equal(expected, RunwayIdentifier.ToDisplayDesignator(padded));
+    }
+
+    [Fact]
+    public void ToDisplayDesignator_IsInverseOfNormalize()
+    {
+        foreach (var faa in new[] { "8R", "9", "1L", "28R", "10", "36C" })
+        {
+            Assert.Equal(faa, RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.NormalizeDesignator(faa)));
+        }
+    }
+
+    [Fact]
+    public void ToDisplayString_DePadsBothEnds()
+    {
+        Assert.Equal("8R/26L", new RunwayIdentifier("8R", "26L").ToDisplayString());
+        Assert.Equal("28R/10L", new RunwayIdentifier("28R", "10L").ToDisplayString());
+        Assert.Equal("9", new RunwayIdentifier("9", "9").ToDisplayString());
+    }
+
     [Fact]
     public void Contains_IsEndExact_NotSubstring()
     {

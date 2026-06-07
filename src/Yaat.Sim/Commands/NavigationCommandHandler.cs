@@ -1,4 +1,5 @@
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
@@ -261,7 +262,7 @@ internal static class NavigationCommandHandler
         var parts = grouped.Select(g =>
         {
             var items = string.Join(", ", g.Select(a => FormatApproachDisplay(a)));
-            return g.Key.Length > 0 ? $"RWY {g.Key}: {items}" : items;
+            return g.Key.Length > 0 ? $"RWY {RunwayIdentifier.ToDisplayDesignator(g.Key)}: {items}" : items;
         });
 
         return CommandDispatcher.Ok($"{airport.ToUpperInvariant()} approaches: {string.Join(" | ", parts)}");
@@ -986,7 +987,7 @@ internal static class NavigationCommandHandler
         var runway = navDb.GetRunway(airport, procedure.Runway);
         if (runway is null)
         {
-            return new CommandResult(false, $"Unknown runway {procedure.Runway} at {airport}");
+            return new CommandResult(false, $"Unknown runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")} at {airport}");
         }
 
         // Ensure the runway designator matches the approach runway
@@ -1060,7 +1061,9 @@ internal static class NavigationCommandHandler
         var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        return CommandDispatcher.Ok($"Join final approach course, {resolvedId}, runway {procedure.Runway}");
+        return CommandDispatcher.Ok(
+            $"Join final approach course, {resolvedId}, runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")}"
+        );
     }
 
     internal static CommandResult DispatchClimbVia(ClimbViaCommand cmd, AircraftState aircraft)
