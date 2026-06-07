@@ -2840,6 +2840,18 @@ public sealed class SimulationEngine
                 World.RemoveAircraft(cmd.Callsign);
                 return;
 
+            case RecordedCommandKind.SpawnNow:
+                // Before aircraft-exists guard: a manual spawn pulls the aircraft FROM the delayed
+                // queue, so it is intentionally not active yet. Gating it behind FindAircraft would
+                // silently drop every recorded manual spawn on replay (and snapshot regeneration).
+                HandleSpawnNow(cmd.Callsign);
+                return;
+
+            case RecordedCommandKind.SpawnDelay:
+                // Before aircraft-exists guard: re-times a still-queued delayed spawn.
+                HandleSpawnDelay(cmd.Callsign, ((SpawnDelayCommand)parsed!).Seconds);
+                return;
+
             case RecordedCommandKind.Timer:
                 if (Scenario is not null && parsed is TimerCommand timerCmd)
                 {
@@ -2898,14 +2910,6 @@ public sealed class SimulationEngine
         {
             case RecordedCommandKind.DeleteQueued:
                 ReplayDeleteQueued(aircraft, ((DeleteQueuedCommand)parsed!).BlockNumber);
-                return;
-
-            case RecordedCommandKind.SpawnNow:
-                HandleSpawnNow(cmd.Callsign);
-                return;
-
-            case RecordedCommandKind.SpawnDelay:
-                HandleSpawnDelay(cmd.Callsign, ((SpawnDelayCommand)parsed!).Seconds);
                 return;
 
             case RecordedCommandKind.SquawkAll:

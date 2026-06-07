@@ -9,6 +9,7 @@
 - An aircraft cleared for takeoff (`CTO`) at a hold short facing nearly opposite the runway, as at KMIA 8R, now lines up and departs instead of freezing.
 - `CROSS <rwy>` now works when the runway was the destination of the aircraft's previous taxi (e.g. `TAXI B 28R` then `CROSS 28R`) — both while it is still taxiing toward the runway and once it is holding short of it. The aircraft taxis across to the far side and holds in position. Previously it was rejected with "Cannot cross destination runway 28R; use LUAW or CTO".
 - A runway named without its leading zero (e.g. `RWY 8R`, `TAXIAUTO 9`) no longer mis-routes ground taxi. Single-digit runway designators now match the airport's `08R`-style runway edges instead of silently failing, which previously steered auto-taxi to a different hold-short than the same runway written as `08R`.
+- A manually spawned delayed aircraft (`SPAWN`) is now preserved through rewind and recording replay. Previously the spawn was dropped whenever the session was reconstructed, so the aircraft vanished after a rewind-and-resume and never appeared in saved bug-report bundles.
 
 ## v0.7.3-beta [2026/06/06]
 
