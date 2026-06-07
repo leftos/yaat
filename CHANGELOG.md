@@ -4,6 +4,7 @@
 
 ### Fixed
 - Selecting an aircraft on the radar no longer recolors its data block text and leader line to white — they keep the color they have when unselected (green for an on-ground track, the RPO assignment tint, or the student-scope color). The white rectangular border still marks the selected aircraft, and its position symbol still brightens.
+- STARS ghost / "unsupported" tracks no longer appear on the **Ground View** — a ghost track is a STARS-only concept with no surface return, so it does not belong on the surface display. A real aircraft still taxiing that was tagged with a ghost overlay (so it autotracks once airborne) stays visible on the Ground View while it is on the ground; only after it gets airborne does its ghost drop off the Ground View. Phantom data blocks (a STARS flight plan with no aircraft) never show on the Ground View at all.
 
 ## v0.7.4-beta [2026/06/06]
 

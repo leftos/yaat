@@ -763,6 +763,15 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         return sorted;
     }
 
+    /// <summary>
+    /// Aircraft eligible for the Ground (surface) display. Excludes delayed-spawn aircraft and STARS
+    /// "unsupported"/ghost tracks (<see cref="AircraftModel.IsUnsupported"/>) — phantom DA/VP datablocks
+    /// with no real body, and ghost overlays once their aircraft is airborne. A ghost overlay still on
+    /// the ground (<c>IsGhostOverlay &amp;&amp; IsOnGround</c>) is a real surface target — e.g. a departure
+    /// pre-tagged to autotrack once airborne — and stays visible. Unsupported tracks have no surface-radar
+    /// return (a STARS-only concept; the server omits them from CRC's ground-target feed), so the Ground
+    /// View neither paints nor hit-tests them.
+    /// </summary>
     private static IReadOnlyList<AircraftModel> FilterActiveAircraft(IReadOnlyList<AircraftModel>? aircraft)
     {
         if (aircraft is null || aircraft.Count == 0)
@@ -773,10 +782,17 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         var result = new List<AircraftModel>(aircraft.Count);
         foreach (var ac in aircraft)
         {
-            if (!ac.IsDelayed)
+            if (ac.IsDelayed)
             {
-                result.Add(ac);
+                continue;
             }
+
+            if (ac.IsUnsupported && !(ac.IsGhostOverlay && ac.IsOnGround))
+            {
+                continue;
+            }
+
+            result.Add(ac);
         }
         return result;
     }
