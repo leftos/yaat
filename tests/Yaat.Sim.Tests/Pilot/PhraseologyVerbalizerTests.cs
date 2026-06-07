@@ -247,10 +247,61 @@ public class PhraseologyVerbalizerTests
     }
 
     [Fact]
+    public void SpellRunway_DropsPaddingLeadingZero()
+    {
+        // Single-digit runways are spoken without the padding leading zero (AIM / 7110.65):
+        // "runway eight right", "runway nine" — not "runway zero eight". Designators arrive
+        // zero-padded (08R) from RunwayIdentifier.NormalizeDesignator.
+        Assert.Equal("eight right", PhraseologyVerbalizer.SpellRunway("08R"));
+        Assert.Equal("nine", PhraseologyVerbalizer.SpellRunway("09"));
+        Assert.Equal("eight left", PhraseologyVerbalizer.SpellRunway("08L"));
+        Assert.Equal("one", PhraseologyVerbalizer.SpellRunway("01"));
+        // Two-digit and already-bare forms are unaffected.
+        Assert.Equal("two eight right", PhraseologyVerbalizer.SpellRunway("28R"));
+        Assert.Equal("eight right", PhraseologyVerbalizer.SpellRunway("8R"));
+    }
+
+    [Fact]
     public void SpellTaxiway_NatoLetters()
     {
         Assert.Equal("bravo six", PhraseologyVerbalizer.SpellTaxiway("B6"));
         Assert.Equal("alpha alpha", PhraseologyVerbalizer.SpellTaxiway("AA"));
+    }
+
+    // --- VerbalizeTerminal (compact controller form: digits + identifiers, shared rule patterns) ---
+
+    [Fact]
+    public void VerbalizeTerminal_FlyHeading_UsesDigits()
+    {
+        Assert.Equal("fly heading 270", PhraseologyVerbalizer.VerbalizeTerminal(new FlyHeadingCommand(new MagneticHeading(270))));
+    }
+
+    [Fact]
+    public void VerbalizeTerminal_ClimbMaintain_UsesDigits()
+    {
+        Assert.Equal("climb and maintain 5000", PhraseologyVerbalizer.VerbalizeTerminal(new ClimbMaintainCommand(5000)));
+    }
+
+    [Fact]
+    public void VerbalizeTerminal_TaxiPathOnly_UsesSpaceJoinedLetters()
+    {
+        Assert.Equal("taxi via B C", PhraseologyVerbalizer.VerbalizeTerminal(new TaxiCommand(["B", "C"], [])));
+    }
+
+    [Fact]
+    public void VerbalizeTerminal_TaxiWithRunway_CompactIdentifiers()
+    {
+        // 08R → 8R; taxiway path → space-joined letters. Spoken form spells the phonetics; the
+        // terminal form mirrors the same rule with compact tokens.
+        var taxi = new TaxiCommand(["B", "C", "D"], [], DestinationRunway: "08R");
+        var spoken = PhraseologyVerbalizer.Verbalize(taxi);
+        var terminal = PhraseologyVerbalizer.VerbalizeTerminal(taxi);
+
+        Assert.Contains("eight right", spoken);
+        Assert.Contains("bravo, charlie, delta", spoken);
+        Assert.Contains("8R", terminal);
+        Assert.Contains("B C D", terminal);
+        Assert.DoesNotContain("eight", terminal);
     }
 
     // --- Frequency formatting (FAA 7110.65 §2-4-16) ---

@@ -63,7 +63,7 @@ public static class PilotProactive
         }
 
         var line = PilotResponder.BuildAirborneCheckIn(aircraft, scenario, airportPos.Value);
-        if (string.IsNullOrEmpty(line))
+        if (line is null)
         {
             return;
         }
@@ -151,7 +151,7 @@ public static class PilotProactive
             aircraft,
             PilotPendingRequestKind.Approach,
             scenario.ElapsedSeconds,
-            line,
+            line.Tts,
             PilotRequestContext.Runway(runwayId, facilityCallName)
         );
     }

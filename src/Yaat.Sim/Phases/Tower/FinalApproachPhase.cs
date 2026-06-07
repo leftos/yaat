@@ -423,7 +423,7 @@ public sealed class FinalApproachPhase : Phase
                 ctx.Aircraft,
                 PilotPendingRequestKind.Landing,
                 ctx.ScenarioElapsedSeconds,
-                line,
+                line.Tts,
                 PilotRequestContext.Runway(rwyId, facilityCallName)
             );
             ctx.Aircraft.HasMadeInitialContact = true;
@@ -757,7 +757,6 @@ public sealed class FinalApproachPhase : Phase
                     ctx.RpoShowPilotSpeech,
                     ctx.StudentPositionType,
                     PilotResponder.BuildApproachingMinimumsNoLandingClearance(ctx.Aircraft),
-                    $"{ctx.Aircraft.Callsign} approaching minimums without a landing clearance",
                     PilotResponder.SoloPositionsTowerApproach
                 );
             }
@@ -804,7 +803,6 @@ public sealed class FinalApproachPhase : Phase
                         ctx.RpoShowPilotSpeech,
                         ctx.StudentPositionType,
                         PilotResponder.BuildShortFinalReminder(ctx.Aircraft, runwayId),
-                        $"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance",
                         PilotResponder.SoloPositionsTower
                     );
                 }

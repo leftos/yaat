@@ -11,25 +11,25 @@ public class AltitudeRestrictionCommandTests
         "CM B025",
         2500,
         AltitudeAssignmentModifier.AtOrBelow,
-        "[N123AB] maintain VFR at or below two thousand five hundred, november one two three alpha bravo."
+        "maintain VFR at or below two thousand five hundred, november one two three alpha bravo."
     )]
     [InlineData(
         "CM B2500",
         2500,
         AltitudeAssignmentModifier.AtOrBelow,
-        "[N123AB] maintain VFR at or below two thousand five hundred, november one two three alpha bravo."
+        "maintain VFR at or below two thousand five hundred, november one two three alpha bravo."
     )]
     [InlineData(
         "CM A025",
         2500,
         AltitudeAssignmentModifier.AtOrAbove,
-        "[N123AB] maintain VFR at or above two thousand five hundred, november one two three alpha bravo."
+        "maintain VFR at or above two thousand five hundred, november one two three alpha bravo."
     )]
     [InlineData(
         "CM A2500",
         2500,
         AltitudeAssignmentModifier.AtOrAbove,
-        "[N123AB] maintain VFR at or above two thousand five hundred, november one two three alpha bravo."
+        "maintain VFR at or above two thousand five hundred, november one two three alpha bravo."
     )]
     public void ClimbMaintain_AltitudeRestriction_ParsesAndReadsBackVfr(
         string text,
@@ -53,7 +53,7 @@ public class AltitudeRestrictionCommandTests
         };
         var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
 
-        var readback = PilotResponder.BuildReadback(compound, aircraft);
+        var readback = PilotResponder.BuildReadback(compound, aircraft)?.Tts;
         Assert.Equal(expectedReadback, readback);
     }
 

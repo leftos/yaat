@@ -195,8 +195,8 @@ internal static class OuroborosRunner
             await WriteCaseTextAsync(casesDir, result).ConfigureAwait(false);
             return result;
         }
-        result.ReadbackTerminal = readback;
-        var ttsText = PilotResponder.PrepareForTts(aircraft, readback);
+        result.ReadbackTerminal = readback.Terminal;
+        var ttsText = readback.Tts;
         result.ReadbackTts = ttsText;
         Console.WriteLine($"  TTS:     \"{ttsText}\"");
 

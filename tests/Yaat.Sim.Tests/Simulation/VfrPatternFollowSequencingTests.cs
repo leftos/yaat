@@ -264,7 +264,8 @@ public class VfrPatternFollowSequencingTests
         bool completed = downwind.OnTick(ctx);
 
         Assert.True(completed, "Follower should turn base (phase completes) once it reaches the extension cap.");
-        Assert.Contains(follower.PendingWarnings, w => w.Contains("max downwind extension", StringComparison.OrdinalIgnoreCase));
+        // RPO-default warning is the pilot's compact terminal line (callsign in the SAY column).
+        Assert.Contains(follower.PendingWarnings, w => w.Contains("turning base behind", StringComparison.OrdinalIgnoreCase));
     }
 
     private static AircraftState MakeVfr(string callsign, LatLon pos, TrueHeading heading, double altitude, double ias) =>

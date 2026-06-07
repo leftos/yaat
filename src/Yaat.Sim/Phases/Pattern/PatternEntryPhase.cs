@@ -155,7 +155,7 @@ public sealed class PatternEntryPhase : Phase
                 ctx.Aircraft,
                 PilotPendingRequestKind.Landing,
                 ctx.ScenarioElapsedSeconds,
-                line,
+                line.Tts,
                 PilotRequestContext.Runway(ctx.Runway.Designator, facilityCallName)
             );
             _hasAnnouncedInitialCall = true;

@@ -32,7 +32,6 @@ internal static class GoAroundHelper
             ctx.RpoShowPilotSpeech,
             ctx.StudentPositionType,
             Pilot.PilotResponder.BuildGoingAround(ctx.Aircraft, reason),
-            $"{ctx.Aircraft.Callsign} is going around ({reason})",
             Pilot.PilotResponder.SoloPositionsTower
         );
 

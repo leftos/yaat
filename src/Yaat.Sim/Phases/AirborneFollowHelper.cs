@@ -138,7 +138,6 @@ public static class AirborneFollowHelper
                 ctx.RpoShowPilotSpeech,
                 ctx.StudentPositionType,
                 Pilot.PilotResponder.BuildLostSightOfTraffic(follower, targetCallsign),
-                $"{follower.Callsign} lost sight of {targetCallsign}, cancelling follow",
                 Pilot.PilotResponder.SoloPositionsTowerApproach
             );
             return true;
@@ -154,7 +153,6 @@ public static class AirborneFollowHelper
                 ctx.RpoShowPilotSpeech,
                 ctx.StudentPositionType,
                 Pilot.PilotResponder.BuildTargetLanded(follower, targetCallsign),
-                $"{follower.Callsign} {targetCallsign} has landed, cancelling follow",
                 Pilot.PilotResponder.SoloPositionsTowerApproach
             );
             return true;
@@ -214,7 +212,6 @@ public static class AirborneFollowHelper
             ctx.RpoShowPilotSpeech,
             ctx.StudentPositionType,
             Pilot.PilotResponder.BuildUnableToCatchUp(follower, targetCallsign),
-            $"{follower.Callsign} unable to catch up to {targetCallsign}, cancelling follow",
             Pilot.PilotResponder.SoloPositionsTowerApproach
         );
         return true;

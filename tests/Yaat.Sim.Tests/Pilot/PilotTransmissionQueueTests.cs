@@ -22,7 +22,9 @@ public sealed class PilotTransmissionQueueTests
         Assert.Empty(aircraft.PendingNotifications);
         var tx = Assert.Single(aircraft.PendingPilotTransmissions);
         Assert.Equal("N123AB", tx.Callsign);
-        Assert.Equal("[N123AB] tower, november one two three alpha bravo ten-mile final runway two eight right, with information Alpha.", tx.Text);
+        // Terminal form: bracketed callsign prefix stripped (SAY column carries it), hyphen kept for display.
+        Assert.Equal("tower, november one two three alpha bravo ten-mile final runway two eight right, with information Alpha.", tx.Text);
+        // TTS form: bracket stripped and word-joined hyphens de-hyphenated for the speech engine.
         Assert.Equal("tower, november one two three alpha bravo ten mile final runway two eight right, with information Alpha.", tx.SpeechText);
         Assert.Equal(PilotResponder.SourceResponse, tx.SourceKind);
         Assert.Equal(PilotTransmissionKind.Proactive, tx.Kind);
@@ -344,7 +346,10 @@ public sealed class PilotTransmissionQueueTests
 
         Assert.True(result.Success, result.Message);
         var transmission = Assert.Single(aircraft.PendingPilotTransmissions);
-        Assert.Equal("[N123AB] down to five thousand, november one two three alpha bravo.", transmission.Text);
+        // Saturated activity level uses the terse "down to" shortcut. Spoken form spells the
+        // altitude and appends the callsign; the terminal SAY message is compact and callsign-less.
+        Assert.Equal("down to five thousand, november one two three alpha bravo.", transmission.SpeechText);
+        Assert.Equal("down to 5000", transmission.Text);
     }
 
     [Fact]

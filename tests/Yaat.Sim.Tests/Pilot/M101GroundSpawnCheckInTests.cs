@@ -97,9 +97,9 @@ public class M101GroundSpawnCheckInTests
         phase.OnTick(ctx);
     }
 
-    private static string? SinglePilotLine(AircraftState ac) => ac.PendingPilotTransmissions.SingleOrDefault()?.Text;
+    private static string? SinglePilotLine(AircraftState ac) => ac.PendingPilotTransmissions.SingleOrDefault()?.SpeechText;
 
-    private static string PilotLineAt(AircraftState ac, int index) => ac.PendingPilotTransmissions[index].Text;
+    private static string PilotLineAt(AircraftState ac, int index) => ac.PendingPilotTransmissions[index].SpeechText;
 
     // --- AtParkingPhase ---
 

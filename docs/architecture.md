@@ -580,14 +580,14 @@ HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", f
 ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-short of a taxiway sitting closer than its own length past a crossed runway) forward until just clear (½ length past the bars), then holds
 
 # Pilot/ — solo-training pilot AI (deterministic readbacks)
-Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → spoken-English readback string.
+Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → Verbalize() spoken-English / VerbalizeTerminal() compact readback (shared rule, per-token formatter strategy).
                                # Picks the first-declared rule per CanonicalCommandType by default; Varied mode can use PilotShortcuts when the frequency is busy.
 Pilot/FrequencyActivityMeter.cs # Rolling 60-second pilot-transmission counter; classifies active frequency load as Quiet/Moderate/Busy/Saturated.
 Pilot/FrequencyState.cs        # Sim-level active-frequency queue. Serializes solo pilot SAY/audio transmissions and gives awaited command readbacks priority over proactive calls.
 Pilot/PilotTransmission.cs     # Record: Callsign, Text, SpeechText, SourceKind, Kind. Transient typed side queue for solo-training SAY/audio broadcasts.
 Pilot/PilotPendingRequest.cs   # Snapshot-serialized pending pilot request model for solo-training follow-up reminders.
 Pilot/PilotRequestTracker.cs   # Records pilot-originated requests, applies controller responses, and schedules normal/standby follow-up reminders.
-Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → readback line for solo-training mode.
+Pilot/PilotResponder.cs        # Static: BuildReadback(CompoundCommand, AircraftState) → PilotSpeechText? (compact terminal + spoken TTS) for solo-training mode.
                                # Uses PhraseologyVerbalizer for rule-backed commands; ground spawn / "going around" / airborne-spawn / VFR closed-traffic check-ins live here directly
                                # Adds light deterministic Quiet-frequency flavor and preserves runway/callsign-critical readback content.
                                # Also: BuildTrafficInSight / BuildFieldInSight / BuildHoldingShortCrossing / BuildClearOfRunway / BuildGoingAround / BuildApproachingMinimumsNoLandingClearance / BuildUnable / BuildLostSightOf*

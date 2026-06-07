@@ -44,7 +44,7 @@ public class HoldingAfterExitPhaseTests
 
         Assert.Empty(ac.PendingNotifications);
         var transmission = Assert.Single(ac.PendingPilotTransmissions);
-        Assert.Equal("N569SX, clear of runway 28R at E.", transmission.Text);
+        Assert.Equal("clear of runway 28R at E.", transmission.Text);
         Assert.Contains("clear of runway two eight right", transmission.SpeechText);
         Assert.Empty(ac.PendingWarnings);
     }

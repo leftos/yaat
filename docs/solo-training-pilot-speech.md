@@ -23,8 +23,8 @@ The end result: solo training feels like one frequency with many aircraft, not a
 ```csharp
 public sealed record PilotTransmission(
     string Callsign,
-    string Text,         // terminal-readable form ("N123AB, cleared to land runway 28R")
-    string SpeechText,   // TTS form ("november one two three alpha bravo, cleared to land runway two eight right")
+    string Text,         // compact terminal form, no callsign — the SAY column carries it ("cleared to land runway 28R")
+    string SpeechText,   // TTS form ("cleared to land runway two eight right, november one two three alpha bravo")
     string SourceKind,   // "Response" or "SayReadback" — drives terminal channel
     PilotTransmissionKind Kind  // Readback / Proactive / Report / SayReadback
 );
@@ -80,13 +80,15 @@ For commands that *produce* a readback, both gates run sequentially: dispatch cl
 
 ## Dual-output builders (terminal vs TTS)
 
-A readback rendered for TTS reads digit-by-digit ("two eight right") and spelled-out ("november one two three alpha bravo"). The terminal log displays the same readback in the form a human reads at a glance ("28R", "N123AB"). The two forms are produced **independently** by builders, never derived by regex-stripping the TTS output.
+A readback rendered for TTS reads digit-by-digit ("two eight right"), spelled-out ("november one two three alpha bravo"), and ends with the spoken callsign. The terminal `SAY` log displays the same readback compactly ("8R", "fly heading 270") **without** the callsign — the `SAY` line already has its own callsign column. The two forms are produced **independently** by builders, never derived by regex-stripping the TTS output. `BuildReadback` returns `PilotSpeechText?`; every proactive `Build*` builder returns `PilotSpeechText` (or `PilotSpeechText?` where nullable). The terminal-emit sites (`SimulationEngine` standalone, `TickProcessor` server) render the `Text` field; the TTS/voice broadcast uses `SpeechText`.
 
 The shared record:
 
 ```csharp
 public sealed record PilotSpeechText(string Terminal, string Tts);
 ```
+
+The verbalizer produces both forms from one rule-driven switch: `PhraseologyVerbalizer.Verbalize(cmd)` (spoken) and `VerbalizeTerminal(cmd)` (compact) share the same `PhraseologyRule` patterns and selection — only per-capture token formatting differs (runway `08R` → "eight right" vs `8R`, heading → "two seven zero" vs `270`).
 
 `PilotResponder.RouteSoloOrRpoTransmission(... PilotSpeechText, soloRelevantPositions, ...)` is the four-way router:
 
@@ -102,7 +104,7 @@ Two well-known position lists:
 - `PilotResponder.SoloPositionsTower` — `["TWR"]`. Used for clear-of-runway, holding-short, lined-up-ready, short-final reminder.
 - `PilotResponder.SoloPositionsTowerApproach` — `["TWR", "APP"]`. Used for pattern reports, follow events, going-around, airspace-boundary holds, approaching-minimums-no-landing-clearance.
 
-A legacy single-string overload of `RouteSoloOrRpoTransmission` exists for callers that haven't migrated to `PilotSpeechText` yet. Prefer the dual-output overload for new code.
+`RouteSoloOrRpoTransmission` takes a `PilotSpeechText`; the RPO-default warning channel uses `Terminal`. The string overloads that remain are `QueueSoloPilotTransmission(string)` / `QueueSoloPilotReadback(string)` (for stored follow-up lines re-queued by `PilotRequestTracker`, whose `LastPilotLine` is snapshot-serialized as a plain string, and for the notification-style SAY readbacks like "looking for the field") and `RouteRpoTransmission` / `RouteRpoSayReadback` (RPO-only spoken paths whose terminal warning comes from a separate string). The string queue overloads strip the bracketed callsign prefix for the terminal form.
 
 ## Position reports vs intent declarations
 

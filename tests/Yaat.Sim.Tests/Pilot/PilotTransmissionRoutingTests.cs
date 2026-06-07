@@ -74,7 +74,7 @@ public class PilotTransmissionRoutingTests
         // in the radio queue and later appears as SAY/voice.
         Assert.Equal("N172SP holding short runway 28R at B", Assert.Single(ac.PendingWarnings));
         Assert.Empty(ac.PendingNotifications);
-        Assert.Equal(PilotResponder.BuildHoldingShortReady(ac, "28R"), Assert.Single(ac.PendingPilotTransmissions).Text);
+        Assert.Equal(PilotResponder.BuildHoldingShortReady(ac, "28R").Terminal, Assert.Single(ac.PendingPilotTransmissions).Text);
         Assert.Empty(ac.PendingPilotSpeech);
     }
 
@@ -104,7 +104,7 @@ public class PilotTransmissionRoutingTests
         Assert.Empty(ac.PendingWarnings);
         Assert.Empty(ac.PendingNotifications);
         var speech = Assert.Single(ac.PendingPilotSpeech);
-        Assert.Equal(PilotResponder.BuildHoldingShortCrossing(ac, "28R"), speech);
+        Assert.Equal(PilotResponder.BuildHoldingShortCrossing(ac, "28R").Tts, speech);
     }
 
     // PilotObservationUpdater routing is exercised end-to-end by RpoPilotSpeechReplayTests

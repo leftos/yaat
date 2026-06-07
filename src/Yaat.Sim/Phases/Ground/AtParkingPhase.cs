@@ -64,7 +64,7 @@ public sealed class AtParkingPhase : Phase
                     ctx.Aircraft,
                     PilotPendingRequestKind.Taxi,
                     ctx.ScenarioElapsedSeconds,
-                    line,
+                    line.Tts,
                     PilotRequestContext.Facility(facilityCallName)
                 );
                 ctx.Aircraft.Ground.HasAnnouncedReady = true;

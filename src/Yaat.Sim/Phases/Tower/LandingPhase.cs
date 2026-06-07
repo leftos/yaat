@@ -931,7 +931,6 @@ public sealed class LandingPhase : Phase
                 ctx.RpoShowPilotSpeech,
                 ctx.StudentPositionType,
                 Pilot.PilotResponder.BuildUnableToExit(ctx.Aircraft, missedTaxiway),
-                $"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}",
                 Pilot.PilotResponder.SoloPositionsTower
             );
             _unableBroadcast = true;

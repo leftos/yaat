@@ -54,7 +54,6 @@ public sealed class RunwayHoldingPhase : Phase
             ctx.RpoShowPilotSpeech,
             ctx.StudentPositionType,
             Pilot.PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, _crossingRunwayId),
-            $"{ctx.Aircraft.Callsign} holding short runway {_crossingRunwayId}",
             Pilot.PilotResponder.SoloPositionsTower
         );
     }

@@ -103,9 +103,27 @@ public static class PhraseologyVerbalizer
 
     private static bool IsCapture(string token) => token.StartsWith('{') && token.EndsWith('}');
 
+    private static readonly CaptureFormatter Spoken = new SpokenCaptureFormatter();
+    private static readonly CaptureFormatter Terminal = new TerminalCaptureFormatter();
+
     public static string? Verbalize(ParsedCommand cmd) => Verbalize(cmd, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
 
-    public static string? Verbalize(ParsedCommand cmd, PilotPersonality personality, FrequencyActivityLevel activityLevel)
+    public static string? Verbalize(ParsedCommand cmd, PilotPersonality personality, FrequencyActivityLevel activityLevel) =>
+        VerbalizeCore(cmd, personality, activityLevel, Spoken);
+
+    /// <summary>
+    /// Compact controller-readable form of the same readback — runway/taxiway identifiers
+    /// (<c>8R</c>, <c>B C D</c>), digit numbers (<c>270</c>, <c>5000</c>), raw fix/callsign
+    /// identifiers. Shares the rule patterns and selection with <see cref="Verbalize"/>; only
+    /// the per-capture token formatting differs. Used for the terminal <c>SAY</c> echo, which is
+    /// built independently from the canonical command — never by stripping the spoken string.
+    /// </summary>
+    public static string? VerbalizeTerminal(ParsedCommand cmd) => VerbalizeTerminal(cmd, PilotPersonality.Verbatim, FrequencyActivityLevel.Moderate);
+
+    public static string? VerbalizeTerminal(ParsedCommand cmd, PilotPersonality personality, FrequencyActivityLevel activityLevel) =>
+        VerbalizeCore(cmd, personality, activityLevel, Terminal);
+
+    private static string? VerbalizeCore(ParsedCommand cmd, PilotPersonality personality, FrequencyActivityLevel activityLevel, CaptureFormatter fmt)
     {
         // UnsupportedCommand and similar non-canonical placeholders shouldn't crash the
         // verbalizer — they just have no pilot speech to render.
@@ -116,12 +134,12 @@ public static class PhraseologyVerbalizer
 
         if (cmd is ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove } atOrAbove)
         {
-            return $"maintain at or above {AltitudeWords(atOrAbove.Altitude)}";
+            return $"maintain at or above {fmt.Altitude(atOrAbove.Altitude)}";
         }
 
         if (cmd is ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrBelow } atOrBelow)
         {
-            return $"maintain at or below {AltitudeWords(atOrBelow.Altitude)}";
+            return $"maintain at or below {fmt.Altitude(atOrBelow.Altitude)}";
         }
 
         // CrossFix AtOrAbove/AtOrBelow render directly because PickPreferredRule would
@@ -130,12 +148,12 @@ public static class PhraseologyVerbalizer
         // through to the rule-driven path below.
         if (cmd is CrossFixCommand { AltType: CrossFixAltitudeType.AtOrAbove } cfAbove)
         {
-            return $"cross {SpellFix(cfAbove.FixName)} at or above {AltitudeWords(cfAbove.Altitude)}";
+            return $"cross {fmt.Fix(cfAbove.FixName)} at or above {fmt.Altitude(cfAbove.Altitude)}";
         }
 
         if (cmd is CrossFixCommand { AltType: CrossFixAltitudeType.AtOrBelow } cfBelow)
         {
-            return $"cross {SpellFix(cfBelow.FixName)} at or below {AltitudeWords(cfBelow.Altitude)}";
+            return $"cross {fmt.Fix(cfBelow.FixName)} at or below {fmt.Altitude(cfBelow.Altitude)}";
         }
 
         var canonicalType = CommandDescriber.ToCanonicalType(cmd);
@@ -144,7 +162,7 @@ public static class PhraseologyVerbalizer
             return null;
         }
 
-        var args = ExtractArgs(cmd);
+        var args = ExtractArgs(cmd, fmt);
         var rule = PickPreferredRule(rules, args);
         if (rule is null)
         {
@@ -202,67 +220,67 @@ public static class PhraseologyVerbalizer
     /// dictionary. Capture names match the placeholders in <see cref="PhraseologyRules"/> patterns.
     /// Commands without captures return an empty dictionary; their patterns are pure literals.
     /// </summary>
-    private static IReadOnlyDictionary<string, string> ExtractArgs(ParsedCommand cmd) =>
+    private static IReadOnlyDictionary<string, string> ExtractArgs(ParsedCommand cmd, CaptureFormatter fmt) =>
         cmd switch
         {
             // Heading
-            FlyHeadingCommand h => Map("hdg", HeadingDigits(h.MagneticHeading)),
-            TurnLeftCommand h => Map("hdg", HeadingDigits(h.MagneticHeading)),
-            TurnRightCommand h => Map("hdg", HeadingDigits(h.MagneticHeading)),
-            LeftTurnCommand r => Map("deg", DegreesWords(r.Degrees)),
-            RightTurnCommand r => Map("deg", DegreesWords(r.Degrees)),
+            FlyHeadingCommand h => Map("hdg", fmt.Heading(h.MagneticHeading)),
+            TurnLeftCommand h => Map("hdg", fmt.Heading(h.MagneticHeading)),
+            TurnRightCommand h => Map("hdg", fmt.Heading(h.MagneticHeading)),
+            LeftTurnCommand r => Map("deg", fmt.Degrees(r.Degrees)),
+            RightTurnCommand r => Map("deg", fmt.Degrees(r.Degrees)),
 
             // Altitude / speed
-            ClimbMaintainCommand c => Map("alt", AltitudeWords(c.Altitude)),
-            DescendMaintainCommand c => Map("alt", AltitudeWords(c.Altitude)),
-            SpeedCommand s => Map("spd", SpeedWords(s.Speed)),
-            ExpediteCommand e => e.UntilAltitude is int alt ? Map("alt", AltitudeWords(alt)) : Empty(),
-            MachCommand m => Map("mach", MachWords(m.MachNumber)),
+            ClimbMaintainCommand c => Map("alt", fmt.Altitude(c.Altitude)),
+            DescendMaintainCommand c => Map("alt", fmt.Altitude(c.Altitude)),
+            SpeedCommand s => Map("spd", fmt.Speed(s.Speed)),
+            ExpediteCommand e => e.UntilAltitude is int alt ? Map("alt", fmt.Altitude(alt)) : Empty(),
+            MachCommand m => Map("mach", fmt.Mach(m.MachNumber)),
 
             // Navigation
-            DirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
-            ForceDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
-            AppendDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
-            AppendForceDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
-            TurnLeftDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
-            TurnRightDirectToCommand d when d.Fixes.Count > 0 => Map("fix", SpellFixSequence(d.Fixes)),
-            ExpectApproachCommand e => Map("rwy", SpellApproach(e.ApproachId)),
-            JoinFinalApproachCourseCommand jfac when jfac.ApproachId is { } id => Map("rwy", SpellApproach(id)),
-            CrossFixCommand cf => CrossFixArgs(cf),
-            ClimbViaCommand cv when cv.Altitude is int alt => Map("alt", AltitudeWords(alt)),
+            DirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
+            ForceDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
+            AppendDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
+            AppendForceDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
+            TurnLeftDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
+            TurnRightDirectToCommand d when d.Fixes.Count > 0 => Map("fix", fmt.FixSequence(d.Fixes)),
+            ExpectApproachCommand e => Map("rwy", fmt.Approach(e.ApproachId)),
+            JoinFinalApproachCourseCommand jfac when jfac.ApproachId is { } id => Map("rwy", fmt.Approach(id)),
+            CrossFixCommand cf => CrossFixArgs(cf, fmt),
+            ClimbViaCommand cv when cv.Altitude is int alt => Map("alt", fmt.Altitude(alt)),
 
             // Tower
-            LandAndHoldShortCommand l => Map("crossrwy", SpellRunway(l.CrossingRunwayId)),
+            LandAndHoldShortCommand l => Map("crossrwy", fmt.Runway(l.CrossingRunwayId)),
 
             // Pattern entries (runway-suffixed forms in the rules)
-            EnterLeftDownwindCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
-            EnterRightDownwindCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
-            EnterLeftCrosswindCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
-            EnterRightCrosswindCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
-            EnterLeftBaseCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
-            EnterRightBaseCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
-            EnterFinalCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
-            MakeLeftTrafficCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
-            MakeRightTrafficCommand p when p.RunwayId is { } r => Map("rwy", SpellRunway(r)),
+            EnterLeftDownwindCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            EnterRightDownwindCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            EnterLeftCrosswindCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            EnterRightCrosswindCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            EnterLeftBaseCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            EnterRightBaseCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            EnterFinalCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            MakeLeftTrafficCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            MakeRightTrafficCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
 
             // Ground
-            CrossRunwayCommand c when c.RunwayId is { } r => Map("rwy", SpellRunway(r)),
-            HoldShortCommand h => Map("holdshort", SpellRunway(h.Target)),
-            AssignRunwayCommand a => Map("rwy", SpellRunway(a.RunwayId)),
-            TaxiCommand taxi => TaxiArgs(taxi),
-            ExitTaxiwayCommand e => Map("taxiway", SpellTaxiway(e.Taxiway)),
-            ExitLeftCommand e when e.Taxiway is { } t => Map("taxiway", SpellTaxiway(t)),
-            ExitRightCommand e when e.Taxiway is { } t => Map("taxiway", SpellTaxiway(t)),
-            FollowGroundCommand f => Map("name", CallsignParser.IcaoToSpoken(f.TargetCallsign)),
-            FollowCommand f when f.TargetCallsign is not null => Map("name", CallsignParser.IcaoToSpoken(f.TargetCallsign)),
+            CrossRunwayCommand c when c.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            HoldShortCommand h => Map("holdshort", fmt.Runway(h.Target)),
+            AssignRunwayCommand a => Map("rwy", fmt.Runway(a.RunwayId)),
+            TaxiCommand taxi => TaxiArgs(taxi, fmt),
+            ExitTaxiwayCommand e => Map("taxiway", fmt.Taxiway(e.Taxiway)),
+            ExitLeftCommand e when e.Taxiway is { } t => Map("taxiway", fmt.Taxiway(t)),
+            ExitRightCommand e when e.Taxiway is { } t => Map("taxiway", fmt.Taxiway(t)),
+            FollowGroundCommand f => Map("name", fmt.Callsign(f.TargetCallsign)),
+            FollowCommand f when f.TargetCallsign is not null => Map("name", fmt.Callsign(f.TargetCallsign)),
 
             // Transponder
-            SquawkCommand s => Map("code", DigitsWords((int)s.Code, minWidth: 4)),
+            SquawkCommand s => Map("code", fmt.Squawk((int)s.Code)),
 
             // Holding
             HoldPresentPosition360Command => Empty(), // pattern uses no captures (left/right is in the rule literal)
-            HoldAtFixOrbitCommand h => Map("fix", SpellFix(h.FixName)),
-            HoldAtFixHoverCommand h => Map("fix", SpellFix(h.FixName)),
+            HoldAtFixOrbitCommand h => Map("fix", fmt.Fix(h.FixName)),
+            HoldAtFixHoverCommand h => Map("fix", fmt.Fix(h.FixName)),
 
             // Pushback's {path...} capture isn't extracted yet, so the verbalizer falls through to the
             // rule's literal "pushback" keyword with no path filled in.
@@ -276,9 +294,9 @@ public static class PhraseologyVerbalizer
     /// "runway … taxi via … cross runway … hold short of …". An empty path (node-refs only) yields no
     /// captures, so the command produces no readback (a draw-route debug taxi isn't voiced).
     /// </summary>
-    private static IReadOnlyDictionary<string, string> TaxiArgs(TaxiCommand taxi)
+    private static IReadOnlyDictionary<string, string> TaxiArgs(TaxiCommand taxi, CaptureFormatter fmt)
     {
-        string path = SpellTaxiPath(taxi);
+        string path = fmt.TaxiPath(taxi);
         if (string.IsNullOrEmpty(path))
         {
             return Empty();
@@ -287,29 +305,30 @@ public static class PhraseologyVerbalizer
         var dict = new Dictionary<string, string> { ["path"] = path };
         if (taxi.DestinationRunway is { Length: > 0 } rwy)
         {
-            dict["rwy"] = SpellRunway(rwy);
+            dict["rwy"] = fmt.Runway(rwy);
         }
 
         if (taxi.HoldShorts is { Count: > 0 } holdShorts)
         {
-            dict["holdshort"] = string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? SpellRunway(h) : SpellTaxiway(h)));
+            dict["holdshort"] = string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? fmt.Runway(h) : fmt.Taxiway(h)));
         }
 
         if (taxi.CrossRunways is { Count: > 0 } crossRunways)
         {
-            dict["crossrwy"] = string.Join(" and ", crossRunways.Select(SpellRunway));
+            dict["crossrwy"] = string.Join(" and ", crossRunways.Select(fmt.Runway));
         }
 
         return dict;
     }
 
     /// <summary>
-    /// Renders a taxi path as comma-separated spoken taxiways, prefixing a hinted taxiway with its turn
-    /// ("right on bravo" / "left on charlie") — the action form a pilot echoes for the controller's
-    /// "make right/left turn onto &lt;taxiway&gt;" (7110.65 §3-7-2 NOTE, AIM 4-3-17). Node-reference
-    /// tokens (#NNNN) are dropped — they have no spoken form.
+    /// Renders a taxi path's taxiways, prefixing a hinted taxiway with its turn ("right on bravo" /
+    /// "left on charlie") — the action form a pilot echoes for the controller's "make right/left turn
+    /// onto &lt;taxiway&gt;" (7110.65 §3-7-2 NOTE, AIM 4-3-17). Node-reference tokens (#NNNN) are
+    /// dropped. The spoken form joins with ", " ("bravo, charlie, delta"); the terminal form joins
+    /// with " " ("B C D"). Per-taxiway token formatting comes from <paramref name="fmt"/>.
     /// </summary>
-    private static string SpellTaxiPath(TaxiCommand taxi)
+    private static string RenderTaxiPath(TaxiCommand taxi, CaptureFormatter fmt, string separator)
     {
         var hints = taxi.PathTurnHints;
         var parts = new List<string>(taxi.Path.Count);
@@ -321,31 +340,23 @@ public static class PhraseologyVerbalizer
                 continue;
             }
 
-            string spelled = SpellTaxiway(name);
             var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
-            parts.Add(
-                hint switch
-                {
-                    TurnDirection.Right => $"right on {spelled}",
-                    TurnDirection.Left => $"left on {spelled}",
-                    _ => spelled,
-                }
-            );
+            parts.Add(fmt.TaxiTurn(name, hint));
         }
 
-        return string.Join(", ", parts);
+        return string.Join(separator, parts);
     }
 
     private static IReadOnlyDictionary<string, string> Map(string k, string v) => new Dictionary<string, string> { [k] = v };
 
     private static IReadOnlyDictionary<string, string> Empty() => new Dictionary<string, string>(0);
 
-    private static IReadOnlyDictionary<string, string> CrossFixArgs(CrossFixCommand cf)
+    private static IReadOnlyDictionary<string, string> CrossFixArgs(CrossFixCommand cf, CaptureFormatter fmt)
     {
-        var dict = new Dictionary<string, string> { ["fix"] = SpellFix(cf.FixName), ["alt"] = AltitudeWords(cf.Altitude) };
+        var dict = new Dictionary<string, string> { ["fix"] = fmt.Fix(cf.FixName), ["alt"] = fmt.Altitude(cf.Altitude) };
         if (cf.Speed is int s)
         {
-            dict["speed"] = SpeedWords(s);
+            dict["speed"] = fmt.Speed(s);
         }
         return dict;
     }
@@ -684,12 +695,20 @@ public static class PhraseologyVerbalizer
     private static string TitleCase(string raw) =>
         System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(raw.Trim().ToLowerInvariant());
 
-    /// <summary>"28R" → "two eight right". Letters expand; digits spell out.</summary>
+    /// <summary>"28R" → "two eight right"; "08R" → "eight right". Letters expand; digits spell out.</summary>
     public static string SpellRunway(string runway)
     {
         if (string.IsNullOrEmpty(runway))
         {
             return "";
+        }
+
+        // Runway designators are 01–36, so a leading zero is padding (NormalizeDesignator) and is
+        // not spoken — "runway eight right" / "runway nine", not "runway zero eight". Only the
+        // first character can be a padding zero. Headings keep their leading zero via HeadingDigits.
+        if (runway.Length > 1 && runway[0] == '0')
+        {
+            runway = runway[1..];
         }
 
         var sb = new StringBuilder();
@@ -782,5 +801,142 @@ public static class PhraseologyVerbalizer
         }
 
         return sb.ToString();
+    }
+
+    // --- Compact terminal-form formatters (public: reused by PilotResponder's dual-output clauses) ---
+
+    /// <summary>"08R" → "8R", "28L" → "28L". Drops the padding leading zero, uppercases.</summary>
+    public static string CompactRunway(string id)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            return "";
+        }
+
+        var s = id.Trim().ToUpperInvariant();
+        if (s.Length > 1 && s[0] == '0')
+        {
+            s = s[1..];
+        }
+        return s;
+    }
+
+    /// <summary>Heading 270 → "270" (3-digit, leading zeros kept — controllers write "090").</summary>
+    public static string HeadingNumber(MagneticHeading h)
+    {
+        int deg = ((int)Math.Round(h.Degrees) % 360 + 360) % 360;
+        return deg.ToString("D3", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Altitude → "5000" / "FL350" (mirrors the FL180+ threshold of the spoken form).</summary>
+    public static string CompactAltitude(int feet)
+    {
+        if (feet <= 0)
+        {
+            return "";
+        }
+
+        if (feet >= 18000 && feet % 100 == 0)
+        {
+            return "FL" + (feet / 100).ToString("D3", System.Globalization.CultureInfo.InvariantCulture);
+        }
+        return feet.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Per-capture token formatting strategy. The rule pattern (literals) is shared between the
+    /// spoken (TTS) and compact terminal forms; only these token renderings differ.
+    /// </summary>
+    private abstract class CaptureFormatter
+    {
+        public abstract string Runway(string id);
+        public abstract string Approach(string id);
+        public abstract string Heading(MagneticHeading h);
+        public abstract string Degrees(int degrees);
+        public abstract string Altitude(int feet);
+        public abstract string Speed(int knots);
+        public abstract string Mach(double mach);
+        public abstract string Fix(string fix);
+        public abstract string FixSequence(IEnumerable<ResolvedFix> fixes);
+        public abstract string Taxiway(string tw);
+        public abstract string Callsign(string callsign);
+        public abstract string Squawk(int code);
+        public abstract string TaxiPath(TaxiCommand taxi);
+        public abstract string TaxiTurn(string taxiway, TurnDirection? hint);
+    }
+
+    private sealed class SpokenCaptureFormatter : CaptureFormatter
+    {
+        public override string Runway(string id) => SpellRunway(id);
+
+        public override string Approach(string id) => SpellApproach(id);
+
+        public override string Heading(MagneticHeading h) => HeadingDigits(h);
+
+        public override string Degrees(int degrees) => DegreesWords(degrees);
+
+        public override string Altitude(int feet) => AltitudeWords(feet);
+
+        public override string Speed(int knots) => SpeedWords(knots);
+
+        public override string Mach(double mach) => MachWords(mach);
+
+        public override string Fix(string fix) => SpellFix(fix);
+
+        public override string FixSequence(IEnumerable<ResolvedFix> fixes) => SpellFixSequence(fixes);
+
+        public override string Taxiway(string tw) => SpellTaxiway(tw);
+
+        public override string Callsign(string callsign) => CallsignParser.IcaoToSpoken(callsign);
+
+        public override string Squawk(int code) => DigitsWords(code, minWidth: 4);
+
+        public override string TaxiPath(TaxiCommand taxi) => RenderTaxiPath(taxi, this, ", ");
+
+        public override string TaxiTurn(string taxiway, TurnDirection? hint) =>
+            hint switch
+            {
+                TurnDirection.Right => $"right on {SpellTaxiway(taxiway)}",
+                TurnDirection.Left => $"left on {SpellTaxiway(taxiway)}",
+                _ => SpellTaxiway(taxiway),
+            };
+    }
+
+    private sealed class TerminalCaptureFormatter : CaptureFormatter
+    {
+        public override string Runway(string id) => CompactRunway(id);
+
+        public override string Approach(string id) => id.Trim().ToUpperInvariant();
+
+        public override string Heading(MagneticHeading h) => HeadingNumber(h);
+
+        public override string Degrees(int degrees) => degrees.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        public override string Altitude(int feet) => CompactAltitude(feet);
+
+        public override string Speed(int knots) => knots.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        public override string Mach(double mach) => mach.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+        public override string Fix(string fix) => fix.Trim().ToUpperInvariant();
+
+        public override string FixSequence(IEnumerable<ResolvedFix> fixes) =>
+            string.Join(", ", fixes.Select(f => f.Name.Trim().ToUpperInvariant()).Where(s => s.Length > 0));
+
+        public override string Taxiway(string tw) => tw.Trim().ToUpperInvariant();
+
+        public override string Callsign(string callsign) => callsign.Trim().ToUpperInvariant();
+
+        public override string Squawk(int code) => code.ToString("D4", System.Globalization.CultureInfo.InvariantCulture);
+
+        public override string TaxiPath(TaxiCommand taxi) => RenderTaxiPath(taxi, this, " ");
+
+        public override string TaxiTurn(string taxiway, TurnDirection? hint) =>
+            hint switch
+            {
+                TurnDirection.Right => $"right on {Taxiway(taxiway)}",
+                TurnDirection.Left => $"left on {Taxiway(taxiway)}",
+                _ => Taxiway(taxiway),
+            };
     }
 }

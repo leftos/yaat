@@ -51,7 +51,8 @@ public sealed class M104PendingRequestTests
         PilotProactive.TickPendingRequests(ac, scenario);
 
         var transmission = Assert.Single(ac.PendingPilotTransmissions);
-        Assert.Equal("[N123AB] ground, ready to taxi.", transmission.Text);
+        // Re-queued follow-up: terminal form strips the bracketed callsign prefix (SAY column carries it).
+        Assert.Equal("ground, ready to taxi.", transmission.Text);
         Assert.Equal(130, ac.PendingPilotRequest!.LastRequestedAtSeconds);
         Assert.Equal(250, ac.PendingPilotRequest.NextFollowUpDueSeconds);
     }

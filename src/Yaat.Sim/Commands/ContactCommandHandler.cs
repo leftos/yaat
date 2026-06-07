@@ -102,7 +102,7 @@ public static class ContactCommandHandler
         aircraft.CompletionDetail = detail;
     }
 
-    private static void Route(AircraftState aircraft, DispatchContext ctx, string pilotSpeech, string warningText)
+    private static void Route(AircraftState aircraft, DispatchContext ctx, Pilot.PilotSpeechText pilotSpeech, string warningText)
     {
         // Mark frequency change in both solo and RPO modes. Track ownership and comms
         // are independent (an auto-track to departure does not mean the pilot is on
@@ -116,13 +116,13 @@ public static class ContactCommandHandler
             PilotResponder.QueueSoloPilotTransmission(aircraft, pilotSpeech, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
             return;
         }
-        PilotResponder.RouteRpoTransmission(aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, pilotSpeech, warningText);
+        PilotResponder.RouteRpoTransmission(aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, pilotSpeech.Tts, warningText);
     }
 
-    private static string BuildContactReadbackNoFreq(AircraftState aircraft, string facilityName)
+    private static Pilot.PilotSpeechText BuildContactReadbackNoFreq(AircraftState aircraft, string facilityName)
     {
         var spoken = Yaat.Sim.Speech.CallsignParser.IcaoToSpoken(aircraft.Callsign);
-        return $"[{aircraft.Callsign}] {facilityName}, {spoken}, so long.";
+        return new Pilot.PilotSpeechText($"{facilityName}, so long.", $"{facilityName}, {spoken}, so long.");
     }
 
     private abstract record ResolvedTarget

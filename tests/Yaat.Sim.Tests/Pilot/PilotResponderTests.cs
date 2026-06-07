@@ -44,14 +44,14 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildReadback_SingleAltitudeCommand_AppendsBracketAndSpokenCallsign()
+    public void BuildReadback_SingleAltitudeCommand_SpokenFormWithCallsign()
     {
         var ac = MakeAircraft("AAL123");
         var compound = Compound(new DescendMaintainCommand(5000));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.Equal("[AAL123] descend and maintain five thousand, american one twenty three.", result);
+        Assert.Equal("descend and maintain five thousand, american one twenty three.", result);
     }
 
     [Fact]
@@ -60,9 +60,9 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB");
         var compound = Compound(new ClimbMaintainCommand(3500));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.StartsWith("[N123AB] climb and maintain three thousand five hundred, november one two three alpha bravo", result);
+        Assert.StartsWith("climb and maintain three thousand five hundred, november one two three alpha bravo", result);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         Assert.Contains("descend and maintain five thousand", result!);
         Assert.Contains("turn right heading two seven zero", result);
@@ -84,9 +84,9 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
 
-        var result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+        var result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Busy)?.Tts;
 
-        Assert.Equal("[AAL123] down to five thousand, right heading two seven zero, american one twenty three.", result);
+        Assert.Equal("down to five thousand, right heading two seven zero, american one twenty three.", result);
     }
 
     [Fact]
@@ -95,9 +95,9 @@ public class PilotResponderTests
         var ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
         var compound = Compound(new LineUpAndWaitCommand());
 
-        var result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Saturated);
+        var result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Saturated)?.Tts;
 
-        Assert.Equal("[N436MS] line up and wait runway two eight right, november four three six mike sierra.", result);
+        Assert.Equal("line up and wait runway two eight right, november four three six mike sierra.", result);
     }
 
     [Fact]
@@ -109,8 +109,8 @@ public class PilotResponderTests
             var ac = MakeAircraft($"N{i:D3}AB");
             var compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
 
-            var first = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Quiet);
-            var second = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Quiet);
+            var first = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Quiet)?.Tts;
+            var second = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Quiet)?.Tts;
 
             Assert.Equal(first, second);
             if (first!.Contains("alright", StringComparison.OrdinalIgnoreCase) || first.Contains("thanks", StringComparison.OrdinalIgnoreCase))
@@ -129,9 +129,9 @@ public class PilotResponderTests
         var ac = MakeAircraft("N004AB");
         var compound = Compound(new FlyHeadingCommand(new MagneticHeading(270)));
 
-        var result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Busy);
+        var result = PilotResponder.BuildReadback(compound, ac, PilotPersonality.Varied, FrequencyActivityLevel.Busy)?.Tts;
 
-        Assert.Equal("[N004AB] heading two seven zero, november zero zero four alpha bravo.", result);
+        Assert.Equal("heading two seven zero, november zero zero four alpha bravo.", result);
         Assert.DoesNotContain("alright", result);
         Assert.DoesNotContain("thanks", result);
     }
@@ -142,7 +142,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var compound = CompoundWithCondition(AtFixCondition.FromName("SUNOL"), new TurnLeftCommand(new MagneticHeading(180)));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         Assert.Contains("at sunol, turn left heading one eight zero", result!);
     }
@@ -157,7 +157,7 @@ public class PilotResponderTests
             new DescendMaintainCommand(5000)
         );
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         // The first command gets the "at sunol," lead; the second does not (same block).
         Assert.Contains("at sunol, turn left heading one eight zero", result!);
@@ -171,7 +171,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var compound = Compound(new UnsupportedCommand("ZZZ 999"));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         Assert.Null(result);
     }
@@ -189,10 +189,10 @@ public class PilotResponderTests
         ac.Procedure.DepartureRunway = "28R";
         var compound = Compound(new ClearedForTakeoffCommand(new DirectFixDeparture("MOD", 37.625, -120.957, TurnDirection.Right), 2500));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         Assert.Equal(
-            "[N436MS] cleared for takeoff runway two eight right, turn right direct Modesto VOR, climb and maintain two thousand five hundred, november four three six mike sierra.",
+            "cleared for takeoff runway two eight right, turn right direct Modesto VOR, climb and maintain two thousand five hundred, november four three six mike sierra.",
             result
         );
     }
@@ -204,10 +204,10 @@ public class PilotResponderTests
         ac.Procedure.DepartureRunway = "28R";
         var compound = Compound(new ClearedForTakeoffCommand(new RelativeTurnDeparture(270, TurnDirection.Right), 1400));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         Assert.Equal(
-            "[N172SP] cleared for takeoff runway two eight right, make a right two seventy degree departure, climb and maintain one thousand four hundred, november one seven two sierra papa.",
+            "cleared for takeoff runway two eight right, make a right two seventy degree departure, climb and maintain one thousand four hundred, november one seven two sierra papa.",
             result
         );
     }
@@ -218,7 +218,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N172SP");
         var compound = Compound(new AcknowledgePilotContactCommand());
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         Assert.Null(result);
     }
@@ -236,10 +236,10 @@ public class PilotResponderTests
         ac.Procedure.DepartureRunway = "28R";
         var compound = Compound(new ClearedTakeoffPresentCommand(new DirectFixDeparture("MOD", 37.625, -120.957, TurnDirection.Right), 2500));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         Assert.Equal(
-            "[N436MS] cleared for takeoff, present position, turn right direct Modesto VOR, climb and maintain two thousand five hundred, november four three six mike sierra.",
+            "cleared for takeoff, present position, turn right direct Modesto VOR, climb and maintain two thousand five hundred, november four three six mike sierra.",
             result
         );
     }
@@ -256,9 +256,9 @@ public class PilotResponderTests
         var ac = MakeAircraft("N436MS");
         var compound = Compound(new DirectToCommand([new ResolvedFix("MOD", 37.625, -120.957)], []));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.Equal("[N436MS] proceed direct to Modesto VOR, november four three six mike sierra.", result);
+        Assert.Equal("proceed direct to Modesto VOR, november four three six mike sierra.", result);
     }
 
     [Fact]
@@ -276,11 +276,11 @@ public class PilotResponderTests
         var ac = MakeAircraft("N172SP");
         var compound = Compound(new DirectToCommand([new ResolvedFix("OAK30NUM", 0, 0), new ResolvedFix("VPMID", 0, 0)], []));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         // Variable-length DCT must read every fix; "then direct" joins later fixes.
         Assert.Equal(
-            "[N172SP] proceed direct to Oakland Runway 30 Numbers, then direct Midspan San Mateo Bridge, november one seven two sierra papa.",
+            "proceed direct to Oakland Runway 30 Numbers, then direct Midspan San Mateo Bridge, november one seven two sierra papa.",
             result
         );
     }
@@ -298,9 +298,9 @@ public class PilotResponderTests
         var ac = MakeAircraft("N172SP");
         var compound = Compound(new DirectToCommand([new ResolvedFix("VPCOL", 0, 0)], []));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.Equal("[N172SP] proceed direct to Oakland Colliseum, november one seven two sierra papa.", result);
+        Assert.Equal("proceed direct to Oakland Colliseum, november one seven two sierra papa.", result);
     }
 
     [Fact]
@@ -319,9 +319,9 @@ public class PilotResponderTests
         var ac = MakeAircraft("N172SP");
         var compound = Compound(new DirectToCommand([new ResolvedFix("OAK30NUM", 0, 0)], []));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.Equal("[N172SP] proceed direct to Oakland Runway 30 Numbers, november one seven two sierra papa.", result);
+        Assert.Equal("proceed direct to Oakland Runway 30 Numbers, november one seven two sierra papa.", result);
     }
 
     [Fact]
@@ -334,9 +334,9 @@ public class PilotResponderTests
             new ParsedBlock(null, [new TurnRightCommand(new MagneticHeading(270))]),
         ]);
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.Equal("[AAL123] descend and maintain five thousand, then turn right heading two seven zero, american one twenty three.", result);
+        Assert.Equal("descend and maintain five thousand, then turn right heading two seven zero, american one twenty three.", result);
     }
 
     [Fact]
@@ -347,10 +347,10 @@ public class PilotResponderTests
         // Parallel commands stay comma-joined; "then" is sequential-only.
         var compound = Compound(new DescendMaintainCommand(5000), new TurnRightCommand(new MagneticHeading(270)));
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
         Assert.DoesNotContain("then", result!);
-        Assert.Equal("[AAL123] descend and maintain five thousand, turn right heading two seven zero, american one twenty three.", result);
+        Assert.Equal("descend and maintain five thousand, turn right heading two seven zero, american one twenty three.", result);
     }
 
     public static TheoryData<ParsedCommand, string> RunwayCriticalTowerReadbackCases() =>
@@ -373,9 +373,44 @@ public class PilotResponderTests
         var ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
         var compound = Compound(command);
 
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+
+        Assert.Equal($"{expectedClause}, november four three six mike sierra.", result);
+    }
+
+    // --- Dual-output readback: compact terminal SAY echo vs spelled TTS (issue #193) ---
+
+    [Fact]
+    public void BuildReadback_ClearedToLand_TerminalDropsCallsignAndLeadingZero()
+    {
+        var ac = MakeAircraftWithAssignedRunway("N436MS", "08R");
+        var compound = Compound(new ClearedToLandCommand());
+
         var result = PilotResponder.BuildReadback(compound, ac);
 
-        Assert.Equal($"[N436MS] {expectedClause}, november four three six mike sierra.", result);
+        Assert.NotNull(result);
+        // Terminal SAY message: compact runway (no leading zero), no callsign — the SAY column carries it.
+        Assert.Equal("cleared to land runway 8R", result!.Terminal);
+        // TTS: spelled runway without the padding zero + spoken callsign appended.
+        Assert.Equal("cleared to land runway eight right, november four three six mike sierra.", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadback_Taxi_TerminalUsesIdentifiersTtsSpellsPhonetics()
+    {
+        var ac = MakeAircraft("N225R");
+        var compound = Compound(new TaxiCommand(["B", "C", "D"], [], DestinationRunway: "08R"));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.NotNull(result);
+        Assert.Contains("8R", result!.Terminal);
+        Assert.Contains("B C D", result.Terminal);
+        Assert.DoesNotContain("november", result.Terminal); // callsign is column-only in terminal
+        Assert.DoesNotContain("eight right", result.Terminal);
+        Assert.Contains("eight right", result.Tts);
+        Assert.Contains("bravo, charlie, delta", result.Tts);
+        Assert.Contains("november two two five", result.Tts);
     }
 
     // --- EXT readback (issue #154 #7) ---
@@ -391,9 +426,9 @@ public class PilotResponderTests
         ac.Phases!.Add(new DownwindPhase());
         var compound = Compound(new ExtendPatternCommand());
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.Equal("[N342T] extend downwind runway two eight right, november three four two tango.", result);
+        Assert.Equal("extend downwind runway two eight right, november three four two tango.", result);
     }
 
     [Fact]
@@ -404,9 +439,9 @@ public class PilotResponderTests
         ac.Phases!.Add(new UpwindPhase());
         var compound = Compound(new ExtendPatternCommand());
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.Equal("[N342T] extend upwind runway two eight right, november three four two tango.", result);
+        Assert.Equal("extend upwind runway two eight right, november three four two tango.", result);
     }
 
     [Fact]
@@ -417,9 +452,9 @@ public class PilotResponderTests
         ac.Phases!.Add(new CrosswindPhase());
         var compound = Compound(new ExtendPatternCommand());
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.Equal("[N342T] extend crosswind runway two eight right, november three four two tango.", result);
+        Assert.Equal("extend crosswind runway two eight right, november three four two tango.", result);
     }
 
     [Fact]
@@ -430,9 +465,9 @@ public class PilotResponderTests
         ac.Phases.Add(new DownwindPhase());
         var compound = Compound(new ExtendPatternCommand());
 
-        var result = PilotResponder.BuildReadback(compound, ac);
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
 
-        Assert.Equal("[N342T] extend downwind, november three four two tango.", result);
+        Assert.Equal("extend downwind, november three four two tango.", result);
     }
 
     // --- BuildReadyToTaxi ---
@@ -443,7 +478,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
         var result = PilotResponder.BuildReadyToTaxi(ac);
 
-        Assert.Equal("[N123AB] ground, november one two three alpha bravo at gate b22, with information Alpha, ready to taxi.", result);
+        Assert.Equal("ground, november one two three alpha bravo at gate b22, with information Alpha, ready to taxi.", result.Tts);
     }
 
     [Fact]
@@ -452,7 +487,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var result = PilotResponder.BuildReadyToTaxi(ac);
 
-        Assert.Equal("[AAL123] ground, american one twenty three at the ramp, with information Alpha, ready to taxi.", result);
+        Assert.Equal("ground, american one twenty three at the ramp, with information Alpha, ready to taxi.", result.Tts);
     }
 
     [Fact]
@@ -461,7 +496,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
         var result = PilotResponder.BuildReadyToTaxi(ac, "Oakland Ground");
 
-        Assert.Equal("[N123AB] Oakland Ground, november one two three alpha bravo at gate b22, with information Alpha, ready to taxi.", result);
+        Assert.Equal("Oakland Ground, november one two three alpha bravo at gate b22, with information Alpha, ready to taxi.", result.Tts);
     }
 
     // --- BuildHoldingShortReady ---
@@ -472,7 +507,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB");
         var result = PilotResponder.BuildHoldingShortReady(ac, "28R");
 
-        Assert.Equal("[N123AB] tower, november one two three alpha bravo holding short runway two eight right, ready for departure.", result);
+        Assert.Equal("tower, november one two three alpha bravo holding short runway two eight right, ready for departure.", result.Tts);
     }
 
     [Fact]
@@ -481,7 +516,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var result = PilotResponder.BuildHoldingShortReady(ac, "9L");
 
-        Assert.Contains("american one twenty three holding short runway nine left", result);
+        Assert.Contains("american one twenty three holding short runway nine left", result.Tts);
     }
 
     [Fact]
@@ -490,7 +525,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB");
         var result = PilotResponder.BuildHoldingShortReady(ac, "28R", "Oakland Tower");
 
-        Assert.Equal("[N123AB] Oakland Tower, november one two three alpha bravo holding short runway two eight right, ready for departure.", result);
+        Assert.Equal("Oakland Tower, november one two three alpha bravo holding short runway two eight right, ready for departure.", result.Tts);
     }
 
     // --- BuildLinedUpReady ---
@@ -501,7 +536,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB");
         var result = PilotResponder.BuildLinedUpReady(ac, "28R");
 
-        Assert.Equal("[N123AB] tower, november one two three alpha bravo runway two eight right, ready.", result);
+        Assert.Equal("tower, november one two three alpha bravo runway two eight right, ready.", result.Tts);
     }
 
     [Fact]
@@ -510,7 +545,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB");
         var result = PilotResponder.BuildLinedUpReady(ac, "28R", "Oakland Tower");
 
-        Assert.Equal("[N123AB] Oakland Tower, november one two three alpha bravo runway two eight right, ready.", result);
+        Assert.Equal("Oakland Tower, november one two three alpha bravo runway two eight right, ready.", result.Tts);
     }
 
     // --- BuildOnFinal ---
@@ -521,7 +556,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: true, approachId: "I28R", distanceMilesForVfr: 0);
 
-        Assert.Equal("[AAL123] tower, american one twenty three, ILS two eight right.", result);
+        Assert.Equal("tower, american one twenty three, ILS two eight right.", result.Tts);
     }
 
     [Fact]
@@ -530,7 +565,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: true, approachId: "R28R-Y", distanceMilesForVfr: 0);
 
-        Assert.Equal("[AAL123] tower, american one twenty three, RNAV two eight right yankee.", result);
+        Assert.Equal("tower, american one twenty three, RNAV two eight right yankee.", result.Tts);
     }
 
     [Fact]
@@ -539,7 +574,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: true, approachId: "VIS28R", distanceMilesForVfr: 0);
 
-        Assert.Equal("[AAL123] tower, american one twenty three, visual approach runway two eight right.", result);
+        Assert.Equal("tower, american one twenty three, visual approach runway two eight right.", result.Tts);
     }
 
     [Fact]
@@ -548,7 +583,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB", isVfr: true);
         var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 3);
 
-        Assert.Equal("[N123AB] tower, november one two three alpha bravo three-mile final runway two eight right, with information Alpha.", result);
+        Assert.Equal("tower, november one two three alpha bravo three-mile final runway two eight right, with information Alpha.", result.Tts);
     }
 
     [Fact]
@@ -558,8 +593,8 @@ public class PilotResponderTests
         var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 3, "Oakland Tower");
 
         Assert.Equal(
-            "[N123AB] Oakland Tower, november one two three alpha bravo three-mile final runway two eight right, with information Alpha.",
-            result
+            "Oakland Tower, november one two three alpha bravo three-mile final runway two eight right, with information Alpha.",
+            result.Tts
         );
     }
 
@@ -569,7 +604,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB", isVfr: true);
         var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 0);
 
-        Assert.Contains("one-mile final", result);
+        Assert.Contains("one-mile final", result.Tts);
     }
 
     [Fact]
@@ -578,7 +613,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123");
         var result = PilotResponder.BuildOnFinal(ac, "9", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 5);
 
-        Assert.Equal("[AAL123] tower, american one twenty three five-mile final runway nine, with information Alpha.", result);
+        Assert.Equal("tower, american one twenty three five-mile final runway nine, with information Alpha.", result.Tts);
     }
 
     // --- BuildClosedTrafficRequest ---
@@ -594,8 +629,8 @@ public class PilotResponderTests
         var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 1500);
 
         Assert.Equal(
-            "[N123AB] tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha.",
-            result
+            "tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha.",
+            result.Tts
         );
     }
 
@@ -609,8 +644,8 @@ public class PilotResponderTests
         var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 2000);
 
         Assert.Equal(
-            "[AAL123] tower, american one twenty three, five miles east at two thousand, request closed traffic, with information Alpha.",
-            result
+            "tower, american one twenty three, five miles east at two thousand, request closed traffic, with information Alpha.",
+            result.Tts
         );
     }
 
@@ -624,8 +659,8 @@ public class PilotResponderTests
         var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 1500, "Oakland Tower");
 
         Assert.Equal(
-            "[N123AB] Oakland Tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha.",
-            result
+            "Oakland Tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha.",
+            result.Tts
         );
     }
 
@@ -640,7 +675,7 @@ public class PilotResponderTests
 
         // Facility name preserves the caller's casing — sentence-initial after the bracket
         // strip in CompactForTerminal, so capitalization matters for the terminal display.
-        Assert.Equal("[N123AB] Approach on one two five point three five, november one two three alpha bravo, so long.", result);
+        Assert.Equal("Approach on one two five point three five, november one two three alpha bravo, so long.", result.Tts);
     }
 
     [Fact]
@@ -650,7 +685,7 @@ public class PilotResponderTests
 
         var result = PilotResponder.BuildContactReadback(ac, "Departure", 119.6);
 
-        Assert.Equal("[AAL123] Departure on one one nine point six, american one twenty three, so long.", result);
+        Assert.Equal("Departure on one one nine point six, american one twenty three, so long.", result.Tts);
     }
 
     [Fact]
@@ -662,7 +697,7 @@ public class PilotResponderTests
         // multi-word natural casing must reach the terminal and TTS unchanged.
         var result = PilotResponder.BuildContactReadback(ac, "NorCal Approach", 125.35);
 
-        Assert.Contains("NorCal Approach on", result);
+        Assert.Contains("NorCal Approach on", result.Tts);
     }
 
     // --- BuildFrequencyChangeApproved ---
@@ -676,8 +711,8 @@ public class PilotResponderTests
 
         var result = PilotResponder.BuildFrequencyChangeApproved(ac);
 
-        Assert.Equal("[N123AB] november one two three alpha bravo, good day.", result);
-        Assert.DoesNotContain("frequency change approved", result);
+        Assert.Equal("november one two three alpha bravo, good day.", result.Tts);
+        Assert.DoesNotContain("frequency change approved", result.Tts);
     }
 
     [Fact]
@@ -687,7 +722,7 @@ public class PilotResponderTests
 
         var result = PilotResponder.BuildFrequencyChangeApproved(ac);
 
-        Assert.Equal("[AAL123] american one twenty three, good day.", result);
+        Assert.Equal("american one twenty three, good day.", result.Tts);
     }
 
     // --- BuildMidfieldDownwindReminder ---
@@ -698,7 +733,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB", isVfr: true);
         var result = PilotResponder.BuildMidfieldDownwindReminder(ac, "28R");
 
-        Assert.Equal("[N123AB] november one two three alpha bravo, midfield downwind runway two eight right.", result);
+        Assert.Equal("november one two three alpha bravo, midfield downwind runway two eight right.", result.Tts);
     }
 
     [Fact]
@@ -707,7 +742,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("AAL123", isVfr: true);
         var result = PilotResponder.BuildMidfieldDownwindReminder(ac, "9L");
 
-        Assert.Equal("[AAL123] american one twenty three, midfield downwind runway nine left.", result);
+        Assert.Equal("american one twenty three, midfield downwind runway nine left.", result.Tts);
     }
 
     // --- BuildShortFinalReminder ---
@@ -718,7 +753,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB", isVfr: true);
         var result = PilotResponder.BuildShortFinalReminder(ac, "28R");
 
-        Assert.Equal("[N123AB] november one two three alpha bravo, short final runway two eight right.", result);
+        Assert.Equal("november one two three alpha bravo, short final runway two eight right.", result.Tts);
     }
 
     [Fact]
@@ -727,7 +762,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB", isVfr: true);
         var result = PilotResponder.BuildShortFinalReminder(ac, "9");
 
-        Assert.Equal("[N123AB] november one two three alpha bravo, short final runway nine.", result);
+        Assert.Equal("november one two three alpha bravo, short final runway nine.", result.Tts);
     }
 
     // --- BuildTrafficInSight ---
@@ -776,8 +811,8 @@ public class PilotResponderTests
         var ac = MakeAircraft("N172SP");
         var result = PilotResponder.BuildLostSightOfTraffic(ac, "N784ME");
 
-        Assert.Contains("negative contact", result, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("november seven eight four mike echo", result);
+        Assert.Contains("negative contact", result.Tts, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("november seven eight four mike echo", result.Tts);
     }
 
     [Fact]
@@ -786,9 +821,8 @@ public class PilotResponderTests
         var ac = MakeAircraft("FDX3807");
         var result = PilotResponder.BuildGoingAround(ac, "no landing clearance");
 
-        Assert.Contains("[FDX3807]", result);
-        Assert.Contains("going around", result);
-        Assert.Contains("(no landing clearance)", result);
+        Assert.Contains("going around", result.Tts);
+        Assert.Contains("(no landing clearance)", result.Tts);
     }
 
     [Fact]
@@ -797,8 +831,8 @@ public class PilotResponderTests
         var ac = MakeAircraft("FDX3807");
         var result = PilotResponder.BuildGoingAround(ac, "");
 
-        Assert.EndsWith("going around.", result);
-        Assert.DoesNotContain("()", result);
+        Assert.EndsWith("going around.", result.Tts);
+        Assert.DoesNotContain("()", result.Tts);
     }
 
     [Fact]
@@ -807,8 +841,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N172SP");
         var result = PilotResponder.BuildHoldingShortCrossing(ac, "28R");
 
-        Assert.Contains("holding short runway two eight right", result);
-        Assert.Contains("[N172SP]", result);
+        Assert.Contains("holding short runway two eight right", result.Tts);
     }
 
     [Fact]
@@ -818,8 +851,8 @@ public class PilotResponderTests
 
         var text = PilotResponder.BuildClearOfRunwayText(ac, "28R", "G");
 
-        // Terminal form: digit identifier, no NATO callsign expansion.
-        Assert.Equal("N569SX, clear of runway 28R at G.", text.Terminal);
+        // Terminal form: digit identifier, no callsign (SAY column carries it).
+        Assert.Equal("clear of runway 28R at G.", text.Terminal);
         // TTS form: spelled-out callsign + runway, AIM phraseology (NATO X = "xray", no hyphen).
         Assert.Equal("november five six nine sierra xray, clear of runway two eight right at G.", text.Tts);
     }
@@ -830,8 +863,8 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB");
         var result = PilotResponder.BuildUnableToExit(ac, "M2");
 
-        Assert.Contains("negative", result, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("M2", result);
+        Assert.Contains("negative", result.Tts, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("M2", result.Tts);
     }
 
     [Fact]
@@ -850,8 +883,8 @@ public class PilotResponderTests
         var ac = MakeAircraft("N294MG");
         var result = PilotResponder.BuildTargetLanded(ac, "N784ME");
 
-        Assert.Contains("on the ground", result);
-        Assert.Contains("breaking off the follow", result);
+        Assert.Contains("on the ground", result.Tts);
+        Assert.Contains("breaking off the follow", result.Tts);
     }
 
     [Fact]
@@ -860,8 +893,8 @@ public class PilotResponderTests
         var ac = MakeAircraft("N294MG");
         var result = PilotResponder.BuildUnableToCatchUp(ac, "N784ME");
 
-        Assert.Contains("unable to catch up", result);
-        Assert.Contains("breaking off", result);
+        Assert.Contains("unable to catch up", result.Tts);
+        Assert.Contains("breaking off", result.Tts);
     }
 
     // --- RouteRpoTransmission three-way branch ---

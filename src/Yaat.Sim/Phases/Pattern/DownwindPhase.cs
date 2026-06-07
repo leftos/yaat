@@ -187,7 +187,7 @@ public sealed class DownwindPhase : Phase
                             ctx.Aircraft,
                             ctx.SoloTrainingMode,
                             ctx.RpoShowPilotSpeech,
-                            PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId),
+                            PilotResponder.BuildMidfieldDownwindReminder(ctx.Aircraft, runwayId).Tts,
                             $"{ctx.Aircraft.Callsign} midfield downwind runway {runwayId}"
                         );
                     }
@@ -278,7 +278,6 @@ public sealed class DownwindPhase : Phase
                 ctx.RpoShowPilotSpeech,
                 ctx.StudentPositionType,
                 PilotResponder.BuildSequenceTightTurningBase(ctx.Aircraft, followTarget),
-                $"{ctx.Aircraft.Callsign} turning base behind {followTarget}, max downwind extension reached",
                 PilotResponder.SoloPositionsTowerApproach
             );
         }

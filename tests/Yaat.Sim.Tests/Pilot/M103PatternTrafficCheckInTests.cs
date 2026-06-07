@@ -64,7 +64,7 @@ public class M103PatternTrafficCheckInTests
         };
     }
 
-    private static string? SinglePilotLine(AircraftState ac) => ac.PendingPilotTransmissions.SingleOrDefault()?.Text;
+    private static string? SinglePilotLine(AircraftState ac) => ac.PendingPilotTransmissions.SingleOrDefault()?.SpeechText;
 
     // ─────────────────────────────────────────────────────────────────────
     // PatternEntryPhase — initial closed-traffic request
@@ -91,7 +91,7 @@ public class M103PatternTrafficCheckInTests
 
         var line = SinglePilotLine(ac);
         Assert.NotNull(line);
-        Assert.Contains("N123AB", line);
+        Assert.Contains("november one two three alpha bravo", line, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("three miles south at one thousand five hundred", line, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("request closed traffic", line);
         Assert.Contains("with information Alpha", line);
@@ -363,7 +363,8 @@ public class M103PatternTrafficCheckInTests
         Assert.Empty(ac.PendingPilotTransmissions);
         var warning = ac.PendingWarnings.SingleOrDefault();
         Assert.NotNull(warning);
-        Assert.Contains("1nm from the threshold without a landing clearance", warning);
+        // RPO-default warning now shows the pilot's compact terminal line (callsign in the SAY column).
+        Assert.Contains("short final runway 28R", warning);
     }
 
     [Fact]

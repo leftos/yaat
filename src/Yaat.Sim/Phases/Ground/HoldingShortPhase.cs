@@ -51,11 +51,11 @@ public sealed class HoldingShortPhase : Phase
         string taxiway = ctx.Aircraft.Ground.CurrentTaxiway ?? "taxiway";
         string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort ? $"holding short of {target}" : $"holding short runway {target}";
         string warningText = $"{ctx.Aircraft.Callsign} {label} at {taxiway}";
-        string speechText =
+        var speechText =
             _holdShort.Reason == HoldShortReason.ExplicitHoldShort
                 ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway)
                 : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, target);
-        PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText, warningText);
+        PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText.Tts, warningText);
 
         // Tail-over-runway (issue #172 W3): the aircraft holds at the taxiway line with its tail still
         // over the runway behind it. Protecting the runway is the controller's job (7110.65 3-7-4), not
@@ -86,7 +86,7 @@ public sealed class HoldingShortPhase : Phase
                 ctx.Aircraft,
                 PilotPendingRequestKind.Takeoff,
                 ctx.ScenarioElapsedSeconds,
-                line,
+                line.Tts,
                 PilotRequestContext.Runway(runwayId, facilityCallName)
             );
             _hasAnnouncedReady = true;

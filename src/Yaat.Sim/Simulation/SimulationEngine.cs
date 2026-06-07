@@ -679,7 +679,7 @@ public sealed class SimulationEngine
         {
             foreach (var transmission in World.DrainReadyPilotTransmissions(activeScenario.ElapsedSeconds))
             {
-                EmitTerminal(ToSayKind(transmission), transmission.Callsign, transmission.SpeechText);
+                EmitTerminal(ToSayKind(transmission), transmission.Callsign, transmission.Text);
             }
         }
         else
@@ -1309,7 +1309,7 @@ public sealed class SimulationEngine
         {
             var activityLevel = World.ActiveFrequency.GetActivityLevel(Scenario?.ElapsedSeconds ?? 0);
             var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(parseResult.Value!, aircraft, PilotPersonality.Varied, activityLevel);
-            if (!string.IsNullOrEmpty(readback))
+            if (readback is not null)
             {
                 World.ExpectPilotReadback(aircraft.Callsign, Scenario?.ElapsedSeconds ?? 0);
                 Yaat.Sim.Pilot.PilotResponder.QueueSoloPilotTransmission(
