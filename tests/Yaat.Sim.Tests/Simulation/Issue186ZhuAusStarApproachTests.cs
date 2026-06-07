@@ -129,7 +129,9 @@ public class Issue186ZhuAusStarApproachTests
             prevRoute = route;
         }
 
-        _output.WriteLine($"iasAtMgtec={iasAtMgtec:F0} iasAtJedye={iasAtJedye:F0} maxIasAbove4500={maxIasDuringDescent:F0} cappFired={cappFired} reachedFinal={reachedFinal}");
+        _output.WriteLine(
+            $"iasAtMgtec={iasAtMgtec:F0} iasAtJedye={iasAtJedye:F0} maxIasAbove4500={maxIasDuringDescent:F0} cappFired={cappFired} reachedFinal={reachedFinal}"
+        );
 
         Assert.True(iasAtMgtec >= 0, "Never sequenced MGTEC");
         Assert.True(iasAtJedye >= 0, "Never sequenced JEDYE");
@@ -203,20 +205,21 @@ public class Issue186ZhuAusStarApproachTests
         engine.ReplayRange(470, 584, recording.Actions);
         ac = engine.FindAircraft("SWA387");
         Assert.NotNull(ac);
-        _output.WriteLine($"before CAPP @584: alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0} phases={FormatPhases(ac)} xte={CrossTrackNm(ac):F2} hdgErr={HeadingErrToFacDeg(ac):F0}");
+        _output.WriteLine(
+            $"before CAPP @584: alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0} phases={FormatPhases(ac)} xte={CrossTrackNm(ac):F2} hdgErr={HeadingErrToFacDeg(ac):F0}"
+        );
 
         Assert.NotNull(ac.Phases?.ActiveApproach);
-        Assert.True(
-            ac.Altitude > 2900,
-            $"SWA387 on a lateral JFAC must HOLD ~3000ft until CAPP, but descended to {ac.Altitude:F0}ft"
-        );
+        Assert.True(ac.Altitude > 2900, $"SWA387 on a lateral JFAC must HOLD ~3000ft until CAPP, but descended to {ac.Altitude:F0}ft");
         bool capturedBeforeCapp = ac.Phases!.Phases.OfType<FinalApproachPhase>().Any(p => p.Status == PhaseStatus.Active);
 
         // Apply CAPP @586, then watch it descend on the glideslope.
         engine.ReplayRange(584, 592, recording.Actions);
         ac = engine.FindAircraft("SWA387");
         Assert.NotNull(ac);
-        _output.WriteLine($"after CAPP: alt={ac.Altitude:F0} lateralOnly={ac.Phases?.ActiveApproach?.LateralInterceptOnly} phases={FormatPhases(ac)}");
+        _output.WriteLine(
+            $"after CAPP: alt={ac.Altitude:F0} lateralOnly={ac.Phases?.ActiveApproach?.LateralInterceptOnly} phases={FormatPhases(ac)}"
+        );
 
         double altAfterCapp = ac.Altitude;
         bool descended = false;
@@ -413,7 +416,9 @@ public class Issue186ZhuAusStarApproachTests
         var ac = engine.FindAircraft("DAL5534");
         Assert.NotNull(ac);
         double altAfterCapp = ac.Altitude;
-        _output.WriteLine($"DAL5534 after JFAC+CAPP @435: alt={altAfterCapp:F0} phases={FormatPhases(ac)} approach={ac.Phases?.ActiveApproach?.ApproachId} warnings=[{string.Join(" | ", warnings)}]");
+        _output.WriteLine(
+            $"DAL5534 after JFAC+CAPP @435: alt={altAfterCapp:F0} phases={FormatPhases(ac)} approach={ac.Phases?.ActiveApproach?.ApproachId} warnings=[{string.Join(" | ", warnings)}]"
+        );
 
         bool descended = false;
         bool busted = false;
@@ -479,7 +484,9 @@ public class Issue186ZhuAusStarApproachTests
         var ac = engine.FindAircraft(callsign);
         Assert.NotNull(ac);
         var intercept = ac.Phases?.Phases.OfType<InterceptCoursePhase>().FirstOrDefault();
-        _output.WriteLine($"{callsign} after JFAC: hdg={ac.TrueHeading.Degrees:F0} ias={ac.IndicatedAirspeed:F0} alt={ac.Altitude:F0} approach={ac.Phases?.ActiveApproach?.ApproachId} interceptPhase={(intercept is not null)} xte={CrossTrackNm(ac):F2} facErr={HeadingErrToFacDeg(ac):F0}");
+        _output.WriteLine(
+            $"{callsign} after JFAC: hdg={ac.TrueHeading.Degrees:F0} ias={ac.IndicatedAirspeed:F0} alt={ac.Altitude:F0} approach={ac.Phases?.ActiveApproach?.ApproachId} interceptPhase={(intercept is not null)} xte={CrossTrackNm(ac):F2} facErr={HeadingErrToFacDeg(ac):F0}"
+        );
         Assert.NotNull(intercept);
 
         bool captured = false;
@@ -504,7 +511,9 @@ public class Issue186ZhuAusStarApproachTests
 
             if (t % 20 == 0)
             {
-                _output.WriteLine($"  t+{t}: hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0} xte={CrossTrackNm(ac):F2} facErr={HeadingErrToFacDeg(ac):F0} phases={FormatPhases(ac)}");
+                _output.WriteLine(
+                    $"  t+{t}: hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0} xte={CrossTrackNm(ac):F2} facErr={HeadingErrToFacDeg(ac):F0} phases={FormatPhases(ac)}"
+                );
             }
 
             if (ac.Phases?.Phases.OfType<FinalApproachPhase>().Any(p => p.Status == PhaseStatus.Active) == true)
