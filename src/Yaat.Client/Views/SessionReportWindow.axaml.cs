@@ -2,6 +2,7 @@ using System.Collections;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Yaat.Client.Services;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views;
 
@@ -238,7 +239,8 @@ public partial class SessionReportWindow : Window
 
             string status = dto.CompletionReason switch
             {
-                "Landed" when !string.IsNullOrEmpty(dto.CompletionDetail) => $"Landed RW {dto.CompletionDetail}",
+                "Landed" when !string.IsNullOrEmpty(dto.CompletionDetail) =>
+                    $"Landed RW {RunwayIdentifier.ToDisplayDesignator(dto.CompletionDetail)}",
                 "Landed" => "Landed",
                 "HandedOff" when !string.IsNullOrEmpty(dto.CompletionDetail) => $"Handed off {dto.CompletionDetail}",
                 "HandedOff" => "Handed off",

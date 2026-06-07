@@ -6,8 +6,10 @@ using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Views.Radar;
@@ -720,7 +722,12 @@ public partial class RadarView
 
         if (defaultRunway is not null)
         {
-            menu.Items.Add(CreateMenuItem($"Cleared visual approach {defaultRunway}", () => vm.ClearedVisualApproachAsync(cs, init, defaultRunway)));
+            menu.Items.Add(
+                CreateMenuItem(
+                    $"Cleared visual approach {RunwayIdentifier.ToDisplayDesignator(defaultRunway)}",
+                    () => vm.ClearedVisualApproachAsync(cs, init, defaultRunway)
+                )
+            );
         }
 
         if (runways.Count > 0)
@@ -853,18 +860,21 @@ public partial class RadarView
         var result = new List<string>();
         foreach (var rwy in runways)
         {
+            // De-pad for the picker labels (FAA form). The selected value is re-normalized
+            // server-side, so the command still resolves the runway. Dedup on the canonical
+            // end so both representations of a runway collapse to one entry.
             if (!string.IsNullOrEmpty(rwy.Id.End1) && seen.Add(rwy.Id.End1))
             {
-                result.Add(rwy.Id.End1);
+                result.Add(RunwayIdentifier.ToDisplayDesignator(rwy.Id.End1));
             }
 
             if (!string.IsNullOrEmpty(rwy.Id.End2) && seen.Add(rwy.Id.End2))
             {
-                result.Add(rwy.Id.End2);
+                result.Add(RunwayIdentifier.ToDisplayDesignator(rwy.Id.End2));
             }
         }
 
-        result.Sort(StringComparer.OrdinalIgnoreCase);
+        result.Sort(RunwayDesignatorComparer.Instance);
         return result;
     }
 
@@ -1048,7 +1058,7 @@ public partial class RadarView
     private MenuItem BuildTowerSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
         var menu = new MenuItem { Header = "Tower" };
-        var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {ac.AssignedRunway}" : "";
+        var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
 
         // Departures
         menu.Items.Add(CreateMenuItem($"Line up and wait{rwy}", () => vm.LineUpAndWaitAsync(cs, init)));
@@ -1187,7 +1197,7 @@ public partial class RadarView
     {
         if (defaultRunway is not null)
         {
-            menu.Items.Add(CreateMenuItem($"{baseLabel} {defaultRunway}", () => action(defaultRunway)));
+            menu.Items.Add(CreateMenuItem($"{baseLabel} {RunwayIdentifier.ToDisplayDesignator(defaultRunway)}", () => action(defaultRunway)));
         }
 
         if (runways.Count > 0)

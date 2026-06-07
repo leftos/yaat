@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 
@@ -1642,9 +1643,11 @@ public static class FlightPhysics
             // immediately-applied block — deferred blocks reach their handler
             // here at trigger fire time. Surface failures so the RPO sees them
             // in the terminal log rather than having them swallowed.
-            var src = !string.IsNullOrEmpty(block.SourceCommandText)
-                ? block.SourceCommandText
-                : (!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
+            var src = RunwayIdentifier.ToDisplayDesignator(
+                !string.IsNullOrEmpty(block.SourceCommandText)
+                    ? block.SourceCommandText
+                    : (!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription)
+            );
             var reason = !string.IsNullOrEmpty(result.Message) ? result.Message : "command failed";
             aircraft.PendingWarnings.Add($"{aircraft.Callsign} {src}: {reason}");
         }
@@ -1664,7 +1667,7 @@ public static class FlightPhysics
 
         if (block.Trigger is not null)
         {
-            var desc = block.NaturalDescription.Length > 0 ? block.NaturalDescription : block.Description;
+            var desc = RunwayIdentifier.ToDisplayDesignator(block.NaturalDescription.Length > 0 ? block.NaturalDescription : block.Description);
             aircraft.PendingNotifications.Add($"[Executing] {desc}");
         }
     }

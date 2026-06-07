@@ -509,7 +509,7 @@ public partial class GroundView : UserControl
 
         if (phase == "FinalApproach")
         {
-            var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {ac.AssignedRunway}" : "";
+            var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
             menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(callsign, initials)));
             menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(callsign, initials)));
             menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(callsign, initials)));
@@ -1094,8 +1094,9 @@ public partial class GroundView : UserControl
 
         if (rwyId is not null)
         {
-            menu.Items.Add(CreateMenuItem($"Cross {rwyId}", () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
-            menu.Items.Add(CreateMenuItem($"Line up and wait {rwyId}", () => vm.LineUpAndWaitAsync(callsign, initials, rwyId)));
+            var rwyIdDisplay = RunwayIdentifier.ToDisplayDesignator(rwyId);
+            menu.Items.Add(CreateMenuItem($"Cross {rwyIdDisplay}", () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
+            menu.Items.Add(CreateMenuItem($"Line up and wait {rwyIdDisplay}", () => vm.LineUpAndWaitAsync(callsign, initials, rwyId)));
             AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId);
         }
     }
@@ -1130,7 +1131,7 @@ public partial class GroundView : UserControl
     {
         bool isVfr = ac is not null && string.Equals(ac.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase);
 
-        var parent = new MenuItem { Header = $"Cleared for takeoff {rwyId}" };
+        var parent = new MenuItem { Header = $"Cleared for takeoff {RunwayIdentifier.ToDisplayDesignator(rwyId)}" };
         parent.Items.Add(CreateMenuItem("Default (SID/on course)", () => vm.ClearedForTakeoffAsync(callsign, initials, rwyId)));
 
         if (isVfr)
@@ -1227,7 +1228,7 @@ public partial class GroundView : UserControl
 
             case "RunwayHoldShort" when node.RunwayId is not null:
                 // "RWY 30 TAXI " — cursor at end for user to add taxiway route
-                var rwyEnd1 = RunwayIdentifier.Parse(node.RunwayId).End1;
+                var rwyEnd1 = RunwayIdentifier.ToDisplayDesignator(RunwayIdentifier.Parse(node.RunwayId).End1);
                 var rwyText = $"RWY {rwyEnd1} {taxiPrefix}";
                 return (rwyText, rwyText.Length);
 

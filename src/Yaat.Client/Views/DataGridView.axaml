@@ -131,7 +131,7 @@
             <DataGridTextColumn Header="TA" Binding="{Binding TempAltDisplay}" Width="Auto" />
             <DataGridTextColumn Header="Phase" Binding="{Binding CurrentPhase}" Width="Auto" />
             <DataGridTextColumn Header="Clnc" Binding="{Binding ClearanceShorthand}" Width="Auto" />
-            <DataGridTextColumn Header="Rwy" Binding="{Binding AssignedRunway}" Width="Auto" />
+            <DataGridTextColumn Header="Rwy" Binding="{Binding AssignedRunway, Converter={x:Static vm:RunwayDisplayConverter.Instance}}" Width="Auto" />
             <DataGridTextColumn Header="Apch" Binding="{Binding ActiveApproachId}" Width="Auto" />
             <DataGridTextColumn Header="EApch" Binding="{Binding ExpectedApproachDisplay}" Width="Auto" />
             <DataGridTextColumn Header="Type" Binding="{Binding AircraftType}" Width="Auto" />

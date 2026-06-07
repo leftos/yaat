@@ -1105,7 +1105,7 @@ public partial class GroundViewModel : ObservableObject
         var results = new List<(string DisplayName, string Target)>();
         foreach (var rwy in runways.Order())
         {
-            results.Add(($"Runway {rwy}", rwy));
+            results.Add(($"Runway {RunwayIdentifier.ToDisplayDesignator(rwy)}", rwy));
         }
 
         foreach (var tw in taxiways.Order())

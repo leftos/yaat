@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views;
 
@@ -27,7 +28,7 @@ public partial class DataGridView
         Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
 
         var phase = ac.CurrentPhase ?? "";
-        var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {ac.AssignedRunway}" : "";
+        var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
 
         if (ac.IsOnGround)
         {
@@ -47,8 +48,9 @@ public partial class DataGridView
                 var heldRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
                 if (!string.IsNullOrEmpty(heldRwy))
                 {
-                    menu.Items.Add(MakeItem($"Cross {heldRwy}", () => Cmd($"CROSS {heldRwy}")));
-                    menu.Items.Add(MakeItem($"Line up and wait {heldRwy}", () => Cmd($"LUAW {heldRwy}")));
+                    var heldRwyDisplay = RunwayIdentifier.ToDisplayDesignator(heldRwy);
+                    menu.Items.Add(MakeItem($"Cross {heldRwyDisplay}", () => Cmd($"CROSS {heldRwy}")));
+                    menu.Items.Add(MakeItem($"Line up and wait {heldRwyDisplay}", () => Cmd($"LUAW {heldRwy}")));
                 }
             }
 
@@ -91,7 +93,7 @@ public partial class DataGridView
     private static void AddLandingItems(ContextMenu menu, AircraftModel ac, MainViewModel vm, string callsign, string initials)
     {
         Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
-        var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {ac.AssignedRunway}" : "";
+        var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
 
         menu.Items.Add(MakeItem($"Cleared to land{rwy}", () => Cmd("CLAND")));
         menu.Items.Add(MakeItem($"Touch and go{rwy}", () => Cmd("TG")));
@@ -264,7 +266,7 @@ public partial class DataGridView
     private static MenuItem BuildTowerSubmenu(AircraftModel ac, MainViewModel vm, string callsign, string initials)
     {
         Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
-        var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {ac.AssignedRunway}" : "";
+        var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
         var menu = new MenuItem { Header = "Tower" };
         menu.Items.Add(MakeItem($"Line up and wait{rwy}", () => Cmd("LUAW")));
         menu.Items.Add(MakeItem($"Cleared for takeoff{rwy}", () => Cmd("CTO")));

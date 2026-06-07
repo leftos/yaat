@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Client.Models;
@@ -400,7 +401,7 @@ public partial class AircraftModel : ObservableObject
 
             if (!string.IsNullOrEmpty(ClearedRunway))
             {
-                return $"{humanized} Rwy {ClearedRunway}";
+                return $"{humanized} Rwy {RunwayIdentifier.ToDisplayDesignator(ClearedRunway)}";
             }
             return humanized;
         }
@@ -427,7 +428,7 @@ public partial class AircraftModel : ObservableObject
                 _ => LandingClearance,
             };
 
-            return !string.IsNullOrEmpty(ClearedRunway) ? $"{shorthand} {ClearedRunway}" : shorthand;
+            return !string.IsNullOrEmpty(ClearedRunway) ? $"{shorthand} {RunwayIdentifier.ToDisplayDesignator(ClearedRunway)}" : shorthand;
         }
     }
 

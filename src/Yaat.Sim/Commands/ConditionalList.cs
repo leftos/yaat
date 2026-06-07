@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Airport;
+
 namespace Yaat.Sim.Commands;
 
 /// <summary>
@@ -184,7 +186,7 @@ public static class ConditionalList
     }
 
     private static string Describe(CommandBlock block) =>
-        !string.IsNullOrEmpty(block.NaturalDescription) ? block.NaturalDescription : block.Description;
+        RunwayIdentifier.ToDisplayDesignator(!string.IsNullOrEmpty(block.NaturalDescription) ? block.NaturalDescription : block.Description);
 
     /// <summary>
     /// Describe a deferred dispatch's gating condition and payload, e.g.

@@ -1,6 +1,7 @@
 using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Sim;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -134,7 +135,15 @@ public static class EuroScopeTagLayout
             x = originX;
             if (hasRwy)
             {
-                x = AddField(fields, TagFieldId.AssignedRunway, $"R{ac.AssignedRunway}", x, y4Top, y4Bot, paint);
+                x = AddField(
+                    fields,
+                    TagFieldId.AssignedRunway,
+                    $"R{RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}",
+                    x,
+                    y4Top,
+                    y4Bot,
+                    paint
+                );
             }
             if (hasSp1)
             {

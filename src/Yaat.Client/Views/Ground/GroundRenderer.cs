@@ -924,7 +924,7 @@ public sealed class GroundRenderer : IDisposable
 
             if (showLabels)
             {
-                string label = rwy.Name.Replace(" - ", "/");
+                string label = RunwayIdentifier.ToDisplayDesignator(rwy.Name.Replace(" - ", "/"));
                 _labelCandidates.Add(new LabelCandidate([label], mx, my + 4, LabelPriority.Runway, _runwayLabelPaint, null));
             }
 
@@ -947,7 +947,7 @@ public sealed class GroundRenderer : IDisposable
                     {
                         _labelCandidates.Add(
                             new LabelCandidate(
-                                [$"RWY {ids.End1}"],
+                                [$"RWY {RunwayIdentifier.ToDisplayDesignator(ids.End1)}"],
                                 cx1 + 10,
                                 cy1 - 12,
                                 LabelPriority.Hovered,
@@ -960,7 +960,7 @@ public sealed class GroundRenderer : IDisposable
                     {
                         _labelCandidates.Add(
                             new LabelCandidate(
-                                [$"RWY {ids.End2}"],
+                                [$"RWY {RunwayIdentifier.ToDisplayDesignator(ids.End2)}"],
                                 cx2 + 10,
                                 cy2 - 12,
                                 LabelPriority.Hovered,
@@ -1329,7 +1329,8 @@ public sealed class GroundRenderer : IDisposable
                     if (isHovered)
                     {
                         var twyNames = ResolveNearbyTaxiwayNames(node.Id, layout, nodeEdgeNames);
-                        string[] lines = twyNames.Count > 0 ? [$"HS {node.RunwayId}", string.Join("/", twyNames)] : [$"HS {node.RunwayId}"];
+                        string hsLabel = $"HS {RunwayIdentifier.ToDisplayDesignator(node.RunwayId)}";
+                        string[] lines = twyNames.Count > 0 ? [hsLabel, string.Join("/", twyNames)] : [hsLabel];
                         _labelCandidates.Add(
                             new LabelCandidate(lines, sx + 12, sy - 14, LabelPriority.Hovered, _nodeLabelPaint, new SKColor(255, 255, 255))
                         );
@@ -1337,7 +1338,14 @@ public sealed class GroundRenderer : IDisposable
                     else if (showHoldShort == GroundFilterMode.LabelsAndIcons)
                     {
                         _labelCandidates.Add(
-                            new LabelCandidate([$"HS {node.RunwayId}"], sx + 5, sy - 3, LabelPriority.HoldShort, _nodeLabelPaint, null)
+                            new LabelCandidate(
+                                [$"HS {RunwayIdentifier.ToDisplayDesignator(node.RunwayId)}"],
+                                sx + 5,
+                                sy - 3,
+                                LabelPriority.HoldShort,
+                                _nodeLabelPaint,
+                                null
+                            )
                         );
                     }
                 }

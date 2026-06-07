@@ -3,6 +3,7 @@ using Avalonia.Media;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Radar.Flyouts;
 
@@ -30,7 +31,7 @@ internal static class RunwayFlyout
             menu.Items.Add(
                 new MenuItem
                 {
-                    Header = $"Currently assigned: {aircraft.AssignedRunway}",
+                    Header = $"Currently assigned: {RunwayIdentifier.ToDisplayDesignator(aircraft.AssignedRunway)}",
                     IsEnabled = false,
                     FontStyle = FontStyle.Italic,
                 }
@@ -64,9 +65,10 @@ internal static class RunwayFlyout
                 foreach (var end in ends)
                 {
                     var designator = end;
+                    var display = RunwayIdentifier.ToDisplayDesignator(designator);
                     string label = string.Equals(aircraft.AssignedRunway, designator, System.StringComparison.OrdinalIgnoreCase)
-                        ? $"▶ {designator}"
-                        : designator;
+                        ? $"▶ {display}"
+                        : display;
                     var item = new MenuItem { Header = label };
                     item.Click += async (_, _) => await radarVm.SendRawCommandAsync(aircraft.Callsign, initials, $"RWY {designator}");
                     menu.Items.Add(item);

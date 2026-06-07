@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Yaat.Client.ViewModels"
         x:Class="Yaat.Client.Views.SessionReportWindow"
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Session Report"
@@ -214,7 +215,7 @@
                             <DataGridTextColumn Header="Callsign" Binding="{Binding Callsign}" Width="90" IsReadOnly="True" />
                             <DataGridTextColumn Header="Type" Binding="{Binding AircraftType}" Width="70" IsReadOnly="True" />
                             <DataGridTextColumn Header="Approach" Binding="{Binding ApproachId}" Width="90" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Rwy" Binding="{Binding RunwayId}" Width="60" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Rwy" Binding="{Binding RunwayId, Converter={x:Static vm:RunwayDisplayConverter.Instance}}" Width="60" IsReadOnly="True" />
                             <DataGridTextColumn Header="Angle" Binding="{Binding InterceptAngleDeg, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
                             <DataGridTextColumn Header="Dist" Binding="{Binding InterceptDistanceNm, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
                             <DataGridTextColumn Header="GS Dev" Binding="{Binding GlideSlopeDeviationFt, StringFormat={}{0:+0;-0;0}}" Width="90" IsReadOnly="True" />
@@ -231,7 +232,7 @@
                               CanUserSortColumns="False"
                               MaxHeight="150">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Runway" Binding="{Binding RunwayId}" Width="100" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Runway" Binding="{Binding RunwayId, Converter={x:Static vm:RunwayDisplayConverter.Instance}}" Width="100" IsReadOnly="True" />
                             <DataGridTextColumn Header="Landings" Binding="{Binding LandingCount}" Width="90" IsReadOnly="True" />
                             <DataGridTextColumn Header="Rate/hr" Binding="{Binding ArrivalRatePerHour, StringFormat={}{0:F1}}" Width="90" IsReadOnly="True" />
                             <DataGridTextColumn Header="Avg Spacing" Binding="{Binding AverageTimeBetweenLandingsSec, StringFormat={}{0:F0}}" Width="120" IsReadOnly="True" />
