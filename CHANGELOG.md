@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Selecting an aircraft on the radar no longer recolors its data block text and leader line to white — they keep the color they have when unselected (green for an on-ground track, the RPO assignment tint, or the student-scope color). The white rectangular border still marks the selected aircraft, and its position symbol still brightens.
+
 ## v0.7.4-beta [2026/06/06]
 
 ### Highlights

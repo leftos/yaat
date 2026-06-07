@@ -376,14 +376,9 @@ public sealed class TargetRenderer : IDisposable
         // Student STARS color (when sync is on) sits below an explicit RPO tint but above the ground /
         // white defaults, so the datablock reflects how the student's scope colors the track.
         SKColor? studentColor = SyncStudentColors ? StudentDatablockColorFor(ac) : null;
-        var baseSymbolColor = tintColor ?? (isOnGround ? GroundColor : SymbolColor);
-        var baseDbColor = tintColor ?? studentColor ?? (isOnGround ? GroundColor : DataBlockColor);
-        var selectedColor = SelectedOverrideColor ?? SelectedColor;
-        var symbolColor = isSelected ? selectedColor : baseSymbolColor;
-        var dbColor =
-            isHighlighted ? SKColors.Cyan
-            : isSelected ? selectedColor
-            : baseDbColor;
+        var (symbolColor, dbColor) = ResolveTargetColors(
+            new TargetColorInputs(isSelected, isHighlighted, isOnGround, tintColor, studentColor, SelectedOverrideColor ?? SelectedColor)
+        );
         bool isMinified = minifiedCallsigns is not null && minifiedCallsigns.Contains(ac.Callsign);
 
         if (ptlLengthMinutes > 0 && ShouldShowPtl(ac, ptlOwn, ptlAll))
@@ -407,6 +402,33 @@ public sealed class TargetRenderer : IDisposable
                 _lastBubbleRects[ac.Callsign] = r;
             }
         }
+    }
+
+    /// <summary>Inputs to <see cref="ResolveTargetColors"/> — the per-aircraft state that drives the
+    /// position-symbol and datablock colors on a single render pass.</summary>
+    internal readonly record struct TargetColorInputs(
+        bool IsSelected,
+        bool IsHighlighted,
+        bool IsOnGround,
+        SKColor? TintColor,
+        SKColor? StudentColor,
+        SKColor SelectedColor
+    );
+
+    /// <summary>
+    /// Resolves the position-symbol and datablock (text + leader) colors for one target. Selection
+    /// brightens the position symbol to <see cref="TargetColorInputs.SelectedColor"/> but leaves the
+    /// datablock text and leader at their unselected color — the white rectangular border is the
+    /// datablock's selection cue. An RPO tint outranks the student-scope color, which outranks the
+    /// ground/white defaults; a middle-click highlight overrides the datablock color entirely.
+    /// </summary>
+    internal static (SKColor Symbol, SKColor DataBlock) ResolveTargetColors(TargetColorInputs i)
+    {
+        var baseSymbolColor = i.TintColor ?? (i.IsOnGround ? GroundColor : SymbolColor);
+        var baseDbColor = i.TintColor ?? i.StudentColor ?? (i.IsOnGround ? GroundColor : DataBlockColor);
+        var symbolColor = i.IsSelected ? i.SelectedColor : baseSymbolColor;
+        var dbColor = i.IsHighlighted ? SKColors.Cyan : baseDbColor;
+        return (symbolColor, dbColor);
     }
 
     private static SKColor? StudentDatablockColorFor(AircraftModel ac) =>
