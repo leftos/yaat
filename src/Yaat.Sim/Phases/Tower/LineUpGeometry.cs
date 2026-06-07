@@ -121,7 +121,12 @@ public static class LineUpGeometry
     /// <summary>Below this turn-angle magnitude (deg) the aircraft is already aligned.</summary>
     public const double AlignedMaxTurnDeg = 5.0;
 
-    /// <summary>Above this turn-angle magnitude (deg) the geometry is rejected.</summary>
+    /// <summary>
+    /// Above this net turn-angle magnitude (deg) the aligned single-arc path is
+    /// rejected in favour of the pivot fallback (which reaches the centerline via
+    /// two slow turns and has no such cap). Not a global reject — a large-turn or
+    /// reversed pose still lines up via the pivot.
+    /// </summary>
     public const double MaxTurnDeg = 150.0;
 
     /// <summary>Rollout length past the arc exit / pivot-turn-2 exit, in feet.</summary>
@@ -164,11 +169,6 @@ public static class LineUpGeometry
             return BuildAlignedAlreadyAlignedPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts);
         }
 
-        if (turnMagnitudeDeg > MaxTurnDeg)
-        {
-            return Fault(category, rwyHdgDeg, dthetaDeg, arcSpeedKts, $"turn magnitude {turnMagnitudeDeg:F1}° exceeds max {MaxTurnDeg:F1}°");
-        }
-
         double signedCrossNm = GeoMath.SignedCrossTrackDistanceNm(
             acLat,
             acLon,
@@ -178,22 +178,14 @@ public static class LineUpGeometry
         );
         double crossFt = Math.Abs(signedCrossNm) * GeoMath.FeetPerNm;
 
-        // Convergence check: aircraft must be moving toward centerline. The
-        // rate of change of signed cross-track = v · sin(dHdg), where dHdg =
-        // acHdg - rwyHdg. For convergence we need signedCross and sin(dHdg)
-        // to have opposite signs.
+        // Convergence (gates the aligned path only, below): the aligned single-arc
+        // path flies straight along the current heading to intercept the
+        // centerline, so it is valid only when the aircraft is closing on the
+        // centerline — rate of change of signed cross-track = v · sin(dHdg), with
+        // dHdg = acHdg - rwyHdg, requires signedCross and sin(dHdg) to have
+        // opposite signs. A non-converging pose is handled by the pivot instead.
         double dHdgDeg = acHdgDeg - rwyHdgDeg;
         double sinDHdg = Math.Sin(dHdgDeg * Math.PI / 180.0);
-        if (signedCrossNm * sinDHdg >= -1e-12)
-        {
-            return Fault(
-                category,
-                rwyHdgDeg,
-                dthetaDeg,
-                arcSpeedKts,
-                $"aircraft not converging to centerline (cross={signedCrossNm * GeoMath.FeetPerNm:F1}ft, dHdg={dHdgDeg:F1}°)"
-            );
-        }
 
         double noseWheelRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(category);
 
@@ -227,19 +219,30 @@ public static class LineUpGeometry
             );
         }
 
-        // Decide: pivot when straight wastes too much runway OR when the
-        // aligned arc radius cannot fit.
+        // Decide between the aligned single-arc path and the pivot fallback. The
+        // aligned path is viable only when the net turn fits one arc
+        // (<= MaxTurnDeg), the aircraft is converging on the centerline, the arc
+        // radius fits, and a straight intercept does not waste too much runway.
+        // Everything else — large-turn reversals and parallel-taxiway / diverging
+        // poses (issue #193) — falls through to the pivot, which reaches the
+        // centerline via two slow turns regardless of the current heading.
+        bool alignedTurnOk = turnMagnitudeDeg <= MaxTurnDeg;
+        bool alignedConverges = signedCrossNm * sinDHdg < -1e-12;
         bool mustPivotByRadius = crossFt < lineUpRadiusFt;
         bool mustPivotByWaste = wasteStraightFt > WasteFractionThreshold * remainingRunwayFt;
+        bool useAligned = alignedTurnOk && alignedConverges && !mustPivotByRadius && !mustPivotByWaste;
 
-        if (mustPivotByRadius || mustPivotByWaste)
+        if (!useAligned)
         {
             Log.LogDebug(
-                "[LineUpGeometry] pivot chosen: cross={Cross:F0}ft dHdg={DHdg:F1}° wasteStraight={Waste:F0}ft remaining={Remain:F0}ft (radius-fail={RadFail}, waste-fail={WasteFail})",
+                "[LineUpGeometry] pivot chosen: cross={Cross:F0}ft dHdg={DHdg:F1}° turn={Turn:F0}° wasteStraight={Waste:F0}ft remaining={Remain:F0}ft (turn-ok={TurnOk}, converging={Conv}, radius-fail={RadFail}, waste-fail={WasteFail})",
                 crossFt,
                 dHdgDeg,
+                turnMagnitudeDeg,
                 wasteStraightFt,
                 remainingRunwayFt,
+                alignedTurnOk,
+                alignedConverges,
                 mustPivotByRadius,
                 mustPivotByWaste
             );
@@ -247,9 +250,10 @@ public static class LineUpGeometry
         }
 
         Log.LogDebug(
-            "[LineUpGeometry] aligned chosen: cross={Cross:F0}ft dHdg={DHdg:F1}° wasteStraight={Waste:F0}ft remaining={Remain:F0}ft",
+            "[LineUpGeometry] aligned chosen: cross={Cross:F0}ft dHdg={DHdg:F1}° turn={Turn:F0}° wasteStraight={Waste:F0}ft remaining={Remain:F0}ft",
             crossFt,
             dHdgDeg,
+            turnMagnitudeDeg,
             wasteStraightFt,
             remainingRunwayFt
         );
@@ -447,6 +451,12 @@ public static class LineUpGeometry
         bool aircraftOnLeft = signedCrossNm < 0;
         double perpTowardDeg = ((rwyHdgDeg + (aircraftOnLeft ? 90.0 : -90.0)) + 360.0) % 360.0;
 
+        // Pivot turns run at the gear-limited speed for the nose-wheel radius
+        // (≈5 kt for a jet) — a realistic sharp-turn taxi speed — not the bare
+        // SlowTurnSpeedKts creep floor (which TurnRateLimitedSpeedKts clamps to
+        // for tighter-geared categories anyway).
+        double pivotTurnSpeedKts = CategoryPerformance.TurnRateLimitedSpeedKts(category, noseWheelRadiusFt);
+
         // First turn: aircraft heading → perpendicular-toward-centerline.
         var pivotTurn1 = PathPrimitiveBuilder.SlowTurn(
             fromLat: acLat,
@@ -454,7 +464,7 @@ public static class LineUpGeometry
             fromHdgDeg: acHdgDeg,
             toHdgDeg: perpTowardDeg,
             radiusFt: noseWheelRadiusFt,
-            maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,
+            maxSpeedKts: pivotTurnSpeedKts,
             toNodeId: -1
         );
 
@@ -504,7 +514,7 @@ public static class LineUpGeometry
             fromHdgDeg: perpTowardDeg,
             toHdgDeg: rwyHdgDeg,
             radiusFt: noseWheelRadiusFt,
-            maxSpeedKts: CategoryPerformance.SlowTurnSpeedKts,
+            maxSpeedKts: pivotTurnSpeedKts,
             toNodeId: -2
         );
 

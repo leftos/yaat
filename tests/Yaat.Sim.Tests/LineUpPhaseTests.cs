@@ -209,11 +209,14 @@ public class LineUpPhaseTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void OnStart_DivergingHeading_EntersFaulted()
+    public void OnStart_DivergingHeadingWithCrossTrack_EntersPivot()
     {
-        // Aircraft 200 ft south of an east-heading runway but pointing
-        // south-east (away from centerline). Neither aligned nor pivot
-        // can recover — geometry is faulted.
+        // Aircraft 200 ft south of an east-heading runway pointing south-east
+        // (away from centerline). The aligned straight intercept diverges, but
+        // 200 ft of cross-track leaves room for the pivot to turn toward the
+        // centerline, cross, and turn onto the runway — so the phase enters the
+        // pivot rather than faulting (issue #193: a non-converging pose with
+        // adequate cross-track is recoverable).
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
         double acLon = -121.995;
         var (aircraft, ctx) = MakeFixture(90.0, acLat, acLon, 135.0);
@@ -221,9 +224,10 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         var phase = new LineUpPhase();
         phase.OnStart(ctx);
 
-        Assert.Equal(LineUpPhase.State.Faulted, phase.CurrentState);
+        Assert.NotEqual(LineUpPhase.State.Faulted, phase.CurrentState);
+        Assert.Equal(LineUpPhase.State.PivotTurn1, phase.CurrentState);
         Assert.NotNull(phase.PathPlan);
-        Assert.Equal(LineUpPathKind.Fault, phase.PathPlan.Kind);
+        Assert.Equal(LineUpPathKind.Pivot, phase.PathPlan.Kind);
         _ = aircraft;
     }
 

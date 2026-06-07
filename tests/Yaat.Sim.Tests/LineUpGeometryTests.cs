@@ -50,6 +50,26 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Synthetic runway matching KMIA 8R/26L dimensions (10506 × 200 ft) and the
+    /// 08R-end heading (087° true), positioned at the real KMIA 08R threshold.
+    /// Reference runway for issue #193.
+    /// </summary>
+    private static RunwayInfo MakeMia8RLikeRunway()
+    {
+        return TestRunwayFactory.Make(
+            designator: "08R",
+            airportId: "KMIA",
+            thresholdLat: 25.80069936111111,
+            thresholdLon: -80.301433,
+            endLat: 25.802018111111114,
+            endLon: -80.26953561111111,
+            heading: 87.37069530318303,
+            lengthFt: 10506,
+            widthFt: 200
+        );
+    }
+
+    /// <summary>
     /// Place a pose at the given (signedCrossFt, alongFromThreshFt, hdgDeg)
     /// relative to <paramref name="rwy"/>. Signed cross is positive-right of
     /// the runway heading (matches GeoMath.SignedCrossTrackDistanceNm).
@@ -180,14 +200,41 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         Assert.Equal(LineUpPathKind.Aligned, plan.Kind);
     }
 
+    // ---- Decision: issue #193 reversed parallel-taxiway pose ----
+
+    [Fact]
+    public void Compute_Mia8RReversedParallelTaxiwayPose_KindIsPivot()
+    {
+        // Issue #193: ENY3516 reached the KMIA 8R hold short on a taxiway running
+        // parallel to the runway — stopped ~279 ft south of the centerline, ~315 ft
+        // past the 08R threshold, heading 284° true (nearly the 26L reciprocal; a
+        // 163° net change to line up on 08R/087°). The pivot accomplishes that net
+        // turn via two ~90° turns, so it must NOT fault on the single-arc 150° cap.
+        var rwy = MakeMia8RLikeRunway();
+        var acHdg = new TrueHeading(284.32135440824527);
+
+        var plan = LineUpGeometry.Compute(rwy, 25.79997480483538, -80.30043573387157, acHdg, AircraftCategory.Jet);
+
+        output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F1}° reason={plan.FaultReason}");
+        Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
+        Assert.NotNull(plan.PivotTurn1);
+        Assert.NotNull(plan.PivotTurn2);
+        Assert.True(plan.PivotStraightLengthFt > 0, $"pivot straight should be positive, got {plan.PivotStraightLengthFt:F1}");
+        double exitHdg = plan.PivotTurn2!.ExitTangentBearingDeg;
+        Assert.True(GeoMath.AbsBearingDifference(exitHdg, rwy.TrueHeading.Degrees) < 0.01, $"pivot should end aligned with 087°, got {exitHdg:F1}");
+    }
+
     // ---- Decision: fault conditions ----
 
     [Fact]
-    public void Compute_HeadingDivergingFromCenterline_KindIsFault()
+    public void Compute_HeadingDivergingWithCrossTrack_KindIsPivot()
     {
         // Aircraft 200 ft left of centerline, heading pointing further left
-        // (rwyHdg - 45°) — diverging from centerline. No valid aligned arc,
-        // pivot also can't help because the aircraft is moving away.
+        // (rwyHdg - 45°) — diverging from centerline, so no aligned straight
+        // intercept. With 200 ft of cross-track (≫ nose-wheel radius) the pivot
+        // recovers: turn to perpendicular-toward-centerline, cross, turn onto
+        // runway heading. (Pre-#193 this faulted; the convergence gate is now
+        // scoped to the aligned path only.)
         var rwy = MakeSfo01RLikeRunway();
         double rwyHdg = rwy.TrueHeading.Degrees;
         double acHdg = (rwyHdg - 45.0 + 360.0) % 360.0;
@@ -196,21 +243,38 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 
         output.WriteLine($"plan.Kind={plan.Kind} reason={plan.FaultReason}");
-        // Diverging heading: the aircraft cannot reach centerline with either
-        // an aligned arc or a single-right-angle pivot. The phase should fault
-        // and leave recovery to the user (TAXI / CANCEL CLEARANCE).
-        Assert.Equal(LineUpPathKind.Fault, plan.Kind);
+        Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
     }
 
     [Fact]
-    public void Compute_SteepTurnExceedsMax_KindIsFault()
+    public void Compute_SteepTurnLargeCrossTrack_KindIsPivot()
     {
-        // 170° heading delta → far beyond the 150° max; would need a massive
-        // reversal that no airport geometry accommodates.
+        // 170° heading delta — a near-reversal beyond the 150° single-arc cap.
+        // Issue #193 shows real airport geometry produces exactly this (a hold
+        // short on a taxiway parallel to the runway). With 300 ft of cross-track
+        // the pivot lines up via two slow turns rather than faulting.
         var rwy = MakeSfo01RLikeRunway();
         double rwyHdg = rwy.TrueHeading.Degrees;
         double acHdg = (rwyHdg + 170.0) % 360.0;
         var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: -300.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
+
+        var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
+
+        output.WriteLine($"plan.Kind={plan.Kind} reason={plan.FaultReason}");
+        Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
+    }
+
+    [Fact]
+    public void Compute_ReversedHeadingOnCenterline_KindIsFault()
+    {
+        // Genuine collapse: aircraft essentially ON the centerline (≈8 ft cross,
+        // below the 25 ft jet nose-wheel radius) but pointing nearly the
+        // reciprocal. There is no room for the pivot's perpendicular cross-and-
+        // turn, so the geometry faults and the user must recover (TAXI / CANCEL).
+        var rwy = MakeSfo01RLikeRunway();
+        double rwyHdg = rwy.TrueHeading.Degrees;
+        double acHdg = (rwyHdg + 170.0) % 360.0;
+        var (lat, lon, hdg) = PlacePose(rwy, signedCrossFt: 8.0, alongFromThreshFt: 1000.0, hdgDeg: acHdg);
 
         var plan = LineUpGeometry.Compute(rwy, lat, lon, hdg, AircraftCategory.Jet);
 

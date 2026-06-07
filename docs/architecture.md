@@ -540,8 +540,8 @@ Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, BuildCrossRunwa
 Phases/PhaseClearSummary.cs    # Builds short label ("pattern to RWY 28R", "approach to RWY 28R", or phase Name) for the cancellation warning surfaced when a command clears the active phase chain
 
 # Phases/Tower/
-LineUpPhase.cs                 # State-machine lineup via LineUpGeometry: Aligned (straight → fillet arc → rollout) or Pivot (SlowTurn → perpendicular straight → SlowTurn → rollout) chosen by waste-straight vs remaining-runway. Faulted stays stopped (user recovers via TAXI / CANCEL CLEARANCE)
-LineUpGeometry.cs              # Pure geometry: classifies aircraft pose as Aligned, Pivot, or Fault; builds LineUpPathPlan with closed-form primitives (nose-out, arc, pivot turns, straight, rollout). Pivot fallback used when straight path would waste >20% of remaining runway (issue #142)
+LineUpPhase.cs                 # State-machine lineup via LineUpGeometry: Aligned (straight → fillet arc → rollout) or Pivot (SlowTurn → perpendicular straight → SlowTurn → rollout). Aligned for normal near-perpendicular hold-shorts; Pivot for shallow, large-turn, or reversed/parallel-taxiway poses. Faulted stays stopped (user recovers via TAXI / CANCEL CLEARANCE)
+LineUpGeometry.cs              # Pure geometry: classifies aircraft pose as Aligned, Pivot, or Fault; builds LineUpPathPlan with closed-form primitives (nose-out, arc, pivot turns, straight, rollout). The single-arc Aligned path is gated by a 150° turn cap + convergence check; large-turn / non-converging / parallel-taxiway poses fall through to the Pivot (issue #193), as do shallow poses where the straight path wastes >20% of remaining runway (issue #142). Fault only when there is no room to pivot (cross-track < nose-wheel radius), past runway end, or degenerate pivot
 LineUpArcPlayback.cs           # Closed-form circular-arc playback (invariant I2: position and heading are functions of a single scalar)
 LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
