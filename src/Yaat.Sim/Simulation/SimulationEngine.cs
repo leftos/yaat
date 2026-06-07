@@ -1253,7 +1253,12 @@ public sealed class SimulationEngine
         var reactionDelay = TryDeferCommandForReaction(aircraft, parseResult.Value!);
         if (reactionDelay is double reactionSeconds)
         {
-            result = new CommandResult(true, $"Pilot complying in {(int)Math.Round(reactionSeconds)}s");
+            // In solo training mode the student is the pilot's only audience: showing the exact sampled
+            // delay would reveal precisely how long the aircraft will take to comply. Suppress the
+            // acknowledgement entirely — the pilot's read-back (queued below) is the acknowledgement.
+            result = soloTrainingMode
+                ? new CommandResult(true, null)
+                : new CommandResult(true, $"Pilot complying in {(int)Math.Round(reactionSeconds)}s");
         }
         else
         {

@@ -121,6 +121,39 @@ public class CommandRunDelayTests
     }
 
     [Fact]
+    public void SoloTrainingMode_SuppressesDelayAcknowledgement()
+    {
+        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        engine.Scenario!.SoloTrainingMode = true;
+        var ac = AddAirborne(engine);
+
+        var result = engine.SendCommand("UAL123", "FH 270");
+
+        // The command still lands and is deferred by the reaction delay...
+        Assert.True(result.Success);
+        var reaction = Assert.Single(ac.DeferredDispatches);
+        Assert.True(reaction.IsReactionDelay);
+        Assert.Null(ac.Targets.AssignedMagneticHeading);
+
+        // ...but the student is never told the exact delay that was decided for this command.
+        Assert.True(string.IsNullOrEmpty(result.Message));
+    }
+
+    [Fact]
+    public void NonSoloMode_StillReportsDelayAcknowledgement()
+    {
+        var engine = BuildEngine(minDelay: 5, maxDelay: 5);
+        var ac = AddAirborne(engine);
+
+        var result = engine.SendCommand("UAL123", "FH 270");
+
+        Assert.True(result.Success);
+        Assert.Single(ac.DeferredDispatches);
+        // Instructor / RPO sessions keep the explicit delay acknowledgement.
+        Assert.Contains("complying", result.Message, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Disabled_WhenMaxIsZero_DispatchesImmediately()
     {
         var engine = BuildEngine(minDelay: 0, maxDelay: 0);

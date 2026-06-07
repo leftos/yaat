@@ -420,7 +420,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 |--------|-----------|------|
 | Automatic command-run delay | Yes — static delay on "Delayable" commands; configurable in seconds | Yes — configurable min–max range (random per command; equal = fixed), simulating pilot reaction / FMC setup. Off by default. Frequency changes and `WAIT`/`BEHIND`-timed commands are exempt |
 | Per-command explicit delay | — | `WAIT` for wait N seconds, `WAITD` for wait N flying miles |
-| Command-received feedback | Errors shown after delay completes | Immediate "Pilot complying in Ns" acknowledgement; the maneuver (and solo read-back) follow after the delay. Parse errors are still immediate |
+| Command-received feedback | Errors shown after delay completes | Immediate "Pilot complying in Ns" acknowledgement; the maneuver (and solo read-back) follow after the delay. In solo training the "Ns" hint is suppressed (the read-back is the acknowledgement) so the student can't read off the exact delay. Parse errors are still immediate |
 
 ### Private Messages
 
