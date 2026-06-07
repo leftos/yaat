@@ -251,7 +251,7 @@ ViewModels/
   WeatherTimelineEditorViewModel.cs  # Timeline editor VM: period list, BuildJson (v1 if 1 period, v2 if 2+), FromJson
   ArrivalGeneratorsEditorViewModel.cs # Arrival generator editor VM: row list, Apply (push to sim), Save As (write scenario JSON)
   GeneratorRowViewModel.cs      # Per-row VM for ArrivalGeneratorsEditor: airport/runway/airline/type/rate/etc. fields
-  *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp)
+  *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp, RunwayDisplay)
 
 Views/
   MainWindow.axaml.cs           # Tab layout (DataGrid/Ground/Radar); room bar; pop-out management
@@ -677,7 +677,7 @@ Fillet/                        # Plan-then-execute fillet pipeline (edge-split c
   FilletPlanExecutor.cs        # Materialize cut nodes + surviving edges + corner arcs (degenerate arc → straight chord) in one pass; remove consumed edges + removed junctions
   FilletPlanCutRedirect.cs     # Union-find survivor map for tangent merges + stable-anchor binding
   (also FilletPlan/JunctionPlan/CornerSpec/ResolvedArmCut plan model + TaxiwayArm(Terminus), JunctionKind, FilletEligibility, ManualArcDetector, SharedArmTangentPass, PlanWarning, FilletConstants, FilletPlanConsistency)
-RunwayIdentifier.cs            # Struct: runway designator parsing/matching
+RunwayIdentifier.cs            # Struct: runway designator parsing/matching; NormalizeDesignator (zero-pad canonical) + ToDisplayDesignator/ToDisplayString (FAA no-leading-zero display form)
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiRouteAutoCross.cs          # Applies AutoCrossRunway toggle to a route's RunwayCrossing hold-shorts; reused at TAXI-resolution and on mid-session toggle (SimulationWorld.ApplyAutoCrossToActiveTaxiRoutes)
 TaxiPathfinder.cs            # Taxi pathfinder (static): ResolveExplicitPath (SegmentExpander), FindRoute/FindRoutes (A* AutoRouter, per-preference), FindFullLengthLineupHoldShort. See Data/Airport/Pathfinding/ + docs/ground/pathfinder.md
