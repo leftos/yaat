@@ -134,6 +134,46 @@ public static class SegmentExpander
             }
         }
 
+        // Last-resort A* fallback for a runway destination the explicit walk could not reach.
+        // The greedy WalkToNaturalTerminus can dead-end on a hold-area hairpin one turn short of
+        // the lineup bar (e.g. MIA TAXI P S to rwy 9: taxiway S crosses rwy 12 then hairpins to the
+        // rwy-9 hold-short, and the U-turn back to it from the dead-end spur is geometrically
+        // inadmissible). A flat A* explores all branches and reaches the runway hold-short across
+        // any intermediate crossings. It is HARD-constrained to the cleared taxiways — every
+        // letter-only taxiway the controller did not name is excluded (numbered connectors and RAMP
+        // stay free) — so the route may not detour onto an unnamed taxiway and must cross every
+        // runway the cleared taxiways cross (e.g. B crosses 28R then 28L) to reach the destination.
+        // This only runs when the explicit route does NOT already reach the destination runway, so
+        // it never changes a route that already does. An explicit HS on a crossed runway is a hold/
+        // authorization marker, not a routing terminus, so the route still continues to the runway.
+        if (
+            ctx.Destination.Kind == DestinationKind.Runway
+            && ctx.Destination.RunwayId is { } fallbackRunway
+            && !RouteReachesRunwayHoldShort(edges, fallbackRunway, ctx)
+        )
+        {
+            var unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
+            var autoCtx = ctx with
+            {
+                WaypointSequence = [],
+                AvoidedTaxiways = unauthorized,
+                AvoidMode = unauthorized.Count > 0 ? AvoidTaxiwayMode.HardExclude : AvoidTaxiwayMode.Off,
+            };
+            var (autoRoute, _) = AutoRouter.Run(autoCtx);
+            if (autoRoute is not null)
+            {
+                var autoEdges = autoRoute.Segments.Select(s => s.Edge).ToList();
+                if (RouteReachesRunwayHoldShort(autoEdges, fallbackRunway, ctx))
+                {
+                    ctx.DiagnosticLog?.Invoke(
+                        $"[fallback] explicit walk short of rwy {fallbackRunway}; constrained A* re-route reached it ({autoEdges.Count} edges)"
+                    );
+                    edges = autoEdges;
+                    insertions.Clear();
+                }
+            }
+        }
+
         // Parking/spot extension: after the named taxiway walk, auto-route to destination.
         if (ctx.Destination.Kind is DestinationKind.Parking or DestinationKind.Spot or DestinationKind.Helipad)
         {
@@ -1962,6 +2002,44 @@ public static class SegmentExpander
     /// <paramref name="runwayId"/> (reciprocal-tolerant via <c>Contains</c>) — i.e. the
     /// walked route already reaches the destination runway and needs no variant extension.
     /// </summary>
+    /// <summary>
+    /// Every letter-only taxiway name in the layout that the controller did NOT name (i.e. not in
+    /// <paramref name="authorized"/>). Numbered connectors (<c>B1</c>) and <c>RAMP</c> are never
+    /// letter-only, so they are always free. Used to HARD-constrain the runway-destination fallback
+    /// A* to the cleared taxiways so it cannot detour onto an unnamed taxiway.
+    /// </summary>
+    private static IReadOnlySet<string> UnnamedLetterTaxiways(AirportGroundLayout layout, IReadOnlySet<string>? authorized)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in layout.Nodes.Values)
+        {
+            foreach (var edge in node.Edges)
+            {
+                if (edge is GroundArc arc)
+                {
+                    foreach (string name in arc.TaxiwayNames)
+                    {
+                        AddIfUnnamedLetter(result, name, authorized);
+                    }
+                }
+                else
+                {
+                    AddIfUnnamedLetter(result, edge.TaxiwayName, authorized);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static void AddIfUnnamedLetter(HashSet<string> set, string name, IReadOnlySet<string>? authorized)
+    {
+        if (SearchContext.IsLetterOnlyTaxiway(name) && !(authorized?.Contains(name) ?? false))
+        {
+            set.Add(name);
+        }
+    }
+
     private static bool RouteReachesRunwayHoldShort(IReadOnlyList<DirectionalEdge> edges, string runwayId, SearchContext ctx)
     {
         foreach (var edge in edges)

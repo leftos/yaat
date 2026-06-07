@@ -12,10 +12,10 @@ namespace Yaat.Sim.Tests.Simulation;
 /// <summary>
 /// Recording fixture: ZMA "T1: S2 Practical Exam (MIA East)". THY41J (B789, KMIA→LTFM)
 /// is a delayed-spawn departure manually spawned at t=91 via a recorded SPAWN command,
-/// with preset <c>RWY 9 TAXI P S HS 12</c>. It taxis P/S and holds short of runway 12.
-/// At t=229 the controller issues <c>CROSS 12</c>.
+/// with preset <c>RWY 9 TAXI P S HS 12</c>. It taxis P/S toward runway 9, holding short of
+/// runway 12 (which taxiway S crosses en route). At t=229 the controller issues <c>CROSS 12</c>.
 ///
-/// Two regressions are covered:
+/// Two behaviors are covered:
 ///
 /// 1. <b>Manual spawn must replay.</b> <c>SimulationEngine.ReplayCommand</c> gated
 ///    <c>SpawnNow</c>/<c>SpawnDelay</c> behind the <c>FindAircraft is null</c> guard, but
@@ -24,13 +24,12 @@ namespace Yaat.Sim.Tests.Simulation;
 ///    snapshot regeneration. THY41J therefore never appeared in this bundle's snapshots.
 ///    With the fix it spawns during replay.
 ///
-/// 2. <b>CROSS of an intermediate hold-short whose destination runway is unreachable.</b>
-///    Runway 9 is not routable from parking via P/S — the taxi pathfinder cannot route a
-///    taxi across the runway-12 crossing to reach runway 9 — so the route legitimately ends
-///    at the hold-short of 12, with runway 9 stashed as the assigned runway. <c>CROSS 12</c>
-///    must then clear the hold-short, cross runway 12, and hold past the far-side bars
-///    (the aircraft cannot continue toward runway 9 because its stored path does not reach
-///    it). It must NOT line up on / continue to runway 9, and runway 9 stays stashed.
+/// 2. <b>Taxi to a destination runway across an intermediate runway crossing.</b> Taxiway S
+///    runs the full length parallel to runway 09/27 and crosses the diagonal runway 12/30
+///    en route, so <c>RWY 9 TAXI P S HS 12</c> must build a route all the way to runway 9
+///    with runway 12 marked as an en-route hold-short — <c>HS 12</c> is a hold/authorization
+///    marker, not a routing terminus. <c>CROSS 12</c> then clears that crossing and the
+///    aircraft continues toward runway 9 instead of stopping past the runway-12 bars.
 /// </summary>
 public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
 {
@@ -62,7 +61,7 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void CrossIntermediateHoldShort_DestinationRunwayUnreachable_CrossesAndHolds()
+    public void Taxi_RoutesAcrossRunway12_ToDestinationRunway9()
     {
         var setup = BuildReplay();
         if (setup is null)
@@ -74,12 +73,52 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
         var engine = setup.Value.Engine;
         var layout = setup.Value.Layout;
 
-        bool sawHoldingShortOf12BeforeCross = false;
-        bool sawCrossing = false;
-        bool everHeldShortOfRunway9 = false;
+        // Replay just past the manual spawn so the RWY 9 TAXI P S HS 12 preset has resolved.
+        for (int t = 1; t <= 96; t++)
+        {
+            engine.ReplayOneSecond();
+        }
 
-        // Replay through the spawn (t=91), taxi-out, hold-short, and the recorded
-        // CROSS 12 (t=229, +3 s recorded reaction delay) to the settled far side.
+        var aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        var route = aircraft.Ground.AssignedTaxiRoute;
+        Assert.NotNull(route);
+
+        int terminalNodeId = route.Segments[^1].ToNodeId;
+        var terminalNode = layout.Nodes[terminalNodeId];
+        output.WriteLine($"route segs={route.Segments.Count} terminal={terminalNodeId} ({terminalNode.Type} rwy={terminalNode.RunwayId})");
+        foreach (var p in route.HoldShortPoints)
+        {
+            output.WriteLine($"  HSP node={p.NodeId} target={p.TargetName} reason={p.Reason}");
+        }
+
+        // The route must reach runway 9 (its lineup hold-short), not stop at the runway-12 crossing.
+        Assert.Equal(GroundNodeType.RunwayHoldShort, terminalNode.Type);
+        Assert.True(terminalNode.RunwayId?.Contains("9") ?? false, $"route should end at a runway-9 hold-short, ended at {terminalNode.RunwayId}");
+
+        // Runway 12 must appear as an en-route (non-terminal) hold-short, marked from HS 12.
+        var twelve = route.HoldShortPoints.FirstOrDefault(p => p.TargetName is { } n && RunwayIdentifier.Parse(n).Contains("12"));
+        Assert.NotNull(twelve);
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, twelve.Reason);
+        Assert.NotEqual(terminalNodeId, twelve.NodeId);
+    }
+
+    [Fact]
+    public void CrossRunway12_ContinuesTowardRunway9()
+    {
+        var setup = BuildReplay();
+        if (setup is null)
+        {
+            return;
+        }
+
+        using var archive = setup.Value.Archive;
+        var engine = setup.Value.Engine;
+        var layout = setup.Value.Layout;
+
+        bool sawHoldingShortOf12 = false;
+        bool sawCrossing = false;
+
         for (int t = 1; t <= 245; t++)
         {
             engine.ReplayOneSecond();
@@ -90,24 +129,9 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
             }
 
             var phase = aircraft.Phases?.CurrentPhase;
-
-            if (phase is HoldingShortPhase hs && hs.HoldShort.TargetName is { } target)
+            if (phase is HoldingShortPhase hs && hs.HoldShort.TargetName is { } target && RunwayIdentifier.Parse(target).Contains("12"))
             {
-                var id = RunwayIdentifier.Parse(target);
-                // Before CROSS: holding short of runway 12, its destination runway (9) stashed
-                // but the route stopped here because 9 was unreachable.
-                if (t < 232 && id.Contains("12"))
-                {
-                    sawHoldingShortOf12BeforeCross = true;
-                    Assert.Equal(HoldShortReason.ExplicitHoldShort, hs.HoldShort.Reason);
-                    Assert.True(
-                        aircraft.Ground.AssignedTaxiRoute?.IsComplete,
-                        "Route completes at the runway-12 hold-short (runway 9 unreachable via P/S)"
-                    );
-                    Assert.Equal("09", aircraft.Phases?.AssignedRunway?.Designator);
-                }
-
-                everHeldShortOfRunway9 |= id.Contains("9");
+                sawHoldingShortOf12 = true;
             }
 
             sawCrossing |= phase is CrossingRunwayPhase;
@@ -121,15 +145,12 @@ public sealed class MiaSpawnReplayCrossTests(ITestOutputHelper output)
         var final = engine.FindAircraft(Callsign);
         Assert.NotNull(final);
 
-        Assert.True(sawHoldingShortOf12BeforeCross, $"{Callsign} should hold short of runway 12 before CROSS 12");
+        Assert.True(sawHoldingShortOf12, $"{Callsign} should hold short of runway 12 before CROSS 12");
         Assert.True(sawCrossing, $"{Callsign} should cross runway 12 after CROSS 12");
 
-        // Crossed and stopped past the far-side bars awaiting further taxi (its stored path
-        // cannot reach runway 9), NOT lined up on or continuing to runway 9.
-        Assert.IsType<HoldingInPositionPhase>(final.Phases?.CurrentPhase);
-        Assert.False(everHeldShortOfRunway9, $"{Callsign} must not continue to / hold short of runway 9 — its route never reached it");
-
-        // Destination runway stays stashed for a later taxi clearance.
+        // After crossing 12 the aircraft continues toward its destination runway 9 — it must NOT
+        // stop in the idle hold past the runway-12 bars.
+        Assert.IsNotType<HoldingInPositionPhase>(final.Phases?.CurrentPhase);
         Assert.Equal("09", final.Phases?.AssignedRunway?.Designator);
     }
 
