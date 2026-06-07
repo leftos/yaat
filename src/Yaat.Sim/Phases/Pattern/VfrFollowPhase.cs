@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -463,14 +464,17 @@ public sealed class VfrFollowPhase : Phase
     /// follower keeps descending behind the traffic and awaits an explicit CLAND on the
     /// actual runway, so it never auto-lands on a runway the controller didn't clear.
     /// </summary>
-    private void ApplyArmedLandingClearance(AircraftState aircraft, ClearanceType? armedClearance, string? armedRunwayId, RunwayInfo runway)
+    internal void ApplyArmedLandingClearance(AircraftState aircraft, ClearanceType? armedClearance, string? armedRunwayId, RunwayInfo runway)
     {
         if ((armedClearance is not ClearanceType.ClearedToLand) || aircraft.Phases is null)
         {
             return;
         }
 
-        if ((armedRunwayId is not null) && !string.Equals(armedRunwayId, runway.Designator, StringComparison.OrdinalIgnoreCase))
+        if (
+            (armedRunwayId is not null)
+            && !string.Equals(RunwayIdentifier.NormalizeDesignator(armedRunwayId), runway.Designator, StringComparison.OrdinalIgnoreCase)
+        )
         {
             Log.LogDebug(
                 "[VfrFollow] {Callsign}: armed to land {Armed} but joining {Actual} behind {Lead}; awaiting explicit clearance",

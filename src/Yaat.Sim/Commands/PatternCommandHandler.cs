@@ -2028,7 +2028,10 @@ internal static class PatternCommandHandler
         // pattern with an assigned runway. Replace the approach ending with a landing.
         if (aircraft.Phases.AssignedRunway is { } assignedRunway)
         {
-            if ((ctl.RunwayId is not null) && !string.Equals(ctl.RunwayId, assignedRunway.Designator, StringComparison.OrdinalIgnoreCase))
+            if (
+                (ctl.RunwayId is not null)
+                && !string.Equals(RunwayIdentifier.NormalizeDesignator(ctl.RunwayId), assignedRunway.Designator, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 return new CommandResult(
                     false,
@@ -2069,7 +2072,7 @@ internal static class PatternCommandHandler
         if (following)
         {
             aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
-            aircraft.Phases.ClearedRunwayId = ctl.RunwayId;
+            aircraft.Phases.ClearedRunwayId = ctl.RunwayId is null ? null : RunwayIdentifier.NormalizeDesignator(ctl.RunwayId);
             if (ctl.NoDelete)
             {
                 aircraft.Ground.AutoDeleteExempt = true;

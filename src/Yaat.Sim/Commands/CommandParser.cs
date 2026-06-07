@@ -1822,7 +1822,10 @@ public static class CommandParser
             }
             else if (runwayId is null && IsRunwayDesignator(token))
             {
-                runwayId = token.ToUpperInvariant();
+                // Normalize to the zero-padded canonical ("8R" -> "08R") so an unpadded
+                // FAA-form token never enters sim state and the runway-match comparisons
+                // downstream (CLAND established/armed checks) line up with RunwayInfo.Designator.
+                runwayId = RunwayIdentifier.NormalizeDesignator(token.ToUpperInvariant());
             }
             else
             {
