@@ -297,7 +297,7 @@ internal static class DepartureClearanceHandler
             if (
                 hs.Reason == HoldShortReason.RunwayCrossing
                 && hs.TargetName is not null
-                && hs.TargetName.Contains(runway.Designator, StringComparison.OrdinalIgnoreCase)
+                && RunwayIdentifier.Parse(hs.TargetName).Contains(runway.Designator)
                 && !hs.IsCleared
             )
             {

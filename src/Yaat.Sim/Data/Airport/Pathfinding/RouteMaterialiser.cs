@@ -335,11 +335,7 @@ public static class RouteMaterialiser
                     continue;
                 }
 
-                if (
-                    node.Type == GroundNodeType.RunwayHoldShort
-                    && node.RunwayId is { } nodeRunwayId
-                    && (nodeRunwayId.ToString() ?? string.Empty).Contains(runwayId, StringComparison.OrdinalIgnoreCase)
-                )
+                if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } nodeRunwayId && nodeRunwayId.Contains(runwayId))
                 {
                     runwayDestHoldIdx = i;
                     break;

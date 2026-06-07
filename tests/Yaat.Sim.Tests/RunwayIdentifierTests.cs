@@ -156,6 +156,21 @@ public class RunwayIdentifierTests
         Assert.True(id.Contains("01R"));
     }
 
+    [Fact]
+    public void Contains_IsEndExact_NotSubstring()
+    {
+        // Contains compares whole, normalized ends — it must NOT substring-match.
+        // At an airport with both 8R and 28R, a substring check would wrongly treat the
+        // "28R/10L" runway as a match for destination "8R". Ground pathfinding relies on
+        // this exactness (RouteMaterialiser / SegmentExpander hold-short matching).
+        var id = new RunwayIdentifier("28R", "10L");
+
+        Assert.True(id.Contains("28R"));
+        Assert.True(id.Contains("10L"));
+        Assert.False(id.Contains("8R"));
+        Assert.False(id.Contains("0L"));
+    }
+
     [Theory]
     [InlineData("10L", "28R")]
     [InlineData("10R", "28L")]

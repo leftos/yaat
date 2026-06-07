@@ -2057,7 +2057,7 @@ public static class SegmentExpander
         ctx.Layout.Nodes.TryGetValue(nodeId, out var node)
         && node.Type == GroundNodeType.RunwayHoldShort
         && node.RunwayId is { } rwy
-        && rwy.ToString().Contains(runwayId, StringComparison.OrdinalIgnoreCase);
+        && rwy.Contains(runwayId);
 
     private static (List<DirectionalEdge>? Edges, PathfindingFailure? Failure) TryVariantExtension(
         PartialRoute head,
