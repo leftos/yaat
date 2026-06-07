@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim.Data.Airport;
 
@@ -28,8 +29,8 @@ public partial class DataGridView
         Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
 
         var phase = ac.CurrentPhase ?? "";
-        var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
 
+        // Ground movement (taxi/push/hold) — not covered by the tower applicability predicates
         if (ac.IsOnGround)
         {
             if (phase == "At Parking")
@@ -48,9 +49,7 @@ public partial class DataGridView
                 var heldRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
                 if (!string.IsNullOrEmpty(heldRwy))
                 {
-                    var heldRwyDisplay = RunwayIdentifier.ToDisplayDesignator(heldRwy);
-                    menu.Items.Add(MakeItem($"Cross {heldRwyDisplay}", () => Cmd($"CROSS {heldRwy}")));
-                    menu.Items.Add(MakeItem($"Line up and wait {heldRwyDisplay}", () => Cmd($"LUAW {heldRwy}")));
+                    menu.Items.Add(MakeItem($"Cross {RunwayIdentifier.ToDisplayDesignator(heldRwy)}", () => Cmd($"CROSS {heldRwy}")));
                 }
             }
 
@@ -58,35 +57,47 @@ public partial class DataGridView
             {
                 menu.Items.Add(MakeItem("Resume taxi", () => Cmd("RES")));
             }
-
-            if (phase == "LinedUpAndWaiting")
-            {
-                menu.Items.Add(MakeItem($"Cleared for takeoff{rwy}", () => Cmd("CTO")));
-                menu.Items.Add(MakeItem("Cancel takeoff clearance", () => Cmd("CTOC")));
-            }
-
-            if (phase == "Takeoff")
-            {
-                menu.Items.Add(MakeItem("Cancel takeoff clearance", () => Cmd("CTOC")));
-            }
-
-            if (phase == "FinalApproach")
-            {
-                AddLandingItems(menu, ac, vm, callsign, initials);
-            }
-
-            if (phase == "Landing")
-            {
-                menu.Items.Add(MakeItem("Exit left", () => Cmd("EL")));
-                menu.Items.Add(MakeItem("Exit right", () => Cmd("ER")));
-            }
         }
-        else
+
+        // Departure clearances. For a runway-crossing hold the relevant runway is the one
+        // being held; for taxi-out / lined-up departures it falls back to the assigned runway.
+        var depRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
+        var depRwyLabel = !string.IsNullOrEmpty(depRwy) ? $" {RunwayIdentifier.ToDisplayDesignator(depRwy)}" : "";
+
+        if (AircraftCommandApplicability.CanLineUpAndWait(ac))
         {
-            if (phase == "FinalApproach")
-            {
-                AddLandingItems(menu, ac, vm, callsign, initials);
-            }
+            menu.Items.Add(MakeItem($"Line up and wait{depRwyLabel}", () => Cmd(!string.IsNullOrEmpty(depRwy) ? $"LUAW {depRwy}" : "LUAW")));
+        }
+
+        if (AircraftCommandApplicability.CanClearForTakeoff(ac))
+        {
+            // Name the runway in the command when holding short of / taxiing to it so the
+            // clearance is unambiguous; a lined-up or rolling aircraft is already on its runway.
+            var nameRunwayInCommand =
+                !string.IsNullOrEmpty(depRwy) && (phase.StartsWith("Holding Short", StringComparison.Ordinal) || phase == "Taxiing");
+            menu.Items.Add(MakeItem($"Cleared for takeoff{depRwyLabel}", () => Cmd(nameRunwayInCommand ? $"CTO {depRwy}" : "CTO")));
+        }
+
+        if (AircraftCommandApplicability.CanCancelTakeoff(ac))
+        {
+            menu.Items.Add(MakeItem("Cancel takeoff clearance", () => Cmd("CTOC")));
+        }
+
+        // Arrival / landing clearances
+        if (
+            AircraftCommandApplicability.CanClearToLand(ac)
+            || AircraftCommandApplicability.CanGoAround(ac)
+            || AircraftCommandApplicability.CanCancelLandingClearance(ac)
+        )
+        {
+            AddLandingItems(menu, ac, vm, callsign, initials);
+        }
+
+        // Runway exit (after touchdown)
+        if (AircraftCommandApplicability.CanExitRunway(ac))
+        {
+            menu.Items.Add(MakeItem("Exit left", () => Cmd("EL")));
+            menu.Items.Add(MakeItem("Exit right", () => Cmd("ER")));
         }
     }
 
@@ -95,13 +106,27 @@ public partial class DataGridView
         Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
         var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
 
-        menu.Items.Add(MakeItem($"Cleared to land{rwy}", () => Cmd("CLAND")));
-        menu.Items.Add(MakeItem($"Touch and go{rwy}", () => Cmd("TG")));
-        menu.Items.Add(MakeItem($"Stop and go{rwy}", () => Cmd("SG")));
-        menu.Items.Add(MakeItem($"Low approach{rwy}", () => Cmd("LA")));
-        menu.Items.Add(MakeItem($"Cleared for the option{rwy}", () => Cmd("COPT")));
-        menu.Items.Add(MakeItem($"Go around{rwy}", () => Cmd("GA")));
-        menu.Items.Add(MakeItem("Cancel landing clearance", () => Cmd("CLC")));
+        if (AircraftCommandApplicability.CanClearToLand(ac))
+        {
+            menu.Items.Add(MakeItem($"Cleared to land{rwy}", () => Cmd("CLAND")));
+            if (AircraftCommandApplicability.CanIssueVfrOption(ac))
+            {
+                menu.Items.Add(MakeItem($"Touch and go{rwy}", () => Cmd("TG")));
+                menu.Items.Add(MakeItem($"Stop and go{rwy}", () => Cmd("SG")));
+                menu.Items.Add(MakeItem($"Low approach{rwy}", () => Cmd("LA")));
+                menu.Items.Add(MakeItem($"Cleared for the option{rwy}", () => Cmd("COPT")));
+            }
+        }
+
+        if (AircraftCommandApplicability.CanGoAround(ac))
+        {
+            menu.Items.Add(MakeItem($"Go around{rwy}", () => Cmd("GA")));
+        }
+
+        if (AircraftCommandApplicability.CanCancelLandingClearance(ac))
+        {
+            menu.Items.Add(MakeItem("Cancel landing clearance", () => Cmd("CLC")));
+        }
     }
 
     private static readonly (string Label, int Seconds)[] SpawnDelayPresets =
@@ -260,23 +285,6 @@ public partial class DataGridView
         menu.Items.Add(MakeItem("Mach", () => Cmd("SMACH")));
         menu.Items.Add(MakeItem("Position", () => Cmd("SPOS")));
         menu.Items.Add(MakeItem("Expected approach", () => Cmd("SEAPP")));
-        return menu;
-    }
-
-    private static MenuItem BuildTowerSubmenu(AircraftModel ac, MainViewModel vm, string callsign, string initials)
-    {
-        Task Cmd(string raw) => vm.Connection.SendCommandAsync(callsign, raw, initials);
-        var rwy = !string.IsNullOrEmpty(ac.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
-        var menu = new MenuItem { Header = "Tower" };
-        menu.Items.Add(MakeItem($"Line up and wait{rwy}", () => Cmd("LUAW")));
-        menu.Items.Add(MakeItem($"Cleared for takeoff{rwy}", () => Cmd("CTO")));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(MakeItem($"Cleared to land{rwy}", () => Cmd("CLAND")));
-        menu.Items.Add(MakeItem($"Cleared for the option{rwy}", () => Cmd("COPT")));
-        menu.Items.Add(MakeItem($"Touch and go{rwy}", () => Cmd("TG")));
-        menu.Items.Add(MakeItem($"Stop and go{rwy}", () => Cmd("SG")));
-        menu.Items.Add(MakeItem($"Low approach{rwy}", () => Cmd("LA")));
-        menu.Items.Add(MakeItem($"Go around{rwy}", () => Cmd("GA")));
         return menu;
     }
 }

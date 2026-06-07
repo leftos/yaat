@@ -507,19 +507,35 @@ public partial class GroundView : UserControl
             menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
         }
 
-        if (phase == "FinalApproach")
+        if (
+            AircraftCommandApplicability.CanClearToLand(ac)
+            || AircraftCommandApplicability.CanGoAround(ac)
+            || AircraftCommandApplicability.CanCancelLandingClearance(ac)
+        )
         {
             var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
-            menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem($"Low approach{rwy}", () => vm.LowApproachAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem($"Go around{rwy}", () => vm.GoAroundAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Cancel landing clearance", () => vm.CancelLandingClearanceAsync(callsign, initials)));
+            if (AircraftCommandApplicability.CanClearToLand(ac))
+            {
+                menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(callsign, initials)));
+                if (AircraftCommandApplicability.CanIssueVfrOption(ac))
+                {
+                    menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(callsign, initials)));
+                    menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(callsign, initials)));
+                    menu.Items.Add(CreateMenuItem($"Low approach{rwy}", () => vm.LowApproachAsync(callsign, initials)));
+                    menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(callsign, initials)));
+                }
+            }
+            if (AircraftCommandApplicability.CanGoAround(ac))
+            {
+                menu.Items.Add(CreateMenuItem($"Go around{rwy}", () => vm.GoAroundAsync(callsign, initials)));
+            }
+            if (AircraftCommandApplicability.CanCancelLandingClearance(ac))
+            {
+                menu.Items.Add(CreateMenuItem("Cancel landing clearance", () => vm.CancelLandingClearanceAsync(callsign, initials)));
+            }
         }
 
-        if (phase == "Landing")
+        if (AircraftCommandApplicability.CanExitRunway(ac))
         {
             menu.Items.Add(CreateMenuItem("Exit left", () => vm.ExitLeftAsync(callsign, initials)));
             menu.Items.Add(CreateMenuItem("Exit right", () => vm.ExitRightAsync(callsign, initials)));
@@ -1129,7 +1145,7 @@ public partial class GroundView : UserControl
 
     private static void AddCtoSubmenu(ContextMenu menu, GroundViewModel vm, AircraftModel? ac, string callsign, string initials, string rwyId)
     {
-        bool isVfr = ac is not null && string.Equals(ac.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase);
+        bool isVfr = AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac);
 
         var parent = new MenuItem { Header = $"Cleared for takeoff {RunwayIdentifier.ToDisplayDesignator(rwyId)}" };
         parent.Items.Add(CreateMenuItem("Default (SID/on course)", () => vm.ClearedForTakeoffAsync(callsign, initials, rwyId)));

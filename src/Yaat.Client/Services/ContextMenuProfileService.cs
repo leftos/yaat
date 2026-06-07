@@ -56,7 +56,7 @@ public static class ContextMenuProfileService
         }
 
         // Ground phases — hide all flight + pattern commands
-        if (IsGroundPhase(currentPhase))
+        if (AircraftCommandApplicability.IsGroundPhase(currentPhase))
         {
             return BuildProfile([MenuGroup.Tower], [], FlightAndPatternHidden);
         }
@@ -75,7 +75,7 @@ public static class ContextMenuProfileService
         }
 
         // Pattern phases — Tower + Pattern primary, flight commands visible (ClearsPhase)
-        if (IsPatternPhase(currentPhase))
+        if (AircraftCommandApplicability.IsPatternPhase(currentPhase))
         {
             return BuildProfile([MenuGroup.Tower, MenuGroup.Pattern], [], NoHidden);
         }
@@ -91,7 +91,7 @@ public static class ContextMenuProfileService
         }
 
         // Holding/navigation phases
-        if (IsHoldingPhase(currentPhase))
+        if (AircraftCommandApplicability.IsHoldingPhase(currentPhase))
         {
             return BuildProfile([MenuGroup.Heading, MenuGroup.Altitude, MenuGroup.Speed, MenuGroup.Navigation], [], NoHidden);
         }
@@ -114,7 +114,7 @@ public static class ContextMenuProfileService
         }
 
         // Turn phases
-        if (IsTurnPhase(currentPhase))
+        if (AircraftCommandApplicability.IsTurnPhase(currentPhase))
         {
             return BuildProfile([MenuGroup.Heading, MenuGroup.Altitude, MenuGroup.Speed], [], NoHidden);
         }
@@ -152,39 +152,5 @@ public static class ContextMenuProfileService
         }
 
         return new ContextMenuProfile(primary, secondary, hidden);
-    }
-
-    private static bool IsGroundPhase(string phase)
-    {
-        return phase
-                is "At Parking"
-                    or "Pushback"
-                    or "Pushback to Spot"
-                    or "Holding After Pushback"
-                    or "Taxiing"
-                    or "Holding In Position"
-                    or "Crossing Runway"
-                    or "Runway Exit"
-                    or "Holding After Exit"
-                    or "AirTaxi"
-                    or "LiningUp"
-                    or "LinedUpAndWaiting"
-            || phase.StartsWith("Holding Short", StringComparison.Ordinal)
-            || phase.StartsWith("Following", StringComparison.Ordinal);
-    }
-
-    private static bool IsPatternPhase(string phase)
-    {
-        return phase is "Pattern Entry" or "Upwind" or "Crosswind" or "Downwind" or "Base" or "MidfieldCrossing";
-    }
-
-    private static bool IsHoldingPhase(string phase)
-    {
-        return phase is "HoldingPattern" or "HPP-L" or "HPP-R" or "HPP" or "HoldingAtFix" or "ProceedToFix";
-    }
-
-    private static bool IsTurnPhase(string phase)
-    {
-        return phase is "S-Turns" || phase.StartsWith("Turn", StringComparison.Ordinal);
     }
 }

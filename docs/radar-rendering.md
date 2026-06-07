@@ -288,12 +288,18 @@ snaps to the nearest 5°, and raises
 
 ## Context menus
 
-The right-click aircraft menu (`RadarView.ContextMenus.cs`, `OnAircraftRightClicked`) is **phase-driven**.
+The right-click aircraft menu (`RadarView.ContextMenus.cs`, `OnAircraftRightClicked`) is **phase-driven** at two levels.
 `ContextMenuProfileService.GetProfile(currentPhase, isOnGround)` (`ContextMenuProfileService.cs:51`) returns a
-`ContextMenuProfile` of **primary**, **secondary**, and **hidden** `MenuGroup`s. The builder adds primary groups, a
-separator, then the remaining (secondary) groups inline (`RadarView.ContextMenus.cs:121-136`); hidden groups (e.g. all
-flight + pattern commands while on the ground or landing) are omitted entirely. A trailing always-visible block adds Track,
-Data-block, Squawk, Ask-pilot, Coordination, Display, Sim-control, and RPO-control submenus (`:138-150`).
+`ContextMenuProfile` of **primary**, **secondary**, and **hidden** `MenuGroup`s — which submenu *groups* appear. The builder
+adds primary groups, a separator, then the remaining (secondary) groups inline (`RadarView.ContextMenus.cs:121-136`); hidden
+groups (e.g. all flight + pattern commands while on the ground or landing) are omitted entirely. Within the **Tower** and
+**Pattern** groups, individual *items* are then filtered by `AircraftCommandApplicability` (departure clearances only for
+ground departures, landing/option clearances only while a landing is pending with VFR options hidden for IFR, runway-exit
+items only after touchdown, pattern maneuvers gated per leg). `BuildTowerSubmenu`/`BuildPatternSubmenu` return `null` when
+nothing applies, so the group is dropped even if the profile listed it. A trailing always-visible block adds Track,
+Data-block, Squawk, Ask-pilot, Coordination, Display, Sim-control, and RPO-control submenus (`:138-150`). The aircraft-list
+(`DataGridView.ContextMenu.cs`) and ground (`GroundView.axaml.cs`) menus consult the same `AircraftCommandApplicability`
+predicates so all three surfaces agree.
 
 ### Smart-default convention
 

@@ -200,10 +200,6 @@ public partial class DataGridView : UserControl
         }
 
         AddPhaseAwareItems(menu, ac, vm, callsign, initials);
-        if (!ac.IsOnGround)
-        {
-            menu.Items.Add(BuildTowerSubmenu(ac, vm, callsign, initials));
-        }
 
         menu.Items.Add(new Separator());
         menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));

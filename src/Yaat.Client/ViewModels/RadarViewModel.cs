@@ -1283,6 +1283,26 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, cmd, initials);
     }
 
+    public async Task CancelTakeoffClearanceAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "CTOC", initials);
+    }
+
+    public async Task CancelLandingClearanceAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "CLC", initials);
+    }
+
+    public async Task ExitLeftAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "EL", initials);
+    }
+
+    public async Task ExitRightAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "ER", initials);
+    }
+
     // --- Pattern entry ---
 
     public async Task EnterLeftDownwindAsync(string callsign, string initials, string? runway)

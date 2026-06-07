@@ -1055,44 +1055,99 @@ public partial class RadarView
         }
     }
 
-    private MenuItem BuildTowerSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    /// <summary>
+    /// Builds the state-aware Tower submenu. Departure clearances appear only for ground
+    /// departures, arrival/option clearances only while a landing is pending (VFR options
+    /// hidden for IFR), runway-exit items only after touchdown. Returns null when nothing
+    /// applies so the caller can omit the submenu entirely.
+    /// </summary>
+    internal MenuItem? BuildTowerSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
         var menu = new MenuItem { Header = "Tower" };
         var rwy = !string.IsNullOrEmpty(ac?.AssignedRunway) ? $" {RunwayIdentifier.ToDisplayDesignator(ac.AssignedRunway)}" : "";
 
         // Departures
-        menu.Items.Add(CreateMenuItem($"Line up and wait{rwy}", () => vm.LineUpAndWaitAsync(cs, init)));
-        menu.Items.Add(BuildClearedForTakeoffSubmenu(vm, cs, init));
-        menu.Items.Add(new Separator());
+        if (AircraftCommandApplicability.CanLineUpAndWait(ac))
+        {
+            menu.Items.Add(CreateMenuItem($"Line up and wait{rwy}", () => vm.LineUpAndWaitAsync(cs, init)));
+        }
+        if (AircraftCommandApplicability.CanClearForTakeoff(ac))
+        {
+            menu.Items.Add(BuildClearedForTakeoffSubmenu(vm, cs, init, ac));
+        }
+        if (AircraftCommandApplicability.CanCancelTakeoff(ac))
+        {
+            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(cs, init)));
+        }
 
-        // Arrivals / pattern operations
-        menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem($"Low approach{rwy}", () => vm.LowApproachAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem($"Go around{rwy}", () => vm.GoAroundAsync(cs, init)));
-        menu.Items.Add(new Separator());
+        // Arrivals / pattern landing
+        var canLand = AircraftCommandApplicability.CanClearToLand(ac);
+        var canGoAround = AircraftCommandApplicability.CanGoAround(ac);
+        var canCancelLanding = AircraftCommandApplicability.CanCancelLandingClearance(ac);
+        if (canLand || canGoAround || canCancelLanding)
+        {
+            AddSeparatorIfNonEmpty(menu);
+            if (canLand)
+            {
+                menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(cs, init)));
+                if (AircraftCommandApplicability.CanIssueVfrOption(ac))
+                {
+                    menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(cs, init)));
+                    menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(cs, init)));
+                    menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(cs, init)));
+                    menu.Items.Add(CreateMenuItem($"Low approach{rwy}", () => vm.LowApproachAsync(cs, init)));
+                }
+            }
+            if (canGoAround)
+            {
+                menu.Items.Add(CreateMenuItem($"Go around{rwy}", () => vm.GoAroundAsync(cs, init)));
+            }
+            if (canCancelLanding)
+            {
+                menu.Items.Add(CreateMenuItem("Cancel landing clearance", () => vm.CancelLandingClearanceAsync(cs, init)));
+            }
+        }
 
-        AddPatternEntryItems(menu, vm, cs, init, ac);
-        return menu;
+        // Runway exit (after touchdown)
+        if (AircraftCommandApplicability.CanExitRunway(ac))
+        {
+            AddSeparatorIfNonEmpty(menu);
+            menu.Items.Add(CreateMenuItem("Exit left", () => vm.ExitLeftAsync(cs, init)));
+            menu.Items.Add(CreateMenuItem("Exit right", () => vm.ExitRightAsync(cs, init)));
+        }
+
+        return menu.Items.Count > 0 ? menu : null;
     }
 
-    private MenuItem BuildClearedForTakeoffSubmenu(RadarViewModel vm, string cs, string init)
+    private static void AddSeparatorIfNonEmpty(MenuItem menu)
+    {
+        if (menu.Items.Count > 0)
+        {
+            menu.Items.Add(new Separator());
+        }
+    }
+
+    private MenuItem BuildClearedForTakeoffSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
         var menu = new MenuItem { Header = "Cleared for takeoff" };
 
         menu.Items.Add(CreateMenuItem("Fly runway heading", () => vm.ClearedForTakeoffAsync(cs, init, null)));
         menu.Items.Add(CreateMenuItem("Fly on course", () => vm.ClearedForTakeoffAsync(cs, init, "OC")));
-        menu.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MLT")));
-        menu.Items.Add(CreateMenuItem("Make right traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MRT")));
-        menu.Items.Add(CreateMenuItem("Turn left crosswind", () => vm.ClearedForTakeoffAsync(cs, init, "MLC")));
-        menu.Items.Add(CreateMenuItem("Turn right crosswind", () => vm.ClearedForTakeoffAsync(cs, init, "MRC")));
-        menu.Items.Add(CreateMenuItem("Turn left downwind", () => vm.ClearedForTakeoffAsync(cs, init, "MLD")));
-        menu.Items.Add(CreateMenuItem("Turn right downwind", () => vm.ClearedForTakeoffAsync(cs, init, "MRD")));
-        menu.Items.Add(CreateMenuItem("Left 270", () => vm.ClearedForTakeoffAsync(cs, init, "ML270")));
-        menu.Items.Add(CreateMenuItem("Right 270", () => vm.ClearedForTakeoffAsync(cs, init, "MR270")));
-        menu.Items.Add(CreateMenuItem("360 overhead", () => vm.ClearedForTakeoffAsync(cs, init, "360")));
+
+        // Pattern / closed-traffic modifiers are VFR-only — the server rejects them for IFR.
+        if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac))
+        {
+            menu.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MLT")));
+            menu.Items.Add(CreateMenuItem("Make right traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MRT")));
+            menu.Items.Add(CreateMenuItem("Turn left crosswind", () => vm.ClearedForTakeoffAsync(cs, init, "MLC")));
+            menu.Items.Add(CreateMenuItem("Turn right crosswind", () => vm.ClearedForTakeoffAsync(cs, init, "MRC")));
+            menu.Items.Add(CreateMenuItem("Turn left downwind", () => vm.ClearedForTakeoffAsync(cs, init, "MLD")));
+            menu.Items.Add(CreateMenuItem("Turn right downwind", () => vm.ClearedForTakeoffAsync(cs, init, "MRD")));
+            menu.Items.Add(CreateMenuItem("Left 270", () => vm.ClearedForTakeoffAsync(cs, init, "ML270")));
+            menu.Items.Add(CreateMenuItem("Right 270", () => vm.ClearedForTakeoffAsync(cs, init, "MR270")));
+            menu.Items.Add(CreateMenuItem("360 overhead", () => vm.ClearedForTakeoffAsync(cs, init, "360")));
+        }
+
         menu.Items.Add(new Separator());
         menu.Items.Add(
             CreateInputMenuItem(
@@ -1143,41 +1198,112 @@ public partial class RadarView
                 menu.Items.Add(BuildProceduresSubmenu(vm, cs, init, ac));
                 break;
             case MenuGroup.Tower:
-                menu.Items.Add(BuildTowerSubmenu(vm, cs, init, ac));
+                var tower = BuildTowerSubmenu(vm, cs, init, ac);
+                if (tower is not null)
+                {
+                    menu.Items.Add(tower);
+                }
                 break;
             case MenuGroup.Pattern:
-                menu.Items.Add(BuildPatternSubmenu(vm, cs, init, ac));
+                var pattern = BuildPatternSubmenu(vm, cs, init, ac);
+                if (pattern is not null)
+                {
+                    menu.Items.Add(pattern);
+                }
                 break;
         }
     }
 
-    private MenuItem BuildPatternSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    /// <summary>
+    /// Builds the Pattern submenu. Entries are offered to airborne VFR aircraft being
+    /// sequenced in; maneuvers are leg-specific (turn-crosswind only from upwind, etc.).
+    /// Pattern operations are VFR-only. Returns null when nothing applies.
+    /// </summary>
+    internal MenuItem? BuildPatternSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
         var menu = new MenuItem { Header = "Pattern" };
-        AddPatternEntryItems(menu, vm, cs, init, ac);
-        menu.Items.Add(new Separator());
-        AddPatternManeuverItems(menu, vm, cs, init);
-        return menu;
+        if (AircraftCommandApplicability.CanEnterPattern(ac))
+        {
+            AddPatternEntryItems(menu, vm, cs, init, ac);
+        }
+        AddPatternManeuverItems(menu, vm, cs, init, ac);
+        return menu.Items.Count > 0 ? menu : null;
     }
 
-    private void AddPatternManeuverItems(MenuItem menu, RadarViewModel vm, string cs, string init)
+    private void AddPatternManeuverItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        menu.Items.Add(CreateMenuItem("Turn crosswind", () => vm.TurnCrosswindAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Turn downwind", () => vm.TurnDownwindAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Turn base", () => vm.TurnBaseAsync(cs, init)));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Extend pattern leg", () => vm.ExtendPatternAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Make short approach", () => vm.MakeShortApproachAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Make normal approach", () => vm.MakeNormalApproachAsync(cs, init)));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Make left 360", () => vm.MakeLeft360Async(cs, init)));
-        menu.Items.Add(CreateMenuItem("Make right 360", () => vm.MakeRight360Async(cs, init)));
-        menu.Items.Add(CreateMenuItem("Make left 270", () => vm.MakeLeft270Async(cs, init)));
-        menu.Items.Add(CreateMenuItem("Make right 270", () => vm.MakeRight270Async(cs, init)));
-        menu.Items.Add(CreateMenuItem("Plan 270 at next turn", () => vm.Plan270Async(cs, init)));
-        menu.Items.Add(CreateMenuItem("Cancel 270", () => vm.Cancel270Async(cs, init)));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Circle airport", () => vm.CircleAirportAsync(cs, init)));
+        // Pattern maneuvers are VFR-only and valid only from specific legs of the circuit.
+        if (!AircraftCommandApplicability.IsVfr(ac))
+        {
+            return;
+        }
+
+        var phase = ac?.CurrentPhase ?? "";
+
+        // Leg turns — each valid only from the preceding leg
+        var turns = new List<MenuItem>();
+        if (phase == "Upwind")
+        {
+            turns.Add(CreateMenuItem("Turn crosswind", () => vm.TurnCrosswindAsync(cs, init)));
+        }
+        if (phase == "Crosswind")
+        {
+            turns.Add(CreateMenuItem("Turn downwind", () => vm.TurnDownwindAsync(cs, init)));
+        }
+        if (phase == "Downwind")
+        {
+            turns.Add(CreateMenuItem("Turn base", () => vm.TurnBaseAsync(cs, init)));
+        }
+        AddManeuverGroup(menu, turns);
+
+        // Spacing adjustments
+        var spacing = new List<MenuItem>();
+        if (phase is "Upwind" or "Crosswind" or "Downwind")
+        {
+            spacing.Add(CreateMenuItem("Extend pattern leg", () => vm.ExtendPatternAsync(cs, init)));
+        }
+        if (phase is "Downwind" or "Base")
+        {
+            spacing.Add(CreateMenuItem("Make short approach", () => vm.MakeShortApproachAsync(cs, init)));
+            spacing.Add(CreateMenuItem("Make normal approach", () => vm.MakeNormalApproachAsync(cs, init)));
+        }
+        AddManeuverGroup(menu, spacing);
+
+        // 360 / 270 orbits — any pattern leg
+        var orbits = new List<MenuItem>();
+        if (AircraftCommandApplicability.IsPatternPhase(phase))
+        {
+            orbits.Add(CreateMenuItem("Make left 360", () => vm.MakeLeft360Async(cs, init)));
+            orbits.Add(CreateMenuItem("Make right 360", () => vm.MakeRight360Async(cs, init)));
+            orbits.Add(CreateMenuItem("Make left 270", () => vm.MakeLeft270Async(cs, init)));
+            orbits.Add(CreateMenuItem("Make right 270", () => vm.MakeRight270Async(cs, init)));
+        }
+        if (phase is "Upwind" or "Crosswind" or "Downwind" or "Base")
+        {
+            orbits.Add(CreateMenuItem("Plan 270 at next turn", () => vm.Plan270Async(cs, init)));
+            orbits.Add(CreateMenuItem("Cancel 270", () => vm.Cancel270Async(cs, init)));
+        }
+        AddManeuverGroup(menu, orbits);
+
+        // Circle the airport — any pattern leg
+        if (AircraftCommandApplicability.IsPatternPhase(phase))
+        {
+            AddManeuverGroup(menu, [CreateMenuItem("Circle airport", () => vm.CircleAirportAsync(cs, init))]);
+        }
+    }
+
+    private static void AddManeuverGroup(MenuItem menu, List<MenuItem> items)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        AddSeparatorIfNonEmpty(menu);
+        foreach (var item in items)
+        {
+            menu.Items.Add(item);
+        }
     }
 
     private void AddPatternEntryItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
