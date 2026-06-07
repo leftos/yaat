@@ -1,13 +1,18 @@
 # Changelog
 
-## Unreleased
+## v0.7.4-beta [2026/06/06]
+
+### Highlights
+- **Single-digit runways now display in FAA form** — `8R` and `9` instead of `08R` and `09` — on the radar, in lists and menus, on the ground map, and in pilot read-backs.
+- **Right-click menus now match each aircraft's state** — no takeoff clearance for an airborne arrival, runway exits for one that just landed, and VFR-only items hidden for IFR aircraft.
+- **`CROSS` works after a taxi that ended at a runway** — `TAXI B 28R` then `CROSS 28R` takes the aircraft across and holds it in position.
+- **Solo training hides the pilot's comply time** — the student hears only the read-back, with no "complying in Ns" acknowledgement.
 
 ### Changed
 - In **solo training mode**, the command-run delay no longer shows the "Pilot complying in Ns" acknowledgement — the student hears only the pilot's read-back and can't tell exactly how long the aircraft will take to comply. Instructor/RPO sessions still get the explicit acknowledgement.
-- Single-digit runways now display in FAA form without a leading zero everywhere — `8R` and `9` instead of `08R` and `09` — in the radar datablock, aircraft-list columns, context menus, ground-map and hold-short labels, pilot read-backs, command results, and the session report.
+- Single-digit runways now display in FAA form without a leading zero everywhere — `8R` and `9` instead of `08R` and `09` — in the radar datablock, aircraft-list columns, context menus, ground-map and hold-short labels, pilot read-backs (including the simulated pilot's spoken read-backs in solo training, e.g. "runway eight right" instead of "runway zero eight right"), command results, and the session report.
 
 ### Fixed
-- In **solo training mode**, the simulated pilot now reads a single-digit runway as "runway eight right" / "runway nine" instead of "runway zero eight right" / "runway zero nine".
 - In **solo training mode**, the radio `SAY` transcript now shows the simulated pilot's read-backs and reports in a compact controller form (e.g. `runway 8R taxi via B C D`, `fly heading 270`) with the callsign in the transcript's callsign column, instead of echoing the full spelled-out spoken phonetics.
 - `CLAND 8R` (or any single-digit runway clearance) is no longer rejected for an aircraft established on that runway, and an armed `CLAND` for a following aircraft now lands it when it joins the single-digit runway's pattern. Previously the FAA-form `8R` failed to match the runway's `08R`-style designator.
 - Right-click context menus (aircraft list, ground view, radar view) now show only the commands that fit the aircraft's state — airborne arrivals no longer offer "Line up and wait" or "Cleared for takeoff", departures no longer offer landing clearances, and a landed aircraft is offered runway exits.
@@ -18,6 +23,7 @@
 - Aircraft landing on a single-digit runway (e.g. KMIA runway 9) now exit at a mid-field taxiway on the airport-designated turn-off side instead of rolling nearly the full runway length, even narrowbodies like a 737. The runway's authored turn-off side and no-turn-off taxiways were being dropped for single-digit runways, so the exit search fell back to a heuristic that could commit the aircraft to a single exit near the departure end.
 - A manually spawned delayed aircraft (`SPAWN`) is now preserved through rewind and recording replay. Previously the spawn was dropped whenever the session was reconstructed, so the aircraft vanished after a rewind-and-resume and never appeared in saved bug-report bundles.
 - A taxi clearance to a departure runway that lies beyond a runway crossing now routes all the way to the runway. For example `RWY 9 TAXI P S HS 12` at KMIA, where taxiway S crosses runway 12 on the way to runway 9, now holds short of 12 with runway 9 still the destination; `CROSS 12` then continues the taxi toward runway 9 instead of stopping just past the runway. `HS <rwy>` is a hold-short marker en route, not the end of the taxi. The route stays on the cleared taxiways and crosses each intervening runway (e.g. `RWY 30 TAXI C B W HS 28R` at KOAK crosses 28R then 28L to reach runway 30).
+- A track on which the **student** has just accepted an incoming pointout now turns yellow on your radar to match the student's scope, completing the student-scope color mirror added in v0.7.3 — previously this one case kept your own default color even with student-scope sync on.
 
 ## v0.7.3-beta [2026/06/06]
 

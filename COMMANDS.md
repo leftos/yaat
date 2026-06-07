@@ -58,6 +58,10 @@ Altitude arguments (used by CM, DM, LV, and GA) accept three formats:
 
 The hundreds-vs-absolute rule: values under 1,000 are multiplied by 100; values 1,000+ are used as-is. This applies to both numeric and AGL formats — `KOAK+010` means 1,000 ft AGL, `KOAK+1500` means 1,500 ft AGL. The airport code can be FAA (e.g., `OAK`) or ICAO (e.g., `KOAK`), followed by `+` and the AGL value.
 
+### Runway Designators
+
+Runways are written in FAA form, with the leading zero dropped for single-digit runways — type `8R` and `9`, not `08R` and `09`. Both are accepted everywhere a runway is taken (taxi, runway crossings, takeoff and landing clearances, and approaches, where `I8R` resolves the same as `I08R`), and YAAT displays runways the same way — on the radar datablock, in the aircraft list and context menus, on the ground map and hold-short labels, in pilot read-backs, and in the Session Report.
+
 ### Command Chaining
 
 Commands can be combined using `,` (parallel) and `;` (sequential):
