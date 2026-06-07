@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `CROSS <rwy>` now works when the runway was the destination of the aircraft's previous taxi (e.g. `TAXI B 28R` then `CROSS 28R`) — both while it is still taxiing toward the runway and once it is holding short of it. The aircraft taxis across to the far side and holds in position. Previously it was rejected with "Cannot cross destination runway 28R; use LUAW or CTO".
+
 ## v0.7.3-beta [2026/06/06]
 
 ### Highlights

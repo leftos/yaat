@@ -1106,6 +1106,9 @@ internal static class GroundCommandHandler
                     continue;
                 }
 
+                // Multi-target pre-clear (e.g. CROSS A B) only clears intermediate crossings on an
+                // in-progress route; crossing your own destination runway is handled by single-target
+                // CROSS (TryExtendRouteAcrossDestinationRunway), so reject it here.
                 if (hs.Reason == HoldShortReason.DestinationRunway)
                 {
                     return new CommandResult(false, $"Cannot cross destination runway {hs.TargetName}; use LUAW or CTO");
@@ -1221,7 +1224,10 @@ internal static class GroundCommandHandler
         // "28R/10L") and taxiway/intersection names (e.g. CROSS B against "B").
         if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase && HoldShortTargetMatches(holdPhase.HoldShort.TargetName, target))
         {
-            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway)
+            // A DestinationRunway hold-short is a departure hold (use LUAW/CTO) only while the
+            // taxi is still in progress. Once the route has completed at it, CROSS undesignates
+            // the runway and taxis the aircraft across to the far-side hold-short instead.
+            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway && aircraft.Ground.AssignedTaxiRoute is not { IsComplete: true })
             {
                 return new CommandResult(false, $"Cannot cross destination runway {holdPhase.HoldShort.TargetName}; use LUAW or CTO");
             }
@@ -1255,7 +1261,7 @@ internal static class GroundCommandHandler
 
             if (hs.Reason == HoldShortReason.DestinationRunway)
             {
-                return new CommandResult(false, $"Cannot cross destination runway {hs.TargetName}; use LUAW or CTO");
+                return TryExtendRouteAcrossDestinationRunway(aircraft, hs);
             }
 
             matchedAny = true;
@@ -1378,7 +1384,7 @@ internal static class GroundCommandHandler
             }
 
             var route = TaxiPathfinder.FindRoute(layout, holdShortNodeId, candidate.Id, category);
-            if (route is null || !RouteTraversesRunway(route, runwayId))
+            if (route is null || !RouteTraversesRunway(layout, route, runwayId))
             {
                 continue;
             }
@@ -1400,11 +1406,37 @@ internal static class GroundCommandHandler
         return best;
     }
 
-    private static bool RouteTraversesRunway(TaxiRoute route, RunwayIdentifier runwayId)
+    private static bool RouteTraversesRunway(AirportGroundLayout layout, TaxiRoute route, RunwayIdentifier runwayId)
     {
         foreach (var segment in route.Segments)
         {
             if (segment.Edge.Edge.MatchesRunway(runwayId.End1) || segment.Edge.Edge.MatchesRunway(runwayId.End2))
+            {
+                return true;
+            }
+
+            // A crossing that runs straight through the runway centerline intersection (e.g. a
+            // through-taxiway like B at OAK) uses plain taxiway edges, not runway-tagged ones — so
+            // detect it by the on-centerline node the route passes through.
+            if (NodeIsOnRunwayCenterline(layout, segment.ToNodeId, runwayId))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool NodeIsOnRunwayCenterline(AirportGroundLayout layout, int nodeId, RunwayIdentifier runwayId)
+    {
+        if (!layout.Nodes.TryGetValue(nodeId, out var node))
+        {
+            return false;
+        }
+
+        foreach (var edge in node.Edges)
+        {
+            if (edge.IsRunwayCenterline && (edge.MatchesRunway(runwayId.End1) || edge.MatchesRunway(runwayId.End2)))
             {
                 return true;
             }
@@ -1414,6 +1446,56 @@ internal static class GroundCommandHandler
     }
 
     private sealed record CompletedRouteCrossing(TaxiRoute Route, int ExitNodeId);
+
+    /// <summary>
+    /// CROSS issued for the runway the aircraft is taxiing TO — its route's
+    /// <see cref="HoldShortReason.DestinationRunway"/> hold-short — before it has arrived.
+    /// Extends the still-in-progress route across the runway to the far-side hold-short and
+    /// converts the destination hold-short into a pre-cleared <see cref="HoldShortReason.RunwayCrossing"/>,
+    /// so <see cref="TaxiingPhase"/> taxis across on arrival instead of stopping for departure.
+    /// </summary>
+    private static CommandResult TryExtendRouteAcrossDestinationRunway(AircraftState aircraft, HoldShortPoint terminalHoldShort)
+    {
+        var route = aircraft.Ground.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return new CommandResult(false, "No taxi route assigned");
+        }
+
+        if (!IsRunwayHoldShort(aircraft, terminalHoldShort, out var runwayId))
+        {
+            return new CommandResult(false, $"Cannot cross destination runway {terminalHoldShort.TargetName}; use LUAW or CTO");
+        }
+
+        var layout = aircraft.Ground.Layout;
+        if (layout is null)
+        {
+            return new CommandResult(false, "No airport ground layout available");
+        }
+
+        var crossing = FindCompletedRouteCrossing(aircraft, layout, terminalHoldShort.NodeId, runwayId);
+        if (crossing is null)
+        {
+            return new CommandResult(false, $"No crossing route found for {terminalHoldShort.TargetName ?? "runway"}");
+        }
+
+        // Append the crossing (terminal hold-short → far-side hold-short) onto the live route
+        // so TaxiingPhase finds a forward same-runway exit when it reaches the hold-short.
+        route.Segments.AddRange(crossing.Route.Segments);
+        foreach (var hs in crossing.Route.HoldShortPoints)
+        {
+            if (hs.NodeId != terminalHoldShort.NodeId && route.GetHoldShortAt(hs.NodeId) is null)
+            {
+                route.HoldShortPoints.Add(hs);
+            }
+        }
+
+        // Undesignate: the destination runway becomes a pre-cleared crossing.
+        terminalHoldShort.Reason = HoldShortReason.RunwayCrossing;
+        terminalHoldShort.IsCleared = true;
+
+        return CommandDispatcher.Ok($"Cross {terminalHoldShort.TargetName}");
+    }
 
     /// <summary>
     /// Bare <c>CROSS</c> (no runway argument). Clears exactly one — the next
@@ -1426,7 +1508,7 @@ internal static class GroundCommandHandler
     {
         if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase)
         {
-            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway)
+            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway && aircraft.Ground.AssignedTaxiRoute is not { IsComplete: true })
             {
                 return new CommandResult(false, $"Cannot cross destination runway {holdPhase.HoldShort.TargetName}; use LUAW or CTO");
             }
@@ -1464,7 +1546,7 @@ internal static class GroundCommandHandler
 
         if (next.Reason == HoldShortReason.DestinationRunway)
         {
-            return new CommandResult(false, $"Cannot cross destination runway {next.TargetName}; use LUAW or CTO");
+            return TryExtendRouteAcrossDestinationRunway(aircraft, next);
         }
 
         next.IsCleared = true;
