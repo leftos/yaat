@@ -133,16 +133,20 @@ public interface IGroundEdge
     /// </summary>
     static bool RunwayNameContainsDesignator(string rwyEdgeName, string designator)
     {
-        // "RWY10L/28R" → "10L/28R" → ["10L", "28R"]
+        // "RWY10L/28R" → "10L/28R" → ["10L", "28R"]. Normalize each end and the query so a
+        // single-digit designator matches its zero-padded form ("8R" == "08R"). RunwayIdentifier
+        // normalizes the same way; the two matchers must agree or auto-routing mis-resolves a
+        // bare "RWY 8R" against an "08R/26L" edge.
         ReadOnlySpan<char> name = rwyEdgeName.AsSpan();
         if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
         {
             name = name[3..];
         }
 
+        string normalizedDesignator = RunwayIdentifier.NormalizeDesignator(designator);
         foreach (var part in name.Split('/'))
         {
-            if (name[part].Equals(designator, StringComparison.OrdinalIgnoreCase))
+            if (RunwayIdentifier.NormalizeDesignator(name[part].ToString()).Equals(normalizedDesignator, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
