@@ -991,9 +991,7 @@ internal static class NavigationCommandHandler
         }
 
         // Ensure the runway designator matches the approach runway
-        var approachRunway = runway.Designator.Equals(procedure.Runway, StringComparison.OrdinalIgnoreCase)
-            ? runway
-            : runway.ForApproach(procedure.Runway);
+        var approachRunway = runway.IsActiveEnd(procedure.Runway) ? runway : runway.ForApproach(procedure.Runway);
 
         var facResult = FinalApproachCourseExtractor.Extract(procedure, approachRunway, navDb);
         TrueHeading finalCourse = facResult.Course;

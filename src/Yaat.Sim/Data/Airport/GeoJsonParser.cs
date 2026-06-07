@@ -698,8 +698,12 @@ public static class GeoJsonParser
             return empty;
         }
 
-        var result = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase) { [ends[0]] = end1Side.Value };
-        result[ends[1]] = (end1Side.Value == ExitSide.Left) ? ExitSide.Right : ExitSide.Left;
+        // Key by the zero-pad-normalized designator ("9" → "09") so the runtime, which always
+        // carries the normalized identity, resolves the authored side at single-digit runways.
+        string end1Key = RunwayIdentifier.NormalizeDesignator(ends[0]);
+        string end2Key = RunwayIdentifier.NormalizeDesignator(ends[1]);
+        var result = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase) { [end1Key] = end1Side.Value };
+        result[end2Key] = (end1Side.Value == ExitSide.Left) ? ExitSide.Right : ExitSide.Left;
         return result;
     }
 
@@ -758,7 +762,7 @@ public static class GeoJsonParser
             }
             if (names.Count > 0)
             {
-                result[ends[idx]] = names;
+                result[RunwayIdentifier.NormalizeDesignator(ends[idx])] = names;
             }
             idx++;
         }

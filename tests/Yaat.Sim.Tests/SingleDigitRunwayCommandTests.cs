@@ -88,4 +88,29 @@ public class SingleDigitRunwayCommandTests
         Assert.True(aircraft.Phases.AssignedRunway.Id.Contains("8R"));
         Assert.True(aircraft.Phases.AssignedRunway.Id.Contains("08R"));
     }
+
+    [Fact]
+    public void AirTaxi_PaddedSingleDigitRunway_ResolvesNamedEndNotOpposite()
+    {
+        var layout = new TestAirportGroundData().GetLayout("MIA");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var rwy = layout.Runways.First(r => r.Name == "9 - 27");
+        var end9 = rwy.Coordinates[0];
+        var end27 = rwy.Coordinates[^1];
+
+        // The zero-padded identity "09" must air-taxi to the rwy-9 threshold (first-named end), not
+        // silently fall through to the opposite "27" end. FindRunway now matches single-digit padded
+        // designators, so the end-selection compare must normalize too.
+        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "09", out double lat09, out double lon09));
+        Assert.Equal(end9.Lat, lat09, 9);
+        Assert.Equal(end9.Lon, lon09, 9);
+
+        Assert.True(GroundCommandHandler.TryResolveAirTaxiDestination(layout, "27", out double lat27, out double lon27));
+        Assert.Equal(end27.Lat, lat27, 9);
+        Assert.Equal(end27.Lon, lon27, 9);
+    }
 }

@@ -1710,7 +1710,7 @@ internal static class GroundCommandHandler
     ///      using the threshold of the requested end as the target point.
     /// Returns false if neither lookup matches.
     /// </summary>
-    private static bool TryResolveAirTaxiDestination(AirportGroundLayout layout, string destination, out double lat, out double lon)
+    internal static bool TryResolveAirTaxiDestination(AirportGroundLayout layout, string destination, out double lat, out double lon)
     {
         var spot = layout.FindSpotByName(destination);
         if (spot is not null)
@@ -1723,10 +1723,10 @@ internal static class GroundCommandHandler
         var runway = layout.FindRunway(destination);
         if (runway is not null && runway.Coordinates.Count >= 2)
         {
-            // GroundRunway.Coordinates run from the first-named end to the second.
-            // Target the threshold of whichever end the controller named.
-            var ends = runway.EndDesignators;
-            bool isFirstEnd = ends.Count == 2 && ends[0].Equals(destination, StringComparison.OrdinalIgnoreCase);
+            // GroundRunway.Coordinates run from the first-named end to the second. Target the threshold
+            // of whichever end the controller named, matching on the normalized identity so a single-digit
+            // "09"/"9" resolves to the correct end instead of silently falling through to the far threshold.
+            bool isFirstEnd = runway.Id.End1.Equals(RunwayIdentifier.NormalizeDesignator(destination), StringComparison.OrdinalIgnoreCase);
             var threshold = isFirstEnd ? runway.Coordinates[0] : runway.Coordinates[^1];
             lat = threshold.Lat;
             lon = threshold.Lon;

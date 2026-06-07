@@ -427,16 +427,17 @@ public class GeoJsonParserTests
         // patternSize=0.5, patternAltitude=600. Right of 28L (heading ~282°) = north (GA parking side).
         // Same physical side is on the LEFT when landing 10R east → 10R should resolve to Left.
         var rwy28L = layout.Runways.First(r => r.Name == "28L - 10R");
-        Assert.Equal(ExitSide.Right, rwy28L.TurnoffByEnd["28L"]);
-        Assert.Equal(ExitSide.Left, rwy28L.TurnoffByEnd["10R"]);
+        Assert.Equal(ExitSide.Right, rwy28L.TurnoffForEnd("28L"));
+        Assert.Equal(ExitSide.Left, rwy28L.TurnoffForEnd("10R"));
         Assert.Equal(0.5, rwy28L.PatternSizeNm);
         Assert.Equal(600, rwy28L.PatternAltitudeAglFt);
-        Assert.Empty(rwy28L.NoTurnoffByEnd);
+        Assert.Empty(rwy28L.NoTurnoffForEnd("28L"));
+        Assert.Empty(rwy28L.NoTurnoffForEnd("10R"));
 
         // 15 - 33: turnoff=left (anchored to 15) → 33 flips to Right
         var rwy15 = layout.Runways.First(r => r.Name == "15 - 33");
-        Assert.Equal(ExitSide.Left, rwy15.TurnoffByEnd["15"]);
-        Assert.Equal(ExitSide.Right, rwy15.TurnoffByEnd["33"]);
+        Assert.Equal(ExitSide.Left, rwy15.TurnoffForEnd("15"));
+        Assert.Equal(ExitSide.Right, rwy15.TurnoffForEnd("33"));
     }
 
     [Fact]
@@ -449,18 +450,15 @@ public class GeoJsonParserTests
         // SFO 10L - 28R: turnoff=right (anchored to 10L east), noTurnoff = [["Q", "T"], ["L", "P"]].
         // Right of 10L (~102°) = south = terminal side. Same physical side is LEFT of 28R (~282°).
         var rwy = layout.Runways.First(r => r.Name == "10L - 28R");
-        Assert.Equal(ExitSide.Right, rwy.TurnoffByEnd["10L"]);
-        Assert.Equal(ExitSide.Left, rwy.TurnoffByEnd["28R"]);
+        Assert.Equal(ExitSide.Right, rwy.TurnoffForEnd("10L"));
+        Assert.Equal(ExitSide.Left, rwy.TurnoffForEnd("28R"));
 
-        Assert.True(rwy.NoTurnoffByEnd.TryGetValue("10L", out var land10L));
-        Assert.Equal(new[] { "Q", "T" }, land10L);
+        Assert.Equal(new[] { "Q", "T" }, rwy.NoTurnoffForEnd("10L"));
+        Assert.Equal(new[] { "L", "P" }, rwy.NoTurnoffForEnd("28R"));
 
-        Assert.True(rwy.NoTurnoffByEnd.TryGetValue("28R", out var land28R));
-        Assert.Equal(new[] { "L", "P" }, land28R);
-
-        // Lookup is case-insensitive
-        Assert.True(rwy.NoTurnoffByEnd.ContainsKey("10l"));
-        Assert.True(rwy.TurnoffByEnd.ContainsKey("10l"));
+        // Lookup is case-insensitive (and leading-zero tolerant) via the normalizing accessors
+        Assert.NotEmpty(rwy.NoTurnoffForEnd("10l"));
+        Assert.NotNull(rwy.TurnoffForEnd("10l"));
     }
 
     [Fact]
@@ -472,7 +470,7 @@ public class GeoJsonParserTests
         var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
 
         var rwy = layout.Runways.First(r => r.Name == "10L - 28R");
-        Assert.Equal(ExitSide.Left, rwy.TurnoffByEnd["28R"]);
+        Assert.Equal(ExitSide.Left, rwy.TurnoffForEnd("28R"));
 
         // 28R true heading is ~282°. The authored data should short-circuit the heuristic.
         Assert.Equal(ExitSide.Left, layout.InferPreferredExitSide("28R", new TrueHeading(282)));
@@ -518,8 +516,8 @@ public class GeoJsonParserTests
         var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO");
 
         var rwy = layout.Runways.First(r => r.Name == "10L - 28R");
-        Assert.Contains("L", rwy.NoTurnoffByEnd["28R"]);
-        Assert.Contains("P", rwy.NoTurnoffByEnd["28R"]);
+        Assert.Contains("L", rwy.NoTurnoffForEnd("28R"));
+        Assert.Contains("P", rwy.NoTurnoffForEnd("28R"));
 
         // Pick a centerline node well before any L/P branch and search for any exit.
         // The search must not return an L or P hold-short.
@@ -590,7 +588,8 @@ public class GeoJsonParserTests
         {
             Assert.Null(rwy.PatternSizeNm);
             Assert.Null(rwy.PatternAltitudeAglFt);
-            Assert.Empty(rwy.NoTurnoffByEnd);
+            Assert.Empty(rwy.NoTurnoffForEnd(rwy.Id.End1));
+            Assert.Empty(rwy.NoTurnoffForEnd(rwy.Id.End2));
         }
     }
 }

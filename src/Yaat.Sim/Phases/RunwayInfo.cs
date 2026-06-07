@@ -52,6 +52,13 @@ public sealed class RunwayInfo
     private bool IsEnd1 => Id.End1.Equals(Designator, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// True when <paramref name="designator"/> names this runway's active approach end. Zero-pad-normalizes
+    /// the argument first, so the FAA "8R" matches an active "08R" without a raw-string mismatch.
+    /// </summary>
+    public bool IsActiveEnd(string designator) =>
+        Designator.Equals(RunwayIdentifier.NormalizeDesignator(designator), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Same physical runway, different active approach direction.
     /// </summary>
     public RunwayInfoDto ToSnapshot() =>

@@ -531,6 +531,15 @@ public sealed class GroundRunway
     public required double WidthFt { get; init; }
 
     /// <summary>
+    /// Canonical per-end identity parsed from <see cref="Name"/> (zero-pad-normalized ends, e.g.
+    /// "9 - 27" → End1 "09", End2 "27"). Use this — and the <see cref="MatchesEnd"/> /
+    /// <see cref="TurnoffForEnd"/> / <see cref="NoTurnoffForEnd"/> helpers — for any per-end lookup,
+    /// never a raw string compare against <see cref="EndDesignators"/>, so single-digit runways
+    /// match whether the caller passes the FAA "9" or the normalized "09" form.
+    /// </summary>
+    public RunwayIdentifier Id => RunwayIdentifier.Parse(Name);
+
+    /// <summary>
     /// The two end designators parsed from <see cref="Name"/> (e.g. "28R - 10L" → ["28R", "10L"]).
     /// Accepts the canonical dash-with-spaces form authored in GeoJSON as well as a bare "X-Y"
     /// fallback for any publisher that omits the spaces. Use this everywhere a runway name needs
@@ -542,9 +551,11 @@ public sealed class GroundRunway
     /// Author-specified preferred turn-off side per landing-end designator (left/right of nose at rollout).
     /// In ATCTrainer airport files, "turnoff" is one value per physical runway, expressed relative to the
     /// first-named end's heading. Parsing flips it for the second end so the same physical side resolves
-    /// regardless of which direction the aircraft lands. Empty when no turnoff is authored.
+    /// regardless of which direction the aircraft lands. Empty when no turnoff is authored. Keyed by the
+    /// zero-pad-normalized designator; read it via <see cref="TurnoffForEnd"/>, never the raw map.
     /// </summary>
-    public IReadOnlyDictionary<string, ExitSide> TurnoffByEnd { get; init; } = new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<string, ExitSide> TurnoffByEnd { private get; init; } =
+        new Dictionary<string, ExitSide>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Author-specified pattern altitude in feet AGL above field elevation. Null when unset.</summary>
     public double? PatternAltitudeAglFt { get; init; }
@@ -554,10 +565,22 @@ public sealed class GroundRunway
 
     /// <summary>
     /// Forbidden exit taxiways keyed by landing end designator (e.g. "10L"). Exact-name match.
-    /// Empty for ends without restrictions.
+    /// Empty for ends without restrictions. Keyed by the zero-pad-normalized designator; read it
+    /// via <see cref="NoTurnoffForEnd"/>, never the raw map.
     /// </summary>
-    public IReadOnlyDictionary<string, IReadOnlyList<string>> NoTurnoffByEnd { get; init; } =
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> NoTurnoffByEnd { private get; init; } =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>True when either end of this runway is <paramref name="designator"/> (zero-pad-normalized, so "9" matches "09").</summary>
+    public bool MatchesEnd(string designator) => Id.Contains(designator);
+
+    /// <summary>Author-specified preferred turn-off side for the given landing end, or null when none is authored.</summary>
+    public ExitSide? TurnoffForEnd(string designator) =>
+        TurnoffByEnd.TryGetValue(RunwayIdentifier.NormalizeDesignator(designator), out var side) ? side : null;
+
+    /// <summary>Author-specified forbidden turn-off taxiways for the given landing end (empty when none).</summary>
+    public IReadOnlyList<string> NoTurnoffForEnd(string designator) =>
+        NoTurnoffByEnd.TryGetValue(RunwayIdentifier.NormalizeDesignator(designator), out var names) ? names : [];
 }
 
 public sealed class AirportGroundLayout
@@ -575,21 +598,7 @@ public sealed class AirportGroundLayout
     /// Find the runway whose two-end name (e.g. "10L - 28R") matches the given designator on either end.
     /// Returns null when no runway in the layout names this end.
     /// </summary>
-    public GroundRunway? FindRunway(string designator)
-    {
-        foreach (var rwy in Runways)
-        {
-            var ends = rwy.EndDesignators;
-            if (
-                (ends.Count == 2)
-                && (ends[0].Equals(designator, StringComparison.OrdinalIgnoreCase) || ends[1].Equals(designator, StringComparison.OrdinalIgnoreCase))
-            )
-            {
-                return rwy;
-            }
-        }
-        return null;
-    }
+    public GroundRunway? FindRunway(string designator) => Runways.FirstOrDefault(rwy => rwy.MatchesEnd(designator));
 
     /// <summary>All edges (straight and arc) for iteration.</summary>
     public IEnumerable<IGroundEdge> AllEdges => Edges.Cast<IGroundEdge>().Concat(Arcs);
@@ -1275,7 +1284,8 @@ public sealed class AirportGroundLayout
         HashSet<string>? forbiddenTaxiways = null;
         if ((preference?.Taxiway is null) && (FindRunway(runwayDesignator) is { } authoredRwy))
         {
-            if (authoredRwy.NoTurnoffByEnd.TryGetValue(runwayDesignator, out var forbidden) && (forbidden.Count > 0))
+            var forbidden = authoredRwy.NoTurnoffForEnd(runwayDesignator);
+            if (forbidden.Count > 0)
             {
                 forbiddenTaxiways = new HashSet<string>(forbidden, StringComparer.OrdinalIgnoreCase);
             }
@@ -2416,7 +2426,7 @@ public sealed class AirportGroundLayout
     public ExitSide? InferPreferredExitSide(string runwayDesignator, TrueHeading runwayHeading)
     {
         // Authored data wins: when the airport file specifies a side for this end, trust it over inference.
-        if ((FindRunway(runwayDesignator) is { } rwy) && rwy.TurnoffByEnd.TryGetValue(runwayDesignator, out var authored))
+        if (FindRunway(runwayDesignator)?.TurnoffForEnd(runwayDesignator) is { } authored)
         {
             return authored;
         }

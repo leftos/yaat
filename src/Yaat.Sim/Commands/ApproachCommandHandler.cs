@@ -471,7 +471,7 @@ public static class ApproachCommandHandler
             return new CommandResult(false, $"Unknown runway {RunwayIdentifier.ToDisplayDesignator(cmd.RunwayId)} at {airport}");
         }
 
-        var approachRunway = runway.Designator.Equals(cmd.RunwayId, StringComparison.OrdinalIgnoreCase) ? runway : runway.ForApproach(cmd.RunwayId);
+        var approachRunway = runway.IsActiveEnd(cmd.RunwayId) ? runway : runway.ForApproach(cmd.RunwayId);
 
         // Cancel speed restrictions per 7110.65 §5-7-1
         aircraft.Targets.TargetSpeed = null;
@@ -826,9 +826,7 @@ public static class ApproachCommandHandler
             return ResolvedApproach.Fail($"Unknown runway {RunwayIdentifier.ToDisplayDesignator(procedure.Runway ?? "")} at {airport}");
         }
 
-        var approachRunway = runway.Designator.Equals(procedure.Runway, StringComparison.OrdinalIgnoreCase)
-            ? runway
-            : runway.ForApproach(procedure.Runway);
+        var approachRunway = runway.IsActiveEnd(procedure.Runway) ? runway : runway.ForApproach(procedure.Runway);
 
         return new ResolvedApproach(procedure, approachRunway, airport);
     }
