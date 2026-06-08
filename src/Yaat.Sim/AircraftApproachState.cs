@@ -47,6 +47,16 @@ public class AircraftApproachState
     /// </summary>
     public double FollowRunawaySeconds { get; set; }
 
+    /// <summary>
+    /// One-way latch: once the in-trail arrival-spacing manager hands speed authority back
+    /// (a manual speed command was issued to this generator arrival, its speed restrictions
+    /// were deleted, or the student controller took the track), the manager never resumes
+    /// auto-spacing this aircraft. A plain flag is required because
+    /// <see cref="ControlTargets.HasExplicitSpeedCommand"/> is cleared by "resume normal
+    /// speed", which would otherwise let the manager silently re-engage. Snapshot-serialized.
+    /// </summary>
+    public bool AutoSpacingReleased { get; set; }
+
     public AircraftApproachStateDto ToSnapshot() =>
         new()
         {
@@ -58,6 +68,7 @@ public class AircraftApproachState
             FollowingCallsign = FollowingCallsign,
             FollowBestGapNm = FollowBestGapNm,
             FollowRunawaySeconds = FollowRunawaySeconds,
+            AutoSpacingReleased = AutoSpacingReleased,
         };
 
     public static AircraftApproachState FromSnapshot(AircraftApproachStateDto dto) =>
@@ -71,5 +82,6 @@ public class AircraftApproachState
             FollowingCallsign = dto.FollowingCallsign,
             FollowBestGapNm = dto.FollowBestGapNm,
             FollowRunawaySeconds = dto.FollowRunawaySeconds,
+            AutoSpacingReleased = dto.AutoSpacingReleased,
         };
 }

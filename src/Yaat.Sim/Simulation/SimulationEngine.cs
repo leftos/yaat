@@ -9,6 +9,7 @@ using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation.Replay;
@@ -585,6 +586,7 @@ public sealed class SimulationEngine
 
         ProcessDelayedSpawns(spawned);
         ProcessGenerators(generatorSpawns);
+        ApplyArrivalSpacing();
         ProcessTriggers();
         ProcessTimedPresets();
         ProcessReleaseQueue();
@@ -2092,6 +2094,107 @@ public sealed class SimulationEngine
     }
 
     /// <summary>
+    /// In-trail speed management for the arrival-generator stream — the simulated approach
+    /// controller (TRACON) that feeds correctly-spaced traffic to the tower (LC) student. Each
+    /// tick, for every generator runway, pairs each generator-arrival follower on final with the
+    /// aircraft immediately ahead and stamps a <see cref="ControlTargets.SpeedCeiling"/> so the
+    /// follower equalizes to its leader and holds the spawn spacing (<c>SpacingGapNm</c>) down
+    /// the final instead of overrunning it (the QXE831/SWA8154 compression). The ceiling only
+    /// ever lowers the phase's speed target (<see cref="FlightPhysics.UpdateSpeed"/> applies it
+    /// as a continuous <c>min</c>), floors at the follower's Vref, and collapses to Vref by the
+    /// threshold, so it never blocks the landing deceleration. Uses no RNG, so replay/rewind stay
+    /// deterministic; it runs during replay too (old recordings have <c>IsGeneratorArrival</c>
+    /// false and are unaffected).
+    /// </summary>
+    private void ApplyArrivalSpacing()
+    {
+        var scenario = Scenario;
+        if (scenario is null)
+        {
+            return;
+        }
+
+        foreach (var gen in scenario.Generators)
+        {
+            var stream = CorridorAircraft(gen)
+                .Where(e => string.Equals(e.Aircraft.Phases?.AssignedRunway?.Designator, gen.Runway.Designator, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(e => e.DistanceNm)
+                .ToList();
+
+            for (int i = 0; i < stream.Count; i++)
+            {
+                var (followerDist, follower) = stream[i];
+
+                // Scope: only generator arrivals actively on final are managed as followers.
+                if (!follower.IsGeneratorArrival || follower.Phases?.CurrentPhase is not FinalApproachPhase)
+                {
+                    continue;
+                }
+
+                // Override: once the controller touches this aircraft's speed or the student
+                // takes the track, hand speed authority back for good (one-way latch).
+                if (follower.Approach.AutoSpacingReleased || ShouldReleaseAutoSpacing(follower, scenario))
+                {
+                    follower.Approach.AutoSpacingReleased = true;
+                    ReleaseManagedSpeedCeiling(follower);
+                    continue;
+                }
+
+                // The lead aircraft of the stream has no one to follow — fly the normal profile.
+                if (i == 0)
+                {
+                    ReleaseManagedSpeedCeiling(follower);
+                    continue;
+                }
+
+                var (leaderDist, leader) = stream[i - 1];
+                double vref = AircraftPerformance.ApproachSpeed(follower.AircraftType, AircraftCategorization.Categorize(follower.AircraftType));
+                double scheduled = ArrivalSpacingManager.ScheduledFinalSpeedKts(vref, followerDist);
+                double wakeFloor = WakeTurbulenceData.OnApproachWakeSeparationNm(
+                    leader.AircraftType,
+                    AircraftCategorization.Categorize(leader.AircraftType),
+                    follower.AircraftType,
+                    AircraftCategorization.Categorize(follower.AircraftType)
+                );
+                double target = Math.Max(gen.Config.IntervalDistance, Math.Max(TerminalRadarFloorNm, wakeFloor));
+                double gap = followerDist - leaderDist;
+
+                follower.Targets.SpeedCeiling = ArrivalSpacingManager.SpacingCeilingKts(leader.IndicatedAirspeed, gap, target, vref, scheduled);
+            }
+        }
+    }
+
+    /// <summary>
+    /// True when the in-trail spacing manager should hand speed authority back for this
+    /// generator arrival: a manual speed command was issued, its speed restrictions were
+    /// deleted, or the student controller now owns the track (the simulated TRACON spaces an
+    /// arrival only while it owns it).
+    /// </summary>
+    private static bool ShouldReleaseAutoSpacing(AircraftState aircraft, SimScenarioState scenario)
+    {
+        if (aircraft.Targets.HasExplicitSpeedCommand || aircraft.Procedure.SpeedRestrictionsDeleted)
+        {
+            return true;
+        }
+
+        return aircraft.Track.Owner is { } owner && scenario.StudentPosition is { } student && owner.MatchesPosition(student);
+    }
+
+    /// <summary>
+    /// Clears a <see cref="ControlTargets.SpeedCeiling"/> the spacing manager owns. Generator
+    /// arrivals spawn directly on final with their navigation route cleared, so they carry no
+    /// crossing-speed or procedural ceiling — the manager is the sole non-manual ceiling source.
+    /// Skips when the controller has set an explicit speed (which owns the ceiling).
+    /// </summary>
+    private static void ReleaseManagedSpeedCeiling(AircraftState aircraft)
+    {
+        if (!aircraft.Targets.HasExplicitSpeedCommand && aircraft.Targets.SpeedCeiling is not null)
+        {
+            aircraft.Targets.SpeedCeiling = null;
+        }
+    }
+
+    /// <summary>
     /// Builds, adds, records, and announces one generated arrival placed <c>OnFinal</c> at
     /// <paramref name="distanceNm"/> with the already-resolved <paramref name="weight"/> and
     /// <paramref name="engine"/>. Returns the spawned state, or null if generation failed.
@@ -2123,6 +2226,7 @@ public sealed class SimulationEngine
         state.ScenarioId = scenario.ScenarioId;
         state.Ground.Layout = groundLayout;
         state.SpawnedAtSeconds = scenario.ElapsedSeconds;
+        state.IsGeneratorArrival = true;
 
         World.AddAircraft(state);
 

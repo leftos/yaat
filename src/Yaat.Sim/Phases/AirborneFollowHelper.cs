@@ -37,7 +37,7 @@ public static class AirborneFollowHelper
     private const double FreeFlightDistanceLargeNm = 3.5;
 
     /// <summary>Speed correction gain: kts per nm of distance error.</summary>
-    private const double SpeedGainPerNm = 25.0;
+    internal const double SpeedGainPerNm = 25.0;
 
     /// <summary>
     /// Default ceiling above normal speed (kts). Used on downwind, base, pattern

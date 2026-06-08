@@ -208,6 +208,16 @@ public class AircraftState
     public double SpawnedAtSeconds { get; set; }
 
     /// <summary>
+    /// True when this aircraft was produced by an arrival generator (the simulated-TRACON
+    /// arrival stream), set at the single generator spawn path
+    /// (<see cref="SimulationEngine.SpawnGeneratedArrival"/>) before the aircraft enters the
+    /// world. Scopes the in-trail spacing manager to generator arrivals only. Snapshot-
+    /// serialized so it survives recording round-trip / recorded-spawn replay; non-required so
+    /// pre-feature recordings default to <see langword="false"/> (no auto-spacing on replay).
+    /// </summary>
+    public bool IsGeneratorArrival { get; set; }
+
+    /// <summary>
     /// Scenario-elapsed seconds at which the aircraft's session ended from the student
     /// controller's perspective (landed, handed off, or dropped). Null while the aircraft
     /// is still active. Set by <see cref="Phases.Tower.LandingPhase"/> on touchdown,
@@ -321,6 +331,7 @@ public class AircraftState
             HasControllerAcknowledgedInitialContact = dto.HasControllerAcknowledgedInitialContact,
             HasLeftStudentFrequency = dto.HasLeftStudentFrequency,
             SpawnedAtSeconds = dto.SpawnedAtSeconds,
+            IsGeneratorArrival = dto.IsGeneratorArrival,
             CompletedAtSeconds = dto.CompletedAtSeconds,
             CompletionReason = (CompletionReason)dto.CompletionReasonValue,
             CompletionDetail = dto.CompletionDetail,
@@ -395,6 +406,7 @@ public class AircraftState
             HasControllerAcknowledgedInitialContact = HasControllerAcknowledgedInitialContact,
             HasLeftStudentFrequency = HasLeftStudentFrequency,
             SpawnedAtSeconds = SpawnedAtSeconds,
+            IsGeneratorArrival = IsGeneratorArrival,
             CompletedAtSeconds = CompletedAtSeconds,
             CompletionReasonValue = (int)CompletionReason,
             CompletionDetail = CompletionDetail,

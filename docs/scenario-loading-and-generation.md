@@ -321,6 +321,23 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
     `cleared → Eram.ControllerEnteredAltitude`. The STARS datablock is deliberately **not** populated from these fields (the old
     `cleared → Stars.TemporaryAltitude` mapping was removed) pending confirmation of whether/how non-ERAM (STARS) scenarios use
     them.
+- **`ApplyArrivalSpacing`** (runs each tick immediately after `ProcessGenerators`) — in-trail speed management for the generator
+  stream, the simulated approach controller (TRACON) that feeds correctly-spaced traffic to the tower (LC) student. Placement
+  (above) only sets spacing at the *instant* of spawn; without this, a follower spawned farther out flies the faster
+  distance-based `OnFinal` speed (`≤5 NM → Vref, ≤10 → 1.4·Vref, else 1.6·Vref`) and overruns the closer-in, decelerating leader
+  (the QXE831/SWA8154 compression: 5 NM → 1.3 NM, busting the 3 NM floor). For each generator runway it sorts the same-runway
+  final corridor (`CorridorAircraft`, closest-first) and, for each **generator-arrival follower in `FinalApproachPhase`**, stamps
+  a `ControlTargets.SpeedCeiling`: `clamp(leaderIAS + clamp((gap − target)·25, ±20), followerVref, followerScheduledSpeed)`, where
+  `target = SpacingGapNm` (the same binding `max(IntervalDistance, 3 NM, wake)` used at spawn). So the follower equalizes to the
+  leader's speed at the target gap, slows (down to its own Vref) when closer, and may re-accelerate (never above its normal
+  profile) when farther. The pure math lives in `ArrivalSpacingManager`; the ceiling is enforced continuously and downstream of
+  the phase by `FlightPhysics.UpdateSpeed` (`goal = min(TargetSpeed, SpeedCeiling)`), so it only ever *lowers* the phase target,
+  collapses to exactly Vref inside 5 NM (never blocking the landing decel), and needs no `FinalApproachPhase` change. **Override:**
+  a one-way latch (`AircraftApproachState.AutoSpacingReleased`) hands speed authority back for good once a manual speed command is
+  issued, speed restrictions are deleted, or the student owns the track (`ShouldReleaseAutoSpacing`). Uses no RNG, so replay/rewind
+  stay deterministic; it runs during replay too — old recordings have `IsGeneratorArrival` false (the marker is set at
+  `SpawnGeneratedArrival`, snapshot-serialized) and are therefore unaffected. Aviation-reviewed against 7110.65 §5-5-4 (radar
+  floor), §5-7-1.c.3.1 ("reduce the trailing aircraft first"), and §5-9-5.a (approach control owns final separation until handoff).
 - **`ProcessTriggers`** (`:1994`) — fires `ScheduledTrigger`s whose `FireAtSeconds` elapsed via `ExecuteGlobalCommand`, which
   only handles the global squawk commands (`SQALL`/`SNALL`/`SSALL`).
 - **`ProcessTimedPresets`** (`:1931`) — fires `ScheduledPreset`s whose `FireAtSeconds` elapsed: parses the command with

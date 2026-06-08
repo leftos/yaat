@@ -10,4 +10,10 @@ public sealed class AircraftApproachStateDto
     public string? FollowingCallsign { get; init; }
     public double? FollowBestGapNm { get; init; }
     public double FollowRunawaySeconds { get; init; }
+
+    /// <summary>
+    /// In-trail auto-spacing released latch. Non-required so older snapshots default to
+    /// <see langword="false"/>.
+    /// </summary>
+    public bool AutoSpacingReleased { get; init; }
 }

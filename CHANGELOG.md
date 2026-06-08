@@ -9,6 +9,7 @@
 - `EXIT`, `LAND`, and `EXP` now reject a malformed trailing token — a mistyped `NODEL` (no longer silently auto-deleting the aircraft) or an unparseable expedite altitude.
 - Unloading a scenario now wipes all its session state — flight strips, pending/sent PDCs, ASDE-X temporary data, ERAM route lines, and STARS line numbers — on every surface including connected CRC clients, while preserving your ERAM display preferences (velocity-vector length, CRR color, quick-look sets).
 - The **focus command input** hotkey (default `` ` ``) now works from any YAAT window while the app is focused — the pop-out Radar, Ground, Aircraft List, Controllers, METAR, Terminal, and Favorites windows, plus the Flight Strips and TDLS windows — instead of only the main window. When the terminal is popped out, the hotkey focuses and brings forward the pop-out terminal's input rather than the hidden main-window input.
+- Generated arrivals to the same runway no longer bunch up on final — a faster arrival behind a slower one is slowed to hold separation until you take the track.
 
 ## v0.7.4-beta [2026/06/06]
 

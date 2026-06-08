@@ -71,6 +71,13 @@ public sealed class AircraftSnapshotDto
     public double SpawnedAtSeconds { get; init; }
 
     /// <summary>
+    /// True when the aircraft was produced by an arrival generator. Non-required so older
+    /// snapshots default to <see langword="false"/> — pre-feature recordings replay with no
+    /// in-trail spacing applied to their generator arrivals.
+    /// </summary>
+    public bool IsGeneratorArrival { get; init; }
+
+    /// <summary>
     /// Scenario-elapsed seconds at completion (landed / handed off / dropped). Non-required
     /// so older snapshots default to null (still active).
     /// </summary>
