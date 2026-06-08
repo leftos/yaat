@@ -426,6 +426,22 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
+    /// Returns the natural-language label for a fix used in spoken traffic advisories: the first
+    /// registered pronunciation (e.g. <c>VPCOL</c> → "Oakland Colliseum"), then a custom-fix name
+    /// (e.g. <c>OAK30NUM</c> → "Oakland Runway 30 Numbers"), falling back to the raw identifier.
+    /// </summary>
+    public string GetFixFriendlyName(string fix)
+    {
+        var pronunciations = GetFixPronunciations(fix);
+        if ((pronunciations.Count > 0) && !string.IsNullOrWhiteSpace(pronunciations[0]))
+        {
+            return pronunciations[0];
+        }
+
+        return GetCustomFixName(fix) ?? fix;
+    }
+
+    /// <summary>
     /// Composes a Whisper <c>initial_prompt</c> fragment containing the phonetic pronunciations of
     /// any programmed fixes that have hints registered. The returned string is a space-separated
     /// list of pronunciations ready to be concatenated to the rest of the prompt — callers are
@@ -1680,12 +1696,28 @@ public sealed class NavigationDatabase
 
             foreach (var pronunciation in def.Pronunciations)
             {
-                if (!string.IsNullOrWhiteSpace(pronunciation))
+                if (string.IsNullOrWhiteSpace(pronunciation))
                 {
-                    list.Add(pronunciation.Trim());
+                    continue;
+                }
+
+                list.Add(pronunciation.Trim());
+
+                // Each pronunciation also collapses in spoken transcripts to the fix identifier, so a
+                // landmark advisory like "traffic over the oakland coliseum" resolves VPCOL even though
+                // the fix isn't on any aircraft's route. Mirrors the custom-fix spokenPatterns pre-pass.
+                var normalized = Speech.AtcNumberParser.NormalizeDigits(pronunciation).ToLowerInvariant();
+                var tokens = normalized.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (tokens.Length > 0)
+                {
+                    _customFixSpeechPatterns.Add(new Speech.CustomFixSpeechPattern(tokens, def.Fix));
                 }
             }
         }
+
+        // Re-sort the combined custom-fix + pronunciation patterns by descending token count so the
+        // collapse step's longest-match scan picks the most specific phrase first.
+        _customFixSpeechPatterns.Sort((a, b) => b.Tokens.Count.CompareTo(a.Tokens.Count));
 
         Log.LogInformation(
             "Fix pronunciations: {Count} fixes loaded from {Files} definitions",

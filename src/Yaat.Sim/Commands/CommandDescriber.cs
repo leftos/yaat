@@ -1,4 +1,5 @@
 using System.Text;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
@@ -146,6 +147,9 @@ public static class CommandDescriber
             ReportFieldInSightForcedCommand => CanonicalCommandType.ReportFieldInSightForced,
             ReportTrafficInSightCommand => CanonicalCommandType.ReportTrafficInSight,
             ReportTrafficAdvisoryCommand => CanonicalCommandType.ReportTrafficInSight,
+            ReportTrafficRelativeCommand => CanonicalCommandType.ReportTrafficInSight,
+            ReportTrafficPatternCommand => CanonicalCommandType.ReportTrafficInSight,
+            ReportTrafficLandmarkCommand => CanonicalCommandType.ReportTrafficInSight,
             ReportTrafficInSightForcedCommand => CanonicalCommandType.ReportTrafficInSightForced,
             SafetyAlertCommand => CanonicalCommandType.SafetyAlert,
             WakeAdvisoryCommand => CanonicalCommandType.WakeAdvisory,
@@ -398,6 +402,9 @@ public static class CommandDescriber
             ReportFieldInSightForcedCommand => TrackedCommandType.Immediate,
             ReportTrafficInSightCommand => TrackedCommandType.Immediate,
             ReportTrafficAdvisoryCommand => TrackedCommandType.Immediate,
+            ReportTrafficRelativeCommand => TrackedCommandType.Immediate,
+            ReportTrafficPatternCommand => TrackedCommandType.Immediate,
+            ReportTrafficLandmarkCommand => TrackedCommandType.Immediate,
             ReportTrafficInSightForcedCommand => TrackedCommandType.Immediate,
             SafetyAlertCommand => TrackedCommandType.Immediate,
             WakeAdvisoryCommand => TrackedCommandType.Immediate,
@@ -554,6 +561,12 @@ public static class CommandDescriber
             ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null ? $"RTIS {cmd.TargetCallsign}" : "RTIS",
             ReportTrafficAdvisoryCommand { Details: not null } cmd => FormatTrafficAdvisoryCanonical(cmd.Details),
             ReportTrafficAdvisoryCommand => "RTIS",
+            ReportTrafficRelativeCommand { Details: not null } cmd => FormatTrafficRelativeCanonical(cmd.Details),
+            ReportTrafficRelativeCommand => "RTIS",
+            ReportTrafficPatternCommand { Details: not null } cmd => FormatTrafficPatternCanonical(cmd.Details),
+            ReportTrafficPatternCommand => "RTIS",
+            ReportTrafficLandmarkCommand { Details: not null } cmd => $"RTIS OVER {cmd.Details.FixName} {cmd.Details.AircraftType}",
+            ReportTrafficLandmarkCommand => "RTIS",
             ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null ? $"RTISF {cmd.TargetCallsign}" : "RTISF",
             SafetyAlertCommand { Details: not null } cmd => FormatSafetyAlertCanonical(cmd),
             SafetyAlertCommand => "SAFAL",
@@ -830,6 +843,12 @@ public static class CommandDescriber
                 : "Report traffic in sight",
             ReportTrafficAdvisoryCommand { Details: not null } cmd => FormatTrafficAdvisoryPhrase(cmd.Details),
             ReportTrafficAdvisoryCommand => "Report traffic in sight",
+            ReportTrafficRelativeCommand { Details: not null } cmd => FormatTrafficRelativePhrase(cmd.Details),
+            ReportTrafficRelativeCommand => "Report traffic in sight",
+            ReportTrafficPatternCommand { Details: not null } cmd => FormatTrafficPatternPhrase(cmd.Details),
+            ReportTrafficPatternCommand => "Report traffic in sight",
+            ReportTrafficLandmarkCommand { Details: not null } cmd => FormatTrafficLandmarkPhrase(cmd.Details),
+            ReportTrafficLandmarkCommand => "Report traffic in sight",
             ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null
                 ? $"Report traffic in sight, {cmd.TargetCallsign} (forced)"
                 : "Report traffic in sight (forced)",
@@ -1775,6 +1794,111 @@ public static class CommandDescriber
         var basePart =
             $"Traffic, {details.Clock} o'clock, {FormatMiles(details.Miles)}, {DirectionWord(details.Direction)}, {FormatAircraftType(details.AircraftType)}";
         return details.Altitude is { } altitude ? $"{basePart}, {altitude:N0}, report it in sight." : $"{basePart}, report it in sight.";
+    }
+
+    private static string FormatTrafficRelativeCanonical(TrafficRelativeDetails details) =>
+        $"RTIS {details.Position} {details.Miles} {details.AircraftType}";
+
+    internal static string FormatTrafficRelativePhrase(TrafficRelativeDetails details) =>
+        $"Traffic, off your {RelativePositionWord(details.Position)}, {FormatMiles(details.Miles)}, {FormatVfrType(details.AircraftType)}, report it in sight.";
+
+    private static string FormatTrafficPatternCanonical(TrafficPatternDetails details)
+    {
+        var side = details.Side switch
+        {
+            PatternDirection.Left => "L ",
+            PatternDirection.Right => "R ",
+            _ => "",
+        };
+        return $"RTIS {PatternLegToken(details.Leg)} {side}{details.Miles} {details.RunwayId} {details.AircraftType}";
+    }
+
+    internal static string FormatTrafficPatternPhrase(TrafficPatternDetails details)
+    {
+        var side = details.Side switch
+        {
+            PatternDirection.Left => "left ",
+            PatternDirection.Right => "right ",
+            _ => "",
+        };
+        var runway = RunwayIdentifier.ToDisplayDesignator(details.RunwayId);
+        return $"Traffic, {details.Miles}-mile {side}{PatternLegWord(details.Leg)} for runway {runway}, {FormatVfrType(details.AircraftType)}, report it in sight.";
+    }
+
+    internal static string FormatTrafficLandmarkPhrase(TrafficLandmarkDetails details)
+    {
+        var name = NavigationDatabase.Instance.GetFixFriendlyName(details.FixName);
+        return $"Traffic, over {name}, {FormatVfrType(details.AircraftType)}, report it in sight.";
+    }
+
+    private static string RelativePositionWord(string position) =>
+        position.ToUpperInvariant() switch
+        {
+            "NOSE" => "nose",
+            "NR" => "nose and to the right",
+            "NL" => "nose and to the left",
+            "R" => "right",
+            "L" => "left",
+            "RR" => "right, slightly behind",
+            "LR" => "left, slightly behind",
+            "TAIL" => "tail",
+            _ => position.ToLowerInvariant(),
+        };
+
+    private static string PatternLegToken(PatternEntryLeg leg) =>
+        leg switch
+        {
+            PatternEntryLeg.Upwind => "UW",
+            PatternEntryLeg.Crosswind => "XW",
+            PatternEntryLeg.Downwind => "DW",
+            PatternEntryLeg.Base => "BASE",
+            PatternEntryLeg.Final => "FINAL",
+            _ => "",
+        };
+
+    private static string PatternLegWord(PatternEntryLeg leg) =>
+        leg switch
+        {
+            PatternEntryLeg.Upwind => "upwind",
+            PatternEntryLeg.Crosswind => "crosswind",
+            PatternEntryLeg.Downwind => "downwind",
+            PatternEntryLeg.Base => "base",
+            PatternEntryLeg.Final => "final",
+            _ => "",
+        };
+
+    /// <summary>
+    /// Renders an aircraft type for a VFR traffic call with an indefinite article. Controllers name the
+    /// manufacturer concisely ("a Cessna", "a Mooney", "an Airbus") rather than the full FAA model string
+    /// ("Cessna Skyhawk 172/Cutlass"), so the manufacturer wins when an FAA record exists; otherwise a bare
+    /// free-text word (e.g. "CESSNA") is title-cased.
+    /// </summary>
+    private static string FormatVfrType(string type)
+    {
+        string formatted;
+        var record = FaaAircraftDatabase.Get(type);
+        if (record is not null && !string.IsNullOrWhiteSpace(record.Manufacturer))
+        {
+            // FAA manufacturer casing is inconsistent ("Cessna" but "MOONEY"); normalize to Title Case.
+            formatted = string.Join(
+                ' ',
+                record
+                    .Manufacturer.Trim()
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(word => char.ToUpperInvariant(word[0]) + word[1..].ToLowerInvariant())
+            );
+        }
+        else
+        {
+            formatted = FormatAircraftType(type);
+            if (!formatted.Contains(' ') && formatted.All(char.IsLetter))
+            {
+                formatted = char.ToUpperInvariant(formatted[0]) + formatted[1..].ToLowerInvariant();
+            }
+        }
+
+        string article = "AEIOU".Contains(char.ToUpperInvariant(formatted[0])) ? "an" : "a";
+        return $"{article} {formatted}";
     }
 
     internal static string FormatFieldAdvisoryPhrase(FieldAdvisoryDetails details) =>

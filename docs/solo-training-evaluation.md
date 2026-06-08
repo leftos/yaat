@@ -183,6 +183,14 @@ compound and:
   `Coach` "Traffic advisory imprecise" note. The matching tolerances live in `TrafficAdvisoryMatcher` (clock
   ±2 sectors / ±4 when the recipient is maneuvering, distance ±2 NM, direction ±1 octant, altitude ±500 ft;
   altitude optional). See FAA 7110.65 §2-1-21 and AIM §4-1-15 / FIG 4-1-2 for why an exact clock is wrong.
+- `ReportTrafficRelativeCommand` / `ReportTrafficPatternCommand` / `ReportTrafficLandmarkCommand` (the VFR-style
+  descriptive forms) → resolve through the corresponding `TrafficAdvisoryMatcher.Resolve{Relative,Pattern,Landmark}TrafficTarget`
+  resolvers and feed the **same** `RecordResolvedAdvisory` path as the clock form — recipient→target proof plus the
+  graded `Imprecise` Coach note. Relative position uses an octant gate (±1 octant / ±45°, ±2 NM); pattern matches the
+  candidate's classified leg/side/distance (±2 NM); landmark uses 2 NM proximity to the resolved fix. The relative-octant
+  form is an intentional informal VFR-tower convention (not codified in 7110.65, which defines only clock and cardinal
+  azimuth — AIM §4-1-15) and must not be "corrected" to clock-only; the pattern (§3-10-4) and landmark (§2-1-21.b.1)
+  forms are grounded in published phraseology.
 - `SafetyAlertCommand` → appends a `SafetyAlertProof` (tracked for overuse).
 - `WakeAdvisoryCommand` / `ClearedForTakeoffCommand{CautionWakeTurbulence}` / `ClearedToLandCommand{CautionWakeTurbulence}`
   → appends a `WakeAdvisoryProof`.

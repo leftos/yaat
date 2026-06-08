@@ -753,6 +753,12 @@ public static class CommandDispatcher
                 return NavigationCommandHandler.DispatchReportTrafficInSight(aircraft, cmd.TargetCallsign, ctx);
             case ReportTrafficAdvisoryCommand cmd:
                 return NavigationCommandHandler.DispatchReportTrafficAdvisory(cmd, aircraft, ctx);
+            case ReportTrafficRelativeCommand cmd:
+                return NavigationCommandHandler.DispatchReportTrafficRelative(cmd, aircraft, ctx);
+            case ReportTrafficPatternCommand cmd:
+                return NavigationCommandHandler.DispatchReportTrafficPattern(cmd, aircraft, ctx);
+            case ReportTrafficLandmarkCommand cmd:
+                return NavigationCommandHandler.DispatchReportTrafficLandmark(cmd, aircraft, ctx);
             case ReportTrafficInSightForcedCommand cmd:
                 return NavigationCommandHandler.DispatchReportTrafficInSightForced(aircraft, cmd.TargetCallsign, ctx);
             case SafetyAlertCommand cmd:

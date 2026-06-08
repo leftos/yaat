@@ -827,6 +827,12 @@ public record ReportTrafficInSightCommand(string? TargetCallsign) : ParsedComman
 
 public record ReportTrafficAdvisoryCommand(TrafficAdvisoryDetails Details) : ParsedCommand;
 
+public record ReportTrafficRelativeCommand(TrafficRelativeDetails Details) : ParsedCommand;
+
+public record ReportTrafficPatternCommand(TrafficPatternDetails Details) : ParsedCommand;
+
+public record ReportTrafficLandmarkCommand(TrafficLandmarkDetails Details) : ParsedCommand;
+
 public record ReportTrafficInSightForcedCommand(string? TargetCallsign) : ParsedCommand;
 
 public record SafetyAlertCommand(SafetyAlertDetails Details) : ParsedCommand;

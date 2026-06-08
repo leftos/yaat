@@ -1014,6 +1014,50 @@ internal static class PatternCommandHandler
         };
     }
 
+    /// <summary>
+    /// Classifies an aircraft's current position within a traffic pattern for the given runway, from its
+    /// active phase: which leg it's flying, which side that leg sits on (null on final — a straight-in has
+    /// no left/right base), and its distance to the threshold. Returns null when the aircraft is not flying
+    /// a pattern or final-approach phase. Used by VFR pattern-leg traffic advisories to match a call like
+    /// "two-mile right base for 28R" to the aircraft it describes.
+    /// </summary>
+    internal static (PatternEntryLeg Leg, PatternDirection? Side, double DistanceNm)? ClassifyPatternPosition(
+        AircraftState aircraft,
+        RunwayInfo runway
+    )
+    {
+        var phase = aircraft.Phases?.CurrentPhase;
+        PatternEntryLeg? leg = phase switch
+        {
+            UpwindPhase => PatternEntryLeg.Upwind,
+            CrosswindPhase => PatternEntryLeg.Crosswind,
+            DownwindPhase => PatternEntryLeg.Downwind,
+            BasePhase => PatternEntryLeg.Base,
+            FinalApproachPhase => PatternEntryLeg.Final,
+            _ => null,
+        };
+        if (leg is null)
+        {
+            return null;
+        }
+
+        PatternDirection? side = phase switch
+        {
+            UpwindPhase up => up.Waypoints?.Direction,
+            CrosswindPhase cw => cw.Waypoints?.Direction,
+            DownwindPhase dw => dw.Waypoints?.Direction,
+            BasePhase bp => bp.Waypoints?.Direction,
+            _ => null,
+        };
+
+        double distanceNm =
+            phase is FinalApproachPhase { DistanceToThresholdNm: var finalDist } && finalDist < double.MaxValue
+                ? finalDist
+                : GeoMath.DistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+
+        return (leg.Value, side, distanceNm);
+    }
+
     private static CommandResult RebuildPatternFromLeg(AircraftState aircraft, PatternEntryLeg leg)
     {
         if (aircraft.Phases?.AssignedRunway is null)

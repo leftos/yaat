@@ -2,6 +2,9 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Commands;
@@ -109,6 +112,150 @@ public sealed class TrafficAdvisoryMatcherTests
         Assert.Null(TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(stable, details, [stable, targetForStable], out _));
         Assert.NotNull(TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(banked, details, [banked, targetForBanked], out _));
     }
+
+    // ── VFR relative-position form ──────────────────────────────────────────
+
+    [Fact]
+    public void Relative_NoseRight_ResolvesTargetInOctant()
+    {
+        var recipient = Recipient(headingTrue: 150);
+        var noseRight = TargetAt("N111", recipient, clock: 1, distanceNm: 2.0, trackTrue: 180, altitude: 2000);
+        var behind = TargetAt("N222", recipient, clock: 6, distanceNm: 2.0, trackTrue: 0, altitude: 2000);
+
+        var match = TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(
+            recipient,
+            new TrafficRelativeDetails("NR", 2, "C172"),
+            [recipient, noseRight, behind],
+            out string error
+        );
+
+        Assert.NotNull(match);
+        Assert.Equal("N111", match.Target.Callsign);
+        Assert.Equal(AdvisoryMatchQuality.Exact, match.Quality);
+        Assert.Equal("", error);
+    }
+
+    [Fact]
+    public void Relative_OutsideOctantGate_ReturnsNull()
+    {
+        var recipient = Recipient(headingTrue: 150);
+        var behind = TargetAt("N222", recipient, clock: 6, distanceNm: 2.0, trackTrue: 0, altitude: 2000);
+
+        Assert.Null(
+            TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(recipient, new TrafficRelativeDetails("NR", 2, "C172"), [recipient, behind], out _)
+        );
+    }
+
+    // ── VFR pattern-leg form ────────────────────────────────────────────────
+
+    [Fact]
+    public void Pattern_RightBase_ResolvesCandidateOnThatLeg()
+    {
+        var runway = TestRunwayFactory.Make(designator: "28R", heading: 280);
+        var recipient = Recipient(headingTrue: 280);
+        var onBase = PatternCandidate("N111", runway, MakeBasePhase(runway, PatternDirection.Right), distanceNm: 2.0);
+        var onFinal = PatternCandidate("N222", runway, new FinalApproachPhase(), distanceNm: 5.0);
+
+        var match = TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(
+            recipient,
+            new TrafficPatternDetails(PatternEntryLeg.Base, PatternDirection.Right, 2, "28R", "C172"),
+            [recipient, onBase, onFinal],
+            out string error
+        );
+
+        Assert.NotNull(match);
+        Assert.Equal("N111", match.Target.Callsign);
+        Assert.Equal(AdvisoryMatchQuality.Exact, match.Quality);
+        Assert.Equal("", error);
+    }
+
+    [Fact]
+    public void Pattern_SideMismatch_ReturnsNull()
+    {
+        var runway = TestRunwayFactory.Make(designator: "28R", heading: 280);
+        var recipient = Recipient(headingTrue: 280);
+        var onLeftBase = PatternCandidate("N333", runway, MakeBasePhase(runway, PatternDirection.Left), distanceNm: 2.0);
+
+        Assert.Null(
+            TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(
+                recipient,
+                new TrafficPatternDetails(PatternEntryLeg.Base, PatternDirection.Right, 2, "28R", "C172"),
+                [recipient, onLeftBase],
+                out _
+            )
+        );
+    }
+
+    [Fact]
+    public void Pattern_DistanceBeyondGate_ReturnsNull()
+    {
+        var runway = TestRunwayFactory.Make(designator: "28R", heading: 280);
+        var recipient = Recipient(headingTrue: 280);
+        var farBase = PatternCandidate("N444", runway, MakeBasePhase(runway, PatternDirection.Right), distanceNm: 6.0);
+
+        Assert.Null(
+            TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(
+                recipient,
+                new TrafficPatternDetails(PatternEntryLeg.Base, PatternDirection.Right, 2, "28R", "C172"),
+                [recipient, farBase],
+                out _
+            )
+        );
+    }
+
+    // ── VFR landmark form ───────────────────────────────────────────────────
+
+    [Fact]
+    public void Landmark_NearestWithinRadius_ResolvesAsExact()
+    {
+        var recipient = Recipient(headingTrue: 150);
+        var landmark = new LatLon(37.7516, -122.2005);
+        var near = AircraftAt("N111", GeoMath.ProjectPoint(landmark, new TrueHeading(0), 0.5));
+        var far = AircraftAt("N222", GeoMath.ProjectPoint(landmark, new TrueHeading(0), 5.0));
+
+        var match = TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(recipient, landmark, "C172", [recipient, near, far], out string error);
+
+        Assert.NotNull(match);
+        Assert.Equal("N111", match.Target.Callsign);
+        Assert.Equal(AdvisoryMatchQuality.Exact, match.Quality);
+        Assert.Equal("", error);
+    }
+
+    [Fact]
+    public void Landmark_NoneWithinRadius_ReturnsNull()
+    {
+        var recipient = Recipient(headingTrue: 150);
+        var landmark = new LatLon(37.7516, -122.2005);
+        var far = AircraftAt("N222", GeoMath.ProjectPoint(landmark, new TrueHeading(0), 5.0));
+
+        Assert.Null(TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(recipient, landmark, "C172", [recipient, far], out _));
+    }
+
+    private static BasePhase MakeBasePhase(RunwayInfo runway, PatternDirection side) =>
+        new() { Waypoints = PatternGeometry.Compute(runway, AircraftCategory.Piston, side, null, null, null) };
+
+    private static AircraftState PatternCandidate(string callsign, RunwayInfo runway, Phase phase, double distanceNm)
+    {
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        var ac = AircraftAt(callsign, GeoMath.ProjectPoint(threshold, new TrueHeading(60), distanceNm));
+        ac.Phases = new PhaseList { AssignedRunway = runway };
+        ac.Phases.Add(phase);
+        return ac;
+    }
+
+    private static AircraftState AircraftAt(string callsign, LatLon position) =>
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "C172",
+            Position = position,
+            TrueHeading = new TrueHeading(100),
+            TrueTrack = new TrueHeading(100),
+            Altitude = 1500,
+            IndicatedAirspeed = 90,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
+        };
 
     private static AircraftState Recipient(double headingTrue, double bankDeg = 0) =>
         new()

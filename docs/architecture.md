@@ -506,7 +506,7 @@ Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depa
                                     # JAWY airway intercept, CVIA/DVIA (DVIA SPD fix), JFAC, holding pattern, RFIS/RTIS/SAFAL, list approaches
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
                                     # GetDimension, GetCommandDimension, GetCompoundDimensions for queue clearing
-Commands/TrafficAdvisoryMatcher.cs  # Shared structured RTIS/SAFAL target matching: clock, whole-mile distance, direction, type, altitude
+Commands/TrafficAdvisoryMatcher.cs  # Shared RTIS/SAFAL target matching: clock + VFR relative-octant/pattern-leg/landmark forms, best-candidate-by-weighted-error + Exact/Imprecise grade
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/NodeRefToken.cs            # Parses user-typed `#<id>` node-reference tokens used in TAXI clearances; co-located with the parser since the token format is grammar, not routing
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes

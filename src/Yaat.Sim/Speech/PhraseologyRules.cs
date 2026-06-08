@@ -40,6 +40,7 @@ public static class PhraseologyRules
         rules.AddRange(NavigationRules());
         rules.AddRange(TowerRules());
         rules.AddRange(ApproachRules());
+        rules.AddRange(TrafficAdvisoryRules());
         rules.AddRange(PtacRules());
         rules.AddRange(PatternRules());
         rules.AddRange(HoldRules());
@@ -305,6 +306,138 @@ public static class PhraseologyRules
             new(["report", "airport", "in", "sight"], "RFIS", ReportFieldInSight),
             new(["report", "field", "in", "sight"], "RFIS", ReportFieldInSight),
             new(["report", "traffic", "in", "sight"], "RTIS", ReportTrafficInSight),
+        ];
+
+    // --- VFR-style traffic advisories (CommandRegistry.ReportTrafficInSight descriptive forms) ---
+    //
+    // Controller-issued advisories spoken in plain VFR-tower phraseology, mapped to the canonical
+    // RTIS descriptive forms (relative-position / pattern-leg / landmark). All SttOnly: the pilot AI
+    // never speaks these — they are things the controller says, recovered from the controller's mic.
+    // Optional "mile?"/"miles?" absorbs either unit spelling; "a?"/"an?" absorbs the article before
+    // the type word. Landmark names collapse to a fix identifier in the pronunciation pre-pass
+    // (NavigationDatabase) before matching, so "{landmark}" sees a single token (e.g. VPCOL).
+    private static PhraseologyRule[] TrafficAdvisoryRules() =>
+        [
+            // Relative position off the nose (8 octants).
+            new(
+                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "right", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
+                "RTIS NR {miles} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "off", "your?", "the?", "nose", "and?", "to?", "the?", "left", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
+                "RTIS NL {miles} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "off", "your?", "the?", "nose", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
+                "RTIS NOSE {miles} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                [
+                    "traffic",
+                    "off",
+                    "your?",
+                    "the?",
+                    "right",
+                    "and?",
+                    "slightly?",
+                    "behind",
+                    "you?",
+                    "{miles}",
+                    "mile?",
+                    "miles?",
+                    "a?",
+                    "an?",
+                    "{type}",
+                ],
+                "RTIS RR {miles} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                [
+                    "traffic",
+                    "off",
+                    "your?",
+                    "the?",
+                    "left",
+                    "and?",
+                    "slightly?",
+                    "behind",
+                    "you?",
+                    "{miles}",
+                    "mile?",
+                    "miles?",
+                    "a?",
+                    "an?",
+                    "{type}",
+                ],
+                "RTIS LR {miles} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "off", "your?", "to?", "your?", "the?", "right", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
+                "RTIS R {miles} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "off", "your?", "to?", "your?", "the?", "left", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
+                "RTIS L {miles} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "off", "your?", "the?", "tail", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
+                "RTIS TAIL {miles} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "behind", "{miles}", "mile?", "miles?", "a?", "an?", "{type}"],
+                "RTIS TAIL {miles} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            // Pattern legs.
+            new(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "downwind", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
+                "RTIS DW L {miles} {rwy} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "downwind", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
+                "RTIS DW R {miles} {rwy} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "left", "base", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
+                "RTIS BASE L {miles} {rwy} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "right", "base", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
+                "RTIS BASE R {miles} {rwy} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            new(
+                ["traffic", "on?", "a?", "{miles}", "mile?", "miles?", "final", "for?", "runway?", "{rwy}", "a?", "an?", "{type}"],
+                "RTIS FINAL {miles} {rwy} {type}",
+                ReportTrafficInSight,
+                SttOnly: true
+            ),
+            // Landmark / VFR reporting point.
+            new(["traffic", "over", "the?", "{landmark}", "a?", "an?", "{type}"], "RTIS OVER {landmark} {type}", ReportTrafficInSight, SttOnly: true),
         ];
 
     // --- Position-Turn-Altitude-Clearance (CommandRegistry.PositionTurnAltitudeClearance) ---

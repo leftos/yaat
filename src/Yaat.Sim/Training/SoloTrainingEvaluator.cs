@@ -139,17 +139,41 @@ public sealed class SoloTrainingEvaluator
             }
             else if (parsedCommand is ReportTrafficAdvisoryCommand rtis)
             {
-                var match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, rtis.Details, knownAircraft, out _);
-                if (match is not null)
-                {
-                    _advisoryProofs.Add(MakeAdvisoryProofKey(aircraft.Callsign, match.Target.Callsign));
-                    if (match.Quality == AdvisoryMatchQuality.Imprecise)
-                    {
-                        _impreciseAdvisories.Add(
-                            new ImpreciseAdvisoryProof(aircraft.Callsign, match.Target.Callsign, scenarioElapsedSeconds, match.ImpreciseDetail)
-                        );
-                    }
-                }
+                RecordResolvedAdvisory(
+                    aircraft,
+                    TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, rtis.Details, knownAircraft, out _),
+                    scenarioElapsedSeconds
+                );
+            }
+            else if (parsedCommand is ReportTrafficRelativeCommand relative)
+            {
+                RecordResolvedAdvisory(
+                    aircraft,
+                    TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(aircraft, relative.Details, knownAircraft, out _),
+                    scenarioElapsedSeconds
+                );
+            }
+            else if (parsedCommand is ReportTrafficPatternCommand pattern)
+            {
+                RecordResolvedAdvisory(
+                    aircraft,
+                    TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(aircraft, pattern.Details, knownAircraft, out _),
+                    scenarioElapsedSeconds
+                );
+            }
+            else if (parsedCommand is ReportTrafficLandmarkCommand landmark)
+            {
+                var position = NavigationDatabase.Instance.GetFixPosition(landmark.Details.FixName);
+                var match = position is null
+                    ? null
+                    : TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(
+                        aircraft,
+                        new LatLon(position.Value.Lat, position.Value.Lon),
+                        landmark.Details.AircraftType,
+                        knownAircraft,
+                        out _
+                    );
+                RecordResolvedAdvisory(aircraft, match, scenarioElapsedSeconds);
             }
             else if (parsedCommand is SafetyAlertCommand safetyAlert)
             {
@@ -176,6 +200,27 @@ public sealed class SoloTrainingEvaluator
             {
                 _wakeAdvisoryProofs.Add(new WakeAdvisoryProof(aircraft.Callsign, scenarioElapsedSeconds, sourceEventId: null));
             }
+        }
+    }
+
+    /// <summary>
+    /// Records proof that the controller advised <paramref name="aircraft"/> of a resolved traffic target
+    /// (clearing the "advisory needed" warning), plus a graded Coach note when the call was imprecise.
+    /// Shared by every RTIS descriptive form (radar clock, relative position, pattern leg, landmark).
+    /// </summary>
+    private void RecordResolvedAdvisory(AircraftState aircraft, TrafficAdvisoryTargetMatch? match, double scenarioElapsedSeconds)
+    {
+        if (match is null)
+        {
+            return;
+        }
+
+        _advisoryProofs.Add(MakeAdvisoryProofKey(aircraft.Callsign, match.Target.Callsign));
+        if (match.Quality == AdvisoryMatchQuality.Imprecise)
+        {
+            _impreciseAdvisories.Add(
+                new ImpreciseAdvisoryProof(aircraft.Callsign, match.Target.Callsign, scenarioElapsedSeconds, match.ImpreciseDetail)
+            );
         }
     }
 

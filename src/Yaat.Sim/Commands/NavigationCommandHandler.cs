@@ -1426,6 +1426,55 @@ internal static class NavigationCommandHandler
         return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficAdvisoryPhrase(cmd.Details)) : acquisition;
     }
 
+    internal static CommandResult DispatchReportTrafficRelative(ReportTrafficRelativeCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        var match = TrafficAdvisoryMatcher.ResolveRelativeTrafficTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        if (match is null)
+        {
+            return new CommandResult(false, error);
+        }
+
+        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
+        return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficRelativePhrase(cmd.Details)) : acquisition;
+    }
+
+    internal static CommandResult DispatchReportTrafficPattern(ReportTrafficPatternCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        var match = TrafficAdvisoryMatcher.ResolvePatternTrafficTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        if (match is null)
+        {
+            return new CommandResult(false, error);
+        }
+
+        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
+        return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficPatternPhrase(cmd.Details)) : acquisition;
+    }
+
+    internal static CommandResult DispatchReportTrafficLandmark(ReportTrafficLandmarkCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        var position = NavigationDatabase.Instance.GetFixPosition(cmd.Details.FixName);
+        if (position is null)
+        {
+            return new CommandResult(false, $"Unable, unknown landmark {cmd.Details.FixName}");
+        }
+
+        var landmark = new LatLon(position.Value.Lat, position.Value.Lon);
+        var match = TrafficAdvisoryMatcher.ResolveLandmarkTrafficTarget(
+            aircraft,
+            landmark,
+            cmd.Details.AircraftType,
+            ctx.ListAircraft?.Invoke(),
+            out string error
+        );
+        if (match is null)
+        {
+            return new CommandResult(false, error);
+        }
+
+        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
+        return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficLandmarkPhrase(cmd.Details)) : acquisition;
+    }
+
     internal static CommandResult DispatchSafetyAlert(SafetyAlertCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         var target = TrafficAdvisoryMatcher.ResolveSafetyAlertTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);

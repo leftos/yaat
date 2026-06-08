@@ -336,6 +336,23 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_RelativeVfrRtis_SuppressesAdvisoryNeeded()
+    {
+        var (a, b) = CreateClosingIfrPair(); // b is at a's 12 o'clock, 5 NM
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new ReportTrafficRelativeCommand(new TrafficRelativeDetails("NOSE", 5, b.AircraftType))),
+            scenarioElapsedSeconds: 5,
+            [a, b]
+        );
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        Assert.DoesNotContain(notices, e => e.Title == "Traffic advisory needed" && e.Callsigns[0] == a.Callsign && e.Callsigns[1] == b.Callsign);
+    }
+
+    [Fact]
     public void Evaluate_RpoShortcutRtisDoesNotSuppressAdvisoryScoring()
     {
         var (a, b) = CreateClosingIfrPair();

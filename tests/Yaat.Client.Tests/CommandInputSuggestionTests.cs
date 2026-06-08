@@ -71,8 +71,12 @@ public class CommandInputSuggestionTests
         controller.UpdateSuggestions("RTIS ", "RTIS ".Length, aircraft, Scheme);
 
         Assert.True(controller.IsSuggestionsVisible);
-        Assert.Equal(2, controller.Suggestions.Count);
-        Assert.All(controller.Suggestions, s => Assert.Equal(SuggestionKind.Callsign, s.Kind));
+        // RPO callsign form offers every callsign; the VFR landmark form also offers the OVER keyword.
+        var callsigns = controller.Suggestions.Where(s => s.Kind == SuggestionKind.Callsign).Select(s => s.Text).ToList();
+        Assert.Equal(2, callsigns.Count);
+        Assert.Contains("AAL1234", callsigns);
+        Assert.Contains("SWA456", callsigns);
+        Assert.Contains(controller.Suggestions, s => s.Text == "OVER");
     }
 
     [Fact]

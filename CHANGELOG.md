@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- **VFR-style traffic advisories** — three simpler ways to point out traffic alongside the radar-style `RTIS <clock> <miles> <direction> <type>`: relative to the aircraft's nose (`RTIS NR 2 C172` → "Traffic, off your nose and to the right, 2 miles, a Cessna"), by pattern leg (`RTIS BASE R 2 28R M20P` → "Traffic, 2-mile right base for runway 28R, a Mooney"), and by landmark or VFR reporting point (`RTIS OVER VPCOL C172` → "Traffic, over Oakland Coliseum, a Cessna"). Each can be typed or spoken to the speech recognizer, resolves the traffic you most likely mean, and feeds the same Session Report scoring as the clock form.
+
 ### Changed
 - In **solo training**, a structured traffic advisory (`RTIS <clock> <miles> <direction> <type> [altitude]`) no longer has to be a pin-point match to count. It now resolves the traffic you most likely mean within realistic tolerances — a whole mile or a hundred feet off is treated as a correct call, the clock is allowed more slack (and a lot more when the aircraft you're talking to is itself turning, since its clock reference is swinging), and when two aircraft are both near your call the closest-matching one is chosen. The altitude is now optional (`RTIS 3 5 W B737` is accepted) for "altitude unknown" VFR traffic. A call that lands within tolerance but is noticeably off still counts but adds a low-severity "traffic advisory imprecise" coaching note so the Session Report reflects how accurate it was. (FAA 7110.65 §2-1-21; AIM §4-1-15.)
 

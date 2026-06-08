@@ -1872,41 +1872,168 @@ public static class CommandParser
         }
 
         var tokens = SplitTokens(arg);
-        if (tokens.Length is 4 or 5)
+        if (tokens.Length == 0)
         {
-            if (!TryParseClockMiles(tokens[0], tokens[1], out int clock, out int miles, out string error))
-            {
-                return PR.Fail(error);
-            }
-
-            string direction = tokens[2].ToUpperInvariant();
-            if (!IsCardinalDirection(direction))
-            {
-                return PR.Fail("RTIS direction must be N, NE, E, SE, S, SW, W, or NW");
-            }
-
-            // Altitude is optional (§2-1-21.a.5 "if known"). Omit the fifth token for "altitude unknown".
-            int? altitude = null;
-            if (tokens.Length == 5)
-            {
-                altitude = AltitudeResolver.Resolve(tokens[4]);
-                if (altitude is null)
-                {
-                    return PR.Fail($"invalid altitude '{tokens[4]}'");
-                }
-            }
-
-            return PR.Ok(
-                new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(clock, miles, direction, tokens[3].ToUpperInvariant(), altitude))
-            );
+            return PR.Ok(new ReportTrafficInSightCommand(null));
         }
 
-        if (tokens.Length > 0 && int.TryParse(tokens[0], out _))
+        string head = tokens[0].ToUpperInvariant();
+
+        // Form dispatch on the first token. A numeric lead means the full radar-style call; the
+        // keyword leads (OVER / leg / position word) select a VFR descriptive form; anything else
+        // is the RPO callsign shorthand. Keyword leads are authoritative — a malformed keyword form
+        // fails with a form-specific hint rather than silently degrading to a callsign lookup.
+        if (int.TryParse(head, out _))
+        {
+            return ParseTrafficRadarForm(tokens);
+        }
+        if (head == "OVER")
+        {
+            return ParseTrafficLandmarkForm(tokens);
+        }
+        if (TryParseRtisPatternLeg(head, out var leg))
+        {
+            return ParseTrafficPatternForm(tokens, leg);
+        }
+        if (IsRelativePosition(head))
+        {
+            return ParseTrafficRelativeForm(tokens, head);
+        }
+
+        return PR.Ok(new ReportTrafficInSightCommand(arg.Trim().ToUpperInvariant()));
+    }
+
+    private static PR ParseTrafficRadarForm(string[] tokens)
+    {
+        if (tokens.Length is not (4 or 5))
         {
             return PR.Fail("RTIS descriptive form requires <clock> <miles> <direction> <type> [altitude]");
         }
 
-        return PR.Ok(new ReportTrafficInSightCommand(arg.Trim().ToUpperInvariant()));
+        if (!TryParseClockMiles(tokens[0], tokens[1], out int clock, out int miles, out string error))
+        {
+            return PR.Fail(error);
+        }
+
+        string direction = tokens[2].ToUpperInvariant();
+        if (!IsCardinalDirection(direction))
+        {
+            return PR.Fail("RTIS direction must be N, NE, E, SE, S, SW, W, or NW");
+        }
+
+        // Altitude is optional (§2-1-21.a.5 "if known"). Omit the fifth token for "altitude unknown".
+        int? altitude = null;
+        if (tokens.Length == 5)
+        {
+            altitude = AltitudeResolver.Resolve(tokens[4]);
+            if (altitude is null)
+            {
+                return PR.Fail($"invalid altitude '{tokens[4]}'");
+            }
+        }
+
+        return PR.Ok(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(clock, miles, direction, tokens[3].ToUpperInvariant(), altitude)));
+    }
+
+    private static PR ParseTrafficRelativeForm(string[] tokens, string position)
+    {
+        if (tokens.Length != 3)
+        {
+            return PR.Fail("RTIS relative form requires <position> <miles> <type> (e.g. RTIS NR 2 C172)");
+        }
+
+        if (!int.TryParse(tokens[1], out int miles) || miles <= 0)
+        {
+            return PR.Fail("miles must be a positive whole number");
+        }
+
+        return PR.Ok(new ReportTrafficRelativeCommand(new TrafficRelativeDetails(position, miles, tokens[2].ToUpperInvariant())));
+    }
+
+    private static PR ParseTrafficPatternForm(string[] tokens, PatternEntryLeg leg)
+    {
+        // Final has no left/right base — RTIS FINAL <miles> <rwy> <type>. Other legs require an
+        // explicit side — RTIS <leg> <side> <miles> <rwy> <type>.
+        if (leg == PatternEntryLeg.Final)
+        {
+            if (tokens.Length != 4)
+            {
+                return PR.Fail("RTIS final form requires FINAL <miles> <runway> <type> (e.g. RTIS FINAL 2 28R C172)");
+            }
+
+            return BuildPatternCommand(leg, side: null, milesToken: tokens[1], runwayToken: tokens[2], typeToken: tokens[3]);
+        }
+
+        if (tokens.Length != 5)
+        {
+            return PR.Fail("RTIS pattern form requires <leg> <L|R> <miles> <runway> <type> (e.g. RTIS BASE R 2 28R C172)");
+        }
+
+        var side = tokens[1].ToUpperInvariant() switch
+        {
+            "L" => (PatternDirection?)PatternDirection.Left,
+            "R" => PatternDirection.Right,
+            _ => null,
+        };
+        if (side is null)
+        {
+            return PR.Fail("RTIS pattern side must be L or R");
+        }
+
+        return BuildPatternCommand(leg, side, milesToken: tokens[2], runwayToken: tokens[3], typeToken: tokens[4]);
+    }
+
+    private static PR BuildPatternCommand(PatternEntryLeg leg, PatternDirection? side, string milesToken, string runwayToken, string typeToken)
+    {
+        if (!int.TryParse(milesToken, out int miles) || miles <= 0)
+        {
+            return PR.Fail("miles must be a positive whole number");
+        }
+
+        string runwayId = RunwayIdentifier.NormalizeDesignator(runwayToken);
+        if (runwayId.Length == 0)
+        {
+            return PR.Fail($"invalid runway '{runwayToken}'");
+        }
+
+        return PR.Ok(new ReportTrafficPatternCommand(new TrafficPatternDetails(leg, side, miles, runwayId, typeToken.ToUpperInvariant())));
+    }
+
+    private static PR ParseTrafficLandmarkForm(string[] tokens)
+    {
+        if (tokens.Length != 3)
+        {
+            return PR.Fail("RTIS landmark form requires OVER <landmark> <type> (e.g. RTIS OVER VPCOL C172)");
+        }
+
+        return PR.Ok(new ReportTrafficLandmarkCommand(new TrafficLandmarkDetails(tokens[1].ToUpperInvariant(), tokens[2].ToUpperInvariant())));
+    }
+
+    private static bool IsRelativePosition(string token) => token is "NOSE" or "NL" or "NR" or "L" or "R" or "LR" or "RR" or "TAIL";
+
+    private static bool TryParseRtisPatternLeg(string token, out PatternEntryLeg leg)
+    {
+        switch (token)
+        {
+            case "UPWIND" or "UW":
+                leg = PatternEntryLeg.Upwind;
+                return true;
+            case "CROSSWIND" or "CW" or "XW":
+                leg = PatternEntryLeg.Crosswind;
+                return true;
+            case "DOWNWIND" or "DW":
+                leg = PatternEntryLeg.Downwind;
+                return true;
+            case "BASE":
+                leg = PatternEntryLeg.Base;
+                return true;
+            case "FINAL":
+                leg = PatternEntryLeg.Final;
+                return true;
+            default:
+                leg = PatternEntryLeg.Upwind;
+                return false;
+        }
     }
 
     private static PR ParseSafetyAlert(string? arg)

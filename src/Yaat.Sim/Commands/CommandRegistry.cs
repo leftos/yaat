@@ -1651,6 +1651,23 @@ public static class CommandRegistry
                         ],
                         "Issue traffic advisory"
                     ),
+                    O(
+                        "Relative",
+                        [R("position", "NOSE/NL/NR/L/R/LR/RR/TAIL"), R("miles", "NM"), R("type", "aircraft type")],
+                        "VFR relative-position advisory"
+                    ),
+                    O(
+                        "Pattern",
+                        [
+                            R("leg", "UW/XW/DW/BASE/FINAL"),
+                            R("side", "L/R (omit for FINAL)"),
+                            R("miles", "NM"),
+                            R("runway", "runway"),
+                            R("type", "aircraft type"),
+                        ],
+                        "VFR pattern-leg advisory"
+                    ),
+                    O("Landmark", [L("OVER"), R("landmark", "fix / VFR point"), R("type", "aircraft type")], "VFR landmark advisory"),
                 ]
             ),
             Cmd(
