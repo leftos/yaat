@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.7.6-beta [2026/06/08]
 
 ### Fixed
 - In **solo training mode**, a VFR arrival worked by approach but never handed off to a tower student (as in the OAK VFR-sequencing scenarios) no longer orbits outside Class B/C airspace indefinitely. Any instruction that works the aircraft — a direct, a vector, an approach clearance, a sequencing call — or a request for the pilot to report something (`SALT` say altitude, `SSPD` say speed, and the other directed `SAY` reports) now counts as establishing two-way communication, so it stops holding and enters the airspace. Previously only a pattern-entry command got them in.
