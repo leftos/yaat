@@ -36,13 +36,15 @@ public static class PilotInitialContactEligibility
     /// whose arrivals stay with approach — the controller's own instruction is what establishes
     /// two-way comms, so the pilot side is marked too. This lets the Class B/C boundary-hold gate
     /// clear in scenarios where the AI pilot would otherwise never speak to the student. Only an
-    /// instruction that works the aircraft counts; a bare request to report information (SAY/Show)
-    /// does not, since it is not the positive control that lets an aircraft into the airspace.
+    /// instruction that establishes two-way communication counts: a clearance, vector, routing,
+    /// sequencing, contact acknowledgement, or a directed report request the pilot answers on
+    /// frequency (say altitude/speed/heading/position/...). Dictating verbatim text for the aircraft
+    /// to broadcast (<c>SAY</c>) or a display-only readout of queued commands (<c>SHOW</c>) does not.
     /// </summary>
     public static void RegisterControllerContact(AircraftState aircraft, SimScenarioState? scenario, CompoundCommand command)
     {
         aircraft.HasControllerAcknowledgedInitialContact = true;
-        if (scenario is null || aircraft.HasMadeInitialContact || !WorksTheAircraft(command))
+        if (scenario is null || aircraft.HasMadeInitialContact || !EstablishesTwoWayComms(command))
         {
             return;
         }
@@ -54,27 +56,16 @@ public static class PilotInitialContactEligibility
     }
 
     /// <summary>
-    /// True when the command carries positive control — a clearance, vector, routing, sequencing,
-    /// or contact acknowledgement — rather than only asking the pilot to report information
-    /// (SAY/Show). A report request is two-way comms but is not the working-the-aircraft instruction
-    /// that justifies releasing a self-imposed airspace boundary hold.
+    /// True when the command represents the controller and pilot establishing two-way radio
+    /// communication — a clearance, vector, routing, sequencing, contact acknowledgement, or a
+    /// directed report request the pilot answers on frequency (say altitude/speed/heading/position/...).
+    /// Excludes only a verbatim <c>SAY</c> broadcast (the controller scripting the aircraft's own
+    /// transmission rather than addressing the pilot) and a <c>SHOW</c> readout of queued commands
+    /// (a display, not a radio transmission), neither of which justifies releasing a self-imposed
+    /// airspace boundary hold.
     /// </summary>
-    private static bool WorksTheAircraft(CompoundCommand command) =>
-        command.Blocks.Any(block =>
-            block.Commands.Any(c =>
-                c
-                    is not (
-                        SayCommand
-                        or SaySpeedCommand
-                        or SayMachCommand
-                        or SayExpectedApproachCommand
-                        or SayAltitudeCommand
-                        or SayHeadingCommand
-                        or SayPositionCommand
-                        or ShowQueuedCommand
-                    )
-            )
-        );
+    private static bool EstablishesTwoWayComms(CompoundCommand command) =>
+        command.Blocks.Any(block => block.Commands.Any(c => c is not (SayCommand or ShowQueuedCommand)));
 
     public static bool CanInitiateWithStudent(AircraftState aircraft, InitialContactEligibilityContext context)
     {

@@ -185,7 +185,7 @@ public sealed class PilotInitialContactEligibilityTests
     }
 
     [Fact]
-    public void RegisterControllerContact_NoHandoff_PassiveQuery_DoesNotEstablishInitialContact()
+    public void RegisterControllerContact_NoHandoff_DirectedReportRequest_EstablishesTwoWayComms()
     {
         var aircraft = MakeAircraft();
         aircraft.Track.Owner = OtherApproach;
@@ -193,7 +193,36 @@ public sealed class PilotInitialContactEligibilityTests
         PilotInitialContactEligibility.RegisterControllerContact(aircraft, TowerStudentScenario(), Compound(new SayAltitudeCommand()));
 
         Assert.True(aircraft.HasControllerAcknowledgedInitialContact);
-        Assert.False(aircraft.HasMadeInitialContact); // asking the pilot to report is not the positive control that lets them in
+        // A directed report request (say altitude/speed/heading/position/...) is answered on
+        // frequency, so it establishes the two-way communication that lets the aircraft into Class C.
+        Assert.True(aircraft.HasMadeInitialContact);
+    }
+
+    [Fact]
+    public void RegisterControllerContact_NoHandoff_VerbatimSayBroadcast_DoesNotEstablishInitialContact()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Track.Owner = OtherApproach;
+
+        PilotInitialContactEligibility.RegisterControllerContact(aircraft, TowerStudentScenario(), Compound(new SayCommand("traffic in sight")));
+
+        Assert.True(aircraft.HasControllerAcknowledgedInitialContact);
+        // Dictating verbatim text for the aircraft to broadcast is not the controller
+        // establishing communication with the pilot, so it does not release the hold.
+        Assert.False(aircraft.HasMadeInitialContact);
+    }
+
+    [Fact]
+    public void RegisterControllerContact_NoHandoff_ShowQueued_DoesNotEstablishInitialContact()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Track.Owner = OtherApproach;
+
+        PilotInitialContactEligibility.RegisterControllerContact(aircraft, TowerStudentScenario(), Compound(new ShowQueuedCommand()));
+
+        Assert.True(aircraft.HasControllerAcknowledgedInitialContact);
+        // SHOW is a display-only readout of queued commands, not a radio transmission.
+        Assert.False(aircraft.HasMadeInitialContact);
     }
 
     [Fact]
