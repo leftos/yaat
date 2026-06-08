@@ -85,6 +85,47 @@ public class GroundParserTests
         Assert.True(land.NoDelete);
     }
 
+    // --- LAND / EXIT strict NODEL validation ---
+    // A mistyped or extra trailing token must be rejected, not silently dropped — otherwise
+    // a fat-fingered NODEL leaves the aircraft auto-deleting when the controller meant to keep it.
+
+    [Fact]
+    public void Land_BadSecondToken_Fails()
+    {
+        var cmd = CommandParser.Parse("LAND TE FOO");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Land_ExtraTokens_Fails()
+    {
+        var cmd = CommandParser.Parse("LAND TE NODEL EXTRA");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Exit_WithNoDel_SetsNoDelete()
+    {
+        var cmd = CommandParser.Parse("EXIT B NODEL");
+        var exit = Assert.IsType<ExitTaxiwayCommand>(cmd.Value);
+        Assert.Equal("B", exit.Taxiway);
+        Assert.True(exit.NoDelete);
+    }
+
+    [Fact]
+    public void Exit_BadSecondToken_Fails()
+    {
+        var cmd = CommandParser.Parse("EXIT B FOO");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Exit_ExtraTokens_Fails()
+    {
+        var cmd = CommandParser.Parse("EXIT B NODEL EXTRA");
+        Assert.False(cmd.IsSuccess);
+    }
+
     // --- RWY standalone ---
 
     [Fact]

@@ -379,4 +379,65 @@ public class CtoParserTests : IDisposable
         var ct = Assert.IsType<ClosedTrafficDeparture>(cto.Departure);
         Assert.Null(ct.RunwayId);
     }
+
+    // Strict argument validation — unrecognized/unconsumed input must be rejected,
+    // not silently downgraded to a bare "cleared for takeoff" (runway-heading) departure.
+
+    [Fact]
+    public void Cto_UnknownModifier_Fails()
+    {
+        // The reported bug: "TRD" is not a CTO modifier (the valid token is "TRDCT").
+        var cmd = CommandParser.Parse("CTO TRD OAK30NUM");
+        Assert.False(cmd.IsSuccess);
+        Assert.Contains("TRD", cmd.Reason!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Cto_Trdct_KnownFix_TurnsRight()
+    {
+        _scope.Dispose();
+        using var _ = NavigationDatabase.ScopedOverride(
+            NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8) })
+        );
+        var cmd = CommandParser.Parse("CTO TRDCT SUNOL");
+        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        var dfd = Assert.IsType<DirectFixDeparture>(cto.Departure);
+        Assert.Equal("SUNOL", dfd.FixName);
+        Assert.Equal(TurnDirection.Right, dfd.Direction);
+    }
+
+    [Fact]
+    public void Cto_Trdct_UnknownFix_Fails()
+    {
+        var cmd = CommandParser.Parse("CTO TRDCT BADFIX");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Cto_Dct_NoFix_Fails()
+    {
+        var cmd = CommandParser.Parse("CTO DCT");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Cto_Modifier_TrailingJunk_Fails()
+    {
+        var cmd = CommandParser.Parse("CTO RH JUNK");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Cto_BareHeading_ExtraToken_Fails()
+    {
+        var cmd = CommandParser.Parse("CTO 270 050 EXTRA");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Cto_Mrt_TrailingJunk_Fails()
+    {
+        var cmd = CommandParser.Parse("CTO MRT JUNK");
+        Assert.False(cmd.IsSuccess);
+    }
 }

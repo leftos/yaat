@@ -11,7 +11,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// E2E test exercising the ground spawn snap + multi-turn taxi pipeline on
 /// SFO. The aircraft is spawned ~20 ft north of M2 (node 1529 area) with a
 /// heading near the M2 westbound bearing, then given a preset
-/// <c>TAXI M2 A A1 1R</c> + <c>CTO 1R</c>. The route exercises two
+/// <c>TAXI M2 A A1 1R</c> + <c>CTO</c>. The route exercises two
 /// consecutive ~90° turns (M2→A at node 92, A→A1 at node 97) before
 /// reaching the 1R hold-short — verifying that pure-pursuit straight
 /// steering, SlowTurn fillet playback, and LineUpPhase compose cleanly
@@ -93,7 +93,7 @@ public class SfoM2MultiTurnTaxiTests(ITestOutputHelper output)
                   },
                   "presetCommands": [
                     {"id": "p1", "command": "TAXI M2 A A1 1R", "timeOffset": 0},
-                    {"id": "p2", "command": "WAIT 3 CTO 1R", "timeOffset": 0}
+                    {"id": "p2", "command": "WAIT 3 CTO", "timeOffset": 0}
                   ],
                   "spawnDelay": 0,
                   "airportId": "SFO",

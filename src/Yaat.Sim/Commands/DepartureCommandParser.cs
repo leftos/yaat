@@ -12,65 +12,70 @@ internal static class DepartureCommandParser
     /// When no lateral modifier is present, a bare number is heading (1-360),
     /// and the second number is altitude.
     /// </summary>
-    internal static ParsedCommand ParseCtoArg(string? arg)
+    internal static PR ParseCtoArg(string? arg)
     {
         if (arg is null)
         {
-            return new ClearedForTakeoffCommand(new DefaultDeparture());
+            return PR.Ok(new ClearedForTakeoffCommand(new DefaultDeparture()));
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         bool cautionWakeTurbulence = TryStripCautionWakeTurbulence(ref tokens);
         if (tokens.Length == 0)
         {
-            return new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = cautionWakeTurbulence };
+            return PR.Ok(new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = cautionWakeTurbulence });
         }
 
         var mod = tokens[0].ToUpperInvariant();
-        var secondToken = tokens.Length > 1 ? tokens[1] : null;
 
         // Special case: TLDCT/TRDCT/DCT require a fix name (and optional altitude after)
-        if (mod == "TLDCT")
+        if (mod is "TLDCT" or "TRDCT" or "DCT")
         {
-            return ApplyCautionWakeTurbulence(ParseCtoDct(tokens, TurnDirection.Left), cautionWakeTurbulence);
-        }
-
-        if (mod == "TRDCT")
-        {
-            return ApplyCautionWakeTurbulence(ParseCtoDct(tokens, TurnDirection.Right), cautionWakeTurbulence);
-        }
-
-        if (mod == "DCT")
-        {
-            return ApplyCautionWakeTurbulence(ParseCtoDct(tokens, null), cautionWakeTurbulence);
+            var direction = mod switch
+            {
+                "TLDCT" => (TurnDirection?)TurnDirection.Left,
+                "TRDCT" => TurnDirection.Right,
+                _ => null,
+            };
+            return WithCaution(ParseCtoDct(tokens, direction), cautionWakeTurbulence);
         }
 
         // Try to parse as a named modifier (MRC, MRD, RH, OC, H270, etc.)
         var departure = ParseCtoModifier(mod);
+
+        // For closed traffic: CTO MLT [runway] [altitude]
+        if (departure is ClosedTrafficDeparture ct)
+        {
+            return WithCaution(ParseCtoClosedTraffic(ct, tokens), cautionWakeTurbulence);
+        }
+
         if (departure is not null)
         {
-            // For closed traffic: CTO MLT [runway] [altitude]
-            if (departure is ClosedTrafficDeparture ct)
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTO", out var alt, out var error))
             {
-                return ApplyCautionWakeTurbulence(ParseCtoClosedTraffic(ct, tokens), cautionWakeTurbulence);
+                return PR.Fail(error);
             }
 
-            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
-            return new ClearedForTakeoffCommand(departure, alt) { CautionWakeTurbulence = cautionWakeTurbulence };
+            return PR.Ok(new ClearedForTakeoffCommand(departure, alt) { CautionWakeTurbulence = cautionWakeTurbulence });
         }
 
         // Bare number: first number is heading (1-360), second is altitude
         if (int.TryParse(mod, out var bareNum) && bareNum >= 1 && bareNum <= 360)
         {
-            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
-            return new ClearedForTakeoffCommand(new FlyHeadingDeparture(new MagneticHeading(bareNum), null), alt)
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTO", out var alt, out var error))
             {
-                CautionWakeTurbulence = cautionWakeTurbulence,
-            };
+                return PR.Fail(error);
+            }
+
+            return PR.Ok(
+                new ClearedForTakeoffCommand(new FlyHeadingDeparture(new MagneticHeading(bareNum), null), alt)
+                {
+                    CautionWakeTurbulence = cautionWakeTurbulence,
+                }
+            );
         }
 
-        // Unrecognized — treat as default
-        return new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = cautionWakeTurbulence };
+        return PR.Fail($"CTO does not understand '{arg}'");
     }
 
     private static bool TryStripCautionWakeTurbulence(ref string[] tokens)
@@ -84,8 +89,59 @@ internal static class DepartureCommandParser
         return true;
     }
 
-    private static ParsedCommand ApplyCautionWakeTurbulence(ParsedCommand command, bool cautionWakeTurbulence) =>
-        command is ClearedForTakeoffCommand cto ? cto with { CautionWakeTurbulence = cautionWakeTurbulence } : command;
+    /// <summary>
+    /// Applies the caution-wake-turbulence advisory to a successful <see cref="ClearedForTakeoffCommand"/>
+    /// result; failures and other command types pass through unchanged.
+    /// </summary>
+    private static PR WithCaution(PR result, bool cautionWakeTurbulence)
+    {
+        if (!cautionWakeTurbulence || result.Value is not ClearedForTakeoffCommand cto)
+        {
+            return result;
+        }
+
+        return PR.Ok(cto with { CautionWakeTurbulence = true });
+    }
+
+    /// <summary>
+    /// Validates the optional trailing altitude for a CTO/CTOPP form. After the leading
+    /// modifier token(s), there may be either nothing or exactly one valid altitude token.
+    /// Fails on an unparseable altitude or any extra tokens so malformed input is rejected
+    /// rather than silently ignored.
+    /// </summary>
+    private static bool TryResolveTrailingAltitude(
+        string[] tokens,
+        int consumed,
+        string verb,
+        out int? altitude,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out string? error
+    )
+    {
+        altitude = null;
+        error = null;
+
+        if (tokens.Length <= consumed)
+        {
+            return true;
+        }
+
+        if (tokens.Length > consumed + 1)
+        {
+            error = $"{verb} does not understand extra arguments: '{string.Join(' ', tokens[(consumed + 1)..])}'";
+            return false;
+        }
+
+        var altToken = tokens[consumed];
+        var resolved = AltitudeResolver.Resolve(altToken);
+        if (resolved is null)
+        {
+            error = $"{verb} does not understand '{altToken}' — expected an altitude";
+            return false;
+        }
+
+        altitude = resolved;
+        return true;
+    }
 
     /// <summary>
     /// Parses a single CTO modifier token into a DepartureInstruction,
@@ -177,7 +233,7 @@ internal static class DepartureCommandParser
     /// Parses CTO closed traffic with optional runway and altitude.
     /// Forms: CTO MLT, CTO MLT 28R, CTO MLT 15, CTO MLT 28R 15.
     /// </summary>
-    private static ParsedCommand ParseCtoClosedTraffic(ClosedTrafficDeparture ct, string[] tokens)
+    private static PR ParseCtoClosedTraffic(ClosedTrafficDeparture ct, string[] tokens)
     {
         // tokens[0] = "MLT"/"MRT", rest are runway and/or altitude
         string? runwayId = null;
@@ -188,33 +244,32 @@ internal static class DepartureCommandParser
             if (runwayId is null && CommandParser.IsRunwayDesignator(tokens[i]))
             {
                 runwayId = tokens[i].ToUpperInvariant();
+                continue;
             }
-            else
+
+            var resolved = AltitudeResolver.Resolve(tokens[i]);
+            if (resolved is not null && patternAlt is null)
             {
-                var resolved = AltitudeResolver.Resolve(tokens[i]);
-                if (resolved is not null)
-                {
-                    patternAlt = resolved;
-                }
-                else
-                {
-                    runwayId = tokens[i].ToUpperInvariant();
-                }
+                patternAlt = resolved;
+                continue;
             }
+
+            return PR.Fail($"CTO {tokens[0].ToUpperInvariant()} does not understand '{tokens[i]}'");
         }
 
-        return new ClearedForTakeoffCommand(ct with { RunwayId = runwayId, PatternAltitude = patternAlt });
+        return PR.Ok(new ClearedForTakeoffCommand(ct with { RunwayId = runwayId, PatternAltitude = patternAlt }));
     }
 
     /// <summary>
     /// Parses CTO DCT/TLDCT/TRDCT {fix} [altitude].
     /// </summary>
-    internal static ParsedCommand ParseCtoDct(string[] tokens, TurnDirection? direction)
+    internal static PR ParseCtoDct(string[] tokens, TurnDirection? direction)
     {
         // tokens[0] = "DCT"/"TLDCT"/"TRDCT", tokens[1] = fix name, tokens[2] = optional altitude
+        var keyword = tokens[0].ToUpperInvariant();
         if (tokens.Length < 2)
         {
-            return new ClearedForTakeoffCommand(new DefaultDeparture());
+            return PR.Fail($"{keyword} requires a fix name");
         }
 
         var navDb = NavigationDatabase.Instance;
@@ -225,13 +280,17 @@ internal static class DepartureCommandParser
             var frd = FrdResolver.Resolve(fixName, navDb);
             if (frd is null)
             {
-                return new ClearedForTakeoffCommand(new DefaultDeparture());
+                return PR.Fail($"{keyword} does not understand '{fixName}' — unknown fix");
             }
             pos = (frd.Value.Lat, frd.Value.Lon);
         }
 
-        int? alt = tokens.Length > 2 ? AltitudeResolver.Resolve(tokens[2]) : null;
-        return new ClearedForTakeoffCommand(new DirectFixDeparture(fixName, pos.Value.Lat, pos.Value.Lon, direction), alt);
+        if (!TryResolveTrailingAltitude(tokens, consumed: 2, keyword, out var alt, out var error))
+        {
+            return PR.Fail(error);
+        }
+
+        return PR.Ok(new ClearedForTakeoffCommand(new DirectFixDeparture(fixName, pos.Value.Lat, pos.Value.Lon, direction), alt));
     }
 
     /// <summary>
@@ -254,7 +313,6 @@ internal static class DepartureCommandParser
         }
 
         var mod = tokens[0].ToUpperInvariant();
-        var secondToken = tokens.Length > 1 ? tokens[1] : null;
 
         // Present-position AGL hover: CTOPP +001 / +002 (no airport — relative to present position).
         if (mod.StartsWith('+'))
@@ -263,6 +321,11 @@ internal static class DepartureCommandParser
             if (hoverAgl is null)
             {
                 return PR.Fail($"CTOPP does not understand altitude '{mod}' — use +0XX feet AGL (e.g. +001 = 100 ft)");
+            }
+
+            if (tokens.Length > 1)
+            {
+                return PR.Fail($"CTOPP does not understand extra arguments: '{string.Join(' ', tokens[1..])}'");
             }
 
             return PR.Ok(new ClearedTakeoffPresentCommand(new PresentPositionHoverDeparture(hoverAgl.Value)));
@@ -290,27 +353,46 @@ internal static class DepartureCommandParser
 
         if (departure is OnCourseDeparture)
         {
-            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTOPP", out var alt, out var error))
+            {
+                return PR.Fail(error);
+            }
+
             return PR.Ok(new ClearedTakeoffPresentCommand(departure, alt));
         }
 
         if (departure is FlyHeadingDeparture fh)
         {
-            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTOPP", out var alt, out var error))
+            {
+                return PR.Fail(error);
+            }
+
             return PR.Ok(new ClearedTakeoffPresentCommand(fh, alt));
         }
 
         if (int.TryParse(mod, out var bareNum) && bareNum >= 1 && bareNum <= 360)
         {
-            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
+            if (!TryResolveTrailingAltitude(tokens, consumed: 1, "CTOPP", out var alt, out var error))
+            {
+                return PR.Fail(error);
+            }
+
             return PR.Ok(new ClearedTakeoffPresentCommand(new FlyHeadingDeparture(new MagneticHeading(bareNum), null), alt));
         }
 
         return PR.Fail($"CTOPP does not understand '{arg}'");
     }
 
-    private static PR ToCtopp(ParsedCommand cto) =>
-        cto is ClearedForTakeoffCommand c ? PR.Ok(new ClearedTakeoffPresentCommand(c.Departure, c.AssignedAltitude)) : PR.Ok(cto);
+    private static PR ToCtopp(PR result)
+    {
+        if (result.Value is not ClearedForTakeoffCommand c)
+        {
+            return result;
+        }
+
+        return PR.Ok(new ClearedTakeoffPresentCommand(c.Departure, c.AssignedAltitude));
+    }
 
     /// <summary>
     /// Parses a present-position AGL token "+0XX" into feet AGL (no airport).

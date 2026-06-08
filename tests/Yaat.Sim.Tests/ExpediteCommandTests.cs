@@ -180,4 +180,29 @@ public class ExpediteCommandTests
         Assert.Equal(BlockTriggerType.ReachAltitude, ac.Queue.Blocks[0].Trigger!.Type);
         Assert.Equal(10000, ac.Queue.Blocks[0].Trigger!.Altitude);
     }
+
+    // --- EXP argument parsing ---
+
+    [Fact]
+    public void Parse_Expedite_NoArg_PlainExpedite()
+    {
+        var cmd = CommandParser.Parse("EXP");
+        var exp = Assert.IsType<ExpediteCommand>(cmd.Value);
+        Assert.Null(exp.UntilAltitude);
+    }
+
+    [Fact]
+    public void Parse_Expedite_WithAltitude()
+    {
+        var cmd = CommandParser.Parse("EXP 11000");
+        var exp = Assert.IsType<ExpediteCommand>(cmd.Value);
+        Assert.Equal(11000, exp.UntilAltitude);
+    }
+
+    [Fact]
+    public void Parse_Expedite_BadAltitude_Fails()
+    {
+        var cmd = CommandParser.Parse("EXP JUNK");
+        Assert.False(cmd.IsSuccess);
+    }
 }

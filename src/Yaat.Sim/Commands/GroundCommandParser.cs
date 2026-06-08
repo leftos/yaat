@@ -624,11 +624,19 @@ internal static class GroundCommandParser
     /// <summary>
     /// Parses EXIT taxiway [NODEL].
     /// </summary>
-    internal static ParsedCommand ParseExitTaxiway(string arg)
+    internal static PR ParseExitTaxiway(string arg)
     {
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var taxiway = tokens[0].ToUpperInvariant();
-        bool noDelete = tokens.Length > 1 && tokens[1].Equals("NODEL", StringComparison.OrdinalIgnoreCase);
-        return new ExitTaxiwayCommand(taxiway, noDelete);
+        if (tokens.Length == 0)
+        {
+            return PR.Fail("EXIT requires a taxiway");
+        }
+
+        if (!CommandParser.TryParseNoDeleteFlag(tokens, "EXIT", out var noDelete, out var error))
+        {
+            return PR.Fail(error);
+        }
+
+        return PR.Ok(new ExitTaxiwayCommand(tokens[0].ToUpperInvariant(), noDelete));
     }
 }

@@ -242,4 +242,27 @@ public class CtoppParserTests : IDisposable
         Assert.False(cmd.IsSuccess);
         Assert.Contains("CTOPP", cmd.Reason!, StringComparison.OrdinalIgnoreCase);
     }
+
+    // Strict trailing-argument validation — unparseable/extra tokens must be rejected.
+
+    [Fact]
+    public void Ctopp_Oc_TrailingJunk_Fails()
+    {
+        var cmd = CommandParser.Parse("CTOPP OC JUNK");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Ctopp_BareHeading_ExtraToken_Fails()
+    {
+        var cmd = CommandParser.Parse("CTOPP 270 050 EXTRA");
+        Assert.False(cmd.IsSuccess);
+    }
+
+    [Fact]
+    public void Ctopp_Dct_NoFix_Fails()
+    {
+        var cmd = CommandParser.Parse("CTOPP DCT");
+        Assert.False(cmd.IsSuccess);
+    }
 }

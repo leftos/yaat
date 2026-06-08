@@ -590,9 +590,9 @@ public static class CommandParser
         switch (verb)
         {
             case "CTOMRT":
-                return PR.Ok(DepartureCommandParser.ParseCtoArg("MRT" + (arg is not null ? " " + arg : "")));
+                return DepartureCommandParser.ParseCtoArg("MRT" + (arg is not null ? " " + arg : ""));
             case "CTOMLT":
-                return PR.Ok(DepartureCommandParser.ParseCtoArg("MLT" + (arg is not null ? " " + arg : "")));
+                return DepartureCommandParser.ParseCtoArg("MLT" + (arg is not null ? " " + arg : ""));
             case "CTORH" when arg is null:
                 return PR.Ok(new ClearedForTakeoffCommand(new RunwayHeadingDeparture()));
             case "GAMRT" when arg is null:
@@ -646,7 +646,7 @@ public static class CommandParser
             ResumeNormalSpeed when arg is null => PR.Ok(new ResumeNormalSpeedCommand()),
             ReduceToFinalApproachSpeed when arg is null => PR.Ok(new ReduceToFinalApproachSpeedCommand()),
             DeleteSpeedRestrictions when arg is null => PR.Ok(new DeleteSpeedRestrictionsCommand()),
-            Expedite => PR.Ok(ParseExpedite(arg)),
+            Expedite => ParseExpedite(arg),
             NormalRate when arg is null => PR.Ok(new NormalRateCommand()),
             Mach when arg is not null => ParseMach(arg),
             // Force commands
@@ -692,7 +692,7 @@ public static class CommandParser
             Add when arg is not null => PR.Ok(new AddAircraftCommand(arg)),
             // Tower
             LineUpAndWait when arg is null => PR.Ok(new LineUpAndWaitCommand()),
-            ClearedForTakeoff => PR.Ok(DepartureCommandParser.ParseCtoArg(arg)),
+            ClearedForTakeoff => DepartureCommandParser.ParseCtoArg(arg),
             CancelTakeoffClearance when arg is null => PR.Ok(new CancelTakeoffClearanceCommand()),
             GoAround => ParseGoAround(arg),
             ClearedToLand => ParseClearedToLand(arg),
@@ -740,7 +740,7 @@ public static class CommandParser
             HoldAtFixHover => ParseHoldAtFixHover(arg),
             // Helicopter
             AirTaxi => PR.Ok(new AirTaxiCommand(NormalizeAirTaxiDestination(arg))),
-            Land when arg is not null => PR.Ok(ParseLand(arg)),
+            Land when arg is not null => ParseLand(arg),
             ClearedTakeoffPresent => DepartureCommandParser.ParseCtoppArg(arg),
             // Ground — HOLD is overloaded: bare = HoldPosition, with args = HoldingPattern
             Pushback => GroundCommandParser.ParsePushback(arg),
@@ -763,7 +763,7 @@ public static class CommandParser
             ExitLeft => PR.Ok(new ExitLeftCommand(false, arg.Trim().ToUpperInvariant())),
             ExitRight when arg is null or "NODEL" => PR.Ok(new ExitRightCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true)),
             ExitRight => PR.Ok(new ExitRightCommand(false, arg.Trim().ToUpperInvariant())),
-            ExitTaxiway when arg is not null => PR.Ok(GroundCommandParser.ParseExitTaxiway(arg)),
+            ExitTaxiway when arg is not null => GroundCommandParser.ParseExitTaxiway(arg),
             // Approach
             ExpectApproach => ParseExpectApproach(arg),
             ClearedApproach => ApproachCommandParser.ParseCapp(arg, false),
@@ -1664,19 +1664,28 @@ public static class CommandParser
         return PR.Ok(new HoldAtFixHoverCommand(fixName, pos.Value.Lat, pos.Value.Lon));
     }
 
-    private static ParsedCommand ParseLand(string arg)
+    private static PR ParseLand(string arg)
     {
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return PR.Fail("LAND requires a taxiway or @spot");
+        }
+
+        if (!TryParseNoDeleteFlag(tokens, "LAND", out var noDelete, out var error))
+        {
+            return PR.Fail(error);
+        }
+
         var raw = tokens[0];
-        bool noDelete = tokens.Length > 1 && tokens[1].Equals("NODEL", StringComparison.OrdinalIgnoreCase);
 
         // @prefix = parking/helipad spot (strip @), no prefix = taxiway name
         if (raw.StartsWith('@'))
         {
-            return new LandCommand(raw[1..].ToUpperInvariant(), noDelete, IsTaxiway: false);
+            return PR.Ok(new LandCommand(raw[1..].ToUpperInvariant(), noDelete, IsTaxiway: false));
         }
 
-        return new LandCommand(raw.ToUpperInvariant(), noDelete, IsTaxiway: true);
+        return PR.Ok(new LandCommand(raw.ToUpperInvariant(), noDelete, IsTaxiway: true));
     }
 
     /// <summary>
@@ -2173,15 +2182,57 @@ public static class CommandParser
         return PR.Ok(new SpeedCommand(speed));
     }
 
-    private static ParsedCommand ParseExpedite(string? arg)
+    private static PR ParseExpedite(string? arg)
     {
         if (arg is null)
         {
-            return new ExpediteCommand();
+            return PR.Ok(new ExpediteCommand());
         }
 
         int? altitude = AltitudeResolver.Resolve(arg);
-        return altitude is not null ? new ExpediteCommand(altitude.Value) : new ExpediteCommand();
+        if (altitude is null)
+        {
+            return PR.Fail($"EXP does not understand '{arg}' — expected an altitude");
+        }
+
+        return PR.Ok(new ExpediteCommand(altitude.Value));
+    }
+
+    /// <summary>
+    /// Validates the optional trailing NODEL flag for EXIT/LAND. After the first token there
+    /// may be either nothing or exactly the literal NODEL; any other or extra token is rejected
+    /// so a mistyped flag isn't silently dropped (which would auto-delete an aircraft the
+    /// controller meant to keep).
+    /// </summary>
+    internal static bool TryParseNoDeleteFlag(
+        string[] tokens,
+        string verb,
+        out bool noDelete,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out string? error
+    )
+    {
+        noDelete = false;
+        error = null;
+
+        if (tokens.Length == 1)
+        {
+            return true;
+        }
+
+        if (tokens.Length > 2)
+        {
+            error = $"{verb} does not understand extra arguments: '{string.Join(' ', tokens[2..])}'";
+            return false;
+        }
+
+        if (!tokens[1].Equals("NODEL", StringComparison.OrdinalIgnoreCase))
+        {
+            error = $"{verb} does not understand '{tokens[1]}' — expected NODEL";
+            return false;
+        }
+
+        noDelete = true;
+        return true;
     }
 
     private static PR ParseMach(string arg)

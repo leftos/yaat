@@ -343,8 +343,8 @@ public class CompoundTowerCommandTests
     [Fact]
     public void ParseCompound_AndAlias_ProducesSameStructureAsComma()
     {
-        var aliasResult = CommandParser.ParseCompound("CTO 28R, CL");
-        var aliasResult2 = CommandParser.ParseCompound("CTO 28R AND CL");
+        var aliasResult = CommandParser.ParseCompound("CTO MRT 28R, CL");
+        var aliasResult2 = CommandParser.ParseCompound("CTO MRT 28R AND CL");
 
         Assert.True(aliasResult.IsSuccess, $"comma form failed: {aliasResult.Reason}");
         Assert.True(aliasResult2.IsSuccess, $"AND form failed: {aliasResult2.Reason}");
@@ -366,8 +366,8 @@ public class CompoundTowerCommandTests
     [Fact]
     public void ParseCompound_ThenAlias_ProducesSameStructureAsSemicolon()
     {
-        var semiResult = CommandParser.ParseCompound("CTO 28R; CL");
-        var thenResult = CommandParser.ParseCompound("CTO 28R THEN CL");
+        var semiResult = CommandParser.ParseCompound("CTO MRT 28R; CL");
+        var thenResult = CommandParser.ParseCompound("CTO MRT 28R THEN CL");
 
         Assert.True(semiResult.IsSuccess, $"semicolon form failed: {semiResult.Reason}");
         Assert.True(thenResult.IsSuccess, $"THEN form failed: {thenResult.Reason}");
