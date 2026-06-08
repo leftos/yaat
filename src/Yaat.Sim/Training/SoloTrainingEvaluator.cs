@@ -90,6 +90,7 @@ public sealed class SoloTrainingEvaluator
     private readonly HashSet<string> _fieldAdvisoryProofs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<WakeAdvisoryProof> _wakeAdvisoryProofs = [];
     private readonly List<SafetyAlertProof> _safetyAlertProofs = [];
+    private readonly List<ImpreciseAdvisoryProof> _impreciseAdvisories = [];
     private readonly SameRunwaySeparationTracker _sameRunwayTracker = new();
 
     /// <summary>
@@ -138,11 +139,16 @@ public sealed class SoloTrainingEvaluator
             }
             else if (parsedCommand is ReportTrafficAdvisoryCommand rtis)
             {
-                var target = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, rtis.Details, knownAircraft, out _);
-                if (target is not null)
+                var match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, rtis.Details, knownAircraft, out _);
+                if (match is not null)
                 {
-                    string key = MakeAdvisoryProofKey(aircraft.Callsign, target.Callsign);
-                    _advisoryProofs.Add(key);
+                    _advisoryProofs.Add(MakeAdvisoryProofKey(aircraft.Callsign, match.Target.Callsign));
+                    if (match.Quality == AdvisoryMatchQuality.Imprecise)
+                    {
+                        _impreciseAdvisories.Add(
+                            new ImpreciseAdvisoryProof(aircraft.Callsign, match.Target.Callsign, scenarioElapsedSeconds, match.ImpreciseDetail)
+                        );
+                    }
                 }
             }
             else if (parsedCommand is SafetyAlertCommand safetyAlert)
@@ -286,6 +292,16 @@ public sealed class SoloTrainingEvaluator
         {
             observedThisTick.Add(overuseSample.Id);
             var notice = Upsert(overuseSample, scenarioElapsedSeconds);
+            if (notice is not null)
+            {
+                notices.Add(notice);
+            }
+        }
+
+        foreach (var impreciseSample in SampleImpreciseAdvisories(scenarioElapsedSeconds))
+        {
+            observedThisTick.Add(impreciseSample.Id);
+            var notice = Upsert(impreciseSample, scenarioElapsedSeconds);
             if (notice is not null)
             {
                 notices.Add(notice);
@@ -720,6 +736,7 @@ public sealed class SoloTrainingEvaluator
         _fieldAdvisoryProofs.Clear();
         _wakeAdvisoryProofs.Clear();
         _safetyAlertProofs.Clear();
+        _impreciseAdvisories.Clear();
         _sameRunwayTracker.Reset();
         _lastDebriefs = null;
         _lastDebriefHash = 0;
@@ -1437,6 +1454,38 @@ public sealed class SoloTrainingEvaluator
         }
     }
 
+    private IEnumerable<TrainingEventSample> SampleImpreciseAdvisories(double scenarioElapsedSeconds)
+    {
+        foreach (var advisory in _impreciseAdvisories)
+        {
+            if (advisory.NoteRecorded)
+            {
+                continue;
+            }
+
+            advisory.NoteRecorded = true;
+            string id =
+                $"ADVISORY_IMPRECISE_{advisory.RecipientCallsign}_{advisory.TargetCallsign}_{advisory.ScenarioElapsedSeconds:F0}".ToUpperInvariant();
+            yield return new TrainingEventSample(
+                id,
+                SoloTrainingEventCategory.AdvisoryVisual,
+                SoloTrainingEventSeverity.Coach,
+                "Traffic advisory imprecise",
+                $"{advisory.RecipientCallsign}: traffic advisory for {advisory.TargetCallsign} was accepted but imprecise ({advisory.Detail}).",
+                "7110.65 §2-1-21",
+                scenarioElapsedSeconds,
+                [advisory.RecipientCallsign, advisory.TargetCallsign],
+                null,
+                null,
+                null,
+                null,
+                null,
+                "Refine the clock, distance, direction, type, or altitude in the traffic call so the pilot can acquire the traffic.",
+                advisory.Detail
+            );
+        }
+    }
+
     private static (double HorizontalNm, double VerticalFt) ComputeSeparation(AircraftState a, AircraftState b, double lookaheadSeconds)
     {
         var aPosition = ProjectPosition(a, lookaheadSeconds);
@@ -1634,6 +1683,15 @@ public sealed class SoloTrainingEvaluator
         public double ScenarioElapsedSeconds { get; } = scenarioElapsedSeconds;
         public bool UsedForSafetyState { get; set; }
         public bool OveruseRecorded { get; set; }
+    }
+
+    private sealed class ImpreciseAdvisoryProof(string recipientCallsign, string targetCallsign, double scenarioElapsedSeconds, string detail)
+    {
+        public string RecipientCallsign { get; } = recipientCallsign.Trim().ToUpperInvariant();
+        public string TargetCallsign { get; } = targetCallsign.Trim().ToUpperInvariant();
+        public double ScenarioElapsedSeconds { get; } = scenarioElapsedSeconds;
+        public string Detail { get; } = detail;
+        public bool NoteRecorded { get; set; }
     }
 
     private sealed record TrainingEventSample(

@@ -1647,7 +1647,7 @@ public static class CommandRegistry
                             R("miles", "NM"),
                             R("direction", "N/NE/E/SE/S/SW/W/NW"),
                             R("type", "aircraft type"),
-                            R("altitude", "altitude"),
+                            Opt("altitude", "altitude (optional)"),
                         ],
                         "Issue traffic advisory"
                     ),

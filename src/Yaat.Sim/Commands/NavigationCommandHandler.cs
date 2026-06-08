@@ -1330,7 +1330,7 @@ internal static class NavigationCommandHandler
     {
         if (ctx.SoloTrainingMode)
         {
-            return new CommandResult(false, "Use RTIS <clock> <miles> <direction> <type> <altitude> in solo training");
+            return new CommandResult(false, "Use RTIS <clock> <miles> <direction> <type> [altitude] in solo training");
         }
 
         // Fast path: if the tick processor has already confirmed acquisition on an
@@ -1416,13 +1416,13 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchReportTrafficAdvisory(ReportTrafficAdvisoryCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
-        var target = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
-        if (target is null)
+        var match = TrafficAdvisoryMatcher.ResolveStructuredTrafficTarget(aircraft, cmd.Details, ctx.ListAircraft?.Invoke(), out string error);
+        if (match is null)
         {
             return new CommandResult(false, error);
         }
 
-        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, target.Callsign, target, ctx);
+        var acquisition = DispatchReportTrafficInSightForTarget(aircraft, match.Target.Callsign, match.Target, ctx);
         return acquisition.Success ? CommandDispatcher.Ok(CommandDescriber.FormatTrafficAdvisoryPhrase(cmd.Details)) : acquisition;
     }
 

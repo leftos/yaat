@@ -169,6 +169,7 @@ issued the matching command. The constructors set the category to `AdvisoryVisua
 | Visual approach field proof missing (`SampleVisualApproach`, `:1052`) | `7110.65 §7-4-3; AIM §5-4-23` | aircraft on a `VIS*` approach with no following traffic and no field-in-sight | RFIS / pilot field-in-sight (`_fieldAdvisoryProofs`, `HasReportedFieldInSight`) |
 | Wake turbulence advisory missing (`CreateWakeAdvisorySample`, `:1253`) | `7110.65 §2-1-20; {source rule}` | a runway op generates a CWT wake context for a student-service recipient | accepted CWT — caution-wake on CTO/CLAND or a `WakeAdvisoryCommand` (`_wakeAdvisoryProofs`) |
 | Safety alert overused (`SampleSafetyAlertOveruse`, `:1351`) | `7110.65 §2-1-6` | a SAFAL proof never matched a live safety-severity pair | n/a (it *is* the misuse finding) |
+| Traffic advisory imprecise (`SampleImpreciseAdvisories`) | `7110.65 §2-1-21` | an accepted structured RTIS resolved its target but graded `Imprecise` (within tolerance, beyond the "spot-on" bands) | n/a — `Coach` severity, it *is* the accuracy note (the recipient→target advisory itself is still proven) |
 
 `RecordControllerCommand` (`:97`) is the proof capture. It walks the immediately-applied commands of an accepted
 compound and:
@@ -176,7 +177,12 @@ compound and:
 - `ContactCommand` / `FrequencyChangeApprovedCommand` → sets `HasLeftStudentFrequency` (aircraft stops being a
   student-service recipient).
 - `ReportFieldAdvisoryCommand` → adds to `_fieldAdvisoryProofs`.
-- `ReportTrafficAdvisoryCommand` → resolves the structured target and adds a recipient→target key to `_advisoryProofs`.
+- `ReportTrafficAdvisoryCommand` → resolves the structured target via `TrafficAdvisoryMatcher` (best-candidate
+  within tolerance, not exact match) and adds a recipient→target key to `_advisoryProofs`. If the match graded
+  `Imprecise`, also appends an `ImpreciseAdvisoryProof` that `SampleImpreciseAdvisories` turns into a one-shot
+  `Coach` "Traffic advisory imprecise" note. The matching tolerances live in `TrafficAdvisoryMatcher` (clock
+  ±2 sectors / ±4 when the recipient is maneuvering, distance ±2 NM, direction ±1 octant, altitude ±500 ft;
+  altitude optional). See FAA 7110.65 §2-1-21 and AIM §4-1-15 / FIG 4-1-2 for why an exact clock is wrong.
 - `SafetyAlertCommand` → appends a `SafetyAlertProof` (tracked for overuse).
 - `WakeAdvisoryCommand` / `ClearedForTakeoffCommand{CautionWakeTurbulence}` / `ClearedToLandCommand{CautionWakeTurbulence}`
   → appends a `WakeAdvisoryProof`.

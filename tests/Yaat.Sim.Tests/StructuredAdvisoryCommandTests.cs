@@ -22,6 +22,17 @@ public sealed class StructuredAdvisoryCommandTests
         Assert.Equal("Traffic, 3 o'clock, 5 miles, westbound, Boeing 737, 2,400, report it in sight.", CommandDescriber.DescribeNatural(command));
     }
 
+    [Fact]
+    public void Parse_RtisDescriptiveForm_OptionalAltitude_OmitsAltitude()
+    {
+        var result = CommandParser.Parse("RTIS 3 5 W B737");
+
+        var command = Assert.IsType<ReportTrafficAdvisoryCommand>(result.Value);
+        Assert.Null(command.Details.Altitude);
+        Assert.Equal("RTIS 3 5 W B737", CommandDescriber.DescribeCommand(command));
+        Assert.Equal("Traffic, 3 o'clock, 5 miles, westbound, Boeing 737, report it in sight.", CommandDescriber.DescribeNatural(command));
+    }
+
     [Theory]
     [InlineData("RFIS 11 18", "Field's at your 11 o'clock, 18 miles, report it in sight.")]
     [InlineData("RFIS 11 1", "Field's at your 11 o'clock, 1 mile, report it in sight.")]

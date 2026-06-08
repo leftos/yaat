@@ -552,8 +552,7 @@ public static class CommandDescriber
             ReportFieldAdvisoryCommand => "RFIS",
             ReportFieldInSightForcedCommand => "RFISF",
             ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null ? $"RTIS {cmd.TargetCallsign}" : "RTIS",
-            ReportTrafficAdvisoryCommand { Details: not null } cmd =>
-                $"RTIS {cmd.Details.Clock} {cmd.Details.Miles} {cmd.Details.Direction} {cmd.Details.AircraftType} {cmd.Details.Altitude / 100:000}",
+            ReportTrafficAdvisoryCommand { Details: not null } cmd => FormatTrafficAdvisoryCanonical(cmd.Details),
             ReportTrafficAdvisoryCommand => "RTIS",
             ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null ? $"RTISF {cmd.TargetCallsign}" : "RTISF",
             SafetyAlertCommand { Details: not null } cmd => FormatSafetyAlertCanonical(cmd),
@@ -1765,8 +1764,18 @@ public static class CommandDescriber
         return msg;
     }
 
-    internal static string FormatTrafficAdvisoryPhrase(TrafficAdvisoryDetails details) =>
-        $"Traffic, {details.Clock} o'clock, {FormatMiles(details.Miles)}, {DirectionWord(details.Direction)}, {FormatAircraftType(details.AircraftType)}, {details.Altitude:N0}, report it in sight.";
+    private static string FormatTrafficAdvisoryCanonical(TrafficAdvisoryDetails details)
+    {
+        var basePart = $"RTIS {details.Clock} {details.Miles} {details.Direction} {details.AircraftType}";
+        return details.Altitude is { } altitude ? $"{basePart} {altitude / 100:000}" : basePart;
+    }
+
+    internal static string FormatTrafficAdvisoryPhrase(TrafficAdvisoryDetails details)
+    {
+        var basePart =
+            $"Traffic, {details.Clock} o'clock, {FormatMiles(details.Miles)}, {DirectionWord(details.Direction)}, {FormatAircraftType(details.AircraftType)}";
+        return details.Altitude is { } altitude ? $"{basePart}, {altitude:N0}, report it in sight." : $"{basePart}, report it in sight.";
+    }
 
     internal static string FormatFieldAdvisoryPhrase(FieldAdvisoryDetails details) =>
         $"Field's at your {details.Clock} o'clock, {FormatMiles(details.Miles)}, report it in sight.";

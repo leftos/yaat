@@ -100,7 +100,7 @@
         { "verb": "CVA", "aliases": ["visual"], "description": "Cleared visual approach (runway)" },
         { "verb": "FOLLOW", "aliases": ["fol"], "description": "Follow traffic (airborne)" },
         { "verb": "RFIS", "aliases": [], "description": "Report field: RFIS clock miles (bare shorthand RPO-only)", "global": true },
-        { "verb": "RTIS", "aliases": [], "description": "Report traffic: RTIS clock miles dir type alt", "global": true },
+        { "verb": "RTIS", "aliases": [], "description": "Report traffic: RTIS clock miles dir type [alt]", "global": true },
         { "verb": "SAFAL", "aliases": [], "description": "Safety alert: SAFAL clock miles [L/R] [C/D]", "global": true }
       ],
       "notes": ["Rich forms: `AT fix CAPP` `DCT fix CAPP` `CFIX fix alt CAPP`"]

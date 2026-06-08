@@ -293,6 +293,49 @@ public sealed class SoloTrainingEvaluatorTests
     }
 
     [Fact]
+    public void Evaluate_ExactStructuredRtis_AddsNoImpreciseNote()
+    {
+        var (a, b) = CreateClosingIfrPair(); // b is at a's 12 o'clock, 5 NM, westbound, 5,000 ft
+        var evaluator = new SoloTrainingEvaluator();
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(12, 5, "W", b.AircraftType, 5000))),
+            scenarioElapsedSeconds: 5,
+            [a, b]
+        );
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        Assert.DoesNotContain(notices, e => e.Title == "Traffic advisory imprecise");
+    }
+
+    [Fact]
+    public void Evaluate_ImpreciseButAcceptedRtis_ClearsNeededAndAddsCoachNote()
+    {
+        var (a, b) = CreateClosingIfrPair();
+        var evaluator = new SoloTrainingEvaluator();
+        // Clock off 2 (called 10, actual 12) — within tolerance, so it resolves and proves the advisory,
+        // but it is imprecise, so it also earns a low-severity coaching note.
+        evaluator.RecordControllerCommand(
+            a,
+            SingleCommand(new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(10, 5, "W", b.AircraftType, 5000))),
+            scenarioElapsedSeconds: 5,
+            [a, b]
+        );
+
+        var notices = evaluator.Evaluate([a, b], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
+
+        // The a->b "advisory needed" is cleared by the accepted (if imprecise) call.
+        Assert.DoesNotContain(notices, e => e.Title == "Traffic advisory needed" && e.Callsigns[0] == a.Callsign && e.Callsigns[1] == b.Callsign);
+        var imprecise = Assert.Single(notices, e => e.Title == "Traffic advisory imprecise");
+        Assert.Equal(SoloTrainingEventSeverity.Coach, imprecise.Severity);
+        Assert.Equal(SoloTrainingEventCategory.AdvisoryVisual, imprecise.Category);
+        Assert.Equal(a.Callsign, imprecise.Callsigns[0]);
+        Assert.Equal(b.Callsign, imprecise.Callsigns[1]);
+        Assert.Contains("clock off 2", imprecise.ActualText);
+    }
+
+    [Fact]
     public void Evaluate_RpoShortcutRtisDoesNotSuppressAdvisoryScoring()
     {
         var (a, b) = CreateClosingIfrPair();

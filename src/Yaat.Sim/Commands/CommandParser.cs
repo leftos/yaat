@@ -1872,7 +1872,7 @@ public static class CommandParser
         }
 
         var tokens = SplitTokens(arg);
-        if (tokens.Length == 5)
+        if (tokens.Length is 4 or 5)
         {
             if (!TryParseClockMiles(tokens[0], tokens[1], out int clock, out int miles, out string error))
             {
@@ -1885,20 +1885,25 @@ public static class CommandParser
                 return PR.Fail("RTIS direction must be N, NE, E, SE, S, SW, W, or NW");
             }
 
-            int? altitude = AltitudeResolver.Resolve(tokens[4]);
-            if (altitude is null)
+            // Altitude is optional (§2-1-21.a.5 "if known"). Omit the fifth token for "altitude unknown".
+            int? altitude = null;
+            if (tokens.Length == 5)
             {
-                return PR.Fail($"invalid altitude '{tokens[4]}'");
+                altitude = AltitudeResolver.Resolve(tokens[4]);
+                if (altitude is null)
+                {
+                    return PR.Fail($"invalid altitude '{tokens[4]}'");
+                }
             }
 
             return PR.Ok(
-                new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(clock, miles, direction, tokens[3].ToUpperInvariant(), altitude.Value))
+                new ReportTrafficAdvisoryCommand(new TrafficAdvisoryDetails(clock, miles, direction, tokens[3].ToUpperInvariant(), altitude))
             );
         }
 
         if (tokens.Length > 0 && int.TryParse(tokens[0], out _))
         {
-            return PR.Fail("RTIS descriptive form requires <clock> <miles> <direction> <type> <altitude>");
+            return PR.Fail("RTIS descriptive form requires <clock> <miles> <direction> <type> [altitude]");
         }
 
         return PR.Ok(new ReportTrafficInSightCommand(arg.Trim().ToUpperInvariant()));
