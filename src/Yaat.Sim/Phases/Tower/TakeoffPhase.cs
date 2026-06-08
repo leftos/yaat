@@ -173,13 +173,13 @@ public sealed class TakeoffPhase : Phase
         // Once airborne, speed adjustments are also additive — adjusting the
         // climb-out speed shouldn't cancel the heading guidance baked into the
         // takeoff clearance.
+        if (IsSpeedFamilyCommand(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return cmd switch
         {
-            CanonicalCommandType.Speed
-            or CanonicalCommandType.Mach
-            or CanonicalCommandType.ReduceToFinalApproachSpeed
-            or CanonicalCommandType.ResumeNormalSpeed
-            or CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Rejected(
                 "aircraft is in initial climb after takeoff; GA is not applicable (issue a new heading/altitude)"
             ),

@@ -396,6 +396,12 @@ public sealed partial class InterceptCoursePhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
+        // Speed/altitude adjust targets without leaving the approach.
+        if (IsAdditiveAirborneAdjustment(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return cmd switch
         {
             // Approach-related commands pass through
@@ -406,11 +412,6 @@ public sealed partial class InterceptCoursePhase : Phase
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
-            // Speed/altitude adjust targets without leaving the approach
-            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
-            CanonicalCommandType.Mach => CommandAcceptance.Allowed,
-            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
             // Everything else (heading, direct-to, etc.) takes the aircraft off the approach
             _ => CommandAcceptance.ClearsPhase,
         };

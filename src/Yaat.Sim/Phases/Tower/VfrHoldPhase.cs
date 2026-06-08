@@ -196,19 +196,19 @@ public sealed class VfrHoldPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        return cmd switch
+        // The VFR hold manages only the lateral hold. Altitude and speed
+        // adjustments are additive — they retarget without breaking the hold.
+        if (IsAdditiveAirborneAdjustment(cmd))
         {
-            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
-            CanonicalCommandType.Mach => CommandAcceptance.Allowed,
-            _ => CommandAcceptance.ClearsPhase,
-        };
+            return CommandAcceptance.Allowed;
+        }
+
+        return CommandAcceptance.ClearsPhase;
     }
 
     public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
     {
-        if (cmd is CanonicalCommandType.Speed or CanonicalCommandType.Mach)
+        if (IsSpeedFamilyCommand(cmd))
         {
             _speed.CancelAutoResume();
         }

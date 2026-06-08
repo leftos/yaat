@@ -279,6 +279,15 @@ public sealed class PatternEntryPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
+        // Speed adjustments are additive. Altitude (CM/DM) deliberately clears the
+        // pattern entry and warns the RPO (see PhaseClearWarningTests): a climb/descend
+        // during the entry maneuver usually means the aircraft is no longer being
+        // sequenced into this pattern, and the RPO must know the entry was cancelled.
+        if (IsSpeedFamilyCommand(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return cmd switch
         {
             CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
@@ -288,10 +297,6 @@ public sealed class PatternEntryPhase : Phase
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.MakeShortApproach => CommandAcceptance.Allowed,
             CanonicalCommandType.MakeNormalApproach => CommandAcceptance.Allowed,
-            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
-            CanonicalCommandType.ReduceToFinalApproachSpeed => CommandAcceptance.Allowed,
-            CanonicalCommandType.ResumeNormalSpeed => CommandAcceptance.Allowed,
-            CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

@@ -380,14 +380,14 @@ public sealed class HoldingPatternPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        return cmd switch
+        // Holding manages only the lateral pattern. Altitude and speed adjustments
+        // are additive — they retarget without breaking the hold.
+        if (IsAdditiveAirborneAdjustment(cmd))
         {
-            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
-            CanonicalCommandType.Mach => CommandAcceptance.Allowed,
-            _ => CommandAcceptance.ClearsPhase,
-        };
+            return CommandAcceptance.Allowed;
+        }
+
+        return CommandAcceptance.ClearsPhase;
     }
 
     public override PhaseDto ToSnapshot() =>

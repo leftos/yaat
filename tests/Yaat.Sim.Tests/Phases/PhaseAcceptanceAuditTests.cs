@@ -2,6 +2,7 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
@@ -182,4 +183,170 @@ public class PhaseAcceptanceAuditTests
         Assert.Equal(CommandAcceptance.Allowed, outside.CanAcceptCommand(CanonicalCommandType.ClearedToLand));
         Assert.Equal(CommandAcceptance.Allowed, inside.CanAcceptCommand(CanonicalCommandType.GoAround));
     }
+
+    // -----------------------------------------------------------------------------
+    // Lateral-maneuver / approach phases: speed and altitude families are additive
+    // and must NOT cancel the lateral maneuver. The reported bug was RFAS clearing
+    // an R360 (MakeTurnPhase); these phases had drifted speed allow-lists (Speed +
+    // Mach but missing RFAS/RNS/DSR).
+    // -----------------------------------------------------------------------------
+
+    private static MakeTurnPhase NewMakeTurn() => new() { Direction = TurnDirection.Right, TargetDegrees = 360 };
+
+    private static STurnPhase NewSTurn() => new() { InitialDirection = TurnDirection.Left };
+
+    private static HoldingPatternPhase NewHolding() =>
+        new()
+        {
+            FixName = "FIXXX",
+            FixLat = 0,
+            FixLon = 0,
+            InboundCourse = 90,
+            LegLength = 1,
+            IsMinuteBased = true,
+            Direction = TurnDirection.Right,
+        };
+
+    private static ProcedureTurnPhase NewProcedureTurn() =>
+        new()
+        {
+            FixName = "FIXXX",
+            FixLat = 0,
+            FixLon = 0,
+            InboundCourseDeg = 90,
+            PtOutboundCourseDeg = 270,
+            MaxOutboundDistanceNm = 10,
+            OneEightyTurnDirection = TurnDirection.Right,
+            MinAltitudeFt = 2000,
+        };
+
+    private static InterceptCoursePhase NewInterceptCourse() =>
+        new()
+        {
+            FinalApproachCourse = new TrueHeading(280),
+            ThresholdLat = 0,
+            ThresholdLon = 0,
+        };
+
+    private static ApproachNavigationPhase NewApproachNav() => new() { Fixes = [] };
+
+    [Theory]
+    [MemberData(nameof(AdditiveAirborneFamily))]
+    public void MakeTurnPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.Allowed, NewMakeTurn().CanAcceptCommand(cmd));
+
+    [Theory]
+    [InlineData(CanonicalCommandType.FlyHeading)]
+    [InlineData(CanonicalCommandType.TurnLeft)]
+    [InlineData(CanonicalCommandType.DirectTo)]
+    public void MakeTurnPhase_LateralCommands_ClearPhase(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.ClearsPhase, NewMakeTurn().CanAcceptCommand(cmd));
+
+    [Theory]
+    [MemberData(nameof(AdditiveAirborneFamily))]
+    public void STurnPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.Allowed, NewSTurn().CanAcceptCommand(cmd));
+
+    [Theory]
+    [InlineData(CanonicalCommandType.FlyHeading)]
+    [InlineData(CanonicalCommandType.DirectTo)]
+    public void STurnPhase_LateralCommands_ClearPhase(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.ClearsPhase, NewSTurn().CanAcceptCommand(cmd));
+
+    [Theory]
+    [MemberData(nameof(AdditiveAirborneFamily))]
+    public void HoldingPatternPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.Allowed, NewHolding().CanAcceptCommand(cmd));
+
+    [Theory]
+    [MemberData(nameof(AdditiveAirborneFamily))]
+    public void ProcedureTurnPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.Allowed, NewProcedureTurn().CanAcceptCommand(cmd));
+
+    [Theory]
+    [MemberData(nameof(AdditiveAirborneFamily))]
+    public void InterceptCoursePhase_AdditiveCommands_Allowed(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.Allowed, NewInterceptCourse().CanAcceptCommand(cmd));
+
+    [Theory]
+    [InlineData(CanonicalCommandType.FlyHeading)]
+    [InlineData(CanonicalCommandType.DirectTo)]
+    public void InterceptCoursePhase_LateralCommands_ClearPhase(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.ClearsPhase, NewInterceptCourse().CanAcceptCommand(cmd));
+
+    [Theory]
+    [MemberData(nameof(AdditiveAirborneFamily))]
+    public void ApproachNavigationPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.Allowed, NewApproachNav().CanAcceptCommand(cmd));
+
+    [Theory]
+    [InlineData(CanonicalCommandType.FlyHeading)]
+    [InlineData(CanonicalCommandType.DirectTo)]
+    public void ApproachNavigationPhase_LateralCommands_ClearPhase(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.ClearsPhase, NewApproachNav().CanAcceptCommand(cmd));
+
+    [Theory]
+    [MemberData(nameof(AdditiveAirborneFamily))]
+    public void VfrHoldPhase_AdditiveCommands_Allowed(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.Allowed, new VfrHoldPhase().CanAcceptCommand(cmd));
+
+    [Theory]
+    [InlineData(CanonicalCommandType.FlyHeading)]
+    [InlineData(CanonicalCommandType.DirectTo)]
+    public void VfrHoldPhase_LateralCommands_ClearPhase(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.ClearsPhase, new VfrHoldPhase().CanAcceptCommand(cmd));
+
+    // -----------------------------------------------------------------------------
+    // Pattern phases: previously allowed Speed/RFAS/RNS/DSR but omitted Mach. The
+    // whole speed family is now accepted additively (incl. Mach) via the shared
+    // helper. Altitude (CM/DM) is additive on the pattern *legs* but deliberately
+    // clears pattern *entry* (PhaseClearWarningTests) — so they're tested apart.
+    // -----------------------------------------------------------------------------
+
+    private static PatternEntryPhase NewPatternEntry() =>
+        new()
+        {
+            EntryLat = 0,
+            EntryLon = 0,
+            PatternAltitude = 1000,
+            Kind = PatternEntryKind.Direct,
+        };
+
+    public static TheoryData<Phase> PatternPhases() =>
+        new() { new BasePhase(), new CrosswindPhase(), new DownwindPhase(), new UpwindPhase(), NewPatternEntry() };
+
+    public static TheoryData<Phase> PatternLegPhases() => new() { new BasePhase(), new CrosswindPhase(), new DownwindPhase(), new UpwindPhase() };
+
+    [Theory]
+    [MemberData(nameof(PatternPhases))]
+    public void PatternPhase_SpeedFamilyAllowed(Phase phase)
+    {
+        foreach (
+            var cmd in new[]
+            {
+                CanonicalCommandType.Speed,
+                CanonicalCommandType.Mach,
+                CanonicalCommandType.ReduceToFinalApproachSpeed,
+                CanonicalCommandType.ResumeNormalSpeed,
+                CanonicalCommandType.DeleteSpeedRestrictions,
+            }
+        )
+        {
+            Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(PatternLegPhases))]
+    public void PatternLegPhase_AltitudeFamilyAllowed(Phase phase)
+    {
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
+    }
+
+    [Theory]
+    [InlineData(CanonicalCommandType.ClimbMaintain)]
+    [InlineData(CanonicalCommandType.DescendMaintain)]
+    public void PatternEntryPhase_AltitudeCommands_ClearPhase(CanonicalCommandType cmd) =>
+        Assert.Equal(CommandAcceptance.ClearsPhase, NewPatternEntry().CanAcceptCommand(cmd));
 }

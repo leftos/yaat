@@ -1119,7 +1119,7 @@ public sealed class FinalApproachPhase : Phase
         // outside SpeedCommandFinalGateNm. Inside that gate the aircraft is
         // committed to the final approach speed and the controller should
         // either send GA or accept the FAS profile.
-        if (IsSpeedFamily(cmd))
+        if (IsSpeedFamilyCommand(cmd))
         {
             return DistanceToThresholdNm > SpeedCommandFinalGateNm ? CommandAcceptance.Allowed : CommandAcceptance.ClearsPhase;
         }
@@ -1128,14 +1128,6 @@ public sealed class FinalApproachPhase : Phase
         // the stabilized final approach — clear the phase.
         return CommandAcceptance.ClearsPhase;
     }
-
-    private static bool IsSpeedFamily(CanonicalCommandType cmd) =>
-        cmd
-            is CanonicalCommandType.Speed
-                or CanonicalCommandType.Mach
-                or CanonicalCommandType.ReduceToFinalApproachSpeed
-                or CanonicalCommandType.ResumeNormalSpeed
-                or CanonicalCommandType.DeleteSpeedRestrictions;
 
     protected override List<ClearanceRequirement> CreateRequirements()
     {

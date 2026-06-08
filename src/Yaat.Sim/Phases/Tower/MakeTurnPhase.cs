@@ -159,19 +159,17 @@ public sealed class MakeTurnPhase : Phase
         // MakeTurn manages only heading (lateral dimension). Altitude and speed
         // adjustments are additive — let them pass through to normal dispatch
         // without cancelling the orbit.
-        return cmd switch
+        if (IsAdditiveAirborneAdjustment(cmd))
         {
-            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
-            CanonicalCommandType.Mach => CommandAcceptance.Allowed,
-            _ => CommandAcceptance.ClearsPhase,
-        };
+            return CommandAcceptance.Allowed;
+        }
+
+        return CommandAcceptance.ClearsPhase;
     }
 
     public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
     {
-        if (cmd is CanonicalCommandType.Speed or CanonicalCommandType.Mach)
+        if (IsSpeedFamilyCommand(cmd))
         {
             _speed.CancelAutoResume();
         }

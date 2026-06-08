@@ -33,6 +33,37 @@ Three branches govern what happens when a command lands on an in-phase aircraft:
 - **`Rejected(reason)`** — command denied; reason is user-visible. Use for "you can't do that right now" gates (e.g. takeoff clearance during runway crossing).
 - **`ClearsPhase`** — phase ends and the command is then routed through normal dispatch. **This is the default**. CommandDispatcher does a dry-run validation on a clone *before* clearing; if validation fails, the phase is preserved.
 
+### Additive speed/altitude family — single source of truth
+
+A phase whose responsibility is **lateral** guidance (turns, S-turns, holds, procedure turns, approach intercepts, pattern legs, departure-procedure legs) must treat **speed** and **altitude** instructions as *additive*: they retarget the corresponding control axis without cancelling the maneuver. Speed and heading are independent axes — issuing `RFAS` during an `R360` should slow the aircraft, not stop the turn.
+
+Don't hand-roll the per-command list in each `CanAcceptCommand` (that drift is exactly how `RFAS`/`RNS`/`DSR` ended up cancelling turns while `SPD`/`Mach` didn't). Use the shared predicates on `Phase`:
+
+- `Phase.IsSpeedFamilyCommand(cmd)` — `Speed`, `Mach`, `ReduceToFinalApproachSpeed`, `ResumeNormalSpeed`, `DeleteSpeedRestrictions`.
+- `Phase.IsAltitudeFamilyCommand(cmd)` — `ClimbMaintain`, `DescendMaintain`.
+- `Phase.IsAdditiveAirborneAdjustment(cmd)` — either of the above.
+
+The canonical shape for a lateral phase is a leading guard, then a switch for the phase's own special cases:
+
+```csharp
+public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
+{
+    if (IsAdditiveAirborneAdjustment(cmd))
+    {
+        return CommandAcceptance.Allowed;
+    }
+    return cmd switch { /* phase-specific Allowed cases */ _ => CommandAcceptance.ClearsPhase };
+}
+```
+
+Phases that auto-resume a captured speed (e.g. `MakeTurnPhase`, `STurnPhase`, `VfrHoldPhase` via `ManeuverSpeedController`) must also cancel that auto-resume in `OnCommandAccepted` for the **whole** speed family (`IsSpeedFamilyCommand`), or a controller-issued `RFAS`/`RNS`/`DSR` would be clobbered when the phase ends.
+
+Two intentional exceptions accept the speed family but **not** the full additive family:
+- `FinalApproachPhase` returns `ClearsPhase` for the speed family inside `SpeedCommandFinalGateNm` — the aircraft is committed to the final approach speed.
+- `PatternEntryPhase` guards on `IsSpeedFamilyCommand` only; a `CM`/`DM` during the entry **clears** the phase and warns the RPO, because a climb/descend mid-entry usually means the aircraft is no longer being sequenced into this pattern. The in-pattern legs (`DownwindPhase`, etc.) take `CM`/`DM` additively.
+
+`PhaseAcceptanceAuditTests` pins this contract across the whole phase set.
+
 ## Lifecycle — `Phases/PhaseRunner.cs`
 
 `PhaseRunner.Tick(phases, ctx)` runs **before** `FlightPhysics.Update` each tick (see [tick-loop.md](tick-loop.md)). On each call:

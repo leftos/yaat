@@ -296,16 +296,14 @@ public sealed class DepartureProcedurePhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
+        if (IsAdditiveAirborneAdjustment(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return cmd switch
         {
-            CanonicalCommandType.ClimbMaintain
-            or CanonicalCommandType.DescendMaintain
-            or CanonicalCommandType.Speed
-            or CanonicalCommandType.Mach
-            or CanonicalCommandType.ReduceToFinalApproachSpeed
-            or CanonicalCommandType.ResumeNormalSpeed
-            or CanonicalCommandType.DeleteSpeedRestrictions
-            or CanonicalCommandType.DirectTo
+            CanonicalCommandType.DirectTo
             or CanonicalCommandType.AppendDirectTo
             or CanonicalCommandType.TurnLeftDirectTo
             or CanonicalCommandType.TurnRightDirectTo

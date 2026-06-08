@@ -300,14 +300,14 @@ public sealed class ProcedureTurnPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        return cmd switch
+        // The procedure turn manages only the lateral course reversal. Altitude and
+        // speed adjustments are additive — they retarget without cancelling the turn.
+        if (IsAdditiveAirborneAdjustment(cmd))
         {
-            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
-            CanonicalCommandType.Mach => CommandAcceptance.Allowed,
-            _ => CommandAcceptance.ClearsPhase,
-        };
+            return CommandAcceptance.Allowed;
+        }
+
+        return CommandAcceptance.ClearsPhase;
     }
 
     public override PhaseDto ToSnapshot() =>

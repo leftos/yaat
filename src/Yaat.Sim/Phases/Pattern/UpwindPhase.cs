@@ -138,20 +138,21 @@ public sealed class UpwindPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
+        // Speed and altitude adjustments are additive — they retarget without
+        // breaking the pattern leg.
+        if (IsAdditiveAirborneAdjustment(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return cmd switch
         {
             CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
             CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
-            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
-            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.MakeShortApproach => CommandAcceptance.Allowed,
             CanonicalCommandType.MakeNormalApproach => CommandAcceptance.Allowed,
-            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
-            CanonicalCommandType.ReduceToFinalApproachSpeed => CommandAcceptance.Allowed,
-            CanonicalCommandType.ResumeNormalSpeed => CommandAcceptance.Allowed,
-            CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,

@@ -337,16 +337,14 @@ public sealed class InitialClimbPhase : Phase
         // initial climb after takeoff. OnCommandAccepted releases the RV SID
         // heading hold and the deferred-turn gate when needed so the phase's
         // own state machines don't clobber the controller's instruction.
+        if (IsAdditiveAirborneAdjustment(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return cmd switch
         {
-            CanonicalCommandType.ClimbMaintain
-            or CanonicalCommandType.DescendMaintain
-            or CanonicalCommandType.Speed
-            or CanonicalCommandType.Mach
-            or CanonicalCommandType.ReduceToFinalApproachSpeed
-            or CanonicalCommandType.ResumeNormalSpeed
-            or CanonicalCommandType.DeleteSpeedRestrictions
-            or CanonicalCommandType.DirectTo
+            CanonicalCommandType.DirectTo
             or CanonicalCommandType.AppendDirectTo
             or CanonicalCommandType.TurnLeftDirectTo
             or CanonicalCommandType.TurnRightDirectTo

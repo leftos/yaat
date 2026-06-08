@@ -150,6 +150,11 @@ public sealed class GoAroundPhase : Phase
         // without interrupting the go-around climb. Altitude/speed adjustments
         // are additive — controllers routinely amend the missed-approach
         // altitude ("climb maintain 3000") after issuing GA.
+        if (IsAdditiveAirborneAdjustment(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return cmd switch
         {
             CanonicalCommandType.ClearedToLand
@@ -162,14 +167,7 @@ public sealed class GoAroundPhase : Phase
             or CanonicalCommandType.MakeRightTraffic
             or CanonicalCommandType.ExitLeft
             or CanonicalCommandType.ExitRight
-            or CanonicalCommandType.ExitTaxiway
-            or CanonicalCommandType.ClimbMaintain
-            or CanonicalCommandType.DescendMaintain
-            or CanonicalCommandType.Speed
-            or CanonicalCommandType.Mach
-            or CanonicalCommandType.ReduceToFinalApproachSpeed
-            or CanonicalCommandType.ResumeNormalSpeed
-            or CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
+            or CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
     }

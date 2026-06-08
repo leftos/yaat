@@ -41,6 +41,33 @@ public abstract class Phase
     public virtual bool ManagesSpeed => false;
 
     /// <summary>
+    /// Speed-axis commands: a pure speed instruction that adjusts the speed target
+    /// without touching the lateral or vertical path. Single source of truth for
+    /// phases whose <see cref="CanAcceptCommand"/> treats speed changes as additive.
+    /// </summary>
+    public static bool IsSpeedFamilyCommand(CanonicalCommandType cmd) =>
+        cmd
+            is CanonicalCommandType.Speed
+                or CanonicalCommandType.Mach
+                or CanonicalCommandType.ReduceToFinalApproachSpeed
+                or CanonicalCommandType.ResumeNormalSpeed
+                or CanonicalCommandType.DeleteSpeedRestrictions;
+
+    /// <summary>
+    /// Vertical-axis commands that adjust the altitude target without touching the
+    /// lateral path.
+    /// </summary>
+    public static bool IsAltitudeFamilyCommand(CanonicalCommandType cmd) =>
+        cmd is CanonicalCommandType.ClimbMaintain or CanonicalCommandType.DescendMaintain;
+
+    /// <summary>
+    /// Speed- or altitude-axis adjustment. A phase whose responsibility is lateral
+    /// guidance (turns, holds, intercepts, pattern legs) treats these as additive —
+    /// they retarget speed/altitude without cancelling the maneuver.
+    /// </summary>
+    public static bool IsAdditiveAirborneAdjustment(CanonicalCommandType cmd) => IsSpeedFamilyCommand(cmd) || IsAltitudeFamilyCommand(cmd);
+
+    /// <summary>
     /// Whether this phase accepts the given RPO command.
     /// Default: ClearsPhase (most commands exit the phase system).
     /// Override to reject commands during critical sub-states.

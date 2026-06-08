@@ -582,18 +582,16 @@ public sealed class VfrFollowPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
+        // Altitude/speed adjustments don't cancel the follow — controllers
+        // adjust trailing-aircraft separation without breaking the visual.
+        if (IsAdditiveAirborneAdjustment(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return cmd switch
         {
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
-            // Altitude/speed adjustments don't cancel the follow — controllers
-            // adjust trailing-aircraft separation without breaking the visual.
-            CanonicalCommandType.ClimbMaintain
-            or CanonicalCommandType.DescendMaintain
-            or CanonicalCommandType.Speed
-            or CanonicalCommandType.Mach
-            or CanonicalCommandType.ReduceToFinalApproachSpeed
-            or CanonicalCommandType.ResumeNormalSpeed
-            or CanonicalCommandType.DeleteSpeedRestrictions => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             // Any other command (heading/pattern-leg/etc.) clears this phase
             // and hands control back to the controller's direct targets.
