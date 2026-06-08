@@ -19,7 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class ExpediteRunwayExitTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/expedite-runway-exit-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/b55a82ade9d9.zip";
 
     // -------------------- Parser --------------------
 

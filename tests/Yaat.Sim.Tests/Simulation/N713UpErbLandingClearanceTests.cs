@@ -28,7 +28,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class N713UpErbLandingClearanceTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/n713up-erb-landing-clearance-recording.zip";
+    private const string RecordingPath = "TestData/b55a82ade9d9.zip";
     private const string Callsign = "N713UP";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
