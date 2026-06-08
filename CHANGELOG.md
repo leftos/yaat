@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- Replaying, rewinding, or saving a bug-report bundle of a **solo training** session no longer diverges from how the session actually played out: a VFR arrival you vectored or cleared into Class B/C airspace stays in the airspace instead of spuriously orbiting outside it in the reconstructed snapshots. Reconstructing a recording now re-establishes the two-way communication your recorded instructions created (it previously dispatched the instruction but skipped marking comms), and replaying a recording in the client restores the recorded student position — so boundary holds, pilot check-ins, and traffic advisories play back as they happened live.
 - Saving a bug report bundle from a **solo training** session is fast again — a 90-second solo session that took over a minute and a half to save now saves in well under a second. Generating the recording's embedded replay snapshots re-runs the whole session, and solo mode's per-tick airspace-boundary and separation checks were scanning the entire national Class B/C airspace database (≈500 volumes) for every aircraft on every tick. The same per-tick work also slowed live solo sessions; both are fixed.
 
 ## v0.7.6-beta [2026/06/08]

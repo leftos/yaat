@@ -342,7 +342,29 @@ public sealed class RecordingArchive : IDisposable
             ArtccId = Manifest.ArtccId,
             RecordedAtUtc = Manifest.RecordedAtUtc,
             RecordedBy = Manifest.RecordedBy,
+            StudentPositionState = ReadInitialStudentPosition(),
         };
+    }
+
+    /// <summary>
+    /// Read the resolved student position from the first snapshot's scenario block. The scenario
+    /// JSON does not carry it (the server resolves it at load via InitializeTrackPositions), so this
+    /// is how Sim-side replay recovers it. Returns null when the recording has no snapshots.
+    /// </summary>
+    private ReplayStudentPosition? ReadInitialStudentPosition()
+    {
+        if (Manifest.Snapshots.Count == 0)
+        {
+            return null;
+        }
+
+        var scenario = ReadTimedSnapshot(0).State.Scenario;
+        return new ReplayStudentPosition(
+            scenario.StudentPosition is not null ? TrackOwner.FromSnapshot(scenario.StudentPosition) : null,
+            scenario.StudentTcp is not null ? Tcp.FromSnapshot(scenario.StudentTcp) : null,
+            scenario.StudentPositionType,
+            scenario.IsStudentTowerPosition
+        );
     }
 
     /// <summary>
@@ -385,6 +407,7 @@ public sealed class RecordingArchive : IDisposable
             ArtccId = Manifest.ArtccId,
             RecordedAtUtc = Manifest.RecordedAtUtc,
             RecordedBy = Manifest.RecordedBy,
+            StudentPositionState = ReadInitialStudentPosition(),
         };
     }
 

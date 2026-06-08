@@ -44,5 +44,20 @@ public sealed class SessionRecording
     public DateTime? RecordedAtUtc { get; init; }
     public string? RecordedBy { get; init; }
 
+    /// <summary>
+    /// Runtime student position captured at record time (read from snapshot 0's scenario block).
+    /// The scenario JSON does not carry the resolved student position — the server sets it at load
+    /// via <c>InitializeTrackPositions</c> — so Sim-side replay restores it from here. Without it,
+    /// <c>CanInitiateWithStudent</c>, proactive check-ins, and Class B/C boundary holds diverge from
+    /// the live session. Null for recordings without snapshots (legacy v1).
+    /// </summary>
+    public ReplayStudentPosition? StudentPositionState { get; init; }
+
     public bool HasSnapshots => (Snapshots?.Count ?? 0) > 0;
 }
+
+/// <summary>
+/// Resolved student-position state carried alongside a <see cref="SessionRecording"/> so Sim-side
+/// replay can restore it the same way a snapshot restore does (<c>SimulationEngine.LoadScenario</c>).
+/// </summary>
+public sealed record ReplayStudentPosition(TrackOwner? Position, Tcp? Tcp, string? PositionType, bool IsTowerPosition);

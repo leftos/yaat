@@ -1030,6 +1030,18 @@ public sealed class SimulationEngine
         TickTimings.Clear();
         LoadScenario(recording.ScenarioJson, recording.RngSeed);
 
+        // The scenario JSON does not carry the resolved runtime student position (the server sets it
+        // at load via InitializeTrackPositions). Restore it from the recording so CanInitiateWithStudent,
+        // proactive check-ins, and Class B/C boundary holds replay as they did live.
+        if (Scenario is not null && recording.StudentPositionState is { } studentPosition)
+        {
+            Scenario.StudentPosition = studentPosition.Position;
+            Scenario.StudentTcp = studentPosition.Tcp;
+            World.StudentTcp = studentPosition.Tcp;
+            Scenario.StudentPositionType = studentPosition.PositionType;
+            Scenario.IsStudentTowerPosition = studentPosition.IsTowerPosition;
+        }
+
         if (Scenario is not null)
         {
             configureAfterLoad(Scenario);
@@ -3046,6 +3058,10 @@ public sealed class SimulationEngine
             aircraft.DeferredDispatches.Add(
                 new DeferredDispatch(recordedReactionSeconds, replayResult.Value!) { SourceText = cmd.Command, IsReactionDelay = true }
             );
+            // Mirror the live SendCommand path: a deferred command still counts as accepted, so it
+            // establishes two-way comms at issue time (not when the deferral later fires). Without this
+            // a replayed/reconstructed vector never clears the Class B/C boundary-hold gate.
+            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, replayResult.Value!);
             if (Scenario?.SoloTrainingMode == true)
             {
                 SoloTrainingEvaluator.RecordControllerCommand(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
@@ -3073,6 +3089,9 @@ public sealed class SimulationEngine
         var replayDispatchResult = CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
         if (replayDispatchResult.Success)
         {
+            // Mirror the live SendCommand path so a replayed/reconstructed instruction establishes the
+            // two-way comms that clears the Class B/C boundary-hold gate.
+            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, replayResult.Value!);
             if (replayCtx.SoloTrainingMode)
             {
                 SoloTrainingEvaluator.RecordControllerCommand(aircraft, replayResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());

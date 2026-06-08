@@ -765,7 +765,7 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math (SpeedCeiling) for the generator stream — simulated approach-controller speed equalization; SimulationEngine.ApplyArrivalSpacing drives it
-SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle
+SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle; StudentPositionState (from snapshot 0) for Sim-side replay restore
 RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange, AircraftSpawn
                                # RecordedCommand bakes ReactionDelaySeconds + SpawnJitterSeconds (nullable) for replay determinism
 RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. RecordedCommandKind enum + Classify(string)
