@@ -1,6 +1,8 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -165,6 +167,67 @@ public sealed class PilotInitialContactEligibilityTests
         Assert.False(pendingAllowed);
         Assert.True(acceptedAllowed);
     }
+
+    [Fact]
+    public void RegisterControllerContact_NoHandoff_WorkingCommand_EstablishesTwoWayComms()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Track.Owner = OtherApproach; // owned by approach, never handed off to the tower student
+
+        PilotInitialContactEligibility.RegisterControllerContact(
+            aircraft,
+            TowerStudentScenario(),
+            Compound(new DirectToCommand([new ResolvedFix("VPCBT", 37.7197, -122.1064)], []))
+        );
+
+        Assert.True(aircraft.HasControllerAcknowledgedInitialContact);
+        Assert.True(aircraft.HasMadeInitialContact);
+    }
+
+    [Fact]
+    public void RegisterControllerContact_NoHandoff_PassiveQuery_DoesNotEstablishInitialContact()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Track.Owner = OtherApproach;
+
+        PilotInitialContactEligibility.RegisterControllerContact(aircraft, TowerStudentScenario(), Compound(new SayAltitudeCommand()));
+
+        Assert.True(aircraft.HasControllerAcknowledgedInitialContact);
+        Assert.False(aircraft.HasMadeInitialContact); // asking the pilot to report is not the positive control that lets them in
+    }
+
+    [Fact]
+    public void RegisterControllerContact_PilotCanInitiate_LeavesCheckInToThePilot()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Track.Owner = OtherApproach;
+        aircraft.Track.HandoffPeer = StudentTower; // handoff inbound → the pilot will check in normally
+
+        PilotInitialContactEligibility.RegisterControllerContact(
+            aircraft,
+            TowerStudentScenario(),
+            Compound(new DirectToCommand([new ResolvedFix("VPCBT", 37.7197, -122.1064)], []))
+        );
+
+        Assert.True(aircraft.HasControllerAcknowledgedInitialContact);
+        Assert.False(aircraft.HasMadeInitialContact);
+    }
+
+    private static SimScenarioState TowerStudentScenario() =>
+        new()
+        {
+            ScenarioId = "test",
+            ScenarioName = "test",
+            RngSeed = 1,
+            OriginalScenarioJson = "{}",
+            ArtccId = "ZOA",
+            PrimaryAirportId = "KSFO",
+            StudentPosition = StudentTower,
+            StudentPositionType = "TWR",
+            InitialContactTransfers = InitialContactTransferCatalog.Empty,
+        };
+
+    private static CompoundCommand Compound(params ParsedCommand[] commands) => new([new ParsedBlock(null, [.. commands])]);
 
     private static AircraftState MakeAircraft(string destination = "") =>
         new()

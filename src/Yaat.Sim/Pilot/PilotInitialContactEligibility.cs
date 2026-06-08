@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 
@@ -34,12 +35,14 @@ public static class PilotInitialContactEligibility
     /// student — the track is owned by another position with no handoff inbound, e.g. a tower student
     /// whose arrivals stay with approach — the controller's own instruction is what establishes
     /// two-way comms, so the pilot side is marked too. This lets the Class B/C boundary-hold gate
-    /// clear in scenarios where the AI pilot would otherwise never speak to the student.
+    /// clear in scenarios where the AI pilot would otherwise never speak to the student. Only an
+    /// instruction that works the aircraft counts; a bare request to report information (SAY/Show)
+    /// does not, since it is not the positive control that lets an aircraft into the airspace.
     /// </summary>
-    public static void RegisterControllerContact(AircraftState aircraft, SimScenarioState? scenario)
+    public static void RegisterControllerContact(AircraftState aircraft, SimScenarioState? scenario, CompoundCommand command)
     {
         aircraft.HasControllerAcknowledgedInitialContact = true;
-        if (scenario is null || aircraft.HasMadeInitialContact)
+        if (scenario is null || aircraft.HasMadeInitialContact || !WorksTheAircraft(command))
         {
             return;
         }
@@ -49,6 +52,29 @@ public static class PilotInitialContactEligibility
             aircraft.HasMadeInitialContact = true;
         }
     }
+
+    /// <summary>
+    /// True when the command carries positive control — a clearance, vector, routing, sequencing,
+    /// or contact acknowledgement — rather than only asking the pilot to report information
+    /// (SAY/Show). A report request is two-way comms but is not the working-the-aircraft instruction
+    /// that justifies releasing a self-imposed airspace boundary hold.
+    /// </summary>
+    private static bool WorksTheAircraft(CompoundCommand command) =>
+        command.Blocks.Any(block =>
+            block.Commands.Any(c =>
+                c
+                    is not (
+                        SayCommand
+                        or SaySpeedCommand
+                        or SayMachCommand
+                        or SayExpectedApproachCommand
+                        or SayAltitudeCommand
+                        or SayHeadingCommand
+                        or SayPositionCommand
+                        or ShowQueuedCommand
+                    )
+            )
+        );
 
     public static bool CanInitiateWithStudent(AircraftState aircraft, InitialContactEligibilityContext context)
     {

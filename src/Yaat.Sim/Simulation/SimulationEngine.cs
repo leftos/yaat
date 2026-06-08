@@ -1286,7 +1286,7 @@ public sealed class SimulationEngine
 
         if (result.Success)
         {
-            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario);
+            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, parseResult.Value!);
             if (soloTrainingMode)
             {
                 SoloTrainingEvaluator.RecordControllerCommand(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
