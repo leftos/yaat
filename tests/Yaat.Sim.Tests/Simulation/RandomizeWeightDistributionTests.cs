@@ -97,8 +97,11 @@ public class RandomizeWeightDistributionTests(ITestOutputHelper output)
         Assert.True(counts.GetValueOrDefault(WeightClass.SmallPlus) > 0);
     }
 
+    // A Large-base jet generator's down-roll now lands on SmallPlus (upper-small business jets);
+    // regional jets ride within the Large roll itself (they live in the Large+Jet pool). The roll
+    // still never reaches the Small (light-GA) class.
     [Fact]
-    public void Jet_LargeBase_RollsRegionalToHeavy_PluralityLarge_NeverGa()
+    public void Jet_LargeBase_RollsDownToUpperSmall_PluralityLarge_NeverLightGa()
     {
         var rng = new Random(4);
         const int n = 20000;

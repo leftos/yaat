@@ -2359,9 +2359,9 @@ public sealed class SimulationEngine
     /// The weight classes a randomize-weight generator may roll, with their relative shares, bounded to a
     /// band around the generator's configured base weight (aviation-reviewed). Bounding keeps a generator
     /// from feeding a runway an aircraft it can't take — a Small/SmallPlus generator (short runway) never
-    /// rolls a mainline jet, and a Large/Heavy generator never drops below the regional feed:
+    /// rolls a mainline jet, and a Large/Heavy generator never drops below the upper-small tier:
     /// <list type="bullet">
-    /// <item>Small / SmallPlus — {Small, SmallPlus} (light GA + regional feed).</item>
+    /// <item>Small / SmallPlus — {Small, SmallPlus} (light GA + upper-small business jets / commuters).</item>
     /// <item>Large — {SmallPlus, Large, Heavy}.</item>
     /// <item>Heavy — {Large, Heavy}.</item>
     /// </list>
@@ -2372,7 +2372,7 @@ public sealed class SimulationEngine
         {
             WeightClass.Small => [(WeightClass.Small, 0.65), (WeightClass.SmallPlus, 0.35)],
             WeightClass.SmallPlus => [(WeightClass.Small, 0.35), (WeightClass.SmallPlus, 0.65)],
-            WeightClass.Large => [(WeightClass.SmallPlus, 0.25), (WeightClass.Large, 0.65), (WeightClass.Heavy, 0.10)],
+            WeightClass.Large => [(WeightClass.SmallPlus, 0.10), (WeightClass.Large, 0.80), (WeightClass.Heavy, 0.10)],
             WeightClass.Heavy => [(WeightClass.Large, 0.40), (WeightClass.Heavy, 0.60)],
             _ => [(WeightClass.Large, 1.0)],
         };

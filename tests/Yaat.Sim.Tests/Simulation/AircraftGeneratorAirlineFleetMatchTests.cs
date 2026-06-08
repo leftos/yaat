@@ -20,10 +20,12 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
 {
     private const int SamplesPerSeed = 200;
 
+    // SmallPlus+Jet is intentionally absent: that pool is upper-small business jets (Citation
+    // Excel/XLS/Sovereign, Learjets) that no scheduled airline operates, so they spawn under
+    // N-numbers — the airline-fleet-match premise does not apply.
     [Theory]
     [InlineData(WeightClass.Large, EngineKind.Jet)]
     [InlineData(WeightClass.Heavy, EngineKind.Jet)]
-    [InlineData(WeightClass.SmallPlus, EngineKind.Jet)]
     [InlineData(WeightClass.SmallPlus, EngineKind.Turboprop)]
     public void GeneratedTypeIsOperatedByGeneratedAirline(WeightClass weight, EngineKind engine)
     {

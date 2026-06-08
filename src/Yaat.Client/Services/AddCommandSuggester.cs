@@ -61,8 +61,8 @@ internal static class AddCommandSuggester
                     suggestions,
                     maxSuggestions,
                     ("S", "Small — GA/light aircraft"),
-                    ("S+", "SmallPlus — Regional/commuter"),
-                    ("L", "Large — Narrow-body"),
+                    ("S+", "SmallPlus — Upper-small bizjets/commuters"),
+                    ("L", "Large — Narrow-body + regional jets"),
                     ("H", "Heavy — Wide-body")
                 );
                 break;

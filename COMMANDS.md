@@ -1303,11 +1303,11 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 | | Piston (P) | Turboprop (T) | Jet (J) |
 |---|---|---|---|
 | Small (S) | C172, C182, P28A, SR22 | C208, PC12, BE20 | — |
-| SmallPlus (S+) | — | AT72, DH8C, SF34, B190, B350 | CRJ7, E170, E75L, E145, E135 |
-| Large (L) | — | — | B737, B738, B739, A319, A320, A321 |
+| SmallPlus (S+) | — | AT72, DH8C, SF34, B190, B350 | C560, C56X, C680, LJ60, LJ45 |
+| Large (L) | — | — | B737, B738, B739, A319, A320, A321, CRJ7, E170, E75L, E145, E135 |
 | Heavy (H) | — | — | B763, B764, B772, B788, B744, A332, A333 |
 
-SmallPlus is the regional/commuter feed (regional jets and commuter turboprops); Large is mainline narrow-body only.
+Tiers track RECAT CWT category: Small = CWT I (light GA), SmallPlus = CWT H (upper-small business jets and commuter turboprops), Large = mainline narrow-body plus regional jets (CWT F/G), Heavy = wide-body. The SmallPlus turboprop pool keeps the CWT G commuter turboprops because their approach speeds stay short-field appropriate.
 
 IFR aircraft get a random airline callsign (e.g., UAL1234). VFR aircraft get an N-number (e.g., N1234A).
 

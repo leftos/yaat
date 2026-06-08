@@ -9,10 +9,13 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
-/// The SmallPlus weight tier is the regional feed: CWT G regional jets + commuter turboprops
-/// (plus CWT H upper-small) sit between Small and Large, and Large becomes mainline-only. The
-/// pools were aviation-reviewed against OAK 28R (5,448 ft) landing feasibility — CRJ9 is excluded
-/// as marginal and "E175" is spelled "E75L" (the resolvable ICAO/CWT designator).
+/// The arrival-generator weight tiers map to RECAT CWT category: <c>Small</c> = CWT I (lower
+/// small), <c>SmallPlus</c> = CWT H (upper small). The SmallPlus jet pool is upper-small business
+/// jets (Citation Excel/XLS/Sovereign, Learjet 60/45); regional jets (CWT G) live in
+/// <c>Large</c> alongside the mainline narrow-bodies, so they only feed long runways. The
+/// SmallPlus turboprop pool keeps the commuter turboprops (AT72/DH8C/SF34, CWT G) because their
+/// lower landing energy and superior low-speed deceleration keep them short-field appropriate
+/// (e.g. OAK 28R, 5,448 ft) — even SF34, whose approach speed alone matches the regional jets.
 /// </summary>
 public class SmallPlusTierTests
 {
@@ -25,25 +28,45 @@ public class SmallPlusTierTests
     }
 
     [Fact]
-    public void SmallPlusJet_IsRegionalFeed_NeverMainlineOrCrj9()
+    public void SmallPlusJet_IsUpperSmallBizjets_AllCwtH_NoRegionals()
     {
         var pool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Jet);
         Assert.NotNull(pool);
 
-        foreach (var regional in new[] { "CRJ7", "E170", "E75L", "E145", "E135" })
+        foreach (var bizjet in new[] { "C560", "C56X", "C680", "LJ60", "LJ45" })
         {
-            Assert.Contains(regional, pool!);
+            Assert.Contains(bizjet, pool!);
         }
 
-        // Mainline narrowbodies stay in Large; CRJ9 is dropped (marginal on a 5,448 ft runway).
-        foreach (var excluded in new[] { "CRJ9", "A319", "A320", "A321", "B737", "B738", "B739" })
+        // Regional jets are CWT G — they moved to Large. Mainline narrow-bodies stay in Large too.
+        foreach (var excluded in new[] { "CRJ7", "CRJ9", "E170", "E75L", "E145", "E135", "A320", "B738" })
         {
             Assert.DoesNotContain(excluded, pool!);
+        }
+
+        // Every member is CWT H (upper small).
+        foreach (var type in pool!)
+        {
+            Assert.Equal("H", WakeTurbulenceData.GetCwt(type));
         }
     }
 
     [Fact]
-    public void LargeJet_IsMainlineOnly_NoRegionals()
+    public void SmallJet_IsLightBizjets_AllCwtI()
+    {
+        var pool = AircraftGenerator.GetTypesForCombo(WeightClass.Small, EngineKind.Jet);
+        Assert.NotNull(pool);
+
+        // C560 is CWT H — it moved up to SmallPlus; the Small jet pool is CWT I only.
+        Assert.DoesNotContain("C560", pool!);
+        foreach (var type in pool!)
+        {
+            Assert.Equal("I", WakeTurbulenceData.GetCwt(type));
+        }
+    }
+
+    [Fact]
+    public void LargeJet_IncludesMainlineAndRegionals()
     {
         var pool = AircraftGenerator.GetTypesForCombo(WeightClass.Large, EngineKind.Jet);
         Assert.NotNull(pool);
@@ -53,14 +76,14 @@ public class SmallPlusTierTests
             Assert.Contains(mainline, pool!);
         }
 
-        foreach (var regional in new[] { "CRJ7", "CRJ9", "E170", "E145", "E135", "E75L" })
+        foreach (var regional in new[] { "CRJ7", "CRJ9", "E170", "E75L", "E145", "E135" })
         {
-            Assert.DoesNotContain(regional, pool!);
+            Assert.Contains(regional, pool!);
         }
     }
 
     [Fact]
-    public void SmallPlusTurboprop_AbsorbsTheRegionalTurboprops_AndLargeTurbopropBucketIsGone()
+    public void SmallPlusTurboprop_KeepsLowFasCommuters_AndLargeTurbopropBucketIsGone()
     {
         var pool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Turboprop);
         Assert.NotNull(pool);
@@ -69,7 +92,7 @@ public class SmallPlusTierTests
             Assert.Contains(t, pool!);
         }
 
-        // There is no CWT "Large" turboprop — the bucket is removed entirely.
+        // Regional turboprops stay in SmallPlus (low FAS), so no Large turboprop bucket exists.
         Assert.Null(AircraftGenerator.GetTypesForCombo(WeightClass.Large, EngineKind.Turboprop));
     }
 
@@ -78,7 +101,7 @@ public class SmallPlusTierTests
     {
         // Guards the E175-vs-E75L class of bug: AssertEveryTypeResolves checks profile + engine
         // category but not CWT, so a non-resolvable designator would silently be wake-unknown.
-        foreach (var weight in new[] { WeightClass.SmallPlus, WeightClass.Large, WeightClass.Heavy })
+        foreach (var weight in new[] { WeightClass.Small, WeightClass.SmallPlus, WeightClass.Large, WeightClass.Heavy })
         {
             var pool = AircraftGenerator.GetTypesForCombo(weight, EngineKind.Jet);
             if (pool is null)
@@ -120,7 +143,7 @@ public class SmallPlusTierTests
     }
 
     [Fact]
-    public void SmallPlusGenerator_RandomizeOff_SpawnsOnlyRegionalJets()
+    public void SmallPlusGenerator_RandomizeOff_SpawnsOnlyUpperSmallBizjets()
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -143,16 +166,17 @@ public class SmallPlusTierTests
             engine.TickOneSecond();
         }
 
-        var regionalPool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Jet)!;
+        var bizjetPool = AircraftGenerator.GetTypesForCombo(WeightClass.SmallPlus, EngineKind.Jet)!;
         var spawnedTypes = engine.World.GetSnapshot().Select(a => AircraftState.StripTypePrefix(a.AircraftType)).Distinct().ToList();
         Assert.NotEmpty(spawnedTypes);
         foreach (var type in spawnedTypes)
         {
             _output.WriteLine($"spawned {type}");
             Assert.True(
-                regionalPool.Contains(type),
-                $"SmallPlus generator spawned '{type}', which is not in the regional jet pool [{string.Join(", ", regionalPool)}]"
+                bizjetPool.Contains(type),
+                $"SmallPlus generator spawned '{type}', which is not in the upper-small bizjet pool [{string.Join(", ", bizjetPool)}]"
             );
+            Assert.Equal("H", WakeTurbulenceData.GetCwt(type));
         }
     }
 

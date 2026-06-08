@@ -19,6 +19,8 @@
 - On the radar, an aircraft's data-block leader line now draws thicker than its PTL, so the two stay distinguishable when both extend from the target.
 - A pattern-entry command (`EF`, `ERB`, `ELB`, …) issued to an aircraft that is already cleared to land no longer cancels the landing clearance and turns the approach into a touch-and-go. The aircraft stays cleared for a full-stop landing — for example `CLAND` then `EF 28R` then `ERB 28R` now lands rather than touching and climbing away. Use `TG` or `COPT` to clear a touch-and-go or the option.
 - `ER`/`EL` with both a taxiway and `NODEL` (e.g. `ER W5 NODEL`) now applies the auto-delete exemption and the correct named exit, instead of reading `W5 NODEL` as the taxiway name.
+- Arrival generators set to the **SmallPlus** weight category no longer spawn regional jets (CRJ7/CRJ9/E170/E75L/E145/E135) onto short runways such as Oakland's North Field 28R (5,448 ft). SmallPlus now generates upper-small business jets (Citation Excel/XLS/Sovereign, Learjet 60/45) and commuter turboprops; the regional jets now spawn from **Large** generators on the long runways instead (the CRJ900 is back in the mix, since it's no longer competing for a short runway).
+- A randomize-weight **Large** (mainline) arrival generator now spawns mostly airliners — mainline narrow-bodies and regional jets — with only an occasional business jet, instead of about a quarter business jets.
 
 ## v0.7.4-beta [2026/06/06]
 

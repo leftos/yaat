@@ -13,16 +13,24 @@ public static class AircraftGenerator
     /// entry must resolve through both <see cref="AircraftProfileDatabase"/> and
     /// <see cref="AircraftCategorization"/>; <see cref="AssertEveryTypeResolves"/>
     /// enforces this at startup.
+    ///
+    /// The weight tiers track RECAT CWT category: <c>Small</c> = CWT I (lower small),
+    /// <c>SmallPlus</c> = CWT H (upper small — business jets), <c>Large</c> = mainline
+    /// narrow-bodies (CWT F) plus regional jets (CWT G), <c>Heavy</c> = widebodies. The lone
+    /// carve-out is the SmallPlus turboprop pool, which keeps the CWT G commuter turboprops
+    /// (AT72/DH8C/SF34) because their far lower landing energy and superior low-speed
+    /// deceleration (light weight, propeller/beta drag) keep them short-field appropriate —
+    /// even SF34, whose approach speed alone matches the regional jets.
     /// </summary>
     private static readonly Dictionary<(WeightClass, EngineKind), string[]> TypeTable = new()
     {
         [(WeightClass.Small, EngineKind.Piston)] = ["C172", "C182", "P28A", "SR22", "BE36", "C150", "C152"],
         [(WeightClass.Small, EngineKind.Turboprop)] = ["C208", "PC12", "BE20", "P180"],
-        [(WeightClass.Small, EngineKind.Jet)] = ["C25A", "C525", "C500", "C501", "C550", "C560"],
+        [(WeightClass.Small, EngineKind.Jet)] = ["C25A", "C525", "C500", "C501", "C550"],
         [(WeightClass.SmallPlus, EngineKind.Turboprop)] = ["AT72", "DH8C", "SF34", "B190", "B350"],
-        [(WeightClass.SmallPlus, EngineKind.Jet)] = ["CRJ7", "E170", "E75L", "E145", "E135"],
+        [(WeightClass.SmallPlus, EngineKind.Jet)] = ["C560", "C56X", "C680", "LJ60", "LJ45"],
         [(WeightClass.Large, EngineKind.Piston)] = ["AC68", "BE60", "BE58", "C421"],
-        [(WeightClass.Large, EngineKind.Jet)] = ["B737", "B738", "B739", "A319", "A320", "A321"],
+        [(WeightClass.Large, EngineKind.Jet)] = ["B737", "B738", "B739", "A319", "A320", "A321", "CRJ7", "CRJ9", "E170", "E75L", "E145", "E135"],
         [(WeightClass.Heavy, EngineKind.Jet)] = ["A332", "A333", "B763", "B764", "B772", "B788", "B744"],
     };
 

@@ -209,7 +209,7 @@ It does **not** apply to `Parking` (already on a graph node), `OnRunway`/`OnFina
 grammar is `{rules} {weight} {engine} {position…} [type] [*airline]`:
 
 - **rules** — `I`/`IFR` or `V`/`VFR`.
-- **weight** — `S` (small), `S+` (smallplus — regional/commuter feed), `L` (large — mainline narrow-body), `H` (heavy).
+- **weight** — `S` (small — CWT I), `S+` (smallplus — CWT H upper-small bizjets/commuters), `L` (large — mainline narrow-body + regional jets), `H` (heavy).
 - **engine** — `P` (piston), `T` (turboprop), `J` (jet). `ValidateCombo` (`:338`) rejects the four impossible combos
   (Heavy+Piston, Heavy+Turboprop, Small+Jet, SmallPlus+Piston).
 - **position** — index 3 onward, one of five variants (see table below).
@@ -258,11 +258,15 @@ The `@`-prefix disambiguation (`:71`) is the trickiest: `@FIX 5000` (a numeric s
 5. **Position.** Switches on `SpawnPositionType` to the matching `Generate*` method, each of which uses the same
    `AircraftInitializer` / `GlideSlopeGeometry` as the loader.
 
-The `TypeTable` buckets span four weight tiers: `Small` (GA/light), `SmallPlus` (regional jets `CRJ7`/`E170`/`E75L`/`E145`/`E135`
-and commuter turboprops `AT72`/`DH8C`/`SF34`/`B190`/`B350`), `Large` (mainline narrow-body only — `B737`/`A320` family), and
-`Heavy`. SmallPlus has no piston bucket (it falls back to `Small`). The weight↔CWT split matters for wake spacing: a SmallPlus
-follower maps to the coarse `Large` wake class (`SimulationEngine.WakeClassForWeight`), while each spawned type's precise CWT
-still drives ATPA. The `Large+Turboprop` bucket does not exist — there is no CWT "Large" turboprop.
+The `TypeTable` buckets span four weight tiers that track RECAT CWT category: `Small` (CWT I — GA/light and light
+bizjets), `SmallPlus` (CWT H — upper-small business jets `C560`/`C56X`/`C680`/`LJ60`/`LJ45` plus the commuter turboprops
+`AT72`/`DH8C`/`SF34`/`B190`/`B350`), `Large` (mainline narrow-body `B737`/`A320` family **plus** regional jets
+`CRJ7`/`E170`/`E75L`/`E145`/`E135`, CWT F/G), and `Heavy`. SmallPlus has no piston bucket (it falls back to `Small`). The
+SmallPlus turboprop pool deliberately keeps the CWT G commuter turboprops — their far lower landing energy and superior
+low-speed deceleration keep them short-field appropriate (e.g. OAK 28R, 5,448 ft) even where approach speed alone (SF34)
+matches the regional jets — which is why no `Large+Turboprop` bucket exists. The weight↔CWT split matters for wake spacing: a SmallPlus follower still spans weightCode LARGE (those CWT G
+turboprops) and SMALL (CWT H), so it maps to the coarse `Large` wake class (`SimulationEngine.WakeClassForWeight`), while each
+spawned type's precise CWT still drives ATPA.
 
 The bucket↔fleet coupling is validated at startup by `AssertEveryTypeResolves` (`:42`): every `TypeTable` type must resolve
 through both `AircraftProfileDatabase` and `AircraftCategorization` (with the expected category), every **jet** type must resolve
