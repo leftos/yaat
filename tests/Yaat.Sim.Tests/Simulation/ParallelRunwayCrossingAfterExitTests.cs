@@ -377,7 +377,6 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
         output.WriteLine($"{airport} {landing}: holding short of {holding.HoldShort.TargetName} at gs={ac.GroundSpeed:F2}");
         Assert.Contains(parallel, holding.HoldShort.TargetName ?? "");
         Assert.Equal(HoldShortReason.RunwayCrossing, holding.HoldShort.Reason);
-        Assert.True(holding.HoldShort.IsArrivalCrossing, "Synthesized hold-short should be flagged as an arrival crossing");
         Assert.True(ac.GroundSpeed < 1.0, $"Aircraft should be stopped short of {parallel}, gs={ac.GroundSpeed:F2}");
 
         var route = ac.Ground.AssignedTaxiRoute;

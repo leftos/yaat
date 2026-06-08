@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
@@ -55,7 +56,7 @@ public sealed class HoldingShortPhase : Phase
         var speechText =
             _holdShort.Reason == HoldShortReason.ExplicitHoldShort
                 ? PilotResponder.BuildHoldingShortTaxi(ctx.Aircraft, label, taxiway)
-                : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, target);
+                : PilotResponder.BuildHoldingShortCrossing(ctx.Aircraft, ResolveSpokenCrossingRunway(ctx, target));
         PilotResponder.RouteRpoTransmission(ctx.Aircraft, ctx.SoloTrainingMode, ctx.RpoShowPilotSpeech, speechText.Tts, warningText);
 
         // Tail-over-runway (issue #172 W3): the aircraft holds at the taxiway line with its tail still
@@ -72,11 +73,16 @@ public sealed class HoldingShortPhase : Phase
             ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} not clear of RWY {tailRwy.ToDisplayString()} — tail over the hold-short bars");
         }
 
+        // "Ready for departure" is only correct at the aircraft's assigned departure runway
+        // (DestinationRunway). At an intermediate runway the route merely crosses (RunwayCrossing),
+        // the aircraft holds short and awaits a controller-issued crossing clearance — runway
+        // crossings are controller-initiated (AIM 4-3-18.a.5, 7110.65 3-7-2), so the pilot makes no
+        // "ready" call there. The crossing hold is surfaced on the controller-facing warning lane
+        // above instead (issue #194).
         if (
             ctx.SoloTrainingMode
             && !_hasAnnouncedReady
-            && _holdShort.Reason != HoldShortReason.ExplicitHoldShort
-            && !_holdShort.IsArrivalCrossing
+            && _holdShort.Reason == HoldShortReason.DestinationRunway
             && _holdShort.TargetName is { Length: > 0 } runwayId
         )
         {
@@ -93,6 +99,46 @@ public sealed class HoldingShortPhase : Phase
             _hasAnnouncedReady = true;
             ctx.Aircraft.HasMadeInitialContact = true;
         }
+    }
+
+    /// <summary>
+    /// For a runway-crossing hold-short the spoken report names only the single runway end whose
+    /// threshold the aircraft is nearest to (e.g. "runway one five" rather than the combined
+    /// "one five / three three") — the pilot refers to the side it is about to cross. Falls back to
+    /// <paramref name="displayDesignator"/> (the combined form used on the controller-facing warning)
+    /// when the hold-short is not a runway crossing, the runway is single-ended, or nav-data lacks
+    /// the thresholds.
+    /// </summary>
+    private string ResolveSpokenCrossingRunway(PhaseContext ctx, string displayDesignator)
+    {
+        if (
+            _holdShort.Reason != HoldShortReason.RunwayCrossing
+            || ctx.GroundLayout is not { } layout
+            || _holdShort.TargetName is not { Length: > 0 } combined
+        )
+        {
+            return displayDesignator;
+        }
+
+        var runway = RunwayIdentifier.Parse(combined);
+        if (string.Equals(runway.End1, runway.End2, StringComparison.OrdinalIgnoreCase))
+        {
+            return displayDesignator;
+        }
+
+        var db = NavigationDatabase.InstanceOrNull;
+        var end1 = db?.GetRunway(layout.AirportId, runway.End1);
+        var end2 = db?.GetRunway(layout.AirportId, runway.End2);
+        if (end1 is null || end2 is null)
+        {
+            return displayDesignator;
+        }
+
+        var position = ctx.Aircraft.Position;
+        double toEnd1 = GeoMath.DistanceNm(position, new LatLon(end1.ThresholdLatitude, end1.ThresholdLongitude));
+        double toEnd2 = GeoMath.DistanceNm(position, new LatLon(end2.ThresholdLatitude, end2.ThresholdLongitude));
+        string nearestEnd = toEnd1 <= toEnd2 ? runway.End1 : runway.End2;
+        return RunwayIdentifier.ToDisplayDesignator(nearestEnd);
     }
 
     public override bool OnTick(PhaseContext ctx)

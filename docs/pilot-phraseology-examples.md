@@ -254,7 +254,7 @@ Assumes ATIS information Alpha is current at all fields for landing/departing ai
 | Phase | Trigger | Template |
 |---|---|---|
 | `AtParkingPhase` | 5 s after spawn | `"[N696CL] ground, november six niner six charlie lima at the FBO ramp, with information Alpha, ready to taxi."` |
-| `HoldingShortPhase` (RunwayCrossing reason) | `OnStart` | `"[N696CL] tower, november six niner six charlie lima holding short runway two eight right, ready for departure."` |
+| `HoldingShortPhase` (DestinationRunway reason — the assigned departure runway, not an intermediate crossing) | `OnStart` | `"[N696CL] tower, november six niner six charlie lima holding short runway two eight right, ready for departure."` |
 | `LinedUpAndWaitingPhase` | 90 s after entry, no `DepartureClearance` (FAA controller-reassert interval) | `"[N696CL] tower, november six niner six charlie lima runway two eight right, ready."` |
 | `FinalApproachPhase` (spawn-on-final, IFR with active approach) | `OnStart`, gated by `!HasMadeInitialContact` | `"[AAL123] tower, american one twenty three, ILS two eight right."` |
 | `FinalApproachPhase` (spawn-on-final, VFR or no approach) | `OnStart`, gated by `!HasMadeInitialContact` | `"[N696CL] tower, november six niner six charlie lima three-mile final runway two eight right, with information Alpha."` |

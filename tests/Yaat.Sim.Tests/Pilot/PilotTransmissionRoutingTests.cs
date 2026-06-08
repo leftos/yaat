@@ -55,7 +55,7 @@ public class PilotTransmissionRoutingTests
         var hs = new HoldShortPoint
         {
             NodeId = 1,
-            Reason = HoldShortReason.RunwayCrossing,
+            Reason = HoldShortReason.DestinationRunway,
             TargetName = "28R",
         };
         return new HoldingShortPhase(hs);

@@ -504,8 +504,9 @@ public static class PilotResponder
     }
 
     /// <summary>
-    /// Pilot check-in fired by <c>HoldingShortPhase</c> on entry (RunwayCrossing reason only)
-    /// in solo-training mode. Output:
+    /// Pilot check-in fired by <c>HoldingShortPhase</c> on entry (DestinationRunway reason only —
+    /// the aircraft's assigned departure runway, never an intermediate runway crossing) in
+    /// solo-training mode. Output:
     /// <c>"[N123AB] tower, november one two three alpha bravo holding short runway two eight right, ready for departure."</c>
     /// </summary>
     public static PilotSpeechText BuildHoldingShortReady(AircraftState aircraft, string runwayId)

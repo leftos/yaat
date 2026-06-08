@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- In **solo training mode**, an aircraft holding short of a runway it must cross en route to its departure runway no longer reports "ready for departure" — it waits for a crossing clearance, and that call is reserved for the assigned departure runway (e.g. it stays quiet at 15/33 while taxiing to 28R at KOAK).
+- A simulated pilot's spoken hold-short of a crossing runway now names only the nearer runway end — "holding short runway one five" instead of "one five slash three three".
 - Selecting an aircraft on the radar no longer recolors its data block text and leader line to white — they keep the color they have when unselected (green for an on-ground track, the RPO assignment tint, or the student-scope color). The white rectangular border still marks the selected aircraft, and its position symbol still brightens.
 - STARS ghost / "unsupported" tracks no longer appear on the **Ground View** — a ghost track is a STARS-only concept with no surface return, so it does not belong on the surface display. A real aircraft still taxiing that was tagged with a ghost overlay (so it autotracks once airborne) stays visible on the Ground View while it is on the ground; only after it gets airborne does its ghost drop off the Ground View. Phantom data blocks (a STARS flight plan with no aircraft) never show on the Ground View at all.
 - `CTO`/`CTOPP` now reject an unrecognized argument — unknown modifier, bad `DCT`/`TRDCT` fix, or trailing junk — instead of silently clearing a plain runway-heading takeoff.

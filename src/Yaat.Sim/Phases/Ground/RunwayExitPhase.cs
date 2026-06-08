@@ -623,13 +623,6 @@ public sealed class RunwayExitPhase : Phase
 
         var holdShorts = new List<HoldShortPoint>();
         HoldShortAnnotator.AddImplicitRunwayHoldShorts(ctx.GroundLayout, segments, holdShorts);
-        foreach (var hs in holdShorts)
-        {
-            if (hs.Reason == HoldShortReason.RunwayCrossing)
-            {
-                hs.IsArrivalCrossing = true;
-            }
-        }
 
         var route = new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
         double lengthFt =

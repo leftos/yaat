@@ -232,7 +232,6 @@ public sealed class TaxiRoute
                     Longitude = hs.Longitude,
                     Reason = hs.Reason,
                     ClearedByAutoCross = hs.ClearedByAutoCross,
-                    IsArrivalCrossing = hs.IsArrivalCrossing,
                     TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
                 })
                 .ToList(),
@@ -290,7 +289,6 @@ public sealed class TaxiRoute
                         TargetName = hs.RunwayId,
                         IsCleared = hs.IsSatisfied,
                         ClearedByAutoCross = hs.ClearedByAutoCross,
-                        IsArrivalCrossing = hs.IsArrivalCrossing,
                         Latitude = hs.Latitude,
                         Longitude = hs.Longitude,
                         TailOverRunwayNodeId = hs.TailOverRunwayNodeId,
@@ -343,14 +341,6 @@ public sealed class HoldShortPoint
     /// so toggling AutoCross OFF only reverts the clearances it owns.
     /// </summary>
     public bool ClearedByAutoCross { get; set; }
-
-    /// <summary>
-    /// True when this runway-crossing hold-short was synthesized for an arrival that vacated a
-    /// runway between two parallels and is auto-pulling-up to hold short of the parallel (issue
-    /// #175). Suppresses the solo "ready for departure" report — a landed aircraft crossing a
-    /// runway is not a departure.
-    /// </summary>
-    public bool IsArrivalCrossing { get; set; }
 
     /// <summary>
     /// Computed hold-short position. For taxiway hold-shorts, this is offset from the

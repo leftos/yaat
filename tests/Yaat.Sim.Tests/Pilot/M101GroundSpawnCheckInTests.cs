@@ -6,6 +6,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
@@ -291,13 +292,13 @@ public class M101GroundSpawnCheckInTests
     // --- HoldingShortPhase ---
 
     [Fact]
-    public void HoldingShort_RunwayCrossing_FiresPilotCheckIn()
+    public void HoldingShort_DestinationRunway_FiresReadyForDeparture()
     {
         var ac = MakeAircraft();
         var holdShort = new HoldShortPoint
         {
             NodeId = 1,
-            Reason = HoldShortReason.RunwayCrossing,
+            Reason = HoldShortReason.DestinationRunway,
             TargetName = "28R",
         };
         var phase = new HoldingShortPhase(holdShort);
@@ -310,6 +311,29 @@ public class M101GroundSpawnCheckInTests
         Assert.Contains("holding short runway two eight right", pilotLine, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("ready for departure", pilotLine);
         Assert.True(ac.HasMadeInitialContact);
+        Assert.Equal(PilotPendingRequestKind.Takeoff, ac.PendingPilotRequest?.Kind);
+    }
+
+    [Fact]
+    public void HoldingShort_RunwayCrossing_DoesNotReportReadyForDeparture()
+    {
+        // Issue #194: holding short of a runway the route merely crosses is not a departure —
+        // the aircraft awaits a controller-issued crossing clearance and makes no "ready" call.
+        var ac = MakeAircraft();
+        var holdShort = new HoldShortPoint
+        {
+            NodeId = 1,
+            Reason = HoldShortReason.RunwayCrossing,
+            TargetName = "15/33",
+        };
+        var phase = new HoldingShortPhase(holdShort);
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Null(ac.PendingPilotRequest);
+        Assert.False(ac.HasMadeInitialContact);
     }
 
     [Fact]
@@ -342,7 +366,7 @@ public class M101GroundSpawnCheckInTests
             new HoldShortPoint
             {
                 NodeId = 1,
-                Reason = HoldShortReason.RunwayCrossing,
+                Reason = HoldShortReason.DestinationRunway,
                 TargetName = "28L",
             }
         );
@@ -354,7 +378,7 @@ public class M101GroundSpawnCheckInTests
             new HoldShortPoint
             {
                 NodeId = 2,
-                Reason = HoldShortReason.RunwayCrossing,
+                Reason = HoldShortReason.DestinationRunway,
                 TargetName = "28R",
             }
         );
@@ -372,7 +396,7 @@ public class M101GroundSpawnCheckInTests
         var holdShort = new HoldShortPoint
         {
             NodeId = 1,
-            Reason = HoldShortReason.RunwayCrossing,
+            Reason = HoldShortReason.DestinationRunway,
             TargetName = "28R",
         };
         var phase = new HoldingShortPhase(holdShort);
