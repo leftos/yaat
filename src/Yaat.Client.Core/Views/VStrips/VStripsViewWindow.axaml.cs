@@ -1,14 +1,11 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.Views.VStrips;
 
-public partial class VStripsViewWindow : Window
+public partial class VStripsViewWindow : Window, IAlwaysOnTopToggle
 {
     private readonly WindowGeometryHelper _geometryHelper;
-    private Key _alwaysOnTopKey = Key.None;
-    private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.None;
 
     public VStripsViewWindow()
         : this(new UserPreferences()) { }
@@ -48,12 +45,6 @@ public partial class VStripsViewWindow : Window
         {
             _geometryHelper.SetBaseTitle(baseTitle);
         }
-
-        if (KeybindHelper.ParseKeybind(preferences.AlwaysOnTopKey, out var key, out var mods))
-        {
-            _alwaysOnTopKey = key;
-            _alwaysOnTopModifiers = mods;
-        }
     }
 
     /// <summary>
@@ -66,15 +57,5 @@ public partial class VStripsViewWindow : Window
         _geometryHelper.SetBaseTitle(baseTitle);
     }
 
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
-        {
-            _geometryHelper.ToggleTopmost();
-            e.Handled = true;
-            return;
-        }
-
-        base.OnKeyDown(e);
-    }
+    public void ToggleAlwaysOnTop() => _geometryHelper.ToggleTopmost();
 }

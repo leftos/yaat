@@ -162,6 +162,7 @@ Services/
   WindowSystemMenuHelper.cs     # Windows-only: injects "Always on Top" into the title-bar system menu via WM_SYSCOMMAND + SetWindowSubclass
   WindowNativeMenuHelper.cs     # macOS-only: adds "Window → Always on Top" to the menu bar via Avalonia NativeMenu
   KeybindHelper.cs              # Keyboard shortcut resolution
+  IAlwaysOnTopToggle.cs         # Window contract for the central always-on-top hotkey (WindowHotkeys); each window delegates to its WindowGeometryHelper.ToggleTopmost
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames
   GroundColorScheme.cs          # Theme/color scheme for strips
   TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say)
@@ -286,7 +287,7 @@ Views/
   CommandFlyout.cs              # Floating focused command-entry popup opened from aircraft right-click menus (radar/ground/flight list)
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
   HoldShortMenuHelper.cs        # Shared resolver: held runway from the "Holding Short {rwy}" phase, used by ground-map + aircraft-list cross/LUAW menu items
-  FocusInputHotkey.cs           # App-wide class handler: focus-command-input hotkey fires from any YAAT window (MainViewModel pop-outs + Strips/TDLS), routes to the visible CommandInputView
+  WindowHotkeys.cs              # App-wide class handler for window-level hotkeys (focus command input + always-on-top); routes focus to the visible CommandInputView and toggles topmost via IAlwaysOnTopToggle
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
 
 Views/Map/

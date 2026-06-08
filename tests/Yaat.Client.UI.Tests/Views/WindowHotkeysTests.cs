@@ -11,15 +11,15 @@ using Yaat.Client.Views.Radar;
 
 namespace Yaat.Client.UI.Tests.Views;
 
-// Coverage for the centralized "focus command input" hotkey (FocusInputHotkey) and MainWindow's
-// docked-vs-popped focus routing. The hotkey must fire from any working window — not just
-// MainWindow — and focus whichever CommandInputView is currently visible.
-public class FocusInputHotkeyTests
+// Coverage for the centralized window hotkeys (WindowHotkeys): the focus-command-input hotkey must
+// fire from any working window — not just MainWindow — and route to whichever CommandInputView is
+// visible; the always-on-top hotkey must toggle the focused window's topmost via IAlwaysOnTopToggle.
+public class WindowHotkeysTests
 {
     [AvaloniaFact]
     public void FocusKey_FromPopOutWindow_RaisesRequestCommandInputFocus()
     {
-        FocusInputHotkey.EnsureRegistered();
+        WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         // A main-view-model-backed pop-out (Radar) — the default focus key is OemTilde.
         var window = new RadarViewWindow(vm.Preferences) { DataContext = vm };
@@ -36,7 +36,7 @@ public class FocusInputHotkeyTests
     [AvaloniaFact]
     public void FocusKey_FromOutOfScopeWindow_DoesNotRaise()
     {
-        FocusInputHotkey.EnsureRegistered();
+        WindowHotkeys.EnsureRegistered();
         var vm = new MainViewModel(new FakeFilePickerService());
         bool raised = false;
         vm.RequestCommandInputFocus += () => raised = true;
@@ -53,6 +53,22 @@ public class FocusInputHotkeyTests
         window.DispatchKey(Key.OemTilde);
 
         Assert.False(raised);
+    }
+
+    [AvaloniaFact]
+    public void AlwaysOnTopKey_TogglesFocusedPopOutWindowTopmost()
+    {
+        WindowHotkeys.EnsureRegistered();
+        var vm = new MainViewModel(new FakeFilePickerService());
+        // Default always-on-top keybind is Ctrl+Shift+T.
+        var window = new RadarViewWindow(vm.Preferences) { DataContext = vm };
+        window.ShowAndRunLayout();
+
+        Assert.False(window.Topmost);
+
+        window.DispatchKey(Key.T, RawInputModifiers.Control | RawInputModifiers.Shift);
+
+        Assert.True(window.Topmost);
     }
 
     [AvaloniaFact]

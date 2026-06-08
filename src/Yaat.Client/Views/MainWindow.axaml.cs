@@ -25,7 +25,7 @@ using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.Views;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IAlwaysOnTopToggle
 {
     private readonly WindowGeometryHelper _geometryHelper;
     private readonly WindowProfileService _windowProfileService;
@@ -2718,8 +2718,6 @@ public partial class MainWindow : Window
 
     private Key _takeControlKey = Key.T;
     private KeyModifiers _takeControlModifiers = KeyModifiers.Control;
-    private Key _alwaysOnTopKey = Key.T;
-    private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.Control | KeyModifiers.Shift;
     private Key _quickBookmarkKey = Key.B;
     private KeyModifiers _quickBookmarkModifiers = KeyModifiers.Control;
     private Key _pttKey = Key.RightCtrl;
@@ -2772,12 +2770,6 @@ public partial class MainWindow : Window
         {
             _takeControlKey = takeKey;
             _takeControlModifiers = takeMods;
-        }
-
-        if (SettingsViewModel.ParseKeybind(prefs.AlwaysOnTopKey, out var topKey, out var topMods))
-        {
-            _alwaysOnTopKey = topKey;
-            _alwaysOnTopModifiers = topMods;
         }
 
         if (SettingsViewModel.ParseKeybind(prefs.QuickBookmarkKey, out var bmKey, out var bmMods))
@@ -3066,6 +3058,8 @@ public partial class MainWindow : Window
         }
     }
 
+    public void ToggleAlwaysOnTop() => _geometryHelper.ToggleTopmost();
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (
@@ -3076,13 +3070,6 @@ public partial class MainWindow : Window
         )
         {
             _ = takeVm.TakeControlAsync(takeVm.SelectedAircraft.Callsign);
-            e.Handled = true;
-            return;
-        }
-
-        if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
-        {
-            _geometryHelper.ToggleTopmost();
             e.Handled = true;
             return;
         }

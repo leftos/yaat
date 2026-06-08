@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.Views.VTdls;
@@ -10,11 +9,9 @@ namespace Yaat.Client.Views.VTdls;
 /// wrapper). Geometry key carries the facility id so each pop-out remembers
 /// its own size/position across restarts.
 /// </summary>
-public partial class VTdlsViewWindow : Window
+public partial class VTdlsViewWindow : Window, IAlwaysOnTopToggle
 {
     private readonly WindowGeometryHelper _geometryHelper;
-    private Key _alwaysOnTopKey = Key.None;
-    private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.None;
 
     public VTdlsViewWindow()
         : this(new UserPreferences()) { }
@@ -55,26 +52,10 @@ public partial class VTdlsViewWindow : Window
         {
             _geometryHelper.SetBaseTitle(baseTitle);
         }
-
-        if (KeybindHelper.ParseKeybind(preferences.AlwaysOnTopKey, out var key, out var mods))
-        {
-            _alwaysOnTopKey = key;
-            _alwaysOnTopModifiers = mods;
-        }
     }
 
     /// <summary>Updates the popped-out window title when the facility name changes (e.g. the entry switched facilities in place).</summary>
     public void SetWindowTitle(string baseTitle) => _geometryHelper.SetBaseTitle(baseTitle);
 
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
-        {
-            _geometryHelper.ToggleTopmost();
-            e.Handled = true;
-            return;
-        }
-
-        base.OnKeyDown(e);
-    }
+    public void ToggleAlwaysOnTop() => _geometryHelper.ToggleTopmost();
 }
