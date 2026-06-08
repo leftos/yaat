@@ -79,7 +79,24 @@ internal static class PatternCommandHandler
 
         var runway = aircraft.Phases.AssignedRunway;
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        bool touchAndGo = aircraft.Phases.TrafficDirection is not null;
+
+        // The terminal phase of the rebuilt circuit follows the controller's
+        // standing landing clearance, not the transient pattern turn-direction.
+        // A full-stop CLAND must survive a later pattern-entry command
+        // (EF/ERB/ELB/...) — every entry stamps TrafficDirection (below) for
+        // go-around geometry, so reading that field as touch-and-go intent turns
+        // a cleared-to-land aircraft into a touch-and-go on the second entry.
+        // Only an explicit TG/COPT/SG/LA authorizes a non-full-stop terminal.
+        // With no landing clearance, fall back to pattern-work state (closed
+        // traffic via MRT/MLT/CTO defaults to touch-and-go and re-enters; a plain
+        // entry full-stops and auto-goes-around at minimums if never cleared).
+        bool touchAndGo = aircraft.Phases.LandingClearance switch
+        {
+            ClearanceType.ClearedToLand => false,
+            ClearanceType.ClearedForOption or ClearanceType.ClearedTouchAndGo or ClearanceType.ClearedStopAndGo or ClearanceType.ClearedLowApproach =>
+                true,
+            _ => aircraft.Phases.TrafficDirection is not null,
+        };
 
         // EF (Enter Final) doesn't carry an L/R in its verb, so the dispatcher passes
         // null. Defer to the runway's natural pattern direction: 28R with 28L present

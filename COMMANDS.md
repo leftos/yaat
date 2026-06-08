@@ -723,6 +723,8 @@ The `GA` altitude argument uses the same format as CM/DM (see [Altitude Argument
 
 Pattern-entry verbs (`ELD`, `ERD`, `ELB`, `ERB`, `EF`, `ELC`, `ERC`) require the aircraft to be airborne and rejected with feedback otherwise. For closed-traffic departures from the ground, use `CTO MLT 28R` / `CTO MRT 28R` instead, which sets up the pattern as part of takeoff clearance.
 
+A pattern-entry verb re-shapes the approach geometry only — it preserves the aircraft's current landing clearance. An aircraft already cleared to land (`CLAND`) stays cleared for a full stop when re-sequenced; to clear a touch-and-go or the option instead, use `TG` / `COPT` (or `SG` / `LA`).
+
 | Command | Effect |
 |---------|--------|
 | `ELD` / `ERD` | Enter left/right downwind |
