@@ -11,6 +11,7 @@
 - The **focus command input** hotkey (default `` ` ``) now works from any YAAT window while the app is focused — the pop-out Radar, Ground, Aircraft List, Controllers, METAR, Terminal, and Favorites windows, plus the Flight Strips and TDLS windows — instead of only the main window. When the terminal is popped out, the hotkey focuses and brings forward the pop-out terminal's input rather than the hidden main-window input.
 - Generated arrivals to the same runway no longer bunch up on final — a faster arrival behind a slower one is slowed to hold separation until you take the track.
 - An aircraft told to extend its downwind (`EXT`) no longer triggers the midfield-downwind "uncleared" reminder — the pilot stops voicing it in solo training and the matching orange warning stops in RPO mode. Extending the downwind is itself a sequencing instruction, so the reminder was a false positive. Aircraft already cleared (`CLAND`/`COPT`) were already exempt; once an extended aircraft turns base or starts a fresh, uncleared lap the reminder applies again as before.
+- On the radar, an aircraft's data-block leader line now draws thicker than its PTL, so the two stay distinguishable when both extend from the target.
 
 ## v0.7.4-beta [2026/06/06]
 

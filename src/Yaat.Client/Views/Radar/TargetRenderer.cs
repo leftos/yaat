@@ -54,9 +54,11 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
+    // Drawn thicker than the 1px PTL so the line to the data block stays
+    // distinguishable from the predicted-track vector when both emanate from the symbol.
     private readonly SKPaint _leaderPaint = new()
     {
-        StrokeWidth = 1,
+        StrokeWidth = 2,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
     };
