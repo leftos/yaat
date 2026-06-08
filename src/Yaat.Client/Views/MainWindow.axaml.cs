@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     internal RadarViewWindow? RadarViewWindow => _radarViewWindow;
     internal ControllersWindow? ControllersWindow => _controllersWindow;
     internal MetarWindow? MetarWindow => _metarWindow;
+    internal TerminalWindow? TerminalWindow => _terminalWindow;
     private bool _restoringGrid;
     private bool _isConfirmedClose;
     private bool _isMainWindowClosing;
@@ -236,17 +237,12 @@ public partial class MainWindow : Window
             vm.GridLayoutReset += () => ResetLiveGrid(dataGrid);
         }
 
-        // Auto-focus the command input box after a successful speech transcription so the user
-        // can press Enter immediately to send the recognized command. Mirrors the existing
-        // GridLayoutReset → ResetLiveGrid wiring pattern: viewmodel raises a parameterless event,
-        // view forwards to the relevant control via FindControl. The viewmodel checks the
-        // user's AutoFocusInputAfterSpeech preference before raising, so this handler only fires
-        // when the user has opted in.
-        vm.RequestCommandInputFocus += () =>
-        {
-            var cmdView = this.FindControl<CommandInputView>("CommandInputView");
-            cmdView?.FocusCommandInput();
-        };
+        // Focus the command input box on request — after a speech transcription (opt-in) or when
+        // the focus-input hotkey fires from any YAAT window. Routes to whichever CommandInputView
+        // is actually visible: the embedded one when docked, the popped-out TerminalWindow's
+        // otherwise. Mirrors the GridLayoutReset → ResetLiveGrid wiring pattern (viewmodel raises a
+        // parameterless event, view forwards to the relevant control).
+        vm.RequestCommandInputFocus += FocusActiveCommandInput;
 
         vm.PropertyChanged += OnViewModelPropertyChanged;
 
@@ -2720,8 +2716,6 @@ public partial class MainWindow : Window
         _arrivalGeneratorsEditorWindow.Show();
     }
 
-    private Key _focusInputKey = Key.OemTilde;
-    private KeyModifiers _focusInputModifiers = KeyModifiers.None;
     private Key _takeControlKey = Key.T;
     private KeyModifiers _takeControlModifiers = KeyModifiers.Control;
     private Key _alwaysOnTopKey = Key.T;
@@ -2772,12 +2766,6 @@ public partial class MainWindow : Window
         if (cmdView is not null && SettingsViewModel.ParseKeybind(prefs.AircraftSelectKey, out var selKey, out var selMods))
         {
             cmdView.SetAircraftSelectKeybind(selKey, selMods);
-        }
-
-        if (SettingsViewModel.ParseKeybind(prefs.FocusInputKey, out var focusKey, out var focusMods))
-        {
-            _focusInputKey = focusKey;
-            _focusInputModifiers = focusMods;
         }
 
         if (SettingsViewModel.ParseKeybind(prefs.TakeControlKey, out var takeKey, out var takeMods))
@@ -3054,16 +3042,32 @@ public partial class MainWindow : Window
         return IsModifierOnlyKey(_pttKey) || modifiers == _pttModifiers;
     }
 
-    protected override void OnKeyDown(KeyEventArgs e)
+    /// <summary>
+    /// Focuses whichever command input is currently visible: the embedded one in MainWindow when
+    /// the terminal is docked, or the popped-out <see cref="TerminalWindow"/>'s when it isn't.
+    /// Activating the owning window brings it forward so the focused box is on the active surface.
+    /// Wired to <see cref="MainViewModel.RequestCommandInputFocus"/>.
+    /// </summary>
+    private void FocusActiveCommandInput()
     {
-        if (e.Key == _focusInputKey && e.KeyModifiers == _focusInputModifiers)
+        if (DataContext is not MainViewModel vm)
         {
-            var cmdView = this.FindControl<CommandInputView>("CommandInputView");
-            cmdView?.FocusCommandInput();
-            e.Handled = true;
             return;
         }
 
+        if (vm.IsTerminalDocked)
+        {
+            Activate();
+            this.FindControl<CommandInputView>("CommandInputView")?.FocusCommandInput();
+        }
+        else
+        {
+            _terminalWindow?.FocusCommandInput();
+        }
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
         if (
             e.Key == _takeControlKey
             && e.KeyModifiers == _takeControlModifiers

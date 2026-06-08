@@ -44,6 +44,7 @@ internal static class HeadlessWindowExtensions
             Key.Space => PhysicalKey.Space,
             Key.Back => PhysicalKey.Backspace,
             Key.Add => PhysicalKey.NumPadAdd,
+            Key.OemTilde => PhysicalKey.Backquote,
             Key.L => PhysicalKey.L,
             _ => throw new System.ArgumentOutOfRangeException(nameof(key), key, "Add mapping in HeadlessWindowExtensions.ToPhysicalKey"),
         };

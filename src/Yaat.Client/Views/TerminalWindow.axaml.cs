@@ -52,4 +52,15 @@ public partial class TerminalWindow : Window
 
         base.OnKeyDown(e);
     }
+
+    /// <summary>
+    /// Brings this popped-out terminal window forward and focuses its command input. Called by
+    /// MainWindow's focus router when the terminal is popped out (the embedded input in MainWindow
+    /// is hidden in that state).
+    /// </summary>
+    public void FocusCommandInput()
+    {
+        Activate();
+        this.FindControl<CommandInputView>("CommandInputView")?.FocusCommandInput();
+    }
 }

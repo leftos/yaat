@@ -810,13 +810,21 @@ public partial class MainViewModel : ObservableObject
     public event Action? GridLayoutReset;
 
     /// <summary>
-    /// Raised after a successful speech transcription has populated <see cref="CommandText"/>
-    /// and the user has opted in (<see cref="UserPreferences.AutoFocusInputAfterSpeech"/>) to
-    /// having the command input automatically focused. The view subscribes and forwards to
-    /// <c>CommandInputView.FocusCommandInput()</c>; the viewmodel can't reach the control
-    /// directly without breaking MVVM. Mirrors the existing <see cref="GridLayoutReset"/> pattern.
+    /// Raised when the command input should be focused — after a successful speech transcription
+    /// (when the user has opted in via <see cref="UserPreferences.AutoFocusInputAfterSpeech"/>) or
+    /// when the focus-input hotkey fires from any YAAT window. The view subscribes and routes focus
+    /// to whichever <c>CommandInputView</c> is currently visible (docked in MainWindow or the
+    /// popped-out TerminalWindow); the viewmodel can't reach the control directly without breaking
+    /// MVVM. Mirrors the existing <see cref="GridLayoutReset"/> pattern.
     /// </summary>
     public event Action? RequestCommandInputFocus;
+
+    /// <summary>
+    /// Raises <see cref="RequestCommandInputFocus"/> so windows that don't own the command input
+    /// (pop-outs, Strips/TDLS) can trigger focus via the centralized focus-input hotkey. Events can
+    /// only be invoked by their declaring type, so the hotkey handler calls this method.
+    /// </summary>
+    public void FocusCommandInput() => RequestCommandInputFocus?.Invoke();
 
     [ObservableProperty]
     private bool _showCommandEntries = true;

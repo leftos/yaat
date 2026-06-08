@@ -39,6 +39,11 @@ public class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Register the app-wide "focus command input" hotkey so it works from any YAAT window, not
+        // just MainWindow. Idempotent; sits outside the desktop-lifetime block so it also runs under
+        // the headless test host.
+        Yaat.Client.Views.FocusInputHotkey.EnsureRegistered();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
