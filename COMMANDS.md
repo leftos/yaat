@@ -739,7 +739,7 @@ Pattern-entry verbs (`ELD`, `ERD`, `ELB`, `ERB`, `EF`, `ELC`, `ERC`) require the
 | `EXT` / `EXTEND` | Extend current pattern leg (upwind, crosswind, or downwind — not base) |
 | `EXT UPWIND` / `EXT UW` | Extend upwind. If aircraft has just started turning crosswind, cancels the turn and re-establishes the upwind leg. Also accepted before the upwind has begun — during a touch-and-go ground roll, on short final for a planned touch-and-go, or while holding short pre-takeoff — and arms the upcoming upwind so it extends without a second command after liftoff. |
 | `EXT CROSSWIND` / `EXT CW` | Extend crosswind. Rolls the aircraft back from downwind to crosswind if issued one leg late. |
-| `EXT DOWNWIND` / `EXT DW` | Extend downwind. Rolls the aircraft back from base to downwind if issued one leg late. Future-leg targets (e.g. `EXT DW` while still on upwind) and >1-leg rollbacks are rejected. |
+| `EXT DOWNWIND` / `EXT DW` | Extend downwind. Rolls the aircraft back from base to downwind if issued one leg late. Future-leg targets (e.g. `EXT DW` while still on upwind) and >1-leg rollbacks are rejected. While the downwind is extended, the pilot no longer voices the midfield-downwind "uncleared" reminder (and RPO mode no longer shows the matching warning) — extending the leg is itself a sequencing instruction. |
 | `ELC` / `ERC` | Enter left/right crosswind |
 | `ELC 28R` / `ERC 28R` | Enter left/right crosswind, assign runway |
 | `SA` / `MSA` | Make short approach — compress the unflown pattern. Issue while on or before downwind/base; can be chained with `ERD`/`ERB` (e.g. `ERD 28R; SA`) to arm the upcoming leg. |

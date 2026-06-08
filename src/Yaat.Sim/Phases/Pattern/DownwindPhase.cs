@@ -164,13 +164,15 @@ public sealed class DownwindPhase : Phase
         // Midfield downwind broadcast: remind controller if no landing clearance.
         // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
         // RPO mode keeps the controller-facing warning (PendingWarnings).
+        // An extended downwind (EXT) is itself a controller sequencing instruction —
+        // the aircraft is being actively managed, so the "uncleared" nag is suppressed.
         if (!_midfieldBroadcastIssued && !ctx.AutoClearedToLand)
         {
             double midfieldAlongTrack = _abeamAlongTrack / 2.0;
             if (aircraftAlongTrack >= midfieldAlongTrack - AlongTrackToleranceNm)
             {
                 _midfieldBroadcastIssued = true;
-                if (!HasLandingClearance(ctx))
+                if (!HasLandingClearance(ctx) && !IsExtended)
                 {
                     string runwayId = RunwayIdentifier.ToDisplayDesignator(ctx.Runway?.Designator ?? "unknown");
                     if (ctx.SoloTrainingMode && ctx.Aircraft.FlightPlan.IsVfr)

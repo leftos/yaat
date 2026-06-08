@@ -189,7 +189,8 @@ public class M103PatternTrafficCheckInTests
         bool isVfr = true,
         bool soloMode = true,
         bool cleared = false,
-        bool autoClearedToLand = false
+        bool autoClearedToLand = false,
+        bool extended = false
     )
     {
         var wp = DefaultWaypoints();
@@ -202,7 +203,7 @@ public class M103PatternTrafficCheckInTests
             ac.Phases!.LandingClearance = ClearanceType.ClearedToLand;
         }
 
-        var phase = new DownwindPhase { Waypoints = wp };
+        var phase = new DownwindPhase { Waypoints = wp, IsExtended = extended };
         var ctx = Ctx(ac, soloMode: soloMode, autoClearedToLand: autoClearedToLand);
         phase.OnStart(ctx);
         return (phase, ac, ctx);
@@ -257,6 +258,28 @@ public class M103PatternTrafficCheckInTests
     public void Downwind_AutoClearedToLand_FiresNothing()
     {
         var (phase, ac, ctx) = BuildDownwindAtMidfield(autoClearedToLand: true);
+        phase.OnTick(ctx);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void Downwind_ExtendedAtMidfield_SoloVfr_FiresNothing()
+    {
+        // EXT issued (IsExtended) — controller is actively sequencing the aircraft,
+        // so the "uncleared at midfield" reminder is a false positive and must not fire.
+        var (phase, ac, ctx) = BuildDownwindAtMidfield(extended: true);
+        phase.OnTick(ctx);
+
+        Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Empty(ac.PendingWarnings);
+    }
+
+    [Fact]
+    public void Downwind_ExtendedAtMidfield_RpoMode_FiresNothing()
+    {
+        var (phase, ac, ctx) = BuildDownwindAtMidfield(soloMode: false, extended: true);
         phase.OnTick(ctx);
 
         Assert.Empty(ac.PendingPilotTransmissions);
