@@ -223,7 +223,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Speed floor | `SPD 210+` | — | — |
 | Speed ceiling | `SPD 210-` | — | — |
 | Resume normal speed | `RNS` | `NS` | — |
-| Expedite climb/descent (or taxi) | `EXP [alt]` | — | — |
+| Expedite climb/descent (or taxi/runway exit) | `EXP [alt]` | — | — |
 | Resume normal rate | `NORM` | — | — |
 | Reduce to final approach speed | `RFAS` | `FAS` | — |
 | Mach number | `MACH .82` | `M` | — |
@@ -267,9 +267,9 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Clear the runway | `CLRWY` | `CLEARRWY` | — |
 | Hold short | `HS B` | — | — |
 | Assign runway | `RWY 30` | — | — |
-| Exit left | `EL` | `EXITL` | — |
-| Exit right | `ER` | `EXITR` | — |
-| Exit taxiway | `EXIT A3` | — | — |
+| Exit left | `EL` | `EXITL` | `EL W2 EXP` |
+| Exit right | `ER` | `EXITR` | `ER W5 EXP` |
+| Exit taxiway | `EXIT A3` | — | `EXIT A3 EXP` |
 | Follow (ground) | `FOLLOWG SWA123` | `FOLG` | — |
 | Give way | `GIVEWAY SWA123` | `BEHIND`, `GW` | — |
 | Taxi all | `TAXIALL 30` | — | — |
@@ -664,8 +664,10 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `ER` / `EXITR` | Exit runway to the right. Same precondition as `EL`. |
 | `EXIT A3` | Exit runway at taxiway A3. Same precondition as `EL`. |
 | `EL NODEL` / `ER NODEL` / `EXIT A3 NODEL` | Exit with auto-delete exemption |
+| `ER W5 EXP` / `EL EXP` / `EXIT A3 EXP` | Exit **without delay** — clear the runway as fast as possible. Takes the earliest reachable exit (instead of the first comfortable one), braking harder (max-effort) to make it, then brakes firmly to the hold-short stop after the turn-off. High-speed exits keep their higher turn-off speed. `EXP` combines with `NODEL` in any order. |
+| `EXP` (standalone) | On a just-landed aircraft (rolling out or exiting), expedites the runway exit — same behavior as the `EXP` modifier above, without changing the assigned side/taxiway. |
 
-When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a higher rollout speed and only decelerates when kinematically necessary to reach the exit at the correct turn-off speed. High-speed exits (≤45° from runway heading) target ~30 kts; standard 90° exits target ~15 kts. Without an assigned exit, aircraft decelerate uniformly to 20 kts.
+When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a higher rollout speed and only decelerates when kinematically necessary to reach the exit at the correct turn-off speed. High-speed exits (≤45° from runway heading) target ~30 kts; standard 90° exits target ~15 kts. Without an assigned exit, aircraft decelerate uniformly to 20 kts. Adding `EXP` ("without delay") raises the braking limit to a max-effort rate (jet ~7.5 kts/s vs the normal firm 5 kts/s) so the pilot takes the earliest reachable exit and brakes firmly to the hold-short stop — reducing runway occupancy at the cost of a firmer rollout.
 
 #### CTO Departure Modifiers
 
@@ -969,7 +971,7 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 | `SPD 210+` | Speed floor: maintain 210 knots or greater |
 | `SPD 210-` | Speed ceiling: do not exceed 210 knots |
 | `RNS` / `NS` | Resume normal speed: clears speed/floor/ceiling, preserves SID/STAR via mode |
-| `EXP` | Expedite climb/descent: increases vertical rate (approx 1.5x category rate). On the ground with an assigned taxi route, raises the taxi speed cap by ~30% (jet 30→39 kts); cleared by next HOLD/RES/HS |
+| `EXP` | Expedite climb/descent: increases vertical rate (approx 1.5x category rate). On the ground with an assigned taxi route, raises the taxi speed cap by ~30% (jet 30→39 kts); cleared by next HOLD/RES/HS. On a just-landed aircraft (rolling out or exiting), expedites the runway exit instead — earliest reachable exit + max-effort braking (see the exit commands above) |
 | `EXP 50` | Expedite through 5,000 ft, then resume normal rate (requires active altitude assignment) |
 | `NORM` | Resume normal vertical rate: clears expedite and any custom vertical rate |
 | `RFAS` / `FAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts) |

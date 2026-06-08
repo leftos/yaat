@@ -75,6 +75,16 @@ public class AircraftGroundOps
     public bool IsExpeditingTaxi { get; set; }
 
     /// <summary>
+    /// When true, a just-landed aircraft clears the runway as fast as possible:
+    /// LandingPhase brakes at <see cref="CategoryPerformance.ExpediteExitDecelRate"/>
+    /// (vs the firm 5 kts/s) to take the earliest reachable exit, and
+    /// RunwayExitPhase brakes firmly to the hold-short stop after the turn-off.
+    /// Set by <c>EXP</c> (standalone on rollout, or the <c>ER</c>/<c>EL</c>/<c>EXIT</c>
+    /// modifier). Cleared on exit completion and by <c>NORM</c>.
+    /// </summary>
+    public bool IsExpeditingExit { get; set; }
+
+    /// <summary>
     /// Remaining seconds of BREAK conflict override. While positive, the aircraft
     /// ignores ground conflict speed limits imposed by GroundConflictDetector.
     /// </summary>
@@ -195,6 +205,7 @@ public class AircraftGroundOps
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
             IsScriptedDeparture = IsScriptedDeparture,
             IsExpeditingTaxi = IsExpeditingTaxi,
+            IsExpeditingExit = IsExpeditingExit,
             HoldElapsedSeconds = HoldElapsedSeconds,
             StationarySeconds = StationarySeconds,
             HeldForRelease = HeldForRelease,
@@ -222,6 +233,7 @@ public class AircraftGroundOps
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,
             IsScriptedDeparture = dto.IsScriptedDeparture,
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
+            IsExpeditingExit = dto.IsExpeditingExit,
             HoldElapsedSeconds = dto.HoldElapsedSeconds,
             StationarySeconds = dto.StationarySeconds,
             HeldForRelease = dto.HeldForRelease,

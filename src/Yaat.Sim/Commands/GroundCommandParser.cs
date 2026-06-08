@@ -622,21 +622,74 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
-    /// Parses EXIT taxiway [NODEL].
+    /// Parses the argument of an exit command (EL/ER/EXIT) into an optional
+    /// taxiway plus the NODEL/EXP keyword modifiers, accepted in any order. The
+    /// first token that is not a recognized modifier is taken as the taxiway
+    /// name; any further non-modifier token is an error.
+    /// </summary>
+    private static (string? Taxiway, bool NoDelete, bool Expedite, string? Error) ParseExitModifiers(string? arg)
+    {
+        string? taxiway = null;
+        bool noDelete = false;
+        bool expedite = false;
+
+        if (arg is null)
+        {
+            return (null, false, false, null);
+        }
+
+        foreach (var token in arg.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (token.Equals("NODEL", StringComparison.OrdinalIgnoreCase))
+            {
+                noDelete = true;
+            }
+            else if (token.Equals("EXP", StringComparison.OrdinalIgnoreCase))
+            {
+                expedite = true;
+            }
+            else if (taxiway is null)
+            {
+                taxiway = token.ToUpperInvariant();
+            }
+            else
+            {
+                return (null, false, false, $"unexpected token '{token}'");
+            }
+        }
+
+        return (taxiway, noDelete, expedite, null);
+    }
+
+    /// <summary>
+    /// Parses EL [taxiway] [NODEL] [EXP] in any modifier order.
+    /// </summary>
+    internal static PR ParseExitLeft(string? arg)
+    {
+        var (taxiway, noDelete, expedite, error) = ParseExitModifiers(arg);
+        return error is not null ? PR.Fail($"EL: {error}") : PR.Ok(new ExitLeftCommand(noDelete, taxiway, expedite));
+    }
+
+    /// <summary>
+    /// Parses ER [taxiway] [NODEL] [EXP] in any modifier order.
+    /// </summary>
+    internal static PR ParseExitRight(string? arg)
+    {
+        var (taxiway, noDelete, expedite, error) = ParseExitModifiers(arg);
+        return error is not null ? PR.Fail($"ER: {error}") : PR.Ok(new ExitRightCommand(noDelete, taxiway, expedite));
+    }
+
+    /// <summary>
+    /// Parses EXIT taxiway [NODEL] [EXP]. The taxiway is required.
     /// </summary>
     internal static PR ParseExitTaxiway(string arg)
     {
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length == 0)
+        var (taxiway, noDelete, expedite, error) = ParseExitModifiers(arg);
+        if (error is not null)
         {
-            return PR.Fail("EXIT requires a taxiway");
+            return PR.Fail($"EXIT: {error}");
         }
 
-        if (!CommandParser.TryParseNoDeleteFlag(tokens, "EXIT", out var noDelete, out var error))
-        {
-            return PR.Fail(error);
-        }
-
-        return PR.Ok(new ExitTaxiwayCommand(tokens[0].ToUpperInvariant(), noDelete));
+        return taxiway is null ? PR.Fail("EXIT requires a taxiway") : PR.Ok(new ExitTaxiwayCommand(taxiway, noDelete, expedite));
     }
 }

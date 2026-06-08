@@ -62,6 +62,17 @@ The pilot is committed to a specific exit. LandingPhase uses firm braking (up to
 - If the exit is far enough that normal braking would reach coast too early, use a gentler rate (floored at 0.5 kts/s) to avoid a long pointless coast
 - If the exit requires more than firm braking (5 kts/s), broadcast "unable" and replan
 
+### Expedited exits (EXP — "without delay")
+
+`EXP` (the standalone command on a just-landed aircraft, or the `ER`/`EL`/`EXIT` modifier) clears the runway as fast as possible. It sets `AircraftGroundOps.IsExpeditingExit`, which raises the braking limit from the firm 5 kts/s to a category-specific max-effort rate (`CategoryPerformance.ExpediteExitDecelRate` — jet 7.5, turboprop 6.0, piston 5.0, helicopter 4.0 kts/s). The higher limit feeds both `LandingPhase.BrakingLimit` (the exit-reachability filter *and* the braking rate) and `RunwayExitPhase` (via `GroundNavigator.DecelRateKts` for the hold-short stop), so the aircraft:
+
+- **Takes the earliest reachable exit** — the comfort/firm filter that normally skips close exits is relaxed to the max-effort rate, so an exit one or two turnoffs earlier now qualifies.
+- **Brakes harder during rollout** to make that earlier exit.
+- **Keeps the high-speed turn-off speed** — the target is still `min(coastSpeed, turnOffSpeed)`, so a high-speed exit (≈30 kts jet) is taken at speed, not crawled.
+- **Brakes firmly to the hold-short stop** after the turn-off (the navigator uses the same max-effort decel instead of the gentle taxi rate).
+
+The standalone-`EXP` path is keyed on an *active* Landing/RunwayExit phase and resets the cached `LandingPhase` candidate (`ResetExitCandidate`) so the next tick re-resolves at the higher limit; the `ER`/`EL`/`EXIT EXP` modifier form re-resolves via the normal preference-change path. The flag is cleared when the exit completes (`RunwayExitPhase.CompleteExit`) and by `NORM`. Phraseology is **"without delay"** (7110.65 §3-7-2.b.10), not "expedite" — `EXP` is only the keyboard token.
+
 ### Unable and replan
 
 When an exit is missed or unreachable:
@@ -115,6 +126,7 @@ When an aircraft vacates **between two parallel runways** — e.g. lands OAK 28L
 | Constant | Value | Purpose |
 |----------|-------|---------|
 | Firm braking limit | 5.0 kts/s | Max decel for explicit exit commands |
+| Expedite braking rate | jet 7.5 / TP 6.0 / piston 5.0 / helo 4.0 kts/s | Max-effort decel for `EXP` ("without delay") exits |
 | Comfortable multiplier | 1.5x | Default exit: 1.5x rollout decel |
 | Min soft braking | 0.5 kts/s | Floor for gentle decel on far exits |
 | Turn-off tolerance | 3.0 kts | Discrete-tick overshoot margin |

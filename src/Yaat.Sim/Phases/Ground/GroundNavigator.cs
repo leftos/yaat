@@ -142,6 +142,15 @@ public sealed class GroundNavigator
     /// </summary>
     public double MinSpeedKts { get; set; }
 
+    /// <summary>
+    /// Deceleration rate (kts/s) used by the braking curve and backward-propagated
+    /// speed constraints. Null = the category taxi decel rate (normal taxi/exit).
+    /// <see cref="RunwayExitPhase"/> raises it to
+    /// <see cref="CategoryPerformance.ExpediteExitDecelRate"/> for an expedited
+    /// exit so the aircraft brakes firmly to the hold-short stop after the turn-off.
+    /// </summary>
+    public double? DecelRateKts { get; set; }
+
     public void SetTargetNodeId(int nodeId) => TargetNodeId = nodeId;
 
     /// <summary>
@@ -958,7 +967,7 @@ public sealed class GroundNavigator
 
     private double ComputeTargetSpeed(PhaseContext ctx, double distToEndpointNm, Func<int, bool> isHoldShortCleared)
     {
-        double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+        double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
 
         // Brake curve from the current node's required speed.
         double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * distToEndpointNm * 3600.0);
@@ -1083,7 +1092,7 @@ public sealed class GroundNavigator
         }
 
         // Backward propagation: apply kinematic decel between adjacent constraints.
-        double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+        double decelRate = DecelRateKts ?? CategoryPerformance.TaxiDecelRate(ctx.Category);
         for (int i = _speedConstraints.Count - 2; i >= 0; i--)
         {
             var (dist, speed, nodeId) = _speedConstraints[i];
@@ -1242,6 +1251,7 @@ public sealed class GroundNavigator
             PrevDistToTarget = PrevDistToTarget,
             CurrentNodeRequiredSpeed = _currentNodeRequiredSpeed,
             MaxSpeedKts = MaxSpeedKts,
+            DecelRateKts = DecelRateKts,
             NextSegmentBearing = _nextSegmentBearing,
         };
 
@@ -1256,6 +1266,7 @@ public sealed class GroundNavigator
             PrevDistToTarget = dto.PrevDistToTarget,
             _currentNodeRequiredSpeed = dto.CurrentNodeRequiredSpeed,
             MaxSpeedKts = dto.MaxSpeedKts,
+            DecelRateKts = dto.DecelRateKts,
             _nextSegmentBearing = dto.NextSegmentBearing,
         };
 }

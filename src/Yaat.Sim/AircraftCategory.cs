@@ -474,6 +474,26 @@ public static class CategoryPerformance
     /// </summary>
     public const double TaxiExpediteMultiplier = 1.3;
 
+    /// <summary>
+    /// Max-effort braking deceleration (kts/s) used when a runway exit is
+    /// expedited (<c>EXP</c>) — above the firm 5 kts/s used for normal explicit
+    /// exits. Lets LandingPhase take the earliest reachable exit and lets
+    /// RunwayExitPhase brake firmly to the hold-short stop after the turn-off.
+    /// Category-specific (aviation-reviewed): jets have anti-skid / autobrake so
+    /// ~0.39 g is firm-but-normal on dry; lighter types come down to avoid
+    /// modeling a skid (no anti-skid on most pistons), and a helicopter
+    /// running-landing rollout barely wheel-brakes at all.
+    /// </summary>
+    public static double ExpediteExitDecelRate(AircraftCategory cat) =>
+        cat switch
+        {
+            AircraftCategory.Jet => 7.5, // ~0.39 g, autobrake-MAX / firm manual, dry
+            AircraftCategory.Turboprop => 6.0, // ~0.31 g, beta/reverse + brakes, mostly no anti-skid
+            AircraftCategory.Piston => 5.0, // ~0.26 g, controlled hard brake, no anti-skid (avoid skid)
+            AircraftCategory.Helicopter => 4.0, // running-landing rollout; wheel braking barely applies
+            _ => 7.5,
+        };
+
     /// <summary>Pushback speed (knots). All categories reverse at ~5 kts.</summary>
     public static double PushbackSpeed(AircraftCategory cat)
     {

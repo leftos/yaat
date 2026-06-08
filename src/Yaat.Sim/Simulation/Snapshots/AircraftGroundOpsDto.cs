@@ -23,6 +23,7 @@ public sealed class AircraftGroundOpsDto
     public bool InitialCallupDecisionProcessed { get; init; }
     public bool IsScriptedDeparture { get; init; }
     public bool IsExpeditingTaxi { get; init; }
+    public bool IsExpeditingExit { get; init; }
 
     /// <summary>Seconds the current GIVEWAY hold has been active (drives the safety-timeout auto-release).</summary>
     public double HoldElapsedSeconds { get; init; }

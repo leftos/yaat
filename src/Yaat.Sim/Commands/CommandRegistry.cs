@@ -718,7 +718,7 @@ public static class CommandRegistry
                 false,
                 ["EL", "EXITL"],
                 [O(null, [], "Exit runway to the left"), O("Taxiway", [R("taxiway", "taxiway name")], "Exit runway left onto taxiway")],
-                [Mod("NODEL", null, false)]
+                [Mod("NODEL", null, false), Mod("EXP", null, false)]
             ),
             Cmd(
                 ExitRight,
@@ -727,7 +727,7 @@ public static class CommandRegistry
                 false,
                 ["ER", "EXITR"],
                 [O(null, [], "Exit runway to the right"), O("Taxiway", [R("taxiway", "taxiway name")], "Exit runway right onto taxiway")],
-                [Mod("NODEL", null, false)]
+                [Mod("NODEL", null, false), Mod("EXP", null, false)]
             ),
             Cmd(
                 ExitTaxiway,
@@ -736,7 +736,7 @@ public static class CommandRegistry
                 false,
                 ["EXIT"],
                 [O(null, [R("taxiway", "taxiway name")], "Exit onto taxiway")],
-                [Mod("NODEL", null, false)]
+                [Mod("NODEL", null, false), Mod("EXP", null, false)]
             ),
             Cmd(
                 TaxiAll,

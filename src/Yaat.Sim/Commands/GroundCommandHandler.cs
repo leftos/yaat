@@ -1956,7 +1956,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok("Begin takeoff roll");
     }
 
-    internal static CommandResult TryExitCommand(AircraftState aircraft, ExitPreference preference, bool noDelete)
+    internal static CommandResult TryExitCommand(AircraftState aircraft, ExitPreference preference, bool noDelete, bool expedite)
     {
         if (aircraft.Phases is null)
         {
@@ -1966,17 +1966,7 @@ internal static class GroundCommandHandler
         // Require a landing or runway-exit context. EXIT during cruise/enroute
         // would silently store the preference for a landing that may never
         // happen. Real ATC issues EL/ER on short final or during rollout.
-        bool hasLandingOrExit = false;
-        foreach (var phase in aircraft.Phases.Phases)
-        {
-            if (phase is LandingPhase or HelicopterLandingPhase or RunwayExitPhase && phase.Status is PhaseStatus.Pending or PhaseStatus.Active)
-            {
-                hasLandingOrExit = true;
-                break;
-            }
-        }
-
-        if (!hasLandingOrExit)
+        if (!HasLandingOrExitPhase(aircraft, PhaseStatus.Pending))
         {
             return new CommandResult(false, "Exit requires a pending landing or active runway exit");
         }
@@ -1987,6 +1977,12 @@ internal static class GroundCommandHandler
             aircraft.Ground.AutoDeleteExempt = true;
         }
 
+        aircraft.Ground.IsExpeditingExit = expedite;
+
+        // 7110.65 §3-7-2.b.10: the phrase is "without delay" (the word "expedite"
+        // is reserved by §2-1-5 for imminent situations). The EXP token is just a
+        // terse keyboard mnemonic.
+        string expediteText = expedite ? ", without delay" : "";
         if (preference.Taxiway is not null)
         {
             var sideText = preference.Side switch
@@ -1995,9 +1991,35 @@ internal static class GroundCommandHandler
                 ExitSide.Right => "right ",
                 _ => "",
             };
-            return CommandDispatcher.Ok($"Exit {sideText}at {preference.Taxiway}");
+            return CommandDispatcher.Ok($"Exit {sideText}at {preference.Taxiway}{expediteText}");
         }
 
-        return CommandDispatcher.Ok(preference.Side == ExitSide.Left ? "Exit left" : "Exit right");
+        return CommandDispatcher.Ok((preference.Side == ExitSide.Left ? "Exit left" : "Exit right") + expediteText);
+    }
+
+    /// <summary>
+    /// True when the aircraft has a Landing/HelicopterLanding/RunwayExit phase at
+    /// or beyond <paramref name="minStatus"/>. Pass <see cref="PhaseStatus.Pending"/>
+    /// to include short-final landings (EL/ER), or <see cref="PhaseStatus.Active"/>
+    /// to require the aircraft to actually be flaring/rolling-out/exiting (standalone EXP).
+    /// </summary>
+    internal static bool HasLandingOrExitPhase(AircraftState aircraft, PhaseStatus minStatus)
+    {
+        if (aircraft.Phases is null)
+        {
+            return false;
+        }
+
+        foreach (var phase in aircraft.Phases.Phases)
+        {
+            bool statusMatch =
+                minStatus == PhaseStatus.Active ? phase.Status is PhaseStatus.Active : phase.Status is PhaseStatus.Pending or PhaseStatus.Active;
+            if (statusMatch && phase is LandingPhase or HelicopterLandingPhase or RunwayExitPhase)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

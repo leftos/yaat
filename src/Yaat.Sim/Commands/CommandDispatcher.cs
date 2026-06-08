@@ -1700,11 +1700,21 @@ public static class CommandDispatcher
             case GiveWayCommand gw:
                 return GroundCommandHandler.TryGiveWay(aircraft, gw.TargetCallsign);
             case ExitLeftCommand el:
-                return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left, Taxiway = el.Taxiway }, el.NoDelete);
+                return GroundCommandHandler.TryExitCommand(
+                    aircraft,
+                    new ExitPreference { Side = ExitSide.Left, Taxiway = el.Taxiway },
+                    el.NoDelete,
+                    el.Expedite
+                );
             case ExitRightCommand er:
-                return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Right, Taxiway = er.Taxiway }, er.NoDelete);
+                return GroundCommandHandler.TryExitCommand(
+                    aircraft,
+                    new ExitPreference { Side = ExitSide.Right, Taxiway = er.Taxiway },
+                    er.NoDelete,
+                    er.Expedite
+                );
             case ExitTaxiwayCommand et:
-                return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Taxiway = et.Taxiway }, et.NoDelete);
+                return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Taxiway = et.Taxiway }, et.NoDelete, et.Expedite);
 
             case BreakConflictCommand:
                 return GroundCommandHandler.TryBreakConflict(aircraft);

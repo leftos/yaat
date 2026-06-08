@@ -759,10 +759,8 @@ public static class CommandParser
             BreakConflict when arg is null => PR.Ok(new BreakConflictCommand()),
             ClearRunway when arg is null => PR.Ok(new ClearRunwayCommand()),
             CanonicalCommandType.Go when arg is null => PR.Ok(new GoCommand()),
-            ExitLeft when arg is null or "NODEL" => PR.Ok(new ExitLeftCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true)),
-            ExitLeft => PR.Ok(new ExitLeftCommand(false, arg.Trim().ToUpperInvariant())),
-            ExitRight when arg is null or "NODEL" => PR.Ok(new ExitRightCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true)),
-            ExitRight => PR.Ok(new ExitRightCommand(false, arg.Trim().ToUpperInvariant())),
+            ExitLeft => GroundCommandParser.ParseExitLeft(arg),
+            ExitRight => GroundCommandParser.ParseExitRight(arg),
             ExitTaxiway when arg is not null => GroundCommandParser.ParseExitTaxiway(arg),
             // Approach
             ExpectApproach => ParseExpectApproach(arg),

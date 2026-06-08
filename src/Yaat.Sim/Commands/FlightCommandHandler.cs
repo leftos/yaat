@@ -3,6 +3,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Commands;
 
@@ -292,6 +293,28 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyExpedite(ExpediteCommand cmd, AircraftState aircraft)
     {
+        // Runway-exit expedite: a just-landed aircraft (flaring/rolling-out/exiting,
+        // no taxi route yet) clears the runway as fast as possible. Keyed on the
+        // active landing/exit phase so it never hijacks expedite-descent on short
+        // final or expedite-taxi after pushback.
+        if (cmd.UntilAltitude is null && GroundCommandHandler.HasLandingOrExitPhase(aircraft, PhaseStatus.Active))
+        {
+            aircraft.Ground.IsExpeditingExit = true;
+
+            // Drop any cached exit candidate so LandingPhase re-resolves at the
+            // higher braking limit and can take an earlier exit. (The
+            // ER/EL/EXIT EXP form re-resolves via the preference-change path.)
+            foreach (var phase in aircraft.Phases!.Phases)
+            {
+                if (phase is LandingPhase landing)
+                {
+                    landing.ResetExitCandidate();
+                }
+            }
+
+            return CommandDispatcher.Ok("Exit without delay");
+        }
+
         // Ground-context expedite: raise taxi speed cap until next HOLD/RES/HS.
         // Only meaningful with an active taxi route; pushback/parking are out of scope.
         if (aircraft.IsOnGround && cmd.UntilAltitude is null)
@@ -339,6 +362,7 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplyNormalRate(AircraftState aircraft)
     {
         aircraft.Procedure.IsExpediting = false;
+        aircraft.Ground.IsExpeditingExit = false;
         aircraft.Targets.DesiredVerticalRate = null;
         return CommandDispatcher.Ok("Resume normal rate");
     }

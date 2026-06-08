@@ -370,6 +370,7 @@ public sealed class GroundNavigatorDto
     public double PrevDistToTarget { get; init; }
     public double CurrentNodeRequiredSpeed { get; init; }
     public double MaxSpeedKts { get; init; }
+    public double? DecelRateKts { get; init; }
     public double? NextSegmentBearing { get; init; }
     public int TicksNearTarget { get; init; }
 }

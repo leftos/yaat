@@ -140,6 +140,19 @@ public class CommandRegistryTests
         Assert.Contains(def.CompoundModifiers, m => m.Keyword == "NODEL" && m.ArgHint is null);
     }
 
+    [Theory]
+    [InlineData(CanonicalCommandType.ExitLeft)]
+    [InlineData(CanonicalCommandType.ExitRight)]
+    [InlineData(CanonicalCommandType.ExitTaxiway)]
+    public void CompoundModifiers_ExpAndNoDelPresentOnExits(CanonicalCommandType type)
+    {
+        var def = CommandRegistry.Get(type);
+        Assert.NotNull(def);
+        Assert.NotNull(def.CompoundModifiers);
+        Assert.Contains(def.CompoundModifiers, m => m.Keyword == "NODEL" && m.ArgHint is null);
+        Assert.Contains(def.CompoundModifiers, m => m.Keyword == "EXP" && m.ArgHint is null);
+    }
+
     [Fact]
     public void DefaultScheme_MatchesRegistryCount()
     {

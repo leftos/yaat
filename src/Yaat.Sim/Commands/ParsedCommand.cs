@@ -444,11 +444,11 @@ public record ClearRunwayCommand : ParsedCommand;
 public record GoCommand : ParsedCommand;
 
 // Exit commands
-public record ExitLeftCommand(bool NoDelete = false, string? Taxiway = null) : ParsedCommand;
+public record ExitLeftCommand(bool NoDelete = false, string? Taxiway = null, bool Expedite = false) : ParsedCommand;
 
-public record ExitRightCommand(bool NoDelete = false, string? Taxiway = null) : ParsedCommand;
+public record ExitRightCommand(bool NoDelete = false, string? Taxiway = null, bool Expedite = false) : ParsedCommand;
 
-public record ExitTaxiwayCommand(string Taxiway, bool NoDelete = false) : ParsedCommand;
+public record ExitTaxiwayCommand(string Taxiway, bool NoDelete = false, bool Expedite = false) : ParsedCommand;
 
 /// <summary>
 /// A compound command consisting of sequential blocks,

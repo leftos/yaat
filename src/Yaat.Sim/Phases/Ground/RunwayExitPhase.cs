@@ -491,6 +491,13 @@ public sealed class RunwayExitPhase : Phase
 
         _navigator = new GroundNavigator();
         _navigator.MaxSpeedKts = maxSpeed;
+        if (ctx.Aircraft.Ground.IsExpeditingExit)
+        {
+            // Brake firmly to the hold-short stop after the turn-off. Corner-speed
+            // caps still govern the turn itself, so a high-speed exit keeps its speed.
+            _navigator.DecelRateKts = CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        }
+
         _navigator.SetupSegment(_exitRoute, ctx, _ => true);
 
         _state = ExitState.FollowingExitPath;
@@ -545,6 +552,10 @@ public sealed class RunwayExitPhase : Phase
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
+
+        // The runway exit is done — drop the expedite flag so it doesn't bleed
+        // into a subsequent taxi (which has its own EXP).
+        ctx.Aircraft.Ground.IsExpeditingExit = false;
 
         // No position snap — the GroundNavigator already brakes to 0 at the
         // final node (FinalNodeArrivalThresholdNm ≈ 1.8ft). The aircraft is

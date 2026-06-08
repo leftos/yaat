@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- **Expedite a runway exit** — `EXP` on a landing aircraft (`ER EXP`, `ER W5 EXP`, `EL EXP`, `EXIT A3 EXP`, or a bare `EXP` while rolling out) clears the runway fast: takes the earliest reachable exit, brakes harder (jet ~7.5 kts/s vs the normal firm 5) to make it, keeps speed up at high-speed exits, and brakes firmly to the hold-short stop. Combines with `NODEL`; the controller phrase is "exit … without delay".
+
 ### Fixed
 - In **solo training mode**, an aircraft holding short of a runway it must cross en route to its departure runway no longer reports "ready for departure" — it waits for a crossing clearance, and that call is reserved for the assigned departure runway (e.g. it stays quiet at 15/33 while taxiing to 28R at KOAK).
 - A simulated pilot's spoken hold-short of a crossing runway now names only the nearer runway end — "holding short runway one five" instead of "one five slash three three".
@@ -15,6 +18,7 @@
 - An aircraft told to extend its downwind (`EXT`) no longer triggers the midfield-downwind "uncleared" reminder — the pilot stops voicing it in solo training and the matching orange warning stops in RPO mode. Extending the downwind is itself a sequencing instruction, so the reminder was a false positive. Aircraft already cleared (`CLAND`/`COPT`) were already exempt; once an extended aircraft turns base or starts a fresh, uncleared lap the reminder applies again as before.
 - On the radar, an aircraft's data-block leader line now draws thicker than its PTL, so the two stay distinguishable when both extend from the target.
 - A pattern-entry command (`EF`, `ERB`, `ELB`, …) issued to an aircraft that is already cleared to land no longer cancels the landing clearance and turns the approach into a touch-and-go. The aircraft stays cleared for a full-stop landing — for example `CLAND` then `EF 28R` then `ERB 28R` now lands rather than touching and climbing away. Use `TG` or `COPT` to clear a touch-and-go or the option.
+- `ER`/`EL` with both a taxiway and `NODEL` (e.g. `ER W5 NODEL`) now applies the auto-delete exemption and the correct named exit, instead of reading `W5 NODEL` as the taxiway name.
 
 ## v0.7.4-beta [2026/06/06]
 

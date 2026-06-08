@@ -45,7 +45,7 @@
         { "verb": "RNS", "aliases": ["ns"], "description": "Resume normal speed" },
         { "verb": "RFAS", "aliases": ["fas"], "description": "Reduce to final approach speed" },
         { "verb": "DSR", "aliases": [], "description": "Delete speed restrictions" },
-        { "verb": "EXP", "aliases": [], "description": "Expedite [alt] (or taxi if on ground)" },
+        { "verb": "EXP", "aliases": [], "description": "Expedite [alt] (or taxi/runway exit if on ground)" },
         { "verb": "NORM", "aliases": [], "description": "Normal rate" },
         { "verb": "MACH", "aliases": ["m"], "description": "Maintain Mach number" }
       ],
@@ -178,8 +178,8 @@
         { "verb": "RWY", "aliases": [], "description": "Assign runway (TAXI mod avail)" },
         { "verb": "FOLLOWG", "aliases": ["folg"], "description": "Follow traffic (ground)" },
         { "verb": "GIVEWAY", "aliases": ["behind", "gw"], "description": "Give way to traffic" },
-        { "verb": "EL / ER", "aliases": ["exitl", "exitr"], "description": "Exit runway L/R [twy] (NODEL)" },
-        { "verb": "EXIT", "aliases": [], "description": "Exit onto taxiway (NODEL)" },
+        { "verb": "EL / ER", "aliases": ["exitl", "exitr"], "description": "Exit runway L/R [twy] (NODEL/EXP); EXP = without delay, earliest exit" },
+        { "verb": "EXIT", "aliases": [], "description": "Exit onto taxiway (NODEL/EXP)" },
         { "verb": "TAXIALL", "aliases": [], "description": "Taxi all to destination", "global": true },
         { "verb": "BREAK", "aliases": [], "description": "Break conflict" }
       ],

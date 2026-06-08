@@ -666,7 +666,7 @@ public sealed class LandingPhase : Phase
             if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed))
             {
                 double requiredDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, _candidateExit.TurnOffSpeed, distToBranch);
-                double brakingLimit = _exitResolutionEnabled ? FirmBrakingRateKtsPerSec : plan.DefaultDecel * ComfortableBrakingMultiplier;
+                double brakingLimit = BrakingLimit(ctx, plan);
 
                 if (requiredDecel <= brakingLimit)
                 {
@@ -977,7 +977,7 @@ public sealed class LandingPhase : Phase
             // comfortably. Skipping uncomfortable candidates lets the planner
             // commit to a reachable downstream exit (e.g. a high-speed at ~45°)
             // and brake decisively for it.
-            double comfortLimit = _exitResolutionEnabled ? FirmBrakingRateKtsPerSec : plan.DefaultDecel * ComfortableBrakingMultiplier;
+            double comfortLimit = BrakingLimit(ctx, plan);
 
             var found = TryFindCandidate(ctx, plan, rwyDesignator, searchPref, sidePref, excludeHoldShortNodes, comfortLimit);
 
@@ -1108,6 +1108,32 @@ public sealed class LandingPhase : Phase
             BranchPointNode = branch,
         };
     }
+
+    /// <summary>
+    /// Max deceleration the pilot will use, both as the exit-reachability filter
+    /// (which exits qualify) and the actual braking rate to make a chosen exit.
+    /// Expedited exits (<c>EXP</c>) brake at the max-effort rate so the earliest
+    /// reachable exit qualifies; otherwise firm braking for explicit exits and
+    /// comfortable braking for default selection.
+    /// </summary>
+    private double BrakingLimit(PhaseContext ctx, LandingPlan plan)
+    {
+        if (ctx.Aircraft.Ground.IsExpeditingExit)
+        {
+            return CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
+        }
+
+        return _exitResolutionEnabled ? FirmBrakingRateKtsPerSec : plan.DefaultDecel * ComfortableBrakingMultiplier;
+    }
+
+    /// <summary>
+    /// Drop the cached exit candidate so the next tick re-resolves it. Called when
+    /// a standalone <c>EXP</c> raises the braking limit mid-rollout — the
+    /// previously-chosen comfortable exit may now be beaten by an earlier one the
+    /// aircraft can reach with max-effort braking. (The <c>ER</c>/<c>EL</c>/<c>EXIT</c>
+    /// modifier form already re-resolves via the preference-change path.)
+    /// </summary>
+    internal void ResetExitCandidate() => _candidateExit = null;
 
     /// <summary>
     /// Compute required deceleration (kts/sec) to go from current ground speed to target speed

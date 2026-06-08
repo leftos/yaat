@@ -1778,7 +1778,7 @@ public class GroundCommandHandlerTests
         ac.IsOnGround = false;
         ac.Phases = new PhaseList();
 
-        var result = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Right }, noDelete: false);
+        var result = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Right }, noDelete: false, expedite: false);
 
         Assert.False(result.Success);
         Assert.Null(ac.Phases.RequestedExit);
@@ -1795,7 +1795,12 @@ public class GroundCommandHandlerTests
         ac.Phases = new PhaseList();
         ac.Phases.Add(new LandingPhase());
 
-        var result = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Right, Taxiway = "D" }, noDelete: false);
+        var result = GroundCommandHandler.TryExitCommand(
+            ac,
+            new ExitPreference { Side = ExitSide.Right, Taxiway = "D" },
+            noDelete: false,
+            expedite: false
+        );
 
         Assert.True(result.Success);
         Assert.NotNull(ac.Phases.RequestedExit);
@@ -1810,7 +1815,7 @@ public class GroundCommandHandlerTests
         ac.Phases = new PhaseList();
         ac.Phases.Add(new RunwayExitPhase());
 
-        var result = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Left }, noDelete: false);
+        var result = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Left }, noDelete: false, expedite: false);
 
         Assert.True(result.Success);
         Assert.Equal(ExitSide.Left, ac.Phases.RequestedExit?.Side);

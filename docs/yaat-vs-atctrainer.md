@@ -401,6 +401,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 | High-speed exit speed | Not documented | ~30 kts (≤45° angle from runway heading) |
 | Standard exit speed | Not documented | ~15 kts (>45° angle, e.g. 90° turn) |
 | No exit assigned | Uniform deceleration | Uniform deceleration to 20 kts (same) |
+| Expedited exit (`EXP` / "without delay") | Not documented | YAAT-only — earliest reachable exit + max-effort braking (jet ~7.5 kts/s) + firm hold-short stop |
 
 ### Ground Operations
 
