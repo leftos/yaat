@@ -158,9 +158,11 @@ aircraft 180° in the orbit direction. The hold is **silent** — it does not br
 (Issue #154). `OnTick` completes (returns `true`) when either `GateSatisfied` is met or
 `HeldVolumeCanStillBeEntered` becomes false (the held shelf is no longer vertically relevant, using a 60 s
 `AirspaceDatabase.ProjectAltitude` band check). On completion `OnEnd` **restores the original route/heading
-only if the controller has not since assigned an explicit magnetic heading**, and restores the original speed
-only if there is no explicit speed command. `CanAcceptCommand` returns `Allowed` for every command (the hold
-never rejects controller input). See [phases.md](phases.md) for the phase lifecycle, `ManagesSpeed`
+only if the controller has not since assigned an explicit magnetic heading and has not added a new
+navigation route** (a non-empty `NavigationRoute` at `OnEnd` means a `DCT`/direct command was issued during
+the hold, which must survive the release), and restores the original speed only if there is no explicit
+speed command. `CanAcceptCommand` returns `Allowed` for every command (the hold never rejects controller
+input). See [phases.md](phases.md) for the phase lifecycle, `ManagesSpeed`
 contagion, and the snapshot contract; see
 [plans/pilot-ai-self-training/m10.1.5-vfr-airspace-respect.md](plans/pilot-ai-self-training/m10.1.5-vfr-airspace-respect.md)
 for milestone history.
@@ -179,6 +181,16 @@ boolean gate flags on `AircraftState`:
 These flags live on `AircraftState` (`IsClearedIntoBravo` at `AircraftState.cs:219`,
 `HasControllerAcknowledgedInitialContact` at `:169`, `HasMadeInitialContact` at `:162`) and are
 snapshot-serialized so replays preserve gate state.
+
+`HasControllerAcknowledgedInitialContact` is set whenever the student issues a successful command
+(`RoomEngine.SendCommandAsync`, mirrored in `SimulationEngine.SendCommand`). `HasMadeInitialContact` is
+normally set by the AI pilot's proactive check-in, but that check-in is suppressed when the pilot cannot
+initiate contact with the student (`PilotInitialContactEligibility.CanInitiateWithStudent` — track owned by
+another position with no handoff inbound, e.g. an S2 tower scenario whose arrivals stay with approach). In
+that case the AI pilot would never speak first, so a student command also marks `HasMadeInitialContact`:
+both call sites route through `PilotInitialContactEligibility.RegisterControllerContact(aircraft, scenario)`,
+which sets the pilot side only when `CanInitiateWithStudent` is false. This is what lets the Charlie gate
+clear when a tower student directs an approach-owned VFR arrival into the Class C.
 
 ## Consumer 2: separation-minima selection
 

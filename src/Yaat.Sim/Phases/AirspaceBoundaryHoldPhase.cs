@@ -137,7 +137,10 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             return;
         }
 
-        if (ctx.Targets.AssignedMagneticHeading is null)
+        // OnStart cleared the route and the hold never repopulates it, so a non-empty route here means
+        // the controller issued a direct/navigation command during the hold — preserve it rather than
+        // reverting to the pre-hold route. Likewise an assigned heading means the controller vectored.
+        if (ctx.Targets.AssignedMagneticHeading is null && ctx.Targets.NavigationRoute.Count == 0)
         {
             ctx.Targets.NavigationRoute.Clear();
             foreach (var target in _originalRoute)

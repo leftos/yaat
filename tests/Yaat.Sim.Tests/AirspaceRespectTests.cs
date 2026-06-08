@@ -239,6 +239,68 @@ public sealed class AirspaceRespectTests
         Assert.True(ac.HasControllerAcknowledgedInitialContact);
     }
 
+    [Fact]
+    public void AirspaceBoundaryHoldPhase_OnEnd_PreservesDirectIssuedDuringHold()
+    {
+        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 120);
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "OAK", Position = new LatLon(37.7213, -122.2208) });
+        var phase = new AirspaceBoundaryHoldPhase
+        {
+            AirspaceClass = AirspaceClass.Charlie,
+            Ident = "OAK",
+            ReferencePosition = new LatLon(37.7213, -122.2208),
+            OrbitDirection = TurnDirection.Right,
+        };
+        var ctx = BoundaryHoldContext(ac);
+
+        phase.OnStart(ctx);
+
+        // Controller issues a direct to a fix inside the airspace while the aircraft is held.
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "VPCBT", Position = new LatLon(37.7197, -122.1064) });
+        ac.Targets.AssignedMagneticHeading = null;
+
+        phase.OnEnd(ctx, PhaseStatus.Completed);
+
+        var target = Assert.Single(ac.Targets.NavigationRoute);
+        Assert.Equal("VPCBT", target.Name);
+    }
+
+    [Fact]
+    public void AirspaceBoundaryHoldPhase_OnEnd_RestoresOriginalRouteWhenControllerGaveNoLateralCommand()
+    {
+        var ac = CreateAirborneVfr(new LatLon(37.7213, -122.4200), heading: 90, altitude: 2000, speed: 120);
+        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "OAK", Position = new LatLon(37.7213, -122.2208) });
+        var phase = new AirspaceBoundaryHoldPhase
+        {
+            AirspaceClass = AirspaceClass.Charlie,
+            Ident = "OAK",
+            ReferencePosition = new LatLon(37.7213, -122.2208),
+            OrbitDirection = TurnDirection.Right,
+        };
+        var ctx = BoundaryHoldContext(ac);
+
+        phase.OnStart(ctx);
+        // No controller lateral command during the hold.
+        ac.Targets.AssignedMagneticHeading = null;
+
+        phase.OnEnd(ctx, PhaseStatus.Completed);
+
+        var target = Assert.Single(ac.Targets.NavigationRoute);
+        Assert.Equal("OAK", target.Name);
+    }
+
+    private static PhaseContext BoundaryHoldContext(AircraftState ac) =>
+        new()
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategorization.Categorize(ac.AircraftType),
+            DeltaSeconds = 1.0,
+            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+            SoloTrainingMode = true,
+            StudentPositionType = "APP",
+        };
+
     private static AircraftState CreateAirborneVfr(LatLon position, double heading, double altitude, double speed) =>
         new()
         {

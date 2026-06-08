@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- In **solo training mode**, a VFR arrival worked by approach but never handed off to a tower student (as in the OAK VFR-sequencing scenarios) no longer orbits outside Class B/C airspace indefinitely. Any instruction you give it — a direct, a vector, an approach clearance — now counts as establishing two-way communication, so it stops holding and enters the airspace. Previously only a pattern-entry command got them in.
+- A direct (`DCT`) issued to an aircraft while it is holding outside Class B/C airspace is now honored once the hold releases — the aircraft proceeds to the fix you named instead of snapping back to its original route.
+
 ## v0.7.5-beta [2026/06/07]
 
 ### Highlights

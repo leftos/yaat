@@ -28,6 +28,28 @@ public static class PilotInitialContactEligibility
             )
         );
 
+    /// <summary>
+    /// Records that the controller has spoken to <paramref name="aircraft"/>. Always marks the
+    /// controller side of two-way comms. When the pilot can never proactively check in with the
+    /// student — the track is owned by another position with no handoff inbound, e.g. a tower student
+    /// whose arrivals stay with approach — the controller's own instruction is what establishes
+    /// two-way comms, so the pilot side is marked too. This lets the Class B/C boundary-hold gate
+    /// clear in scenarios where the AI pilot would otherwise never speak to the student.
+    /// </summary>
+    public static void RegisterControllerContact(AircraftState aircraft, SimScenarioState? scenario)
+    {
+        aircraft.HasControllerAcknowledgedInitialContact = true;
+        if (scenario is null || aircraft.HasMadeInitialContact)
+        {
+            return;
+        }
+
+        if (!CanInitiateWithStudent(aircraft, scenario))
+        {
+            aircraft.HasMadeInitialContact = true;
+        }
+    }
+
     public static bool CanInitiateWithStudent(AircraftState aircraft, InitialContactEligibilityContext context)
     {
         if (context.StudentPosition is not { } studentPosition)
