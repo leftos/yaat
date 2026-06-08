@@ -550,8 +550,8 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `TAXI #42 #18 #95` | Taxi via exact node IDs (used by draw route; see Ground View debug overlay) |
 | `TAXI A #42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |
 | `TAXI >A B <C D` | Taxi via A, B, C, D with turn-direction hints: right onto A, left onto C (the `>`/`<` glyph biases which way the aircraft turns onto that taxiway) |
-| `HOLD` / `HP` | Hold position (stop wherever on the ground) |
-| `RES` / `RESUME` | Resume taxi after HOLD or release a runway hold-short (explicit or crossing). Does not apply at the destination runway hold — use CTO or LUAW. |
+| `HOLD` / `HP` | Hold position — stop wherever on the ground. While the aircraft is taxiing into position after `LUAW`, it stops where it is instead of continuing onto the centerline; resume the line-up with `LUAW` or `CTO` (not `RES`). Rejected once the takeoff roll has begun — use `CTOC` to cancel the takeoff clearance. |
+| `RES` / `RESUME` | Resume taxi after HOLD or release a runway hold-short (explicit or crossing). Does not apply at the destination runway hold, or to an aircraft held while lining up — use CTO or LUAW. |
 | `RES CROSS 28R 28L` | Resume taxi AND pre-clear listed crossings on the rest of the route (unordered set). Hold-shorts for any runway NOT in the list still stop the aircraft until a fresh CROSS. Fails the whole command if a listed runway has no matching upcoming crossing, or if it appears only as the destination runway. |
 | `RES HS 20` / `RES HS B` | Resume taxi AND add a hold-short further on the route. Runway targets promote an existing crossing to explicit (survives AutoCross); taxiway targets add a new hold-short at the first matching intersection. Fails the whole command if the target doesn't appear anywhere on the upcoming route. |
 | `RES CROSS 28R 28L HS 20` | Combine both modifiers in one command. CROSS and HS are independent and can appear in either order. |

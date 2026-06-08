@@ -22,6 +22,7 @@
 - Arrival generators set to the **SmallPlus** weight category no longer spawn regional jets (CRJ7/CRJ9/E170/E75L/E145/E135) onto short runways such as Oakland's North Field 28R (5,448 ft). SmallPlus now generates upper-small business jets (Citation Excel/XLS/Sovereign, Learjet 60/45) and commuter turboprops; the regional jets now spawn from **Large** generators on the long runways instead (the CRJ900 is back in the mix, since it's no longer competing for a short runway).
 - A randomize-weight **Large** (mainline) arrival generator now spawns mostly airliners — mainline narrow-bodies and regional jets — with only an occasional business jet, instead of about a quarter business jets.
 - A speed command (`RFAS`, `RNS`, `DSR`, `SPD`, or a Mach change) no longer cancels an in-progress 360/270 turn, S-turns, holding pattern, procedure turn, approach intercept, or VFR hold — it adjusts speed while the maneuver keeps running.
+- `HOLD` (hold position) now stops an aircraft that is taxiing onto the runway after `LUAW`. Previously the aircraft ignored the hold and continued onto the centerline; now it stops where it is and stays lined up. Resume the line-up with `LUAW` or `CTO` (a plain `RES` no longer applies). `HOLD` issued once the takeoff roll has begun is rejected, with a reminder to use `CTOC` to cancel the takeoff clearance.
 
 ## v0.7.4-beta [2026/06/06]
 

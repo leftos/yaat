@@ -134,6 +134,14 @@ internal static class DepartureClearanceHandler
             return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, logger);
         }
 
+        // Re-issuing LUAW to an aircraft held mid-line-up (via HOLD) lifts the hold so the
+        // line-up resumes; it is still a line-up-and-wait, so it stops at the centerline.
+        if (currentPhase is LineUpPhase heldLineup && clearanceType == ClearanceType.LineUpAndWait && heldLineup.HoldPosition)
+        {
+            heldLineup.HoldPosition = false;
+            return BuildDepartureMessage(clearanceType, aircraft.Phases?.AssignedRunway?.Designator ?? "unknown", departure, assignedAltitude);
+        }
+
         // Aircraft holding in position (e.g. after WARPG) — allow LUAW/CTO with assigned runway
         if (currentPhase is HoldingInPositionPhase)
         {

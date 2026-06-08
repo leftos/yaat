@@ -131,12 +131,13 @@ public sealed class LineUpPhase : Phase
     public bool RollingMode { get; internal set; }
 
     /// <summary>
-    /// Set by <see cref="DepartureClearanceHandler.TryCancelTakeoff"/> (CTOC) while the
-    /// aircraft is mid-line-up. When true the aircraft stops at its current position and
-    /// holds (does not continue onto the runway centerline, does not complete the phase),
-    /// per 7110.65 §3-9-11 — cancelling a takeoff clearance means hold position, not
-    /// line-up-and-wait. Cleared when a fresh takeoff clearance re-clears the aircraft
-    /// (<see cref="DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance"/>).
+    /// Hold-in-position freeze. Set either by <see cref="DepartureClearanceHandler.TryCancelTakeoff"/>
+    /// (CTOC, per 7110.65 §3-9-11 — cancelling a takeoff clearance means hold position) or by a
+    /// HOLD command issued mid-line-up (<see cref="GroundCommandHandler.TryHoldPosition"/>). When
+    /// true the aircraft stops at its current position and holds — it does not continue onto the
+    /// runway centerline and does not complete the phase. Cleared when a fresh takeoff clearance
+    /// re-clears the aircraft (<see cref="DepartureClearanceHandler.SatisfyUpcomingTakeoffClearance"/>)
+    /// or a re-issued LUAW lifts the hold. RES does not clear it.
     /// </summary>
     public bool HoldPosition { get; internal set; }
 

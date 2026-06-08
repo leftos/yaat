@@ -1036,6 +1036,25 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Hold position requires aircraft on the ground");
         }
 
+        var phase = aircraft.Phases?.CurrentPhase;
+
+        // On the takeoff roll the aircraft is committed; hold position does not apply.
+        // Cancelling the takeoff clearance (CTOC) is the way to stop it (7110.65 3-9-11).
+        if (phase is TakeoffPhase or HelicopterTakeoffPhase)
+        {
+            return new CommandResult(false, $"{aircraft.Callsign} is on the takeoff roll — CTOC to cancel takeoff clearance");
+        }
+
+        // Lining up onto the runway: hold position where we are rather than continuing
+        // onto the centerline. This reuses LineUpPhase's hold-in-position freeze (cleared
+        // by a fresh CTO or a re-issued LUAW, not RES) instead of Ground.Hold.
+        if (phase is LineUpPhase lineup)
+        {
+            lineup.HoldPosition = true;
+            aircraft.Ground.IsExpeditingTaxi = false;
+            return CommandDispatcher.Ok(BuildHoldMessage(aircraft));
+        }
+
         aircraft.Ground.Hold = HoldDirective.HoldPosition;
         aircraft.Ground.IsExpeditingTaxi = false;
         return CommandDispatcher.Ok(BuildHoldMessage(aircraft));
