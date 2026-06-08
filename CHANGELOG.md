@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.5-beta [2026/06/07]
+
+### Highlights
+- **Expedite a runway exit** — `EXP` makes a landing aircraft take the earliest exit and brake hard to clear the runway as fast as possible.
+- **`HOLD` now stops an aircraft lining up after `LUAW`** — it stops where it is and stays lined up instead of rolling onto the centerline.
+- **Speed commands no longer cancel a turn, hold, or approach in progress** — adjusting speed during a 360, S-turns, a holding pattern, or an approach intercept keeps the maneuver running.
+- **A pattern-entry command after `CLAND` keeps the landing clearance** — `EF`/`ERB` and friends no longer turn a cleared full-stop into a touch-and-go.
 
 ### Added
 - **Expedite a runway exit** — `EXP` on a landing aircraft (`ER EXP`, `ER W5 EXP`, `EL EXP`, `EXIT A3 EXP`, or a bare `EXP` while rolling out) clears the runway fast: takes the earliest reachable exit, brakes harder (jet ~7.5 kts/s vs the normal firm 5) to make it, keeps speed up at high-speed exits, and brakes firmly to the hold-short stop. Combines with `NODEL`; the controller phrase is "exit … without delay".
