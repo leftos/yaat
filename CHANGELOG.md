@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Saving a bug report bundle from a **solo training** session is fast again — a 90-second solo session that took over a minute and a half to save now saves in well under a second. Generating the recording's embedded replay snapshots re-runs the whole session, and solo mode's per-tick airspace-boundary and separation checks were scanning the entire national Class B/C airspace database (≈500 volumes) for every aircraft on every tick. The same per-tick work also slowed live solo sessions; both are fixed.
+
 ## v0.7.6-beta [2026/06/08]
 
 ### Fixed

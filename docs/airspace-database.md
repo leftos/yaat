@@ -95,10 +95,20 @@ Rings with fewer than 4 points are discarded. A feature whose rings all drop out
 - `ContainsAltitude(alt)` = `alt >= LowerFtMsl && alt <= UpperFtMsl` (inclusive both ends).
 - `ContainsLateral(position)` = `PointInRing` true for **any** ring (rings OR-combine).
 
-`PointInRing` (`AirspaceVolume.cs:78`) is a standard even-odd ray-cast in `(Lat, Lon)` space, returning
+`PointInRing` (`AirspaceVolume.cs`) is a standard even-odd ray-cast in `(Lat, Lon)` space, returning
 `false` for any ring with fewer than 3 points. `FindLateralIntersections(from, to)` walks each ring's edges
 and calls `GeoMath.SegmentsIntersect(from, to, a, b, excludeEndpoints: false)`, yielding each hit point —
 this is the lateral-crossing input to projected-entry detection.
+
+**Bounding-box pre-filter (hot path).** Each `AirspaceVolume` caches its rings' axis-aligned `(Lat, Lon)`
+bounding box (computed once when `Rings` is assigned). `ContainsLateral` and `FindLateralIntersections`
+reject in O(1) when the point / segment lies entirely outside that box *before* walking any ring vertices.
+The box is a superset of the polygon in the same planar space as the exact test, so results are identical —
+it only skips provably-outside work. This matters because `Default` is the **national** Class B/C set (≈500
+volumes / ≈665k vertices) and the solo-training per-tick paths (`FindFirstProjectedEntry` per VFR aircraft,
+`FindContaining` per aircraft pair) sweep every volume; without the bbox reject each sweep is a six-figure
+point-in-polygon walk. Never iterate `Volumes` with a raw `PointInRing`/segment test in a per-tick loop —
+go through `Contains` / `FindLateralIntersections` so the pre-filter applies.
 
 ## Projected-entry detection — `FindFirstProjectedEntry`
 

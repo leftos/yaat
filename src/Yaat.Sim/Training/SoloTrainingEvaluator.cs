@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -69,6 +70,10 @@ public sealed record SoloTrainingServiceContext(InitialContactEligibilityContext
 
 public sealed class SoloTrainingEvaluator
 {
+    // Largest horizontal minimum any pair can require (terminal radar, 7110.65 §5-5-4). Class B (1.5),
+    // Class B/C target resolution (0.25), and the advisory threshold are all smaller. PairTooFarToInteract's
+    // broad-phase reject assumes this is the max value ResolveRequirement can return — if solo scenarios ever
+    // extend to en-route 5 NM separation, raise this constant and the broad-phase bound together.
     private const double TerminalRadarHorizontalNm = 3.0;
     private const double IfrVerticalFt = 1000.0;
     private const double ClassBHeavyOrTurbojetHorizontalNm = 1.5;
@@ -86,6 +91,26 @@ public sealed class SoloTrainingEvaluator
     private readonly List<WakeAdvisoryProof> _wakeAdvisoryProofs = [];
     private readonly List<SafetyAlertProof> _safetyAlertProofs = [];
     private readonly SameRunwaySeparationTracker _sameRunwayTracker = new();
+
+    /// <summary>
+    /// Opt-in diagnostic timing for <see cref="Evaluate"/>'s internal phases. <c>null</c> in production
+    /// (zero overhead). Single-threaded benchmark use only — not thread-safe.
+    /// </summary>
+    public static Dictionary<string, (int Count, double Ms)>? DiagnosticPhaseTimings;
+
+    private static void RecordPhase(string bucket, Stopwatch? sw)
+    {
+        if (sw is null)
+        {
+            return;
+        }
+
+        sw.Stop();
+        var timings = DiagnosticPhaseTimings!;
+        double ms = sw.Elapsed.TotalMilliseconds;
+        timings[bucket] = timings.TryGetValue(bucket, out var entry) ? (entry.Count + 1, entry.Ms + ms) : (1, ms);
+        sw.Restart();
+    }
 
     // Debrief cache. BuildReport runs every 2-5 seconds in production while the inputs
     // (active aircraft + completed records + timeline findings) usually haven't changed.
@@ -182,6 +207,8 @@ public sealed class SoloTrainingEvaluator
         var observedThisTick = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var eligible = aircraft.Where(IsEligibleAirborneTarget).ToList();
 
+        var sw = DiagnosticPhaseTimings is null ? null : Stopwatch.StartNew();
+
         for (int i = 0; i < eligible.Count; i++)
         {
             for (int j = i + 1; j < eligible.Count; j++)
@@ -189,6 +216,11 @@ public sealed class SoloTrainingEvaluator
                 var a = eligible[i];
                 var b = eligible[j];
                 if (IsCoveredByVisualFollow(a, b))
+                {
+                    continue;
+                }
+
+                if (PairTooFarToInteract(a, b))
                 {
                     continue;
                 }
@@ -230,6 +262,8 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
+        RecordPhase("Solo.Pairwise", sw);
+
         foreach (var aircraftState in eligible)
         {
             var visualSample = SampleVisualApproach(aircraftState, scenarioElapsedSeconds, serviceContext);
@@ -246,6 +280,8 @@ public sealed class SoloTrainingEvaluator
             }
         }
 
+        RecordPhase("Solo.Visual", sw);
+
         foreach (var overuseSample in SampleSafetyAlertOveruse(scenarioElapsedSeconds))
         {
             observedThisTick.Add(overuseSample.Id);
@@ -255,6 +291,8 @@ public sealed class SoloTrainingEvaluator
                 notices.Add(notice);
             }
         }
+
+        RecordPhase("Solo.SafetyOveruse", sw);
 
         var runwayEvaluation = _sameRunwayTracker.Evaluate(aircraft, scenarioElapsedSeconds, serviceContext);
         foreach (
@@ -284,6 +322,8 @@ public sealed class SoloTrainingEvaluator
                 notices.Add(notice);
             }
         }
+
+        RecordPhase("Solo.RunwayTracker", sw);
 
         foreach (var tracked in _events.Values)
         {
@@ -897,6 +937,24 @@ public sealed class SoloTrainingEvaluator
         }
 
         return command.Blocks.Count > 0;
+    }
+
+    /// <summary>
+    /// Broad-phase reject for the O(n²) separation/advisory pairwise loop: a pair whose current lateral
+    /// separation already exceeds every requirement (max <see cref="TerminalRadarHorizontalNm"/> ×
+    /// <see cref="WarningMargin"/>) plus the most they could converge over the longest lookahead
+    /// (<see cref="CoachLookaheadSeconds"/>, bounded by the sum of ground speeds) cannot produce any
+    /// sample from <see cref="SamplePair"/> or <see cref="SampleNoMinimaAdvisoryPair"/>. Skipping it is
+    /// behavior-identical to running them and getting nulls — including the not-observed-this-tick event
+    /// teardown — so this is a pure speedup, not a rule change. Conservative on every axis (uses the
+    /// largest minima, the warning margin, and a head-on closure upper bound).
+    /// </summary>
+    private static bool PairTooFarToInteract(AircraftState a, AircraftState b)
+    {
+        double currentHorizontalNm = GeoMath.DistanceNm(a.Position, b.Position);
+        double maxClosureNm = (Math.Max(a.GroundSpeed, 0.0) + Math.Max(b.GroundSpeed, 0.0)) * CoachLookaheadSeconds / 3600.0;
+        double broadPhaseNm = (TerminalRadarHorizontalNm * WarningMargin) + maxClosureNm;
+        return currentHorizontalNm > broadPhaseNm;
     }
 
     private static SeparationTrainingSample? SamplePair(AircraftState a, AircraftState b, AirspaceDatabase airspace, double scenarioElapsedSeconds)
