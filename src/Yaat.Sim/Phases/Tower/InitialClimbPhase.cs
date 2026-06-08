@@ -26,10 +26,11 @@ public sealed class InitialClimbPhase : Phase
     private double? _phaseCompletionAltitude;
     private double _selfClearAltitude;
 
-    // Departure turn deferral. Applies to both VFR (AIM 4-3-2 — past DER and within
-    // 300 ft of pattern altitude) and IFR (TERPS — past DER and ≥ 400 ft above field
-    // elevation). The "Vfr*" naming on the snapshot DTO fields predates the IFR
-    // expansion; the runtime fields are deferral-generic.
+    // Departure turn deferral. VFR (AIM 4-3-2) waits until past the DER and within 300 ft of
+    // pattern altitude; IFR (TERPS — AIM 5-2-9.e.1 / 7110.65 5-8-3 NOTE) waits only until
+    // ≥ 400 ft above field elevation, with no lateral past-DER requirement. The "Vfr*" naming
+    // on the snapshot DTO fields predates the IFR expansion; the runtime fields are
+    // deferral-generic.
     private double _runwayDerLat;
     private double _runwayDerLon;
     private TrueHeading _runwayHeading;
@@ -136,7 +137,7 @@ public sealed class InitialClimbPhase : Phase
     public double? SidDepartureHeadingMagnetic { get; init; }
 
     /// <summary>
-    /// Hold runway heading until DER + IFR 400 ft AGL before applying the published RV vectors heading.
+    /// Hold runway heading until the IFR 400 ft AGL gate before applying the published RV vectors heading.
     /// </summary>
     public bool RvSidDeferHeadingUntilMinAlt { get; init; }
 
@@ -193,10 +194,11 @@ public sealed class InitialClimbPhase : Phase
         // (e.g. cleared present position) fall back to the flat direct-to-fix route.
         _proceduralDeparture = DepartureProcedureLegs is { Count: > 0 } && ctx.Runway is not null;
 
-        // Defer the assigned departure turn until the aircraft is past the DER AND at
-        // a safe minimum altitude. VFR uses pattern altitude − 300 ft (AIM 4-3-2); IFR
-        // uses field elevation + 400 ft (TERPS criterion — IFR ODP design assumes no
-        // turns below 400 ft above DER). RV SIDs with a CA/track leg before the VM leg
+        // Defer the assigned departure turn until the aircraft reaches a safe minimum altitude.
+        // VFR additionally waits until past the DER (AIM 4-3-2 crosswind-turn geometry), using
+        // pattern altitude − 300 ft; IFR uses field elevation + 400 ft with no lateral past-DER
+        // requirement (TERPS criterion — AIM 5-2-9.e.1 / 7110.65 5-8-3 NOTE assume a climb to
+        // 400 ft above DER before the initial turn). RV SIDs with a CA/track leg before the VM leg
         // also defer the vectors heading until that gate (runway heading until ~400 ft AGL).
         bool rvDeferVectorsHeading = isRvSid && RvSidDeferHeadingUntilMinAlt && ctx.Runway is not null;
         bool deferTurn = ctx.Runway is not null && (DepartureRequiresTurn() || rvDeferVectorsHeading || _proceduralDeparture);
@@ -259,8 +261,15 @@ public sealed class InitialClimbPhase : Phase
         // Departure turn deferral: apply heading/nav route once both conditions met
         if (!_deferredTurnApplied)
         {
+            // VFR pattern departures commence the crosswind turn beyond the departure end of
+            // runway (AIM 4-3-2). IFR DP/ODP/SID departures impose no lateral past-DER
+            // requirement: the turn begins on reaching 400 ft above field elevation regardless
+            // of position over the runway (AIM 5-2-9.e.1; 7110.65 5-8-3 NOTE — TERPS assumes a
+            // climb to 400 ft above DER before the initial turn). Requiring past-DER on IFR
+            // delayed the turn well past 400 ft AGL on long runways (issue #195).
             bool pastDer =
-                GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_runwayDerLat, _runwayDerLon), _runwayHeading) >= DerMinDistanceNm;
+                !IsVfr
+                || GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_runwayDerLat, _runwayDerLon), _runwayHeading) >= DerMinDistanceNm;
             bool altReached = ctx.Aircraft.Altitude >= _deferredTurnAltitude;
             if (pastDer && altReached)
             {
@@ -463,10 +472,10 @@ public sealed class InitialClimbPhase : Phase
 
     /// <summary>
     /// Apply the assigned departure heading, preferred turn direction, and (where
-    /// applicable) navigation route. Called once the deferral gates (past DER AND at or
-    /// above the minimum safe altitude — pattern alt − 300 ft for VFR, 400 ft AGL for IFR)
-    /// are satisfied, or immediately on phase start when deferral is not possible
-    /// (no runway info, or non-turning departure).
+    /// applicable) navigation route. Called once the deferral gates are satisfied
+    /// (pattern alt − 300 ft AND past DER for VFR; 400 ft AGL only for IFR), or
+    /// immediately on phase start when deferral is not possible (no runway info,
+    /// or non-turning departure).
     /// </summary>
     private void ApplyDepartureTurn(PhaseContext ctx)
     {

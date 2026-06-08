@@ -24,9 +24,11 @@ public class TakeoffDepartureTests
     /// <summary>
     /// Drives a full takeoff → initial climb sequence with the given departure: ground
     /// roll to Vr, airborne climb through TakeoffPhase completion (~400 AGL), then
-    /// InitialClimbPhase past the deferral gates (≥ 400 AGL above field elevation AND
-    /// past the departure end of runway). Returns the resulting <see cref="TargetHeading"/>
-    /// and <see cref="PreferredTurnDirection"/> once the departure turn has been applied.
+    /// InitialClimbPhase past the deferral gates. The aircraft is positioned both ≥ 400 AGL
+    /// above field elevation AND past the departure end of runway, which satisfies the IFR
+    /// gate (400 AGL only) and the stricter VFR gate (also past DER, AIM 4-3-2). Returns the
+    /// resulting <see cref="TargetHeading"/> and <see cref="PreferredTurnDirection"/> once the
+    /// departure turn has been applied.
     /// </summary>
     /// <remarks>
     /// Pre-fix the heading was applied at Vr by <c>TakeoffPhase.ApplyDepartureHeading</c>,
@@ -526,7 +528,7 @@ public class TakeoffDepartureTests
     /// <summary>
     /// IFR aircraft with a heading departure must NOT have the heading applied at
     /// liftoff. TakeoffPhase keeps runway heading; InitialClimbPhase applies the turn
-    /// only after the aircraft is past DER AND ≥ 400 ft AGL (TERPS criterion).
+    /// only after the aircraft reaches ≥ 400 ft AGL (TERPS criterion, no past-DER for IFR).
     /// </summary>
     [Fact]
     public void IFR_FlyHeading_KeepsRunwayHeadingAtLiftoff()

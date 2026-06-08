@@ -137,9 +137,9 @@ public sealed class TakeoffPhase : Phase
 
             // Heading remains the runway heading throughout the airborne portion of
             // TakeoffPhase. The assigned departure heading (relative turn / fly heading /
-            // direct fix) is applied later by InitialClimbPhase once the aircraft is past
-            // the departure end of runway AND at a safe minimum altitude — TERPS-style
-            // 400 ft AGL for IFR, pattern altitude − 300 ft for VFR (AIM 4-3-2).
+            // direct fix) is applied later by InitialClimbPhase once the aircraft reaches a
+            // safe minimum altitude — TERPS-style 400 ft AGL for IFR (AIM 5-2-9.e.1), or
+            // pattern altitude − 300 ft AND past the departure end of runway for VFR (AIM 4-3-2).
         }
 
         return false;

@@ -26,7 +26,7 @@ public class NimiRvSidDctDuringClimbTests
     //  - false: published VM leg with no CA-leg gate. _rvSidActive=true, _deferredTurnApplied=true,
     //    target heading set to the RV vector immediately.
     //  - true : CA-leg-before-VM-leg gating. _rvSidActive=true, _deferredTurnApplied=false,
-    //    runway heading held until past DER + 400 ft AGL, then VM heading applies.
+    //    runway heading held until 400 ft AGL (IFR — no past-DER), then VM heading applies.
     private static (InitialClimbPhase Phase, AircraftState Aircraft, PhaseContext Ctx) BuildRvSidClimbHarness(bool deferUntilMinAlt = false)
     {
         const double fieldElev = 6.0;
@@ -183,8 +183,8 @@ public class NimiRvSidDctDuringClimbTests
 
     /// <summary>
     /// RV SID with a CA leg before the VM leg (<c>RvSidDeferHeadingUntilMinAlt = true</c>):
-    /// the aircraft holds runway heading until past DER + 400 ft AGL, then transitions to
-    /// the VM heading. DCT issued before the gate releases must still clear both
+    /// the aircraft holds runway heading until 400 ft AGL (IFR — no past-DER), then transitions
+    /// to the VM heading. DCT issued before the gate releases must still clear both
     /// <c>_rvSidActive</c> AND the deferred-turn gate so the phase isn't trapped waiting
     /// for a vector transition that the controller has now overridden.
     /// </summary>

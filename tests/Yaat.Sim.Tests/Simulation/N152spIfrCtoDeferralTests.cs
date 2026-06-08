@@ -26,8 +26,9 @@ namespace Yaat.Sim.Tests.Simulation;
 ///      vector is valid for IFR.
 ///   2. For the IFR cases that remain (bare CTO with RV SID, or
 ///      FlyHeadingDeparture), defer the heading change in
-///      <c>InitialClimbPhase</c> until the aircraft is past the departure
-///      end of runway AND ≥ 400 ft above field elevation (TERPS criterion).
+///      <c>InitialClimbPhase</c> until the aircraft is ≥ 400 ft above field
+///      elevation (TERPS criterion — no lateral past-DER requirement for IFR;
+///      that is VFR-pattern-only, AIM 4-3-2; see issue #195).
 /// </summary>
 public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
 {
@@ -154,7 +155,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     /// <summary>
     /// CTO with a numeric heading (FlyHeading) is the one turning departure
     /// IFR aircraft can still receive. Must be accepted; deferral behavior
-    /// is exercised separately by <see cref="Ifr_InitialClimb_FlyHeading_DefersTurnUntilPastDerAnd400Agl"/>.
+    /// is exercised separately by <see cref="Ifr_InitialClimb_FlyHeading_DefersTurnUntil400Agl_IgnoringDerPosition"/>.
     /// </summary>
     [Fact]
     public void Cto360_AcceptedForIfrAircraft()
@@ -183,11 +184,13 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
 
     /// <summary>
     /// IFR FlyHeadingDeparture must NOT have its heading applied at the start
-    /// of InitialClimbPhase. Aircraft must continue on runway heading until
-    /// the deferral gates (past DER AND ≥ 400 ft AGL) are satisfied.
+    /// of InitialClimbPhase. Aircraft must continue on runway heading until it
+    /// reaches the 400 ft AGL TERPS floor (AIM 5-2-9.e.1 / 7110.65 5-8-3 NOTE) —
+    /// with no lateral past-DER requirement (that is a VFR-pattern rule, AIM 4-3-2;
+    /// see issue #195).
     /// </summary>
     [Fact]
-    public void Ifr_InitialClimb_FlyHeading_DefersTurnUntilPastDerAnd400Agl()
+    public void Ifr_InitialClimb_FlyHeading_DefersTurnUntil400Agl_IgnoringDerPosition()
     {
         const double runwayHdg = 280.0;
         var runway = TestRunwayFactory.Make(
@@ -239,7 +242,9 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
             $"At threshold + 400 AGL, target heading must still be runway heading. Got {targets.TargetTrueHeading?.Degrees:F1}"
         );
 
-        // Case 1: past DER but altitude still below 400 AGL → still deferred.
+        // Case 1: below the 400 ft AGL floor (even past the DER) → still deferred. This is the
+        // regression guard for the original N152SP "turn at Vr (~100 AGL)" bug; the 400 ft floor
+        // alone prevents it.
         aircraft.Altitude = FieldElevation + 200;
         var pastDer = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.5);
         aircraft.Position = pastDer;
@@ -249,23 +254,16 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
             $"Past DER but only 200 AGL: turn must be deferred. Got hdg={targets.TargetTrueHeading?.Degrees:F1}"
         );
 
-        // Case 2: at 400 AGL but still near threshold (not past DER) → still deferred.
+        // Case 2: at the 400 ft AGL floor but still at the threshold (NOT past the DER) → IFR turns
+        // anyway. Lateral past-DER is a VFR-pattern rule (AIM 4-3-2); IFR turns at 400 ft above field
+        // elevation regardless of position over the runway (issue #195).
         aircraft.Altitude = FieldElevation + IfrTurnAglFloor;
         aircraft.Position = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
-        climbPhase.OnTick(ctx);
-        Assert.True(
-            (targets.TargetTrueHeading is null) || (Math.Abs(NormalizeAngleDiff(targets.TargetTrueHeading.Value.Degrees - runwayHdg)) < 1),
-            $"At 400 AGL but not past DER: turn must be deferred. Got hdg={targets.TargetTrueHeading?.Degrees:F1}"
-        );
-
-        // Case 3: both conditions met → turn applied to 360°.
-        aircraft.Altitude = FieldElevation + IfrTurnAglFloor + 50;
-        aircraft.Position = pastDer;
         climbPhase.OnTick(ctx);
         Assert.NotNull(targets.TargetTrueHeading);
         Assert.True(
             Math.Abs(NormalizeAngleDiff(targets.TargetTrueHeading.Value.Degrees - 360)) < 1,
-            $"Both gates met: heading must converge on 360. Got {targets.TargetTrueHeading.Value.Degrees:F1}"
+            $"At 400 ft AGL the IFR turn must apply regardless of DER position. Got {targets.TargetTrueHeading.Value.Degrees:F1}"
         );
     }
 
