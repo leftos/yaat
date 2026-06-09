@@ -626,6 +626,9 @@ public partial class AircraftModel : ObservableObject
     private string? _pointoutStatus;
 
     [ObservableProperty]
+    private string? _pointoutToTcpCode;
+
+    [ObservableProperty]
     private string? _scratchpad1;
 
     [ObservableProperty]
@@ -786,6 +789,7 @@ public partial class AircraftModel : ObservableObject
             HandoffPeer = dto.HandoffPeer,
             HandoffPeerSectorCode = dto.HandoffPeerSectorCode,
             PointoutStatus = dto.PointoutStatus,
+            PointoutToTcpCode = dto.PointoutToTcpCode,
             Scratchpad1 = dto.Scratchpad1,
             Scratchpad2 = dto.Scratchpad2,
             TemporaryAltitude = dto.TemporaryAltitude,
@@ -872,6 +876,7 @@ public partial class AircraftModel : ObservableObject
         HandoffPeer = dto.HandoffPeer;
         HandoffPeerSectorCode = dto.HandoffPeerSectorCode;
         PointoutStatus = dto.PointoutStatus;
+        PointoutToTcpCode = dto.PointoutToTcpCode;
         Scratchpad1 = dto.Scratchpad1;
         Scratchpad2 = dto.Scratchpad2;
         TemporaryAltitude = dto.TemporaryAltitude;

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- The instructor **Radar View** now marks a pending point-out the student sent to another position with the recipient's sector and an asterisk — e.g. `3E*` — on the owner/scratchpad data block line, so you can see at a glance which tracks have an outstanding outgoing point-out.
+
 ### Fixed
 - A point-out the student accepts on CRC now stays **yellow** until they slew it a second time to clear it — on both CRC and the instructor's **Radar View** — instead of turning green the moment it's accepted. Clearing it returns the data block to green.
 - When a handoff is accepted with the `ACCEPT` command (rather than by the auto-accept timer), the previous controller's data block now stays a white full data block until they slew it — the way STARS shows a just-accepted handoff — instead of immediately turning into a green partial data block. The auto-accept path already behaved this way; the manual `ACCEPT` (and accept-all) now matches it.

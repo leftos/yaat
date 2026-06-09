@@ -83,7 +83,7 @@ internal readonly struct RadarDatablockLayout
         string cwtType = FormatCwtType(cwt, ac.DisplayAircraftType);
         string line2 = cwtType.Length > 0 ? $"{altHundreds} {spdTens} {cwtType}" : $"{altHundreds} {spdTens}";
 
-        string line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.HandoffDisplay, ac.Scratchpad1, ac.Scratchpad2, ac.AssignedTo) ?? "";
+        string line3 = BuildOwnerScratchpadLine(ac) ?? "";
         string line4 = ac.TransponderMode == "Standby" ? "ModeC" : "";
 
         // No-landing-clearance warning flashes in sync with the handoff indicator (500 ms cycle).
@@ -130,47 +130,54 @@ internal readonly struct RadarDatablockLayout
         return new RadarDatablockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4, line5, line6, lineCount);
     }
 
-    private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? handoffDisplay, string? sp1, string? sp2, string? assignedTo)
+    private static string? BuildOwnerScratchpadLine(AircraftModel ac)
     {
-        bool hasAssigned = !string.IsNullOrEmpty(assignedTo);
-        bool hasOwner = !string.IsNullOrEmpty(ownerDisplay);
-        bool hasHandoff = !string.IsNullOrEmpty(handoffDisplay);
-        bool hasSp1 = !string.IsNullOrEmpty(sp1);
-        bool hasSp2 = !string.IsNullOrEmpty(sp2);
+        bool hasAssigned = !string.IsNullOrEmpty(ac.AssignedTo);
+        bool hasOwner = !string.IsNullOrEmpty(ac.OwnerDisplay);
+        bool hasHandoff = !string.IsNullOrEmpty(ac.HandoffDisplay);
+        bool hasSp1 = !string.IsNullOrEmpty(ac.Scratchpad1);
+        bool hasSp2 = !string.IsNullOrEmpty(ac.Scratchpad2);
+        bool hasOutgoingPointout = !string.IsNullOrEmpty(ac.PointoutToTcpCode);
 
-        if (!hasAssigned && !hasOwner && !hasHandoff && !hasSp1 && !hasSp2)
+        if (!hasAssigned && !hasOwner && !hasHandoff && !hasSp1 && !hasSp2 && !hasOutgoingPointout)
         {
             return null;
         }
 
-        var parts = new List<string>(5);
+        var parts = new List<string>(6);
         if (hasAssigned)
         {
-            parts.Add($"[{assignedTo}]");
+            parts.Add($"[{ac.AssignedTo}]");
         }
         if (hasOwner)
         {
             // Flash handoff indicator: 500ms on/off cycle (all flash in sync, STARS behavior)
             bool showHandoff = hasHandoff && Environment.TickCount64 / 500 % 2 == 0;
-            parts.Add(showHandoff ? $"{ownerDisplay} >{handoffDisplay}" : ownerDisplay!);
+            parts.Add(showHandoff ? $"{ac.OwnerDisplay} >{ac.HandoffDisplay}" : ac.OwnerDisplay!);
         }
         else if (hasHandoff)
         {
             bool showHandoff = Environment.TickCount64 / 500 % 2 == 0;
             if (showHandoff)
             {
-                parts.Add($">{handoffDisplay}");
+                parts.Add($">{ac.HandoffDisplay}");
             }
+        }
+
+        // Pending outgoing point-out the student initiated, shown right after the owner (e.g. "3E*").
+        if (hasOutgoingPointout)
+        {
+            parts.Add($"{ac.PointoutToTcpCode}*");
         }
 
         if (hasSp1)
         {
-            parts.Add($".{sp1}");
+            parts.Add($".{ac.Scratchpad1}");
         }
 
         if (hasSp2)
         {
-            parts.Add($"+{sp2}");
+            parts.Add($"+{ac.Scratchpad2}");
         }
 
         return parts.Count > 0 ? string.Join(" ", parts) : null;

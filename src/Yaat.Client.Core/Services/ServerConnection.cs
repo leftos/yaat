@@ -865,7 +865,11 @@ public record AircraftDto(
     // Instructor TPA overlay on YAAT's own radar (emulates STARS *J/*P). TpaType: 0=None, 1=J-Ring,
     // 2=Cone. TpaSize is the J-Ring radius / Cone length in nm. Instructor-only; never on the student's CRC.
     int TpaType = 0,
-    double TpaSize = 0
+    double TpaSize = 0,
+    // Sector code of the recipient of a pending point-out the student's own position initiated
+    // (e.g. "3E"). Non-null only while that outgoing point-out is still pending; drives the "{code}*"
+    // indicator on the owner/scratchpad datablock line. Instructor-only.
+    string? PointoutToTcpCode = null
 );
 
 public record LoadScenarioResultDto(

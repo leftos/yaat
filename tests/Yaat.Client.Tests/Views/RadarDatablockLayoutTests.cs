@@ -279,6 +279,35 @@ public class RadarDatablockLayoutTests
         Assert.Equal("", RadarDatablockLayout.StudentLevelMarker(null));
     }
 
+    // --- Pending outgoing point-out indicator (e.g. 3E*) on the owner/scratchpad line ---
+
+    [Fact]
+    public void OutgoingPointout_RendersTcpStarAfterOwner_BeforeScratchpads()
+    {
+        var ac = CreateModel();
+        ac.OwnerSectorCode = "2S";
+        ac.Scratchpad1 = "ABC";
+        ac.Scratchpad2 = "XY";
+        ac.PointoutToTcpCode = "3E";
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("2S 3E* .ABC +XY", layout.Line3);
+    }
+
+    [Fact]
+    public void OutgoingPointout_AbsentByDefault()
+    {
+        var ac = CreateModel();
+        ac.OwnerSectorCode = "2S";
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("2S", layout.Line3);
+    }
+
     [Fact]
     public void Note_BlankWhenNoNote()
     {
