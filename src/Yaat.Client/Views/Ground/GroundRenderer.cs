@@ -1092,6 +1092,13 @@ public sealed class GroundRenderer : IDisposable
                     continue;
                 }
 
+                // Corner arcs a blocked turn suppresses are never routed and have no painted line at the
+                // apex (the controller uses the connector instead) — omit them from the view.
+                if (arcDto.HiddenInGroundView)
+                {
+                    continue;
+                }
+
                 var bezier = new CubicBezier(fromLL.Lat, fromLL.Lon, arcDto.P1Lat, arcDto.P1Lon, arcDto.P2Lat, arcDto.P2Lon, toLL.Lat, toLL.Lon);
 
                 const int steps = 16;

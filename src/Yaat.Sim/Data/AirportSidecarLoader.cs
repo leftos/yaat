@@ -81,8 +81,33 @@ public static class AirportSidecarLoader
                 TaxiRoutes = ParseTaxiRoutes(file, filePath, airportId, result),
                 ImplicitConnectors = ParseImplicitConnectors(file, filePath, result),
                 OneWayEdges = ParseOneWayEdges(file, filePath, result),
+                BlockedTurns = ParseBlockedTurns(file, filePath, result),
             }
         );
+    }
+
+    private static List<BlockedTurn> ParseBlockedTurns(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var turns = new List<BlockedTurn>();
+        for (int i = 0; i < file.BlockedTurns.Count; i++)
+        {
+            var entry = file.BlockedTurns[i];
+            if (entry.Path.Count < 3)
+            {
+                result.Warnings.Add($"{filePath}: blockedTurns[{i}] needs at least 3 path points (an L-shape through the apex), skipping");
+                continue;
+            }
+
+            var points = ParseWaypointPath(entry.Path, $"blockedTurns[{i}]", filePath, result);
+            if (points is null)
+            {
+                continue;
+            }
+
+            turns.Add(new BlockedTurn(points, entry.Notes));
+        }
+
+        return turns;
     }
 
     private static List<OneWayConstraint> ParseOneWayEdges(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
@@ -97,7 +122,7 @@ public static class AirportSidecarLoader
                 continue;
             }
 
-            var points = ParseOneWayPath(entry, filePath, i, result);
+            var points = ParseWaypointPath(entry.Path, $"oneWayEdges[{i}]", filePath, result);
             if (points is null)
             {
                 continue;
@@ -110,14 +135,14 @@ public static class AirportSidecarLoader
         return constraints;
     }
 
-    private static List<OneWayPoint>? ParseOneWayPath(OneWayConstraintEntry entry, string filePath, int i, AirportSidecarLoadResult result)
+    private static List<OneWayPoint>? ParseWaypointPath(List<OneWayWaypoint> path, string location, string filePath, AirportSidecarLoadResult result)
     {
-        var points = new List<OneWayPoint>(entry.Path.Count);
-        foreach (var wp in entry.Path)
+        var points = new List<OneWayPoint>(path.Count);
+        foreach (var wp in path)
         {
             if (wp.Point.Length != 2)
             {
-                result.Warnings.Add($"{filePath}: oneWayEdges[{i}] point must be [lon, lat], skipping constraint");
+                result.Warnings.Add($"{filePath}: {location} point must be [lon, lat], skipping");
                 return null;
             }
 

@@ -17,6 +17,7 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, List<TaxiRouteDefinition>> _routesByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<ImplicitConnectorEntry>> _connectorsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<OneWayConstraint>> _oneWayByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<BlockedTurn>> _blockedTurnsByAirport = new(StringComparer.OrdinalIgnoreCase);
 
     public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports)
     {
@@ -32,6 +33,7 @@ public sealed class AirportSidecarCatalog
             MergeTaxiRoutes(key, airport.TaxiRoutes);
             MergeImplicitConnectors(key, airport.ImplicitConnectors);
             MergeOneWayConstraints(key, airport.OneWayEdges);
+            MergeBlockedTurns(key, airport.BlockedTurns);
         }
     }
 
@@ -105,6 +107,22 @@ public sealed class AirportSidecarCatalog
         list.AddRange(constraints);
     }
 
+    private void MergeBlockedTurns(string key, IReadOnlyList<BlockedTurn> turns)
+    {
+        if (turns.Count == 0)
+        {
+            return;
+        }
+
+        if (!_blockedTurnsByAirport.TryGetValue(key, out var list))
+        {
+            list = [];
+            _blockedTurnsByAirport[key] = list;
+        }
+
+        list.AddRange(turns);
+    }
+
     /// <summary>
     /// Set of taxiway names the AUTO router should avoid at the given airport. Never null — returns an
     /// empty set when the airport has no configured avoided taxiways.
@@ -165,5 +183,21 @@ public sealed class AirportSidecarCatalog
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
         return _oneWayByAirport.TryGetValue(key, out var list) ? list : [];
+    }
+
+    /// <summary>
+    /// Blocked turns at the given airport — intersection corners no aircraft may turn through. Never null;
+    /// returns an empty list when the airport has none. Resolved against a concrete layout by
+    /// <see cref="Yaat.Sim.Data.Airport.Pathfinding.BlockedTurnResolver"/>.
+    /// </summary>
+    public IReadOnlyList<BlockedTurn> GetBlockedTurns(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _blockedTurnsByAirport.TryGetValue(key, out var list) ? list : [];
     }
 }

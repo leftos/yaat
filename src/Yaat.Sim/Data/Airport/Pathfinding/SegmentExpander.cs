@@ -33,7 +33,75 @@ public static class SegmentExpander
     /// Returns either a materialised <see cref="TaxiRoute"/> or a structured
     /// <see cref="PathfindingFailure"/>. Exactly one of the two return values is non-null.
     /// </summary>
+    /// <summary>
+    /// Resolve an explicit named-taxiway clearance. When an implicit connector bridges an adjacent pair
+    /// of cleared taxiways (e.g. <c>LF</c> between <c>L</c> and <c>F</c>), also resolve the variant with
+    /// the connector threaded into the sequence and keep whichever full route is shorter — so the painted
+    /// connector is used when it beats crossing at the taxiways' shared apex (and a blocked apex never
+    /// strands the route), while a far-away aircraft still crosses directly. The original sequence is
+    /// always one of the candidates, so a connector is never forced when the direct crossing is cheaper.
+    /// </summary>
     public static (TaxiRoute? Route, PathfindingFailure? Failure) Run(SearchContext ctx)
+    {
+        var variants = BuildConnectorVariants(ctx);
+        if (variants.Count == 0)
+        {
+            return ResolveExplicit(ctx);
+        }
+
+        var primary = ResolveExplicit(ctx);
+        TaxiRoute? best = primary.Route;
+        foreach (var variant in variants)
+        {
+            var (route, _) = ResolveExplicit(ctx with { WaypointSequence = variant });
+            if (route is not null && (best is null || route.TotalDistanceNm < best.TotalDistanceNm))
+            {
+                best = route;
+            }
+        }
+
+        return best is not null ? (best, null) : primary;
+    }
+
+    /// <summary>
+    /// Sequence variants with each applicable implicit connector threaded between its adjacent cleared
+    /// pair. Empty when no implicit connector applies (the common case — caller resolves the sequence
+    /// directly with no extra work).
+    /// </summary>
+    private static List<IReadOnlyList<string>> BuildConnectorVariants(SearchContext ctx)
+    {
+        var seq = ctx.WaypointSequence;
+        if (seq.Count < 2 || ctx.ImplicitConnectors.Count == 0)
+        {
+            return [];
+        }
+
+        var inserted = new List<string>(seq.Count + 1);
+        bool any = false;
+        for (int i = 0; i < seq.Count; i++)
+        {
+            inserted.Add(seq[i]);
+            if (i + 1 >= seq.Count)
+            {
+                continue;
+            }
+
+            string? connector = ctx.GetImplicitConnectorName(seq[i], seq[i + 1]);
+            if (
+                connector is not null
+                && !connector.Equals(seq[i], StringComparison.OrdinalIgnoreCase)
+                && !connector.Equals(seq[i + 1], StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                inserted.Add(connector);
+                any = true;
+            }
+        }
+
+        return any ? [inserted] : [];
+    }
+
+    private static (TaxiRoute? Route, PathfindingFailure? Failure) ResolveExplicit(SearchContext ctx)
     {
         if (ctx.WaypointSequence.Count == 0)
         {
@@ -248,6 +316,15 @@ public static class SegmentExpander
 
         return false;
     }
+
+    /// <summary>
+    /// True when stepping from <paramref name="current"/> to <paramref name="nextNodeId"/> is a blocked
+    /// turn — either the corner-arc 2-node move, or the sharp pivot turn-triple keyed on where we arrived
+    /// from. Hard for explicit named-taxiway paths too (a blocked turn has no painted line).
+    /// </summary>
+    private static bool IsBlockedTurnEdge(SearchContext ctx, PartialRoute current, int nextNodeId) =>
+        ctx.IsBlockedArcMove(current.HeadNodeId, nextNodeId)
+        || (current.Previous is not null && ctx.IsBlockedTurn(current.Previous.HeadNodeId, current.HeadNodeId, nextNodeId));
 
     /// <summary>True if any edge incident to <paramref name="node"/> belongs to <paramref name="taxiwayName"/>.</summary>
     private static bool NodeIncidentToTaxiway(GroundNode node, string taxiwayName)
@@ -1506,6 +1583,15 @@ public static class SegmentExpander
                     continue;
                 }
 
+                // Blocked-turn exclusion — hard for explicit named-taxiway paths too (no painted line at
+                // the apex). Forces an explicit L→F clearance onto the connector instead of the sharp corner.
+                if (IsBlockedTurnEdge(ctx, current, nextNode.Id))
+                {
+                    ctx.DiagnosticLog?.Invoke($"[local-edge] {current.HeadNodeId}->{nextNode.Id} twy={edge.TaxiwayName} REJECT blocked-turn");
+                    rejectedHere++;
+                    continue;
+                }
+
                 if (!GeometricAdmissibility.IsAdmissible(current, edge, nextNode, ctx.Category))
                 {
                     double dep = GeometricAdmissibility.GetDepartureBearing(edge, headNode, nextNode);
@@ -1709,6 +1795,11 @@ public static class SegmentExpander
 
                 var nextNode = edge.OtherNode(headNode);
                 if (current.VisitedNodeIds.Contains(nextNode.Id))
+                {
+                    continue;
+                }
+
+                if (IsBlockedTurnEdge(ctx, current, nextNode.Id))
                 {
                     continue;
                 }

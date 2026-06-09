@@ -238,6 +238,18 @@ public static class AutoRouter
                     continue;
                 }
 
+                // Blocked-turn exclusion (hard for AUTO and explicit alike). The corner arc is a 2-node
+                // move; the sharp straight pivot through a surviving apex is a turn-triple keyed on where
+                // we arrived from, so it never over-blocks straight-through or other-arm traffic.
+                if (
+                    ctx.IsBlockedArcMove(current.HeadNodeId, nextNode.Id)
+                    || (current.Previous is not null && ctx.IsBlockedTurn(current.Previous.HeadNodeId, current.HeadNodeId, nextNode.Id))
+                )
+                {
+                    rejected++;
+                    continue;
+                }
+
                 // Geometric admissibility gate.
                 if (!GeometricAdmissibility.IsAdmissible(current, edge, nextNode, ctx.Category))
                 {

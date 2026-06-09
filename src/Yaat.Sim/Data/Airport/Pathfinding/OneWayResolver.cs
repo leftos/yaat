@@ -54,7 +54,7 @@ public static class OneWayResolver
 
     private static void ResolveConstraint(AirportGroundLayout layout, OneWayConstraint constraint, HashSet<(int, int)> forbidden)
     {
-        var nodes = SnapWaypoints(layout, constraint);
+        var nodes = PolylineSnapper.Snap(layout, constraint.Path, "One-way", Log);
         if (nodes is null)
         {
             return;
@@ -62,7 +62,7 @@ public static class OneWayResolver
 
         for (int i = 0; i + 1 < nodes.Count; i++)
         {
-            var span = BuildSpan(layout, nodes[i], nodes[i + 1]);
+            var span = PolylineSnapper.BuildSpan(layout, nodes[i], nodes[i + 1]);
             if (span is null)
             {
                 Log.LogWarning(
@@ -84,129 +84,4 @@ public static class OneWayResolver
             }
         }
     }
-
-    private static List<GroundNode>? SnapWaypoints(AirportGroundLayout layout, OneWayConstraint constraint)
-    {
-        var nodes = new List<GroundNode>(constraint.Path.Count);
-        foreach (var wp in constraint.Path)
-        {
-            var node = layout.FindNearestNode(wp.Lat, wp.Lon);
-            if (node is null)
-            {
-                Log.LogWarning(
-                    "One-way at {Airport}: waypoint ({Lat},{Lon}) snapped to no node; skipping constraint",
-                    layout.AirportId,
-                    wp.Lat,
-                    wp.Lon
-                );
-                return null;
-            }
-
-            if (wp.Taxiway is not null && !node.Edges.Any(e => e.MatchesTaxiway(wp.Taxiway)))
-            {
-                Log.LogWarning(
-                    "One-way at {Airport}: waypoint ({Lat},{Lon}) expected taxiway {Taxiway} but snapped node {Node} carries none (map may have drifted)",
-                    layout.AirportId,
-                    wp.Lat,
-                    wp.Lon,
-                    wp.Taxiway,
-                    node.Id
-                );
-            }
-
-            nodes.Add(node);
-        }
-
-        return nodes;
-    }
-
-    /// <summary>
-    /// Ordered directed edge span from <paramref name="a"/> to <paramref name="b"/>: a single edge when
-    /// they are directly connected, otherwise a taxiway-restricted BFS along a taxiway both sit on.
-    /// Null when neither applies.
-    /// </summary>
-    private static List<(int From, int To)>? BuildSpan(AirportGroundLayout layout, GroundNode a, GroundNode b)
-    {
-        if (a.Id == b.Id)
-        {
-            return [];
-        }
-
-        if (a.Edges.Any(e => e.HasNode(b.Id)))
-        {
-            return [(a.Id, b.Id)];
-        }
-
-        foreach (string taxiway in TaxiwaysAt(a))
-        {
-            if (!IsOnTaxiway(b, taxiway))
-            {
-                continue;
-            }
-
-            var path = BfsAlongTaxiway(layout, a, b, taxiway);
-            if (path is not null)
-            {
-                return path;
-            }
-        }
-
-        return null;
-    }
-
-    private static List<(int From, int To)>? BfsAlongTaxiway(AirportGroundLayout layout, GroundNode start, GroundNode goal, string taxiway)
-    {
-        var parent = new Dictionary<int, int> { [start.Id] = -1 };
-        var queue = new Queue<int>();
-        queue.Enqueue(start.Id);
-
-        while (queue.Count > 0)
-        {
-            int current = queue.Dequeue();
-            if (current == goal.Id)
-            {
-                break;
-            }
-
-            if (!layout.Nodes.TryGetValue(current, out var node))
-            {
-                continue;
-            }
-
-            foreach (var edge in node.Edges)
-            {
-                if (!edge.MatchesTaxiway(taxiway))
-                {
-                    continue;
-                }
-
-                int next = edge.OtherNodeId(current);
-                if (parent.TryAdd(next, current))
-                {
-                    queue.Enqueue(next);
-                }
-            }
-        }
-
-        return parent.ContainsKey(goal.Id) ? ReconstructPath(parent, goal.Id) : null;
-    }
-
-    private static List<(int From, int To)> ReconstructPath(Dictionary<int, int> parent, int goalId)
-    {
-        var path = new List<(int From, int To)>();
-        for (int node = goalId; parent[node] != -1; node = parent[node])
-        {
-            path.Add((parent[node], node));
-        }
-
-        path.Reverse();
-        return path;
-    }
-
-    private static IEnumerable<string> TaxiwaysAt(GroundNode node) =>
-        node.Edges.SelectMany(EdgeTaxiwayNames).Distinct(StringComparer.OrdinalIgnoreCase);
-
-    private static bool IsOnTaxiway(GroundNode node, string taxiway) => node.Edges.Any(e => e.MatchesTaxiway(taxiway));
-
-    private static IEnumerable<string> EdgeTaxiwayNames(IGroundEdge edge) => edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
 }

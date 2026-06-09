@@ -6,5 +6,16 @@
       "between": ["L", "F"],
       "notes": "LF is the short connector bridging taxiways L and F. Authorized implicitly only when the controller routes L adjacent to F (TAXI L F / TAXI F L)."
     }
+  ],
+  "blockedTurns": [
+    {
+      "notes": "L/F south apex: no direct sharp turn between L and F. Aircraft use the LF connector instead, so the apex corner is never routed and its fillet arc is not drawn. The two middle points are the same apex vertex on L/F.",
+      "path": [
+        { "point": [-122.37339328086573, 37.61494338638182], "taxiway": "L" },
+        { "point": [-122.37260390313256, 37.6161316665853], "taxiway": "L" },
+        { "point": [-122.3726033797592, 37.616129801005414], "taxiway": "F" },
+        { "point": [-122.37101193249117, 37.615463060496644], "taxiway": "F" }
+      ]
+    }
   ]
 }

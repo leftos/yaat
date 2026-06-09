@@ -42,6 +42,31 @@ public sealed class OneWayConstraintEntry
 public sealed record OneWayPoint(double Lat, double Lon, string? Taxiway);
 
 /// <summary>
+/// On-disk shape of one blocked turn in the sidecar's <c>blockedTurns</c> section. <see cref="Path"/> is
+/// an ordered coordinate polyline (≥3 points, reusing the <see cref="OneWayWaypoint"/> <c>[lon,lat]</c>
+/// shape) describing one side of an intersection — an L-shape an aircraft must never turn through. Unlike
+/// <see cref="OneWayConstraintEntry"/> there is no <c>block</c> mode: a blocked turn is always
+/// bidirectional and hard (it represents a corner with no painted line; aircraft must use the connector
+/// instead). The pathfinder never routes the turn (AUTO and explicit <c>TAXI</c> alike) and Ground View
+/// omits the corner's fillet arc.
+/// </summary>
+public sealed class BlockedTurnEntry
+{
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+
+    [JsonPropertyName("path")]
+    public List<OneWayWaypoint> Path { get; set; } = [];
+}
+
+/// <summary>
+/// A parsed, validated blocked turn produced by <see cref="AirportSidecarLoader"/>. Resolved against a
+/// concrete layout into forbidden turn-triples / arc moves and hidden corner arcs by
+/// <see cref="Yaat.Sim.Data.Airport.Pathfinding.BlockedTurnResolver"/>.
+/// </summary>
+public sealed record BlockedTurn(IReadOnlyList<OneWayPoint> Path, string? Notes);
+
+/// <summary>
 /// A parsed, validated one-way constraint produced by <see cref="AirportSidecarLoader"/>. The allowed
 /// travel direction is the order of <see cref="Path"/>; <see cref="BlockBoth"/> closes the span in both
 /// directions. Resolved against a concrete layout into forbidden directed node moves by

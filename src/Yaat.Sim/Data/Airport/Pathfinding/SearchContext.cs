@@ -42,6 +42,7 @@ public sealed record SearchContext(
 {
     private static readonly IReadOnlySet<string> EmptyAvoidedTaxiways = new HashSet<string>();
     private static readonly IReadOnlySet<(int, int)> EmptyForbiddenMoves = new HashSet<(int, int)>();
+    private static readonly IReadOnlySet<(int, int, int)> EmptyBlockedTurns = new HashSet<(int, int, int)>();
 
     /// <summary>
     /// Taxiway names the AUTO router should avoid at this airport, resolved from
@@ -72,6 +73,51 @@ public sealed record SearchContext(
     /// route warning by <see cref="RouteMaterialiser"/> instead.
     /// </summary>
     public bool IsForbiddenMove(int fromId, int toId) => OneWayMode == OneWayMode.HardExclude && ForbiddenOneWayMoves.Contains((fromId, toId));
+
+    /// <summary>
+    /// Directed pivot turns <c>(prev, apex, next)</c> a blocked turn forbids — the sharp straight pivot
+    /// through a surviving intersection apex. Resolved from <see cref="NavigationDatabase.AirportSidecars"/>
+    /// against <c>Layout</c>; empty when the airport has none. See <see cref="BlockedTurnResolver"/>.
+    /// </summary>
+    public IReadOnlySet<(int Prev, int Apex, int Next)> BlockedTurnTriples { get; init; } = EmptyBlockedTurns;
+
+    /// <summary>
+    /// Directed 2-node moves over a blocked turn's fillet corner arc (the smooth bypass of the apex).
+    /// Resolved alongside <see cref="BlockedTurnTriples"/>; empty when the airport has none.
+    /// </summary>
+    public IReadOnlySet<(int From, int To)> BlockedArcMoves { get; init; } = EmptyForbiddenMoves;
+
+    /// <summary>
+    /// True when arriving at <paramref name="apexId"/> from <paramref name="prevId"/> and departing to
+    /// <paramref name="nextId"/> is a blocked turn. Hard for both AUTO and explicit routes — unlike
+    /// one-way constraints, a blocked turn has no painted line, so it is never warned-through.
+    /// </summary>
+    public bool IsBlockedTurn(int prevId, int apexId, int nextId) => BlockedTurnTriples.Contains((prevId, apexId, nextId));
+
+    /// <summary>True when traversing the blocked-turn corner arc <paramref name="fromId"/> → <paramref name="toId"/> is forbidden (hard, both route kinds).</summary>
+    public bool IsBlockedArcMove(int fromId, int toId) => BlockedArcMoves.Contains((fromId, toId));
+
+    /// <summary>
+    /// The airport's implicit connectors (e.g. <c>LF</c> between <c>L</c> and <c>F</c>), resolved from
+    /// <see cref="NavigationDatabase.AirportSidecars"/>. Used both to authorize a connector contextually
+    /// and to let an explicit named-taxiway transition prefer the painted connector over crossing at the
+    /// taxiways' shared apex. Empty when the airport has none.
+    /// </summary>
+    public IReadOnlyList<ImplicitConnectorEntry> ImplicitConnectors { get; init; } = [];
+
+    /// <summary>The connector taxiway bridging <paramref name="fromTaxiway"/> and <paramref name="toTaxiway"/> (unordered), or null when none.</summary>
+    public string? GetImplicitConnectorName(string fromTaxiway, string toTaxiway)
+    {
+        foreach (var connector in ImplicitConnectors)
+        {
+            if (connector.Between.Count == 2 && PairMatches(connector.Between[0], connector.Between[1], fromTaxiway, toTaxiway))
+            {
+                return connector.Connector;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Per-taxiway turn-direction hints (issue #172 W7), index-aligned with <see cref="WaypointSequence"/>:
@@ -120,7 +166,8 @@ public sealed record SearchContext(
             ? (IReadOnlySet<string>)new HashSet<string>(explicitHoldShortRunways, StringComparer.OrdinalIgnoreCase)
             : (IReadOnlySet<string>)new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var authorized = BuildAuthorizedTaxiwaySet(waypointSequence, ResolveImplicitConnectors(layout));
+        var implicitConnectors = ResolveImplicitConnectors(layout);
+        var authorized = BuildAuthorizedTaxiwaySet(waypointSequence, implicitConnectors);
 
         var destination = ResolveDestination(layout, destinationRunway, destinationParking, destinationSpot, destinationNodeId);
 
@@ -139,12 +186,19 @@ public sealed record SearchContext(
             : waypointSequence.Count == 0 ? OneWayMode.HardExclude
             : OneWayMode.Warn;
 
+        // Blocked turns are hard for AUTO and explicit alike (no painted line at the apex), so they are
+        // resolved unconditionally — there is no warn mode and no waypoint-sequence gate.
+        var blocked = ResolveBlockedTurns(layout);
+
         return new SearchContext(layout, startNodeId, destination, waypointSequence, authorized, holdShorts, category, preference, diagnosticLog)
         {
             AvoidedTaxiways = avoidedTaxiways,
             AvoidMode = avoidMode,
             ForbiddenOneWayMoves = forbiddenOneWay,
             OneWayMode = oneWayMode,
+            BlockedTurnTriples = blocked.ForbiddenTurns,
+            BlockedArcMoves = blocked.ForbiddenArcMoves,
+            ImplicitConnectors = implicitConnectors,
             WaypointTurnHints = waypointTurnHints,
             StartHeadingTrue = startHeadingTrue,
         };
@@ -158,6 +212,15 @@ public sealed record SearchContext(
     private static IReadOnlySet<(int, int)> ResolveOneWayMoves(AirportGroundLayout layout)
     {
         return NavigationDatabase.InstanceOrNull is null ? EmptyForbiddenMoves : OneWayResolver.GetForbiddenMoves(layout);
+    }
+
+    /// <summary>
+    /// Resolves the blocked turns for <paramref name="layout"/> via <see cref="BlockedTurnResolver"/>
+    /// (per-layout cached). Empty when no database is initialized or the airport is unconfigured.
+    /// </summary>
+    private static BlockedTurnResult ResolveBlockedTurns(AirportGroundLayout layout)
+    {
+        return NavigationDatabase.InstanceOrNull is null ? BlockedTurnResult.Empty : BlockedTurnResolver.GetBlocked(layout);
     }
 
     /// <summary>
