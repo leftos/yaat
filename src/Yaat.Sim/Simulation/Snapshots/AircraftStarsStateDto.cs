@@ -17,6 +17,15 @@ public sealed class AircraftStarsStateDto
     public required bool AsdexSuspended { get; init; }
     public required bool AsdexTerminated { get; init; }
     public required bool AsdexAlertsInhibited { get; init; }
+    public string? SaidScratchpad1 { get; init; }
+    public string? SaidScratchpad2 { get; init; }
+    public string? SaidCallsignOverride { get; init; }
+    public string? SaidBeaconCodeOverride { get; init; }
+    public string? SaidCategoryOverride { get; init; }
+    public string? SaidAircraftTypeOverride { get; init; }
+    public string? SaidFixOverride { get; init; }
+    public bool SaidSuspended { get; init; }
+    public bool SaidTerminated { get; init; }
     public int? TemporaryAltitude { get; init; }
     public int? PilotReportedAltitude { get; init; }
     public required bool IsAnnotated { get; init; }

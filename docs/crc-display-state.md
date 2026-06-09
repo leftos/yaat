@@ -49,6 +49,7 @@ A topic is a subscription channel keyed by `(Name, FacilityId, Subset?, SectorId
 - **STARS**: `StarsTracks`, `StarsLineNumbers`, `StarsShortTermConflicts` (ATPA), `StarsCoordination`.
 - **ERAM**: `EramTargets`, `EramDataBlocks`, `EramTracks`, `EramSectorConfiguration`, `EramRouteLines`, `EramCrrGroups`.
 - **ASDEX**: `AsdexTargets`, `AsdexTracks`, `AsdexTempData`, `AsdexTempDataPresets`, `AsdexSafetyLogicConfiguration`, `AsdexHoldBars`, `AsdexAlerts`.
+- **SAAB SAID** (CRC 2.17 surface display — ASDE-X family, minus alerts/safety-logic/hold-bars): `SaabSaidTargets`, `SaabSaidTracks`, `SaabSaidTempData`, `SaabSaidTempDataPresets`. The track DTO adds a `HasFlightPlanData` flag (Key 2); facility config is the nested `saidConfiguration.saabConfiguration` shape and carries no range/ceiling (defaults to the ASDE-X 15 nm / 1500 ft).
 - **Tower Cab / Ground**: `TowerCabAircraft`, `GroundTargets`.
 - **Flight data**: `FlightPlans`, `FlightStrips`.
 - **Weather**: `NexradData`.

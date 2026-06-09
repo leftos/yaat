@@ -44,6 +44,9 @@ public class FacilityConfig
     [JsonPropertyName("asdexConfiguration")]
     public AsdexConfig? AsdexConfiguration { get; set; }
 
+    [JsonPropertyName("saidConfiguration")]
+    public SaidConfig? SaidConfiguration { get; set; }
+
     [JsonPropertyName("flightStripsConfiguration")]
     public FlightStripsConfig? FlightStripsConfiguration { get; set; }
 
@@ -304,6 +307,53 @@ public class AsdexConfig
 
     [JsonPropertyName("defaultPositionId")]
     public string? DefaultPositionId { get; set; }
+
+    [JsonPropertyName("towerLocation")]
+    public TowerLocationConfig? TowerLocation { get; set; }
+}
+
+/// <summary>
+/// SAAB SAID surface-awareness display config. Unlike <see cref="AsdexConfig"/> (flat), the
+/// vNAS schema nests the vendor-specific block under a vendor key — only <c>Saab</c> is
+/// implemented in CRC 2.17, so <see cref="SaabConfiguration"/> is the only populated branch.
+/// </summary>
+public class SaidConfig
+{
+    [JsonPropertyName("vendor")]
+    [JsonConverter(typeof(JsonStringEnumConverter<SaidVendor>))]
+    public SaidVendor Vendor { get; set; }
+
+    [JsonPropertyName("saabConfiguration")]
+    public SaabSaidConfig? SaabConfiguration { get; set; }
+}
+
+public enum SaidVendor
+{
+    UAvionix,
+    Saab,
+    Indra,
+}
+
+/// <summary>
+/// Saab-vendor SAID parameters. SAID carries no <c>targetVisibilityRange</c>/<c>targetVisibilityCeiling</c>
+/// (unlike ASDE-X) — surface visibility falls back to the ASDE-X defaults (15 nm / 1500 ft).
+/// </summary>
+public class SaabSaidConfig
+{
+    [JsonPropertyName("videoMapId")]
+    public string? VideoMapId { get; set; }
+
+    [JsonPropertyName("defaultRotation")]
+    public int DefaultRotation { get; set; }
+
+    [JsonPropertyName("defaultZoomRange")]
+    public int DefaultZoomRange { get; set; }
+
+    [JsonPropertyName("fixRules")]
+    public List<AsdexFixRuleConfig> FixRules { get; set; } = [];
+
+    [JsonPropertyName("useDestinationIdAsFix")]
+    public bool UseDestinationIdAsFix { get; set; }
 
     [JsonPropertyName("towerLocation")]
     public TowerLocationConfig? TowerLocation { get; set; }

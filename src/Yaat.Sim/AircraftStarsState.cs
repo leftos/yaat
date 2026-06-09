@@ -24,6 +24,15 @@ public class AircraftStarsState
     public bool AsdexSuspended { get; set; }
     public bool AsdexTerminated { get; set; }
     public bool AsdexAlertsInhibited { get; set; }
+    public string? SaidScratchpad1 { get; set; }
+    public string? SaidScratchpad2 { get; set; }
+    public string? SaidCallsignOverride { get; set; }
+    public string? SaidBeaconCodeOverride { get; set; }
+    public string? SaidCategoryOverride { get; set; }
+    public string? SaidAircraftTypeOverride { get; set; }
+    public string? SaidFixOverride { get; set; }
+    public bool SaidSuspended { get; set; }
+    public bool SaidTerminated { get; set; }
     public int? TemporaryAltitude { get; set; }
     public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }
@@ -55,6 +64,15 @@ public class AircraftStarsState
             AsdexSuspended = AsdexSuspended,
             AsdexTerminated = AsdexTerminated,
             AsdexAlertsInhibited = AsdexAlertsInhibited,
+            SaidScratchpad1 = SaidScratchpad1,
+            SaidScratchpad2 = SaidScratchpad2,
+            SaidCallsignOverride = SaidCallsignOverride,
+            SaidBeaconCodeOverride = SaidBeaconCodeOverride,
+            SaidCategoryOverride = SaidCategoryOverride,
+            SaidAircraftTypeOverride = SaidAircraftTypeOverride,
+            SaidFixOverride = SaidFixOverride,
+            SaidSuspended = SaidSuspended,
+            SaidTerminated = SaidTerminated,
             TemporaryAltitude = TemporaryAltitude,
             PilotReportedAltitude = PilotReportedAltitude,
             IsAnnotated = IsAnnotated,
@@ -87,6 +105,15 @@ public class AircraftStarsState
             AsdexSuspended = dto.AsdexSuspended,
             AsdexTerminated = dto.AsdexTerminated,
             AsdexAlertsInhibited = dto.AsdexAlertsInhibited,
+            SaidScratchpad1 = dto.SaidScratchpad1,
+            SaidScratchpad2 = dto.SaidScratchpad2,
+            SaidCallsignOverride = dto.SaidCallsignOverride,
+            SaidBeaconCodeOverride = dto.SaidBeaconCodeOverride,
+            SaidCategoryOverride = dto.SaidCategoryOverride,
+            SaidAircraftTypeOverride = dto.SaidAircraftTypeOverride,
+            SaidFixOverride = dto.SaidFixOverride,
+            SaidSuspended = dto.SaidSuspended,
+            SaidTerminated = dto.SaidTerminated,
             TemporaryAltitude = dto.TemporaryAltitude,
             PilotReportedAltitude = dto.PilotReportedAltitude,
             IsAnnotated = dto.IsAnnotated,

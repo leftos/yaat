@@ -8,6 +8,7 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedWeatherChange), "WeatherChange")]
 [JsonDerivedType(typeof(RecordedSettingChange), "SettingChange")]
 [JsonDerivedType(typeof(RecordedAsdexMutation), "AsdexMutation")]
+[JsonDerivedType(typeof(RecordedSaidMutation), "SaidMutation")]
 [JsonDerivedType(typeof(RecordedArrivalGeneratorsChange), "ArrivalGeneratorsChange")]
 [JsonDerivedType(typeof(RecordedAircraftSpawn), "AircraftSpawn")]
 public abstract record RecordedAction(double ElapsedSeconds);
@@ -56,6 +57,25 @@ public sealed record RecordedAircraftSpawn(double ElapsedSeconds, AircraftSnapsh
 /// All mutations target server-side <c>AsdexRoomState</c>; the sim ignores them during replay.
 /// </summary>
 public sealed record RecordedAsdexMutation(
+    double ElapsedSeconds,
+    string Kind,
+    string? AircraftId,
+    string? Callsign,
+    string? BeaconCode,
+    string? Category,
+    string? AircraftType,
+    string? Fix,
+    string? Scratchpad1,
+    string? Scratchpad2
+) : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// CRC-sourced SAAB SAID mutation. <see cref="Kind"/> is one of <c>EditDbFields</c>, <c>Tag</c>,
+/// <c>Terminate</c>, <c>Suspend</c>, <c>Unsuspend</c> (SAID has no alerts, so no Inhibit/EnableAll).
+/// All mutations target server-side <c>SaidRoomState</c> + per-aircraft SAID state; the sim ignores
+/// them during replay.
+/// </summary>
+public sealed record RecordedSaidMutation(
     double ElapsedSeconds,
     string Kind,
     string? AircraftId,

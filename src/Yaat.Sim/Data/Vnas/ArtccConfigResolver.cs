@@ -503,6 +503,12 @@ public static class ArtccConfigResolver
         config.FindFacility(facilityId)?.AsdexConfiguration;
 
     /// <summary>
+    /// Returns the SAAB SAID config for a facility (airport).
+    /// </summary>
+    public static SaidConfig? GetSaidConfigForFacility(this ArtccConfigRoot config, string facilityId) =>
+        config.FindFacility(facilityId)?.SaidConfiguration;
+
+    /// <summary>
     /// Returns the STARS config for a facility.
     /// </summary>
     public static StarsConfig? GetStarsConfigForFacility(this ArtccConfigRoot config, string facilityId) =>
@@ -621,6 +627,24 @@ public static class ArtccConfigResolver
         return result;
     }
 
+    // SAID config carries no visibility range/ceiling (unlike ASDE-X), so surface
+    // gating falls back to the ASDE-X defaults.
+    private const double SaidDefaultRange = 15;
+    private const double SaidDefaultCeiling = 1500;
+
+    /// <summary>
+    /// Collects all SAAB SAID airports declared anywhere in the facility tree. Coordinates come
+    /// from <c>SaabConfiguration.TowerLocation</c>, falling back to the facility's indexed
+    /// position. Only the <see cref="SaidVendor.Saab"/> vendor is emitted (the only one CRC 2.17
+    /// renders); other vendors parse but produce no SAID airport.
+    /// </summary>
+    public static List<SaidAirportInfo> GetAllSaidAirports(this ArtccConfigRoot config)
+    {
+        var result = new List<SaidAirportInfo>();
+        CollectSaidAirports(config.Facility, NavigationDatabase.Instance, result);
+        return result;
+    }
+
     /// <summary>
     /// Collects all TowerCab airports declared anywhere in the facility tree.
     /// </summary>
@@ -645,6 +669,26 @@ public static class ArtccConfigResolver
         foreach (var child in facility.ChildFacilities)
         {
             CollectAsdexAirports(child, fixes, result);
+        }
+    }
+
+    private static void CollectSaidAirports(FacilityConfig facility, NavigationDatabase? fixes, List<SaidAirportInfo> result)
+    {
+        if (facility.SaidConfiguration is { Vendor: SaidVendor.Saab, SaabConfiguration: { } saab })
+        {
+            var tower = saab.TowerLocation;
+            var (lat, lon) =
+                (tower is not null) && ((tower.Lat != 0) || (tower.Lon != 0)) ? (tower.Lat, tower.Lon) : GetFacilityLocation(facility, fixes);
+
+            if (lat != 0 || lon != 0)
+            {
+                result.Add(new SaidAirportInfo(facility.Id, lat, lon, SaidDefaultRange, SaidDefaultCeiling));
+            }
+        }
+
+        foreach (var child in facility.ChildFacilities)
+        {
+            CollectSaidAirports(child, fixes, result);
         }
     }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **SAAB SAID surface display** support for CRC 2.17 — a CRC client connected to a YAAT training room can now open a SAID display at a SAID-configured airport and see live surface targets and tracks, edit data-block fields (callsign, beacon, category, type, fix, scratchpads), tag / terminate / suspend tracks, and place restricted-area / closed-area / text temporary-data overlays and presets, exactly the way ASDE-X already works. SAID display state survives scenario reload and session checkpoints and is wiped when a scenario unloads. (CRC 2.17 introduced SAID alongside ASDE-X; YAAT now emits the four SAID topics so the new display renders against a training room.)
+
 ## v0.7.8-beta [2026/06/08]
 
 ### Highlights

@@ -2,6 +2,8 @@ namespace Yaat.Sim.Data.Vnas;
 
 public record AsdexAirportInfo(string AirportId, double Lat, double Lon, double Range, double Ceiling);
 
+public record SaidAirportInfo(string AirportId, double Lat, double Lon, double Range, double Ceiling);
+
 public record TowerCabAirportInfo(string AirportId, double Lat, double Lon, double VisibilityCeiling);
 
 /// <summary>
