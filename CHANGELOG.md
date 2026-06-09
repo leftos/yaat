@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.8-beta [2026/06/08]
+
+### Highlights
+- A point-out you send now shows the recipient's sector as `3E*` on the data block — outstanding outgoing point-outs are visible at a glance.
+- A point-out the student accepts on CRC stays yellow until they clear it, instead of turning green the moment it's accepted.
+- Accepting a handoff with `ACCEPT` keeps the previous controller's data block white until they slew it, matching STARS.
+- `ONHO` instructions now fire when a handoff is accepted by the auto-accept timer or accept-all, not just a manual accept.
 
 ### Added
 - The instructor **Radar View** now marks a pending point-out the student sent to another position with the recipient's sector and an asterisk — e.g. `3E*` — on the owner/scratchpad data block line, so you can see at a glance which tracks have an outstanding outgoing point-out.
