@@ -66,13 +66,16 @@ public static class StarsDatablockClassifier
         bool wasPreviouslyOwned = shared?.WasPreviouslyOwned ?? false;
         bool isHighlighted = shared?.IsHighlighted ?? false;
         bool forceFdb = shared?.ForceFdb ?? false;
-        // CRC BuildFdb folds a recently-accepted incoming pointout into its pointout "flag": the track
-        // shows yellow (when the student doesn't own it) and is forced to a full data block until the
-        // student slews it to clear. Treat it like a pending pointout to the student.
+        // CRC's DisplayElementTracks colors the recipient's track yellow only while the pointout is
+        // pending OR while its recently-accepted "flag" is set — the transient yellow the recipient
+        // sees after slewing to accept, forced to a full data block until they slew it to clear. An
+        // *accepted* StarsPointout is the persistent owner-side record (CRC keys the sender's 5-second
+        // "PO" indicator off it, not the recipient's color), so it must not yellow the recipient: once
+        // the recipient clears the flag, sim state still carries the accepted pointout and would
+        // otherwise pin the track yellow forever.
         bool isRecentlyAcceptedPointout = shared?.IsRecentlyAcceptedIncomingPointout ?? false;
         bool isPointoutToStudent =
-            isRecentlyAcceptedPointout
-            || (track.Pointout is not null && track.Pointout.Recipient.Equals(studentTcp) && (track.Pointout.IsPending || track.Pointout.IsAccepted));
+            isRecentlyAcceptedPointout || (track.Pointout is not null && track.Pointout.Recipient.Equals(studentTcp) && track.Pointout.IsPending);
 
         // "Involved" = the student controls or is directly receiving the track (CRC: owned / previously
         // owned / incoming handoff). These show the owned (white) color and a full data block.

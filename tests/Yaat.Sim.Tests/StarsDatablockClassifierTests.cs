@@ -90,6 +90,23 @@ public class StarsDatablockClassifierTests
     }
 
     [Fact]
+    public void AcceptedPointoutToStudent_AfterFlagCleared_IsGreenNotYellow()
+    {
+        // After the student acknowledges a point-out and slews it to clear (CRC's transient
+        // IsRecentlyAcceptedIncomingPointout flag is back to false), the accepted point-out must
+        // not keep the recipient track yellow. CRC (DisplayElementTracks) colors the recipient
+        // yellow only on a pending point-out or the transient flag — never on Accepted alone.
+        var ac = Aircraft();
+        ac.Track.Owner = OtherPosition;
+        ac.Track.Pointout = new StarsPointout(StudentTcp, OtherTcp) { Status = StarsPointoutStatus.Accepted };
+
+        var view = Classify(ac);
+
+        Assert.Equal(StarsDatablockColor.Unowned, view.Color);
+        Assert.Equal(StarsDatablockLevel.Partial, view.Level);
+    }
+
+    [Fact]
     public void SharedState_IsKeyedByTcpId_NotSubsetSectorCode()
     {
         // Regression: writers (CRC handler, TickProcessor) key SharedState by Tcp.Id (the ULID).

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A point-out the student acknowledges on CRC no longer stays **yellow** on the instructor's **Radar View** — it reverts to green once cleared.
+
 ## v0.7.7-beta [2026/06/08]
 
 ### Highlights

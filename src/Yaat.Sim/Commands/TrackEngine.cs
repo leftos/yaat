@@ -372,6 +372,24 @@ public static class TrackEngine
         return new CommandResult(true, $"Retracted pointout for {ac.Callsign}");
     }
 
+    /// <summary>
+    /// Drops a completed incoming point-out from sim state when the recipient dismisses the
+    /// just-accepted track. CRC's <c>IsRecentlyAcceptedIncomingPointout</c> flag flips true-&gt;false
+    /// on the recipient's slew-to-clear gesture; at that point the accepted point-out has served its
+    /// purpose and should not linger in sim state. <paramref name="recipientTcpId"/> is the
+    /// <see cref="Tcp.Id"/> (ULID) of the position whose shared state changed — matched against
+    /// <see cref="StarsPointout.Recipient"/> so an unrelated position's update is ignored. The
+    /// transition guard (was-true, now-false) avoids clearing during the window between the accept
+    /// and CRC pushing the flag.
+    /// </summary>
+    public static void ClearDismissedIncomingPointout(AircraftState ac, string recipientTcpId, bool wasRecentlyAccepted, bool isRecentlyAccepted)
+    {
+        if (wasRecentlyAccepted && !isRecentlyAccepted && ac.Track.Pointout is { IsAccepted: true } po && po.Recipient.Id == recipientTcpId)
+        {
+            ac.Track.Pointout = null;
+        }
+    }
+
     public static CommandResult HandlePilotReportedAltitude(AircraftState ac, int altHundreds)
     {
         ac.Stars.PilotReportedAltitude = altHundreds == 0 ? null : altHundreds;

@@ -224,4 +224,72 @@ public class PointoutTests
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.Track.Pointout);
     }
+
+    // ── ClearDismissedIncomingPointout: recipient slew-to-clear drops a completed pointout ──
+
+    [Fact]
+    public void ClearDismissedIncomingPointout_ClearsAcceptedPointout_OnFlagFlipFalse()
+    {
+        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
+
+        TrackEngine.ClearDismissedIncomingPointout(ac, MakeTcp(2, "N").Id, wasRecentlyAccepted: true, isRecentlyAccepted: false);
+
+        Assert.Null(ac.Track.Pointout);
+    }
+
+    [Fact]
+    public void ClearDismissedIncomingPointout_KeepsPendingPointout()
+    {
+        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D"); // still Pending
+
+        TrackEngine.ClearDismissedIncomingPointout(ac, MakeTcp(2, "N").Id, wasRecentlyAccepted: true, isRecentlyAccepted: false);
+
+        Assert.NotNull(ac.Track.Pointout);
+        Assert.Equal(StarsPointoutStatus.Pending, ac.Track.Pointout!.Status);
+    }
+
+    [Fact]
+    public void ClearDismissedIncomingPointout_KeepsWhenFlagStillSet()
+    {
+        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
+
+        // Not a true->false transition — the student has not slewed to clear yet.
+        TrackEngine.ClearDismissedIncomingPointout(ac, MakeTcp(2, "N").Id, wasRecentlyAccepted: true, isRecentlyAccepted: true);
+
+        Assert.NotNull(ac.Track.Pointout);
+        Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
+    }
+
+    [Fact]
+    public void ClearDismissedIncomingPointout_KeepsWhenNoPriorAcceptedFlag()
+    {
+        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
+
+        // Flag was already false (e.g. an unrelated shared-state update arriving before CRC pushes
+        // the recently-accepted flag) — must not clear prematurely.
+        TrackEngine.ClearDismissedIncomingPointout(ac, MakeTcp(2, "N").Id, wasRecentlyAccepted: false, isRecentlyAccepted: false);
+
+        Assert.NotNull(ac.Track.Pointout);
+    }
+
+    [Fact]
+    public void ClearDismissedIncomingPointout_IgnoresWrongRecipient()
+    {
+        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
+
+        // A different TCP's shared-state update must not clear this recipient's pointout.
+        TrackEngine.ClearDismissedIncomingPointout(ac, MakeTcp(3, "B").Id, wasRecentlyAccepted: true, isRecentlyAccepted: false);
+
+        Assert.NotNull(ac.Track.Pointout);
+        Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
+    }
 }
