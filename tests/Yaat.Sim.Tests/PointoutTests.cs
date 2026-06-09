@@ -20,6 +20,15 @@ public class PointoutTests
     private static StarsPointout MakePendingPointout(int recipientSubset, string recipientSector, int senderSubset, string senderSector) =>
         new(MakeTcp(recipientSubset, recipientSector), MakeTcp(senderSubset, senderSector));
 
+    private static Yaat.Sim.Simulation.SimScenarioState MinimalScenario() =>
+        new()
+        {
+            ScenarioId = "s",
+            ScenarioName = "s",
+            RngSeed = 0,
+            OriginalScenarioJson = "{}",
+        };
+
     // ── PO no-args: accept inbound pointout ──
 
     [Fact]
@@ -145,7 +154,7 @@ public class PointoutTests
         ac.Track.HandoffInitiatedAt = 100;
 
         // Accept the handoff
-        TrackEngine.HandleAccept(ac);
+        TrackEngine.HandleAccept(ac, MinimalScenario());
 
         Assert.NotNull(ac.Track.Pointout);
         Assert.Equal(StarsPointoutStatus.Pending, ac.Track.Pointout.Status);

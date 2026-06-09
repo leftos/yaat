@@ -164,9 +164,12 @@ Display state that one position sets and other positions can observe lives **per
 `AircraftStarsState.GlobalLeaderDirection` (`AircraftStarsState.cs:36`), the facility-wide default leader direction set via the
 `LeaderDirection` track command (`TrackEngine.HandleLeaderDirection`, where `5` resets to `null`).
 
-`WasPreviouslyOwned` is the one field the sim writes on its own: when a handoff is auto-accepted, `ProcessAutoAccept` sets
-`WasPreviouslyOwned = true` in the *previous* owner's `SharedState` entry (`TickProcessor.cs:1038`) so CRC keeps the datablock as a
-full datablock (white) until the controller acknowledges.
+`WasPreviouslyOwned` is the one field the sim writes on its own: when a handoff is accepted, the *previous* owner's `SharedState`
+entry is flagged `WasPreviouslyOwned = true` so CRC keeps the datablock as a full datablock (white) until that controller slews to
+acknowledge. Both accept paths go through `TrackEngine.MarkPreviousOwnerRetained` (`TrackEngine.cs`) — the auto-accept timer
+(`ProcessAutoAccept`) and the manual `ACCEPT` / accept-all commands (`TrackEngine.HandleAccept`, `TrackCommandHandler`). The previous
+owner's TCP is resolved via `TrackResolver.FindTcpForOwner`, so a previous owner with no scenario TCP (e.g. an unmodelled adjacent
+facility) is a no-op.
 
 `SharedState` maps to the wire on the `StarsTracks` topic: `DtoConverter.ToStarsTrack` writes `SharedState = MapSharedState(...)`
 (`DtoConverter.cs:59`), where `MapSharedState` (`DtoConverter.cs:568`) converts each entry's `LeaderDirection`/`TpaType` ints into

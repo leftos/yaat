@@ -127,19 +127,45 @@ public static class TrackEngine
         return new CommandResult(true, $"Dropped {ac.Callsign}");
     }
 
-    public static CommandResult HandleAccept(AircraftState ac)
+    public static CommandResult HandleAccept(AircraftState ac, SimScenarioState scenario)
     {
         if (ac.Track.HandoffPeer is null)
         {
             return new CommandResult(false, $"No pending handoff for {ac.Callsign}");
         }
 
+        var previousOwner = ac.Track.Owner;
         ac.Track.Owner = ac.Track.HandoffPeer;
         ac.Track.HandoffPeer = null;
         ac.Track.HandoffInitiatedAt = null;
         ac.Track.HandoffRedirectedBy = null;
         ac.Track.HandoffAccepted = true;
+        MarkPreviousOwnerRetained(ac, previousOwner, scenario);
         return new CommandResult(true, $"Accepted {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// Flags the previous owner's STARS <c>SharedState</c> entry as previously-owned so that, after a
+    /// handoff is accepted, that controller's datablock stays a white FDB (CRC's <c>WasPreviouslyOwned</c>
+    /// semantics) until they slew to acknowledge — instead of dropping straight to an unowned green PDB.
+    /// No-op when the previous owner has no resolvable TCP. Shared by the manual accept path
+    /// (<see cref="HandleAccept"/>), the accept-all path, and the auto-accept timer so they cannot drift.
+    /// </summary>
+    public static void MarkPreviousOwnerRetained(AircraftState ac, TrackOwner? previousOwner, SimScenarioState scenario)
+    {
+        var previousTcp = previousOwner is not null ? TrackResolver.FindTcpForOwner(previousOwner, scenario) : null;
+        if (previousTcp is null)
+        {
+            return;
+        }
+
+        if (!ac.Stars.SharedState.TryGetValue(previousTcp.Id, out var shared))
+        {
+            shared = new StarsTrackSharedState();
+        }
+
+        shared.WasPreviouslyOwned = true;
+        ac.Stars.SharedState[previousTcp.Id] = shared;
     }
 
     public static CommandResult HandleCancel(AircraftState ac)
@@ -544,7 +570,7 @@ public static class TrackEngine
             DropTrackCommand => HandleDrop(ac),
             InitiateHandoffCommand ho => ApplyHandoff(ac, scenario, ho.TcpCode, artccConfig),
             ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode, artccConfig),
-            AcceptHandoffCommand => HandleAccept(ac),
+            AcceptHandoffCommand => HandleAccept(ac, scenario),
             CancelHandoffCommand => HandleCancel(ac),
             PointOutCommand po when po.TcpCode is not null => ApplyPointOut(ac, scenario, po.TcpCode, artccConfig),
             PointOutCommand => HandlePointOutNoArgs(ac, identity!),

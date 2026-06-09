@@ -36,7 +36,7 @@ public class TrackEngineInferenceTests
         ac.Track.Owner = Owner("OAK_TWR", 3, "O");
         ac.Track.HandoffPeer = peer;
 
-        var result = TrackEngine.HandleAccept(ac);
+        var result = TrackEngine.HandleAccept(ac, Scenario(Owner("OAK_TWR", 3, "O")));
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(peer, ac.Track.Owner);
@@ -50,7 +50,7 @@ public class TrackEngineInferenceTests
         var ac = Aircraft();
         ac.Track.Owner = Owner("OAK_TWR", 3, "O");
 
-        var result = TrackEngine.HandleAccept(ac);
+        var result = TrackEngine.HandleAccept(ac, Scenario(Owner("OAK_TWR", 3, "O")));
 
         Assert.False(result.Success);
         Assert.Contains("No pending handoff", result.Message ?? "");

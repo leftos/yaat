@@ -198,7 +198,16 @@ public class OnHandoffConditionTests
         ac.Track.Owner = TrackOwner.CreateStars("OAK_GND", "ZOA", 3, "O");
         ac.Track.HandoffPeer = acceptor;
 
-        var result = TrackEngine.HandleAccept(ac);
+        var result = TrackEngine.HandleAccept(
+            ac,
+            new Yaat.Sim.Simulation.SimScenarioState
+            {
+                ScenarioId = "s",
+                ScenarioName = "s",
+                RngSeed = 0,
+                OriginalScenarioJson = "{}",
+            }
+        );
 
         Assert.True(result.Success);
         Assert.True(ac.Track.HandoffAccepted);
