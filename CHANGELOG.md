@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.7-beta [2026/06/08]
+
+### Highlights
+- Call out traffic three simpler ways — off the nose (`RTIS NR 2 C172`), by pattern leg (`RTIS BASE R 2 28R M20P`), or by landmark (`RTIS OVER VPCOL C172`), typed or spoken, alongside the radar clock form.
+- Traffic advisories in solo training no longer have to be pin-point — a call a mile or a hundred feet off still counts, the altitude is optional, and a slightly-off call adds a coaching note instead of failing.
+- IFR departures turn off the runway at 400 ft AGL instead of holding runway heading until past the departure end — a much earlier turn on long, high-elevation runways like Aspen.
+- Saving a bug-report bundle from a solo session is fast again — a 90-second session now saves in well under a second instead of over a minute and a half.
 
 ### Added
 - **VFR-style traffic advisories** — three simpler ways to point out traffic alongside the radar-style `RTIS <clock> <miles> <direction> <type>`: relative to the aircraft's nose (`RTIS NR 2 C172` → "Traffic, off your nose and to the right, 2 miles, a Cessna"), by pattern leg (`RTIS BASE R 2 28R M20P` → "Traffic, 2-mile right base for runway 28R, a Mooney"), and by landmark or VFR reporting point (`RTIS OVER VPCOL C172` → "Traffic, over Oakland Coliseum, a Cessna"). Each can be typed or spoken to the speech recognizer, resolves the traffic you most likely mean, and feeds the same Session Report scoring as the clock form.

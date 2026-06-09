@@ -208,7 +208,7 @@ Most commands work the same in Solo Training and RPO mode, but a few matter more
 
 | Situation | Use in Solo Training | RPO shortcut to avoid |
 |-----------|----------------------|-----------------------|
-| Issue traffic information | `RTIS <clock> <miles> <direction> <type> <altitude>` | `RTIS <callsign>`, bare `RTIS`, `RTISF` |
+| Issue traffic information | `RTIS <clock> <miles> <direction> <type> [altitude]` — or a VFR form (`RTIS NR 2 C172`, `RTIS BASE R 2 28R M20P`, `RTIS OVER VPCOL C172`) | `RTIS <callsign>`, bare `RTIS`, `RTISF` |
 | Issue field information | `RFIS <clock> <miles>` | bare `RFIS`, `RFISF` |
 | Issue a safety alert | `SAFAL <clock> <miles> [L\|R] [C\|D]` | No forced shortcut |
 | Issue a wake advisory | `CWT`, `CTO ... CWT`, or `CLAND [NODEL] CWT` | No forced shortcut |
@@ -216,7 +216,7 @@ Most commands work the same in Solo Training and RPO mode, but a few matter more
 | Acknowledge without a maneuver | `STBY` / `ROGER` | No forced shortcut |
 | Use visual follow | structured `RTIS` first, then `FOLLOW` or `CVA ... FOLLOW` | forced traffic-in-sight shortcuts |
 
-The full syntax and behavior details live in [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences), [Pattern Commands](COMMANDS.md#pattern-commands), and [Approach Control Commands](COMMANDS.md#approach-control-commands). Structured `RFIS` is the solo-mode way to give field-position information for visual approaches; it records proof and lets the pilot acquire the field normally. Bare `RFIS` and `RFISF` stay RPO-only shortcuts. `CWT` is phase-transparent and records caution-wake-turbulence proof; when you use bare `CWT`, the report applies it only when there is exactly one current wake-advisory context for that aircraft.
+The full syntax and behavior details live in [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences), [Pattern Commands](COMMANDS.md#pattern-commands), and [Approach Control Commands](COMMANDS.md#approach-control-commands). Structured `RTIS` accepts the radar clock form or any of the three VFR descriptive forms (relative position, pattern leg, landmark); the altitude is optional and matching is tolerant, so a within-tolerance-but-imprecise call still counts with a low-severity coaching note. Structured `RFIS` is the solo-mode way to give field-position information for visual approaches; it records proof and lets the pilot acquire the field normally. Bare `RFIS` and `RFISF` stay RPO-only shortcuts. `CWT` is phase-transparent and records caution-wake-turbulence proof; when you use bare `CWT`, the report applies it only when there is exactly one current wake-advisory context for that aircraft.
 
 ## Built-In Safeguards
 
