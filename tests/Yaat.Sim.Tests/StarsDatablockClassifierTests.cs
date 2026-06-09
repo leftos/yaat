@@ -107,6 +107,28 @@ public class StarsDatablockClassifierTests
     }
 
     [Fact]
+    public void AcceptedPointoutToStudent_StaysYellowUntilCleared()
+    {
+        // The student slews a pending incoming point-out to accept it. CRC keeps the data block
+        // yellow (forced full) until they slew a second time to clear. TrackEngine.HandleAcknowledge
+        // sets the recipient's IsRecentlyAcceptedIncomingPointout flag, so the classifier (and CRC,
+        // which reads the same flag from the track DTO) keeps the track yellow.
+        var ac = Aircraft();
+        ac.Track.Owner = OtherPosition;
+        ac.Track.Pointout = new StarsPointout(StudentTcp, OtherTcp) { Status = StarsPointoutStatus.Pending };
+
+        var result = Yaat.Sim.Commands.TrackEngine.HandleAcknowledge(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
+
+        var view = Classify(ac);
+
+        Assert.Equal(StarsDatablockColor.Pointout, view.Color);
+        Assert.Equal(StarsDatablockLevel.Full, view.Level);
+    }
+
+    [Fact]
     public void SharedState_IsKeyedByTcpId_NotSubsetSectorCode()
     {
         // Regression: writers (CRC handler, TickProcessor) key SharedState by Tcp.Id (the ULID).

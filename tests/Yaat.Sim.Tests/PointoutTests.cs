@@ -234,6 +234,66 @@ public class PointoutTests
         Assert.Null(ac.Track.Pointout);
     }
 
+    // ── Accept sets the recipient's recently-accepted shared-state flag ──
+    // CRC keeps the recipient's datablock yellow (forced full) after they slew to accept until they
+    // slew a second time to clear. That window is carried by the per-TCP
+    // IsRecentlyAcceptedIncomingPointout shared-state flag, which CRC reads back from the track DTO
+    // (it never originates the flag locally). Accepting the pointout must set it.
+
+    [Fact]
+    public void HandleAcknowledge_SetsRecipientRecentlyAcceptedFlag()
+    {
+        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D"); // recipient TCP id = "tcp-2N"
+
+        var result = TrackEngine.HandleAcknowledge(ac);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(StarsPointoutStatus.Accepted, ac.Track.Pointout!.Status);
+        Assert.True(ac.Stars.SharedState.TryGetValue("tcp-2N", out var shared));
+        Assert.True(shared!.IsRecentlyAcceptedIncomingPointout);
+    }
+
+    [Fact]
+    public void PoNoArgs_Accept_SetsRecipientRecentlyAcceptedFlag()
+    {
+        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D"); // recipient TCP id = "tcp-2N"
+        var recipient = MakeOwner("NCT_APP", 2, "N");
+
+        var result = TrackEngine.HandlePointOutNoArgs(ac, recipient);
+
+        Assert.True(result.Success, result.Message);
+        Assert.True(ac.Stars.SharedState.TryGetValue("tcp-2N", out var shared));
+        Assert.True(shared!.IsRecentlyAcceptedIncomingPointout);
+    }
+
+    [Fact]
+    public void HandleAcknowledge_PreservesExistingRecipientSharedState()
+    {
+        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+        ac.Stars.SharedState["tcp-2N"] = new StarsTrackSharedState { ForceFdb = true, LeaderDirection = 3 };
+
+        TrackEngine.HandleAcknowledge(ac);
+
+        var shared = ac.Stars.SharedState["tcp-2N"];
+        Assert.True(shared.IsRecentlyAcceptedIncomingPointout);
+        Assert.True(shared.ForceFdb);
+        Assert.Equal(3, shared.LeaderDirection);
+    }
+
+    [Fact]
+    public void HandleRejectPointout_DoesNotSetRecentlyAcceptedFlag()
+    {
+        var ac = MakeAircraft(MakeOwner("NCT_CTR", 1, "D"));
+        ac.Track.Pointout = MakePendingPointout(2, "N", 1, "D");
+
+        TrackEngine.HandleRejectPointout(ac);
+
+        Assert.False(ac.Stars.SharedState.TryGetValue("tcp-2N", out var shared) && shared!.IsRecentlyAcceptedIncomingPointout);
+    }
+
     // ── ClearDismissedIncomingPointout: recipient slew-to-clear drops a completed pointout ──
 
     [Fact]

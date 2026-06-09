@@ -188,8 +188,32 @@ public static class TrackEngine
             return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
         }
 
-        ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
+        AcceptIncomingPointout(ac);
         return new CommandResult(true, $"Acknowledged {ac.Callsign}");
+    }
+
+    /// <summary>
+    /// Marks the pending incoming pointout as accepted and sets the recipient's
+    /// <see cref="StarsTrackSharedState.IsRecentlyAcceptedIncomingPointout"/> flag. CRC keeps the
+    /// recipient's data block yellow (forced full) from the moment they slew to accept until they slew
+    /// a second time to clear; that transient window is carried entirely by this per-TCP flag, which
+    /// CRC reads back from the track DTO and never originates locally. Setting it here keeps the
+    /// accepted pointout yellow on both CRC and YAAT's Radar View until the recipient dismisses it
+    /// (see <see cref="ClearDismissedIncomingPointout"/>).
+    /// </summary>
+    private static void AcceptIncomingPointout(AircraftState ac)
+    {
+        var pointout = ac.Track.Pointout!;
+        pointout.Status = StarsPointoutStatus.Accepted;
+
+        var recipientId = pointout.Recipient.Id;
+        if (!ac.Stars.SharedState.TryGetValue(recipientId, out var shared))
+        {
+            shared = new StarsTrackSharedState();
+            ac.Stars.SharedState[recipientId] = shared;
+        }
+
+        shared.IsRecentlyAcceptedIncomingPointout = true;
     }
 
     public static CommandResult HandlePointOut(AircraftState ac, Tcp targetTcp, Tcp senderTcp)
@@ -219,7 +243,7 @@ public static class TrackEngine
 
         if (ac.Track.Pointout.Recipient.ToString() == tcpStr)
         {
-            ac.Track.Pointout.Status = StarsPointoutStatus.Accepted;
+            AcceptIncomingPointout(ac);
             return new CommandResult(true, $"Acknowledged {ac.Callsign}");
         }
 
