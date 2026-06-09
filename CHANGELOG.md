@@ -5,6 +5,7 @@
 ### Fixed
 - A point-out the student acknowledges on CRC no longer stays **yellow** on the instructor's **Radar View** — it reverts to green once cleared.
 - When a handoff is accepted with the `ACCEPT` command (rather than by the auto-accept timer), the previous controller's data block now stays a white full data block until they slew it — the way STARS shows a just-accepted handoff — instead of immediately turning into a green partial data block. The auto-accept path already behaved this way; the manual `ACCEPT` (and accept-all) now matches it.
+- An `ONHO` (on-handoff) instruction — e.g. `ONHO CM 120` (climb when handed off) or `ONHO DEL` — now fires when the handoff is accepted by the auto-accept timer or accept-all, not only when an RPO accepts it by hand.
 
 ## v0.7.7-beta [2026/06/08]
 
