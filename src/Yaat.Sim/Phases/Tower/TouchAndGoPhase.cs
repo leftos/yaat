@@ -88,6 +88,11 @@ public sealed class TouchAndGoPhase : Phase
             - CategoryPerformance.RolloutDecelRate(ctx.Category) * _rolloutDuration;
         ctx.Targets.TargetSpeed = Math.Max(minSpeed, 40);
 
+        // Drop any approach speed floor/ceiling (including the 5nm-final gate ceiling) so
+        // the re-acceleration and climb-out are not capped at the approach speed.
+        ctx.Targets.SpeedFloor = null;
+        ctx.Targets.SpeedCeiling = null;
+
         Log.LogDebug(
             "[TouchAndGo] {Callsign}: started, rollout={Roll:F1}s, rwyHdg={Hdg:F0}",
             ctx.Aircraft.Callsign,

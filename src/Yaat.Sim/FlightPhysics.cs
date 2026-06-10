@@ -1561,12 +1561,18 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Auto-cancel ATC speed restrictions at 5nm final per 7110.65 §5-7-1.b.4.
-    /// Only clears speeds set by explicit ATC commands (S180, etc.), not phase-managed
-    /// speeds like FAS set by FinalApproachPhase. Applies only to aircraft inbound on an
-    /// arrival approach — departures and go-arounds keep their assigned speed — and a
-    /// forced assignment (SPEEDF / SPEEDN) is exempt so the controller's override persists.
-    /// Called from Update() after UpdateSpeed().
+    /// Release ATC speed restrictions at 5nm final per 7110.65 §5-7-1.b.4. The controller
+    /// can no longer adjust the speed, so the explicit assignment is dropped and the pilot
+    /// owns the approach speed — but the aircraft must never accelerate with the runway in
+    /// sight. The last-assigned speed is therefore retained as a ceiling: the aircraft holds
+    /// it or eases down to its natural approach speed (continuing any in-progress reduction
+    /// to a lower assigned speed), but the auto speed schedule can never push it back up.
+    /// Only phase-unmanaged explicit speeds are converted — phase-managed speeds (FAS set by
+    /// FinalApproachPhase) are untouched. Applies only to aircraft inbound on an arrival
+    /// approach — departures and go-arounds keep their speed — and a forced assignment
+    /// (SPEEDF / SPEEDN) is exempt so the controller's override persists.
+    /// Called from Update() after UpdateSpeed(); the stale ceiling is cleared on go-around
+    /// (GoAroundPhase.OnStart) so the missed-approach climb is not capped.
     /// </summary>
     private static void AutoCancelSpeedAtFinal(AircraftState aircraft)
     {
@@ -1575,7 +1581,7 @@ public static class FlightPhysics
             return;
         }
 
-        // Only cancel explicit ATC speed restrictions, not phase-managed approach speeds
+        // Only convert explicit ATC speed restrictions, not phase-managed approach speeds
         if (!aircraft.Targets.HasExplicitSpeedCommand)
         {
             return;
@@ -1601,13 +1607,35 @@ public static class FlightPhysics
         }
 
         double dist = GeoMath.DistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
-        if (dist <= 5.0)
+        if (dist > 5.0)
         {
-            aircraft.Targets.TargetSpeed = null;
-            aircraft.Targets.HasExplicitSpeedCommand = false;
-            aircraft.Targets.SpeedFloor = null;
-            aircraft.Targets.SpeedCeiling = null;
+            return;
         }
+
+        // Capture the speed the controller last commanded before releasing the restriction.
+        double reference = aircraft.Targets.TargetSpeed ?? aircraft.Targets.SpeedCeiling ?? aircraft.IndicatedAirspeed;
+
+        // Release the explicit ATC restriction so the pilot owns the approach speed.
+        aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Targets.SpeedFloor = null;
+
+        // A phase that owns speed (pattern legs, an active instrument approach, final) keeps
+        // the aircraft from accelerating on its own — clear the assignment outright as before.
+        // Otherwise the auto speed schedule would re-accelerate a hand-vectored inbound toward
+        // the descent default, so retain the last-assigned speed as a ceiling: the aircraft
+        // holds it or eases down to its approach speed but can never speed back up.
+        bool phaseOwnsSpeed = aircraft.Phases?.ActiveApproach is not null || aircraft.Phases?.CurrentPhase?.ManagesSpeed == true;
+        if (phaseOwnsSpeed)
+        {
+            aircraft.Targets.SpeedCeiling = null;
+            return;
+        }
+
+        // Cap at the lower of the last-assigned speed and the current IAS so the aircraft
+        // never accelerates: a converged assignment holds, an in-progress reduction continues
+        // toward the lower target, and an overshoot below the assignment is not nudged up.
+        aircraft.Targets.SpeedCeiling = Math.Min(reference, aircraft.IndicatedAirspeed);
     }
 
     private static bool IsRadialIntercepted(AircraftState aircraft, BlockTrigger trigger)

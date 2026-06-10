@@ -155,6 +155,48 @@ public class TowerPhaseTests
         Assert.True(ac.Targets.DesiredVerticalRate > 0);
     }
 
+    /// <summary>
+    /// A go-around clears the speed ceiling AutoCancelSpeedAtFinal leaves at the 5nm gate,
+    /// so the missed-approach climb accelerates to climb speed instead of being capped at
+    /// the (slower) approach speed.
+    /// </summary>
+    [Fact]
+    public void GoAround_OnStart_ClearsStaleApproachSpeedCeiling()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 600, onGround: false, ias: 130);
+        ac.Targets.SpeedCeiling = 130; // left by the 5nm-final gate
+        var phase = new GoAroundPhase();
+        var ctx = Ctx(ac, rwy);
+
+        phase.OnStart(ctx);
+
+        Assert.Null(ac.Targets.SpeedCeiling);
+        Assert.Null(ac.Targets.SpeedFloor);
+        Assert.True(ac.Targets.TargetSpeed > 130, "Go-around climb speed must exceed the cleared approach ceiling");
+    }
+
+    /// <summary>
+    /// A touch-and-go likewise drops the stale 5nm-final gate ceiling on start so the
+    /// re-acceleration off the runway is not capped at the (slower) approach speed.
+    /// (StopAndGoPhase and LowApproachPhase clear it the same way.)
+    /// </summary>
+    [Fact]
+    public void TouchAndGo_OnStart_ClearsStaleApproachSpeedCeiling()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 70);
+        ac.Targets.SpeedFloor = 90;
+        ac.Targets.SpeedCeiling = 90; // left by the 5nm-final gate before touchdown
+        var phase = new TouchAndGoPhase();
+        var ctx = Ctx(ac, rwy);
+
+        phase.OnStart(ctx);
+
+        Assert.Null(ac.Targets.SpeedCeiling);
+        Assert.Null(ac.Targets.SpeedFloor);
+    }
+
     [Fact]
     public void GoAround_CompletesAt2000AGL()
     {

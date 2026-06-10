@@ -393,7 +393,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 |--------|-----------|------|
 | Auto speed reductions | 250kt < 10,000ft; base speed < 4,000ft AGL; staged reductions at 17/12/7nm; auto final speed < 4nm | 250kt < 10,000ft (14 CFR 91.117) |
 | Speed floor/ceiling | — | `SPD 210+` / `SPD 210-` |
-| Auto-cancel at 5nm | Not documented | Yes, for arrivals inbound on final only (7110.65 §5-7-1.b.4); departures/go-arounds exempt; `SPEEDF` overrides |
+| Auto-cancel at 5nm | Not documented | Yes, for aircraft inbound to land only (7110.65 §5-7-1.b.4); speed released but never re-accelerated (holds or eases down); departures/go-arounds exempt; `SPEEDF` overrides |
 
 ### Runway Exit Deceleration
 

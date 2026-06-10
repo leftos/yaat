@@ -86,6 +86,11 @@ public sealed class StopAndGoPhase : Phase
         // Decelerate to zero
         ctx.Targets.TargetSpeed = 0;
 
+        // Drop any approach speed floor/ceiling (including the 5nm-final gate ceiling) so
+        // the climb-out after the stop is not capped at the approach speed.
+        ctx.Targets.SpeedFloor = null;
+        ctx.Targets.SpeedCeiling = null;
+
         Log.LogDebug(
             "[StopAndGo] {Callsign}: started, pause={Pause:F1}s, rwyHdg={Hdg:F0}",
             ctx.Aircraft.Callsign,

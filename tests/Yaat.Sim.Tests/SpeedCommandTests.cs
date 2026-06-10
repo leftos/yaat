@@ -545,8 +545,40 @@ public class SpeedPhysicsTests
 
     // --- Auto-cancel at 5nm final ---
 
+    /// <summary>
+    /// At the 5nm gate a non-phase-managed inbound (cleared to land, hand-vectored, no
+    /// speed-owning phase) has its explicit ATC restriction released — but the last-assigned
+    /// speed is retained as a ceiling so the auto speed schedule cannot push it back up.
+    /// </summary>
     [Fact]
-    public void AutoCancel_ClearsSpeedAt5nmFinal()
+    public void AutoCancel_ConvertsSpeedToCeiling_WhenNotPhaseManaged()
+    {
+        var ac = CreateAirborne(ias: 210);
+        ac.Targets.TargetSpeed = 210;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        ac.Targets.SpeedFloor = 200;
+        ac.Phases = new PhaseList
+        {
+            AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon),
+            LandingClearance = ClearanceType.ClearedToLand,
+        };
+
+        FlightPhysics.Update(ac, 0.1);
+
+        // Explicit restriction released, floor dropped, but a ceiling at the last-assigned
+        // speed remains so the aircraft cannot speed back up inside the final.
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
+        Assert.Null(ac.Targets.SpeedFloor);
+        Assert.Equal(210, ac.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// A phase that owns speed (pattern leg / active approach / final) keeps an aircraft from
+    /// accelerating on its own, so at the gate the explicit restriction is cleared outright —
+    /// no lingering ceiling that could fight the phase's own speed schedule.
+    /// </summary>
+    [Fact]
+    public void AutoCancel_FullyClearsSpeed_WhenPhaseManaged()
     {
         var ac = CreateAirborne(ias: 210);
         ac.Targets.TargetSpeed = 210;
@@ -558,11 +590,43 @@ public class SpeedPhysicsTests
 
         FlightPhysics.Update(ac, 0.1);
 
-        // Aircraft is at 0nm from threshold on final, should auto-cancel ATC speed restriction
         Assert.Null(ac.Targets.TargetSpeed);
         Assert.False(ac.Targets.HasExplicitSpeedCommand);
         Assert.Null(ac.Targets.SpeedFloor);
         Assert.Null(ac.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// An aircraft given an explicit speed (RFAS or SPD) before the 5nm final must not
+    /// accelerate once it crosses the gate — the controller can no longer adjust its speed,
+    /// so the auto speed schedule must never push it back up toward the descent default.
+    /// (Before the fix the gate cleared the assignment and a non-phase-managed inbound
+    /// re-accelerated to the 250 kt below-10k descent default.)
+    /// </summary>
+    [Fact]
+    public void AutoCancel_DoesNotAccelerateInboundToLand_At5nmFinal()
+    {
+        // Cleared-to-land aircraft hand-vectored to a visual: inbound to land but with no
+        // speed-managing phase, descending → the auto speed schedule is active.
+        var ac = CreateAirborne(ias: 170, altitude: 4000);
+        ac.Targets.TargetSpeed = 170;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        ac.Targets.TargetAltitude = 2000;
+        ac.Phases = new PhaseList
+        {
+            AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon),
+            LandingClearance = ClearanceType.ClearedToLand,
+        };
+
+        for (int i = 0; i < 10; i++)
+        {
+            FlightPhysics.Update(ac, 1.0);
+        }
+
+        Assert.True(
+            ac.IndicatedAirspeed <= 172,
+            $"Inbound-to-land aircraft must not accelerate past its assigned speed inside 5nm; was {ac.IndicatedAirspeed:F1}"
+        );
     }
 
     /// <summary>

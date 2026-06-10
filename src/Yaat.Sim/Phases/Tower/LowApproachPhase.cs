@@ -74,6 +74,11 @@ public sealed class LowApproachPhase : Phase
         double approachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetSpeed = approachSpeed;
 
+        // Drop any approach speed floor/ceiling (including the 5nm-final gate ceiling) so
+        // the climb-out at the end of the low pass is not capped at the approach speed.
+        ctx.Targets.SpeedFloor = null;
+        ctx.Targets.SpeedCeiling = null;
+
         Log.LogDebug(
             "[LowApproach] {Callsign}: started, goAroundAgl={Agl:F0}ft, rwyHdg={Hdg:F0}",
             ctx.Aircraft.Callsign,

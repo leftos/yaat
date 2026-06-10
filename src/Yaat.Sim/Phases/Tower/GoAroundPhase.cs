@@ -91,6 +91,11 @@ public sealed class GoAroundPhase : Phase
         ctx.Targets.TargetAltitude = targetAlt;
         ctx.Targets.DesiredVerticalRate = climbRate;
         ctx.Targets.TargetSpeed = climbSpeed;
+        // Drop any speed floor/ceiling from the approach — including the ceiling
+        // AutoCancelSpeedAtFinal leaves at the 5nm gate — so the missed-approach climb
+        // is not capped at the approach speed.
+        ctx.Targets.SpeedFloor = null;
+        ctx.Targets.SpeedCeiling = null;
         ctx.Targets.TargetTrueHeading = _runwayTrueHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();

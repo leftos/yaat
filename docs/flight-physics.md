@@ -35,7 +35,7 @@ The public entry is `FlightPhysics.Update(aircraft, deltaSeconds, aircraftLookup
 6. `UpdateHeading` — turn toward `TargetTrueHeading`.
 7. `UpdateAltitude` — climb/descend toward the resolved altitude goal.
 8. `UpdateSpeed` — accelerate/decelerate toward `TargetSpeed`.
-9. `AutoCancelSpeedAtFinal` — drop explicit ATC speed restrictions at 5 nm final.
+9. `AutoCancelSpeedAtFinal` — release explicit ATC speed restrictions at 5 nm final (capping a hand-vectored inbound so it can't re-accelerate).
 10. `UpdatePosition` — advance lat/lon by the ground-speed vector.
 11. `UpdateCommandQueue` — evaluate `CommandBlock` triggers / advance the queue.
 12. `UpdateGiveWayResume` — release a ground give-way hold when the target has passed.
@@ -190,12 +190,20 @@ procedure speed restriction at the constrained fix rather than reacting after it
 when within 10% of the change time (accel starts immediately). It is fully suppressed when `HasExplicitSpeedCommand`, `SpeedRestrictionsDeleted`,
 or `TargetMach` is set.
 
-**`AutoCancelSpeedAtFinal`** (`:1402`) runs right after `UpdateSpeed`: for an aircraft **inbound on an arrival approach**
-(`ApproachCommandHandler.IsArrivalApproachPhase`) at ≤ 5 nm from the assigned-runway threshold it clears `TargetSpeed`,
-`HasExplicitSpeedCommand`, `SpeedFloor`, and `SpeedCeiling` — but only for *explicit ATC* speed restrictions (gated on
-`HasExplicitSpeedCommand`), per 7110.65 §5-7-1.b.4. Departures and go-arounds are not on an arrival-approach phase and keep
-their assigned speed; a forced assignment (`SPEEDF`/`SPEEDN`, flagged by `Targets.SpeedOverridesFinalGate`) is also exempt.
-Phase-managed approach speeds (FAS) are left alone.
+**`AutoCancelSpeedAtFinal`** (`:1402`) runs right after `UpdateSpeed`: for an aircraft **inbound to land**
+(`ApproachCommandHandler.IsInboundToLand`) at ≤ 5 nm from the assigned-runway threshold it releases the *explicit ATC* speed
+restriction (gated on `HasExplicitSpeedCommand`), per 7110.65 §5-7-1.b.4 — the controller can no longer adjust the speed, so
+the pilot owns the approach speed. **It never lets the aircraft accelerate:**
+- If a phase owns speed (active approach, pattern leg, or final — `ActiveApproach != null` or `CurrentPhase.ManagesSpeed`), the
+  assignment is cleared outright (`TargetSpeed`/`HasExplicitSpeedCommand`/`SpeedFloor`/`SpeedCeiling` nulled); the phase already
+  drives the approach speed and never re-accelerates, so no cap is needed.
+- Otherwise (a hand-vectored inbound with the auto speed schedule live), the last-assigned speed is retained as a
+  `SpeedCeiling = min(last assigned, current IAS)` so the aircraft holds it or eases down to its natural approach speed
+  (continuing any in-progress reduction to a lower assigned speed) but can never be pushed back up toward the descent default.
+
+Departures and go-arounds are not inbound to land and keep their assigned speed; a forced assignment (`SPEEDF`/`SPEEDN`, flagged
+by `Targets.SpeedOverridesFinalGate`) is also exempt. The retained ceiling is cleared when the aircraft transitions to a
+climb-out (`GoAroundPhase`, `TouchAndGoPhase`, `StopAndGoPhase`, `LowApproachPhase` clear it in `OnStart`).
 
 The **AIM 5-4-1 NOTE 2 procedural-speed memory**: when the route is exhausted, `UpdateNavigation` publishes the last procedure speed
 (`Procedure.LastProcedureSpeedKts`) as a `SpeedCeiling` (`:192`) so the auto schedule cannot accelerate the aircraft above the last published
