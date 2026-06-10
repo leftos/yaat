@@ -218,6 +218,14 @@ public static class CommandRegistry
                 ["SPD", "SPEED", "DS", "IS", "SLOW", "SL"],
                 [O(null, [R("speed", "knots IAS")], "Maintain speed")]
             ),
+            Cmd(
+                ForceSpeedFinal,
+                "Force Speed (Final)",
+                "Altitude / Speed",
+                false,
+                ["SPEEDF", "SPDF", "SLF"],
+                [O(null, [R("speed", "knots IAS (+/- ok)")], "Maintain speed, overriding the 5nm-final restriction")]
+            ),
             Bare(ResumeNormalSpeed, "Resume Normal Speed", "Altitude / Speed", false, ["RNS", "NS"]),
             Bare(ReduceToFinalApproachSpeed, "Reduce to Final Approach Speed", "Altitude / Speed", false, ["RFAS", "FAS"]),
             Bare(DeleteSpeedRestrictions, "Delete Speed Restrictions", "Altitude / Speed", false, ["DSR"]),

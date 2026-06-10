@@ -344,7 +344,8 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
-| Force speed | `SLN`/`ISN {spd}` | `SPDN`/`SLN`/`SPEEDN {spd}` | YAAT accepts the ATCTrainer `SLN` alias plus `SPDN`/`SPEEDN` |
+| Force speed (teleport) | `SLN`/`ISN {spd}` | `SPDN`/`SLN`/`SPEEDN {spd}` | YAAT accepts the ATCTrainer `SLN` alias plus `SPDN`/`SPEEDN` |
+| Force speed (gradual, override 5nm final) | — | `SPEEDF`/`SPDF`/`SLF {spd}` | YAAT-only; overrides the 5nm-final restriction but converges via physics instead of teleporting IAS |
 | Show/Hide path | `SHOWPATH`/`HIDEPATH` | — | ATCTrainer-only |
 | Warp | — | `WARP {frd} [hdg] [alt] [spd]` | YAAT-only; trailing args optional, keep current values when omitted |
 | Warp on ground | — | `WARPG {twy1} {twy2}` | YAAT-only |
@@ -392,7 +393,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 |--------|-----------|------|
 | Auto speed reductions | 250kt < 10,000ft; base speed < 4,000ft AGL; staged reductions at 17/12/7nm; auto final speed < 4nm | 250kt < 10,000ft (14 CFR 91.117) |
 | Speed floor/ceiling | — | `SPD 210+` / `SPD 210-` |
-| Auto-cancel at 5nm | Not documented | Yes (per 7110.65 §5-7-1) |
+| Auto-cancel at 5nm | Not documented | Yes, for arrivals inbound on final only (7110.65 §5-7-1.b.4); departures/go-arounds exempt; `SPEEDF` overrides |
 
 ### Runway Exit Deceleration
 

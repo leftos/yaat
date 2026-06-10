@@ -1206,6 +1206,9 @@ public sealed class FinalApproachPhase : Phase
             CanonicalCommandType.LandAndHoldShort => true,
             CanonicalCommandType.ClearedForOption => true,
             CanonicalCommandType.GoAround => true,
+            // SPEEDF is the explicit override of the §5-7-1.b.4 final-gate restriction;
+            // honor it additively without clearing the stabilized approach.
+            CanonicalCommandType.ForceSpeedFinal => true,
             CanonicalCommandType.Follow => true,
             CanonicalCommandType.ExitLeft => true,
             CanonicalCommandType.ExitRight => true,

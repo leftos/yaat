@@ -81,6 +81,15 @@ public class ControlTargets
     public bool HasExplicitSpeedCommand { get; set; }
 
     /// <summary>
+    /// True when a forced speed assignment (SPEEDF, or the SPDN teleport) has
+    /// deliberately overridden the §5-7-1.b.4 "no speed inside 5nm final" rule.
+    /// Exempts the assignment from <see cref="FlightPhysics"/>'s auto-cancel at the
+    /// final gate so the controller's forced speed persists. Cleared by any plain
+    /// SPD/RNS/RFAS/DSR/Mach command.
+    /// </summary>
+    public bool SpeedOverridesFinalGate { get; set; }
+
+    /// <summary>
     /// True when the user has issued an explicit TRATE command.
     /// Prevents pattern phases from overwriting TurnRateOverride.
     /// Cleared on TRATE (no arg), Warp, WarpGround, and phase-clear.
@@ -118,6 +127,7 @@ public class ControlTargets
             AssignedAltitude = AssignedAltitude,
             AssignedSpeed = AssignedSpeed,
             HasExplicitSpeedCommand = HasExplicitSpeedCommand,
+            SpeedOverridesFinalGate = SpeedOverridesFinalGate,
             HasExplicitTurnRate = HasExplicitTurnRate,
             TargetMach = TargetMach,
             NavigationRoute = NavigationRoute.Count > 0 ? NavigationRoute.Select(n => n.ToSnapshot()).ToList() : null,
@@ -140,6 +150,7 @@ public class ControlTargets
         targets.AssignedAltitude = dto.AssignedAltitude;
         targets.AssignedSpeed = dto.AssignedSpeed;
         targets.HasExplicitSpeedCommand = dto.HasExplicitSpeedCommand;
+        targets.SpeedOverridesFinalGate = dto.SpeedOverridesFinalGate;
         targets.HasExplicitTurnRate = dto.HasExplicitTurnRate;
         targets.TargetMach = dto.TargetMach;
         targets.NavigationRoute.Clear();

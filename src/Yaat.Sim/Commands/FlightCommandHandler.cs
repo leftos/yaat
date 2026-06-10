@@ -12,8 +12,8 @@ internal static class FlightCommandHandler
     /// <summary>
     /// Minimum speed (KIAS) ATC may assign a helicopter via a radar speed instruction
     /// (7110.65 §5-7-3.5: "assign a speed not less than 60 knots"). A plain SPD below this is
-    /// floored to it; the force-speed command (SPEEDN / SPDN / SLN) bypasses the floor and may
-    /// command any speed (the §5-7-3.6 "operationally advantageous" exception).
+    /// floored to it; a forced assignment (SPEEDF, or the SPEEDN / SPDN / SLN teleport) bypasses
+    /// the floor and may command any speed (the §5-7-3.6 "operationally advantageous" exception).
     /// </summary>
     private const int HelicopterMinRadarSpeedKts = 60;
 
@@ -190,13 +190,17 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplySpeed(SpeedCommand cmd, AircraftState aircraft)
     {
-        // Reject speed commands inside 5nm final per §5-7-1.a.2.d
-        if (!aircraft.IsOnGround && aircraft.Phases?.AssignedRunway is { } spdRwy)
+        // Reject speed commands to an aircraft inbound to land inside 5nm per §5-7-1.b.4.
+        // Only arrivals on an approach / cleared to land are gated — a departure (which
+        // also carries an AssignedRunway) and a go-around climbing out are not. SPEEDF
+        // (cmd.Force) is the controller override for the cases the rule allows
+        // (military, compression).
+        if (!cmd.Force && !aircraft.IsOnGround && ApproachCommandHandler.IsInboundToLand(aircraft) && aircraft.Phases?.AssignedRunway is { } spdRwy)
         {
             double spdDist = GeoMath.DistanceNm(aircraft.Position, new LatLon(spdRwy.ThresholdLatitude, spdRwy.ThresholdLongitude));
             if (spdDist <= 5.0)
             {
-                return new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.a.2.d]");
+                return new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.b.4]");
             }
         }
 
@@ -206,15 +210,19 @@ internal static class FlightCommandHandler
 
         aircraft.Targets.HasExplicitSpeedCommand = true;
 
+        // A forced assignment (SPEEDF) persists past the §5-7-1.b.4 auto-cancel gate;
+        // a plain SPD clears the override so the gate resumes governing.
+        aircraft.Targets.SpeedOverridesFinalGate = cmd.Force;
+
         // ATC speed supersedes the procedural last-published-speed memory.
         aircraft.Procedure.LastProcedureSpeedKts = null;
 
         // ATC can't assign a helicopter below the radar-speed minimum; floor a plain SPD to it.
-        // Only airborne — ground taxi speed is governed separately. The force-speed command
-        // (SPEEDN -> ApplyForceSpeed) bypasses this and may command any speed.
+        // Only airborne — ground taxi speed is governed separately. Forced assignments
+        // (SPEEDF here, or SPEEDN -> ApplyForceSpeed) bypass this and may command any speed.
         var spdCat = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool flooredForHeli =
-            spdCat == AircraftCategory.Helicopter && !aircraft.IsOnGround && cmd.Speed > 0 && cmd.Speed < HelicopterMinRadarSpeedKts;
+            !cmd.Force && spdCat == AircraftCategory.Helicopter && !aircraft.IsOnGround && cmd.Speed > 0 && cmd.Speed < HelicopterMinRadarSpeedKts;
         int effectiveSpeed = flooredForHeli ? HelicopterMinRadarSpeedKts : cmd.Speed;
 
         aircraft.Targets.AssignedSpeed = effectiveSpeed;
@@ -261,6 +269,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.HasExplicitSpeedCommand = false;
+        aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok("Resume normal speed");
     }
@@ -275,6 +284,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
     }
@@ -286,6 +296,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
+        aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.SpeedRestrictionsDeleted = true;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok("Speed restrictions deleted");
@@ -375,6 +386,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
+        aircraft.Targets.SpeedOverridesFinalGate = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Maintain Mach {cmd.MachNumber:F2}");
     }
@@ -389,6 +401,8 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
+        // A forced speed survives the §5-7-1.b.4 auto-cancel gate, same as SPEEDF.
+        aircraft.Targets.SpeedOverridesFinalGate = true;
         aircraft.Procedure.SpeedRestrictionsDeleted = false;
         aircraft.Procedure.LastProcedureSpeedKts = null;
         return CommandDispatcher.Ok($"Force speed {cmd.Speed}");

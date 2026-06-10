@@ -1792,8 +1792,31 @@ public static class ApproachCommandHandler
         aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
     }
 
-    private static bool IsArrivalApproachPhase(Phase? phase) =>
+    /// <summary>
+    /// True when the aircraft's phase puts it inbound on an arrival approach
+    /// (approach-navigation, intercept, final, hold, or procedure turn).
+    /// </summary>
+    internal static bool IsArrivalApproachPhase(Phase? phase) =>
         phase is ApproachNavigationPhase or InterceptCoursePhase or FinalApproachPhase or HoldingPatternPhase or ProcedureTurnPhase;
+
+    /// <summary>
+    /// True when the aircraft is inbound to land — being vectored or established on an
+    /// approach, or cleared to land (including in the pattern). This is the trigger for
+    /// the §5-7-1.b.4 5nm-final speed gate (reject new assignments, auto-cancel an
+    /// explicit ATC speed). A departure — which carries an <c>AssignedRunway</c> for its
+    /// departure runway but has no landing/approach clearance — and a go-around (climbing
+    /// out) are deliberately excluded so neither is blocked from a speed assignment.
+    /// </summary>
+    internal static bool IsInboundToLand(AircraftState aircraft)
+    {
+        var phases = aircraft.Phases;
+        if (phases is null || phases.CurrentPhase is GoAroundPhase)
+        {
+            return false;
+        }
+
+        return phases.LandingClearance is not null || phases.ActiveApproach is not null || IsArrivalApproachPhase(phases.CurrentPhase);
+    }
 
     private static void ClearExistingPhases(AircraftState aircraft)
     {

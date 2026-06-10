@@ -190,9 +190,12 @@ procedure speed restriction at the constrained fix rather than reacting after it
 when within 10% of the change time (accel starts immediately). It is fully suppressed when `HasExplicitSpeedCommand`, `SpeedRestrictionsDeleted`,
 or `TargetMach` is set.
 
-**`AutoCancelSpeedAtFinal`** (`:1402`) runs right after `UpdateSpeed`: at ≤ 5 nm from the assigned-runway threshold it clears `TargetSpeed`,
+**`AutoCancelSpeedAtFinal`** (`:1402`) runs right after `UpdateSpeed`: for an aircraft **inbound on an arrival approach**
+(`ApproachCommandHandler.IsArrivalApproachPhase`) at ≤ 5 nm from the assigned-runway threshold it clears `TargetSpeed`,
 `HasExplicitSpeedCommand`, `SpeedFloor`, and `SpeedCeiling` — but only for *explicit ATC* speed restrictions (gated on
-`HasExplicitSpeedCommand`), per 7110.65 §5-7-1.a.2.d. Phase-managed approach speeds (FAS) are left alone.
+`HasExplicitSpeedCommand`), per 7110.65 §5-7-1.b.4. Departures and go-arounds are not on an arrival-approach phase and keep
+their assigned speed; a forced assignment (`SPEEDF`/`SPEEDN`, flagged by `Targets.SpeedOverridesFinalGate`) is also exempt.
+Phase-managed approach speeds (FAS) are left alone.
 
 The **AIM 5-4-1 NOTE 2 procedural-speed memory**: when the route is exhausted, `UpdateNavigation` publishes the last procedure speed
 (`Procedure.LastProcedureSpeedKts`) as a `SpeedCeiling` (`:192`) so the auto schedule cannot accelerate the aircraft above the last published

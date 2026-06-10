@@ -220,6 +220,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Climb/maintain VFR at or below | `CM B055` | — | — |
 | Descend and maintain | `DM 050` | — | `DM050` |
 | Speed | `SPD 250` | `SPEED`, `DS`, `IS`, `SLOW`, `SL` | `SPD250` |
+| Speed (force, override 5nm final) | `SPEEDF 180` | `SPDF`, `SLF` | — |
 | Speed floor | `SPD 210+` | — | — |
 | Speed ceiling | `SPD 210-` | — | — |
 | Resume normal speed | `RNS` | `NS` | — |
@@ -983,6 +984,7 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 | `SPD 210` | Exact speed: maintain 210 knots |
 | `SPD 210+` | Speed floor: maintain 210 knots or greater |
 | `SPD 210-` | Speed ceiling: do not exceed 210 knots |
+| `SPEEDF 180` / `SPDF` / `SLF` | Force speed: assign a speed that overrides the 5nm-final restriction (`+`/`-` floor/ceiling supported). Unlike `SPDN` it converges via physics rather than teleporting IAS |
 | `RNS` / `NS` | Resume normal speed: clears speed/floor/ceiling, preserves SID/STAR via mode |
 | `EXP` | Expedite climb/descent: increases vertical rate (approx 1.5x category rate). On the ground with an assigned taxi route, raises the taxi speed cap by ~30% (jet 30→39 kts); cleared by next HOLD/RES/HS. On a just-landed aircraft (rolling out or exiting), expedites the runway exit instead — earliest reachable exit + max-effort braking (see the exit commands above) |
 | `EXP 50` | Expedite through 5,000 ft, then resume normal rate (requires active altitude assignment) |
@@ -998,7 +1000,7 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 
 **Floor and ceiling** — `SPD 210+` sets a minimum speed; the aircraft accelerates only if below 210 but maintains its current speed if already faster. `SPD 210-` sets a maximum; the aircraft decelerates only if above 210. Both are enforced continuously and respect the 250-knot limit below 10,000 ft. An exact speed command (`SPD 210`) clears any active floor or ceiling.
 
-**Helicopter minimum** — a `SPD` value below 60 KIAS issued to an airborne helicopter is floored to 60 (the 7110.65 §5-7-3.5 minimum for radar-vectored helicopters), with a warning. Use the force-speed command (`SPDN`/`SPEEDN`) to command a lower speed.
+**Helicopter minimum** — a `SPD` value below 60 KIAS issued to an airborne helicopter is floored to 60 (the 7110.65 §5-7-3.5 minimum for radar-vectored helicopters), with a warning. Use a force-speed command (`SPEEDF` or the teleporting `SPDN`/`SPEEDN`) to command a lower speed.
 
 **VFR altitude floor/ceiling (`CM A` / `CM B`)** — alongside the hard `CM 240` assignment, `CM A{altitude}` clears the aircraft to maintain VFR at or above the given altitude (floor) and `CM B{altitude}` at or below (ceiling). The altitude accepts shorthand or full notation via `AltitudeResolver` (`CM A025` = `CM A2500` = at or above 2,500 ft). The aircraft is free to drift inside the band; the boundary is what the controller assigns. **VFR aircraft only** — the command is rejected for IFR. A plain `CM {altitude}` (or any other hard altitude assignment) clears any active floor or ceiling.
 
@@ -1006,7 +1008,7 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 
 **SPD UNTIL shorthand** — `SPD 210 UNTIL 10` expands to `SPD 210; ATFN 10 RNS`. When chained, intermediate blocks are generated automatically: `SPD 210 UNTIL 10; SPD 180 UNTIL 5` becomes `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`. Fix-based UNTIL is also supported: `SPD 180 UNTIL AXMUL` expands to `SPD 180; AT AXMUL RNS`.
 
-**Auto-cancel at 5nm final** — Per 7110.65 §5-7-1, ATC speed assignments (target, floor, ceiling) are automatically cancelled when the aircraft is within 5nm of the runway threshold. New speed commands are rejected inside this boundary.
+**Auto-cancel at 5nm final** — Per 7110.65 §5-7-1.b.4, ATC speed assignments (target, floor, ceiling) are automatically cancelled, and new `SPD` commands rejected, when an aircraft is **inbound on an arrival approach** within 5nm of the runway threshold. This applies only on final — departures, go-arounds, and missed approaches climbing within 5nm of the field are **not** affected and accept normal speed assignments. To deliberately assign a speed to an arrival inside the 5nm gate (e.g. military or compression scenarios), use `SPEEDF`, which overrides the restriction and persists past the auto-cancel.
 
 **DSR interaction** — `DSR` suppresses SID/STAR via-mode speed constraints at waypoints. The aircraft still follows altitude restrictions but ignores published speed restrictions. A new `SPD` command, `CVIA`, or `DVIA` clears the DSR flag.
 
@@ -1371,6 +1373,8 @@ When you need to immediately correct an aircraft's state (rather than waiting fo
 | `TRATE 3` | Set turn rate: override default turn rate to 3°/sec (range 0.5–45; omit argument to clear) |
 
 These commands set the aircraft's state immediately — no gradual transition. Useful for RPO corrections when an aircraft is in the wrong state. `TRATE` overrides the category-based turn rate for fine control over vectoring behavior.
+
+Note: `SPDN` teleports IAS instantly. To assign a speed that overrides the 5nm-final restriction but still converges *gradually* via physics (the realistic controller instruction), use `SPEEDF` instead (see the Speed commands above).
 
 ### Warp Commands
 

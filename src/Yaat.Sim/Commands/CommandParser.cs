@@ -643,6 +643,7 @@ public static class CommandParser
             ClimbMaintain => ParseClimbMaintain(arg),
             DescendMaintain => ParseAltitude(arg, a => new DescendMaintainCommand(a)),
             Speed => ParseSpeed(arg),
+            ForceSpeedFinal => ParseSpeed(arg, force: true),
             ResumeNormalSpeed when arg is null => PR.Ok(new ResumeNormalSpeedCommand()),
             ReduceToFinalApproachSpeed when arg is null => PR.Ok(new ReduceToFinalApproachSpeedCommand()),
             DeleteSpeedRestrictions when arg is null => PR.Ok(new DeleteSpeedRestrictionsCommand()),
@@ -2252,7 +2253,7 @@ public static class CommandParser
         return PR.Ok(new ForceSpeedCommand(speed));
     }
 
-    private static PR ParseSpeed(string? arg)
+    private static PR ParseSpeed(string? arg, bool force = false)
     {
         if (arg is null)
         {
@@ -2262,12 +2263,12 @@ public static class CommandParser
         // Check for trailing +/- modifier
         if (arg.EndsWith('+') && int.TryParse(arg[..^1], out var floorSpeed))
         {
-            return PR.Ok(new SpeedCommand(floorSpeed, SpeedModifier.Floor));
+            return PR.Ok(new SpeedCommand(floorSpeed, SpeedModifier.Floor, force));
         }
 
         if (arg.EndsWith('-') && int.TryParse(arg[..^1], out var ceilSpeed))
         {
-            return PR.Ok(new SpeedCommand(ceilSpeed, SpeedModifier.Ceiling));
+            return PR.Ok(new SpeedCommand(ceilSpeed, SpeedModifier.Ceiling, force));
         }
 
         // SPD M.80 or SPD M80 → delegate to Mach
@@ -2290,7 +2291,7 @@ public static class CommandParser
 
         if (speedParts.Length == 1)
         {
-            return PR.Ok(new SpeedCommand(speed));
+            return PR.Ok(new SpeedCommand(speed, SpeedModifier.None, force));
         }
 
         // Second token must be a single word (no spaces) — if it contains spaces,
@@ -2309,7 +2310,7 @@ public static class CommandParser
 
         // Single termination waypoint — ignored for now (not yet modeled),
         // but parse successfully so scenario validation passes
-        return PR.Ok(new SpeedCommand(speed));
+        return PR.Ok(new SpeedCommand(speed, SpeedModifier.None, force));
     }
 
     private static PR ParseExpedite(string? arg)

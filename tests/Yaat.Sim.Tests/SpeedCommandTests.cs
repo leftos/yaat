@@ -2,6 +2,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
@@ -151,35 +152,131 @@ public class SpeedCommandTests
         Assert.False(ac.Procedure.SpeedRestrictionsDeleted);
     }
 
-    // --- SPD rejection inside 5nm final ---
+    // --- SPD rejection inside 5nm final (§5-7-1.b.4) ---
 
+    /// <summary>An arrival established on final inside 5nm: plain SPD is rejected.</summary>
     [Fact]
-    public void SpeedCommand_RejectedInside5nmFinal()
+    public void SpeedCommand_RejectedInside5nmFinal_WhenOnApproach()
     {
         var ac = CreateAircraft();
-        ac.Phases = new PhaseList();
-        ac.Phases.AssignedRunway = new RunwayInfo
-        {
-            AirportId = "OAK",
-            Id = RunwayIdentifier.Parse("30"),
-            Designator = "30",
-            Lat1 = 37.0,
-            Lon1 = -122.0,
-            Lat2 = 37.01,
-            Lon2 = -122.01,
-            Elevation1Ft = 6,
-            Elevation2Ft = 6,
-            TrueHeading1 = new TrueHeading(300),
-            TrueHeading2 = new TrueHeading(120),
-            LengthFt = 6000,
-            WidthFt = 150,
-        };
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
+        ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         // Aircraft is at the threshold (0nm)
 
         var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("5nm final", result.Message);
+        Assert.Contains("5-7-1.b.4", result.Message);
+    }
+
+    /// <summary>
+    /// Issue #196: a departure (or go-around) within 5nm of its runway is NOT on an
+    /// arrival-approach phase, so plain SPD must be accepted — the 5nm gate keyed on
+    /// AssignedRunway alone wrongly blocked departures (the departure runway is also
+    /// the AssignedRunway).
+    /// </summary>
+    [Fact]
+    public void SpeedCommand_AcceptedInside5nm_WhenNotOnApproach()
+    {
+        var ac = CreateAircraft();
+        // AssignedRunway set (departure runway), but no arrival-approach phase.
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
+
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal(180, ac.Targets.TargetSpeed);
+        Assert.False(ac.Targets.SpeedOverridesFinalGate);
+    }
+
+    /// <summary>
+    /// A pattern arrival cleared to land (no arrival-approach phase, but
+    /// LandingClearance set) is still gated inside 5nm — the rule applies to anyone
+    /// inbound to land, not just instrument arrivals.
+    /// </summary>
+    [Fact]
+    public void SpeedCommand_RejectedInside5nm_WhenClearedToLandInPattern()
+    {
+        var ac = CreateAircraft();
+        ac.Phases = new PhaseList
+        {
+            AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon),
+            LandingClearance = ClearanceType.ClearedToLand,
+        };
+
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.Contains("5nm final", result.Message);
+    }
+
+    /// <summary>Issue #196: a go-around (climbing out) inside 5nm accepts plain SPD.</summary>
+    [Fact]
+    public void SpeedCommand_AcceptedInside5nm_WhenGoingAround()
+    {
+        var ac = CreateAircraft();
+        // A go-around keeps its approach/landing context but is climbing out.
+        ac.Phases = new PhaseList
+        {
+            AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon),
+            LandingClearance = ClearanceType.ClearedToLand,
+        };
+        ac.Phases.Add(new GoAroundPhase());
+
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal(180, ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>SPEEDF overrides the §5-7-1.b.4 gate for an arrival on final inside 5nm.</summary>
+    [Fact]
+    public void ForceSpeed_OverridesInside5nmFinal()
+    {
+        var ac = CreateAircraft(ias: 210);
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
+        ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
+
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(180, SpeedModifier.None, Force: true), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal(180, ac.Targets.TargetSpeed);
+        Assert.True(ac.Targets.SpeedOverridesFinalGate);
+        // Unlike SPEEDN, SPEEDF converges via physics — it does not teleport IAS.
+        Assert.Equal(210, ac.IndicatedAirspeed);
+    }
+
+    /// <summary>SPEEDF supports +/- floor/ceiling modifiers like SPD.</summary>
+    [Fact]
+    public void ForceSpeed_WithFloorModifier_OverridesInside5nmFinal()
+    {
+        var ac = CreateAircraft();
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
+        ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
+
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(170, SpeedModifier.Floor, Force: true), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal(170, ac.Targets.SpeedFloor);
+        Assert.Null(ac.Targets.TargetSpeed);
+        Assert.True(ac.Targets.SpeedOverridesFinalGate);
+    }
+
+    /// <summary>A plain SPD after a SPEEDF clears the override so the gate resumes.</summary>
+    [Fact]
+    public void PlainSpeed_ClearsForcedOverride()
+    {
+        var ac = CreateAircraft();
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
+        // Far from the runway so the plain SPD is accepted regardless of phase.
+        ac.Position = new LatLon(37.5, -122.5);
+        ac.Targets.SpeedOverridesFinalGate = true;
+
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(200), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.False(ac.Targets.SpeedOverridesFinalGate);
     }
 
     // --- Approach clearance clears floor/ceiling ---
@@ -456,31 +553,54 @@ public class SpeedPhysicsTests
         ac.Targets.HasExplicitSpeedCommand = true;
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 250;
-        ac.Phases = new PhaseList();
-        ac.Phases.AssignedRunway = new RunwayInfo
-        {
-            AirportId = "OAK",
-            Id = RunwayIdentifier.Parse("30"),
-            Designator = "30",
-            Lat1 = ac.Position.Lat,
-            Lon1 = ac.Position.Lon,
-            Lat2 = ac.Position.Lat + 0.01,
-            Lon2 = ac.Position.Lon + 0.01,
-            Elevation1Ft = 6,
-            Elevation2Ft = 6,
-            TrueHeading1 = new TrueHeading(300),
-            TrueHeading2 = new TrueHeading(120),
-            LengthFt = 6000,
-            WidthFt = 150,
-        };
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
+        ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
 
         FlightPhysics.Update(ac, 0.1);
 
-        // Aircraft is at 0nm from threshold, should auto-cancel ATC speed restriction
+        // Aircraft is at 0nm from threshold on final, should auto-cancel ATC speed restriction
         Assert.Null(ac.Targets.TargetSpeed);
         Assert.False(ac.Targets.HasExplicitSpeedCommand);
         Assert.Null(ac.Targets.SpeedFloor);
         Assert.Null(ac.Targets.SpeedCeiling);
+    }
+
+    /// <summary>
+    /// Issue #196: a departure (no arrival-approach phase) within 5nm of its runway must
+    /// keep its assigned speed — the over-broad auto-cancel wiped departures every tick.
+    /// </summary>
+    [Fact]
+    public void AutoCancel_SkipsDeparture_NotOnApproach()
+    {
+        // IAS away from the target so the normal speed-snap doesn't clear TargetSpeed;
+        // only the §5-7-1.b.4 auto-cancel would, and it must not for a departure.
+        var ac = CreateAirborne(ias: 250);
+        ac.Targets.TargetSpeed = 180;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        // AssignedRunway set (departure runway), but no arrival-approach phase.
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
+
+        FlightPhysics.Update(ac, 0.1);
+
+        Assert.Equal(180, ac.Targets.TargetSpeed);
+        Assert.True(ac.Targets.HasExplicitSpeedCommand);
+    }
+
+    /// <summary>A forced override (SPEEDF/SPEEDN) survives the auto-cancel gate on final.</summary>
+    [Fact]
+    public void AutoCancel_SkipsForcedOverride_OnFinal()
+    {
+        var ac = CreateAirborne(ias: 250);
+        ac.Targets.TargetSpeed = 180;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        ac.Targets.SpeedOverridesFinalGate = true;
+        ac.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon) };
+        ac.Phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
+
+        FlightPhysics.Update(ac, 0.1);
+
+        Assert.Equal(180, ac.Targets.TargetSpeed);
+        Assert.True(ac.Targets.HasExplicitSpeedCommand);
     }
 
     // --- DistanceFinal trigger ---

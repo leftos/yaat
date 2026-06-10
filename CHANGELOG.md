@@ -2,10 +2,14 @@
 
 ## Unreleased
 
+### Added
+- **`SPEEDF` — force a speed inside 5 nm final** — a new speed command that assigns a maintain-speed even when an arrival is inside the 5 nm final-approach gate where a normal `SPD` is refused (e.g. military or compression scenarios). It accepts `+`/`-` floor/ceiling like `SPD` (`SPEEDF 180`, `SPEEDF 170+`) and, unlike the `SPDN`/`SPEEDN` teleport, eases the aircraft to the speed via normal physics. Aliases: `SPDF`, `SLF`.
+
 ### Changed
 - **VFR follow flies a trail instead of chasing the lead** — A VFR aircraft told to `FOLLOW` traffic now settles into a trail behind it and tracks parallel to the lead's path, rather than pointing its nose straight at the other aircraft and continuously closing. It uses lateral course as a spacing tool, not just speed: it eases into position when well behind, and when it gets too close while already at approach speed it makes a shallow S-turn to open the gap. On final more than 5 nm out, a follower that has caught up too close behind its traffic makes one shallow S-turn for spacing and reports it; inside 5 nm it stays committed to the approach as before. (AIM §5-5-12, §4-3-5.)
 
 ### Fixed
+- **Departures and go-arounds can be assigned a speed near the airport again** — the 7110.65 "no speed inside 5 nm final" rule was being applied to any aircraft within 5 nm of its runway, so a departing aircraft (a Vision Jet climbing out at 160–180 kt, for example) or an aircraft going around had its `SPD` commands rejected and any assigned speed silently dropped a moment later. The restriction now applies only to aircraft actually inbound on an arrival approach; departures, go-arounds, and missed approaches keep their assigned speed. (Reported on Discord; 7110.65 §5-7-1.b.4 / §5-7-3.4.)
 - **Interfacility handoffs from CRC are now recognized as handoffs** — when a controller hands a track to an adjacent terminal facility in CRC STARS using the triangle/delta entry (the `` ` ``/tilde key, e.g. `Δ3` to Fresno, `Δ31H` to Fresno's Chandler sector, `Δ11N` to Travis North), YAAT now initiates the handoff to that facility instead of storing the code as the aircraft's primary scratchpad. The handoff-number → facility/sector mapping is read from the ARTCC configuration's STARS handoff IDs, so it follows each facility's real adaptation. A delta entry that doesn't match a configured handoff code is rejected (`ILL POS`) rather than written to the scratchpad.
 
 ## v0.7.9-beta [2026/06/09]

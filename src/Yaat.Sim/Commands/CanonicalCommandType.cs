@@ -11,6 +11,7 @@ public enum CanonicalCommandType
     ClimbMaintain,
     DescendMaintain,
     Speed,
+    ForceSpeedFinal,
     Squawk,
     SquawkVfr,
     SquawkNormal,

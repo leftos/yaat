@@ -48,6 +48,7 @@ public abstract class Phase
     public static bool IsSpeedFamilyCommand(CanonicalCommandType cmd) =>
         cmd
             is CanonicalCommandType.Speed
+                or CanonicalCommandType.ForceSpeedFinal
                 or CanonicalCommandType.Mach
                 or CanonicalCommandType.ReduceToFinalApproachSpeed
                 or CanonicalCommandType.ResumeNormalSpeed

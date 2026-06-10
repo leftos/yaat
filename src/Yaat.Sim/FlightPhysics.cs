@@ -1561,9 +1561,11 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Auto-cancel ATC speed restrictions at 5nm final per 7110.65 §5-7-1.a.2.d.
+    /// Auto-cancel ATC speed restrictions at 5nm final per 7110.65 §5-7-1.b.4.
     /// Only clears speeds set by explicit ATC commands (S180, etc.), not phase-managed
-    /// speeds like FAS set by FinalApproachPhase.
+    /// speeds like FAS set by FinalApproachPhase. Applies only to aircraft inbound on an
+    /// arrival approach — departures and go-arounds keep their assigned speed — and a
+    /// forced assignment (SPEEDF / SPEEDN) is exempt so the controller's override persists.
     /// Called from Update() after UpdateSpeed().
     /// </summary>
     private static void AutoCancelSpeedAtFinal(AircraftState aircraft)
@@ -1575,6 +1577,19 @@ public static class FlightPhysics
 
         // Only cancel explicit ATC speed restrictions, not phase-managed approach speeds
         if (!aircraft.Targets.HasExplicitSpeedCommand)
+        {
+            return;
+        }
+
+        // A forced speed (SPEEDF / SPEEDN) deliberately overrides the gate.
+        if (aircraft.Targets.SpeedOverridesFinalGate)
+        {
+            return;
+        }
+
+        // Only an aircraft inbound to land is "on final" for §5-7-1.b.4. Departures
+        // (AssignedRunway set but no landing clearance) and go-arounds keep their speed.
+        if (!Commands.ApproachCommandHandler.IsInboundToLand(aircraft))
         {
             return;
         }

@@ -17,6 +17,7 @@ public sealed class ControlTargetsDto
     public double? AssignedAltitude { get; init; }
     public double? AssignedSpeed { get; init; }
     public required bool HasExplicitSpeedCommand { get; init; }
+    public bool SpeedOverridesFinalGate { get; init; }
     public bool HasExplicitTurnRate { get; init; }
     public double? TargetMach { get; init; }
     public List<NavigationTargetDto>? NavigationRoute { get; init; }

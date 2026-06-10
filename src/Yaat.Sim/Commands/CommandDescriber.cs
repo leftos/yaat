@@ -21,7 +21,7 @@ public static class CommandDescriber
             FlyPresentHeadingCommand => CanonicalCommandType.FlyPresentHeading,
             ClimbMaintainCommand => CanonicalCommandType.ClimbMaintain,
             DescendMaintainCommand => CanonicalCommandType.DescendMaintain,
-            SpeedCommand => CanonicalCommandType.Speed,
+            SpeedCommand cmd => cmd.Force ? CanonicalCommandType.ForceSpeedFinal : CanonicalCommandType.Speed,
             ResumeNormalSpeedCommand => CanonicalCommandType.ResumeNormalSpeed,
             ReduceToFinalApproachSpeedCommand => CanonicalCommandType.ReduceToFinalApproachSpeed,
             DeleteSpeedRestrictionsCommand => CanonicalCommandType.DeleteSpeedRestrictions,
@@ -1057,11 +1057,12 @@ public static class CommandDescriber
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)
     {
+        var verb = cmd.Force ? "SPEEDF" : "SPD";
         return cmd.Modifier switch
         {
-            SpeedModifier.Floor => $"SPD {cmd.Speed}+",
-            SpeedModifier.Ceiling => $"SPD {cmd.Speed}-",
-            _ => $"SPD {cmd.Speed}",
+            SpeedModifier.Floor => $"{verb} {cmd.Speed}+",
+            SpeedModifier.Ceiling => $"{verb} {cmd.Speed}-",
+            _ => $"{verb} {cmd.Speed}",
         };
     }
 
@@ -1103,11 +1104,12 @@ public static class CommandDescriber
 
     private static string FormatSpeedNatural(SpeedCommand cmd)
     {
+        var suffix = cmd.Force ? " (override)" : "";
         return cmd.Modifier switch
         {
-            SpeedModifier.Floor => $"Maintain {cmd.Speed} knots or greater",
-            SpeedModifier.Ceiling => $"Do not exceed {cmd.Speed} knots",
-            _ => $"Speed {cmd.Speed} knots",
+            SpeedModifier.Floor => $"Maintain {cmd.Speed} knots or greater{suffix}",
+            SpeedModifier.Ceiling => $"Do not exceed {cmd.Speed} knots{suffix}",
+            _ => $"Speed {cmd.Speed} knots{suffix}",
         };
     }
 

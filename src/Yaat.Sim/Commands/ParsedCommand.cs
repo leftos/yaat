@@ -57,7 +57,12 @@ public enum SpeedModifier
     Ceiling,
 }
 
-public record SpeedCommand(int Speed, SpeedModifier Modifier = SpeedModifier.None) : ParsedCommand;
+/// <summary>
+/// Maintain-speed assignment. <paramref name="Force"/> true (SPEEDF) overrides the
+/// §5-7-1.b.4 "no speed inside 5nm final" rejection and persists past the auto-cancel
+/// gate; unlike SPDN it converges via physics rather than teleporting IAS.
+/// </summary>
+public record SpeedCommand(int Speed, SpeedModifier Modifier = SpeedModifier.None, bool Force = false) : ParsedCommand;
 
 public record ResumeNormalSpeedCommand : ParsedCommand;
 
