@@ -227,8 +227,10 @@ Production code **does not read `CategoryPerformance` directly** for profile-cov
 1. **Per-type profile** — `AircraftProfileDatabase.Get(aircraftType)` returns the `AircraftProfiles.json` profile, which carries
    altitude-breakpoint values interpolated by `InterpolateByAltitude` (`AircraftPerformance.cs:44`) and may be adjusted by an
    `IProfileCorrectionAdapter` (default pass-through; an installable adapter, e.g. Eurocontrol, can correct climb/approach/pattern speeds and
-   climb rates at runtime via `SetProfileCorrectionAdapter`).
-2. **Category fallback** — when no profile exists for the type, `AircraftPerformance.*` falls back to the validated `CategoryPerformance` switch.
+   climb rates at runtime via `SetProfileCorrectionAdapter`). A committed **override layer**
+   (`AircraftProfileOverrides.json`) merges authoritative per-type corrections on top — overridden fields bypass the correction adapter, and a
+   type with no base profile (e.g. SF50) gets a `CategoryPerformance.BaselineProfile(cat)` base. See [`aircraft-performance.md`](aircraft-performance.md).
+2. **Category fallback** — when no profile (and no override) exists for the type, `AircraftPerformance.*` falls back to the validated `CategoryPerformance` switch.
 
 So **editing the `CategoryPerformance` switch alone does not change behavior for a typed aircraft that has a profile.** Category determination is
 `AircraftCategorization.Categorize(aircraftType)` (`AircraftCategory.cs:34`): strips the `H/J/S` wake prefix (`AircraftState.StripTypePrefix`),

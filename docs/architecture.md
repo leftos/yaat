@@ -63,7 +63,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 - **New command type** → must add to `CanonicalCommandType` enum, `CommandRegistry` definitions, AND `CommandScheme.Default()`. Tests enforce completeness.
 - **New phase** → must add `[JsonDerivedType]` attribute in `PhaseSnapshotDto.cs` for serialization
 - **Modify `ControlTargets`** → check `ControlTargetsDto.cs` snapshot parity
-- **Aircraft performance** → sync `AircraftProfiles.json` + `AircraftProfileDatabase` + `AircraftPerformance.cs` fallback logic
+- **Aircraft performance** → sync `AircraftProfiles.json` + `AircraftProfileDatabase` + `AircraftPerformance.cs` fallback logic; per-type corrections go in `AircraftProfileOverrides.json` (see `docs/aircraft-performance.md`)
 
 ## Test Locations
 
@@ -697,8 +697,12 @@ HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; Comp
 
 # Data/
 AircraftProfile.cs             # Per-type performance profile record (from AircraftProfiles.json)
-AircraftProfileDatabase.cs     # Static lookup: Get(aircraftType) → AircraftProfile?; 163 types
+AircraftProfileDatabase.cs     # Static lookup: Get → merged AircraftProfile?; Initialize(base, overrides), IsOverridden
 AircraftProfiles.json          # ATCTrainer per-type perf data: altitude-banded climb/descent, Mach speeds
+AircraftProfileOverride.cs     # Nullable partial-override DTO + ApplyTo merge (authoritative per-type corrections)
+AircraftProfileOverrides.json  # Contributor corrections layer (seeded with SF50); see docs/aircraft-performance.md
+EurocontrolProfileCorrectionAdapter.cs  # Runtime ACD-anchored correction of 6 profile fields (BADA speeds run high)
+OverrideAwareProfileCorrectionAdapter.cs # Wraps the above; overridden fields bypass it (overrides win)
 AirlineFleets.cs               # Static map: airline ICAO ↔ ICAO Doc 8643 aircraft type with airframe counts
                                # Both directions pre-computed; loaded lazily from airline-fleets.json
                                # Refresh via tools/refresh-airline-fleets.py — see docs/airline-fleets.md

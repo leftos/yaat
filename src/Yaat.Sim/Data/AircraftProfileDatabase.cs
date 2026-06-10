@@ -12,6 +12,7 @@ public static class AircraftProfileDatabase
     private static readonly ILogger Log = SimLog.CreateLogger("AircraftProfileDatabase");
 
     private static Dictionary<string, AircraftProfile> _lookup = new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, IReadOnlySet<string>> _overriddenFields = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> _siblingFallbackWarned = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object SiblingFallbackWarnedLock = new();
 
@@ -19,11 +20,71 @@ public static class AircraftProfileDatabase
 
     public static int Count => _lookup.Count;
 
-    public static void Initialize(Dictionary<string, AircraftProfile> lookup)
+    /// <summary>
+    /// Initialize the lookup from base profiles (AircraftProfiles.json) plus authoritative
+    /// partial overrides (AircraftProfileOverrides.json). Each override is merged onto its base
+    /// profile — a direct profile, a sibling's profile, or a synthesized category baseline for a
+    /// type that has neither (e.g. the SF50) — and the resulting effective profile is stored so
+    /// <see cref="Get"/> works unchanged. Overridden field names are recorded for
+    /// <see cref="IsOverridden"/> so the correction adapter can treat them as authoritative.
+    ///
+    /// Requires <see cref="AircraftSiblingMap"/> and <see cref="AircraftCategorization"/> to be
+    /// initialized first (sibling resolution and category-baseline synthesis depend on them).
+    /// </summary>
+    public static void Initialize(Dictionary<string, AircraftProfile> baseProfiles, IReadOnlyList<AircraftProfileOverride> overrides)
     {
-        _lookup = new Dictionary<string, AircraftProfile>(lookup, StringComparer.OrdinalIgnoreCase);
+        var lookup = new Dictionary<string, AircraftProfile>(baseProfiles, StringComparer.OrdinalIgnoreCase);
+        var overriddenFields = new Dictionary<string, IReadOnlySet<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var ov in overrides)
+        {
+            if (string.IsNullOrWhiteSpace(ov.TypeCode))
+            {
+                Log.LogWarning("Skipping aircraft profile override with empty typeCode");
+                continue;
+            }
+
+            var type = ov.TypeCode.Trim().ToUpperInvariant();
+
+            AircraftProfile baseProfile;
+            if (lookup.TryGetValue(type, out var direct))
+            {
+                baseProfile = direct;
+            }
+            else if (AircraftSiblingMap.TryResolve(type, out var sibling) && baseProfiles.TryGetValue(sibling, out var sibProfile))
+            {
+                baseProfile = sibProfile with { TypeCode = type };
+            }
+            else
+            {
+                baseProfile = CategoryPerformance.BaselineProfile(AircraftCategorization.Categorize(type)) with { TypeCode = type };
+            }
+
+            var (merged, fields) = ov.ApplyTo(baseProfile);
+            lookup[type] = merged;
+            overriddenFields[type] = fields;
+        }
+
+        _lookup = lookup;
+        _overriddenFields = overriddenFields;
         ClearSiblingFallbackWarnings();
-        Log.LogInformation("Loaded {Count} aircraft profiles", _lookup.Count);
+        Log.LogInformation("Loaded {Count} aircraft profiles ({OverrideCount} with overrides)", _lookup.Count, overriddenFields.Count);
+    }
+
+    /// <summary>
+    /// True if <paramref name="fieldName"/> (an <see cref="AircraftProfile"/> property name) was
+    /// explicitly set by an override for this type. The correction adapter consults this to leave
+    /// overridden fields un-rescaled — overrides are authoritative.
+    /// </summary>
+    public static bool IsOverridden(string? aircraftType, string fieldName)
+    {
+        if (string.IsNullOrEmpty(aircraftType))
+        {
+            return false;
+        }
+
+        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        return _overriddenFields.TryGetValue(baseType, out var set) && set.Contains(fieldName);
     }
 
     /// <summary>
@@ -97,5 +158,21 @@ public static class AircraftProfileDatabase
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Load authoritative partial overrides from a JSON file on disk. Returns an empty list when
+    /// the file is absent so the caller can wire it unconditionally.
+    /// </summary>
+    public static IReadOnlyList<AircraftProfileOverride> LoadOverridesFromFile(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return [];
+        }
+
+        var json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<List<AircraftProfileOverride>>(json)
+            ?? throw new InvalidOperationException($"Failed to deserialize aircraft profile overrides from {path}");
     }
 }

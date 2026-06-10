@@ -1,0 +1,26 @@
+[
+  {
+    "typeCode": "SF50",
+    "note": "Cirrus Vision Jet (single-engine VLJ). No base profile existed, so it fell back to the generic jet category (250 kt climb). Real type climbs ~170 KIAS and cruises ~300 KTAS / M0.50. finalApproachSpeed is intentionally left to FAA ACD (Vref 87). Validated by aviation-sim-expert against type performance.",
+    "airborneAccelRate": 2,
+    "airborneDecelRate": 2,
+    "rotateSpeed": 85,
+    "climbSpeedInitial": 170,
+    "climbSpeedFl150": 170,
+    "climbSpeedFl240": 150,
+    "climbSpeedFinal": 0.5,
+    "climbRateInitial": 1500,
+    "climbRateFl150": 900,
+    "climbRateFl240": 450,
+    "climbRateFinal": 300,
+    "cruiseSpeed": 300,
+    "cruiseAltitude": 30000,
+    "ceiling": 31000,
+    "descentSpeedInitial": 0.5,
+    "descentSpeedFl100": 240,
+    "initialApproachSpeed": 200,
+    "landingSpeed": 82,
+    "patternSpeed": 120,
+    "holdingSpeed": 160
+  }
+]

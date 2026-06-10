@@ -373,9 +373,8 @@ public static class TestVnasData
             return;
         }
 
-        var profiles = AircraftProfileDatabase.LoadFromFile(path);
-        AircraftProfileDatabase.Initialize(profiles);
-
+        // Sibling map first: profile-override merge resolves no-base types via the sibling map
+        // and the category baseline (categorization is already loaded by LoadAircraftSpecs).
         var siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
         if (File.Exists(siblingPath))
         {
@@ -383,6 +382,11 @@ public static class TestVnasData
             AircraftSiblingMap.Initialize(siblings);
         }
 
-        AircraftPerformance.SetProfileCorrectionAdapter(new EurocontrolProfileCorrectionAdapter());
+        var profiles = AircraftProfileDatabase.LoadFromFile(path);
+        var overridePath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json");
+        var overrides = AircraftProfileDatabase.LoadOverridesFromFile(overridePath);
+        AircraftProfileDatabase.Initialize(profiles, overrides);
+
+        AircraftPerformance.SetProfileCorrectionAdapter(new OverrideAwareProfileCorrectionAdapter(new EurocontrolProfileCorrectionAdapter()));
     }
 }

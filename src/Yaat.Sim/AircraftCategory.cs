@@ -897,4 +897,58 @@ public static class CategoryPerformance
         _ = cat;
         return 100;
     }
+
+    /// <summary>
+    /// Build a category-typical <see cref="AircraftProfile"/> from these constants. Used only as
+    /// the base for an <see cref="Data.AircraftProfileOverride"/> targeting a type that has no
+    /// profile in AircraftProfiles.json and no sibling (e.g. the SF50): the override supplies the
+    /// type-specific corrections and this fills the unspecified fields with sane category defaults.
+    /// The caller stamps the real <c>TypeCode</c> via <c>with</c>. These values are reasonable
+    /// category averages, not a substitute for a real per-type profile.
+    /// </summary>
+    public static AircraftProfile BaselineProfile(AircraftCategory cat)
+    {
+        (double cruiseTas, double cruiseAlt, double ceiling, double initialApproach, double climbFinalMach) = cat switch
+        {
+            AircraftCategory.Jet => (440, 35000, 41000, 210, 0.74),
+            AircraftCategory.Turboprop => (280, 24000, 25000, 180, 0.0),
+            AircraftCategory.Piston => (140, 8000, 14000, 110, 0.0),
+            AircraftCategory.Helicopter => (120, 0, 12000, 90, 0.0),
+            _ => (440, 35000, 41000, 210, 0.74),
+        };
+
+        return new AircraftProfile
+        {
+            TypeCode = "",
+            IsProp = cat is AircraftCategory.Piston or AircraftCategory.Turboprop,
+            IsHelo = cat is AircraftCategory.Helicopter,
+            AirborneAccelRate = AccelRate(cat),
+            AirborneDecelRate = DecelRate(cat),
+            GroundAccelRate = GroundAccelRate(cat),
+            GroundDecelRate = TaxiDecelRate(cat),
+            RotateSpeed = RotationSpeed(cat),
+            ClimbSpeedInitial = InitialClimbSpeed(cat),
+            ClimbSpeedFl150 = DefaultSpeed(cat, 15000),
+            ClimbSpeedFl240 = DefaultSpeed(cat, 24000),
+            ClimbSpeedFinal = climbFinalMach > 0 ? climbFinalMach : DefaultSpeed(cat, 30000),
+            ClimbRateInitial = InitialClimbRate(cat),
+            ClimbRateFl150 = ClimbRate(cat, 15000),
+            ClimbRateFl240 = ClimbRate(cat, 24000) * 0.6,
+            ClimbRateFinal = ClimbRate(cat, 24000) * 0.3,
+            CruiseSpeed = cruiseTas,
+            CruiseAltitude = cruiseAlt,
+            Ceiling = ceiling,
+            DescentSpeedInitial = climbFinalMach > 0 ? climbFinalMach : DefaultSpeed(cat, 30000),
+            DescentSpeedFl100 = DefaultSpeed(cat, 10000),
+            InitialApproachSpeed = initialApproach,
+            DescentRateInitial = DescentRate(cat),
+            DescentRateFl100 = DescentRate(cat),
+            DescentRateApproach = PatternDescentRate(cat),
+            FinalApproachSpeed = ApproachSpeed(cat),
+            LandingSpeed = TouchdownSpeed(cat),
+            PatternSpeed = DownwindSpeed(cat),
+            HoldingSpeed = 0,
+            StandardTurnRateOverride = 0,
+        };
+    }
 }

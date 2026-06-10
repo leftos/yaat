@@ -70,10 +70,10 @@ public sealed class VnasDataService : IDisposable
 
         InitializeAircraftProfiles();
 
-        // Install Eurocontrol/BADA profile correction adapter to adjust speeds and
-        // climb rates using FAA ACD approach speed as ground truth. See
-        // EurocontrolProfileCorrectionAdapter.cs for methodology and validation.
-        AircraftPerformance.SetProfileCorrectionAdapter(new EurocontrolProfileCorrectionAdapter());
+        // Install the Eurocontrol/BADA profile correction adapter (adjusts speeds and climb rates
+        // using FAA ACD approach speed as ground truth — see EurocontrolProfileCorrectionAdapter.cs)
+        // wrapped so authoritative AircraftProfileOverrides.json fields bypass the rescaling.
+        AircraftPerformance.SetProfileCorrectionAdapter(new OverrideAwareProfileCorrectionAdapter(new EurocontrolProfileCorrectionAdapter()));
 
         // Verify the AircraftGenerator type pool resolves end-to-end through the data
         // DBs we just loaded. Catches the next time someone adds a non-ICAO string
@@ -348,23 +348,9 @@ public sealed class VnasDataService : IDisposable
 
     private static void InitializeAircraftProfiles()
     {
-        try
-        {
-            var path = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfiles.json");
-            if (!File.Exists(path))
-            {
-                Log.LogWarning("AircraftProfiles.json not found at {Path}; category defaults will be used", path);
-                return;
-            }
-
-            var profiles = AircraftProfileDatabase.LoadFromFile(path);
-            AircraftProfileDatabase.Initialize(profiles);
-        }
-        catch (Exception ex)
-        {
-            Log.LogWarning(ex, "Failed to load aircraft profiles; category defaults will be used");
-        }
-
+        // Sibling map first: AircraftProfileDatabase.Initialize merges no-base overrides onto a
+        // sibling's profile or a category baseline, so the sibling map and categorization (already
+        // initialized above) must be ready before profiles are loaded.
         try
         {
             var siblingPath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileSiblings.json");
@@ -377,6 +363,25 @@ public sealed class VnasDataService : IDisposable
         catch (Exception ex)
         {
             Log.LogWarning(ex, "Failed to load aircraft sibling map; missing-profile types will fall through to category defaults");
+        }
+
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfiles.json");
+            if (!File.Exists(path))
+            {
+                Log.LogWarning("AircraftProfiles.json not found at {Path}; category defaults will be used", path);
+                return;
+            }
+
+            var profiles = AircraftProfileDatabase.LoadFromFile(path);
+            var overridePath = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfileOverrides.json");
+            var overrides = AircraftProfileDatabase.LoadOverridesFromFile(overridePath);
+            AircraftProfileDatabase.Initialize(profiles, overrides);
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to load aircraft profiles; category defaults will be used");
         }
     }
 
