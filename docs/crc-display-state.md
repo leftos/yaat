@@ -171,6 +171,7 @@ Skip step 4 and you'll see the field update for clients that were subscribed whe
 
 - **Don't call `PositionRegistry` from session handlers.** Use `CrcSessionLifecycle` so the broadcasts fire.
 - **CRC's delta keypress is U+0080, not backtick.** Normalize once at the parser boundary; don't add per-handler workarounds. (See `project_crc_delta_wire_encoding`.)
+- **A delta-prefixed implied entry is an interfacility handoff, not a scratchpad.** After normalization, a leading backtick on an implied slew (e.g. `` `3`` → FAT, `` `31H`` → FAT Chandler) decodes via the sender facility's `starsHandoffIds` (`ArtccConfigResolver.ResolveStarsHandoffCode`) and initiates a handoff — it must never fall through to the `SP1` primary-scratchpad write. `ResolveTcpToOwner` chains `ResolveTcpCode → ResolveEramCode → ResolveStarsHandoffCode` so the canonical `HO `{code}` resolves the same way the inbound implied path routes it. A delta entry that doesn't decode returns `ILL POS`.
 - **Mid-session subscribers see only initial data + future deltas.** If your "update" only fires through change tracking, late joiners get whatever `BuildInitialData` returns — extend both.
 - **`SysUid` is not the CID.** It's a signed 32-bit hash CRC computes client-side. Don't try to map it back to a VATSIM CID.
 - **MessagePack `[Key]` is positional and load-bearing.** Renumbering breaks every connected CRC client. Always append.

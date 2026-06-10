@@ -1036,7 +1036,7 @@ Winged-aircraft holds (`HPPL`/`HPPR`, `HFIXL`/`HFIXR`) decelerate to holding spe
 
 ### Track Operations
 
-Track operations control aircraft ownership, handoffs, and coordination. These commands use STARS-style [TCP](#glossary) codes (e.g., "2B" = subset 2, sector B) or ERAM center codes (e.g., "C44" = center sector 44).
+Track operations control aircraft ownership, handoffs, and coordination. These commands use STARS-style [TCP](#glossary) codes (e.g., "2B" = subset 2, sector B), ERAM center codes (e.g., "C44" = center sector 44), or interfacility codes that hand off to an adjacent terminal facility (e.g., "Δ3" = Fresno, "Δ31H" = Fresno's Chandler sector — entered with the tilde/delta key in CRC and resolved from the facility's STARS handoff IDs).
 
 #### Active Position
 
@@ -1063,6 +1063,7 @@ Changing your active position also updates the radar display:
 | `DROP` | Terminate control — release ownership (acts as the current owner) |
 | `HO 3Y` | Handoff to TCP 3Y (initiated from the current owner) |
 | `HO C44` | Handoff to ERAM center sector 44 (initiated from the current owner) |
+| `HO Δ3` | Handoff to an adjacent terminal facility by its interfacility code (the Δ/tilde entry — e.g. `Δ3` to Fresno, `Δ31H` to Fresno's Chandler sector), decoded from the facility's STARS handoff IDs |
 | `HOF 3Y` | Force handoff to TCP 3Y (transfers ownership regardless of current owner) |
 | `ACCEPT` / `A` | Accept a pending inbound handoff (acts as the handoff target) |
 | `CANCEL` | Retract a pending outbound handoff (acts as the current owner) |

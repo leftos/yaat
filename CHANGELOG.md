@@ -5,6 +5,9 @@
 ### Changed
 - **VFR follow flies a trail instead of chasing the lead** — A VFR aircraft told to `FOLLOW` traffic now settles into a trail behind it and tracks parallel to the lead's path, rather than pointing its nose straight at the other aircraft and continuously closing. It uses lateral course as a spacing tool, not just speed: it eases into position when well behind, and when it gets too close while already at approach speed it makes a shallow S-turn to open the gap. On final more than 5 nm out, a follower that has caught up too close behind its traffic makes one shallow S-turn for spacing and reports it; inside 5 nm it stays committed to the approach as before. (AIM §5-5-12, §4-3-5.)
 
+### Fixed
+- **Interfacility handoffs from CRC are now recognized as handoffs** — when a controller hands a track to an adjacent terminal facility in CRC STARS using the triangle/delta entry (the `` ` ``/tilde key, e.g. `Δ3` to Fresno, `Δ31H` to Fresno's Chandler sector, `Δ11N` to Travis North), YAAT now initiates the handoff to that facility instead of storing the code as the aircraft's primary scratchpad. The handoff-number → facility/sector mapping is read from the ARTCC configuration's STARS handoff IDs, so it follows each facility's real adaptation. A delta entry that doesn't match a configured handoff code is rejected (`ILL POS`) rather than written to the scratchpad.
+
 ## v0.7.9-beta [2026/06/09]
 
 ### Added

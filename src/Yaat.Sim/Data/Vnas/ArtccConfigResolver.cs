@@ -274,6 +274,76 @@ public static class ArtccConfigResolver
         return config.ResolvePosition(pos.Id) ?? TrackOwner.CreateStars(pos.Callsign, facilityId, subset, sectorId);
     }
 
+    /// <summary>
+    /// Resolves a STARS interfacility handoff entry to the receiving <see cref="TrackOwner"/>.
+    /// CRC sends the triangle/delta symbol (entered with the <c>`</c>/tilde key) as a leading
+    /// backtick — normalized from the wire's U+0080 at the message boundary. The leading digit
+    /// run is the handoff number, matched against the <paramref name="senderFacilityId"/>
+    /// facility's <c>starsHandoffIds</c> to find the receiving facility; any remainder is the
+    /// receiving TCP code (subset+sector) within that facility, or the facility's default sector
+    /// when absent. In ZOA/NCT: <c>`3</c> → FAT default, <c>`31H</c> → FAT sector 1H (Chandler),
+    /// <c>`11N</c> → SUU sector 1N (North). Mirrors <see cref="ResolveEramCode"/>, which keys off
+    /// the <c>C</c> prefix for Center handoffs. Returns null when the entry is not a configured
+    /// interfacility handoff code.
+    /// </summary>
+    public static TrackOwner? ResolveStarsHandoffCode(this ArtccConfigRoot config, string senderFacilityId, string code)
+    {
+        if (string.IsNullOrEmpty(code) || code[0] != '`')
+        {
+            return null;
+        }
+
+        var body = code[1..];
+        if (body.Length == 0)
+        {
+            return null;
+        }
+
+        var handoffIds = config.FindFacility(senderFacilityId)?.StarsConfiguration?.StarsHandoffIds;
+        if (handoffIds is null)
+        {
+            return null;
+        }
+
+        foreach (var handoff in handoffIds)
+        {
+            var number = handoff.HandoffNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (!body.StartsWith(number, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var receivingTcpCode = body[number.Length..];
+            var owner =
+                receivingTcpCode.Length == 0
+                    ? config.ResolveFacilityDefaultStarsOwner(handoff.FacilityId)
+                    : config.ResolveTcpCode(handoff.FacilityId, receivingTcpCode);
+            if (owner is not null)
+            {
+                return owner;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Resolves the receiving owner for an interfacility handoff that names a facility but no
+    /// sector (e.g. <c>`3</c> → FAT default). Picks the facility's primary STARS sector: the
+    /// consolidation-root TCP (no parent), else the first configured TCP.
+    /// </summary>
+    private static TrackOwner? ResolveFacilityDefaultStarsOwner(this ArtccConfigRoot config, string facilityId)
+    {
+        var tcps = config.FindFacility(facilityId)?.StarsConfiguration?.Tcps;
+        if (tcps is null || tcps.Count == 0)
+        {
+            return null;
+        }
+
+        var primary = tcps.FirstOrDefault(t => string.IsNullOrEmpty(t.ParentTcpId)) ?? tcps[0];
+        return config.ResolveTcpCode(facilityId, $"{primary.Subset}{primary.SectorId}");
+    }
+
     // --- TCP lookup ---
 
     /// <summary>
