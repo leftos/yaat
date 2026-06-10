@@ -36,6 +36,25 @@ public static class AirborneFollowHelper
     private const double FreeFlightDistanceMediumNm = 2.0;
     private const double FreeFlightDistanceLargeNm = 3.5;
 
+    /// <summary>Half-width of the regime deadband around the desired trail distance (nm) for free-pursuit lateral steering and the final-leg spacing-S-turn trigger.</summary>
+    internal const double TrailRegimeDeadbandNm = 0.3;
+
+    /// <summary>Cross-track capture gain when established/parallel: degrees of heading bias per nm of cross-track.</summary>
+    private const double TrailCrossCaptureGainDegPerNm = 30.0;
+
+    /// <summary>Maximum cross-track capture bias off the lead's track when established (deg) — keeps the correction shallow (AIM 4-3-5).</summary>
+    private const double TrailMaxCrossCaptureDeg = 12.0;
+
+    /// <summary>Heading offset off the lead's track for the shallow widen excursion when too close at the speed floor (deg).</summary>
+    private const double TrailWidenOffsetDeg = 18.0;
+
+    /// <summary>
+    /// Minimum lead ground speed (kt) for its ground track to be a reliable trail reference.
+    /// Below this the lead is nearly stopped / just airborne, so the law degenerates to pure
+    /// pursuit (pointing at the lead's current position).
+    /// </summary>
+    private const double TrailMinLeadGroundSpeedKt = 35.0;
+
     /// <summary>Speed correction gain: kts per nm of distance error.</summary>
     internal const double SpeedGainPerNm = 25.0;
 
@@ -741,4 +760,89 @@ public static class AirborneFollowHelper
             _ => FreeFlightDistanceMediumNm,
         };
     }
+
+    /// <summary>
+    /// Computes the free-pursuit target heading for a follower steering relative to the lead's
+    /// ground track (AIM 5-5-12.a.1 "maneuver as necessary to maintain in-trail separation" /
+    /// AIM 4-3-5 shallow S-turns). Three regimes keyed on the along-track gap behind the lead
+    /// versus <paramref name="desiredNm"/>:
+    /// <list type="bullet">
+    /// <item><description><b>Approaching</b> (gap &gt; desired): lag-pursue an anchor
+    /// <paramref name="desiredNm"/> behind the lead, curving the follower into trail.</description></item>
+    /// <item><description><b>Established</b> (gap ≈ desired): parallel the lead's track with a bounded
+    /// cross-track capture bias — the nose parallels the track instead of pointing at the lead.</description></item>
+    /// <item><description><b>Too close</b> (gap &lt; desired): parallel + capture and let the speed loop
+    /// open the gap; when <paramref name="speedSaturated"/>, perform a shallow widen excursion off the
+    /// lead's track (toward the follower's offset side) to bleed distance.</description></item>
+    /// </list>
+    /// Degrades to pure pursuit (pointing at the lead) when the lead's ground speed is too low for a
+    /// reliable ground track. <paramref name="widen"/> carries the excursion hysteresis so the widen
+    /// doesn't chatter across ticks.
+    /// </summary>
+    public static TrueHeading ComputeFreePursuitHeading(
+        AircraftState follower,
+        AircraftState lead,
+        double desiredNm,
+        bool speedSaturated,
+        FollowWidenState widen
+    )
+    {
+        // Lead nearly stopped / just airborne: its ground track is unreliable. Point at the
+        // lead's current position (legacy pursuit behavior) until it is moving.
+        if (lead.GroundSpeed < TrailMinLeadGroundSpeedKt)
+        {
+            widen.Active = false;
+            return new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position));
+        }
+
+        TrueHeading refTrack = lead.TrueTrack;
+
+        // Along-track gap behind the lead (positive => follower is behind) and signed cross-track
+        // (positive => follower is right of the lead's track).
+        double behindNm = -GeoMath.AlongTrackDistanceNm(follower.Position, lead.Position, refTrack);
+        double crossNm = GeoMath.SignedCrossTrackDistanceNm(follower.Position, lead.Position, refTrack);
+
+        // Approaching: gap too large -> lag-pursue an anchor desiredNm behind the lead.
+        if (behindNm > desiredNm + TrailRegimeDeadbandNm)
+        {
+            widen.Active = false;
+            LatLon anchor = GeoMath.ProjectPoint(lead.Position, refTrack.ToReciprocal(), desiredNm);
+            return new TrueHeading(GeoMath.BearingTo(follower.Position, anchor));
+        }
+
+        // Too close and slowing can't open the gap -> shallow widen excursion. The excursion is
+        // sticky (widen.Active) until the gap recovers into the deadband, so it doesn't chatter.
+        bool tooClose = behindNm < desiredNm - TrailRegimeDeadbandNm;
+        if (tooClose && (speedSaturated || widen.Active))
+        {
+            if (!widen.Active)
+            {
+                widen.Active = true;
+                // Widen toward the side the follower already sits on so the excursion lengthens its
+                // path without crossing the lead's track. Default right when essentially on track.
+                widen.Side = crossNm >= 0 ? 1 : -1;
+            }
+            return new TrueHeading(refTrack.Degrees + (widen.Side * TrailWidenOffsetDeg));
+        }
+
+        // Established (or too close but still able to slow): parallel the lead's track with a
+        // bounded cross-track capture bias. Positive cross (right of track) -> bias left.
+        widen.Active = false;
+        double capture = Math.Clamp(-crossNm * TrailCrossCaptureGainDegPerNm, -TrailMaxCrossCaptureDeg, TrailMaxCrossCaptureDeg);
+        return new TrueHeading(refTrack.Degrees + capture);
+    }
+}
+
+/// <summary>
+/// Hysteresis state for the free-pursuit widen excursion (<see cref="AirborneFollowHelper.ComputeFreePursuitHeading"/>).
+/// Lives on the follow phase (and is serialized) so the shallow widen/S-turn does not chatter on/off
+/// across ticks while the follower bleeds distance behind a too-close lead.
+/// </summary>
+public sealed class FollowWidenState
+{
+    /// <summary>True while a widen excursion is in progress.</summary>
+    public bool Active { get; set; }
+
+    /// <summary>Excursion side: +1 = widen right of the lead's track, -1 = widen left.</summary>
+    public int Side { get; set; }
 }

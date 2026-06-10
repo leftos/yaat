@@ -50,6 +50,12 @@ public sealed class VfrFollowPhase : Phase
     /// <summary>Never newly turn a follower onto final closer than this to the threshold.</summary>
     public const double MinFinalJoinDistNm = 0.5;
 
+    /// <summary>Speed margin above the approach-speed floor within which the spacing speed loop counts as saturated (kt).</summary>
+    private const double SpeedSaturationEpsilonKts = 0.5;
+
+    /// <summary>Hysteresis state for the free-pursuit shallow widen excursion (lateral spacing tool).</summary>
+    private readonly FollowWidenState _widen = new();
+
     public string TargetCallsign { get; private set; }
 
     /// <summary>
@@ -78,6 +84,7 @@ public sealed class VfrFollowPhase : Phase
     {
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.PreferredTurnDirection = null;
+        _widen.Active = false;
         Log.LogDebug("[VfrFollow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, TargetCallsign);
     }
 
@@ -136,11 +143,9 @@ public sealed class VfrFollowPhase : Phase
             return true;
         }
 
-        // Free pursuit: steer toward the lead and match speed with spacing correction.
-        // Altitude is deliberately not touched — the controller's last assignment stands.
-        double targetBearing = GeoMath.BearingTo(ctx.Aircraft.Position, lead.Position);
-        ctx.Targets.TargetTrueHeading = new TrueHeading(targetBearing);
-
+        // Free pursuit: match the lead's speed with spacing correction, then steer to keep
+        // trail behind the lead. Altitude is deliberately not touched — the controller's last
+        // assignment stands.
         double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
         double? adjusted = AirborneFollowHelper.AdjustedFreeFlightSpeed(
             ctx.Aircraft,
@@ -158,6 +163,14 @@ public sealed class VfrFollowPhase : Phase
             return true;
         }
         ctx.Targets.TargetSpeed = adjusted;
+
+        // Lateral trail-keeping: steer relative to the lead's ground track — parallel once
+        // established (nose no longer aimed at the lead), lag-pursuit when far behind, and a
+        // shallow widen when too close at the speed floor — rather than pointing the nose at the
+        // lead's instantaneous position. AIM 5-5-12.a.1 / 4-3-5.
+        double desiredNm = AirborneFollowHelper.FreeFlightDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
+        bool speedSaturated = adjusted.Value <= minSpeed + SpeedSaturationEpsilonKts;
+        ctx.Targets.TargetTrueHeading = AirborneFollowHelper.ComputeFreePursuitHeading(ctx.Aircraft, lead, desiredNm, speedSaturated, _widen);
 
         return false;
     }
@@ -607,6 +620,8 @@ public sealed class VfrFollowPhase : Phase
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
             TargetCallsign = TargetCallsign,
             LeadLandingRunway = _leadLandingRunway?.ToSnapshot(),
+            WidenActive = _widen.Active,
+            WidenSide = _widen.Side,
         };
 
     public static VfrFollowPhase FromSnapshot(VfrFollowPhaseDto dto)
@@ -617,6 +632,8 @@ public sealed class VfrFollowPhase : Phase
         {
             phase._leadLandingRunway = RunwayInfo.FromSnapshot(dto.LeadLandingRunway);
         }
+        phase._widen.Active = dto.WidenActive;
+        phase._widen.Side = dto.WidenSide;
         return phase;
     }
 }

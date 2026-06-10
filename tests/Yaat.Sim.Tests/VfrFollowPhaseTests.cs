@@ -316,14 +316,25 @@ public class VfrFollowPhaseTests : IDisposable
     // ---------------------------------------------------------------------
 
     [Fact]
-    public void VfrFollowPhase_FreeFlight_TurnsTowardLead()
+    public void VfrFollowPhase_FreeFlight_FarBehind_LagPursuesTowardLead()
     {
-        // Follower at 37.00 N 122.00 W heading 280° (west).
-        // Leader ~5 nm due east — the follower should turn toward bearing ~090°.
-        var follower = MakeVfrAircraft("FOLL", lat: 37.00, lon: -122.00);
+        // Lead eastbound (track 090°); follower ~5 nm directly behind (west) on the same
+        // track. Well outside the desired trail distance, the follower lag-pursues an
+        // anchor a short distance behind the lead — which, from far back, still points
+        // it toward bearing ~090°.
+        var follower = MakeVfrAircraft("FOLL", "C172", lat: 37.00, lon: -122.00, heading: 90, altitude: 2500, ias: 90, onGround: false);
         follower.Approach.FollowingCallsign = "LEAD";
         double lonPerNm = 1.0 / (60.0 * Math.Cos(37.0 * Math.PI / 180.0));
-        var lead = MakeVfrAircraft("LEAD", lat: 37.00, lon: -122.00 + (5.0 * lonPerNm));
+        var lead = MakeVfrAircraft(
+            "LEAD",
+            "C172",
+            lat: 37.00,
+            lon: -122.00 + (5.0 * lonPerNm),
+            heading: 90,
+            altitude: 2500,
+            ias: 90,
+            onGround: false
+        );
 
         var phase = new VfrFollowPhase("LEAD");
         follower.Phases!.Add(phase);
@@ -418,6 +429,161 @@ public class VfrFollowPhaseTests : IDisposable
         bool done = phase.OnTick(ctx);
 
         Assert.True(done);
+    }
+
+    // ---------------------------------------------------------------------
+    // VfrFollowPhase.OnTick — free-flight trail-keeping (lateral spacing)
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// Places a follower <paramref name="behindNm"/> behind the lead along its track and
+    /// <paramref name="rightNm"/> to the right of that track (right = track + 90°).
+    /// </summary>
+    private static LatLon PlaceTrailing(LatLon leadPos, TrueHeading leadTrack, double behindNm, double rightNm)
+    {
+        var behind = GeoMath.ProjectPoint(leadPos, leadTrack.ToReciprocal(), behindNm);
+        return GeoMath.ProjectPoint(behind, new TrueHeading(leadTrack.Degrees + 90.0), rightNm);
+    }
+
+    private static AircraftState MakeLead(double lat, double lon, double trackDeg, double ias)
+    {
+        var lead = MakeVfrAircraft("LEAD", "C172", lat: lat, lon: lon, heading: trackDeg, altitude: 2500, ias: ias, onGround: false);
+        return lead;
+    }
+
+    [Fact]
+    public void VfrFollowPhase_FreeFlight_Established_FliesParallelToLeadTrack_NotAtLead()
+    {
+        // Follower established at the desired trail distance but offset 1.5 nm to the side.
+        // Pure pursuit would aim its nose at the lead (~045°); the trail-keeping law flies
+        // parallel to the lead's 090° track with only a bounded cross-track capture bias.
+        var lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 90);
+        var followerPos = PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 1.5, rightNm: 1.5);
+        var follower = MakeVfrAircraft(
+            "FOLL",
+            "C172",
+            lat: followerPos.Lat,
+            lon: followerPos.Lon,
+            heading: 90,
+            altitude: 2500,
+            ias: 90,
+            onGround: false
+        );
+        follower.Approach.FollowingCallsign = "LEAD";
+
+        var phase = new VfrFollowPhase("LEAD");
+        follower.Phases!.Add(phase);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        follower.Phases.Start(ctx);
+
+        phase.OnTick(ctx);
+
+        double hdg = follower.Targets.TargetTrueHeading!.Value.Degrees;
+        // Parallel-to-track with bounded capture (turning left toward the track), NOT the
+        // ~045° pure-pursuit bearing straight at the lead.
+        Assert.InRange(hdg, 73, 82);
+    }
+
+    [Fact]
+    public void VfrFollowPhase_FreeFlight_TooClose_NotSaturated_ParallelsAndSlows()
+    {
+        // Too close (1.0 nm < 1.5 nm desired) but the lead is fast, so the speed loop has
+        // room to open the gap: the follower parallels the track + captures (does NOT widen),
+        // and reduces speed below the lead's.
+        var lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 110);
+        var followerPos = PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 1.0, rightNm: 0.5);
+        var follower = MakeVfrAircraft(
+            "FOLL",
+            "C172",
+            lat: followerPos.Lat,
+            lon: followerPos.Lon,
+            heading: 90,
+            altitude: 2500,
+            ias: 110,
+            onGround: false
+        );
+        follower.Approach.FollowingCallsign = "LEAD";
+
+        var phase = new VfrFollowPhase("LEAD");
+        follower.Phases!.Add(phase);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        follower.Phases.Start(ctx);
+
+        phase.OnTick(ctx);
+
+        double hdg = follower.Targets.TargetTrueHeading!.Value.Degrees;
+        // Parallel + capture (left toward track), not a widen excursion to the right.
+        Assert.InRange(hdg, 73, 82);
+        Assert.NotNull(follower.Targets.TargetSpeed);
+        Assert.True(follower.Targets.TargetSpeed < 110, $"Expected speed reduced below lead 110, got {follower.Targets.TargetSpeed}");
+    }
+
+    [Fact]
+    public void VfrFollowPhase_FreeFlight_TooClose_Saturated_WidensToOpenDistance()
+    {
+        // Too close AND the speed loop is saturated at the approach-speed floor (slow lead),
+        // so slowing can't open the gap. The follower performs a shallow widen — a lateral
+        // excursion off the lead's track toward its offset side — to bleed distance (AIM 4-3-5).
+        var lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 55);
+        var followerPos = PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 1.0, rightNm: 0.5);
+        var follower = MakeVfrAircraft(
+            "FOLL",
+            "C172",
+            lat: followerPos.Lat,
+            lon: followerPos.Lon,
+            heading: 90,
+            altitude: 2500,
+            ias: 70,
+            onGround: false
+        );
+        follower.Approach.FollowingCallsign = "LEAD";
+
+        var phase = new VfrFollowPhase("LEAD");
+        follower.Phases!.Add(phase);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        follower.Phases.Start(ctx);
+
+        phase.OnTick(ctx);
+
+        double hdg = follower.Targets.TargetTrueHeading!.Value.Degrees;
+        // Widen to the right (the follower's offset side) — heading swings well right of the
+        // 090° track, away from both "parallel" and "pointed at the lead".
+        Assert.InRange(hdg, 100, 118);
+    }
+
+    [Fact]
+    public void VfrFollowPhase_FreeFlight_LeadNearlyStopped_FallsBackToPurePursuit()
+    {
+        // When the lead's ground speed is too low to give a reliable ground track, the trail
+        // law degenerates safely to pointing at the lead's current position.
+        var lead = MakeLead(37.0, -122.0, trackDeg: 90, ias: 30);
+        lead.Altitude = 800;
+        var followerPos = PlaceTrailing(lead.Position, lead.TrueTrack, behindNm: 3.0, rightNm: 2.0);
+        var follower = MakeVfrAircraft(
+            "FOLL",
+            "C172",
+            lat: followerPos.Lat,
+            lon: followerPos.Lon,
+            heading: 90,
+            altitude: 800,
+            ias: 90,
+            onGround: false
+        );
+        follower.Approach.FollowingCallsign = "LEAD";
+
+        var phase = new VfrFollowPhase("LEAD");
+        follower.Phases!.Add(phase);
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        follower.Phases.Start(ctx);
+
+        phase.OnTick(ctx);
+
+        double hdg = follower.Targets.TargetTrueHeading!.Value.Degrees;
+        double bearingToLead = GeoMath.BearingTo(follower.Position, lead.Position);
+        Assert.True(
+            Math.Abs(new TrueHeading(hdg).SignedAngleTo(new TrueHeading(bearingToLead))) < 2.0,
+            $"Expected pure-pursuit bearing {bearingToLead:F1}, got {hdg:F1}"
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -723,5 +889,118 @@ public class VfrFollowPhaseTests : IDisposable
 
         // OnTick clears FollowingCallsign when lead is on ground.
         Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    // ---------------------------------------------------------------------
+    // FinalApproachPhase.OnTick — lateral spacing S-turn auto-trigger (AIM 4-3-5)
+    // ---------------------------------------------------------------------
+
+    /// <summary>Places an aircraft <paramref name="distNm"/> from the threshold on the extended centerline.</summary>
+    private static LatLon OnFinal(RunwayInfo runway, double distNm) =>
+        GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading.ToReciprocal(), distNm);
+
+    private static (AircraftState Follower, FinalApproachPhase Phase, PhaseContext Ctx) SetupFinalFollower(
+        RunwayInfo runway,
+        double followerDistNm,
+        double leadDistNm
+    )
+    {
+        var leadPos = OnFinal(runway, leadDistNm);
+        var lead = MakeVfrAircraft(
+            "LEAD",
+            "C172",
+            lat: leadPos.Lat,
+            lon: leadPos.Lon,
+            heading: runway.TrueHeading.Degrees,
+            altitude: 2000,
+            ias: 90,
+            onGround: false
+        );
+
+        var followerPos = OnFinal(runway, followerDistNm);
+        var follower = MakeVfrAircraft(
+            "FOLL",
+            "C172",
+            lat: followerPos.Lat,
+            lon: followerPos.Lon,
+            heading: runway.TrueHeading.Degrees,
+            altitude: 2200,
+            ias: 90,
+            onGround: false
+        );
+        follower.Approach.FollowingCallsign = "LEAD";
+
+        var phase = new FinalApproachPhase();
+        follower.Phases = new PhaseList { AssignedRunway = runway };
+        follower.Phases.Add(phase);
+        follower.Phases.Add(new LandingPhase());
+        var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null);
+        follower.Phases.Start(ctx);
+        return (follower, phase, ctx);
+    }
+
+    [Fact]
+    public void FinalApproach_FollowingTooClose_OutsideFiveNm_InsertsSTurnAndResumesFinal()
+    {
+        // Follower 7 nm out, lead 6.5 nm out → 0.5 nm in-trail (a clear deficit below the 1.0 nm
+        // piston desired minus the 0.3 nm deadband). Well outside the FAF/stabilization window, the
+        // follower self-initiates a shallow S-turn for spacing (AIM 4-3-5) and resumes the final.
+        var runway = DefaultRunway();
+        var (follower, phase, ctx) = SetupFinalFollower(runway, followerDistNm: 7.0, leadDistNm: 6.5);
+
+        bool done = phase.OnTick(ctx);
+
+        Assert.True(done, "Expected the final phase to complete (advancing into the S-turn)");
+        var phases = follower.Phases!.Phases;
+        Assert.IsType<STurnPhase>(phases[follower.Phases.CurrentIndex + 1]);
+        Assert.IsType<FinalApproachPhase>(phases[follower.Phases.CurrentIndex + 2]);
+    }
+
+    [Fact]
+    public void FinalApproach_FollowingTooClose_InsideFiveNm_NoSTurn()
+    {
+        // Inside 5 nm the follower is committed to the approach — no lateral maneuvering, the
+        // existing FAS/stabilization/go-around logic governs.
+        var runway = DefaultRunway();
+        var (follower, phase, ctx) = SetupFinalFollower(runway, followerDistNm: 4.0, leadDistNm: 3.5);
+
+        bool done = phase.OnTick(ctx);
+
+        Assert.False(done);
+        Assert.DoesNotContain(follower.Phases!.Phases, p => p is STurnPhase);
+    }
+
+    [Fact]
+    public void FinalApproach_FollowingAdequatelySpaced_OutsideFiveNm_NoSTurn()
+    {
+        // 1.5 nm in-trail (≥ 1.0 nm desired) — adequately spaced, no S-turn.
+        var runway = DefaultRunway();
+        var (follower, phase, ctx) = SetupFinalFollower(runway, followerDistNm: 7.0, leadDistNm: 5.5);
+
+        bool done = phase.OnTick(ctx);
+
+        Assert.False(done);
+        Assert.DoesNotContain(follower.Phases!.Phases, p => p is STurnPhase);
+    }
+
+    [Fact]
+    public void FinalApproach_ResumedAfterSTurn_DoesNotImmediatelyReTrigger_WithinCooldown()
+    {
+        // After the S-turn resumes the final, the cooldown suppresses another S-turn even if the
+        // follower is still too close — so it can't stack S-turns every tick.
+        var runway = DefaultRunway();
+        var (follower, phase, ctx) = SetupFinalFollower(runway, followerDistNm: 7.0, leadDistNm: 6.5);
+
+        Assert.True(phase.OnTick(ctx)); // inserts [STurn, resume final]
+        follower.Phases!.AdvanceToNext(ctx); // -> STurn
+        follower.Phases.AdvanceToNext(ctx); // -> resume final (OnStart runs, cooldown seeded)
+
+        var resume = Assert.IsType<FinalApproachPhase>(follower.Phases.CurrentPhase);
+        int sTurnCountBefore = follower.Phases.Phases.Count(p => p is STurnPhase);
+
+        bool done = resume.OnTick(ctx);
+
+        Assert.False(done);
+        Assert.Equal(sTurnCountBefore, follower.Phases.Phases.Count(p => p is STurnPhase));
     }
 }

@@ -460,9 +460,22 @@ extension reached" transmission so the controller can re-sequence.
 
 ### `VfrFollowPhase` — free pursuit + auto-join
 
-`VfrFollowPhase` (`src/Yaat.Sim/Phases/Pattern/VfrFollowPhase.cs`, built by `CommandDispatcher` for FOLLOW) steers
-toward the lead's position and matches the lead's speed with free-flight spacing, leaving altitude untouched. When
-the lead is in a pattern, `TryJoinLeadPattern` (`VfrFollowPhase.cs:111`) rebuilds the follower's phase list with a
+`VfrFollowPhase` (`src/Yaat.Sim/Phases/Pattern/VfrFollowPhase.cs`, built by `CommandDispatcher` for FOLLOW) keeps a
+trail behind the lead — steering relative to the lead's **ground track**, not its instantaneous position — and matches
+the lead's speed with free-flight spacing, leaving altitude untouched.
+
+**Lateral trail-keeping — `AirborneFollowHelper.ComputeFreePursuitHeading`.** Each free-pursuit tick (after the speed
+loop) the heading comes from a three-regime law keyed on `behindNm` (along-track gap behind the lead, from
+`lead.TrueTrack`) vs the free-flight `desiredNm`, with a `TrailRegimeDeadbandNm = 0.3` deadband: **Approaching**
+(gap > desired) lag-pursues an anchor `desiredNm` behind the lead (`ProjectPoint(lead.Position, TrueTrack.ToReciprocal(),
+desiredNm)`), curving into trail; **Established** (within deadband) parallels `lead.TrueTrack` with a bounded cross-track
+capture (`clamp(-crossNm × 30, ±12°)`) — the nose no longer points at the lead; **Too close** (gap < desired) parallels +
+captures while the speed loop opens the gap, but if speed is saturated at the approach-speed floor it makes a sticky
+±18° widen excursion toward the follower's offset side (hysteresis via `FollowWidenState`, serialized on
+`VfrFollowPhaseDto`) until the gap recovers. Below `TrailMinLeadGroundSpeedKt = 35` the lead's track is unreliable, so it
+degrades to pure pursuit (pointing at the lead). AIM §5-5-12.a.1 / §4-3-5.
+
+When the lead is in a pattern, `TryJoinLeadPattern` (`VfrFollowPhase.cs:111`) rebuilds the follower's phase list with a
 full circuit copied from the lead's runway/direction/altitude, gated on **three** conditions:
 
 1. follower within `JoinRangeNm = 3.0` of the lead's downwind abeam point,
@@ -497,6 +510,15 @@ The lead's runway is captured each tick into `_leadLandingRunway` (serialized in
 lead is airborne on final/landing, so if the lead touches down before the follower has rolled onto final, the
 follower is still sequenced onto that runway's final (the lead-landed fallback in `OnTick`) instead of cancelling
 the follow and levelling off over the field.
+
+**On-final spacing S-turn — `FinalApproachPhase.ShouldAutoSTurnForSpacing`.** Once a follower is established on final
+behind its traffic, the existing speed loop is the spacing tool inside the FAS gate, but a follower that catches up to
+less than the pattern-tight desired while still **outside `STurnSpacingFloorNm = 5.0`** self-initiates a single shallow
+`STurnPhase` (`Count = 1`) for spacing, then resumes a fresh `FinalApproachPhase` (the resume is a new instance — its
+`OnStart` re-derives geometry; the pilot-decision go-around roll is guarded by `_goAroundRolled` so it doesn't re-fire,
+and `SkipInterceptCheck` avoids re-scoring). A `STurnSpacingCooldownSeconds = 45` cooldown (carried onto the resume,
+serialized on `FinalApproachPhaseDto`) prevents stacking. Inside 5 nm nothing changes — the aircraft is committed to the
+stabilized approach / go-around logic. AIM §4-3-5; 7110.65 §5-7-1.b.4 (no maneuvering-for-spacing inside the FAF).
 
 ## Approach scoring — `ApproachEvaluator` + `ApproachScore`
 

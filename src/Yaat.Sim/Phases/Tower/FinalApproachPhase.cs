@@ -99,6 +99,20 @@ public sealed class FinalApproachPhase : Phase
     private const double StabilizationWindowSeconds = 60.0;
 
     /// <summary>
+    /// Minimum distance-to-threshold (nm) outside which a following aircraft may self-initiate a
+    /// shallow spacing S-turn (AIM 4-3-5). Inside this the aircraft is committed to the approach —
+    /// no lateral maneuvering; the FAS/stabilization/go-around logic governs. Matches
+    /// <see cref="SpeedCommandFinalGateNm"/> and the §5-7-1.b.4 no-speed-adjust-inside-5-nm boundary.
+    /// </summary>
+    private const double STurnSpacingFloorNm = 5.0;
+
+    /// <summary>
+    /// Cooldown (seconds) after a spacing S-turn resumes the final before another may fire, so a
+    /// follower that's still tight can't stack S-turns every tick. Inherited by the resume phase.
+    /// </summary>
+    private const double STurnSpacingCooldownSeconds = 45.0;
+
+    /// <summary>
     /// Maximum FAC-vs-runway-heading difference at which an approach is considered "aligned"
     /// for establishment-check fallback purposes. Below this, the runway-heading branch is
     /// allowed (Issue #101 mag-variation tolerance); above it, only the FAC counts as
@@ -219,6 +233,18 @@ public sealed class FinalApproachPhase : Phase
     private double _mapDistNm;
 
     /// <summary>
+    /// Remaining cooldown (seconds) before another spacing S-turn may fire. Set on the resume
+    /// phase after a spacing S-turn is inserted; decremented each tick.
+    /// </summary>
+    private double _sTurnSpacingCooldownSeconds;
+
+    /// <summary>
+    /// True once the one-shot pilot-decision go-around roll has been performed (or deliberately
+    /// suppressed on a spacing-S-turn resume), so re-entering <see cref="OnStart"/> doesn't re-roll.
+    /// </summary>
+    private bool _goAroundRolled;
+
+    /// <summary>
     /// Aircraft is considered "captured" on the glideslope once its altitude reaches the GS
     /// path (within this window from above) — at that point the phase locks onto GS for the
     /// rest of the descent. Below the window and not yet captured, the phase holds the
@@ -269,6 +295,8 @@ public sealed class FinalApproachPhase : Phase
             ConfigSet = _configSet,
             MapDistNm = _mapDistNm,
             GsCaptured = _gsCaptured,
+            STurnSpacingCooldownSeconds = _sTurnSpacingCooldownSeconds,
+            GoAroundRolled = _goAroundRolled,
         };
 
     public static FinalApproachPhase FromSnapshot(FinalApproachPhaseDto dto)
@@ -298,6 +326,8 @@ public sealed class FinalApproachPhase : Phase
         phase._configSet = dto.ConfigSet || dto.FasSet;
         phase._mapDistNm = dto.MapDistNm;
         phase._gsCaptured = dto.GsCaptured;
+        phase._sTurnSpacingCooldownSeconds = dto.STurnSpacingCooldownSeconds;
+        phase._goAroundRolled = dto.GoAroundRolled;
         return phase;
     }
 
@@ -433,8 +463,9 @@ public sealed class FinalApproachPhase : Phase
         // final spontaneously break off the approach with a controller-configurable chance.
         // Consumes one value from the deterministic RNG stream — replays regenerate the same
         // outcome because SimulationWorld.Rng state is captured in StateSnapshotDto.
-        if (ctx.SoloTrainingMode && ctx.SoloGoAroundProbabilityPercent > 0 && ctx.Rng is not null)
+        if (!_goAroundRolled && ctx.SoloTrainingMode && ctx.SoloGoAroundProbabilityPercent > 0 && ctx.Rng is not null)
         {
+            _goAroundRolled = true;
             double roll = ctx.Rng.NextDouble() * 100.0;
             if (roll < ctx.SoloGoAroundProbabilityPercent)
             {
@@ -565,6 +596,37 @@ public sealed class FinalApproachPhase : Phase
                     ctx.Targets.TargetSpeed = adjusted.Value;
                 }
             }
+        }
+
+        // Lateral spacing on final (AIM 4-3-5): a follower that has caught up to less than the
+        // desired in-trail spacing while still well outside the FAF self-initiates one shallow
+        // S-turn to bleed distance, then resumes the approach. Restricted to outside
+        // STurnSpacingFloorNm so it never fires inside the FAS/stabilization/go-around window where
+        // the aircraft is committed. Bounded by a per-resume cooldown so it can't stack S-turns.
+        if (_sTurnSpacingCooldownSeconds > 0)
+        {
+            _sTurnSpacingCooldownSeconds = Math.Max(0.0, _sTurnSpacingCooldownSeconds - ctx.DeltaSeconds);
+        }
+        else if (ShouldAutoSTurnForSpacing(ctx, distNm) && ctx.Aircraft.Phases is { } phasesForSTurn)
+        {
+            var initialDir = ctx.Aircraft.Phases.TrafficDirection == PatternDirection.Right ? TurnDirection.Right : TurnDirection.Left;
+            var sTurn = new STurnPhase { InitialDirection = initialDir, Count = 1 };
+            var resume = new FinalApproachPhase { SkipInterceptCheck = true };
+            resume._goAroundRolled = true;
+            resume._sTurnSpacingCooldownSeconds = STurnSpacingCooldownSeconds;
+            phasesForSTurn.InsertAfterCurrent(new List<Phase> { sTurn, resume });
+
+            string leadCallsign = ctx.Aircraft.Approach.FollowingCallsign!;
+            PilotResponder.RouteSoloOrRpoTransmission(
+                ctx.Aircraft,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                ctx.StudentPositionType,
+                PilotResponder.BuildSTurnsForSpacing(ctx.Aircraft, leadCallsign),
+                PilotResponder.SoloPositionsTowerApproach
+            );
+            Log.LogDebug("[FinalApproach] {Callsign}: S-turn for spacing behind {Lead} at {Dist:F1}nm", ctx.Aircraft.Callsign, leadCallsign, distNm);
+            return true;
         }
 
         CheckInterceptDistance(ctx, distNm);
@@ -974,6 +1036,46 @@ public sealed class FinalApproachPhase : Phase
         }
 
         return (absCrossTrackNm < GsEstablishedCrossTrackNm) && (ComputeFacHeadingDiff(ctx) < GsEstablishedHeadingDeg);
+    }
+
+    /// <summary>
+    /// Whether the follower should self-initiate a shallow spacing S-turn this tick: it is following
+    /// a live airborne lead that is ahead in trail on the final approach course, the in-trail gap is
+    /// below the pattern-tight desired spacing for the lead's category, and the aircraft is still
+    /// outside <see cref="STurnSpacingFloorNm"/> (so it isn't committed to the approach). AIM 4-3-5.
+    /// </summary>
+    private bool ShouldAutoSTurnForSpacing(PhaseContext ctx, double distNm)
+    {
+        if (distNm <= STurnSpacingFloorNm)
+        {
+            return false;
+        }
+
+        string? leadCallsign = ctx.Aircraft.Approach.FollowingCallsign;
+        if (leadCallsign is null)
+        {
+            return false;
+        }
+
+        var lead = ctx.AircraftLookup?.Invoke(leadCallsign);
+        if (lead is null || lead.IsOnGround)
+        {
+            return false;
+        }
+
+        // Lead must be ahead in trail along the final approach course — not behind or abeam.
+        double leadAheadNm = GeoMath.AlongTrackDistanceNm(lead.Position, ctx.Aircraft.Position, _finalApproachCourse);
+        if (leadAheadNm <= 0)
+        {
+            return false;
+        }
+
+        // Trigger only on a clear in-trail deficit. Use the along-track gap (not straight-line, which
+        // overstates spacing while the follower is still converging on centerline) and a deadband
+        // mirroring the free-pursuit law, so a marginal gap doesn't fire an unnecessary S-turn
+        // (7110.65 §5-7-1 — keep spacing adjustments to the minimum necessary, avoid over-correction).
+        double desiredNm = AirborneFollowHelper.DesiredDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
+        return leadAheadNm < desiredNm - AirborneFollowHelper.TrailRegimeDeadbandNm;
     }
 
     private void CheckInterceptDistance(PhaseContext ctx, double distNm)

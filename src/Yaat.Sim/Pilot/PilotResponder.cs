@@ -1028,6 +1028,19 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// Pilot advisory when a follower self-initiates a shallow S-turn on final to open in-trail
+    /// spacing behind the traffic it is following (AIM 4-3-5 — pilots maneuvering for spacing
+    /// advise the controller). Output:
+    /// <c>"[N123AB] november one two three alpha bravo, S-turning for spacing behind cessna five six niner sierra x-ray."</c>
+    /// </summary>
+    public static PilotSpeechText BuildSTurnsForSpacing(AircraftState aircraft, string targetCallsign)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
+        return new PilotSpeechText($"S-turning for spacing behind {targetCallsign}.", $"{spoken}, S-turning for spacing behind {targetSpoken}.");
+    }
+
+    /// <summary>
     /// Pilot airborne-spawn check-in fired by <see cref="PilotProactive.TickAirborneCheckIn"/>
     /// the first tick an aircraft is observed airborne in solo-training mode and has not
     /// yet spoken to ATC. Branches on <see cref="SimScenarioState.StudentPositionType"/>

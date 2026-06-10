@@ -670,6 +670,12 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     /// than commanding a climb up to the GS — aircraft must never fly UP to capture.
     /// </summary>
     public bool GsCaptured { get; init; }
+
+    /// <summary>Remaining cooldown (seconds) before another spacing S-turn may fire (AIM 4-3-5). Defaults to 0.</summary>
+    public double STurnSpacingCooldownSeconds { get; init; }
+
+    /// <summary>True once the one-shot pilot-decision go-around roll has been performed or suppressed. Defaults to false.</summary>
+    public bool GoAroundRolled { get; init; }
 }
 
 public sealed class LandingPhaseDto : PhaseDto
@@ -797,6 +803,12 @@ public sealed class VfrFollowPhaseDto : PhaseDto
 {
     public required string TargetCallsign { get; init; }
     public RunwayInfoDto? LeadLandingRunway { get; init; }
+
+    /// <summary>Free-pursuit widen excursion active flag (lateral spacing hysteresis).</summary>
+    public bool WidenActive { get; init; }
+
+    /// <summary>Free-pursuit widen excursion side: +1 right of the lead's track, -1 left.</summary>
+    public int WidenSide { get; init; }
 }
 
 // --- Approach phases ---
