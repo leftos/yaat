@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.10-beta [2026/06/09]
+
+### Highlights
+- Spawn an arrival already established on a STAR — `ADD I H J TBARR.TBARR4.34R` drops an IFR aircraft onto the arrival at a named waypoint, descending via the procedure, with no need to spawn far out and edit a flight plan.
+- Departures and go-arounds can be assigned a speed near the field again — the "no speed inside 5 nm final" rule no longer blocks a climbing departure or go-around.
+- VFR aircraft told to FOLLOW now trail behind their traffic instead of pointing straight at the lead and closing, opening the gap with a shallow S-turn when they get too close.
+- The Cirrus Vision Jet (SF50) climbs and cruises at realistic speeds — ~170 knots in the climb and ~300 knots in cruise, instead of a generic 250-knot jet climb.
 
 ### Added
 - **Spawn an aircraft already established on an arrival (STAR)** — the `ADD` command has a new variant, `ADD I {wt} {eng} {waypoint}.{star}[.{runway}] [altitude] [SP{speed}] [LVL] [airport]` (e.g. `ADD I H J TBARR.TBARR4.34R 230`), that drops in an IFR aircraft already on the arrival at the named waypoint. By default it descends via the STAR's published crossings from its current altitude; add `LVL` to hold the altitude until you issue `DVIA`. The altitude is optional (a realistic establishment altitude is computed from the STAR profile if omitted), as are the runway transition, the speed (`SP###`), and the destination airport for multi-airport STARs (defaults to the primary scenario airport). Lets instructors inject arrivals without spawning far out and editing a flight plan. (#197)
