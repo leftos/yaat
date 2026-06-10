@@ -339,6 +339,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | At parking | `ADD {rules} {wt} {eng} @{space} [type] *[airline]` | `ADD {rules} {wt} {eng} @{spot} [type] *[airline]` | Same `@` prefix |
 | On runway | Not documented as separate | `ADD {rules} {wt} {eng} {rwy}` | YAAT adds lined-up-on-runway |
 | At fix | — | `ADD {rules} {wt} {eng} @{fix} {alt}` | YAAT-only |
+| Arrival on STAR | — | `ADD {rules} {wt} {eng} {wpt}.{star}[.{rwy}] [alt] [SP{spd}] [LVL] [airport]` | YAAT-only — IFR aircraft established on an arrival, descending via (or `LVL` to hold) |
 
 ### Debug / Force Commands
 

@@ -1,3 +1,5 @@
+using Yaat.Sim.Commands;
+
 namespace Yaat.Sim.Scenarios;
 
 public static class SpawnParser
@@ -29,6 +31,15 @@ public static class SpawnParser
         if (comboError is not null)
         {
             return (null, comboError);
+        }
+
+        // Arrival-on-STAR: the first position token (always index 3 — the trailing-override scan
+        // never consumes it) is a dotted WAYPOINT.STAR[.RUNWAY] route. Dispatch here, before the
+        // generic type/airline scan, so the variant owns its full trailing parse (SP### speed,
+        // LVL, airport) order-independently. Bearing tokens start '-', fix/parking start '@'.
+        if (!tokens[3].StartsWith('-') && !tokens[3].StartsWith('@') && tokens[3].Contains('.'))
+        {
+            return ParseOnStarVariant(tokens[3..], rules, weight, engine);
         }
 
         // Parse optional trailing overrides (type like B738, airline like *UAL). Stop at index 4 so the
@@ -272,6 +283,113 @@ public static class SpawnParser
         }
 
         return (null, "Too many position arguments for runway variant");
+    }
+
+    private static (SpawnRequest? Request, string? Error) ParseOnStarVariant(
+        string[] posTokens,
+        FlightRulesKind rules,
+        WeightClass weight,
+        EngineKind engine
+    )
+    {
+        if (rules != FlightRulesKind.Ifr)
+        {
+            return (null, "Arrival-on-STAR spawn requires IFR (descend-via and STARs are IFR procedures)");
+        }
+
+        var routeParts = posTokens[0].Split('.');
+        if (
+            routeParts.Length is < 2 or > 3
+            || string.IsNullOrEmpty(routeParts[0])
+            || string.IsNullOrEmpty(routeParts[1])
+            || (routeParts.Length == 3 && string.IsNullOrEmpty(routeParts[2]))
+        )
+        {
+            return (null, $"Invalid arrival route '{posTokens[0]}'. Use WAYPOINT.STAR[.RUNWAY] (e.g. TBARR.TBARR4.34R)");
+        }
+
+        var entryFix = routeParts[0].ToUpperInvariant();
+        var starId = routeParts[1].ToUpperInvariant();
+        string? runway = routeParts.Length == 3 ? routeParts[2].ToUpperInvariant() : null;
+
+        bool descendVia = true;
+        double? altitude = null;
+        double? speed = null;
+        string? airport = null;
+        string? explicitType = null;
+        string? explicitAirline = null;
+
+        for (int i = 1; i < posTokens.Length; i++)
+        {
+            var token = posTokens[i];
+            var upper = token.ToUpperInvariant();
+
+            if (upper == "LVL")
+            {
+                descendVia = false;
+            }
+            else if (upper.StartsWith("SP") && upper.Length > 2 && upper[2..].All(char.IsDigit))
+            {
+                if (speed is not null)
+                {
+                    return (null, $"Duplicate speed override '{token}'");
+                }
+
+                speed = int.Parse(upper[2..]);
+            }
+            else if (token.StartsWith('*') && token.Length > 1)
+            {
+                explicitAirline = token[1..].ToUpperInvariant();
+            }
+            else if (token.All(char.IsDigit))
+            {
+                if (altitude is not null)
+                {
+                    return (null, $"Unexpected numeric token '{token}' (use SP### for a speed override)");
+                }
+
+                var resolved = AltitudeResolver.Resolve(token);
+                if (resolved is null)
+                {
+                    return (null, $"Invalid altitude '{token}'");
+                }
+
+                altitude = resolved.Value;
+            }
+            else if (IsLikelyAircraftType(token))
+            {
+                explicitType = upper;
+            }
+            else
+            {
+                if (airport is not null)
+                {
+                    return (null, $"Unexpected token '{token}'");
+                }
+
+                airport = upper;
+            }
+        }
+
+        return (
+            new SpawnRequest
+            {
+                Rules = rules,
+                Weight = weight,
+                Engine = engine,
+                PositionType = SpawnPositionType.OnStar,
+                StarEntryFix = entryFix,
+                StarId = starId,
+                StarRunway = runway,
+                DescendVia = descendVia,
+                StarAltitude = altitude,
+                StarSpeedKts = speed,
+                DestinationAirportId = airport,
+                ExplicitType = explicitType,
+                ExplicitAirline = explicitAirline,
+            },
+            null
+        );
     }
 
     private static bool TryParseRules(string token, out FlightRulesKind rules)

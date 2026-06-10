@@ -231,6 +231,11 @@ internal static class AddCommandSuggester
                     maxSuggestions
                 );
             }
+            else if (partial.Contains('.'))
+            {
+                // User is typing an arrival route — WAYPOINT.STAR[.RUNWAY] (e.g. TBARR.TBARR4.34R).
+                AddArrivalRouteSuggestions(fullText, activeTokenStart, activeTokenEnd, partial, suggestions, primaryAirportId, maxSuggestions);
+            }
             else
             {
                 // Show all position variant hints + runway suggestions
@@ -242,7 +247,8 @@ internal static class AddCommandSuggester
                     suggestions,
                     maxSuggestions,
                     ("-", "Airborne — -{bearing} {dist_nm} {alt_ft}"),
-                    ("@", "At fix — @{fix_or_FRD} {alt_ft}, or at parking — @{spot}")
+                    ("@", "At fix — @{fix_or_FRD} {alt_ft}, or at parking — @{spot}"),
+                    ("{wpt}.{star}.{rwy}", "Arrival on a STAR — e.g. TBARR.TBARR4.34R")
                 );
                 AddRunwaySuggestions(fullText, activeTokenStart, activeTokenEnd, partial, suggestions, primaryAirportId, maxSuggestions);
             }
@@ -252,6 +258,7 @@ internal static class AddCommandSuggester
         // Determine which variant the user is typing
         bool isBearingVariant = words.Length > 4 && words[4].StartsWith('-');
         bool isFixVariant = words.Length > 4 && words[4].StartsWith('@');
+        bool isArrivalVariant = words.Length > 4 && !words[4].StartsWith('-') && !words[4].StartsWith('@') && words[4].Contains('.');
 
         if (isBearingVariant)
         {
@@ -266,6 +273,22 @@ internal static class AddCommandSuggester
             {
                 AddTypeAndAirlineOverrides(words, fullText, activeTokenStart, activeTokenEnd, partial, suggestions, maxSuggestions);
             }
+        }
+        else if (isArrivalVariant)
+        {
+            // Trailing args after the route token are order-independent and optional.
+            AddAddOptions(
+                fullText,
+                activeTokenStart,
+                activeTokenEnd,
+                partial,
+                suggestions,
+                maxSuggestions,
+                ("{altitude}", "Current altitude in hundreds (e.g. 110) — omit to auto-compute"),
+                ("LVL", "Hold level instead of descend via"),
+                ("SP", "Speed override — SP{kts}, e.g. SP250")
+            );
+            AddTypeAndAirlineOverrides(words, fullText, activeTokenStart, activeTokenEnd, partial, suggestions, maxSuggestions);
         }
         else
         {
@@ -334,6 +357,95 @@ internal static class AddCommandSuggester
                         CaretAfterInsert = caret,
                     }
                 );
+            }
+        }
+    }
+
+    private static void AddArrivalRouteSuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
+        string partial,
+        ObservableCollection<SuggestionItem> suggestions,
+        string? primaryAirportId,
+        int maxSuggestions
+    )
+    {
+        if (string.IsNullOrEmpty(primaryAirportId))
+        {
+            return;
+        }
+
+        // partial is "WAYPOINT.", "WAYPOINT.STAR" or "WAYPOINT.STAR." — complete the STAR, then the runway,
+        // both scoped to the primary airport (no global pickers).
+        var dotParts = partial.Split('.');
+
+        if (dotParts.Length == 2)
+        {
+            var starPartial = dotParts[1];
+            foreach (var star in NavigationDatabase.Instance.GetStars(primaryAirportId))
+            {
+                if (suggestions.Count >= maxSuggestions)
+                {
+                    break;
+                }
+
+                if (starPartial.Length > 0 && !star.ProcedureId.StartsWith(starPartial, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var value = $"{dotParts[0]}.{star.ProcedureId}";
+                var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
+                suggestions.Add(
+                    new SuggestionItem
+                    {
+                        Kind = SuggestionKind.Command,
+                        Text = value,
+                        Description = "Arrival via STAR — add .{rwy} for a runway transition",
+                        InsertText = insertText,
+                        CaretAfterInsert = caret,
+                    }
+                );
+            }
+
+            return;
+        }
+
+        if (dotParts.Length == 3)
+        {
+            var rwPartial = dotParts[2];
+            foreach (var rwy in NavigationDatabase.Instance.GetRunways(primaryAirportId))
+            {
+                string[] designators = rwy.Id.End1.Equals(rwy.Id.End2, StringComparison.OrdinalIgnoreCase)
+                    ? [rwy.Id.End1]
+                    : [rwy.Id.End1, rwy.Id.End2];
+
+                foreach (var designator in designators)
+                {
+                    if (suggestions.Count >= maxSuggestions)
+                    {
+                        break;
+                    }
+
+                    if (rwPartial.Length > 0 && !designator.StartsWith(rwPartial, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var value = $"{dotParts[0]}.{dotParts[1]}.{designator}";
+                    var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, value);
+                    suggestions.Add(
+                        new SuggestionItem
+                        {
+                            Kind = SuggestionKind.Command,
+                            Text = value,
+                            Description = "Runway transition — descend via (add LVL to hold level)",
+                            InsertText = insertText,
+                            CaretAfterInsert = caret,
+                        }
+                    );
+                }
             }
         }
     }

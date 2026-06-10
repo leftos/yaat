@@ -748,6 +748,8 @@ CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSi
 
 # Scenarios/
 ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting conditions, nav routes, beacon codes
+ArrivalRouteResolver.cs        # Shared STAR-route builder: PopulateNavigationRoute + ApplyAltitudeProfile (descend-via
+                               # overlay). Used by ScenarioLoader (onAltitudeProfile arrivals) + AircraftGenerator (ADD on-STAR)
 ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand, etc.
                                # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
 ScenarioIdentity.cs            # Shared scenario ID fallback hashing/normalization for server load and sim replay

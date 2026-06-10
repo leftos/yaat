@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- **Spawn an aircraft already established on an arrival (STAR)** — the `ADD` command has a new variant, `ADD I {wt} {eng} {waypoint}.{star}[.{runway}] [altitude] [SP{speed}] [LVL] [airport]` (e.g. `ADD I H J TBARR.TBARR4.34R 230`), that drops in an IFR aircraft already on the arrival at the named waypoint. By default it descends via the STAR's published crossings from its current altitude; add `LVL` to hold the altitude until you issue `DVIA`. The altitude is optional (a realistic establishment altitude is computed from the STAR profile if omitted), as are the runway transition, the speed (`SP###`), and the destination airport for multi-airport STARs (defaults to the primary scenario airport). Lets instructors inject arrivals without spawning far out and editing a flight plan. (#197)
 - **`SPEEDF` — force a speed inside 5 nm final** — a new speed command that assigns a maintain-speed even when an arrival is inside the 5 nm final-approach gate where a normal `SPD` is refused (e.g. military or compression scenarios). It accepts `+`/`-` floor/ceiling like `SPD` (`SPEEDF 180`, `SPEEDF 170+`) and, unlike the `SPDN`/`SPEEDN` teleport, eases the aircraft to the speed via normal physics. Aliases: `SPDF`, `SLF`.
 - **Per-type aircraft performance can be corrected by contributors** — a new overrides file lets a contributor fix how a specific aircraft type climbs, descends, and approaches when the built-in estimate is wrong; the corrected values are authoritative. See `docs/aircraft-performance.md`.
 

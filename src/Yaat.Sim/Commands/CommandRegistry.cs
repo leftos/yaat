@@ -832,6 +832,20 @@ public static class CommandRegistry
                         ],
                         "Add airborne aircraft"
                     ),
+                    O(
+                        "Arrival on STAR",
+                        [
+                            R("rules", "IFR"),
+                            R("weight", "H/J/L/S"),
+                            R("engine", "J/T/P"),
+                            R("wpt.star.rwy", "e.g. TBARR.TBARR4.34R"),
+                            Opt("altitude", "in hundreds"),
+                            Opt("SPspeed", "e.g. SP250"),
+                            Opt("LVL", "hold level"),
+                            Opt("airport", "ICAO, dflt primary"),
+                        ],
+                        "Add an IFR arrival established on a STAR (descend via, or level with LVL)"
+                    ),
                 ]
             ),
             Bare(SpawnNow, "Spawn Now", "Sim Control", false, ["SPAWN"]),

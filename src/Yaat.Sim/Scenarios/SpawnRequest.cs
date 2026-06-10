@@ -28,6 +28,7 @@ public enum SpawnPositionType
     OnFinal,
     AtFix,
     Parking,
+    OnStar,
 }
 
 public sealed class SpawnRequest
@@ -57,6 +58,25 @@ public sealed class SpawnRequest
 
     // Parking variant
     public string ParkingName { get; init; } = "";
+
+    // OnStar variant — spawn an IFR arrival established on a STAR.
+    // Entry waypoint (spawn position) and STAR id as typed; resolved against NavigationDatabase
+    // in the generator. StarRunway is the optional runway-transition designator.
+    public string StarEntryFix { get; init; } = "";
+    public string StarId { get; init; } = "";
+    public string? StarRunway { get; init; }
+
+    // True (default) = descend via the STAR from spawn; false (LVL keyword) = hold level.
+    public bool DescendVia { get; init; }
+
+    // Null = compute a default establishment altitude from the STAR constraints / flying miles.
+    public double? StarAltitude { get; init; }
+
+    // Null = use the STAR-published speed at the join fix, else the category default.
+    public double? StarSpeedKts { get; init; }
+
+    // Destination airport for multi-airport STARs. Null = primary scenario airport.
+    public string? DestinationAirportId { get; init; }
 
     // Optional overrides
     public string? ExplicitType { get; init; }

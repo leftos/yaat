@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Scenarios;
 
@@ -291,6 +293,19 @@ public static class AircraftGenerator
                     flightRules
                 );
 
+            case SpawnPositionType.OnStar:
+                return GenerateOnStar(
+                    request,
+                    primaryAirportId,
+                    callsign,
+                    aircraftType,
+                    category,
+                    assignedCode,
+                    activeCode,
+                    transponderMode,
+                    flightRules
+                );
+
             default:
                 return (null, $"Unknown position type: {request.PositionType}");
         }
@@ -399,6 +414,213 @@ public static class AircraftGenerator
         };
 
         return (state, null);
+    }
+
+    private static (AircraftState? State, string? Error) GenerateOnStar(
+        SpawnRequest request,
+        string? primaryAirportId,
+        string callsign,
+        string aircraftType,
+        AircraftCategory category,
+        uint assignedCode,
+        uint activeCode,
+        string transponderMode,
+        string flightRules
+    )
+    {
+        var navDb = NavigationDatabase.Instance;
+
+        var airport = !string.IsNullOrEmpty(request.DestinationAirportId) ? request.DestinationAirportId : primaryAirportId;
+        if (string.IsNullOrEmpty(airport))
+        {
+            return (null, "Arrival spawn needs a destination airport (none specified and no primary scenario airport)");
+        }
+
+        var starId = navDb.ResolveCommandStarId(airport, request.StarId);
+        var star = navDb.GetStar(airport, starId);
+        if (star is null)
+        {
+            return (null, $"STAR '{request.StarId}' not found for {airport}");
+        }
+
+        var entryPos = FrdResolver.Resolve(request.StarEntryFix, navDb);
+        if (entryPos is null)
+        {
+            return (null, $"Could not resolve arrival entry waypoint '{request.StarEntryFix}'");
+        }
+
+        // Synthetic navigation path in the "<entry> <STAR>[.<runway>]" form ArrivalRouteResolver expects
+        // (the dotted runway drives runway-transition resolution). The filed Route, by contrast, carries
+        // the BARE versioned STAR token so a later DVIA's TryActivateFiledStar (which calls ResolveStarId
+        // per space-separated token, without splitting on '.') can recognize it.
+        var navPath = request.StarRunway is not null ? $"{request.StarEntryFix} {starId}.{request.StarRunway}" : $"{request.StarEntryFix} {starId}";
+        var filedRoute = $"{request.StarEntryFix} {starId}";
+
+        var state = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = aircraftType,
+            AirportId = airport,
+            Position = entryPos.Value,
+            TrueHeading = new TrueHeading(0),
+            TrueTrack = new TrueHeading(0),
+            Altitude = 0,
+            IndicatedAirspeed = 0,
+            IsOnGround = false,
+            Transponder = new AircraftTransponder
+            {
+                Mode = transponderMode,
+                AssignedCode = assignedCode,
+                Code = activeCode,
+            },
+            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: airport, route: filedRoute),
+        };
+
+        // The runway-transition designator drives both the lateral route build and the descend-via profile.
+        state.Procedure.DestinationRunway = request.StarRunway;
+
+        var warnings = new List<string>();
+        ArrivalRouteResolver.PopulateNavigationRoute(state, navPath, warnings);
+
+        // Resolve the STAR's published altitude/speed crossings once (common legs + runway transition).
+        var (altByFix, speedByFix) = ResolveStarRestrictions(star, request.StarRunway, state.Procedure.DestinationRunway);
+
+        // Current altitude: explicit if supplied, else a computed establishment altitude from the STAR.
+        state.Altitude = request.StarAltitude ?? ComputeDefaultEstablishmentAltitude(state, altByFix, airport);
+
+        // Speed: explicit override, else the STAR's published mandatory speed at the entry/join fix
+        // (AIM 5-4-1.a.1 — applies regardless of descend-via), else the per-category default.
+        double? joinFixSpeed = speedByFix.TryGetValue(request.StarEntryFix, out var sk) ? sk : null;
+        state.IndicatedAirspeed =
+            request.StarSpeedKts ?? joinFixSpeed ?? AircraftPerformance.DefaultSpeed(aircraftType, category, state.Altitude, null);
+
+        // Descend-via overlays CIFP crossing restrictions and enables StarViaMode (auto-DVIA at spawn).
+        // Level spawns keep a constraint-free lateral route so the aircraft holds altitude until DVIA;
+        // the STAR stays in the filed route so a later DVIA reactivates the descent profile.
+        if (request.DescendVia)
+        {
+            ArrivalRouteResolver.ApplyAltitudeProfile(state, navPath, warnings);
+        }
+
+        var heading = ComputeOnStarHeading(state, entryPos.Value, airport, navDb);
+        state.TrueHeading = heading;
+        state.TrueTrack = heading;
+
+        foreach (var warning in warnings)
+        {
+            Log.LogWarning("[ArrivalGen] {Callsign} OnStar {Star}: {Warning}", callsign, starId, warning);
+        }
+
+        return (state, null);
+    }
+
+    /// <summary>
+    /// Resolves a STAR's published altitude and speed crossing restrictions (common legs + runway
+    /// transition), keyed by fix name, for deriving spawn altitude/speed.
+    /// </summary>
+    private static (Dictionary<string, int> AltByFix, Dictionary<string, int> SpeedByFix) ResolveStarRestrictions(
+        CifpStarProcedure star,
+        string? runway,
+        string? destinationRunway
+    )
+    {
+        var orderedLegs = new List<CifpLeg>(star.CommonLegs);
+        var rwLegs = ArrivalRouteResolver.FindRunwayTransition(star, runway, destinationRunway);
+        if (rwLegs is not null)
+        {
+            orderedLegs.AddRange(rwLegs);
+        }
+
+        var altByFix = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var speedByFix = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var target in DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs))
+        {
+            if (target.AltitudeRestriction is { } ar && !altByFix.ContainsKey(target.Name))
+            {
+                altByFix[target.Name] = ar.Altitude1Ft;
+            }
+
+            if (target.SpeedRestriction is { } sr && !speedByFix.ContainsKey(target.Name))
+            {
+                speedByFix[target.Name] = sr.SpeedKts;
+            }
+        }
+
+        return (altByFix, speedByFix);
+    }
+
+    /// <summary>
+    /// Estimates a realistic "established on the STAR" altitude when none was given. Uses the
+    /// published crossing at the entry fix (authoritative — returned as-is); failing that, projects
+    /// up from the first downstream crossing along a ~3:1 gradient; failing that (unconstrained STAR),
+    /// estimates from the flying distance to the destination airport. The derived estimates are
+    /// clamped to a sane band; all results snap to a 1000-ft step.
+    /// </summary>
+    private static double ComputeDefaultEstablishmentAltitude(AircraftState state, IReadOnlyDictionary<string, int> altByFix, string airport)
+    {
+        const double GradientFtPerNm = 300.0; // ~3:1; AIM 5-4-2.b descent window is 250–350 ft/nm
+        const double FloorFt = 4000.0;
+        const double CapFt = 24000.0; // typical top-of-descent ceiling (FL240) for the derived estimate
+
+        var route = state.Targets.NavigationRoute;
+
+        // 1) Established exactly at the entry fix's published crossing — authoritative, not capped.
+        if (route.Count > 0 && altByFix.TryGetValue(route[0].Name, out var entryCrossing))
+        {
+            return Math.Round(entryCrossing / 1000.0) * 1000.0;
+        }
+
+        // 2) Project up from the first downstream crossing along a 3:1 gradient.
+        double cumulativeNm = 0;
+        double? derived = null;
+        for (int i = 1; i < route.Count; i++)
+        {
+            cumulativeNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
+            if (altByFix.TryGetValue(route[i].Name, out var crossing))
+            {
+                derived = crossing + (cumulativeNm * GradientFtPerNm);
+                break;
+            }
+        }
+
+        double result;
+        if (derived is { } d)
+        {
+            result = d;
+        }
+        else
+        {
+            // 3) Unconstrained STAR — estimate from the flying distance to the destination airport.
+            var airportPos = NavigationDatabase.Instance.GetFixPosition(airport);
+            double distNm =
+                airportPos is not null && route.Count > 0
+                    ? GeoMath.DistanceNm(route[0].Position, new LatLon(airportPos.Value.Lat, airportPos.Value.Lon))
+                    : 30.0;
+            result = distNm * GradientFtPerNm;
+        }
+
+        result = Math.Clamp(result, FloorFt, CapFt);
+        return Math.Round(result / 1000.0) * 1000.0;
+    }
+
+    /// <summary>True heading toward the first downstream route fix (the entry fix coincides with the spawn point).</summary>
+    private static TrueHeading ComputeOnStarHeading(AircraftState state, LatLon spawnPos, string airport, NavigationDatabase navDb)
+    {
+        foreach (var fix in state.Targets.NavigationRoute)
+        {
+            if (GeoMath.DistanceNm(spawnPos, fix.Position) > 0.1)
+            {
+                return new TrueHeading(ComputeBearing(spawnPos.Lat, spawnPos.Lon, fix.Position.Lat, fix.Position.Lon));
+            }
+        }
+
+        var airportPos = navDb.GetFixPosition(airport);
+        if (airportPos is not null)
+        {
+            return new TrueHeading(ComputeBearing(spawnPos.Lat, spawnPos.Lon, airportPos.Value.Lat, airportPos.Value.Lon));
+        }
+
+        return new TrueHeading(0);
     }
 
     private static (AircraftState? State, string? Error) GenerateOnRunway(

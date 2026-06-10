@@ -1357,6 +1357,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 | Departure on runway | `ADD {rules} {weight} {engine} {runway} {route}` | `ADD IFR S P 28R NIMI6.OAK.SAU` |
 | On final | `ADD {rules} {weight} {engine} {runway} {dist}` | `ADD IFR L J 28R 8` |
 | At parking/helipad | `ADD {rules} {weight} {engine} @{spot}` | `ADD VFR S P @H1 H60` |
+| Arrival on STAR | `ADD {rules} {weight} {engine} {wpt}.{star}[.{rwy}] [alt] [SP{spd}] [LVL] [airport]` | `ADD IFR H J TBARR.TBARR4.34R 230` |
 
 **Parameters:**
 
@@ -1373,6 +1374,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 - **Departure on runway**: `{runway}` plus a dot-joined `{route}` (e.g., `NIMI6.OAK.SAU`, converted to the filed route `NIMI6 OAK SAU`). Spawns lined up on the runway with the route filed and the departure airport set, so a subsequent `CTO` flies the filed SID. IFR only — the route is ignored for VFR. A numeric token after the runway is the on-final distance, not a route.
 - **On final**: `{runway}` plus `{dist}` in NM. Aircraft spawns on final approach at that distance from the runway.
 - **At parking/helipad**: `@{spot}` is a parking or helipad name (e.g., `@H1`, `@B12`). Aircraft spawns at ground level. Useful for helicopters and ground operations.
+- **Arrival on STAR**: a dotted `{waypoint}.{star}[.{runway}]` token (e.g. `TBARR.TBARR4.34R`) spawns an IFR aircraft already established on the arrival at the named waypoint, heading down the route. By default it **descends via** the STAR's published crossing restrictions from its current altitude; add `LVL` to hold the altitude until you issue `DVIA`. Optional trailing tokens, any order: a bare number = current altitude in hundreds (e.g. `230` = FL230; omit to auto-compute a realistic establishment altitude from the STAR profile); `SP{kts}` = speed override (e.g. `SP250`); `{airport}` = ICAO/FAA destination for multi-airport STARs (defaults to the primary scenario airport). Runway transition is optional — omit it (`TBARR.TBARR4`) to fly the common legs and resolve the runway portion later. IFR only. *Note:* descending-via at spawn is a trainer convenience — by the book (7110.65 §4-5-7 / AIM §5-4-1) an aircraft on a STAR holds its altitude until ATC issues "descend via", so use `LVL` when you want to issue the descent yourself.
 
 **Optional trailing tokens:**
 - Explicit aircraft type: `ADD IFR H J -090 20 15000 B77L`

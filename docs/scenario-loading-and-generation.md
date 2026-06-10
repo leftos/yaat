@@ -147,11 +147,15 @@ files via `DA`/`VP`.
 
 ## Navigation route building and the RouteExpander mismatch footgun
 
-`PopulateNavigationRoute` (`ScenarioLoader.cs:560`) turns `StartingConditions.NavigationPath` into the aircraft's
-`Targets.NavigationRoute`. It expands the path with `RouteExpander.Expand(navigationPath, navDb, includeAllTransitionsOnMismatch:
-false)` (`:570`), resolves each fix to a position (dropping unresolvable fixes with a warning, collapsing adjacent duplicates),
-appends CIFP STAR runway-transition fixes (`AppendStarRunwayTransition`), then chains the remaining filed route via
-`RouteChainer.AppendRouteRemainder`.
+`ArrivalRouteResolver.PopulateNavigationRoute` (`src/Yaat.Sim/Scenarios/ArrivalRouteResolver.cs`) turns
+`StartingConditions.NavigationPath` into the aircraft's `Targets.NavigationRoute`. It expands the path with
+`RouteExpander.Expand(navigationPath, navDb, includeAllTransitionsOnMismatch: false)`, resolves each fix to a position (dropping
+unresolvable fixes with a warning, collapsing adjacent duplicates), appends CIFP STAR runway-transition fixes
+(`AppendStarRunwayTransition`), then chains the remaining filed route via `RouteChainer.AppendRouteRemainder`.
+
+> **`ArrivalRouteResolver` is shared.** `PopulateNavigationRoute` and `ApplyAltitudeProfile` (below) were extracted from
+> `ScenarioLoader` into this helper so the `ADD … {wpt}.{star}[.{rwy}]` on-STAR spawn variant (`AircraftGenerator.GenerateOnStar`)
+> builds its arrival route and descend-via overlay through the exact same code as a scenario-defined `onAltitudeProfile` arrival.
 
 > **The `includeAllTransitionsOnMismatch: false` argument is load-bearing.** Passing `true` for a flying route makes a
 > radar-vectors SID (NIMI5/OAK6) fabricate a turn-back through every synthetic `[OAK, …]` transition fix. The scenario loader is
@@ -182,8 +186,8 @@ AIRAC still routes correctly without re-authoring.
 
 ## The descend-via altitude-profile overlay
 
-When `ScenarioAircraft.OnAltitudeProfile` is true, `ApplyAltitudeProfile(state, navigationPath, warnings)`
-(`ScenarioLoader.cs:1072`) acts as an auto-DVIA at spawn. It finds the STAR token in the path, resolves the CIFP STAR
+When `ScenarioAircraft.OnAltitudeProfile` is true, `ArrivalRouteResolver.ApplyAltitudeProfile(state, navigationPath, warnings)`
+acts as an auto-DVIA at spawn. It finds the STAR token in the path, resolves the CIFP STAR
 (`navDb.GetStar`), builds an ordered leg list (common legs + the runway transition selected by `FindRunwayTransition` — explicit
 designator → `DestinationRunway` → first available), resolves those legs to `NavigationTarget`s via
 `DepartureClearanceHandler.ResolveLegsToTargets`, then **overlays** the altitude/speed restrictions onto the matching fixes
@@ -229,6 +233,13 @@ Position variants, dispatched from the position tokens at `SpawnParser.cs:66`:
 | `{runway}` alone | lined up | `Runway` | — |
 | `{runway} {n}` (numeric) | on final | `OnFinal` | `{distance_nm}` |
 | `{runway} {route}` (non-numeric) | departure lined up | `Runway` | dot-joined route (e.g. `NIMI6.OAK.SAU` → space-joined) |
+| `{wpt}.{star}[.{rwy}]` (dotted) | arrival on STAR | `OnStar` | `[altitude] [SP{kts}] [LVL] [airport]` — IFR only; dispatched *before* the trailing scan |
+
+The `OnStar` dispatch is the one exception to the index-4 slot-skip: because its position token (index 3) contains a `.` and is
+unambiguous, `Parse` routes it to `ParseOnStarVariant` *before* the generic right-to-left type/`*airline` scan, so that variant
+owns its full order-independent trailing parse (`SP###` speed, bare-number altitude, `LVL`, airport, type, `*airline`).
+`GenerateOnStar` builds the route + descend-via overlay via `ArrivalRouteResolver`, and computes a default establishment altitude
+from the STAR's published crossings (3:1 gradient, AIM 5-4-2.b) when none is given.
 
 The `@`-prefix disambiguation (`:71`) is the trickiest: `@FIX 5000` (a numeric second token) is an at-fix airborne spawn;
 `@GATE3` or `@GATE3 something-non-numeric` is a parking spawn. The `SpawnRequest` shape and field-per-variant usage is in
