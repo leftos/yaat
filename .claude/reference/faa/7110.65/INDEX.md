@@ -1022,3 +1022,9 @@ Offline markdown reference for 7110.65.
 
 
 ### [7110.65 - Appendix B](appendix_b.md)
+
+## Pilot/Controller Glossary
+
+### [Pilot/Controller Glossary (PCG)](pcg.md)
+
+Full FAA Pilot/Controller Glossary - 1,396 terms (A-W) in one grep-friendly file. Search it for any ATC/pilot term definition (e.g. "MINIMUM VECTORING ALTITUDE").
