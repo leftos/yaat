@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- **The `NoLndgClnc` radar warning flashes earlier** — an aircraft on a visual final without a landing clearance now flashes the red `NoLndgClnc` datablock line from 2 nm out instead of 1 nm, while the AI pilot still calls "short final" at 1 nm as before. Aircraft on an instrument approach are unchanged (already flashing ~3.8 nm out).
+
 ### Fixed
 - **Creating a vStrips strip focuses its first field** — new half-strips, separators, and blank strips drop your cursor into the first editable field so you can type immediately.
 

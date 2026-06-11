@@ -633,6 +633,15 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     public required double GsAngleDeg { get; init; }
     public required bool GoAroundTriggered { get; init; }
     public required bool NoClearanceWarningIssued { get; init; }
+
+    /// <summary>
+    /// True once the red <c>NoLndgClnc</c> datablock flash has armed for this aircraft on the
+    /// current final approach. Arms earlier than <see cref="NoClearanceWarningIssued"/> (the pilot
+    /// short-final callout) so the RPO gets more reaction time. Non-required so legacy snapshots
+    /// deserialize cleanly; <c>FromSnapshot</c> seeds it from <see cref="NoClearanceWarningIssued"/>.
+    /// </summary>
+    public bool NoClearanceFlashIssued { get; init; }
+
     public required bool InterceptChecked { get; init; }
     public required bool IsPatternTraffic { get; init; }
     public required bool TooHighGoAroundChecked { get; init; }

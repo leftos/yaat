@@ -23,6 +23,16 @@ public sealed class FinalApproachPhase : Phase
     private const double AutoGoAroundAgl = 200.0;
     private const double NoClearanceWarningDistNm = 1.0;
     private const double MinimumsNoClearanceWarningBufferFt = 1000.0;
+
+    /// <summary>
+    /// Distance from threshold at which the red <c>NoLndgClnc</c> datablock flash arms for a
+    /// visual approach (no published minimums). Set earlier than the pilot's verbal short-final
+    /// callout (<see cref="NoClearanceWarningDistNm"/>) so the RPO sees the warning and has time
+    /// to react before the aircraft reaches short final. Instrument approaches arm the flash at
+    /// the published minimums buffer (<see cref="MinimumsNoClearanceWarningBufferFt"/>), already
+    /// ~3.8 nm out on a 3° glideslope, so they keep their earlier timing.
+    /// </summary>
+    private const double NoClearanceFlashDistNm = 2.0;
     private const double InterceptCrossTrackThresholdNm = 0.1;
     private const double InterceptHeadingThresholdDeg = 15.0;
 
@@ -224,6 +234,7 @@ public sealed class FinalApproachPhase : Phase
 
     private const double SpeedCommandFinalGateNm = 5.0;
     private bool _noClearanceWarningIssued;
+    private bool _noClearanceFlashIssued;
     private bool _interceptChecked;
     private bool _isPatternTraffic;
     private bool _tooHighGoAroundChecked;
@@ -288,6 +299,7 @@ public sealed class FinalApproachPhase : Phase
             GsAngleDeg = _gsAngleDeg,
             GoAroundTriggered = _goAroundTriggered,
             NoClearanceWarningIssued = _noClearanceWarningIssued,
+            NoClearanceFlashIssued = _noClearanceFlashIssued,
             InterceptChecked = _interceptChecked,
             IsPatternTraffic = _isPatternTraffic,
             TooHighGoAroundChecked = _tooHighGoAroundChecked,
@@ -316,6 +328,9 @@ public sealed class FinalApproachPhase : Phase
         phase._gsAngleDeg = dto.GsAngleDeg;
         phase._goAroundTriggered = dto.GoAroundTriggered;
         phase._noClearanceWarningIssued = dto.NoClearanceWarningIssued;
+        // Legacy snapshots (NoClearanceFlashIssued absent / default false) seed the flash latch
+        // from the speech latch: if the pilot callout already fired, the flash was already on.
+        phase._noClearanceFlashIssued = dto.NoClearanceFlashIssued || dto.NoClearanceWarningIssued;
         phase._interceptChecked = dto.InterceptChecked;
         phase._isPatternTraffic = dto.IsPatternTraffic;
         phase._tooHighGoAroundChecked = dto.TooHighGoAroundChecked;
@@ -805,12 +820,16 @@ public sealed class FinalApproachPhase : Phase
         if (activeApproach?.MapAltitudeFt is { } mapAltitudeFt)
         {
             double warningAltitudeFt = mapAltitudeFt + MinimumsNoClearanceWarningBufferFt;
-            if (
-                (ctx.Aircraft.Altitude <= warningAltitudeFt)
-                && (ctx.Aircraft.Altitude > mapAltitudeFt)
-                && !hasLandingClearance
-                && !_noClearanceWarningIssued
-            )
+            bool withinMinimumsBuffer = (ctx.Aircraft.Altitude <= warningAltitudeFt) && (ctx.Aircraft.Altitude > mapAltitudeFt);
+
+            // Datablock flash arms at the minimums buffer for instrument approaches — already
+            // ~3.8 nm out on a 3° glideslope, so it keeps its earlier (pre-decoupling) timing.
+            if (withinMinimumsBuffer && !hasLandingClearance)
+            {
+                _noClearanceFlashIssued = true;
+            }
+
+            if (withinMinimumsBuffer && !hasLandingClearance && !_noClearanceWarningIssued)
             {
                 _noClearanceWarningIssued = true;
                 PilotResponder.RouteSoloOrRpoTransmission(
@@ -840,6 +859,13 @@ public sealed class FinalApproachPhase : Phase
         }
         else
         {
+            // Datablock flash arms at 2 nm — earlier than the 1 nm pilot short-final callout
+            // below — so the RPO has more time to react (only when auto-CTL is off).
+            if ((distNm <= NoClearanceFlashDistNm) && !hasLandingClearance && !ctx.AutoClearedToLand)
+            {
+                _noClearanceFlashIssued = true;
+            }
+
             // Warn at 1nm if no landing clearance (only when auto-CTL is off).
             // Solo-training VFR pattern aircraft voice the reminder as delayed pilot speech.
             // every other aircraft (IFR, non-pattern, RPO mode) keeps the controller-facing warning.
@@ -887,9 +913,11 @@ public sealed class FinalApproachPhase : Phase
             }
         }
 
-        // Datablock state: flash while the warning has fired and clearance is still missing.
-        // Idempotent — flips off the moment any qualifying clearance is granted.
-        ctx.Aircraft.NoLandingClearanceWarningActive = _noClearanceWarningIssued && !hasLandingClearance;
+        // Datablock state: flash while the flash latch has armed and clearance is still missing.
+        // The flash latch arms earlier than the pilot callout (2 nm visual / minimums buffer
+        // instrument) so the RPO gets more reaction time. Idempotent — flips off the moment any
+        // qualifying clearance is granted.
+        ctx.Aircraft.NoLandingClearanceWarningActive = _noClearanceFlashIssued && !hasLandingClearance;
 
         // Go-around if too high at the MAP to make it down safely
         if ((distNm <= _mapDistNm) && !_tooHighGoAroundChecked && hasLandingClearance)

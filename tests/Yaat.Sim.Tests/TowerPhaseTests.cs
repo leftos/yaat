@@ -627,6 +627,63 @@ public class TowerPhaseTests
     }
 
     [Fact]
+    public void FinalApproach_NoPublishedMinimums_FlashActivatesAt2Nm_BeforePilotShortFinalCallout()
+    {
+        var rwy = DefaultRunway(100);
+        // ~1.5 nm east of the threshold (37, -122): inside the 2 nm datablock-flash gate but
+        // still outside the 1 nm pilot short-final callout gate.
+        var ac = MakeAircraft(lat: 37.0, lon: -121.9687, altitude: 700, onGround: false, ias: 130);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        ac.Phases!.Start(ctx);
+        ac.PendingPilotTransmissions.Clear();
+
+        phase.OnTick(ctx);
+
+        // RPO-facing flash is on at 2 nm ...
+        Assert.True(ac.NoLandingClearanceWarningActive);
+        var dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
+        Assert.True(dto.NoClearanceFlashIssued);
+        // ... but the AI pilot's short-final reminder still waits for 1 nm (decoupled).
+        Assert.False(dto.NoClearanceWarningIssued);
+    }
+
+    [Fact]
+    public void FinalApproach_NoPublishedMinimums_NoFlashOutside2Nm()
+    {
+        var rwy = DefaultRunway(100);
+        // ~2.5 nm east of the threshold (37, -122): outside the 2 nm datablock-flash gate.
+        var ac = MakeAircraft(lat: 37.0, lon: -121.9478, altitude: 900, onGround: false, ias: 130);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        ac.Phases!.Start(ctx);
+
+        phase.OnTick(ctx);
+
+        Assert.False(ac.NoLandingClearanceWarningActive);
+        var dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
+        Assert.False(dto.NoClearanceFlashIssued);
+    }
+
+    [Fact]
+    public void FinalApproach_FlashIssued_RoundTripsSnapshot()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(lat: 37.0, lon: -121.9687, altitude: 700, onGround: false, ias: 130);
+        var phase = AddPublishedApproachFinal(ac, rwy, mapAltitudeFt: null);
+        var ctx = Ctx(ac, rwy, soloTrainingMode: true, studentPositionType: "TWR");
+        ac.Phases!.Start(ctx);
+        phase.OnTick(ctx);
+
+        var dto = Assert.IsType<FinalApproachPhaseDto>(phase.ToSnapshot());
+        Assert.True(dto.NoClearanceFlashIssued);
+
+        var restored = FinalApproachPhase.FromSnapshot(dto);
+        var restoredDto = Assert.IsType<FinalApproachPhaseDto>(restored.ToSnapshot());
+        Assert.True(restoredDto.NoClearanceFlashIssued);
+    }
+
+    [Fact]
     public void FinalApproach_LandingClearanceAfterWarning_ClearsWarningActive()
     {
         var rwy = DefaultRunway(100);
