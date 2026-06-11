@@ -1357,6 +1357,11 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, "CLAND", initials);
     }
 
+    public async Task ForceLandingAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "CLANDF", initials);
+    }
+
     public async Task ClearedForOptionAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "COPT", initials);

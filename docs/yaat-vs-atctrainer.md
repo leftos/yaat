@@ -158,6 +158,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CLAND [runway]`/`CL` | **YAAT-only** optional explicit landing clearance; `CLAND 28R` can pre-clear a following aircraft that has no runway yet (armed, applied when it joins the traffic's final) |
 | Wake advisory | — | `CWT`, `CTO ... CWT`, `CLAND ... CWT` | **YAAT-only** standalone caution-wake-turbulence advisory and clearance suffix |
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |
+| Force landing | — | `CLANDF` | **YAAT-only** instructor override — implies clearance and forces a touchdown regardless of energy state, suppressing the automatic go-around; RPO-only |
 | Cleared for option | — | `COPT` | **YAAT-only** |
 | Option + traffic pattern | — | `TG MLT`, `SG MRT`, `LA MLT`, `COPT MRT` | **YAAT-only** — set traffic direction on the go |
 | LAHSO | `LAHSO {rwy}` | `LAHSO {rwy}` | Parity |

@@ -404,6 +404,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Cleared for takeoff | `CTO` | — | Optional `CWT` suffix |
 | Cancel takeoff | `CTOC` | — | — |
 | Cleared to land | `CLAND [runway]` | `CL`, `FS` | Optional runway; optional `CWT` suffix. A following aircraft can be cleared before it has a runway. |
+| Force landing | `CLANDF` | — | RPO-only override: implies clearance + forces touchdown, suppressing automatic go-arounds |
 | Land and hold short | `LAHSO` | — | — |
 | Cancel landing | `CLC` | `CTLC` | — |
 | Go around | `GA` | — | — |
@@ -718,6 +719,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CLAND 28R` | Cleared to land on a named runway. For an aircraft that is **following** traffic but has no runway of its own (`RTIS`/`FOLLOW` issued, not yet sequenced onto final), the clearance is **armed** and applied automatically when the follower joins the traffic's runway final — it lands behind the traffic without a second `CLAND`. A bare `CLAND` while following inherits the lead's runway. If the named runway differs from the runway the follower actually joins, the clearance is not applied and the follower awaits an explicit `CLAND` on the actual runway. (Not for an enroute aircraft with no approach and no follow — assign a pattern entry like `EF 28R` first.) |
 | `CLAND NODEL` | Cleared to land (exempt from auto-delete after landing) |
 | `CLAND CWT` / `CLAND NODEL CWT` | Cleared to land and caution wake turbulence. |
+| `CLANDF` | **Force landing — instructor/RPO override.** Grants landing clearance and forces the aircraft to land, suppressing every automatic go-around (unstable/balked approach, too high at the missed-approach point, no landing clearance) and disregarding the normal descent/speed limits so it reaches a touchdown from any energy state (too high, too fast, off centerline). RPO-only — rejected in solo training. Cancelled by `GA`, by `CLC`, or once it touches down. |
 | `CWT` | Caution wake turbulence. Phase-transparent; in solo training it records wake-advisory proof when there is exactly one current wake context for the selected aircraft. |
 | `LAHSO 33` | Cleared to land, hold short of runway 33 (LAHSO). Includes landing clearance. Aircraft stops before the intersecting runway and waits for a taxi/cross command. |
 | `CLC` / `CTLC` | Cancel landing clearance |

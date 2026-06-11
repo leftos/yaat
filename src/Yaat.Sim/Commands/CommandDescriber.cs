@@ -55,6 +55,7 @@ public static class CommandDescriber
             ClearedForTakeoffCommand => CanonicalCommandType.ClearedForTakeoff,
             CancelTakeoffClearanceCommand => CanonicalCommandType.CancelTakeoffClearance,
             ClearedToLandCommand => CanonicalCommandType.ClearedToLand,
+            ForceLandingCommand => CanonicalCommandType.ForceLanding,
             LandAndHoldShortCommand => CanonicalCommandType.LandAndHoldShort,
             GoAroundCommand => CanonicalCommandType.GoAround,
             EnterLeftDownwindCommand => CanonicalCommandType.EnterLeftDownwind,
@@ -464,6 +465,7 @@ public static class CommandDescriber
             ClearedForTakeoffCommand cto => FormatCtoCanonical(cto),
             CancelTakeoffClearanceCommand => "CTOC",
             ClearedToLandCommand cmd => FormatClearedToLandCanonical(cmd),
+            ForceLandingCommand => "CLANDF",
             LandAndHoldShortCommand cmd => $"LAHSO {cmd.CrossingRunwayId}",
             CancelLandingClearanceCommand => "CLC",
             GoAroundCommand ga => FormatGaCanonical(ga),
@@ -731,6 +733,7 @@ public static class CommandDescriber
             ClearedForTakeoffCommand cto => DescribeCtoNatural(cto),
             CancelTakeoffClearanceCommand => "Cancel takeoff clearance",
             ClearedToLandCommand cmd => DescribeClearedToLandNatural(cmd),
+            ForceLandingCommand => "Force landing (override go-around)",
             LandAndHoldShortCommand cmd => $"Cleared to land, hold short runway {RunwayIdentifier.ToDisplayDesignator(cmd.CrossingRunwayId)}",
             CancelLandingClearanceCommand => "Cancel landing clearance",
             GoAroundCommand ga => DescribeGaNatural(ga),
@@ -923,6 +926,7 @@ public static class CommandDescriber
                 or CancelTakeoffClearanceCommand
                 or LineUpAndWaitCommand
                 or ClearedToLandCommand
+                or ForceLandingCommand
                 or LandAndHoldShortCommand
                 or CancelLandingClearanceCommand
                 or GoAroundCommand

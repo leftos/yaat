@@ -150,6 +150,14 @@ public sealed class PhaseList
     public string? ClearedRunwayId { get; set; }
 
     /// <summary>
+    /// Instructor/RPO forced-landing override. Set by CLANDF (which also grants landing
+    /// clearance). When true, FinalApproachPhase and LandingPhase suppress every automatic
+    /// go-around and actively drive the aircraft to a touchdown regardless of energy state.
+    /// Persists across the FinalApproach→Landing boundary; cleared by GA, CTOC, or touchdown.
+    /// </summary>
+    public bool ForceLanding { get; set; }
+
+    /// <summary>
     /// When set, the aircraft is doing pattern work (MLT/MRT/CTOMLT/CTOMRT).
     /// Each approach defaults to touch-and-go and re-enters the pattern.
     /// Null means the aircraft will full-stop on landing.
@@ -360,6 +368,7 @@ public sealed class PhaseList
             DepartureClearance = dto.DepartureClearance is not null ? DepartureClearanceInfo.FromSnapshot(dto.DepartureClearance) : null,
             LandingClearance = dto.LandingClearance.HasValue ? (ClearanceType)dto.LandingClearance.Value : null,
             ClearedRunwayId = dto.ClearedRunwayId,
+            ForceLanding = dto.ForceLanding,
             TrafficDirection = dto.TrafficDirection.HasValue ? (PatternDirection)dto.TrafficDirection.Value : null,
             PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
             DepartureRunway = dto.DepartureRunway is not null ? RunwayInfo.FromSnapshot(dto.DepartureRunway) : null,
@@ -441,6 +450,7 @@ public sealed class PhaseList
             DepartureClearance = DepartureClearance?.ToSnapshot(),
             LandingClearance = LandingClearance.HasValue ? (int)LandingClearance.Value : null,
             ClearedRunwayId = ClearedRunwayId,
+            ForceLanding = ForceLanding,
             TrafficDirection = TrafficDirection.HasValue ? (int)TrafficDirection.Value : null,
             PatternRunway = PatternRunway?.ToSnapshot(),
             DepartureRunway = DepartureRunway?.ToSnapshot(),

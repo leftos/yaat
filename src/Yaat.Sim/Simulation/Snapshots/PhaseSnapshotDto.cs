@@ -13,6 +13,7 @@ public sealed class PhaseListDto
     public DepartureClearanceDto? DepartureClearance { get; init; }
     public int? LandingClearance { get; init; }
     public string? ClearedRunwayId { get; init; }
+    public bool ForceLanding { get; init; }
     public int? TrafficDirection { get; init; }
     public RunwayInfoDto? PatternRunway { get; init; }
     public RunwayInfoDto? DepartureRunway { get; init; }

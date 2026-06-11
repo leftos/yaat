@@ -406,6 +406,7 @@ public sealed partial class InterceptCoursePhase : Phase
         {
             // Approach-related commands pass through
             CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
+            CanonicalCommandType.ForceLanding => CommandAcceptance.Allowed,
             CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,

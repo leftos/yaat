@@ -37,6 +37,7 @@ public enum CanonicalCommandType
     ClearedToLand,
     LandAndHoldShort,
     CancelLandingClearance,
+    ForceLanding,
     TouchAndGo,
     StopAndGo,
     LowApproach,

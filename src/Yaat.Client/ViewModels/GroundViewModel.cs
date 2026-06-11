@@ -728,6 +728,11 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, "CLAND", initials);
     }
 
+    public async Task ForceLandingAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "CLANDF", initials);
+    }
+
     public async Task CancelLandingClearanceAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "CLC", initials);

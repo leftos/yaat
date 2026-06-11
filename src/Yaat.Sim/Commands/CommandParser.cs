@@ -699,6 +699,7 @@ public static class CommandParser
             ClearedToLand => ParseClearedToLand(arg),
             LandAndHoldShort when arg is not null => PR.Ok(new LandAndHoldShortCommand(arg.Trim().ToUpperInvariant())),
             CancelLandingClearance when arg is null => PR.Ok(new CancelLandingClearanceCommand()),
+            ForceLanding when arg is null => PR.Ok(new ForceLandingCommand()),
             // Pattern
             EnterLeftDownwind => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterLeftDownwindCommand(rwy)),
             EnterRightDownwind => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterRightDownwindCommand(rwy)),

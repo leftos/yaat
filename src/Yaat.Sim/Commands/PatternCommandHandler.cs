@@ -1995,6 +1995,9 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Go around not applicable");
         }
 
+        // A controller-commanded go-around always overrides a CLANDF forced landing.
+        aircraft.Phases.ForceLanding = false;
+
         if (ga.TrafficPattern is { } patDir)
         {
             // Traffic pattern direction only applies to VFR, visual approach, or already-in-pattern aircraft
@@ -2155,6 +2158,56 @@ internal static class PatternCommandHandler
         return new CommandResult(false, "Cannot clear to land — no runway assigned");
     }
 
+    /// <summary>
+    /// CLANDF — instructor/RPO forced landing. Grants landing clearance, commits a full-stop
+    /// landing, and raises <see cref="PhaseList.ForceLanding"/> so FinalApproachPhase and
+    /// LandingPhase suppress every automatic go-around and drive the aircraft to a touchdown
+    /// regardless of energy state. RPO-only (rejected in solo training). Canceled by GA, by
+    /// cancelling the landing clearance (CLC/CTLC), or by touchdown.
+    /// </summary>
+    internal static CommandResult TryForceLanding(ForceLandingCommand flc, AircraftState aircraft, DispatchContext ctx)
+    {
+        if (ctx.SoloTrainingMode)
+        {
+            return new CommandResult(false, "CLANDF is RPO-only; clear the aircraft to land with CLAND in solo training");
+        }
+
+        if (aircraft.Phases is null)
+        {
+            return new CommandResult(false, "Aircraft has no active phase sequence");
+        }
+
+        if (aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "Cannot force landing — aircraft is on the ground");
+        }
+
+        if (aircraft.Phases.AssignedRunway is not { } assignedRunway)
+        {
+            return new CommandResult(false, "Cannot force landing — no runway assigned");
+        }
+
+        // Commit a full-stop LandingPhase ending (replacing any pending TG/SAG/low-approach so
+        // CLANDF always lands), mirroring CLAND. When the aircraft is already on final or in the
+        // landing phase there is no pending ending to replace — the active phase reads the
+        // ForceLanding flag next tick, so a failed replace there is not an error.
+        bool alreadyLandingOrFinal = aircraft.Phases.CurrentPhase is FinalApproachPhase or LandingPhase or HelicopterLandingPhase;
+        bool isHeli = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        Phase landing = isHeli ? new HelicopterLandingPhase() : new LandingPhase();
+        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landing) && !alreadyLandingOrFinal)
+        {
+            return new CommandResult(false, "Cannot force landing — no approach or pattern to land from (assign an approach or pattern entry first)");
+        }
+
+        aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        aircraft.Phases.ClearedRunwayId = assignedRunway.Designator;
+        aircraft.Phases.ForceLanding = true;
+        aircraft.Phases.TrafficDirection = null;
+        aircraft.Pattern.TrafficDirection = null;
+
+        return CommandDispatcher.Ok($"Forcing landing{CommandDispatcher.RunwayLabel(aircraft)}");
+    }
+
     internal static CommandResult TryLandAndHoldShort(LandAndHoldShortCommand lahso, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
         if (aircraft.Phases is null)
@@ -2255,6 +2308,8 @@ internal static class PatternCommandHandler
 
         aircraft.Phases.LandingClearance = null;
         aircraft.Phases.ClearedRunwayId = null;
+        // Cancelling the (CLANDF-granted) landing clearance also lifts the forced-landing override.
+        aircraft.Phases.ForceLanding = false;
         return CommandDispatcher.Ok($"Landing clearance cancelled{CommandDispatcher.RunwayLabel(aircraft)}");
     }
 

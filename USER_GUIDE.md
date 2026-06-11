@@ -923,6 +923,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `TAXI S T U` | Taxi via taxiways S, T, U |
 | `CLAND` | Cleared to land |
 | `CLAND 28R` | Cleared to land on runway 28R (a following aircraft is cleared even before it has its own runway) |
+| `CLANDF` | Force landing — clears the aircraft and forces it down regardless of energy state, overriding the automatic go-around (RPO-only; cancel with `GA` or `CLC`) |
 | `CWT` | Caution wake turbulence |
 | `CAPP ILS28R` | Cleared ILS Runway 28R approach |
 | `CLBRV` | Cleared through/to enter/out of Bravo airspace |

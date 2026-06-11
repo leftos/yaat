@@ -163,6 +163,7 @@ public sealed class GoAroundPhase : Phase
         return cmd switch
         {
             CanonicalCommandType.ClearedToLand
+            or CanonicalCommandType.ForceLanding
             or CanonicalCommandType.CancelLandingClearance
             or CanonicalCommandType.ClearedForOption
             or CanonicalCommandType.TouchAndGo

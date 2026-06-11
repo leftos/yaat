@@ -423,6 +423,7 @@ public static class CommandRegistry
                 [O(null, [R("runway", "hold short runway")], "Cleared to land, hold short of runway")]
             ),
             Bare(CancelLandingClearance, "Cancel Landing Clearance", "Tower", false, ["CLC", "CTLC"]),
+            Bare(ForceLanding, "Force Landing", "Tower", false, ["CLANDF"]),
             Cmd(
                 TouchAndGo,
                 "Touch and Go",

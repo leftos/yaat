@@ -549,6 +549,12 @@ public sealed class LandingPhase : Phase
             ctx.Aircraft.CompletionDetail = plan.RunwayId;
         }
 
+        // CLANDF override is consumed at touchdown so a later auto-cycle / re-pattern doesn't inherit it.
+        if (ctx.Aircraft.Phases is not null)
+        {
+            ctx.Aircraft.Phases.ForceLanding = false;
+        }
+
         // Snap IAS down to Vtd if flare overshot it — prevents rollout from starting too fast.
         if (ctx.Aircraft.IndicatedAirspeed > plan.Vtd)
         {
@@ -862,6 +868,14 @@ public sealed class LandingPhase : Phase
 
     private void CheckStabilizationGate(PhaseContext ctx, LandingPlan plan)
     {
+        // CLANDF forced-landing override: a forced aircraft is committed to the runway, so the
+        // unstable-approach balked-landing go-around is suppressed entirely.
+        if (ctx.Aircraft.Phases?.ForceLanding == true)
+        {
+            _stabilizedSinceSec = 0;
+            return;
+        }
+
         double signedXte = GeoMath.SignedCrossTrackDistanceNm(
             ctx.Aircraft.Position,
             new LatLon(plan.ThresholdLat, plan.ThresholdLon),
@@ -1180,6 +1194,7 @@ public sealed class LandingPhase : Phase
             return cmd switch
             {
                 CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+                CanonicalCommandType.ForceLanding => CommandAcceptance.Allowed,
                 CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
                 CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
                 CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,

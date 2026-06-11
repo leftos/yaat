@@ -109,6 +109,11 @@ public partial class DataGridView
         if (AircraftCommandApplicability.CanClearToLand(ac))
         {
             menu.Items.Add(MakeItem($"Cleared to land{rwy}", () => Cmd("CLAND")));
+            // Force landing (CLANDF) is RPO-only — hidden in solo training.
+            if (vm.SessionSoloTrainingMode != true)
+            {
+                menu.Items.Add(MakeItem($"Force landing{rwy}", () => Cmd("CLANDF")));
+            }
             if (AircraftCommandApplicability.CanIssueVfrOption(ac))
             {
                 menu.Items.Add(MakeItem($"Touch and go{rwy}", () => Cmd("TG")));

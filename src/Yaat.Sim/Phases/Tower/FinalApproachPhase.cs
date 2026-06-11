@@ -517,6 +517,11 @@ public sealed class FinalApproachPhase : Phase
             return false;
         }
 
+        // CLANDF forced-landing override: suppress every automatic go-around and drive the
+        // aircraft to the threshold regardless of energy state. The flag is only ever set by
+        // the (RPO-only) CLANDF command, which also grants landing clearance.
+        bool forceLanding = ctx.Aircraft.Phases?.ForceLanding == true;
+
         // Lead-not-found / lead-on-ground / runaway-distance watchdog. See
         // DownwindPhase.OnTick for the full rationale. The on-ground branch
         // is what catches a leader that lands while we're still on final.
@@ -813,6 +818,15 @@ public sealed class FinalApproachPhase : Phase
             ctx.Targets.DesiredVerticalRate = -Math.Clamp(fpm, 200, maxFpm);
         }
 
+        // CLANDF: override the vertical guidance with an unclamped descent to the threshold so
+        // the aircraft reaches a touchdown even from far above the glidepath. Runs after the
+        // normal descent block so it supersedes the clamped rate. Lateral guidance above already
+        // steers toward the centerline; the stabilization and too-high gates are suppressed.
+        if (forceLanding)
+        {
+            ApplyForcedLandingGuidance(ctx, distNm);
+        }
+
         // Check landing clearance from PhaseList (set earlier by CTL command)
         bool hasLandingClearance = HasLandingClearance(ctx);
 
@@ -842,7 +856,7 @@ public sealed class FinalApproachPhase : Phase
                 );
             }
 
-            if ((ctx.Aircraft.Altitude <= mapAltitudeFt) && !hasLandingClearance)
+            if ((ctx.Aircraft.Altitude <= mapAltitudeFt) && !hasLandingClearance && !forceLanding)
             {
                 _goAroundTriggered = true;
                 Log.LogDebug(
@@ -898,7 +912,7 @@ public sealed class FinalApproachPhase : Phase
 
             // Auto go-around if no landing clearance by 200ft AGL
             double aglForClearance = ctx.Aircraft.Altitude - _thresholdElevation;
-            if ((aglForClearance <= AutoGoAroundAgl) && !hasLandingClearance)
+            if ((aglForClearance <= AutoGoAroundAgl) && !hasLandingClearance && !forceLanding)
             {
                 _goAroundTriggered = true;
                 Log.LogDebug(
@@ -920,7 +934,7 @@ public sealed class FinalApproachPhase : Phase
         ctx.Aircraft.NoLandingClearanceWarningActive = _noClearanceFlashIssued && !hasLandingClearance;
 
         // Go-around if too high at the MAP to make it down safely
-        if ((distNm <= _mapDistNm) && !_tooHighGoAroundChecked && hasLandingClearance)
+        if ((distNm <= _mapDistNm) && !_tooHighGoAroundChecked && hasLandingClearance && !forceLanding)
         {
             _tooHighGoAroundChecked = true;
             int mapAlt = ctx.Aircraft.Phases?.ActiveApproach?.MapAltitudeFt ?? (int)(_thresholdElevation + 200);
@@ -1225,12 +1239,47 @@ public sealed class FinalApproachPhase : Phase
 
     private static void TriggerGoAround(PhaseContext ctx, string reason) => GoAroundHelper.Trigger(ctx, reason);
 
+    /// <summary>
+    /// CLANDF forced-landing vertical/speed guidance. Commits to the glideslope and commands
+    /// the descent rate required to reach the threshold by the threshold — unclamped, so an
+    /// aircraft far above the glidepath still dives onto the runway — plus an approach-speed
+    /// bleed. <see cref="FlightPhysics.UpdateAltitude"/> honors the commanded rate directly, so
+    /// no physics clamp blocks the dive. Go-around suppression is handled by the caller.
+    /// </summary>
+    private void ApplyForcedLandingGuidance(PhaseContext ctx, double distNm)
+    {
+        _gsCaptured = true;
+        _fasSet = true;
+        _configSet = true;
+
+        ctx.Targets.TargetAltitude = _thresholdElevation;
+
+        double altToLose = ctx.Aircraft.Altitude - _thresholdElevation;
+        if (altToLose <= 1.0)
+        {
+            ctx.Targets.DesiredVerticalRate = 0;
+        }
+        else
+        {
+            double groundSpeed = Math.Max(ctx.Aircraft.GroundSpeed, 60.0);
+            double minutesToThreshold = (distNm / groundSpeed) * 60.0;
+            double requiredFpm = minutesToThreshold > 0.01 ? altToLose / minutesToThreshold : altToLose * 240.0;
+            double standardFpm = GlideSlopeGeometry.RequiredDescentRate(ctx.Aircraft.GroundSpeed, _gsAngleDeg);
+            ctx.Targets.DesiredVerticalRate = -Math.Max(requiredFpm, standardFpm);
+        }
+
+        // The forced landing owns the speed profile: it pins approach speed every tick, so a
+        // SPEEDF issued to a forced aircraft is intentionally superseded.
+        ctx.Targets.TargetSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+    }
+
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         // Clearance / GA / runway-exit commands always pass through.
         var alwaysAllowed = cmd switch
         {
             CanonicalCommandType.ClearedToLand => true,
+            CanonicalCommandType.ForceLanding => true,
             CanonicalCommandType.LandAndHoldShort => true,
             CanonicalCommandType.ClearedForOption => true,
             CanonicalCommandType.GoAround => true,

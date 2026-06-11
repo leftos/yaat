@@ -517,6 +517,11 @@ public partial class GroundView : UserControl
             if (AircraftCommandApplicability.CanClearToLand(ac))
             {
                 menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(callsign, initials)));
+                // Force landing (CLANDF) is RPO-only — hidden in solo training.
+                if (FindMainViewModel()?.SessionSoloTrainingMode != true)
+                {
+                    menu.Items.Add(CreateMenuItem($"Force landing{rwy}", () => vm.ForceLandingAsync(callsign, initials)));
+                }
                 if (AircraftCommandApplicability.CanIssueVfrOption(ac))
                 {
                     menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(callsign, initials)));

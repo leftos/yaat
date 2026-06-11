@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- **Force a landing with `CLANDF`** — a new RPO/instructor command (also a "Force landing" right-click menu item on the radar, ground, and aircraft-list views) that makes an aircraft land even when it would otherwise go around. It clears the aircraft to land and drives it down onto the runway no matter how high, fast, or off-centerline the approach is, suppressing the automatic go-around (unstable approach, too high at the missed-approach point, or no landing clearance). Call it back off with `GA` or by cancelling the landing clearance (`CLC`). Not available in solo training.
+
 ### Fixed
 - The MVA datablock tint no longer flags an aircraft established on an approach, which the procedure descends below the MVA by design.
 - **The ground "draw taxi route" tool now taxis the exact route you drew** — previously it could send the aircraft down a parallel taxiway (you drew V, it taxied U) or skip the turn into a parking stand and continue straight ahead, because only the waypoints you clicked were committed and the simulator re-routed between them. The tool now commits the full drawn path, so the aircraft follows it faithfully; ending a drawn route inside a parking stand or spot now taxis the aircraft in and parks it.

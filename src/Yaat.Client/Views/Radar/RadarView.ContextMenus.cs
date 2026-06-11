@@ -1091,6 +1091,12 @@ public partial class RadarView
             if (canLand)
             {
                 menu.Items.Add(CreateMenuItem($"Cleared to land{rwy}", () => vm.ClearedToLandAsync(cs, init)));
+                // Force landing (CLANDF) is an RPO-only override — hidden in solo training, where
+                // the server rejects it. Forces a touchdown regardless of energy state.
+                if (FindMainViewModel()?.SessionSoloTrainingMode != true)
+                {
+                    menu.Items.Add(CreateMenuItem($"Force landing{rwy}", () => vm.ForceLandingAsync(cs, init)));
+                }
                 if (AircraftCommandApplicability.CanIssueVfrOption(ac))
                 {
                     menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(cs, init)));
