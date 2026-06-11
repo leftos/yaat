@@ -163,7 +163,16 @@ public partial class SettingsViewModel : ObservableObject
     private bool _showSpeechBubbles;
 
     [ObservableProperty]
-    private bool _showMvaAltitudeTint;
+    private bool _mvaHintDefaultApp;
+
+    [ObservableProperty]
+    private bool _mvaHintDefaultCtr;
+
+    [ObservableProperty]
+    private bool _mvaHintDefaultGnd;
+
+    [ObservableProperty]
+    private bool _mvaHintDefaultTwr;
 
     [ObservableProperty]
     private double _speechBubbleDurationMultiplier;
@@ -601,7 +610,10 @@ public partial class SettingsViewModel : ObservableObject
         _euroScopeMode = _preferences.EuroScopeMode;
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
         _showSpeechBubbles = _preferences.ShowSpeechBubbles;
-        _showMvaAltitudeTint = _preferences.ShowMvaAltitudeTint;
+        _mvaHintDefaultApp = _preferences.MvaHintDefaultApp;
+        _mvaHintDefaultCtr = _preferences.MvaHintDefaultCtr;
+        _mvaHintDefaultGnd = _preferences.MvaHintDefaultGnd;
+        _mvaHintDefaultTwr = _preferences.MvaHintDefaultTwr;
         _speechBubbleDurationMultiplier = _preferences.SpeechBubbleDurationMultiplier;
         _showWarningSpeechBubbles = _preferences.ShowWarningSpeechBubbles;
         _alwaysShowGroundBubblesOnRadar = _preferences.AlwaysShowGroundBubblesOnRadar;
@@ -740,7 +752,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
         _preferences.SetShowSpeechBubbles(ShowSpeechBubbles);
-        _preferences.SetShowMvaAltitudeTint(ShowMvaAltitudeTint);
+        _preferences.SetMvaHintDefaults(MvaHintDefaultApp, MvaHintDefaultCtr, MvaHintDefaultGnd, MvaHintDefaultTwr);
         _preferences.SetSpeechBubbleDurationMultiplier(SpeechBubbleDurationMultiplier);
         _preferences.SetShowWarningSpeechBubbles(ShowWarningSpeechBubbles);
         _preferences.SetAlwaysShowGroundBubblesOnRadar(AlwaysShowGroundBubblesOnRadar);
@@ -1561,8 +1573,6 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnFlashNoLandingClearanceChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnShowSpeechBubblesChanged(bool value) => VisualSettingsChanged?.Invoke();
-
-    partial void OnShowMvaAltitudeTintChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnSpeechBubbleDurationMultiplierChanged(double value) => VisualSettingsChanged?.Invoke();
 

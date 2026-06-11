@@ -90,6 +90,14 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private bool _showFixes;
 
+    /// <summary>
+    /// Live MVA-altitude-tint toggle. Session state, not persisted: each scenario load resets it to the
+    /// student position type's default (<see cref="Services.UserPreferences.GetMvaHintDefault"/>); the DCB
+    /// MVA button flips it for the current session.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showMvaHints;
+
     [ObservableProperty]
     private AircraftModel? _selectedAircraft;
 
@@ -651,6 +659,13 @@ public partial class RadarViewModel : ObservableObject
     {
         ShowFixes = !ShowFixes;
         SaveSettings();
+    }
+
+    [RelayCommand]
+    private void ToggleMvaHints()
+    {
+        // Transient session toggle — deliberately not persisted; scenario load re-seeds it per position type.
+        ShowMvaHints = !ShowMvaHints;
     }
 
     [RelayCommand]

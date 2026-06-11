@@ -221,9 +221,11 @@ public sealed class TargetRenderer : IDisposable
 
     /// <summary>
     /// Tints the datablock altitude field by the aircraft's relationship to the charted MVA floor
-    /// (red below, amber within ±100 ft). Driven by the <c>ShowMvaAltitudeTint</c> user preference.
+    /// (red below, amber within ±100 ft). Driven by the bound <c>RadarViewModel.ShowMvaHints</c> (seeded
+    /// per scenario position type, toggled by the DCB MVA button). Defaults off to match the RadarCanvas
+    /// StyledProperty default — a true default would tint before the first change event fires.
     /// </summary>
-    public bool ShowMvaAltitudeTint { get; set; } = true;
+    public bool ShowMvaAltitudeTint { get; set; }
 
     /// <summary>
     /// When true, color each datablock to match the student's STARS scope (white = owned by student,

@@ -395,6 +395,7 @@ public partial class MainViewModel
     {
         _studentPositionType = result.StudentPositionType;
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
+        Radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
 
         ApplyScenarioBootstrap(
             new ScenarioBootstrap(
@@ -429,6 +430,7 @@ public partial class MainViewModel
 
             _studentPositionType = dto.StudentPositionType;
             _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
+            Radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
 
             ApplyScenarioBootstrap(
                 new ScenarioBootstrap(
@@ -578,6 +580,7 @@ public partial class MainViewModel
         ActiveScenarioPrimaryAirportId = null;
         _studentPositionType = null;
         _isAutoClearedToLand = false;
+        Radar.ShowMvaHints = false;
         _commandInput.PrimaryAirportId = null;
         Radar.SetPrimaryAirportId(null);
         Radar.ClearShownPaths();

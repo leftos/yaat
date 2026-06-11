@@ -44,6 +44,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<bool> ShowFixesProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(ShowFixes));
 
+    public static readonly StyledProperty<bool> ShowMvaAltitudeTintProperty = AvaloniaProperty.Register<RadarCanvas, bool>(
+        nameof(ShowMvaAltitudeTint)
+    );
+
     public static readonly StyledProperty<IReadOnlyList<(string Name, double Lat, double Lon)>?> FixesProperty = AvaloniaProperty.Register<
         RadarCanvas,
         IReadOnlyList<(string Name, double Lat, double Lon)>?
@@ -384,12 +388,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public bool ShowMvaAltitudeTint
     {
-        get => _renderer.ShowMvaAltitudeTint;
-        set
-        {
-            _renderer.ShowMvaAltitudeTint = value;
-            MarkDirty();
-        }
+        get => GetValue(ShowMvaAltitudeTintProperty);
+        set => SetValue(ShowMvaAltitudeTintProperty, value);
     }
 
     public bool SyncStudentColors
@@ -708,6 +708,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         base.OnPropertyChanged(change);
 
+        // MVA tint is a renderer field read directly during the draw; mirror the bound value onto it.
+        if (change.Property == ShowMvaAltitudeTintProperty)
+        {
+            _renderer.ShowMvaAltitudeTint = ShowMvaAltitudeTint;
+        }
+
         if (
             change.Property == VideoMapsProperty
             || change.Property == AircraftProperty
@@ -715,6 +721,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == ShowRangeRingsProperty
             || change.Property == RangeNmProperty
             || change.Property == ShowFixesProperty
+            || change.Property == ShowMvaAltitudeTintProperty
             || change.Property == FixesProperty
             || change.Property == RangeRingCenterLatProperty
             || change.Property == RangeRingCenterLonProperty

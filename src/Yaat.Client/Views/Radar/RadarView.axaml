@@ -193,8 +193,9 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- Col 6: FIX (spans 2 rows) — toggle fix display -->
-                <Button x:Name="FixButton" Classes="dcb" Classes.active="{Binding ShowFixes}" Grid.Row="0" Grid.Column="6" Grid.RowSpan="2" Content="FIX" Click="OnFixClick" />
+                <!-- Col 6: FIX / MVA (split) — toggle fix display + MVA altitude hints -->
+                <Button x:Name="FixButton" Classes="dcb-half" Classes.active="{Binding ShowFixes}" Grid.Row="0" Grid.Column="6" Content="FIX" Click="OnFixClick" />
+                <Button x:Name="MvaButton" Classes="dcb-half" Classes.active="{Binding ShowMvaHints}" Grid.Row="1" Grid.Column="6" Content="MVA" Click="OnMvaClick" />
 
                 <!-- Col 7: TOP-DOWN (spans 2 rows) — toggle top-down view -->
                 <Button x:Name="TopDownButton" Classes="dcb" Classes.active="{Binding ShowTopDown}" Grid.Row="0" Grid.Column="7" Grid.RowSpan="2" Content="TOP-DN" Click="OnTopDownClick" />
@@ -432,6 +433,7 @@
                                RadarCenterLat="{Binding CenterLat, Mode=TwoWay}"
                                RadarCenterLon="{Binding CenterLon, Mode=TwoWay}"
                                ShowFixes="{Binding ShowFixes}"
+                               ShowMvaAltitudeTint="{Binding ShowMvaHints}"
                                Fixes="{Binding Fixes}"
                                RangeRingCenterLat="{Binding RangeRingCenterLat}"
                                RangeRingCenterLon="{Binding RangeRingCenterLon}"

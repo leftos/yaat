@@ -180,7 +180,6 @@ public sealed class UserPreferences
     public bool EuroScopeMode => _data.EuroScopeMode;
     public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
     public bool ShowSpeechBubbles => _data.ShowSpeechBubbles;
-    public bool ShowMvaAltitudeTint => _data.ShowMvaAltitudeTint;
     public double SpeechBubbleDurationMultiplier => Math.Clamp(_data.SpeechBubbleDurationMultiplier, 0.25, 4.0);
     public bool ShowWarningSpeechBubbles => _data.ShowWarningSpeechBubbles;
     public bool AlwaysShowGroundBubblesOnRadar => _data.AlwaysShowGroundBubblesOnRadar;
@@ -214,6 +213,26 @@ public sealed class UserPreferences
             "APP" => AutoClearedToLandApp,
             "CTR" => AutoClearedToLandCtr,
             _ => true,
+        };
+    }
+
+    // MVA altitude-hint default per student position type: each scenario load seeds the live Radar toggle
+    // from the matching value. Approach/Center vector aircraft against the MVA, so default on; Ground/Tower
+    // do not, so default off. An unrecognized position type defaults off (no hint until toggled).
+    public bool MvaHintDefaultGnd => _data.MvaHintDefaultGnd;
+    public bool MvaHintDefaultTwr => _data.MvaHintDefaultTwr;
+    public bool MvaHintDefaultApp => _data.MvaHintDefaultApp;
+    public bool MvaHintDefaultCtr => _data.MvaHintDefaultCtr;
+
+    public bool GetMvaHintDefault(string? positionType)
+    {
+        return positionType?.ToUpperInvariant() switch
+        {
+            "GND" => MvaHintDefaultGnd,
+            "TWR" => MvaHintDefaultTwr,
+            "APP" => MvaHintDefaultApp,
+            "CTR" => MvaHintDefaultCtr,
+            _ => false,
         };
     }
 
@@ -665,9 +684,12 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetShowMvaAltitudeTint(bool enabled)
+    public void SetMvaHintDefaults(bool app, bool ctr, bool gnd, bool twr)
     {
-        _data.ShowMvaAltitudeTint = enabled;
+        _data.MvaHintDefaultApp = app;
+        _data.MvaHintDefaultCtr = ctr;
+        _data.MvaHintDefaultGnd = gnd;
+        _data.MvaHintDefaultTwr = twr;
         Save();
     }
 
@@ -1294,6 +1316,10 @@ public sealed class UserPreferences
             AutoClearedToLandTwr = GetFieldOr(obj, "autoClearedToLandTwr", false),
             AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
             AutoClearedToLandCtr = GetFieldOr(obj, "autoClearedToLandCtr", true),
+            MvaHintDefaultGnd = GetFieldOr(obj, "mvaHintDefaultGnd", false),
+            MvaHintDefaultTwr = GetFieldOr(obj, "mvaHintDefaultTwr", false),
+            MvaHintDefaultApp = GetFieldOr(obj, "mvaHintDefaultApp", true),
+            MvaHintDefaultCtr = GetFieldOr(obj, "mvaHintDefaultCtr", true),
             AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
             AutoPullUpToParallel = GetFieldOr(obj, "autoPullUpToParallel", true),
             SoloTrainingMode = GetFieldOr(obj, "soloTrainingMode", false),
@@ -1538,7 +1564,6 @@ public sealed class UserPreferences
         public bool EuroScopeMode { get; set; }
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowSpeechBubbles { get; set; }
-        public bool ShowMvaAltitudeTint { get; set; } = true;
         public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;
         public bool ShowWarningSpeechBubbles { get; set; }
         public bool AlwaysShowGroundBubblesOnRadar { get; set; }
@@ -1551,6 +1576,10 @@ public sealed class UserPreferences
         public bool AutoClearedToLandTwr { get; set; }
         public bool AutoClearedToLandApp { get; set; } = true;
         public bool AutoClearedToLandCtr { get; set; } = true;
+        public bool MvaHintDefaultGnd { get; set; }
+        public bool MvaHintDefaultTwr { get; set; }
+        public bool MvaHintDefaultApp { get; set; } = true;
+        public bool MvaHintDefaultCtr { get; set; } = true;
         public bool AutoCrossRunway { get; set; }
         public bool AutoPullUpToParallel { get; set; } = true;
         public bool SoloTrainingMode { get; set; }

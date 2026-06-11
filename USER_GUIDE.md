@@ -419,6 +419,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 - **Map shortcuts**: up to 6 quick-toggle buttons for frequently used map groups
 - **RR**: range ring size spinner; **PLACE RR** positions the center, **RR CNTR** resets to center
 - **FIX**: toggle fix name overlay
+- **MVA**: toggle the MVA altitude hint (see *Minimum Vectoring Altitude awareness* below). Defaults on for Approach/Center scenarios, off for Ground/Tower — configurable per position type in Settings → Display → Overlays.
 - **LOCK**: lock/unlock pan and zoom
 - **TOP-DN**: toggle top-down display mode
 - **BRITE**: adjust brightness per video map category
@@ -432,7 +433,17 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 **Right-click context menus:**
 - **On an aircraft**: phase-aware groups (Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower, Pattern) plus always-visible Track, Data Block, Squawk, Ask pilot to say, Coordination, Display, Sim Control, RPO. Approach offers per-runway visual-approach clearance with a smart default to the aircraft's assigned runway / active or expected approach runway. Procedures offers a Join STAR picker (smart-defaults to a filed STAR detected in the route) and Join radial outbound/inbound (pick fix → enter bearing). Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label. The Tower and Pattern submenus list only the commands valid for the aircraft's current state — departure clearances (Line up and wait, Cleared for takeoff) for aircraft on the ground, landing/option clearances while on approach or in the pattern, and runway exits after touchdown; the VFR-only items (touch-and-go, stop-and-go, low approach, the option, and pattern maneuvers) are hidden for IFR aircraft, and the submenu is dropped entirely when nothing applies. Speed values adapt to aircraft type — `ApproachSpeed` to altitude-resolved `ClimbSpeed` in 10-kt steps. Pattern submenu includes in-pattern maneuvers (turn crosswind/downwind/base, extend pattern leg, lateral offset left/right for in-pattern spacing, short/normal approach, 360s, 270s, circle airport); 360s, 270s, and VFR holds fly at a slow holding speed and resume normal speed afterward. Display submenu controls per-aircraft scope items (leader direction 1–9 numpad, J-ring radius, cone radius, blank/unblank target). Squawk gains a "Squawk random" one-click. "Ask pilot to say..." submenu issues SAY-class commands (altitude, heading, speed, mach, position, expected approach, custom).
 - **On a *different* aircraft (with one already selected)**: traffic actions issued to the **selected** aircraft — "{selected}: report {clicked} in sight" (RTIS), and once it has reported that traffic in sight, "{selected}: follow {clicked}". Right-clicking a different aircraft keeps your current selection.
-- **On the map**: always shows [FRD](COMMANDS.md#fix-radial-distance-frd) header (nearest fix + radial + distance) and "Copy FRD". With aircraft selected, also: "Fly heading {hdg}", "Direct to {FRD}", "Append direct to {FRD}", "Hold at {FRD} (left/right)", "Warp here ({FRD})"
+- **On the map**: always shows [FRD](COMMANDS.md#fix-radial-distance-frd) header (nearest fix + radial + distance) and "Copy FRD", plus an informational **MVA** line giving the charted Minimum Vectoring Altitude floor and sector at the clicked point. With aircraft selected, also: "Fly heading {hdg}", "Direct to {FRD}", "Append direct to {FRD}", "Hold at {FRD} (left/right)", "Warp here ({FRD})"
+
+##### Minimum Vectoring Altitude awareness
+
+YAAT knows the FAA-charted Minimum Vectoring Altitude (MVA) for every facility the FAA publishes (148 TRACONs and centers nationwide) and surfaces it three ways on the radar:
+
+- **Datablock altitude tint** — an airborne IFR aircraft's datablock altitude is drawn **red** when it is below the MVA for its position and **amber** when within 100 ft of it (both the STARS datablock and the EuroScope tag). VFR aircraft (MSAW-inhibited by default) and positions outside charted coverage show no tint. Toggle live with the **MVA** button on the DCB; the per-scenario default follows the student's position type (Approach/Center on, Ground/Tower off) and is configurable in **Settings > Display > Overlays**.
+- **Ctrl + hover** — hold **Ctrl** while moving the cursor to read the MVA floor and sector under the pointer.
+- **Right-click the map** — the empty-map menu lists the MVA at that point.
+
+The MVA is the radar-vectoring floor from 7110.65 §5-6-1; it is a controller-judgment aid, not a navigation source.
 
 **Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**. When an instructor [note](#assigning-a-note-to-an-aircraft) is set, an extra amber line is appended at the bottom of the block.
 

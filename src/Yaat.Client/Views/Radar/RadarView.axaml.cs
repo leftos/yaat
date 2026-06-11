@@ -394,6 +394,16 @@ public partial class RadarView : UserControl
         vm.ToggleFixesCommand.Execute(null);
     }
 
+    private void OnMvaClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        vm.ToggleMvaHintsCommand.Execute(null);
+    }
+
     private void OnTopDownClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not RadarViewModel vm)
@@ -519,7 +529,6 @@ public partial class RadarView : UserControl
         _canvas.EuroScopeMode = prefs.EuroScopeMode;
         _canvas.FlashNoLandingClearance = prefs.FlashNoLandingClearance;
         _canvas.ShowSpeechBubbles = prefs.ShowSpeechBubbles;
-        _canvas.ShowMvaAltitudeTint = prefs.ShowMvaAltitudeTint;
         _canvas.AlwaysShowGroundBubblesOnRadar = prefs.AlwaysShowGroundBubblesOnRadar;
         _canvas.SyncStudentColors = prefs.SyncStudentDatablockColors;
         _canvas.MarkStudentLimitedDatablocks = prefs.MarkStudentLimitedDatablocks;

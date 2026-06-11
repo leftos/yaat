@@ -24,13 +24,16 @@ scope the controller sees.
 
 ## Pipeline
 
-1. **`tools/build-mva-data.py`** (offline, `uv run`) parses the FAA AIXM XML into a committed GeoJSON
-   FeatureCollection — one Polygon feature per sector, `properties.mvaFloorFt` (MSL). Validates 150
-   sectors, sane floors, closed rings, NorCal coordinate ranges. `--overlay` renders an HTML map
-   (FAA polygons + optional vNAS videomap linework via `--videomap-url`) for visual cross-check.
-   Re-run to refresh: `uv run tools/build-mva-data.py --facility NCT --variant FUS3`.
-2. **Committed fixture:** `src/Yaat.Sim/Data/Mva/NCT_MVA_FUS3.geojson` (content-copied into client and
-   server build output via the Yaat.Sim csproj `Data\Mva\*.geojson*` include).
+1. **`tools/build-mva-data.py`** (offline, `uv run`) parses FAA AIXM XML into a committed GeoJSON
+   FeatureCollection — one Polygon feature per sector, `properties.mvaFloorFt` (MSL),
+   `properties.facility`. Validates floors, closed rings, US coordinate ranges. `--all` scrapes the FAA
+   listing and downloads **every** FUS3 facility (148 of 154 published; 6 are dead 404 links), merging
+   them into one Brotli-compressed file. `--facility NCT --overlay …` renders an HTML map (FAA polygons
+   + optional vNAS videomap linework via `--videomap-url`) for a per-facility visual cross-check.
+   Re-run to refresh: `uv run tools/build-mva-data.py --all`.
+2. **Committed fixture:** `src/Yaat.Sim/Data/Mva/FAA_MVA_FUS3.geojson.br` — all 148 facilities, 3,268
+   sectors, ~1.1 MB Brotli (content-copied into client and server build output via the Yaat.Sim csproj
+   `Data\Mva\*.geojson*` include; the loader decompresses `.br` transparently).
 3. **Runtime lookup** (`src/Yaat.Sim/Data/Mva/`): `MvaDatabase.Default` is a lazy process-wide
    singleton mirroring `AirspaceDatabase` (3-tier fixture search, Brotli support, empty-DB no-op,
    `SetInstance` for tests). `MvaSector` does **exterior-minus-holes** containment (inside the
@@ -49,8 +52,12 @@ All client-side, reading `MvaDatabase.Default` + the aircraft snapshot — no se
 - **Datablock altitude tint** (`TargetRenderer`): the altitude field is drawn red when the aircraft is
   below the sector floor, amber within ±100 ft ("at"), normal otherwise. Both the STARS datablock and
   the EuroScope tag. Color only — no geometry change, so the draw-vs-hit-test parity is untouched.
-  Gated on airborne + IFR (VFR is MSAW-inhibited by default, 7110.65 §5-14-7) + in coverage. Toggle:
-  `UserPreferences.ShowMvaAltitudeTint` (default on), Settings → Display → Overlays.
+  Gated on airborne + IFR (VFR is MSAW-inhibited by default, 7110.65 §5-14-7) + in coverage. The live
+  toggle is `RadarViewModel.ShowMvaHints` (bound to `RadarCanvas.ShowMvaAltitudeTint`), flipped by the
+  **MVA** button on the radar DCB. It is **session state, not persisted**: each scenario load re-seeds it
+  from `UserPreferences.GetMvaHintDefault(studentPositionType)` — the four per-type defaults (Approach/
+  Center on, Ground/Tower off) configured in Settings → Display → Overlays. The reset is wired alongside
+  the auto-cleared-to-land seed in `ApplyScenarioResult` / `OnScenarioLoaded` / the timeline path.
 - **Right-click MVA-at-point** (`RadarView.ContextMenus.OnMapRightClicked`): an informational line in
   the empty-map menu showing the floor + sector at the clicked geo point.
 - **Ctrl+hover tooltip** (`RadarCanvas` → `RadarRenderer.DrawMvaHoverLabel`): holding Ctrl while moving
@@ -72,9 +79,11 @@ point.
   loader all use lon-first; the loader swaps to `LatLon(lat, lon)`. Swap them and containment flips.
 - **Holes are subtractive, not additive.** `MvaSector` rings are exterior + holes; a point in a hole
   belongs to the separately-charted inner sector. Do not reuse `AirspaceVolume`'s OR-of-rings logic.
-- **Coverage has gaps.** Outside the loaded facility's sectors, every query returns null — callers must
-  treat "no MVA here" as a non-event, never an error.
-- **One facility only (NorCal `NCT`).** Other facilities / scenario-driven loading are not built yet;
-  aircraft outside NorCal get no MVA indicator.
-- **Refresh drift.** The FAA chart updates on no fixed cycle; re-run the tool and commit the regenerated
-  GeoJSON to refresh. The `source`/`generatedAt` metadata records provenance.
+- **Coverage has gaps.** Between charted sectors (and outside the FAA's ~148-facility footprint) every
+  query returns null — callers must treat "no MVA here" as a non-event, never an error.
+- **Overlaps resolve to the highest floor.** Adjacent facilities' charts overlap at boundaries; with all
+  facilities loaded, `FindSector` returns the highest floor among containing sectors (the conservative,
+  safest MVA). At a boundary this can surface a neighbor facility's floor rather than the nominal
+  controlling one — acceptable for a display hint, but not a substitute for the facility's own chart.
+- **Refresh drift.** The FAA charts update on no fixed cycle; re-run `--all` and commit the regenerated
+  Brotli file to refresh. The `source`/`generatedAt`/`facilityCount` metadata records provenance.

@@ -593,6 +593,7 @@ public partial class MainViewModel
 
         _studentPositionType = result.StudentPositionType;
         _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
+        Radar.ShowMvaHints = _preferences.GetMvaHintDefault(_studentPositionType);
 
         Aircraft.Clear();
         if (result.Aircraft is not null)

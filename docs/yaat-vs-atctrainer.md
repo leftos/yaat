@@ -72,7 +72,8 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 ## Radar View (YAAT-only)
 
 - STARS-style display with video maps from vNAS data API
-- DCB bar: RNG, MAP, map shortcuts, RR, FIX, LOCK, TOP-DN, PTL, HISTORY, BRITE
+- DCB bar: RNG, MAP, map shortcuts, RR, FIX, MVA, LOCK, TOP-DN, PTL, HISTORY, BRITE
+- Minimum Vectoring Altitude awareness — FAA-charted MVA for all 148 published facilities; datablock altitude tinted red below / amber within 100 ft of the floor (IFR only), Ctrl+hover tooltip, and right-click MVA-at-point. Defaults per student position type (Approach/Center on, Ground/Tower off)
 - Right-click context menus on aircraft and map
 - Draw route; click on map to set waypoints, with optional altitude crossings and commands to be executed at waypoint
 - Datablocks: callsign, altitude, ground speed, owner, scratchpad
