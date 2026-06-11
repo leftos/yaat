@@ -873,7 +873,11 @@ public record AircraftDto(
     // True while the displayed altitude rounds to 000 (below the acquisition floor, AGL < 100 ft,
     // field-elevation adjusted server-side). The radar withholds the target while set (matching CRC
     // STARS coast/skip); the ground view keeps a ghost overlay visible across liftoff until it clears.
-    bool BelowDisplayFloor = false
+    bool BelowDisplayFloor = false,
+    // True while the aircraft is established on an approach procedure being descended below the MVA
+    // (on final/glideslope, or cleared for a full approach and flying it). Computed server-side via
+    // PhaseList.IsEstablishedOnApproach(); the radar uses it to inhibit the MVA altitude tint.
+    bool IsEstablishedOnApproach = false
 );
 
 public record LoadScenarioResultDto(

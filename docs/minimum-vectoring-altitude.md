@@ -52,7 +52,12 @@ All client-side, reading `MvaDatabase.Default` + the aircraft snapshot — no se
 - **Datablock altitude tint** (`TargetRenderer`): the altitude field is drawn red when the aircraft is
   below the sector floor, amber within ±100 ft ("at"), normal otherwise. Both the STARS datablock and
   the EuroScope tag. Color only — no geometry change, so the draw-vs-hit-test parity is untouched.
-  Gated on airborne + IFR (VFR is MSAW-inhibited by default, 7110.65 §5-14-7) + in coverage. The live
+  Gated on airborne + IFR (VFR is MSAW-inhibited by default, 7110.65 §5-14-7) + **not established on an
+  approach** + in coverage. The approach inhibit is the one server-computed input: `AircraftStateDto`
+  carries `IsEstablishedOnApproach` (from `PhaseList.IsEstablishedOnApproach()` in Yaat.Sim), true once
+  the aircraft is on final or cleared for a full approach and flying the procedure — the published
+  procedure then owns obstacle clearance below the MVA (AIM 4-1-16.a.1). A lateral-only localizer join
+  (JFAC/JLOC, holding its assigned altitude) and a go-around still warn. The live
   toggle is `RadarViewModel.ShowMvaHints` (bound to `RadarCanvas.ShowMvaAltitudeTint`), flipped by the
   **MVA** button on the radar DCB. It is **session state, not persisted**: each scenario load re-seeds it
   from `UserPreferences.GetMvaHintDefault(studentPositionType)` — the four per-type defaults (Approach/

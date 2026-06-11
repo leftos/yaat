@@ -213,6 +213,31 @@ public sealed class PhaseList
 
     public bool IsComplete => CurrentIndex >= Phases.Count;
 
+    /// <summary>
+    /// True when the aircraft is established on an approach procedure that is descending it
+    /// (or will descend it) below the MVA — on final/glideslope, or cleared for a full
+    /// approach (CAPP/JAPP/PTAC) and flying the procedure. A lateral-only localizer join
+    /// (JFAC/JLOC) holds its assigned altitude and is excluded; so are pattern legs and a
+    /// go-around (climbing out). Consumed by the client to inhibit the MVA altitude tint: on final
+    /// the published procedure owns obstacle clearance (or, on a visual, the pilot has the runway in
+    /// sight), so the MVA no longer applies — AIM 4-1-16.a.1; cf. 7110.65 §5-14-7 (MSAW).
+    /// </summary>
+    public bool IsEstablishedOnApproach()
+    {
+        if (CurrentPhase is null or GoAroundPhase)
+        {
+            return false;
+        }
+
+        // A lateral-only localizer join (JFAC/JLOC) holds assigned altitude — MVA still applies.
+        if (ActiveApproach is { LateralInterceptOnly: true })
+        {
+            return false;
+        }
+
+        return CurrentPhase is FinalApproachPhase || (ActiveApproach is not null && ApproachCommandHandler.IsArrivalApproachPhase(CurrentPhase));
+    }
+
     public void Add(Phase phase)
     {
         Phases.Add(phase);

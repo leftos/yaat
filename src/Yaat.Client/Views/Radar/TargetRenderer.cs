@@ -572,12 +572,14 @@ public sealed class TargetRenderer : IDisposable
     /// <summary>
     /// The MVA altitude-tint color for an aircraft, or null when the altitude field should render in the
     /// normal block color (tint disabled, on the ground, MSAW-inhibited, above the floor, or outside MVA
-    /// coverage). VFR is MSAW-inhibited by default (7110.65 §5-14-7); an explicit per-aircraft inhibit
-    /// flag would extend this gate.
+    /// coverage). VFR is MSAW-inhibited by default (7110.65 §5-14-7). Aircraft established on an approach
+    /// are also inhibited: on final the procedure owns obstacle clearance (or, on a visual, the pilot has
+    /// the runway), so the MVA no longer applies (server-computed
+    /// <see cref="AircraftModel.IsEstablishedOnApproach"/>; AIM 4-1-16.a.1).
     /// </summary>
     private SKColor? ResolveMvaAltitudeTint(AircraftModel ac)
     {
-        if (!ShowMvaAltitudeTint || ac.IsOnGround || ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
+        if (!ShowMvaAltitudeTint || ac.IsOnGround || ac.IsEstablishedOnApproach || ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }

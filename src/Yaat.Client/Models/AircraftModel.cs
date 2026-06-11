@@ -185,6 +185,15 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private bool _belowDisplayFloor;
 
+    /// <summary>
+    /// True while the aircraft is established on an approach procedure being descended below the MVA
+    /// (on final/glideslope, or cleared for a full approach and flying it). Computed server-side via
+    /// <c>PhaseList.IsEstablishedOnApproach()</c>; the radar uses it to inhibit the MVA altitude tint
+    /// because the procedure provides its own obstacle clearance.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEstablishedOnApproach;
+
     private static string FormatStatus(string status)
     {
         if (status.StartsWith("Delayed (", StringComparison.Ordinal) && status.EndsWith("s)", StringComparison.Ordinal))
@@ -828,6 +837,7 @@ public partial class AircraftModel : ObservableObject
             IsUnsupported = dto.IsUnsupported,
             IsGhostOverlay = dto.IsGhostOverlay,
             BelowDisplayFloor = dto.BelowDisplayFloor,
+            IsEstablishedOnApproach = dto.IsEstablishedOnApproach,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.SmartStatus = dto.SmartStatus;
@@ -916,6 +926,7 @@ public partial class AircraftModel : ObservableObject
         IsUnsupported = dto.IsUnsupported;
         IsGhostOverlay = dto.IsGhostOverlay;
         BelowDisplayFloor = dto.BelowDisplayFloor;
+        IsEstablishedOnApproach = dto.IsEstablishedOnApproach;
         DistanceFromFix = computeDistance?.Invoke(this);
         SmartStatus = dto.SmartStatus;
         SmartStatusSeverity = dto.SmartStatusSeverity;

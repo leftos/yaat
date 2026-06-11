@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- The MVA datablock tint no longer flags an aircraft established on an approach, which the procedure descends below the MVA by design.
+
 ## v0.7.12-beta [2026/06/11]
 
 ### Added
