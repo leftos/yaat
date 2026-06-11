@@ -6,13 +6,28 @@ namespace Yaat.Sim.Tests;
 public sealed class MvaDatabaseTests
 {
     [Fact]
-    public void Default_LoadsNorCalFixture()
+    public void Default_LoadsAllFaaFacilities()
     {
         var db = MvaDatabase.Default;
 
-        Assert.Equal(150, db.Sectors.Count);
-        Assert.All(db.Sectors, s => Assert.Equal("NCT", s.Facility));
+        // The merged FAA FUS3 fixture spans every facility the FAA publishes (~148), not just NorCal.
+        Assert.True(db.Sectors.Count > 3000, $"expected the merged all-facility fixture, got {db.Sectors.Count} sectors");
+        Assert.True(db.Sectors.Select(s => s.Facility).Distinct().Count() > 100);
+        Assert.Equal(150, db.Sectors.Count(s => s.Facility == "NCT"));
         Assert.All(db.Sectors, s => Assert.InRange(s.FloorFtMsl, 1000, 18000));
+    }
+
+    [Theory]
+    [InlineData(33.9416, -118.4085, 1600, "SCT")] // LAX — SoCal TRACON
+    [InlineData(40.6413, -73.7781, 1500, "N90")] // JFK — New York TRACON
+    [InlineData(32.8998, -97.0403, 2000, "D10")] // DFW — Dallas TRACON
+    public void FindSector_ResolvesAcrossFacilities(double lat, double lon, int expectedFloor, string expectedFacility)
+    {
+        var sector = MvaDatabase.Default.FindSector(new LatLon(lat, lon));
+
+        Assert.NotNull(sector);
+        Assert.Equal(expectedFloor, sector!.FloorFtMsl);
+        Assert.Equal(expectedFacility, sector.Facility);
     }
 
     [Theory]
