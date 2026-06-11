@@ -230,8 +230,11 @@ single-line (altitude + CWT) datablock (`ToggleMinifiedDataBlock`, `:572-580`).
 unit-testable). It hides delayed aircraft always, and on-ground aircraft in the non-top-down (radar) view — **except**
 ground aircraft with an active speech bubble whose airport isn't shown on a ground view, so a SAY/pilot/WARN prompt for a
 taxiing aircraft isn't missed (`ShouldSurfaceGroundBubble`, `:1691`; the `AlwaysShowGroundBubblesOnRadar` preference forces
-all ground bubbles to surface). Every `Find*` helper and `CreateRenderSnapshot` re-invokes `FilterAircraft`, so a visibility
-change goes in one place — but you must preserve that draw/hit symmetry.
+all ground bubbles to surface). It also hides an airborne aircraft whose displayed altitude still rounds to `000`
+(`AircraftModel.BelowDisplayFloor`, server-stamped from `FieldElevationResolver`: AGL < 100 ft, field-elevation adjusted) in
+the non-top-down view, so a departure doesn't appear on the radar before it climbs above the acquisition floor — matching
+CRC STARS' coast/skip below the same floor. Every `Find*` helper and `CreateRenderSnapshot` re-invokes `FilterAircraft`, so a
+visibility change goes in one place — but you must preserve that draw/hit symmetry.
 
 ## Pointer-handler priority ladder
 

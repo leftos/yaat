@@ -1765,6 +1765,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 continue;
             }
 
+            // Airborne but the displayed altitude still rounds to 000 (below the acquisition floor):
+            // withhold the target from the radar so it matches CRC STARS' coast/skip. The aircraft
+            // remains on the ground view until it climbs above the floor. Top-down (ground) mode keeps
+            // showing low traffic.
+            if (!ac.IsOnGround && ac.BelowDisplayFloor && !showTopDown)
+            {
+                continue;
+            }
+
             result.Add(ac);
         }
 

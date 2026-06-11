@@ -10,7 +10,16 @@ namespace Yaat.Client.ViewModels;
 /// <summary>One airport's raw METAR string, as broadcast for the currently active weather.</summary>
 public record MetarEntry(string? StationId, string Raw);
 
-public record WeatherDisplayInfo(string? StationId, int? WindDirectionDeg, int? WindSpeedKts, int? WindGustKts, double? AltimeterInHg)
+public record WeatherDisplayInfo(
+    string? StationId,
+    int? WindDirectionDeg,
+    int? WindSpeedKts,
+    int? WindGustKts,
+    double? AltimeterInHg,
+    // Cloud ceiling (lowest BKN/OVC base) in feet AGL, or null when clear / scattered-only. The ground
+    // view keeps an aircraft visible until it climbs through the ceiling (or 6,000 ft AGL if clear).
+    int? CeilingFeetAgl = null
+)
 {
     public string ToDisplayString()
     {
@@ -317,7 +326,16 @@ public partial class MainViewModel
                 displayId = displayId[1..];
             }
 
-            list.Add(new WeatherDisplayInfo(displayId, parsed.WindDirectionDeg, parsed.WindSpeedKts, parsed.WindGustKts, parsed.AltimeterInHg));
+            list.Add(
+                new WeatherDisplayInfo(
+                    displayId,
+                    parsed.WindDirectionDeg,
+                    parsed.WindSpeedKts,
+                    parsed.WindGustKts,
+                    parsed.AltimeterInHg,
+                    parsed.CeilingFeetAgl
+                )
+            );
         }
 
         return list.Count > 0 ? list : null;

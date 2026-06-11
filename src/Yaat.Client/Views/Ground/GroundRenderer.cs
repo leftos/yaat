@@ -146,7 +146,11 @@ public sealed class GroundRenderer : IDisposable
     // from the white/cyan datablock text and green/blue ground markings.
     private static readonly SKColor NoteColor = new(255, 200, 60);
 
-    private const double AirborneMaxAglFt = 4000;
+    // Visual cutoff for keeping a departing/arriving aircraft on the surface display: it stays
+    // visible until it climbs through the reported cloud ceiling or this height AGL, whichever is
+    // lower (emulating tower out-the-window contact). Clear / scattered-only skies (no ceiling) use
+    // the 6,000 ft cap.
+    private const double AirborneMaxAglFt = 6000;
     private const double AirborneMaxRangeNm = 10;
 
     private enum LabelPriority
@@ -555,9 +559,6 @@ public sealed class GroundRenderer : IDisposable
         TaxiRoute? drawHoverPreview,
         IReadOnlyList<int>? drawWaypoints,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
-        double airportCenterLat,
-        double airportCenterLon,
-        double airportElevation,
         bool showDebugInfo,
         WeatherDisplayInfo? weatherInfo,
         bool showRunwayLabels,
@@ -635,19 +636,11 @@ public sealed class GroundRenderer : IDisposable
             }
         }
 
-        DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
-        DrawDataBlocks(
-            canvas,
-            vp,
-            aircraft,
-            selectedAircraft,
-            dataBlockOffsets,
-            airportCenterLat,
-            airportCenterLon,
-            airportElevation,
-            highlightedCallsigns,
-            hiddenDataBlockCallsigns
-        );
+        // Visibility (delayed/phantom membership + the 10 nm / ceiling-or-6,000 ft AGL bound) is applied
+        // once in GroundCanvas.FilterActiveAircraft, the shared draw + hit-test chokepoint, so `aircraft`
+        // is already the exact set to paint.
+        DrawAircraft(canvas, vp, aircraft, selectedAircraft);
+        DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, highlightedCallsigns, hiddenDataBlockCallsigns);
 
         if (showYaatLayout)
         {
@@ -1603,26 +1596,13 @@ public sealed class GroundRenderer : IDisposable
     /// <summary>Feet per degree of latitude (constant).</summary>
     private const double FeetPerDegLat = 364_567.2;
 
-    private void DrawAircraft(
-        SKCanvas canvas,
-        MapViewport vp,
-        IReadOnlyList<AircraftModel> aircraft,
-        AircraftModel? selectedAircraft,
-        double airportCenterLat,
-        double airportCenterLon,
-        double airportElevation
-    )
+    private void DrawAircraft(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, AircraftModel? selectedAircraft)
     {
         // Pixels per foot at current zoom (latitude direction, no cosine correction needed for small areas)
         var pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
 
         foreach (var ac in aircraft)
         {
-            if (!ac.IsOnGround && !IsAirborneVisible(ac, airportCenterLat, airportCenterLon, airportElevation))
-            {
-                continue;
-            }
-
             var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             bool isSelected = ac == selectedAircraft;
             bool isAirborne = !ac.IsOnGround;
@@ -1893,9 +1873,6 @@ public sealed class GroundRenderer : IDisposable
         IReadOnlyList<AircraftModel> aircraft,
         AircraftModel? selectedAircraft,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
-        double airportCenterLat,
-        double airportCenterLon,
-        double airportElevation,
         IReadOnlySet<string>? highlightedCallsigns,
         IReadOnlySet<string>? hiddenDataBlockCallsigns
     )
@@ -1914,19 +1891,7 @@ public sealed class GroundRenderer : IDisposable
                 deferred.Add(ac);
                 continue;
             }
-            DrawOneDataBlock(
-                canvas,
-                vp,
-                ac,
-                selectedAircraft,
-                dataBlockOffsets,
-                airportCenterLat,
-                airportCenterLon,
-                airportElevation,
-                highlightedCallsigns,
-                hiddenDataBlockCallsigns,
-                drawBubble: false
-            );
+            DrawOneDataBlock(canvas, vp, ac, selectedAircraft, dataBlockOffsets, highlightedCallsigns, hiddenDataBlockCallsigns, drawBubble: false);
         }
 
         if (deferred is not null)
@@ -1939,9 +1904,6 @@ public sealed class GroundRenderer : IDisposable
                     ac,
                     selectedAircraft,
                     dataBlockOffsets,
-                    airportCenterLat,
-                    airportCenterLon,
-                    airportElevation,
                     highlightedCallsigns,
                     hiddenDataBlockCallsigns,
                     drawBubble: true
@@ -1958,20 +1920,12 @@ public sealed class GroundRenderer : IDisposable
         AircraftModel ac,
         AircraftModel? selectedAircraft,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
-        double airportCenterLat,
-        double airportCenterLon,
-        double airportElevation,
         IReadOnlySet<string>? highlightedCallsigns,
         IReadOnlySet<string>? hiddenDataBlockCallsigns,
         bool drawBubble
     )
     {
         bool isAirborne = !ac.IsOnGround;
-        if (isAirborne && !IsAirborneVisible(ac, airportCenterLat, airportCenterLon, airportElevation))
-        {
-            return;
-        }
-
         bool isSelected = ac == selectedAircraft;
         bool isHidden = hiddenDataBlockCallsigns is not null && hiddenDataBlockCallsigns.Contains(ac.Callsign);
         if (isHidden && !isSelected)
@@ -2154,16 +2108,32 @@ public sealed class GroundRenderer : IDisposable
         return lines;
     }
 
-    private static bool IsAirborneVisible(AircraftModel ac, double airportCenterLat, double airportCenterLon, double airportElevation)
+    /// <summary>
+    /// Whether an airborne aircraft is close and low enough to remain on the surface display:
+    /// within <see cref="AirborneMaxRangeNm"/> of the airport and at or below
+    /// <paramref name="maxAglFt"/> (the ceiling/6,000 ft cutoff from <see cref="ResolveAirborneMaxAglFt"/>).
+    /// </summary>
+    public static bool IsAirborneVisible(AircraftModel ac, double airportCenterLat, double airportCenterLon, double airportElevation, double maxAglFt)
     {
         double agl = ac.Altitude - airportElevation;
-        if (agl > AirborneMaxAglFt)
+        if (agl > maxAglFt)
         {
             return false;
         }
 
         double dist = GeoMath.DistanceNm(ac.Position, new LatLon(airportCenterLat, airportCenterLon));
         return dist <= AirborneMaxRangeNm;
+    }
+
+    /// <summary>
+    /// Height AGL at which an airborne aircraft leaves the surface display: the lower of the reported
+    /// cloud ceiling and <see cref="AirborneMaxAglFt"/>. Null/absent ceiling (clear, scattered-only)
+    /// uses the cap alone.
+    /// </summary>
+    public static double ResolveAirborneMaxAglFt(WeatherDisplayInfo? weatherInfo)
+    {
+        var ceiling = weatherInfo?.CeilingFeetAgl;
+        return ceiling.HasValue ? Math.Min(ceiling.Value, AirborneMaxAglFt) : AirborneMaxAglFt;
     }
 
     private static SKPoint ClampToBlockEdge(float pointX, float pointY, SKRect rect)

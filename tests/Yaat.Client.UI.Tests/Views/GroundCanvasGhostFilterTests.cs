@@ -7,11 +7,12 @@ using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Views;
 
-// The Ground (surface) display must not paint or hit-test STARS "unsupported"/ghost tracks —
-// they have no surface-radar return. The one exception is a ghost overlay still attached to a
-// real aircraft that is physically on the ground (e.g. a departure pre-tagged to autotrack once
-// airborne): that is a genuine surface target and stays visible. These drive the shared
-// FilterActiveAircraft chokepoint through the public FindAircraftAtPoint hit-tester.
+// The Tower Cab (out-the-window) display shows real aircraft. The only thing it drops is a pure
+// phantom — a CRC DA/VP data block typed for a callsign with no real aircraft body — because there
+// is no aircraft in space to see. A ghost overlay is attached to a real scenario aircraft, so it is
+// shown like any other aircraft whether on the ground or airborne (the renderer bounds it to 10 nm /
+// ceiling-or-6,000 ft AGL). These drive the shared FilterActiveAircraft chokepoint through the
+// public FindAircraftAtPoint hit-tester.
 public class GroundCanvasGhostFilterTests
 {
     private const double CenterLat = 37.72;
@@ -58,11 +59,12 @@ public class GroundCanvasGhostFilterTests
     }
 
     [AvaloniaFact]
-    public void GhostOverlayAirborne_IsHidden()
+    public void GhostOverlayAirborne_IsVisible()
     {
-        // Same overlay once the aircraft is airborne (N785Q at 2500 ft) — now a STARS ghost, not a
-        // surface target, so it drops off the Ground View.
-        Assert.False(
+        // A pre-tagged ghost-overlay departure that has lifted off is still a real aircraft you'd see
+        // out the tower window — it stays on the view (the renderer bounds it by range/altitude). It
+        // must not flicker off at rotation just because IsOnGround flipped.
+        Assert.True(
             IsVisibleOnGroundView(
                 new AircraftModel
                 {
@@ -93,6 +95,11 @@ public class GroundCanvasGhostFilterTests
         canvas.Viewport.Zoom = 1.0;
         canvas.Viewport.PixelWidth = 800f;
         canvas.Viewport.PixelHeight = 600f;
+        // The aircraft sits at the field; airborne ones (altitude 0) are then inside the 10 nm /
+        // 6,000 ft AGL bound the filter now applies, so the test isolates the membership rules.
+        canvas.AirportCenterLat = CenterLat;
+        canvas.AirportCenterLon = CenterLon;
+        canvas.AirportElevation = 0;
         canvas.Aircraft = [ac];
 
         var (sx, sy) = canvas.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);

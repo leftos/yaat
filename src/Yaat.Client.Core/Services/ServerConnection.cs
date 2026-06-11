@@ -869,7 +869,11 @@ public record AircraftDto(
     // Sector code of the recipient of a pending point-out the student's own position initiated
     // (e.g. "3E"). Non-null only while that outgoing point-out is still pending; drives the "{code}*"
     // indicator on the owner/scratchpad datablock line. Instructor-only.
-    string? PointoutToTcpCode = null
+    string? PointoutToTcpCode = null,
+    // True while the displayed altitude rounds to 000 (below the acquisition floor, AGL < 100 ft,
+    // field-elevation adjusted server-side). The radar withholds the target while set (matching CRC
+    // STARS coast/skip); the ground view keeps a ghost overlay visible across liftoff until it clears.
+    bool BelowDisplayFloor = false
 );
 
 public record LoadScenarioResultDto(

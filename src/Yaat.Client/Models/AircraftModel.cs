@@ -176,6 +176,15 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private bool _isGhostOverlay;
 
+    /// <summary>
+    /// True while the displayed altitude rounds to 000 — the aircraft is below the acquisition
+    /// floor (AGL &lt; 100 ft, field-elevation adjusted server-side). The radar withholds the target
+    /// while set (matching CRC STARS coast/skip); the ground view keeps a ghost overlay visible
+    /// across liftoff until this clears.
+    /// </summary>
+    [ObservableProperty]
+    private bool _belowDisplayFloor;
+
     private static string FormatStatus(string status)
     {
         if (status.StartsWith("Delayed (", StringComparison.Ordinal) && status.EndsWith("s)", StringComparison.Ordinal))
@@ -818,6 +827,7 @@ public partial class AircraftModel : ObservableObject
             CrossingRunwayId = dto.CrossingRunwayId,
             IsUnsupported = dto.IsUnsupported,
             IsGhostOverlay = dto.IsGhostOverlay,
+            BelowDisplayFloor = dto.BelowDisplayFloor,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.SmartStatus = dto.SmartStatus;
@@ -905,6 +915,7 @@ public partial class AircraftModel : ObservableObject
         CrossingRunwayId = dto.CrossingRunwayId;
         IsUnsupported = dto.IsUnsupported;
         IsGhostOverlay = dto.IsGhostOverlay;
+        BelowDisplayFloor = dto.BelowDisplayFloor;
         DistanceFromFix = computeDistance?.Invoke(this);
         SmartStatus = dto.SmartStatus;
         SmartStatusSeverity = dto.SmartStatusSeverity;

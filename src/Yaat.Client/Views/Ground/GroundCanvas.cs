@@ -616,9 +616,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<int>? DrawWaypoints,
         bool IsDrawingRoute,
         IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
-        double AirportCenterLat,
-        double AirportCenterLon,
-        double AirportElevation,
         bool ShowDebugInfo,
         WeatherDisplayInfo? WeatherInfo,
         bool ShowRunwayLabels,
@@ -641,7 +638,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     protected override object? CreateRenderSnapshot()
     {
-        var aircraft = SortByZOrder(FilterActiveAircraft(Aircraft), _dataBlockZOrder);
+        var aircraft = SortByZOrder(VisibleAircraft(), _dataBlockZOrder);
 
         var hiddenDbs = new HashSet<string>();
         if (_startWithAllHidden)
@@ -675,9 +672,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             DrawWaypoints,
             IsDrawingRoute,
             new Dictionary<string, SKPoint>(_dataBlockOffsets),
-            AirportCenterLat,
-            AirportCenterLon,
-            AirportElevation,
             ShowDebugInfo,
             WeatherInfo,
             ShowRunwayLabels,
@@ -720,9 +714,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.DrawHoverPreview,
             s.DrawWaypoints,
             s.DataBlockOffsets,
-            s.AirportCenterLat,
-            s.AirportCenterLon,
-            s.AirportElevation,
             s.ShowDebugInfo,
             s.WeatherInfo,
             s.ShowRunwayLabels,
@@ -764,15 +755,31 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// Aircraft eligible for the Ground (surface) display. Excludes delayed-spawn aircraft and STARS
-    /// "unsupported"/ghost tracks (<see cref="AircraftModel.IsUnsupported"/>) — phantom DA/VP datablocks
-    /// with no real body, and ghost overlays once their aircraft is airborne. A ghost overlay still on
-    /// the ground (<c>IsGhostOverlay &amp;&amp; IsOnGround</c>) is a real surface target — e.g. a departure
-    /// pre-tagged to autotrack once airborne — and stays visible. Unsupported tracks have no surface-radar
-    /// return (a STARS-only concept; the server omits them from CRC's ground-target feed), so the Ground
-    /// View neither paints nor hit-tests them.
+    /// The aircraft the Tower Cab view currently shows — the membership filter applied with this
+    /// canvas's airport geometry and weather (cloud ceiling) — shared by render and both hit-testers.
     /// </summary>
-    private static IReadOnlyList<AircraftModel> FilterActiveAircraft(IReadOnlyList<AircraftModel>? aircraft)
+    private IReadOnlyList<AircraftModel> VisibleAircraft() =>
+        FilterActiveAircraft(Aircraft, AirportCenterLat, AirportCenterLon, AirportElevation, GroundRenderer.ResolveAirborneMaxAglFt(WeatherInfo));
+
+    /// <summary>
+    /// Aircraft eligible for the Ground (Tower Cab) display, the single chokepoint for both render and
+    /// the hit-testers. The view is an out-the-window picture: it shows real aircraft on the surface
+    /// and within visual range of the field — within 10 nm laterally and the cloud ceiling / 6,000 ft
+    /// AGL vertically (<see cref="GroundRenderer.IsAirborneVisible"/>). On-ground aircraft are always
+    /// kept; an airborne aircraft is kept only while inside that bound. The only membership exclusion is
+    /// a pure phantom — a CRC <c>DA</c>/<c>VP</c> data block typed for a callsign with no real aircraft
+    /// body (<c>IsUnsupported &amp;&amp; !IsGhostOverlay</c>) — because there is no aircraft in space to
+    /// see. A ghost overlay (<c>IsGhostOverlay</c>) is attached to a real scenario aircraft, so it is
+    /// treated like any other aircraft (which also means it never flickers off the view at rotation).
+    /// Delayed-spawn aircraft are hidden until they appear.
+    /// </summary>
+    private static IReadOnlyList<AircraftModel> FilterActiveAircraft(
+        IReadOnlyList<AircraftModel>? aircraft,
+        double airportCenterLat,
+        double airportCenterLon,
+        double airportElevation,
+        double airborneMaxAglFt
+    )
     {
         if (aircraft is null || aircraft.Count == 0)
         {
@@ -787,7 +794,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 continue;
             }
 
-            if (ac.IsUnsupported && !(ac.IsGhostOverlay && ac.IsOnGround))
+            if (ac.IsUnsupported && !ac.IsGhostOverlay)
+            {
+                continue;
+            }
+
+            if (!ac.IsOnGround && !GroundRenderer.IsAirborneVisible(ac, airportCenterLat, airportCenterLon, airportElevation, airborneMaxAglFt))
             {
                 continue;
             }
@@ -1129,7 +1141,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         // Use z-order-sorted list so the topmost (last-drawn) datablock wins
-        var sorted = SortByZOrder(FilterActiveAircraft(Aircraft), _dataBlockZOrder);
+        var sorted = SortByZOrder(VisibleAircraft(), _dataBlockZOrder);
         AircraftModel? best = null;
 
         foreach (var ac in sorted)
@@ -1163,7 +1175,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         AircraftModel? closest = null;
         float closestDist = hitRadius;
 
-        foreach (var ac in FilterActiveAircraft(Aircraft))
+        foreach (var ac in VisibleAircraft())
         {
             var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             var dx = (float)screenPos.X - sx;

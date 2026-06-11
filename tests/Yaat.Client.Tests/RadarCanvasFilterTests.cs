@@ -175,4 +175,38 @@ public class RadarCanvasFilterTests
         var list = Filter([airborne], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
         Assert.Equal(["N2"], list);
     }
+
+    private static AircraftModel Airborne(string callsign, bool belowDisplayFloor) =>
+        new()
+        {
+            Callsign = callsign,
+            AircraftType = "C172",
+            IsOnGround = false,
+            Status = "Active",
+            BelowDisplayFloor = belowDisplayFloor,
+        };
+
+    [Fact]
+    public void AirborneAircraft_BelowDisplayFloor_HiddenOnRadar()
+    {
+        // Just lifted off and the displayed altitude still rounds to 000 — withheld until acquisition,
+        // matching CRC STARS.
+        var list = Filter([Airborne("N3", belowDisplayFloor: true)], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
+        Assert.Empty(list);
+    }
+
+    [Fact]
+    public void AirborneAircraft_AboveDisplayFloor_ShownOnRadar()
+    {
+        var list = Filter([Airborne("N3", belowDisplayFloor: false)], showTopDown: false, showSpeechBubbles: true, groundShownAirportId: null);
+        Assert.Equal(["N3"], list);
+    }
+
+    [Fact]
+    public void AirborneAircraft_BelowDisplayFloor_TopDown_StillShown()
+    {
+        // Top-down (ground) mode keeps low traffic visible.
+        var list = Filter([Airborne("N3", belowDisplayFloor: true)], showTopDown: true, showSpeechBubbles: false, groundShownAirportId: null);
+        Assert.Equal(["N3"], list);
+    }
 }
