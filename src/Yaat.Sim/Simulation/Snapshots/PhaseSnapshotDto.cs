@@ -18,6 +18,7 @@ public sealed class PhaseListDto
     public RunwayInfoDto? PatternRunway { get; init; }
     public RunwayInfoDto? DepartureRunway { get; init; }
     public int? RequestedExit { get; init; }
+    public string? RequestedExitTaxiway { get; init; }
     public ApproachClearanceDto? ActiveApproach { get; init; }
     public LahsoTargetDto? LahsoHoldShort { get; init; }
     public required int CurrentIndex { get; init; }

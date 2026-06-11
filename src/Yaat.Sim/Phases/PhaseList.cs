@@ -369,6 +369,14 @@ public sealed class PhaseList
             LandingClearance = dto.LandingClearance.HasValue ? (ClearanceType)dto.LandingClearance.Value : null,
             ClearedRunwayId = dto.ClearedRunwayId,
             ForceLanding = dto.ForceLanding,
+            RequestedExit =
+                (dto.RequestedExit.HasValue || dto.RequestedExitTaxiway is not null)
+                    ? new ExitPreference
+                    {
+                        Side = dto.RequestedExit.HasValue ? (ExitSide)dto.RequestedExit.Value : null,
+                        Taxiway = dto.RequestedExitTaxiway,
+                    }
+                    : null,
             TrafficDirection = dto.TrafficDirection.HasValue ? (PatternDirection)dto.TrafficDirection.Value : null,
             PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
             DepartureRunway = dto.DepartureRunway is not null ? RunwayInfo.FromSnapshot(dto.DepartureRunway) : null,
@@ -455,6 +463,7 @@ public sealed class PhaseList
             PatternRunway = PatternRunway?.ToSnapshot(),
             DepartureRunway = DepartureRunway?.ToSnapshot(),
             RequestedExit = RequestedExit?.Side is not null ? (int)RequestedExit.Side.Value : null,
+            RequestedExitTaxiway = RequestedExit?.Taxiway,
             ActiveApproach = ActiveApproach?.ToSnapshot(),
             LahsoHoldShort = LahsoHoldShort?.ToSnapshot(),
             CurrentIndex = CurrentIndex,

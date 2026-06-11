@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 12;
+    public const int CurrentSchemaVersion = 13;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -88,6 +88,11 @@ public static class SnapshotSchemaMigrator
         //   restore instead of being reclassified. No data transformation — older snapshots default
         //   to null, and FromSnapshot falls back to the prior hardcoded reason (ExplicitHoldShort for
         //   taxi-route hold-shorts, RunwayCrossing for HoldingShortPhase), preserving restore behavior.
+        // V12→V13: Added PhaseListDto.RequestedExitTaxiway and started restoring RequestedExit in
+        //   PhaseList.FromSnapshot (it was serialized lossily — side only — and never restored, so a
+        //   controller's EXIT preference was dropped across rewind/reconnect). No data transformation —
+        //   older snapshots default RequestedExitTaxiway to null; a legacy RequestedExit side now restores
+        //   instead of being silently discarded.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

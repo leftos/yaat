@@ -2,6 +2,7 @@
 using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
@@ -153,6 +154,53 @@ public class SnapshotRoundTripTests
         ControlTargets.RestoreFrom(dto, restored);
 
         Assert.Null(restored.DesiredDecelRate);
+    }
+
+    [Fact]
+    public void PhaseList_RequestedExit_SideAndTaxiway_RoundTrips()
+    {
+        var phases = new PhaseList
+        {
+            AssignedRunway = TestRunwayFactory.Make(designator: "28", heading: 280),
+            RequestedExit = new ExitPreference { Side = ExitSide.Left, Taxiway = "A3" },
+        };
+
+        var dto = phases.ToSnapshot();
+        var json = JsonSerializer.Serialize(dto, RecordingJsonOptions.Default);
+        var back = JsonSerializer.Deserialize<PhaseListDto>(json, RecordingJsonOptions.Default)!;
+        var restored = PhaseList.FromSnapshot(back, null);
+
+        Assert.NotNull(restored.RequestedExit);
+        Assert.Equal(ExitSide.Left, restored.RequestedExit!.Side);
+        Assert.Equal("A3", restored.RequestedExit.Taxiway);
+    }
+
+    [Fact]
+    public void PhaseList_RequestedExit_TaxiwayOnly_RoundTrips()
+    {
+        // A bare `EXIT A3` carries a taxiway with no side — the old snapshot dropped it entirely
+        // because it only serialized Side.
+        var phases = new PhaseList
+        {
+            AssignedRunway = TestRunwayFactory.Make(designator: "28", heading: 280),
+            RequestedExit = new ExitPreference { Taxiway = "B2" },
+        };
+
+        var restored = PhaseList.FromSnapshot(phases.ToSnapshot(), null);
+
+        Assert.NotNull(restored.RequestedExit);
+        Assert.Null(restored.RequestedExit!.Side);
+        Assert.Equal("B2", restored.RequestedExit.Taxiway);
+    }
+
+    [Fact]
+    public void PhaseList_RequestedExit_Null_RoundTrips()
+    {
+        var phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: "28", heading: 280) };
+
+        var restored = PhaseList.FromSnapshot(phases.ToSnapshot(), null);
+
+        Assert.Null(restored.RequestedExit);
     }
 
     [Fact]
