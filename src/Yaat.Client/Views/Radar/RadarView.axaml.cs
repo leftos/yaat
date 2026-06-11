@@ -519,6 +519,7 @@ public partial class RadarView : UserControl
         _canvas.EuroScopeMode = prefs.EuroScopeMode;
         _canvas.FlashNoLandingClearance = prefs.FlashNoLandingClearance;
         _canvas.ShowSpeechBubbles = prefs.ShowSpeechBubbles;
+        _canvas.ShowMvaAltitudeTint = prefs.ShowMvaAltitudeTint;
         _canvas.AlwaysShowGroundBubblesOnRadar = prefs.AlwaysShowGroundBubblesOnRadar;
         _canvas.SyncStudentColors = prefs.SyncStudentDatablockColors;
         _canvas.MarkStudentLimitedDatablocks = prefs.MarkStudentLimitedDatablocks;

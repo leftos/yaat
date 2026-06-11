@@ -7,6 +7,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Mva;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -134,6 +135,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private Point _dragStartMousePos;
     private bool _dragThresholdMet;
     private Point _lastPointerPos;
+
+    // True when Ctrl was held at the last pointer-move; gates the Ctrl+hover MVA tooltip overlay.
+    private bool _ctrlHeldAtPointer;
     private readonly HashSet<string> _minifiedCallsigns = new();
     private readonly HashSet<string> _highlightedCallsigns = new();
     private readonly Dictionary<string, int> _dataBlockZOrder = new();
@@ -374,6 +378,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set
         {
             _renderer.ShowSpeechBubbles = value;
+            MarkDirty();
+        }
+    }
+
+    public bool ShowMvaAltitudeTint
+    {
+        get => _renderer.ShowMvaAltitudeTint;
+        set
+        {
+            _renderer.ShowMvaAltitudeTint = value;
             MarkDirty();
         }
     }
@@ -789,7 +803,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         bool ShowTopDown,
         IReadOnlyList<WeatherDisplayInfo>? WeatherInfo,
         IReadOnlyList<ShownPathEntry>? ShownPaths,
-        int HistoryCount
+        int HistoryCount,
+        (string Text, SKPoint Pos)? MvaHover
     );
 
     protected override object? CreateRenderSnapshot()
@@ -822,6 +837,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             {
                 drawRouteCursorLabel = FrdResolver.ToFrd(cursorLatLon.Lat, cursorLatLon.Lon, Fixes);
             }
+        }
+
+        (string Text, SKPoint Pos)? mvaHover = null;
+        if (_ctrlHeldAtPointer && IsPointerOver && Viewport.PixelWidth >= 1)
+        {
+            var (mvaLat, mvaLon) = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+            var sector = MvaDatabase.Default.FindSector(new LatLon(mvaLat, mvaLon));
+            string mvaText = sector is null ? "MVA: no data" : $"MVA {sector.FloorFtMsl} ({sector.Sector})";
+            mvaHover = (mvaText, new SKPoint((float)_lastPointerPos.X, (float)_lastPointerPos.Y));
         }
 
         return new RenderSnapshot(
@@ -857,7 +881,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             ShowTopDown,
             WeatherInfo,
             ShownPaths,
-            HistoryCount
+            HistoryCount,
+            mvaHover
         );
     }
 
@@ -922,7 +947,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.ShowTopDown,
             s.WeatherInfo,
             s.ShownPaths,
-            s.HistoryCount
+            s.HistoryCount,
+            s.MvaHover
         );
     }
 
@@ -1169,6 +1195,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         var currentPos = e.GetPosition(this);
         _lastPointerPos = currentPos;
+
+        // Ctrl+hover surfaces the MVA at the cursor. Repaint while held (so the label follows the
+        // cursor) and on the frame Ctrl is released (so the label clears).
+        bool ctrlHeld = (e.KeyModifiers & KeyModifiers.Control) != 0;
+        if (ctrlHeld || _ctrlHeldAtPointer)
+        {
+            MarkDirty();
+        }
+        _ctrlHeldAtPointer = ctrlHeld;
 
         if (_renderer.HeadingPreview is { } headingState)
         {

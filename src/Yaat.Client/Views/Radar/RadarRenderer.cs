@@ -254,6 +254,12 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.ShowSpeechBubbles = value;
     }
 
+    public bool ShowMvaAltitudeTint
+    {
+        get => _targetRenderer.ShowMvaAltitudeTint;
+        set => _targetRenderer.ShowMvaAltitudeTint = value;
+    }
+
     public bool SyncStudentColors
     {
         get => _targetRenderer.SyncStudentColors;
@@ -333,7 +339,8 @@ public sealed class RadarRenderer : IDisposable
         bool showTopDown = false,
         IReadOnlyList<WeatherDisplayInfo>? weatherInfo = null,
         IReadOnlyList<ShownPathEntry>? shownPaths = null,
-        int historyCount = 0
+        int historyCount = 0,
+        (string Text, SKPoint Pos)? mvaHover = null
     )
     {
         canvas.Clear(BackgroundColor);
@@ -403,6 +410,34 @@ public sealed class RadarRenderer : IDisposable
         {
             DrawWeatherOverlay(canvas, weatherInfo);
         }
+
+        // Ctrl+hover MVA tooltip (follows the cursor).
+        if (mvaHover is { } hover)
+        {
+            DrawMvaHoverLabel(canvas, hover.Text, hover.Pos);
+        }
+    }
+
+    private static void DrawMvaHoverLabel(SKCanvas canvas, string text, SKPoint cursor)
+    {
+        using var textPaint = new SKPaint
+        {
+            Color = SKColors.White,
+            TextSize = 13,
+            Typeface = PlatformHelper.MonospaceTypeface,
+            IsAntialias = true,
+        };
+        using var bgPaint = new SKPaint { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
+
+        const float padX = 5f;
+        const float padY = 3f;
+        const float gap = 14f;
+        float width = textPaint.MeasureText(text);
+        float x = cursor.X + gap;
+        float baseline = cursor.Y + gap + textPaint.TextSize;
+        var background = new SKRect(x - padX, baseline - textPaint.TextSize - padY, x + width + padX, baseline + padY);
+        canvas.DrawRoundRect(background, 3, 3, bgPaint);
+        canvas.DrawText(text, x, baseline, textPaint);
     }
 
     private void DrawShownPaths(SKCanvas canvas, MapViewport vp, IReadOnlyList<ShownPathEntry> entries)

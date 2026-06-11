@@ -44,6 +44,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 | Conflict / alert / visual detection | [conflict-and-visual-detection.md](conflict-and-visual-detection.md) |
 | Weather & wind | [weather-and-wind.md](weather-and-wind.md) |
 | Airspace (Class B/C) & boundary crossing | [airspace-database.md](airspace-database.md) |
+| Minimum Vectoring Altitude (MVA) | [minimum-vectoring-altitude.md](minimum-vectoring-altitude.md) |
 | Scenario loading & aircraft generation | [scenario-loading-and-generation.md](scenario-loading-and-generation.md) |
 | Snapshots & replay | [snapshots-and-replay.md](snapshots-and-replay.md) |
 | Solo-training evaluation & scoring | [solo-training-evaluation.md](solo-training-evaluation.md) |
@@ -365,6 +366,7 @@ ProcedureLeg.cs                # Typed ARINC-424 procedure leg (path terminator 
                                # NavigationTarget: Position (LatLon) + optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
                                # TargetMach: when set, UpdateSpeed recomputes equivalent IAS each tick (Mach hold)
 LatLon.cs                      # Readonly record struct: public LatLon(double Lat, double Lon). The canonical coordinate type
+LatLonBounds.cs                # Internal: axis-aligned lat/lon bbox pre-filter shared by AirspaceVolume + MvaSector (O(1) reject before ray-cast)
                                # across Yaat.Sim / Yaat.Client / yaat-server. Field names match CRC Point DTO. No implicit tuple conversion
                                # (forces explicit `new LatLon(lat, lon)` at external-JSON boundaries so argument swaps don't slip through)
 Callsign.cs                    # Static IsValid(string?): regex ^[A-Z0-9\-]{1,7}$. Boundary check used by STARS DA/VP/FP creation
@@ -380,7 +382,7 @@ FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan�
                                # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
                                # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction
                                # Expedite: IsExpediting → 1.5x climb/descent rate; Mach hold: TargetMach → recompute IAS each tick
-GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF)
+GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF), PointInRing (even-odd ray-cast)
                                # Each primary function has scalar (double, double, double, double) and LatLon (LatLon, LatLon) overloads
                                # FootOfPerpendicular returns (LatLon Foot, double AlongNm, bool Clamped)
 ClientKind.cs                  # Static constants: Main / VStrips / VTdls identify which YAAT app a SignalR client is running.
@@ -646,8 +648,10 @@ Data/InitialContactTransferRule.cs / InitialContactTransferLoader.cs / InitialCo
 Data/WakeDirectiveRule.cs / WakeDirectiveLoader.cs / WakeDirectiveCatalog.cs
                                # ARTCC static wake waivers and wake-advisory scoring directives, loaded from Data/ARTCCs/{ARTCC}/WakeDirectives/*.json.
 Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry.
-Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspacePoint.cs / AirspaceClass.cs # Airspace model primitives plus crossing result.
+Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspaceClass.cs # Airspace model primitives plus crossing result (point-in-polygon via shared GeoMath.PointInRing + LatLonBounds).
 Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
+Data/Mva/MvaDatabase.cs / MvaSector.cs / MvaRelation.cs # FAA AIXM-derived MVA sectors: exterior-minus-holes containment + altitude Classify (Below/At/Above). See minimum-vectoring-altitude.md.
+Data/Mva/NCT_MVA_FUS3.geojson # Committed FAA NorCal TRACON MVA chart (FUS3): 150 sectors with MSL floors, built by tools/build-mva-data.py.
 Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, Airports, InitialContactTransfers, WakeDirectives — see Data/ARTCCs/README.md).
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)

@@ -180,6 +180,7 @@ public sealed class UserPreferences
     public bool EuroScopeMode => _data.EuroScopeMode;
     public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
     public bool ShowSpeechBubbles => _data.ShowSpeechBubbles;
+    public bool ShowMvaAltitudeTint => _data.ShowMvaAltitudeTint;
     public double SpeechBubbleDurationMultiplier => Math.Clamp(_data.SpeechBubbleDurationMultiplier, 0.25, 4.0);
     public bool ShowWarningSpeechBubbles => _data.ShowWarningSpeechBubbles;
     public bool AlwaysShowGroundBubblesOnRadar => _data.AlwaysShowGroundBubblesOnRadar;
@@ -661,6 +662,12 @@ public sealed class UserPreferences
     public void SetShowSpeechBubbles(bool enabled)
     {
         _data.ShowSpeechBubbles = enabled;
+        Save();
+    }
+
+    public void SetShowMvaAltitudeTint(bool enabled)
+    {
+        _data.ShowMvaAltitudeTint = enabled;
         Save();
     }
 
@@ -1531,6 +1538,7 @@ public sealed class UserPreferences
         public bool EuroScopeMode { get; set; }
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowSpeechBubbles { get; set; }
+        public bool ShowMvaAltitudeTint { get; set; } = true;
         public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;
         public bool ShowWarningSpeechBubbles { get; set; }
         public bool AlwaysShowGroundBubblesOnRadar { get; set; }

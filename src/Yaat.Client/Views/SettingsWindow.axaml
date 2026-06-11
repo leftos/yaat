@@ -400,6 +400,13 @@
                         <TextBlock Text="Overlays"
                                    FontWeight="SemiBold" />
                         <StackPanel Spacing="4">
+                            <CheckBox Content="Tint datablock altitude by MVA (red below, amber at)"
+                                      IsChecked="{Binding ShowMvaAltitudeTint}" />
+                            <TextBlock Text="When enabled, an airborne IFR aircraft's datablock altitude is drawn red when below the FAA-charted Minimum Vectoring Altitude for its position and amber when within 100 ft of it. Covers the loaded facility's MVA sectors; no indicator outside coverage or for VFR (MSAW-inhibited by default)."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11"
+                                       Margin="28,0,0,0" />
                             <CheckBox Content="Show speech bubbles for SAY and pilot transmissions"
                                       IsChecked="{Binding ShowSpeechBubbles}" />
                             <TextBlock Text="When enabled, SAY-family verbs (SAY, SALT, SHDG, SPOS, SSPD, SMACH, SEAPP) and RPO pilot transmissions briefly overlay the aircraft on the Radar and Ground views with a transient bubble. Off in solo-training mode (TTS plays the pilot voice instead). A ground aircraft's bubble also appears on the Radar view when no Ground view is currently showing its airport, so prompts aren't missed."

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Minimum Vectoring Altitude (MVA) awareness on the Radar view** — YAAT now knows the FAA-charted MVA for NorCal TRACON (NCT) and surfaces it three ways: an airborne IFR aircraft's datablock altitude is drawn red when it is below the MVA for its position and amber when within 100 ft of it (both the STARS datablock and the EuroScope tag); holding Ctrl while moving the cursor shows the MVA floor and sector under the pointer; and right-clicking empty map space lists the MVA at that point. VFR aircraft (MSAW-inhibited by default) and positions outside NorCal coverage show no indicator. The datablock tint can be toggled in Settings → Display → Overlays. (7110.65 §5-6-1.)
+
 ## v0.7.11-beta [2026/06/10]
 
 ### Highlights

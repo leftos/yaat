@@ -2,6 +2,7 @@ using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
+using Yaat.Sim.Data.Mva;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -28,6 +29,11 @@ public sealed class TargetRenderer : IDisposable
     // Instructor-note line color — amber/gold, distinct from white datablock text, red
     // NoLndgClnc, green ground/SAY, and cyan highlight.
     private static readonly SKColor NoteColor = new(255, 200, 60);
+
+    // MVA datablock altitude tint: red when below the charted sector floor, amber within the "at" band.
+    private static readonly SKColor MvaBelowColor = new(255, 90, 90);
+    private static readonly SKColor MvaAtColor = new(255, 200, 60);
+    private const int MvaAtBandFt = 100;
 
     // STARS TPA graphics color (CRC's TCW value, DisplayElementTracks: Color.FromArgb(90, 180, 255)) —
     // used for the instructor J-Ring / Cone overlay so it reads like the TPA graphics a controller sees.
@@ -212,6 +218,12 @@ public sealed class TargetRenderer : IDisposable
     /// aircraft. Driven by the <c>ShowSpeechBubbles</c> user preference. Default false (opt-in).
     /// </summary>
     public bool ShowSpeechBubbles { get; set; }
+
+    /// <summary>
+    /// Tints the datablock altitude field by the aircraft's relationship to the charted MVA floor
+    /// (red below, amber within ±100 ft). Driven by the <c>ShowMvaAltitudeTint</c> user preference.
+    /// </summary>
+    public bool ShowMvaAltitudeTint { get; set; } = true;
 
     /// <summary>
     /// When true, color each datablock to match the student's STARS scope (white = owned by student,
@@ -555,6 +567,53 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawCircle(cx, cy, SymbolSize, _symbolPaint);
     }
 
+    /// <summary>
+    /// The MVA altitude-tint color for an aircraft, or null when the altitude field should render in the
+    /// normal block color (tint disabled, on the ground, MSAW-inhibited, above the floor, or outside MVA
+    /// coverage). VFR is MSAW-inhibited by default (7110.65 §5-14-7); an explicit per-aircraft inhibit
+    /// flag would extend this gate.
+    /// </summary>
+    private SKColor? ResolveMvaAltitudeTint(AircraftModel ac)
+    {
+        if (!ShowMvaAltitudeTint || ac.IsOnGround || ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var (relation, _) = MvaDatabase.Default.Classify(ac.Position, ac.Altitude, MvaAtBandFt);
+        return relation switch
+        {
+            MvaRelation.Below => MvaBelowColor,
+            MvaRelation.At => MvaAtColor,
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Draws a datablock altitude line, tinting the leading altitude token (everything before the first
+    /// space) when <paramref name="altTint"/> is set and leaving the rest of the line in the block color.
+    /// </summary>
+    private void DrawAltitudeLine(SKCanvas canvas, string line, float x, float baseline, SKColor? altTint)
+    {
+        if (altTint is not { } tint || line.Length == 0)
+        {
+            canvas.DrawText(line, x, baseline, _dataBlockPaint);
+            return;
+        }
+
+        int space = line.IndexOf(' ');
+        string altToken = space < 0 ? line : line[..space];
+        var prev = _dataBlockPaint.Color;
+        _dataBlockPaint.Color = tint;
+        canvas.DrawText(altToken, x, baseline, _dataBlockPaint);
+        _dataBlockPaint.Color = prev;
+        if (space >= 0)
+        {
+            float altWidth = _dataBlockPaint.MeasureText(altToken);
+            canvas.DrawText(line[space..], x + altWidth, baseline, _dataBlockPaint);
+        }
+    }
+
     private SKRect DrawLeaderAndDataBlock(
         SKCanvas canvas,
         float cx,
@@ -608,7 +667,7 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawLine(cx, cy, leaderEndStars.X, leaderEndStars.Y, _leaderPaint);
 
         canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, _dataBlockPaint);
-        canvas.DrawText(layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, _dataBlockPaint);
+        DrawAltitudeLine(canvas, layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, ResolveMvaAltitudeTint(ac));
 
         int row = 2;
         if (layout.Line3.Length > 0)
@@ -710,6 +769,7 @@ public sealed class TargetRenderer : IDisposable
     {
         var result = EuroScopeTagLayout.Layout(ac, blockX, blockY, _dataBlockPaint, LocalUserInitials, FlashNoLandingClearance);
         _lastEuroScopeTags[ac.Callsign] = result;
+        var mvaTint = ResolveMvaAltitudeTint(ac);
 
         if (isSelected)
         {
@@ -735,6 +795,15 @@ public sealed class TargetRenderer : IDisposable
             {
                 var prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = NoteColor;
+                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
+                _dataBlockPaint.Color = prev;
+                continue;
+            }
+
+            if (f.Field == TagFieldId.CurrentAltitude && mvaTint is { } altTint)
+            {
+                var prev = _dataBlockPaint.Color;
+                _dataBlockPaint.Color = altTint;
                 canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
                 continue;

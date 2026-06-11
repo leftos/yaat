@@ -10,6 +10,7 @@ using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Mva;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Views.Radar;
@@ -1382,6 +1383,17 @@ public partial class RadarView
             );
             menu.Items.Add(new Separator());
         }
+
+        // MVA at the clicked point (FAA-charted; only the loaded facility's coverage, null elsewhere).
+        var mvaSector = MvaDatabase.Default.FindSector(new LatLon(lat, lon));
+        menu.Items.Add(
+            new MenuItem
+            {
+                Header = mvaSector is null ? "MVA: no data here" : $"MVA {mvaSector.FloorFtMsl} ft ({mvaSector.Sector})",
+                IsEnabled = false,
+            }
+        );
+        menu.Items.Add(new Separator());
 
         if (vm.SelectedAircraft is not null)
         {
