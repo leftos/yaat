@@ -49,6 +49,12 @@ public class VStripsViewModelTests
     private static StripItemDto HalfStrip(string id, string firstLine) =>
         new(id, AircraftId: null, IsDisconnected: false, StripItemType.HalfStripLeft, IsOffset: false, FieldValues: [firstLine]);
 
+    private static StripItemDto Separator(string id, StripItemType style) =>
+        new(id, AircraftId: null, IsDisconnected: false, style, IsOffset: false, FieldValues: [""]);
+
+    private static StripItemDto BlankStrip(string id) =>
+        new(id, AircraftId: null, IsDisconnected: false, StripItemType.BlankStrip, IsOffset: false, FieldValues: []);
+
     private static FlightStripsStateDto State(string[]? printer = null, params (string BayId, string[][] Racks)[] bays) =>
         new(
             PrinterItems: printer ?? [],
@@ -789,6 +795,31 @@ public class VStripsViewModelTests
     }
 
     [Fact]
+    public async Task CreateHalfStrip_FlagSurvivesBroadcastArrivingDuringDispatch()
+    {
+        // Reproduces the live SignalR ordering: the StripItemsChanged broadcast
+        // (ReconcileItems) lands while _sendCommand is still in flight — before
+        // any code after the await runs. The focus flag must already be armed by
+        // then, so it must be set BEFORE dispatch, not after.
+        VStripsViewModel? vm = null;
+        vm = new VStripsViewModel(
+            FakeConnection(),
+            sendCommand: (_, _, _) =>
+            {
+                vm!.ReconcileItems([HalfStrip("HSTRIP_new", "")]);
+                return Task.CompletedTask;
+            },
+            getUserInitials: null
+        );
+        SeedBays(vm, SimpleConfig());
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        await vm.CreateHalfStripAsync(bay, 0, []);
+
+        Assert.True(vm.ItemsByIdForTests["HSTRIP_new"].RequestFocusFirstCell);
+    }
+
+    [Fact]
     public void NewHalfStrip_WithoutLocalCreate_IsNotMarkedForFocus()
     {
         var (vm, _) = MakeVm();
@@ -814,5 +845,89 @@ public class VStripsViewModelTests
         vm.ReconcileItems([FullStrip("STRIP_full", "UAL1")]);
 
         Assert.False(vm.ItemsByIdForTests["STRIP_full"].RequestFocusFirstCell);
+    }
+
+    // ── Auto-focus on separator create ───────────────────────────
+
+    [Fact]
+    public async Task CreateSeparator_MarksNewStripForFocus()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, bay, 0, index: null, label: null);
+        vm.ReconcileItems([Separator("SEP_new", StripItemType.HandwrittenSeparator)]);
+
+        Assert.True(vm.ItemsByIdForTests["SEP_new"].RequestFocusFirstCell);
+    }
+
+    [Fact]
+    public void NewSeparator_WithoutLocalCreate_IsNotMarkedForFocus()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+
+        vm.ReconcileItems([Separator("SEP_remote", StripItemType.WhiteSeparator)]);
+
+        Assert.False(vm.ItemsByIdForTests["SEP_remote"].RequestFocusFirstCell);
+    }
+
+    [Fact]
+    public async Task CreateSeparator_WhenLocked_DoesNotArmFocus()
+    {
+        var (vm, captured) = MakeVm();
+        var locked = SimpleConfig() with { SeparatorsLocked = true };
+        SeedBays(vm, locked);
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        // Locked separators short-circuit before dispatch, so no command is sent
+        // and no focus flag is armed for the (illegitimate) next separator.
+        await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, bay, 0, index: null, label: null);
+        vm.ReconcileItems([Separator("SEP_x", StripItemType.HandwrittenSeparator)]);
+
+        Assert.Empty(captured);
+        Assert.False(vm.ItemsByIdForTests["SEP_x"].RequestFocusFirstCell);
+    }
+
+    // ── Auto-focus on blank create ───────────────────────────────
+
+    [Fact]
+    public async Task CreateBlank_MarksNewStripForFocus()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        await vm.CreateBlankAsync(bay, 0, index: null);
+        vm.ReconcileItems([BlankStrip("BLANK_new")]);
+
+        Assert.True(vm.ItemsByIdForTests["BLANK_new"].RequestFocusFirstCell);
+    }
+
+    [Fact]
+    public void NewBlank_WithoutLocalCreate_IsNotMarkedForFocus()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+
+        vm.ReconcileItems([BlankStrip("BLANK_remote")]);
+
+        Assert.False(vm.ItemsByIdForTests["BLANK_remote"].RequestFocusFirstCell);
+    }
+
+    [Fact]
+    public async Task CreateSeparator_DoesNotMarkSubsequentHalfStrip()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+
+        // A separator's pending focus must not be claimed by a half-strip of a
+        // different category arriving first.
+        await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, bay, 0, index: null, label: null);
+        vm.ReconcileItems([HalfStrip("HSTRIP_other", "")]);
+
+        Assert.False(vm.ItemsByIdForTests["HSTRIP_other"].RequestFocusFirstCell);
     }
 }

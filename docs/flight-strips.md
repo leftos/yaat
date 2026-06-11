@@ -557,21 +557,28 @@ reconciles via `ReconcileFullState`/`ReconcileItems`, and emits every
 user action as a canonical command through `_sendCommand`. Supports
 drag/drop, keyboard shortcuts, and offset/offset-reverse annotation.
 
-**Auto-focus on half-strip create.** When *this* client creates a
-half-strip (`HSC` via the empty-rack "Add half-strip" menu item or
-`Ctrl+Shift+H`), the new strip's first inline cell (`h0`) receives
-keyboard focus so the controller can type immediately.
-`CreateHalfStripAsync` sets `VStripsViewModel._pendingFocusOnNewHalfStrip`
-after dispatch; the next `ReconcileItems` pass that constructs a new
-half-strip VM consumes the flag and sets
-`StripItemViewModel.RequestFocusFirstCell`. `FlightStripControl`
-reads that flag once in `OnAttachedToVisualTree` and focuses the visible
-`h0` cell (`Dispatcher.Post` at `Loaded` priority). This relies on the
-server sending the incremental item broadcast *before* the full-state
-broadcast (`StripCommandHandler.HandleHalfStripCreateAsync`), so the VM
-is flagged before the control materializes. The flag is never set for
-remote/CRC-created strips, so focus is never stolen. Mirrors the
-`StripPrinterViewModel.RequestFocusOnNewBlank` pending-flag pattern.
+**Auto-focus on strip create.** When *this* client creates a half-strip
+(`HSC`), a separator (`SEP`), or a blank strip (blank create), the new
+strip's first editable field receives keyboard focus (text selected) so
+the controller can type immediately — `h0` for a half-strip, the `sep`
+label for a separator, annotation cell `1` for a blank. Each create method
+arms a pending flag (`_pendingFocusOnNewHalfStrip` /
+`_pendingFocusOnNewSeparator` / `_pendingFocusOnNewBlankField`) **before**
+dispatch; the next `ReconcileItems` pass that constructs a new VM of the
+matching category consumes it (`ConsumePendingFocus`) and sets
+`StripItemViewModel.RequestFocusFirstCell`. `FlightStripControl` applies
+the focus once in `TryApplyRequestedFocus` (`Dispatcher.Post` at `Loaded`
+priority), called from both `OnAttachedToVisualTree` (rack realizes a new
+container) and `OnDataContextChanged` (the printer carousel reuses one
+control and swaps DataContext), guarded by a visual-root check so the
+DataContext-set-before-attach ordering defers to the attach call.
+
+The flag must be armed *before* dispatch because the server broadcasts the
+new item (`StripItemsChanged` → `ReconcileItems`) before the `_sendCommand`
+`InvokeAsync` completion resumes the create method's continuation — a flag
+set after `await` is missed by that broadcast's reconcile (the cause of the
+historical "half-strip focus never lands" bug). Flags are never armed for
+remote/CRC-created strips, so focus is never stolen.
 
 The same view is also served as a browser app at `/vstrips/` from
 the yaat-server via the `tools/Yaat.VStrips.Web` WASM bundle, which

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Creating a vStrips strip focuses its first field** — new half-strips, separators, and blank strips drop your cursor into the first editable field so you can type immediately.
+
 ## v0.7.10-beta [2026/06/09]
 
 ### Highlights

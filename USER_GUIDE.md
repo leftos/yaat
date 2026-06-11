@@ -565,8 +565,8 @@ Bay layout (number of racks per bay, which bays are own vs external, whether sep
 | **Departure strip** | Full-width strip printed from a filed IFR departure flight plan. 18 field slots including a 3×3 annotation grid (boxes 10–18). Auto-printed on aircraft spawn — see [Auto-printing](#auto-printing). |
 | **Arrival strip** | Full-width strip auto-printed when an airborne aircraft is within 20 minutes of destination. Same layout as departures. Only rendered if the position's ARTCC config enables arrival strips. |
 | **Half-strip** | Compact freeform note up to 6 lines, occupying either the left or right side of a rack slot. Created via the rack right-click menu, the `HSC` command, or **Ctrl+Shift+H**; the cursor lands in the new strip's first cell so you can type immediately. |
-| **Separator** | Thin colored divider (handwritten / white / red / green) with optional freeform label. Locked facilities allow handwritten only. |
-| **Blank strip** | Empty placeholder for manual annotation. Created from the printer modal or the rack right-click menu. |
+| **Separator** | Thin colored divider (handwritten / white / red / green) with optional freeform label. Locked facilities allow handwritten only. Created via the rack right-click menu, the `SEP` command, or **Ctrl+Shift+S**; the cursor lands in the new separator's label so you can name it immediately. |
+| **Blank strip** | Empty placeholder for manual annotation. Created from the printer modal or the rack right-click menu; when added to a rack the cursor lands in its first annotation cell so you can type immediately. |
 
 #### Working with strips
 

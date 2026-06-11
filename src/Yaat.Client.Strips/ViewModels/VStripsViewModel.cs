@@ -32,12 +32,16 @@ public partial class VStripsViewModel : ObservableObject
     private readonly Dictionary<string, StripItemViewModel> _items = new(StringComparer.Ordinal);
     private readonly Dictionary<string, StripBayViewModel> _baysById = new(StringComparer.Ordinal);
 
-    // Set when this client dispatches HSC and cleared by the next reconcile that
-    // produces a new half-strip, which then gets RequestFocusFirstCell so the
-    // rendered FlightStripControl focuses its first inline cell. Scopes the
-    // auto-focus to locally-created strips — remote/CRC creates never set it.
-    // Mirrors StripPrinterViewModel.RequestFocusOnNewBlank's pending-flag shape.
+    // Armed when this client dispatches a create command and cleared by the next
+    // reconcile that produces a matching new strip, which then gets
+    // RequestFocusFirstCell so the rendered FlightStripControl focuses its first
+    // editable field. Scopes the auto-focus to locally-created strips — remote/CRC
+    // creates never arm a flag. Set BEFORE dispatch: the server broadcast lands on
+    // the dispatcher before the await continuation resumes, so a flag set after
+    // dispatch would be missed by that broadcast's reconcile.
     private bool _pendingFocusOnNewHalfStrip;
+    private bool _pendingFocusOnNewSeparator;
+    private bool _pendingFocusOnNewBlankField;
 
     public ObservableCollection<StripBayViewModel> Bays { get; } = [];
     public StripPrinterViewModel Printer { get; } = new();
@@ -510,14 +514,39 @@ public partial class VStripsViewModel : ObservableObject
             else
             {
                 var created = new StripItemViewModel(dto);
-                if (_pendingFocusOnNewHalfStrip && created.IsHalfStrip)
+                if (ConsumePendingFocus(created))
                 {
                     created.RequestFocusFirstCell = true;
-                    _pendingFocusOnNewHalfStrip = false;
                 }
                 _items[dto.Id] = created;
             }
         }
+    }
+
+    /// <summary>
+    /// Returns true and clears the matching pending-focus flag when <paramref name="created"/>
+    /// is the strip this client just created (half-strip, separator, or blank). A flag is
+    /// consumed only by a strip of its own category, so a full strip or a remote create of a
+    /// different type can't claim another type's pending focus.
+    /// </summary>
+    private bool ConsumePendingFocus(StripItemViewModel created)
+    {
+        if (_pendingFocusOnNewHalfStrip && created.IsHalfStrip)
+        {
+            _pendingFocusOnNewHalfStrip = false;
+            return true;
+        }
+        if (_pendingFocusOnNewSeparator && created.IsSeparator)
+        {
+            _pendingFocusOnNewSeparator = false;
+            return true;
+        }
+        if (_pendingFocusOnNewBlankField && created.IsBlank)
+        {
+            _pendingFocusOnNewBlankField = false;
+            return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -1031,12 +1060,12 @@ public partial class VStripsViewModel : ObservableObject
 
     public async Task CreateHalfStripAsync(StripBayViewModel bay, int rack, IReadOnlyList<string> lines)
     {
+        // Arm focus before dispatch: the new strip round-trips back via ReconcileItems,
+        // which runs on the dispatcher before this await resumes, so a flag set afterward
+        // would be missed by that reconcile.
+        _pendingFocusOnNewHalfStrip = true;
         var canonical = VStripsCanonicalBuilder.BuildHalfStripCreate(bay.Name, rack, lines);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
-        // The new strip round-trips back via ReconcileItems; flag it there so the
-        // rendered control focuses its first cell. Set after dispatch (the broadcast
-        // is processed on a later dispatcher turn), mirroring PrintBlankStripAsync.
-        _pendingFocusOnNewHalfStrip = true;
     }
 
     public async Task CreateSeparatorAsync(SeparatorStyle style, StripBayViewModel bay, int rack, int? index, string? label)
@@ -1045,12 +1074,14 @@ public partial class VStripsViewModel : ObservableObject
         {
             return;
         }
+        _pendingFocusOnNewSeparator = true;
         var canonical = VStripsCanonicalBuilder.BuildSeparatorCreate(style, bay.Name, rack, index, label);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task CreateBlankAsync(StripBayViewModel? bay, int? rack, int? index)
     {
+        _pendingFocusOnNewBlankField = true;
         var canonical = VStripsCanonicalBuilder.BuildBlankCreate(bay?.Name, rack, index);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }

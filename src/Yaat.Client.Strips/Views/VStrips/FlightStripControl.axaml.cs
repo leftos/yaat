@@ -50,36 +50,60 @@ public partial class FlightStripControl : UserControl
         }
         RefreshVisuals();
         RefreshRouteBlocks();
+        TryApplyRequestedFocus();
     }
 
-    /// <summary>
-    /// Auto-focuses the first inline cell of a half-strip this client just
-    /// created. <see cref="VStripsViewModel.ReconcileItems"/> sets
-    /// <see cref="StripItemViewModel.RequestFocusFirstCell"/> on the new VM, and
-    /// this control reads it once on attach (the VM is already wired as
-    /// DataContext by then, because the incremental item broadcast runs before
-    /// the full-state placement that materializes this control). Focus is posted
-    /// at <see cref="DispatcherPriority.Loaded"/> so the cell is laid out first —
-    /// the same pattern as InlineTextEditPopup.
-    /// </summary>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-
-        if (DataContext is StripItemViewModel { IsHalfStrip: true, RequestFocusFirstCell: true } vm)
-        {
-            vm.RequestFocusFirstCell = false;
-            Dispatcher.UIThread.Post(
-                () =>
-                {
-                    var cell = FirstVisibleHalfCell();
-                    cell?.Focus();
-                    cell?.SelectAll();
-                },
-                DispatcherPriority.Loaded
-            );
-        }
+        TryApplyRequestedFocus();
     }
+
+    /// <summary>
+    /// Auto-focuses the first editable field of a half-strip, separator, or blank
+    /// strip this client just created. <see cref="VStripsViewModel.ReconcileItems"/>
+    /// sets <see cref="StripItemViewModel.RequestFocusFirstCell"/> on the new VM;
+    /// this control reads it once and resets it. Called from both
+    /// <c>OnAttachedToVisualTree</c> (a rack realizes a new container) and
+    /// <c>OnDataContextChanged</c> (the printer carousel reuses one control and
+    /// swaps DataContext) so either realization path applies focus; the visual-root
+    /// guard makes the DataContext-set-before-attach ordering defer to the attach
+    /// call. Focus is posted at <see cref="DispatcherPriority.Loaded"/> so the field
+    /// is laid out first — the same pattern as InlineTextEditPopup.
+    /// </summary>
+    private void TryApplyRequestedFocus()
+    {
+        if (DataContext is not StripItemViewModel { RequestFocusFirstCell: true } vm)
+        {
+            return;
+        }
+        if (this.GetVisualRoot() is null)
+        {
+            return;
+        }
+        vm.RequestFocusFirstCell = false;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                var field = FirstEditableField(vm);
+                field?.Focus();
+                field?.SelectAll();
+            },
+            DispatcherPriority.Loaded
+        );
+    }
+
+    // First editable field per strip type: half-strips edit cell "h0", separators
+    // their single "sep" label, and blank (full-layout) strips the top-left
+    // annotation cell "1". Other full strips have no inline-create field.
+    private TextBox? FirstEditableField(StripItemViewModel vm) =>
+        vm switch
+        {
+            { IsHalfStrip: true } => FirstVisibleField("h0"),
+            { IsSeparator: true } => FirstVisibleField("sep"),
+            { IsBlank: true } => FirstVisibleField("1"),
+            _ => null,
+        };
 
     private void OnVisualPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
@@ -455,14 +479,16 @@ public partial class FlightStripControl : UserControl
         return null;
     }
 
-    // The template has two "h0" cells (left grid for HalfStripLeft, right grid
-    // for HalfStripRight); only the side matching the strip type is effectively
-    // visible. Focus the visible one — Focus() on a hidden control is a no-op.
-    private TextBox? FirstVisibleHalfCell()
+    // Returns the first effectively-visible TextBox with the given Tag. The
+    // template hosts duplicate tags hidden behind IsVisible bindings — two "h0"
+    // cells (HalfStripLeft vs HalfStripRight) and four "sep" labels (one per
+    // separator style) — so only the side/style matching the strip type is
+    // visible. Focus the visible one; Focus() on a hidden control is a no-op.
+    private TextBox? FirstVisibleField(string tag)
     {
         foreach (var descendant in this.GetVisualDescendants())
         {
-            if (descendant is TextBox { Tag: "h0" } candidate && candidate.IsEffectivelyVisible)
+            if (descendant is TextBox candidate && Equals(candidate.Tag, tag) && candidate.IsEffectivelyVisible)
             {
                 return candidate;
             }

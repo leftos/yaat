@@ -600,12 +600,57 @@ public class VStripsViewInteractionTests
         // VM and marks it for focus), then full-state placement (materializes
         // the FlightStripControl in rack 0) — the server's actual order.
         vm.ReconcileItems([NewHalfStripDto("HSTRIP_abc12345")]);
-        vm.ReconcileFullState(HalfStripInBayState("HSTRIP_abc12345"));
+        vm.ReconcileFullState(SingleStripInGroundRack("HSTRIP_abc12345"));
         RealizeContainers(view);
 
-        var h0 = FindVisibleH0(view, "HSTRIP_abc12345");
+        var h0 = FindVisibleField(view, "HSTRIP_abc12345", "h0");
         Assert.NotNull(h0);
         Assert.True(h0!.IsFocused, "First half-strip cell (h0) should be focused after create");
+    }
+
+    [AvaloniaFact]
+    public async Task CreateSeparator_FocusesLabel()
+    {
+        // Creating a separator auto-focuses its single label field so the
+        // controller can name the band immediately. Same VStripsView /
+        // FlightStripControl as the desktop and webapp builds.
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var (_, view) = BootView(vm);
+
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        await vm.CreateSeparatorAsync(SeparatorStyle.Handwritten, bay, 0, index: null, label: null);
+        Assert.StartsWith("SEP ", captured[^1].Command);
+
+        vm.ReconcileItems([NewSeparatorDto("SEP_abc12345")]);
+        vm.ReconcileFullState(SingleStripInGroundRack("SEP_abc12345"));
+        RealizeContainers(view);
+
+        var sep = FindVisibleField(view, "SEP_abc12345", "sep");
+        Assert.NotNull(sep);
+        Assert.True(sep!.IsFocused, "Separator label should be focused after create");
+    }
+
+    [AvaloniaFact]
+    public async Task CreateBlank_FocusesFirstAnnotationCell()
+    {
+        // Creating a blank strip auto-focuses its first annotation cell (Tag "1")
+        // — the top-left of the hand-annotation grid, the blank's first editable
+        // field.
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var (_, view) = BootView(vm);
+
+        var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        await vm.CreateBlankAsync(bay, 0, index: null);
+
+        vm.ReconcileItems([NewBlankDto("BLANK_abc12345")]);
+        vm.ReconcileFullState(SingleStripInGroundRack("BLANK_abc12345"));
+        RealizeContainers(view);
+
+        var cell = FindVisibleField(view, "BLANK_abc12345", "1");
+        Assert.NotNull(cell);
+        Assert.True(cell!.IsFocused, "First annotation cell of a blank strip should be focused after create");
     }
 
     [AvaloniaFact]
@@ -619,10 +664,10 @@ public class VStripsViewInteractionTests
         var (_, view) = BootView(vm);
 
         vm.ReconcileItems([NewHalfStripDto("HSTRIP_remote01")]);
-        vm.ReconcileFullState(HalfStripInBayState("HSTRIP_remote01"));
+        vm.ReconcileFullState(SingleStripInGroundRack("HSTRIP_remote01"));
         RealizeContainers(view);
 
-        var h0 = FindVisibleH0(view, "HSTRIP_remote01");
+        var h0 = FindVisibleField(view, "HSTRIP_remote01", "h0");
         Assert.NotNull(h0);
         Assert.False(h0!.IsFocused, "A remotely-created half-strip must not steal focus");
     }
@@ -632,7 +677,15 @@ public class VStripsViewInteractionTests
     private static StripItemDto NewHalfStripDto(string id) =>
         new(id, AircraftId: null, IsDisconnected: false, StripItemType.HalfStripLeft, IsOffset: false, FieldValues: [""]);
 
-    private static FlightStripsStateDto HalfStripInBayState(string id) =>
+    private static StripItemDto NewSeparatorDto(string id) =>
+        new(id, AircraftId: null, IsDisconnected: false, StripItemType.HandwrittenSeparator, IsOffset: false, FieldValues: [""]);
+
+    private static StripItemDto NewBlankDto(string id) =>
+        new(id, AircraftId: null, IsDisconnected: false, StripItemType.BlankStrip, IsOffset: false, FieldValues: []);
+
+    // Places a single strip id in bay-gnd rack 0 — type-agnostic, so half-strips,
+    // separators, and blanks all reuse it for the full-state placement step.
+    private static FlightStripsStateDto SingleStripInGroundRack(string id) =>
         new(
             PrinterItems: [],
             BayItems:
@@ -651,12 +704,12 @@ public class VStripsViewInteractionTests
             ItemMovedOrCreatedBySessionId: null
         );
 
-    private static TextBox? FindVisibleH0(VStripsView view, string stripId)
+    private static TextBox? FindVisibleField(VStripsView view, string stripId, string tag)
     {
         var stripControl = view.GetVisualDescendants()
             .OfType<FlightStripControl>()
             .SingleOrDefault(c => (c.DataContext as StripItemViewModel)?.Id == stripId);
-        return stripControl?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => (t.Tag as string) == "h0" && t.IsEffectivelyVisible);
+        return stripControl?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => (t.Tag as string) == tag && t.IsEffectivelyVisible);
     }
 
     // Re-realizes nested ItemsControls (the per-rack strips host) and flushes
