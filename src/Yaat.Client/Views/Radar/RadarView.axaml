@@ -466,15 +466,28 @@
                             <ItemsControl ItemsSource="{Binding MapToggles}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:VideoMapToggleItem">
-                                        <CheckBox IsChecked="{Binding IsEnabled}"
-                                                  IsVisible="{Binding IsVisible}"
-                                                  Click="OnMapToggleClick"
-                                                  Margin="0,1"
-                                                  FontSize="11"
-                                                  FontFamily="{StaticResource MonoFont}"
-                                                  Foreground="#00B800">
-                                            <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
-                                        </CheckBox>
+                                        <Grid ColumnDefinitions="14,*"
+                                              Margin="0,1"
+                                              Background="Transparent"
+                                              IsVisible="{Binding IsVisible}"
+                                              ContextRequested="OnMapRowContextRequested"
+                                              ToolTip.Tip="Right-click to favorite for ARTCC, airport, or scenario">
+                                            <TextBlock Grid.Column="0"
+                                                       Text="★"
+                                                       IsVisible="{Binding IsFavorite}"
+                                                       Foreground="#00E000"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center" />
+                                            <CheckBox Grid.Column="1"
+                                                      IsChecked="{Binding IsEnabled}"
+                                                      Click="OnMapToggleClick"
+                                                      FontSize="11"
+                                                      FontFamily="{StaticResource MonoFont}"
+                                                      Foreground="#00B800">
+                                                <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
+                                            </CheckBox>
+                                        </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>

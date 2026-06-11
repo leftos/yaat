@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using SkiaSharp;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
@@ -241,7 +242,7 @@ public partial class RadarView : UserControl
                 if (DataContext is RadarViewModel vm)
                 {
                     vm.MapSearchText = "";
-                    vm.SortMapTogglesEnabledFirst();
+                    vm.SortMapTogglesFavoritesFirst();
                 }
             }
         }
@@ -275,6 +276,62 @@ public partial class RadarView : UserControl
         {
             vm.SyncShortcutState(toggle.StarsId, toggle.IsEnabled);
         }
+    }
+
+    private void OnMapRowContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not Control { DataContext: VideoMapToggleItem item } row || DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu
+        {
+            Items =
+            {
+                BuildFavoriteMenuItem(vm.ArtccFavoriteMenuHeader, item.IsFavoriteArtcc, true, item, FavoriteMapScope.Artcc, vm),
+                BuildFavoriteMenuItem(
+                    vm.AirportFavoriteMenuHeader,
+                    item.IsFavoriteAirport,
+                    vm.HasAirportFavoriteScope,
+                    item,
+                    FavoriteMapScope.Airport,
+                    vm
+                ),
+                BuildFavoriteMenuItem(
+                    "Favorite for this scenario",
+                    item.IsFavoriteScenario,
+                    vm.HasScenarioFavoriteScope,
+                    item,
+                    FavoriteMapScope.Scenario,
+                    vm
+                ),
+            },
+        };
+        FlyoutAppearance.ApplyFontSize(menu);
+
+        menu.Open(row);
+        e.Handled = true;
+    }
+
+    private static MenuItem BuildFavoriteMenuItem(
+        string header,
+        bool isChecked,
+        bool isEnabled,
+        VideoMapToggleItem item,
+        FavoriteMapScope scope,
+        RadarViewModel vm
+    )
+    {
+        var menuItem = new MenuItem
+        {
+            Header = header,
+            ToggleType = MenuItemToggleType.CheckBox,
+            IsChecked = isChecked,
+            IsEnabled = isEnabled,
+        };
+        menuItem.Click += (_, _) => vm.ToggleMapFavorite(item, scope);
+        return menuItem;
     }
 
     private void OnRangeClick(object? sender, RoutedEventArgs e)

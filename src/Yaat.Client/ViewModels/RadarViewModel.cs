@@ -53,6 +53,8 @@ public partial class RadarViewModel : ObservableObject
     private readonly Action<AircraftModel?>? _onSelectionChanged;
 
     private string? _activeScenarioId;
+    private string? _activeArtccId;
+    private string? _activeAirportId;
     private UserPreferences? _preferences;
     private bool _isRestoring;
     private Func<string, double?>? _getAirportElevation;
@@ -163,6 +165,18 @@ public partial class RadarViewModel : ObservableObject
 
     [ObservableProperty]
     private string _mapSearchText = "";
+
+    [ObservableProperty]
+    private string _artccFavoriteMenuHeader = "Favorite for ARTCC";
+
+    [ObservableProperty]
+    private string _airportFavoriteMenuHeader = "Favorite for airport";
+
+    [ObservableProperty]
+    private bool _hasAirportFavoriteScope;
+
+    [ObservableProperty]
+    private bool _hasScenarioFavoriteScope;
 
     [ObservableProperty]
     private bool _showTopDown;
@@ -413,6 +427,9 @@ public partial class RadarViewModel : ObservableObject
             }
 
             _activeScenarioId = scenarioId;
+            _activeArtccId = string.IsNullOrWhiteSpace(artccId) ? null : artccId.ToUpperInvariant();
+            _activeAirportId = MainViewModel.NormalizeFavoriteAirportId(airportId);
+            UpdateFavoriteScopeState();
             ApplyVideoMapsDto(dto);
 
             // Download all referenced maps
@@ -473,6 +490,7 @@ public partial class RadarViewModel : ObservableObject
                 StarsId = map.StarsId,
                 IsEnabled = false,
             };
+            PopulateFavoriteFlags(item);
             item.PropertyChanged += (_, _) =>
             {
                 UpdateActiveMaps();
@@ -480,6 +498,8 @@ public partial class RadarViewModel : ObservableObject
             };
             MapToggles.Add(item);
         }
+
+        SortMapTogglesFavoritesFirst();
 
         // Build map shortcuts: prefer position-scoped mapGroup if set,
         // otherwise fall back to first mapGroup from the DTO.
@@ -551,9 +571,9 @@ public partial class RadarViewModel : ObservableObject
         );
     }
 
-    public void SortMapTogglesEnabledFirst()
+    public void SortMapTogglesFavoritesFirst()
     {
-        var sorted = MapToggles.OrderByDescending(t => t.IsEnabled).ThenBy(t => t.StarsId).ToList();
+        var sorted = MapToggles.OrderByDescending(t => t.IsFavorite).ThenByDescending(t => t.IsEnabled).ThenBy(t => t.StarsId).ToList();
         for (int i = 0; i < sorted.Count; i++)
         {
             int current = MapToggles.IndexOf(sorted[i]);
@@ -562,6 +582,81 @@ public partial class RadarViewModel : ObservableObject
                 MapToggles.Move(current, i);
             }
         }
+    }
+
+    /// <summary>
+    /// Sets the per-scope favorite flags on a toggle from saved preferences, using the
+    /// scope keys captured when the current facility's maps were loaded.
+    /// </summary>
+    private void PopulateFavoriteFlags(VideoMapToggleItem item)
+    {
+        if (_preferences is null)
+        {
+            return;
+        }
+
+        item.IsFavoriteArtcc = (_activeArtccId is not null) && _preferences.IsFavoriteVideoMap(FavoriteMapScope.Artcc, _activeArtccId, item.MapId);
+        item.IsFavoriteAirport =
+            (_activeAirportId is not null) && _preferences.IsFavoriteVideoMap(FavoriteMapScope.Airport, _activeAirportId, item.MapId);
+        item.IsFavoriteScenario =
+            (_activeScenarioId is not null) && _preferences.IsFavoriteVideoMap(FavoriteMapScope.Scenario, _activeScenarioId, item.MapId);
+    }
+
+    /// <summary>
+    /// Toggles whether <paramref name="item"/> is a favorite under the given scope, persists the
+    /// change, and re-sorts so favorites stay pinned to the top of the list. No-op when the scope's
+    /// key is unavailable (e.g. a scenario with no primary airport).
+    /// </summary>
+    public void ToggleMapFavorite(VideoMapToggleItem item, FavoriteMapScope scope)
+    {
+        if (_preferences is null)
+        {
+            return;
+        }
+
+        var key = scope switch
+        {
+            FavoriteMapScope.Artcc => _activeArtccId,
+            FavoriteMapScope.Airport => _activeAirportId,
+            FavoriteMapScope.Scenario => _activeScenarioId,
+            _ => null,
+        };
+        if (key is null)
+        {
+            return;
+        }
+
+        var newValue = scope switch
+        {
+            FavoriteMapScope.Artcc => !item.IsFavoriteArtcc,
+            FavoriteMapScope.Airport => !item.IsFavoriteAirport,
+            FavoriteMapScope.Scenario => !item.IsFavoriteScenario,
+            _ => false,
+        };
+
+        switch (scope)
+        {
+            case FavoriteMapScope.Artcc:
+                item.IsFavoriteArtcc = newValue;
+                break;
+            case FavoriteMapScope.Airport:
+                item.IsFavoriteAirport = newValue;
+                break;
+            case FavoriteMapScope.Scenario:
+                item.IsFavoriteScenario = newValue;
+                break;
+        }
+
+        _preferences.SetFavoriteVideoMap(scope, key, item.MapId, newValue);
+        SortMapTogglesFavoritesFirst();
+    }
+
+    private void UpdateFavoriteScopeState()
+    {
+        HasAirportFavoriteScope = _activeAirportId is not null;
+        HasScenarioFavoriteScope = _activeScenarioId is not null;
+        ArtccFavoriteMenuHeader = _activeArtccId is null ? "Favorite for ARTCC" : $"Favorite for ARTCC ({_activeArtccId})";
+        AirportFavoriteMenuHeader = _activeAirportId is null ? "Favorite for airport" : $"Favorite for airport ({_activeAirportId})";
     }
 
     partial void OnMapSearchTextChanged(string value)
@@ -1925,6 +2020,24 @@ public partial class VideoMapToggleItem : ObservableObject
 
     [ObservableProperty]
     private bool _isVisible = true;
+
+    [ObservableProperty]
+    private bool _isFavoriteArtcc;
+
+    [ObservableProperty]
+    private bool _isFavoriteAirport;
+
+    [ObservableProperty]
+    private bool _isFavoriteScenario;
+
+    /// <summary>True when this map is favorited under any applicable scope.</summary>
+    public bool IsFavorite => IsFavoriteArtcc || IsFavoriteAirport || IsFavoriteScenario;
+
+    partial void OnIsFavoriteArtccChanged(bool value) => OnPropertyChanged(nameof(IsFavorite));
+
+    partial void OnIsFavoriteAirportChanged(bool value) => OnPropertyChanged(nameof(IsFavorite));
+
+    partial void OnIsFavoriteScenarioChanged(bool value) => OnPropertyChanged(nameof(IsFavorite));
 }
 
 /// <summary>

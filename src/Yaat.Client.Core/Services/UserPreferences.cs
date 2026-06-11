@@ -1087,6 +1087,64 @@ public sealed class UserPreferences
         Save();
     }
 
+    private Dictionary<string, List<string>> FavoriteVideoMapStore(FavoriteMapScope scope) =>
+        scope switch
+        {
+            FavoriteMapScope.Artcc => _data.FavoriteVideoMapsByArtcc,
+            FavoriteMapScope.Airport => _data.FavoriteVideoMapsByAirport,
+            FavoriteMapScope.Scenario => _data.FavoriteVideoMapsByScenario,
+            _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unknown favorite-map scope"),
+        };
+
+    /// <summary>
+    /// Returns the favorited video-map ids saved under the given scope key (ARTCC id, airport id, or
+    /// scenario id). Empty when nothing has been favorited for that key.
+    /// </summary>
+    public IReadOnlyList<string> GetFavoriteVideoMaps(FavoriteMapScope scope, string key)
+    {
+        return FavoriteVideoMapStore(scope).TryGetValue(key, out var maps) ? maps : [];
+    }
+
+    /// <summary>
+    /// True when <paramref name="mapId"/> is favorited under the given scope key.
+    /// </summary>
+    public bool IsFavoriteVideoMap(FavoriteMapScope scope, string key, string mapId)
+    {
+        return FavoriteVideoMapStore(scope).TryGetValue(key, out var maps) && maps.Contains(mapId);
+    }
+
+    /// <summary>
+    /// Adds or removes <paramref name="mapId"/> from the favorites saved under the given scope key,
+    /// dropping the key entirely when its last favorite is removed, then persists.
+    /// </summary>
+    public void SetFavoriteVideoMap(FavoriteMapScope scope, string key, string mapId, bool isFavorite)
+    {
+        var store = FavoriteVideoMapStore(scope);
+        if (isFavorite)
+        {
+            if (!store.TryGetValue(key, out var maps))
+            {
+                maps = [];
+                store[key] = maps;
+            }
+
+            if (!maps.Contains(mapId))
+            {
+                maps.Add(mapId);
+            }
+        }
+        else if (store.TryGetValue(key, out var maps))
+        {
+            maps.Remove(mapId);
+            if (maps.Count == 0)
+            {
+                store.Remove(key);
+            }
+        }
+
+        Save();
+    }
+
     public SavedGroundSettings? GetGroundSettings(string scenarioId)
     {
         _data.GroundSettings.TryGetValue(scenarioId, out var settings);
@@ -1296,6 +1354,9 @@ public sealed class UserPreferences
             IsTerminalDocked = GetFieldOr(obj, "isTerminalDocked", true),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             GroundSettings = GetFieldOr<Dictionary<string, SavedGroundSettings>>(obj, "groundSettings", []),
+            FavoriteVideoMapsByArtcc = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByArtcc", []),
+            FavoriteVideoMapsByAirport = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByAirport", []),
+            FavoriteVideoMapsByScenario = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByScenario", []),
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
             WindowProfiles = GetFieldOr<List<SavedWindowProfile>>(obj, "windowProfiles", []),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
@@ -1550,6 +1611,9 @@ public sealed class UserPreferences
         public bool IsTerminalDocked { get; set; } = true;
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];
+        public Dictionary<string, List<string>> FavoriteVideoMapsByArtcc { get; set; } = [];
+        public Dictionary<string, List<string>> FavoriteVideoMapsByAirport { get; set; } = [];
+        public Dictionary<string, List<string>> FavoriteVideoMapsByScenario { get; set; } = [];
         public Dictionary<string, double> GroundRotationByAirport { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
         public List<SavedWindowProfile> WindowProfiles { get; set; } = [];
@@ -1809,6 +1873,17 @@ public enum FavoriteCommandCategory
     Ground,
     Vehicle,
     Airport,
+}
+
+/// <summary>
+/// Scope a favorited Radar View video map is saved under: the whole ARTCC, the scenario's
+/// primary airport, or one specific scenario.
+/// </summary>
+public enum FavoriteMapScope
+{
+    Artcc,
+    Airport,
+    Scenario,
 }
 
 public static class FavoriteCommandDefaults

@@ -415,7 +415,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 
 **DCB bar** (top of the radar view):
 - **RNG +/-**: increase/decrease display range
-- **MAP**: toggle individual video maps
+- **MAP**: toggle individual video maps. Right-click a map in the list to mark it a **favorite** for the whole ARTCC, for the scenario's primary airport, or for just this scenario — favorited maps show a ★ and sort to the top of the list for quick access. Favorites only pin and sort; they do not turn maps on by themselves. Favorites are remembered across sessions, so a map you favorite for an ARTCC stays starred in every scenario in that ARTCC.
 - **Map shortcuts**: up to 6 quick-toggle buttons for frequently used map groups
 - **RR**: range ring size spinner; **PLACE RR** positions the center, **RR CNTR** resets to center
 - **FIX**: toggle fix name overlay

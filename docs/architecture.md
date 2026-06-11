@@ -216,7 +216,7 @@ Services/
   LiveWeatherService.cs         # Fetches live METARs + FD winds from aviationweather.gov → WeatherProfile
   ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached)
   FdRegionMapping.cs            # Static ARTCC → FD region code mapping
-  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. macros and favorite command scope/panel-grid/spacer metadata)
+  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. macros, favorite command scope/panel-grid/spacer metadata, and favorite video maps per ARTCC/airport/scenario)
   MenuGroup.cs                  # Enum of context menu groups (Heading, Altitude, Speed, Tower, etc.)
   ContextMenuProfile.cs         # Record: Primary/Secondary/Hidden menu groups for a phase
   ContextMenuProfileService.cs  # Static: maps phase name + isOnGround → ContextMenuProfile (which radar submenu GROUPS show)
