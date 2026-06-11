@@ -57,7 +57,11 @@ All client-side, reading `MvaDatabase.Default` + the aircraft snapshot — no se
   **MVA** button on the radar DCB. It is **session state, not persisted**: each scenario load re-seeds it
   from `UserPreferences.GetMvaHintDefault(studentPositionType)` — the four per-type defaults (Approach/
   Center on, Ground/Tower off) configured in Settings → Display → Overlays. The reset is wired alongside
-  the auto-cleared-to-land seed in `ApplyScenarioResult` / `OnScenarioLoaded` / the timeline path.
+  the auto-cleared-to-land seed in `ApplyScenarioResult` / `OnScenarioLoaded` / the timeline path, **and**
+  in `ApplyRoomState` (join). The MVA hint is **user-local**, so a joining RPO seeds it from *their own*
+  per-type default — unlike room-shared auto-cleared-to-land, which the joiner inherits from the room. The
+  join path needs the student position type, so `RoomStateDto` carries `StudentPositionType` (server +
+  client).
 - **Right-click MVA-at-point** (`RadarView.ContextMenus.OnMapRightClicked`): an informational line in
   the empty-map menu showing the floor + sector at the clicked geo point.
 - **Ctrl+hover tooltip** (`RadarCanvas` → `RadarRenderer.DrawMvaHoverLabel`): holding Ctrl while moving

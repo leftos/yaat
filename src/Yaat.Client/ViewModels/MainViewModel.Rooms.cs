@@ -657,6 +657,11 @@ public partial class MainViewModel
                 )
             );
             ApplySimState(state.IsPaused, (int)state.SimRate, state.ElapsedSeconds, state.IsPlayback, state.TapeEnd);
+
+            // MVA tint is a user-local display default (unlike room-shared auto-cleared-to-land, which
+            // arrives as its own field): a joining RPO seeds it from their own per-position-type default.
+            _studentPositionType = state.StudentPositionType;
+            Radar.ShowMvaHints = _preferences.GetMvaHintDefault(state.StudentPositionType);
         }
         else
         {

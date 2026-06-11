@@ -983,7 +983,9 @@ public record RoomStateDto(
     RundownDto? Rundown = null,
     List<TimerDto>? Timers = null,
     int CommandRunDelayMinSeconds = 0,
-    int CommandRunDelayMaxSeconds = 0
+    int CommandRunDelayMaxSeconds = 0,
+    // Student position type (APP/CTR/GND/TWR) for seeding user-local position-based defaults on join.
+    string? StudentPositionType = null
 );
 
 public record ScenarioLoadedDto(
