@@ -1408,7 +1408,7 @@ public partial class GroundViewModel : ObservableObject
         DrawnRoutePreview = _drawSubRoutes.Count > 0 ? MergeSubRoutes() : null;
     }
 
-    public (TaxiRoute Route, string Command, string NodeRefPath)? FinishDrawRoute()
+    public (TaxiRoute Route, string NodeRefPath, TaxiSpotDestination? Spot)? FinishDrawRoute()
     {
         if (_drawSubRoutes.Count == 0)
         {
@@ -1417,9 +1417,13 @@ public partial class GroundViewModel : ObservableObject
         }
 
         var merged = MergeSubRoutes();
-        // Skip index 0 (aircraft's starting node)
-        var nodeRefs = _drawWaypointIds.Skip(1).Select(id => $"#{id}");
-        var nodeRefPath = string.Join(" ", nodeRefs);
+
+        // Commit every node along the previewed route, not just the clicked waypoints. Each
+        // consecutive pair is one edge apart, so the server pins every leg to that single edge
+        // and reproduces exactly what was drawn — no parallel-taxiway substitution. When the
+        // route was drawn into a stand, carry the @parking / $spot token so the aircraft parks.
+        var spot = ResolveDrawTerminusSpot();
+        var nodeRefPath = BuildDenseNodeRefPath(merged);
         ClearDrawState();
 
         if (string.IsNullOrEmpty(nodeRefPath))
@@ -1427,7 +1431,41 @@ public partial class GroundViewModel : ObservableObject
             return null;
         }
 
-        return (merged, $"TAXI {nodeRefPath}", nodeRefPath);
+        return (merged, nodeRefPath, spot);
+    }
+
+    private static string BuildDenseNodeRefPath(TaxiRoute merged)
+    {
+        var ids = new List<int>();
+        foreach (var seg in merged.Segments)
+        {
+            if (ids.Count == 0 || ids[^1] != seg.ToNodeId)
+            {
+                ids.Add(seg.ToNodeId);
+            }
+        }
+
+        return string.Join(" ", ids.Select(id => $"#{id}"));
+    }
+
+    private TaxiSpotDestination? ResolveDrawTerminusSpot()
+    {
+        if (_domainLayout is null || _drawWaypointIds.Count == 0)
+        {
+            return null;
+        }
+
+        if (!_domainLayout.Nodes.TryGetValue(_drawWaypointIds[^1], out var node) || node.Name is null)
+        {
+            return null;
+        }
+
+        return node.Type switch
+        {
+            GroundNodeType.Spot => new TaxiSpotDestination(node.Name, IsTaxiSpot: true),
+            GroundNodeType.Parking or GroundNodeType.Helipad => new TaxiSpotDestination(node.Name, IsTaxiSpot: false),
+            _ => null,
+        };
     }
 
     public void UpdateDrawHoverPreview(int? nodeId)

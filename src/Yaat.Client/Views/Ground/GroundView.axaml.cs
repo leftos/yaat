@@ -915,7 +915,7 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var (route, _, nodeRefPath) = result.Value;
+        var (route, nodeRefPath, spot) = result.Value;
         var callsign = vm.SelectedAircraft?.Callsign;
         if (callsign is null)
         {
@@ -925,7 +925,10 @@ public partial class GroundView : UserControl
         var initials = GetInitials();
         var menu = new ContextMenu();
 
-        var variants = vm.BuildTaxiCrossingVariants(route, spot: null, pathOverride: nodeRefPath);
+        var variants = vm.BuildTaxiCrossingVariants(route, spot: spot, pathOverride: nodeRefPath);
+        // The committed command is a dense node-ref path (precise but unreadable); show the
+        // controller a readable taxiway summary instead while the Send items carry the dense path.
+        var friendlyHeader = $"TAXI {vm.BuildTaxiCommand(route)}{(spot is not null ? $" {spot.Token}" : "")}";
         if (variants.Count <= 1)
         {
             var command = variants.Count == 1 ? variants[0].Command : "";
@@ -933,7 +936,7 @@ public partial class GroundView : UserControl
             menu.Items.Add(
                 new MenuItem
                 {
-                    Header = command,
+                    Header = friendlyHeader,
                     IsEnabled = false,
                     FontWeight = Avalonia.Media.FontWeight.Bold,
                 }
@@ -944,11 +947,10 @@ public partial class GroundView : UserControl
         }
         else
         {
-            var defaultCommand = variants[^1].Command;
             menu.Items.Add(
                 new MenuItem
                 {
-                    Header = defaultCommand,
+                    Header = friendlyHeader,
                     IsEnabled = false,
                     FontWeight = Avalonia.Media.FontWeight.Bold,
                 }
@@ -968,8 +970,9 @@ public partial class GroundView : UserControl
                 "Copy to command input",
                 () =>
                 {
-                    var taxiways = vm.BuildTaxiCommand(route);
-                    ShowTaxiInput(callsign, initials, $"TAXI {taxiways}", $"TAXI {taxiways}".Length);
+                    var suffix = spot is not null ? $" {spot.Token}" : "";
+                    var taxi = $"TAXI {vm.BuildTaxiCommand(route)}{suffix}";
+                    ShowTaxiInput(callsign, initials, taxi, taxi.Length);
                     return Task.CompletedTask;
                 }
             )
