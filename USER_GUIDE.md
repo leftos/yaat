@@ -1287,7 +1287,7 @@ As you type in the command bar, a popup appears with matching suggestions:
   - **Fix names** — for DCT, DCTF, HFIX, CFIX, DEPART, AT conditions
 - **Macros** (yellow) — when typing `!`, matching macro names with parameter hints
 
-Suggestions are context-aware: after `;` or `,` separators, suggestions reset. When the input starts with a callsign, suggestions use that aircraft's data (route fixes, flight rules).
+Suggestions are context-aware: after `;` or `,` separators, suggestions reset. When the input starts with a callsign, suggestions use that aircraft's data (route fixes, flight rules). Autocomplete and signature help are turned off entirely when the line is a [chat message](#chat-messages) (it starts with `'`, `/`, or `>`), so chat text that happens to read like a command never pops a suggestion popup.
 
 #### Fix Suggestion Priority
 

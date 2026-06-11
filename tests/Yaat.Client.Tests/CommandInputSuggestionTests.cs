@@ -195,6 +195,84 @@ public class CommandInputSuggestionTests
         Assert.Equal("FOLLOW AAL1234 ".Length, accepted.Value.Caret);
     }
 
+    // --- Chat-prefix suppression ---
+    // Chat messages can contain ',' / ';' (the command fragment separators), so a chat line like
+    // "/tell him, FH 270" would otherwise have its trailing fragment parsed as a FlyHeading command.
+    // The leading chat prefix must suppress autocomplete and signature help for the whole line.
+
+    [Theory]
+    [InlineData("'tell him, FH")]
+    [InlineData("/tell him, FH")]
+    [InlineData(">tell him, FH")]
+    [InlineData("  'tell him, FH")]
+    public void ChatPrefix_SuppressesSuggestions(string text)
+    {
+        var controller = Controller();
+        IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234")];
+
+        controller.UpdateSuggestions(text, text.Length, aircraft, Scheme);
+
+        Assert.False(controller.IsSuggestionsVisible);
+        Assert.Empty(controller.Suggestions);
+    }
+
+    [Fact]
+    public void NoChatPrefix_TrailingCommandFragment_StillSuggests()
+    {
+        // Sanity: the same trailing "FH" fragment DOES produce a verb suggestion without the chat
+        // prefix, proving the suppression above is doing real work.
+        var controller = Controller();
+        IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234")];
+
+        controller.UpdateSuggestions("AAL1234, FH", "AAL1234, FH".Length, aircraft, Scheme);
+
+        Assert.True(controller.IsSuggestionsVisible);
+        Assert.Contains(controller.Suggestions, s => s.Kind == SuggestionKind.Command);
+    }
+
+    [Fact]
+    public void ChatPrefix_SuppressesSignatureHelp()
+    {
+        // "/tell him, FH 270" ends in a FlyHeading-shaped fragment, but the leading chat prefix
+        // must keep signature help hidden.
+        var controller = Controller();
+
+        controller.UpdateSignatureHelp("/tell him, FH 270", "/tell him, FH 270".Length, Scheme);
+
+        Assert.False(controller.SignatureHelp.IsVisible);
+    }
+
+    [Fact]
+    public void ChatPrefix_AppearingMidEdit_HidesAlreadyVisibleSuggestions()
+    {
+        // Suggestions are visible for a normal command, then the user prepends a chat prefix:
+        // the next update must clear and hide them.
+        var controller = Controller();
+        IReadOnlyCollection<AircraftModel> aircraft = [Ac("AAL1234")];
+
+        controller.UpdateSuggestions("FOLLOW AA", "FOLLOW AA".Length, aircraft, Scheme);
+        Assert.True(controller.IsSuggestionsVisible);
+
+        controller.UpdateSuggestions("'FOLLOW AA", "'FOLLOW AA".Length, aircraft, Scheme);
+
+        Assert.False(controller.IsSuggestionsVisible);
+        Assert.Empty(controller.Suggestions);
+    }
+
+    [Theory]
+    [InlineData("'AAL", true)]
+    [InlineData("/foo", true)]
+    [InlineData(">hi", true)]
+    [InlineData("   >hi", true)]
+    [InlineData("FH 270", false)]
+    [InlineData("AAL1234", false)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    public void StartsWithChatPrefix_DetectsLeadingPrefix(string text, bool expected)
+    {
+        Assert.Equal(expected, CommandInputController.StartsWithChatPrefix(text));
+    }
+
     [Fact]
     public void Caret_InMiddleOfFirstToken_SuggestsCallsignsAndVerbs()
     {

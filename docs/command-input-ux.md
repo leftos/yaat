@@ -88,15 +88,16 @@ When the caret is still inside the condition argument (or the prefix itself), `P
 
 1. **Suppression gate.** If `_pendingSuppressions > 0`, decrement, clear, hide, return. (See accept flow.)
 2. **History reset.** If navigating history, reset.
-3. **Condition-argument branch.** Empty `StrippedFragment` → fix/callsign suggestions for the condition arg (above).
-4. **Flood-suppression setup.** `hasUserPartial = activePartial.Length > 0 || isInsertionPoint` (`CommandInputController.cs:144`). This suppresses the "flood of all options" case where the caret is dropped at offset 0 of a non-empty token with no typed prefix.
-5. **Macro (`!`).** Active token starts with `!` → `AddMacroSuggestions` (matches `Macros` by base name).
-6. **First-token flood** (`ActiveTokenIndex == 0`, `VerbIndex <= 0`, `hasUserPartial`) → callsign + command-verb + condition suggestions together (the single-token context could be any of the three).
-7. **Callsign-at-index-0** (`ActiveTokenIndex == 0`, `VerbIndex == 1`) → callsign suggestions only.
-8. **Verb position** (`ActiveTokenIndex == 1`, first token is not a verb) → command-verb suggestions.
-9. **`AddCommandSuggester.TryAddAddArgumentSuggestions`** — the `ADD` positional state machine.
-10. **`ArgumentSuggester.TryAddArgumentSuggestions`** — registry-driven argument suggestions.
-11. **`FixSuggester.TryAddFixSuggestions`** — `DCT`-fix context.
+3. **Chat-prefix gate.** `StartsWithChatPrefix(text)` (`CommandInputController.cs`) → clear, hide, return. A line whose first non-whitespace character is `'`, `/`, or `>` is broadcast chat, not a command (the same prefix set `MainViewModel.SendCommandAsync` routes to `SendChatAsync`). Without this gate a chat line containing a `,`/`;` — e.g. `/tell him, FH 270` — would have its trailing fragment parsed as a `FlyHeading` command and pop suggestions. `UpdateSignatureHelp` applies the same gate first.
+4. **Condition-argument branch.** Empty `StrippedFragment` → fix/callsign suggestions for the condition arg (above).
+5. **Flood-suppression setup.** `hasUserPartial = activePartial.Length > 0 || isInsertionPoint` (`CommandInputController.cs:144`). This suppresses the "flood of all options" case where the caret is dropped at offset 0 of a non-empty token with no typed prefix.
+6. **Macro (`!`).** Active token starts with `!` → `AddMacroSuggestions` (matches `Macros` by base name).
+7. **First-token flood** (`ActiveTokenIndex == 0`, `VerbIndex <= 0`, `hasUserPartial`) → callsign + command-verb + condition suggestions together (the single-token context could be any of the three).
+8. **Callsign-at-index-0** (`ActiveTokenIndex == 0`, `VerbIndex == 1`) → callsign suggestions only.
+9. **Verb position** (`ActiveTokenIndex == 1`, first token is not a verb) → command-verb suggestions.
+10. **`AddCommandSuggester.TryAddAddArgumentSuggestions`** — the `ADD` positional state machine.
+11. **`ArgumentSuggester.TryAddArgumentSuggestions`** — registry-driven argument suggestions.
+12. **`FixSuggester.TryAddFixSuggestions`** — `DCT`-fix context.
 
 `MaxSuggestions = 10` (`CommandInputController.cs:11`) caps the list everywhere.
 

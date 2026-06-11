@@ -65,6 +65,18 @@ public partial class CommandInputController : ObservableObject
         return (newText, prefix.Length + value.Length + 1);
     }
 
+    /// <summary>
+    /// Returns true when the (leading-whitespace-trimmed) input begins with a character that marks
+    /// the rest of the line as a broadcast chat message rather than a controller command. Mirrors the
+    /// chat-prefix set used when sending (<c>MainViewModel.SendCommandAsync</c>). Autocomplete and
+    /// signature help are suppressed for chat input — none of the suggesters apply to free-text chat.
+    /// </summary>
+    public static bool StartsWithChatPrefix(string text)
+    {
+        var trimmed = text.AsSpan().TrimStart();
+        return trimmed.Length > 0 && trimmed[0] is '\'' or '/' or '>';
+    }
+
     public void UpdateSuggestions(
         string text,
         int caretIndex,
@@ -89,6 +101,12 @@ public partial class CommandInputController : ObservableObject
 
         Suggestions.Clear();
         SelectedSuggestionIndex = -1;
+
+        if (StartsWithChatPrefix(text))
+        {
+            IsSuggestionsVisible = false;
+            return;
+        }
 
         var parsed = ParseCommandInput(text, caretIndex, scheme);
         if (parsed is null)
@@ -206,6 +224,12 @@ public partial class CommandInputController : ObservableObject
 
     public void UpdateSignatureHelp(string text, int caretIndex, CommandScheme scheme)
     {
+        if (StartsWithChatPrefix(text))
+        {
+            SignatureHelp.Dismiss();
+            return;
+        }
+
         var parsed = ParseCommandInput(text, caretIndex, scheme);
         if (parsed is null || parsed.Definition is null || parsed.VerbIndex < 0)
         {

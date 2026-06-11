@@ -7,6 +7,7 @@
 - **The Ground view keeps an aircraft in sight up to the cloud ceiling or 6,000 ft** — like looking out the tower window, a departing or arriving aircraft now stays on the Ground view until it climbs through the reported cloud ceiling (or 6,000 ft above the field when the sky is clear), instead of dropping off at a fixed 4,000 ft. It still only shows traffic within 10 nm of the field.
 
 ### Fixed
+- **Chat messages no longer trigger command autocomplete** — when the command line starts with a chat prefix (`'`, `/`, or `>`), the autocomplete and signature-help popups stay closed, so chat text that happens to read like a command no longer pops a suggestion list.
 - **Creating a vStrips strip focuses its first field** — new half-strips, separators, and blank strips drop your cursor into the first editable field so you can type immediately.
 - **A departure no longer flickers off the Ground view at rotation** — a pre-tagged (autotrack) departure used to vanish from the Ground view for a couple of seconds the moment it lifted off, reappearing once it climbed through about 100 ft; it now stays in view continuously through liftoff.
 - **The Radar view no longer shows a departure before its altitude reads `001`** — an airborne departure now appears on YAAT's Radar view only once its displayed altitude reaches `001` (about 100 ft above the field, adjusted for field elevation), matching when CRC STARS begins the track, instead of popping up the instant the wheels leave the ground.

@@ -1704,7 +1704,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Chat messages: ' / > prefix → broadcast text, not a command
-        if (text.Length > 1 && (text[0] == '\'' || text[0] == '/' || text[0] == '>'))
+        if (text.Length > 1 && CommandInputController.StartsWithChatPrefix(text))
         {
             var chatMessage = text[1..].TrimStart();
             if (!string.IsNullOrEmpty(chatMessage))
