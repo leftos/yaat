@@ -10,7 +10,7 @@ public sealed class AirspaceVolume
     public required int LowerFtMsl { get; init; }
     public required int UpperFtMsl { get; init; }
 
-    private readonly IReadOnlyList<IReadOnlyList<AirspacePoint>> _rings = [];
+    private readonly IReadOnlyList<IReadOnlyList<LatLon>> _rings = [];
     private LatLonBounds _bounds = LatLonBounds.Empty;
 
     /// <summary>
@@ -20,7 +20,7 @@ public sealed class AirspaceVolume
     /// ever near one, so this bbox pre-filter turns a per-tick all-volumes point-in-polygon sweep
     /// (hundreds of thousands of vertex ops) into a handful of comparisons.
     /// </summary>
-    public required IReadOnlyList<IReadOnlyList<AirspacePoint>> Rings
+    public required IReadOnlyList<IReadOnlyList<LatLon>> Rings
     {
         get => _rings;
         init
@@ -49,7 +49,7 @@ public sealed class AirspaceVolume
 
         foreach (var ring in Rings)
         {
-            if (PointInRing(position, ring))
+            if (GeoMath.PointInRing(position, ring))
             {
                 return true;
             }
@@ -93,8 +93,8 @@ public sealed class AirspaceVolume
 
             for (int i = 0; i < ring.Count - 1; i++)
             {
-                var a = ring[i].ToLatLon();
-                var b = ring[i + 1].ToLatLon();
+                var a = ring[i];
+                var b = ring[i + 1];
                 var hit = GeoMath.SegmentsIntersect(from, to, a, b, excludeEndpoints: false);
                 if (hit is not null)
                 {
@@ -102,92 +102,5 @@ public sealed class AirspaceVolume
                 }
             }
         }
-    }
-
-    private static bool PointInRing(LatLon point, IReadOnlyList<AirspacePoint> ring)
-    {
-        if (ring.Count < 3)
-        {
-            return false;
-        }
-
-        bool inside = false;
-        int j = ring.Count - 1;
-        for (int i = 0; i < ring.Count; i++)
-        {
-            double yi = ring[i].Lat;
-            double yj = ring[j].Lat;
-            double xi = ring[i].Lon;
-            double xj = ring[j].Lon;
-
-            bool intersects = ((yi > point.Lat) != (yj > point.Lat)) && (point.Lon < (xj - xi) * (point.Lat - yi) / (yj - yi) + xi);
-            if (intersects)
-            {
-                inside = !inside;
-            }
-
-            j = i;
-        }
-
-        return inside;
-    }
-
-    /// <summary>
-    /// Axis-aligned lat/lon bounding box of a volume's rings, used as a conservative O(1) pre-filter.
-    /// A point or segment that lies entirely outside the box cannot intersect the polygon, so the
-    /// expensive vertex walk is skipped. The box is a superset of the polygon, so it never rejects a
-    /// true hit — results are identical to testing every vertex. A volume that straddles the
-    /// antimeridian gets a globe-spanning longitude span (never rejects laterally) and simply falls
-    /// through to the exact test; correctness is preserved, only the speedup is forfeited for it.
-    /// </summary>
-    private readonly struct LatLonBounds(double minLat, double maxLat, double minLon, double maxLon)
-    {
-        private readonly double _minLat = minLat;
-        private readonly double _maxLat = maxLat;
-        private readonly double _minLon = minLon;
-        private readonly double _maxLon = maxLon;
-
-        public static LatLonBounds Empty => new(double.PositiveInfinity, double.NegativeInfinity, double.PositiveInfinity, double.NegativeInfinity);
-
-        public static LatLonBounds FromRings(IReadOnlyList<IReadOnlyList<AirspacePoint>> rings)
-        {
-            double minLat = double.PositiveInfinity;
-            double maxLat = double.NegativeInfinity;
-            double minLon = double.PositiveInfinity;
-            double maxLon = double.NegativeInfinity;
-
-            foreach (var ring in rings)
-            {
-                foreach (var p in ring)
-                {
-                    if (p.Lat < minLat)
-                    {
-                        minLat = p.Lat;
-                    }
-                    if (p.Lat > maxLat)
-                    {
-                        maxLat = p.Lat;
-                    }
-                    if (p.Lon < minLon)
-                    {
-                        minLon = p.Lon;
-                    }
-                    if (p.Lon > maxLon)
-                    {
-                        maxLon = p.Lon;
-                    }
-                }
-            }
-
-            return new LatLonBounds(minLat, maxLat, minLon, maxLon);
-        }
-
-        public bool ExcludesPoint(LatLon p) => p.Lat < _minLat || p.Lat > _maxLat || p.Lon < _minLon || p.Lon > _maxLon;
-
-        public bool ExcludesSegment(LatLon a, LatLon b) =>
-            Math.Max(a.Lat, b.Lat) < _minLat
-            || Math.Min(a.Lat, b.Lat) > _maxLat
-            || Math.Max(a.Lon, b.Lon) < _minLon
-            || Math.Min(a.Lon, b.Lon) > _maxLon;
     }
 }

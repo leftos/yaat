@@ -426,4 +426,38 @@ public static class GeoMath
         var (lat, lon, t, u) = result.Value;
         return (new LatLon(lat, lon), t, u);
     }
+
+    /// <summary>
+    /// Even-odd ray-cast point-in-polygon test for a single ring. Lat/lon are treated as planar, which
+    /// is adequate for terminal-scale polygons (airspace sectors, MVA sectors). Returns false for a
+    /// degenerate ring (fewer than 3 vertices). The ring may be open or closed; the edge from the last
+    /// vertex back to the first is always tested.
+    /// </summary>
+    public static bool PointInRing(LatLon point, IReadOnlyList<LatLon> ring)
+    {
+        if (ring.Count < 3)
+        {
+            return false;
+        }
+
+        bool inside = false;
+        int j = ring.Count - 1;
+        for (int i = 0; i < ring.Count; i++)
+        {
+            double yi = ring[i].Lat;
+            double yj = ring[j].Lat;
+            double xi = ring[i].Lon;
+            double xj = ring[j].Lon;
+
+            bool intersects = ((yi > point.Lat) != (yj > point.Lat)) && (point.Lon < (xj - xi) * (point.Lat - yi) / (yj - yi) + xi);
+            if (intersects)
+            {
+                inside = !inside;
+            }
+
+            j = i;
+        }
+
+        return inside;
+    }
 }

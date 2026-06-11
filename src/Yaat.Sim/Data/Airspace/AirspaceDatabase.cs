@@ -332,9 +332,9 @@ public sealed class AirspaceDatabase
         return (int)Math.Round(value.Value);
     }
 
-    private static List<IReadOnlyList<AirspacePoint>> ParseRings(JsonElement geometry)
+    private static List<IReadOnlyList<LatLon>> ParseRings(JsonElement geometry)
     {
-        var rings = new List<IReadOnlyList<AirspacePoint>>();
+        var rings = new List<IReadOnlyList<LatLon>>();
         if (!geometry.TryGetProperty("type", out var typeElement) || !geometry.TryGetProperty("coordinates", out var coords))
         {
             return rings;
@@ -356,11 +356,11 @@ public sealed class AirspaceDatabase
         return rings;
     }
 
-    private static void ParsePolygon(JsonElement polygon, List<IReadOnlyList<AirspacePoint>> rings)
+    private static void ParsePolygon(JsonElement polygon, List<IReadOnlyList<LatLon>> rings)
     {
         foreach (var ringElement in polygon.EnumerateArray())
         {
-            var ring = new List<AirspacePoint>();
+            var ring = new List<LatLon>();
             foreach (var coordinate in ringElement.EnumerateArray())
             {
                 var pair = coordinate.EnumerateArray().ToArray();
@@ -369,7 +369,7 @@ public sealed class AirspaceDatabase
                     continue;
                 }
 
-                ring.Add(new AirspacePoint(pair[1].GetDouble(), pair[0].GetDouble()));
+                ring.Add(new LatLon(pair[1].GetDouble(), pair[0].GetDouble()));
             }
 
             if (ring.Count >= 4)
