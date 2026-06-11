@@ -957,6 +957,7 @@ See [session-persistence.md](session-persistence.md) for planned-restart room ch
     PilotVoiceAssigner.cs      # Pure deterministic `(scenario rng seed, callsign) -> speaker id 0..903` helper for pilot voice events.
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch; BroadcastToTopicSubscribersAsync
     CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules; STARS hysteresis (add at elev+100, remove at elev); AircraftState.IsVehicle excluded from STARS
+    FieldElevationResolver.cs  # Resolves per-airport field elevation; stamps BelowDisplayFloor so a departure appears on STARS/Radar only once AGL>=100ft (displayed alt 001)
     StarsLineNumberAssigner.cs # Per-room sequential line number assignment (1-99 wrap)
     StripCommandHandler.cs     # Flight strip command dispatch (all 15 canonical verbs incl. SCAN)
     StripBroadcaster.cs        # Flight strip broadcast coordination: SignalR + CRC topic paths

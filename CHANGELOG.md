@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.11-beta [2026/06/10]
+
+### Highlights
+- The `NoLndgClnc` warning flashes earlier — an aircraft on a visual final without a landing clearance flashes the red datablock line from 2 nm out instead of 1 nm.
+- The Ground view keeps a departing or arriving aircraft in sight up to the cloud ceiling (or 6,000 ft in clear skies), like the view from the tower, instead of dropping it at a fixed 4,000 ft.
+- Flight plans created in CRC's Flight Plan Editor now get a beacon code, and the recycle-beacon button works.
+- Chat messages no longer pop up command autocomplete — a line starting with `'`, `/`, or `>` won't trigger a suggestion list.
 
 ### Changed
 - **The `NoLndgClnc` radar warning flashes earlier** — an aircraft on a visual final without a landing clearance now flashes the red `NoLndgClnc` datablock line from 2 nm out instead of 1 nm, while the AI pilot still calls "short final" at 1 nm as before. Aircraft on an instrument approach are unchanged (already flashing ~3.8 nm out).
