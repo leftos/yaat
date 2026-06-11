@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.7.12-beta [2026/06/11]
 
 ### Added
 - **Favorite video maps on the Radar view** — right-click any map in the MAP list to mark it a favorite for the whole ARTCC, for the scenario's primary airport, or for just this scenario. Favorited maps show a ★ and sort to the top of the list so the handful you actually use are always within reach, instead of hunting through dozens of maps every session. Favorites only pin and sort — they do not turn maps on by themselves — and are remembered across sessions, so a map favorited for an ARTCC stays starred in every scenario in that ARTCC.
