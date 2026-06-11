@@ -75,6 +75,29 @@ public sealed class BeaconCodePool
         _assigned.Remove(code);
     }
 
+    /// <summary>Sequential-fallback cursor, for snapshot serialization.</summary>
+    public uint NextCandidate => _nextCandidate;
+
+    /// <summary>Per-bank draw cursors keyed by the deterministic bank key, for snapshot serialization.</summary>
+    public IReadOnlyDictionary<int, uint> BankCursors => _bankCursors;
+
+    /// <summary>
+    /// Restores the draw cursors captured in a snapshot so post-restore assignments continue from the
+    /// same point as the live run. Assigned codes are restored separately via <see cref="MarkUsed"/>.
+    /// </summary>
+    public void RestoreCursors(uint nextCandidate, IReadOnlyDictionary<int, uint>? bankCursors)
+    {
+        _nextCandidate = nextCandidate == 0 ? 0001 : nextCandidate;
+        _bankCursors.Clear();
+        if (bankCursors is not null)
+        {
+            foreach (var (key, cursor) in bankCursors)
+            {
+                _bankCursors[key] = cursor;
+            }
+        }
+    }
+
     // --- Private ---
 
     private uint AssignSequential()
@@ -134,8 +157,9 @@ public sealed class BeaconCodePool
 
     private static int GetBankKey(BeaconCodeBankConfig bank)
     {
-        // Stable key: combine start and end so distinct ranges don't collide.
-        return HashCode.Combine(bank.Start, bank.End);
+        // Deterministic, collision-free key for distinct ranges (octal codes ≤ 7777). Stable across
+        // processes — unlike HashCode.Combine — so per-bank cursors round-trip through snapshots.
+        return (bank.Start * 10000) + bank.End;
     }
 
     private static int CountOctalRange(uint start, uint end)

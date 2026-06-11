@@ -28,4 +28,10 @@ public sealed class ActiveConflictDto
 public sealed class BeaconCodePoolDto
 {
     public Dictionary<uint, string>? AssignedCodes { get; init; }
+
+    /// <summary>Sequential-fallback cursor (used when no banks are configured). 0 ⇒ restore to default 0001.</summary>
+    public uint NextCandidate { get; init; }
+
+    /// <summary>Per-bank draw cursors, keyed by the deterministic bank key (Start*10000+End).</summary>
+    public Dictionary<int, uint>? BankCursors { get; init; }
 }

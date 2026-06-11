@@ -436,7 +436,12 @@ public sealed class SimulationEngine
         {
             ConsolidationOverrides = consolidation,
             ActiveConflicts = conflicts,
-            BeaconCodePool = new BeaconCodePoolDto { AssignedCodes = beaconCodes },
+            BeaconCodePool = new BeaconCodePoolDto
+            {
+                AssignedCodes = beaconCodes,
+                NextCandidate = BeaconCodePool.NextCandidate,
+                BankCursors = new Dictionary<int, uint>(BeaconCodePool.BankCursors),
+            },
         };
     }
 
@@ -465,12 +470,17 @@ public sealed class SimulationEngine
             }
         }
 
-        if (server.BeaconCodePool?.AssignedCodes is not null)
+        if (server.BeaconCodePool is { } beaconPool)
         {
-            foreach (var code in server.BeaconCodePool.AssignedCodes.Keys)
+            if (beaconPool.AssignedCodes is not null)
             {
-                BeaconCodePool.MarkUsed(code);
+                foreach (var code in beaconPool.AssignedCodes.Keys)
+                {
+                    BeaconCodePool.MarkUsed(code);
+                }
             }
+
+            BeaconCodePool.RestoreCursors(beaconPool.NextCandidate, beaconPool.BankCursors);
         }
     }
 
@@ -1511,6 +1521,8 @@ public sealed class SimulationEngine
             return;
         }
 
+        bool wasFiled = ac.FlightPlan.HasFlightPlan;
+
         if (amendment.AircraftType is not null)
         {
             // Filed FP type only — never the actual physical type. Tower Cab (out-the-window)
@@ -1572,10 +1584,45 @@ public sealed class SimulationEngine
             ac.Ground.Layout = ResolveGroundLayout(ac);
         }
 
+        // Editing a flight plan via the Flight Plan Editor on a radar-only (no-plan) target
+        // files the plan: establish it and issue a discrete beacon code (VFR draws from the
+        // VFR bank, IFR from the IFR bank). Don't flip Transponder.Code — the pilot keeps
+        // squawking their current code until the controller issues SQ. This is the single
+        // owner of "filing establishes the plan + assigns a beacon"; the typed DA/VP/NEW
+        // create path reaches it through its own AmendFlightPlan call.
+        if (!wasFiled)
+        {
+            ac.FlightPlan.HasFlightPlan = true;
+            if (ac.Transponder.AssignedCode == 0)
+            {
+                ac.Transponder.AssignedCode = BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr);
+            }
+        }
+
         // Bump the revision counter so the strip can render the new value.
         // CRC displays revision regardless of which fields changed — the counter
         // is a "has been edited" signal, not a per-field diff.
         ac.FlightPlan.RevisionNumber++;
+    }
+
+    /// <summary>
+    /// Releases the aircraft's current assigned beacon code back to the pool and draws a fresh
+    /// discrete code (VFR bank for VFR, IFR bank for IFR). Does not flip <c>Transponder.Code</c> —
+    /// the pilot keeps squawking their current code until the controller issues <c>SQ</c>. Returns
+    /// the new assigned code, or 0 if the aircraft is unknown.
+    /// </summary>
+    public uint RequestNewBeaconCode(string callsign)
+    {
+        var ac = FindAircraft(callsign);
+        if (ac is null)
+        {
+            return 0;
+        }
+
+        BeaconCodePool.Release(ac.Transponder.AssignedCode);
+        var newCode = BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr);
+        ac.Transponder.AssignedCode = newCode;
+        return newCode;
     }
 
     public AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft)
@@ -2843,6 +2890,9 @@ public sealed class SimulationEngine
                 break;
             case RecordedAmendFlightPlan amend:
                 AmendFlightPlan(amend.Callsign, amend.Amendment);
+                break;
+            case RecordedRequestNewBeaconCode recycle:
+                RequestNewBeaconCode(recycle.Callsign);
                 break;
             case RecordedWeatherChange weather:
                 if (weather.WeatherJson is not null)

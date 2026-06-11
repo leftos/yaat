@@ -5,6 +5,7 @@ namespace Yaat.Sim.Simulation;
 
 [JsonDerivedType(typeof(RecordedCommand), "Command")]
 [JsonDerivedType(typeof(RecordedAmendFlightPlan), "AmendFlightPlan")]
+[JsonDerivedType(typeof(RecordedRequestNewBeaconCode), "RequestNewBeaconCode")]
 [JsonDerivedType(typeof(RecordedWeatherChange), "WeatherChange")]
 [JsonDerivedType(typeof(RecordedSettingChange), "SettingChange")]
 [JsonDerivedType(typeof(RecordedAsdexMutation), "AsdexMutation")]
@@ -33,6 +34,13 @@ public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, str
 }
 
 public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment) : RecordedAction(ElapsedSeconds);
+
+/// <summary>
+/// A controller "recycle beacon code" request (CRC Flight Plan Editor button or the YAAT
+/// training-hub <c>RequestNewBeaconCode</c>). Replay re-runs the pool release+draw so the
+/// recycled code is reproduced deterministically on rewind.
+/// </summary>
+public sealed record RecordedRequestNewBeaconCode(double ElapsedSeconds, string Callsign) : RecordedAction(ElapsedSeconds);
 
 /// <summary>
 /// A weather load (<see cref="WeatherJson"/> non-null) or clear (<see cref="WeatherJson"/> null).
