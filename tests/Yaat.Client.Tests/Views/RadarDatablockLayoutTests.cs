@@ -436,4 +436,40 @@ public class RadarDatablockLayoutTests
         Assert.Equal(atOrigin.Right + 137, atOffset.Right, precision: 3);
         Assert.Equal(atOrigin.Bottom - 52, atOffset.Bottom, precision: 3);
     }
+
+    // --- Owner/handoff slot stability (hit-test now shares RadarDatablockLayout.Compute) ---
+
+    [Fact]
+    public void HandoffOnly_ReservesOwnerSlot_RegardlessOfFlash()
+    {
+        var ac = CreateModel();
+        ac.HandoffPeerSectorCode = "3E"; // handoff with no owner: the token flashes blank, slot must persist
+        using var paint = CreatePaint();
+
+        // ReserveOwnerSlot is computed from the stable (handoff-always) line, so it is flash-independent.
+        var layout = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.True(layout.ReserveOwnerSlot);
+        Assert.Equal(3, layout.LineCount); // callsign, alt+spd, reserved owner/handoff slot
+    }
+
+    [Fact]
+    public void OwnerHandoff_RectStableAcrossFlashCycle()
+    {
+        var ac = CreateModel();
+        ac.OwnerSectorCode = "2S";
+        ac.HandoffPeerSectorCode = "APPROACH"; // long enough that line 3 drives the block width
+        ac.Scratchpad1 = "RESET";
+        using var paint = CreatePaint();
+
+        var first = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "");
+        // Sample across at least one full 500 ms flash cycle — the reserved slot keeps width + count constant.
+        for (int i = 0; i < 10; i++)
+        {
+            Thread.Sleep(120);
+            var sample = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "");
+            Assert.Equal(first.Rect.Width, sample.Rect.Width, precision: 3);
+            Assert.Equal(first.LineCount, sample.LineCount);
+        }
+    }
 }

@@ -11,6 +11,7 @@
 - ASDE-X and SAID surface tracks coast for 45 seconds when an aircraft disconnects, or drop at their destination field.
 - ASDE-X and SAID targets now draw position-history trails.
 - The SAAB SAID surface display now shows traffic up to 2,500 ft AGL, including at high-elevation airports.
+- Clicking a radar datablock that shows an assigned-to or handoff indicator no longer misses near its right edge, and the selection box no longer flickers with the handoff flash.
 
 ## v0.7.14-beta [2026/06/12]
 

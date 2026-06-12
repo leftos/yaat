@@ -688,9 +688,14 @@ public sealed class TargetRenderer : IDisposable
         DrawAltitudeLine(canvas, layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, ResolveMvaAltitudeTint(ac));
 
         int row = 2;
-        if (layout.Line3.Length > 0)
+        if (layout.ReserveOwnerSlot)
         {
-            canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
+            // The slot is reserved even when the handoff is flashing blank, so advance the row
+            // unconditionally — otherwise ModeC and the warning line would jump up during the off-phase.
+            if (layout.Line3.Length > 0)
+            {
+                canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
+            }
             row++;
         }
 

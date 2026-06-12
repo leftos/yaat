@@ -1489,49 +1489,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     private SKRect ComputeStableFullRectAtOrigin(AircraftModel ac)
     {
+        // Single source of truth with the draw path: RadarDatablockLayout.Compute reserves the handoff
+        // slot/width stably (and includes the assigned-to + pointout tokens), so the hit-test rect always
+        // matches the drawn block — no hand-mirrored line-string re-derivation.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
-        float lineH = _hitTestPaint.TextSize + 2;
-
-        bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
-        string line1 = (isVfr ? $"{ac.Callsign}*" : ac.Callsign) + marker;
-        var altH = ((int)ac.Altitude / 100).ToString("D3");
-        var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
-        var cwtCode = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
-        string line2 = cwtCode.Length > 0 ? $"{altH} {spdTens} {cwtCode}" : $"{altH} {spdTens}";
-
-        float textW = MathF.Max(_hitTestPaint.MeasureText(line1), _hitTestPaint.MeasureText(line2));
-        int lineCount = 2;
-
-        // Owner + handoff + scratchpads on same line (always include handoff for a consistent hit rect).
-        var line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.HandoffDisplay, ac.Scratchpad1, ac.Scratchpad2);
-        if (line3 is not null)
-        {
-            textW = MathF.Max(textW, _hitTestPaint.MeasureText(line3));
-            lineCount = 3;
-        }
-
-        // ModeC strikethrough line (transponder Standby) — matches the renderer's reserved slot.
-        if (ac.TransponderMode == "Standby")
-        {
-            textW = MathF.Max(textW, _hitTestPaint.MeasureText("ModeC"));
-            lineCount++;
-        }
-
-        // No-landing-clearance warning slot — always reserved when active so the rect doesn't pulse.
-        if (FlashNoLandingClearance && ac.NoLandingClearanceWarningActive && !ac.IsAutoClearedToLand)
-        {
-            textW = MathF.Max(textW, _hitTestPaint.MeasureText(RadarDatablockLayout.NoLandingClearanceText));
-            lineCount++;
-        }
-
-        // Instructor note line — must mirror RadarDatablockLayout.Compute so clicks hit the taller block.
-        if (ac.HasNote)
-        {
-            textW = MathF.Max(textW, _hitTestPaint.MeasureText(ac.Note));
-            lineCount++;
-        }
-
-        return new SKRect(-DataBlockPad, -_hitTestPaint.TextSize - DataBlockPad, textW + DataBlockPad, ((lineCount - 1) * lineH) + DataBlockPad);
+        return RadarDatablockLayout.Compute(ac, 0, 0, _hitTestPaint, FlashNoLandingClearance, marker).Rect;
     }
 
     /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>
@@ -1858,42 +1820,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             }
         );
         return sorted;
-    }
-
-    private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? handoffDisplay, string? sp1, string? sp2)
-    {
-        bool hasOwner = !string.IsNullOrEmpty(ownerDisplay);
-        bool hasHandoff = !string.IsNullOrEmpty(handoffDisplay);
-        bool hasSp1 = !string.IsNullOrEmpty(sp1);
-        bool hasSp2 = !string.IsNullOrEmpty(sp2);
-
-        if (!hasOwner && !hasHandoff && !hasSp1 && !hasSp2)
-        {
-            return null;
-        }
-
-        var parts = new List<string>(4);
-        if (hasOwner)
-        {
-            // Always include handoff for hit-test sizing (no flash)
-            parts.Add(hasHandoff ? $"{ownerDisplay} >{handoffDisplay}" : ownerDisplay!);
-        }
-        else if (hasHandoff)
-        {
-            parts.Add($">{handoffDisplay}");
-        }
-
-        if (hasSp1)
-        {
-            parts.Add($".{sp1}");
-        }
-
-        if (hasSp2)
-        {
-            parts.Add($"+{sp2}");
-        }
-
-        return parts.Count > 0 ? string.Join(" ", parts) : null;
     }
 
     /// <summary>

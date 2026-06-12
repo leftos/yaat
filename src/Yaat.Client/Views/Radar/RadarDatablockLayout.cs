@@ -38,6 +38,13 @@ internal readonly struct RadarDatablockLayout
     /// <summary>Total drawn lines, including any reserved warning slot and the note line.</summary>
     public readonly int LineCount;
 
+    /// <summary>
+    /// True when the owner/handoff line (Line3) occupies a reserved slot. The slot is reserved whenever
+    /// the line would ever be non-empty (e.g. a handoff with no owner, which flashes blank), so the draw
+    /// path must advance its row by this flag rather than by <see cref="Line3"/>'s current emptiness.
+    /// </summary>
+    public readonly bool ReserveOwnerSlot;
+
     private RadarDatablockLayout(
         SKRect rect,
         float textX,
@@ -49,7 +56,8 @@ internal readonly struct RadarDatablockLayout
         string line4,
         string line5,
         string line6,
-        int lineCount
+        int lineCount,
+        bool reserveOwnerSlot
     )
     {
         Rect = rect;
@@ -63,6 +71,7 @@ internal readonly struct RadarDatablockLayout
         Line5 = line5;
         Line6 = line6;
         LineCount = lineCount;
+        ReserveOwnerSlot = reserveOwnerSlot;
     }
 
     public static RadarDatablockLayout Compute(
@@ -83,7 +92,13 @@ internal readonly struct RadarDatablockLayout
         string cwtType = FormatCwtType(cwt, ac.DisplayAircraftType);
         string line2 = cwtType.Length > 0 ? $"{altHundreds} {spdTens} {cwtType}" : $"{altHundreds} {spdTens}";
 
-        string line3 = BuildOwnerScratchpadLine(ac) ?? "";
+        // line3 (owner/handoff/scratchpads) flashes the handoff token on a 500 ms cycle. Draw the
+        // flashing string but reserve width and a line slot for the stable (handoff-always) version so
+        // the rect — and thus the selection border, leader endpoint, and hit area — never pulses.
+        bool handoffFlashOn = Environment.TickCount64 / 500 % 2 == 0;
+        string line3 = BuildOwnerScratchpadLine(ac, showHandoff: handoffFlashOn) ?? "";
+        string line3Stable = BuildOwnerScratchpadLine(ac, showHandoff: true) ?? "";
+        bool reserveOwnerSlot = line3Stable.Length > 0;
         string line4 = ac.TransponderMode == "Standby" ? "ModeC" : "";
 
         // No-landing-clearance warning flashes in sync with the handoff indicator (500 ms cycle).
@@ -98,7 +113,7 @@ internal readonly struct RadarDatablockLayout
 
         float w1 = paint.MeasureText(line1);
         float w2 = paint.MeasureText(line2);
-        float w3 = line3.Length > 0 ? paint.MeasureText(line3) : 0f;
+        float w3 = reserveOwnerSlot ? paint.MeasureText(line3Stable) : 0f;
         float w4 = line4.Length > 0 ? paint.MeasureText(line4) : 0f;
         // Reserve width for the warning line whenever it's active so the rect width doesn't pulse.
         float w5 = noLndgClncActive ? paint.MeasureText(NoLandingClearanceText) : 0f;
@@ -106,7 +121,7 @@ internal readonly struct RadarDatablockLayout
         float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), MathF.Max(w5, w6));
 
         int lineCount = 2;
-        if (line3.Length > 0)
+        if (reserveOwnerSlot)
         {
             lineCount++;
         }
@@ -127,10 +142,15 @@ internal readonly struct RadarDatablockLayout
         float lineH = paint.TextSize + 2;
         var rect = new SKRect(blockX - Pad, blockY - paint.TextSize - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
 
-        return new RadarDatablockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4, line5, line6, lineCount);
+        return new RadarDatablockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4, line5, line6, lineCount, reserveOwnerSlot);
     }
 
-    private static string? BuildOwnerScratchpadLine(AircraftModel ac)
+    /// <summary>
+    /// Builds the owner/handoff/scratchpad line. <paramref name="showHandoff"/> controls whether the
+    /// flashing handoff token is included — pass the current 500 ms flash phase for drawing, or
+    /// <c>true</c> to measure the stable (widest) line so the rect doesn't pulse with the flash.
+    /// </summary>
+    internal static string? BuildOwnerScratchpadLine(AircraftModel ac, bool showHandoff)
     {
         bool hasAssigned = !string.IsNullOrEmpty(ac.AssignedTo);
         bool hasOwner = !string.IsNullOrEmpty(ac.OwnerDisplay);
@@ -151,17 +171,11 @@ internal readonly struct RadarDatablockLayout
         }
         if (hasOwner)
         {
-            // Flash handoff indicator: 500ms on/off cycle (all flash in sync, STARS behavior)
-            bool showHandoff = hasHandoff && Environment.TickCount64 / 500 % 2 == 0;
-            parts.Add(showHandoff ? $"{ac.OwnerDisplay} >{ac.HandoffDisplay}" : ac.OwnerDisplay!);
+            parts.Add(showHandoff && hasHandoff ? $"{ac.OwnerDisplay} >{ac.HandoffDisplay}" : ac.OwnerDisplay!);
         }
-        else if (hasHandoff)
+        else if (hasHandoff && showHandoff)
         {
-            bool showHandoff = Environment.TickCount64 / 500 % 2 == 0;
-            if (showHandoff)
-            {
-                parts.Add($">{ac.HandoffDisplay}");
-            }
+            parts.Add($">{ac.HandoffDisplay}");
         }
 
         // Pending outgoing point-out the student initiated, shown right after the owner (e.g. "3E*").

@@ -183,34 +183,33 @@ by four `UserPreferences` toggles synced via `RadarView.SyncAssignmentTint`:
 
 The projection is null when there is no student position, so the renderer falls back to its prior behavior.
 
-## Geometry computed twice — draw vs hit-test
+## Geometry — draw vs hit-test (single source of truth)
 
-There is **no single source of truth** for the full-datablock rectangle. The geometry is computed independently on two
-paths that must agree:
+The full-datablock rectangle has **one source of truth**: `RadarDatablockLayout.Compute`. Both paths call it:
 
 - **Draw path** — `TargetRenderer.DrawLeaderAndDataBlock` calls `RadarDatablockLayout.Compute` (STARS) or
   `EuroScopeTagLayout.Layout` (EuroScope) and paints from the result (`TargetRenderer.cs:356-506`).
-- **Hit-test path** — `RadarCanvas.ComputeDataBlockPlacement` (`ComputeDataBlockRect` is a thin `.Rect` wrapper)
-  **re-derives** the line strings, measures them with its own `_hitTestPaint` (`RadarCanvas.cs:124`), and rebuilds the rect
-  by hand. It returns `(Offset, Rect)`: the rect feeds hit-testing, and the offset feeds drag-start so a leader-placed block
-  whose position hasn't been dragged doesn't jump on the first drag.
+- **Hit-test path** — `RadarCanvas.ComputeDataBlockPlacement` (`ComputeDataBlockRect` is a thin `.Rect` wrapper) routes the
+  full block through `ComputeStableRectAtOrigin` → `ComputeStableFullRectAtOrigin`, which now just calls
+  `RadarDatablockLayout.Compute(ac, 0, 0, _hitTestPaint, …).Rect` (no hand-mirrored line-string re-derivation). It returns
+  `(Offset, Rect)`: the rect feeds hit-testing, and the offset feeds drag-start so a leader-placed block whose position
+  hasn't been dragged doesn't jump on the first drag.
 
-If you add a datablock line in the layout struct without mirroring `ComputeDataBlockPlacement`, clicks land on the wrong
-rect or miss the new line entirely. There are pure-function tests on `RadarDatablockLayout.Compute` and
-`EuroScopeTagLayout.Layout` (`tests/Yaat.Client.Tests/Views/RadarDatablockLayoutTests.cs`, `EuroScopeTagLayoutTests.cs`), but
-**no test asserts content parity between the draw layout and `ComputeDataBlockPlacement`** — the full-block line strings
-remain hand-mirrored and unguarded. `RadarDatablockLayoutTests` does guard the **translation invariant**
-(`Compute_RectIsTranslationInvariant`) that deconfliction relies on (see below).
+`Compute` reserves the owner/handoff slot **stably** (`ReserveOwnerSlot` + the stable `line3` width), mirroring how it
+already reserves the `NoLndgClnc` slot — so the rect (and thus the selection border, leader endpoint, and hit area) never
+pulses with the 500 ms handoff flash. The draw loop steps its row by `ReserveOwnerSlot`, not by `Line3`'s current
+emptiness, so `ModeC`/`NoLndgClnc` don't jump during the flash off-phase. `RadarDatablockLayoutTests` guards this
+(`HandoffOnly_ReservesOwnerSlot…`, `OwnerHandoff_RectStableAcrossFlashCycle`) plus the translation invariant
+(`Compute_RectIsTranslationInvariant`) that deconfliction relies on.
 
-The hit-test rect math is now factored into `RadarCanvas.ComputeStableRectAtOrigin` (and `ComputeStableFullRectAtOrigin`),
-which `ComputeDataBlockPlacement` **and** the deconfliction input assembly (`BuildDeconflictItems`) both call — so hit-test
-geometry and the deconfliction layout never diverge from each other.
+`ComputeStableRectAtOrigin` is shared by `ComputeDataBlockPlacement` **and** the deconfliction input assembly
+(`BuildDeconflictItems`), so hit-test geometry and the deconfliction layout never diverge.
 
-**The student-scope additions ARE shared, deliberately.** Block placement (`ResolveBlockOffset`), the minified/collapsed
+**The student-scope additions ARE shared too.** Block placement (`ResolveBlockOffset`), the minified/collapsed
 line strings (`BuildMinifiedLine`/`BuildCollapsedLines`), the `(LDB)`/`(PDB)` marker (`StudentLevelMarker`), and the reduced
 rect (`ReducedRect`) are pure static helpers on `RadarDatablockLayout` that **both** the draw path and
-`ComputeDataBlockPlacement` call — so leader-direction offset, the marker width, and the collapsed-block geometry stay in
-sync across draw and hit-test without re-derivation. Only the full STARS block's line strings remain hand-mirrored.
+`ComputeDataBlockPlacement` call. Only the reduced (minified/collapsed) block still builds its line strings on each path,
+but through the same shared `ReducedRect`/`BuildMinifiedLine`/`BuildCollapsedLines` helpers.
 
 **EuroScope mode avoids the re-derivation.** When EuroScope mode is on (and the block isn't minified),
 `ComputeDataBlockRect` returns the `Bounds` the renderer cached during the last frame
