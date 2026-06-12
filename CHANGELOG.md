@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.7.14-beta [2026/06/12]
 
 ### Fixed
 - Ground "draw taxi route" → "Copy to command input" pastes a readable, editable command pinned to your drawn endpoint, so the aircraft taxis exactly what you drew.
