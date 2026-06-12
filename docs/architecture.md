@@ -84,6 +84,7 @@ tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airport
 tools/refresh-airport-airlines.ps1 # Builds Data/airport-airlines.json.br from BTS T-100 segment ZIPs, OurAirports, and OpenFlights carrier/route crosswalks.
 tools/refresh-airline-fleets.py   # Parses Airfleets PDFs into Data/airline-fleets.json + .meta provenance sidecar.
 tools/refresh-aircraft-display-names.py # One-shot tool that queries OpenAI for human-readable names of every ICAO type in AircraftSpecs.json and writes Data/aircraft-display-names.json + .meta sidecar. Re-run only when AircraftSpecs.json gains new types.
+tools/refresh-crc-docs.py         # Mirrors the vNAS docs site (docs.virtualnas.net, Material for MkDocs) into docs/crc/ + docs/vnas-data-admin/: fetches each page, converts HTML->Markdown, downloads images, rewrites links. See docs/crc/README.md.
 tools/parse_airfleets.py          # pdfplumber parser used by refresh-airline-fleets.py; maps fleet variants to ICAO Doc 8643 types.
 tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_API_KEY from the environment when Codex cannot express the custom header.
 tools/mcp/exa-stdio.ps1           # Exa stdio adapter that reads EXA_API_KEY from the environment when a local authenticated Exa MCP is preferred.
