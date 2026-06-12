@@ -38,18 +38,18 @@ authoritative spec. Scope decided with the user 2026-06-12.
 
 ## Tasks
 
-### 1. ASDE-X Safety Logic detector (Yaat.Sim) — conditions 1/2/4/5
+### 1. ASDE-X Safety Logic detector (Yaat.Sim) — conditions 1/2/4/5 — DONE
 - [x] aviation-sim-expert spec (see above).
-- [ ] `AsdexSafetyLogicDetector` in Yaat.Sim: input = active `AsdexSafetyLogicConfig` (runway
-      polygons + closed + active config) + aircraft snapshot (position, phase, ground speed,
-      AGL) + taxiway polygons from `AirportGroundLayout`; output = alert list. Conditions:
-      closed-runway arrival/departure, occupied runway, taxi-onto-active-runway,
-      landing-on-taxiway. **Skip converging-runways** (no data). Point-in-polygon occupancy.
-      Honour per-aircraft `AsdexAlertsInhibited`.
-- [ ] TDD: real airport layout, each condition has a triggering + non-triggering test.
-- [ ] yaat-server: populate `AsdexAlerts` topic from detector each tick; `DeleteAsdexAlerts`
-      pairing. Wire taxiway polygons (from the room's ground layout) into the detector inputs.
-- [ ] aviation-sim-expert review of the final implementation.
+- [x] `AsdexSafetyLogicDetector` in Yaat.Sim (closed-runway, occupied, taxi-onto-active,
+      taxiway-landing; converging skipped). Point-in-polygon occupancy; aligned occupancy
+      claims the runway at any ground speed (LUAW); true-heading alignment via local variation;
+      honours per-aircraft `AsdexAlertsInhibited`. Taxiway-landing uses ground-graph centerline
+      proximity. 11 TDD tests (each condition triggering + non-triggering, inhibition, stable id).
+- [x] aviation-sim-expert review applied (H1 LUAW gap, M2 speed gate, M3 true-vs-magnetic frame).
+- [x] yaat-server: per-tick `TickProcessor.ProcessAsdexAlerts` runs the detector, diffs vs
+      `AsdexRoomState.ActiveSafetyAlerts`, broadcasts `ReceiveAsdexAlerts`/`DeleteAsdexAlerts`;
+      taxiways from `room.World.GroundLayout`, variation from `MagneticDeclination`, field
+      elevation from `FieldElevationResolver`. `DtoConverter.ToAsdexAlert` mapping.
 
 ### 2. Hold bars — DEFERRED (user decision 2026-06-12)
 - Geometry not reachable; keep the `BuildAsdexHoldBarsData` empty-list stub.
@@ -66,6 +66,15 @@ authoritative spec. Scope decided with the user 2026-06-12.
 ### 4. Coasted/dropped tracks (server)
 - [ ] 45s coast timer on ASDE-X track signal-loss/disconnect; populate `CoastListId` +
       `CoastTimeout` (currently hardcoded null); CST in field E. Extend `CrcVisibilityTracker`.
+
+### 6. SAID vertical display range (server) — DONE
+- [x] SAID surface display now limited to **2,500 ft AGL** (field-relative, above the SAID airport's
+      field elevation), replacing the prior fixed 1,500 ft MSL ceiling that ignored elevation and
+      hid all targets at elevated fields. 600 ft hysteresis band retained. `CrcVisibilityTracker`
+      resolves the airport elevation via `_navDb.GetAirportElevation` in both `GetVisibleSaidAirports`
+      (stateless) and `EvaluateSaid` (stateful). Dropped the unused `SaidAirportInfo.Ceiling` field
+      and `SaidDefaultCeiling`. Tests in `CrcVisibilitySaidTests` (incl. AGL-not-MSL regression).
+      User request 2026-06-12.
 
 ### 5. STARS scope-marker pins (client — Yaat.Client)
 - [ ] Instructor-radar `.ff`/`.marker`-style: user-pinned arbitrary fixes/NAVAIDs, persisted

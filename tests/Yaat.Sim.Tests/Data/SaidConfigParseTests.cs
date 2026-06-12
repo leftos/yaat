@@ -8,8 +8,9 @@ namespace Yaat.Sim.Tests;
 /// SAAB SAID facility-config parsing. Unlike the flat <c>asdexConfiguration</c>, the SAID schema
 /// nests the vendor-specific block under <c>saabConfiguration</c> and carries a string
 /// <c>vendor</c> enum. <see cref="ArtccConfigResolver.GetAllSaidAirports"/> emits only the Saab
-/// vendor, defaults visibility to ASDE-X's 15 nm / 1500 ft (SAID config carries neither), and
-/// takes coordinates from <c>saabConfiguration.towerLocation</c>.
+/// vendor, defaults the range to ASDE-X's 15 nm (SAID config carries no range; the vertical limit
+/// is a fixed 2,500 ft AGL surface-display ceiling applied downstream), and takes coordinates from
+/// <c>saabConfiguration.towerLocation</c>.
 /// </summary>
 public sealed class SaidConfigParseTests
 {
@@ -75,7 +76,7 @@ public sealed class SaidConfigParseTests
     }
 
     [Fact]
-    public void GetAllSaidAirports_EmitsSaabAirport_WithDefaultRangeCeilingAndTowerCoords()
+    public void GetAllSaidAirports_EmitsSaabAirport_WithDefaultRangeAndTowerCoords()
     {
         var airport = Assert.Single(Load(SaidFacilityJson).GetAllSaidAirports());
 
@@ -83,7 +84,7 @@ public sealed class SaidConfigParseTests
         Assert.Equal(37.72, airport.Lat);
         Assert.Equal(-122.22, airport.Lon);
         Assert.Equal(15, airport.Range); // ASDE-X default — SAID config carries no range
-        Assert.Equal(1500, airport.Ceiling); // ASDE-X default — SAID config carries no ceiling
+        // No ceiling field: CrcVisibilityTracker applies a fixed 2,500 ft AGL surface-display limit.
     }
 
     [Fact]

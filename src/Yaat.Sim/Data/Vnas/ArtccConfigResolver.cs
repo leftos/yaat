@@ -697,10 +697,10 @@ public static class ArtccConfigResolver
         return result;
     }
 
-    // SAID config carries no visibility range/ceiling (unlike ASDE-X), so surface
-    // gating falls back to the ASDE-X defaults.
+    // SAID config carries no visibility range (unlike ASDE-X), so surface gating falls back to the
+    // ASDE-X default range. The vertical limit is not config-driven — CrcVisibilityTracker applies a
+    // fixed 2,500 ft AGL surface-display ceiling.
     private const double SaidDefaultRange = 15;
-    private const double SaidDefaultCeiling = 1500;
 
     /// <summary>
     /// Collects all SAAB SAID airports declared anywhere in the facility tree. Coordinates come
@@ -752,7 +752,7 @@ public static class ArtccConfigResolver
 
             if (lat != 0 || lon != 0)
             {
-                result.Add(new SaidAirportInfo(facility.Id, lat, lon, SaidDefaultRange, SaidDefaultCeiling));
+                result.Add(new SaidAirportInfo(facility.Id, lat, lon, SaidDefaultRange));
             }
         }
 
