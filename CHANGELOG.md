@@ -12,6 +12,7 @@
 - ASDE-X and SAID targets now draw position-history trails.
 - The SAAB SAID surface display now shows traffic up to 2,500 ft AGL, including at high-elevation airports.
 - Clicking a radar datablock that shows an assigned-to or handoff indicator no longer misses near its right edge, and the selection box no longer flickers with the handoff flash.
+- Clicking an airborne aircraft's datablock on the Ground view no longer misses on its altitude line.
 
 ## v0.7.14-beta [2026/06/12]
 

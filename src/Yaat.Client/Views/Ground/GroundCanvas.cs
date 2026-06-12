@@ -1183,7 +1183,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 offset = resolvedOffset;
             }
 
-            var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _hitTestPaint, isAirborne: false);
+            // Match the draw path's airborne flag (GroundRenderer.DrawOneDataBlock) so an airborne
+            // aircraft's altitude line is included in the hit rect — otherwise its block is one line
+            // shorter than drawn and clicks near the bottom miss.
+            var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _hitTestPaint, isAirborne: !ac.IsOnGround);
             if (layout.Rect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 best = ac;
