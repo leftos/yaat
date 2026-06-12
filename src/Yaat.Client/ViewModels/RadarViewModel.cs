@@ -100,6 +100,27 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private bool _showMvaHints;
 
+    /// <summary>
+    /// Opt-in datablock deconfliction mode for this radar view. Persisted globally
+    /// (<see cref="Services.UserPreferences.RadarDeconflictMode"/>); cycled by the DCB DCNF button.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DeconflictModeLabel))]
+    [NotifyPropertyChangedFor(nameof(IsDeconflictActive))]
+    private DatablockDeconflictMode _deconflictMode;
+
+    /// <summary>True when deconfliction is on (either mode) — drives the DCNF button's active styling.</summary>
+    public bool IsDeconflictActive => DeconflictMode != DatablockDeconflictMode.Off;
+
+    /// <summary>DCNF button caption reflecting the current mode (S = compass snap, F = free-form).</summary>
+    public string DeconflictModeLabel =>
+        DeconflictMode switch
+        {
+            DatablockDeconflictMode.CompassSnap => "DCNF S",
+            DatablockDeconflictMode.FreeForm => "DCNF F",
+            _ => "DCNF",
+        };
+
     [ObservableProperty]
     private AircraftModel? _selectedAircraft;
 
@@ -283,6 +304,7 @@ public partial class RadarViewModel : ObservableObject
     public void SetPreferences(UserPreferences prefs)
     {
         _preferences = prefs;
+        DeconflictMode = prefs.RadarDeconflictMode;
     }
 
     public void SetAircraftLookup(Func<string, AircraftModel?> lookup)
@@ -888,6 +910,18 @@ public partial class RadarViewModel : ObservableObject
     {
         // Transient session toggle — deliberately not persisted; scenario load re-seeds it per position type.
         ShowMvaHints = !ShowMvaHints;
+    }
+
+    [RelayCommand]
+    private void CycleDeconflictMode()
+    {
+        DeconflictMode = DeconflictMode switch
+        {
+            DatablockDeconflictMode.Off => DatablockDeconflictMode.CompassSnap,
+            DatablockDeconflictMode.CompassSnap => DatablockDeconflictMode.FreeForm,
+            _ => DatablockDeconflictMode.Off,
+        };
+        _preferences?.SetRadarDeconflictMode(DeconflictMode);
     }
 
     [RelayCommand]

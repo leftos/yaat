@@ -264,15 +264,30 @@ internal readonly struct RadarDatablockLayout
 
     /// <summary>
     /// Resolves the datablock text-origin offset from the symbol. A manual drag offset always wins;
-    /// otherwise, when leader-direction sync is on and the student set a non-default direction, the
-    /// block is placed in that compass direction; failing both, the default upper-right offset is used.
+    /// otherwise, when deconfliction supplied an offset for this block, that is used; otherwise, when
+    /// leader-direction sync is on and the student set a non-default direction, the block is placed in
+    /// that compass direction; failing all three, the default upper-right offset is used.
     /// <paramref name="rectAtOrigin"/> is the block's bounds when drawn at text origin (0, 0).
+    /// <paramref name="deconflictOffset"/> is the auto-deconfliction result, or null when deconfliction
+    /// is off or this block is pinned.
     /// </summary>
-    public static SKPoint ResolveBlockOffset(AircraftModel ac, bool syncLeader, bool hasManual, SKPoint manual, SKRect rectAtOrigin)
+    public static SKPoint ResolveBlockOffset(
+        AircraftModel ac,
+        bool syncLeader,
+        bool hasManual,
+        SKPoint manual,
+        SKRect rectAtOrigin,
+        SKPoint? deconflictOffset
+    )
     {
         if (hasManual)
         {
             return manual;
+        }
+
+        if (deconflictOffset is { } resolved)
+        {
+            return resolved;
         }
 
         if (syncLeader && ac.StudentLeaderDirection is { } dir && dir != DefaultLeaderDirection)

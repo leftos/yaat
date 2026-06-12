@@ -150,8 +150,21 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<bool> HasSavedViewProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(HasSavedView));
 
+    public static readonly StyledProperty<DatablockDeconflictMode> DeconflictModeProperty = AvaloniaProperty.Register<
+        GroundCanvas,
+        DatablockDeconflictMode
+    >(nameof(DeconflictMode));
+
+    private static readonly IReadOnlyDictionary<string, SKPoint> EmptyOffsets = new Dictionary<string, SKPoint>();
+
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
+
+    // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
+    // thread at snapshot build; read by the snapshot copy (draw) and by hit-testing; persists across
+    // frames to seed the next pass for stability.
+    private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = new();
+    private readonly Dictionary<string, SKPoint> _deconflictScratch = new();
     private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = PlatformHelper.MonospaceTypefaceBold };
 
     public float DatablockTextSize
@@ -312,6 +325,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(ShowTaxiwayLabelsProperty);
         set => SetValue(ShowTaxiwayLabelsProperty, value);
+    }
+
+    /// <summary>Opt-in datablock deconfliction mode for this ground view. Bound from GroundViewModel.</summary>
+    public DatablockDeconflictMode DeconflictMode
+    {
+        get => GetValue(DeconflictModeProperty);
+        set => SetValue(DeconflictModeProperty, value);
     }
 
     public GroundFilterMode ShowHoldShort
@@ -562,6 +582,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == ShowHoldShortProperty
             || change.Property == ShowParkingProperty
             || change.Property == ShowSpotProperty
+            || change.Property == DeconflictModeProperty
             || change.Property == BackgroundImageProperty
             || change.Property == TowerCabMapProperty
             || change.Property == ShowSatelliteImageProperty
@@ -616,6 +637,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<int>? DrawWaypoints,
         bool IsDrawingRoute,
         IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
+        IReadOnlyDictionary<string, SKPoint> DeconflictOffsets,
         bool ShowDebugInfo,
         WeatherDisplayInfo? WeatherInfo,
         bool ShowRunwayLabels,
@@ -639,6 +661,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     protected override object? CreateRenderSnapshot()
     {
         var aircraft = SortByZOrder(VisibleAircraft(), _dataBlockZOrder);
+        var deconflictOffsets = RunDeconfliction(aircraft);
 
         var hiddenDbs = new HashSet<string>();
         if (_startWithAllHidden)
@@ -672,6 +695,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             DrawWaypoints,
             IsDrawingRoute,
             new Dictionary<string, SKPoint>(_dataBlockOffsets),
+            deconflictOffsets,
             ShowDebugInfo,
             WeatherInfo,
             ShowRunwayLabels,
@@ -714,6 +738,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.DrawHoverPreview,
             s.DrawWaypoints,
             s.DataBlockOffsets,
+            s.DeconflictOffsets,
             s.ShowDebugInfo,
             s.WeatherInfo,
             s.ShowRunwayLabels,
@@ -1153,6 +1178,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             {
                 offset = customOffset;
             }
+            else if (DeconflictOffsetFor(ac.Callsign) is { } resolvedOffset)
+            {
+                offset = resolvedOffset;
+            }
 
             var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _hitTestPaint, isAirborne: false);
             if (layout.Rect.Contains((float)screenPos.X, (float)screenPos.Y))
@@ -1163,6 +1192,82 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         return best;
     }
+
+    /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>
+    private SKPoint? DeconflictOffsetFor(string callsign) =>
+        DeconflictMode != DatablockDeconflictMode.Off && _resolvedDeconflictOffsets.TryGetValue(callsign, out var off) ? off : null;
+
+    /// <summary>
+    /// Runs the deconfliction pass for the current frame and returns an immutable copy for the snapshot.
+    /// Updates <see cref="_resolvedDeconflictOffsets"/> in place so the next frame and the UI-thread
+    /// hit-test path read the same result. A no-op (empty) when the mode is Off.
+    /// </summary>
+    private IReadOnlyDictionary<string, SKPoint> RunDeconfliction(IReadOnlyList<AircraftModel> sorted)
+    {
+        if (DeconflictMode == DatablockDeconflictMode.Off || Viewport.PixelWidth < 1 || Viewport.PixelHeight < 1)
+        {
+            _resolvedDeconflictOffsets.Clear();
+            return EmptyOffsets;
+        }
+
+        var items = BuildDeconflictItems(sorted);
+        var bounds = new SKRect(0, 0, Viewport.PixelWidth, Viewport.PixelHeight);
+        DatablockDeconfliction.Resolve(
+            DeconflictMode,
+            items,
+            DatablockDeconfliction.Options.Default(bounds),
+            _resolvedDeconflictOffsets,
+            _deconflictScratch
+        );
+
+        _resolvedDeconflictOffsets.Clear();
+        foreach (var kvp in _deconflictScratch)
+        {
+            _resolvedDeconflictOffsets[kvp.Key] = kvp.Value;
+        }
+
+        return new Dictionary<string, SKPoint>(_resolvedDeconflictOffsets);
+    }
+
+    private List<DatablockDeconfliction.Item> BuildDeconflictItems(IReadOnlyList<AircraftModel> sorted)
+    {
+        var items = new List<DatablockDeconfliction.Item>(sorted.Count);
+        foreach (var ac in sorted)
+        {
+            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            bool hasManual = _dataBlockOffsets.TryGetValue(ac.Callsign, out var manualOffset);
+            var rectAtOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, _hitTestPaint, isAirborne: !ac.IsOnGround).Rect;
+            items.Add(
+                new DatablockDeconfliction.Item
+                {
+                    Callsign = ac.Callsign,
+                    Anchor = new SKPoint(sx, sy),
+                    RectAtOrigin = rectAtOrigin,
+                    PreferredOffset = hasManual ? manualOffset : DataBlockLayout.DefaultOffset,
+                    IsPinned = hasManual,
+                    IsPriority = ReferenceEquals(ac, SelectedAircraft),
+                }
+            );
+        }
+
+        return items;
+    }
+
+    /// <summary>
+    /// Clears any manual drag offset for the callsign so its datablock returns to the default placement
+    /// (or rejoins automatic deconfliction when a mode is active). Backs the ground "Reset datablock
+    /// position" context-menu item.
+    /// </summary>
+    public void ResetDataBlockOffset(string callsign)
+    {
+        if (_dataBlockOffsets.Remove(callsign))
+        {
+            MarkDirty();
+        }
+    }
+
+    /// <summary>Returns true if the callsign's datablock has been manually dragged to a custom position.</summary>
+    public bool HasManualDataBlockOffset(string callsign) => _dataBlockOffsets.ContainsKey(callsign);
 
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
     {

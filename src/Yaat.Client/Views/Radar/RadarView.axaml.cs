@@ -461,6 +461,16 @@ public partial class RadarView : UserControl
         vm.ToggleMvaHintsCommand.Execute(null);
     }
 
+    private void OnDeconflictClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        vm.CycleDeconflictModeCommand.Execute(null);
+    }
+
     private void OnTopDownClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not RadarViewModel vm)

@@ -295,6 +295,7 @@ Views/
 Views/Map/
   MapViewport.cs                # Shared equirectangular projection for map views
   MapCanvasBase.cs              # ICustomDrawOperation base + pan/zoom input handling
+  DatablockDeconfliction.cs     # Pure opt-in datablock overlap resolver shared by radar + ground (snap / free-form)
 
 Views/Ground/
   GroundView.axaml.cs           # Ground view control with context menus + layer toggles (SAT/MAP/GND)

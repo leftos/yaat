@@ -93,6 +93,27 @@ public partial class GroundViewModel : ObservableObject
     [ObservableProperty]
     private GroundFilterMode _showSpot = GroundFilterMode.LabelsAndIcons;
 
+    /// <summary>
+    /// Opt-in datablock deconfliction mode for this ground view. Persisted globally
+    /// (<see cref="Services.UserPreferences.GroundDeconflictMode"/>); cycled by the DCNF filter button.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DeconflictModeLabel))]
+    [NotifyPropertyChangedFor(nameof(IsDeconflictActive))]
+    private DatablockDeconflictMode _deconflictMode;
+
+    /// <summary>True when deconfliction is on (either mode) — drives the DCNF button's active styling.</summary>
+    public bool IsDeconflictActive => DeconflictMode != DatablockDeconflictMode.Off;
+
+    /// <summary>DCNF button caption reflecting the current mode (S = compass snap, F = free-form).</summary>
+    public string DeconflictModeLabel =>
+        DeconflictMode switch
+        {
+            DatablockDeconflictMode.CompassSnap => "DCNF S",
+            DatablockDeconflictMode.FreeForm => "DCNF F",
+            _ => "DCNF",
+        };
+
     [ObservableProperty]
     private bool _isPanZoomLocked;
 
@@ -196,6 +217,7 @@ public partial class GroundViewModel : ObservableObject
             VideoMapOverlayBrightness = preferences.GroundVideoMapOverlayBrightness;
             ShowYaatLayout = preferences.GroundShowYaatLayout;
             YaatLayoutBrightness = preferences.GroundYaatLayoutBrightness;
+            DeconflictMode = preferences.GroundDeconflictMode;
         }
     }
 
@@ -370,6 +392,18 @@ public partial class GroundViewModel : ObservableObject
         SaveSettings();
         Preferences?.SetGroundLabelFilters(ShowRunwayLabels, ShowTaxiwayLabels, ShowHoldShort, ShowParking, ShowSpot);
         Preferences?.SetGroundPanZoomLocked(IsPanZoomLocked);
+    }
+
+    /// <summary>Advances the datablock deconfliction mode (Off → Snap → Free-form) and persists it.</summary>
+    public void CycleDeconflictMode()
+    {
+        DeconflictMode = DeconflictMode switch
+        {
+            DatablockDeconflictMode.Off => DatablockDeconflictMode.CompassSnap,
+            DatablockDeconflictMode.CompassSnap => DatablockDeconflictMode.FreeForm,
+            _ => DatablockDeconflictMode.Off,
+        };
+        Preferences?.SetGroundDeconflictMode(DeconflictMode);
     }
 
     /// <summary>

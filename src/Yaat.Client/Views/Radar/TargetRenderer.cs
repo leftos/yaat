@@ -281,6 +281,7 @@ public sealed class TargetRenderer : IDisposable
         IReadOnlyList<AircraftModel> aircraft,
         AircraftModel? selectedAircraft,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
         double ptlLengthMinutes = 0,
         bool ptlOwn = false,
         bool ptlAll = false,
@@ -321,6 +322,7 @@ public sealed class TargetRenderer : IDisposable
                 ac,
                 selectedAircraft,
                 dataBlockOffsets,
+                deconflictOffsets,
                 minifiedCallsigns,
                 highlightedCallsigns,
                 showTopDown,
@@ -341,6 +343,7 @@ public sealed class TargetRenderer : IDisposable
                     ac,
                     selectedAircraft,
                     dataBlockOffsets,
+                    deconflictOffsets,
                     minifiedCallsigns,
                     highlightedCallsigns,
                     showTopDown,
@@ -361,6 +364,7 @@ public sealed class TargetRenderer : IDisposable
         AircraftModel ac,
         AircraftModel? selectedAircraft,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
         IReadOnlySet<string>? minifiedCallsigns,
         IReadOnlySet<string>? highlightedCallsigns,
         bool showTopDown,
@@ -408,7 +412,7 @@ public sealed class TargetRenderer : IDisposable
         }
 
         DrawPositionSymbol(canvas, sx, sy, symbolColor);
-        var blockRect = DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, isMinified, isSelected);
+        var blockRect = DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, deconflictOffsets, isMinified, isSelected);
 
         if (drawBubble && ac.SpeechBubble is { } bubble)
         {
@@ -625,6 +629,7 @@ public sealed class TargetRenderer : IDisposable
         AircraftModel ac,
         SKColor color,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
         bool isMinified,
         bool isSelected
     )
@@ -633,6 +638,8 @@ public sealed class TargetRenderer : IDisposable
 
         SKPoint manualOffset = default;
         bool hasManualOffset = dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out manualOffset);
+        SKPoint? deconflictOffset =
+            deconflictOffsets is not null && deconflictOffsets.TryGetValue(ac.Callsign, out var resolvedOffset) ? resolvedOffset : null;
 
         if (EuroScopeMode && !isMinified)
         {
@@ -649,13 +656,20 @@ public sealed class TargetRenderer : IDisposable
         if (isMinified || collapse)
         {
             IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : RadarDatablockLayout.BuildCollapsedLines(ac);
-            return DrawReducedBlock(canvas, cx, cy, ac, color, lines, isSelected, hasManualOffset, manualOffset);
+            return DrawReducedBlock(canvas, cx, cy, ac, color, lines, isSelected, hasManualOffset, manualOffset, deconflictOffset);
         }
 
         // Full STARS block, optionally annotated with the student's (LDB)/(PDB) marker.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, _dataBlockPaint, FlashNoLandingClearance, marker).Rect;
-        var offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManualOffset, manualOffset, rectAtOrigin);
+        var offset = RadarDatablockLayout.ResolveBlockOffset(
+            ac,
+            SyncStudentLeaderDirection,
+            hasManualOffset,
+            manualOffset,
+            rectAtOrigin,
+            deconflictOffset
+        );
         float blockX = cx + offset.X;
         float blockY = cy + offset.Y;
 
@@ -717,11 +731,19 @@ public sealed class TargetRenderer : IDisposable
         IReadOnlyList<string> lines,
         bool isSelected,
         bool hasManualOffset,
-        SKPoint manualOffset
+        SKPoint manualOffset,
+        SKPoint? deconflictOffset
     )
     {
         var rectAtOrigin = RadarDatablockLayout.ReducedRect(lines, _dataBlockPaint, 0, 0);
-        var offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManualOffset, manualOffset, rectAtOrigin);
+        var offset = RadarDatablockLayout.ResolveBlockOffset(
+            ac,
+            SyncStudentLeaderDirection,
+            hasManualOffset,
+            manualOffset,
+            rectAtOrigin,
+            deconflictOffset
+        );
         float blockX = cx + offset.X;
         float blockY = cy + offset.Y;
         var rect = RadarDatablockLayout.ReducedRect(lines, _dataBlockPaint, blockX, blockY);

@@ -559,6 +559,7 @@ public sealed class GroundRenderer : IDisposable
         TaxiRoute? drawHoverPreview,
         IReadOnlyList<int>? drawWaypoints,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
         bool showDebugInfo,
         WeatherDisplayInfo? weatherInfo,
         bool showRunwayLabels,
@@ -640,7 +641,7 @@ public sealed class GroundRenderer : IDisposable
         // once in GroundCanvas.FilterActiveAircraft, the shared draw + hit-test chokepoint, so `aircraft`
         // is already the exact set to paint.
         DrawAircraft(canvas, vp, aircraft, selectedAircraft);
-        DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, highlightedCallsigns, hiddenDataBlockCallsigns);
+        DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, deconflictOffsets, highlightedCallsigns, hiddenDataBlockCallsigns);
 
         if (showYaatLayout)
         {
@@ -1873,6 +1874,7 @@ public sealed class GroundRenderer : IDisposable
         IReadOnlyList<AircraftModel> aircraft,
         AircraftModel? selectedAircraft,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
         IReadOnlySet<string>? highlightedCallsigns,
         IReadOnlySet<string>? hiddenDataBlockCallsigns
     )
@@ -1891,7 +1893,17 @@ public sealed class GroundRenderer : IDisposable
                 deferred.Add(ac);
                 continue;
             }
-            DrawOneDataBlock(canvas, vp, ac, selectedAircraft, dataBlockOffsets, highlightedCallsigns, hiddenDataBlockCallsigns, drawBubble: false);
+            DrawOneDataBlock(
+                canvas,
+                vp,
+                ac,
+                selectedAircraft,
+                dataBlockOffsets,
+                deconflictOffsets,
+                highlightedCallsigns,
+                hiddenDataBlockCallsigns,
+                drawBubble: false
+            );
         }
 
         if (deferred is not null)
@@ -1904,6 +1916,7 @@ public sealed class GroundRenderer : IDisposable
                     ac,
                     selectedAircraft,
                     dataBlockOffsets,
+                    deconflictOffsets,
                     highlightedCallsigns,
                     hiddenDataBlockCallsigns,
                     drawBubble: true
@@ -1920,6 +1933,7 @@ public sealed class GroundRenderer : IDisposable
         AircraftModel ac,
         AircraftModel? selectedAircraft,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        IReadOnlyDictionary<string, SKPoint>? deconflictOffsets,
         IReadOnlySet<string>? highlightedCallsigns,
         IReadOnlySet<string>? hiddenDataBlockCallsigns,
         bool drawBubble
@@ -1935,10 +1949,15 @@ public sealed class GroundRenderer : IDisposable
 
         var (sx, sy) = vp.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
 
+        // Manual drag wins; otherwise the deconfliction result, if any; otherwise the default offset.
         SKPoint offset = DataBlockLayout.DefaultOffset;
         if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
         {
             offset = customOffset;
+        }
+        else if (deconflictOffsets is not null && deconflictOffsets.TryGetValue(ac.Callsign, out var resolvedOffset))
+        {
+            offset = resolvedOffset;
         }
 
         var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _dataBlockTextPaint, isAirborne);

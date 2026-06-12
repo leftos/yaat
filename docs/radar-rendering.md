@@ -198,7 +198,13 @@ paths that must agree:
 If you add a datablock line in the layout struct without mirroring `ComputeDataBlockPlacement`, clicks land on the wrong
 rect or miss the new line entirely. There are pure-function tests on `RadarDatablockLayout.Compute` and
 `EuroScopeTagLayout.Layout` (`tests/Yaat.Client.Tests/Views/RadarDatablockLayoutTests.cs`, `EuroScopeTagLayoutTests.cs`), but
-**no test asserts parity between the draw layout and `ComputeDataBlockPlacement`** — the duplication is unguarded.
+**no test asserts content parity between the draw layout and `ComputeDataBlockPlacement`** — the full-block line strings
+remain hand-mirrored and unguarded. `RadarDatablockLayoutTests` does guard the **translation invariant**
+(`Compute_RectIsTranslationInvariant`) that deconfliction relies on (see below).
+
+The hit-test rect math is now factored into `RadarCanvas.ComputeStableRectAtOrigin` (and `ComputeStableFullRectAtOrigin`),
+which `ComputeDataBlockPlacement` **and** the deconfliction input assembly (`BuildDeconflictItems`) both call — so hit-test
+geometry and the deconfliction layout never diverge from each other.
 
 **The student-scope additions ARE shared, deliberately.** Block placement (`ResolveBlockOffset`), the minified/collapsed
 line strings (`BuildMinifiedLine`/`BuildCollapsedLines`), the `(LDB)`/`(PDB)` marker (`StudentLevelMarker`), and the reduced
@@ -211,6 +217,29 @@ sync across draw and hit-test without re-derivation. Only the full STARS block's
 (`LastEuroScopeTags`, `RadarCanvas.cs:1287-1292`). The renderer populates `_lastEuroScopeTags[callsign]` on every draw
 (`TargetRenderer.cs:475`). The trade-off: a frame in which an aircraft's tag was **not** rendered (it was filtered out)
 leaves stale or absent bounds, so `FindTagFieldAtPoint` returns `None` for it until the next frame draws it.
+
+## Datablock deconfliction
+
+`DatablockDeconfliction` (`Views/Map/DatablockDeconfliction.cs`) is a **pure, UI-agnostic** helper shared by the radar and
+ground views that repositions overlapping datablocks so labels stay readable. It is **opt-in** per view via a 3-way
+`DatablockDeconflictMode` (`Off` / `CompassSnap` / `FreeForm`, persisted globally as `UserPreferences.RadarDeconflictMode`
+/ `GroundDeconflictMode`, cycled by the DCNF button). `CompassSnap` greedily snaps each block to one of the eight STARS
+leader directions with previous-frame hysteresis (no jitter); `FreeForm` runs damped rect repulsion seeded from the prior
+frame. Both are deterministic given the same inputs + previous result.
+
+**Where it runs (and why):** the pass runs on the **UI thread** inside `RadarCanvas.CreateRenderSnapshot` (and the ground
+equivalent), not on the render thread. The hit-test path (`ComputeDataBlockPlacement` / `FindDataBlockAtPoint`) is also
+UI-thread and must read the **same** resolved offsets the draw used, or clicking/dragging a deconflicted block breaks. The
+result lives in a per-canvas `_resolvedDeconflictOffsets` dictionary: written once per snapshot build, copied immutably into
+the snapshot for the render thread, and read live by the UI-thread hit-test. It also persists across frames as the
+stability seed for the next pass. When the mode is `Off` the pass is skipped entirely and the map is empty — existing
+placement is untouched.
+
+**Offset precedence** (extended in `RadarDatablockLayout.ResolveBlockOffset`): **manual drag > deconfliction > leader
+direction > default**. Manually-dragged blocks are *pinned* (immovable obstacles others avoid); EuroScope tags are pinned
+for v1 because their per-field hit rects are cached from the draw. A non-overlapping block resolves to its preferred
+offset, so deconfliction only moves labels that actually collide. `BuildDeconflictItems` assembles the input list (anchor,
+rect-at-origin, preferred offset, pinned/priority flags) using the same `ComputeStableRectAtOrigin` the hit-test uses.
 
 ## Hit-testing and visibility
 

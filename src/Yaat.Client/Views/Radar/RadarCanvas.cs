@@ -125,11 +125,23 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<int> HistoryCountProperty = AvaloniaProperty.Register<RadarCanvas, int>(nameof(HistoryCount));
 
+    public static readonly StyledProperty<DatablockDeconflictMode> DeconflictModeProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        DatablockDeconflictMode
+    >(nameof(DeconflictMode));
+
     private const float DataBlockPad = 3f;
     private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
+    private static readonly IReadOnlyDictionary<string, SKPoint> EmptyOffsets = new Dictionary<string, SKPoint>();
 
     private readonly RadarRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
+
+    // Per-frame deconfliction result (callsign -> effective text-origin offset). Written on the UI
+    // thread at snapshot build; read by the snapshot copy (draw) and by hit-testing. Persists across
+    // frames to seed the next pass for stability.
+    private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = new();
+    private readonly Dictionary<string, SKPoint> _deconflictScratch = new();
     private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = Services.PlatformHelper.MonospaceTypefaceBold };
     private bool _initialFitDone;
     private bool _suppressRangeFit;
@@ -443,6 +455,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    /// <summary>Opt-in datablock deconfliction mode for this radar view. Bound from RadarViewModel.</summary>
+    public DatablockDeconflictMode DeconflictMode
+    {
+        get => GetValue(DeconflictModeProperty);
+        set => SetValue(DeconflictModeProperty, value);
+    }
+
     /// <summary>
     /// Airport id the user's ground view is currently showing (null when none). A ground
     /// aircraft is normally hidden on the radar, but when it has an active speech bubble and its
@@ -749,6 +768,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == WaypointConditionsProperty
             || change.Property == ShownPathsProperty
             || change.Property == HistoryCountProperty
+            || change.Property == DeconflictModeProperty
         )
         {
             MarkDirty();
@@ -808,6 +828,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         double RangeRingCenterLon,
         double RangeRingSizeNm,
         IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
+        IReadOnlyDictionary<string, SKPoint> DeconflictOffsets,
         string? HoveredFixName,
         double PtlLengthMinutes,
         bool PtlOwn,
@@ -868,13 +889,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             mvaHover = (mvaText, new SKPoint((float)_lastPointerPos.X, (float)_lastPointerPos.Y));
         }
 
+        var sorted = SortByZOrder(
+            FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
+            _dataBlockZOrder
+        );
+        var deconflictOffsets = RunDeconfliction(sorted);
+
         return new RenderSnapshot(
             VideoMaps ?? Array.Empty<VideoMapData>(),
             _brightnessLookup,
-            SortByZOrder(
-                FilterAircraft(Aircraft, ShowTopDown, ShowSpeechBubbles, AlwaysShowGroundBubblesOnRadar, GroundShownAirportId, DateTime.UtcNow),
-                _dataBlockZOrder
-            ),
+            sorted,
             SelectedAircraft,
             ShowRangeRings,
             RangeNm,
@@ -887,6 +911,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             RangeRingCenterLon,
             RangeRingSizeNm,
             new Dictionary<string, SKPoint>(_dataBlockOffsets),
+            deconflictOffsets,
             hoveredFix,
             PtlLengthMinutes,
             PtlOwn,
@@ -953,6 +978,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.RangeRingCenterLon,
             s.RangeRingSizeNm,
             s.DataBlockOffsets,
+            s.DeconflictOffsets,
             s.HoveredFixName,
             s.PtlLengthMinutes,
             s.PtlOwn,
@@ -1426,6 +1452,26 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+        var rectAtOrigin = ComputeStableRectAtOrigin(ac);
+        var deconflict = DeconflictOffsetFor(ac.Callsign);
+        var offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, rectAtOrigin, deconflict);
+        var rect = new SKRect(
+            rectAtOrigin.Left + sx + offset.X,
+            rectAtOrigin.Top + sy + offset.Y,
+            rectAtOrigin.Right + sx + offset.X,
+            rectAtOrigin.Bottom + sy + offset.Y
+        );
+        return (offset, rect);
+    }
+
+    /// <summary>
+    /// Computes the datablock bounds with the text origin at (0, 0), choosing the minified, collapsed,
+    /// or full layout. The full layout reserves the handoff/warning/note slots so the rect stays stable
+    /// across the 500 ms flash cadence. Shared by hit-testing and the deconfliction input assembly so
+    /// both agree on the block geometry.
+    /// </summary>
+    private SKRect ComputeStableRectAtOrigin(AircraftModel ac)
+    {
         bool isMinified = _minifiedCallsigns.Contains(ac.Callsign);
         bool collapse =
             !isMinified
@@ -1435,13 +1481,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         if (isMinified || collapse)
         {
             IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : RadarDatablockLayout.BuildCollapsedLines(ac);
-            var reducedAtOrigin = RadarDatablockLayout.ReducedRect(lines, _hitTestPaint, 0, 0);
-            var reducedOffset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, reducedAtOrigin);
-            return (reducedOffset, RadarDatablockLayout.ReducedRect(lines, _hitTestPaint, sx + reducedOffset.X, sy + reducedOffset.Y));
+            return RadarDatablockLayout.ReducedRect(lines, _hitTestPaint, 0, 0);
         }
 
-        // Full block — measure a stable rect (handoff/warning slots always reserved) so the drag hit
-        // area doesn't pulse with the 500 ms flash, then position it with the renderer's offset rules.
+        return ComputeStableFullRectAtOrigin(ac);
+    }
+
+    private SKRect ComputeStableFullRectAtOrigin(AircraftModel ac)
+    {
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         float lineH = _hitTestPaint.TextSize + 2;
 
@@ -1452,62 +1499,127 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var cwtCode = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
         string line2 = cwtCode.Length > 0 ? $"{altH} {spdTens} {cwtCode}" : $"{altH} {spdTens}";
 
-        float w1 = _hitTestPaint.MeasureText(line1);
-        float w2 = _hitTestPaint.MeasureText(line2);
-        float textW = MathF.Max(w1, w2);
+        float textW = MathF.Max(_hitTestPaint.MeasureText(line1), _hitTestPaint.MeasureText(line2));
         int lineCount = 2;
 
-        // Owner + handoff + scratchpads on same line (always include handoff for consistent hit rect)
+        // Owner + handoff + scratchpads on same line (always include handoff for a consistent hit rect).
         var line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.HandoffDisplay, ac.Scratchpad1, ac.Scratchpad2);
         if (line3 is not null)
         {
-            float w3 = _hitTestPaint.MeasureText(line3);
-            textW = MathF.Max(textW, w3);
+            textW = MathF.Max(textW, _hitTestPaint.MeasureText(line3));
             lineCount = 3;
         }
 
         // ModeC strikethrough line (transponder Standby) — matches the renderer's reserved slot.
         if (ac.TransponderMode == "Standby")
         {
-            float w4 = _hitTestPaint.MeasureText("ModeC");
-            textW = MathF.Max(textW, w4);
+            textW = MathF.Max(textW, _hitTestPaint.MeasureText("ModeC"));
             lineCount++;
         }
 
-        // No-landing-clearance warning slot — always reserved when active so the rect doesn't
-        // pulse with the 500ms flash cadence.
+        // No-landing-clearance warning slot — always reserved when active so the rect doesn't pulse.
         if (FlashNoLandingClearance && ac.NoLandingClearanceWarningActive && !ac.IsAutoClearedToLand)
         {
-            float w5 = _hitTestPaint.MeasureText(RadarDatablockLayout.NoLandingClearanceText);
-            textW = MathF.Max(textW, w5);
+            textW = MathF.Max(textW, _hitTestPaint.MeasureText(RadarDatablockLayout.NoLandingClearanceText));
             lineCount++;
         }
 
         // Instructor note line — must mirror RadarDatablockLayout.Compute so clicks hit the taller block.
         if (ac.HasNote)
         {
-            float w6 = _hitTestPaint.MeasureText(ac.Note);
-            textW = MathF.Max(textW, w6);
+            textW = MathF.Max(textW, _hitTestPaint.MeasureText(ac.Note));
             lineCount++;
         }
 
-        var rectAtOrigin = new SKRect(
-            -DataBlockPad,
-            -_hitTestPaint.TextSize - DataBlockPad,
-            textW + DataBlockPad,
-            ((lineCount - 1) * lineH) + DataBlockPad
-        );
-        var offset = RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, hasManual, manualOffset, rectAtOrigin);
-        float blockX = sx + offset.X;
-        float blockY = sy + offset.Y;
+        return new SKRect(-DataBlockPad, -_hitTestPaint.TextSize - DataBlockPad, textW + DataBlockPad, ((lineCount - 1) * lineH) + DataBlockPad);
+    }
 
-        var rect = new SKRect(
-            blockX - DataBlockPad,
-            blockY - _hitTestPaint.TextSize - DataBlockPad,
-            blockX + textW + DataBlockPad,
-            blockY + ((lineCount - 1) * lineH) + DataBlockPad
+    /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>
+    private SKPoint? DeconflictOffsetFor(string callsign) =>
+        DeconflictMode != DatablockDeconflictMode.Off && _resolvedDeconflictOffsets.TryGetValue(callsign, out var off) ? off : null;
+
+    /// <summary>
+    /// Runs the deconfliction pass for the current frame and returns an immutable copy for the snapshot.
+    /// Updates <see cref="_resolvedDeconflictOffsets"/> in place so the next frame and the UI-thread
+    /// hit-test path read the same result. A no-op (empty) when the mode is Off.
+    /// </summary>
+    private IReadOnlyDictionary<string, SKPoint> RunDeconfliction(IReadOnlyList<AircraftModel> sorted)
+    {
+        if (DeconflictMode == DatablockDeconflictMode.Off || Viewport.PixelWidth < 1 || Viewport.PixelHeight < 1)
+        {
+            _resolvedDeconflictOffsets.Clear();
+            return EmptyOffsets;
+        }
+
+        var items = BuildDeconflictItems(sorted);
+        var bounds = new SKRect(0, 0, Viewport.PixelWidth, Viewport.PixelHeight);
+        DatablockDeconfliction.Resolve(
+            DeconflictMode,
+            items,
+            DatablockDeconfliction.Options.Default(bounds),
+            _resolvedDeconflictOffsets,
+            _deconflictScratch
         );
-        return (offset, rect);
+
+        _resolvedDeconflictOffsets.Clear();
+        foreach (var kvp in _deconflictScratch)
+        {
+            _resolvedDeconflictOffsets[kvp.Key] = kvp.Value;
+        }
+
+        return new Dictionary<string, SKPoint>(_resolvedDeconflictOffsets);
+    }
+
+    private List<DatablockDeconfliction.Item> BuildDeconflictItems(IReadOnlyList<AircraftModel> sorted)
+    {
+        var items = new List<DatablockDeconfliction.Item>(sorted.Count);
+        foreach (var ac in sorted)
+        {
+            var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
+            var anchor = new SKPoint(sx, sy);
+            bool hasManual = _dataBlockOffsets.TryGetValue(ac.Callsign, out var manualOffset);
+            bool isPriority = ReferenceEquals(ac, SelectedAircraft);
+
+            // EuroScope tags are pinned for v1: their per-field hit rects are cached from the draw, so
+            // moving the tag would desync field hit-testing. Anchor the cached bounds as an obstacle.
+            if (EuroScopeMode && !_minifiedCallsigns.Contains(ac.Callsign) && LastEuroScopeTags.TryGetValue(ac.Callsign, out var es))
+            {
+                var esOffset = hasManual ? manualOffset : RadarDatablockLayout.DefaultOffset;
+                float ox = sx + esOffset.X;
+                float oy = sy + esOffset.Y;
+                var esAtOrigin = new SKRect(es.Bounds.Left - ox, es.Bounds.Top - oy, es.Bounds.Right - ox, es.Bounds.Bottom - oy);
+                items.Add(
+                    new DatablockDeconfliction.Item
+                    {
+                        Callsign = ac.Callsign,
+                        Anchor = anchor,
+                        RectAtOrigin = esAtOrigin,
+                        PreferredOffset = esOffset,
+                        IsPinned = true,
+                        IsPriority = isPriority,
+                    }
+                );
+                continue;
+            }
+
+            var rectAtOrigin = ComputeStableRectAtOrigin(ac);
+            var preferred = hasManual
+                ? manualOffset
+                : RadarDatablockLayout.ResolveBlockOffset(ac, SyncStudentLeaderDirection, false, default, rectAtOrigin, null);
+            items.Add(
+                new DatablockDeconfliction.Item
+                {
+                    Callsign = ac.Callsign,
+                    Anchor = anchor,
+                    RectAtOrigin = rectAtOrigin,
+                    PreferredOffset = preferred,
+                    IsPinned = hasManual,
+                    IsPriority = isPriority,
+                }
+            );
+        }
+
+        return items;
     }
 
     public AircraftModel? FindAircraftAtPoint(Point screenPos)

@@ -396,6 +396,7 @@ Selecting a preset is identical to typing the equivalent `TAXI` command (`TAXI T
 **Controls bar** (top-right corner):
 - **Layer toggles** — **SAT** (satellite background image), **MAP** (video map overlay), **GND** (YAAT ground layout)
 - **Label filters** — **RWY** and **TWY** toggle labels on/off. **HS**, **PARK**, and **SPOT** are tri-state: labels+icons → icons only → hidden. Hovering over a hidden element temporarily shows it.
+- **DCNF** — datablock deconfliction (see *Datablock deconfliction* below). Cycles off → **DCNF S** (snap) → **DCNF F** (free-form).
 - **RESET** — reset view to fit the airport
 - **LOCK / UNLK** — lock or unlock pan, zoom, and rotation.
 
@@ -420,6 +421,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 - **RR**: range ring size spinner; **PLACE RR** positions the center, **RR CNTR** resets to center
 - **FIX**: toggle fix name overlay
 - **MVA**: toggle the MVA altitude hint (see *Minimum Vectoring Altitude awareness* below). Defaults on for Approach/Center scenarios, off for Ground/Tower — configurable per position type in Settings → Display → Overlays.
+- **DCNF**: datablock deconfliction (see *Datablock deconfliction* below). Cycles off → **DCNF S** (snap) → **DCNF F** (free-form).
 - **LOCK**: lock/unlock pan and zoom
 - **TOP-DN**: toggle top-down display mode
 - **BRITE**: adjust brightness per video map category
@@ -456,6 +458,18 @@ Pin reference fixes/NAVAIDs or arbitrary points on the radar (matching CRC STARS
 The MVA is the radar-vectoring floor from 7110.65 §5-6-1; it is a controller-judgment aid, not a navigation source.
 
 **Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**. When an instructor [note](#assigning-a-note-to-an-aircraft) is set, an extra amber line is appended at the bottom of the block.
+
+##### Datablock deconfliction
+
+In busy traffic, datablocks pile on top of each other and become unreadable. **Datablock deconfliction** is an opt-in mode that automatically moves overlapping datablocks apart. It is available independently on the **Radar** view (the **DCNF** button on the DCB, next to MVA) and the **Ground** view (the **DCNF** button on the controls bar); each view remembers its own setting across sessions.
+
+The button cycles through three modes:
+
+- **off** (`DCNF`) — no automatic repositioning; datablocks keep their default/leader-line placement.
+- **Snap** (`DCNF S`) — each overlapping datablock snaps to one of the eight leader directions, the way a controller sets leader lines on a real scope. Positions are stable and don't jitter as aircraft move.
+- **Free-form** (`DCNF F`) — datablocks slide freely until they separate. This clears denser clusters than Snap, at the cost of leader lines at arbitrary angles.
+
+Datablocks you have **dragged by hand stay put**, and the rest route around them. To hand a dragged datablock back to automatic placement, right-click it and choose **Reset datablock position** (radar: in the **Display** submenu, labeled "Reset to student position"; ground: "Reset datablock position"). Deconfliction only moves labels that actually overlap — an uncrowded datablock stays in its normal spot.
 
 #### Assigning a Note to an Aircraft
 

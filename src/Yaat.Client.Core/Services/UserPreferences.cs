@@ -354,6 +354,8 @@ public sealed class UserPreferences
     public GroundFilterMode GroundShowHoldShort => (GroundFilterMode)_data.GroundShowHoldShort;
     public GroundFilterMode GroundShowParking => (GroundFilterMode)_data.GroundShowParking;
     public GroundFilterMode GroundShowSpot => (GroundFilterMode)_data.GroundShowSpot;
+    public DatablockDeconflictMode GroundDeconflictMode => (DatablockDeconflictMode)_data.GroundDeconflictMode;
+    public DatablockDeconflictMode RadarDeconflictMode => (DatablockDeconflictMode)_data.RadarDeconflictMode;
     public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
     public bool GroundHideDataBlocksByDefault => _data.GroundHideDataBlocksByDefault;
     public bool GroundShowSatelliteImage => _data.GroundShowSatelliteImage;
@@ -986,6 +988,20 @@ public sealed class UserPreferences
         Save();
     }
 
+    /// <summary>Persists the ground-view datablock deconfliction mode. Written from the ground view's DCNF button.</summary>
+    public void SetGroundDeconflictMode(DatablockDeconflictMode mode)
+    {
+        _data.GroundDeconflictMode = (int)mode;
+        Save();
+    }
+
+    /// <summary>Persists the radar-view datablock deconfliction mode. Written from the radar view's DCNF button.</summary>
+    public void SetRadarDeconflictMode(DatablockDeconflictMode mode)
+    {
+        _data.RadarDeconflictMode = (int)mode;
+        Save();
+    }
+
     public void SetGroundHideDataBlocksByDefault(bool hide)
     {
         _data.GroundHideDataBlocksByDefault = hide;
@@ -1406,6 +1422,8 @@ public sealed class UserPreferences
             GroundShowHoldShort = GetFieldOr(obj, "groundShowHoldShort", 0),
             GroundShowParking = GetFieldOr(obj, "groundShowParking", 0),
             GroundShowSpot = GetFieldOr(obj, "groundShowSpot", 0),
+            GroundDeconflictMode = GetFieldOr(obj, "groundDeconflictMode", 0),
+            RadarDeconflictMode = GetFieldOr(obj, "radarDeconflictMode", 0),
             GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
             GroundHideDataBlocksByDefault = GetFieldOr(obj, "groundHideDataBlocksByDefault", false),
             GroundShowSatelliteImage = GetFieldOr(obj, "groundShowSatelliteImage", false),
@@ -1679,6 +1697,8 @@ public sealed class UserPreferences
         public int GroundShowHoldShort { get; set; }
         public int GroundShowParking { get; set; }
         public int GroundShowSpot { get; set; }
+        public int GroundDeconflictMode { get; set; }
+        public int RadarDeconflictMode { get; set; }
         public bool GroundPanZoomLocked { get; set; }
         public bool GroundHideDataBlocksByDefault { get; set; }
         public bool GroundShowSatelliteImage { get; set; }

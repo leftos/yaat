@@ -335,4 +335,105 @@ public class RadarDatablockLayoutTests
         float delta = withNote.Rect.Bottom - baseline.Rect.Bottom;
         Assert.Equal(baseline.LineHeight, delta, precision: 3);
     }
+
+    // --- Offset precedence (datablock deconfliction): manual > deconflict > leader-dir > default ---
+
+    [Fact]
+    public void ResolveBlockOffset_ManualBeatsDeconflict()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "").Rect;
+        var manual = new SKPoint(5, 5);
+
+        var result = RadarDatablockLayout.ResolveBlockOffset(
+            ac,
+            syncLeader: true,
+            hasManual: true,
+            manual,
+            rectAtOrigin,
+            deconflictOffset: new SKPoint(99, 99)
+        );
+
+        Assert.Equal(manual, result);
+    }
+
+    [Fact]
+    public void ResolveBlockOffset_DeconflictBeatsLeaderDirection()
+    {
+        var ac = CreateModel();
+        ac.StudentLeaderDirection = 8; // North, non-default
+        using var paint = CreatePaint();
+        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "").Rect;
+        var deconflict = new SKPoint(99, 99);
+
+        var result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: true, hasManual: false, default, rectAtOrigin, deconflict);
+
+        Assert.Equal(deconflict, result);
+    }
+
+    [Fact]
+    public void ResolveBlockOffset_DeconflictBeatsDefault()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "").Rect;
+        var deconflict = new SKPoint(99, 99);
+
+        var result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: false, hasManual: false, default, rectAtOrigin, deconflict);
+
+        Assert.Equal(deconflict, result);
+    }
+
+    [Fact]
+    public void ResolveBlockOffset_NullDeconflict_ReproducesLeaderDirection()
+    {
+        var ac = CreateModel();
+        ac.StudentLeaderDirection = 8; // North
+        using var paint = CreatePaint();
+        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "").Rect;
+
+        var leaderResult = RadarDatablockLayout.ResolveBlockOffset(
+            ac,
+            syncLeader: true,
+            hasManual: false,
+            default,
+            rectAtOrigin,
+            deconflictOffset: null
+        );
+
+        Assert.NotEqual(RadarDatablockLayout.DefaultOffset, leaderResult);
+    }
+
+    [Fact]
+    public void ResolveBlockOffset_NullDeconflict_NoLeader_ReturnsDefault()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "").Rect;
+
+        var result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: false, hasManual: false, default, rectAtOrigin, deconflictOffset: null);
+
+        Assert.Equal(RadarDatablockLayout.DefaultOffset, result);
+    }
+
+    /// <summary>
+    /// The block rect is translation-invariant: computing at origin and translating by (blockX, blockY)
+    /// reproduces computing at (blockX, blockY). Deconfliction assembles its input rects at origin and
+    /// translates them by anchor+offset, so draw and hit-test geometry agree only if this holds.
+    /// </summary>
+    [Fact]
+    public void Compute_RectIsTranslationInvariant()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+
+        var atOrigin = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "").Rect;
+        var atOffset = RadarDatablockLayout.Compute(ac, 137, -52, paint, showNoLandingClearance: false, callsignMarker: "").Rect;
+
+        Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
+        Assert.Equal(atOrigin.Top - 52, atOffset.Top, precision: 3);
+        Assert.Equal(atOrigin.Right + 137, atOffset.Right, precision: 3);
+        Assert.Equal(atOrigin.Bottom - 52, atOffset.Bottom, precision: 3);
+    }
 }

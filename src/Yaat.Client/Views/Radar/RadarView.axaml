@@ -214,13 +214,8 @@
                 <!-- Col 15: BRITE (spans 2 rows) — opens brightness submenu -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" Content="BRITE" Click="OnBriteClick" />
 
-                <!-- Col 16: LDR DIR/N / LDR/2 (disabled split) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="16" IsEnabled="False">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="LDR DIR" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                        <TextBlock Text="N" FontFamily="{StaticResource MonoFont}" FontSize="11" />
-                    </StackPanel>
-                </Button>
+                <!-- Col 16: DCNF (datablock deconfliction: Off → Snap → Free) / LDR/2 (disabled) -->
+                <Button x:Name="DeconflictButton" Classes="dcb-half" Classes.active="{Binding IsDeconflictActive}" Grid.Row="0" Grid.Column="16" Content="{Binding DeconflictModeLabel}" Click="OnDeconflictClick" ToolTip.Tip="Datablock deconfliction: Off → Snap → Free-form" />
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="16" IsEnabled="False">
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock Text="LDR" FontFamily="{StaticResource MonoFont}" FontSize="11" />
@@ -453,7 +448,8 @@
                                WaypointConditions="{Binding WaypointConditionsSnapshot}"
                                WeatherInfo="{Binding WeatherInfo}"
                                ShownPaths="{Binding ShownPaths}"
-                               HistoryCount="{Binding HistoryCount}" />
+                               HistoryCount="{Binding HistoryCount}"
+                               DeconflictMode="{Binding DeconflictMode}" />
 
             <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
             <Popup x:Name="MapPopup"

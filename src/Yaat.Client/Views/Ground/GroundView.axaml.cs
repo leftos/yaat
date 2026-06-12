@@ -175,6 +175,14 @@ public partial class GroundView : UserControl
         }
     }
 
+    private void OnToggleDeconflict(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.CycleDeconflictMode();
+        }
+    }
+
     private void OnToggleTaxiwayLabels(object? sender, RoutedEventArgs e)
     {
         if (DataContext is GroundViewModel vm)
@@ -598,6 +606,20 @@ public partial class GroundView : UserControl
                 }
             )
         );
+
+        if (_canvas?.HasManualDataBlockOffset(callsign) ?? false)
+        {
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Reset datablock position",
+                    () =>
+                    {
+                        _canvas?.ResetDataBlockOffset(callsign);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
 
         menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));

@@ -145,4 +145,27 @@ public class GroundDataBlockLayoutTests
         float delta = withNote.Rect.Bottom - baseline.Rect.Bottom;
         Assert.Equal(baseline.LineHeight, delta, precision: 3);
     }
+
+    /// <summary>
+    /// The block rect is translation-invariant: computing at origin (offset 0) and translating by
+    /// (screen + offset) reproduces computing at that screen position with the offset. Deconfliction
+    /// builds its input rect at origin and translates by anchor+offset, so draw and hit-test geometry
+    /// agree only if this holds.
+    /// </summary>
+    [Fact]
+    public void Compute_RectIsTranslationInvariant()
+    {
+        var ac = CreateModel();
+        ac.CwtCode = "E";
+        using var paint = CreatePaint();
+
+        var offset = new SKPoint(30, -25);
+        var atOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, paint, isAirborne: false).Rect;
+        var positioned = DataBlockLayout.Compute(ac, 100, 200, offset, paint, isAirborne: false).Rect;
+
+        Assert.Equal(atOrigin.Left + 100 + offset.X, positioned.Left, precision: 3);
+        Assert.Equal(atOrigin.Top + 200 + offset.Y, positioned.Top, precision: 3);
+        Assert.Equal(atOrigin.Right + 100 + offset.X, positioned.Right, precision: 3);
+        Assert.Equal(atOrigin.Bottom + 200 + offset.Y, positioned.Bottom, precision: 3);
+    }
 }
