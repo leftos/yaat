@@ -975,9 +975,12 @@ public partial class GroundView : UserControl
                 "Copy to command input",
                 () =>
                 {
-                    var suffix = spot is not null ? $" {spot.Token}" : "";
-                    var taxi = $"TAXI {vm.BuildTaxiCommand(route)}{suffix}";
-                    ShowTaxiInput(callsign, initials, taxi, taxi.Length);
+                    // Match the Send path: dense node refs (pathOverride), not sparse taxiway names.
+                    var commandToCopy =
+                        variants.Count > 0
+                            ? variants[^1].Command
+                            : $"TAXI {nodeRefPath}{(spot is not null ? $" {spot.Token}" : "")}";
+                    ShowTaxiInput(callsign, initials, commandToCopy, commandToCopy.Length);
                     return Task.CompletedTask;
                 }
             )

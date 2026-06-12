@@ -54,6 +54,26 @@ public class GroundViewModelDrawRouteTests
     }
 
     [Fact]
+    public void BuildTaxiCrossingVariants_WithDensePathOverride_UsesNodeRefsNotTaxiwayNames()
+    {
+        var vm = MakeViewModel();
+        vm.SetLayoutForTesting(LinearLayout());
+        var ac = MakeAircraft(Lat0, Lon0);
+
+        vm.StartDrawRoute(ac);
+        Assert.True(vm.AddDrawWaypoint(3));
+        var result = vm.FinishDrawRoute();
+        Assert.NotNull(result);
+
+        var (route, nodeRefPath, spot) = result!.Value;
+        var variants = vm.BuildTaxiCrossingVariants(route, spot: spot, pathOverride: nodeRefPath);
+
+        Assert.Single(variants);
+        Assert.Equal("TAXI #2 #3", variants[0].Command);
+        Assert.NotEqual($"TAXI {vm.BuildTaxiCommand(route)}", variants[0].Command);
+    }
+
+    [Fact]
     public void FinishDrawRoute_SpotTerminus_AppendsDollarToken()
     {
         var vm = MakeViewModel();

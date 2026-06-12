@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Draw-route "Copy to command input" now preserves the exact drawn path** — the finish menu's Send path was fixed in v0.7.13 to commit the full node sequence, but Copy still pasted sparse taxiway names (`TAXI V`), so the simulator could re-route onto a parallel taxiway. Copy now uses the same dense node-ref command as Send.
+
 ## v0.7.13-beta [2026/06/11]
 
 ### Highlights
