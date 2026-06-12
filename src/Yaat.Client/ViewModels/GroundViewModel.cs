@@ -581,24 +581,20 @@ public partial class GroundViewModel : ObservableObject
         return TaxiPathfinder.FindRoute(_domainLayout, fromNodeId, toNodeId, category);
     }
 
-    public string BuildTaxiCommand(TaxiRoute route)
+    public string BuildTaxiCommand(TaxiRoute route) => string.Join(" ", TaxiRouteFormatter.CleanTaxiwaySequence(route));
+
+    /// <summary>
+    /// Builds the readable TAXI command pasted by the ground draw-route "Copy to command input"
+    /// action. Clean taxiway names keep the path constrained to the drawn corridor; a terminal pin
+    /// (the spot / parking token when the route ends in a stand, otherwise a trailing node-ref) holds
+    /// the aircraft at the drawn endpoint instead of running to the end of the last taxiway; CROSS
+    /// clauses authorize any runways the drawn route crosses.
+    /// </summary>
+    public string BuildDrawRouteCopyCommand(TaxiRoute route, TaxiSpotDestination? spot)
     {
-        var taxiways = new List<string>();
-        foreach (var seg in route.Segments)
-        {
-            var name = seg.TaxiwayName;
-            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (taxiways.Count == 0 || taxiways[^1] != name)
-            {
-                taxiways.Add(name);
-            }
-        }
-
-        return string.Join(" ", taxiways);
+        var readablePath = TaxiRouteFormatter.BuildReadableTaxiPath(route, hasNamedTerminus: spot is not null);
+        var variants = BuildTaxiCrossingVariants(route, spot: spot, pathOverride: readablePath);
+        return variants.Count > 0 ? variants[^1].Command : $"TAXI {readablePath}{(spot is not null ? $" {spot.Token}" : "")}";
     }
 
     public int? FindNearestNodeId(LatLon position)
@@ -989,21 +985,7 @@ public partial class GroundViewModel : ObservableObject
 
     public string GetTaxiwayDisplayName(TaxiRoute route)
     {
-        var names = new List<string>();
-        foreach (var seg in route.Segments)
-        {
-            var name = seg.TaxiwayName;
-            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (names.Count == 0 || !string.Equals(names[^1], name, StringComparison.OrdinalIgnoreCase))
-            {
-                names.Add(name);
-            }
-        }
-
+        var names = TaxiRouteFormatter.CleanTaxiwaySequence(route);
         return names.Count > 0 ? $"via {string.Join(" ", names)}" : "direct";
     }
 

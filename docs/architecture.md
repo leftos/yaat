@@ -689,6 +689,7 @@ Fillet/                        # Plan-then-execute fillet pipeline (edge-split c
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching; NormalizeDesignator (zero-pad canonical) + ToDisplayDesignator/ToDisplayString (FAA no-leading-zero display form)
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiRouteAutoCross.cs          # Applies AutoCrossRunway toggle to a route's RunwayCrossing hold-shorts; reused at TAXI-resolution and on mid-session toggle (SimulationWorld.ApplyAutoCrossToActiveTaxiRoutes)
+TaxiRouteFormatter.cs          # Route -> readable TAXI form: CleanTaxiwaySequence (decomposes junction composite labels "W - W6"=GroundArc.TaxiwayNames into single names) + BuildReadableTaxiPath (clean names + terminal #node pin for a mid-taxiway stop). Used by GroundViewModel draw-route Copy + taxiway summaries
 TaxiPathfinder.cs            # Taxi pathfinder (static): ResolveExplicitPath (SegmentExpander), FindRoute/FindRoutes (A* AutoRouter, per-preference), FindFullLengthLineupHoldShort. See Data/Airport/Pathfinding/ + docs/ground/pathfinder.md
 ExplicitPathOptions.cs         # RoutePreference enum + ExplicitPathOptions input bag (pathfinder inputs)
 VirtualNode.cs                 # Factory for virtual ground nodes (negative IDs); CreateEdge, CreateSegment, OffsetBefore/OffsetPast

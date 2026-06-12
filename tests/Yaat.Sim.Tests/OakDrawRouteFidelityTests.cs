@@ -158,6 +158,179 @@ public class OakDrawRouteFidelityTests
         Assert.Null(noToken.Ground.AssignedTaxiRoute!.DestinationParking);
     }
 
+    // The readable form the draw-route "Copy to command input" action pastes: clean taxiway names
+    // (junction composite labels like "W - W6" decomposed) plus a terminal node-ref pin. These guard
+    // that the readable command stays faithful to the drawn geometry — no parallel-taxiway
+    // substitution, no overshoot past the drawn endpoint.
+
+    [Fact]
+    public void ReadableTaxiPath_CleanNamesReproduceDrawnRoute_NonCrossing()
+    {
+        var layout = LoadOak();
+        if (layout is null)
+        {
+            return;
+        }
+
+        const AircraftCategory cat = AircraftCategory.Jet;
+        int multi = 0;
+        int broken = 0;
+        var failures = new System.Text.StringBuilder();
+
+        var nodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).OrderBy(n => n.Id).Take(70).ToList();
+        foreach (var a in nodes)
+        {
+            foreach (var b in nodes)
+            {
+                if (a.Id >= b.Id)
+                {
+                    continue;
+                }
+
+                var preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
+                if (preview is null || preview.Segments.Count == 0)
+                {
+                    continue;
+                }
+
+                bool crosses = preview.Segments.Any(s =>
+                    s.Edge.Edge.IsRunwayCenterline || s.TaxiwayName.Contains("RWY", StringComparison.OrdinalIgnoreCase)
+                );
+                if (crosses)
+                {
+                    continue;
+                }
+
+                var names = TaxiRouteFormatter.CleanTaxiwaySequence(preview);
+                if (names.Count < 2)
+                {
+                    continue; // require at least one taxiway-to-taxiway transition
+                }
+
+                multi++;
+
+                // Composite junction labels ("W - W6") and runway names must never leak into the readable form.
+                Assert.DoesNotContain(names, n => n.Contains(" - ") || n.Contains("RWY", StringComparison.OrdinalIgnoreCase) || n.Contains('#'));
+
+                var path = TaxiRouteFormatter
+                    .BuildReadableTaxiPath(preview, hasNamedTerminus: false)
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .ToList();
+                var resolved = TaxiPathfinder.ResolveExplicitPath(layout, a.Id, path, out var fail, new ExplicitPathOptions(), cat);
+                if (resolved is null || !NodeIdSet(preview).SetEquals(NodeIdSet(resolved)))
+                {
+                    broken++;
+                    if (broken <= 5)
+                    {
+                        failures.AppendLine($"{a.Id}->{b.Id}: TAXI {string.Join(" ", path)} -> {(resolved is null ? fail : "wrong nodes")}");
+                    }
+                }
+            }
+        }
+
+        Assert.True(multi >= 50, $"expected many multi-taxiway OAK routes, got {multi}");
+        Assert.True(broken == 0, $"{broken}/{multi} readable paths did not reproduce the drawn route:\n{failures}");
+    }
+
+    [Fact]
+    public void ReadableTaxiPath_ToParking_ReachesStandWithoutOvershoot()
+    {
+        var layout = LoadOak();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parking = layout.FindParkingByName("8B");
+        if (parking is null)
+        {
+            return;
+        }
+
+        var holdShorts = layout.GetRunwayHoldShortNodes("28R");
+        if (holdShorts.Count == 0)
+        {
+            return;
+        }
+
+        var start = holdShorts[0];
+        const AircraftCategory cat = AircraftCategory.Jet;
+        var preview = TaxiPathfinder.FindRoute(layout, start.Id, parking.Id, cat);
+        if (preview is null || preview.Segments.Count == 0)
+        {
+            return;
+        }
+
+        // With a named terminus the @parking token pins the stop, so no node-ref is appended.
+        var path = TaxiRouteFormatter
+            .BuildReadableTaxiPath(preview, hasNamedTerminus: true)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+        Assert.DoesNotContain(path, t => t.Contains(" - ") || t.StartsWith('#'));
+
+        var resolved = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            start.Id,
+            path,
+            out var fail,
+            new ExplicitPathOptions { DestinationHintNode = parking },
+            cat
+        );
+        Assert.True(resolved is not null, $"readable parking path failed: {fail}");
+        Assert.Equal(parking.Id, resolved!.Segments[^1].ToNodeId);
+    }
+
+    [Fact]
+    public void ReadableCommand_CrossingRoute_ReachesDrawnEndpoint()
+    {
+        var layout = LoadOak();
+        if (layout is null)
+        {
+            return;
+        }
+
+        const AircraftCategory cat = AircraftCategory.Jet;
+        var nodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).OrderBy(n => n.Id).Take(90).ToList();
+        foreach (var a in nodes)
+        {
+            foreach (var b in nodes)
+            {
+                if (a.Id >= b.Id)
+                {
+                    continue;
+                }
+
+                var preview = TaxiPathfinder.FindRoute(layout, a.Id, b.Id, cat);
+                if (preview is null || preview.Segments.Count == 0)
+                {
+                    continue;
+                }
+
+                var crossings = preview
+                    .HoldShortPoints.Where(hs => (hs.Reason == HoldShortReason.RunwayCrossing) && (hs.TargetName is not null))
+                    .Select(hs => RunwayIdentifier.Parse(hs.TargetName!).End1)
+                    .ToList();
+                if (crossings.Count == 0 || TaxiRouteFormatter.CleanTaxiwaySequence(preview).Count < 2)
+                {
+                    continue;
+                }
+
+                // The command the draw tool copies for a crossing route: readable path + CROSS authorization.
+                var path = TaxiRouteFormatter
+                    .BuildReadableTaxiPath(preview, hasNamedTerminus: false)
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .ToList();
+                var ac = MakeGroundAircraft(a.Position.Lat, a.Position.Lon);
+                var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(path, [], CrossRunways: crossings), layout);
+
+                Assert.True(result.Success, $"{a.Id}->{b.Id} TAXI {string.Join(" ", path)} CROSS {string.Join(",", crossings)}: {result.Message}");
+                Assert.NotNull(ac.Ground.AssignedTaxiRoute);
+                Assert.Equal(preview.Segments[^1].ToNodeId, ac.Ground.AssignedTaxiRoute!.Segments[^1].ToNodeId);
+                return; // one real crossing route exercised
+            }
+        }
+    }
+
     private static AircraftState MakeGroundAircraft(double lat, double lon)
     {
         var ac = new AircraftState

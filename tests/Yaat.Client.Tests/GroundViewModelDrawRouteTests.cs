@@ -54,6 +54,48 @@ public class GroundViewModelDrawRouteTests
     }
 
     [Fact]
+    public void BuildDrawRouteCopyCommand_MidTaxiwayEndpoint_UsesReadableNamePlusTerminalPin()
+    {
+        var vm = MakeViewModel();
+        vm.SetLayoutForTesting(LinearLayout());
+        var ac = MakeAircraft(Lat0, Lon0);
+
+        vm.StartDrawRoute(ac);
+        Assert.True(vm.AddDrawWaypoint(3)); // mid-taxiway intersection, no stand
+        var result = vm.FinishDrawRoute();
+        Assert.NotNull(result);
+
+        var (route, _, spot) = result!.Value;
+        Assert.Null(spot);
+        var command = vm.BuildDrawRouteCopyCommand(route, spot);
+
+        // Readable taxiway name (not the dense "#2 #3"), pinned at the drawn endpoint node so the
+        // aircraft stops where it was drawn instead of running to the end of taxiway V.
+        Assert.Equal("TAXI V #3", command);
+    }
+
+    [Fact]
+    public void BuildDrawRouteCopyCommand_ParkingEndpoint_UsesTokenNotNodeRef()
+    {
+        var vm = MakeViewModel();
+        vm.SetLayoutForTesting(LinearLayout());
+        var ac = MakeAircraft(Lat0, Lon0);
+
+        vm.StartDrawRoute(ac);
+        Assert.True(vm.AddDrawWaypoint(3));
+        Assert.True(vm.AddDrawWaypoint(4)); // node 4 = Parking "8B"
+        var result = vm.FinishDrawRoute();
+        Assert.NotNull(result);
+
+        var (route, _, spot) = result!.Value;
+        var command = vm.BuildDrawRouteCopyCommand(route, spot);
+
+        // The @parking token pins the stop, so no terminal node-ref is appended.
+        Assert.Equal("TAXI V @8B", command);
+        Assert.DoesNotContain('#', command);
+    }
+
+    [Fact]
     public void FinishDrawRoute_SpotTerminus_AppendsDollarToken()
     {
         var vm = MakeViewModel();

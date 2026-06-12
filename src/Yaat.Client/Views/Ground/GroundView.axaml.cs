@@ -975,8 +975,7 @@ public partial class GroundView : UserControl
                 "Copy to command input",
                 () =>
                 {
-                    var suffix = spot is not null ? $" {spot.Token}" : "";
-                    var taxi = $"TAXI {vm.BuildTaxiCommand(route)}{suffix}";
+                    var taxi = vm.BuildDrawRouteCopyCommand(route, spot);
                     ShowTaxiInput(callsign, initials, taxi, taxi.Length);
                     return Task.CompletedTask;
                 }
