@@ -65,6 +65,26 @@ public sealed class RadarRenderer : IDisposable
         Typeface = PlatformHelper.MonospaceTypeface,
     };
 
+    // Instructor scope-marker pins — yellow, distinct from grey nav fixes and teal programmed fixes.
+    private static readonly SKColor PinnedMarkerColor = new(255, 220, 0);
+
+    private readonly SKPaint _pinnedMarkerPaint = new()
+    {
+        Color = PinnedMarkerColor,
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _pinnedMarkerLabelPaint = new()
+    {
+        Color = PinnedMarkerColor,
+        TextSize = 14,
+        IsAntialias = true,
+        SubpixelText = true,
+        Typeface = PlatformHelper.MonospaceTypeface,
+    };
+
     private static readonly SKColor RouteDrawColor = new(255, 200, 0);
 
     private readonly SKPaint _routeLinePaint = new()
@@ -329,6 +349,7 @@ public sealed class RadarRenderer : IDisposable
         bool ptlOwn = false,
         bool ptlAll = false,
         IReadOnlySet<string>? programmedFixNames = null,
+        IReadOnlyList<(string Name, double Lat, double Lon)>? pinnedMarkers = null,
         IReadOnlyList<DrawnWaypoint>? drawnWaypoints = null,
         (double Lat, double Lon)? drawRouteOrigin = null,
         (double Lat, double Lon)? rubberBandTarget = null,
@@ -361,6 +382,12 @@ public sealed class RadarRenderer : IDisposable
         if (showFixes && fixes is not null)
         {
             DrawFixes(canvas, vp, fixes, hoveredFixName, programmedFixNames);
+        }
+
+        // Instructor scope-marker pins — always drawn (independent of the Show Fixes toggle).
+        if (pinnedMarkers is { Count: > 0 })
+        {
+            DrawPinnedMarkers(canvas, vp, pinnedMarkers);
         }
 
         // Shown flight paths (behind aircraft)
@@ -641,6 +668,33 @@ public sealed class RadarRenderer : IDisposable
         }
     }
 
+    private void DrawPinnedMarkers(SKCanvas canvas, MapViewport vp, IReadOnlyList<(string Name, double Lat, double Lon)> markers)
+    {
+        const float size = 6f;
+        const float margin = 50f;
+
+        foreach (var marker in markers)
+        {
+            var (sx, sy) = vp.LatLonToScreen(marker.Lat, marker.Lon);
+
+            if (sx < -margin || sx > vp.PixelWidth + margin || sy < -margin || sy > vp.PixelHeight + margin)
+            {
+                continue;
+            }
+
+            // Diamond, to read distinctly from the fix/programmed-fix crosses.
+            using var path = new SKPath();
+            path.MoveTo(sx, sy - size);
+            path.LineTo(sx + size, sy);
+            path.LineTo(sx, sy + size);
+            path.LineTo(sx - size, sy);
+            path.Close();
+            canvas.DrawPath(path, _pinnedMarkerPaint);
+
+            canvas.DrawText(marker.Name, sx + size + 2, sy - 2, _pinnedMarkerLabelPaint);
+        }
+    }
+
     private void DrawRouteOverlay(
         SKCanvas canvas,
         MapViewport vp,
@@ -738,6 +792,8 @@ public sealed class RadarRenderer : IDisposable
         _fixLabelPaint.Dispose();
         _programmedFixPaint.Dispose();
         _programmedFixLabelPaint.Dispose();
+        _pinnedMarkerPaint.Dispose();
+        _pinnedMarkerLabelPaint.Dispose();
         _routeLinePaint.Dispose();
         _rubberBandPaint.Dispose();
         _routeWaypointPaint.Dispose();

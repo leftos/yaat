@@ -1913,10 +1913,15 @@ public sealed class SavedRadarSettings
     public Dictionary<string, int>? BrightnessValues { get; set; }
     public int HistoryCount { get; set; }
 
+    /// <summary>Instructor scope-marker pins for this view: fix/NAVAID names or FRD strings
+    /// (e.g. "SFO270010"). Resolved to lat/lon for rendering via FrdResolver. CRC "Scope Markers".</summary>
+    public List<string> PinnedMarkers { get; set; } = [];
+
     public SavedRadarSettings Clone() =>
         new()
         {
             EnabledStarsIds = [.. EnabledStarsIds],
+            PinnedMarkers = [.. PinnedMarkers],
             CenterLat = CenterLat,
             CenterLon = CenterLon,
             RangeNm = RangeNm,

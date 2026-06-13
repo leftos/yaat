@@ -145,6 +145,15 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<(string Name, double Lat, double Lon)>? _fixes;
 
+    /// <summary>Instructor scope-marker pins resolved to render positions (label + lat/lon). Backed by
+    /// <see cref="_pinnedMarkerTokens"/> (fix/NAVAID names or FRD strings). Always drawn, regardless of
+    /// the Show Fixes toggle.</summary>
+    [ObservableProperty]
+    private IReadOnlyList<(string Name, double Lat, double Lon)>? _pinnedMarkers;
+
+    // Stored marker tokens (fix/NAVAID names or FRD strings, upper-cased), persisted per view.
+    private readonly List<string> _pinnedMarkerTokens = [];
+
     [ObservableProperty]
     private bool _isPanZoomLocked;
 
@@ -291,6 +300,7 @@ public partial class RadarViewModel : ObservableObject
         _navDbReady = true;
         FixNames = NavigationDatabase.Instance.AllFixNames;
         SetFixes(BuildVisibleFixes());
+        RebuildPinnedMarkers();
     }
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
@@ -355,6 +365,123 @@ public partial class RadarViewModel : ObservableObject
         }
 
         return result;
+    }
+
+    // --- Scope-marker pins (CRC ".ff" / ".marker" / ".markers" / ".nomarkers") ---
+
+    /// <summary>Toggles a fix/NAVAID or FRD marker (CRC <c>.ff</c>/<c>.marker</c> semantics): adds it if
+    /// absent, removes it if already pinned. Returns false (no change) if the token can't be resolved to
+    /// a location.</summary>
+    public bool ToggleMarker(string token)
+    {
+        var normalized = token.Trim().ToUpperInvariant();
+        if (normalized.Length == 0)
+        {
+            return false;
+        }
+
+        var existing = _pinnedMarkerTokens.FindIndex(t => t.Equals(normalized, StringComparison.Ordinal));
+        if (existing >= 0)
+        {
+            _pinnedMarkerTokens.RemoveAt(existing);
+            RebuildPinnedMarkers();
+            SaveSettings();
+            return true;
+        }
+
+        if (!_navDbReady || FrdResolver.Resolve(normalized, NavigationDatabase.Instance) is null)
+        {
+            return false;
+        }
+
+        _pinnedMarkerTokens.Add(normalized);
+        RebuildPinnedMarkers();
+        SaveSettings();
+        return true;
+    }
+
+    /// <summary>Pins an already-resolved FRD string (right-click "Pin marker here"); no-op if already
+    /// pinned. Unlike <see cref="ToggleMarker"/> this only ever adds.</summary>
+    public void AddMarker(string frd)
+    {
+        var normalized = frd.Trim().ToUpperInvariant();
+        if (normalized.Length == 0 || _pinnedMarkerTokens.Contains(normalized, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        _pinnedMarkerTokens.Add(normalized);
+        RebuildPinnedMarkers();
+        SaveSettings();
+    }
+
+    /// <summary>Removes the pinned marker nearest <paramref name="lat"/>/<paramref name="lon"/> within
+    /// <paramref name="maxNm"/>. Returns true if one was removed.</summary>
+    public bool RemoveNearestMarker(double lat, double lon, double maxNm)
+    {
+        var markers = PinnedMarkers;
+        if (markers is null || markers.Count == 0)
+        {
+            return false;
+        }
+
+        var bestIndex = -1;
+        var bestNm = maxNm;
+        for (var i = 0; i < markers.Count; i++)
+        {
+            var nm = GeoMath.DistanceNm(new LatLon(lat, lon), new LatLon(markers[i].Lat, markers[i].Lon));
+            if (nm <= bestNm)
+            {
+                bestNm = nm;
+                bestIndex = i;
+            }
+        }
+
+        if (bestIndex < 0)
+        {
+            return false;
+        }
+
+        _pinnedMarkerTokens.RemoveAt(bestIndex);
+        RebuildPinnedMarkers();
+        SaveSettings();
+        return true;
+    }
+
+    /// <summary>Removes all pinned markers (CRC <c>.nomarkers</c> / right-click "Clear pinned markers").</summary>
+    public void ClearMarkers()
+    {
+        if (_pinnedMarkerTokens.Count == 0)
+        {
+            return;
+        }
+
+        _pinnedMarkerTokens.Clear();
+        RebuildPinnedMarkers();
+        SaveSettings();
+    }
+
+    public bool HasMarkers => _pinnedMarkerTokens.Count > 0;
+
+    private void RebuildPinnedMarkers()
+    {
+        if (!_navDbReady || _pinnedMarkerTokens.Count == 0)
+        {
+            PinnedMarkers = null;
+            return;
+        }
+
+        var result = new List<(string, double, double)>(_pinnedMarkerTokens.Count);
+        foreach (var token in _pinnedMarkerTokens)
+        {
+            var pos = FrdResolver.Resolve(token, NavigationDatabase.Instance);
+            if (pos.HasValue)
+            {
+                result.Add((token, pos.Value.Lat, pos.Value.Lon));
+            }
+        }
+
+        PinnedMarkers = result.Count > 0 ? result : null;
     }
 
     public void SetPrimaryAirportId(string? id)
@@ -936,6 +1063,7 @@ public partial class RadarViewModel : ObservableObject
         return new SavedRadarSettings
         {
             EnabledStarsIds = enabledIds,
+            PinnedMarkers = [.. _pinnedMarkerTokens],
             CenterLat = CenterLat,
             CenterLon = CenterLon,
             RangeNm = RangeNm,
@@ -1034,6 +1162,10 @@ public partial class RadarViewModel : ObservableObject
         PtlOwn = saved.PtlOwn;
         PtlAll = saved.PtlAll;
         HistoryCount = saved.HistoryCount;
+
+        _pinnedMarkerTokens.Clear();
+        _pinnedMarkerTokens.AddRange(saved.PinnedMarkers);
+        RebuildPinnedMarkers();
 
         if (saved.BrightnessValues is { Count: > 0 })
         {

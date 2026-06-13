@@ -102,7 +102,10 @@ public partial class CommandInputController : ObservableObject
         Suggestions.Clear();
         SelectedSuggestionIndex = -1;
 
-        if (StartsWithChatPrefix(text))
+        // Chat (' / >) and client-only scope-marker dot commands (.ff/.marker/.nomarkers) have no
+        // command suggestions.
+        var trimmedStart = text.AsSpan().TrimStart();
+        if (StartsWithChatPrefix(text) || (trimmedStart.Length > 0 && trimmedStart[0] == '.'))
         {
             IsSuggestionsVisible = false;
             return;

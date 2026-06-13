@@ -13,6 +13,7 @@ public class SavedViewSettingsCloneTests
         var original = new SavedRadarSettings
         {
             EnabledStarsIds = [1, 2, 3],
+            PinnedMarkers = ["SFO", "OAK270010"],
             RangeNm = 55,
             BrightnessValues = new Dictionary<string, int> { ["MapA"] = 80 },
             HistoryCount = 4,
@@ -21,11 +22,13 @@ public class SavedViewSettingsCloneTests
 
         var clone = original.Clone();
         clone.EnabledStarsIds.Add(99);
+        clone.PinnedMarkers.Add("LAX");
         clone.BrightnessValues!["MapA"] = 10;
         clone.RangeNm = 12;
         clone.PtlOwn = false;
 
         Assert.Equal(new[] { 1, 2, 3 }, original.EnabledStarsIds);
+        Assert.Equal(new[] { "SFO", "OAK270010" }, original.PinnedMarkers);
         Assert.Equal(80, original.BrightnessValues!["MapA"]);
         Assert.Equal(55, original.RangeNm);
         Assert.True(original.PtlOwn);

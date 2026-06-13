@@ -53,6 +53,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<(string Name, double Lat, double Lon)>?
     >(nameof(Fixes));
 
+    public static readonly StyledProperty<IReadOnlyList<(string Name, double Lat, double Lon)>?> PinnedMarkersProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<(string Name, double Lat, double Lon)>?
+    >(nameof(PinnedMarkers));
+
     public static readonly StyledProperty<double> RangeRingCenterLatProperty = AvaloniaProperty.Register<RadarCanvas, double>(
         nameof(RangeRingCenterLat)
     );
@@ -206,6 +211,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(FixesProperty);
         set => SetValue(FixesProperty, value);
+    }
+
+    public IReadOnlyList<(string Name, double Lat, double Lon)>? PinnedMarkers
+    {
+        get => GetValue(PinnedMarkersProperty);
+        set => SetValue(PinnedMarkersProperty, value);
     }
 
     public double RangeRingCenterLat
@@ -723,6 +734,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == ShowFixesProperty
             || change.Property == ShowMvaAltitudeTintProperty
             || change.Property == FixesProperty
+            || change.Property == PinnedMarkersProperty
             || change.Property == RangeRingCenterLatProperty
             || change.Property == RangeRingCenterLonProperty
             || change.Property == RangeRingSizeNmProperty
@@ -791,6 +803,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         double RadarCenterLon,
         bool ShowFixes,
         IReadOnlyList<(string Name, double Lat, double Lon)>? Fixes,
+        IReadOnlyList<(string Name, double Lat, double Lon)>? PinnedMarkers,
         double RangeRingCenterLat,
         double RangeRingCenterLon,
         double RangeRingSizeNm,
@@ -869,6 +882,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             RadarCenterLon,
             ShowFixes,
             Fixes,
+            PinnedMarkers,
             RangeRingCenterLat,
             RangeRingCenterLon,
             RangeRingSizeNm,
@@ -944,6 +958,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.PtlOwn,
             s.PtlAll,
             s.ProgrammedFixNames,
+            s.PinnedMarkers,
             s.DrawnWaypoints,
             s.DrawRouteOrigin,
             s.RubberBandTarget,

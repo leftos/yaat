@@ -120,9 +120,27 @@ hard delete — coast/drop applies only to an individual aircraft disconnect, ne
       User request 2026-06-12.
 
 ### 5. STARS scope-marker pins (client — Yaat.Client)
-- [ ] Instructor-radar `.ff`/`.marker`-style: user-pinned arbitrary fixes/NAVAIDs, persisted
-      per-view in `UserPreferences`, rendered as a third tier in `RadarRenderer.DrawFixes`
-      alongside auto programmed-fix highlights. No server/broadcast involvement.
+
+**CRC parity (`docs/crc/stars.md:941-950`):** STARS "Scope Markers" dot commands are
+`.ff <fix>` / `.marker <fix>` / `.markers <fix1> <fix2> …` (toggle a fix/NAVAID marker) and
+`.nomarkers` (clear all). `.ff` and `.marker` are CRC synonyms — support all of them. Toggle
+semantics: re-issuing `.marker SFO` removes it.
+
+**YAAT extension (user 2026-06-12):** arbitrary map points are pinned by right-click and rounded to
+an FRD (reuse `FrdResolver.ToFrd`), so a marker token is a fix/NAVAID name OR an FRD string. Markers
+render via `FrdResolver.Resolve` → lat/lon.
+
+- [x] Client-only (no server/broadcast). Marker tokens persist per radar view in
+      `SavedRadarSettings.PinnedMarkers` (`UserPreferences`, auto-STJ both load paths). Dot-command
+      dispatch (`.ff`/`.marker`/`.markers`/`.nomarkers`) is an early-exit in
+      `MainViewModel.HandleScopeMarkerCommand`; autocomplete suppressed for the `.` prefix in
+      `CommandInputController`. `RadarViewModel.ToggleMarker`/`AddMarker`/`RemoveNearestMarker`/
+      `ClearMarkers` resolve tokens via `FrdResolver`. Right-click menu: "Pin marker here" (FRD),
+      "Remove marker" (nearest pin), "Clear pinned markers". Rendered as an always-on yellow diamond
+      tier in `RadarRenderer.DrawPinnedMarkers` (`RadarCanvas.PinnedMarkers` styled property), distinct
+      from grey nav fixes + teal programmed fixes, independent of the Show Fixes toggle. Tests:
+      `SavedViewSettingsCloneTests` (PinnedMarkers deep-copy), `UserPreferencesPinnedMarkersTests`
+      (per-view round-trip). USER_GUIDE updated.
 
 ## Notes
 - Update `crc-protocol-support.md` Bucket F checkboxes as items land.

@@ -435,6 +435,7 @@
                                ShowFixes="{Binding ShowFixes}"
                                ShowMvaAltitudeTint="{Binding ShowMvaHints}"
                                Fixes="{Binding Fixes}"
+                               PinnedMarkers="{Binding PinnedMarkers}"
                                RangeRingCenterLat="{Binding RangeRingCenterLat}"
                                RangeRingCenterLon="{Binding RangeRingCenterLon}"
                                RangeRingSizeNm="{Binding RangeRingSizeNm, Mode=TwoWay}"

@@ -1387,6 +1387,22 @@ public partial class RadarView
                     }
                 )
             );
+
+            // Scope-marker pins (CRC ".ff"/".marker"). Pick radius scales with the current range.
+            var pickNm = Math.Max(0.5, vm.RangeNm * 0.04);
+            var clickPos = new LatLon(lat, lon);
+            bool nearPin = vm.PinnedMarkers is { } pins && pins.Any(m => GeoMath.DistanceNm(clickPos, new LatLon(m.Lat, m.Lon)) <= pickNm);
+
+            menu.Items.Add(CreateMenuItem("Pin marker here", () => vm.AddMarker(frd)));
+            if (nearPin)
+            {
+                menu.Items.Add(CreateMenuItem("Remove marker", () => vm.RemoveNearestMarker(lat, lon, pickNm)));
+            }
+            if (vm.HasMarkers)
+            {
+                menu.Items.Add(CreateMenuItem("Clear pinned markers", () => vm.ClearMarkers()));
+            }
+
             menu.Items.Add(new Separator());
         }
 
@@ -1463,6 +1479,13 @@ public partial class RadarView
     {
         var item = new MenuItem { Header = header };
         item.Click += async (_, _) => await action();
+        return item;
+    }
+
+    private static MenuItem CreateMenuItem(string header, Action action)
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += (_, _) => action();
         return item;
     }
 

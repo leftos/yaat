@@ -1686,6 +1686,48 @@ public partial class MainViewModel : ObservableObject
 
     // --- Commands ---
 
+    /// <summary>
+    /// Handles the client-only scope-marker dot commands (CRC parity): <c>.ff</c>/<c>.marker</c>/
+    /// <c>.markers</c> toggle one or more fix/NAVAID (or FRD) markers on this instructor's radar;
+    /// <c>.nomarkers</c> clears them all. Never sent to the server.
+    /// </summary>
+    private void HandleScopeMarkerCommand(string text)
+    {
+        var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var verb = parts[0].ToUpperInvariant();
+
+        switch (verb)
+        {
+            case ".NOMARKERS":
+                Radar.ClearMarkers();
+                StatusText = "Scope markers cleared";
+                return;
+            case ".FF":
+            case ".MARKER":
+            case ".MARKERS":
+                if (parts.Length < 2)
+                {
+                    StatusText = $"Usage: {parts[0]} <fix> [fix ...]";
+                    return;
+                }
+
+                var unresolved = new List<string>();
+                for (var i = 1; i < parts.Length; i++)
+                {
+                    if (!Radar.ToggleMarker(parts[i]))
+                    {
+                        unresolved.Add(parts[i].ToUpperInvariant());
+                    }
+                }
+
+                StatusText = unresolved.Count > 0 ? $"Scope markers updated; unknown fix: {string.Join(", ", unresolved)}" : "Scope markers updated";
+                return;
+            default:
+                StatusText = $"Unknown command: {parts[0]}";
+                return;
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task SendCommandAsync()
     {
@@ -1722,6 +1764,18 @@ public partial class MainViewModel : ObservableObject
             }
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+            return;
+        }
+
+        // Client-only scope-marker dot commands (CRC .ff / .marker / .markers / .nomarkers).
+        // These never reach the server — they pin reference fixes on this instructor's radar.
+        if (text.StartsWith('.'))
+        {
+            HandleScopeMarkerCommand(text);
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            AddHistory(text);
             CommandText = "";
             return;
         }
