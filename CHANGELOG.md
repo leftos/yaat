@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Pin fixes, NAVAIDs, or any radar point with `.ff`/`.marker`/`.markers` or a right-click "Pin marker here"; `.nomarkers` clears them.
+
+### Fixed
+- CRC ASDE-X now raises Safety Logic alerts for closed-runway, occupied-runway, taxi-onto-active-runway, and taxiway-landing incursions.
+- ASDE-X and SAID surface tracks coast for 45 seconds when an aircraft disconnects, or drop at their destination field.
+- ASDE-X and SAID targets now draw position-history trails.
+- The SAAB SAID surface display now shows traffic up to 2,500 ft AGL, including at high-elevation airports.
+
 ## v0.7.14-beta [2026/06/12]
 
 ### Fixed

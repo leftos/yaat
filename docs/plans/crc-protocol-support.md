@@ -274,10 +274,13 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 ### Bucket F — Deferred (upstream-blocked)
 
 - [x] Real NEXRAD fetch — `WmsNexradProvider` + `NexradRefreshHostedService` wired by default (5 min cadence, NOAA opengeo WMS, preset-weather gate); `Nexrad:Enabled=false` is the offline kill-switch
-- [ ] `ReceiveAsdexAlerts` / `DeleteAsdexAlerts` — needs `AsdexSafetyLogicDetector` in Yaat.Sim
+- [x] `ReceiveAsdexAlerts` / `DeleteAsdexAlerts` — `AsdexSafetyLogicDetector` in Yaat.Sim (closed-runway / occupied / taxi-onto-active / taxiway-landing; per-tick `ProcessAsdexAlerts`)
+- [x] ASDE-X + SAID target history trails — `DtoConverter.BuildSurfaceHistory` from `AircraftState.PositionHistory` (newest-first, cap 5)
+- [x] Coasted/dropped surface tracks on disconnect — `SurfaceCoastStore`; 45 s coast/drop per `asdex.md` (individual removals only; bulk wipes hard-delete)
+- [x] SAID surface display vertical limit — 2,500 ft AGL field-relative (`CrcVisibilityTracker`)
 - [ ] ERAM short-term conflict detection + broadcast (clone STARS STCA once validated)
 - [ ] ERAM target history UDP stream (+ `DeleteEramTargetHistoryEntries`) — vNAS sends over UDP, not SignalR
-- [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps)
+- [ ] `AsdexHoldBarDto` dynamic `Status` from safety logic (geometry sourced from ASDEX video maps) — sole remaining ASDE-X parity gap; needs hold-bar geometry synthesis + aviation review (see archived `asdex-safety-logic.md`)
 - [ ] Remaining Bucket E items (QP pointouts, CRR lifecycle)
 
 ---
@@ -298,10 +301,10 @@ Authoritative interface definitions: `..\vatsim-vnas\messaging\` (sibling repo)
 | Info requests | 5 | 0 | 0 |
 | Navigation | 1 | 0 | 0 |
 | **Client→Server total** | **65** | **2** | **0** |
-| Server→Client broadcasts | 42 | 0 | 11 |
+| Server→Client broadcasts | 44 | 0 | 9 |
 
 **Client→Server:** 2 remaining stubs are ERAM CRR group-color + CRR delete, blocked on the unresolved CRR creation path (no creation hub method; requires a live CRC wire trace).
 
-**Server→Client broadcasts remaining (11):** ERAM CRR groups Receive/Delete (2), ERAM STCA Receive/Delete (2), ERAM target history UDP Delete (1), ASDEX alerts Receive/Delete (2), plus detector work to populate existing empty broadcasts — AsdexAlerts, ASDEX safety-logic dynamic hold-bar status, ERAM STCA. All are upstream-blocked.
+**Server→Client broadcasts remaining (9):** ERAM CRR groups Receive/Delete (2), ERAM STCA Receive/Delete (2), ERAM target history UDP Delete (1), plus detector work to populate existing empty broadcasts — ASDEX safety-logic dynamic hold-bar status, ERAM STCA. ASDE-X Safety Logic alerts now ship (`ReceiveAsdexAlerts`/`DeleteAsdexAlerts`); the remaining items are upstream-blocked or, for hold-bar status, need geometry synthesis.
 
 **ProcessStarsCommand detail:** IC, TC, Handoff, Implied (9 sub-ops), MultiFunc (CON/DECON), Coordination (stub)

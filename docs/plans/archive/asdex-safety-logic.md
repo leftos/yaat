@@ -1,8 +1,14 @@
 # ASDE-X Safety Logic + history/coast + scope markers
 
-Unblocks the Bucket F items in [`crc-protocol-support.md`](./crc-protocol-support.md) now
-that the new vNAS ASDE-X docs (`docs/crc/asdex.md`, `docs/crc/said-saab.md`) give the
-authoritative spec. Scope decided with the user 2026-06-12.
+> **ARCHIVED 2026-06-12 — shipped.** Tasks 1 (Safety Logic detector), 3 (target history), 4
+> (coast/drop), 5 (scope markers), and 6 (SAID 2,500 ft AGL) all landed. The **only** remaining
+> item is task 2 (**hold bars**), deferred because the geometry isn't reachable; it now lives as a
+> backlog line in [`../crc-protocol-support.md`](../crc-protocol-support.md) Bucket F. Kept for the
+> design rationale + hold-bar unreachability investigation below.
+
+Unblocked the Bucket F items in [`crc-protocol-support.md`](../crc-protocol-support.md) using the
+vNAS ASDE-X docs (`docs/crc/asdex.md`, `docs/crc/said-saab.md`) as the authoritative spec. Scope
+decided with the user 2026-06-12.
 
 ## Grounding (verified in code)
 
