@@ -64,8 +64,51 @@ authoritative spec. Scope decided with the user 2026-06-12.
       `DtoConverterSurfaceHistoryTests`.
 
 ### 4. Coasted/dropped tracks (server)
-- [ ] 45s coast timer on ASDE-X track signal-loss/disconnect; populate `CoastListId` +
-      `CoastTimeout` (currently hardcoded null); CST in field E. Extend `CrcVisibilityTracker`.
+
+**Spec (CRC docs `asdex.md:799`):** when ASDE-X/SAID loses a tracked target (pilot disconnect),
+the track **coasts** for 45 s (target still drawn, **CST** in field E, entry in the Coast/Suspend
+List). If the disconnected aircraft's flight-plan **destination is this ASDE-X facility**, the track
+**drops** instead (target hidden, listed in the dropped group). Both linger 45 s, then are removed —
+or until re-associated (same callsign respawns).
+
+**User constraint (2026-06-12):** scenario unload/reload and rewind/recording-reload are ALWAYS a
+hard delete — coast/drop applies only to an individual aircraft disconnect, never a bulk wipe.
+
+**Design:**
+- Coast/drop is a single-aircraft path. Add `CrcBroadcastService.BroadcastDisconnectAsync(lastState,
+  roomId)` (coast-aware) and route only the two single-delete sites to it: `RoomEngine.HandleDelete`
+  (manual `DEL`) and `TickProcessor` auto-delete — capturing the `AircraftState` *before*
+  `World.RemoveAircraft`. The hard-delete `BroadcastDeletesAsync(callsign, roomId)` is unchanged and
+  still used by ghost deletes, `ResyncCrcAfterReload`, and `ExecuteUnloadScenario` — so bulk wipes
+  never coast, by construction.
+- New per-room `SurfaceCoastState` (held on `AsdexRoomState`/`SaidRoomState`): facility→callsign→
+  `{coasting DTO, isDrop, deadline, CoastListId}` + a per-facility coast-list letter allocator.
+- On disconnect, for each ASDE-X/SAID facility the aircraft was visible on (`_crcVisibility` sets,
+  read before `Remove`): `isDrop = NormalizeAirport(destination) == facilityId`; build the coasting
+  DTO (Status `CoastingVisible`/`Dropped`, `CoastTimeout = now+45s`, `CoastListId`), emit
+  `ReceiveAsdex/SaabSaidTracks` (drop also emits `DeleteAsdex/SaidTargets` to hide the icon), and
+  register the entry. Non-surface topics (STARS/ERAM/FP/TowerCab/Ground) delete immediately. If the
+  aircraft had no active surface track → behaves as a hard delete.
+- Per-tick `TickProcessor.ProcessSurfaceCoast` sweeps expired entries → emits `DeleteAsdex/SaidTracks`
+  + `DeleteAsdex/SaidTargets`, frees the letter. Re-association (callsign newly-visible again) clears
+  its coast entry. `AsdexRoomState.Reset`/`SaidRoomState.Reset` (scenario unload) emits deletes for
+  any live coast entries and clears the store.
+- Aviation review: confirm coast-on-disconnect vs drop-at-destination mapping, and that auto-deleted
+  arrivals (destination == field) correctly drop rather than coast.
+
+- [x] Implemented per the design above. `SurfaceCoastStore<TTrack>` (timers + numeric Coast/Suspend
+      List id + DTO for subscribe-replay) on `AsdexRoomState`/`SaidRoomState`;
+      `CrcBroadcastService.BroadcastDisconnectAsync` (coast/drop) / `BroadcastCoastClearAsync`
+      (unload/reload hard-clear) / `BroadcastSurfaceCoastExpiryAsync` (per-tick sweep);
+      `DtoConverter.ToCoastingAsdex/SaidTrack`; routed `HandleDelete` + auto-delete to the disconnect
+      path, unload/reload to the hard-clear. TDD: `SurfaceCoastStoreTests` (6), `DtoConverterCoastTrackTests`
+      (8, incl. coast-vs-drop decision theory), `CrcSurfaceCoastRoutingTests` (2, validates
+      unload never coasts).
+- [x] aviation-sim-expert review: all five questions CORRECT; bulk-wipe exclusion specifically
+      validated. Applied the one fix flagged — coasted/dropped tracks now use a **three-digit numeric**
+      Coast/Suspend List id (letters are for *suspended* tracks, which this store doesn't hold).
+      Known non-blocking gap: no manual INIT-CNTL re-initiation of a coasted track (45 s auto-expiry
+      only) — deferred until/if suspend handling is built.
 
 ### 6. SAID vertical display range (server) — DONE
 - [x] SAID surface display now limited to **2,500 ft AGL** (field-relative, above the SAID airport's
