@@ -49,6 +49,32 @@ public class MainViewModelActivePositionTests
     }
 
     [AvaloniaFact]
+    public void SetActiveTcpFromServer_PopulatesOptionBeforeSelection()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        // The bound ComboBox resolves its SelectedItem against the current ItemsSource: if ActiveTcp
+        // is assigned before ActiveTcpOptions contains it, the ComboBox renders blank and re-adding the
+        // item later does not re-sync (re-seeding the same value fires no PropertyChanged). Capture the
+        // options snapshot at the instant ActiveTcp becomes the selected value.
+        bool optionPresentWhenSelected = false;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if ((e.PropertyName == nameof(MainViewModel.ActiveTcp)) && (vm.ActiveTcp is not null))
+            {
+                optionPresentWhenSelected = vm.ActiveTcpOptions.Contains(vm.ActiveTcp);
+            }
+        };
+
+        vm.SetActiveTcpFromServer("3O");
+
+        Assert.True(
+            optionPresentWhenSelected,
+            "ActiveTcp must already be in ActiveTcpOptions when it becomes the selected value, " + "otherwise the bound ComboBox renders blank."
+        );
+    }
+
+    [AvaloniaFact]
     public void RebuildOptions_KeepsCurrentTcpFirst_AddsOnlineControllers_Deduped()
     {
         var vm = new MainViewModel(new FakeFilePickerService());

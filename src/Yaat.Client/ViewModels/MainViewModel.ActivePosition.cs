@@ -35,37 +35,40 @@ public partial class MainViewModel
     /// </summary>
     internal void SetActiveTcpFromServer(string? tcp)
     {
+        var normalized = string.IsNullOrEmpty(tcp) ? null : tcp;
         _suppressActiveTcpCommand = true;
         try
         {
-            ActiveTcp = string.IsNullOrEmpty(tcp) ? null : tcp;
+            // Populate the options before assigning ActiveTcp: a ComboBox whose SelectedItem is set to
+            // a value its ItemsSource doesn't yet contain renders blank, and re-adding the item later
+            // does not re-sync the selection (re-seeding the same value fires no PropertyChanged).
+            RebuildActiveTcpOptions(normalized);
+            ActiveTcp = normalized;
         }
         finally
         {
             _suppressActiveTcpCommand = false;
         }
-
-        RebuildActiveTcpOptions();
     }
 
     /// <summary>
-    /// Reconciles <see cref="ActiveTcpOptions"/> with the online controllers' TCPs plus the current TCP.
-    /// Updates incrementally (the current TCP is always retained), so the ComboBox selection is never
-    /// transiently cleared by a list reset.
+    /// Reconciles <see cref="ActiveTcpOptions"/> with the online controllers' TCPs plus
+    /// <paramref name="activeTcp"/>. Updates incrementally (the active TCP is always retained), so the
+    /// ComboBox selection is never transiently cleared by a list reset.
     /// </summary>
-    private void RebuildActiveTcpOptions()
+    private void RebuildActiveTcpOptions(string? activeTcp)
     {
         var desired = new List<string>();
-        if (!string.IsNullOrEmpty(ActiveTcp))
+        if (!string.IsNullOrEmpty(activeTcp))
         {
-            desired.Add(ActiveTcp);
+            desired.Add(activeTcp);
         }
 
         var others = OnlineControllers
             .Select(c => c.Tcp)
             .Where(t => !string.IsNullOrEmpty(t))
             .Select(t => t!)
-            .Where(t => !string.Equals(t, ActiveTcp, StringComparison.OrdinalIgnoreCase))
+            .Where(t => !string.Equals(t, activeTcp, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(t => t, StringComparer.OrdinalIgnoreCase);
         desired.AddRange(others);

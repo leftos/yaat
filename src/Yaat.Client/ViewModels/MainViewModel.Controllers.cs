@@ -78,7 +78,7 @@ public partial class MainViewModel
             {
                 OnlineControllers.Clear();
                 RebuildControllerGroups();
-                RebuildActiveTcpOptions();
+                RebuildActiveTcpOptions(ActiveTcp);
             });
             return;
         }
@@ -95,7 +95,7 @@ public partial class MainViewModel
                 }
 
                 RebuildControllerGroups();
-                RebuildActiveTcpOptions();
+                RebuildActiveTcpOptions(ActiveTcp);
             });
         }
         catch (Exception ex)
