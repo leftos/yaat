@@ -242,6 +242,7 @@ ViewModels/
   MainViewModel.Timers.cs       # Partial: TIMER countdown mirror + cancel command (TimersChanged handler, RoomStateDto.Timers seed, command-bar timers panel)
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler; retains raw METARs (Metars) for the METAR window
   MainViewModel.Controllers.cs  # Partial: online-controller list (OnlineControllers + CRC-grouped ControllerGroups) for the Controllers tab; refresh via GetOnlineControllers, re-fetched on CRC membership + scenario load/unload
+  MainViewModel.ActivePosition.cs # Partial: active-position (TCP) indicator/dropdown in the input bar (ActiveTcp + ActiveTcpOptions); seeded from the bootstrap PositionDisplayConfig, follows PositionDisplayChanged (standalone AS only), picking a TCP sends AS [TCP]
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar/panel, global/scenario/airport scope, ground overrides, blank spacers)
   MainViewModel.Timeline.cs     # Partial: rewind timeline markers — color-coded finding ticks (red Safety, amber Warning, blue Coach) + grey command ticks; periodic refresh, click-to-rewind, hover details, per-aircraft filter from the Session Report Aircraft tab. Also save/load recording (injects/reads the bookmarks.json archive entry).
   MainViewModel.Bookmarks.cs    # Partial: user-authored timeline bookmarks (Bookmarks collection, add/quick-add/next/prev, sorted insert, 500 cap, name-prompt event, SetBookmarks/SnapshotBookmarks for recording round-trip).

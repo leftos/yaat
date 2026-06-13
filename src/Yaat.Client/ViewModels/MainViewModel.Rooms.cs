@@ -793,6 +793,9 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            // Fires only on a standalone AS [TCP] (not a one-shot AS [TCP] [command]), so the
+            // active-position indicator follows persistent position changes but not per-command ones.
+            SetActiveTcpFromServer(config.TcpCode);
             Radar.ApplyPositionDisplayConfig(config);
             if (HasActiveWeather)
             {

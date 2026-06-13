@@ -153,6 +153,8 @@ Keys marked *(default)* are configurable under **Settings > Advanced / Keybinds*
 
 #### Command Input
 
+To the left of the command box, the **active-position selector** shows the [TCP](COMMANDS.md#glossary) you are currently operating as — the scenario's primary position by default. Open its dropdown to pick another online position and switch to it (the same as running `AS [TCP]`). The indicator follows whenever you change position with a standalone `AS [TCP]`; a one-shot `AS [TCP] [command]` runs that single command as the other position without changing it.
+
 | Key | Action |
 |-----|--------|
 | Enter | Send command. If a suggestion is highlighted, expand it first (toggle in **Settings > Advanced > Command Input**) |

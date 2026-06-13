@@ -5,6 +5,7 @@
 ### Added
 - Pin fixes, NAVAIDs, or any radar point with `.ff`/`.marker`/`.markers` or a right-click "Pin marker here"; `.nomarkers` clears them.
 - **Datablock deconfliction on the Radar and Ground views** — an opt-in mode that automatically moves overlapping aircraft datablocks apart so labels stay readable in busy traffic (a runway queue, a gate cluster, a downwind line). The new **DCNF** button (on the Radar DCB, next to MVA, and on the Ground filter bar) cycles each view independently through three settings: off, **Snap** (each label snaps to one of eight leader directions, like a real scope), and **Free-form** (labels slide freely until separated). Datablocks you have dragged by hand stay put and the rest route around them; right-click a dragged label and choose "Reset datablock position" to hand it back to automatic placement. The choice is remembered per view across sessions.
+- **Active-position selector in the terminal input bar** — a dropdown to the left of the command box shows the TCP you are currently operating as (the scenario's primary position by default) and lists the other online controllers' positions. Pick one to switch to it (the same as running `AS [TCP]`). The indicator follows whenever you change position with a standalone `AS [TCP]`, and stays put for a one-shot `AS [TCP] [command]`, so you can always see who you are acting as.
 
 ### Fixed
 - CRC ASDE-X now raises Safety Logic alerts for closed-runway, occupied-runway, taxi-onto-active-runway, and taxiway-landing incursions.

@@ -7,14 +7,24 @@
     <Grid Margin="0,8,0,0"
           ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
 
-        <!-- Selected aircraft label -->
-        <TextBlock Grid.Column="0"
-                   VerticalAlignment="Center"
-                   Margin="0,0,8,0"
-                   FontWeight="Bold"
-                   Text="{Binding SelectedAircraft.Callsign,
-                          FallbackValue='(none)',
-                          TargetNullValue='(none)'}" />
+        <!-- Selected aircraft label + active-position (TCP) selector -->
+        <StackPanel Grid.Column="0"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Spacing="8"
+                    Margin="0,0,8,0">
+            <TextBlock VerticalAlignment="Center"
+                       FontWeight="Bold"
+                       Text="{Binding SelectedAircraft.Callsign,
+                              FallbackValue='(none)',
+                              TargetNullValue='(none)'}" />
+            <ComboBox VerticalAlignment="Center"
+                      MinWidth="64"
+                      IsVisible="{Binding ShowActiveTcpSelector}"
+                      ItemsSource="{Binding ActiveTcpOptions}"
+                      SelectedItem="{Binding ActiveTcp}"
+                      ToolTip.Tip="Operating position — the TCP you act as (AS). Pick another online position to switch." />
+        </StackPanel>
 
         <!-- Command input with autocomplete popup -->
         <Panel Grid.Column="1">
