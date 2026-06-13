@@ -452,7 +452,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
-| Track | `TRACK` | — | — |
+| Track | `TRACK` / `TRACK 3Y` | — | — |
 | Drop | `DROP` | — | — |
 | Handoff | `HO 3Y` | — | `HO3Y` |
 | Force Handoff | `HOF 3Y` | — | `HOF3Y` |
@@ -1117,7 +1117,7 @@ By default, you operate as the scenario's student position. Use `AS` to act as a
 
 Resolution order: per-command `AS` prefix > persistent active position > student position default.
 
-Ownership and pointout commands (`HO`, `ACCEPT`, `CANCEL`, `DROP`, `PO`, `OK`, `PORJ`, `PORT`) infer the acting position from the track itself — the current owner for `HO`/`CANCEL`/`DROP`/`PO`, the handoff target for `ACCEPT`, the pointout recipient for `OK`/`PORJ`, the pointout sender for `PORT` — so they never need an `AS` prefix. `AS` still matters for `TRACK` (which claims an unowned track and so must say who is claiming it), the no-argument `PO` (which needs your position to tell an acknowledge from a retract), and for setting your persistent active position.
+Ownership and pointout commands (`HO`, `ACCEPT`, `CANCEL`, `DROP`, `PO`, `OK`, `PORJ`, `PORT`) infer the acting position from the track itself — the current owner for `HO`/`CANCEL`/`DROP`/`PO`, the handoff target for `ACCEPT`, the pointout recipient for `OK`/`PORJ`, the pointout sender for `PORT` — so they never need an `AS` prefix. `TRACK` claims an unowned track and so must say who is claiming it: either implicitly (your active position, the student position by default), via an `AS` prefix, or directly with a `TRACK [position]` argument (e.g. `TRACK 3Y` — a one-shot equivalent of `AS 3Y TRACK`). `AS` still matters for the no-argument `PO` (which needs your position to tell an acknowledge from a retract) and for setting your persistent active position.
 
 Changing your active position also updates the radar display:
 - **DCB map shortcuts** switch to the position's configured 3x2 map group.
@@ -1127,7 +1127,8 @@ Changing your active position also updates the radar display:
 
 | Command | Effect |
 |---------|--------|
-| `TRACK` | Initiate control — take ownership of the aircraft (claims as your active position) |
+| `TRACK` | Initiate control — take ownership as your active position (the student position by default) |
+| `TRACK 3Y` | Initiate control as a specific position — claims the track for TCP 3Y. Equivalent to `AS 3Y TRACK`, but one-shot: it does **not** change your persistent active position |
 | `DROP` | Terminate control — release ownership (acts as the current owner) |
 | `HO 3Y` | Handoff to TCP 3Y (initiated from the current owner) |
 | `HO C44` | Handoff to ERAM center sector 44 (initiated from the current owner) |

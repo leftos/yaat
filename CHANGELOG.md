@@ -13,6 +13,7 @@
 - The SAAB SAID surface display now shows traffic up to 2,500 ft AGL, including at high-elevation airports.
 - Clicking a radar datablock that shows an assigned-to or handoff indicator no longer misses near its right edge, and the selection box no longer flickers with the handoff flash.
 - Clicking an airborne aircraft's datablock on the Ground view no longer misses on its altitude line.
+- **`TRACK [position]` now claims the track for the named position** — with an aircraft selected, typing `TRACK 3Y` (or any sector's TCP) now tracks it under that position, the way the command's hint advertises, instead of silently tracking it under your own active position. It is a one-shot equivalent of `AS 3Y TRACK` and does not change your persistent active position.
 
 ## v0.7.14-beta [2026/06/12]
 

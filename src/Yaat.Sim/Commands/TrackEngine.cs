@@ -108,6 +108,28 @@ public static class TrackEngine
         return new CommandResult(true, $"Tracking {ac.Callsign}");
     }
 
+    /// <summary>
+    /// <c>TRACK [position]</c>: claims the track for the position named by <paramref name="tcpCode"/>
+    /// rather than the acting identity (mirrors <c>HO [position]</c>). When <paramref name="tcpCode"/>
+    /// is null this is a plain <c>TRACK</c> that claims the track for <paramref name="fallbackIdentity"/>.
+    /// </summary>
+    public static CommandResult HandleTrack(
+        AircraftState ac,
+        string? tcpCode,
+        TrackOwner? fallbackIdentity,
+        SimScenarioState scenario,
+        ArtccConfigRoot? artccConfig
+    )
+    {
+        if (tcpCode is not null)
+        {
+            var owner = TrackResolver.ResolveTcpToOwner(scenario, tcpCode, artccConfig);
+            return owner is null ? new CommandResult(false, $"Unknown position: {tcpCode}") : HandleTrack(ac, owner);
+        }
+
+        return fallbackIdentity is null ? new CommandResult(false, "No active position — use AS to set one") : HandleTrack(ac, fallbackIdentity);
+    }
+
     public static CommandResult HandleDrop(AircraftState ac)
     {
         if (ac.Track.Owner is null)
@@ -590,7 +612,7 @@ public static class TrackEngine
 
         return parsed switch
         {
-            TrackAircraftCommand => HandleTrack(ac, identity!),
+            TrackAircraftCommand t => HandleTrack(ac, t.TcpCode, identity, scenario, artccConfig),
             DropTrackCommand => HandleDrop(ac),
             InitiateHandoffCommand ho => ApplyHandoff(ac, scenario, ho.TcpCode, artccConfig),
             ForceHandoffCommand hof => ApplyForceHandoff(ac, scenario, hof.TcpCode, artccConfig),
@@ -633,6 +655,8 @@ public static class TrackEngine
             PointOutCommand po => po.TcpCode is null,
             // Ownership commands infer the acting position from the track's owner / handoff peer.
             DropTrackCommand or InitiateHandoffCommand or AcceptHandoffCommand or CancelHandoffCommand => false,
+            // TRACK with a position argument names the owner explicitly, so it needs no active position.
+            TrackAircraftCommand { TcpCode: not null } => false,
             // Pointout responses act as the pointout's recipient (ack/reject) or sender (retract).
             AcknowledgeCommand or RejectPointoutCommand or RetractPointoutCommand => false,
             // Pure state mutations that never needed identity.
