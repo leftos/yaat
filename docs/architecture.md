@@ -171,6 +171,7 @@ Services/
 
 Models/
   TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat); defaults match the legacy hard-coded scheme
+  DatablockDeconflictMode.cs    # Per-view datablock-deconfliction setting (Off / Snap / Free-form); persisted per view in UserPreferences
 
 ViewModels/
   ConnectViewModel.cs           # Room/identity connection flow
@@ -431,6 +432,7 @@ GiveWayConstants.cs            # Auto-release tuning for direct GIVEWAY holds (F
                                # stationary speed threshold, timeout clear-distance. Direct holds
                                # only — deferred BEHIND keeps pure-geometry release.
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
+Asdex/AsdexSafetyLogicDetector.cs  # Static ASDE-X Safety Logic detection: closed-runway, occupied-runway, taxi-onto-active-runway, taxiway-landing incursions → CRC surface alerts
 Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/wake-advisory/field-proof events, ARTCC WakeDirectives, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
 Training/AircraftCompletion.cs     # Per-aircraft lifecycle stamps: spawn time, completion time, completion reason (Landed / Handed off / Dropped / Departed), filed route + operation classification used by the Session Report Aircraft tab.
 Training/AircraftDebriefCoachingTemplates.cs  # Pure templates: one-line coaching note per completion reason + severity profile, consumed when aggregating per-aircraft debrief blocks from existing findings.

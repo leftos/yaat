@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.15-beta [2026/06/12]
+
+### Highlights
+- **Datablock deconfliction** — the new **DCNF** button on the Radar and Ground views automatically spreads apart overlapping aircraft labels so they stay readable in busy traffic (a runway queue, a gate cluster, a downwind line).
+- **Active-position selector** — a dropdown in the command bar shows which controller position you're working as and lets you switch with a click, instead of typing `AS [position]`.
+- **Scope markers** — pin a fix, NAVAID, or any radar point with `.ff`/`.marker`/`.markers` or a right-click "Pin marker here"; clear them with `.nomarkers`.
+- **ASDE-X Safety Logic alerts** — CRC's ASDE-X surface display now flags runway incursions: closed-runway, occupied-runway, taxi-onto-active-runway, and taxiway landings.
 
 ### Added
 - Pin fixes, NAVAIDs, or any radar point with `.ff`/`.marker`/`.markers` or a right-click "Pin marker here"; `.nomarkers` clears them.
