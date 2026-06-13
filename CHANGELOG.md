@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A `CTOPP` present-position departure now holds the helicopter over its spot during the vertical liftoff instead of drifting it forward before climbing out.
+
 ## v0.7.15-beta [2026/06/12]
 
 ### Highlights

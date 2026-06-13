@@ -25,6 +25,13 @@ public sealed class HelicopterTakeoffPhase : Phase
     public override string Name => "Takeoff-H";
 
     /// <summary>
+    /// The phase owns speed for the full vertical liftoff: it holds zero forward speed so the
+    /// auto-speed schedule in <see cref="FlightPhysics"/> cannot accelerate the helicopter
+    /// forward (and drift it off the spot) while it climbs to <see cref="CompletionAgl"/>.
+    /// </summary>
+    public override bool ManagesSpeed => true;
+
+    /// <summary>
     /// AGL (ft) at which the vertical liftoff completes. Set to the hover altitude for a
     /// present-position hold; defaults to 400 ft for a normal departure liftoff.
     /// </summary>
@@ -94,6 +101,12 @@ public sealed class HelicopterTakeoffPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Re-assert zero forward speed every tick. OnStart's one-time TargetSpeed=0 snaps to
+        // null on the first sub-tick (IAS already 0), so without this a helicopter that was
+        // air-taxiing into the liftoff would keep its forward speed instead of being driven to
+        // a stationary vertical climb.
+        ctx.Targets.TargetSpeed = 0;
+
         double agl = ctx.Aircraft.Altitude - _fieldElevation;
         bool complete = agl >= _completionAgl;
         if (complete)

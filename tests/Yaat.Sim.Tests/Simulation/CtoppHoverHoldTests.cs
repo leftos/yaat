@@ -88,8 +88,8 @@ public class CtoppHoverHoldTests(ITestOutputHelper output)
         // Helicopter holds position: settles to a stationary hover (no sustained forward flight),
         // never approaching the 60 kt forward-departure speed, and barely moves off its spot.
         Assert.True(finalIas < 2, $"helicopter should settle to a hover (~0 kt) but ended at {finalIas:F1} kt");
-        Assert.True(maxIas < 20, $"helicopter must not accelerate toward departure speed; peaked at {maxIas:F1} kt");
-        Assert.True(maxDriftFt < 200, $"helicopter should hold position but drifted {maxDriftFt:F0} ft from its spot");
+        Assert.True(maxIas < 5, $"helicopter must not accelerate toward departure speed; peaked at {maxIas:F1} kt");
+        Assert.True(maxDriftFt < 60, $"helicopter should hold position but drifted {maxDriftFt:F0} ft from its spot");
     }
 
     /// <summary>
@@ -186,12 +186,15 @@ public class CtoppHoverHoldTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Depart mode regression: a directional CTOPP still builds [HelicopterTakeoffPhase,
-    /// InitialClimbPhase] and lifts vertically first (zero forward speed) — it must not drift
-    /// laterally while still on/near the ground.
+    /// Depart mode regression (the CMD6 "CTOPP DCT VPCOL 020" bug): a directional CTOPP builds
+    /// [HelicopterTakeoffPhase, InitialClimbPhase] and must hold its ground position with zero
+    /// forward speed for the FULL vertical-liftoff climb (~400 ft AGL), not just the first few
+    /// seconds. Before the fix the auto-speed schedule spun the helicopter up to ~100 kt during
+    /// the ~20 s liftoff, drifting it ~1.77 nm along its parked heading before InitialClimbPhase
+    /// was ever meant to start forward flight.
     /// </summary>
     [Fact]
-    public void DirectionalCtopp_DepartsButLiftsVerticallyFirst()
+    public void DirectionalCtopp_HoldsPositionThroughEntireVerticalLiftoff()
     {
         var recording = LoadRecording();
         var engine = BuildEngine();
@@ -214,19 +217,45 @@ public class CtoppHoverHoldTests(ITestOutputHelper output)
         Assert.Contains(aircraft.Phases.Phases, p => p is InitialClimbPhase);
         Assert.Equal(0, aircraft.Targets.TargetSpeed);
 
-        // While in the vertical-liftoff phase the helicopter should climb but not drift.
-        for (int t = 1; t <= 5; t++)
+        // Tick through the ENTIRE vertical-liftoff phase (to ~400 ft AGL at 1200 fpm ≈ 20 s).
+        // For every tick the helicopter is still in HelicopterTakeoffPhase it must hold ~0 forward
+        // speed and stay over its spot; only once it hands off to InitialClimbPhase may it move.
+        double maxLiftoffDriftFt = 0;
+        double maxLiftoffIas = 0;
+        bool reachedInitialClimb = false;
+        for (int t = 1; t <= 40; t++)
         {
             engine.TickOneSecond();
             aircraft = engine.FindAircraft(Callsign);
             Assert.NotNull(aircraft);
+
+            if (aircraft.Phases?.CurrentPhase is HelicopterTakeoffPhase)
+            {
+                double driftFt = GeoMath.DistanceNm(aircraft.Position, spot) * 6076.12;
+                maxLiftoffDriftFt = Math.Max(maxLiftoffDriftFt, driftFt);
+                maxLiftoffIas = Math.Max(maxLiftoffIas, aircraft.IndicatedAirspeed);
+            }
+            else if (aircraft.Phases?.CurrentPhase is InitialClimbPhase)
+            {
+                reachedInitialClimb = true;
+            }
+
+            if (t % 5 == 0)
+            {
+                output.WriteLine(
+                    $"t={850 + t} phase={aircraft.Phases?.CurrentPhase?.Name} ias={aircraft.IndicatedAirspeed:F1} agl={aircraft.Altitude - fieldElevation:F0} maxLiftoffDrift={maxLiftoffDriftFt:F0}ft"
+                );
+            }
+
+            if (reachedInitialClimb)
+            {
+                break;
+            }
         }
 
-        double driftFt = GeoMath.DistanceNm(aircraft.Position, spot) * 6076.12;
-        double agl = aircraft.Altitude - fieldElevation;
-        output.WriteLine($"depart liftoff: agl={agl:F0} drift={driftFt:F0}ft phase={aircraft.Phases?.CurrentPhase?.Name}");
-        Assert.True(agl > 20, $"helicopter should be climbing vertically but was only {agl:F0} ft AGL");
-        Assert.True(driftFt < 150, $"helicopter should lift vertically first but drifted {driftFt:F0} ft");
+        Assert.True(reachedInitialClimb, "helicopter never completed the vertical liftoff into InitialClimbPhase");
+        Assert.True(maxLiftoffIas < 2, $"helicopter must hold zero forward speed during the vertical liftoff but peaked at {maxLiftoffIas:F1} kt");
+        Assert.True(maxLiftoffDriftFt < 200, $"helicopter must hold position during the vertical liftoff but drifted {maxLiftoffDriftFt:F0} ft");
     }
 
     /// <summary>
