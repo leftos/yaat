@@ -5,6 +5,7 @@
 ### Fixed
 - A `CTOPP` present-position departure now holds the helicopter over its spot during the vertical liftoff instead of drifting it forward before climbing out.
 - **Crosswind and downwind departures (`CTO MRC` / `CTO MRD` / `MLC` / `MLD`) now fly the actual traffic pattern** — upwind, then crosswind, then downwind for a downwind departure — climbing out continuously, so `EXT` / `EXT UPWIND` can extend a leg for spacing instead of being rejected with "Extend applies on upwind, crosswind, or downwind".
+- A closed-traffic takeoff clearance (`CTO MRT` / `MLT`) issued while an aircraft is still taxiing now survives a rewind or reconnect instead of reverting to a straight-out departure.
 
 ## v0.7.15-beta [2026/06/12]
 

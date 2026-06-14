@@ -142,6 +142,7 @@ public sealed class LahsoTargetDto
 [JsonDerivedType(typeof(DirectFixDepartureDto), "DirectFix")]
 [JsonDerivedType(typeof(PresentPositionHoverDepartureDto), "PresentPositionHover")]
 [JsonDerivedType(typeof(PatternExitDepartureDto), "PatternExit")]
+[JsonDerivedType(typeof(ClosedTrafficDepartureDto), "ClosedTraffic")]
 public abstract class DepartureInstructionDto;
 
 public sealed class DefaultDepartureDto : DepartureInstructionDto;
@@ -182,6 +183,18 @@ public sealed class PatternExitDepartureDto : DepartureInstructionDto
 
     /// <summary>0=Left, 1=Right (matches PatternDirection).</summary>
     public required int Direction { get; init; }
+}
+
+public sealed class ClosedTrafficDepartureDto : DepartureInstructionDto
+{
+    /// <summary>0=Left, 1=Right (matches PatternDirection).</summary>
+    public required int Direction { get; init; }
+
+    /// <summary>Optional cross-runway pattern runway; null = pattern on the takeoff runway.</summary>
+    public string? RunwayId { get; init; }
+
+    /// <summary>Optional pattern altitude override (ft MSL).</summary>
+    public int? PatternAltitude { get; init; }
 }
 
 // --- Pattern waypoints ---

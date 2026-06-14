@@ -162,6 +162,7 @@ public abstract record DepartureInstruction
             ),
             PresentPositionHoverDepartureDto h => new PresentPositionHoverDeparture(h.HoverAltitudeAglFt),
             PatternExitDepartureDto pe => new PatternExitDeparture((PatternEntryLeg)pe.ExitLeg, (PatternDirection)pe.Direction),
+            ClosedTrafficDepartureDto ct => new ClosedTrafficDeparture((PatternDirection)ct.Direction, ct.RunwayId, ct.PatternAltitude),
             DefaultDepartureDto => new DefaultDeparture(),
             _ => new DefaultDeparture(),
         };
@@ -234,7 +235,13 @@ public record DirectFixDeparture(string FixName, double Lat, double Lon, TurnDir
 /// <param name="PatternAltitude">Optional pattern altitude override (feet MSL).</param>
 public record ClosedTrafficDeparture(PatternDirection Direction, string? RunwayId, int? PatternAltitude) : DepartureInstruction
 {
-    public override DepartureInstructionDto ToSnapshot() => new DefaultDepartureDto();
+    public override DepartureInstructionDto ToSnapshot() =>
+        new ClosedTrafficDepartureDto
+        {
+            Direction = (int)Direction,
+            RunwayId = RunwayId,
+            PatternAltitude = PatternAltitude,
+        };
 }
 
 /// <summary>
