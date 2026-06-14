@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.7.16-beta [2026/06/13]
+
+### Highlights
+- **Crosswind and downwind departures fly the real pattern** — `CTO MRC` / `MRD` / `MLC` / `MLD` now fly the actual traffic pattern (upwind → crosswind → downwind), so `EXT` extends a leg for spacing instead of being rejected.
+- **Radar-vectors SIDs keep working when the FAA cycle drops a procedure** — an aircraft cleared for takeoff on a procedure missing from the current CIFP (like the NIMITZ off Oakland) again flies its published initial heading, recovered from a recently cached cycle.
+- **Closed-traffic takeoffs survive a rewind or reconnect** — a `CTO MRT` / `MLT` clearance issued while the aircraft is still taxiing no longer reverts to a straight-out departure.
 
 ### Fixed
 - A `CTOPP` present-position departure now holds the helicopter over its spot during the vertical liftoff instead of drifting it forward before climbing out.
