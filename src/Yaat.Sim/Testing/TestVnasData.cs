@@ -85,7 +85,11 @@ public static class TestVnasData
                 // copies that folder into the test output directory. This gives tests access to
                 // OAK30NUM, TOLLPLAZA, etc. which are needed when CommandParser.Parse resolves
                 // DCT args (e.g. PhraseologyMapper's rule validator).
-                _navigationDatabase = new NavigationDatabase(navData, cifpPath, supplementaryCifpFilePath: supplementaryCifp);
+                _navigationDatabase = new NavigationDatabase(
+                    navData,
+                    cifpPath,
+                    supplementaryCifpFilePaths: supplementaryCifp is null ? null : [supplementaryCifp]
+                );
                 return _navigationDatabase;
             }
         }

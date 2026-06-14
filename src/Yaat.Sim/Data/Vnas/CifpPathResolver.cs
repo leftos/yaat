@@ -261,25 +261,34 @@ public static class CifpPathResolver
     }
 
     /// <summary>
-    /// Resolves a supplementary CIFP from the local cache: the newest cached AIRAC cycle strictly older
-    /// than <paramref name="currentCycleId"/>. The app caches each cycle's CIFP it downloads, so a
-    /// procedure absent from the current cycle's file — e.g. a SID dropped during an amendment/rename
-    /// gap (NIMI5 → NIMI6) — can still be resolved from the most recent prior cycle that carried it.
-    /// Auto-accumulates as the app runs across cycle transitions; no shipped data. Returns null when no
-    /// older cached cycle exists (e.g. a fresh install).
+    /// Default recency cap for the supplementary CIFP chain: a procedure may be resurrected from a cached
+    /// cycle at most this many AIRAC cycles (~1 year) older than the current one. Bounds how stale a
+    /// resurrected procedure definition can be — an old cycle could encode an initial heading or crossing
+    /// restriction the FAA retired <em>because</em> the airspace changed.
     /// </summary>
-    public static string? ResolveSupplementaryFromCache(string currentCycleId) =>
-        ResolveSupplementaryFromCache(currentCycleId, YaatPaths.Combine("cache", "cifp"));
+    public const int MaxSupplementaryLookbackCycles = 13;
 
-    internal static string? ResolveSupplementaryFromCache(string currentCycleId, string cacheDir)
+    /// <summary>
+    /// Resolves the supplementary CIFP chain from the local cache: cached AIRAC cycles strictly older than
+    /// <paramref name="currentCycleId"/> and within <paramref name="maxLookbackCycles"/> cycle-age, ordered
+    /// newest→oldest. A procedure absent from the current cycle's file — e.g. a SID dropped during an
+    /// amendment/rename gap (NIMI5 → NIMI6), or retired a few cycles back — is resolved by walking this
+    /// chain to the most recent cycle that still carries it. The app caches each cycle's CIFP it downloads,
+    /// so the chain auto-accumulates with no shipped data. The recency cap is measured by cycle age (not
+    /// cache contents), so an unexpectedly-old cached cycle can't silently resurrect a long-retired
+    /// procedure. Returns an empty list when no eligible older cached cycle exists (e.g. a fresh install).
+    /// </summary>
+    public static IReadOnlyList<string> ResolveSupplementaryChainFromCache(string currentCycleId, int maxLookbackCycles) =>
+        ResolveSupplementaryChainFromCache(currentCycleId, maxLookbackCycles, YaatPaths.Combine("cache", "cifp"));
+
+    internal static IReadOnlyList<string> ResolveSupplementaryChainFromCache(string currentCycleId, int maxLookbackCycles, string cacheDir)
     {
         if (!Directory.Exists(cacheDir))
         {
-            return null;
+            return [];
         }
 
-        string? bestPath = null;
-        string? bestCycle = null;
+        var cycles = new List<string>();
         foreach (var path in Directory.EnumerateFiles(cacheDir, "FAACIFP18-*"))
         {
             var cycle = Path.GetFileName(path)["FAACIFP18-".Length..];
@@ -290,25 +299,31 @@ public static class CifpPathResolver
                 continue;
             }
 
-            // Only cycles strictly older than the current one (same-length numeric ids order correctly).
-            if (string.CompareOrdinal(cycle, currentCycleId) >= 0)
+            // Strictly older than current, and within the recency cap — measured by cycle age (handles
+            // the year wrap), not string distance.
+            int age = AiracCycle.CyclesBetween(cycle, currentCycleId);
+            if (age <= 0 || age > maxLookbackCycles)
             {
                 continue;
             }
 
-            if (bestCycle is null || string.CompareOrdinal(cycle, bestCycle) > 0)
-            {
-                bestCycle = cycle;
-                bestPath = path;
-            }
+            cycles.Add(cycle);
         }
 
-        if (bestPath is not null)
+        // Newest→oldest (same-length 4-digit YYNN ids order correctly as strings).
+        cycles.Sort((a, b) => string.CompareOrdinal(b, a));
+
+        if (cycles.Count > 0)
         {
-            Log.LogInformation("Supplementary CIFP resolved from cached prior cycle {Cycle} (current {Current})", bestCycle, currentCycleId);
+            Log.LogInformation(
+                "Supplementary CIFP chain resolved from {Count} cached prior cycle(s) [{Cycles}] (current {Current})",
+                cycles.Count,
+                string.Join(", ", cycles),
+                currentCycleId
+            );
         }
 
-        return bestPath;
+        return cycles.Select(c => Path.Combine(cacheDir, "FAACIFP18-" + c)).ToList();
     }
 
     /// <summary>

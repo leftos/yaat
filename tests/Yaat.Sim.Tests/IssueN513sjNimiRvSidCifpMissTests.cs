@@ -213,7 +213,7 @@ public class IssueN513sjNimiRvSidCifpMissTests
         }
 
         var navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
-        var db = new NavigationDatabase(navData, cifpPath, supplementaryCifpFilePath: null);
+        var db = new NavigationDatabase(navData, cifpPath, supplementaryCifpFilePaths: null);
 
         // Guard: NavData must still carry NIMI (the whole premise of the degradation path).
         return db.ResolveSidId("NIMI6") is not null ? db : null;

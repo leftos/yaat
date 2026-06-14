@@ -737,8 +737,8 @@ FaaAircraftDataService.cs      # Downloads FAA ACD xlsx, parses all columns, cac
 # Data/Vnas/
 VnasDataService.cs             # Downloads NavData protobuf + specs; serial-based cache
 NavDataPathResolver.cs         # Test/offline NavData.dat resolve: vNAS cache, download, TestData fallback
-CifpPathResolver.cs            # Current AIRAC CIFP: cache, FAA download, bundled gz fallback; supplementary = newest cached prior cycle (retired/renamed procedures)
-AiracCycle.cs                  # AIRAC cycle calculator (epoch Jan 23 2025, 28-day)
+CifpPathResolver.cs            # Current AIRAC CIFP: cache, FAA download, bundled gz fallback; supplementary = recency-capped chain of cached prior cycles, newest→oldest (retired/renamed procedures)
+AiracCycle.cs                  # AIRAC cycle calculator (epoch Jan 23 2025, 28-day); CyclesBetween() for the supplementary recency cap
 VnasConfig.cs                  # Config API DTO
 CacheManifest.cs               # Cache manifest tracking serials
 AircraftSpecEntry.cs           # VNAS aircraft specs model

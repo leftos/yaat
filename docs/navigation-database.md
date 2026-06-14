@@ -53,7 +53,7 @@ when the sim genuinely cannot proceed without nav data; `InstanceOrNull` is for 
 `CifpDataService.InitializeAsync()` download/cache the data:
 
 ```
-NavigationDatabase.Initialize(vnasData.NavData, cifpService.CifpFilePath, supplementaryCifpFilePath: cifpService.SupplementaryCifpFilePath);
+NavigationDatabase.Initialize(vnasData.NavData, cifpService.CifpFilePath, supplementaryCifpFilePaths: cifpService.SupplementaryCifpFilePaths);
 var cifpData = CifpParser.Parse(cifpService.CifpFilePath);
 ApproachGateDatabase.Initialize(cifpData);
 ```
@@ -141,13 +141,20 @@ name **but preserves at least 2 characters** (`end > 2` guard); it returns the i
 An exact-ID lookup that bypasses these resolvers will silently miss the current cycle's procedure whenever the scenario filed an
 older version.
 
-### Supplementary CIFP for retired procedures
+### Supplementary CIFP chain for retired procedures
 
-A procedure can be dropped from the *current* FAA cycle while a scenario still files it. `GetSid` (`:920`) first searches the
-current-cycle CIFP; on a miss, if `_supplementaryCifpFilePath` is wired, it searches the supplementary CIFP and logs a warning
-(`"resolved from supplementary CIFP (absent from current FAA cycle)"`). Production wires this via
-`cifpService.SupplementaryCifpFilePath` (`YaatHost.cs:177`); a bare `new NavigationDatabase(navData, cifp, artccsBaseDir: "")`
-in a test does **not**, so a retired SID returns `null` there. (`IssueN513sjNimiRvSidCifpMissTests` exercises exactly this path.)
+A procedure's coded legs can be absent from the *current* FAA CIFP while a scenario still files it — either the procedure was
+retired, or (like the NIMITZ SID at KOAK) it is still charted but simply missing from the CIFP dataset.
+`GetSid` / `GetStar` / `GetApproach` first search the current-cycle CIFP; on a miss they walk the **supplementary chain**
+(`_supplementaryCifpFilePaths`, newest→oldest cached prior cycles) and resolve from the most recent cycle that still carries the
+procedure, logging a warning and returning the source cycle id via the `out string? resolvedFromCycleId` overload (which drives the
+instructor advisory). The chain is the cached prior AIRAC cycles within a recency cap (`CifpPathResolver.MaxSupplementaryLookbackCycles`
+= ~1 year), assembled by `CifpDataService` into `SupplementaryCifpFilePaths` — the app caches each cycle it downloads, so this
+auto-accumulates with no shipped data. Resolving newest-prior-only (the old single-path behavior) missed procedures retired more than
+one cycle ago even when older cached cycles still had them. Production wires `cifpService.SupplementaryCifpFilePaths` (`YaatHost.cs`);
+a bare `new NavigationDatabase(navData, cifp, artccsBaseDir: "")` in a test passes an empty chain, so a retired SID returns `null`
+there. (`IssueN513sjNimiRvSidCifpMissTests` exercises the empty-chain degradation; `IssueN513sjNimi6RetiredCycleChainTests`
+exercises the chain walk recovering NIMI5's published 315° heading.)
 
 ### Lazy per-airport CIFP cache
 

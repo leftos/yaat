@@ -1298,7 +1298,7 @@ public partial class MainViewModel : ObservableObject
             NavigationDatabase.Initialize(
                 vnasData.NavData,
                 cifpService.CifpFilePath,
-                supplementaryCifpFilePath: cifpService.SupplementaryCifpFilePath
+                supplementaryCifpFilePaths: cifpService.SupplementaryCifpFilePaths
             );
             var navDb = NavigationDatabase.Instance;
 

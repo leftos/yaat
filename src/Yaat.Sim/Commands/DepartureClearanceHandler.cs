@@ -15,7 +15,8 @@ internal sealed record DepartureRouteResult(
     double? DepartureHeadingMagnetic = null,
     bool RvSidDeferHeadingUntilMinAlt = false,
     bool RvSidHoldRunwayHeading = false,
-    List<ProcedureLeg>? ProcedureLegs = null
+    List<ProcedureLeg>? ProcedureLegs = null,
+    string? ResolvedFromCycleId = null
 );
 
 internal static class DepartureClearanceHandler
@@ -69,11 +70,12 @@ internal static class DepartureClearanceHandler
         SyncControllerAssignedAltitude(aircraft, ClearanceType.ClearedForTakeoff, cto.AssignedAltitude);
 
         string? takeoffDesignator = null;
+        DepartureRouteResult? routeResult = null;
 
         // Propagate departure to TakeoffPhase and InitialClimbPhase
         if (aircraft.Phases is not null)
         {
-            var routeResult = ResolveDepartureRoute(cto.Departure, aircraft);
+            routeResult = ResolveDepartureRoute(cto.Departure, aircraft);
 
             for (int i = 0; i < aircraft.Phases.Phases.Count; i++)
             {
@@ -106,7 +108,10 @@ internal static class DepartureClearanceHandler
             takeoffDesignator ?? aircraft.Phases?.AssignedRunway?.Designator ?? "unknown",
             cto.Departure,
             cto.AssignedAltitude
-        );
+        ) with
+        {
+            Advisory = PriorCycleSidAdvisory(ClearanceType.ClearedForTakeoff, routeResult, aircraft),
+        };
     }
 
     internal static CommandResult TryDepartureClearance(
@@ -195,10 +200,21 @@ internal static class DepartureClearanceHandler
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Procedure.DepartureRunway = runway.Designator;
-        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, holding.HoldShort.NodeId, logger);
+        var routeResult = InsertTowerPhasesAfterCurrent(
+            aircraft,
+            clearanceType,
+            departure,
+            assignedAltitude,
+            runway,
+            holding.HoldShort.NodeId,
+            logger
+        );
         SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
-        return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
+        return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with
+        {
+            Advisory = PriorCycleSidAdvisory(clearanceType, routeResult, aircraft),
+        };
     }
 
     internal static CommandResult LineUpFromPosition(
@@ -220,11 +236,14 @@ internal static class DepartureClearanceHandler
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.Procedure.DepartureRunway = runway.Designator;
-        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, null, logger);
+        var routeResult = InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, null, logger);
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
         SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
-        return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
+        return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with
+        {
+            Advisory = PriorCycleSidAdvisory(clearanceType, routeResult, aircraft),
+        };
     }
 
     internal static CommandResult StoreDepartureClearanceDuringTaxi(
@@ -345,10 +364,13 @@ internal static class DepartureClearanceHandler
         };
         SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
-        return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
+        return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with
+        {
+            Advisory = PriorCycleSidAdvisory(clearanceType, routeResult, aircraft),
+        };
     }
 
-    internal static void InsertTowerPhasesAfterCurrent(
+    internal static DepartureRouteResult? InsertTowerPhasesAfterCurrent(
         AircraftState aircraft,
         ClearanceType clearanceType,
         DepartureInstruction departure,
@@ -446,6 +468,8 @@ internal static class DepartureClearanceHandler
             rolling,
             runway.Designator
         );
+
+        return routeResult;
     }
 
     internal static CommandResult SatisfyUpcomingTakeoffClearance(
@@ -541,7 +565,27 @@ internal static class DepartureClearanceHandler
 
         SyncControllerAssignedAltitude(aircraft, ClearanceType.ClearedForTakeoff, assignedAltitude);
 
-        return BuildDepartureMessage(ClearanceType.ClearedForTakeoff, takeoffDesignator, departure, assignedAltitude);
+        return BuildDepartureMessage(ClearanceType.ClearedForTakeoff, takeoffDesignator, departure, assignedAltitude) with
+        {
+            Advisory = PriorCycleSidAdvisory(ClearanceType.ClearedForTakeoff, routeResult, aircraft),
+        };
+    }
+
+    /// <summary>
+    /// Instructor-facing advisory when the filed SID was resolved from a cached prior AIRAC cycle because its
+    /// coded legs are absent from the current FAA CIFP (the procedure may be retired, or still charted but
+    /// missing from the CIFP dataset). Null when the SID came from the current cycle or the clearance is not a
+    /// takeoff clearance.
+    /// </summary>
+    internal static string? PriorCycleSidAdvisory(ClearanceType clearanceType, DepartureRouteResult? routeResult, AircraftState aircraft)
+    {
+        if (clearanceType != ClearanceType.ClearedForTakeoff || routeResult?.ResolvedFromCycleId is not { } cycle)
+        {
+            return null;
+        }
+
+        var sidName = (aircraft.FlightPlan.Route ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "SID";
+        return CommandDispatcher.PriorCycleProcedureAdvisory("SID", sidName, cycle);
     }
 
     internal static CommandResult BuildDepartureMessage(
@@ -859,7 +903,7 @@ internal static class DepartureClearanceHandler
 
         // First route token is the SID name
         var sidName = routeTokens[0];
-        var sid = navDb.GetSid(aircraft.FlightPlan.Departure, sidName);
+        var sid = navDb.GetSid(aircraft.FlightPlan.Departure, sidName, out var resolvedFromCycleId);
         if (sid is null)
         {
             return null;
@@ -924,7 +968,7 @@ internal static class DepartureClearanceHandler
 
             AppendPostSidEnrouteFixes(rvTargets, routeTokens, sid, rvTargets.Count > 0 ? rvTargets[^1].Name : null);
             StripNearDepartureTargets(rvTargets, aircraft.FlightPlan.Departure);
-            return new DepartureRouteResult(rvTargets, null, heading, deferHeading);
+            return new DepartureRouteResult(rvTargets, null, heading, deferHeading, ResolvedFromCycleId: resolvedFromCycleId);
         }
 
         // Convert SID legs to NavigationTargets with constraints
@@ -942,7 +986,9 @@ internal static class DepartureClearanceHandler
         // plain TF/CF SIDs keep the flat direct-to-fix path unchanged.
         var procedureLegs = ProcedureLegResolver.ExtractActiveDepartureLegs(ProcedureLegResolver.Resolve(orderedLegs));
 
-        return targets.Count > 0 ? new DepartureRouteResult(targets, sid.ProcedureId, ProcedureLegs: procedureLegs) : null;
+        return targets.Count > 0
+            ? new DepartureRouteResult(targets, sid.ProcedureId, ProcedureLegs: procedureLegs, ResolvedFromCycleId: resolvedFromCycleId)
+            : null;
     }
 
     /// <summary>
@@ -1554,6 +1600,7 @@ internal static class DepartureClearanceHandler
         helo.SetAssignedDeparture(ctopp.Departure);
         aircraft.Phases.Add(helo);
 
+        DepartureRouteResult? routeResult = null;
         if (ctopp.Departure is PresentPositionHoverDeparture hover)
         {
             // Hold in place: vertical liftoff to the hover altitude, then hover (zero forward
@@ -1568,7 +1615,7 @@ internal static class DepartureClearanceHandler
             var climb = new InitialClimbPhase { IsVfr = aircraft.FlightPlan.IsVfr, CruiseAltitude = aircraft.FlightPlan.CruiseAltitude };
             aircraft.Phases.Add(climb);
 
-            var routeResult = ResolveDepartureRoute(ctopp.Departure, aircraft);
+            routeResult = ResolveDepartureRoute(ctopp.Departure, aircraft);
             SetInitialClimbProperties(climb, ctopp.Departure, ctopp.AssignedAltitude, routeResult, aircraft);
         }
 
@@ -1593,6 +1640,6 @@ internal static class DepartureClearanceHandler
         {
             msg += $", climb and maintain {ctopp.AssignedAltitude:N0}";
         }
-        return CommandDispatcher.Ok(msg);
+        return CommandDispatcher.Ok(msg) with { Advisory = PriorCycleSidAdvisory(ClearanceType.ClearedForTakeoff, routeResult, aircraft) };
     }
 }

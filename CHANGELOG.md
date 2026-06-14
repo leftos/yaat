@@ -6,6 +6,7 @@
 - A `CTOPP` present-position departure now holds the helicopter over its spot during the vertical liftoff instead of drifting it forward before climbing out.
 - **Crosswind and downwind departures (`CTO MRC` / `CTO MRD` / `MLC` / `MLD`) now fly the actual traffic pattern** — upwind, then crosswind, then downwind for a downwind departure — climbing out continuously, so `EXT` / `EXT UPWIND` can extend a leg for spacing instead of being rejected with "Extend applies on upwind, crosswind, or downwind".
 - A closed-traffic takeoff clearance (`CTO MRT` / `MLT`) issued while an aircraft is still taxiing now survives a rewind or reconnect instead of reverting to a straight-out departure.
+- An aircraft cleared for takeoff (`CTO`) on a radar-vectors SID whose coded data is missing from the current FAA CIFP — whether the procedure is still charted (like the NIMITZ departure at Oakland) or was retired — again flies the procedure's published initial heading (e.g. the charted right turn to 315°) instead of holding runway heading and waiting to be vectored. YAAT now recovers the procedure's coded legs from a recently cached AIRAC cycle and posts a terminal note when it does, so you can verify the heading against current charts. The same recovery applies to STARs and approaches whose CIFP data is missing.
 
 ## v0.7.15-beta [2026/06/12]
 

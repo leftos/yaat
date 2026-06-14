@@ -4,15 +4,18 @@ using Yaat.Sim.Data.Vnas;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Supplementary CIFP resolution from the local cache: when the current AIRAC cycle's file lacks a
-/// procedure (e.g. NIMI dropped from cycle 2605 during the NIMI5 → NIMI6 amendment gap), the newest
-/// cached PRIOR cycle is used as the supplementary source so the procedure (and its published heading)
-/// can still be resolved. See <see cref="CifpPathResolver.ResolveSupplementaryFromCache(string, string)"/>.
+/// Supplementary CIFP chain resolution from the local cache: when the current AIRAC cycle's file lacks a
+/// procedure (e.g. NIMI dropped from cycle 2605 but still present in 2604/2603/2602), the cached prior
+/// cycles within the recency cap are returned newest→oldest so procedure resolution can walk back to the
+/// most recent cycle that still carries it. See
+/// <see cref="CifpPathResolver.ResolveSupplementaryChainFromCache(string, int, string)"/>.
 /// </summary>
 public class CifpSupplementaryCacheTests
 {
+    private static string[] Names(IReadOnlyList<string> paths) => paths.Select(p => Path.GetFileName(p)!).ToArray();
+
     [Fact]
-    public void ResolveSupplementaryFromCache_PicksNewestStrictlyPriorCycle()
+    public void ResolveSupplementaryChain_ReturnsPriorCyclesNewestFirst_WithinCap()
     {
         var dir = Directory.CreateTempSubdirectory("yaat-cifp-cache-test-").FullName;
         try
@@ -22,18 +25,20 @@ public class CifpSupplementaryCacheTests
                 File.WriteAllText(Path.Combine(dir, name), "x");
             }
 
-            // Current cycle 2605: newest strictly-older cached cycle is 2604.
-            var supp = CifpPathResolver.ResolveSupplementaryFromCache("2605", dir);
-            Assert.NotNull(supp);
-            Assert.Equal("FAACIFP18-2604", Path.GetFileName(supp));
-            // The bundled (non-cycle) file is never selected.
-            Assert.DoesNotContain("bundled", supp);
+            // Current cycle 2606, generous cap: all four cached prior cycles, newest→oldest.
+            // The bundled (non-cycle) file is never selected by the cache walk.
+            var chain = CifpPathResolver.ResolveSupplementaryChainFromCache("2606", 13, dir);
+            Assert.Equal(new[] { "FAACIFP18-2605", "FAACIFP18-2604", "FAACIFP18-2603", "FAACIFP18-2602" }, Names(chain));
 
-            // No cached cycle strictly older than the oldest present -> null (a fresh install).
-            Assert.Null(CifpPathResolver.ResolveSupplementaryFromCache("2602", dir));
+            // Recency cap of 1: only the immediately-prior cycle (2605); 2604 (age 2) is excluded.
+            var capped = CifpPathResolver.ResolveSupplementaryChainFromCache("2606", 1, dir);
+            Assert.Equal(new[] { "FAACIFP18-2605" }, Names(capped));
 
-            // Missing cache directory -> null.
-            Assert.Null(CifpPathResolver.ResolveSupplementaryFromCache("2605", Path.Combine(dir, "does-not-exist")));
+            // No cached cycle strictly older than the oldest present -> empty (a fresh install).
+            Assert.Empty(CifpPathResolver.ResolveSupplementaryChainFromCache("2602", 13, dir));
+
+            // Missing cache directory -> empty.
+            Assert.Empty(CifpPathResolver.ResolveSupplementaryChainFromCache("2606", 13, Path.Combine(dir, "does-not-exist")));
         }
         finally
         {

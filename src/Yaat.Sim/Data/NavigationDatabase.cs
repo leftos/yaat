@@ -45,11 +45,20 @@ public sealed class NavigationDatabase
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _sidCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpStarProcedure>> _starCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpApproachProcedure>> _approachCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _supplementarySidCache = new(StringComparer.OrdinalIgnoreCase);
+
+    // Supplementary CIFP per-(file, airport) caches: prior-cycle procedures parsed on demand, only when a
+    // procedure is absent from the current cycle. Keyed by (file path, airport) so each cycle in the chain
+    // caches independently.
+    private readonly ConcurrentDictionary<(string Path, string Airport), IReadOnlyList<CifpSidProcedure>> _supplementarySidCache = new();
+    private readonly ConcurrentDictionary<(string Path, string Airport), IReadOnlyList<CifpStarProcedure>> _supplementaryStarCache = new();
+    private readonly ConcurrentDictionary<(string Path, string Airport), IReadOnlyList<CifpApproachProcedure>> _supplementaryApproachCache = new();
     private readonly ConcurrentDictionary<string, double?> _airportMagVarCache = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly string _cifpFilePath;
-    private readonly string? _supplementaryCifpFilePath;
+
+    // Supplementary CIFP chain (newest→oldest cached prior cycles, plus any bundle) consulted when a
+    // procedure is absent from the current cycle. Empty when no older source is available.
+    private readonly IReadOnlyList<string> _supplementaryCifpFilePaths;
 
     private static readonly ILogger Log = SimLog.CreateLogger("NavigationDatabase");
 
@@ -77,9 +86,14 @@ public sealed class NavigationDatabase
     /// <paramref name="artccsBaseDir"/> overrides the per-ARTCC user-data root (custom fixes,
     /// fix pronunciations, taxi route presets); pass an empty string to skip loading entirely.
     /// </summary>
-    public static void Initialize(NavDataSet navData, string cifpFilePath, string? artccsBaseDir = null, string? supplementaryCifpFilePath = null)
+    public static void Initialize(
+        NavDataSet navData,
+        string cifpFilePath,
+        string? artccsBaseDir = null,
+        IReadOnlyList<string>? supplementaryCifpFilePaths = null
+    )
     {
-        _defaultInstance = new NavigationDatabase(navData, cifpFilePath, artccsBaseDir, supplementaryCifpFilePath);
+        _defaultInstance = new NavigationDatabase(navData, cifpFilePath, artccsBaseDir, supplementaryCifpFilePaths);
     }
 
     /// <summary>
@@ -112,15 +126,19 @@ public sealed class NavigationDatabase
     /// <c>{AppContext.BaseDirectory}/Data/ARTCCs</c>; pass an empty string to skip loading
     /// per-ARTCC data entirely.
     /// </summary>
-    public NavigationDatabase(NavDataSet navData, string cifpFilePath, string? artccsBaseDir = null, string? supplementaryCifpFilePath = null)
+    public NavigationDatabase(
+        NavDataSet navData,
+        string cifpFilePath,
+        string? artccsBaseDir = null,
+        IReadOnlyList<string>? supplementaryCifpFilePaths = null
+    )
     {
         _cifpFilePath = cifpFilePath;
-        _supplementaryCifpFilePath =
-            supplementaryCifpFilePath is { } supplementary
-            && File.Exists(supplementary)
-            && !string.Equals(supplementary, cifpFilePath, StringComparison.OrdinalIgnoreCase)
-                ? supplementary
-                : null;
+        // Keep only existing files that aren't the primary; preserve the caller's newest→oldest order.
+        _supplementaryCifpFilePaths = (supplementaryCifpFilePaths ?? [])
+            .Where(p => File.Exists(p) && !string.Equals(p, cifpFilePath, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         artccsBaseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "ARTCCs");
 
         BuildIndex(navData);
@@ -140,6 +158,7 @@ public sealed class NavigationDatabase
     private NavigationDatabase()
     {
         _cifpFilePath = "";
+        _supplementaryCifpFilePaths = [];
         InitialContactTransfers = InitialContactTransferCatalog.Empty;
         WakeDirectives = WakeDirectiveCatalog.Empty;
         AirportSidecars = AirportSidecarCatalog.Empty;
@@ -925,26 +944,40 @@ public sealed class NavigationDatabase
     //  CIFP lookups (parsed per-airport on first access)
     // ──────────────────────────────────────────────
 
-    public CifpSidProcedure? GetSid(string airportCode, string sidId)
+    public CifpSidProcedure? GetSid(string airportCode, string sidId) => GetSid(airportCode, sidId, out _);
+
+    /// <summary>
+    /// Resolves a SID, walking the supplementary CIFP chain (newest→oldest cached prior cycles) when the
+    /// procedure is absent from the current cycle. <paramref name="resolvedFromCycleId"/> is set to the
+    /// source cycle label (e.g. <c>"2604"</c>) when the procedure came from a non-current cycle — the
+    /// signal for the retired-procedure advisory — and null when it came from the current cycle.
+    /// </summary>
+    public CifpSidProcedure? GetSid(string airportCode, string sidId, out string? resolvedFromCycleId)
     {
+        resolvedFromCycleId = null;
         var match = FindSidInList(GetSids(airportCode), sidId);
         if (match is not null)
         {
             return match;
         }
 
-        if (_supplementaryCifpFilePath is null)
+        foreach (var path in _supplementaryCifpFilePaths)
         {
-            return null;
+            match = FindSidInList(GetSupplementarySids(path, NormalizeAirport(airportCode)), sidId);
+            if (match is not null)
+            {
+                resolvedFromCycleId = SupplementarySourceLabel(path);
+                Log.LogWarning(
+                    "SID {SidId} at {Airport} resolved from supplementary CIFP {Cycle} (absent from current FAA cycle)",
+                    sidId,
+                    airportCode,
+                    resolvedFromCycleId
+                );
+                return match;
+            }
         }
 
-        match = FindSidInList(GetSupplementarySids(airportCode), sidId);
-        if (match is not null)
-        {
-            Log.LogWarning("SID {SidId} at {Airport} resolved from supplementary CIFP (absent from current FAA cycle)", sidId, airportCode);
-        }
-
-        return match;
+        return null;
     }
 
     private static CifpSidProcedure? FindSidInList(IReadOnlyList<CifpSidProcedure> sids, string sidId)
@@ -970,9 +1003,43 @@ public sealed class NavigationDatabase
         return _sidCache.GetOrAdd(normalized, LoadSids);
     }
 
-    public CifpStarProcedure? GetStar(string airportCode, string starId)
+    public CifpStarProcedure? GetStar(string airportCode, string starId) => GetStar(airportCode, starId, out _);
+
+    /// <summary>
+    /// Resolves a STAR, walking the supplementary CIFP chain when the procedure is absent from the current
+    /// cycle. <paramref name="resolvedFromCycleId"/> is set to the source cycle label when resolved from a
+    /// non-current cycle (the retired-procedure advisory signal), null otherwise.
+    /// </summary>
+    public CifpStarProcedure? GetStar(string airportCode, string starId, out string? resolvedFromCycleId)
     {
-        var stars = GetStars(airportCode);
+        resolvedFromCycleId = null;
+        var match = FindStarInList(GetStars(airportCode), starId);
+        if (match is not null)
+        {
+            return match;
+        }
+
+        foreach (var path in _supplementaryCifpFilePaths)
+        {
+            match = FindStarInList(GetSupplementaryStars(path, NormalizeAirport(airportCode)), starId);
+            if (match is not null)
+            {
+                resolvedFromCycleId = SupplementarySourceLabel(path);
+                Log.LogWarning(
+                    "STAR {StarId} at {Airport} resolved from supplementary CIFP {Cycle} (absent from current FAA cycle)",
+                    starId,
+                    airportCode,
+                    resolvedFromCycleId
+                );
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private static CifpStarProcedure? FindStarInList(IReadOnlyList<CifpStarProcedure> stars, string starId)
+    {
         var exact = stars.FirstOrDefault(s => s.ProcedureId.Equals(starId, StringComparison.OrdinalIgnoreCase));
         if (exact is not null)
         {
@@ -1095,10 +1162,40 @@ public sealed class NavigationDatabase
         return (procedureId[..end], procedureId[end..]);
     }
 
-    public CifpApproachProcedure? GetApproach(string airportCode, string approachId)
+    public CifpApproachProcedure? GetApproach(string airportCode, string approachId) => GetApproach(airportCode, approachId, out _);
+
+    /// <summary>
+    /// Resolves an approach, walking the supplementary CIFP chain when the procedure is absent from the
+    /// current cycle. <paramref name="resolvedFromCycleId"/> is set to the source cycle label when resolved
+    /// from a non-current cycle (the retired-procedure advisory signal), null otherwise.
+    /// </summary>
+    public CifpApproachProcedure? GetApproach(string airportCode, string approachId, out string? resolvedFromCycleId)
     {
-        var approaches = GetApproaches(airportCode);
-        return approaches.FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
+        resolvedFromCycleId = null;
+        var match = GetApproaches(airportCode).FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
+        if (match is not null)
+        {
+            return match;
+        }
+
+        foreach (var path in _supplementaryCifpFilePaths)
+        {
+            match = GetSupplementaryApproaches(path, NormalizeAirport(airportCode))
+                .FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
+            if (match is not null)
+            {
+                resolvedFromCycleId = SupplementarySourceLabel(path);
+                Log.LogWarning(
+                    "Approach {ApproachId} at {Airport} resolved from supplementary CIFP {Cycle} (absent from current FAA cycle)",
+                    approachId,
+                    airportCode,
+                    resolvedFromCycleId
+                );
+                return match;
+            }
+        }
+
+        return null;
     }
 
     public IReadOnlyList<CifpApproachProcedure> GetApproaches(string airportCode)
@@ -1785,15 +1882,35 @@ public sealed class NavigationDatabase
         return CifpParser.ParseSids(_cifpFilePath, icao);
     }
 
-    private IReadOnlyList<CifpSidProcedure> GetSupplementarySids(string normalizedAirport)
-    {
-        return _supplementarySidCache.GetOrAdd(normalizedAirport, LoadSupplementarySids);
-    }
+    private IReadOnlyList<CifpSidProcedure> GetSupplementarySids(string supplementaryPath, string normalizedAirport) =>
+        _supplementarySidCache.GetOrAdd((supplementaryPath, normalizedAirport), key => CifpParser.ParseSids(key.Path, IcaoForCifp(key.Airport)));
 
-    private IReadOnlyList<CifpSidProcedure> LoadSupplementarySids(string normalizedAirport)
+    private IReadOnlyList<CifpStarProcedure> GetSupplementaryStars(string supplementaryPath, string normalizedAirport) =>
+        _supplementaryStarCache.GetOrAdd((supplementaryPath, normalizedAirport), key => CifpParser.ParseStars(key.Path, IcaoForCifp(key.Airport)));
+
+    private IReadOnlyList<CifpApproachProcedure> GetSupplementaryApproaches(string supplementaryPath, string normalizedAirport) =>
+        _supplementaryApproachCache.GetOrAdd(
+            (supplementaryPath, normalizedAirport),
+            key => CifpParser.ParseApproaches(key.Path, IcaoForCifp(key.Airport))
+        );
+
+    private static string IcaoForCifp(string normalizedAirport) => normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+
+    /// <summary>
+    /// Human-readable source label for a supplementary CIFP file used in the retired-procedure advisory:
+    /// the AIRAC cycle id for a cycle file (<c>FAACIFP18-2604</c> → <c>"2604"</c>), else the file stem
+    /// (e.g. <c>"bundled"</c> for the test bundle).
+    /// </summary>
+    private static string SupplementarySourceLabel(string path)
     {
-        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
-        return CifpParser.ParseSids(_supplementaryCifpFilePath!, icao);
+        const string prefix = "FAACIFP18-";
+        var name = Path.GetFileName(path);
+        if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return Path.GetFileNameWithoutExtension(name)[prefix.Length..];
+        }
+
+        return Path.GetFileNameWithoutExtension(name);
     }
 
     private IReadOnlyList<CifpStarProcedure> LoadStars(string normalizedAirport)

@@ -59,6 +59,31 @@ public static class AiracCycle
     }
 
     /// <summary>
+    /// Returns the number of AIRAC cycles between two cycle ids: positive when
+    /// <paramref name="toCycleId"/> is more recent than <paramref name="fromCycleId"/>,
+    /// negative when older. Used to bound how far back retired procedures may be resolved
+    /// (recency cap on the supplementary CIFP chain).
+    /// </summary>
+    public static int CyclesBetween(string fromCycleId, string toCycleId)
+    {
+        return CycleIndex(toCycleId) - CycleIndex(fromCycleId);
+    }
+
+    /// <summary>
+    /// Linear cycle index relative to <see cref="Epoch"/> (the first cycle of 2025 = 0).
+    /// Returns 0 for malformed ids.
+    /// </summary>
+    private static int CycleIndex(string cycleId)
+    {
+        if (cycleId.Length != 4 || !int.TryParse(cycleId[..2], out int yy) || !int.TryParse(cycleId[2..], out int nn))
+        {
+            return 0;
+        }
+
+        return (2000 + yy - 2025) * CyclesPerYear + (nn - 1);
+    }
+
+    /// <summary>
     /// Returns the effective date of the next AIRAC cycle
     /// after the given date.
     /// </summary>

@@ -12,7 +12,12 @@ using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Commands;
 
-public record CommandResult(bool Success, string? Message = null, CanonicalCommandType? RejectedCommandType = null);
+/// <summary>
+/// Result of dispatching a command. <see cref="Advisory"/> carries an optional instructor-facing
+/// terminal note emitted alongside the command (e.g. a procedure resolved from a retired AIRAC cycle);
+/// it is surfaced via <see cref="DispatchContext.TerminalEmitter"/>, not spoken as pilot phraseology.
+/// </summary>
+public record CommandResult(bool Success, string? Message = null, CanonicalCommandType? RejectedCommandType = null, string? Advisory = null);
 
 public static class CommandDispatcher
 {
@@ -528,6 +533,41 @@ public static class CommandDispatcher
     }
 
     private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
+    {
+        var result = ApplyCommandCore(command, aircraft, ctx);
+        EmitProcedureAdvisory(result, aircraft, ctx);
+        return result;
+    }
+
+    /// <summary>
+    /// Surfaces an instructor-facing advisory (e.g. a procedure resolved from a retired AIRAC cycle) on the
+    /// terminal via <see cref="DispatchContext.TerminalEmitter"/>. A no-op during dry-run validation, whose
+    /// context nulls the emitter — so it never double-fires when a command is validated then applied.
+    /// </summary>
+    private static void EmitProcedureAdvisory(CommandResult? result, AircraftState aircraft, DispatchContext ctx)
+    {
+        if (result is { Advisory: { Length: > 0 } advisory })
+        {
+            ctx.TerminalEmitter?.Invoke(new TerminalEntry("Warning", aircraft.Callsign, advisory));
+        }
+    }
+
+    /// <summary>
+    /// Instructor advisory text for a procedure resolved from a cached prior AIRAC cycle because its coded
+    /// legs are absent from the current FAA CIFP — the procedure may be retired, or still charted but missing
+    /// from the CIFP dataset. Returns null when the procedure came from the current cycle.
+    /// </summary>
+    internal static string? PriorCycleProcedureAdvisory(string kind, string procedureId, string? resolvedFromCycleId)
+    {
+        if (resolvedFromCycleId is not { } cycle)
+        {
+            return null;
+        }
+
+        return $"{procedureId} ({kind}) resolved from a prior AIRAC cycle ({cycle}) — its coded data is absent from the current FAA CIFP. Verify against current charts and vector as needed.";
+    }
+
+    private static CommandResult ApplyCommandCore(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
         if (RequiresVfr(command) && !aircraft.FlightPlan.IsVfr)
         {
@@ -1448,6 +1488,13 @@ public static class CommandDispatcher
         };
 
     private static CommandResult? TryApplyTowerCommand(ParsedCommand command, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
+    {
+        var result = TryApplyTowerCommandCore(command, aircraft, currentPhase, ctx);
+        EmitProcedureAdvisory(result, aircraft, ctx);
+        return result;
+    }
+
+    private static CommandResult? TryApplyTowerCommandCore(ParsedCommand command, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
     {
         var groundLayout = ctx.GroundLayout;
         var autoCrossRunway = ctx.AutoCrossRunway;
