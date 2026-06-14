@@ -32,6 +32,13 @@ public sealed class CrosswindPhase : Phase
     /// </summary>
     public PatternLateralOffsetState? LateralOffset { get; set; }
 
+    /// <summary>
+    /// Continuous-climb target (feet MSL) for a pattern-exit downwind departure (CTO MRD/MLD).
+    /// When set, the crosswind keeps the takeoff-rate climb toward the assigned/cruise altitude
+    /// instead of leveling at pattern altitude. Null for normal closed-traffic / arrival crosswinds.
+    /// </summary>
+    public int? DepartureClimbTargetFt { get; set; }
+
     public override string Name => "Crosswind";
     public override bool ManagesSpeed => true;
 
@@ -54,8 +61,14 @@ public sealed class CrosswindPhase : Phase
         }
         ctx.Targets.NavigationRoute.Clear();
 
-        // Continue climbing to pattern altitude if not there yet
-        if (ctx.Aircraft.Altitude < Waypoints.PatternAltitude - 50)
+        // Continue climbing. A pattern-exit departure climbs toward its assigned/cruise altitude
+        // (no level-off at TPA); a normal crosswind tops out at pattern altitude.
+        if (DepartureClimbTargetFt is { } departureClimbTo)
+        {
+            ctx.Targets.TargetAltitude = departureClimbTo;
+            ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
+        }
+        else if (ctx.Aircraft.Altitude < Waypoints.PatternAltitude - 50)
         {
             ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
             ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
@@ -165,6 +178,7 @@ public sealed class CrosswindPhase : Phase
             TargetLat = _targetLat,
             TargetLon = _targetLon,
             CrosswindHeadingDeg = _crosswindHeading.Degrees,
+            DepartureClimbTargetFt = DepartureClimbTargetFt,
             LateralOffsetTargetNm = LateralOffset?.TargetNm,
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
@@ -176,6 +190,7 @@ public sealed class CrosswindPhase : Phase
         {
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             IsExtended = dto.IsExtended,
+            DepartureClimbTargetFt = dto.DepartureClimbTargetFt,
             LateralOffset = dto.LateralOffsetTargetNm is { } target
                 ? new PatternLateralOffsetState
                 {

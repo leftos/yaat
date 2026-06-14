@@ -155,8 +155,8 @@ internal static class DepartureCommandParser
             var suffix = mod[2..];
             return suffix switch
             {
-                "C" => new RelativeTurnDeparture(90, TurnDirection.Right),
-                "D" => new RelativeTurnDeparture(180, TurnDirection.Right),
+                "C" => new PatternExitDeparture(PatternEntryLeg.Crosswind, PatternDirection.Right),
+                "D" => new PatternExitDeparture(PatternEntryLeg.Downwind, PatternDirection.Right),
                 "H" => new RunwayHeadingDeparture(),
                 "T" => new ClosedTrafficDeparture(PatternDirection.Right, null, null),
                 _ when int.TryParse(suffix, out var deg) && deg >= 1 && deg <= 359 => new RelativeTurnDeparture(deg, TurnDirection.Right),
@@ -169,8 +169,8 @@ internal static class DepartureCommandParser
             var suffix = mod[2..];
             return suffix switch
             {
-                "C" => new RelativeTurnDeparture(90, TurnDirection.Left),
-                "D" => new RelativeTurnDeparture(180, TurnDirection.Left),
+                "C" => new PatternExitDeparture(PatternEntryLeg.Crosswind, PatternDirection.Left),
+                "D" => new PatternExitDeparture(PatternEntryLeg.Downwind, PatternDirection.Left),
                 "T" => new ClosedTrafficDeparture(PatternDirection.Left, null, null),
                 _ when int.TryParse(suffix, out var deg) && deg >= 1 && deg <= 359 => new RelativeTurnDeparture(deg, TurnDirection.Left),
                 _ => null,
@@ -346,7 +346,7 @@ internal static class DepartureCommandParser
 
         var departure = ParseCtoModifier(mod);
 
-        if (departure is RunwayHeadingDeparture or ClosedTrafficDeparture or RelativeTurnDeparture)
+        if (departure is RunwayHeadingDeparture or ClosedTrafficDeparture or RelativeTurnDeparture or PatternExitDeparture)
         {
             return PR.Fail($"CTOPP does not accept '{mod}' — runway-relative modifiers are not valid for vertical liftoff");
         }

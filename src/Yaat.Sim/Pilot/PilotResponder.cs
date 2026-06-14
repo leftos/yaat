@@ -433,10 +433,10 @@ public static class PilotResponder
             DefaultDeparture => Lit(""),
             PresentPositionHoverDeparture => Lit("holding present position"),
             RunwayHeadingDeparture => Lit("fly runway heading"),
-            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } => Lit("right crosswind departure"),
-            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } => Lit("left crosswind departure"),
-            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } => Lit("right downwind departure"),
-            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } => Lit("left downwind departure"),
+            PatternExitDeparture { ExitLeg: PatternEntryLeg.Crosswind, Direction: PatternDirection.Right } => Lit("right crosswind departure"),
+            PatternExitDeparture { ExitLeg: PatternEntryLeg.Crosswind, Direction: PatternDirection.Left } => Lit("left crosswind departure"),
+            PatternExitDeparture { ExitLeg: PatternEntryLeg.Downwind, Direction: PatternDirection.Right } => Lit("right downwind departure"),
+            PatternExitDeparture { ExitLeg: PatternEntryLeg.Downwind, Direction: PatternDirection.Left } => Lit("left downwind departure"),
             RelativeTurnDeparture rel => new PilotSpeechText(
                 $"make a {TurnDirectionWord(rel.Direction)} {rel.Degrees} degree departure",
                 $"make a {TurnDirectionWord(rel.Direction)} {PhraseologyVerbalizer.DegreesWords(rel.Degrees)} degree departure"

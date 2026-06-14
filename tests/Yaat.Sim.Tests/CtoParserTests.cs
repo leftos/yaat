@@ -104,9 +104,9 @@ public class CtoParserTests : IDisposable
     {
         var cmd = CommandParser.Parse("CTO MRC");
         var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
-        Assert.Equal(90, rel.Degrees);
-        Assert.Equal(TurnDirection.Right, rel.Direction);
+        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        Assert.Equal(PatternEntryLeg.Crosswind, ped.ExitLeg);
+        Assert.Equal(PatternDirection.Right, ped.Direction);
     }
 
     [Fact]
@@ -114,9 +114,9 @@ public class CtoParserTests : IDisposable
     {
         var cmd = CommandParser.Parse("CTO MRC 014");
         var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
-        Assert.Equal(90, rel.Degrees);
-        Assert.Equal(TurnDirection.Right, rel.Direction);
+        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        Assert.Equal(PatternEntryLeg.Crosswind, ped.ExitLeg);
+        Assert.Equal(PatternDirection.Right, ped.Direction);
         Assert.Equal(1400, cto.AssignedAltitude);
     }
 
@@ -125,9 +125,9 @@ public class CtoParserTests : IDisposable
     {
         var cmd = CommandParser.Parse("CTO MRD");
         var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
-        Assert.Equal(180, rel.Degrees);
-        Assert.Equal(TurnDirection.Right, rel.Direction);
+        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        Assert.Equal(PatternEntryLeg.Downwind, ped.ExitLeg);
+        Assert.Equal(PatternDirection.Right, ped.Direction);
     }
 
     [Fact]
@@ -156,9 +156,9 @@ public class CtoParserTests : IDisposable
     {
         var cmd = CommandParser.Parse("CTO MLC");
         var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
-        Assert.Equal(90, rel.Degrees);
-        Assert.Equal(TurnDirection.Left, rel.Direction);
+        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        Assert.Equal(PatternEntryLeg.Crosswind, ped.ExitLeg);
+        Assert.Equal(PatternDirection.Left, ped.Direction);
     }
 
     [Fact]
@@ -166,9 +166,9 @@ public class CtoParserTests : IDisposable
     {
         var cmd = CommandParser.Parse("CTO MLD");
         var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
-        var rel = Assert.IsType<RelativeTurnDeparture>(cto.Departure);
-        Assert.Equal(180, rel.Degrees);
-        Assert.Equal(TurnDirection.Left, rel.Direction);
+        var ped = Assert.IsType<PatternExitDeparture>(cto.Departure);
+        Assert.Equal(PatternEntryLeg.Downwind, ped.ExitLeg);
+        Assert.Equal(PatternDirection.Left, ped.Direction);
     }
 
     [Fact]

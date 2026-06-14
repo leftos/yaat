@@ -584,10 +584,10 @@ public sealed class TaxiingPhase : Phase
         // 7110.65 §3-9-5.3. Fall back to the traditional stop-then-go
         // sequence with a pre-satisfied LUAW for those categories.
         bool rolling = dep.Type == ClearanceType.ClearedForTakeoff && LineUpPhase.IsAircraftEligibleForRollingTakeoff(ctx.Aircraft.AircraftType);
-        bool isClosedTraffic = dep.Departure is ClosedTrafficDeparture;
+        bool isCircuit = Commands.DepartureClearanceHandler.IsCircuitDeparture(dep.Departure);
         LinedUpAndWaitingPhase? luawPhase = rolling ? null : new LinedUpAndWaitingPhase();
 
-        if (isClosedTraffic)
+        if (isCircuit)
         {
             if (rolling)
             {
@@ -643,12 +643,18 @@ public sealed class TaxiingPhase : Phase
                 hpT.SetAssignedDeparture(dep.Departure);
             }
 
-            if (dep.Departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
+            if (Commands.DepartureClearanceHandler.IsCircuitDeparture(dep.Departure) && phases.AssignedRunway is { } rwy)
             {
-                // rwy is the departure runway here (AssignedRunway hasn't yet been
-                // overwritten to the pattern runway). ApplyClosedTraffic resolves the
-                // pattern runway from ct.RunwayId and detects the cross-runway case.
-                Commands.DepartureClearanceHandler.ApplyClosedTraffic(ct, ctx.Aircraft, phases, rwy, removeInitialClimb: false);
+                // rwy is the departure runway here (AssignedRunway hasn't yet been overwritten to the
+                // pattern runway). The circuit apply resolves the pattern runway and cross-runway case.
+                Commands.DepartureClearanceHandler.ApplyCircuitDeparture(
+                    dep.Departure,
+                    ctx.Aircraft,
+                    phases,
+                    rwy,
+                    dep.AssignedAltitude,
+                    removeInitialClimb: false
+                );
             }
         }
 

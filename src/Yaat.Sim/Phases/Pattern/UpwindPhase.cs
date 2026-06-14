@@ -33,6 +33,15 @@ public sealed class UpwindPhase : Phase
     /// </summary>
     public PatternLateralOffsetState? LateralOffset { get; set; }
 
+    /// <summary>
+    /// Continuous-climb target (feet MSL) for a pattern-exit departure (CTO MRC/MRD/MLC/MLD).
+    /// When set, the upwind climbs toward this altitude instead of leveling at pattern altitude —
+    /// a departing aircraft never levels at TPA (AIM 4-3-3 level-off discipline is for arrivals).
+    /// The crosswind-turn altitude gate (pattern altitude − 300) is unaffected. Null for normal
+    /// closed-traffic / arrival upwinds.
+    /// </summary>
+    public int? DepartureClimbTargetFt { get; set; }
+
     public override string Name => "Upwind";
     public override bool ManagesSpeed => true;
 
@@ -56,8 +65,9 @@ public sealed class UpwindPhase : Phase
         }
         ctx.Targets.NavigationRoute.Clear();
 
-        // Climb to pattern altitude
-        ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
+        // Climb to pattern altitude — or, for a pattern-exit departure, continue the takeoff-rate
+        // climb toward the assigned/cruise altitude without leveling off.
+        ctx.Targets.TargetAltitude = DepartureClimbTargetFt ?? Waypoints.PatternAltitude;
         ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
 
         // Accelerate toward downwind speed
@@ -172,6 +182,7 @@ public sealed class UpwindPhase : Phase
             TargetLon = _targetLon,
             UpwindHeadingDeg = _upwindHeading.Degrees,
             MinTurnAltitude = _minTurnAltitude,
+            DepartureClimbTargetFt = DepartureClimbTargetFt,
             LateralOffsetTargetNm = LateralOffset?.TargetNm,
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
@@ -183,6 +194,7 @@ public sealed class UpwindPhase : Phase
         {
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             IsExtended = dto.IsExtended,
+            DepartureClimbTargetFt = dto.DepartureClimbTargetFt,
             LateralOffset = dto.LateralOffsetTargetNm is { } target
                 ? new PatternLateralOffsetState
                 {

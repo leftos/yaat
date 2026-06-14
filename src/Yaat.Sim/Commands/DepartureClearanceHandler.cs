@@ -92,12 +92,12 @@ internal static class DepartureClearanceHandler
                 }
             }
 
-            // ClosedTrafficDeparture: establish pattern mode and append circuit.
-            // Capture takeoff runway before ApplyClosedTraffic overwrites AssignedRunway.
-            if (cto.Departure is ClosedTrafficDeparture ct && aircraft.Phases.AssignedRunway is { } ctRunway)
+            // Circuit departures (closed traffic / pattern exit): establish pattern mode and append
+            // the circuit. Capture the takeoff runway before the circuit apply overwrites AssignedRunway.
+            if (IsCircuitDeparture(cto.Departure) && aircraft.Phases.AssignedRunway is { } ctRunway)
             {
                 takeoffDesignator = ctRunway.Designator;
-                ApplyClosedTraffic(ct, aircraft, aircraft.Phases, ctRunway, removeInitialClimb: true);
+                ApplyCircuitDeparture(cto.Departure, aircraft, aircraft.Phases, ctRunway, cto.AssignedAltitude, removeInitialClimb: true);
             }
         }
 
@@ -376,12 +376,12 @@ internal static class DepartureClearanceHandler
         // traditional stop-then-go sequence with a pre-satisfied LUAW.
         bool rolling = clearanceType == ClearanceType.ClearedForTakeoff && LineUpPhase.IsAircraftEligibleForRollingTakeoff(aircraft.AircraftType);
 
-        // For closed traffic, skip InitialClimbPhase — UpwindPhase handles the
-        // climb to pattern altitude. The crosswind turn is position-based (departure end),
+        // For circuit departures (closed traffic / pattern exit), skip InitialClimbPhase — the
+        // UpwindPhase handles the climb-out. The crosswind turn is position-based (departure end),
         // not altitude-based.
-        bool isClosedTraffic = departure is ClosedTrafficDeparture;
+        bool isCircuit = IsCircuitDeparture(departure);
         Phase[] towerPhases;
-        if (isClosedTraffic)
+        if (isCircuit)
         {
             towerPhases = rolling ? [lineup, takeoffPhase] : [lineup, new LinedUpAndWaitingPhase(), takeoffPhase];
         }
@@ -433,9 +433,9 @@ internal static class DepartureClearanceHandler
                 hp.SetAssignedDeparture(departure);
             }
 
-            if (departure is ClosedTrafficDeparture ct)
+            if (IsCircuitDeparture(departure))
             {
-                ApplyClosedTraffic(ct, aircraft, aircraft.Phases!, runway, removeInitialClimb: false);
+                ApplyCircuitDeparture(departure, aircraft, aircraft.Phases!, runway, assignedAltitude, removeInitialClimb: false);
             }
         }
 
@@ -510,11 +510,11 @@ internal static class DepartureClearanceHandler
             SetInitialClimbProperties(climb, departure, assignedAltitude, routeResult, aircraft);
         }
 
-        // Capture takeoff runway before ApplyClosedTraffic overwrites AssignedRunway.
+        // Capture takeoff runway before the circuit apply overwrites AssignedRunway.
         var takeoffDesignator = phases.AssignedRunway?.Designator ?? "unknown";
-        if (departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
+        if (IsCircuitDeparture(departure) && phases.AssignedRunway is { } rwy)
         {
-            ApplyClosedTraffic(ct, aircraft, phases, rwy, removeInitialClimb: true);
+            ApplyCircuitDeparture(departure, aircraft, phases, rwy, assignedAltitude, removeInitialClimb: true);
         }
 
         // Rolling-takeoff upgrade: if an active LineUpPhase exists and the
@@ -573,10 +573,10 @@ internal static class DepartureClearanceHandler
             DefaultDeparture => "",
             PresentPositionHoverDeparture hover => $", hover and hold at {hover.HoverAltitudeAglFt:N0} feet",
             RunwayHeadingDeparture => ", fly runway heading",
-            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } => ", right crosswind departure",
-            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } => ", left crosswind departure",
-            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } => ", right downwind departure",
-            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } => ", left downwind departure",
+            PatternExitDeparture { ExitLeg: PatternEntryLeg.Crosswind, Direction: PatternDirection.Right } => ", right crosswind departure",
+            PatternExitDeparture { ExitLeg: PatternEntryLeg.Crosswind, Direction: PatternDirection.Left } => ", left crosswind departure",
+            PatternExitDeparture { ExitLeg: PatternEntryLeg.Downwind, Direction: PatternDirection.Right } => ", right downwind departure",
+            PatternExitDeparture { ExitLeg: PatternEntryLeg.Downwind, Direction: PatternDirection.Left } => ", left downwind departure",
             RelativeTurnDeparture rel => $", turn {(rel.Direction == TurnDirection.Right ? "right" : "left")} {rel.Degrees} degrees",
             FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right => $", turn right heading {fh.MagneticHeading.ToDisplayInt():000}",
             FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left => $", turn left heading {fh.MagneticHeading.ToDisplayInt():000}",
@@ -656,6 +656,85 @@ internal static class DepartureClearanceHandler
         // DepartureRunway carries the takeoff runway for lineup/takeoff when they differ.
         phases.AssignedRunway = patternRunway;
         phases.DepartureRunway = crossRunway ? fallbackRunway : null;
+    }
+
+    /// <summary>
+    /// True for departures that build a pattern circuit (and so skip <see cref="InitialClimbPhase"/>):
+    /// closed traffic (re-enters to land) and pattern-exit departures (flies the pattern then leaves).
+    /// </summary>
+    internal static bool IsCircuitDeparture(DepartureInstruction departure) => departure is ClosedTrafficDeparture or PatternExitDeparture;
+
+    /// <summary>
+    /// Applies a circuit-building departure: dispatches to <see cref="ApplyClosedTraffic"/> or
+    /// <see cref="ApplyPatternExitDeparture"/>. No-op for any other departure type.
+    /// </summary>
+    internal static void ApplyCircuitDeparture(
+        DepartureInstruction departure,
+        AircraftState aircraft,
+        PhaseList phases,
+        RunwayInfo fallbackRunway,
+        int? assignedAltitude,
+        bool removeInitialClimb
+    )
+    {
+        switch (departure)
+        {
+            case ClosedTrafficDeparture ct:
+                ApplyClosedTraffic(ct, aircraft, phases, fallbackRunway, removeInitialClimb);
+                break;
+            case PatternExitDeparture ped:
+                ApplyPatternExitDeparture(ped, aircraft, phases, fallbackRunway, assignedAltitude, removeInitialClimb);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Applies a pattern-exit departure (CTO MRC/MRD/MLC/MLD): sets the pattern traffic direction,
+    /// optionally removes the pending <see cref="InitialClimbPhase"/>, and appends the truncated
+    /// circuit (upwind [→ crosswind] → <see cref="PatternExitPhase"/>) that flies the pattern to the
+    /// exit leg and then departs the area. Unlike closed traffic there is no base/final/landing and no
+    /// cycle terminator, so the pattern auto-cycle never re-appends a circuit.
+    /// </summary>
+    internal static void ApplyPatternExitDeparture(
+        PatternExitDeparture ped,
+        AircraftState aircraft,
+        PhaseList phases,
+        RunwayInfo runway,
+        int? assignedAltitude,
+        bool removeInitialClimb
+    )
+    {
+        phases.TrafficDirection = ped.Direction;
+        aircraft.Pattern.TrafficDirection = ped.Direction;
+
+        if (removeInitialClimb)
+        {
+            phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
+        }
+
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+            runway,
+            aircraft.Ground.Layout?.FindRunway(runway.Designator),
+            aircraft.Pattern.SizeOverrideNm,
+            aircraft.Pattern.AltitudeOverrideFt
+        );
+
+        var circuit = PatternBuilder.BuildPatternExitCircuit(
+            runway,
+            cat,
+            ped.Direction,
+            ped.ExitLeg,
+            assignedAltitude,
+            aircraft.FlightPlan.CruiseAltitude,
+            sizeOv,
+            altOv,
+            airportRunways
+        );
+
+        phases.Phases.AddRange(circuit);
+        phases.AssignedRunway = runway;
     }
 
     /// <summary>

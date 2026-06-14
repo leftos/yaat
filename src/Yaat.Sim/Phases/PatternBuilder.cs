@@ -76,6 +76,59 @@ public static class PatternBuilder
     }
 
     /// <summary>
+    /// Build a VFR pattern-exit departure (CTO MRC/MRD/MLC/MLD): the legs up to and including the
+    /// exit leg, with no base/final/landing tail. A crosswind exit flies upwind then turns crosswind;
+    /// a downwind exit flies upwind, crosswind, then downwind. The legs keep a continuous takeoff-rate
+    /// climb toward <paramref name="assignedAltitude"/> ?? <paramref name="cruiseAltitude"/> (no level-off
+    /// at pattern altitude), and a terminal <see cref="PatternExitPhase"/> rolls the aircraft out on the
+    /// exit-leg heading and departs the area.
+    /// </summary>
+    public static List<Phase> BuildPatternExitCircuit(
+        RunwayInfo runway,
+        AircraftCategory category,
+        PatternDirection direction,
+        PatternEntryLeg exitLeg,
+        int? assignedAltitude,
+        int cruiseAltitude,
+        double? patternSizeNm,
+        double? altitudeOverrideFt,
+        IReadOnlyList<RunwayInfo>? airportRunways
+    )
+    {
+        var waypoints = PatternGeometry.Compute(runway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways);
+        int climbTo = assignedAltitude ?? cruiseAltitude;
+
+        var phases = new List<Phase>
+        {
+            new UpwindPhase { Waypoints = waypoints, DepartureClimbTargetFt = climbTo },
+        };
+
+        TrueHeading exitHeading;
+        if (exitLeg == PatternEntryLeg.Downwind)
+        {
+            phases.Add(new CrosswindPhase { Waypoints = waypoints, DepartureClimbTargetFt = climbTo });
+            exitHeading = waypoints.DownwindHeading;
+        }
+        else
+        {
+            // Crosswind exit: depart on the crosswind heading straight off the upwind turn.
+            exitHeading = waypoints.CrosswindHeading;
+        }
+
+        phases.Add(
+            new PatternExitPhase
+            {
+                ExitHeading = exitHeading,
+                Direction = direction,
+                AssignedAltitude = assignedAltitude,
+                CruiseAltitude = cruiseAltitude,
+            }
+        );
+
+        return phases;
+    }
+
+    /// <summary>
     /// Build the next full pattern circuit (from upwind) for an aircraft cycling in the pattern.
     /// Auto-cycle callers choose <paramref name="touchAndGo"/> based on the previous circuit's
     /// intent: true after a touch-and-go completion (TG cycling), false after a go-around from

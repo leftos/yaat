@@ -161,6 +161,7 @@ public abstract record DepartureInstruction
                 df.Direction.HasValue ? (TurnDirection)df.Direction.Value : null
             ),
             PresentPositionHoverDepartureDto h => new PresentPositionHoverDeparture(h.HoverAltitudeAglFt),
+            PatternExitDepartureDto pe => new PatternExitDeparture((PatternEntryLeg)pe.ExitLeg, (PatternDirection)pe.Direction),
             DefaultDepartureDto => new DefaultDeparture(),
             _ => new DefaultDeparture(),
         };
@@ -234,6 +235,20 @@ public record DirectFixDeparture(string FixName, double Lat, double Lon, TurnDir
 public record ClosedTrafficDeparture(PatternDirection Direction, string? RunwayId, int? PatternAltitude) : DepartureInstruction
 {
     public override DepartureInstructionDto ToSnapshot() => new DefaultDepartureDto();
+}
+
+/// <summary>
+/// Pattern exit departure: fly the traffic pattern up to and including <see cref="ExitLeg"/>,
+/// then roll out on that leg's heading and depart the area. A crosswind exit (MRC/MLC) flies
+/// upwind then turns crosswind; a downwind exit (MRD/MLD) flies upwind, crosswind, then downwind.
+/// Unlike <see cref="ClosedTrafficDeparture"/> the circuit has no base/final/landing tail — the
+/// aircraft leaves on the exit-leg heading rather than re-entering to land.
+/// </summary>
+/// <param name="ExitLeg">The leg the aircraft exits on (Crosswind or Downwind).</param>
+/// <param name="Direction">Left or right traffic pattern.</param>
+public record PatternExitDeparture(PatternEntryLeg ExitLeg, PatternDirection Direction) : DepartureInstruction
+{
+    public override DepartureInstructionDto ToSnapshot() => new PatternExitDepartureDto { ExitLeg = (int)ExitLeg, Direction = (int)Direction };
 }
 
 // Tower commands

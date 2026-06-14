@@ -141,6 +141,7 @@ public sealed class LahsoTargetDto
 [JsonDerivedType(typeof(OnCourseDepartureDto), "OnCourse")]
 [JsonDerivedType(typeof(DirectFixDepartureDto), "DirectFix")]
 [JsonDerivedType(typeof(PresentPositionHoverDepartureDto), "PresentPositionHover")]
+[JsonDerivedType(typeof(PatternExitDepartureDto), "PatternExit")]
 public abstract class DepartureInstructionDto;
 
 public sealed class DefaultDepartureDto : DepartureInstructionDto;
@@ -172,6 +173,15 @@ public sealed class DirectFixDepartureDto : DepartureInstructionDto
 public sealed class PresentPositionHoverDepartureDto : DepartureInstructionDto
 {
     public required int HoverAltitudeAglFt { get; init; }
+}
+
+public sealed class PatternExitDepartureDto : DepartureInstructionDto
+{
+    /// <summary>0=Upwind, 1=Crosswind, 2=Downwind, 3=Base, 4=Final (matches PatternEntryLeg). Only Crosswind/Downwind are produced.</summary>
+    public required int ExitLeg { get; init; }
+
+    /// <summary>0=Left, 1=Right (matches PatternDirection).</summary>
+    public required int Direction { get; init; }
 }
 
 // --- Pattern waypoints ---
@@ -245,6 +255,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(CrosswindPhaseDto), "Crosswind")]
 [JsonDerivedType(typeof(DownwindPhaseDto), "Downwind")]
 [JsonDerivedType(typeof(UpwindPhaseDto), "Upwind")]
+[JsonDerivedType(typeof(PatternExitPhaseDto), "PatternExit")]
 [JsonDerivedType(typeof(VfrFollowPhaseDto), "VfrFollow")]
 [JsonDerivedType(typeof(HoldingPatternPhaseDto), "HoldingPattern")]
 [JsonDerivedType(typeof(ProcedureTurnPhaseDto), "ProcedureTurn")]
@@ -774,9 +785,23 @@ public sealed class CrosswindPhaseDto : PhaseDto
     public required double TargetLat { get; init; }
     public required double TargetLon { get; init; }
     public required double CrosswindHeadingDeg { get; init; }
+
+    /// <summary>Continuous-climb target (ft MSL) for a pattern-exit downwind departure; null otherwise.</summary>
+    public int? DepartureClimbTargetFt { get; init; }
+
     public double? LateralOffsetTargetNm { get; init; }
     public int? LateralOffsetDirection { get; init; }
     public bool LateralOffsetAcquired { get; init; }
+}
+
+public sealed class PatternExitPhaseDto : PhaseDto
+{
+    public required double ExitHeadingDeg { get; init; }
+
+    /// <summary>0=Left, 1=Right (matches PatternDirection).</summary>
+    public required int Direction { get; init; }
+    public int? AssignedAltitude { get; init; }
+    public required int CruiseAltitude { get; init; }
 }
 
 public sealed class DownwindPhaseDto : PhaseDto
@@ -805,6 +830,10 @@ public sealed class UpwindPhaseDto : PhaseDto
     public required double TargetLon { get; init; }
     public required double UpwindHeadingDeg { get; init; }
     public required double MinTurnAltitude { get; init; } = 0.0;
+
+    /// <summary>Continuous-climb target (ft MSL) for a pattern-exit departure; null otherwise.</summary>
+    public int? DepartureClimbTargetFt { get; init; }
+
     public double? LateralOffsetTargetNm { get; init; }
     public int? LateralOffsetDirection { get; init; }
     public bool LateralOffsetAcquired { get; init; }

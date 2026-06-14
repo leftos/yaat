@@ -696,8 +696,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO` | Cleared for takeoff (default departure) |
 | `CTO 060` | Cleared for takeoff, fly heading 060 |
 | `CTO 060 250` | Cleared for takeoff, fly heading 060, climb and maintain 25,000 ft |
-| `CTO MRC` | Cleared for takeoff, right crosswind departure (90° right turn) — VFR only |
-| `CTO MRD` | Cleared for takeoff, right downwind departure (180° right turn) — VFR only |
+| `CTO MRC` | Cleared for takeoff, right crosswind departure — flies upwind, turns crosswind, then departs on the crosswind heading (VFR only) |
+| `CTO MRD` | Cleared for takeoff, right downwind departure — flies upwind, crosswind, downwind, then departs on the downwind heading (VFR only) |
 | `CTO MR270` | Cleared for takeoff, right 270° departure (turn right 270° from runway heading) — VFR only |
 | `CTO MR45` | Cleared for takeoff, turn right 45° from runway heading — VFR only |
 | `CTO ML270` / `MLC` / `MLD` / `ML45` | Left-turn equivalents of MR270/MRC/MRD/MR{N} — VFR only |
@@ -749,7 +749,9 @@ Append `CWT` after any CTO form to include "caution wake turbulence" in the take
 
 **IFR aircraft** can only use bare `CTO` (default SID/route departure) or `CTO` with a numeric heading (`CTO 270`, `CTO H270`, `CTO RH270`, etc.). Pattern exit and runway-relative modifiers (`MRC`, `MRD`, `MRH` / `MSO` / `RH`, `OC`, `MLT`, `DCT`, etc.) are VFR-only — dispatch rejects them with a message naming the IFR restriction so the controller can reissue with a vector or let the SID run.
 
-After liftoff the assigned departure turn is **deferred** to InitialClimbPhase. The aircraft holds runway heading until it reaches the minimum safe altitude — 400 ft above field elevation for IFR (TERPS criterion: AIM 5-2-9.e.1 / 7110.65 5-8-3, no turns below 400 ft AGL and no lateral past-DER requirement), or pattern altitude − 300 ft **and** past the departure end of runway for VFR (AIM 4-3-2).
+After liftoff most assigned departure turns (`MR{N}`/`ML{N}`, `H{N}`, `RH{N}`, `DCT`, `OC`) are **deferred** to InitialClimbPhase. The aircraft holds runway heading until it reaches the minimum safe altitude — 400 ft above field elevation for IFR (TERPS criterion: AIM 5-2-9.e.1 / 7110.65 5-8-3, no turns below 400 ft AGL and no lateral past-DER requirement), or pattern altitude − 300 ft **and** past the departure end of runway for VFR (AIM 4-3-2) — then makes the single relative turn.
+
+The named **pattern-exit departures** (`MRC`/`MRD`/`MLC`/`MLD`) instead fly the actual traffic pattern: a crosswind departure flies the upwind and turns crosswind; a downwind departure flies upwind, crosswind, and downwind. The aircraft then rolls out on the exit-leg heading and departs the area, climbing continuously toward its assigned/filed altitude (it does **not** level at pattern altitude). Because these build real pattern legs, `EXT` / `EXT UPWIND` / `EXT CROSSWIND` work on them — e.g. "extend upwind" delays the crosswind turn for spacing. (`MR90`/`MR180` remain single relative turns; use the named `MRC`/`MRD` tokens for pattern departures.)
 
 For a **radar-vectors SID** (e.g. NIMI6 off KOAK), the published departure heading is read from CIFP and held after liftoff while you still have the aircraft, then the filed route is picked up after you hand it off. If that published heading can't be resolved from the current FAA CIFP cycle — for example the procedure was renamed and is briefly absent from the cycle's data — the aircraft holds **runway heading** and awaits vectors instead of turning direct to the first enroute fix (FAA 7110.65 5-8-2). When a recently-superseded CIFP cycle is still cached, the published heading is recovered from it.
 
@@ -761,9 +763,9 @@ For a **radar-vectors SID** (e.g. NIMI6 off KOAK), the published departure headi
 | `RH{N}` / `RT{N}` | Turn right heading N | Both |
 | `LH{N}` / `LT{N}` | Turn left heading N | Both |
 | `MRH` / `MSO` / `RH` | Fly runway heading (straight out) | VFR only |
-| `MRC` / `MLC` | Right/left crosswind (90° turn from runway heading) | VFR only |
-| `MRD` / `MLD` | Right/left downwind (180° turn) | VFR only |
-| `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading | VFR only |
+| `MRC` / `MLC` | Right/left **crosswind departure** — fly upwind, turn crosswind, then depart on the crosswind heading | VFR only |
+| `MRD` / `MLD` | Right/left **downwind departure** — fly upwind, crosswind, downwind, then depart on the downwind heading | VFR only |
+| `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading (single relative turn, not a pattern) | VFR only |
 | `OC` | On course — navigate direct to destination airport | VFR only |
 | `DCT {fix}` | Direct to named fix | VFR only |
 | `TLDCT {fix}` | Turn left direct to named fix | VFR only |

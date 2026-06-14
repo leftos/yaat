@@ -546,7 +546,7 @@ Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff/Land/Opt
 Phases/RunwayInfo.cs           # Runway geometry
 Phases/GlideSlopeGeometry.cs   # Altitude/descent rate calculations (3° default)
 Phases/PatternGeometry.cs      # 7 pattern waypoints from RunwayInfo + category + direction
-Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, BuildCrossRunwayDepartureCircuit, UpdateWaypoints
+Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, BuildCrossRunwayDepartureCircuit, BuildPatternExitCircuit (CTO MRC/MRD pattern-exit departures: upwind[→crosswind]→PatternExitPhase, no landing tail), UpdateWaypoints
 Phases/PhaseClearSummary.cs    # Builds short label ("pattern to RWY 28R", "approach to RWY 28R", or phase Name) for the cancellation warning surfaced when a command clears the active phase chain
 
 # Phases/Tower/
@@ -577,6 +577,7 @@ ApproachClearance.cs           # Record on PhaseList storing active approach sta
 
 # Phases/Pattern/
 UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase / PatternEntryPhase
+PatternExitPhase.cs            # Terminal leg of a CTO MRC/MRD/MLC/MLD pattern-exit departure: rolls out on the exit-leg heading (crosswind or downwind) and departs the area, climbing continuously toward the assigned/cruise altitude (no level-off at TPA), then completes to free flight. UpwindPhase/CrosswindPhase carry an optional DepartureClimbTargetFt so the legs climb out continuously rather than capping at pattern altitude.
 PatternLateralOffset.cs        # OFL / OFR (OFFSETL / OFFSETR) state holder. One-shot lateral dogleg + parallel hold on the current pattern leg (upwind/crosswind/downwind/base). Default 0.5 NM, range 0.1–1.5 NM. State lives on the active phase only; discards on the next leg transition.
 VfrFollowPhase.cs              # VFR FOLLOW command phase. Trails the lead — steers relative to the lead's ground track (parallel / lag-pursuit / shallow widen, never just aiming at the lead) + speed with spacing correction, altitude untouched; auto-joins lead's pattern when within 3 nm of the downwind abeam point AND within 5 nm of the lead AND on the correct side of the runway. For a lead on a straight-in final with no pattern (TryJoinLeadFinal) sequences onto that runway's final (PatternEntry→Final→Landing, no clearance — awaits CLAND) once trailing + aligned; lead-landed fallback sequences onto the captured runway too. Runaway-distance cancel after 30 s of growing gap. Spacing uses wider free-flight distances (1.5/2.0/3.5 nm) vs pattern-tight (1.0/1.5/2.0 nm)
 AirborneFollowHelper.cs        # Shared spacing math. GetAdjustedSpeed for pattern phases (ctx-based) + AdjustedFreeFlightSpeed for VfrFollowPhase (wider margins) + ComputeFreePursuitHeading (free-pursuit lateral trail-keeping law: parallel/lag-pursuit/widen regimes, FollowWidenState hysteresis). Auto-cancels with warning if follower can't maintain separation at min speed

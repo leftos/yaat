@@ -441,6 +441,7 @@ public sealed class PhaseList
             CrosswindPhaseDto d => CrosswindPhase.FromSnapshot(d),
             DownwindPhaseDto d => DownwindPhase.FromSnapshot(d),
             UpwindPhaseDto d => UpwindPhase.FromSnapshot(d),
+            PatternExitPhaseDto d => PatternExitPhase.FromSnapshot(d),
             VfrFollowPhaseDto d => VfrFollowPhase.FromSnapshot(d),
             HoldingPatternPhaseDto d => HoldingPatternPhase.FromSnapshot(d),
             ProcedureTurnPhaseDto d => ProcedureTurnPhase.FromSnapshot(d),

@@ -174,9 +174,9 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Modifier | Example | VFR/IFR | Notes |
 |----------|---------|---------|-------|
 | Right/left heading | `CTO RH270`, `CTO LH270` | Both | Explicit turn direction |
-| Crosswind | `CTO MRC`, `CTO MLC` | VFR only | 90-degree turn |
-| Downwind | `CTO MRD`, `CTO MLD` | VFR only | 180-degree turn |
-| 45-degree & 270-degree turn departures | `CTO MR45`, `CTO ML270` | VFR only | Any degree turn from runway heading |
+| Crosswind departure | `CTO MRC`, `CTO MLC` | VFR only | Flies upwind, turns crosswind, then departs on the crosswind heading |
+| Downwind departure | `CTO MRD`, `CTO MLD` | VFR only | Flies upwind, crosswind, downwind, then departs on the downwind heading |
+| 45-degree & 270-degree turn departures | `CTO MR45`, `CTO ML270` | VFR only | Single relative turn of any degree from runway heading |
 | On course | `CTO OC` | VFR only | Direct to destination |
 | Direct to fix | `CTO DCT SUNOL` | VFR only | Direct to named fix after liftoff |
 | Turn left/right DCT | `CTO TLDCT SUNOL`, `CTO TRDCT OAK` | VFR only | YAAT-only: direct to fix with turn direction preference |
@@ -184,7 +184,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Altitude suffix | `CTO 270 050` | Both | Any modifier + altitude |
 | Wake advisory suffix | `CTO 270 CWT` | Both | Adds "caution wake turbulence" to the takeoff clearance |
 
-After liftoff, the assigned departure turn is deferred until the aircraft reaches the minimum safe altitude: 400 ft above field elevation for IFR (TERPS criterion — AIM 5-2-9.e.1 / 7110.65 5-8-3, with no lateral past-DER requirement), or pattern altitude − 300 ft AND past the departure end of runway for VFR (AIM 4-3-2). ATCTrainer applies the turn immediately at Vr.
+After liftoff, a relative/heading/direct departure turn is deferred until the aircraft reaches the minimum safe altitude: 400 ft above field elevation for IFR (TERPS criterion — AIM 5-2-9.e.1 / 7110.65 5-8-3, with no lateral past-DER requirement), or pattern altitude − 300 ft AND past the departure end of runway for VFR (AIM 4-3-2). ATCTrainer applies the turn immediately at Vr. The named pattern-exit departures (`MRC`/`MRD`/`MLC`/`MLD`) go further: YAAT flies the actual upwind/crosswind/downwind legs to the exit point and then departs on the exit-leg heading (climbing continuously, no level-off at pattern altitude), so `EXT`/`EXT UPWIND` can extend a leg for spacing — ATCTrainer models these as a single immediate turn.
 
 YAAT also flies charted SID legs coded as headings or courses rather than fixes. A departure such as the **LINDZ ONE** out of Aspen ("climb heading 343° to 9100, then climbing left turn to 273° to intercept the I-PKN back course to LINDZ") climbs to the charted altitude before turning, flies the charted turn, then intercepts and tracks the published course to the fix — handing off to the normal route once the coded legs are flown. ATCTrainer flies straight out on runway heading and cannot make the turn or join the back course.
 

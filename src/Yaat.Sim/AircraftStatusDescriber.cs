@@ -336,6 +336,7 @@ public static class AircraftStatusDescriber
         return i.Departure switch
         {
             ClosedTrafficDeparture ct => $"{ct.Direction.ToString().ToLowerInvariant()} traffic",
+            PatternExitDeparture pe => $"{pe.Direction.ToString().ToLowerInvariant()} {pe.ExitLeg.ToString().ToLowerInvariant()} departure",
             OnCourseDeparture => "on course",
             DirectFixDeparture d => $"→ {d.FixName}",
             FlyHeadingDeparture fh => FormatHeadingLateral(fh.Direction, fh.MagneticHeading),
