@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A CRC client subscribing to the ASDE-X or SAAB SAID surface display — or its Safety Logic alerts — no longer risks a dropped connection from a server-side race between the subscription and the per-tick surface-track coast and alert updates.
+
 ## v0.7.16-beta [2026/06/13]
 
 ### Highlights
