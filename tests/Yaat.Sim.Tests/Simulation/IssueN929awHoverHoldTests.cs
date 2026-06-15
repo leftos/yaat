@@ -146,4 +146,19 @@ public class IssueN929awHoverHoldTests(ITestOutputHelper output)
         Assert.True(result.Success, result.Message);
         Assert.Contains(ac.Phases!.Phases, p => p is VfrHoldPhase);
     }
+
+    [Theory]
+    [InlineData(TurnDirection.Left, "left 360s")]
+    [InlineData(TurnDirection.Right, "right 360s")]
+    public void Hfix_OrbitResponse_Uses360sNotOrbits(TurnDirection direction, string expected)
+    {
+        var ac = MakeAirborneVfr("N929AW", "BE33");
+
+        var result = Dispatch(ac, new HoldAtFixOrbitCommand("VPCBT", 37.80, -122.09, direction));
+
+        output.WriteLine($"HFIX/{direction}: Success={result.Success} Message={result.Message}");
+        Assert.True(result.Success, result.Message);
+        Assert.Contains(expected, result.Message!);
+        Assert.DoesNotContain("orbits", result.Message!);
+    }
 }

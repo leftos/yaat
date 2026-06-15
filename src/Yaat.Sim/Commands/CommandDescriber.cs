@@ -778,7 +778,7 @@ public static class CommandDescriber
                 ? "Hold present position, left 360s"
                 : "Hold present position, right 360s",
             HoldPresentPositionHoverCommand => "Hold present position",
-            HoldAtFixOrbitCommand cmd => $"Hold at {cmd.FixName}, {(cmd.Direction == TurnDirection.Left ? "left" : "right")} orbits",
+            HoldAtFixOrbitCommand cmd => $"Hold at {cmd.FixName}, {(cmd.Direction == TurnDirection.Left ? "left" : "right")} 360s",
             HoldAtFixHoverCommand cmd => $"Hold at {cmd.FixName}",
             WaitCommand cmd => $"Wait {cmd.Seconds} seconds",
             WaitDistanceCommand cmd => $"Wait {cmd.DistanceNm} nm",

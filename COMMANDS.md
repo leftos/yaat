@@ -1097,9 +1097,9 @@ The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern argume
 
 | Command | Effect |
 |---------|--------|
-| `HPPL` / `HPPR` | Hold present position, left/right 360° orbits |
+| `HPPL` / `HPPR` | Hold present position, left/right 360s |
 | `HPP` | Hold present position (hover) — **helicopters only**; fixed-wing aircraft are rejected and should use `HPPL`/`HPPR` |
-| `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right orbits |
+| `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right 360s |
 | `HFIX {fix}` | Fly to fix, then hover — **helicopters only**; fixed-wing aircraft are rejected and should use `HFIXL`/`HFIXR` |
 
 Winged-aircraft holds (`HPPL`/`HPPR`, `HFIXL`/`HFIXR`) decelerate to holding speed while orbiting and resume normal speed when the hold is cancelled. Any heading, altitude, or speed command clears the hold.

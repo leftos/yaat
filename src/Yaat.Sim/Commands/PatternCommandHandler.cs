@@ -1618,8 +1618,8 @@ internal static class PatternCommandHandler
 
         var dirStr = orbitDirection switch
         {
-            TurnDirection.Left => "left orbits",
-            TurnDirection.Right => "right orbits",
+            TurnDirection.Left => "left 360s",
+            TurnDirection.Right => "right 360s",
             _ => "hover",
         };
         return CommandDispatcher.Ok($"Hold at {PhraseologyVerbalizer.FixDisplayTextUpper(fixName)}, {dirStr}");
