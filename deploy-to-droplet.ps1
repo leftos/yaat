@@ -1,8 +1,19 @@
 # Deploy yaat-server to DigitalOcean droplet
 # Usage: .\deploy-to-droplet.ps1 [-NoLogs] [-NoCache] [-SkipSessionSave] [-DrainSeconds <sec>] [-CacheReserveGb <gb>]
+#        .\deploy-to-droplet.ps1 -RebootOnly [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
 #
 # By default, active training sessions are preserved across deploy:
 #   POST /admin/prepare-restart (drain + checkpoint) -> rebuild container -> restore on boot.
+#
+# -RebootOnly  Restart the yaat-server container WITHOUT pulling code, rebuilding,
+#              or pruning the build cache. Use it to force the server to re-run its
+#              on-boot data refresh — e.g. when a new AIRAC cycle starts and you want
+#              the latest nav data downloaded, cached, and loaded. The container is
+#              recreated from the existing image (--force-recreate); the persistent
+#              cache volume's vNAS serial-staleness check on boot pulls the new cycle
+#              if the serial changed. Sessions are preserved exactly as a normal deploy
+#              (honors -SkipSessionSave / -DrainSeconds). -NoCache / -CacheReserveGb are
+#              ignored (nothing is built or pruned).
 #
 # -NoCache  Pass --no-cache to docker compose build, forcing every layer
 #           to rebuild from scratch (including the wasm-tools workload
@@ -24,6 +35,7 @@ param(
   [switch]$NoLogs,
   [switch]$NoCache,
   [switch]$SkipSessionSave,
+  [switch]$RebootOnly,
   [int]$DrainSeconds = 30,
   [int]$CacheReserveGb = 10
 )
@@ -119,7 +131,8 @@ function Invoke-PrepareRestartSessions {
   }
 }
 
-Write-Host "YAAT Server Deployment" -ForegroundColor Cyan
+$headerTitle = if ($RebootOnly) { "YAAT Server Reboot (refresh nav data, no redeploy)" } else { "YAAT Server Deployment" }
+Write-Host $headerTitle -ForegroundColor Cyan
 Write-Host "=====================" -ForegroundColor Cyan
 Write-Host "Droplet:    $dropletIp"
 Write-Host "Path:       $serverPath"
@@ -139,7 +152,91 @@ function Invoke-OnDroplet {
   ssh "$dropletUser@$dropletIp" $sshCmd 2>&1
 }
 
+# Poll the container logs until the server reports it is listening. Relies on a
+# freshly recreated container (deploy: up --force-recreate; reboot: same) so the
+# "Now listening on" line we match is from the new instance, not a stale one.
+function Wait-ServerReady {
+  $retry = 0
+  $maxRetries = 30
+  while ($retry -lt $maxRetries) {
+    $null = ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose logs yaat-server 2>/dev/null | grep -q 'Now listening on'`"" 2>&1
+    if ($LASTEXITCODE -eq 0) {
+      return $true
+    }
+    Write-Host "  Waiting... ($($retry+1)/$maxRetries)"
+    Start-Sleep -Seconds 2
+    $retry++
+  }
+  return $false
+}
+
+# Restart the server without redeploying. Recreates the yaat-server container from
+# the existing image so the app re-runs its on-boot vNAS data refresh (new AIRAC
+# cycle is pulled when the serial changed). No git pull, no rebuild, no cache prune.
+function Invoke-ServerReboot {
+  Write-Host "[1/4] Checking connectivity..." -ForegroundColor Yellow
+  $null = ssh -o ConnectTimeout=5 "$dropletUser@$dropletIp" "echo 'OK'" 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw "Cannot reach $dropletIp"
+  }
+  Write-Host "✓ Connected" -ForegroundColor Green
+
+  Write-Host ""
+  Write-Host "[2/4] Preparing for restart..." -ForegroundColor Yellow
+  $sessionsSaved = $false
+  if ($SkipSessionSave) {
+    Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is rebooting to refresh nav data (sessions not preserved)." -Color 16776960
+  }
+  else {
+    Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is saving active sessions, then rebooting to refresh nav data (~${DrainSeconds}s)." -Color 16776960
+    $sessionsSaved = Invoke-PrepareRestartSessions -DrainSec $DrainSeconds
+    if (-not $sessionsSaved) {
+      Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is rebooting to refresh nav data (session save skipped or failed)." -Color 16776960
+    }
+  }
+
+  Write-Host ""
+  Write-Host "[3/4] Recreating yaat-server container (re-runs on-boot nav data refresh)..." -ForegroundColor Yellow
+  # --force-recreate replaces the container from the current image; named volumes
+  # (cache + session-checkpoints) persist. The app's startup vNAS serial-staleness
+  # check downloads a new AIRAC cycle if the published serial changed. Commit hashes
+  # are baked into the image at build time, so /api/version stays correct.
+  Invoke-OnDroplet "cd $serverPath && docker compose up -d --force-recreate yaat-server" | Tee-Object -Append -FilePath $logFile
+
+  Write-Host ""
+  Write-Host "[4/4] Waiting for server to be ready..." -ForegroundColor Yellow
+  $ready = Wait-ServerReady
+
+  # No pull happened — report whatever commit is currently deployed.
+  $commitHash = (Invoke-OnDroplet "cd $serverPath && git log -1 --format='%h %s'" | Select-Object -First 1).Trim()
+  $submoduleHash = (Invoke-OnDroplet "cd $serverPath && git -C extern/yaat log -1 --format='%h %s'" | Select-Object -First 1).Trim()
+
+  if ($ready) {
+    Write-Host "✓ Server is ready" -ForegroundColor Green
+    $sessionNote = if ($sessionsSaved) { "`nActive sessions were checkpointed and should restore on reconnect." } else { "" }
+    Send-DiscordStatus -Title "Server is back up" -Description "``$serverUrl`` is back online after a nav-data refresh.`nServer: ``$commitHash```nClient (yaat): ``$submoduleHash``$sessionNote" -Color 5814783
+  }
+  else {
+    Write-Host "⚠ Server startup check timed out (may still be initializing)" -ForegroundColor Yellow
+    Send-DiscordStatus -Title "Server reboot: startup check timed out" -Description "``$serverUrl`` may still be initializing.`nServer: ``$commitHash```nClient (yaat): ``$submoduleHash``" -Color 16744448
+  }
+
+  Write-Host ""
+  Write-Host "✓ Reboot complete!" -ForegroundColor Green
+  Write-Host ""
+}
+
 try {
+  if ($RebootOnly) {
+    Invoke-ServerReboot
+    if ($followLogs) {
+      Write-Host "Following server logs (Ctrl-C to detach)..." -ForegroundColor Cyan
+      Write-Host ""
+      ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose logs -f yaat-server`""
+    }
+    return
+  }
+
   # Pre-flight checks
   Write-Host "[1/8] Checking connectivity..." -ForegroundColor Yellow
   $testConn = ssh -o ConnectTimeout=5 "$dropletUser@$dropletIp" "echo 'OK'" 2>&1
@@ -189,20 +286,7 @@ try {
 
   Write-Host ""
   Write-Host "[6/8] Waiting for server to be ready..." -ForegroundColor Yellow
-  $retry = 0
-  $maxRetries = 30
-  $ready = $false
-
-  while ($retry -lt $maxRetries) {
-    $logCheck = ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose logs yaat-server 2>/dev/null | grep -q 'Now listening on'`"" 2>&1
-    if ($LASTEXITCODE -eq 0) {
-      $ready = $true
-      break
-    }
-    Write-Host "  Waiting... ($($retry+1)/$maxRetries)"
-    Start-Sleep -Seconds 2
-    $retry++
-  }
+  $ready = Wait-ServerReady
 
   if ($ready) {
     Write-Host "✓ Server is ready" -ForegroundColor Green
@@ -231,7 +315,9 @@ try {
   }
 }
 catch {
-  Send-DiscordStatus -Title "Deployment failed" -Description "``$serverUrl`` deployment failed.`nError: $_" -Color 16711680
+  $failTitle = if ($RebootOnly) { "Reboot failed" } else { "Deployment failed" }
+  $failVerb = if ($RebootOnly) { "reboot" } else { "deployment" }
+  Send-DiscordStatus -Title $failTitle -Description "``$serverUrl`` $failVerb failed.`nError: $_" -Color 16711680
   Write-Host "❌ Error: $_" -ForegroundColor Red
   exit 1
 }
