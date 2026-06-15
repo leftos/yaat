@@ -1,6 +1,7 @@
 // Yaat.RecordingConsolidator — find duplicate .zip files in TestData, consolidate to hash-named files,
 // and update all .cs and .md references in the codebase.
 
+using System.Diagnostics;
 using System.Security.Cryptography;
 
 if (args.Length < 1)
@@ -63,6 +64,23 @@ if (duplicateGroups.Count == 0)
 
 Console.WriteLine($"Found {duplicateGroups.Count} duplicate group(s):");
 Console.WriteLine();
+
+// Guard: each consolidated keeper takes the hash-based name `<hash>.zip`. The source
+// duplicates are LFS-tracked recording bundles, so the keeper's new name must also be
+// covered by an LFS rule in .gitattributes. A name outside the LFS patterns would
+// silently demote the kept copy to a plain Git blob — bloating history and tripping the
+// large-file pre-commit hook. Verify every target name before touching anything on disk.
+foreach (var (hash, _) in duplicateGroups)
+{
+    string candidateRel = $"{testDataRelative}/{hash[..12]}.zip";
+    if (!IsLfsTracked(repoRoot, candidateRel))
+    {
+        Console.Error.WriteLine($"ERROR: '{candidateRel}' would not be tracked by Git LFS.");
+        Console.Error.WriteLine("       Consolidated recordings must stay in LFS. Add a rule to .gitattributes:");
+        Console.Error.WriteLine($"         {testDataRelative}/*.zip filter=lfs diff=lfs merge=lfs -text");
+        return 1;
+    }
+}
 
 int totalRemoved = 0;
 
@@ -177,6 +195,36 @@ static string ComputeSha256(string filePath)
     using var stream = File.OpenRead(filePath);
     byte[] hashBytes = SHA256.HashData(stream);
     return Convert.ToHexStringLower(hashBytes);
+}
+
+// Returns true when .gitattributes assigns the `lfs` filter to the given repo-relative
+// path. Works for paths that do not exist yet — `git check-attr` matches the path string
+// against the attribute patterns, so we can validate a consolidated name before creating it.
+static bool IsLfsTracked(string repoRoot, string relPath)
+{
+    var psi = new ProcessStartInfo("git")
+    {
+        WorkingDirectory = repoRoot,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+    };
+    psi.ArgumentList.Add("check-attr");
+    psi.ArgumentList.Add("filter");
+    psi.ArgumentList.Add("--");
+    psi.ArgumentList.Add(relPath);
+
+    using var proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start 'git' — is Git on PATH?");
+    string output = proc.StandardOutput.ReadToEnd();
+    string error = proc.StandardError.ReadToEnd();
+    proc.WaitForExit();
+    if (proc.ExitCode != 0)
+    {
+        throw new InvalidOperationException($"'git check-attr' failed (exit {proc.ExitCode}): {error.Trim()}");
+    }
+
+    // `git check-attr filter -- <path>` prints e.g. "<path>: filter: lfs".
+    return output.Contains("filter: lfs", StringComparison.Ordinal);
 }
 
 static string FindRepoRoot(string startDir)
