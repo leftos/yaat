@@ -638,7 +638,7 @@ public static class PhraseologyVerbalizer
             var navaidName = navDb.GetNavaidName(trimmed);
             if (!string.IsNullOrWhiteSpace(navaidName))
             {
-                return $"{TitleCase(navaidName)} VOR";
+                return $"{TitleCase(navaidName)} {navDb.GetNavaidType(trimmed) ?? "VOR"}";
             }
 
             var airportName = navDb.GetAirportName(trimmed);

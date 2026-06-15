@@ -1036,9 +1036,9 @@ public static partial class CifpParser
     /// NavData fixes. The published navaid name (e.g. "WOODSIDE" for OSI) sits at
     /// columns 93-123 of the primary record per ARINC 424 field 5.71.
     /// </summary>
-    public static IReadOnlyDictionary<string, (double Lat, double Lon, string Name)> ParseNavaids(string cifpFilePath)
+    public static IReadOnlyDictionary<string, (double Lat, double Lon, string Name, string Type)> ParseNavaids(string cifpFilePath)
     {
-        var navaids = new Dictionary<string, (double Lat, double Lon, string Name)>(StringComparer.OrdinalIgnoreCase);
+        var navaids = new Dictionary<string, (double Lat, double Lon, string Name, string Type)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var line in File.ReadLines(cifpFilePath))
         {
@@ -1082,13 +1082,51 @@ public static partial class CifpParser
             if (lat is not null && lon is not null)
             {
                 string name = line.Length >= 123 ? line[93..123].Trim() : "";
-                navaids[ident] = (lat.Value, lon.Value, name);
+                // Navaid class (ARINC 424 field 5.35) lives at fixed columns 27–32; sub_code at
+                // column 5 ('B' = NDB section DB). Used to spell the facility type in pilot speech.
+                var navClass = line.Length >= 32 ? line.AsSpan(27, 5) : default;
+                string type = ClassifyNavaid(line[5], navClass);
+                navaids[ident] = (lat.Value, lon.Value, name, type);
             }
         }
 
         Log.LogInformation("CIFP navaids parsed: {Count}", navaids.Count);
 
         return navaids;
+    }
+
+    /// <summary>
+    /// Classifies a CIFP navaid into a spoken facility type ("VOR", "VORTAC", "TACAN", "DME", "NDB").
+    /// Section DB (sub_code 'B') is an NDB. For VHF navaids the ARINC 424 class field encodes the
+    /// VOR presence in char 0 ('V') and the colocated ranging facility in char 1 — 'T'/'M' (TACAN)
+    /// yields VORTAC, 'D'/'P' (DME) a plain VOR/DME spoken simply as "VOR".
+    /// </summary>
+    private static string ClassifyNavaid(char subCode, ReadOnlySpan<char> navClass)
+    {
+        if (subCode == 'B')
+        {
+            return "NDB";
+        }
+
+        char vor = navClass.Length > 0 ? navClass[0] : ' ';
+        char ranging = navClass.Length > 1 ? navClass[1] : ' ';
+
+        if (vor == 'V')
+        {
+            return ranging is 'T' or 'M' ? "VORTAC" : "VOR";
+        }
+
+        if (ranging is 'T' or 'M')
+        {
+            return "TACAN";
+        }
+
+        if (ranging is 'D' or 'P')
+        {
+            return "DME";
+        }
+
+        return "VOR";
     }
 
     /// <summary>

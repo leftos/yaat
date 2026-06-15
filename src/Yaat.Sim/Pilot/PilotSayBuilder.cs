@@ -220,7 +220,7 @@ public static class PilotSayBuilder
         var navaidName = navDb.GetNavaidName(code);
         if (!string.IsNullOrWhiteSpace(navaidName))
         {
-            return $"{code} - {TitleCase(navaidName)} VOR";
+            return $"{code} - {TitleCase(navaidName)} {navDb.GetNavaidType(code) ?? "VOR"}";
         }
 
         var rawAirportName = navDb.GetAirportName(code);

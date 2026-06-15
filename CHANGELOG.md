@@ -6,6 +6,7 @@
 - Commands that reference a named visual reporting point or landmark — fixes with a friendly name in the per-ARTCC data, like `VPCBT` ("Lake Chabot") or `OAK30NUM` ("Oakland Runway 30 Numbers") — now show that name alongside the identifier in command responses, pilot readbacks, and `AT <fix>` conditions (e.g. "Cross LAKE CHABOT (VPCBT) at 3,000"). Plain fixes are unchanged.
 
 ### Fixed
+- Pilot speech and position reports speak a navaid's real facility type — "Mendocino VORTAC", an NDB, a TACAN — instead of always saying "VOR".
 - `HFIXL` / `HFIXR` hold-at-fix responses read "left/right 360s", matching `HPPL` / `HPPR` and standard 360 phraseology.
 - A CRC client subscribing to the ASDE-X or SAAB SAID surface display — or its Safety Logic alerts — no longer risks a dropped connection from a server-side race between the subscription and the per-tick surface-track coast and alert updates.
 

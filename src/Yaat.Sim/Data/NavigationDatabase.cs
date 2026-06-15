@@ -19,6 +19,7 @@ public sealed class NavigationDatabase
     private readonly Dictionary<string, double> _elevations = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _airportNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _navaidNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _navaidTypes = new(StringComparer.OrdinalIgnoreCase);
 
     // Spatial bucket of airports (1° × 1° grid; ~60nm bucket size). Used by
     // FindNearestAirportElevation for terrain-aware AGL lookups when the aircraft
@@ -2016,6 +2017,10 @@ public sealed class NavigationDatabase
             {
                 _navaidNames.TryAdd(ident, info.Name);
             }
+            if (!string.IsNullOrEmpty(info.Type))
+            {
+                _navaidTypes.TryAdd(ident, info.Type);
+            }
         }
     }
 
@@ -2027,6 +2032,17 @@ public sealed class NavigationDatabase
     public string? GetNavaidName(string code)
     {
         return _navaidNames.TryGetValue(code, out var name) ? name : null;
+    }
+
+    /// <summary>
+    /// Returns the spoken facility type for a navaid ("VOR", "VORTAC", "TACAN", "DME", "NDB"),
+    /// or <c>null</c> if the code isn't a known navaid. Sourced from the CIFP navaid class field
+    /// (ARINC 424 field 5.35). Used by pilot speech to say e.g. "Mendocino VORTAC" rather than
+    /// defaulting every navaid to "VOR".
+    /// </summary>
+    public string? GetNavaidType(string code)
+    {
+        return _navaidTypes.TryGetValue(code, out var type) ? type : null;
     }
 
     /// <summary>
