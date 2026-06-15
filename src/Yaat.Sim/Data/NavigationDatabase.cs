@@ -416,6 +416,14 @@ public sealed class NavigationDatabase
     /// </summary>
     private readonly Dictionary<string, string> _customFixNames = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Human-readable display names for fixes that carry a <c>displayName</c> in
+    /// <c>FixPronunciations/*.json</c> (e.g. <c>VPCBT</c> → "Lake Chabot"). Distinct from
+    /// <see cref="_fixPronunciations"/>, which also holds phonetic-only spelling hints that must
+    /// never appear in terminal text. Used by operator-facing command responses and pilot readbacks.
+    /// </summary>
+    private readonly Dictionary<string, string> _fixDisplayNames = new(StringComparer.OrdinalIgnoreCase);
+
     // ──────────────────────────────────────────────
     //  NavData lookups (eagerly built)
     // ──────────────────────────────────────────────
@@ -458,6 +466,30 @@ public sealed class NavigationDatabase
         }
 
         return GetCustomFixName(fix) ?? fix;
+    }
+
+    /// <summary>
+    /// Returns the human-readable display name for a fix used in operator-facing terminal text
+    /// (command responses, pilot readbacks): an authored <c>displayName</c> from
+    /// <c>FixPronunciations/*.json</c> (e.g. <c>VPCBT</c> → "Lake Chabot"), then a custom-fix name
+    /// (e.g. <c>OAK30NUM</c> → "Oakland Runway 30 Numbers"), or <c>null</c> when the fix has neither.
+    /// Deliberately does NOT fall back to phonetic pronunciations (so "see rah" never leaks into
+    /// the display) nor to navaid/airport names (global NavData, not per-ARTCC friendly data).
+    /// </summary>
+    public string? GetFixDisplayName(string fix)
+    {
+        if (string.IsNullOrWhiteSpace(fix))
+        {
+            return null;
+        }
+
+        var trimmed = fix.Trim();
+        if (_fixDisplayNames.TryGetValue(trimmed, out var displayName))
+        {
+            return displayName;
+        }
+
+        return GetCustomFixName(trimmed);
     }
 
     /// <summary>
@@ -1785,6 +1817,16 @@ public sealed class NavigationDatabase
 
         foreach (var def in loadResult.Definitions)
         {
+            if (!string.IsNullOrWhiteSpace(def.DisplayName))
+            {
+                _fixDisplayNames[def.Fix] = def.DisplayName.Trim();
+            }
+
+            if (def.Pronunciations.Count == 0)
+            {
+                continue;
+            }
+
             if (!_fixPronunciations.TryGetValue(def.Fix, out var list))
             {
                 list = [];
@@ -1817,9 +1859,10 @@ public sealed class NavigationDatabase
         _customFixSpeechPatterns.Sort((a, b) => b.Tokens.Count.CompareTo(a.Tokens.Count));
 
         Log.LogInformation(
-            "Fix pronunciations: {Count} fixes loaded from {Files} definitions",
+            "Fix pronunciations: {Count} fixes loaded from {Files} definitions ({DisplayNames} display names)",
             _fixPronunciations.Count,
-            loadResult.Definitions.Count
+            loadResult.Definitions.Count,
+            _fixDisplayNames.Count
         );
     }
 

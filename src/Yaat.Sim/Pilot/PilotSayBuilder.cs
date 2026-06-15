@@ -44,7 +44,7 @@ public static class PilotSayBuilder
 
         if (aircraft.Targets.NavigationRoute.Count > 0)
         {
-            string fixName = aircraft.Targets.NavigationRoute[0].Name;
+            string fixName = PhraseologyVerbalizer.FixDisplayText(aircraft.Targets.NavigationRoute[0].Name);
             return isTurning ? $"Heading {PlainHeading(hdg)}, turning {turnDir} direct {fixName}" : $"Heading {PlainHeading(hdg)}, direct {fixName}";
         }
 
@@ -227,6 +227,12 @@ public static class PilotSayBuilder
         if (!string.IsNullOrWhiteSpace(rawAirportName))
         {
             return $"{code} - {FriendlyAirportName(rawAirportName)}";
+        }
+
+        var displayName = navDb.GetFixDisplayName(code);
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            return $"{code} - {displayName}";
         }
 
         return $"{code} intersection";

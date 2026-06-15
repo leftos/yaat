@@ -626,13 +626,13 @@ public static class PhraseologyVerbalizer
                 return pronunciations[0];
             }
 
-            // Custom-fix friendly name (e.g. "OAK30NUM" → "Oakland Runway 30 Numbers"). Authors
-            // who name their custom fix have already supplied the natural form pilots speak;
-            // there's no need to require a duplicate entry in FixPronunciations.
-            var customName = navDb.GetCustomFixName(trimmed);
-            if (!string.IsNullOrWhiteSpace(customName))
+            // Authored display name — a custom-fix friendly name (e.g. "OAK30NUM" → "Oakland Runway
+            // 30 Numbers") or a visual point defined for display only. Authors who name the fix have
+            // already supplied the natural form pilots speak; no duplicate pronunciation entry needed.
+            var displayName = navDb.GetFixDisplayName(trimmed);
+            if (!string.IsNullOrWhiteSpace(displayName))
             {
-                return customName;
+                return displayName;
             }
 
             var navaidName = navDb.GetNavaidName(trimmed);
@@ -649,6 +649,37 @@ public static class PhraseologyVerbalizer
         }
 
         return trimmed.ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Renders a fix for operator-facing terminal text. When the fix has an authored display name
+    /// it reads as "Name (ID)" (e.g. <c>VPCBT</c> → "Lake Chabot (VPCBT)"); otherwise the bare
+    /// uppercase identifier. The display name keeps its natural case — used for pilot-readback echoes
+    /// where the surrounding text is sentence-style.
+    /// </summary>
+    public static string FixDisplayText(string fix) => FormatFixDisplay(fix, uppercaseName: false);
+
+    /// <summary>
+    /// Like <see cref="FixDisplayText"/> but uppercases the display name ("LAKE CHABOT (VPCBT)") to
+    /// match the terse all-caps fix-token style of RPO command-response messages.
+    /// </summary>
+    public static string FixDisplayTextUpper(string fix) => FormatFixDisplay(fix, uppercaseName: true);
+
+    private static string FormatFixDisplay(string fix, bool uppercaseName)
+    {
+        if (string.IsNullOrWhiteSpace(fix))
+        {
+            return "";
+        }
+
+        var id = fix.Trim().ToUpperInvariant();
+        var displayName = TryGetNavigationDatabase()?.GetFixDisplayName(id);
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return id;
+        }
+
+        return $"{(uppercaseName ? displayName.ToUpperInvariant() : displayName)} ({id})";
     }
 
     /// <summary>
@@ -918,10 +949,10 @@ public static class PhraseologyVerbalizer
 
         public override string Mach(double mach) => mach.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
-        public override string Fix(string fix) => fix.Trim().ToUpperInvariant();
+        public override string Fix(string fix) => FixDisplayText(fix);
 
         public override string FixSequence(IEnumerable<ResolvedFix> fixes) =>
-            string.Join(", ", fixes.Select(f => f.Name.Trim().ToUpperInvariant()).Where(s => s.Length > 0));
+            string.Join(", ", fixes.Select(f => FixDisplayText(f.Name)).Where(s => s.Length > 0));
 
         public override string Taxiway(string tw) => tw.Trim().ToUpperInvariant();
 

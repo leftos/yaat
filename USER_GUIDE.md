@@ -958,6 +958,8 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 
 Commands support chaining (`;` sequential, `,` parallel), conditional triggers (`LV` at altitude, `AT` at fix), and aliases from both ATCTrainer and VICE.
 
+When a command references a fix that has a friendly name in the ARTCC data — a visual reporting point or named landmark such as `VPCBT` ("Lake Chabot") — the command response and the pilot's readback show that name next to the identifier, e.g. *Cross LAKE CHABOT (VPCBT) at 3,000*. Plain fixes keep their identifier.
+
 In solo training, VFR aircraft respect FAA Class B/C entry gates: Class B requires `CLBRV`; Class C requires the pilot's initial call plus a successful controller command using that aircraft's callsign. Use `STBY` or `ROGER` when you only want to establish two-way communications.
 
 **See the [Command Reference](COMMANDS.md) for the complete list of every command, alias, syntax detail, and example.**

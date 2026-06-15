@@ -1439,21 +1439,21 @@ public static class PilotResponder
             _ => miles.ToString(System.Globalization.CultureInfo.InvariantCulture),
         };
 
-    private static string? FormatCondition(BlockCondition? condition) =>
+    internal static string? FormatCondition(BlockCondition? condition) =>
         condition switch
         {
             null => null,
-            AtFixCondition fix => $"at {fix.FixName.ToLowerInvariant()},",
+            AtFixCondition fix => $"at {PhraseologyVerbalizer.SpellFix(fix.FixName)},",
             LevelCondition level => $"at {PhraseologyVerbalizer.AltitudeWords(level.Altitude)},",
             _ => null, // GiveWayCondition and other condition kinds have their own dispatch path.
         };
 
     /// <summary>Compact terminal form of the block-condition lead-in ("at SUNOL," / "at 5000,").</summary>
-    private static string? FormatConditionTerminal(BlockCondition? condition) =>
+    internal static string? FormatConditionTerminal(BlockCondition? condition) =>
         condition switch
         {
             null => null,
-            AtFixCondition fix => $"at {fix.FixName.ToUpperInvariant()},",
+            AtFixCondition fix => $"at {PhraseologyVerbalizer.FixDisplayText(fix.FixName)},",
             LevelCondition level => $"at {PhraseologyVerbalizer.CompactAltitude(level.Altitude)},",
             _ => null,
         };

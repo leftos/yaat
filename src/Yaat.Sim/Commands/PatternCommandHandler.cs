@@ -5,6 +5,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Commands;
 
@@ -1621,7 +1622,7 @@ internal static class PatternCommandHandler
             TurnDirection.Right => "right orbits",
             _ => "hover",
         };
-        return CommandDispatcher.Ok($"Hold at {fixName}, {dirStr}");
+        return CommandDispatcher.Ok($"Hold at {PhraseologyVerbalizer.FixDisplayTextUpper(fixName)}, {dirStr}");
     }
 
     /// <summary>

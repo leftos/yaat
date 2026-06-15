@@ -4,11 +4,21 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Commands;
 
 internal static class FlightCommandHandler
 {
+    /// <summary>Space-joined fix list for command responses, each fix as "NAME (ID)" when it has
+    /// an authored display name (e.g. "LAKE CHABOT (VPCBT)"), or the bare identifier otherwise.</summary>
+    private static string FixListSpaced(IEnumerable<ResolvedFix> fixes) =>
+        string.Join(" ", fixes.Select(f => PhraseologyVerbalizer.FixDisplayTextUpper(f.Name)));
+
+    /// <summary>Comma-joined variant of <see cref="FixListSpaced"/> for "not programmed" warnings.</summary>
+    private static string FixListCommas(IEnumerable<ResolvedFix> fixes) =>
+        string.Join(", ", fixes.Select(f => PhraseologyVerbalizer.FixDisplayTextUpper(f.Name)));
+
     /// <summary>
     /// Minimum speed (KIAS) ATC may assign a helicopter via a radar speed instruction
     /// (7110.65 §5-7-3.5: "assign a speed not less than 60 knots"). A plain SPD below this is
@@ -460,13 +470,13 @@ internal static class FlightCommandHandler
                 var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
                 if (unprogrammed.Count > 0)
                 {
-                    var names = string.Join(", ", unprogrammed.Select(f => f.Name));
+                    var names = FixListCommas(unprogrammed);
                     return new CommandResult(false, $"Fix {names} not programmed — use DCTF to override");
                 }
             }
         }
 
-        var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+        var fixNames = FixListSpaced(cmd.Fixes);
 
         if (cmd.Fixes.Count == 1 && TryPreserveProcedure(aircraft, cmd.Fixes[0].Name))
         {
@@ -506,14 +516,14 @@ internal static class FlightCommandHandler
                 var unprogrammed = fixes.Where(f => !programmed.Contains(f.Name)).ToList();
                 if (unprogrammed.Count > 0)
                 {
-                    var names = string.Join(", ", unprogrammed.Select(f => f.Name));
+                    var names = FixListCommas(unprogrammed);
                     return new CommandResult(false, $"Fix {names} not programmed — use DCTF to override");
                 }
             }
         }
 
         var dirLabel = direction == TurnDirection.Left ? "Turn left, direct" : "Turn right, direct";
-        var fixNames = string.Join(" ", fixes.Select(f => f.Name));
+        var fixNames = FixListSpaced(fixes);
 
         if (fixes.Count == 1 && TryPreserveProcedure(aircraft, fixes[0].Name))
         {
@@ -539,7 +549,7 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyForceDirectTo(ForceDirectToCommand cmd, AircraftState aircraft)
     {
-        var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+        var fixNames = FixListSpaced(cmd.Fixes);
 
         if (cmd.Fixes.Count == 1 && TryPreserveProcedure(aircraft, cmd.Fixes[0].Name))
         {
@@ -636,7 +646,7 @@ internal static class FlightCommandHandler
             );
         }
 
-        var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+        var fixNames = FixListSpaced(cmd.Fixes);
         return CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
@@ -650,7 +660,7 @@ internal static class FlightCommandHandler
                 var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
                 if (unprogrammed.Count > 0)
                 {
-                    var badNames = string.Join(", ", unprogrammed.Select(f => f.Name));
+                    var badNames = FixListCommas(unprogrammed);
                     return new CommandResult(false, $"Fix {badNames} not programmed — use DCTF to override");
                 }
             }
@@ -665,7 +675,7 @@ internal static class FlightCommandHandler
             {
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
-            var names = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+            var names = FixListSpaced(cmd.Fixes);
             return resolved.Count > originalCount
                 ? CommandDispatcher.Ok($"Proceed direct {names}, then filed route")
                 : CommandDispatcher.Ok($"Proceed direct {names}");
@@ -676,7 +686,7 @@ internal static class FlightCommandHandler
             {
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
-            var appended = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+            var appended = FixListSpaced(cmd.Fixes);
             return resolved.Count > originalCount
                 ? CommandDispatcher.Ok($"Then direct {appended}, then filed route")
                 : CommandDispatcher.Ok($"Then direct {appended}");
@@ -694,7 +704,7 @@ internal static class FlightCommandHandler
             {
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
-            var names = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+            var names = FixListSpaced(cmd.Fixes);
             return resolved.Count > originalCount
                 ? CommandDispatcher.Ok($"Proceed direct {names}, then filed route")
                 : CommandDispatcher.Ok($"Proceed direct {names}");
@@ -705,7 +715,7 @@ internal static class FlightCommandHandler
             {
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
-            var appended = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+            var appended = FixListSpaced(cmd.Fixes);
             return resolved.Count > originalCount
                 ? CommandDispatcher.Ok($"Then direct {appended}, then filed route")
                 : CommandDispatcher.Ok($"Then direct {appended}");

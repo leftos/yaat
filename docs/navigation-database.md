@@ -271,6 +271,29 @@ not in the loader** — `TryAdd` failing (alias already present) logs `"custom f
 patterns are sorted by **descending token count** so the speech collapse step's longest-match scan picks the most specific phrase
 first. See [speech-recognition-pipeline.md](speech-recognition-pipeline.md) for how the speech side consumes these.
 
+### Fix pronunciations vs. display names
+
+`FixPronunciations/*.json` (loaded by `FixPronunciationLoader` → `LoadFixPronunciations`, `:1788`) carries two **distinct**
+concepts per `FixPronunciationDefinition` entry:
+
+- `pronunciations` — phonetic spelling hints for the speech engine. Used to seed Whisper's `initial_prompt` and to collapse spoken
+  transcripts back to the fix identifier. These can be deliberately mis-spelled for the decoder (e.g. `SYRAH` → "see rah",
+  `VPCOL` → "Oakland Colliseum").
+- `displayName` (optional) — a genuine human-readable name shown in operator-facing terminal text. **Only entries that supply a
+  `displayName` surface in the display** — so phonetic-only hints like "see rah" never leak into a command response. Populated into
+  `_fixDisplayNames`; display names may differ from pronunciations (`VPCOL` displays the corrected "Oakland Coliseum").
+
+Three accessors expose these, with different fallback chains:
+
+| Method | Returns | Fallback chain | Used by |
+|--------|---------|----------------|---------|
+| `GetFixPronunciations(fix)` (`:442`) | phonetic list | — (empty if none) | speech pipeline (Whisper hints) |
+| `GetFixFriendlyName(fix)` (`:460`) | spoken label | `pronunciations[0]` → custom-fix `name` → raw id | spoken traffic advisories |
+| `GetFixDisplayName(fix)` (`:479`) | **display** name or `null` | `displayName` → custom-fix `name` → `null` (never phonetic, never navaid/airport) | command responses, pilot readbacks, `AT <fix>` conditions, SPOS/SHDG |
+
+The presentation helpers `PhraseologyVerbalizer.FixDisplayText` / `FixDisplayTextUpper` wrap `GetFixDisplayName` to render a fix as
+`"Name (ID)"` (e.g. `VPCBT` → "Lake Chabot (VPCBT)") or the bare uppercase identifier when it has no display name.
+
 ## Approach shorthand & gate distances
 
 ### Approach shorthand resolution

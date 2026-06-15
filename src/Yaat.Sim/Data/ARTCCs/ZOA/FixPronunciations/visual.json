@@ -1,22 +1,27 @@
 [
   {
     "fix": "VPCOL",
-    "pronunciations": ["Oakland Colliseum", "Oakland Coliseum"]
+    "pronunciations": ["Oakland Colliseum", "Oakland Coliseum"],
+    "displayName": "Oakland Coliseum"
   },
   {
     "fix": "VPMOR",
-    "pronunciations": ["Mormon Temple"]
+    "pronunciations": ["Mormon Temple"],
+    "displayName": "Mormon Temple"
   },
   {
     "fix": "VPCBT",
-    "pronunciations": ["Lake Chabot"]
+    "pronunciations": ["Lake Chabot"],
+    "displayName": "Lake Chabot"
   },
   {
     "fix": "VPMID",
-    "pronunciations": ["Midspan San Mateo Bridge"]
+    "pronunciations": ["Midspan San Mateo Bridge"],
+    "displayName": "Midspan San Mateo Bridge"
   },
   {
     "fix": "VPSMB",
-    "pronunciations": ["San Mateo Bridge Toll Plaza"]
+    "pronunciations": ["San Mateo Bridge Toll Plaza"],
+    "displayName": "San Mateo Bridge Toll Plaza"
   }
 ]

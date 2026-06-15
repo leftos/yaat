@@ -79,9 +79,9 @@ public static class FixPronunciationLoader
                 continue;
             }
 
-            if (def.Pronunciations.Count == 0)
+            if (def.Pronunciations.Count == 0 && string.IsNullOrWhiteSpace(def.DisplayName))
             {
-                result.Warnings.Add($"{location} ({def.Fix}): no pronunciations defined, skipping");
+                result.Warnings.Add($"{location} ({def.Fix}): no pronunciations or displayName defined, skipping");
                 continue;
             }
 

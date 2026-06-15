@@ -4,11 +4,16 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Pilot;
 
 namespace Yaat.Sim.Commands;
 
 internal static class NavigationCommandHandler
 {
+    /// <summary>Renders a fix for command responses / SHOWAT descriptions as "NAME (ID)" when it has
+    /// an authored display name (e.g. "LAKE CHABOT (VPCBT)"), or the bare identifier otherwise.</summary>
+    private static string FixDisplay(string fix) => PhraseologyVerbalizer.FixDisplayTextUpper(fix);
+
     internal static CommandResult DispatchJrado(JoinRadialOutboundCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): fly present heading
@@ -37,13 +42,13 @@ internal static class NavigationCommandHandler
                 ac.Targets.PreferredTurnDirection = null;
                 return new CommandResult(true);
             },
-            Description = $"at {cmd.FixName} R{cmd.Radial:D3}: FH {cmd.Radial:D3}",
-            NaturalDescription = $"On {cmd.FixName} {cmd.Radial:D3} radial: fly heading {cmd.Radial:D3}",
+            Description = $"at {FixDisplay(cmd.FixName)} R{cmd.Radial:D3}: FH {cmd.Radial:D3}",
+            NaturalDescription = $"On {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial: fly heading {cmd.Radial:D3}",
         };
         interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
         aircraft.Queue.Blocks.Add(interceptBlock);
 
-        return CommandDispatcher.Ok($"Fly present heading, intercept {cmd.FixName} {cmd.Radial:D3} radial outbound");
+        return CommandDispatcher.Ok($"Fly present heading, intercept {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial outbound");
     }
 
     internal static CommandResult DispatchJradi(JoinRadialInboundCommand cmd, AircraftState aircraft)
@@ -72,13 +77,13 @@ internal static class NavigationCommandHandler
                 ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = cmd.FixName, Position = new LatLon(cmd.FixLat, cmd.FixLon) });
                 return new CommandResult(true);
             },
-            Description = $"at {cmd.FixName} R{cmd.Radial:D3}: DCT {cmd.FixName}",
-            NaturalDescription = $"On {cmd.FixName} {cmd.Radial:D3} radial: proceed inbound to {cmd.FixName}",
+            Description = $"at {FixDisplay(cmd.FixName)} R{cmd.Radial:D3}: DCT {FixDisplay(cmd.FixName)}",
+            NaturalDescription = $"On {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial: proceed inbound to {FixDisplay(cmd.FixName)}",
         };
         interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
         aircraft.Queue.Blocks.Add(interceptBlock);
 
-        return CommandDispatcher.Ok($"Fly present heading, intercept {cmd.FixName} {cmd.Radial:D3} radial inbound");
+        return CommandDispatcher.Ok($"Fly present heading, intercept {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial inbound");
     }
 
     internal static CommandResult DispatchDepartFix(DepartFixCommand cmd, AircraftState aircraft)
@@ -134,13 +139,13 @@ internal static class NavigationCommandHandler
                 ac.Targets.PreferredTurnDirection = null;
                 return new CommandResult(true);
             },
-            Description = $"at {cmd.FixName}: FH {cmd.MagneticHeading.ToDisplayInt():000}",
-            NaturalDescription = $"At {cmd.FixName}: fly heading {cmd.MagneticHeading.ToDisplayInt():000}",
+            Description = $"at {FixDisplay(cmd.FixName)}: FH {cmd.MagneticHeading.ToDisplayInt():000}",
+            NaturalDescription = $"At {FixDisplay(cmd.FixName)}: fly heading {cmd.MagneticHeading.ToDisplayInt():000}",
         };
         departBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
         aircraft.Queue.Blocks.Add(departBlock);
 
-        return CommandDispatcher.Ok($"Proceed direct {cmd.FixName}, depart heading {cmd.MagneticHeading.ToDisplayInt():000}");
+        return CommandDispatcher.Ok($"Proceed direct {FixDisplay(cmd.FixName)}, depart heading {cmd.MagneticHeading.ToDisplayInt():000}");
     }
 
     internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft)
@@ -221,7 +226,7 @@ internal static class NavigationCommandHandler
             CrossFixAltitudeType.AtOrBelow => "at or below",
             _ => "at",
         };
-        var cfixMsg = $"Cross {cmd.FixName} {altTypeStr} {cmd.Altitude:N0}";
+        var cfixMsg = $"Cross {FixDisplay(cmd.FixName)} {altTypeStr} {cmd.Altitude:N0}";
         if (cmd.Speed is not null)
         {
             cfixMsg += $", speed {cmd.Speed}";
@@ -320,7 +325,7 @@ internal static class NavigationCommandHandler
             aircraft.Procedure.ActiveStarId = cmd.StarId;
             aircraft.Procedure.StarViaMode = false; // STAR via mode OFF by default
 
-            var cifpFixList = string.Join(" ", cifpResult.Select(t => t.Name));
+            var cifpFixList = string.Join(" ", cifpResult.Select(t => FixDisplay(t.Name)));
             return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {cifpFixList}") with
             {
                 Advisory = CommandDispatcher.PriorCycleProcedureAdvisory("STAR", cmd.StarId, starResolvedFromCycleId),
@@ -398,7 +403,7 @@ internal static class NavigationCommandHandler
         aircraft.Procedure.ActiveStarId = cmd.StarId;
         aircraft.Procedure.StarViaMode = false;
 
-        var fixListStr = string.Join(" ", deduped);
+        var fixListStr = string.Join(" ", deduped.Select(FixDisplay));
         return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {fixListStr}");
     }
 
@@ -798,13 +803,13 @@ internal static class NavigationCommandHandler
                 }
                 return new CommandResult(true);
             },
-            Description = $"intercept {cmd.AirwayId}: DCT {string.Join(" ", remainingFixes)}",
-            NaturalDescription = $"On {cmd.AirwayId}: proceed via {string.Join(" ", remainingFixes)}",
+            Description = $"intercept {cmd.AirwayId}: DCT {string.Join(" ", remainingFixes.Select(FixDisplay))}",
+            NaturalDescription = $"On {cmd.AirwayId}: proceed via {string.Join(" ", remainingFixes.Select(FixDisplay))}",
         };
         interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
         aircraft.Queue.Blocks.Add(interceptBlock);
 
-        var fixListStr = string.Join(" ", remainingFixes);
+        var fixListStr = string.Join(" ", remainingFixes.Select(FixDisplay));
         return CommandDispatcher.Ok($"Fly present heading, intercept {cmd.AirwayId}: {fixListStr}");
     }
 
@@ -953,7 +958,7 @@ internal static class NavigationCommandHandler
 
         var dirStr = cmd.Direction == TurnDirection.Left ? "left" : "right";
         var legStr = cmd.IsMinuteBased ? $"{cmd.LegLength}min" : $"{cmd.LegLength}nm";
-        return CommandDispatcher.Ok($"Hold at {cmd.FixName}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
+        return CommandDispatcher.Ok($"Hold at {FixDisplay(cmd.FixName)}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
     }
 
     internal static CommandResult DispatchJfac(JoinFinalApproachCourseCommand cmd, AircraftState aircraft)
@@ -1133,10 +1138,10 @@ internal static class NavigationCommandHandler
 
             if (!found)
             {
-                return new CommandResult(false, $"Fix {cmd.SpeedFixName} not found in current route");
+                return new CommandResult(false, $"Fix {FixDisplay(cmd.SpeedFixName)} not found in current route");
             }
 
-            return CommandDispatcher.Ok($"Descend via STAR, {speed} knots at {cmd.SpeedFixName}");
+            return CommandDispatcher.Ok($"Descend via STAR, {speed} knots at {FixDisplay(cmd.SpeedFixName)}");
         }
 
         if (cmd.Altitude is not null)
