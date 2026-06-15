@@ -152,6 +152,19 @@ function Invoke-OnDroplet {
   ssh "$dropletUser@$dropletIp" $sshCmd 2>&1
 }
 
+# Helper: probe SSH connectivity to the droplet. Returns $true if reachable.
+function Test-DropletReachable {
+  $null = ssh -o ConnectTimeout=5 "$dropletUser@$dropletIp" "echo 'OK'" 2>&1
+  return ($LASTEXITCODE -eq 0)
+}
+
+# Helper: tail the live server logs until the user detaches with Ctrl-C.
+function Show-ServerLogs {
+  Write-Host "Following server logs (Ctrl-C to detach)..." -ForegroundColor Cyan
+  Write-Host ""
+  ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose logs -f yaat-server`""
+}
+
 # Poll the container logs until the server reports it is listening. Relies on a
 # freshly recreated container (deploy: up --force-recreate; reboot: same) so the
 # "Now listening on" line we match is from the new instance, not a stale one.
@@ -175,8 +188,7 @@ function Wait-ServerReady {
 # cycle is pulled when the serial changed). No git pull, no rebuild, no cache prune.
 function Invoke-ServerReboot {
   Write-Host "[1/4] Checking connectivity..." -ForegroundColor Yellow
-  $null = ssh -o ConnectTimeout=5 "$dropletUser@$dropletIp" "echo 'OK'" 2>&1
-  if ($LASTEXITCODE -ne 0) {
+  if (-not (Test-DropletReachable)) {
     throw "Cannot reach $dropletIp"
   }
   Write-Host "✓ Connected" -ForegroundColor Green
@@ -229,18 +241,13 @@ function Invoke-ServerReboot {
 try {
   if ($RebootOnly) {
     Invoke-ServerReboot
-    if ($followLogs) {
-      Write-Host "Following server logs (Ctrl-C to detach)..." -ForegroundColor Cyan
-      Write-Host ""
-      ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose logs -f yaat-server`""
-    }
+    if ($followLogs) { Show-ServerLogs }
     return
   }
 
   # Pre-flight checks
   Write-Host "[1/8] Checking connectivity..." -ForegroundColor Yellow
-  $testConn = ssh -o ConnectTimeout=5 "$dropletUser@$dropletIp" "echo 'OK'" 2>&1
-  if ($LASTEXITCODE -ne 0) {
+  if (-not (Test-DropletReachable)) {
     Write-Host "❌ Cannot reach $dropletIp" -ForegroundColor Red
     exit 1
   }
@@ -308,11 +315,7 @@ try {
   Write-Host "✓ Deployment complete!" -ForegroundColor Green
   Write-Host ""
 
-  if ($followLogs) {
-    Write-Host "Following server logs (Ctrl-C to detach)..." -ForegroundColor Cyan
-    Write-Host ""
-    ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose logs -f yaat-server`""
-  }
+  if ($followLogs) { Show-ServerLogs }
 }
 catch {
   $failTitle = if ($RebootOnly) { "Reboot failed" } else { "Deployment failed" }
