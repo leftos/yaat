@@ -1,5 +1,5 @@
 # Deploy yaat-server to DigitalOcean droplet
-# Usage: .\deploy-to-droplet.ps1 [-NoLogs] [-NoCache] [-SkipSessionSave] [-DrainSeconds <sec>]
+# Usage: .\deploy-to-droplet.ps1 [-NoLogs] [-NoCache] [-SkipSessionSave] [-DrainSeconds <sec>] [-CacheReserveGb <gb>]
 #
 # By default, active training sessions are preserved across deploy:
 #   POST /admin/prepare-restart (drain + checkpoint) -> rebuild container -> restore on boot.
@@ -12,12 +12,20 @@
 #           what makes incremental deploys quick.
 #
 # -SkipSessionSave  Skip prepare-restart (immediate container replace; active rooms are lost).
+#
+# -CacheReserveGb  After a successful build, prune the BuildKit cache down to this
+#                  many GB of most-recently-used layers (default 10). Every deploy
+#                  rebuilds source/publish layers, so without this the cache grows
+#                  unbounded toward BuildKit's auto ceiling (~57 GB) and fills the
+#                  disk. The reserve keeps the current build's base/restore/wasm
+#                  layers so the next incremental deploy stays fast.
 
 param(
   [switch]$NoLogs,
   [switch]$NoCache,
   [switch]$SkipSessionSave,
-  [int]$DrainSeconds = 30
+  [int]$DrainSeconds = 30,
+  [int]$CacheReserveGb = 10
 )
 
 $ErrorActionPreference = "Stop"
@@ -133,7 +141,7 @@ function Invoke-OnDroplet {
 
 try {
   # Pre-flight checks
-  Write-Host "[1/7] Checking connectivity..." -ForegroundColor Yellow
+  Write-Host "[1/8] Checking connectivity..." -ForegroundColor Yellow
   $testConn = ssh -o ConnectTimeout=5 "$dropletUser@$dropletIp" "echo 'OK'" 2>&1
   if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Cannot reach $dropletIp" -ForegroundColor Red
@@ -142,11 +150,11 @@ try {
   Write-Host "✓ Connected" -ForegroundColor Green
 
   Write-Host ""
-  Write-Host "[2/7] Checking current status..." -ForegroundColor Yellow
+  Write-Host "[2/8] Checking current status..." -ForegroundColor Yellow
   Invoke-OnDroplet "cd $serverPath && docker compose ps" | Tee-Object -Append -FilePath $logFile
 
   Write-Host ""
-  Write-Host "[3/7] Preparing for restart..." -ForegroundColor Yellow
+  Write-Host "[3/8] Preparing for restart..." -ForegroundColor Yellow
   $sessionsSaved = $false
   if ($SkipSessionSave) {
     Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (sessions not preserved)." -Color 16776960
@@ -160,7 +168,7 @@ try {
   }
 
   Write-Host ""
-  Write-Host "[4/7] Pulling latest code and submodules..." -ForegroundColor Yellow
+  Write-Host "[4/8] Pulling latest code and submodules..." -ForegroundColor Yellow
   Invoke-OnDroplet "cd $serverPath && git pull && git submodule update --init --remote --recursive" | Tee-Object -Append -FilePath $logFile
 
   # Get the commit hashes after pulling
@@ -174,13 +182,13 @@ try {
   $clientFullHash = (Invoke-OnDroplet "cd $serverPath && git -C extern/yaat rev-parse HEAD" | Select-Object -First 1).Trim()
 
   Write-Host ""
-  Write-Host "[5/7] Rebuilding and recreating services..." -ForegroundColor Yellow
+  Write-Host "[5/8] Rebuilding and recreating services..." -ForegroundColor Yellow
   $buildFlags = if ($NoCache) { "--no-cache " } else { "" }
   # --force-recreate replaces the container; named volumes (cache + session-checkpoints) persist.
   Invoke-OnDroplet "cd $serverPath && YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose build $buildFlags&& YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose up -d --force-recreate" | Tee-Object -Append -FilePath $logFile
 
   Write-Host ""
-  Write-Host "[6/7] Waiting for server to be ready..." -ForegroundColor Yellow
+  Write-Host "[6/8] Waiting for server to be ready..." -ForegroundColor Yellow
   $retry = 0
   $maxRetries = 30
   $ready = $false
@@ -207,7 +215,11 @@ try {
   }
 
   Write-Host ""
-  Write-Host "[7/7] Done" -ForegroundColor Green
+  Write-Host "[7/8] Pruning build cache (reserve ${CacheReserveGb}GB)..." -ForegroundColor Yellow
+  Invoke-OnDroplet "cd $serverPath && docker builder prune -f --reserved-space ${CacheReserveGb}GB" | Tee-Object -Append -FilePath $logFile
+
+  Write-Host ""
+  Write-Host "[8/8] Done" -ForegroundColor Green
   Write-Host ""
   Write-Host "✓ Deployment complete!" -ForegroundColor Green
   Write-Host ""
