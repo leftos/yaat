@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.7.17-beta [2026/06/14]
+
+### Highlights
+- **Friendly waypoint names in responses and readbacks** — commands, pilot readbacks, and `AT <fix>` conditions now show a named reporting point's plain-language name next to its identifier (e.g. "Cross LAKE CHABOT (VPCBT) at 3,000").
+- **Pilots speak a navaid's real facility type** — "Mendocino VORTAC", an NDB, or a TACAN, instead of always saying "VOR".
+- **CRC surface displays no longer risk a dropped connection** — opening an ASDE-X or SAAB SAID display (or its Safety Logic alerts) no longer hits a server-side race that could drop the connection.
 
 ### Added
 - Commands that reference a named visual reporting point or landmark — fixes with a friendly name in the per-ARTCC data, like `VPCBT` ("Lake Chabot") or `OAK30NUM` ("Oakland Runway 30 Numbers") — now show that name alongside the identifier in command responses, pilot readbacks, and `AT <fix>` conditions (e.g. "Cross LAKE CHABOT (VPCBT) at 3,000"). Plain fixes are unchanged.
