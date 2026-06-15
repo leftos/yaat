@@ -31,7 +31,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class CtoMrdPatternExitTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/cto-mrd-pattern-exit-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/eeb4bd38f801.zip";
 
     private SimulationEngine? BuildEngine()
     {

@@ -20,7 +20,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class IssueN513sjNimi6PublishedHeadingReplayTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/nimi6-rv-sid-heading-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/eeb4bd38f801.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

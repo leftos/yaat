@@ -2,5 +2,4 @@
 # Binary files are auto-detected; the LFS rules below override with -text.
 * text=auto eol=lf
 
-tests/Yaat.Sim.Tests/TestData/*.yaat-bug-report-bundle.zip filter=lfs diff=lfs merge=lfs -text
-tests/Yaat.Sim.Tests/TestData/*-recording.zip filter=lfs diff=lfs merge=lfs -text
+tests/Yaat.Sim.Tests/TestData/*.zip filter=lfs diff=lfs merge=lfs -text
