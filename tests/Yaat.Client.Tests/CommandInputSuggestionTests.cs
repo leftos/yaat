@@ -2,12 +2,18 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.Tests;
 
 public class CommandInputSuggestionTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
+
+    public CommandInputSuggestionTests()
+    {
+        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+    }
 
     private static AircraftModel Ac(string callsign)
     {
@@ -140,6 +146,77 @@ public class CommandInputSuggestionTests
         controller.UpdateSuggestions("FH ", "FH ".Length, aircraft, Scheme);
 
         Assert.DoesNotContain(controller.Suggestions, s => s.Kind == SuggestionKind.Callsign);
+    }
+
+    // --- AT condition fix suggestions (nav route inclusion + airport ordering) ---
+
+    [Fact]
+    public void At_TrailingSpace_IncludesNavigationRouteFixBeforeAirports()
+    {
+        // The selected aircraft is navigating direct to a visual fix. The AT condition
+        // suggestions must list that fix first, then destination, then departure.
+        var controller = Controller();
+        var selected = new AircraftModel
+        {
+            Callsign = "N428KK",
+            Departure = "KCCR",
+            Destination = "KSJC",
+            NavigationRoute = ["VPCOL"],
+        };
+        IReadOnlyCollection<AircraftModel> aircraft = [selected];
+
+        controller.UpdateSuggestions("AT ", "AT ".Length, aircraft, Scheme, selected);
+
+        var texts = controller.Suggestions.Select(s => s.Text).ToList();
+        Assert.Equal(["VPCOL", "KSJC", "KCCR"], texts);
+    }
+
+    [Fact]
+    public void At_LeadingCallsign_UsesTypedAircraftNotRadarSelection()
+    {
+        // The user types the callsign of N428KK (which is navigating direct to VPCOL) but
+        // has a different aircraft selected on the radar. The AT suggestions must come from
+        // the typed aircraft, not the radar selection.
+        var controller = Controller();
+        var commanded = new AircraftModel
+        {
+            Callsign = "N428KK",
+            Departure = "KCCR",
+            Destination = "KSJC",
+            NavigationRoute = ["VPCOL"],
+        };
+        var radarSelected = new AircraftModel
+        {
+            Callsign = "N172SP",
+            Departure = "KOAK",
+            Destination = "KSQL",
+        };
+        IReadOnlyCollection<AircraftModel> aircraft = [commanded, radarSelected];
+
+        controller.UpdateSuggestions("N428KK AT ", "N428KK AT ".Length, aircraft, Scheme, radarSelected);
+
+        var texts = controller.Suggestions.Select(s => s.Text).ToList();
+        Assert.Equal(["VPCOL", "KSJC", "KCCR"], texts);
+    }
+
+    [Fact]
+    public void At_EmptyNavRoute_ShowsDestinationThenDeparture()
+    {
+        // After the aircraft sequences past its fix the nav route empties; only the
+        // airports remain — destination first.
+        var controller = Controller();
+        var selected = new AircraftModel
+        {
+            Callsign = "N428KK",
+            Departure = "KCCR",
+            Destination = "KSJC",
+        };
+        IReadOnlyCollection<AircraftModel> aircraft = [selected];
+
+        controller.UpdateSuggestions("AT ", "AT ".Length, aircraft, Scheme, selected);
+
+        var texts = controller.Suggestions.Select(s => s.Text).ToList();
+        Assert.Equal(["KSJC", "KCCR"], texts);
     }
 
     // --- Cursor-aware tests ---

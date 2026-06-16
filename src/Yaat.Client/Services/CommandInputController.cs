@@ -123,6 +123,11 @@ public partial class CommandInputController : ObservableObject
         {
             // Active-token bounds describe the partial condition arg under the cursor.
             var argPartial = text[parsed.ActiveTokenStart..parsed.CaretIndex];
+            // Resolve the fix suggestions against the aircraft named by a leading callsign
+            // ("N428KK AT <fix>"), falling back to the radar selection when none was typed.
+            var conditionTarget = string.IsNullOrEmpty(parsed.LeadingCallsign)
+                ? selectedAircraft
+                : ResolveTargetAircraft(parsed.LeadingCallsign, hasSpace: true, firstTokenIsVerb: false, aircraft, selectedAircraft);
             if (string.Equals(parsed.ConditionVerb, "AT", StringComparison.OrdinalIgnoreCase))
             {
                 FixSuggester.AddFixSuggestionsForActiveToken(
@@ -130,7 +135,7 @@ public partial class CommandInputController : ObservableObject
                     parsed.ActiveTokenStart,
                     parsed.ActiveTokenEnd,
                     argPartial,
-                    selectedAircraft,
+                    conditionTarget,
                     Suggestions,
                     MaxSuggestions
                 );
@@ -369,7 +374,8 @@ public partial class CommandInputController : ObservableObject
                 caretIndex,
                 conditionTokenStart,
                 conditionTokenEnd,
-                0
+                0,
+                leadingCallsign
             );
         }
 
@@ -503,7 +509,8 @@ public partial class CommandInputController : ObservableObject
             caretIndex,
             activeTokenStart,
             activeTokenEnd,
-            activeTokenIndex
+            activeTokenIndex,
+            leadingCallsign
         );
     }
 

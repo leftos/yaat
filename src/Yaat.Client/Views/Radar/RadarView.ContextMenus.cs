@@ -934,47 +934,11 @@ public partial class RadarView
     }
 
     /// <summary>
-    /// Returns named fixes from the aircraft's filed route (CIFP fixes only) and active DCT
-    /// queue, in route-then-queue order, deduped. We never offer "all fixes" — global CIFP
-    /// has tens of thousands.
+    /// Returns suggested fix names for this aircraft, in the canonical order shared with the
+    /// typed autocomplete: active navigation route, then filed-route fixes, then destination,
+    /// then departure. Deduped. We never offer "all fixes" — global CIFP has tens of thousands.
     /// </summary>
-    private static IReadOnlyList<string> GetRouteFixes(AircraftModel? ac)
-    {
-        if (ac is null)
-        {
-            return [];
-        }
-
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var result = new List<string>();
-
-        if (!string.IsNullOrEmpty(ac.Route))
-        {
-            foreach (var token in ac.Route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries))
-            {
-                var trimmed = token.Trim();
-                if (trimmed.Length == 0)
-                {
-                    continue;
-                }
-
-                if (NavigationDatabase.Instance.GetFixPosition(trimmed) is not null && seen.Add(trimmed))
-                {
-                    result.Add(trimmed);
-                }
-            }
-        }
-
-        foreach (var fix in ac.NavigationRoute)
-        {
-            if (!string.IsNullOrEmpty(fix) && seen.Add(fix))
-            {
-                result.Add(fix);
-            }
-        }
-
-        return result;
-    }
+    private static IReadOnlyList<string> GetRouteFixes(AircraftModel? ac) => ac is null ? [] : FixSuggester.CollectRouteFixNames(ac);
 
     private void AddRouteFixItem(MenuItem menu, string label, AircraftModel? ac, Func<string, Task> dispatch)
     {

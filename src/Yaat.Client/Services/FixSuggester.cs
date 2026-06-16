@@ -197,14 +197,16 @@ internal static class FixSuggester
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(aircraft.Departure))
-        {
-            TryAdd(aircraft.Departure);
-        }
-
+        // Destination before departure: an aircraft is unlikely to be turned back to its
+        // departure airport, so the destination is the more useful suggestion.
         if (!string.IsNullOrWhiteSpace(aircraft.Destination))
         {
             TryAdd(aircraft.Destination);
+        }
+
+        if (!string.IsNullOrWhiteSpace(aircraft.Departure))
+        {
+            TryAdd(aircraft.Departure);
         }
 
         return fixes;

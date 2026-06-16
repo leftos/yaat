@@ -22,5 +22,6 @@ public record CommandInputParseResult(
     int CaretIndex,
     int ActiveTokenStart,
     int ActiveTokenEnd,
-    int ActiveTokenIndex
+    int ActiveTokenIndex,
+    string LeadingCallsign
 );

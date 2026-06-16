@@ -7,6 +7,8 @@
 - Variable-direction wind in the Radar and Ground weather overlays now shows the `VRB` token (e.g. `VRB04KT`) instead of dropping the direction and showing only the speed.
 - The flashing red `NoLndgClnc` datablock warning now clears when an aircraft on final without a landing clearance is sent around with `GA` — instead of continuing to flash after the go-around. It also clears whenever the aircraft is otherwise taken off the approach.
 - Deleting an aircraft (`DEL`) while it was on a CRC ASDE-X or SAAB SAID surface display no longer leaves a clickable, orphaned surface target that could crash the controller's CRC when clicked. The track still coasts for 45 seconds (or drops at its destination field), but its radar target is removed the moment the aircraft is deleted.
+- Fix-name suggestions — the `AT` / `DCT` autocomplete dropdown and the radar right-click **Cross fix** / **Depart fix** / **Direct to** menus — now list the aircraft's current navigation route first, then its filed route, and put the destination airport ahead of the departure airport (an aircraft is unlikely to be turned back toward where it departed).
+- Typing a callsign before an `AT <fix>` condition (e.g. `N428KK AT …`) now draws the fix suggestions from that aircraft's route instead of whichever aircraft is selected on the radar, so the fix it's flying direct to actually appears in the dropdown.
 
 ## v0.7.17-beta [2026/06/14]
 

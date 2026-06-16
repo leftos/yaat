@@ -58,6 +58,18 @@ public class FixSuggesterTests
     }
 
     [Fact]
+    public void CollectRouteFixNames_DestinationListedBeforeDeparture()
+    {
+        // An aircraft is unlikely to be turned back to its departure airport, so the
+        // destination should always sort ahead of the departure in fix suggestions.
+        var aircraft = new AircraftModel { Departure = "OAK", Destination = "LAX" };
+
+        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+
+        Assert.Equal(["LAX", "OAK"], fixes);
+    }
+
+    [Fact]
     public void CollectRouteFixNames_NullFields_ReturnsEmpty()
     {
         var aircraft = new AircraftModel();
@@ -100,7 +112,7 @@ public class FixSuggesterTests
 
         var fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
-        Assert.Equal(["BDEGA", "CORKK", "BRIXX", "OAK", "LAX"], fixes);
+        Assert.Equal(["BDEGA", "CORKK", "BRIXX", "LAX", "OAK"], fixes);
     }
 
     [Fact]

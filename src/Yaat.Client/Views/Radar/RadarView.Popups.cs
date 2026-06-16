@@ -3,6 +3,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -611,28 +612,5 @@ public partial class RadarView
         return alt >= 18000 ? $"FL{alt / 100}" : $"{alt}";
     }
 
-    private static IReadOnlyList<object> BuildRouteFixList(AircraftModel ac)
-    {
-        if (ac.NavigationRoute.Count == 0)
-        {
-            return [];
-        }
-
-        var items = new List<object>();
-        var started = string.IsNullOrEmpty(ac.NavigatingTo);
-        foreach (var fix in ac.NavigationRoute)
-        {
-            if (!started && fix == ac.NavigatingTo)
-            {
-                started = true;
-            }
-
-            if (started)
-            {
-                items.Add(fix);
-            }
-        }
-
-        return items;
-    }
+    private static IReadOnlyList<object> BuildRouteFixList(AircraftModel ac) => FixSuggester.CollectRouteFixNames(ac).Cast<object>().ToList();
 }
