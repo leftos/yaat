@@ -9,6 +9,7 @@
 - Deleting an aircraft (`DEL`) while it was on a CRC ASDE-X or SAAB SAID surface display no longer leaves a clickable, orphaned surface target that could crash the controller's CRC when clicked. The track still coasts for 45 seconds (or drops at its destination field), but its radar target is removed the moment the aircraft is deleted.
 - Fix-name suggestions — the `AT` / `DCT` autocomplete dropdown and the radar right-click **Cross fix** / **Depart fix** / **Direct to** menus — now list the aircraft's current navigation route first, then its filed route, and put the destination airport ahead of the departure airport (an aircraft is unlikely to be turned back toward where it departed).
 - Typing a callsign before an `AT <fix>` condition (e.g. `N428KK AT …`) now draws the fix suggestions from that aircraft's route instead of whichever aircraft is selected on the radar, so the fix it's flying direct to actually appears in the dropdown.
+- A `DCT` (proceed direct) issued after a relative turn (`RELR` / `RELL` / `RT` / `LT`) now turns the shortest way to the fix. Previously the relative turn's forced direction carried over into the direct-to, so the aircraft kept turning the long way around instead of proceeding direct, and a follow-up `DCT` couldn't recover it without first breaking the turn with a heading command.
 
 ## v0.7.17-beta [2026/06/14]
 

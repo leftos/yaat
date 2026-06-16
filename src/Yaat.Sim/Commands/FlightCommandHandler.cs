@@ -478,6 +478,12 @@ internal static class FlightCommandHandler
 
         var fixNames = FixListSpaced(cmd.Fixes);
 
+        // A plain direct-to turns the shortest way to the fix. Clear any forced turn
+        // direction left over from a preceding relative turn (RELR/RELL/RT/LT) so the
+        // stale bias does not steer the aircraft the long way around (TLDCT/TRDCT set it
+        // intentionally via ApplyTurnDirectTo).
+        aircraft.Targets.PreferredTurnDirection = null;
+
         if (cmd.Fixes.Count == 1 && TryPreserveProcedure(aircraft, cmd.Fixes[0].Name))
         {
             aircraft.Targets.AssignedMagneticHeading = null;
@@ -551,6 +557,10 @@ internal static class FlightCommandHandler
     {
         var fixNames = FixListSpaced(cmd.Fixes);
 
+        // Clear any forced turn direction left over from a preceding relative turn so a
+        // plain direct-to turns the shortest way to the fix (see ApplyDirectTo).
+        aircraft.Targets.PreferredTurnDirection = null;
+
         if (cmd.Fixes.Count == 1 && TryPreserveProcedure(aircraft, cmd.Fixes[0].Name))
         {
             aircraft.Targets.AssignedMagneticHeading = null;
@@ -578,6 +588,10 @@ internal static class FlightCommandHandler
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedMagneticHeading = null;
+
+        // Clear any forced turn direction left over from a preceding relative turn so a
+        // plain direct-to turns the shortest way to the fix (see ApplyDirectTo).
+        aircraft.Targets.PreferredTurnDirection = null;
 
         // Capture current altitude/speed for revert on the last constrained fix
         double? previousAlt = aircraft.Targets.TargetAltitude;
