@@ -69,4 +69,14 @@ public class ResumeAssignedAltitudeAfterPhaseClearTests
         CommandDispatcher.ResumeAssignedAltitudeAfterPhaseClear(ac);
         Assert.Equal(800, ac.Targets.TargetAltitude);
     }
+
+    [Fact]
+    public void GoAroundMapAboveAssigned_DoesNotLowerTarget()
+    {
+        // GoAroundPhase climbs to the published MAP (4000) while AssignedAltitude still reflects the
+        // last approach clearance (3000). FH clears the phase; the MAP target must survive.
+        var ac = Make(altitude: 500, onGround: false, assigned: 3000, target: 4000);
+        CommandDispatcher.ResumeAssignedAltitudeAfterPhaseClear(ac);
+        Assert.Equal(4000, ac.Targets.TargetAltitude);
+    }
 }
