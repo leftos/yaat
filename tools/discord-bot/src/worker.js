@@ -413,19 +413,6 @@ async function postToDiscordThread(botToken, threadId, content) {
 // Known resolution emojis used as title prefixes
 const RESOLUTION_EMOJIS = ["✅", "🚫", "❌", "♻️"];
 
-// Discord caps thread/channel names at 100 characters.
-const DISCORD_THREAD_NAME_MAX = 100;
-
-// Prefix a thread title with its linked GitHub issue number (e.g. "[#123] Title").
-// Idempotent, and truncates the base title so the result stays within Discord's limit.
-function withIssueNumberPrefix(name, issueNumber) {
-  const prefix = `[#${issueNumber}] `;
-  if (name.startsWith(prefix)) return name;
-  const room = DISCORD_THREAD_NAME_MAX - prefix.length;
-  const base = name.length > room ? name.slice(0, room) : name;
-  return `${prefix}${base}`;
-}
-
 async function prefixThreadTitle(botToken, threadId, emoji) {
   const thread = await discordApi(`/channels/${threadId}`, botToken);
 
@@ -653,11 +640,6 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
       labels,
     });
 
-    // Prefix the Discord thread title with the new issue number for quick reference
-    await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, {
-      name: withIssueNumberPrefix(thread.name, issue.number),
-    });
-
     const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : "0";
     const mapping = {
       issueNumber: issue.number,
@@ -725,9 +707,9 @@ async function processTrackCommand({ commandName, issueNumber, guildId, token, a
       firstMessageContent = firstMessageContent.slice(0, 1997) + "…";
     }
 
-    // Create forum thread (title prefixed with the tracked issue number for quick reference)
+    // Create forum thread
     const threadPayload = {
-      name: withIssueNumberPrefix(issue.title, issue.number),
+      name: issue.title,
       message: { content: firstMessageContent },
       applied_tags: appliedTags,
     };
