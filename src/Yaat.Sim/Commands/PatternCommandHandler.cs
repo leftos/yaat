@@ -2023,39 +2023,21 @@ internal static class PatternCommandHandler
 
         bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
         var gaCtx = CommandDispatcher.BuildMinimalContext(aircraft);
-        int? gaTargetAlt = ga.TargetAltitude;
         bool hasAtcOverride = ga.AssignedMagneticHeading is not null || ga.TargetAltitude is not null;
 
-        // Build MAP phases for instrument approaches without ATC override
-        var mapPhases = (!isGaPattern && !hasAtcOverride) ? ApproachCommandHandler.BuildMissedApproachPhases(aircraft) : [];
-
-        if (gaTargetAlt is null && mapPhases.Count > 0)
-        {
-            var mapFixes = aircraft.Phases.ActiveApproach!.MissedApproachFixes;
-            gaTargetAlt = ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
-        }
-        else if (gaTargetAlt is null && isGaPattern)
-        {
-            // AIM 4-3-2: hand off to UpwindPhase 300ft below pattern altitude so the
-            // crosswind turn becomes available at the same threshold as a VFR departure.
-            double fieldElev = gaCtx.Runway?.ElevationFt ?? 0;
-            double patAgl = CategoryPerformance.PatternAltitudeAgl(gaCtx.Category);
-            gaTargetAlt = (int)(fieldElev + patAgl - 300.0);
-        }
+        // Build MAP phases for instrument approaches without an ATC override — an assigned
+        // heading or altitude replaces the published missed approach.
+        var missedApproachPhases = (!isGaPattern && !hasAtcOverride) ? ApproachCommandHandler.BuildMissedApproachPhases(aircraft) : [];
 
         var goAround = new GoAroundPhase
         {
             AssignedMagneticHeading = ga.AssignedMagneticHeading,
-            TargetAltitude = gaTargetAlt,
+            TargetAltitude = ga.TargetAltitude ?? GoAroundHelper.ResolveClimbOutAltitude(gaCtx, isGaPattern, missedApproachPhases),
             ReenterPattern = isGaPattern,
             NextLandingFullStop = GoAroundHelper.CaptureLandingFullStopIntent(aircraft.Phases),
         };
 
-        var phases = new List<Phase> { goAround };
-        phases.AddRange(mapPhases);
-
-        aircraft.Phases.ReplaceUpcoming(phases);
-        aircraft.Phases.AdvanceToNext(gaCtx);
+        GoAroundHelper.InstallGoAroundPhases(gaCtx, goAround, missedApproachPhases);
 
         var gaMsg = "Go around";
         if (ga.TrafficPattern is PatternDirection.Left)

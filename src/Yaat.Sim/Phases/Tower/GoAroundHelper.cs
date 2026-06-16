@@ -48,37 +48,57 @@ internal static class GoAroundHelper
 
         bool isPattern = ctx.Aircraft.Phases.TrafficDirection is not null;
 
-        // For instrument approaches with MAP data, use MAP altitude and queue MAP phases
-        var mapPhases = isPattern ? [] : ApproachCommandHandler.BuildMissedApproachPhases(ctx.Aircraft);
-        int? targetAlt;
-        if (mapPhases.Count > 0)
-        {
-            var mapFixes = ctx.Aircraft.Phases.ActiveApproach!.MissedApproachFixes;
-            targetAlt = ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
-        }
-        else if (isPattern)
-        {
-            // AIM 4-3-2: hand off to UpwindPhase 300ft below pattern altitude so the
-            // crosswind turn becomes available at the same threshold as a VFR departure.
-            targetAlt = (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category) - 300.0);
-        }
-        else
-        {
-            targetAlt = null;
-        }
+        // For instrument approaches with MAP data, queue the published missed-approach phases.
+        var missedApproachPhases = isPattern ? [] : ApproachCommandHandler.BuildMissedApproachPhases(ctx.Aircraft);
 
         var goAround = new GoAroundPhase
         {
-            TargetAltitude = targetAlt,
+            TargetAltitude = ResolveClimbOutAltitude(ctx, isPattern, missedApproachPhases),
             ReenterPattern = isPattern,
             NextLandingFullStop = CaptureLandingFullStopIntent(ctx.Aircraft.Phases),
         };
 
-        var phases = new List<Phase> { goAround };
-        phases.AddRange(mapPhases);
+        InstallGoAroundPhases(ctx, goAround, missedApproachPhases);
+    }
 
-        ctx.Aircraft.Phases.ReplaceUpcoming(phases);
-        ctx.Aircraft.Phases.AdvanceToNext(ctx);
+    /// <summary>
+    /// Resolve the climb-out target altitude for a go-around when the controller did not
+    /// specify one: the published missed-approach altitude when missed-approach phases were
+    /// built, otherwise pattern altitude (300 ft below TPA, AIM 4-3-2) for a pattern
+    /// go-around, otherwise null (the phase self-clears at 2000 ft AGL).
+    /// </summary>
+    internal static int? ResolveClimbOutAltitude(PhaseContext ctx, bool isPattern, IReadOnlyList<Phase> missedApproachPhases)
+    {
+        if (missedApproachPhases.Count > 0)
+        {
+            var mapFixes = ctx.Aircraft.Phases!.ActiveApproach!.MissedApproachFixes;
+            return ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
+        }
+
+        // AIM 4-3-2: hand off to UpwindPhase 300ft below pattern altitude so the crosswind
+        // turn becomes available at the same threshold as a VFR departure.
+        if (isPattern)
+        {
+            return (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category) - 300.0);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Replace the upcoming phases with the go-around (plus any missed-approach phases),
+    /// advance the phase list to it, and fire the phase-advanced hook. Shared by the
+    /// automatic (<see cref="Trigger"/>) and manual (GA command) go-around paths.
+    /// </summary>
+    internal static void InstallGoAroundPhases(PhaseContext ctx, GoAroundPhase goAround, IReadOnlyList<Phase> missedApproachPhases)
+    {
+        var phaseList = ctx.Aircraft.Phases!;
+
+        var phases = new List<Phase> { goAround };
+        phases.AddRange(missedApproachPhases);
+
+        phaseList.ReplaceUpcoming(phases);
+        phaseList.AdvanceToNext(ctx);
         FlightPhysics.NotifyPhaseAdvanced(ctx.Aircraft);
     }
 
