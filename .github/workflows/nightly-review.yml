@@ -138,9 +138,18 @@ jobs:
                 `yaat/.claude/reference/faa/7110.65/` and `yaat/.claude/reference/faa/aim/` (read them
                 directly via Read/Grep; do NOT web-search). If you cannot ground it, drop or downgrade it.
 
-            DEDUPE before filing: run
-            `gh issue list --repo leftos/yaat --label nightly-review --state open --limit 100`
-            and skip anything already reported.
+            DEDUPE before filing - check existing work, not just this bot's own issues:
+              - Open issues, any author or label:
+                `gh issue list --repo leftos/yaat --state open --limit 200`, plus a targeted
+                `gh search issues --repo leftos/yaat --state open "<affected file or symbol>"` per candidate.
+              - Open PRs (someone may already be fixing it, including this bot's earlier draft PRs):
+                `gh pr list --repo leftos/yaat --state open --limit 200`, plus
+                `gh search prs --repo leftos/yaat --state open "<affected file or symbol>"`.
+              - Already-triaged findings:
+                `gh issue list --repo leftos/yaat --label nightly-review --state closed --limit 100`
+                (skip anything previously filed and closed as wontfix/duplicate).
+            Skip any candidate that plausibly overlaps an open issue, an open PR, or a closed
+            nightly-review issue. When unsure, skip - a re-report is worse than a missed file.
 
             OUTPUT (hard caps - do not exceed):
               - At most THREE issues, only for verified findings, via
