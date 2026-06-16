@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.18-beta [2026/06/15]
+
+### Highlights
+- **Bug reports capture the server side automatically** — a bug report bundle now embeds your session's server log even on a remote server, anonymized to your training room.
+- **Deleting an aircraft no longer risks crashing a trainee's CRC** — removing an aircraft that was on a CRC ASDE-X or SAAB SAID surface display no longer leaves an orphaned, clickable target that could crash CRC.
+- **Departures keep climbing after a heading** — a heading given just after takeoff (`FH`) no longer cancels the climb, so the aircraft continues to its assigned altitude.
+- **Hold-short on the taxi route crosses fully** — an aircraft told to hold short of a runway on the taxiway it is taxiing now crosses completely and stops clear when cleared, instead of stopping on the runway.
 
 ### Added
 - Bug report bundles now embed your session's server log even when connected to a remote server, scoped to your training room with participants (CIDs, names, initials) anonymized.
