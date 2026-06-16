@@ -1,0 +1,183 @@
+name: Nightly Review
+
+# Autonomous nightly bug hunt. Each run does two reviews:
+#   1. Recent commits  - diffs the last ~36h on main (yaat + yaat-server) and
+#      looks for shipped regressions / logic bugs.
+#   2. Rotating subsystem - picks one subsystem doc from
+#      .github/nightly-review/subsystems.txt by UTC day-of-year, reads it
+#      docs-first, then deep-reads the code it points to.
+#
+# Findings are verified (refute-first, then build + targeted tests / a failing
+# repro test) before anything is filed. Output is capped: at most 3 issues and
+# 1 draft PR per night, all on leftos/yaat (cross-repo issue convention).
+#
+# Triggers: 07:00 UTC daily (one hour after nightly-taxi-grid so they don't
+# collide on the runner) and on-demand via workflow_dispatch.
+#
+# Required repository secrets:
+#   ANTHROPIC_API_KEY    - metered Anthropic API key. Use a DEDICATED key so this
+#                          job's spend shows on its own line in the Console Usage &
+#                          Cost dashboard. Each run also prints its own estimated
+#                          cost to the job summary.
+#                          To pay nothing incremental at the cost of dollar
+#                          visibility, replace the `anthropic_api_key:` line below
+#                          with `claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`.
+#   NIGHTLY_REVIEW_TOKEN - PAT used for git/gh across both repos: read on
+#                          leftos/yaat-server, and contents+issues+pull-requests
+#                          write on leftos/yaat. A classic repo-scoped PAT works;
+#                          a fine-grained PAT needs those scopes on both repos.
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nightly-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout yaat
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          path: yaat
+          persist-credentials: false
+          fetch-depth: 0
+          lfs: true
+          token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
+
+      - name: Checkout yaat-server (sibling for Yaat.Sim project ref)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          repository: leftos/yaat-server
+          path: yaat-server
+          persist-credentials: false
+          fetch-depth: 0
+          token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
+
+      - uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7  # v5.2.0
+        with:
+          dotnet-version: "10.0.x"
+          dotnet-quality: "ga"
+
+      # Lets the agent build/restore the full solution (Yaat.Client, VStrips.Web)
+      # without hitting NETSDK1147 if a finding needs more than the Sim tests.
+      - name: Install wasm-tools workload
+        working-directory: yaat
+        run: dotnet workload install wasm-tools
+
+      # Warm a known-good baseline so the agent's verification is fast: the
+      # shared Yaat.Sim logic (where most bugs live) compiles and its test
+      # project is ready for targeted `dotnet test --filter` runs.
+      - name: Pre-build Yaat.Sim tests
+        working-directory: yaat
+        run: |
+          dotnet restore tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj
+          dotnet build tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --no-restore --configuration Release /warnaserror
+
+      - name: Select rotation subsystem & window
+        id: prep
+        working-directory: yaat
+        run: |
+          set -euo pipefail
+          mapfile -t SUBS < <(grep -vE '^\s*(#|$)' .github/nightly-review/subsystems.txt)
+          COUNT=${#SUBS[@]}
+          if [ "$COUNT" -eq 0 ]; then echo "::error::empty rotation manifest"; exit 1; fi
+          DOY=$(date -u +%j); DOY=$((10#$DOY))
+          IDX=$(( (DOY - 1) % COUNT ))
+          {
+            echo "rotation_doc=${SUBS[$IDX]}"
+            echo "review_date=$(date -u +%Y-%m-%d)"
+          } >> "$GITHUB_OUTPUT"
+          echo "Subsystem $((IDX + 1))/$COUNT for $(date -u +%Y-%m-%d): ${SUBS[$IDX]}"
+
+      - name: Run nightly review
+        id: review
+        uses: anthropics/claude-code-action@9dd8b95a392eb34b6f5fb56cf5a64cb735912d4b  # v1
+        env:
+          GH_TOKEN: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
+          claude_args: '--max-turns 80 --allowed-tools "Bash Read Write Edit Grep Glob WebFetch"'
+          prompt: |
+            You are the YAAT nightly code reviewer running headless in CI. Be rigorous and economical.
+
+            Two repos are checked out as siblings under the workspace:
+              - `yaat/`        - primary repo: Yaat.Sim (shared simulation logic) + Yaat.Client (Avalonia desktop).
+              - `yaat-server/` - ASP.NET Core server (thin comms; references Yaat.Sim from `../yaat`).
+            The .NET 10 SDK is installed, the wasm-tools workload is present, and `yaat/tests/Yaat.Sim.Tests`
+            is pre-built. You may run `dotnet build` / `dotnet test` for any project. `git` and `gh` are
+            authenticated for `leftos/yaat` and `leftos/yaat-server`. Read `yaat/CLAUDE.md` first for project
+            conventions (docs-first exploration, TDD-for-bugs, aviation-realism rules, no-synthetic-data tests).
+
+            Today is ${{ steps.prep.outputs.review_date }}. Perform TWO reviews:
+
+            1. RECENT COMMITS. Run `git -C yaat log --since="36 hours ago" --first-parent --stat origin/main`
+               and the same for `yaat-server`. Review the cumulative change for real, shipped bugs: logic
+               errors, incorrect aviation behavior, broken edge cases, regressions, nullability/threading
+               issues, contract violations. If there are no commits in the window, skip this part.
+
+            2. ROTATING SUBSYSTEM. Tonight's subsystem is **yaat/${{ steps.prep.outputs.rotation_doc }}**.
+               Read that doc FIRST (it overviews the subsystem, its contracts, and its footguns), THEN read
+               the code it points to. Hunt for latent bugs, contract violations, and correctness gaps.
+
+            DISCIPLINE (mandatory - this codebase is mature; a false positive is worse than a miss):
+              - For every candidate finding, FIRST try to REFUTE it by reading the actual code path end to
+                end. Assume you are wrong until the code proves otherwise.
+              - For survivors, VERIFY: build the affected project and run targeted tests
+                (e.g. `dotnet test yaat/tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj --filter "..."`). For a
+                genuine logic/sim bug, WRITE a failing test that reproduces it (follow the TDD convention in
+                CLAUDE.md and docs/e2e-tdd-issue-debugging.md; use TestVnasData, never synthetic data), run
+                it, and confirm it FAILS against current code. A finding with no reproduction is NOT
+                actionable - drop it.
+              - Aviation-logic findings: ground every claim in the local FAA references at
+                `yaat/.claude/reference/faa/7110.65/` and `yaat/.claude/reference/faa/aim/` (read them
+                directly via Read/Grep; do NOT web-search). If you cannot ground it, drop or downgrade it.
+
+            DEDUPE before filing: run
+            `gh issue list --repo leftos/yaat --label nightly-review --state open --limit 100`
+            and skip anything already reported.
+
+            OUTPUT (hard caps - do not exceed):
+              - At most THREE issues, only for verified findings, via
+                `gh issue create --repo leftos/yaat --label nightly-review --label automated`.
+                Each issue: concise title; root cause with `file:line` references; the reproducing test
+                (pasted); a suggested fix; and a confidence level. File ALL issues on `leftos/yaat` even when
+                the bug is in yaat-server (cross-repo convention).
+              - At most ONE pull request, and ONLY for a high-confidence, mechanical fix that builds clean
+                (`dotnet build ... /warnaserror`) and passes its tests. Create branch
+                `nightly-review/${{ steps.prep.outputs.review_date }}-<slug>` in `yaat/`, commit there (NEVER
+                to main), push it, and open a DRAFT PR via
+                `gh pr create --draft --repo leftos/yaat --label nightly-review`, referencing the issue it
+                fixes. Never merge.
+              - If nothing clears the bar, file nothing and say so. Zero findings is a success, not a failure.
+
+            End with a short summary: commits reviewed, subsystem reviewed, candidates considered, what was
+            refuted, and what was filed (with issue/PR numbers).
+
+      # total_cost_usd is a client-side estimate from the run's result JSON, not
+      # authoritative billing - good enough for a per-night trend. For actual
+      # dollars, see the Console Usage & Cost dashboard.
+      - name: Log run cost
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
+        run: |
+          set -euo pipefail
+          FILE="$EXECUTION_FILE"
+          COST=""
+          if [ -n "$FILE" ] && [ -f "$FILE" ]; then
+            COST=$(jq -r '[.. | objects | .total_cost_usd? // empty] | last // empty' "$FILE" 2>/dev/null || true)
+          fi
+          {
+            echo "### Nightly Review cost"
+            if [ -n "$COST" ]; then
+              echo "Estimated run cost: **\$$COST USD** (client-side estimate)"
+            else
+              echo "Cost estimate unavailable (no execution result parsed)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

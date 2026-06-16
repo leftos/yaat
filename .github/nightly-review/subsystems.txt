@@ -1,0 +1,41 @@
+# Nightly-review rotation manifest.
+#
+# One subsystem doc per line. The nightly-review workflow picks tonight's
+# subsystem by (UTC-day-of-year - 1) mod (line count), so coverage cycles
+# through the whole list roughly once a month. Blank lines and lines starting
+# with '#' are ignored.
+#
+# To add a subsystem to the rotation, add its docs/*.md path here. The doc is
+# the source of truth for which code the agent reads (docs-first protocol).
+# Order is stable on purpose -- don't reshuffle, just append.
+
+docs/flight-physics.md
+docs/aircraft-performance.md
+docs/aircraft-data-model.md
+docs/phases.md
+docs/approach-and-pattern-geometry.md
+docs/landing-and-runway-exit.md
+docs/ground-layout-generation.md
+docs/navigation-database.md
+docs/command-pipeline.md
+docs/command-handlers.md
+docs/command-input-ux.md
+docs/conflict-and-visual-detection.md
+docs/scenario-loading-and-generation.md
+docs/hold-for-release.md
+docs/solo-training-evaluation.md
+docs/solo-training-pilot-speech.md
+docs/speech-recognition-pipeline.md
+docs/track-sharing-and-consolidation.md
+docs/crc-display-state.md
+docs/training-hub-contract.md
+docs/server-rooms-and-hub.md
+docs/client-mainviewmodel.md
+docs/radar-rendering.md
+docs/flight-strips.md
+docs/weather-and-wind.md
+docs/airspace-database.md
+docs/snapshots-and-replay.md
+docs/tick-loop.md
+docs/minimum-vectoring-altitude.md
+docs/logging.md
