@@ -163,9 +163,23 @@ public sealed class TaxiRoute
     /// <summary>
     /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L, RWY 30").
     /// </summary>
-    public string ToSummary()
+    public string ToSummary() => ToSummary(null);
+
+    /// <summary>
+    /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L, RWY 30"). When
+    /// <paramref name="turnHints"/> is supplied (keyed by taxiway name), a cleared taxiway the
+    /// controller prefixed with a turn glyph (<c>&gt;A</c> / <c>&lt;C</c>) renders as "right on A" /
+    /// "left on C" — matching the pilot readback — so the controller's echo confirms the requested turn.
+    /// </summary>
+    public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints)
     {
-        var parts = TaxiwaySequence();
+        var parts = new List<string>();
+        foreach (string twy in TaxiwaySequence())
+        {
+            parts.Add(
+                turnHints is not null && turnHints.TryGetValue(twy, out var dir) ? $"{(dir == TurnDirection.Left ? "left" : "right")} on {twy}" : twy
+            );
+        }
 
         // Emit each explicit hold-short once; collapse consecutive duplicates of the same target
         // so a route that touches one taxiway hold-short at several nodes reads "HS B", not

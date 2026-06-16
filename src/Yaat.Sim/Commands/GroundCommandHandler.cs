@@ -345,7 +345,7 @@ internal static class GroundCommandHandler
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
-        string msg = $"Taxi via {route.ToSummary()}";
+        string msg = $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi))}";
         if (route.Warnings.Count > 0)
         {
             msg += " [" + string.Join("; ", route.Warnings) + "]";
@@ -416,6 +416,31 @@ internal static class GroundCommandHandler
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Map each cleared taxiway the controller prefixed with a <c>&gt;</c>/<c>&lt;</c> turn glyph to its
+    /// <see cref="TurnDirection"/>, keyed by taxiway name, for echoing the turn in the response summary
+    /// (e.g. "right on J"). Null when the command carries no turn hint.
+    /// </summary>
+    private static IReadOnlyDictionary<string, TurnDirection>? BuildTurnHintMap(TaxiCommand taxi)
+    {
+        if (taxi.PathTurnHints is not { } hints)
+        {
+            return null;
+        }
+
+        Dictionary<string, TurnDirection>? map = null;
+        for (int i = 0; (i < taxi.Path.Count) && (i < hints.Count); i++)
+        {
+            if (hints[i] is { } dir)
+            {
+                map ??= new Dictionary<string, TurnDirection>(StringComparer.OrdinalIgnoreCase);
+                map[taxi.Path[i]] = dir;
+            }
+        }
+
+        return map;
     }
 
     private static TaxiRoute? ResolveStandardRoute(
