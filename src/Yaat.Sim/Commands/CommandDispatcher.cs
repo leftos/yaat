@@ -1862,8 +1862,9 @@ public static class CommandDispatcher
     /// climb through an internal target (<c>TakeoffPhase</c> climbs to ~400 ft AGL before handing off,
     /// <c>InitialClimbPhase</c> climbs to the assigned altitude), which would otherwise leave the aircraft
     /// levelling off there. Re-arm the climb to the last assigned altitude only when the cleared phase was
-    /// actively climbing (its managed target above the current altitude) and the assigned altitude is still
-    /// above the aircraft. Descents and level-offs are left untouched — once an aircraft leaves an altitude
+    /// actively climbing (its managed target above the current altitude), the phase target is at or below
+    /// the assigned altitude (excludes go-around MAP climbs above the last approach clearance), and the
+    /// assigned altitude is still above the aircraft. Descents and level-offs are left untouched — once an aircraft leaves an altitude
     /// it does not climb back without a new clearance (FAA last-assigned-altitude doctrine), so an aircraft
     /// vectored off a descent/approach below its last assigned altitude must hold present altitude, not
     /// climb back up. A command that carries its own altitude applies after this and wins.
@@ -1880,11 +1881,19 @@ public static class CommandDispatcher
             return;
         }
 
+        if (aircraft.Targets.TargetAltitude is not { } phaseTarget)
+        {
+            return;
+        }
+
         // The phase was climbing only if its managed target was above the current altitude; this
         // excludes descents/approaches (target at or below current), where re-arming the assigned
-        // altitude would command an un-cleared climb back up.
-        bool phaseWasClimbing = (aircraft.Targets.TargetAltitude is { } phaseTarget) && (phaseTarget > aircraft.Altitude + PhaseClearClimbMarginFt);
-        if (phaseWasClimbing && (assigned > aircraft.Altitude + PhaseClearClimbMarginFt))
+        // altitude would command an un-cleared climb back up. Also require the phase target to be
+        // at or below the assigned altitude: a go-around climbs to the published MAP altitude
+        // (often above the last approach-assigned altitude), and re-arming to assigned would level
+        // the aircraft short of the missed-approach climb.
+        bool phaseWasClimbing = phaseTarget > aircraft.Altitude + PhaseClearClimbMarginFt;
+        if (phaseWasClimbing && (phaseTarget <= assigned) && (assigned > aircraft.Altitude + PhaseClearClimbMarginFt))
         {
             aircraft.Targets.TargetAltitude = assigned;
         }
