@@ -6,6 +6,7 @@
 - The per-airport wind readout in the Radar and Ground weather overlays now ends in `KT` (e.g. `23005KT`, `36008G18KT`, `00000KT`), matching standard METAR notation and the wind already shown elsewhere in the app.
 - Variable-direction wind in the Radar and Ground weather overlays now shows the `VRB` token (e.g. `VRB04KT`) instead of dropping the direction and showing only the speed.
 - The flashing red `NoLndgClnc` datablock warning now clears when an aircraft on final without a landing clearance is sent around with `GA` — instead of continuing to flash after the go-around. It also clears whenever the aircraft is otherwise taken off the approach.
+- Deleting an aircraft (`DEL`) while it was on a CRC ASDE-X or SAAB SAID surface display no longer leaves a clickable, orphaned surface target that could crash the controller's CRC when clicked. The track still coasts for 45 seconds (or drops at its destination field), but its radar target is removed the moment the aircraft is deleted.
 
 ## v0.7.17-beta [2026/06/14]
 
