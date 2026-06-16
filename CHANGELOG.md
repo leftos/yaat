@@ -4,6 +4,7 @@
 
 ### Fixed
 - An aircraft sent around (`GA`) and then given a heading (`FH`) during the missed-approach climb now holds the published missed-approach altitude, instead of reverting to the altitude it was last cleared to for the approach — which could leave it leveling off too low or climbing past the missed-approach altitude.
+- Saying "expedite" after an altitude over voice (e.g. "climb and maintain five thousand, expedite") no longer drops the word and mangles the altitude into a bogus runway. Speech recognition was mistaking long words that end in a runway-suffix sound ("expedite", "tonight") for a "left"/"right"/"center" runway designator.
 
 ## v0.7.18-beta [2026/06/15]
 

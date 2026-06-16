@@ -1115,10 +1115,15 @@ public static class PhraseologyMapper
                 return 'C';
         }
 
-        // EndsWith-based fuzzy matching for Whisper mishears. Token must be at least 3 chars
-        // ("ight" is 4, "eft"/"ite"/"ate" are 3) to avoid trivial collisions on single letters.
+        // EndsWith-based fuzzy matching for Whisper mishears. Token must be 3-6 chars: at least 3
+        // ("ight" is 4, "eft"/"ite"/"ate" are 3) to avoid trivial collisions on single letters,
+        // and at most 6 because every real runway-suffix mishear is a short one-syllable word
+        // (right/bright/tight/light/sight/might, kite/bite/rite/white, rate/gate/late, cleft/theft —
+        // all <= 6). Longer words that happen to share the rime are normal ATC vocabulary, not
+        // mishears: "expedite" (8, "climb and maintain five thousand, expedite") and "tonight" (7)
+        // must NOT be eaten as a suffix and fused with the preceding altitude into a bogus runway.
         // The "ight" / "ite" / "ate" / "eft" rimes are not naturally produced by spoken ATC
-        // after a number, so the false-positive risk is negligible in this context.
+        // after a number, so within the length bound the false-positive risk is negligible.
         //   "ite"  catches kite/bite/mite/rite/site/white — Whisper sometimes drops the trailing
         //          "gh" from "right" before the "t", producing "rite" / "kite".
         //   "ate"  catches rate/gate/late/mate — Whisper swaps the vowel from /aɪt/ (right) to
@@ -1126,7 +1131,7 @@ public static class PhraseologyMapper
         //          The matcher only fires after a digit token, so English words ending in -ate
         //          (late, state, great, create) essentially never appear in that position in
         //          ATC phraseology.
-        if (token.Length >= 3)
+        if (token.Length is >= 3 and <= 6)
         {
             if (
                 token.EndsWith("ight", StringComparison.Ordinal)
