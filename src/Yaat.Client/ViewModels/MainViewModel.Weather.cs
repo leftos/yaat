@@ -37,7 +37,9 @@ public record WeatherDisplayInfo(
 
         if (WindDirectionDeg is not null || WindSpeedKts is not null)
         {
-            var wind = $"{WindDirectionDeg:D3}{WindSpeedKts:D2}";
+            // A parsed VRB (variable-direction) wind has no numeric direction; render the METAR "VRB" token.
+            var direction = WindDirectionDeg is { } dir ? $"{dir:D3}" : "VRB";
+            var wind = $"{direction}{WindSpeedKts:D2}";
             if (WindGustKts is not null)
             {
                 wind += $"G{WindGustKts:D2}";

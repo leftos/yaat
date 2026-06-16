@@ -33,4 +33,13 @@ public class WeatherDisplayInfoTests
 
         Assert.Equal("OAK 00000KT", info.ToDisplayString());
     }
+
+    [Fact]
+    public void ToDisplayString_VariableWind_RendersVrbToken()
+    {
+        // VRB winds carry no numeric direction (MetarParser stores null) and must show "VRB", not blank.
+        var info = new WeatherDisplayInfo("OAK", WindDirectionDeg: null, WindSpeedKts: 4, WindGustKts: null, AltimeterInHg: null);
+
+        Assert.Equal("OAK VRB04KT", info.ToDisplayString());
+    }
 }
