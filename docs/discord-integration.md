@@ -22,8 +22,11 @@ Cloudflare Worker (JS, no framework) deployed as `yaat-discord-bot`. State in KV
 **Slash commands** (restricted to `DISCORD_ALLOWED_USER_ID`):
 - `/create-issue` — creates GitHub issue labeled `bug` from forum thread
 - `/create-feature-request` — creates GitHub issue labeled `enhancement`
+- `/track-issue` / `/track-feature-request` — create a forum thread tracking an existing GitHub issue (by `issue_number`)
 - `/resolve` / `/unresolve` — manually toggle resolved state (checkmark title prefix + reaction)
 - `/reopen` — reopens linked GitHub issue, removes terminal labels, unmarks thread as resolved
+
+Creating or tracking an issue prefixes the thread title with its issue number (`[#123] Title`); the title is truncated to Discord's 100-char limit and the prefix coexists with the resolution-emoji prefix (`✅ [#123] Title`).
 
 Re-running a slash command in an already-linked thread triggers an immediate comment sync instead.
 

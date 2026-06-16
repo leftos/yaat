@@ -129,6 +129,9 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
+          # The action hides agent output by default ("full output hidden for
+          # security"); surface it so dry-run findings and errors are visible.
+          show_full_output: true
           claude_args: '--max-turns 80 --allowed-tools "Bash Read Write Edit Grep Glob WebFetch"'
           prompt: |
             You are the YAAT nightly code reviewer running headless in CI. Be rigorous and economical.
@@ -198,8 +201,12 @@ jobs:
                 fixes. Never merge.
               - If nothing clears the bar, file nothing and say so. Zero findings is a success, not a failure.
 
-            End with a short summary: commits reviewed, subsystem reviewed, candidates considered, what was
-            refuted, and what was filed (with issue/PR numbers).
+            FINALLY (required): write your full report as markdown to the run's job summary so it is visible
+            on the Actions Summary tab. Read the file path from the `GITHUB_STEP_SUMMARY` environment
+            variable and append your report to that file (e.g. with Bash). The report must include: commits
+            reviewed, subsystem reviewed, candidates considered, what you refuted and why, and what was filed
+            (issue/PR numbers) - or, in DRY-RUN, the FULL detail of each finding you WOULD file (title,
+            file:line, root cause, the repro test, the suggested fix, and a confidence level).
 
       # total_cost_usd is a client-side estimate from the run's result JSON, not
       # authoritative billing - good enough for a per-night trend. For actual
