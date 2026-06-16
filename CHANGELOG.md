@@ -11,6 +11,7 @@
 - Typing a callsign before an `AT <fix>` condition (e.g. `N428KK AT …`) now draws the fix suggestions from that aircraft's route instead of whichever aircraft is selected on the radar, so the fix it's flying direct to actually appears in the dropdown.
 - A `DCT` (proceed direct) issued after a relative turn (`RELR` / `RELL` / `RT` / `LT`) now turns the shortest way to the fix. Previously the relative turn's forced direction carried over into the direct-to, so the aircraft kept turning the long way around instead of proceeding direct, and a follow-up `DCT` couldn't recover it without first breaking the turn with a heading command.
 - A departing aircraft given a heading (`FH`) just after takeoff keeps climbing to its assigned altitude instead of leveling off a few hundred feet up. The heading instruction no longer cancels the climb clearance.
+- An aircraft told to hold short of a runway that lies on the single taxiway it is taxiing (e.g. `TAXI J HS 28R`, where Juliet crosses 28R) now crosses the runway completely and stops just clear on the far side when cleared to `CROSS`, instead of stopping partway across — on the runway — and having to be re-issued a taxi instruction.
 
 ## v0.7.17-beta [2026/06/14]
 

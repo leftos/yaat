@@ -374,7 +374,20 @@ public static class RouteMaterialiser
                 }
                 else
                 {
-                    lastRequiredIdx = Math.Max(lastRequiredIdx, i);
+                    // No distinct named cleared taxiway lies beyond the hold-short. If the hold-short is a
+                    // runway the cleared taxiway CROSSES (a paired far-side hold-short of the same runway
+                    // lies further along the route), it is an en-route restriction, not the terminus: extend
+                    // through the crossing and stop at the far-side bar so a later CROSS leaves the aircraft
+                    // just clear. Truncating one segment past the near bar would strand it on the runway.
+                    int farExitIdx = FindPairedFarSideRunwayHoldShortIndex(segments, ctx, hs.NodeId, i);
+                    if (farExitIdx >= 0)
+                    {
+                        crossHoldTruncateAt = Math.Max(crossHoldTruncateAt, farExitIdx);
+                    }
+                    else
+                    {
+                        lastRequiredIdx = Math.Max(lastRequiredIdx, i);
+                    }
                 }
             }
         }
@@ -437,6 +450,49 @@ public static class RouteMaterialiser
             if (segments[i].TaxiwayName.Equals(last, StringComparison.OrdinalIgnoreCase))
             {
                 return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Index of the segment whose <c>ToNodeId</c> is the far-side (exit) hold-short of the SAME runway as
+    /// the near-side runway hold-short at <paramref name="nearNodeId"/> (= <c>segments[nearIdx].ToNodeId</c>).
+    /// Returns -1 when the near node is not a runway hold-short, or no later same-runway
+    /// <see cref="GroundNodeType.RunwayHoldShort"/> node exists — the taxiway dead-ends at the runway rather
+    /// than crossing it. Matched value-equal on the combined "28R/10L" id (both bars of one crossing share
+    /// it), mirroring <c>TaxiingPhase.FindRunwayCrossingExitNode</c>. Used by the explicit-hold-short
+    /// truncation so a hold-short of a runway the cleared taxiway crosses and continues past extends the
+    /// route through to the exit bar instead of stopping one segment past the near bar, on the runway.
+    /// </summary>
+    private static int FindPairedFarSideRunwayHoldShortIndex(List<TaxiRouteSegment> segments, SearchContext ctx, int nearNodeId, int nearIdx)
+    {
+        if (
+            !ctx.Layout.Nodes.TryGetValue(nearNodeId, out var nearNode)
+            || nearNode.Type != GroundNodeType.RunwayHoldShort
+            || nearNode.RunwayId is not { } nearRwy
+        )
+        {
+            return -1;
+        }
+
+        for (int j = nearIdx + 1; j < segments.Count; j++)
+        {
+            int toId = segments[j].ToNodeId;
+            if (toId == nearNodeId)
+            {
+                continue;
+            }
+
+            if (
+                ctx.Layout.Nodes.TryGetValue(toId, out var node)
+                && node.Type == GroundNodeType.RunwayHoldShort
+                && node.RunwayId is { } rwy
+                && rwy.Equals(nearRwy)
+            )
+            {
+                return j;
             }
         }
 

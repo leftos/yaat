@@ -58,13 +58,14 @@ public class RouteMaterialiserTests
         DestinationDescriptor? dest = null,
         IReadOnlySet<string>? authorized = null,
         IReadOnlySet<string>? holdShorts = null,
-        AircraftCategory category = AircraftCategory.Jet
+        AircraftCategory category = AircraftCategory.Jet,
+        IReadOnlyList<string>? waypointSequence = null
     ) =>
         new(
             layout,
             0,
             dest ?? new DestinationDescriptor(null, null, null, null, DestinationKind.EndOfLastTaxiway),
-            [],
+            waypointSequence ?? [],
             authorized,
             holdShorts ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase),
             category,
@@ -276,6 +277,77 @@ public class RouteMaterialiserTests
 
         Assert.Equal(2, route.Segments.Count);
         Assert.Equal(n2.Id, route.Segments[1].ToNodeId);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Explicit hold-short of a runway the cleared taxiway crosses and continues past
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void ExplicitHoldShort_RunwayCrossedByThroughTaxiway_ExtendsRouteToFarSideBar()
+    {
+        // "TAXI A HS 28R" where taxiway A crosses 28R/10L (near-side bar -> runway -> far-side bar)
+        // and continues. The hold-short is an en-route restriction, not the terminus: the route must
+        // extend THROUGH the crossing to the far-side bar so a later CROSS leaves the aircraft just
+        // clear on the far side — not truncated one segment past the near bar, stranded on the runway.
+        var n0 = Node(0, 37.700, -122.200);
+        var nearHs = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        nearHs.RunwayId = new RunwayIdentifier("28R", "10L");
+        var mid = Node(2, 37.702, -122.200); // on the runway surface, between the bars
+        var farHs = Node(3, 37.703, -122.200, GroundNodeType.RunwayHoldShort);
+        farHs.RunwayId = new RunwayIdentifier("28R", "10L");
+        var beyond = Node(4, 37.704, -122.200);
+        var layout = Layout(n0, nearHs, mid, farHs, beyond);
+        var e01 = Edge(n0, nearHs, "A");
+        var e12 = Edge(nearHs, mid, "A");
+        var e23 = Edge(mid, farHs, "A");
+        var e34 = Edge(farHs, beyond, "A");
+
+        var holdShorts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "28R" };
+        var ctx = Context(layout, holdShorts: holdShorts, waypointSequence: ["A"]);
+
+        var edges = new List<DirectionalEdge>
+        {
+            Directed(e01, n0, nearHs),
+            Directed(e12, nearHs, mid),
+            Directed(e23, mid, farHs),
+            Directed(e34, farHs, beyond),
+        };
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+
+        // Route extends through the crossing and ends AT the far-side bar (just clear), not at the
+        // mid-runway node one segment past the near bar.
+        Assert.Equal(farHs.Id, route.Segments[^1].ToNodeId);
+
+        // The near-side bar is the explicit hold-short; the far-side bar is the dropped exit pair.
+        var hs = Assert.Single(route.HoldShortPoints);
+        Assert.Equal(nearHs.Id, hs.NodeId);
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, hs.Reason);
+    }
+
+    [Fact]
+    public void ExplicitHoldShort_RunwayDeadEndNoPairedExitBar_TruncatesOnePastTheBar()
+    {
+        // Same shape but the taxiway DEAD-ENDS at the runway (no far-side bar of the same runway).
+        // The hold-short is genuinely the terminus, so the route still stops one segment past it.
+        var n0 = Node(0, 37.700, -122.200);
+        var nearHs = Node(1, 37.701, -122.200, GroundNodeType.RunwayHoldShort);
+        nearHs.RunwayId = new RunwayIdentifier("28R", "10L");
+        var past = Node(2, 37.702, -122.200);
+        var beyond = Node(3, 37.703, -122.200);
+        var layout = Layout(n0, nearHs, past, beyond);
+        var e01 = Edge(n0, nearHs, "A");
+        var e12 = Edge(nearHs, past, "A");
+        var e23 = Edge(past, beyond, "A");
+
+        var holdShorts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "28R" };
+        var ctx = Context(layout, holdShorts: holdShorts, waypointSequence: ["A"]);
+
+        var edges = new List<DirectionalEdge> { Directed(e01, n0, nearHs), Directed(e12, nearHs, past), Directed(e23, past, beyond) };
+        var route = RouteMaterialiser.Materialise(edges, ctx, []);
+
+        Assert.Equal(2, route.Segments.Count);
+        Assert.Equal(past.Id, route.Segments[^1].ToNodeId);
     }
 
     // ---------------------------------------------------------------------------
