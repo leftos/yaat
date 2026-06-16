@@ -275,20 +275,17 @@ public partial class MainViewModel
 
             AddFileToArchive(archive, AppLog.LogPath, "yaat-client.log");
 
-            if (IsLocalServer(_connectedServerUrl))
+            try
             {
-                try
+                var serverLog = await _connection.GetSessionServerLogAsync();
+                if (!string.IsNullOrEmpty(serverLog))
                 {
-                    var serverLogPath = await _connection.GetServerLogPathAsync();
-                    if (serverLogPath is not null && File.Exists(serverLogPath))
-                    {
-                        AddFileToArchive(archive, serverLogPath, "yaat-server.log");
-                    }
+                    AddTextToArchive(archive, "yaat-server.log", serverLog);
                 }
-                catch (Exception ex)
-                {
-                    _log.LogWarning(ex, "Could not retrieve server log path");
-                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Could not retrieve session server log");
             }
 
             StatusText = "Bug report bundle saved";
@@ -489,9 +486,12 @@ public partial class MainViewModel
         _ = RefreshTimelineMarkersAsync();
     }
 
-    private static bool IsLocalServer(string url)
+    private static void AddTextToArchive(ZipArchive archive, string entryName, string content)
     {
-        return url.Contains("localhost", StringComparison.OrdinalIgnoreCase) || url.Contains("127.0.0.1", StringComparison.Ordinal);
+        var entry = archive.CreateEntry(entryName);
+        using var entryStream = entry.Open();
+        using var writer = new StreamWriter(entryStream);
+        writer.Write(content);
     }
 
     private static void AddFileToArchive(ZipArchive archive, string filePath, string entryName)

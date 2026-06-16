@@ -567,10 +567,14 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return ms.Length == 0 ? null : ms.ToArray();
     }
 
-    public async Task<string?> GetServerLogPathAsync()
+    /// <summary>
+    /// Returns the server's room-scoped, anonymized log slice for the current session as text, for
+    /// embedding into a bug-report bundle. Works against remote servers (no disk access needed).
+    /// </summary>
+    public async Task<string?> GetSessionServerLogAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<string?>("GetServerLogPath");
+        return await _connection!.InvokeAsync<string?>("GetSessionServerLog");
     }
 
     public async Task<RewindResultDto?> LoadRecordingAsync(byte[] recordingBytes, CancellationToken cancellationToken = default)

@@ -65,7 +65,7 @@ A `.yaat-bug-report-bundle.zip` packages a recording with client and server logs
 |-------|-------------|
 | `recording.yaat-recording.zip` | The session recording (v4 archive) |
 | `yaat-client.log` | Client log at the time of the report |
-| `yaat-server.log` | Server log (only included when connected to a local server) |
+| `yaat-server.log` | Server log for your session — always included (local or remote), scoped to your room and anonymized: participant CIDs, real names, and initials are replaced with stable pseudonyms (`A0`, `A1`, …) |
 
 **Using bundles in tests:** Place the bundle directly in TestData — no need to extract the recording manually. `RecordingLoader.Load()` handles all formats transparently (v4 archives, legacy bundles, plain JSON).
 

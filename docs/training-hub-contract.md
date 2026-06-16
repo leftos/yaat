@@ -92,7 +92,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `ExportRecordingAsync()` | `ExportRecording` | `ExportRecording()` `:961` (stream) |
 | `LoadRecordingAsync(bytes)` | `LoadRecording` | `LoadRecording(stream)` `:1015` |
 | `MigrateRecordingAsync(json)` | `MigrateRecording` | `MigrateRecording(json)` `:990` |
-| `GetServerLogPathAsync()` | `GetServerLogPath` | `GetServerLogPath()` `:1009` |
+| `GetSessionServerLogAsync()` | `GetSessionServerLog` | `GetSessionServerLog()` (room-scoped, anonymized text) |
 | `GetAirportGroundLayoutAsync(id)` | `GetAirportGroundLayout` | `GetAirportGroundLayout(id)` |
 | `GetFacilityVideoMapsAsync(…)` | `GetFacilityVideoMaps` | `GetFacilityVideoMaps(...)` `:1098` |
 | `GetFacilityVideoMapsForArtccAsync(…)` | `GetFacilityVideoMapsForArtcc` | `GetFacilityVideoMapsForArtcc(...)` `:1103` |
