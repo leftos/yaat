@@ -194,6 +194,7 @@ public static class CommandDispatcher
         if (shouldClearPhases)
         {
             var phaseCtx = BuildMinimalContext(aircraft);
+            bool clearedGoAround = aircraft.Phases?.CurrentPhase is GoAroundPhase;
             string? clearedSummary = aircraft.Phases is { } pl ? PhaseClearSummary.Build(pl) : null;
             aircraft.Phases?.Clear(phaseCtx);
             aircraft.Phases = null;
@@ -201,7 +202,7 @@ public static class CommandDispatcher
             aircraft.Targets.HasExplicitTurnRate = false;
             aircraft.Targets.PreferredTurnDirection = null;
             AirborneFollowHelper.ClearFollowState(aircraft);
-            ResumeAssignedAltitudeAfterPhaseClear(aircraft);
+            ResumeAssignedAltitudeAfterPhaseClear(aircraft, clearedGoAround);
 
             if (clearedSummary is not null)
             {
@@ -1861,17 +1862,30 @@ public static class CommandDispatcher
     /// it does not cancel the aircraft's altitude clearance. The cleared phase may have been driving the
     /// climb through an internal target (<c>TakeoffPhase</c> climbs to ~400 ft AGL before handing off,
     /// <c>InitialClimbPhase</c> climbs to the assigned altitude), which would otherwise leave the aircraft
-    /// levelling off there. Re-arm the climb to the last assigned altitude only when the cleared phase was
-    /// actively climbing (its managed target above the current altitude), the phase target is at or below
-    /// the assigned altitude (excludes go-around MAP climbs above the last approach clearance), and the
-    /// assigned altitude is still above the aircraft. Descents and level-offs are left untouched — once an aircraft leaves an altitude
+    /// levelling off there. A go-around or missed-approach climb is exempt entirely (see <paramref name="clearedGoAround"/>):
+    /// <c>GoAroundPhase</c> climbs to the published missed-approach altitude — the aircraft's real clearance — while
+    /// <c>AssignedAltitude</c> still holds the stale approach clearance, so re-arming would either lower the climb (MAP
+    /// above the approach clearance) or overshoot it (MAP below); the MAP target is left untouched. Otherwise re-arm the
+    /// climb to the last assigned altitude only when the cleared phase was actively climbing (its managed target above
+    /// the current altitude), the phase target is at or below the assigned altitude (a guard that never lowers the
+    /// target), and the assigned altitude is still above the aircraft. Descents and level-offs are left
+    /// untouched — once an aircraft leaves an altitude
     /// it does not climb back without a new clearance (FAA last-assigned-altitude doctrine), so an aircraft
     /// vectored off a descent/approach below its last assigned altitude must hold present altitude, not
     /// climb back up. A command that carries its own altitude applies after this and wins.
     /// </summary>
-    internal static void ResumeAssignedAltitudeAfterPhaseClear(AircraftState aircraft)
+    internal static void ResumeAssignedAltitudeAfterPhaseClear(AircraftState aircraft, bool clearedGoAround)
     {
         if (aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        // A go-around / missed-approach climb owns its altitude target: GoAroundPhase climbs to the
+        // published missed-approach altitude (the real clearance), while AssignedAltitude still holds
+        // the stale approach clearance. Re-arming to it would lower the climb (MAP above the approach
+        // clearance) or overshoot the MAP (MAP below) — both wrong. Leave the MAP target untouched.
+        if (clearedGoAround)
         {
             return;
         }
@@ -1888,10 +1902,8 @@ public static class CommandDispatcher
 
         // The phase was climbing only if its managed target was above the current altitude; this
         // excludes descents/approaches (target at or below current), where re-arming the assigned
-        // altitude would command an un-cleared climb back up. Also require the phase target to be
-        // at or below the assigned altitude: a go-around climbs to the published MAP altitude
-        // (often above the last approach-assigned altitude), and re-arming to assigned would level
-        // the aircraft short of the missed-approach climb.
+        // altitude would command an un-cleared climb back up. The phase-target-at-or-below-assigned
+        // guard keeps this from ever lowering a climb target (go-around MAP climbs are handled above).
         bool phaseWasClimbing = phaseTarget > aircraft.Altitude + PhaseClearClimbMarginFt;
         if (phaseWasClimbing && (phaseTarget <= assigned) && (assigned > aircraft.Altitude + PhaseClearClimbMarginFt))
         {
@@ -2379,7 +2391,7 @@ public static class CommandDispatcher
                             ac.Targets.HasExplicitTurnRate = false;
                             ac.Targets.PreferredTurnDirection = null;
                             AirborneFollowHelper.ClearFollowState(ac);
-                            ResumeAssignedAltitudeAfterPhaseClear(ac);
+                            ResumeAssignedAltitudeAfterPhaseClear(ac, currentPhase is GoAroundPhase);
 
                             if (clearedSummary is not null)
                             {

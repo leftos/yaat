@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Fixed
-- An aircraft sent around (`GA`) and then given a heading (`FH`) during the missed-approach climb now continues climbing to the published missed-approach altitude, instead of leveling off at the lower altitude it was cleared to for the approach.
+- An aircraft sent around (`GA`) and then given a heading (`FH`) during the missed-approach climb now holds the published missed-approach altitude, instead of reverting to the altitude it was last cleared to for the approach — which could leave it leveling off too low or climbing past the missed-approach altitude.
 
 ## v0.7.18-beta [2026/06/15]
 
