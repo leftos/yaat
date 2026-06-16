@@ -43,6 +43,7 @@ public record WeatherDisplayInfo(
                 wind += $"G{WindGustKts:D2}";
             }
 
+            wind += "KT";
             parts.Add(wind);
         }
 

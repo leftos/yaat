@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- The per-airport wind readout in the Radar and Ground weather overlays now ends in `KT` (e.g. `23005KT`, `36008G18KT`, `00000KT`), matching standard METAR notation and the wind already shown elsewhere in the app.
+
 ## v0.7.17-beta [2026/06/14]
 
 ### Highlights
