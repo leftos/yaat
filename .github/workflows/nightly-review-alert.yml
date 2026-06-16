@@ -1,0 +1,57 @@
+name: Nightly Review Alert
+
+# Posts to Discord when the Nightly Review workflow finishes in a non-success
+# state (failure, timed out, or cancelled). This is a separate workflow_run
+# job rather than a step inside Nightly Review on purpose: an in-job
+# `if: failure()` step would NOT run when the review job is killed by its own
+# timeout, which is exactly the silent failure worth alerting on.
+#
+# Required repository secret:
+#   DISCORD_CI_WEBHOOK_URL - Discord webhook URL for a CI/alerts channel.
+#     Create a channel webhook, then add it:
+#       gh secret set DISCORD_CI_WEBHOOK_URL --repo leftos/yaat
+
+on:  # zizmor: ignore[dangerous-triggers] notifier checks out nothing and runs no code from the triggering run
+  workflow_run:
+    workflows: ["Nightly Review"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  alert:
+    if: ${{ contains(fromJSON('["failure", "timed_out", "cancelled"]'), github.event.workflow_run.conclusion) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post failure to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_CI_WEBHOOK_URL }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_NUMBER: ${{ github.event.workflow_run.run_number }}
+          TRIGGER: ${{ github.event.workflow_run.event }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
+            echo "::error::DISCORD_CI_WEBHOOK_URL secret is not configured."
+            echo "::error::Create a webhook in your CI/alerts channel and add it via:"
+            echo "::error::  gh secret set DISCORD_CI_WEBHOOK_URL --repo leftos/yaat"
+            exit 1
+          fi
+
+          msg=$(printf ':red_circle: Nightly Review run #%s (%s) finished: **%s**\n%s' \
+            "$RUN_NUMBER" "$TRIGGER" "$CONCLUSION" "$RUN_URL")
+
+          # flags: 4 = SUPPRESS_EMBEDS so the run URL doesn't unfurl into a card.
+          payload=$(jq -n --arg c "$msg" '{content: $c, flags: 4}')
+          http_code=$(curl -sS -o /tmp/discord-resp.txt -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -d "$payload" "$DISCORD_WEBHOOK_URL")
+
+          if [ "$http_code" -ge 400 ]; then
+            echo "::error::Discord webhook returned HTTP $http_code"
+            cat /tmp/discord-resp.txt
+            exit 1
+          fi
+          echo "Posted (HTTP $http_code)"

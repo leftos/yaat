@@ -191,8 +191,9 @@ jobs:
                 the bug is in yaat-server (cross-repo convention).
               - At most ONE pull request, and ONLY for a high-confidence, mechanical fix that builds clean
                 (`dotnet build ... /warnaserror`) and passes its tests. Create branch
-                `nightly-review/${{ steps.prep.outputs.review_date }}-<slug>` in `yaat/`, commit there (NEVER
-                to main), push it, and open a DRAFT PR via
+                `nightly-review/${{ steps.prep.outputs.review_date }}-<slug>` in `yaat/` and commit BOTH the
+                fix AND the repro test you wrote for it (which must now pass) so the PR is self-verifying.
+                Commit there (NEVER to main), push it, and open a DRAFT PR via
                 `gh pr create --draft --repo leftos/yaat --label nightly-review`, referencing the issue it
                 fixes. Never merge.
               - If nothing clears the bar, file nothing and say so. Zero findings is a success, not a failure.
