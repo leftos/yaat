@@ -31,6 +31,15 @@ on:
   schedule:
     - cron: "0 7 * * *"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print what would be filed without creating issues or PRs"
+        type: boolean
+        default: false
+
+concurrency:
+  group: nightly-review
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -38,7 +47,7 @@ permissions:
 jobs:
   nightly-review:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Checkout yaat
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -62,6 +71,16 @@ jobs:
         with:
           dotnet-version: "10.0.x"
           dotnet-quality: "ga"
+
+      # Warm NuGet across nights so restore - here and in the agent's own builds -
+      # doesn't re-download every package, freeing time within the job budget.
+      - name: Cache NuGet packages
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('yaat/**/*.csproj', 'yaat-server/**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       # Lets the agent build/restore the full solution (Yaat.Client, VStrips.Web)
       # without hitting NETSDK1147 if a finding needs more than the Sim tests.
@@ -94,6 +113,14 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Subsystem $((IDX + 1))/$COUNT for $(date -u +%Y-%m-%d): ${SUBS[$IDX]}"
 
+      # Checkout used persist-credentials: false, so wire up a credential helper
+      # that hands git the PAT on demand - lets the agent push its draft-PR branch
+      # without baking the token into .git/config.
+      - name: Configure git push auth for the agent
+        env:
+          GH_TOKEN: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
+        run: gh auth setup-git --hostname github.com
+
       - name: Run nightly review
         id: review
         uses: anthropics/claude-code-action@9dd8b95a392eb34b6f5fb56cf5a64cb735912d4b  # v1
@@ -105,6 +132,11 @@ jobs:
           claude_args: '--max-turns 80 --allowed-tools "Bash Read Write Edit Grep Glob WebFetch"'
           prompt: |
             You are the YAAT nightly code reviewer running headless in CI. Be rigorous and economical.
+
+            DRY-RUN: ${{ inputs.dry_run || 'false' }}. If `true`, do everything EXCEPT writing to GitHub:
+            run no `gh issue create`, `gh pr create`, or `git push`; instead list in your final summary
+            exactly what you WOULD have filed (issue titles, file:line, the repro test, the suggested fix).
+            If `false`, file normally per the OUTPUT section below.
 
             Two repos are checked out as siblings under the workspace:
               - `yaat/`        - primary repo: Yaat.Sim (shared simulation logic) + Yaat.Client (Avalonia desktop).
