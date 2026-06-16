@@ -1,10 +1,15 @@
-name: Nightly Review Alert
+name: Nightly Review Notify
 
-# Posts to Discord when the Nightly Review workflow finishes in a non-success
-# state (failure, timed out, or cancelled). This is a separate workflow_run
-# job rather than a step inside Nightly Review on purpose: an in-job
-# `if: failure()` step would NOT run when the review job is killed by its own
-# timeout, which is exactly the silent failure worth alerting on.
+# Posts the outcome of every Nightly Review run to Discord - success or not -
+# with a short TL;DR of what the reviewer found (subsystem reviewed, issues/PRs
+# filed, or "nothing found"). The TL;DR and cost ride along as the
+# `nightly-review-notify` artifact the review job uploads.
+#
+# This is a separate workflow_run job rather than a step inside Nightly Review
+# on purpose: an in-job step would NOT run when the review job is killed by its
+# own timeout, which is exactly the silent failure worth alerting on. When the
+# job is killed before it uploads the artifact, the summary is simply absent and
+# this still posts the bare conclusion.
 #
 # Required repository secret:
 #   DISCORD_CI_WEBHOOK_URL - Discord webhook URL for a CI/alerts channel.
@@ -18,13 +23,25 @@ on:  # zizmor: ignore[dangerous-triggers] notifier checks out nothing and runs n
 
 permissions:
   contents: read
+  actions: read  # download the summary artifact from the triggering run
 
 jobs:
-  alert:
-    if: ${{ contains(fromJSON('["failure", "timed_out", "cancelled"]'), github.event.workflow_run.conclusion) }}
+  notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Post failure to Discord
+      # Best-effort: absent when the review job was killed before uploading (e.g.
+      # a timeout). continue-on-error so a missing artifact never blocks the post.
+      - name: Download review summary
+        id: summary
+        continue-on-error: true
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3  # v8.0.0
+        with:
+          name: nightly-review-notify
+          path: notify
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post to Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_CI_WEBHOOK_URL }}
           CONCLUSION: ${{ github.event.workflow_run.conclusion }}
@@ -40,11 +57,32 @@ jobs:
             exit 1
           fi
 
-          msg=$(printf ':red_circle: Nightly Review run #%s (%s) finished: **%s**\n%s' \
-            "$RUN_NUMBER" "$TRIGGER" "$CONCLUSION" "$RUN_URL")
+          COST=""
+          TLDR=""
+          if [ -f notify/summary.json ]; then
+            COST=$(jq -r '.cost // empty' notify/summary.json)
+            TLDR=$(jq -r '.tldr // empty' notify/summary.json)
+          fi
+
+          case "$CONCLUSION" in
+            success)   EMOJI=":green_circle:" ;;
+            cancelled) EMOJI=":white_circle:" ;;
+            *)         EMOJI=":red_circle:" ;;
+          esac
+
+          body=$(printf '%s Nightly Review run #%s (%s) finished: **%s**\n%s' \
+            "$EMOJI" "$RUN_NUMBER" "$TRIGGER" "$CONCLUSION" "$RUN_URL")
+          if [ -n "$TLDR" ]; then
+            body=$(printf '%s\n\n%s' "$body" "$TLDR")
+          fi
+          if [ -n "$COST" ]; then
+            body=$(printf '%s\n_Est. cost: $%s USD_' "$body" "$COST")
+          fi
+          # Discord hard-caps content at 2000 chars; trim with headroom.
+          body=$(printf '%s' "$body" | head -c 1900)
 
           # flags: 4 = SUPPRESS_EMBEDS so the run URL doesn't unfurl into a card.
-          payload=$(jq -n --arg c "$msg" '{content: $c, flags: 4}')
+          payload=$(jq -n --arg c "$body" '{content: $c, flags: 4}')
           http_code=$(curl -sS -o /tmp/discord-resp.txt -w "%{http_code}" \
             -H "Content-Type: application/json" \
             -d "$payload" "$DISCORD_WEBHOOK_URL")

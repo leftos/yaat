@@ -126,6 +126,10 @@ jobs:
         uses: anthropics/claude-code-action@9dd8b95a392eb34b6f5fb56cf5a64cb735912d4b  # v1
         env:
           GH_TOKEN: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
+          # The agent writes a short Discord-bound TL;DR here; the notifier workflow
+          # picks it up via the uploaded summary artifact. Outside both checkouts so
+          # it never lands in a draft-PR branch.
+          TLDR_FILE: ${{ github.workspace }}/nightly-review-tldr.txt
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
@@ -208,13 +212,26 @@ jobs:
             (issue/PR numbers) - or, in DRY-RUN, the FULL detail of each finding you WOULD file (title,
             file:line, root cause, the repro test, the suggested fix, and a confidence level).
 
+            ALSO (required): write a short plain-text TL;DR of this run to the file whose absolute path is in
+            the `TLDR_FILE` environment variable (use Bash, e.g. `printf '%s' "..." > "$TLDR_FILE"`). This
+            text is posted to a Discord CI channel on EVERY run, success or not, so make it self-contained and
+            tight (<= 1500 characters, 1-5 short lines, plain text - no markdown headers). Say what you did and
+            whether anything interesting turned up:
+              - Subsystem reviewed and how many commits were in the window.
+              - If you filed anything: the issue/PR numbers and their URLs.
+              - In DRY-RUN: how many findings you WOULD file, with their titles (and note it was a dry run).
+              - If nothing cleared the bar: say so plainly (e.g. "No findings - N candidates refuted.").
+            Write this file even if the result is "nothing found". If you somehow cannot, it is non-fatal.
+
       # total_cost_usd is a client-side estimate from the run's result JSON, not
       # authoritative billing - good enough for a per-night trend. For actual
-      # dollars, see the Console Usage & Cost dashboard.
-      - name: Log run cost
+      # dollars, see the Console Usage & Cost dashboard. This step also stages the
+      # summary artifact the "Nightly Review Notify" workflow posts to Discord.
+      - name: Log run cost and stage Discord summary
         if: always()
         env:
           EXECUTION_FILE: ${{ steps.review.outputs.execution_file }}
+          REVIEW_OUTCOME: ${{ steps.review.outcome }}
         run: |
           set -euo pipefail
           FILE="$EXECUTION_FILE"
@@ -230,3 +247,25 @@ jobs:
               echo "Cost estimate unavailable (no execution result parsed)."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+          mkdir -p notify
+          TLDR="(The reviewer wrote no TL;DR - see the run's job summary for details.)"
+          if [ -s "${GITHUB_WORKSPACE}/nightly-review-tldr.txt" ]; then
+            TLDR=$(head -c 1500 "${GITHUB_WORKSPACE}/nightly-review-tldr.txt")
+          fi
+          jq -n \
+            --arg outcome "${REVIEW_OUTCOME:-unknown}" \
+            --arg cost "${COST:-}" \
+            --arg tldr "$TLDR" \
+            '{outcome: $outcome, cost: $cost, tldr: $tldr}' > notify/summary.json
+          echo "Staged Discord summary:"
+          cat notify/summary.json
+
+      - name: Upload Discord summary
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: nightly-review-notify
+          path: notify/summary.json
+          retention-days: 7
+          if-no-files-found: warn

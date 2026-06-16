@@ -6,6 +6,7 @@
 |----------|------|---------|--------------|
 | `discord-docs.yml` | leftos/yaat | Push to `main` (INSTALL/README/GETTING_STARTED/USER_GUIDE/COMMANDS/SOLO_TRAINING/comparison docs) + manual | Clears + reposts doc content to dedicated channels via bot token; large reference docs post ToC only |
 | `discord-scenario-validation.yml` | **leftos/yaat-server** | Sundays 10:00 UTC cron + `workflow_dispatch` | Validates all ARTCC scenarios via `Yaat.ScenarioValidator`, posts reports to per-ARTCC channels, ensures pinned **Run Validation** buttons |
+| `nightly-review-alert.yml` ("Nightly Review Notify") | leftos/yaat | `workflow_run` after **Nightly Review** completes | Posts every Nightly Review outcome to the CI/alerts channel via `DISCORD_CI_WEBHOOK_URL` (green on success, red on failure/timeout, white on cancel), with a TL;DR of what was reviewed and filed. The TL;DR + cost ride along as the review job's `nightly-review-notify` artifact; a timeout-killed run still posts the bare conclusion. Separate `workflow_run` job so a self-timeout still notifies. |
 
 ## Discord Bot (`tools/discord-bot/`)
 
@@ -42,7 +43,7 @@ Re-running a slash command in an already-linked thread triggers an immediate com
 
 **Secrets** (Cloudflare): `DISCORD_PUBLIC_KEY`, `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USER_ID`, `GITHUB_WEBHOOK_SECRET`, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_INSTALLATION_ID`
 
-**Secrets** (GitHub Actions): `DISCORD_BOT_TOKEN` on **yaat** (docs sync webhooks) and **yaat-server** (scenario validation)
+**Secrets** (GitHub Actions): `DISCORD_BOT_TOKEN` on **yaat** (docs sync webhooks) and **yaat-server** (scenario validation); `DISCORD_CI_WEBHOOK_URL` on **yaat** (Nightly Review Notify — a plain channel-webhook URL, not the bot)
 
 **Deploy:** `cd tools/discord-bot && pnpm install && pnpm run deploy`. Register commands: `DISCORD_APP_ID=<id> DISCORD_BOT_TOKEN=<token> pnpm run register -- --guild <guild-id>`.
 
