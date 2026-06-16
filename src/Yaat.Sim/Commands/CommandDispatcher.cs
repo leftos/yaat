@@ -201,6 +201,7 @@ public static class CommandDispatcher
             aircraft.Targets.HasExplicitTurnRate = false;
             aircraft.Targets.PreferredTurnDirection = null;
             AirborneFollowHelper.ClearFollowState(aircraft);
+            ResumeAssignedAltitudeAfterPhaseClear(aircraft);
 
             if (clearedSummary is not null)
             {
@@ -1851,6 +1852,44 @@ public static class CommandDispatcher
         };
     }
 
+    // Climb margin for re-arming the altitude target after a phase clear; mirrors the FlightPhysics
+    // altitude snap so a target the aircraft has effectively reached is not re-armed.
+    private const double PhaseClearClimbMarginFt = 10.0;
+
+    /// <summary>
+    /// A phase-clearing command (e.g. <c>FH</c> issued during a climb phase) is a lateral instruction;
+    /// it does not cancel the aircraft's altitude clearance. The cleared phase may have been driving the
+    /// climb through an internal target (<c>TakeoffPhase</c> climbs to ~400 ft AGL before handing off,
+    /// <c>InitialClimbPhase</c> climbs to the assigned altitude), which would otherwise leave the aircraft
+    /// levelling off there. Re-arm the climb to the last assigned altitude only when the cleared phase was
+    /// actively climbing (its managed target above the current altitude) and the assigned altitude is still
+    /// above the aircraft. Descents and level-offs are left untouched — once an aircraft leaves an altitude
+    /// it does not climb back without a new clearance (FAA last-assigned-altitude doctrine), so an aircraft
+    /// vectored off a descent/approach below its last assigned altitude must hold present altitude, not
+    /// climb back up. A command that carries its own altitude applies after this and wins.
+    /// </summary>
+    internal static void ResumeAssignedAltitudeAfterPhaseClear(AircraftState aircraft)
+    {
+        if (aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        if (aircraft.Targets.AssignedAltitude is not { } assigned)
+        {
+            return;
+        }
+
+        // The phase was climbing only if its managed target was above the current altitude; this
+        // excludes descents/approaches (target at or below current), where re-arming the assigned
+        // altitude would command an un-cleared climb back up.
+        bool phaseWasClimbing = (aircraft.Targets.TargetAltitude is { } phaseTarget) && (phaseTarget > aircraft.Altitude + PhaseClearClimbMarginFt);
+        if (phaseWasClimbing && (assigned > aircraft.Altitude + PhaseClearClimbMarginFt))
+        {
+            aircraft.Targets.TargetAltitude = assigned;
+        }
+    }
+
     /// <summary>
     /// Field elevation (ft MSL) for an aircraft without an assigned runway — parked, taxiing, or a
     /// helicopter air-taxi / relocation with no runway. Resolves the operating airport's elevation
@@ -2331,6 +2370,7 @@ public static class CommandDispatcher
                             ac.Targets.HasExplicitTurnRate = false;
                             ac.Targets.PreferredTurnDirection = null;
                             AirborneFollowHelper.ClearFollowState(ac);
+                            ResumeAssignedAltitudeAfterPhaseClear(ac);
 
                             if (clearedSummary is not null)
                             {
