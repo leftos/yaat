@@ -510,6 +510,16 @@ public sealed class FinalApproachPhase : Phase
         _gsAngleDeg = gsAngleDeg;
     }
 
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        // The NoLndgClnc datablock flash means "on final approach without a landing clearance".
+        // Once final approach ends — for any reason (go-around, vectored off the approach, landing) —
+        // the warning is moot. FinalApproachPhase is the only writer of this flag, so it owns
+        // clearing it here, on the single exit hook that fires for every termination path
+        // (AdvanceToNext / SkipTo / Clear). Without this, a manual GA leaves the flash stuck on.
+        ctx.Aircraft.NoLandingClearanceWarningActive = false;
+    }
+
     public override bool OnTick(PhaseContext ctx)
     {
         if (_goAroundTriggered)
@@ -866,7 +876,6 @@ public sealed class FinalApproachPhase : Phase
                     mapAltitudeFt,
                     distNm
                 );
-                ctx.Aircraft.NoLandingClearanceWarningActive = false;
                 TriggerGoAround(ctx, "no landing clearance at minimums");
                 return false;
             }
@@ -921,7 +930,6 @@ public sealed class FinalApproachPhase : Phase
                     aglForClearance,
                     distNm
                 );
-                ctx.Aircraft.NoLandingClearanceWarningActive = false;
                 TriggerGoAround(ctx, "no landing clearance");
                 return false;
             }
@@ -948,7 +956,6 @@ public sealed class FinalApproachPhase : Phase
                     mapAlt,
                     distNm
                 );
-                ctx.Aircraft.NoLandingClearanceWarningActive = false;
                 TriggerGoAround(ctx, "too high at missed approach point");
                 return false;
             }
