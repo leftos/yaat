@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.7.19-beta [2026/06/17]
 
 ### Fixed
 - Manually consolidating a position into one TCP while a position below it in the hierarchy is consolidated into a different TCP no longer shows the lower position consolidated under both owners at once on the STARS scope. The nested position now follows only its own consolidation.
