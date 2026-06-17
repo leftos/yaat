@@ -124,8 +124,11 @@ public static class ConsolidationEngine
                 }
 
                 // Also add descendants of the sending TCP that aren't
-                // independently attended
-                var descendants = CollectConsolidatedDescendants(sendingTcp, childrenOf, isAttended);
+                // independently attended. Exclude TCPs that carry their own
+                // manual override (manuallyOverriddenIds) — they follow their
+                // own override receiver, not this sender's, and would otherwise
+                // be double-counted under both owners.
+                var descendants = CollectConsolidatedDescendants(sendingTcp, childrenOf, isAttended, manuallyOverriddenIds);
                 foreach (var desc in descendants)
                 {
                     if (desc.Id != sendingTcp.Id && !ownerResult.Children.Contains(desc))

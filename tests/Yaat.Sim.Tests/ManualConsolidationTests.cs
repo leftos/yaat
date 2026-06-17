@@ -345,6 +345,37 @@ public class ManualConsolidationTests
     }
 
     [Fact]
+    public void ManualOverride_NestedOverriddenDescendant_NotDoubleCounted()
+    {
+        var state = new ConsolidationState();
+
+        // 1T and 1G attended.
+        var attended = new HashSet<string> { IdT, IdG };
+        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+
+        // 1F (child of 1T) is consolidated into 1G.
+        state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G
+        // 1S, a *descendant* of 1F, is SEPARATELY consolidated into 1T.
+        state.Consolidate(Tcp1T, Tcp1S, basic: false); // 1S → 1T
+
+        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+
+        // 1S's own item owner is 1T — its explicit override wins.
+        Assert.Equal(IdT, FindItem(items, IdS).Owner!.Id);
+
+        var gChildren = ChildIds(FindItem(items, IdG));
+        var tChildren = ChildIds(FindItem(items, IdT));
+
+        // 1S is consolidated under 1T, so it must appear under 1T...
+        Assert.Contains(IdS, tChildren);
+        // ...and must NOT ALSO be double-listed under 1G (1F's override receiver).
+        Assert.DoesNotContain(IdS, gChildren);
+
+        // 1F itself still follows its own override into 1G.
+        Assert.Contains(IdF, gChildren);
+    }
+
+    [Fact]
     public void ManualConsolidation_DescendantsOfSendingTcpFollowOverride()
     {
         var state = new ConsolidationState();
