@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- An aircraft taxiing or holding short on the ground no longer appears on the controller's CRC STARS (or ERAM) radar scope. Aircraft on the airport surface now stay on the surface display (ASDE-X / SAAB SAID) until they are airborne, matching real terminal radar.
+
 ## v0.7.19-beta [2026/06/17]
 
 ### Fixed

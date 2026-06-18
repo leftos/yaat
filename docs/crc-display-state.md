@@ -119,10 +119,10 @@ Wire encoding is MessagePack with `[Key(N)]`-attributed records; payloads are wr
 
 Per-aircraft state machine (`AircraftCrcState`):
 
-- `IsVisibleOnStars` + `IsCoasting` — STARS floor is AGL ≥ 100 ft (`FieldElevationResolver.AcquisitionFloorAglFt`); on exit, hysteresis to field elevation; coast for 5 s before delete; re-ascent during coast cancels deletion. Airborne ghosts auto-resolve. YAAT's own radar mirrors this floor: the training-hub DTO carries `BelowDisplayFloor` (same `FieldElevationResolver` field-elevation logic) and `RadarCanvas.FilterAircraft` withholds an airborne target while its displayed altitude rounds to `000`.
+- `IsVisibleOnStars` + `IsCoasting` — an aircraft on the airport surface (`AircraftState.IsOnGround`) is **never** on STARS/ERAM and is **always** a ground target, regardless of altitude — a hard veto checked before the floor, mirroring `RadarCanvas.FilterAircraft` (which hides on-ground aircraft outright). This keeps a taxiing aircraft off terminal radar even when field-elevation resolution drifts below its stored altitude or stale hysteresis survives a timeline scrub. For airborne aircraft the STARS floor is AGL ≥ 100 ft (`FieldElevationResolver.AcquisitionFloorAglFt`); on exit, hysteresis to field elevation; coast for 5 s before delete; re-ascent during coast cancels deletion. Airborne ghosts auto-resolve. YAAT's own radar mirrors this floor: the training-hub DTO carries `BelowDisplayFloor` (same `FieldElevationResolver` field-elevation logic) and `RadarCanvas.FilterAircraft` withholds an airborne target while its displayed altitude rounds to `000`.
 - `VisibleAsdexAirports` — per-airport, range + altitude ceiling per ASDEX config; ±600 ft hysteresis at the ceiling; tracks newly-visible / removed transitions.
 - `IsVisibleOnTowerCab` — within 20 nm and ≤ 4000 ft AGL.
-- `IsVisibleAsGroundTarget` — inverse of STARS for non-ghost aircraft below threshold.
+- `IsVisibleAsGroundTarget` — inverse of STARS for non-ghost aircraft: on-ground aircraft (or those below the AGL threshold) feed the surface display / `GroundTargets`.
 
 Room-isolation is enforced here: visibility uses the room's airport list (subscribed from ARTCC config).
 
