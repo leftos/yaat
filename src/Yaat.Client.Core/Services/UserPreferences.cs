@@ -182,6 +182,7 @@ public sealed class UserPreferences
     public bool ShowSpeechBubbles => _data.ShowSpeechBubbles;
     public double SpeechBubbleDurationMultiplier => Math.Clamp(_data.SpeechBubbleDurationMultiplier, 0.25, 4.0);
     public bool ShowWarningSpeechBubbles => _data.ShowWarningSpeechBubbles;
+    public bool SpeechBubblesStayUntilClicked => _data.SpeechBubblesStayUntilClicked;
     public bool AlwaysShowGroundBubblesOnRadar => _data.AlwaysShowGroundBubblesOnRadar;
     public bool SyncStudentDatablockColors => _data.SyncStudentDatablockColors;
     public bool MarkStudentLimitedDatablocks => _data.MarkStudentLimitedDatablocks;
@@ -704,6 +705,12 @@ public sealed class UserPreferences
     public void SetShowWarningSpeechBubbles(bool enabled)
     {
         _data.ShowWarningSpeechBubbles = enabled;
+        Save();
+    }
+
+    public void SetSpeechBubblesStayUntilClicked(bool enabled)
+    {
+        _data.SpeechBubblesStayUntilClicked = enabled;
         Save();
     }
 
@@ -1648,6 +1655,7 @@ public sealed class UserPreferences
         public bool ShowSpeechBubbles { get; set; }
         public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;
         public bool ShowWarningSpeechBubbles { get; set; }
+        public bool SpeechBubblesStayUntilClicked { get; set; }
         public bool AlwaysShowGroundBubblesOnRadar { get; set; }
         public bool SyncStudentDatablockColors { get; set; } = true;
         public bool MarkStudentLimitedDatablocks { get; set; } = true;

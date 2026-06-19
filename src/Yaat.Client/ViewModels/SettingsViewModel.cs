@@ -181,6 +181,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _showWarningSpeechBubbles;
 
     [ObservableProperty]
+    private bool _speechBubblesStayUntilClicked;
+
+    [ObservableProperty]
     private bool _alwaysShowGroundBubblesOnRadar;
 
     [ObservableProperty]
@@ -616,6 +619,7 @@ public partial class SettingsViewModel : ObservableObject
         _mvaHintDefaultTwr = _preferences.MvaHintDefaultTwr;
         _speechBubbleDurationMultiplier = _preferences.SpeechBubbleDurationMultiplier;
         _showWarningSpeechBubbles = _preferences.ShowWarningSpeechBubbles;
+        _speechBubblesStayUntilClicked = _preferences.SpeechBubblesStayUntilClicked;
         _alwaysShowGroundBubblesOnRadar = _preferences.AlwaysShowGroundBubblesOnRadar;
         _syncStudentDatablockColors = _preferences.SyncStudentDatablockColors;
         _markStudentLimitedDatablocks = _preferences.MarkStudentLimitedDatablocks;
@@ -755,6 +759,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetMvaHintDefaults(MvaHintDefaultApp, MvaHintDefaultCtr, MvaHintDefaultGnd, MvaHintDefaultTwr);
         _preferences.SetSpeechBubbleDurationMultiplier(SpeechBubbleDurationMultiplier);
         _preferences.SetShowWarningSpeechBubbles(ShowWarningSpeechBubbles);
+        _preferences.SetSpeechBubblesStayUntilClicked(SpeechBubblesStayUntilClicked);
         _preferences.SetAlwaysShowGroundBubblesOnRadar(AlwaysShowGroundBubblesOnRadar);
         _preferences.SetSyncStudentDatablockColors(SyncStudentDatablockColors);
         _preferences.SetMarkStudentLimitedDatablocks(MarkStudentLimitedDatablocks);

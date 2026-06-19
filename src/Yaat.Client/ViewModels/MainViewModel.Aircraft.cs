@@ -109,6 +109,7 @@ public partial class MainViewModel
             kind,
             message,
             _preferences.SpeechBubbleDurationMultiplier,
+            _preferences.SpeechBubblesStayUntilClicked,
             DateTime.UtcNow
         );
         if (bubble is null)

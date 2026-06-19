@@ -77,8 +77,10 @@ public class AircraftSpeechBubbleTests
         bool soloMode = false,
         TerminalEntryKind kind = TerminalEntryKind.Say,
         string message = "Heading 270",
-        double durationMultiplier = 1.0
-    ) => AircraftSpeechBubble.TryBuild(showSpeechBubbles, showWarningBubbles, soloMode, kind, message, durationMultiplier, FixedNow);
+        double durationMultiplier = 1.0,
+        bool stayUntilClicked = false
+    ) =>
+        AircraftSpeechBubble.TryBuild(showSpeechBubbles, showWarningBubbles, soloMode, kind, message, durationMultiplier, stayUntilClicked, FixedNow);
 
     [Fact]
     public void TryBuild_AllConditionsMet_ReturnsSpeechBubble()
@@ -181,5 +183,40 @@ public class AircraftSpeechBubbleTests
 
         Assert.NotNull(bubble);
         Assert.Equal(SpeechBubbleSeverity.Speech, bubble!.Severity);
+    }
+
+    // --- Stay-until-clicked (issue #212) ----------------------------------
+
+    [Fact]
+    public void TryBuild_StayUntilClicked_SetsMaxValueExpiry()
+    {
+        // Opt-in "stay until clicked" pins the bubble: the duration timer is bypassed and the
+        // renderer keeps drawing it (ExpiresAt > now is always true) until the user clicks it.
+        var bubble = Build(stayUntilClicked: true);
+
+        Assert.NotNull(bubble);
+        Assert.Equal(SpeechBubbleSeverity.Speech, bubble!.Severity);
+        Assert.Equal(DateTime.MaxValue, bubble.ExpiresAt);
+    }
+
+    [Fact]
+    public void TryBuild_StayUntilClicked_WarningBubble_AlsoSticky()
+    {
+        // The pin applies to both SAY/pilot and WARN bubbles — a single opt-in covers all.
+        var bubble = Build(showWarningBubbles: true, kind: TerminalEntryKind.Warning, message: "queue cleared", stayUntilClicked: true);
+
+        Assert.NotNull(bubble);
+        Assert.Equal(SpeechBubbleSeverity.Warning, bubble!.Severity);
+        Assert.Equal(DateTime.MaxValue, bubble.ExpiresAt);
+    }
+
+    [Fact]
+    public void TryBuild_StayUntilClicked_Off_UsesComputedDuration()
+    {
+        // Regression: the default (unpinned) path still expires after the computed duration.
+        var bubble = Build(stayUntilClicked: false);
+
+        Assert.NotNull(bubble);
+        Assert.Equal(FixedNow + TimeSpan.FromSeconds(4.0), bubble!.ExpiresAt);
     }
 }

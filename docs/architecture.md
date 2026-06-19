@@ -187,7 +187,7 @@ Views/
 ```
 Models/
   AircraftModel.cs              # ObservableObject wrapping AircraftDto; computed displays; FromDto/UpdateFromDto
-  AircraftSpeechBubble.cs       # Per-aircraft speech bubble model for opt-in SAY/pilot (green) and WARN (amber) overlays on Radar/Ground views (text, severity, user-scaled duration, dismiss state).
+  AircraftSpeechBubble.cs       # Per-aircraft speech bubble model for opt-in SAY/pilot (green) and WARN (amber) overlays on Radar/Ground views (text, severity, user-scaled duration or persist-until-clicked, dismiss state).
   TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say)
 
 Services/

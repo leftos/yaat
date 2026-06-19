@@ -19,6 +19,10 @@ public enum SpeechBubbleSeverity
 /// <see cref="SpeechBubbleSeverity"/> the renderer uses to pick its colour. The renderer drops
 /// bubbles whose <see cref="ExpiresAt"/> has passed. A subsequent message for the same aircraft
 /// replaces the previous bubble (single slot, no queue).
+///
+/// <para>When the user opts into "keep bubbles on screen until clicked", <see cref="ExpiresAt"/>
+/// is set to <see cref="DateTime.MaxValue"/> so the bubble never times out; it is cleared only
+/// by the click-to-dismiss path on either view.</para>
 /// </summary>
 public sealed record AircraftSpeechBubble(string Text, DateTime ExpiresAt, SpeechBubbleSeverity Severity)
 {
@@ -48,6 +52,11 @@ public sealed record AircraftSpeechBubble(string Text, DateTime ExpiresAt, Speec
     /// voice instead). WARN bubbles are controller-facing — not TTS'd — so they show in solo mode
     /// too, but only when both the master <paramref name="showSpeechBubbles"/> toggle and the
     /// <paramref name="showWarningBubbles"/> opt-in are on.</para>
+    ///
+    /// <para>When <paramref name="stayUntilClicked"/> is set the bubble is pinned: its expiry is
+    /// <see cref="DateTime.MaxValue"/> instead of <paramref name="nowUtc"/> plus the computed
+    /// duration, so it stays on screen until the user clicks it to dismiss. This applies to both
+    /// SAY/pilot and WARN bubbles.</para>
     /// </summary>
     public static AircraftSpeechBubble? TryBuild(
         bool showSpeechBubbles,
@@ -56,6 +65,7 @@ public sealed record AircraftSpeechBubble(string Text, DateTime ExpiresAt, Speec
         TerminalEntryKind kind,
         string message,
         double durationMultiplier,
+        bool stayUntilClicked,
         DateTime nowUtc
     )
     {
@@ -86,6 +96,7 @@ public sealed record AircraftSpeechBubble(string Text, DateTime ExpiresAt, Speec
                 return null;
         }
 
-        return new AircraftSpeechBubble(message, nowUtc + ComputeDuration(message, durationMultiplier), severity);
+        var expiresAt = stayUntilClicked ? DateTime.MaxValue : nowUtc + ComputeDuration(message, durationMultiplier);
+        return new AircraftSpeechBubble(message, expiresAt, severity);
     }
 }
