@@ -29,6 +29,16 @@ public sealed class UpwindPhase : Phase
     public bool IsExtended { get; set; }
 
     /// <summary>
+    /// One-shot armed by a <c>TC</c> (turn crosswind) issued before the aircraft reached the
+    /// upwind leg — i.e. during the takeoff roll / initial climb, while still in
+    /// <see cref="Tower.TakeoffPhase"/>. Honored on the first tick once this leg is active, so the
+    /// crosswind turn occurs no earlier than the leg's start (≈400 ft AGL — TakeoffPhase's
+    /// completion floor), making <c>TC</c> behave the same whether issued at 350 ft AGL (Takeoff)
+    /// or 450 ft AGL (Upwind). Takes precedence over <see cref="IsExtended"/>. See issue #208.
+    /// </summary>
+    public bool TurnCrosswindArmed { get; set; }
+
+    /// <summary>
     /// Active lateral offset state set by OFL/OFR. See <see cref="DownwindPhase.LateralOffset"/>.
     /// </summary>
     public PatternLateralOffsetState? LateralOffset { get; set; }
@@ -84,6 +94,17 @@ public sealed class UpwindPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Early crosswind turn armed by a TC issued during takeoff/initial climb (issue #208).
+        // This leg only activates at ≈400 ft AGL (TakeoffPhase's completion floor), so completing
+        // on the first tick turns the aircraft crosswind at the earliest safe altitude. Checked
+        // before IsExtended so a TC overrides a prior EXT (matches the IsExtended doc above).
+        if (TurnCrosswindArmed)
+        {
+            TurnCrosswindArmed = false; // one-shot; clear so a snapshot restore / re-entry won't re-fire
+            Log.LogDebug("[Upwind] {Callsign}: early crosswind turn (armed by TC during takeoff/climb)", ctx.Aircraft.Callsign);
+            return true;
+        }
+
         // Lead-not-found / lead-on-ground / runaway-distance watchdog. Mirrors
         // DownwindPhase so a pattern-phase follower doesn't keep a stale follow
         // target after the lead despawns or lands during the climb-out.
@@ -178,6 +199,7 @@ public sealed class UpwindPhase : Phase
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
             Waypoints = Waypoints?.ToSnapshot(),
             IsExtended = IsExtended,
+            TurnCrosswindArmed = TurnCrosswindArmed,
             TargetLat = _targetLat,
             TargetLon = _targetLon,
             UpwindHeadingDeg = _upwindHeading.Degrees,
@@ -194,6 +216,7 @@ public sealed class UpwindPhase : Phase
         {
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             IsExtended = dto.IsExtended,
+            TurnCrosswindArmed = dto.TurnCrosswindArmed ?? false,
             DepartureClimbTargetFt = dto.DepartureClimbTargetFt,
             LateralOffset = dto.LateralOffsetTargetNm is { } target
                 ? new PatternLateralOffsetState

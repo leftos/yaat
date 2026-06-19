@@ -557,6 +557,102 @@ public class PatternCommandHandlerTests
     }
 
     // -------------------------------------------------------------------------
+    // TryPatternTurnTo — early crosswind turn during takeoff/climb (issue #208)
+    // -------------------------------------------------------------------------
+
+    // Build a CTO MRC pattern-exit departure: Takeoff (active) -> Upwind (pending) ->
+    // PatternExit (pending), aircraft airborne in the initial climb.
+    private static AircraftState MakeAircraftOnDepartureClimb(out UpwindPhase pendingUpwind, out PatternExitPhase pendingExit)
+    {
+        var rwy = DefaultRunway();
+        var circuit = PatternBuilder.BuildPatternExitCircuit(
+            rwy,
+            AircraftCategory.Jet,
+            PatternDirection.Right,
+            PatternEntryLeg.Crosswind, // CTO MRC = crosswind exit -> [Upwind, PatternExit]
+            assignedAltitude: null,
+            cruiseAltitude: 5500,
+            patternSizeNm: null,
+            altitudeOverrideFt: null,
+            airportRunways: null
+        );
+        pendingUpwind = (UpwindPhase)circuit[0];
+        pendingExit = (PatternExitPhase)circuit[1];
+
+        var ac = MakeAircraft(altitude: 350, onGround: false);
+        ac.Phases = new PhaseList { AssignedRunway = rwy, TrafficDirection = PatternDirection.Right };
+        ac.Phases.Add(new TakeoffPhase());
+        foreach (var p in circuit)
+        {
+            ac.Phases.Add(p);
+        }
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac)); // Takeoff -> Active; Upwind/PatternExit stay Pending
+        return ac;
+    }
+
+    [Fact]
+    public void TC_DuringTakeoffClimb_ArmsEarlyCrosswindTurn()
+    {
+        var ac = MakeAircraftOnDepartureClimb(out var pendingUpwind, out _);
+
+        Assert.IsType<TakeoffPhase>(ac.Phases!.CurrentPhase);
+        Assert.False(pendingUpwind.TurnCrosswindArmed);
+
+        var result = PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(ac, "crosswind");
+
+        // Regression: rejected today with "Not on the leg before crosswind".
+        Assert.True(result.Success);
+        Assert.True(pendingUpwind.TurnCrosswindArmed);
+    }
+
+    [Fact]
+    public void TC_ArmedUpwind_TurnsCrosswindOnFirstActiveTick()
+    {
+        var ac = MakeAircraftOnDepartureClimb(out var pendingUpwind, out var pendingExit);
+        PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(ac, "crosswind");
+
+        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        ac.Phases!.AdvanceToNext(ctx); // Takeoff -> Upwind (reaches the leg at ~400 ft AGL in flight)
+        Assert.Same(pendingUpwind, ac.Phases.CurrentPhase);
+
+        bool complete = pendingUpwind.OnTick(ctx);
+
+        Assert.True(complete); // armed -> completes on the first active tick
+        Assert.False(pendingUpwind.TurnCrosswindArmed); // one-shot cleared
+        ac.Phases.AdvanceToNext(ctx); // Upwind -> PatternExit (the crosswind departure turn)
+        Assert.Same(pendingExit, ac.Phases.CurrentPhase);
+    }
+
+    [Fact]
+    public void TC_DuringTakeoff_NoPendingUpwind_StillRejected()
+    {
+        // Plain departure with no pattern circuit appended — nothing to turn into.
+        var ac = MakeAircraft(altitude: 350, onGround: false);
+        ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
+        ac.Phases.Add(new TakeoffPhase());
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(ac, "crosswind");
+
+        Assert.False(result.Success);
+        Assert.Contains("Not on the leg before", result.Message!);
+    }
+
+    [Fact]
+    public void TD_DuringTakeoffClimb_NotArmed_StillRejected()
+    {
+        // TD (turn downwind) is out of scope — the typeof(T) gate keeps it rejecting,
+        // and it must not arm the early-crosswind flag.
+        var ac = MakeAircraftOnDepartureClimb(out var pendingUpwind, out _);
+
+        var result = PatternCommandHandler.TryPatternTurnTo<CrosswindPhase>(ac, "downwind");
+
+        Assert.False(result.Success);
+        Assert.Contains("Not on the leg before", result.Message!);
+        Assert.False(pendingUpwind.TurnCrosswindArmed);
+    }
+
+    // -------------------------------------------------------------------------
     // TryMakeTurn — 360 resumes same leg
     // -------------------------------------------------------------------------
 

@@ -839,6 +839,11 @@ public sealed class UpwindPhaseDto : PhaseDto
 {
     public PatternWaypointsDto? Waypoints { get; init; }
     public required bool IsExtended { get; init; }
+
+    /// <summary>Early-crosswind-turn one-shot armed by a TC during takeoff/initial climb (issue #208).
+    /// Nullable for tolerance of recordings made before the field existed.</summary>
+    public bool? TurnCrosswindArmed { get; init; }
+
     public required double TargetLat { get; init; }
     public required double TargetLon { get; init; }
     public required double UpwindHeadingDeg { get; init; }

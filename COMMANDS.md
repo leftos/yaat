@@ -811,7 +811,7 @@ A pattern-entry verb re-shapes the approach geometry only — it preserves the a
 | `EF 28R` | Enter final, assign runway |
 | `MLT` / `MRT` | Make left/right traffic (sets pattern direction) |
 | `MLT 28R` / `MRT 28R` | Make left/right traffic for a specific runway (cross-runway pattern) |
-| `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg) |
+| `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg). `TC` is also accepted during the takeoff roll / initial climb on a closed-traffic or pattern-exit departure (`CTO MR…` / `ML…`): it arms the crosswind turn, which fires the moment the aircraft reaches the upwind leg (~400 ft AGL, the safe-turn floor), turning crosswind earlier than the normal turn point. |
 | `EXT` / `EXTEND` | Extend current pattern leg (upwind, crosswind, or downwind — not base) |
 | `EXT UPWIND` / `EXT UW` | Extend upwind. If aircraft has just started turning crosswind, cancels the turn and re-establishes the upwind leg. Also accepted before the upwind has begun — during a touch-and-go ground roll, on short final for a planned touch-and-go, or while holding short pre-takeoff — and arms the upcoming upwind so it extends without a second command after liftoff. |
 | `EXT CROSSWIND` / `EXT CW` | Extend crosswind. Rolls the aircraft back from downwind to crosswind if issued one leg late. |

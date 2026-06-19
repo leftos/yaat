@@ -810,6 +810,23 @@ internal static class PatternCommandHandler
             return CommandDispatcher.Ok($"Turn {legName}");
         }
 
+        // Early crosswind turn (issue #208): TC issued before the aircraft reached the upwind
+        // leg — i.e. during the takeoff roll / initial climb (TakeoffPhase, which only ends at
+        // 400 ft AGL). Arm the pending UpwindPhase so it turns crosswind the instant the leg
+        // activates (~400 ft AGL, the safe-turn floor) rather than rejecting. Scoped to TC
+        // (UpwindPhase); TD keeps its current rejection. No pending Upwind (plain IFR/SID
+        // departure) falls through to the rejection below.
+        if (
+            typeof(T) == typeof(UpwindPhase)
+            && aircraft.Phases?.CurrentPhase is TakeoffPhase
+            && TryFindNextPendingPhase<UpwindPhase>(aircraft) is { } pendingUpwind
+        )
+        {
+            pendingUpwind.TurnCrosswindArmed = true;
+            Log.LogDebug("[PatternTurn] {Callsign}: armed early crosswind turn on pending Upwind (TC during takeoff)", aircraft.Callsign);
+            return CommandDispatcher.Ok($"Turn {legName}");
+        }
+
         return new CommandResult(false, $"Not on the leg before {legName}");
     }
 
