@@ -12,8 +12,6 @@
 - `TC` (turn crosswind) issued during the initial climb after a closed-traffic or pattern-exit departure now turns the aircraft crosswind early, at ~400 ft AGL.
 - A departure lining up from a taxiway that meets the runway at a steep angle (e.g. Bravo onto Oakland's 28R) now turns onto the centerline instead of taxiing to the runway end and doubling back.
 - An aircraft taxiing off a runway onto a taxiway that bends sharply near the runway (e.g. OAK runway 28R onto taxiway G) now rounds the bend instead of circling it before continuing.
-
-### Fixed
 - During recording playback, the timeline clock and slider now advance continuously while playing, instead of freezing until you pause or unpause. Because the displayed time was stale, the +15/−15 skip buttons (and dragging the timeline) computed their target from the wrong time, so returning to "the same" timestamp could land on a different aircraft position each time — these are now consistent.
 
 ## v0.7.20-beta [2026/06/17]
