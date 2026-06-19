@@ -27,13 +27,13 @@
       },
       {
         "name": "client_log",
-        "label": "Client log",
+        "label": "Attach client log",
         "kind": {
-          "kind": "literal_path",
-          "path": "${LOCALAPPDATA}/yaat/yaat-client.log"
+          "kind": "toggle",
+          "value": "${LOCALAPPDATA}/yaat/yaat-client.log"
         },
-        "prompt_at_launch": false,
-        "default": null,
+        "prompt_at_launch": true,
+        "default": "false",
         "optional": true
       },
       {
