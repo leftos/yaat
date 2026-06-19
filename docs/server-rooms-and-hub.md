@@ -40,6 +40,10 @@ per room. Each wall-clock tick (`RunTickLoop`, `:92`):
      (`:136`).
    - Records position history every 5 sim-seconds (10-entry ring, `:139`-`:149`), advances the weather timeline
      (`:153`) and applies playback actions in playback mode (`:164`).
+   - **Ends with one `BroadcastSimState(room)` per processed wall-tick** (after the sim-second loop, in
+     `ProcessRoomSecond`) so the client's elapsed clock stays live — the timeline label/scrubber and the base for
+     the relative +15/−15 skips. The end-of-tape branch sets the paused state first, so that final tick's broadcast
+     carries `IsPaused = true`. (Issue #209: previously elapsed only reached clients on pause/unpause/rewind/end.)
 3. After the loop budget check (`TickBudgetMs = 800`, logs a warning if exceeded, `:181`).
 4. **After the all-rooms loop**: `DetectChanges(allRooms)` (`:190`) then `await BroadcastUpdates(allRooms)` (`:191`),
    which fans out to training clients, admins, and CRC (`:224`).

@@ -167,6 +167,12 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `ServerRestartReady` | *(none)* | `ServerRestartReady` |
 | `ServerRestartComplete` | `List<RestoredRoomInfoDto>` | `ServerRestartComplete` |
 
+- **`SimulationStateChanged` is sent every advancing tick**, not only on discrete state changes. The hosted tick
+  loop broadcasts it once per processed wall-second per active (non-paused) room so the client's elapsed clock —
+  the timeline label, scrubber position, and the base for the relative +15/−15 skips — stays live. It is also sent
+  on the discrete events (pause/unpause, sim-rate change, rewind-complete, end-of-tape). The `double elapsed`
+  argument carries `scenario.ElapsedSeconds`.
+
 ## Three JSON source-gen contexts and the WASM failure mode
 
 SignalR's `JsonHubProtocol` calls `JsonSerializer.Serialize<object>(...)` on every argument and payload. Under a default
