@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.21-beta [2026/06/19]
+
+### Highlights
+- **New `REPORT` command** — have an aircraft call out an event when it happens: a pattern leg (`REPORT BASE`/`FINAL`, repeats each circuit), a distance on final (`REPORT 5 FINAL`), or a fix (`REPORT SUNOL`). Cancel with `REPORT OFF` or the radar right-click menu.
+- **Speech bubbles can stay on screen until clicked** — an opt-in alternative to the timed auto-dismiss, for both pilot/SAY and WARN bubbles.
+- **Recordings and bug reports record their build version** — both the client and server simulation version, so a report can be matched against the build that produced it.
+- **`FOLLOW` no longer overflies much-slower traffic** — the follower slows to stay behind, and when it genuinely can't keep spacing it reports "unable to maintain separation" and goes around instead of ending up on top of the aircraft it was told to follow.
 
 ### Added
 - New `REPORT` command has an aircraft report an event when it happens — `REPORT BASE`/`FINAL` (repeats each circuit), `REPORT 5 FINAL`, or `REPORT SUNOL` — cancellable with `REPORT OFF [leg]` and on the radar right-click menu.
