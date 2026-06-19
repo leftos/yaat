@@ -14,17 +14,9 @@
 - A departure lining up from a taxiway that meets the runway at a steep angle (e.g. Bravo onto Oakland's 28R) now turns onto the centerline instead of taxiing to the runway end and doubling back.
 - An aircraft taxiing off a runway onto a taxiway that bends sharply near the runway (e.g. OAK runway 28R onto taxiway G) now rounds the bend instead of circling it before continuing.
 - During recording playback, the timeline clock and slider now advance continuously while playing, instead of freezing until you pause or unpause. Because the displayed time was stale, the +15/−15 skip buttons (and dragging the timeline) computed their target from the wrong time, so returning to "the same" timestamp could land on a different aircraft position each time — these are now consistent.
-
-### Fixed
 - An aircraft that has just landed no longer lingers as a coasting track on the controller's CRC STARS (or ERAM) radar scope. Its terminal-radar track is now dropped the moment it touches down and moves to the surface display, instead of coasting — which, at faster simulation rates, could leave a stale "coast" target sitting on the aircraft for up to a minute while it taxied.
-
-### Fixed
 - A point-out to a sector that is combined into another position no longer gets stuck. Previously the controller working the combined position could not accept it, leaving the target flashing in point-out status indefinitely. The point-out is now directed to whoever is working that combined position, so they can acknowledge it.
-
-### Fixed
 - An aircraft told to `FOLLOW` much-slower traffic to the same runway (e.g. a faster single told to follow a Cessna 152) no longer overtakes it and ends up directly on top. The follower now slows to stay behind where it can, and when it genuinely cannot keep spacing — its approach speed is simply faster than the traffic's — it reports "unable to maintain separation" and goes around instead of overflying the aircraft it was told to follow. Followers also no longer speed up to chase a lead that is too far ahead (they extend the downwind instead).
-
-### Fixed
 - An aircraft flying a VFR traffic pattern (closed traffic / touch-and-goes) now turns crosswind at the departure end of the runway and flies the runway's published pattern altitude on every circuit, instead of stretching a long upwind out toward the parallel runway — most visible at a smaller specified pattern such as KOAK runway 28L.
 
 ## v0.7.20-beta [2026/06/17]
