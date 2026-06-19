@@ -33,8 +33,6 @@ reference/
 yaat.code-workspace
 debug.log
 __pycache__/
-mempalace.yaml
-entities.json
 claude-ws.ps1
 
 # Baseline build / output

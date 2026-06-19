@@ -65,9 +65,5 @@ debug.log
 ## Python
 __pycache__/
 
-# MemPalace per-project files (issue #185)
-mempalace.yaml
-entities.json
-
 # Local Claude Code multi-repo launcher (sees ../yaat-server)
 claude-ws.ps1
