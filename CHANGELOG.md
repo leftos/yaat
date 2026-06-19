@@ -14,6 +14,9 @@
 - An aircraft taxiing off a runway onto a taxiway that bends sharply near the runway (e.g. OAK runway 28R onto taxiway G) now rounds the bend instead of circling it before continuing.
 - During recording playback, the timeline clock and slider now advance continuously while playing, instead of freezing until you pause or unpause. Because the displayed time was stale, the +15/−15 skip buttons (and dragging the timeline) computed their target from the wrong time, so returning to "the same" timestamp could land on a different aircraft position each time — these are now consistent.
 
+### Fixed
+- An aircraft that has just landed no longer lingers as a coasting track on the controller's CRC STARS (or ERAM) radar scope. Its terminal-radar track is now dropped the moment it touches down and moves to the surface display, instead of coasting — which, at faster simulation rates, could leave a stale "coast" target sitting on the aircraft for up to a minute while it taxied.
+
 ## v0.7.20-beta [2026/06/17]
 
 ### Fixed
