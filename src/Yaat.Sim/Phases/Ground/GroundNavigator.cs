@@ -313,6 +313,26 @@ public sealed class GroundNavigator
     private const double EntryAlignmentThresholdDeg = 45.0;
 
     /// <summary>
+    /// A straight→straight corner sharper than this (deg) is treated as an UNFILLETED kink: the fillet
+    /// generator leaves GeoJSON shape-point doglegs and non-arcable junctions unsmoothed, so they arrive
+    /// as two consecutive straight segments meeting at a sharp angle with no Bézier between them. At the
+    /// low corner speed such a kink orbits under pure-pursuit (the turn-rate-limited heading can't track
+    /// the offset before the look-ahead bearing swings away). Below it, a straight→straight bend is a gentle
+    /// corner or a chord-chain tessellation (≪1° per bend) that pure-pursuit tracks fine. See issue #213
+    /// (OAK taxiway G, node 360 — a 32° dogleg ~22 ft past the 28R exit fillet).
+    /// </summary>
+    private const double UnfilletedKinkGeometryThresholdDeg = 28.0;
+
+    /// <summary>
+    /// Reduced <see cref="EntryAlignmentThresholdDeg"/> applied at an unfilleted kink
+    /// (<see cref="UnfilletedKinkGeometryThresholdDeg"/>): round the kink with the entry-alignment slow-turn
+    /// whenever the aircraft still enters this far off the new segment's tangent, even though the heading
+    /// delta is below the 45° gate (the pre-turn blend off the short incoming leg only takes out part of the
+    /// turn). A near-aligned entry (below this) is left to pure-pursuit.
+    /// </summary>
+    private const double UnfilletedKinkAlignmentThresholdDeg = 20.0;
+
+    /// <summary>
     /// Turn angles at or below this are treated as collinear chords (arc tessellation, dead-straight
     /// legs): no meaningful corner, and the turn-rate feasibility cap's <c>1/θ</c> term would blow up.
     /// Above it, <see cref="CornerSpeed"/> applies the feasibility cap — including the shallow (sub-30°)
@@ -366,7 +386,19 @@ public sealed class GroundNavigator
         double segDepartureBearing = seg.Edge.DepartureBearing;
         double headingDelta = new TrueHeading(segDepartureBearing).AbsAngleTo(ctx.Aircraft.TrueHeading);
 
-        if (headingDelta > EntryAlignmentThresholdDeg)
+        // Unfilleted-kink rounding: a sharp angle between this segment and a STRAIGHT incoming segment is a
+        // dogleg the fillet generator left unsmoothed (a GeoJSON shape-point or a non-arcable junction).
+        // Pure-pursuit orbits such a kink at the low corner speed, so reduce the entry-alignment gate to
+        // round it with a closed-form slow-turn. A filleted corner has a Bézier (arc) incoming segment and
+        // a chord-chain bend stays far below the geometry threshold, so neither lowers the gate. (Issue #213.)
+        double incomingKinkDeg =
+            (route.CurrentSegmentIndex > 0 && route.Segments[route.CurrentSegmentIndex - 1].Edge.Edge is not GroundArc)
+                ? GeoMath.AbsBearingDifference(route.Segments[route.CurrentSegmentIndex - 1].Edge.ArrivalBearing, segDepartureBearing)
+                : 0.0;
+        double entryAlignmentThreshold =
+            incomingKinkDeg > UnfilletedKinkGeometryThresholdDeg ? UnfilletedKinkAlignmentThresholdDeg : EntryAlignmentThresholdDeg;
+
+        if (headingDelta > entryAlignmentThreshold)
         {
             // Adaptive rounding radius: tighten toward the tight-turn floor when the incoming leg (the
             // segment the aircraft is turning off) or the outgoing leg (this segment) is shorter than the

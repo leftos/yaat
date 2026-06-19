@@ -9,12 +9,9 @@
 ### Fixed
 - An aircraft told to taxi while still rolling out from landing (e.g. `TAXI G D J` right after touchdown) no longer calls "holding short" of — and stops at — the runway it just landed on. The taxi clearance now treats rolling off the landing runway as clearing it, not as a runway crossing to hold for. Crossings of any other runway later on the route still require a separate clearance.
 - Turning speech bubbles on or off now updates the Ground view immediately, matching the Radar view, instead of only after the Ground view is reopened.
-
-### Fixed
 - `TC` (turn crosswind) issued during the initial climb after a closed-traffic or pattern-exit departure now turns the aircraft crosswind early, at ~400 ft AGL.
-
-### Fixed
 - A departure lining up from a taxiway that meets the runway at a steep angle (e.g. Bravo onto Oakland's 28R) now turns onto the centerline instead of taxiing to the runway end and doubling back.
+- An aircraft taxiing off a runway onto a taxiway that bends sharply near the runway (e.g. OAK runway 28R onto taxiway G) now rounds the bend instead of circling it before continuing.
 
 ## v0.7.20-beta [2026/06/17]
 
