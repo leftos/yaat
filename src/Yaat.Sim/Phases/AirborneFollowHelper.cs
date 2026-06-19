@@ -776,9 +776,12 @@ public static class AirborneFollowHelper
 
         // Structural overtake: the follower's slowest sustainable approach speed still
         // outruns the lead. Anything within the margin is recoverable by slowing down,
-        // so leave it to the speed adjustment / S-turn rather than going around.
+        // so leave it to the speed adjustment / S-turn rather than going around. Compare
+        // IAS to IAS — both fly the same final into the same wind, so the airspeed
+        // difference is the wind-independent measure of "can I slow to the lead's speed";
+        // the actual ground-frame closure is handled separately by IsClosing below.
         double followerVref = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-        if (followerVref <= lead.GroundSpeed + StructuralOvertakeMarginKts)
+        if (followerVref <= lead.IndicatedAirspeed + StructuralOvertakeMarginKts)
         {
             return false;
         }
@@ -799,13 +802,13 @@ public static class AirborneFollowHelper
         }
 
         Log.LogDebug(
-            "[Follow] {Callsign}: structural overtake of {Target} — gap={Gap:F2}nm (break-off floor {Floor:F1}nm), Vref {Vref:F0}kt vs lead gs {LeadGs:F0}kt; breaking off + going around",
+            "[Follow] {Callsign}: structural overtake of {Target} — gap={Gap:F2}nm (break-off floor {Floor:F1}nm), Vref {Vref:F0}kt vs lead IAS {LeadIas:F0}kt; breaking off + going around",
             ctx.Aircraft.Callsign,
             targetCallsign,
             gap,
             FollowBreakOffGapNm,
             followerVref,
-            lead.GroundSpeed
+            lead.IndicatedAirspeed
         );
         return true;
     }
