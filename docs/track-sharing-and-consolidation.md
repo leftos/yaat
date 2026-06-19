@@ -143,6 +143,12 @@ someone else, `TrackCommandHandler.HandleHandoff` redirects it. `TryConsolidatio
 
 The user sees `Handoff … to <code> (redirected to <ownerSubset><ownerSector>)`.
 
+`TrackCommandHandler.HandlePointOut` applies the same `TryConsolidationRedirect` to the **pointout recipient**: a point-out
+addressed to a TCP consolidated under someone else has its `Pointout.Recipient` set to the attended owner. Without this, the
+controller working the combined position (acting under the owner's identity) can never match the literal child recipient and the
+point-out sticks pending forever. Unlike the handoff path, the originally-targeted TCP is not preserved (`StarsPointout` has no
+`RedirectedBy` field).
+
 ### Auto-accept suppression
 
 The server normally auto-accepts handoffs after `AutoAcceptDelay`. But if the handoff peer is **CRC-controlled** — either directly

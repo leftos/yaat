@@ -17,6 +17,9 @@
 ### Fixed
 - An aircraft that has just landed no longer lingers as a coasting track on the controller's CRC STARS (or ERAM) radar scope. Its terminal-radar track is now dropped the moment it touches down and moves to the surface display, instead of coasting — which, at faster simulation rates, could leave a stale "coast" target sitting on the aircraft for up to a minute while it taxied.
 
+### Fixed
+- A point-out to a sector that is combined into another position no longer gets stuck. Previously the controller working the combined position could not accept it, leaving the target flashing in point-out status indefinitely. The point-out is now directed to whoever is working that combined position, so they can acknowledge it.
+
 ## v0.7.20-beta [2026/06/17]
 
 ### Fixed
