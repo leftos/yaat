@@ -170,4 +170,82 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
     {
         AssertLineUpCompletesCleanly(callsign: "N436MS", ctoSecond: 47, budgetSeconds: 60);
     }
+
+    /// <summary>
+    /// Issue #203: lining up from taxiway B (a ~106° turn onto 28R) the aircraft
+    /// must turn toward the centerline, not drive forward along its hold-short
+    /// heading to the runway-start corner and double back. Asserts the aircraft
+    /// never backs behind the 28R threshold during the lineup maneuver — the
+    /// along-track distance from the threshold stays positive (forward of the
+    /// runway start). Before the fix N436MS reaches ≈ −10 ft (behind the
+    /// threshold, at "the node at the very start of 28R"); after the fix it
+    /// crosses toward the centerline at the hold-short's perpendicular foot
+    /// (≈ +40 ft, well forward of the start).
+    /// </summary>
+    [Fact]
+    public void N436MS_LineUp28R_DoesNotBackToRunwayStartCorner()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            output.WriteLine("SKIP: recording or navdata not available");
+            return;
+        }
+
+        var runway = TestVnasData.NavigationDb!.GetRunway("KOAK", "28R");
+        Assert.NotNull(runway);
+        var rwyHdg = runway.TrueHeading;
+        double rwyThreshLat = runway.ThresholdLatitude;
+        double rwyThreshLon = runway.ThresholdLongitude;
+
+        const int ctoSecond = 47;
+        const int budgetSeconds = 60;
+        engine.Replay(recording, ctoSecond - 1);
+
+        var ac = engine.FindAircraft("N436MS");
+        Assert.NotNull(ac);
+
+        bool enteredLineUp = false;
+        double minAlongFt = double.PositiveInfinity;
+        double minAlongHdg = double.NaN;
+
+        int budgetSubTicks = budgetSeconds * 4;
+        for (int sub = 0; sub < budgetSubTicks; sub++)
+        {
+            engine.ReplayOneSubTick();
+            ac = engine.FindAircraft("N436MS");
+            Assert.NotNull(ac);
+
+            var phase = ac.Phases?.CurrentPhase;
+            if (phase is LineUpPhase)
+            {
+                enteredLineUp = true;
+                double alongFt =
+                    GeoMath.AlongTrackDistanceNm(ac.Position.Lat, ac.Position.Lon, rwyThreshLat, rwyThreshLon, rwyHdg) * GeoMath.FeetPerNm;
+                if (alongFt < minAlongFt)
+                {
+                    minAlongFt = alongFt;
+                    minAlongHdg = ac.TrueHeading.Degrees;
+                }
+            }
+            else if (enteredLineUp)
+            {
+                // Exited LineUpPhase — maneuver complete.
+                break;
+            }
+        }
+
+        Assert.True(enteredLineUp, "N436MS never entered LineUpPhase");
+        output.WriteLine($"N436MS min along-track from 28R threshold during lineup: {minAlongFt:F1}ft (hdg {minAlongHdg:F0}°)");
+
+        // The aircraft must stay forward of the 28R threshold throughout the
+        // lineup. A small positive floor cleanly separates the corner-cutting
+        // bug (≈ −10 ft) from the correct cross-toward-centerline path (≈ +40 ft).
+        Assert.True(
+            minAlongFt > 5.0,
+            $"N436MS backed to within {minAlongFt:F1}ft of (or behind) the 28R threshold during lineup — "
+                + "drove to the runway-start corner instead of turning toward the centerline"
+        );
+    }
 }

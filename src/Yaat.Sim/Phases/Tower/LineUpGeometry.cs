@@ -126,8 +126,17 @@ public static class LineUpGeometry
     /// rejected in favour of the pivot fallback (which reaches the centerline via
     /// two slow turns and has no such cap). Not a global reject — a large-turn or
     /// reversed pose still lines up via the pivot.
+    ///
+    /// <para>
+    /// Capped at 90° because the aligned path's straight nose-out runs along the
+    /// aircraft's current heading: a net turn &gt; 90° means that heading points
+    /// backward along the runway (<c>cos(dHdg) &lt; 0</c>), so the nose-out would
+    /// back the aircraft toward the runway-start corner before the arc corrects.
+    /// Such hold-short poses — e.g. taxiway B onto OAK 28R in issue #203, a ~106°
+    /// turn — must cross toward the centerline first via the pivot.
+    /// </para>
     /// </summary>
-    public const double MaxTurnDeg = 150.0;
+    public const double MaxTurnDeg = 90.0;
 
     /// <summary>Rollout length past the arc exit / pivot-turn-2 exit, in feet.</summary>
     public const double RolloutLengthFt = 80.0;
@@ -220,12 +229,14 @@ public static class LineUpGeometry
         }
 
         // Decide between the aligned single-arc path and the pivot fallback. The
-        // aligned path is viable only when the net turn fits one arc
-        // (<= MaxTurnDeg), the aircraft is converging on the centerline, the arc
-        // radius fits, and a straight intercept does not waste too much runway.
-        // Everything else — large-turn reversals and parallel-taxiway / diverging
-        // poses (issue #193) — falls through to the pivot, which reaches the
-        // centerline via two slow turns regardless of the current heading.
+        // aligned path is viable only when the net turn is at most 90°
+        // (<= MaxTurnDeg, so the straight nose-out moves toward the runway rather
+        // than backing toward the runway-start corner — issue #203), the aircraft
+        // is converging on the centerline, the arc radius fits, and a straight
+        // intercept does not waste too much runway. Everything else — steep/
+        // reversed turns and parallel-taxiway / diverging poses (issue #193) —
+        // falls through to the pivot, which reaches the centerline via two slow
+        // turns regardless of the current heading.
         bool alignedTurnOk = turnMagnitudeDeg <= MaxTurnDeg;
         bool alignedConverges = signedCrossNm * sinDHdg < -1e-12;
         bool mustPivotByRadius = crossFt < lineUpRadiusFt;
@@ -275,6 +286,15 @@ public static class LineUpGeometry
     {
         double mag = Math.Abs(dHdgDeg);
         if (mag < 1e-9)
+        {
+            return double.PositiveInfinity;
+        }
+        // Obtuse heading delta: the constant-heading path's centerline intercept
+        // lies behind the aircraft (tan goes negative), i.e. there is no forward
+        // intercept — driving straight backs the aircraft along the runway rather
+        // than crossing onto it. Treat as infinite waste so the pivot is chosen.
+        // (At exactly 90° the path is perpendicular: zero along-runway waste.)
+        if (mag > 90.0)
         {
             return double.PositiveInfinity;
         }

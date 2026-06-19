@@ -50,6 +50,31 @@ public class LineUpGeometryTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Synthetic runway matching OAK 28R dimensions (5336 × 150 ft) and heading
+    /// (292.256° true), with the threshold at the real 28R departure end.
+    /// Reference runway for issue #203 (N436MS lining up from taxiway B).
+    /// </summary>
+    private static RunwayInfo MakeOak28RLikeRunway()
+    {
+        const double threshLat = 37.72481455555556;
+        const double threshLon = -122.20470872222222;
+        const double runwayHdgDeg = 292.25597018104963;
+        const double lengthFt = 5336.0;
+        var (endLat, endLon) = GeoMath.ProjectPoint(threshLat, threshLon, new TrueHeading(runwayHdgDeg), lengthFt / GeoMath.FeetPerNm);
+        return TestRunwayFactory.Make(
+            designator: "28R",
+            airportId: "KOAK",
+            thresholdLat: threshLat,
+            thresholdLon: threshLon,
+            endLat: endLat,
+            endLon: endLon,
+            heading: runwayHdgDeg,
+            lengthFt: lengthFt,
+            widthFt: 150
+        );
+    }
+
+    /// <summary>
     /// Synthetic runway matching KMIA 8R/26L dimensions (10506 × 200 ft) and the
     /// 08R-end heading (087° true), positioned at the real KMIA 08R threshold.
     /// Reference runway for issue #193.
@@ -222,6 +247,29 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         Assert.True(plan.PivotStraightLengthFt > 0, $"pivot straight should be positive, got {plan.PivotStraightLengthFt:F1}");
         double exitHdg = plan.PivotTurn2!.ExitTangentBearingDeg;
         Assert.True(GeoMath.AbsBearingDifference(exitHdg, rwy.TrueHeading.Degrees) < 0.01, $"pivot should end aligned with 087°, got {exitHdg:F1}");
+    }
+
+    // ---- Decision: issue #203 OAK 28R steep hold-short turn ----
+
+    [Fact]
+    public void Compute_HoldShortTurnExceeds90_KindIsPivot()
+    {
+        // Issue #203: N436MS (C182) holds short of OAK 28R on taxiway B at the
+        // east-end junction, heading ~186° (SSE) — a ~106° net turn onto the
+        // runway heading (292°). The aligned single-arc path's straight nose-out
+        // runs along the current heading; with a >90° turn that heading points
+        // backward along the runway, so the nose-out backs the aircraft toward
+        // the runway-start corner before the arc corrects. Such a pose must use
+        // the pivot, which crosses toward the centerline first.
+        var rwy = MakeOak28RLikeRunway();
+        var acHdg = new TrueHeading(185.76476702628463);
+
+        var plan = LineUpGeometry.Compute(rwy, 37.7255308801834, -122.20450743709728, acHdg, AircraftCategory.Piston);
+
+        output.WriteLine($"plan.Kind={plan.Kind} turn={plan.TurnAngleDeg:F1}° reason={plan.FaultReason}");
+        Assert.Equal(LineUpPathKind.Pivot, plan.Kind);
+        Assert.NotNull(plan.PivotTurn1);
+        Assert.NotNull(plan.PivotTurn2);
     }
 
     // ---- Decision: fault conditions ----

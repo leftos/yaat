@@ -13,6 +13,9 @@
 ### Fixed
 - `TC` (turn crosswind) issued during the initial climb after a closed-traffic or pattern-exit departure now turns the aircraft crosswind early, at ~400 ft AGL.
 
+### Fixed
+- A departure lining up from a taxiway that meets the runway at a steep angle (e.g. Bravo onto Oakland's 28R) now turns onto the centerline instead of taxiing to the runway end and doubling back.
+
 ## v0.7.20-beta [2026/06/17]
 
 ### Fixed

@@ -58,11 +58,20 @@ public class TaxiCrossTrailingTaxiwayTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay to just before the recorded TAXI (t=2100): N629PU is lined up and waiting on C.
-        engine.Replay(recording, 2095);
+        // Replay to t=2052: N629PU is holding short of 33 on taxiway C, on the
+        // ground. This is just before its recorded cross-runway departure
+        // sequence (CTO at t=2053, CTOC at t=2077, TAXI at t=2100). We issue the
+        // TAXI from this stable hold-short pose rather than from the later
+        // post-CTO state: that lineup is timing-sensitive (the rapid CTO/CTOC
+        // toggling leaves the rolling takeoff right at the runway, so the exact
+        // second N629PU lifts off shifts with any lineup-geometry change), which
+        // made an earlier t=2095 replay flip the aircraft between on-ground and
+        // airborne. The CROSS-33 routing under test is independent of when the
+        // departure rolls.
+        engine.Replay(recording, 2052);
         var ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
-        Assert.True(ac.IsOnGround, "N629PU should be on the ground (lined up) before the TAXI command");
+        Assert.True(ac.IsOnGround, "N629PU should be on the ground (holding short of 33) before the TAXI command");
 
         var result = engine.SendCommand(Callsign, "TAXI C B CROSS 33");
 
