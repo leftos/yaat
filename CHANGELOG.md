@@ -5,6 +5,9 @@
 ### Added
 - Recordings and bug report bundles now record the version they were captured with — both your client's version and the server's simulation version — so a report can be matched against the build that produced it.
 
+### Fixed
+- An aircraft told to taxi while still rolling out from landing (e.g. `TAXI G D J` right after touchdown) no longer calls "holding short" of — and stops at — the runway it just landed on. The taxi clearance now treats rolling off the landing runway as clearing it, not as a runway crossing to hold for. Crossings of any other runway later on the route still require a separate clearance.
+
 ## v0.7.20-beta [2026/06/17]
 
 ### Fixed

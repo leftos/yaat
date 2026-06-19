@@ -180,16 +180,19 @@ internal static class GroundCommandHandler
         );
 
         // Implicit first-crossing clearance: when the aircraft is already holding short of a
-        // runway — or is in the middle of exiting one (it must taxi past that runway's
-        // hold-short bars to finish clearing the runway it just landed on, not hold short of
-        // the runway it is leaving) — and the new route's first runway crossing is for that
-        // same runway, the TAXI command itself authorizes it. No separate CTO needed.
-        // Subsequent crossings still require explicit clearance.
+        // runway — or is in the middle of landing on / exiting one (it must taxi past that
+        // runway's hold-short bars to finish clearing the runway it just landed on, not hold
+        // short of the runway it is leaving) — and the new route's first runway crossing is for
+        // that same runway, the TAXI command itself authorizes it. No separate CTO needed.
+        // Subsequent crossings still require explicit clearance. TryTaxi already rejected the
+        // command unless the aircraft is on the ground, so a LandingPhase here is the rollout on
+        // the runway just landed on — its exit bar is a crossing of that runway, not a hold-short.
         string? priorRwy = aircraft.Phases?.CurrentPhase switch
         {
             HoldingShortPhase priorHold when priorHold.HoldShort.TargetName is { Length: > 0 } heldRwy => heldRwy,
             RunwayExitPhase exitPhase when exitPhase.RunwayId is { Length: > 0 } exitRwy => exitRwy,
             HoldingAfterExitPhase afterExit when afterExit.RunwayId is { Length: > 0 } afterExitRwy => afterExitRwy,
+            LandingPhase => aircraft.Phases?.ClearedRunwayId ?? aircraft.Phases?.AssignedRunway?.Designator,
             _ => null,
         };
         string? implicitCrossLabel = null;
