@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- New `REPORT` command has an aircraft report an event when it happens — `REPORT BASE`/`FINAL` (repeats each circuit), `REPORT 5 FINAL`, or `REPORT SUNOL` — cancellable with `REPORT OFF [leg]` and on the radar right-click menu.
 - Recordings and bug report bundles now record the version they were captured with — both your client's version and the server's simulation version — so a report can be matched against the build that produced it.
 - Speech bubbles can now stay on screen until clicked to dismiss — an opt-in alternative to the timed auto-dismiss, covering both SAY/pilot and WARN bubbles.
 

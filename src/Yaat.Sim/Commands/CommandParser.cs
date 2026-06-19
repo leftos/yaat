@@ -876,6 +876,7 @@ public static class CommandParser
             OnHandoff when arg is null => PR.Ok(new OnHandoffCommand()),
             // Broadcast
             Say when arg is not null => PR.Ok(new SayCommand(arg)),
+            Report => ParseReport(arg),
             SaySpeed when arg is null => PR.Ok(new SaySpeedCommand()),
             SayMach when arg is null => PR.Ok(new SayMachCommand()),
             SayExpectedApproach when arg is null => PR.Ok(new SayExpectedApproachCommand()),
@@ -2081,6 +2082,84 @@ public static class CommandParser
 
         return PR.Ok(new SafetyAlertCommand(new SafetyAlertDetails(clock, miles, turn, vertical)));
     }
+
+    private static PR ParseReport(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Fail("REPORT requires a target (e.g. REPORT BASE, REPORT 5 FINAL, REPORT MENLO, REPORT OFF)");
+        }
+
+        var tokens = SplitTokens(arg).Select(t => t.ToUpperInvariant()).ToArray();
+
+        // Cancel forms: any token is a cancel keyword. An accompanying leg keyword scopes the
+        // cancel to that single leg; otherwise cancel all standing reports.
+        if (tokens.Any(IsReportCancelKeyword))
+        {
+            ReportTrigger? target = null;
+            foreach (var token in tokens)
+            {
+                if (TryParseReportLeg(token) is { } leg)
+                {
+                    target = leg;
+                    break;
+                }
+            }
+
+            return PR.Ok(new ReportCommand(ReportTrigger.Cancel, CancelTarget: target));
+        }
+
+        // N-mile final: a positive integer plus the FINAL keyword (either order).
+        bool hasFinalKeyword = tokens.Any(t => t == "FINAL");
+        int? miles = null;
+        foreach (var token in tokens)
+        {
+            if (int.TryParse(token, out var n))
+            {
+                miles = n;
+            }
+        }
+
+        if (hasFinalKeyword && miles is not null)
+        {
+            if (miles <= 0)
+            {
+                return PR.Fail("final distance must be a positive whole number of miles");
+            }
+
+            return PR.Ok(new ReportCommand(ReportTrigger.MileFinal, DistanceNm: miles));
+        }
+
+        if (tokens.Length == 1)
+        {
+            if (TryParseReportLeg(tokens[0]) is { } leg)
+            {
+                return PR.Ok(new ReportCommand(leg));
+            }
+
+            if (LooksLikeFixToken(tokens[0]))
+            {
+                return PR.Ok(new ReportCommand(ReportTrigger.AtFix, FixName: tokens[0]));
+            }
+        }
+
+        return PR.Fail("unrecognized REPORT form; try REPORT BASE, REPORT 5 FINAL, REPORT MENLO, or REPORT OFF");
+    }
+
+    private static bool IsReportCancelKeyword(string token) => token is "OFF" or "CANCEL" or "NONE" or "STOP";
+
+    private static ReportTrigger? TryParseReportLeg(string token) =>
+        token switch
+        {
+            "CROSSWIND" or "XW" => ReportTrigger.Crosswind,
+            "DOWNWIND" or "DW" => ReportTrigger.Downwind,
+            "BASE" => ReportTrigger.Base,
+            "FINAL" => ReportTrigger.Final,
+            _ => null,
+        };
+
+    private static bool LooksLikeFixToken(string token) =>
+        token.Length is >= 2 and <= 5 && char.IsLetter(token[0]) && token.All(char.IsLetterOrDigit);
 
     private static string[] SplitTokens(string arg) => arg.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 

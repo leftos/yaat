@@ -57,6 +57,52 @@ public class AircraftApproachState
     /// </summary>
     public bool AutoSpacingReleased { get; set; }
 
+    /// <summary>
+    /// Deferred pattern-leg reports armed by the controller's <c>REPORT</c> command. When set,
+    /// the corresponding pattern phase voices a "turning crosswind/downwind/base/final" pilot
+    /// report on each circuit. These flags persist across laps (the phase instances are rebuilt
+    /// fresh by <see cref="Phases.PatternBuilder.BuildNextCircuit"/> but the armed state lives
+    /// here), giving the requested re-arm-every-round behavior. Cleared by <c>REPORT OFF</c>,
+    /// landing, or track teardown. Snapshot-serialized.
+    /// </summary>
+    public bool ReportArmedCrosswind { get; set; }
+    public bool ReportArmedDownwind { get; set; }
+    public bool ReportArmedBase { get; set; }
+    public bool ReportArmedFinal { get; set; }
+
+    /// <summary>
+    /// Deferred N-mile-final report armed by <c>REPORT &lt;n&gt; FINAL</c>: the distance (NM) to the
+    /// runway threshold at which the pilot voices an "n-mile final" report. One-shot — cleared
+    /// when it fires. Null when unarmed. Snapshot-serialized.
+    /// </summary>
+    public int? ReportFinalMileTarget { get; set; }
+
+    /// <summary>
+    /// Deferred at-fix report armed by <c>REPORT &lt;fix&gt;</c>: the pilot voices "at {fix}" when the
+    /// aircraft reaches the fix. The fix coordinates are resolved at arm time so the armed state
+    /// is self-contained across snapshot restore. One-shot — cleared when it fires. Null when
+    /// unarmed. Snapshot-serialized.
+    /// </summary>
+    public string? ReportAtFixName { get; set; }
+    public double? ReportAtFixLat { get; set; }
+    public double? ReportAtFixLon { get; set; }
+
+    /// <summary>
+    /// Clears every armed deferred report. Called by <c>REPORT OFF</c> and on full-stop landing
+    /// (a touch-and-go deliberately does NOT clear, so pattern-leg reports re-arm next circuit).
+    /// </summary>
+    public void ClearArmedReports()
+    {
+        ReportArmedCrosswind = false;
+        ReportArmedDownwind = false;
+        ReportArmedBase = false;
+        ReportArmedFinal = false;
+        ReportFinalMileTarget = null;
+        ReportAtFixName = null;
+        ReportAtFixLat = null;
+        ReportAtFixLon = null;
+    }
+
     public AircraftApproachStateDto ToSnapshot() =>
         new()
         {
@@ -69,6 +115,14 @@ public class AircraftApproachState
             FollowBestGapNm = FollowBestGapNm,
             FollowRunawaySeconds = FollowRunawaySeconds,
             AutoSpacingReleased = AutoSpacingReleased,
+            ReportArmedCrosswind = ReportArmedCrosswind,
+            ReportArmedDownwind = ReportArmedDownwind,
+            ReportArmedBase = ReportArmedBase,
+            ReportArmedFinal = ReportArmedFinal,
+            ReportFinalMileTarget = ReportFinalMileTarget,
+            ReportAtFixName = ReportAtFixName,
+            ReportAtFixLat = ReportAtFixLat,
+            ReportAtFixLon = ReportAtFixLon,
         };
 
     public static AircraftApproachState FromSnapshot(AircraftApproachStateDto dto) =>
@@ -83,5 +137,13 @@ public class AircraftApproachState
             FollowBestGapNm = dto.FollowBestGapNm,
             FollowRunawaySeconds = dto.FollowRunawaySeconds,
             AutoSpacingReleased = dto.AutoSpacingReleased,
+            ReportArmedCrosswind = dto.ReportArmedCrosswind,
+            ReportArmedDownwind = dto.ReportArmedDownwind,
+            ReportArmedBase = dto.ReportArmedBase,
+            ReportArmedFinal = dto.ReportArmedFinal,
+            ReportFinalMileTarget = dto.ReportFinalMileTarget,
+            ReportAtFixName = dto.ReportAtFixName,
+            ReportAtFixLat = dto.ReportAtFixLat,
+            ReportAtFixLon = dto.ReportAtFixLon,
         };
 }

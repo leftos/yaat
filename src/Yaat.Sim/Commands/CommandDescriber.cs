@@ -152,6 +152,7 @@ public static class CommandDescriber
             ReportTrafficPatternCommand => CanonicalCommandType.ReportTrafficInSight,
             ReportTrafficLandmarkCommand => CanonicalCommandType.ReportTrafficInSight,
             ReportTrafficInSightForcedCommand => CanonicalCommandType.ReportTrafficInSightForced,
+            ReportCommand => CanonicalCommandType.Report,
             SafetyAlertCommand => CanonicalCommandType.SafetyAlert,
             WakeAdvisoryCommand => CanonicalCommandType.WakeAdvisory,
             WaitCommand => CanonicalCommandType.Wait,
@@ -407,6 +408,7 @@ public static class CommandDescriber
             ReportTrafficPatternCommand => TrackedCommandType.Immediate,
             ReportTrafficLandmarkCommand => TrackedCommandType.Immediate,
             ReportTrafficInSightForcedCommand => TrackedCommandType.Immediate,
+            ReportCommand => TrackedCommandType.Immediate,
             SafetyAlertCommand => TrackedCommandType.Immediate,
             WakeAdvisoryCommand => TrackedCommandType.Immediate,
             DeleteQueuedCommand => TrackedCommandType.Immediate,
@@ -570,6 +572,7 @@ public static class CommandDescriber
             ReportTrafficLandmarkCommand { Details: not null } cmd => $"RTIS OVER {cmd.Details.FixName} {cmd.Details.AircraftType}",
             ReportTrafficLandmarkCommand => "RTIS",
             ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null ? $"RTISF {cmd.TargetCallsign}" : "RTISF",
+            ReportCommand cmd => FormatReportCanonical(cmd),
             SafetyAlertCommand { Details: not null } cmd => FormatSafetyAlertCanonical(cmd),
             SafetyAlertCommand => "SAFAL",
             WakeAdvisoryCommand => "CWT",
@@ -855,6 +858,7 @@ public static class CommandDescriber
             ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null
                 ? $"Report traffic in sight, {cmd.TargetCallsign} (forced)"
                 : "Report traffic in sight (forced)",
+            ReportCommand cmd => FormatReportNatural(cmd),
             SafetyAlertCommand { Details: not null } cmd => FormatSafetyAlertPhrase(cmd.Details),
             SafetyAlertCommand => "Safety alert",
             WakeAdvisoryCommand => "Caution wake turbulence",
@@ -1045,6 +1049,7 @@ public static class CommandDescriber
                 or CanonicalCommandType.ReportFieldInSightForced
                 or CanonicalCommandType.ReportTrafficInSight
                 or CanonicalCommandType.ReportTrafficInSightForced
+                or CanonicalCommandType.Report
                 or CanonicalCommandType.SafetyAlert
                 or CanonicalCommandType.WakeAdvisory
                 or CanonicalCommandType.ListApproaches
@@ -1927,6 +1932,52 @@ public static class CommandDescriber
         }
         return string.Join(", ", parts) + ".";
     }
+
+    private static string FormatReportCanonical(ReportCommand cmd) =>
+        cmd.Trigger switch
+        {
+            ReportTrigger.Crosswind => "REPORT CROSSWIND",
+            ReportTrigger.Downwind => "REPORT DOWNWIND",
+            ReportTrigger.Base => "REPORT BASE",
+            ReportTrigger.Final => "REPORT FINAL",
+            ReportTrigger.MileFinal => $"REPORT {cmd.DistanceNm} FINAL",
+            ReportTrigger.AtFix => $"REPORT {cmd.FixName}",
+            ReportTrigger.Cancel => cmd.CancelTarget is { } leg ? $"REPORT OFF {ReportLegToken(leg)}" : "REPORT OFF",
+            _ => "REPORT",
+        };
+
+    private static string FormatReportNatural(ReportCommand cmd) =>
+        cmd.Trigger switch
+        {
+            ReportTrigger.Crosswind => "Report turning crosswind",
+            ReportTrigger.Downwind => "Report turning downwind",
+            ReportTrigger.Base => "Report turning base",
+            ReportTrigger.Final => "Report turning final",
+            ReportTrigger.MileFinal => $"Report {cmd.DistanceNm}-mile final",
+            ReportTrigger.AtFix => $"Report at {cmd.FixName}",
+            ReportTrigger.Cancel => cmd.CancelTarget is { } leg ? $"Cancel {ReportLegWord(leg)} report" : "Cancel all reports",
+            _ => "Report",
+        };
+
+    private static string ReportLegToken(ReportTrigger leg) =>
+        leg switch
+        {
+            ReportTrigger.Crosswind => "CROSSWIND",
+            ReportTrigger.Downwind => "DOWNWIND",
+            ReportTrigger.Base => "BASE",
+            ReportTrigger.Final => "FINAL",
+            _ => leg.ToString().ToUpperInvariant(),
+        };
+
+    private static string ReportLegWord(ReportTrigger leg) =>
+        leg switch
+        {
+            ReportTrigger.Crosswind => "crosswind",
+            ReportTrigger.Downwind => "downwind",
+            ReportTrigger.Base => "base",
+            ReportTrigger.Final => "final",
+            _ => leg.ToString().ToLowerInvariant(),
+        };
 
     private static string FormatSafetyAlertCanonical(SafetyAlertCommand cmd)
     {

@@ -3,6 +3,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 
@@ -1680,4 +1681,117 @@ internal static class NavigationCommandHandler
         );
         return CommandDispatcher.Ok("Traffic in sight (forced)");
     }
+
+    /// <summary>
+    /// Arms (or cancels) a deferred pilot position report. The flags live on
+    /// <see cref="AircraftApproachState"/> so pattern-leg reports survive lap rebuilds (re-arm each
+    /// circuit); N-mile-final and at-fix arms are one-shot and cleared by the tick poll when they
+    /// fire. The pilot wilco acknowledgment is produced by the generic solo readback
+    /// (<c>PilotResponder.BuildReadback</c>); this handler only records intent and returns the
+    /// controller-facing echo. Dry-run safe — touches no <c>TerminalEmitter</c>.
+    /// </summary>
+    internal static CommandResult DispatchReport(ReportCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        var approach = aircraft.Approach;
+        switch (cmd.Trigger)
+        {
+            case ReportTrigger.Cancel:
+                return DispatchReportCancel(cmd, approach);
+
+            case ReportTrigger.Crosswind:
+            case ReportTrigger.Downwind:
+            case ReportTrigger.Base:
+            case ReportTrigger.Final:
+                if (!HasPatternCircuit(aircraft))
+                {
+                    return new CommandResult(false, $"Unable, {aircraft.Callsign} is not in the pattern");
+                }
+                SetPatternLegReportArmed(approach, cmd.Trigger, true);
+                return CommandDispatcher.Ok($"Will report turning {ReportLegWord(cmd.Trigger)}");
+
+            case ReportTrigger.MileFinal:
+                if (aircraft.Phases?.AssignedRunway is null)
+                {
+                    return new CommandResult(false, "Unable, no runway assigned for final reporting");
+                }
+                if (cmd.DistanceNm is not > 0)
+                {
+                    return new CommandResult(false, "Final distance must be a positive whole number of miles");
+                }
+                approach.ReportFinalMileTarget = cmd.DistanceNm;
+                return CommandDispatcher.Ok($"Will report {cmd.DistanceNm}-mile final");
+
+            case ReportTrigger.AtFix:
+                return DispatchReportAtFix(cmd, aircraft);
+
+            default:
+                return new CommandResult(false, "Unrecognized REPORT request");
+        }
+    }
+
+    private static CommandResult DispatchReportCancel(ReportCommand cmd, AircraftApproachState approach)
+    {
+        if (cmd.CancelTarget is { } leg)
+        {
+            SetPatternLegReportArmed(approach, leg, false);
+            return CommandDispatcher.Ok($"Cancelled {ReportLegWord(leg)} report");
+        }
+
+        approach.ClearArmedReports();
+        return CommandDispatcher.Ok("Reports cancelled");
+    }
+
+    private static CommandResult DispatchReportAtFix(ReportCommand cmd, AircraftState aircraft)
+    {
+        var fixName = cmd.FixName?.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(fixName))
+        {
+            return new CommandResult(false, "REPORT requires a fix name");
+        }
+
+        var pos = NavigationDatabase.Instance.GetFixPosition(fixName);
+        if (pos is null)
+        {
+            return new CommandResult(false, $"Unable, {fixName} not in nav database");
+        }
+
+        aircraft.Approach.ReportAtFixName = fixName;
+        aircraft.Approach.ReportAtFixLat = pos.Value.Lat;
+        aircraft.Approach.ReportAtFixLon = pos.Value.Lon;
+        return CommandDispatcher.Ok($"Will report passing {fixName}");
+    }
+
+    private static bool HasPatternCircuit(AircraftState aircraft) =>
+        aircraft.Phases?.Phases.Any(p => p is UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase) == true;
+
+    private static void SetPatternLegReportArmed(AircraftApproachState approach, ReportTrigger leg, bool armed)
+    {
+        switch (leg)
+        {
+            case ReportTrigger.Crosswind:
+                approach.ReportArmedCrosswind = armed;
+                break;
+            case ReportTrigger.Downwind:
+                approach.ReportArmedDownwind = armed;
+                break;
+            case ReportTrigger.Base:
+                approach.ReportArmedBase = armed;
+                break;
+            case ReportTrigger.Final:
+                approach.ReportArmedFinal = armed;
+                break;
+            default:
+                break;
+        }
+    }
+
+    private static string ReportLegWord(ReportTrigger leg) =>
+        leg switch
+        {
+            ReportTrigger.Crosswind => "crosswind",
+            ReportTrigger.Downwind => "downwind",
+            ReportTrigger.Base => "base",
+            ReportTrigger.Final => "final",
+            _ => "final",
+        };
 }

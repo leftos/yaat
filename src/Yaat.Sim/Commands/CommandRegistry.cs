@@ -1448,6 +1448,19 @@ public static class CommandRegistry
             Bare(SayAltitude, "Say Altitude", "Broadcast", false, ["SALT"]),
             Bare(SayHeading, "Say Heading", "Broadcast", false, ["SHDG"]),
             Bare(SayPosition, "Say Position", "Broadcast", false, ["SPOS"]),
+            Cmd(
+                Report,
+                "Report",
+                "Approach",
+                false,
+                ["REPORT"],
+                [
+                    O("Pattern leg", [R("leg", "base/final/crosswind/downwind")], "Report turning the leg (each circuit)"),
+                    O("N-mile final", [R("miles", "distance NM"), L("FINAL")], "Report n-mile final"),
+                    O("At fix", [R("fix", "fix name")], "Report passing the fix"),
+                    O("Cancel", [R("off", "OFF [leg]")], "Stop a standing report (OFF [leg]; bare OFF cancels all)"),
+                ]
+            ),
         ];
 
     private static CommandDefinition[] ApproachCommands() =>

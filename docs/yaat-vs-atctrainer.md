@@ -206,6 +206,7 @@ YAAT also flies charted SID legs coded as headings or courses rather than fixes.
 | Report traffic in sight | — | `RTIS 3 5 W B737 024` / `RTIS <callsign>` | YAAT-only — structured form required in solo training; callsign shorthand is RPO-only. Tolerant matching (best traffic within realistic bands per 7110.65 §2-1-21 / AIM §4-1-15); altitude optional (`RTIS 3 5 W B737`) |
 | Report traffic (VFR-style) | — | `RTIS NR 2 C172` / `RTIS BASE R 2 28R M20P` / `RTIS OVER VPCOL C172` | YAAT-only — relative-position (octant off the nose), pattern-leg (7110.65 §3-10-4), and landmark/VFR-reporting-point (§2-1-21.b.1) forms; typeable and speakable; same tolerant matching + graded scoring as the clock form |
 | Report traffic (forced) | — | `RTISF` | YAAT-only — RPO-only, bypasses visual detection |
+| Report position | — | `REPORT BASE` / `REPORT 5 FINAL` / `REPORT SUNOL` (+ `REPORT OFF [leg]`) | YAAT-only — deferred pilot position report; pattern-leg reports repeat each circuit until cancelled or full-stop |
 | Safety alert | — | `SAFAL 12 1 [L/R] [C/D]` | YAAT-only — structured solo-training proof for unsafe aircraft proximity |
 | Intercept validation | — | Yes — per 7110.65 §5-9-2 | YAAT-only |
 | Illegal intercept warning | — | Yes — per 7110.65 §5-9-1 | YAAT-only |

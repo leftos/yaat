@@ -16,4 +16,17 @@ public sealed class AircraftApproachStateDto
     /// <see langword="false"/>.
     /// </summary>
     public bool AutoSpacingReleased { get; init; }
+
+    /// <summary>
+    /// Deferred REPORT command armed state. All non-required so older snapshots default to
+    /// unarmed (<see langword="false"/> / <see langword="null"/>).
+    /// </summary>
+    public bool ReportArmedCrosswind { get; init; }
+    public bool ReportArmedDownwind { get; init; }
+    public bool ReportArmedBase { get; init; }
+    public bool ReportArmedFinal { get; init; }
+    public int? ReportFinalMileTarget { get; init; }
+    public string? ReportAtFixName { get; init; }
+    public double? ReportAtFixLat { get; init; }
+    public double? ReportAtFixLon { get; init; }
 }

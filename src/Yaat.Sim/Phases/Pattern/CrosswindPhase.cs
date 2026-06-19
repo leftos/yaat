@@ -49,6 +49,8 @@ public sealed class CrosswindPhase : Phase
             return;
         }
 
+        PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Crosswind);
+
         _targetLat = Waypoints.DownwindStartLat;
         _targetLon = Waypoints.DownwindStartLon;
         _crosswindHeading = Waypoints.CrosswindHeading;

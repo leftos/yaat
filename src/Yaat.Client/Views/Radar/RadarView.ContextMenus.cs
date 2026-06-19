@@ -706,6 +706,32 @@ public partial class RadarView
             CreateInputMenuItem("Report traffic in sight...", "Target callsign (optional)", input => vm.ReportTrafficInSightAsync(cs, init, input))
         );
 
+        menu.Items.Add(new Separator());
+        menu.Items.Add(BuildReportWhenSubmenu(vm, cs, init));
+
+        return menu;
+    }
+
+    private MenuItem BuildReportWhenSubmenu(RadarViewModel vm, string cs, string init)
+    {
+        var menu = new MenuItem { Header = "Report when…" };
+        menu.Items.Add(CreateMenuItem("Turning base", () => vm.SendRawCommandAsync(cs, init, "REPORT BASE")));
+        menu.Items.Add(CreateMenuItem("Turning final", () => vm.SendRawCommandAsync(cs, init, "REPORT FINAL")));
+        menu.Items.Add(CreateMenuItem("Turning crosswind", () => vm.SendRawCommandAsync(cs, init, "REPORT CROSSWIND")));
+        menu.Items.Add(CreateMenuItem("Turning downwind", () => vm.SendRawCommandAsync(cs, init, "REPORT DOWNWIND")));
+        menu.Items.Add(CreateInputMenuItem("N-mile final...", "Distance (NM)", input => vm.SendRawCommandAsync(cs, init, $"REPORT {input} FINAL")));
+        menu.Items.Add(CreateInputMenuItem("At fix...", "Fix name", input => vm.SendRawCommandAsync(cs, init, $"REPORT {input}")));
+
+        var stop = new MenuItem { Header = "Stop reporting" };
+        stop.Items.Add(CreateMenuItem("Base", () => vm.SendRawCommandAsync(cs, init, "REPORT OFF BASE")));
+        stop.Items.Add(CreateMenuItem("Final", () => vm.SendRawCommandAsync(cs, init, "REPORT OFF FINAL")));
+        stop.Items.Add(CreateMenuItem("Crosswind", () => vm.SendRawCommandAsync(cs, init, "REPORT OFF CROSSWIND")));
+        stop.Items.Add(CreateMenuItem("Downwind", () => vm.SendRawCommandAsync(cs, init, "REPORT OFF DOWNWIND")));
+        stop.Items.Add(new Separator());
+        stop.Items.Add(CreateMenuItem("All reports", () => vm.SendRawCommandAsync(cs, init, "REPORT OFF")));
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(stop);
         return menu;
     }
 

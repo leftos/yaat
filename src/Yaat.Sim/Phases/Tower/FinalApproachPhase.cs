@@ -353,6 +353,8 @@ public sealed class FinalApproachPhase : Phase
             return;
         }
 
+        Pattern.PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Final);
+
         _thresholdLat = ctx.Runway.ThresholdLatitude;
         _thresholdLon = ctx.Runway.ThresholdLongitude;
         _thresholdElevation = ctx.Runway.ElevationFt;

@@ -694,6 +694,8 @@ public static class CommandDispatcher
             case SayCommand sayCmd:
                 ctx.TerminalEmitter?.Invoke(new TerminalEntry("Say", aircraft.Callsign, sayCmd.Text));
                 return Ok("");
+            case ReportCommand reportCmd:
+                return NavigationCommandHandler.DispatchReport(reportCmd, aircraft, ctx);
             case SaySpeedCommand:
                 ctx.TerminalEmitter?.Invoke(new TerminalEntry("SaySpeed", aircraft.Callsign, PilotSayBuilder.BuildSpeed(aircraft)));
                 return Ok("");
@@ -1472,6 +1474,7 @@ public static class CommandDispatcher
             CanonicalCommandType.ReportFieldInSightForced => true,
             CanonicalCommandType.ReportTrafficInSight => true,
             CanonicalCommandType.ReportTrafficInSightForced => true,
+            CanonicalCommandType.Report => true,
             CanonicalCommandType.SafetyAlert => true,
             CanonicalCommandType.WakeAdvisory => true,
             // NODEL is a pure controller bookkeeping toggle (flips AutoDeleteExempt /

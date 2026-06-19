@@ -60,6 +60,8 @@ public sealed class DownwindPhase : Phase
             return;
         }
 
+        PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Downwind);
+
         _thresholdLat = Waypoints.ThresholdLat;
         _thresholdLon = Waypoints.ThresholdLon;
         _downwindHeading = Waypoints.DownwindHeading;

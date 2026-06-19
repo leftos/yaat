@@ -125,6 +125,30 @@ public record ResolvedFix(string Name, double Lat, double Lon);
 
 public record SayCommand(string Text) : ParsedCommand;
 
+/// <summary>
+/// What a <see cref="ReportCommand"/> arms (or, for <see cref="Cancel"/>, undoes). The four pattern
+/// legs re-arm every circuit; <see cref="MileFinal"/> and <see cref="AtFix"/> are one-shot.
+/// </summary>
+public enum ReportTrigger
+{
+    Crosswind,
+    Downwind,
+    Base,
+    Final,
+    MileFinal,
+    AtFix,
+    Cancel,
+}
+
+/// <summary>
+/// Controller <c>REPORT</c> command: arms a deferred pilot position report (or cancels one). The fix
+/// for <see cref="ReportTrigger.AtFix"/> is resolved to coordinates at dispatch time. For
+/// <see cref="ReportTrigger.Cancel"/>, <see cref="CancelTarget"/> names a single pattern leg to stop
+/// reporting, or is null to cancel all standing reports.
+/// </summary>
+public record ReportCommand(ReportTrigger Trigger, int? DistanceNm = null, string? FixName = null, ReportTrigger? CancelTarget = null)
+    : ParsedCommand;
+
 public record SaySpeedCommand : ParsedCommand;
 
 public record SayMachCommand : ParsedCommand;

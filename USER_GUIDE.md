@@ -952,6 +952,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `CLAND 28R` | Cleared to land on runway 28R (a following aircraft is cleared even before it has its own runway) |
 | `CLANDF` | Force landing — clears the aircraft and forces it down regardless of energy state, overriding the automatic go-around (RPO-only; cancel with `GA` or `CLC`) |
 | `CWT` | Caution wake turbulence |
+| `REPORT BASE` | Have the pilot report turning base (repeats each circuit; also `REPORT 5 FINAL`, `REPORT SUNOL`; cancel with `REPORT OFF`) |
 | `CAPP ILS28R` | Cleared ILS Runway 28R approach |
 | `CLBRV` | Cleared through/to enter/out of Bravo airspace |
 | `STBY` | Acknowledge pilot contact without issuing a maneuver |

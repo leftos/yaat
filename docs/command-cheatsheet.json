@@ -102,6 +102,7 @@
         { "verb": "FOLLOW", "aliases": ["fol"], "description": "Follow traffic (airborne)" },
         { "verb": "RFIS", "aliases": [], "description": "Report field: RFIS clock miles (bare shorthand RPO-only)", "global": true },
         { "verb": "RTIS", "aliases": [], "description": "Report traffic: clock (RTIS 3 5 W B737 [alt]), relative (RTIS NR 2 C172), pattern (RTIS BASE R 2 28R M20P), landmark (RTIS OVER VPCOL C172)", "global": true },
+        { "verb": "REPORT", "aliases": [], "description": "Deferred position report: REPORT BASE/FINAL/XW/DW (each lap), REPORT 5 FINAL, REPORT fix; cancel REPORT OFF [leg]" },
         { "verb": "SAFAL", "aliases": [], "description": "Safety alert: SAFAL clock miles [L/R] [C/D]", "global": true }
       ],
       "notes": ["Rich forms: `AT fix CAPP` `DCT fix CAPP` `CFIX fix alt CAPP`"]

@@ -659,14 +659,22 @@ public sealed class SimulationEngine
         // Airborne-spawn check-ins fire here, before the notification drain, so they emit
         // the same tick they're produced. PilotProactive.TickAirborneCheckIn is idempotent —
         // it sets HasMadeInitialContact on success and no-ops on subsequent ticks.
-        if (Scenario is { SoloTrainingMode: true } scenario)
+        // TickReportTriggers (deferred REPORT n-mile-final / at-fix) runs in both solo and RPO
+        // mode, so it sits outside the solo-only gate.
+        if (Scenario is { } scenario)
         {
+            bool solo = scenario.SoloTrainingMode;
             foreach (var ac in World.GetSnapshot())
             {
-                Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
-                Pilot.PilotProactive.TickArrivalApproachRequest(ac, scenario, LookupAirportPosition);
-                Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
-                Pilot.PilotProactive.TickPendingRequests(ac, scenario);
+                if (solo)
+                {
+                    Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
+                    Pilot.PilotProactive.TickArrivalApproachRequest(ac, scenario, LookupAirportPosition);
+                    Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
+                    Pilot.PilotProactive.TickPendingRequests(ac, scenario);
+                }
+
+                Pilot.PilotProactive.TickReportTriggers(ac, scenario);
             }
         }
 

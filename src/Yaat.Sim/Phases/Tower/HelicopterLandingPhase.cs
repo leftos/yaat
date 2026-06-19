@@ -41,6 +41,9 @@ public sealed class HelicopterLandingPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
+        // Full-stop landing ends any standing pattern-leg reports (touch-and-go does not).
+        ctx.Aircraft.Approach.ClearArmedReports();
+
         _fieldElevation = ctx.FieldElevation;
 
         ctx.Targets.TargetAltitude = _fieldElevation;

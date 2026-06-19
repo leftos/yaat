@@ -271,6 +271,9 @@ public sealed class LandingPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
+        // Full-stop landing ends any standing pattern-leg reports (touch-and-go does not).
+        ctx.Aircraft.Approach.ClearArmedReports();
+
         _plan = BuildPlan(ctx);
 
         if (ctx.Runway is null)

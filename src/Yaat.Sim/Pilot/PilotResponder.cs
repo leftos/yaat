@@ -222,7 +222,28 @@ public static class PilotResponder
                 option.TrafficPattern
             ),
             ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext),
+            ReportCommand report => BuildReportWilcoClause(report),
             _ => VerbalizeDual(cmd, personality, activityLevel),
+        };
+
+    /// <summary>
+    /// Pilot wilco for a controller <c>REPORT</c> request: acknowledges now ("will report turning
+    /// base"); the actual position report is voiced later when the event occurs. A cancel
+    /// (<see cref="ReportTrigger.Cancel"/>) needs no readback.
+    /// </summary>
+    private static PilotSpeechText? BuildReportWilcoClause(ReportCommand report) =>
+        report.Trigger switch
+        {
+            ReportTrigger.Crosswind => Dual("will report turning crosswind", "will report turning crosswind"),
+            ReportTrigger.Downwind => Dual("will report turning downwind", "will report turning downwind"),
+            ReportTrigger.Base => Dual("will report turning base", "will report turning base"),
+            ReportTrigger.Final => Dual("will report turning final", "will report turning final"),
+            ReportTrigger.MileFinal => Dual(
+                $"will report {report.DistanceNm}-mile final",
+                $"will report {MilesToWords(report.DistanceNm ?? 0)} mile final"
+            ),
+            ReportTrigger.AtFix => Dual($"will report passing {report.FixName}", $"will report passing {report.FixName}"),
+            _ => null,
         };
 
     /// <summary>
@@ -814,6 +835,81 @@ public static class PilotResponder
             $"{spoken}, short final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
         );
     }
+
+    /// <summary>
+    /// Deferred pilot position report voiced when the controller armed it via <c>REPORT</c> and the
+    /// aircraft reaches the leg. Output:
+    /// <c>"[N123AB] november one two three alpha bravo, turning base runway two eight right."</c>
+    /// </summary>
+    public static PilotSpeechText BuildTurningLegReport(AircraftState aircraft, ReportTrigger leg, string runwayId)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var legWord = leg switch
+        {
+            ReportTrigger.Crosswind => "crosswind",
+            ReportTrigger.Downwind => "downwind",
+            ReportTrigger.Base => "base",
+            ReportTrigger.Final => "final",
+            _ => "final",
+        };
+        return new PilotSpeechText(
+            $"turning {legWord} runway {PhraseologyVerbalizer.CompactRunway(runwayId)}.",
+            $"{spoken}, turning {legWord} runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
+        );
+    }
+
+    /// <summary>
+    /// Deferred pilot "n-mile final" report voiced when the aircraft reaches the armed distance from
+    /// the threshold. Output:
+    /// <c>"[N123AB] november one two three alpha bravo, five mile final runway two eight right."</c>
+    /// </summary>
+    public static PilotSpeechText BuildMileFinalReport(AircraftState aircraft, int miles, string runwayId)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        return new PilotSpeechText(
+            $"{miles}-mile final runway {PhraseologyVerbalizer.CompactRunway(runwayId)}.",
+            $"{spoken}, {MilesToWords(miles)} mile final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
+        );
+    }
+
+    /// <summary>
+    /// Deferred pilot fix-passage report voiced when the aircraft reaches the armed fix. Uses the
+    /// codified report verb "passing" (7110.65 PCG REPORT- / §5-5-5), not "at" (which connotes a
+    /// clearance limit). Output:
+    /// <c>"[N123AB] november one two three alpha bravo, passing SUNOL."</c>
+    /// </summary>
+    public static PilotSpeechText BuildAtFixReport(AircraftState aircraft, string fixName)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        return new PilotSpeechText($"passing {fixName}.", $"{spoken}, passing {fixName}.");
+    }
+
+    /// <summary>Cardinal spelling of a final-report distance (1–20 NM) for TTS, falling back to digits.</summary>
+    private static string MilesToWords(int miles) =>
+        miles switch
+        {
+            1 => "one",
+            2 => "two",
+            3 => "three",
+            4 => "four",
+            5 => "five",
+            6 => "six",
+            7 => "seven",
+            8 => "eight",
+            9 => "nine",
+            10 => "ten",
+            11 => "eleven",
+            12 => "twelve",
+            13 => "thirteen",
+            14 => "fourteen",
+            15 => "fifteen",
+            16 => "sixteen",
+            17 => "seventeen",
+            18 => "eighteen",
+            19 => "nineteen",
+            20 => "twenty",
+            _ => miles.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        };
 
     /// <summary>
     /// Pilot transmission when the aircraft has the named traffic in sight. Used by sim-resolved

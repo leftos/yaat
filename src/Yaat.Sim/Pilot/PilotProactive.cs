@@ -1,3 +1,5 @@
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation;
@@ -154,6 +156,68 @@ public static class PilotProactive
             line.Tts,
             PilotRequestContext.Runway(runwayId, facilityCallName)
         );
+    }
+
+    private const double ReportAtFixArrivalNm = 0.5;
+
+    /// <summary>
+    /// Per-tick poll for the one-shot deferred reports armed by <c>REPORT &lt;n&gt; FINAL</c> and
+    /// <c>REPORT &lt;fix&gt;</c>. Pattern-leg reports are voiced from the pattern phases, not here.
+    /// Each fires once — clearing the armed field — when the aircraft reaches the armed distance to
+    /// the assigned-runway threshold (n-mile final, gated to inbound aircraft so a same-runway
+    /// departure never reports final) or the resolved fix. Unlike the other proactive ticks this
+    /// runs in both solo and RPO mode; <see cref="PilotResponder.RouteSoloOrRpoTransmission"/> routes
+    /// to the right channel.
+    /// </summary>
+    public static void TickReportTriggers(AircraftState aircraft, SimScenarioState scenario)
+    {
+        if (aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        var approach = aircraft.Approach;
+
+        if (
+            approach.ReportFinalMileTarget is { } miles
+            && aircraft.Phases?.AssignedRunway is { } runway
+            && ApproachCommandHandler.IsInboundToLand(aircraft)
+        )
+        {
+            double distNm = GeoMath.DistanceNm(aircraft.Position, new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude));
+            if (distNm <= miles)
+            {
+                approach.ReportFinalMileTarget = null;
+                string runwayId = RunwayIdentifier.ToDisplayDesignator(runway.Designator);
+                PilotResponder.RouteSoloOrRpoTransmission(
+                    aircraft,
+                    scenario.SoloTrainingMode,
+                    scenario.RpoShowPilotSpeech,
+                    scenario.StudentPositionType,
+                    PilotResponder.BuildMileFinalReport(aircraft, miles, runwayId),
+                    PilotResponder.SoloPositionsTowerApproach
+                );
+            }
+        }
+
+        if (approach.ReportAtFixName is { } fixName && approach.ReportAtFixLat is { } fixLat && approach.ReportAtFixLon is { } fixLon)
+        {
+            double distNm = GeoMath.DistanceNm(aircraft.Position, new LatLon(fixLat, fixLon));
+            if (distNm <= ReportAtFixArrivalNm)
+            {
+                approach.ReportAtFixName = null;
+                approach.ReportAtFixLat = null;
+                approach.ReportAtFixLon = null;
+                PilotResponder.RouteSoloOrRpoTransmission(
+                    aircraft,
+                    scenario.SoloTrainingMode,
+                    scenario.RpoShowPilotSpeech,
+                    scenario.StudentPositionType,
+                    PilotResponder.BuildAtFixReport(aircraft, fixName),
+                    PilotResponder.SoloPositionsTowerApproach
+                );
+            }
+        }
     }
 
     public static void TickPendingRequests(AircraftState aircraft, SimScenarioState scenario)

@@ -197,6 +197,7 @@ public enum CanonicalCommandType
     ReportFieldInSightForced,
     ReportTrafficInSight,
     ReportTrafficInSightForced,
+    Report,
     SafetyAlert,
     WakeAdvisory,
     ResumeNormalSpeed,

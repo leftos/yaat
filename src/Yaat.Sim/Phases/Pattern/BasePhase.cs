@@ -45,6 +45,8 @@ public sealed class BasePhase : Phase
             return;
         }
 
+        PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Base);
+
         _finalHeading = Waypoints.FinalHeading;
 
         if (FinalDistanceNm is not null)
