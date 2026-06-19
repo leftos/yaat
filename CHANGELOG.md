@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Recordings and bug report bundles now record the version they were captured with — both your client's version and the server's simulation version — so a report can be matched against the build that produced it.
+
 ## v0.7.20-beta [2026/06/17]
 
 ### Fixed

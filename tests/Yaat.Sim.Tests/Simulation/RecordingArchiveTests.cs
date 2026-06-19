@@ -369,7 +369,16 @@ public class RecordingArchiveTests
             writer.WriteScenario("{}");
             writer.WriteActions([]);
             writer.WriteLayout(layout);
-            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+            writer.Finish(
+                new RecordingMetadata
+                {
+                    RngSeed = 42,
+                    TotalElapsedSeconds = 0,
+                    ScenarioName = "test",
+                    ScenarioId = "test-1",
+                    ArtccId = "ZOA",
+                }
+            );
         }
 
         ms.Position = 0;
@@ -391,7 +400,16 @@ public class RecordingArchiveTests
             writer.WriteActions([]);
             writer.WriteLayout(new AirportGroundLayout { AirportId = "KOAK" });
             writer.WriteLayout(new AirportGroundLayout { AirportId = "KSFO" });
-            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+            writer.Finish(
+                new RecordingMetadata
+                {
+                    RngSeed = 42,
+                    TotalElapsedSeconds = 0,
+                    ScenarioName = "test",
+                    ScenarioId = "test-1",
+                    ArtccId = "ZOA",
+                }
+            );
         }
 
         ms.Position = 0;
@@ -415,7 +433,16 @@ public class RecordingArchiveTests
             writer.WriteScenario("{}");
             writer.WriteActions([]);
             writer.WriteAirportGeoJson(airportId, sourceGeoJson);
-            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+            writer.Finish(
+                new RecordingMetadata
+                {
+                    RngSeed = 42,
+                    TotalElapsedSeconds = 0,
+                    ScenarioName = "test",
+                    ScenarioId = "test-1",
+                    ArtccId = "ZOA",
+                }
+            );
         }
 
         ms.Position = 0;
@@ -438,7 +465,16 @@ public class RecordingArchiveTests
             writer.WriteActions([]);
             writer.WriteAirportGeoJson("KOAK", """{"type":"FeatureCollection","features":[]}""");
             writer.WriteAirportGeoJson("koak", """{"ignored":true}""");
-            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+            writer.Finish(
+                new RecordingMetadata
+                {
+                    RngSeed = 42,
+                    TotalElapsedSeconds = 0,
+                    ScenarioName = "test",
+                    ScenarioId = "test-1",
+                    ArtccId = "ZOA",
+                }
+            );
         }
 
         ms.Position = 0;
@@ -570,7 +606,16 @@ public class RecordingArchiveTests
             writer.WriteScenario("{}");
             writer.WriteActions([]);
             writer.WriteLayout(layout);
-            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+            writer.Finish(
+                new RecordingMetadata
+                {
+                    RngSeed = 42,
+                    TotalElapsedSeconds = 0,
+                    ScenarioName = "test",
+                    ScenarioId = "test-1",
+                    ArtccId = "ZOA",
+                }
+            );
         }
 
         ms.Position = 0;

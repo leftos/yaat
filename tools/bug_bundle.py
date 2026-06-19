@@ -296,6 +296,9 @@ def cmd_info(args: argparse.Namespace) -> int:
         lines: list[str] = []
         lines.append(f"Bundle: {args.bundle}")
         lines.append(f"  Version:             {m.get('Version')}")
+        lines.append(f"  ClientVersion:       {m.get('ClientVersion')}")
+        lines.append(f"  ClientBuildKind:     {m.get('ClientBuildKind')}")
+        lines.append(f"  ServerVersion:       {m.get('ServerVersion')}  (Yaat.Sim — code that ran the sim)")
         lines.append(f"  RngSeed:             {m.get('RngSeed')}")
         lines.append(f"  Duration:            {m.get('TotalElapsedSeconds')} s")
         lines.append(f"  Snapshots:           {len(m.get('Snapshots') or [])}")

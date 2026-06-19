@@ -125,15 +125,7 @@ public sealed class RecordingArchiveWriter : IDisposable
     /// <summary>
     /// Writes <c>manifest.json</c> as the final entry and closes the archive.
     /// </summary>
-    public void Finish(
-        string? scenarioName,
-        string? scenarioId,
-        string? artccId,
-        int rngSeed,
-        double totalElapsedSeconds,
-        DateTime? recordedAtUtc,
-        string? recordedBy
-    )
+    public void Finish(RecordingMetadata metadata)
     {
         if (_finished)
         {
@@ -145,17 +137,20 @@ public sealed class RecordingArchiveWriter : IDisposable
         var manifest = new RecordingManifest
         {
             Version = 4,
-            RngSeed = rngSeed,
-            TotalElapsedSeconds = totalElapsedSeconds,
+            RngSeed = metadata.RngSeed,
+            TotalElapsedSeconds = metadata.TotalElapsedSeconds,
             ActionCount = _actionCount,
             HasWeather = _hasWeather,
             MetarReissuanceEnabled = _metarReissuanceEnabled,
             HasArtccConfig = _hasArtccConfig,
-            ScenarioName = scenarioName,
-            ScenarioId = scenarioId,
-            ArtccId = artccId,
-            RecordedAtUtc = recordedAtUtc,
-            RecordedBy = recordedBy,
+            ScenarioName = metadata.ScenarioName,
+            ScenarioId = metadata.ScenarioId,
+            ArtccId = metadata.ArtccId,
+            RecordedAtUtc = metadata.RecordedAtUtc,
+            RecordedBy = metadata.RecordedBy,
+            ClientVersion = metadata.ClientVersion,
+            ClientBuildKind = metadata.ClientBuildKind,
+            ServerVersion = metadata.ServerVersion,
             Snapshots = _snapshotIndex,
             LayoutAirportIds = _layoutAirportIds.Count > 0 ? _layoutAirportIds : null,
             AirportGeoJsonIds = _airportGeoJsonIds.Count > 0 ? _airportGeoJsonIds : null,
@@ -191,13 +186,16 @@ public sealed class RecordingArchiveWriter : IDisposable
             }
 
             writer.Finish(
-                recording.ScenarioName,
-                recording.ScenarioId,
-                recording.ArtccId,
-                recording.RngSeed,
-                recording.TotalElapsedSeconds,
-                recording.RecordedAtUtc,
-                recording.RecordedBy
+                new RecordingMetadata
+                {
+                    RngSeed = recording.RngSeed,
+                    TotalElapsedSeconds = recording.TotalElapsedSeconds,
+                    ScenarioName = recording.ScenarioName,
+                    ScenarioId = recording.ScenarioId,
+                    ArtccId = recording.ArtccId,
+                    RecordedAtUtc = recording.RecordedAtUtc,
+                    RecordedBy = recording.RecordedBy,
+                }
             );
         }
 

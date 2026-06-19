@@ -65,6 +65,7 @@ A recording is a ZIP with this layout:
 ```
 manifest.json                # Version, RngSeed, ActionCount, HasWeather,
                              # HasArtccConfig, ArtccId, ScenarioId/Name,
+                             # ClientVersion, ClientBuildKind, ServerVersion,
                              # Snapshots[], LayoutAirportIds[], AirportGeoJsonIds[]
 scenario.json.br             # Brotli-compressed scenario JSON
 actions.json.br              # Brotli-compressed RecordedAction[]
@@ -76,6 +77,8 @@ weather.json                 # plain JSON (optional; gated by HasWeather)
 artcc-config.json.br         # ARTCC config JSON (optional; HasArtccConfig)
 bookmarks.json               # plain JSON (optional; user-authored timeline bookmarks)
 ```
+
+**Version fields** (`ClientVersion`, `ClientBuildKind`, `ServerVersion`) are stamped at export time for bug-report triage. `ClientVersion`/`ClientBuildKind` are sent by the exporting client (`BuildInfo.Version` / `BuildInfo.BuildKind`) and describe the user's build; `ServerVersion` is `SimBuildInfo.Version` — the Yaat.Sim assembly that actually ran the session on the server (Yaat.Server carries no independent version). Since the hosted server and a user's client can be on different builds, the two answer different questions: was the *user's* client behind a fix, vs. was the *sim code that ran* behind a fix. All three are null for recordings exported before this was added or migrated from legacy formats.
 
 **`bookmarks.json`** is a client-only addition: the server-built archive never writes it. The client injects it at save time via `RecordingArchive.WriteBookmarks(bytes, …)` (a copy-into-fresh-`Create` rebuild, not Update mode) from `SaveRecording`/`SaveBugReportBundle`, and reads it back via `RecordingArchive.ReadBookmarks()` in `MainViewModel.LoadRecording`. It is not tracked in the manifest, so it is absent in older recordings — `ReadBookmarks()` returns `[]` then. The server's `RecordingArchive` reader ignores the entry (it only requires `manifest.json` and fetches known entries by name), the same way it tolerates the log entries inside a bug bundle.
 

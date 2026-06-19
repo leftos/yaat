@@ -555,11 +555,15 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<TimelineInfoDto?>("GetTimelineInfo");
     }
 
-    public async Task<byte[]?> ExportRecordingAsync(CancellationToken cancellationToken = default)
+    public async Task<byte[]?> ExportRecordingAsync(string clientVersion, string clientBuildKind, CancellationToken cancellationToken = default)
     {
         EnsureConnected();
         var ms = new MemoryStream();
-        await foreach (var chunk in _connection!.StreamAsync<byte[]>("ExportRecording", cancellationToken).WithCancellation(cancellationToken))
+        await foreach (
+            var chunk in _connection!
+                .StreamAsync<byte[]>("ExportRecording", clientVersion, clientBuildKind, cancellationToken)
+                .WithCancellation(cancellationToken)
+        )
         {
             await ms.WriteAsync(chunk, cancellationToken);
         }

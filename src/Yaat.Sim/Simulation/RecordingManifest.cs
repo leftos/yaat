@@ -35,6 +35,27 @@ public sealed class RecordingManifest
     public DateTime? RecordedAtUtc { get; init; }
     public string? RecordedBy { get; init; }
 
+    /// <summary>
+    /// Version of the YAAT client (Yaat.Client) that produced this recording, e.g. "0.7.20-beta".
+    /// Null for recordings exported before client/server versions were captured, or for recordings
+    /// migrated from legacy formats. Lets triage tell whether the user's client predated a fix.
+    /// </summary>
+    public string? ClientVersion { get; init; }
+
+    /// <summary>
+    /// Whether the producing client was an installed Velopack release ("release") or a "dev build".
+    /// Null when unknown (legacy or pre-capture recordings).
+    /// </summary>
+    public string? ClientBuildKind { get; init; }
+
+    /// <summary>
+    /// Informational version of the Yaat.Sim assembly that executed on the server and produced this
+    /// recording — the authoritative simulation code (Yaat.Server has no independent version). Use
+    /// this to tell whether a sim/physics/phase/ground fix was present in the build that ran the
+    /// session. Null for legacy or pre-capture recordings.
+    /// </summary>
+    public string? ServerVersion { get; init; }
+
     public required List<SnapshotIndexEntry> Snapshots { get; init; }
 
     /// <summary>
@@ -57,4 +78,24 @@ public sealed class SnapshotIndexEntry
 {
     public required double ElapsedSeconds { get; init; }
     public required int ActionIndex { get; init; }
+}
+
+/// <summary>
+/// Caller-supplied metadata stamped into a recording's <see cref="RecordingManifest"/> at
+/// <see cref="RecordingArchiveWriter.Finish"/> time. The writer merges these values with the
+/// counters it tracks while writing (action count, snapshot index, weather/config flags), so
+/// callers only provide the facts the writer cannot derive on its own.
+/// </summary>
+public sealed record RecordingMetadata
+{
+    public required int RngSeed { get; init; }
+    public required double TotalElapsedSeconds { get; init; }
+    public string? ScenarioName { get; init; }
+    public string? ScenarioId { get; init; }
+    public string? ArtccId { get; init; }
+    public DateTime? RecordedAtUtc { get; init; }
+    public string? RecordedBy { get; init; }
+    public string? ClientVersion { get; init; }
+    public string? ClientBuildKind { get; init; }
+    public string? ServerVersion { get; init; }
 }

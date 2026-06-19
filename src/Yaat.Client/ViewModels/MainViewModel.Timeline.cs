@@ -154,7 +154,7 @@ public partial class MainViewModel
                 await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
             }
 
-            var compressedBytes = await _connection.ExportRecordingAsync();
+            var compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
             IsExportingRecording = false;
 
             if (compressedBytes is null)
@@ -230,7 +230,7 @@ public partial class MainViewModel
                 await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
             }
 
-            var compressedBytes = await _connection.ExportRecordingAsync();
+            var compressedBytes = await _connection.ExportRecordingAsync(BuildInfo.Version, BuildInfo.BuildKind);
             _connection.ExportRecordingProgress -= OnExportRecordingProgress;
             IsExportingRecording = false;
 
