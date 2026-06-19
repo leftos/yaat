@@ -69,8 +69,14 @@ public class Issue207LandingRunwayCrossTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay to t=2221 — one second before the recorded `TAXI G D J`.
-        engine.Replay(recording, 2221);
+        // Replay to t=2210 — N655EX is mid-rollout on 28R (LandingPhase, ~50 kt), well
+        // before it reaches the runway exit. The exact second is not load-bearing: the
+        // TAXI is issued live below, not taken from the recording. A mid-window point
+        // (touchdown ~t=2200, exit ~t=2218) keeps the precondition robust to the small
+        // landing-time shifts that upstream pattern/follow changes induce in this long
+        // re-simulated recording — N655EX briefly follows N163LE on a go-around near
+        // t=2000, so follow-logic tweaks move its later landing by a second or two.
+        engine.Replay(recording, 2210);
 
         var aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
