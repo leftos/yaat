@@ -597,6 +597,27 @@ public sealed class FinalApproachPhase : Phase
             }
         }
 
+        // Break off the follow and go around when the follower can no longer sequence behind a
+        // much-slower lead by speed alone (structural overtake) and is closing in trail. Checked
+        // before the speed adjustment below so it pre-empts the helper's at-min-speed cancel (which
+        // only clears the follow, without going around). This also covers the committed short-final
+        // case where the spacing S-turn is no longer available — the only safe option left is to
+        // go around rather than overfly the lead (AIM 4-3-3 NOTE 1). Recoverable (non-structural)
+        // follows fall through to the speed adjustment and the S-turn.
+        if (!_goAroundTriggered && AirborneFollowHelper.ShouldBreakOffFollowForSpacing(ctx))
+        {
+            _goAroundTriggered = true;
+            string lead = ctx.Aircraft.Approach.FollowingCallsign!;
+            Log.LogDebug(
+                "[FinalApproach] {Callsign}: breaking off follow on {Lead}, going around (unable to maintain separation)",
+                ctx.Aircraft.Callsign,
+                lead
+            );
+            AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
+            TriggerGoAround(ctx, "unable to maintain separation");
+            return false;
+        }
+
         // Follow speed adjustment on final has three rules:
         // 1. Feed Vref (phase baseline) as normalSpeed — never the previous tick's
         //    target — otherwise the +MaxSpeedAdjust clamp compounds each tick and

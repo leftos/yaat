@@ -20,6 +20,9 @@
 ### Fixed
 - A point-out to a sector that is combined into another position no longer gets stuck. Previously the controller working the combined position could not accept it, leaving the target flashing in point-out status indefinitely. The point-out is now directed to whoever is working that combined position, so they can acknowledge it.
 
+### Fixed
+- An aircraft told to `FOLLOW` much-slower traffic to the same runway (e.g. a faster single told to follow a Cessna 152) no longer overtakes it and ends up directly on top. The follower now slows to stay behind where it can, and when it genuinely cannot keep spacing — its approach speed is simply faster than the traffic's — it reports "unable to maintain separation" and goes around instead of overflying the aircraft it was told to follow. Followers also no longer speed up to chase a lead that is too far ahead (they extend the downwind instead).
+
 ## v0.7.20-beta [2026/06/17]
 
 ### Fixed

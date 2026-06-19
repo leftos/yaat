@@ -417,7 +417,21 @@ Piston/Heli 1.5 nm. The jet 3.0 nm matches the FAA 7110.65 §5-5-4 same-runway r
 `(distance − desired) × SpeedGainPerNm (25 kt/nm)`, clamped to `±maxSpeedAdjustKts`. Pattern/entry/free-flight use
 `MaxSpeedAdjustKts = 20`; final approach uses the tighter `MaxSpeedAdjustFinalKts = 10` so the follower can't blow
 through the unstabilized-go-around gate (IAS > 1.3·Vref). When the follower is at min speed and inside half the
-desired distance, the follow is auto-cancelled with an "unable to maintain separation" warning.
+desired distance, the follow is auto-cancelled with an "unable to maintain separation" warning. The pattern-leg
+phases gate this block on `Approach.FollowingCallsign` (not on `TargetSpeed` — physics snaps `TargetSpeed` to null
+once the leg speed is reached, which would otherwise silently stop spacing for a settled follower) and **cap the
+result at the leg baseline** (`Math.Min(adjusted, baseline)`): spacing only ever *slows* a follower below its leg
+speed, never accelerates it above to chase a far lead — a too-far lead is handled laterally (extend / hold base turn).
+
+**Structural-overtake break-off + go-around** (`ShouldBreakOffFollowForSpacing`): a follower whose own Vref exceeds
+the lead's ground speed by more than `StructuralOvertakeMarginKts = 10` can never open the gap by slowing — speed
+control alone is futile (e.g. a C210 told to follow a 56-kt C152). When that follower, on `BasePhase` or
+`FinalApproachPhase`, closes inside `FollowBreakOffGapNm = 0.8` nm of the still-airborne lead while the pair is
+still converging (`IsClosing`, range-rate < 0), it breaks off the follow and goes around — clearing the follow state
+and triggering a go-around with an "unable to maintain separation" transmission — rather than overflying the lead it
+was told to follow (AIM 4-3-3 NOTE 1; 0.8 nm sits above the same-runway 3,000 ft ≈ 0.5 nm Cat I minimum of 7110.65 §3-10-3). The
+check runs *before* the speed block so it pre-empts the at-min-speed cancel above, which would only clear the follow
+without going around.
 
 **The pattern-leg-index ordering** (`PatternLegIndex`, `AirborneFollowHelper.cs:254`) is hard-coded:
 

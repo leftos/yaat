@@ -175,15 +175,19 @@ public sealed class PatternEntryPhase : Phase
         // aircraft isn't on a pattern leg yet — real pilots don't tighten to
         // pattern rhythm until they're actually on the downwind. DownwindSpeed
         // is the fixed baseline each tick; feeding the previous TargetSpeed
-        // back in would compound the ±20 kt clamp over ticks.
-        if (ctx.Targets.TargetSpeed is not null)
+        // back in would compound the ±20 kt clamp over ticks. Gate on the follow
+        // target, NOT on TargetSpeed: physics snaps TargetSpeed to null once the leg
+        // speed is reached, which would silently stop spacing for a settled follower.
+        if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
             double normalSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             var adjusted = AirborneFollowHelper.GetAdjustedSpeedFreeFlight(ctx, normalSpeed, minSpeed);
             if (adjusted is not null)
             {
-                ctx.Targets.TargetSpeed = adjusted.Value;
+                // Spacing only ever SLOWS the follower below the entry baseline; never speeds
+                // it up to chase a far lead.
+                ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, normalSpeed);
             }
         }
 

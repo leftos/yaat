@@ -215,8 +215,10 @@ public sealed class DownwindPhase : Phase
         // Follow speed adjustment: modulate speed based on distance to leader.
         // Feed the phase baseline (not the previous tick's adjusted target) into the
         // helper — otherwise the +MaxSpeedAdjustKts clamp compounds each tick and
-        // lets IAS escape the stabilized-approach gate downstream.
-        if (ctx.Targets.TargetSpeed is not null)
+        // lets IAS escape the stabilized-approach gate downstream. Gate on the follow
+        // target, NOT on TargetSpeed: physics snaps TargetSpeed to null once the leg
+        // speed is reached, so gating on it silently stops spacing for a settled follower.
+        if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
             double baseline = _pastAbeam
                 ? AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category)
@@ -225,7 +227,9 @@ public sealed class DownwindPhase : Phase
             var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
             {
-                ctx.Targets.TargetSpeed = adjusted.Value;
+                // Spacing only ever SLOWS the follower below the leg baseline; a too-far
+                // lead is handled laterally (extend/hold base turn), not by accelerating.
+                ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, baseline);
             }
         }
 

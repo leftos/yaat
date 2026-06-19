@@ -76,6 +76,25 @@ public static class AirborneFollowHelper
     public const double MaxSpeedAdjustFinalKts = 10.0;
 
     /// <summary>
+    /// Margin (kt) by which a follower's minimum approach speed must exceed the lead's
+    /// ground speed for a follow to count as a STRUCTURAL overtake — one the follower
+    /// can never sequence by speed alone because even its slowest sustainable approach
+    /// speed outruns the lead. Below this margin the in-pattern speed reduction can still
+    /// open the gap, so no break-off is warranted (e.g. a C172 behind a C172).
+    /// </summary>
+    public const double StructuralOvertakeMarginKts = 10.0;
+
+    /// <summary>
+    /// Straight-line gap (nm) at or below which a follower in a structural overtake on
+    /// base/final must break off the follow and go around rather than press on toward the
+    /// lead. Sits above the same-runway separation minimum of 3,000 ft (≈0.5 nm) at the
+    /// threshold for two Category I aircraft (FAA 7110.65 §3-10-3), giving the follower
+    /// room to climb away cleanly before that minimum is breached. AIM 4-3-3 NOTE 1: do not
+    /// overtake or cut in front of traffic on final.
+    /// </summary>
+    public const double FollowBreakOffGapNm = 0.8;
+
+    /// <summary>
     /// Fraction of desired distance below which downwind should be extended
     /// to avoid turning base too close to the leader.
     /// </summary>
@@ -725,6 +744,92 @@ public static class AirborneFollowHelper
         }
 
         return hold;
+    }
+
+    /// <summary>
+    /// Returns true when a follower committed to a base or final leg can no longer
+    /// keep clear of its lead and should break off the follow and go around rather than
+    /// run into it — whether by overtaking from behind or cutting in front (AIM 4-3-3
+    /// NOTE 1 prohibits both; AIM 5-5-12.a.2: notify ATC when unable to maintain visual
+    /// separation). Fires only for a STRUCTURAL overtake — the follower's minimum
+    /// approach speed (Vref) exceeds the lead's ground speed by more than
+    /// <see cref="StructuralOvertakeMarginKts"/>, so the in-pattern speed reduction
+    /// cannot open the gap — with the lead still airborne, the straight-line gap inside
+    /// <see cref="FollowBreakOffGapNm"/>, and the two aircraft still closing. Recoverable
+    /// (non-structural) follows return false and are left to the speed adjustment and the
+    /// final-approach spacing S-turn.
+    /// </summary>
+    /// <param name="ctx">Current phase context (must have AircraftLookup set).</param>
+    public static bool ShouldBreakOffFollowForSpacing(PhaseContext ctx)
+    {
+        string? targetCallsign = ctx.Aircraft.Approach.FollowingCallsign;
+        if (targetCallsign is null)
+        {
+            return false;
+        }
+
+        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+        if (lead is null || lead.IsOnGround)
+        {
+            return false;
+        }
+
+        // Structural overtake: the follower's slowest sustainable approach speed still
+        // outruns the lead. Anything within the margin is recoverable by slowing down,
+        // so leave it to the speed adjustment / S-turn rather than going around.
+        double followerVref = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+        if (followerVref <= lead.GroundSpeed + StructuralOvertakeMarginKts)
+        {
+            return false;
+        }
+
+        double gap = GeoMath.DistanceNm(ctx.Aircraft.Position, lead.Position);
+        if (gap >= FollowBreakOffGapNm)
+        {
+            return false;
+        }
+
+        // Only break off while the pair is still closing — once the follower has crossed
+        // and is opening the gap, going around no longer helps. Direction-agnostic so it
+        // catches both an in-trail overtake and a cut-in-front. Range rate = relative
+        // velocity projected onto the follower→lead unit vector; negative ⇒ closing.
+        if (!IsClosing(ctx.Aircraft, lead))
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Follow] {Callsign}: structural overtake of {Target} — gap={Gap:F2}nm (break-off floor {Floor:F1}nm), Vref {Vref:F0}kt vs lead gs {LeadGs:F0}kt; breaking off + going around",
+            ctx.Aircraft.Callsign,
+            targetCallsign,
+            gap,
+            FollowBreakOffGapNm,
+            followerVref,
+            lead.GroundSpeed
+        );
+        return true;
+    }
+
+    /// <summary>
+    /// True when the straight-line range between two aircraft is decreasing this tick.
+    /// Computes the range rate as the relative ground velocity projected onto the unit
+    /// vector from <paramref name="follower"/> to <paramref name="lead"/>; a negative
+    /// projection means the gap is shrinking.
+    /// </summary>
+    private static bool IsClosing(AircraftState follower, AircraftState lead)
+    {
+        const double degToRad = Math.PI / 180.0;
+        double bearingRad = GeoMath.BearingTo(follower.Position, lead.Position) * degToRad;
+        double uEast = Math.Sin(bearingRad);
+        double uNorth = Math.Cos(bearingRad);
+
+        double fTrack = follower.TrueTrack.Degrees * degToRad;
+        double lTrack = lead.TrueTrack.Degrees * degToRad;
+        double relEast = (lead.GroundSpeed * Math.Sin(lTrack)) - (follower.GroundSpeed * Math.Sin(fTrack));
+        double relNorth = (lead.GroundSpeed * Math.Cos(lTrack)) - (follower.GroundSpeed * Math.Cos(fTrack));
+
+        double rangeRate = (relEast * uEast) + (relNorth * uNorth);
+        return rangeRate < 0;
     }
 
     /// <summary>

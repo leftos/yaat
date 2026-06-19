@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -127,6 +128,26 @@ public sealed class BasePhase : Phase
         // DownwindPhase.OnTick for the full rationale.
         AirborneFollowHelper.CheckLeadLifecycle(ctx);
 
+        // Break off the follow and go around when the follower can no longer sequence
+        // behind a much-slower lead by speed alone (structural overtake) and is closing
+        // in trail. Checked before the speed adjustment so it pre-empts the helper's
+        // at-min-speed cancel (which only clears the follow, without going around). The
+        // base leg offers no room to recover, so go around early rather than overfly —
+        // AIM 4-3-3 NOTE 1. ClearFollowState first so the go-around's pattern re-entry
+        // doesn't immediately try to chase the same lead again.
+        if (AirborneFollowHelper.ShouldBreakOffFollowForSpacing(ctx))
+        {
+            string lead = ctx.Aircraft.Approach.FollowingCallsign!;
+            Log.LogDebug(
+                "[Base] {Callsign}: breaking off follow on {Lead}, going around (unable to maintain separation)",
+                ctx.Aircraft.Callsign,
+                lead
+            );
+            AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
+            GoAroundHelper.Trigger(ctx, "unable to maintain separation");
+            return false;
+        }
+
         // OFL/OFR lateral dogleg. Reference point: base-turn (start of base
         // track). The acquired offset extends the final-intercept distance
         // because cross-track-from-centerline grows.
@@ -142,14 +163,20 @@ public sealed class BasePhase : Phase
 
         // Follow speed adjustment — pass the phase baseline, never the previous
         // tick's adjusted target, so the +MaxSpeedAdjustKts clamp can't compound.
-        if (ctx.Targets.TargetSpeed is not null)
+        // Gate on the follow target, NOT on TargetSpeed: physics snaps TargetSpeed to
+        // null once base speed is reached, so gating on it silently stops spacing for a
+        // settled follower (the issue #206 overtake).
+        if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
             double baseline = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
             {
-                ctx.Targets.TargetSpeed = adjusted.Value;
+                // Spacing only ever SLOWS the follower below the leg baseline; it never
+                // speeds it up to chase a far lead (that carries excess speed into final
+                // and trips the stabilized-approach gate — extend/hold handles a far lead).
+                ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, baseline);
             }
         }
 

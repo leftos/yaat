@@ -128,15 +128,19 @@ public sealed class CrosswindPhase : Phase
         // Follow-aware spacing: slow the crossing-over follower when it's bearing
         // down on a lead too closely from behind. Baseline is DownwindSpeed (what
         // the aircraft is accelerating toward as it climbs to pattern altitude);
-        // matches the choice in UpwindPhase so the clamp math stays consistent.
-        if (ctx.Targets.TargetSpeed is not null)
+        // matches the choice in UpwindPhase so the clamp math stays consistent. Gate on
+        // the follow target, NOT on TargetSpeed: physics snaps TargetSpeed to null once
+        // the leg speed is reached, which would silently stop spacing for a settled follower.
+        if (ctx.Aircraft.Approach.FollowingCallsign is not null)
         {
             double baseline = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
             double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, baseline, minSpeed, AirborneFollowHelper.MaxSpeedAdjustKts);
             if (adjusted is not null)
             {
-                ctx.Targets.TargetSpeed = adjusted.Value;
+                // Spacing only ever SLOWS the follower below the leg baseline; never speeds
+                // it up to chase a far lead.
+                ctx.Targets.TargetSpeed = Math.Min(adjusted.Value, baseline);
             }
         }
 
