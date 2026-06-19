@@ -1387,4 +1387,23 @@ public partial class GroundView : UserControl
         _canvas.LabelTextSize = prefs.GroundLabelFontSize;
         _canvas.ShowSpeechBubbles = prefs.ShowSpeechBubbles;
     }
+
+    /// <summary>
+    /// Pushes the speech-bubble display preference to the ground canvas. The radar view syncs this
+    /// via <c>SyncAssignmentTint</c>; the ground canvas otherwise only picks it up through the
+    /// font-size path, so this gives MainWindow a dedicated seam to keep both views in lockstep
+    /// when a speech-bubble setting changes without a font-size change.
+    /// </summary>
+    public void SyncSpeechBubblePreferences()
+    {
+        if (_canvas is null)
+        {
+            return;
+        }
+
+        if (DataContext is GroundViewModel vm && vm.Preferences is not null)
+        {
+            _canvas.ShowSpeechBubbles = vm.Preferences.ShowSpeechBubbles;
+        }
+    }
 }

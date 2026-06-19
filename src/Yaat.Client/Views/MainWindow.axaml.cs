@@ -2598,6 +2598,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             ApplyKeybinds(vm.Preferences);
             // Visual settings already applied via preview — just ensure final state is consistent
             SyncAllRadarViewTint();
+            SyncAllGroundViewSpeechBubbles();
             vm.Ground.ColorScheme = vm.Preferences.GroundColors;
             vm.Ground.SatelliteImageBrightness = vm.Preferences.GroundSatelliteImageBrightness;
             vm.Ground.VideoMapOverlayBrightness = vm.Preferences.GroundVideoMapOverlayBrightness;
@@ -2619,6 +2620,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.Preferences.SetUnassignedTint(snapshotUnassignedTintEnabled, snapshotUnassignedTintColor);
             vm.Preferences.SetSelectedColor(snapshotSelectedColor);
             SyncAllRadarViewTint();
+            SyncAllGroundViewSpeechBubbles();
         }
 
         vm.IsSettingsPreviewActive = false;
@@ -2647,6 +2649,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 vm.Preferences.SetUnassignedTint(settingsVm.UnassignedTintEnabled, settingsVm.UnassignedTintColor);
                 vm.Preferences.SetSelectedColor(settingsVm.SelectedColor);
                 SyncAllRadarViewTint();
+                SyncAllGroundViewSpeechBubbles();
             });
         }
     }
@@ -2755,6 +2758,22 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         {
             var poppedRadar = _radarViewWindow.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
             poppedRadar?.SyncAssignmentTint();
+        }
+    }
+
+    private void SyncAllGroundViewSpeechBubbles()
+    {
+        // Embedded GroundView
+        foreach (var gv in this.GetVisualDescendants().OfType<GroundView>())
+        {
+            gv.SyncSpeechBubblePreferences();
+        }
+
+        // Pop-out GroundView
+        if (_groundViewWindow is not null)
+        {
+            var poppedGround = _groundViewWindow.GetVisualDescendants().OfType<GroundView>().FirstOrDefault();
+            poppedGround?.SyncSpeechBubblePreferences();
         }
     }
 
