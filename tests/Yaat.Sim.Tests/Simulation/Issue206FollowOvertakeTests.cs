@@ -30,7 +30,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue206FollowOvertakeTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue206-follow-overtake-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/19801dcd5dc2.zip";
     private const string Follower = "N655EX";
     private const string Leader = "N163LE";
 

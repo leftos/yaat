@@ -32,7 +32,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue208EarlyCrosswindTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue208-early-crosswind-recording.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/19801dcd5dc2.zip";
     private const int RestoreAtSeconds = 2310;
 
     private SimulationEngine? BuildEngine()

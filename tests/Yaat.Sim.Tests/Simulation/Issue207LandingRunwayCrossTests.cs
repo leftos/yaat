@@ -34,7 +34,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue207LandingRunwayCrossTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue207-oak-landing-taxi-holdshort-recording.zip";
+    private const string RecordingPath = "TestData/19801dcd5dc2.zip";
     private const string Callsign = "N655EX";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);

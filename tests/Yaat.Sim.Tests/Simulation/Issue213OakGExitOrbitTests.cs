@@ -25,7 +25,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class Issue213OakGExitOrbitTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/issue207-oak-landing-taxi-holdshort-recording.zip";
+    private const string RecordingPath = "TestData/19801dcd5dc2.zip";
     private const string Callsign = "N655EX";
 
     // Node 361 (the 28R hold-short on G, north of the runway centerline) is at ~37.728174 N.
