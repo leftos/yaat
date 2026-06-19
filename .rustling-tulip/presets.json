@@ -4,6 +4,7 @@
     "name": "Bug triage",
     "description": "Investigate one or more bug reports in parallel sessions. Mirrors the Launch Bug Terminals VSCode extension (tools/vscode-launch-bugs/extension.js): same prompt template, same trailing context block (bundle / client log / server log), same Shift+Tab×4 plan-mode injector, same 6 s / 3 s pacing.",
     "prompt_sources": [
+      { "kind": "github_issues" },
       { "kind": "file" },
       { "kind": "folder", "relative_path": "docs/plans/open-issues" },
       { "kind": "inline" }
