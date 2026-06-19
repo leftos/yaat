@@ -65,6 +65,10 @@
          window has focus. We consume KeyPressed/KeyReleased events in passthrough mode — we
          never suppress, so other apps still see the key. -->
     <PackageReference Include="SharpHook" Version="7.0.0" />
+    <!-- Transitive via LM-Kit.NET 2026.4.2 -> Microsoft.Data.Sqlite 10.0.5 -> SQLitePCLRaw.bundle_e_sqlite3 2.1.11;
+         pin the native SQLite binary to patched 3.50.3 (GHSA-2m69-gcr7-jv3q). The managed core/provider stay at
+         2.1.11; the SQLite C API the provider P/Invokes is forward-compatible with the newer native lib. -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <!-- Transitive via Avalonia.FreeDesktop 11.3.13 (>= 0.21.2); pin to patched 0.21.3 (GHSA-xrw6-gwf8-vvr9). -->
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
