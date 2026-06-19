@@ -96,7 +96,7 @@ public sealed class BasePhase : Phase
             targetAlt = Math.Min(ctx.Aircraft.Altitude, gsAlt);
 
             double deltaAlt = Math.Max(ctx.Aircraft.Altitude - targetAlt, 0);
-            double baseLen = CategoryPerformance.PatternSizeNm(ctx.Category);
+            double baseLen = Waypoints.PatternSizeNm;
             double timeMin = baseLen / (groundSpeedKt / 60.0);
             double computedRate = timeMin > 0 ? deltaAlt / timeMin : descentRate;
             descentRate = Math.Clamp(computedRate, descentRate, 1500);

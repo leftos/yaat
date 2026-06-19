@@ -24,6 +24,9 @@
 ### Fixed
 - An aircraft told to `FOLLOW` much-slower traffic to the same runway (e.g. a faster single told to follow a Cessna 152) no longer overtakes it and ends up directly on top. The follower now slows to stay behind where it can, and when it genuinely cannot keep spacing — its approach speed is simply faster than the traffic's — it reports "unable to maintain separation" and goes around instead of overflying the aircraft it was told to follow. Followers also no longer speed up to chase a lead that is too far ahead (they extend the downwind instead).
 
+### Fixed
+- An aircraft flying a VFR traffic pattern (closed traffic / touch-and-goes) now turns crosswind at the departure end of the runway and flies the runway's published pattern altitude on every circuit, instead of stretching a long upwind out toward the parallel runway — most visible at a smaller specified pattern such as KOAK runway 28L.
+
 ## v0.7.20-beta [2026/06/17]
 
 ### Fixed

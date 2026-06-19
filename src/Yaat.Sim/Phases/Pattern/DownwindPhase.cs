@@ -392,7 +392,7 @@ public sealed class DownwindPhase : Phase
         }
 
         double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
-        double patternSize = CategoryPerformance.PatternSizeNm(ctx.Category);
+        double patternSize = Waypoints.PatternSizeNm;
         double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
         double baseDescentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
 

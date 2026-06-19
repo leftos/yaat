@@ -80,17 +80,34 @@ public class PatternPhaseTests
     }
 
     [Fact]
-    public void Upwind_CompletesWhenReachingCrosswindTurnPoint()
+    public void Upwind_CompletesWhenPastDepartureEndAtPatternAltitude()
     {
         var wp = DefaultWaypoints();
-        var ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon, altitude: wp.PatternAltitude);
+        // Just past the crosswind turn point (the departure end) along the upwind heading, at pattern
+        // altitude — AIM 4-3-2 commences the crosswind turn beyond the DER within 300 ft of TPA.
+        var past = GeoMath.ProjectPoint(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.UpwindHeading, 0.1);
+        var ac = MakeAircraft(lat: past.Lat, lon: past.Lon, altitude: wp.PatternAltitude);
         var phase = new UpwindPhase { Waypoints = wp };
         var ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
-        // At the crosswind turn point (within 0.3nm)
         Assert.True(phase.OnTick(ctx));
+    }
+
+    [Fact]
+    public void Upwind_BeforePassingDepartureEnd_DoesNotComplete()
+    {
+        var wp = DefaultWaypoints();
+        // Short of the departure end (still over the runway) at pattern altitude: must not turn yet.
+        var beforeDer = GeoMath.ProjectPoint(wp.CrosswindTurnLat, wp.CrosswindTurnLon, wp.UpwindHeading.ToReciprocal(), 0.2);
+        var ac = MakeAircraft(lat: beforeDer.Lat, lon: beforeDer.Lon, altitude: wp.PatternAltitude);
+        var phase = new UpwindPhase { Waypoints = wp };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        Assert.False(phase.OnTick(ctx));
     }
 
     [Fact]

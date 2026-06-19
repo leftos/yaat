@@ -54,6 +54,13 @@ public sealed class PatternWaypoints
     /// <summary>Pattern altitude MSL.</summary>
     public double PatternAltitude { get; init; }
 
+    /// <summary>
+    /// Resolved downwind offset (nm) for this pattern — the authored/command size after deconfliction,
+    /// or the per-category default. Descent-profile math (downwind/base) must use this, not the bare
+    /// category default, so a resized pattern descends on the correct geometry.
+    /// </summary>
+    public double PatternSizeNm { get; init; }
+
     /// <summary>Pattern direction (left or right turns).</summary>
     public PatternDirection Direction { get; init; }
 
@@ -78,6 +85,7 @@ public sealed class PatternWaypoints
             BaseHeadingDeg = BaseHeading.Degrees,
             FinalHeadingDeg = FinalHeading.Degrees,
             PatternAltitudeFt = PatternAltitude,
+            PatternSizeNm = PatternSizeNm,
             Direction = (int)Direction,
         };
 
@@ -124,6 +132,19 @@ public sealed class PatternWaypoints
             BaseHeading = new TrueHeading(dto.BaseHeadingDeg),
             FinalHeading = new TrueHeading(dto.FinalHeadingDeg),
             PatternAltitude = dto.PatternAltitudeFt ?? 0,
+            // Older snapshots predate the explicit size: derive it from geometry — the perpendicular
+            // offset of the downwind abeam point from the threshold along the landing heading.
+            PatternSizeNm =
+                dto.PatternSizeNm
+                ?? Math.Abs(
+                    GeoMath.SignedCrossTrackDistanceNmRaw(
+                        dto.DownwindAbeamLat,
+                        dto.DownwindAbeamLon,
+                        dto.ThresholdLat,
+                        dto.ThresholdLon,
+                        dto.FinalHeadingDeg
+                    )
+                ),
             Direction = direction,
         };
     }
@@ -191,9 +212,12 @@ public static class PatternGeometry
         // Deconfliction: shrink pattern if downwind would encroach on another runway
         patternSize = ApplyRunwayDeconfliction(runway, direction, crosswindHdg, patternSize, airportRunways);
 
-        // Scale crosswind extension and base extension proportionally when size is overridden
+        // The base extension scales proportionally with pattern size (a smaller pattern has a tighter
+        // base leg). The crosswind turn, by contrast, is anchored at the runway's departure end (DER):
+        // the upwind length is governed by runway geometry, not pattern size. AIM 4-3-2 commences the
+        // crosswind turn beyond the departure end of the runway within 300 ft of pattern altitude —
+        // UpwindPhase enforces that gate, so a smaller pattern keeps the same at-the-DER upwind.
         double sizeRatio = patternSize / defaultSize;
-        double crosswindExt = CategoryPerformance.CrosswindExtensionNm(category) * sizeRatio;
         double baseExt = CategoryPerformance.BaseExtensionNm(category) * sizeRatio;
         double patternAltAgl = CategoryPerformance.PatternAltitudeAgl(category);
         double patternAlt = altitudeOverrideFt ?? (runway.ElevationFt + patternAltAgl);
@@ -202,8 +226,8 @@ public static class PatternGeometry
         double depEndLat = runway.EndLatitude;
         double depEndLon = runway.EndLongitude;
 
-        // Crosswind turn point: departure end + extension along upwind
-        var crosswindTurn = GeoMath.ProjectPoint(depEndLat, depEndLon, upwindHdg, crosswindExt);
+        // Crosswind turn point: at the departure end of the runway.
+        (double Lat, double Lon) crosswindTurn = (depEndLat, depEndLon);
 
         // Downwind start: crosswind turn + offset perpendicular to runway
         var downwindStart = GeoMath.ProjectPoint(crosswindTurn.Lat, crosswindTurn.Lon, crosswindHdg, patternSize);
@@ -234,6 +258,7 @@ public static class PatternGeometry
             BaseHeading = baseHdg,
             FinalHeading = finalHdg,
             PatternAltitude = patternAlt,
+            PatternSizeNm = patternSize,
             Direction = direction,
         };
     }

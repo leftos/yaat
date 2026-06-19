@@ -223,6 +223,10 @@ public sealed class PatternWaypointsDto
     /// with snapshots predating this field — restore infers 0 on miss.</summary>
     public double? PatternAltitudeFt { get; init; }
 
+    /// <summary>Resolved downwind offset (nm). Optional for backward compat — when null,
+    /// FromSnapshot derives it from the abeam offset from the threshold.</summary>
+    public double? PatternSizeNm { get; init; }
+
     /// <summary>0=Left, 1=Right. Optional for backward compat — when null,
     /// FromSnapshot infers from the abeam position relative to the threshold
     /// along the landing heading.</summary>

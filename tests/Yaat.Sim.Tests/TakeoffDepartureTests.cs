@@ -990,7 +990,8 @@ public class TakeoffDepartureTests
         double patternAlt = 1000;
         var runway = TestRunwayFactory.Make(designator: "28", heading: runwayHdg, elevationFt: 0);
 
-        var crosswindTurn = GeoMath.ProjectPoint(new LatLon(runway.EndLatitude, runway.EndLongitude), new TrueHeading(runwayHdg), 0.3);
+        // Crosswind turn point is at the departure end of the runway (AIM 4-3-2).
+        var crosswindTurn = new LatLon(runway.EndLatitude, runway.EndLongitude);
         var waypoints = new PatternWaypoints
         {
             DepartureEndLat = runway.EndLatitude,
@@ -1014,6 +1015,9 @@ public class TakeoffDepartureTests
             Direction = PatternDirection.Left,
         };
 
+        // Just past the departure end along the upwind heading.
+        var pastDepartureEnd = GeoMath.ProjectPoint(crosswindTurn, new TrueHeading(runwayHdg), 0.1);
+
         var upwindPhase = new UpwindPhase { Waypoints = waypoints };
         var phaseList = new PhaseList { AssignedRunway = runway };
         var aircraft = new AircraftState
@@ -1021,7 +1025,7 @@ public class TakeoffDepartureTests
             Callsign = "N436MS",
             AircraftType = "C182",
             FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" },
-            Position = crosswindTurn,
+            Position = pastDepartureEnd,
             TrueHeading = new TrueHeading(runwayHdg),
             Altitude = 750, // 750ft MSL — above threshold of 700ft (1000 - 300)
             Phases = phaseList,
@@ -1040,8 +1044,8 @@ public class TakeoffDepartureTests
         upwindPhase.OnStart(ctx);
         bool complete = upwindPhase.OnTick(ctx);
 
-        // Should complete — both conditions met
-        Assert.True(complete, "UpwindPhase should complete when at crosswind turn point and above altitude threshold");
+        // Should complete — past the departure end and above the altitude threshold.
+        Assert.True(complete, "UpwindPhase should complete when past the departure end and above the altitude threshold");
     }
 
     [Fact]

@@ -817,7 +817,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Downwind,
                     runwayId: cmd.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterRightDownwindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -825,7 +826,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Downwind,
                     runwayId: cmd.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterLeftCrosswindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -833,7 +835,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Crosswind,
                     runwayId: cmd.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterRightCrosswindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -841,7 +844,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Crosswind,
                     runwayId: cmd.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterLeftBaseCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -849,7 +853,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Base,
                     runwayId: cmd.RunwayId,
-                    finalDistanceNm: cmd.FinalDistanceNm
+                    finalDistanceNm: cmd.FinalDistanceNm,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterRightBaseCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -857,7 +862,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Base,
                     runwayId: cmd.RunwayId,
-                    finalDistanceNm: cmd.FinalDistanceNm
+                    finalDistanceNm: cmd.FinalDistanceNm,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterFinalCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -867,10 +873,11 @@ public static class CommandDispatcher
                     requestedDirection: null,
                     PatternEntryLeg.Final,
                     runwayId: cmd.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
             case PatternSizeCommand cmd:
-                return PatternCommandHandler.TrySetPatternSize(aircraft, cmd.SizeNm);
+                return PatternCommandHandler.TrySetPatternSize(aircraft, cmd.SizeNm, ctx.GroundLayout);
             case Plan270Command:
                 return PatternCommandHandler.TryPlan270(aircraft);
 
@@ -904,9 +911,15 @@ public static class CommandDispatcher
             case GoAroundCommand ga:
                 return PatternCommandHandler.TryGoAround(ga, aircraft);
             case MakeLeftTrafficCommand mlt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, mlt.Altitude);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, mlt.Altitude, ctx.GroundLayout);
             case MakeRightTrafficCommand mrt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId, mrt.Altitude);
+                return PatternCommandHandler.TryChangePatternDirection(
+                    aircraft,
+                    PatternDirection.Right,
+                    mrt.RunwayId,
+                    mrt.Altitude,
+                    ctx.GroundLayout
+                );
             case MakeLeft360Command:
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 360);
             case MakeRight360Command:
@@ -1582,7 +1595,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Downwind,
                     runwayId: eld.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterRightDownwindCommand erd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -1590,7 +1604,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Downwind,
                     runwayId: erd.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterLeftCrosswindCommand elc:
                 return PatternCommandHandler.TryEnterPattern(
@@ -1598,7 +1613,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Crosswind,
                     runwayId: elc.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterRightCrosswindCommand erc:
                 return PatternCommandHandler.TryEnterPattern(
@@ -1606,7 +1622,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Crosswind,
                     runwayId: erc.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterLeftBaseCommand elb:
                 return PatternCommandHandler.TryEnterPattern(
@@ -1614,7 +1631,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Base,
                     runwayId: elb.RunwayId,
-                    finalDistanceNm: elb.FinalDistanceNm
+                    finalDistanceNm: elb.FinalDistanceNm,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterRightBaseCommand erb:
                 return PatternCommandHandler.TryEnterPattern(
@@ -1622,7 +1640,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Base,
                     runwayId: erb.RunwayId,
-                    finalDistanceNm: erb.FinalDistanceNm
+                    finalDistanceNm: erb.FinalDistanceNm,
+                    groundLayout: ctx.GroundLayout
                 );
             case EnterFinalCommand ef:
                 return PatternCommandHandler.TryEnterPattern(
@@ -1632,14 +1651,21 @@ public static class CommandDispatcher
                     requestedDirection: null,
                     PatternEntryLeg.Final,
                     runwayId: ef.RunwayId,
-                    finalDistanceNm: null
+                    finalDistanceNm: null,
+                    groundLayout: ctx.GroundLayout
                 );
 
             // Pattern modification commands
             case MakeLeftTrafficCommand mlt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, mlt.Altitude);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, mlt.Altitude, ctx.GroundLayout);
             case MakeRightTrafficCommand mrt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId, mrt.Altitude);
+                return PatternCommandHandler.TryChangePatternDirection(
+                    aircraft,
+                    PatternDirection.Right,
+                    mrt.RunwayId,
+                    mrt.Altitude,
+                    ctx.GroundLayout
+                );
             case TurnCrosswindCommand:
                 return PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(aircraft, "crosswind");
             case TurnDownwindCommand:
@@ -1647,7 +1673,7 @@ public static class CommandDispatcher
             case TurnBaseCommand:
                 return PatternCommandHandler.TryPatternTurnBase(aircraft);
             case ExtendPatternCommand ext:
-                return PatternCommandHandler.TryExtendPattern(aircraft, ext.Leg);
+                return PatternCommandHandler.TryExtendPattern(aircraft, ext.Leg, ctx.GroundLayout);
             case MakeShortApproachCommand:
                 return PatternCommandHandler.TryMakeShortApproach(aircraft);
             case MakeLeft360Command:
@@ -1659,9 +1685,9 @@ public static class CommandDispatcher
             case MakeRight270Command:
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270);
             case CircleAirportCommand:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, null, null);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, null, null, ctx.GroundLayout);
             case PatternSizeCommand ps:
-                return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm);
+                return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm, ctx.GroundLayout);
             case MakeNormalApproachCommand:
                 return PatternCommandHandler.TryMakeNormalApproach(aircraft);
             case Cancel270Command:

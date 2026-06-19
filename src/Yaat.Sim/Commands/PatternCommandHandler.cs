@@ -37,7 +37,11 @@ internal static class PatternCommandHandler
         PatternDirection? requestedDirection,
         PatternEntryLeg entryLeg,
         string? runwayId,
-        double? finalDistanceNm
+        double? finalDistanceNm,
+        // Resolved ground layout for authored pattern size/altitude. Production dispatch passes
+        // ctx.GroundLayout (resolves the authored TPA even when the per-aircraft Ground.Layout is unset,
+        // issue #210); the null default falls back to aircraft.Ground.Layout for direct test callers.
+        AirportGroundLayout? groundLayout = null
     )
     {
         // Pattern entry only makes sense airborne — on the ground it would
@@ -157,7 +161,7 @@ internal static class PatternCommandHandler
                 var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
                 var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
-                    aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                    (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                     aircraft.Pattern.SizeOverrideNm,
                     aircraft.Pattern.AltitudeOverrideFt
                 );
@@ -180,7 +184,7 @@ internal static class PatternCommandHandler
             var airportRunwaysCi = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOvCi, altOvCi) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
@@ -259,7 +263,7 @@ internal static class PatternCommandHandler
             var airportRunwaysAa = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOvAa, altOvAa) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
@@ -304,7 +308,7 @@ internal static class PatternCommandHandler
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
@@ -407,7 +411,7 @@ internal static class PatternCommandHandler
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 aircraft.Pattern.SizeOverrideNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );
@@ -464,7 +468,7 @@ internal static class PatternCommandHandler
 
         var (circuitSizeOv, circuitAltOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
-            aircraft.Ground.Layout?.FindRunway(runway.Designator),
+            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -588,7 +592,8 @@ internal static class PatternCommandHandler
         AircraftState aircraft,
         PatternDirection newDirection,
         string? runwayId,
-        int? altitudeOverride
+        int? altitudeOverride,
+        AirportGroundLayout? groundLayout = null
     )
     {
         // Resolve runway from argument if provided
@@ -629,7 +634,7 @@ internal static class PatternCommandHandler
         var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
-            aircraft.Ground.Layout?.FindRunway(runway.Designator),
+            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -848,7 +853,7 @@ internal static class PatternCommandHandler
     // and in real ops the equivalent instructions are "continue runway heading,
     // I'll call your crosswind" or a vector. The leg-arg form maps the
     // training-tool shorthand onto those underlying maneuvers.
-    internal static CommandResult TryExtendPattern(AircraftState aircraft, PatternEntryLeg? requestedLeg)
+    internal static CommandResult TryExtendPattern(AircraftState aircraft, PatternEntryLeg? requestedLeg, AirportGroundLayout? groundLayout = null)
     {
         if (requestedLeg is not { } leg)
         {
@@ -898,7 +903,7 @@ internal static class PatternCommandHandler
             );
         }
 
-        return RebuildPatternFromLeg(aircraft, leg);
+        return RebuildPatternFromLeg(aircraft, leg, groundLayout);
     }
 
     private static CommandResult TryExtendCurrentLeg(AircraftState aircraft)
@@ -1076,7 +1081,7 @@ internal static class PatternCommandHandler
         return (leg.Value, side, distanceNm);
     }
 
-    private static CommandResult RebuildPatternFromLeg(AircraftState aircraft, PatternEntryLeg leg)
+    private static CommandResult RebuildPatternFromLeg(AircraftState aircraft, PatternEntryLeg leg, AirportGroundLayout? groundLayout = null)
     {
         if (aircraft.Phases?.AssignedRunway is null)
         {
@@ -1089,7 +1094,7 @@ internal static class PatternCommandHandler
 
         var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
-            aircraft.Ground.Layout?.FindRunway(runway.Designator),
+            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
             aircraft.Pattern.SizeOverrideNm,
             aircraft.Pattern.AltitudeOverrideFt
         );
@@ -1308,7 +1313,7 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"Plan {dirStr} 270 at next turn");
     }
 
-    internal static CommandResult TrySetPatternSize(AircraftState aircraft, double sizeNm)
+    internal static CommandResult TrySetPatternSize(AircraftState aircraft, double sizeNm, AirportGroundLayout? groundLayout = null)
     {
         if (sizeNm is < 0.25 or > 10.0)
         {
@@ -1325,7 +1330,7 @@ internal static class PatternCommandHandler
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                 runway,
-                aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
                 sizeNm,
                 aircraft.Pattern.AltitudeOverrideFt
             );

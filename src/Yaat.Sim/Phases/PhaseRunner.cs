@@ -129,9 +129,14 @@ public static class PhaseRunner
                 phases.TrafficDirection = dir;
                 var runway = phases.PatternRunway ?? phases.AssignedRunway;
                 var airportRunways = Data.NavigationDatabase.Instance.GetRunways(runway.AirportId);
+                // Resolve authored pattern data from the context's resolved ground layout (which falls
+                // back to the assigned-runway airport when the per-aircraft Ground.Layout is unset);
+                // otherwise an airborne pattern aircraft with no cached layout reverts to the category
+                // default TPA and flies a long, climb-bound upwind (issue #210).
+                var patternLayout = ctx.GroundLayout ?? ctx.Aircraft.Ground.Layout;
                 var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
                     runway,
-                    ctx.Aircraft.Ground.Layout?.FindRunway(runway.Designator),
+                    patternLayout?.FindRunway(runway.Designator),
                     ctx.Aircraft.Pattern.SizeOverrideNm,
                     ctx.Aircraft.Pattern.AltitudeOverrideFt
                 );

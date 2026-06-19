@@ -66,7 +66,10 @@ baseHeading      = downwindHeading + turnOffset   // downwind = runway reciproca
 A **left** pattern (all turns left) uses a **−90°** offset; a **right** pattern uses **+90°**. The waypoints are
 then projected:
 
-- `CrosswindTurn` = departure end + `CrosswindExtensionNm` along the upwind (runway) heading.
+- `CrosswindTurn` = the **departure end of the runway (DER)**. The upwind length is governed by runway
+  geometry, not pattern size: per AIM 4-3-2 the crosswind turn is commenced **beyond the departure end of the
+  runway within 300 ft of pattern altitude**, so a smaller pattern keeps the same at-the-DER upwind (and never
+  turns crosswind while still over the runway). `UpwindPhase` enforces that gate (see below).
 - `DownwindStart` = crosswind turn + `patternSize` perpendicular (along `crosswindHeading`).
 - `DownwindAbeam` = threshold + `patternSize` perpendicular — the canonical on-downwind reference point.
 - `BaseTurn` = downwind abeam + `BaseExtensionNm` along the downwind heading.
@@ -74,9 +77,18 @@ then projected:
 **Size/altitude resolution.** `ResolveAuthoredOverrides` (`PatternGeometry.cs:152`) composes a command override
 (e.g. TPA/PSIZE) over the airport-authored `GroundRunway` data: command wins, then authored data fills in.
 Authored `PatternAltitudeAglFt` is interpreted as **feet AGL above field elevation** and translated to MSL via
-`runway.ElevationFt`. When a size override is applied, `CrosswindExtensionNm` and `BaseExtensionNm` scale
-**proportionally** by `patternSize / defaultSize` so the rectangle stays in proportion (`PatternGeometry.cs:195`).
-Pattern altitude defaults to `runway.ElevationFt + CategoryPerformance.PatternAltitudeAgl(category)`.
+`runway.ElevationFt`. When a size override is applied, only `BaseExtensionNm` scales **proportionally** by
+`patternSize / defaultSize` (a smaller pattern has a tighter base leg); the crosswind turn stays anchored at the
+DER. The resolved size is carried on `PatternWaypoints.PatternSizeNm` so the downwind/base descent geometry uses
+the actual offset, not the bare category default. Pattern altitude defaults to
+`runway.ElevationFt + CategoryPerformance.PatternAltitudeAgl(category)`.
+
+**Authored data needs a resolved ground layout.** `ResolveAuthoredOverrides` reads the airport's authored
+`patternSize`/`patternAltitude` from a `GroundRunway` — resolved from the **context's** ground layout
+(`ctx.GroundLayout` / `DispatchContext.GroundLayout`, which falls back to the assigned-runway airport when the
+per-aircraft `Ground.Layout` is unset), not the raw `aircraft.Ground.Layout`. The auto-cycle (`PhaseRunner`) uses
+the resolved layout so an airborne pattern aircraft with no cached layout still gets the authored low TPA instead
+of reverting to the category default and flying a long, climb-bound upwind (issue #210).
 
 **Runway deconfliction.** `ApplyRunwayDeconfliction` (`PatternGeometry.cs:248`) shrinks the pattern size if the
 downwind leg would encroach on a neighboring runway. For each other runway it:

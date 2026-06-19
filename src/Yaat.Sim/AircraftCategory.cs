@@ -267,19 +267,6 @@ public static class CategoryPerformance
         };
     }
 
-    /// <summary>Distance past departure end before crosswind turn (nm).</summary>
-    public static double CrosswindExtensionNm(AircraftCategory cat)
-    {
-        return cat switch
-        {
-            AircraftCategory.Jet => 0.75,
-            AircraftCategory.Turboprop => 0.5,
-            AircraftCategory.Piston => 0.3,
-            AircraftCategory.Helicopter => 0.2,
-            _ => 0.75,
-        };
-    }
-
     /// <summary>Distance past threshold abeam on downwind before base turn (nm).</summary>
     public static double BaseExtensionNm(AircraftCategory cat)
     {

@@ -5,15 +5,15 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Pattern;
 
 /// <summary>
-/// Upwind leg: climb from runway heading to pattern altitude,
-/// continue past departure end to crosswind turn point.
-/// Completes when reaching the crosswind turn waypoint.
+/// Upwind leg: climb from runway heading toward pattern altitude. Per AIM 4-3-2 the crosswind turn is
+/// commenced beyond the departure end of the runway (DER) and within 300 ft of pattern altitude — so the
+/// phase completes once the aircraft has flown over the DER (the crosswind-turn waypoint) AND is within
+/// 300 ft of pattern altitude, whichever is later. The upwind length is therefore governed by runway
+/// geometry + TPA, not pattern size.
 /// </summary>
 public sealed class UpwindPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("UpwindPhase");
-
-    private const double ArrivalNm = 0.3;
 
     private double _targetLat;
     private double _targetLon;
@@ -126,27 +126,19 @@ public sealed class UpwindPhase : Phase
             return false;
         }
 
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
-
-        // Check if the aircraft has already passed the crosswind turn point.
-        // After takeoff + initial climb, the aircraft may be past it.
-        // Detect this by checking if the bearing to the target is behind us
-        // (more than 90° off our upwind heading).
+        // AIM 4-3-2: the crosswind turn is commenced beyond the departure end of the runway, within
+        // 300 ft of pattern altitude. The crosswind-turn waypoint sits at the DER; the aircraft must have
+        // flown over it (bearing to the waypoint more than 90° off the upwind heading = abeam/behind)
+        // before the turn fires, so it never turns crosswind while still over the runway.
         double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon));
         double bearingDiff = Math.Abs(GeoMath.SignedBearingDifference(bearingToTarget, _upwindHeading.Degrees));
-        bool targetIsBehind = bearingDiff > 90.0;
+        bool pastDepartureEnd = bearingDiff > 90.0;
 
-        // AIM 4-3-2: crosswind turn requires being within 300ft of pattern altitude
         bool altitudeReached = ctx.Aircraft.Altitude >= _minTurnAltitude;
-        bool complete = (dist < ArrivalNm || targetIsBehind) && altitudeReached;
+        bool complete = pastDepartureEnd && altitudeReached;
         if (complete)
         {
-            Log.LogDebug(
-                "[Upwind] {Callsign}: crosswind turn point {Reason}, alt={Alt:F0}ft",
-                ctx.Aircraft.Callsign,
-                targetIsBehind ? "passed (behind aircraft)" : "reached",
-                ctx.Aircraft.Altitude
-            );
+            Log.LogDebug("[Upwind] {Callsign}: crosswind turn at departure end, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
         }
 
         // Follow-aware spacing: slow the climbing-out follower when it's bearing
