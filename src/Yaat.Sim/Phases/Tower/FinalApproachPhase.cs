@@ -493,6 +493,14 @@ public sealed class FinalApproachPhase : Phase
     }
 
     /// <summary>
+    /// Create a FinalApproachPhase that resumes this approach after an in-final maneuver
+    /// (360 or S-turn for spacing): realigned with the final course so the intercept isn't
+    /// re-scored, and with the one-shot pilot-decision go-around roll already consumed so a
+    /// maneuver can't hand the aircraft a second chance to spontaneously go around.
+    /// </summary>
+    internal FinalApproachPhase CloneForResume() => new() { SkipInterceptCheck = true, _goAroundRolled = true };
+
+    /// <summary>
     /// Re-aim this active phase at a different runway without resetting glideslope /
     /// FAS / intercept state. Used by EF parallel-runway sidestep (7110.65 §5-9-7):
     /// the aircraft is already established on a parallel final, the controller
@@ -664,8 +672,7 @@ public sealed class FinalApproachPhase : Phase
         {
             var initialDir = ctx.Aircraft.Phases.TrafficDirection == PatternDirection.Right ? TurnDirection.Right : TurnDirection.Left;
             var sTurn = new STurnPhase { InitialDirection = initialDir, Count = 1 };
-            var resume = new FinalApproachPhase { SkipInterceptCheck = true };
-            resume._goAroundRolled = true;
+            var resume = CloneForResume();
             resume._sTurnSpacingCooldownSeconds = STurnSpacingCooldownSeconds;
             phasesForSTurn.InsertAfterCurrent(new List<Phase> { sTurn, resume });
 

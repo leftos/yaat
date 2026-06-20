@@ -1380,9 +1380,20 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "No active phase for S-turns");
         }
 
-        // S-turns are inserted before FinalApproachPhase or during downwind/base
+        // S-turns are inserted before FinalApproachPhase or during downwind/base.
         var sturnPhase = new STurnPhase { InitialDirection = initialDirection, Count = count };
-        aircraft.Phases.InsertAfterCurrent(sturnPhase);
+
+        // When S-turns are issued while already on final, resume the approach after them so
+        // the aircraft re-captures the glideslope instead of advancing straight to Landing
+        // far out and touching down short of the runway (same failure as a 360 on final).
+        if (aircraft.Phases.CurrentPhase is FinalApproachPhase fa)
+        {
+            aircraft.Phases.InsertAfterCurrent(new List<Phase> { sturnPhase, fa.CloneForResume() });
+        }
+        else
+        {
+            aircraft.Phases.InsertAfterCurrent(sturnPhase);
+        }
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.AdvanceToNext(ctx);
@@ -1495,9 +1506,9 @@ internal static class PatternCommandHandler
             // A 360 on final must resume the approach (re-capture the glideslope) before
             // landing, otherwise the chain advances straight to LandingPhase far out and the
             // aircraft descends at the category rate to the ground, touching down short of the
-            // threshold. The aircraft is realigned with the final course after a full circle,
-            // so skip the intercept check — mirrors the S-turn-for-spacing resume.
-            FinalApproachPhase => new FinalApproachPhase { SkipInterceptCheck = true },
+            // threshold. CloneForResume realigns with the final course and consumes the
+            // go-around roll — mirrors the S-turn-for-spacing resume.
+            FinalApproachPhase fa => fa.CloneForResume(),
             _ => null,
         };
     }
