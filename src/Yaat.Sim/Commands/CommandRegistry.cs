@@ -359,7 +359,15 @@ public static class CommandRegistry
 
     private static CommandDefinition[] TowerCommands() =>
         [
-            Bare(LineUpAndWait, "Line Up and Wait", "Tower", false, ["LUAW", "POS", "LU", "PH"]),
+            Cmd(
+                LineUpAndWait,
+                "Line Up and Wait",
+                "Tower",
+                false,
+                ["LUAW", "POS", "LU", "PH"],
+                [O(null, [], "Line up and wait")],
+                [Mod("IMM", null, false), Mod("WD", null, false), Mod("ND", null, false)]
+            ),
             Cmd(
                 ClearedForTakeoff,
                 "Cleared for Takeoff",
@@ -386,7 +394,7 @@ public static class CommandRegistry
                     O("ML270", [L("ML270"), Opt("altitude", "alt")], "Left 270 on departure"),
                     O("360", [L("360"), Opt("altitude", "alt")], "360 overhead on departure"),
                 ],
-                [Mod("CWT", null, false)]
+                [Mod("CWT", null, false), Mod("IMM", null, false), Mod("WD", null, false), Mod("ND", null, false)]
             ),
             Bare(CancelTakeoffClearance, "Cancel Takeoff Clearance", "Tower", false, ["CTOC"]),
             Cmd(

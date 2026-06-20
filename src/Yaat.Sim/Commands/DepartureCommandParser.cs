@@ -20,10 +20,12 @@ internal static class DepartureCommandParser
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        bool cautionWakeTurbulence = TryStripCautionWakeTurbulence(ref tokens);
+        var (cautionWakeTurbulence, immediate) = StripTowerModifiers(ref tokens);
         if (tokens.Length == 0)
         {
-            return PR.Ok(new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = cautionWakeTurbulence });
+            return PR.Ok(
+                new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = cautionWakeTurbulence, Immediate = immediate }
+            );
         }
 
         var mod = tokens[0].ToUpperInvariant();
@@ -37,7 +39,7 @@ internal static class DepartureCommandParser
                 "TRDCT" => TurnDirection.Right,
                 _ => null,
             };
-            return WithCaution(ParseCtoDct(tokens, direction), cautionWakeTurbulence);
+            return WithModifiers(ParseCtoDct(tokens, direction), cautionWakeTurbulence, immediate);
         }
 
         // Try to parse as a named modifier (MRC, MRD, RH, OC, H270, etc.)
@@ -46,7 +48,7 @@ internal static class DepartureCommandParser
         // For closed traffic: CTO MLT [runway] [altitude]
         if (departure is ClosedTrafficDeparture ct)
         {
-            return WithCaution(ParseCtoClosedTraffic(ct, tokens), cautionWakeTurbulence);
+            return WithModifiers(ParseCtoClosedTraffic(ct, tokens), cautionWakeTurbulence, immediate);
         }
 
         if (departure is not null)
@@ -56,7 +58,7 @@ internal static class DepartureCommandParser
                 return PR.Fail(error);
             }
 
-            return PR.Ok(new ClearedForTakeoffCommand(departure, alt) { CautionWakeTurbulence = cautionWakeTurbulence });
+            return PR.Ok(new ClearedForTakeoffCommand(departure, alt) { CautionWakeTurbulence = cautionWakeTurbulence, Immediate = immediate });
         }
 
         // Bare number: first number is heading (1-360), second is altitude
@@ -71,11 +73,59 @@ internal static class DepartureCommandParser
                 new ClearedForTakeoffCommand(new FlyHeadingDeparture(new MagneticHeading(bareNum), null), alt)
                 {
                     CautionWakeTurbulence = cautionWakeTurbulence,
+                    Immediate = immediate,
                 }
             );
         }
 
         return PR.Fail($"CTO does not understand '{arg}'");
+    }
+
+    /// <summary>
+    /// Parses the LUAW grammar: an optional trailing IMM/WD/ND modifier
+    /// ("line up and wait, without delay"). Any other trailing token is rejected.
+    /// </summary>
+    internal static PR ParseLuawArg(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(new LineUpAndWaitCommand());
+        }
+
+        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        bool withoutDelay = TryStripImmediate(ref tokens);
+        if (tokens.Length > 0)
+        {
+            return PR.Fail($"LUAW does not understand '{string.Join(' ', tokens)}'");
+        }
+
+        return PR.Ok(new LineUpAndWaitCommand { WithoutDelay = withoutDelay });
+    }
+
+    /// <summary>
+    /// Strips trailing CWT and IMM/WD/ND suffixes from a CTO token list in any order,
+    /// returning whether each was present.
+    /// </summary>
+    private static (bool CautionWakeTurbulence, bool Immediate) StripTowerModifiers(ref string[] tokens)
+    {
+        bool cautionWakeTurbulence = false;
+        bool immediate = false;
+        bool stripped = true;
+        while (stripped)
+        {
+            stripped = false;
+            if (TryStripCautionWakeTurbulence(ref tokens))
+            {
+                cautionWakeTurbulence = true;
+                stripped = true;
+            }
+            if (TryStripImmediate(ref tokens))
+            {
+                immediate = true;
+                stripped = true;
+            }
+        }
+        return (cautionWakeTurbulence, immediate);
     }
 
     private static bool TryStripCautionWakeTurbulence(ref string[] tokens)
@@ -90,17 +140,43 @@ internal static class DepartureCommandParser
     }
 
     /// <summary>
-    /// Applies the caution-wake-turbulence advisory to a successful <see cref="ClearedForTakeoffCommand"/>
-    /// result; failures and other command types pass through unchanged.
+    /// Strips a trailing "immediate"/"without delay" modifier — IMM, WD, or ND
+    /// (interchangeable aliases) — returning whether one was present.
     /// </summary>
-    private static PR WithCaution(PR result, bool cautionWakeTurbulence)
+    private static bool TryStripImmediate(ref string[] tokens)
     {
-        if (!cautionWakeTurbulence || result.Value is not ClearedForTakeoffCommand cto)
+        if (tokens.Length == 0)
+        {
+            return false;
+        }
+
+        var last = tokens[^1];
+        bool match =
+            last.Equals("IMM", StringComparison.OrdinalIgnoreCase)
+            || last.Equals("WD", StringComparison.OrdinalIgnoreCase)
+            || last.Equals("ND", StringComparison.OrdinalIgnoreCase);
+        if (!match)
+        {
+            return false;
+        }
+
+        tokens = tokens[..^1];
+        return true;
+    }
+
+    /// <summary>
+    /// Applies the CWT advisory and/or the immediate modifier to a successful
+    /// <see cref="ClearedForTakeoffCommand"/> result; failures and other command
+    /// types pass through unchanged.
+    /// </summary>
+    private static PR WithModifiers(PR result, bool cautionWakeTurbulence, bool immediate)
+    {
+        if (result.Value is not ClearedForTakeoffCommand cto)
         {
             return result;
         }
 
-        return PR.Ok(cto with { CautionWakeTurbulence = true });
+        return PR.Ok(cto with { CautionWakeTurbulence = cto.CautionWakeTurbulence || cautionWakeTurbulence, Immediate = cto.Immediate || immediate });
     }
 
     /// <summary>

@@ -1547,24 +1547,34 @@ public static class CommandDispatcher
         switch (command)
         {
             case ClearedForTakeoffCommand cto:
-                if (currentPhase is LinedUpAndWaitingPhase luaw)
+            {
+                var ctoResult = currentPhase is LinedUpAndWaitingPhase luaw
+                    ? DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw)
+                    : DepartureClearanceHandler.TryDepartureClearance(
+                        aircraft,
+                        currentPhase,
+                        ClearanceType.ClearedForTakeoff,
+                        cto.Departure,
+                        cto.AssignedAltitude,
+                        Log
+                    );
+                // "Cleared for immediate takeoff" — brisk lineup taxi (+ rolling takeoff via the
+                // existing rolling/upgrade machinery). Latest clearance's modifier wins.
+                if (ctoResult.Success)
                 {
-                    return DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw);
+                    aircraft.Ground.IsExpeditingLineup = cto.Immediate;
                 }
-                return DepartureClearanceHandler.TryDepartureClearance(
-                    aircraft,
-                    currentPhase,
-                    ClearanceType.ClearedForTakeoff,
-                    cto.Departure,
-                    cto.AssignedAltitude,
-                    Log
-                );
+                return ctoResult;
+            }
 
             case CancelTakeoffClearanceCommand:
+                // Cancelling the takeoff clearance moots any pending expedite intent.
+                aircraft.Ground.IsExpeditingLineup = false;
                 return DepartureClearanceHandler.TryCancelTakeoff(aircraft, currentPhase);
 
-            case LineUpAndWaitCommand:
-                return DepartureClearanceHandler.TryDepartureClearance(
+            case LineUpAndWaitCommand luawCmd:
+            {
+                var luawResult = DepartureClearanceHandler.TryDepartureClearance(
                     aircraft,
                     currentPhase,
                     ClearanceType.LineUpAndWait,
@@ -1572,6 +1582,13 @@ public static class CommandDispatcher
                     null,
                     Log
                 );
+                // "Line up and wait, without delay" — brisk lineup taxi; still stops at the centerline.
+                if (luawResult.Success)
+                {
+                    aircraft.Ground.IsExpeditingLineup = luawCmd.WithoutDelay;
+                }
+                return luawResult;
+            }
 
             case ClearedToLandCommand ctl:
                 return PatternCommandHandler.TryClearedToLand(ctl, aircraft);

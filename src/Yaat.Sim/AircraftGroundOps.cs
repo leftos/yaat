@@ -85,6 +85,16 @@ public class AircraftGroundOps
     public bool IsExpeditingExit { get; set; }
 
     /// <summary>
+    /// When true, a departing aircraft taxis briskly onto the runway: LineUpPhase raises
+    /// its straight-segment lineup speed by <see cref="CategoryPerformance.TaxiExpediteMultiplier"/>.
+    /// Set by the IMM/WD/ND modifier on <c>CTO</c> ("cleared for immediate takeoff", which
+    /// also rolls without stopping at the centerline) or <c>LUAW</c> ("line up and wait,
+    /// without delay", which still stops at the centerline). Cleared at takeoff-roll start,
+    /// by <c>NORM</c>, and when the takeoff clearance is cancelled (<c>CTOC</c>).
+    /// </summary>
+    public bool IsExpeditingLineup { get; set; }
+
+    /// <summary>
     /// Remaining seconds of BREAK conflict override. While positive, the aircraft
     /// ignores ground conflict speed limits imposed by GroundConflictDetector.
     /// </summary>
@@ -206,6 +216,7 @@ public class AircraftGroundOps
             IsScriptedDeparture = IsScriptedDeparture,
             IsExpeditingTaxi = IsExpeditingTaxi,
             IsExpeditingExit = IsExpeditingExit,
+            IsExpeditingLineup = IsExpeditingLineup,
             HoldElapsedSeconds = HoldElapsedSeconds,
             StationarySeconds = StationarySeconds,
             HeldForRelease = HeldForRelease,
@@ -234,6 +245,7 @@ public class AircraftGroundOps
             IsScriptedDeparture = dto.IsScriptedDeparture,
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
             IsExpeditingExit = dto.IsExpeditingExit,
+            IsExpeditingLineup = dto.IsExpeditingLineup,
             HoldElapsedSeconds = dto.HoldElapsedSeconds,
             StationarySeconds = dto.StationarySeconds,
             HeldForRelease = dto.HeldForRelease,

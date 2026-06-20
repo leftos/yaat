@@ -180,11 +180,11 @@ public static class PilotResponder
         {
             ClimbMaintainCommand { Modifier: AltitudeAssignmentModifier.AtOrAbove or AltitudeAssignmentModifier.AtOrBelow } cm =>
                 BuildAltitudeRestrictionClause(aircraft, cm),
-            LineUpAndWaitCommand luaw => BuildRunwayInstructionClause(aircraft, "line up and wait")
+            LineUpAndWaitCommand luaw => AppendWithoutDelayClause(BuildRunwayInstructionClause(aircraft, "line up and wait"), luaw.WithoutDelay)
                 ?? VerbalizeDual(luaw, personality, activityLevel),
             ClearedForTakeoffCommand cto => BuildTakeoffClearanceClause(
                 aircraft,
-                "cleared for takeoff",
+                cto.Immediate ? "cleared for immediate takeoff" : "cleared for takeoff",
                 cto.Departure,
                 cto.AssignedAltitude,
                 includeRunway: true,
@@ -409,6 +409,16 @@ public static class PilotResponder
         }
 
         return new PilotSpeechText($"{clause.Terminal}, caution wake turbulence", $"{clause.Tts}, caution wake turbulence");
+    }
+
+    private static PilotSpeechText? AppendWithoutDelayClause(PilotSpeechText? clause, bool withoutDelay)
+    {
+        if (clause is null || !withoutDelay)
+        {
+            return clause;
+        }
+
+        return new PilotSpeechText($"{clause.Terminal}, without delay", $"{clause.Tts}, without delay");
     }
 
     private static PilotSpeechText BuildLandAndHoldShortClause(AircraftState aircraft, LandAndHoldShortCommand command)

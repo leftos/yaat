@@ -385,4 +385,52 @@ public class CompoundTowerCommandTests
             }
         }
     }
+
+    // --- Immediate takeoff: dispatcher wires CTO IMM → IsExpeditingLineup ---
+
+    private static CompoundCommand Block(ParsedCommand cmd) => new([new ParsedBlock(null, [cmd])]);
+
+    [Fact]
+    public void CtoImmediate_SetsExpeditingLineupFlag()
+    {
+        var ac = MakeLinedUpAircraft(Oak28R());
+        var compound = Block(new ClearedForTakeoffCommand(new DefaultDeparture()) { Immediate = true });
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+
+        Assert.True(result.Success, $"Dispatch failed: {result.Message}");
+        Assert.True(ac.Ground.IsExpeditingLineup);
+    }
+
+    [Fact]
+    public void PlainCto_DoesNotSetExpeditingLineupFlag()
+    {
+        var ac = MakeLinedUpAircraft(Oak28R());
+        var compound = Block(new ClearedForTakeoffCommand(new DefaultDeparture()));
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+
+        Assert.True(result.Success, $"Dispatch failed: {result.Message}");
+        Assert.False(ac.Ground.IsExpeditingLineup);
+    }
+
+    [Fact]
+    public void Ctoc_ClearsExpeditingLineupFlag()
+    {
+        var ac = MakeLinedUpAircraft(Oak28R());
+        CommandDispatcher.DispatchCompound(
+            Block(new ClearedForTakeoffCommand(new DefaultDeparture()) { Immediate = true }),
+            ac,
+            TestDispatch.Context(new Random(42), validateDctFixes: false)
+        );
+        Assert.True(ac.Ground.IsExpeditingLineup);
+
+        CommandDispatcher.DispatchCompound(
+            Block(new CancelTakeoffClearanceCommand()),
+            ac,
+            TestDispatch.Context(new Random(42), validateDctFixes: false)
+        );
+
+        Assert.False(ac.Ground.IsExpeditingLineup);
+    }
 }

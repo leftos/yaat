@@ -440,4 +440,64 @@ public class CtoParserTests : IDisposable
         var cmd = CommandParser.Parse("CTO MRT JUNK");
         Assert.False(cmd.IsSuccess);
     }
+
+    // ---- Immediate takeoff modifier (IMM / WD / ND aliases) ----
+
+    [Fact]
+    public void BareCto_IsNotImmediate()
+    {
+        var cmd = CommandParser.Parse("CTO");
+        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        Assert.False(cto.Immediate);
+    }
+
+    [Theory]
+    [InlineData("CTO IMM")]
+    [InlineData("CTO WD")]
+    [InlineData("CTO ND")]
+    public void Cto_ImmediateAliases_SetImmediate(string input)
+    {
+        var cmd = CommandParser.Parse(input);
+        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        Assert.IsType<DefaultDeparture>(cto.Departure);
+        Assert.True(cto.Immediate);
+        Assert.Equal("CTO IMM", CommandDescriber.DescribeCommand(cto));
+        Assert.Equal("Cleared for immediate takeoff", CommandDescriber.DescribeNatural(cto));
+    }
+
+    [Fact]
+    public void Cto_ImmediateWithTurnAndAltitude_PreservesEverything()
+    {
+        var cmd = CommandParser.Parse("CTO RT280 050 IMM");
+        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        var fh = Assert.IsType<FlyHeadingDeparture>(cto.Departure);
+        Assert.Equal(280, fh.MagneticHeading.Degrees);
+        Assert.Equal(TurnDirection.Right, fh.Direction);
+        Assert.Equal(5000, cto.AssignedAltitude);
+        Assert.True(cto.Immediate);
+        Assert.Equal("CTO RH280 5000 IMM", CommandDescriber.DescribeCommand(cto));
+    }
+
+    [Theory]
+    [InlineData("CTO IMM CWT")]
+    [InlineData("CTO CWT IMM")]
+    public void Cto_ImmediateAndWakeTurbulence_AnyOrder_SetsBothFlags(string input)
+    {
+        var cmd = CommandParser.Parse(input);
+        var cto = Assert.IsType<ClearedForTakeoffCommand>(cmd.Value);
+        Assert.True(cto.Immediate);
+        Assert.True(cto.CautionWakeTurbulence);
+        Assert.Equal("CTO CWT IMM", CommandDescriber.DescribeCommand(cto));
+    }
+
+    [Fact]
+    public void Cto_Immediate_CanonicalRoundTrips()
+    {
+        var canonical = CommandDescriber.DescribeCommand(Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse("CTO MRC 014 IMM").Value));
+        var reparsed = Assert.IsType<ClearedForTakeoffCommand>(CommandParser.Parse(canonical).Value);
+        Assert.True(reparsed.Immediate);
+        var ped = Assert.IsType<PatternExitDeparture>(reparsed.Departure);
+        Assert.Equal(PatternEntryLeg.Crosswind, ped.ExitLeg);
+        Assert.Equal(1400, reparsed.AssignedAltitude);
+    }
 }

@@ -82,6 +82,9 @@ public sealed class TakeoffPhase : Phase
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
 
+        // The lineup is complete — any brisk "immediate"/"without delay" lineup is done.
+        ctx.Aircraft.Ground.IsExpeditingLineup = false;
+
         Log.LogDebug(
             "[Takeoff] {Callsign}: started, rwy hdg={Hdg:F0}, fieldElev={Elev:F0}ft",
             ctx.Aircraft.Callsign,

@@ -401,8 +401,8 @@ All commands grouped by category. Each table shows the primary command, aliases,
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
-| Line up and wait | `LUAW` | `POS`, `LU`, `PH` | — |
-| Cleared for takeoff | `CTO` | — | Optional `CWT` suffix |
+| Line up and wait | `LUAW` | `POS`, `LU`, `PH` | Optional `WD`/`ND`/`IMM` suffix (without delay) |
+| Cleared for takeoff | `CTO` | — | Optional `CWT` and/or `IMM`/`WD`/`ND` (immediate) suffix |
 | Cancel takeoff | `CTOC` | — | — |
 | Cleared to land | `CLAND [runway]` | `CL`, `FS` | Optional runway; optional `CWT` suffix. A following aircraft can be cleared before it has a runway. |
 | Force landing | `CLANDF` | — | RPO-only override: implies clearance + forces touchdown, suppressing automatic go-arounds |
@@ -694,6 +694,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | Command | Effect |
 |---------|--------|
 | `LUAW` / `POS` / `LU` / `PH` | Line up and wait — aircraft holds on runway |
+| `LUAW WD` / `LUAW ND` / `LUAW IMM` | Line up and wait, without delay — taxis briskly onto the runway, still stops and holds at the centerline. `WD`/`ND`/`IMM` are interchangeable. |
 | `CTO` | Cleared for takeoff (default departure) |
 | `CTO 060` | Cleared for takeoff, fly heading 060 |
 | `CTO 060 250` | Cleared for takeoff, fly heading 060, climb and maintain 25,000 ft |
@@ -715,6 +716,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) — VFR only |
 | `CTO MLT 28L` | Cleared for takeoff, make left traffic runway 28L (cross-runway pattern) — VFR only |
 | `CTO CWT` / `CTO 270 CWT` / `CTO DCT SUNOL CWT` | Cleared for takeoff and caution wake turbulence. `CWT` can follow any `CTO` form. |
+| `CTO IMM` / `CTO WD` / `CTO ND` / `CTO RT270 IMM` | Cleared for **immediate** takeoff — taxis briskly onto the runway and rolls without stopping at the centerline. `IMM`/`WD`/`ND` are interchangeable and can follow any `CTO` form (and combine with `CWT`). Super/Heavy aircraft still make a standing-start takeoff (no rolling start, per 7110.65 §3-9-5.3). |
 | `CTOC` | Cancel takeoff clearance, hold in position. While the aircraft is lining up onto the runway it stops immediately where it is (does not continue onto the centerline); a fresh `CTO` resumes the line-up and departs. If already lined up and waiting, it holds. Mid-roll abort works below V1 (≈ Vr − 5 kts); above V1 the aircraft is committed and CTOC is rejected. |
 | `CLAND` / `CL` / `FS` | Cleared to land (full stop) for an airborne aircraft established on an approach or pattern with an assigned runway. |
 | `CLAND 28R` | Cleared to land on a named runway. For an aircraft that is **following** traffic but has no runway of its own (`RTIS`/`FOLLOW` issued, not yet sequenced onto final), the clearance is **armed** and applied automatically when the follower joins the traffic's runway final — it lands behind the traffic without a second `CLAND`. A bare `CLAND` while following inherits the lead's runway. If the named runway differs from the runway the follower actually joins, the clearance is not applied and the follower awaits an explicit `CLAND` on the actual runway. (Not for an enroute aircraft with no approach and no follow — assign a pattern entry like `EF 28R` first.) |
@@ -747,6 +749,8 @@ All CTO modifiers accept an optional altitude suffix using the same format as CM
 When a CTO carries no explicit climb altitude, an IFR departure on a SID climbs to and maintains the SID's published initial ("maintain") altitude from the facility's vTDLS configuration (e.g. KIAH 4,000 ft, KHOU 5,000 ft) until you issue a climb (`CM`). A later climb command supersedes the cap; VFR departures and airports without a published initial altitude are unaffected.
 
 Append `CWT` after any CTO form to include "caution wake turbulence" in the takeoff clearance and record wake-advisory proof: `CTO CWT`, `CTO 270 CWT`, `CTO DCT SUNOL CWT`.
+
+Append `IMM` (or its interchangeable aliases `WD` / `ND`) after any CTO form for a **cleared for immediate takeoff** (AIM 4-4-13): the pilot taxis briskly onto the runway and begins the takeoff roll without stopping at the centerline — useful to fit a departure in ahead of an arrival. `CTO IMM`, `CTO RT270 IMM`, `CTO IMM CWT`. The same modifier on `LUAW` (`LUAW WD`) gives a "line up and wait, without delay": the aircraft taxis briskly onto the runway but still stops and holds at the centerline. Super/Heavy aircraft still make a standing-start (non-rolling) takeoff per 7110.65 §3-9-5.3, so `IMM` only speeds their taxi onto the runway, not the takeoff start.
 
 **IFR aircraft** can only use bare `CTO` (default SID/route departure) or `CTO` with a numeric heading (`CTO 270`, `CTO H270`, `CTO RH270`, etc.). Pattern exit and runway-relative modifiers (`MRC`, `MRD`, `MRH` / `MSO` / `RH`, `OC`, `MLT`, `DCT`, etc.) are VFR-only — dispatch rejects them with a message naming the IFR restriction so the controller can reissue with a vector or let the SID run.
 

@@ -4,6 +4,7 @@
 
 ### Added
 - `EXT CROSSWIND` / `EXT DOWNWIND` can be issued before the aircraft reaches that leg (e.g. while still on upwind) to pre-arm the extension, which then fires automatically on arrival; `MNA` cancels a pending pre-arm.
+- Cleared for **immediate** takeoff — append `IMM` (or the interchangeable `WD`/`ND`) to `CTO`, e.g. `CTO IMM` or `CTO RT270 IMM`. The aircraft taxis briskly onto the runway and begins its takeoff roll without stopping at the centerline, to fit a departure in ahead of an arrival. The same suffix on `LUAW` (`LUAW WD`) gives a "line up and wait, without delay" — a brisk taxi onto the runway that still stops and holds at the centerline. Super and Heavy aircraft still make a standing-start takeoff.
 
 ## v0.7.21-beta [2026/06/19]
 

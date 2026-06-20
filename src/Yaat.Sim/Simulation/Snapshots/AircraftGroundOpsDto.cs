@@ -25,6 +25,9 @@ public sealed class AircraftGroundOpsDto
     public bool IsExpeditingTaxi { get; init; }
     public bool IsExpeditingExit { get; init; }
 
+    /// <summary>True when a brisk "immediate"/"without delay" lineup has been requested (CTO IMM / LUAW WD).</summary>
+    public bool IsExpeditingLineup { get; init; }
+
     /// <summary>Seconds the current GIVEWAY hold has been active (drives the safety-timeout auto-release).</summary>
     public double HoldElapsedSeconds { get; init; }
 

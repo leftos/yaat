@@ -111,8 +111,8 @@
       "id": "tower",
       "name": "Tower",
       "rows": [
-        { "verb": "LUAW", "aliases": ["pos", "lu", "ph"], "description": "Line up and wait" },
-        { "verb": "CTO", "aliases": [], "description": "Cleared for takeoff" },
+        { "verb": "LUAW", "aliases": ["pos", "lu", "ph"], "description": "Line up and wait (+WD/ND/IMM = without delay)" },
+        { "verb": "CTO", "aliases": [], "description": "Cleared for takeoff (+IMM/WD/ND = immediate)" },
         { "verb": "CTOC", "aliases": [], "description": "Cancel takeoff clearance" },
         { "verb": "GO", "aliases": [], "description": "Begin takeoff roll" },
         { "verb": "GA", "aliases": [], "description": "Go around [heading]" },
@@ -127,6 +127,7 @@
       ],
       "notes": [
         "CTO modes: `H270` `RH270`/`LH270` `RT270`/`LT270` (all both); `RH`/`MRH`/`MSO` `MRC`/`MLC` `MRD`/`MLD` `MR270`/`ML270` `OC` `DCT fix` `TLDCT fix`/`TRDCT fix` `MRT [rwy]`/`MLT [rwy]` (VFR only — IFR accepts only bare CTO or a numeric heading)",
+        "Immediate suffix `IMM`/`WD`/`ND` (interchangeable) on any `CTO` = cleared for immediate takeoff (brisk lineup + rolling start); on `LUAW` = without delay (brisk lineup, still holds). Super/Heavy keep a standing-start takeoff.",
         "GA modes: `GA` (rwy hdg) `GA 270` `GA 270 50` (hdg+alt) `GA MRT [alt]`/`GA MLT [alt]` (closed traffic)"
       ]
     },

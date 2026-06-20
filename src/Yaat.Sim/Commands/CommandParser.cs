@@ -692,7 +692,7 @@ public static class CommandParser
             ReleaseDeparture => ParseRelease(arg),
             Add when arg is not null => PR.Ok(new AddAircraftCommand(arg)),
             // Tower
-            LineUpAndWait when arg is null => PR.Ok(new LineUpAndWaitCommand()),
+            LineUpAndWait => DepartureCommandParser.ParseLuawArg(arg),
             ClearedForTakeoff => DepartureCommandParser.ParseCtoArg(arg),
             CancelTakeoffClearance when arg is null => PR.Ok(new CancelTakeoffClearanceCommand()),
             GoAround => ParseGoAround(arg),

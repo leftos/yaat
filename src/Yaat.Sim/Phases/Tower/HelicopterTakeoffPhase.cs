@@ -96,6 +96,9 @@ public sealed class HelicopterTakeoffPhase : Phase
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
 
+        // The lineup is complete — any brisk "immediate"/"without delay" lineup is done.
+        ctx.Aircraft.Ground.IsExpeditingLineup = false;
+
         Log.LogDebug("[Takeoff-H] {Callsign}: vertical liftoff, targetAlt={Alt:F0}ft AGL", ctx.Aircraft.Callsign, _completionAgl);
     }
 

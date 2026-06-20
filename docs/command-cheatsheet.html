@@ -400,8 +400,8 @@ code {
 <details class="cat" id="tower" data-name="tower" open>
 <summary>Tower</summary>
 <div class="cat-body">
-<div class="row" id="cmd-tower-luaw" data-verb="luaw" data-aliases="pos lu ph" data-desc="line up and wait"><span class="verb">LUAW</span><span class="alias">pos lu ph</span><span class="desc">Line up and wait</span></div>
-<div class="row" id="cmd-tower-cto" data-verb="cto" data-aliases="" data-desc="cleared for takeoff"><span class="verb">CTO</span><span class="alias"></span><span class="desc">Cleared for takeoff</span></div>
+<div class="row" id="cmd-tower-luaw" data-verb="luaw" data-aliases="pos lu ph" data-desc="line up and wait (+wd/nd/imm = without delay)"><span class="verb">LUAW</span><span class="alias">pos lu ph</span><span class="desc">Line up and wait (+WD/ND/IMM = without delay)</span></div>
+<div class="row" id="cmd-tower-cto" data-verb="cto" data-aliases="" data-desc="cleared for takeoff (+imm/wd/nd = immediate)"><span class="verb">CTO</span><span class="alias"></span><span class="desc">Cleared for takeoff (+IMM/WD/ND = immediate)</span></div>
 <div class="row" id="cmd-tower-ctoc" data-verb="ctoc" data-aliases="" data-desc="cancel takeoff clearance"><span class="verb">CTOC</span><span class="alias"></span><span class="desc">Cancel takeoff clearance</span></div>
 <div class="row" id="cmd-tower-go" data-verb="go" data-aliases="" data-desc="begin takeoff roll"><span class="verb">GO</span><span class="alias"></span><span class="desc">Begin takeoff roll</span></div>
 <div class="row" id="cmd-tower-ga" data-verb="ga" data-aliases="" data-desc="go around [heading]"><span class="verb">GA</span><span class="alias"></span><span class="desc">Go around [heading]</span></div>
@@ -414,6 +414,7 @@ code {
 <div class="row" id="cmd-tower-la" data-verb="la" data-aliases="" data-desc="low approach [mlt / mrt]"><span class="verb">LA</span><span class="alias"></span><span class="desc">Low approach [MLT / MRT]</span></div>
 <div class="row" id="cmd-tower-copt" data-verb="copt" data-aliases="" data-desc="cleared for option [mlt / mrt]"><span class="verb">COPT</span><span class="alias"></span><span class="desc">Cleared for option [MLT / MRT]</span></div>
 <div class="note">CTO modes: <code>H270</code> <code>RH270</code>/<code>LH270</code> <code>RT270</code>/<code>LT270</code> (all both); <code>RH</code>/<code>MRH</code>/<code>MSO</code> <code>MRC</code>/<code>MLC</code> <code>MRD</code>/<code>MLD</code> <code>MR270</code>/<code>ML270</code> <code>OC</code> <code>DCT fix</code> <code>TLDCT fix</code>/<code>TRDCT fix</code> <code>MRT [rwy]</code>/<code>MLT [rwy]</code> (VFR only — IFR accepts only bare CTO or a numeric heading)</div>
+<div class="note">Immediate suffix <code>IMM</code>/<code>WD</code>/<code>ND</code> (interchangeable) on any <code>CTO</code> = cleared for immediate takeoff (brisk lineup + rolling start); on <code>LUAW</code> = without delay (brisk lineup, still holds). Super/Heavy keep a standing-start takeoff.</div>
 <div class="note">GA modes: <code>GA</code> (rwy hdg) <code>GA 270</code> <code>GA 270 50</code> (hdg+alt) <code>GA MRT [alt]</code>/<code>GA MLT [alt]</code> (closed traffic)</div>
 </div>
 </details>

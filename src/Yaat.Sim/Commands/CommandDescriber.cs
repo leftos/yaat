@@ -463,7 +463,7 @@ public static class CommandDescriber
             SquawkAllCommand => "SQALL",
             SquawkNormalAllCommand => "SNALL",
             SquawkStandbyAllCommand => "SSALL",
-            LineUpAndWaitCommand => "LUAW",
+            LineUpAndWaitCommand luaw => luaw.WithoutDelay ? "LUAW WD" : "LUAW",
             ClearedForTakeoffCommand cto => FormatCtoCanonical(cto),
             CancelTakeoffClearanceCommand => "CTOC",
             ClearedToLandCommand cmd => FormatClearedToLandCanonical(cmd),
@@ -733,6 +733,7 @@ public static class CommandDescriber
             SquawkAllCommand => "Squawk all assigned",
             SquawkNormalAllCommand => "Squawk normal all",
             SquawkStandbyAllCommand => "Squawk standby all",
+            LineUpAndWaitCommand luaw => luaw.WithoutDelay ? "Line up and wait, without delay" : "Line up and wait",
             ClearedForTakeoffCommand cto => DescribeCtoNatural(cto),
             CancelTakeoffClearanceCommand => "Cancel takeoff clearance",
             ClearedToLandCommand cmd => DescribeClearedToLandNatural(cmd),
@@ -1229,8 +1230,9 @@ public static class CommandDescriber
 
         var alt = cto.AssignedAltitude is not null ? $" {cto.AssignedAltitude}" : "";
         var cwt = cto.CautionWakeTurbulence ? " CWT" : "";
+        var imm = cto.Immediate ? " IMM" : "";
 
-        return $"CTO{suffix}{alt}{cwt}";
+        return $"CTO{suffix}{alt}{cwt}{imm}";
     }
 
     private static string FormatClearedToLandCanonical(ClearedToLandCommand cmd)
@@ -1251,7 +1253,7 @@ public static class CommandDescriber
 
     private static string DescribeCtoNatural(ClearedForTakeoffCommand cto)
     {
-        var msg = "Cleared for takeoff";
+        var msg = cto.Immediate ? "Cleared for immediate takeoff" : "Cleared for takeoff";
         msg += cto.Departure switch
         {
             DefaultDeparture => "",

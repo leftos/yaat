@@ -614,4 +614,44 @@ public class LineUpPhaseTests(ITestOutputHelper output)
         Assert.True(upgraded);
         Assert.True(phase.RollingMode);
     }
+
+    // ---- Expedited lineup (CTO IMM / LUAW WD set IsExpeditingLineup) ----
+
+    [Fact]
+    public void ExpeditedLineup_ReachesCenterlineInFewerTicks_AndStillStops()
+    {
+        const double rwyHdg = 90.0;
+        const double acHdg = 0.0;
+        double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);
+        const double acLon = -121.995;
+
+        // Baseline LUAW lineup (no expedite).
+        var (normalAc, normalCtx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        var normal = RunToCompletion(new LineUpPhase(), normalAc, normalCtx);
+
+        // Identical geometry, but expedited ("without delay" / "immediate").
+        var (expAc, expCtx) = MakeFixture(rwyHdg, acLat, acLon, acHdg);
+        expAc.Ground.IsExpeditingLineup = true;
+        var expedited = RunToCompletion(new LineUpPhase(), expAc, expCtx);
+
+        output.WriteLine($"normal ticks={normal.Ticks}, expedited ticks={expedited.Ticks}");
+
+        Assert.True(normal.Completed, "baseline lineup did not complete");
+        Assert.True(expedited.Completed, "expedited lineup did not complete");
+        Assert.True(
+            expedited.Ticks < normal.Ticks,
+            $"expedited lineup ({expedited.Ticks} ticks) should reach the centerline faster than normal ({normal.Ticks} ticks)"
+        );
+        // "Without delay" speeds the taxi onto the runway but still stops on the centerline.
+        Assert.True(expedited.GsKts < 0.5, $"expedited LUAW must still brake to a stop, got {expedited.GsKts:F2}kt");
+        Assert.True(expedited.CrossFt < 3.0, $"expedited lineup off-centerline {expedited.CrossFt:F2}ft exceeds 3 ft");
+    }
+
+    [Fact]
+    public void ExpeditedLineup_SurvivesGroundOpsSnapshotRoundTrip()
+    {
+        var ground = new AircraftGroundOps { IsExpeditingLineup = true };
+        var restored = AircraftGroundOps.FromSnapshot(ground.ToSnapshot(), layout: null);
+        Assert.True(restored.IsExpeditingLineup);
+    }
 }

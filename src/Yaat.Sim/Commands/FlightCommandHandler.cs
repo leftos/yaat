@@ -384,6 +384,7 @@ internal static class FlightCommandHandler
     {
         aircraft.Procedure.IsExpediting = false;
         aircraft.Ground.IsExpeditingExit = false;
+        aircraft.Ground.IsExpeditingLineup = false;
         aircraft.Targets.DesiredVerticalRate = null;
         return CommandDispatcher.Ok("Resume normal rate");
     }

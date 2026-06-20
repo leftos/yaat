@@ -101,6 +101,29 @@ public class PilotResponderTests
     }
 
     [Fact]
+    public void BuildReadback_LineUpAndWaitWithoutDelay_AppendsWithoutDelay()
+    {
+        var ac = MakeAircraftWithAssignedRunway("N436MS", "28R");
+        var compound = Compound(new LineUpAndWaitCommand { WithoutDelay = true });
+
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+
+        Assert.Contains("line up and wait runway two eight right", result!);
+        Assert.Contains("without delay", result);
+    }
+
+    [Fact]
+    public void BuildReadback_ClearedForImmediateTakeoff_SaysImmediate()
+    {
+        var ac = MakeAircraftWithAssignedRunway("AAL123", "28R");
+        var compound = Compound(new ClearedForTakeoffCommand(new DefaultDeparture()) { Immediate = true });
+
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+
+        Assert.Contains("cleared for immediate takeoff runway two eight right", result!);
+    }
+
+    [Fact]
     public void BuildReadback_VariedQuietFlavor_IsDeterministicAndRare()
     {
         var flavored = new List<string>();

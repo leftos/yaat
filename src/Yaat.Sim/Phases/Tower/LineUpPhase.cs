@@ -327,7 +327,7 @@ public sealed class LineUpPhase : Phase
     )
     {
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearingDeg);
-        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetSpeedKts);
+        ctx.Targets.TargetSpeed = ExpediteStraightSpeed(ctx, targetSpeedKts);
 
         double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(toLat, toLon)) * GeoMath.FeetPerNm;
 
@@ -410,7 +410,7 @@ public sealed class LineUpPhase : Phase
             // Hold cruise speed through the rollout; hand off to TakeoffPhase
             // at the stop point. Completion uses distance-from-start because
             // distance-to-stop increases past the stop point under rolling.
-            ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, plan.ArcSpeedKts);
+            ctx.Targets.TargetSpeed = ExpediteStraightSpeed(ctx, plan.ArcSpeedKts);
             double distFromStartFt =
                 GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.RolloutFromLat, plan.RolloutFromLon)) * GeoMath.FeetPerNm;
             if (distFromStartFt >= plan.RolloutLengthFt - RolloutArrivalFt)
@@ -426,11 +426,12 @@ public sealed class LineUpPhase : Phase
             return false;
         }
 
-        // LUAW: kinematic brake curve v = sqrt(2·a·d).
+        // LUAW: kinematic brake curve v = sqrt(2·a·d). "Without delay" raises the cruise cap
+        // for a brisk roll up to the centerline; the brake curve still decelerates to the stop.
         double decelKtPerSec = CategoryPerformance.TaxiDecelRate(plan.Category);
         double brakeSpeedKts = Math.Sqrt(2.0 * decelKtPerSec * distToStopNm * 3600.0);
-        double targetSpeed = Math.Min(plan.ArcSpeedKts, brakeSpeedKts);
-        ctx.Targets.TargetSpeed = ClampBySpeedLimit(ctx, targetSpeed);
+        double targetSpeed = Math.Min(ExpediteStraightSpeed(ctx, plan.ArcSpeedKts), brakeSpeedKts);
+        ctx.Targets.TargetSpeed = targetSpeed;
 
         if (distToStopFt < RolloutArrivalFt)
         {
@@ -497,6 +498,20 @@ public sealed class LineUpPhase : Phase
     /// </summary>
     private static double ClampBySpeedLimit(PhaseContext ctx, double requested) =>
         ctx.Aircraft.Ground.SpeedLimit is { } limit ? Math.Min(requested, limit) : requested;
+
+    /// <summary>
+    /// Resolve the target speed for a straight lineup segment (nose-out, pivot straight, rollout):
+    /// when an "immediate"/"without delay" lineup has been requested
+    /// (<see cref="AircraftGroundOps.IsExpeditingLineup"/>), scale by
+    /// <see cref="CategoryPerformance.TaxiExpediteMultiplier"/> for a brisk taxi onto the runway,
+    /// then clamp by any active ground/conflict speed limit. The arc and pivot turn segments keep
+    /// their turn-rate-limited speed.
+    /// </summary>
+    private static double ExpediteStraightSpeed(PhaseContext ctx, double requested)
+    {
+        double speed = ctx.Aircraft.Ground.IsExpeditingLineup ? requested * CategoryPerformance.TaxiExpediteMultiplier : requested;
+        return ClampBySpeedLimit(ctx, speed);
+    }
 
     /// <summary>
     /// Walk the aircraft's phase list and return true iff the next pending

@@ -283,7 +283,16 @@ public record PatternExitDeparture(PatternEntryLeg ExitLeg, PatternDirection Dir
 }
 
 // Tower commands
-public record LineUpAndWaitCommand : ParsedCommand;
+
+/// <summary>
+/// LUAW. <see cref="WithoutDelay"/> is set by the IMM/WD/ND modifier
+/// ("line up and wait, without delay", 7110.65 §3-7-2.b.10) and tells the pilot
+/// to taxi briskly onto the runway; the aircraft still stops and holds at the centerline.
+/// </summary>
+public record LineUpAndWaitCommand : ParsedCommand
+{
+    public bool WithoutDelay { get; init; }
+}
 
 /// <summary>
 /// CTO with departure instruction and optional altitude override.
@@ -291,6 +300,13 @@ public record LineUpAndWaitCommand : ParsedCommand;
 public record ClearedForTakeoffCommand(DepartureInstruction Departure, int? AssignedAltitude = null) : ParsedCommand
 {
     public bool CautionWakeTurbulence { get; init; }
+
+    /// <summary>
+    /// Set by the IMM/WD/ND modifier — "cleared for immediate takeoff" (AIM §4-4-13,
+    /// 7110.65 §3-9-9). Drives a brisk lineup taxi and the rolling (no centerline stop)
+    /// takeoff for eligible aircraft.
+    /// </summary>
+    public bool Immediate { get; init; }
 }
 
 public record CancelTakeoffClearanceCommand : ParsedCommand;

@@ -159,6 +159,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | GA + traffic pattern | — | `GA MRT`, `GA MLT` (VFR/visual only) | **YAAT-only** |
 | Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CLAND [runway]`/`CL` | **YAAT-only** optional explicit landing clearance; `CLAND 28R` can pre-clear a following aircraft that has no runway yet (armed, applied when it joins the traffic's final) |
 | Wake advisory | — | `CWT`, `CTO ... CWT`, `CLAND ... CWT` | **YAAT-only** standalone caution-wake-turbulence advisory and clearance suffix |
+| Immediate / without delay | — | `CTO IMM` (immediate takeoff), `LUAW WD` (line up and wait, without delay) | **YAAT-only** — `IMM`/`WD`/`ND` suffix; brisk lineup taxi (+ rolling start on CTO). Super/Heavy keep a standing-start takeoff (7110.65 §3-9-5.3) |
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |
 | Force landing | — | `CLANDF` | **YAAT-only** instructor override — implies clearance and forces a touchdown regardless of energy state, suppressing the automatic go-around; RPO-only |
 | Cleared for option | — | `COPT` | **YAAT-only** |
@@ -183,6 +184,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Cross-runway pattern | `CTO MRT 28R` | VFR only | Pattern for different runway than takeoff |
 | Altitude suffix | `CTO 270 050` | Both | Any modifier + altitude |
 | Wake advisory suffix | `CTO 270 CWT` | Both | Adds "caution wake turbulence" to the takeoff clearance |
+| Immediate suffix | `CTO IMM`, `CTO RT270 IMM` | Both | `IMM`/`WD`/`ND` (interchangeable) = cleared for immediate takeoff: brisk lineup taxi + rolling start (Super/Heavy keep a standing start) |
 
 After liftoff, a relative/heading/direct departure turn is deferred until the aircraft reaches the minimum safe altitude: 400 ft above field elevation for IFR (TERPS criterion — AIM 5-2-9.e.1 / 7110.65 5-8-3, with no lateral past-DER requirement), or pattern altitude − 300 ft AND past the departure end of runway for VFR (AIM 4-3-2). ATCTrainer applies the turn immediately at Vr. The named pattern-exit departures (`MRC`/`MRD`/`MLC`/`MLD`) go further: YAAT flies the actual upwind/crosswind/downwind legs to the exit point and then departs on the exit-leg heading (climbing continuously, no level-off at pattern altitude), so `EXT`/`EXT UPWIND` can extend a leg for spacing — ATCTrainer models these as a single immediate turn.
 
