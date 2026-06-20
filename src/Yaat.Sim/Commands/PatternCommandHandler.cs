@@ -1492,6 +1492,12 @@ internal static class PatternCommandHandler
             BasePhase bp => new BasePhase { Waypoints = bp.Waypoints, FinalDistanceNm = bp.FinalDistanceNm },
             CrosswindPhase cw => new CrosswindPhase { Waypoints = cw.Waypoints },
             UpwindPhase up => new UpwindPhase { Waypoints = up.Waypoints },
+            // A 360 on final must resume the approach (re-capture the glideslope) before
+            // landing, otherwise the chain advances straight to LandingPhase far out and the
+            // aircraft descends at the category rate to the ground, touching down short of the
+            // threshold. The aircraft is realigned with the final course after a full circle,
+            // so skip the intercept check — mirrors the S-turn-for-spacing resume.
+            FinalApproachPhase => new FinalApproachPhase { SkipInterceptCheck = true },
             _ => null,
         };
     }
