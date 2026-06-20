@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `EXT CROSSWIND` / `EXT DOWNWIND` can be issued before the aircraft reaches that leg (e.g. while still on upwind) to pre-arm the extension, which then fires automatically on arrival; `MNA` cancels a pending pre-arm.
+
 ## v0.7.21-beta [2026/06/19]
 
 ### Highlights

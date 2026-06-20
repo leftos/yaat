@@ -892,7 +892,7 @@ internal static class PatternCommandHandler
 
         if (requestedOrder > currentOrder)
         {
-            return new CommandResult(false, $"EXT {leg.ToString().ToUpperInvariant()} cannot be issued before reaching that leg");
+            return TryArmFutureLeg(aircraft, leg);
         }
 
         if (currentOrder - requestedOrder > 1)
@@ -960,6 +960,31 @@ internal static class PatternCommandHandler
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Pre-arm an extension on a leg the aircraft has not reached yet but that is already
+    /// queued in the current circuit (e.g. EXT DOWNWIND while on upwind). The pending leg's
+    /// IsExtended flag is set directly — the same one OnTick already honors when the aircraft
+    /// reaches the leg — so the extension fires automatically without a second command. Only
+    /// Crosswind and Downwind can be a future leg here: Upwind is the first leg, and Base/Final
+    /// are rejected by both the parser and the caller. MNA cancels a pending pre-arm.
+    /// </summary>
+    private static CommandResult TryArmFutureLeg(AircraftState aircraft, PatternEntryLeg leg)
+    {
+        switch (leg)
+        {
+            case PatternEntryLeg.Crosswind when TryFindNextPendingPhase<CrosswindPhase>(aircraft) is { } pendingCrosswind:
+                pendingCrosswind.IsExtended = true;
+                Log.LogDebug("[ExtendPattern] {Callsign}: pre-armed IsExtended on pending CrosswindPhase", aircraft.Callsign);
+                return CommandDispatcher.Ok("Extend crosswind");
+            case PatternEntryLeg.Downwind when TryFindNextPendingPhase<DownwindPhase>(aircraft) is { } pendingDownwind:
+                pendingDownwind.IsExtended = true;
+                Log.LogDebug("[ExtendPattern] {Callsign}: pre-armed IsExtended on pending DownwindPhase", aircraft.Callsign);
+                return CommandDispatcher.Ok("Extend downwind");
+            default:
+                return new CommandResult(false, $"No upcoming {leg.ToString().ToLowerInvariant()} leg to extend");
+        }
     }
 
     /// <summary>
@@ -1206,12 +1231,19 @@ internal static class PatternCommandHandler
             return CommandDispatcher.Ok("Make normal approach");
         }
 
-        // Queued modifier: clear SA arm on both the upcoming Downwind and the
-        // following Base — symmetric to TryMakeShortApproach.
+        // Queued modifier: clear SA arm on the upcoming Downwind, the following Base's
+        // short-approach final distance, and any pre-armed leg extension (EXT CW/DW issued
+        // before the aircraft reached that leg) — symmetric to TryMakeShortApproach / EXT.
         bool cleared = false;
+        if (TryFindNextPendingPhase<CrosswindPhase>(aircraft) is { IsExtended: true } pendingCrosswind)
+        {
+            pendingCrosswind.IsExtended = false;
+            cleared = true;
+        }
         if (TryFindNextPendingPhase<DownwindPhase>(aircraft) is { } pendingDownwind)
         {
             pendingDownwind.ShortApproachArmed = false;
+            pendingDownwind.IsExtended = false;
             cleared = true;
         }
         if (TryFindNextPendingPhase<BasePhase>(aircraft) is { } pendingBase)

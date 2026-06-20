@@ -29,8 +29,7 @@ public class AircraftPattern
     /// Set by EXT (bare or EXT UPWIND) when issued during a non-pattern-leg phase
     /// (FinalApproach/TouchAndGo/etc.) for an aircraft cycling in the pattern. Consumed
     /// by PhaseRunner the next time it appends a circuit: the first UpwindPhase of the
-    /// new circuit gets IsExtended=true and this flag is cleared. Single-shot; cleared
-    /// by MNA for symmetry.
+    /// new circuit gets IsExtended=true and this flag is cleared. Single-shot.
     /// </summary>
     public bool ExtendNextUpwind { get; set; }
 

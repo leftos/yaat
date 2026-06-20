@@ -254,6 +254,35 @@ public class PatternCommandHandlerTests
         return ac;
     }
 
+    /// <summary>
+    /// Build a full pattern circuit (entry leg active, the rest pending) so future-leg
+    /// pre-arm can be exercised against the pending Crosswind/Downwind phases that
+    /// PatternBuilder.BuildCircuit queues up front in production.
+    /// </summary>
+    private static AircraftState MakeAircraftWithCircuit(PatternEntryLeg entryLeg, out PhaseList phases)
+    {
+        var ac = MakeAircraft();
+        var circuit = PatternBuilder.BuildCircuit(
+            DefaultRunway(),
+            AircraftCategory.Jet,
+            PatternDirection.Left,
+            entryLeg,
+            touchAndGo: true,
+            finalDistanceNm: null,
+            patternSizeNm: null,
+            altitudeOverrideFt: null,
+            airportRunways: null
+        );
+        ac.Phases = new PhaseList { AssignedRunway = DefaultRunway() };
+        foreach (var p in circuit)
+        {
+            ac.Phases.Add(p);
+        }
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        phases = ac.Phases;
+        return ac;
+    }
+
     [Fact]
     public void TryExtendPattern_LegMatchesCurrent_SetsExtendedOnCurrent()
     {
@@ -317,14 +346,71 @@ public class PatternCommandHandlerTests
     }
 
     [Fact]
-    public void TryExtendPattern_FutureLeg_Rejected()
+    public void TryExtendPattern_FutureCrosswindFromUpwind_PreArmsPendingCrosswind()
     {
-        var ac = MakeAircraftOnLeg<UpwindPhase>(out _);
+        var ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out var phases);
+        Assert.IsType<UpwindPhase>(phases.CurrentPhase);
 
         var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind);
 
+        Assert.True(result.Success);
+        // Pre-arm must NOT clear the leg the aircraft is currently flying.
+        Assert.IsType<UpwindPhase>(phases.CurrentPhase);
+        Assert.True(phases.Phases.OfType<CrosswindPhase>().First().IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_FutureDownwindFromUpwind_PreArmsPendingDownwind()
+    {
+        var ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out var phases);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+
+        Assert.True(result.Success);
+        Assert.IsType<UpwindPhase>(phases.CurrentPhase);
+        Assert.True(phases.Phases.OfType<DownwindPhase>().First().IsExtended);
+        // Only the requested leg is armed — the intervening crosswind is untouched.
+        Assert.False(phases.Phases.OfType<CrosswindPhase>().First().IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_FutureDownwindFromCrosswind_PreArmsPendingDownwind()
+    {
+        var ac = MakeAircraftWithCircuit(PatternEntryLeg.Crosswind, out var phases);
+        Assert.IsType<CrosswindPhase>(phases.CurrentPhase);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+
+        Assert.True(result.Success);
+        Assert.IsType<CrosswindPhase>(phases.CurrentPhase);
+        Assert.True(phases.Phases.OfType<DownwindPhase>().First().IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_PreArmedDownwind_PersistsToActiveLeg()
+    {
+        var ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out var phases);
+        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+
+        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        phases.AdvanceToNext(ctx); // upwind -> crosswind
+        phases.AdvanceToNext(ctx); // crosswind -> downwind
+
+        var downwind = Assert.IsType<DownwindPhase>(phases.CurrentPhase);
+        Assert.True(downwind.IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_FutureLegNoPendingPhase_Rejected()
+    {
+        // On upwind with only the single leg queued (no circuit behind it) there is
+        // nothing to pre-arm, so a future-leg target is rejected.
+        var ac = MakeAircraftOnLeg<UpwindPhase>(out _);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+
         Assert.False(result.Success);
-        Assert.Contains("before reaching", result.Message!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("downwind", result.Message!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -938,6 +1024,34 @@ public class PatternCommandHandlerTests
         var result = PatternCommandHandler.TryMakeNormalApproach(ac);
 
         Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void TryMakeNormalApproach_ClearsPreArmedDownwindExtension()
+    {
+        var ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out var phases);
+        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+        var downwind = phases.Phases.OfType<DownwindPhase>().First();
+        Assert.True(downwind.IsExtended);
+
+        var result = PatternCommandHandler.TryMakeNormalApproach(ac);
+
+        Assert.True(result.Success);
+        Assert.False(downwind.IsExtended);
+    }
+
+    [Fact]
+    public void TryMakeNormalApproach_ClearsPreArmedCrosswindExtension()
+    {
+        var ac = MakeAircraftWithCircuit(PatternEntryLeg.Upwind, out var phases);
+        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind);
+        var crosswind = phases.Phases.OfType<CrosswindPhase>().First();
+        Assert.True(crosswind.IsExtended);
+
+        var result = PatternCommandHandler.TryMakeNormalApproach(ac);
+
+        Assert.True(result.Success);
+        Assert.False(crosswind.IsExtended);
     }
 
     // -------------------------------------------------------------------------
