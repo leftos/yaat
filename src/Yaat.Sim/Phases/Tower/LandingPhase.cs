@@ -408,6 +408,8 @@ public sealed class LandingPhase : Phase
             _floatingForRollout = false;
         }
 
+        ApplyGlidepathFloor(ctx, plan);
+
         // Stabilization gate
         CheckStabilizationGate(ctx, plan);
         if (CurrentState == State.GoAround)
@@ -422,6 +424,51 @@ public sealed class LandingPhase : Phase
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Never aim the pre-flare descent below the glidepath to the threshold. LandingPhase
+    /// normally inherits a stabilized glideslope from FinalApproachPhase at &lt;30 ft AGL, but
+    /// if it starts high/far out (e.g. after a 360 or S-turns on final) nothing holds it on
+    /// the path and physics free-falls at the category descent rate, touching down short of
+    /// the runway. Clamping the descent target to the glidepath altitude at the current
+    /// distance to the threshold makes the aircraft track the path down instead. The target is
+    /// bounded by current altitude so an aircraft already below the path holds level (lets the
+    /// path descend to meet it) rather than climbing.
+    ///
+    /// Once inside the flare window the floor releases and the descent target is the field
+    /// elevation, so the flare/touchdown logic runs unchanged — without this the floor would
+    /// hold the aircraft a few feet up and it would float down the runway instead of landing.
+    /// This is transparent to a normal short-final handoff, which arrives already in the flare
+    /// window.
+    ///
+    /// Approximation: the floor aims the path at the threshold (~50 ft TCH there), not the
+    /// ~1,000 ft aim point a real 3° glidepath targets, so a recovered high-entry aircraft
+    /// touches down early in the touchdown zone rather than at the aim point. That is fine for
+    /// this rare fallback (it replaces a ~half-mile undershoot) and never affects a normal
+    /// landing, which is on glidepath from FinalApproachPhase.
+    /// </summary>
+    private static void ApplyGlidepathFloor(PhaseContext ctx, LandingPlan plan)
+    {
+        double agl = ctx.Aircraft.Altitude - plan.FieldElevation;
+        if (agl <= plan.FlareEntryAgl)
+        {
+            ctx.Targets.TargetAltitude = plan.FieldElevation;
+            return;
+        }
+
+        double pastThresholdNm = GeoMath.AlongTrackDistanceNm(
+            ctx.Aircraft.Position,
+            new LatLon(plan.ThresholdLat, plan.ThresholdLon),
+            plan.RunwayHeading
+        );
+        double glidepathAlt = GlideSlopeGeometry.AltitudeAtDistance(
+            -pastThresholdNm,
+            plan.FieldElevation,
+            GlideSlopeGeometry.AngleForCategory(ctx.Category)
+        );
+        double floor = Math.Max(plan.FieldElevation, glidepathAlt);
+        ctx.Targets.TargetAltitude = Math.Min(ctx.Aircraft.Altitude, floor);
     }
 
     /// <summary>

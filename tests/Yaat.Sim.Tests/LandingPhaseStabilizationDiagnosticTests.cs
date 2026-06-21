@@ -154,10 +154,7 @@ public class LandingPhaseStabilizationDiagnosticTests
         // Force a bank by setting the aircraft heading 10° off runway centerline.
         // LandingPhase's TickStabilizedApproach will demand runway heading; FlightPhysics
         // turns the aircraft at standard rate, producing a ~22° bank that persists until
-        // the turn completes (~3 sec at dt=0.25). Co-fires with the descent gate (Landing
-        // descends at full default rate from 100 ft AGL since TickStabilizedApproach
-        // doesn't override DescentRate) — that's expected; multi-condition formatting is
-        // covered by Reason_MultipleConditions_JoinsWithComma.
+        // the turn completes (~3 sec at dt=0.25), tripping the bank gate.
         var ac = MakeAircraftOnFinal(rwy, agl: 100, ias: 140, bank: 0, vs: 0, xteNm: 0);
         ac.TrueHeading = rwy.TrueHeading + 10.0;
         var world = new SimulationWorld();
@@ -176,8 +173,11 @@ public class LandingPhaseStabilizationDiagnosticTests
         var rwy = MakeRunway();
         // FlightPhysics recomputes VS from DesiredVerticalRate (or default DescentRate)
         // each tick — pre-seeding aircraft.VerticalSpeed alone wouldn't survive the first
-        // integration. Set DVR=-1500 so FlightPhysics writes VS=-1500 every tick.
-        var ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 140, bank: 0, vs: -1500, xteNm: 0);
+        // integration. Set DVR=-1500 so FlightPhysics writes VS=-1500 every tick. Start well
+        // above the 3° glidepath (≈318 ft at 1 nm) so LandingPhase's glidepath floor lets the
+        // forced dive through — the floor only arrests a descent BELOW the path — and the gate
+        // trips on the steep VS before the aircraft captures the path.
+        var ac = MakeAircraftOnFinal(rwy, agl: 500, ias: 140, bank: 0, vs: -1500, xteNm: 0);
         ac.Targets.DesiredVerticalRate = -1500;
         var world = new SimulationWorld();
         world.AddAircraft(ac);
@@ -193,8 +193,9 @@ public class LandingPhaseStabilizationDiagnosticTests
     public void Reason_MultipleConditions_JoinsWithComma()
     {
         var rwy = MakeRunway();
-        // Three failures simultaneously: IAS, XTE, descent.
-        var ac = MakeAircraftOnFinal(rwy, agl: 200, ias: 200, bank: 0, vs: -1500, xteNm: 0.15);
+        // Three failures simultaneously: IAS, XTE, descent. Start above the 3° glidepath so
+        // the glidepath floor lets the forced dive through (see Reason_HighDescent_NamesFpm).
+        var ac = MakeAircraftOnFinal(rwy, agl: 500, ias: 200, bank: 0, vs: -1500, xteNm: 0.15);
         ac.Targets.DesiredVerticalRate = -1500; // force FlightPhysics to keep VS at -1500 fpm
         var world = new SimulationWorld();
         world.AddAircraft(ac);
