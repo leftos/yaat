@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.7.22-beta [2026/06/20]
+
+### Highlights
+- **Immediate takeoff** — append `IMM` (or `WD`/`ND`) to `CTO` for a brisk taxi onto the runway and a rolling start, to fit a departure in ahead of an arrival; `LUAW WD` is the line-up-and-wait equivalent (still holds at the centerline).
+- **Pre-arm a pattern-leg extension** — issue `EXT CROSSWIND` / `EXT DOWNWIND` before the aircraft reaches that leg and it extends automatically on arrival; `MNA` cancels a pending pre-arm.
+- **360s and S-turns on final no longer land short** — an aircraft given `L360`/`R360` or `MLS`/`MRS` on final now re-intercepts the approach and touches down on the runway, instead of descending to the ground well before the threshold.
 
 ### Added
 - `EXT CROSSWIND` / `EXT DOWNWIND` can be issued before the aircraft reaches that leg (e.g. while still on upwind) to pre-arm the extension, which then fires automatically on arrival; `MNA` cancels a pending pre-arm.
