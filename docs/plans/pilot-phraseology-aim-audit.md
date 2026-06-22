@@ -31,10 +31,10 @@ Systemic, area-by-area review of every pilot transmission YAAT emits, against th
 | A4-2 | Mandatory readbacks | Runway **L/R/C** must never be dropped from assignment readbacks | preserve the suffix | 4-4-7.b.4 | HIGH/MED | **DONE**¹ |
 | A4-6 | Mandatory readbacks | **"caution wake turbulence"** appended to the *pilot* readback (it's a controller advisory) | remove from pilot speech | 4-4-7 | MED-HIGH | **DONE** |
 | A3-4 | Position / pattern reports | `BuildAtFixReport` uses the raw fix id ("passing VPCBT") | `SpellFix` (TTS) / `FixDisplayText` (terminal) → "passing Lake Chabot" | PCG REPORT- | MED | **DONE** |
-| A1-3 | Initial contact | `BuildArrivalApproachRequest` "{N} miles to land runway X" is invented phraseology | use an AIM form | 4-2 | MED | TODO |
-| A6-1 | Ground / taxi | `BuildHoldingShortTaxi` "{label} at {taxiway}" lacks the "holding short of" verb | add the verb | 4-3-18 | MED | TODO |
-| A6-2 | Ground / taxi | `BuildReadyToTaxi` omits op-type / destination | "IFR to Chicago, ready to taxi" | 4-3-18.4.a | MED | TODO |
-| A7-1 | Go-around / missed | `BuildGoingAround` speaks the internal parenthetical reason into TTS | reason terminal-only / real intent phrase | 5-4-21, 5-5-5 | MED | TODO |
+| A1-3 | Initial contact | `BuildArrivalApproachRequest` "{N} miles to land runway X" is invented phraseology | callsign-only reminder "request approach assignment, {callsign}" — pilot names neither runway nor approach type (ATC assigns both) | 4-1-8 | MED | **DONE** |
+| A6-1 | Ground / taxi | `BuildHoldingShortTaxi` "{label} at {taxiway}" lacks the "holding short of" verb | add the verb | 4-3-18 | MED | **DONE**² |
+| A6-2 | Ground / taxi | `BuildReadyToTaxi` omits op-type / destination | "IFR to Chicago, ready to taxi" | 4-3-18.4.a | MED | **DONE** |
+| A7-1 | Go-around / missed | `BuildGoingAround` speaks the internal parenthetical reason into TTS | reason terminal-only / real intent phrase | 5-4-21, 5-5-5 | MED | **DONE** |
 | A5-2 | Output contract | Several builders return a raw bracketed `string`, bypassing the `PilotSpeechText` dual-output | route through `PilotSpeechText` | — | MED | TODO |
 | A1-4 | Other altitude reporters | `BuildClosedTrafficRequest` renders raw feet (same class as A1-1) | round-to-100 + FL | 2-4-3.b | MED | TODO |
 | A9-1 | Punctuation / pacing | callsign placement / terminal-include convention varies per builder | apply the house convention (above) repo-wide | 4-2-3.a | MED | TODO |
@@ -48,6 +48,13 @@ hold-short, none dropped. `SpellRunway`/`CompactRunway` retain the L/R/C suffix 
 L→"left", C→"center"). No production change was required; regression tests now lock in both
 behaviours (`BuildReadback_TaxiWithRunwayCrossAndHoldShort_ReadsBackEveryCapture`,
 `BuildReadback_TaxiPreservesCenterRunwaySuffix`).
+
+² **A6-1 verb already present.** `BuildHoldingShortTaxi`'s `{label}` is built by `HoldingShortPhase`
+as `"holding short of {target}"`, so the verb is already spoken — the builder body `"{label} at
+{taxiway}"` reads "holding short of {target} at {taxiway}". A regression test
+(`BuildHoldingShortTaxi_KeepsHoldingShortOfVerb`) locks this in. The remaining smell — the target
+and taxiway are raw identifiers in the spoken form rather than spelled (the builder takes a
+pre-formatted string instead of structured data) — is the A5-2 dual-output concern, handled there.
 
 ## Suggested fix sequence (high → low)
 1. A8-1 heavy/super suffix in spoken callsign

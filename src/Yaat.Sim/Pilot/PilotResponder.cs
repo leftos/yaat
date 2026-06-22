@@ -590,7 +590,28 @@ public static class PilotResponder
         var spoken = SpokenOwnCallsign(aircraft);
         var facility = CleanFacilityCallName(facilityCallName, "ground");
         var info = AtisInfoClause(atisLetter);
-        return new PilotSpeechText($"{facility}, {location}{info}, ready to taxi.", $"{facility}, {spoken} {location}{info}, ready to taxi.");
+        var intent = ReadyToTaxiIntentClause(aircraft);
+        return new PilotSpeechText(
+            $"{facility}, {location}{info}{intent}, ready to taxi.",
+            $"{facility}, {spoken} {location}{info}{intent}, ready to taxi."
+        );
+    }
+
+    /// <summary>
+    /// Op-type + destination clause a departing pilot states on the ready-to-taxi call
+    /// ("IFR to Chicago" / "VFR to Napa", AIM 4-2-3.a.3 / 4-3-18), or empty when no destination is
+    /// filed (e.g. a VFR local flight). Leading ", " so it inserts before ", ready to taxi"; the
+    /// destination airport is spoken by name so the terminal and spoken forms match.
+    /// </summary>
+    private static string ReadyToTaxiIntentClause(AircraftState aircraft)
+    {
+        var dest = aircraft.FlightPlan.Destination;
+        if (string.IsNullOrWhiteSpace(dest))
+        {
+            return "";
+        }
+        var opType = aircraft.FlightPlan.IsVfr ? "VFR" : "IFR";
+        return $", {opType} to {PhraseologyVerbalizer.SpellAirportName(dest)}";
     }
 
     /// <summary>
@@ -681,23 +702,14 @@ public static class PilotResponder
         );
     }
 
-    public static PilotSpeechText BuildArrivalApproachRequest(AircraftState aircraft, string? runwayId, int distanceMiles, string facilityCallName)
+    public static PilotSpeechText BuildArrivalApproachRequest(AircraftState aircraft)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        var facility = CleanFacilityCallName(facilityCallName, "approach");
-        var miles = Math.Max(1, distanceMiles);
-        if (!string.IsNullOrWhiteSpace(runwayId))
-        {
-            return new PilotSpeechText(
-                $"{facility}, {miles} miles to land runway {PhraseologyVerbalizer.CompactRunway(runwayId)}.",
-                $"{facility}, {spoken} {SpellMiles(miles)} miles to land runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
-            );
-        }
-
-        return new PilotSpeechText(
-            $"{facility}, {miles} miles from the airport, request approach.",
-            $"{facility}, {spoken} {SpellMiles(miles)} miles from the airport, request approach."
-        );
+        // A reminder fired when an arrival nearing the field still has no approach: the pilot prompts
+        // the controller for an approach assignment. The pilot names neither a runway nor an approach
+        // type — ATC assigns both for the airport's current configuration — so the call needs only
+        // the callsign (the old "{N} miles to land runway X" was invented phraseology).
+        return new PilotSpeechText("request approach assignment.", $"request approach assignment, {spoken}.");
     }
 
     /// <summary>
@@ -726,9 +738,11 @@ public static class PilotResponder
         string direction = BearingToCardinal8(bearingFromAirport);
         var facility = CleanFacilityCallName(facilityCallName, "tower");
         var info = AtisInfoClause(atisLetter);
+        // Pilots state altitude to the nearest 100 ft — there is no phraseology for tens/units.
+        int reportedAltitude = (int)(Math.Round(altitudeFt / 100.0) * 100);
         return new PilotSpeechText(
-            $"{facility}, {distMiles} miles {direction} at {PhraseologyVerbalizer.CompactAltitude(altitudeFt)}, request closed traffic{info}.",
-            $"{facility}, {spoken}, {SpellDistanceDigits(distMiles)} miles {direction} at {AtcNumberParser.AltitudeToWords(altitudeFt)}, request closed traffic{info}."
+            $"{facility}, {distMiles} miles {direction} at {PhraseologyVerbalizer.CompactAltitude(reportedAltitude)}, request closed traffic{info}.",
+            $"{facility}, {spoken}, {SpellDistanceDigits(distMiles)} miles {direction} at {AtcNumberParser.AltitudeToWords(reportedAltitude)}, request closed traffic{info}."
         );
     }
 
@@ -1052,7 +1066,9 @@ public static class PilotResponder
         {
             return new PilotSpeechText("going around.", $"{spoken}, going around.");
         }
-        return new PilotSpeechText($"going around ({reason}).", $"{spoken}, going around ({reason}).");
+        // The reason is a sim-internal diagnostic for the controller-facing terminal line only — the
+        // pilot speaks the AIM-standard "going around" without the parenthetical.
+        return new PilotSpeechText($"going around ({reason}).", $"{spoken}, going around.");
     }
 
     /// <summary>

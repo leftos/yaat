@@ -146,8 +146,10 @@ public static class PilotProactive
         }
 
         var facilityCallName = PilotResponder.ResolveStudentFacilityCallName(scenario, positionType, positionType == "CTR" ? "center" : "approach");
+        // The pilot does not speak a runway (ATC assigns it), but the pending-request context still
+        // tracks the planned landing runway for follow-up matching.
         var runwayId = aircraft.Procedure.DestinationRunway ?? aircraft.Phases?.AssignedRunway?.Designator;
-        var line = PilotResponder.BuildArrivalApproachRequest(aircraft, runwayId, (int)Math.Round(distanceNm), facilityCallName);
+        var line = PilotResponder.BuildArrivalApproachRequest(aircraft);
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
         PilotRequestTracker.RecordRequest(
             aircraft,

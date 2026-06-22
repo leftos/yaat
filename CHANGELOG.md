@@ -12,6 +12,10 @@
 - When a pilot loses sight of the field or of traffic they were following, they now say "lost sight of …" instead of "negative contact …" — the latter is the phrase for traffic never acquired, not for losing a visual already established.
 - Pilots no longer echo "caution wake turbulence" when reading back a takeoff or landing clearance — it is a controller advisory, not a pilot readback item. The advisory still appears on the controller's issued command.
 - A pilot's fix-passage report now uses the fix's friendly name spoken aloud and its display name in text (e.g. "passing Lake Chabot") instead of the raw fix code ("passing VPCBT").
+- An arriving pilot's reminder when no approach has been issued is now a brief "request approach assignment" prompt instead of the invented "N miles to land runway X" — the pilot names neither runway nor approach type, which the controller assigns for the airport's current configuration.
+- A departing pilot's ready-to-taxi call now states its operation and destination ("IFR to San Francisco, ready to taxi") when a destination is filed.
+- A pilot's go-around call no longer speaks the internal reason aloud (e.g. "(no landing clearance)"); the reason stays in the controller-facing text only. The spoken call is the standard "going around."
+- A VFR pilot requesting closed traffic now states its altitude rounded to the nearest hundred feet, instead of an exact figure.
 
 ## v0.7.24-beta [2026/06/22]
 

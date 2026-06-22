@@ -1115,13 +1115,16 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildGoingAround_IncludesReason()
+    public void BuildGoingAround_ReasonIsTerminalOnly_NotSpoken()
     {
+        // The reason is a sim-internal diagnostic — it belongs in the controller-facing terminal
+        // line, never in the spoken callout (the pilot just says "going around").
         var ac = MakeAircraft("FDX3807");
         var result = PilotResponder.BuildGoingAround(ac, "no landing clearance");
 
-        Assert.Contains("going around", result.Tts);
-        Assert.Contains("(no landing clearance)", result.Tts);
+        Assert.Contains("(no landing clearance)", result.Terminal);
+        Assert.EndsWith("going around.", result.Tts);
+        Assert.DoesNotContain("no landing clearance", result.Tts);
     }
 
     [Fact]
@@ -1132,6 +1135,75 @@ public class PilotResponderTests
 
         Assert.EndsWith("going around.", result.Tts);
         Assert.DoesNotContain("()", result.Tts);
+    }
+
+    // --- A1-3: arrival approach reminder is a callsign-only prompt for an approach assignment; the
+    //          pilot names neither runway nor approach type (the controller assigns both) ---
+
+    [Fact]
+    public void BuildArrivalApproachRequest_IsCallsignOnlyApproachAssignmentPrompt()
+    {
+        var ac = MakeAircraft("UAL325");
+
+        var result = PilotResponder.BuildArrivalApproachRequest(ac);
+
+        Assert.Equal("request approach assignment.", result.Terminal);
+        Assert.Equal("request approach assignment, united three twenty five.", result.Tts);
+        Assert.DoesNotContain("runway", result.Tts);
+        Assert.DoesNotContain("to land", result.Tts);
+    }
+
+    // --- A1-4: closed-traffic check-in rounds altitude to the nearest 100 ft ---
+
+    [Fact]
+    public void BuildClosedTrafficRequest_RoundsAltitudeToNearestHundred()
+    {
+        var airport = new LatLon(37.7212, -122.2208);
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        ac.Position = GeoMath.ProjectPoint(airport, new TrueHeading(180), 3);
+
+        var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 1487, "tower", "A");
+
+        Assert.Contains("one thousand five hundred", result.Tts);
+        Assert.DoesNotContain("eighty", result.Tts);
+    }
+
+    // --- A6-2: ready-to-taxi states op-type + destination (AIM 4-2-3) ---
+
+    [Fact]
+    public void BuildReadyToTaxi_IfrWithDestination_StatesOpTypeAndDestination()
+    {
+        var ac = MakeAircraft("AAL123");
+        ac.FlightPlan.Destination = "KSFO";
+
+        var result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A");
+
+        Assert.Contains(", IFR to ", result.Tts);
+        Assert.EndsWith(", ready to taxi.", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_VfrLocalNoDestination_OmitsIntentClause()
+    {
+        var ac = MakeAircraft("N123AB", isVfr: true);
+
+        var result = PilotResponder.BuildReadyToTaxi(ac, "ground", "A");
+
+        Assert.DoesNotContain("VFR to", result.Tts);
+        Assert.DoesNotContain("IFR to", result.Tts);
+        Assert.EndsWith("ready to taxi.", result.Tts);
+    }
+
+    // --- A6-1: taxi hold-short report keeps the "holding short of" verb ---
+
+    [Fact]
+    public void BuildHoldingShortTaxi_KeepsHoldingShortOfVerb()
+    {
+        var ac = MakeAircraft("N172SP");
+
+        var result = PilotResponder.BuildHoldingShortTaxi(ac, "holding short of 28R", "B");
+
+        Assert.Contains("holding short of 28R at B", result.Tts);
     }
 
     [Fact]
