@@ -615,8 +615,7 @@ public static class AirborneFollowHelper
                 follower,
                 soloTrainingMode,
                 rpoShowPilotSpeech,
-                Pilot.PilotResponder.BuildUnableToMaintainSeparation(follower, lead.Callsign),
-                $"{follower.Callsign} unable to maintain separation from {lead.Callsign}, cancelling follow"
+                Pilot.PilotResponder.BuildUnableToMaintainSeparation(follower, lead.Callsign)
             );
             logger.LogWarning(
                 "[Follow] {Callsign}: cancelled follow on {Target}, at min speed with dist={Dist:F2}nm (desired={Desired:F1}nm)",

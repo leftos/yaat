@@ -236,7 +236,7 @@ public class VisualApproachCommandTests : IDisposable
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);
         // Field acquisition routes through PendingPilotReadbacks (SAY channel) — gates the visual approach.
-        Assert.Equal("Have the field in sight", Assert.Single(aircraft.PendingPilotReadbacks));
+        Assert.Equal("field in sight.", Assert.Single(aircraft.PendingPilotReadbacks));
     }
 
     // Soft-fail behavior (visual reasons) and hard-fail (no destination / not in
@@ -253,7 +253,7 @@ public class VisualApproachCommandTests : IDisposable
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("UAL456"), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);
         // Traffic acquisition routes through PendingPilotReadbacks (SAY channel).
-        Assert.Equal("Have UAL456 in sight", Assert.Single(aircraft.PendingPilotReadbacks));
+        Assert.Equal("traffic in sight, UAL456.", Assert.Single(aircraft.PendingPilotReadbacks));
     }
 
     [Fact]

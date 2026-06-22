@@ -35,10 +35,10 @@ Systemic, area-by-area review of every pilot transmission YAAT emits, against th
 | A6-1 | Ground / taxi | `BuildHoldingShortTaxi` "{label} at {taxiway}" lacks the "holding short of" verb | add the verb | 4-3-18 | MED | **DONE**² |
 | A6-2 | Ground / taxi | `BuildReadyToTaxi` omits op-type / destination | "IFR to Chicago, ready to taxi" | 4-3-18.4.a | MED | **DONE** |
 | A7-1 | Go-around / missed | `BuildGoingAround` speaks the internal parenthetical reason into TTS | reason terminal-only / real intent phrase | 5-4-21, 5-5-5 | MED | **DONE** |
-| A5-2 | Output contract | Several builders return a raw bracketed `string`, bypassing the `PilotSpeechText` dual-output | route through `PilotSpeechText` | — | MED | TODO |
-| A1-4 | Other altitude reporters | `BuildClosedTrafficRequest` renders raw feet (same class as A1-1) | round-to-100 + FL | 2-4-3.b | MED | TODO |
-| A9-1 | Punctuation / pacing | callsign placement / terminal-include convention varies per builder | apply the house convention (above) repo-wide | 4-2-3.a | MED | TODO |
-| A8-2 | Cleanup | three distance spellers (`MilesToWords` / `SpellMiles` / `SpellDistanceDigits`) | consolidate | — | LOW | TODO |
+| A5-2 | Output contract | Four builders (traffic/field-in-sight, lost-sight-of-field, unable-to-maintain-separation) returned a raw bracketed `string`, bypassing the `PilotSpeechText` dual-output (and leaking the `[CALLSIGN]` prefix into the RPO pilot-speech display) | route through `PilotSpeechText` | — | MED | **DONE**³ |
+| A1-4 | Other altitude reporters | `BuildClosedTrafficRequest` renders raw feet (same class as A1-1) | round-to-100 + FL | 2-4-3.b | MED | **DONE** |
+| A9-1 | Punctuation / pacing | callsign placement / terminal-include convention varies per builder | apply the house convention (above) repo-wide | 4-2-3.a | MED | **DONE**³ |
+| A8-2 | Cleanup | three distance spellers (`MilesToWords` / `SpellMiles` / `SpellDistanceDigits`) | consolidate | — | LOW | **DONE**⁴ |
 
 ¹ **Verified — no gap found.** Enumerated the `PhraseologyRules.cs` TAXI rules: all eight
 combinations of `{rwy?, crossrwy?, holdshort?}` × `{path}` exist (lines ~665–696), and
@@ -55,6 +55,25 @@ as `"holding short of {target}"`, so the verb is already spoken — the builder 
 (`BuildHoldingShortTaxi_KeepsHoldingShortOfVerb`) locks this in. The remaining smell — the target
 and taxiway are raw identifiers in the spoken form rather than spelled (the builder takes a
 pre-formatted string instead of structured data) — is the A5-2 dual-output concern, handled there.
+
+³ **A5-2 / A9-1 — with an emergent aviation fix.** The four raw-string builders now return
+`PilotSpeechText` and route through the dual-output helpers (`RouteRpoSayReadback` /
+`RouteRpoTransmission` gained `PilotSpeechText` overloads; the bespoke `Format*Notification`
+helpers were deleted). Two follow-on corrections surfaced while applying the convention and were
+confirmed by the domain owner: (1) **pilots never speak the lead/target aircraft's callsign** in
+any traffic-in-sight or follow transmission — a pilot acquires traffic from the controller's
+position/type call, not by callsign — so the spoken (TTS) form drops it across all seven
+follow/traffic builders; (2) **the solo student must not see the callsign either** (they play the
+controller, who identifies the traffic by position), so the *solo* terminal form is callsign-free
+and the lead callsign survives only as an RPO/instructor diagnostic. This is modelled by a new
+`PilotSpeechText.RpoTerminal` (resolved via `TerminalForRpo`): solo → `Terminal`, RPO → `RpoTerminal`,
+spoken → `Tts`, none of the solo/spoken forms carrying the callsign.
+
+⁴ **A8-2 — partial by design.** `MilesToWords` and `SpellMiles` were true duplicates of the
+canonical `AtcNumberParser.CardinalWord` (cardinal "three mile final") and were deleted in its
+favour. `SpellDistanceDigits` is *not* a duplicate: it spells distances digit-by-digit ("one zero
+miles west") and is the established, test-pinned form for airborne check-in position reports
+(`M102AirborneCheckInTests`), so it stays as the single remaining distance speller.
 
 ## Suggested fix sequence (high → low)
 1. A8-1 heavy/super suffix in spoken callsign

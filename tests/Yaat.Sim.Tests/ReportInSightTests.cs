@@ -36,9 +36,9 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.True(ac.Approach.HasReportedFieldInSight);
-        // Pilot readback uses the GA-pilot colloquial "Have the field in sight" form
-        // on the SAY channel via PendingPilotReadbacks.
-        Assert.Equal("Have the field in sight", ac.PendingPilotReadbacks[0]);
+        // Pilot readback uses the compact "field in sight" form on the SAY channel via
+        // PendingPilotReadbacks (callsign rides the SAY column, not the message).
+        Assert.Equal("field in sight.", ac.PendingPilotReadbacks[0]);
     }
 
     [Fact]
@@ -221,10 +221,10 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.True(ownship.Approach.HasReportedTrafficInSight);
-        // Pilot readback uses the GA-pilot colloquial "Have <target> in sight" form
-        // and lands on the SAY channel via PendingPilotReadbacks. The terminal entry's
-        // own callsign column shows the speaker, so the message drops the leading ownship.
-        Assert.Equal("Have LEAD in sight", ownship.PendingPilotReadbacks[0]);
+        // Pilot readback uses the compact "traffic in sight, <target>" form on the SAY channel
+        // via PendingPilotReadbacks. The terminal entry's own callsign column shows the speaker,
+        // so the message drops the leading ownship.
+        Assert.Equal("traffic in sight, LEAD.", ownship.PendingPilotReadbacks[0]);
     }
 
     // When the pilot can't acquire traffic on the first check, RTIS now soft-fails:
@@ -303,7 +303,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.Equal("Have the field in sight", ac.PendingPilotReadbacks[0]);
+        Assert.Equal("field in sight.", ac.PendingPilotReadbacks[0]);
     }
 
     [Fact]
@@ -316,7 +316,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.Equal("Have LEAD in sight", ac.PendingPilotReadbacks[0]);
+        Assert.Equal("traffic in sight, LEAD.", ac.PendingPilotReadbacks[0]);
     }
 
     // -------------------------------------------------------------------------

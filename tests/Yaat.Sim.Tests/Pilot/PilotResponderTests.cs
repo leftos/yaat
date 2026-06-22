@@ -1039,12 +1039,17 @@ public class PilotResponderTests
     // --- BuildTrafficInSight ---
 
     [Fact]
-    public void BuildTrafficInSight_WithTargetCallsign_SpellsBothCallsigns()
+    public void BuildTrafficInSight_WithTargetCallsign_TtsOmitsTargetCallsign()
     {
         var ac = MakeAircraft("N294MG");
         var result = PilotResponder.BuildTrafficInSight(ac, "N784ME");
 
-        Assert.Equal("[N294MG] november two nine four mike golf, traffic in sight, november seven eight four mike echo.", result);
+        // The solo terminal and the spoken form omit the target callsign (the pilot acquired the
+        // traffic by position/type, not by callsign); only the RPO diagnostic names it.
+        Assert.Equal("traffic in sight.", result.Terminal);
+        Assert.Equal("traffic in sight, N784ME.", result.TerminalForRpo);
+        Assert.Equal("november two nine four mike golf, traffic in sight.", result.Tts);
+        Assert.DoesNotContain("seven eight four", result.Tts);
     }
 
     [Fact]
@@ -1053,7 +1058,8 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB");
         var result = PilotResponder.BuildTrafficInSight(ac, null);
 
-        Assert.Equal("[N123AB] november one two three alpha bravo, traffic in sight.", result);
+        Assert.Equal("traffic in sight.", result.Terminal);
+        Assert.Equal("november one two three alpha bravo, traffic in sight.", result.Tts);
     }
 
     [Fact]
@@ -1062,7 +1068,8 @@ public class PilotResponderTests
         var ac = MakeAircraft("UAL238");
         var result = PilotResponder.BuildFieldInSight(ac);
 
-        Assert.Equal("[UAL238] united two thirty eight, field in sight.", result);
+        Assert.Equal("field in sight.", result.Terminal);
+        Assert.Equal("united two thirty eight, field in sight.", result.Tts);
     }
 
     [Fact]
@@ -1074,20 +1081,23 @@ public class PilotResponderTests
         var ac = MakeAircraft("N172SP");
         var result = PilotResponder.BuildLostSightOfField(ac);
 
-        Assert.Contains("lost sight of the field", result, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("negative contact", result, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("[N172SP]", result);
+        Assert.Equal("lost sight of the field.", result.Terminal);
+        Assert.Contains("lost sight of the field", result.Tts, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("negative contact", result.Tts, StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith("november one seven two sierra papa,", result.Tts);
     }
 
     [Fact]
-    public void BuildLostSightOfTraffic_SaysLostSightOfAndNamesTarget()
+    public void BuildLostSightOfTraffic_TtsAndSoloTerminalOmitTarget()
     {
         var ac = MakeAircraft("N172SP");
         var result = PilotResponder.BuildLostSightOfTraffic(ac, "N784ME");
 
-        Assert.Contains("lost sight of", result.Tts, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("lost sight of the traffic.", result.Terminal);
+        Assert.Equal("lost sight of N784ME.", result.TerminalForRpo);
+        Assert.Contains("lost sight of the traffic", result.Tts, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("negative contact", result.Tts, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("november seven eight four mike echo", result.Tts);
+        Assert.DoesNotContain("seven eight four", result.Tts);
     }
 
     // --- A3-4: fix-passage report uses the spoken/display name, not the raw fix id ---
@@ -1239,13 +1249,15 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildUnableToMaintainSeparation_NamesLead()
+    public void BuildUnableToMaintainSeparation_RpoTerminalNamesLead_TtsDoesNot()
     {
         var ac = MakeAircraft("N294MG");
         var result = PilotResponder.BuildUnableToMaintainSeparation(ac, "N10194");
 
-        Assert.Contains("unable to maintain separation", result);
-        Assert.Contains("november one zero one nine four", result);
+        Assert.Equal("unable to maintain separation, breaking off the follow.", result.Terminal);
+        Assert.Equal("unable to maintain separation from N10194, breaking off the follow.", result.TerminalForRpo);
+        Assert.Contains("unable to maintain separation", result.Tts);
+        Assert.DoesNotContain("november one zero one nine four", result.Tts);
     }
 
     [Fact]
@@ -1254,18 +1266,48 @@ public class PilotResponderTests
         var ac = MakeAircraft("N294MG");
         var result = PilotResponder.BuildTargetLanded(ac, "N784ME");
 
+        Assert.Equal("the traffic's on the ground, breaking off the follow.", result.Terminal);
+        Assert.Equal("N784ME is on the ground, breaking off the follow.", result.TerminalForRpo);
         Assert.Contains("on the ground", result.Tts);
         Assert.Contains("breaking off the follow", result.Tts);
+        Assert.DoesNotContain("seven eight four", result.Tts);
     }
 
     [Fact]
-    public void BuildUnableToCatchUp_NamesTarget()
+    public void BuildUnableToCatchUp_RpoTerminalNamesTarget_TtsDoesNot()
     {
         var ac = MakeAircraft("N294MG");
         var result = PilotResponder.BuildUnableToCatchUp(ac, "N784ME");
 
+        Assert.Equal("unable to catch up to the traffic, breaking off the follow.", result.Terminal);
+        Assert.Equal("unable to catch up to N784ME, breaking off the follow.", result.TerminalForRpo);
         Assert.Contains("unable to catch up", result.Tts);
         Assert.Contains("breaking off", result.Tts);
+        Assert.DoesNotContain("seven eight four", result.Tts);
+    }
+
+    [Fact]
+    public void BuildSequenceTightTurningBase_RpoTerminalNamesTarget_TtsDoesNot()
+    {
+        var ac = MakeAircraft("N294MG");
+        var result = PilotResponder.BuildSequenceTightTurningBase(ac, "N784ME");
+
+        Assert.Equal("turning base behind the traffic, spacing is tight.", result.Terminal);
+        Assert.Equal("turning base behind N784ME, spacing is tight.", result.TerminalForRpo);
+        Assert.Contains("turning base behind the traffic", result.Tts);
+        Assert.DoesNotContain("seven eight four", result.Tts);
+    }
+
+    [Fact]
+    public void BuildSTurnsForSpacing_RpoTerminalNamesTarget_TtsDoesNot()
+    {
+        var ac = MakeAircraft("N294MG");
+        var result = PilotResponder.BuildSTurnsForSpacing(ac, "N784ME");
+
+        Assert.Equal("S-turning for spacing behind the traffic.", result.Terminal);
+        Assert.Equal("S-turning for spacing behind N784ME.", result.TerminalForRpo);
+        Assert.Contains("S-turning for spacing behind the traffic", result.Tts);
+        Assert.DoesNotContain("seven eight four", result.Tts);
     }
 
     // --- RouteRpoTransmission three-way branch ---
@@ -1317,5 +1359,46 @@ public class PilotResponderTests
 
         Assert.Empty(ac.PendingPilotSpeech);
         Assert.Equal("warning", Assert.Single(ac.PendingWarnings));
+    }
+
+    // --- RouteRpoSayReadback dual-output branch (A5-2) ---
+
+    [Fact]
+    public void RouteRpoSayReadback_RpoShowsSpeech_UsesTtsForm()
+    {
+        var ac = MakeAircraft("N294MG");
+        var text = new PilotSpeechText("traffic in sight.", "november two nine four mike golf, traffic in sight.");
+
+        PilotResponder.RouteRpoSayReadback(ac, soloTrainingMode: false, rpoShowPilotSpeech: true, text);
+
+        Assert.Equal("november two nine four mike golf, traffic in sight.", Assert.Single(ac.PendingPilotSpeech));
+        Assert.Empty(ac.PendingPilotReadbacks);
+    }
+
+    [Fact]
+    public void RouteRpoSayReadback_RpoNoSpeech_UsesTerminalForm()
+    {
+        var ac = MakeAircraft("N294MG");
+        var text = new PilotSpeechText("traffic in sight.", "november two nine four mike golf, traffic in sight.");
+
+        PilotResponder.RouteRpoSayReadback(ac, soloTrainingMode: false, rpoShowPilotSpeech: false, text);
+
+        Assert.Equal("traffic in sight.", Assert.Single(ac.PendingPilotReadbacks));
+        Assert.Empty(ac.PendingPilotSpeech);
+    }
+
+    [Fact]
+    public void RouteRpoSayReadback_SoloMode_QueuesBothFormsAsSayReadback()
+    {
+        var ac = MakeAircraft("N294MG");
+        var text = new PilotSpeechText("traffic in sight.", "november two nine four mike golf, traffic in sight.");
+
+        PilotResponder.RouteRpoSayReadback(ac, soloTrainingMode: true, rpoShowPilotSpeech: true, text);
+
+        var tx = Assert.Single(ac.PendingPilotTransmissions);
+        Assert.Equal("traffic in sight.", tx.Text);
+        Assert.Equal("november two nine four mike golf, traffic in sight.", tx.SpeechText);
+        Assert.Empty(ac.PendingPilotSpeech);
+        Assert.Empty(ac.PendingPilotReadbacks);
     }
 }

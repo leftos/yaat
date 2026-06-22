@@ -1269,8 +1269,7 @@ internal static class NavigationCommandHandler
                 aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
-                Pilot.PilotResponder.BuildFieldInSight(aircraft),
-                FormatFieldInSightNotification()
+                Pilot.PilotResponder.BuildFieldInSight(aircraft)
             );
             return CommandDispatcher.Ok("Field in sight");
         }
@@ -1303,8 +1302,7 @@ internal static class NavigationCommandHandler
                 aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
-                Pilot.PilotResponder.BuildFieldInSight(aircraft),
-                FormatFieldInSightNotification()
+                Pilot.PilotResponder.BuildFieldInSight(aircraft)
             );
             aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
             return CommandDispatcher.Ok("Field in sight");
@@ -1358,8 +1356,7 @@ internal static class NavigationCommandHandler
                 aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
-                Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign),
-                FormatTrafficInSightNotification(targetCallsign)
+                Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign)
             );
             return CommandDispatcher.Ok("Traffic in sight");
         }
@@ -1395,8 +1392,7 @@ internal static class NavigationCommandHandler
                 aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
-                Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign),
-                FormatTrafficInSightNotification(targetCallsign)
+                Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign)
             );
             // First-check acquisition supersedes any in-flight "looking" state.
             aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
@@ -1498,15 +1494,6 @@ internal static class NavigationCommandHandler
     }
 
     /// <summary>
-    /// Pilot readback when the traffic has been acquired. The terminal entry already shows
-    /// the speaking aircraft in its callsign column, so the readback drops the leading
-    /// ownship callsign and uses the GA-pilot colloquial "Have &lt;target&gt; in sight" form
-    /// (AIM 5-5-10 / 5-5-11).
-    /// </summary>
-    internal static string FormatTrafficInSightNotification(string? targetCallsign) =>
-        string.IsNullOrWhiteSpace(targetCallsign) ? "Traffic in sight" : $"Have {targetCallsign} in sight";
-
-    /// <summary>
     /// Pilot readback when RTIS can't be satisfied on the first check — the
     /// pilot acknowledges the request and commits to keep looking. Reviewed with
     /// aviation-sim-expert: pilot phraseology only ("negative contact",
@@ -1540,16 +1527,6 @@ internal static class NavigationCommandHandler
             VisualAcquisitionFailure.OutOfRange => $"target {r.DistanceNm:F1} nm away, max visual {r.MaxRangeNm:F1} nm ({target.AircraftType})",
             _ => $"not acquired ({r.Reason})",
         };
-
-    /// <summary>
-    /// Pilot readback when the field has been acquired. Routed through
-    /// <see cref="AircraftState.PendingPilotReadbacks"/> so the RPO sees the resolution
-    /// on the SAY channel — "field in sight" gates the visual approach clearance.
-    /// The terminal entry already shows the speaking aircraft in its callsign column,
-    /// so the readback drops the leading ownship callsign and uses the GA-pilot
-    /// colloquial "Have the field in sight" form.
-    /// </summary>
-    internal static string FormatFieldInSightNotification() => "Have the field in sight";
 
     /// <summary>
     /// Pilot readback when RFIS can't be satisfied on the first check — the
@@ -1654,8 +1631,7 @@ internal static class NavigationCommandHandler
             aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
-            Pilot.PilotResponder.BuildFieldInSight(aircraft),
-            FormatFieldInSightNotification()
+            Pilot.PilotResponder.BuildFieldInSight(aircraft)
         );
         aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
         return CommandDispatcher.Ok("Field in sight (forced)");
@@ -1677,8 +1653,7 @@ internal static class NavigationCommandHandler
             aircraft,
             ctx.SoloTrainingMode,
             ctx.RpoShowPilotSpeech,
-            Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign),
-            FormatTrafficInSightNotification(targetCallsign)
+            Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign)
         );
         return CommandDispatcher.Ok("Traffic in sight (forced)");
     }

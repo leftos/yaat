@@ -16,6 +16,8 @@
 - A departing pilot's ready-to-taxi call now states its operation and destination ("IFR to San Francisco, ready to taxi") when a destination is filed.
 - A pilot's go-around call no longer speaks the internal reason aloud (e.g. "(no landing clearance)"); the reason stays in the controller-facing text only. The spoken call is the standard "going around."
 - A VFR pilot requesting closed traffic now states its altitude rounded to the nearest hundred feet, instead of an exact figure.
+- When a pilot reports traffic in sight, or breaks off following traffic (lost sight of it, can't keep up, can't maintain separation, sequencing tight, S-turning for spacing), they no longer speak the other aircraft's callsign — a pilot identifies traffic from the controller's position/type call, not by callsign. The spoken call and the solo student's view now read "traffic in sight", "lost sight of the traffic", "unable to maintain separation, breaking off the follow", and so on; the other aircraft's callsign still appears in the RPO/instructor view as a diagnostic of which traffic was meant.
+- The RPO pilot-speech panel no longer shows an internal "[CALLSIGN]" prefix on traffic/field-in-sight and follow break-off transmissions.
 
 ## v0.7.24-beta [2026/06/22]
 

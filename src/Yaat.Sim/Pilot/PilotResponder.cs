@@ -312,7 +312,7 @@ public static class PilotResponder
             ReportTrigger.Final => Dual("will report turning final", "will report turning final"),
             ReportTrigger.MileFinal => Dual(
                 $"will report {report.DistanceNm}-mile final",
-                $"will report {MilesToWords(report.DistanceNm ?? 0)} mile final"
+                $"will report {AtcNumberParser.CardinalWord(report.DistanceNm ?? 0)} mile final"
             ),
             ReportTrigger.AtFix when report.FixName is { } fixName => Dual(
                 $"will report passing {PhraseologyVerbalizer.FixDisplayText(fixName)}",
@@ -698,7 +698,7 @@ public static class PilotResponder
         var info = AtisInfoClause(atisLetter);
         return new PilotSpeechText(
             $"{facility}, {miles}-mile final runway {PhraseologyVerbalizer.CompactRunway(runwayId)}{info}.",
-            $"{facility}, {spoken} {SpellMiles(miles)}-mile final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}{info}."
+            $"{facility}, {spoken} {AtcNumberParser.CardinalWord(miles)}-mile final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}{info}."
         );
     }
 
@@ -809,6 +809,29 @@ public static class PilotResponder
     }
 
     /// <summary>
+    /// <see cref="PilotSpeechText"/> overload of <see cref="RouteRpoTransmission(AircraftState, bool, bool, string, string)"/>
+    /// for sim-initiated transmissions whose terminal form differs between the solo student (who must
+    /// not see a lead/target callsign diagnostic) and the RPO/instructor. RPO + <c>RpoShowPilotSpeech</c>
+    /// fires the spoken green form; the solo warning uses the callsign-free <see cref="PilotSpeechText.Terminal"/>;
+    /// the RPO warning uses <see cref="PilotSpeechText.TerminalForRpo"/>.
+    /// </summary>
+    public static void RouteRpoTransmission(AircraftState aircraft, bool soloTrainingMode, bool rpoShowPilotSpeech, PilotSpeechText text)
+    {
+        if (!soloTrainingMode && rpoShowPilotSpeech)
+        {
+            aircraft.PendingPilotSpeech.Add(text.Tts);
+        }
+        else if (soloTrainingMode)
+        {
+            aircraft.PendingWarnings.Add(text.Terminal);
+        }
+        else
+        {
+            aircraft.PendingWarnings.Add(text.TerminalForRpo);
+        }
+    }
+
+    /// <summary>
     /// Unified router for sim-initiated pilot transmissions. Takes a <see cref="PilotSpeechText"/>
     /// (terminal + TTS forms produced independently by the builder, not by regex-compacting the
     /// spoken string) plus the list of student positions for which the transmission is
@@ -861,38 +884,35 @@ public static class PilotResponder
         }
         else
         {
-            aircraft.PendingWarnings.Add(text.Terminal);
+            aircraft.PendingWarnings.Add(text.TerminalForRpo);
         }
     }
 
     /// <summary>
     /// Routes a sim-initiated pilot readback for visual-acquisition events (RTIS / RFIS)
-    /// onto the SAY channel rather than the orange Warning channel. Same RPO/solo logic
-    /// as <see cref="RouteRpoTransmission"/>: if RPO mode + <c>RpoShowPilotSpeech</c> is
-    /// on, fire the spelled-out green <see cref="AircraftState.PendingPilotSpeech"/>;
-    /// otherwise fire the terse <see cref="AircraftState.PendingPilotReadbacks"/> which
-    /// the server broadcasts as kind <c>SayReadback</c> (the kind starts with "Say" so
-    /// the client maps it to the SAY channel like SPOS / SALT).
+    /// onto the SAY channel rather than the orange Warning channel. Takes a
+    /// <see cref="PilotSpeechText"/> whose terminal and TTS forms were built independently
+    /// (not by regex-compacting the spoken string). RPO mode + <c>RpoShowPilotSpeech</c> fires
+    /// the spelled-out green <see cref="AircraftState.PendingPilotSpeech"/> (TTS form); solo mode
+    /// queues both forms via <see cref="QueueSoloPilotReadback(AircraftState, PilotSpeechText, string)"/>;
+    /// otherwise the terse <see cref="AircraftState.PendingPilotReadbacks"/> (terminal form) which
+    /// the server broadcasts as kind <c>SayReadback</c> (the kind starts with "Say" so the client
+    /// maps it to the SAY channel like SPOS / SALT). The callsign rides the SAY column in every
+    /// branch, so neither form repeats it inline.
     /// </summary>
-    public static void RouteRpoSayReadback(
-        AircraftState aircraft,
-        bool soloTrainingMode,
-        bool rpoShowPilotSpeech,
-        string pilotSpeechText,
-        string sayReadbackText
-    )
+    public static void RouteRpoSayReadback(AircraftState aircraft, bool soloTrainingMode, bool rpoShowPilotSpeech, PilotSpeechText text)
     {
         if (!soloTrainingMode && rpoShowPilotSpeech)
         {
-            aircraft.PendingPilotSpeech.Add(pilotSpeechText);
+            aircraft.PendingPilotSpeech.Add(text.Tts);
         }
         else if (soloTrainingMode)
         {
-            QueueSoloPilotReadback(aircraft, sayReadbackText, SourceSayReadback);
+            QueueSoloPilotReadback(aircraft, text, SourceSayReadback);
         }
         else
         {
-            aircraft.PendingPilotReadbacks.Add(sayReadbackText);
+            aircraft.PendingPilotReadbacks.Add(text.TerminalForRpo);
         }
     }
 
@@ -960,7 +980,7 @@ public static class PilotResponder
         var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText(
             $"{miles}-mile final runway {PhraseologyVerbalizer.CompactRunway(runwayId)}.",
-            $"{spoken}, {MilesToWords(miles)} mile final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
+            $"{spoken}, {AtcNumberParser.CardinalWord(miles)} mile final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
         );
     }
 
@@ -980,77 +1000,59 @@ public static class PilotResponder
     }
 
     /// <summary>Cardinal spelling of a final-report distance (1–20 NM) for TTS, falling back to digits.</summary>
-    private static string MilesToWords(int miles) =>
-        miles switch
-        {
-            1 => "one",
-            2 => "two",
-            3 => "three",
-            4 => "four",
-            5 => "five",
-            6 => "six",
-            7 => "seven",
-            8 => "eight",
-            9 => "nine",
-            10 => "ten",
-            11 => "eleven",
-            12 => "twelve",
-            13 => "thirteen",
-            14 => "fourteen",
-            15 => "fifteen",
-            16 => "sixteen",
-            17 => "seventeen",
-            18 => "eighteen",
-            19 => "nineteen",
-            20 => "twenty",
-            _ => miles.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        };
-
     /// <summary>
     /// Pilot transmission when the aircraft has the named traffic in sight. Used by sim-resolved
     /// RTIS (visual acquisition) and by direct RTIS dispatches in RPO mode with pilot-speech
-    /// rendering enabled. AIM 5-5-10 / 5-5-11 phraseology with NATO-spelled callsigns.
+    /// rendering enabled. AIM 5-5-10 / 5-5-11. Neither the spoken transmission nor the solo terminal
+    /// names the traffic's callsign — a pilot (and the solo student playing controller) identifies
+    /// traffic by the position/type/altitude call, not by callsign. The RPO terminal keeps the
+    /// callsign as an instructor diagnostic of which traffic was acquired.
     /// </summary>
-    public static string BuildTrafficInSight(AircraftState aircraft, string? targetCallsign)
+    public static PilotSpeechText BuildTrafficInSight(AircraftState aircraft, string? targetCallsign)
     {
         var spoken = SpokenOwnCallsign(aircraft);
+        string tts = $"{spoken}, traffic in sight.";
         if (string.IsNullOrWhiteSpace(targetCallsign))
         {
-            return $"[{aircraft.Callsign}] {spoken}, traffic in sight.";
+            return new PilotSpeechText("traffic in sight.", tts);
         }
-        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
-        return $"[{aircraft.Callsign}] {spoken}, traffic in sight, {targetSpoken}.";
+        return new PilotSpeechText("traffic in sight.", tts) { RpoTerminal = $"traffic in sight, {targetCallsign}." };
     }
 
     /// <summary>
     /// Pilot transmission when the aircraft has the destination field in sight. Used by sim-resolved
-    /// RFIS and by direct RFIS dispatches in RPO mode with pilot-speech rendering enabled.
+    /// RFIS and by direct RFIS dispatches in RPO mode with pilot-speech rendering enabled. Terminal
+    /// is the compact form (callsign in the SAY column); TTS prepends the spoken own callsign.
     /// </summary>
-    public static string BuildFieldInSight(AircraftState aircraft)
+    public static PilotSpeechText BuildFieldInSight(AircraftState aircraft)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        return $"[{aircraft.Callsign}] {spoken}, field in sight.";
+        return new PilotSpeechText("field in sight.", $"{spoken}, field in sight.");
     }
 
     /// <summary>
     /// Pilot transmission when the aircraft has lost prior visual contact with the destination
-    /// field. Triggers a re-acquisition request from the controller's perspective.
+    /// field. Triggers a re-acquisition request from the controller's perspective. Terminal is the
+    /// compact form (callsign in the SAY column); TTS prepends the spoken own callsign.
     /// </summary>
-    public static string BuildLostSightOfField(AircraftState aircraft)
+    public static PilotSpeechText BuildLostSightOfField(AircraftState aircraft)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        return $"[{aircraft.Callsign}] {spoken}, lost sight of the field.";
+        return new PilotSpeechText("lost sight of the field.", $"{spoken}, lost sight of the field.");
     }
 
     /// <summary>
     /// Pilot transmission when the aircraft has lost prior visual contact with previously-acquired
-    /// traffic.
+    /// traffic. Spoken and solo terminal forms say "the traffic" (the pilot never had the lead's
+    /// callsign); the RPO terminal names it as an instructor diagnostic.
     /// </summary>
     public static PilotSpeechText BuildLostSightOfTraffic(AircraftState aircraft, string targetCallsign)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
-        return new PilotSpeechText($"lost sight of {targetCallsign}.", $"{spoken}, lost sight of {targetSpoken}.");
+        return new PilotSpeechText("lost sight of the traffic.", $"{spoken}, lost sight of the traffic.")
+        {
+            RpoTerminal = $"lost sight of {targetCallsign}.",
+        };
     }
 
     /// <summary>
@@ -1167,26 +1169,35 @@ public static class PilotResponder
 
     /// <summary>
     /// Pilot transmission when the aircraft is breaking off a follow because separation can't
-    /// be maintained relative to the lead. Pilot side; controller will likely re-sequence.
+    /// be maintained relative to the lead. Pilot side; controller will likely re-sequence. Spoken
+    /// and solo terminal forms omit the lead callsign; the RPO terminal names it as a diagnostic.
     /// </summary>
-    public static string BuildUnableToMaintainSeparation(AircraftState aircraft, string leadCallsign)
+    public static PilotSpeechText BuildUnableToMaintainSeparation(AircraftState aircraft, string leadCallsign)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        var leadSpoken = CallsignParser.IcaoToSpoken(leadCallsign);
-        return $"[{aircraft.Callsign}] {spoken}, unable to maintain separation from {leadSpoken}, breaking off the follow.";
+        return new PilotSpeechText(
+            "unable to maintain separation, breaking off the follow.",
+            $"{spoken}, unable to maintain separation, breaking off the follow."
+        )
+        {
+            RpoTerminal = $"unable to maintain separation from {leadCallsign}, breaking off the follow.",
+        };
     }
 
     /// <summary>
-    /// Pilot transmission when the follow target has landed and the follow is over.
+    /// Pilot transmission when the follow target has landed and the follow is over. Spoken and solo
+    /// terminal forms say "the traffic"; the RPO terminal names the lead as a diagnostic.
     /// </summary>
     public static PilotSpeechText BuildTargetLanded(AircraftState aircraft, string targetCallsign)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
         return new PilotSpeechText(
-            $"{targetCallsign} is on the ground, breaking off the follow.",
-            $"{spoken}, {targetSpoken} is on the ground, breaking off the follow."
-        );
+            "the traffic's on the ground, breaking off the follow.",
+            $"{spoken}, the traffic's on the ground, breaking off the follow."
+        )
+        {
+            RpoTerminal = $"{targetCallsign} is on the ground, breaking off the follow.",
+        };
     }
 
     /// <summary>
@@ -1196,41 +1207,47 @@ public static class PilotResponder
     public static PilotSpeechText BuildUnableToCatchUp(AircraftState aircraft, string targetCallsign)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
         return new PilotSpeechText(
-            $"unable to catch up to {targetCallsign}, breaking off the follow.",
-            $"{spoken}, unable to catch up to {targetSpoken}, breaking off the follow."
-        );
+            "unable to catch up to the traffic, breaking off the follow.",
+            $"{spoken}, unable to catch up to the traffic, breaking off the follow."
+        )
+        {
+            RpoTerminal = $"unable to catch up to {targetCallsign}, breaking off the follow.",
+        };
     }
 
     /// <summary>
     /// Pilot transmission when a following aircraft has reached its maximum downwind
     /// extension while sequencing behind a pattern-flow-ahead lead and must turn base
     /// before it has the desired trail. Cues the controller to re-sequence (the
-    /// follower may roll out tight behind the lead). Output:
-    /// <c>"[N123AB] november one two three alpha bravo, turning base behind cessna five six niner sierra x-ray, spacing is tight."</c>
+    /// follower may roll out tight behind the lead). Spoken and solo terminal forms say "the
+    /// traffic"; the RPO terminal names the lead as a diagnostic.
     /// </summary>
     public static PilotSpeechText BuildSequenceTightTurningBase(AircraftState aircraft, string targetCallsign)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
         return new PilotSpeechText(
-            $"turning base behind {targetCallsign}, spacing is tight.",
-            $"{spoken}, turning base behind {targetSpoken}, spacing is tight."
-        );
+            "turning base behind the traffic, spacing is tight.",
+            $"{spoken}, turning base behind the traffic, spacing is tight."
+        )
+        {
+            RpoTerminal = $"turning base behind {targetCallsign}, spacing is tight.",
+        };
     }
 
     /// <summary>
     /// Pilot advisory when a follower self-initiates a shallow S-turn on final to open in-trail
     /// spacing behind the traffic it is following (AIM 4-3-5 — pilots maneuvering for spacing
-    /// advise the controller). Output:
-    /// <c>"[N123AB] november one two three alpha bravo, S-turning for spacing behind cessna five six niner sierra x-ray."</c>
+    /// advise the controller). Spoken and solo terminal forms say "the traffic"; the RPO terminal
+    /// names the lead as a diagnostic.
     /// </summary>
     public static PilotSpeechText BuildSTurnsForSpacing(AircraftState aircraft, string targetCallsign)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
-        return new PilotSpeechText($"S-turning for spacing behind {targetCallsign}.", $"{spoken}, S-turning for spacing behind {targetSpoken}.");
+        return new PilotSpeechText("S-turning for spacing behind the traffic.", $"{spoken}, S-turning for spacing behind the traffic.")
+        {
+            RpoTerminal = $"S-turning for spacing behind {targetCallsign}.",
+        };
     }
 
     /// <summary>
@@ -1694,22 +1711,6 @@ public static class PilotResponder
             "VIS" => "visual approach runway",
             "" => string.Empty,
             _ => string.Join(' ', prefix.Select(c => NatoPhoneticAlphabet.SpellChar(c))),
-        };
-
-    private static string SpellMiles(int miles) =>
-        miles switch
-        {
-            1 => "one",
-            2 => "two",
-            3 => "three",
-            4 => "four",
-            5 => "five",
-            6 => "six",
-            7 => "seven",
-            8 => "eight",
-            9 => "nine",
-            10 => "ten",
-            _ => miles.ToString(System.Globalization.CultureInfo.InvariantCulture),
         };
 
     internal static string? FormatCondition(BlockCondition? condition) =>

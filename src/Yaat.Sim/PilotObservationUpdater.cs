@@ -86,8 +86,7 @@ public static class PilotObservationUpdater
             aircraft,
             soloTrainingMode,
             rpoShowPilotSpeech,
-            Pilot.PilotResponder.BuildTrafficInSight(aircraft, obs.TargetCallsign),
-            Commands.NavigationCommandHandler.FormatTrafficInSightNotification(obs.TargetCallsign)
+            Pilot.PilotResponder.BuildTrafficInSight(aircraft, obs.TargetCallsign)
         );
         return true;
     }
@@ -113,13 +112,7 @@ public static class PilotObservationUpdater
         }
 
         aircraft.Approach.HasReportedFieldInSight = true;
-        Pilot.PilotResponder.RouteRpoSayReadback(
-            aircraft,
-            soloTrainingMode,
-            rpoShowPilotSpeech,
-            Pilot.PilotResponder.BuildFieldInSight(aircraft),
-            Commands.NavigationCommandHandler.FormatFieldInSightNotification()
-        );
+        Pilot.PilotResponder.RouteRpoSayReadback(aircraft, soloTrainingMode, rpoShowPilotSpeech, Pilot.PilotResponder.BuildFieldInSight(aircraft));
         return true;
     }
 }
