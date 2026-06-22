@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.23-beta [2026/06/22]
+
+### Highlights
+- **Ctrl+F8 toggles the radar DCB** — hide the Display Control Bar to give the scope more room; remembered between sessions.
+- **Local scenarios flagged in Load Recent** — recent scenarios loaded from a file now show a **(Local)** prefix, distinguishing them from vNAS ARTCC catalog entries.
+- **Push-to-talk no longer intermittently drops commands** — releasing PTT just as an aircraft spawned or was removed, or pressing it before startup finished loading, could abort recognition.
+- **vNAS scenario edits apply immediately** — reloading a scenario from the ARTCC catalog now picks up edits right away, instead of being stuck on a cached copy for up to 24 hours.
 
 ### Added
 - Radar view: **Ctrl+F8** toggles the DCB (Display Control Bar), hiding it to give the scope more room. Matches CRC's DCB toggle; the state is remembered between sessions.
