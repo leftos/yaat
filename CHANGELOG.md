@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Push-to-talk voice commands no longer intermittently fail to produce a command. Releasing PTT at the moment an aircraft spawned or was removed — or pressing PTT before navigation data finished loading at startup — could abort speech recognition before it issued anything.
+
 ## v0.7.22-beta [2026/06/20]
 
 ### Highlights

@@ -63,13 +63,19 @@ only reads preference/scalar state and calls `_pilotVoice.Enqueue(...)`; it neve
 or observable property, so it is safe to run on the SignalR thread. The contract is "marshal before touching UI
 state," not "marshal unconditionally" — but when in doubt, marshal.
 
-Three other background-thread → UI-thread crossings exist outside the SignalR handlers:
+Four other background-thread → UI-thread crossings exist outside the SignalR handlers:
 
 - **Global PTT key hook.** `GlobalKeyHookService` fires `KeyDown`/`KeyUp` on a background thread (so PTT works while
   another app is focused). `MainWindow.OnGlobalKeyDown`/`OnGlobalKeyUp` (`MainWindow.axaml.cs:2601`/`2624`) post to the
   UI thread before calling `vm.SpeechService.StartPtt()`/`StopPtt()`, edge-triggered via `_globalPttActive`.
 - **Speech service callbacks.** `_speechService.StatusChanged` and `CommandReady` fire off-thread;
   `HandleSpeechServiceStatusChange` and `HandleSpeechServiceCommandReady` (`MainViewModel.cs:1535`/`1540`) both post.
+- **Speech context provider (a *pull*, not a callback).** `SpeechRecognitionService.ProcessPipelineAsync` pulls the
+  context provider — `BuildSpeechContext` — on its `Task.Run` background thread at PTT release. `BuildSpeechContext`
+  reads UI-thread-only state (`Aircraft`, `SelectedAircraft`, `Ground.DomainLayout`), so it self-marshals with a
+  `Dispatcher.UIThread.CheckAccess()` guard and `Dispatcher.UIThread.Invoke(...)` — `Invoke` (blocking, returns the
+  value) rather than `Post` because the caller needs the result. No deadlock: the pipeline is fire-and-forget, so the
+  UI thread is never blocked waiting on it.
 - **Export-recording progress.** `_connection.ExportRecordingProgress` → `OnExportRecordingProgress`
   (`MainViewModel.Timeline.cs:280`) posts. The download-update progress callback in `UpdateNowAsync`
   (`MainViewModel.cs:1286`) posts too.

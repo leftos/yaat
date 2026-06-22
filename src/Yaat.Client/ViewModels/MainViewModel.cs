@@ -1450,8 +1450,18 @@ public partial class MainViewModel : ObservableObject
     /// free-text Whisper <c>initial_prompt</c> that biases recognition toward the ICAO + spoken
     /// forms of every active callsign plus the selected aircraft's fix names.
     /// </summary>
-    private SpeechContext BuildSpeechContext(AircraftModel? contextAircraft = null)
+    internal SpeechContext BuildSpeechContext(AircraftModel? contextAircraft = null)
     {
+        // The speech pipeline pulls this provider on a Task.Run background thread
+        // (SpeechRecognitionService.ProcessPipelineAsync). Marshal onto the UI thread before
+        // touching UI-thread-only state (Aircraft, SelectedAircraft, Ground.DomainLayout) — an
+        // off-thread enumeration races a concurrent spawn/delete and throws. The typed
+        // natural-command caller is already on the UI thread, so this is a no-op there.
+        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            return Avalonia.Threading.Dispatcher.UIThread.Invoke(() => BuildSpeechContext(contextAircraft));
+        }
+
         // Snapshot of aircraft the controller can actually talk to right now. Skip:
         //   - delayed-spawn entries (still on the scenario timer, not on the scope)
         //   - unsupported entries that aren't ghost overlays (typed flight plans only — no body
@@ -1490,7 +1500,9 @@ public partial class MainViewModel : ObservableObject
         // collapse multi-word natural-language references (e.g. "the runway 30 numbers") into
         // their canonical alias ("OAK30NUM") so downstream {fix} captures work unchanged. Only
         // available after the NavDb has finished loading — returns an empty list until then.
-        var navDb = NavigationDatabase.Instance;
+        // InstanceOrNull (not Instance) because a PTT fired before the NavDb finishes loading must
+        // degrade gracefully, not throw and abort the speech pipeline; the null-guards below handle it.
+        var navDb = NavigationDatabase.InstanceOrNull;
         var customFixPatterns = navDb?.CustomFixSpeechPatterns ?? [];
 
         // Build the callsign → destination map from active aircraft flight plans. Used by the LLM
