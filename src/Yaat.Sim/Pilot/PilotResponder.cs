@@ -1176,7 +1176,9 @@ public static class PilotResponder
 
         string facilityCallName = ResolveStudentFacilityCallName(scenario, positionType, fallbackFacility);
         var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
-        int altitudeFt = (int)Math.Round(aircraft.Altitude);
+        // Pilots state altitudes to the nearest 100 ft — there is no phraseology for tens/units.
+        // Rounding here also makes the FL gate (% 100 == 0) pass for every airborne check-in.
+        int altitudeFt = (int)(Math.Round(aircraft.Altitude / 100.0) * 100);
 
         if (aircraft.FlightPlan.IsVfr)
         {
@@ -1184,6 +1186,10 @@ public static class PilotResponder
         }
         return BuildIfrAirborne(aircraft, positionType, facilityCallName, spoken, altitudeFt);
     }
+
+    // Climb/descent vs level deadband for the check-in vertical-state verb — below this the
+    // aircraft is reported "level" rather than "leaving X climbing/descending".
+    private const double VerticalTrendThresholdFt = 200;
 
     private static PilotSpeechText BuildIfrAirborne(
         AircraftState aircraft,
@@ -1193,38 +1199,110 @@ public static class PilotResponder
         int altitudeFt
     )
     {
+        var callsign = aircraft.Callsign;
         if (positionType == "TWR")
         {
             // Direct-to-tower IFR is rare. Mention destination runway if known; otherwise drop the runway clause.
             var rwy = aircraft.Procedure.DestinationRunway;
-            var rwyClauseTts = !string.IsNullOrEmpty(rwy) ? " runway " + PhraseologyVerbalizer.SpellRunway(rwy) : "";
-            var rwyClauseTerm = !string.IsNullOrEmpty(rwy) ? " runway " + PhraseologyVerbalizer.CompactRunway(rwy) : "";
+            var rwyClauseTts = !string.IsNullOrEmpty(rwy) ? ", runway " + PhraseologyVerbalizer.SpellRunway(rwy) : "";
+            var rwyClauseTerm = !string.IsNullOrEmpty(rwy) ? ", runway " + PhraseologyVerbalizer.CompactRunway(rwy) : "";
             return new PilotSpeechText(
-                $"{facilityCallName}{rwyClauseTerm}, with information Alpha.",
+                $"{facilityCallName}, {callsign}{rwyClauseTerm}, with information Alpha.",
                 $"{facilityCallName}, {spoken}{rwyClauseTts}, with information Alpha."
             );
         }
 
-        bool isFlightLevel = altitudeFt >= 18000 && altitudeFt % 100 == 0;
-        var altitudeWords = AtcNumberParser.AltitudeToWords(altitudeFt);
-        var altitudeCompact = PhraseologyVerbalizer.CompactAltitude(altitudeFt);
-        // Sub-100 ft (or non-positive) altitudes render as empty — drop the clause entirely
-        // rather than emit "level , " or "flight level , ".
-        var altPhraseTts = string.IsNullOrEmpty(altitudeWords) ? "" : (isFlightLevel ? altitudeWords : "level " + altitudeWords);
-        var altPhraseTerm = string.IsNullOrEmpty(altitudeCompact) ? "" : (isFlightLevel ? altitudeCompact : "level " + altitudeCompact);
-        var altClauseTts = altPhraseTts.Length == 0 ? "" : " " + altPhraseTts;
-        var altClauseTerm = altPhraseTerm.Length == 0 ? "" : " " + altPhraseTerm;
+        var (clauseTerm, clauseTts, isDeparture) = BuildVerticalStateClause(aircraft, altitudeFt);
+        bool isFlightLevel = altitudeFt >= 18000;
+        // Departures (climbing / climb-via) reference the departure ATIS via the tower, not arrival
+        // ATIS — drop the suffix. Class A enroute (CTR ≥ FL180) has no airport ATIS reference.
+        bool dropAtis = isDeparture || (positionType == "CTR" && isFlightLevel);
+        var atisSuffix = dropAtis ? "" : ", with information Alpha";
 
-        if (positionType == "CTR" && isFlightLevel)
-        {
-            // Class A enroute — no airport ATIS reference.
-            return new PilotSpeechText($"{facilityCallName}{altClauseTerm}.", $"{facilityCallName}, {spoken}{altClauseTts}.");
-        }
+        var clauseTermPart = clauseTerm.Length == 0 ? "" : ", " + clauseTerm;
+        var clauseTtsPart = clauseTts.Length == 0 ? "" : ", " + clauseTts;
 
         return new PilotSpeechText(
-            $"{facilityCallName}{altClauseTerm}, with information Alpha.",
-            $"{facilityCallName}, {spoken}{altClauseTts}, with information Alpha."
+            $"{facilityCallName}, {callsign}{clauseTermPart}{atisSuffix}.",
+            $"{facilityCallName}, {spoken}{clauseTtsPart}{atisSuffix}."
         );
+    }
+
+    /// <summary>
+    /// Builds the vertical-state clause for an IFR airborne check-in. AIM 5-3-1.b.2.a gives the
+    /// "level" / "leaving (present) climbing|descending (assigned)" forms; descend-via / climb-via
+    /// (AIM 5-4-1.b.2 / 5-2-9.b.9) name the STAR/SID. Returns the terminal + TTS clause and whether
+    /// the aircraft is departing (climbing / climb-via) so the caller can drop the arrival ATIS.
+    /// Empty clause when the altitude is sub-reportable (rounds below 100 ft).
+    /// </summary>
+    private static (string Term, string Tts, bool IsDeparture) BuildVerticalStateClause(AircraftState aircraft, int altitudeFt)
+    {
+        var altTerm = PhraseologyVerbalizer.CompactAltitude(altitudeFt);
+        var altTts = AtcNumberParser.AltitudeToWords(altitudeFt);
+        if (altTerm.Length == 0 || altTts.Length == 0)
+        {
+            return ("", "", false);
+        }
+
+        if (aircraft.Procedure.StarViaMode && !string.IsNullOrEmpty(aircraft.Procedure.ActiveStarId))
+        {
+            return BuildViaClause(aircraft, altTerm, altTts, aircraft.Procedure.ActiveStarId, "descending via", "arrival", isDeparture: false);
+        }
+        if (aircraft.Procedure.SidViaMode && !string.IsNullOrEmpty(aircraft.Procedure.ActiveSidId))
+        {
+            return BuildViaClause(aircraft, altTerm, altTts, aircraft.Procedure.ActiveSidId, "climbing via", "departure", isDeparture: true);
+        }
+
+        var trend = aircraft.Targets.AssignedAltitude ?? aircraft.Targets.TargetAltitude;
+        if (trend is { } target && Math.Abs(target - altitudeFt) > VerticalTrendThresholdFt)
+        {
+            bool climbing = target > altitudeFt;
+            var verb = climbing ? "climbing" : "descending";
+            var (toTerm, toTts) = AssignedAltitudeClause(aircraft);
+            return ($"leaving {altTerm} {verb}{toTerm}", $"leaving {altTts} {verb}{toTts}", climbing);
+        }
+
+        // Level. FL form already reads as a maintained level, so the "level" verb is dropped above FL180.
+        return altitudeFt >= 18000 ? (altTerm, altTts, false) : ($"level {altTerm}", $"level {altTts}", false);
+    }
+
+    private static (string Term, string Tts, bool IsDeparture) BuildViaClause(
+        AircraftState aircraft,
+        string altTerm,
+        string altTts,
+        string procedureId,
+        string verb,
+        string procType,
+        bool isDeparture
+    )
+    {
+        var (procTerm, procTts) = PhraseologyVerbalizer.ProcedureName(procedureId);
+        // ATC only assigns a "for (altitude)" bottom/top when it differs from the published procedure.
+        var (forTerm, forTts) = AssignedAltitudeClause(aircraft);
+        var leadTerm = forTerm.Length == 0 ? $"leaving {altTerm}" : $"leaving {altTerm} for{forTerm}";
+        var leadTts = forTts.Length == 0 ? $"leaving {altTts}" : $"leaving {altTts} for{forTts}";
+        return ($"{leadTerm}, {verb} the {procTerm} {procType}", $"{leadTts}, {verb} the {procTts} {procType}", isDeparture);
+    }
+
+    /// <summary>
+    /// The " (altitude)" suffix naming the controller-assigned cleared altitude for a climb/descent
+    /// check-in (AIM 5-3-1.b.2.a "climbing to|descending to (altitude)"). Empty when no discrete
+    /// altitude is assigned (e.g. a descend-via aircraft following published crossings).
+    /// </summary>
+    private static (string Term, string Tts) AssignedAltitudeClause(AircraftState aircraft)
+    {
+        if (aircraft.Targets.AssignedAltitude is not { } assigned)
+        {
+            return ("", "");
+        }
+        int rounded = (int)(Math.Round(assigned / 100.0) * 100);
+        var term = PhraseologyVerbalizer.CompactAltitude(rounded);
+        var tts = AtcNumberParser.AltitudeToWords(rounded);
+        if (term.Length == 0 || tts.Length == 0)
+        {
+            return ("", "");
+        }
+        return ($" {term}", $" {tts}");
     }
 
     private static PilotSpeechText BuildVfrAirborne(
@@ -1269,7 +1347,7 @@ public static class PilotResponder
             string heading = HeadingToBoundCardinal(aircraft.TrueHeading.Degrees);
             string positionAnchor = positionType == "TWR" ? "the field" : PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
             return new PilotSpeechText(
-                $"{facilityCallName} {distTerm} miles {direction} of {positionAnchor}, VFR {heading}{atAltTerm}.",
+                $"{facilityCallName}, {aircraft.Callsign}, {distTerm} miles {direction} of {positionAnchor}, VFR {heading}{atAltTerm}.",
                 $"{facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading}{atAltTts}."
             );
         }
@@ -1294,14 +1372,14 @@ public static class PilotResponder
         {
             var airportSpoken = PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
             return new PilotSpeechText(
-                $"{facilityCallName}{atAltTerm}, {distTerm} miles {direction} of {airportSpoken}, {intent}.",
+                $"{facilityCallName}, {aircraft.Callsign}{atAltTerm}, {distTerm} miles {direction} of {airportSpoken}, {intent}.",
                 $"{facilityCallName}, {spoken}{atAltTts}, {distWords} miles {direction} of {airportSpoken}, {intent}."
             );
         }
 
         var atisSuffix = inbound ? ", with information Alpha" : "";
         return new PilotSpeechText(
-            $"{facilityCallName} {distTerm} miles {direction}{atAltTerm}, {intent}{atisSuffix}.",
+            $"{facilityCallName}, {aircraft.Callsign} {distTerm} miles {direction}{atAltTerm}, {intent}{atisSuffix}.",
             $"{facilityCallName}, {spoken} {distWords} miles {direction}{atAltTts}, {intent}{atisSuffix}."
         );
     }

@@ -683,6 +683,46 @@ public static class PhraseologyVerbalizer
     }
 
     /// <summary>
+    /// Renders a STAR/SID identifier for pilot phraseology. Terminal keeps the raw uppercase id
+    /// ("RAZRR5"); TTS spells the name then the trailing version number as a cardinal word
+    /// ("RAZRR5" → "razrr five", "LAURA2" → "laura two"). Used for descend-via / climb-via
+    /// initial check-ins (AIM 5-4-1.b.2 / 5-2-9.b.9).
+    /// </summary>
+    public static (string Terminal, string Tts) ProcedureName(string procedureId)
+    {
+        var id = (procedureId ?? "").Trim();
+        if (id.Length == 0)
+        {
+            return ("", "");
+        }
+
+        var terminal = id.ToUpperInvariant();
+
+        int split = id.Length;
+        while (split > 0 && char.IsDigit(id[split - 1]))
+        {
+            split--;
+        }
+        var name = id[..split];
+        var version = id[split..];
+        if (name.Length == 0 || version.Length == 0)
+        {
+            // No alpha+digit split (all digits or all letters) — spell the whole id like a fix.
+            return (terminal, SpellFix(id));
+        }
+
+        var versionWords = int.TryParse(
+            version,
+            System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var v
+        )
+            ? AtcNumberParser.CardinalWord(v)
+            : version.ToLowerInvariant();
+        return (terminal, $"{SpellFix(name)} {versionWords}");
+    }
+
+    /// <summary>
     /// Spoken airport name for readbacks where the caller knows the identifier refers to an
     /// airport (boundary holds tied to a Class B/C, primary-airport position anchors). Always
     /// uses the airport-name lookup — distinct from <see cref="SpellFix"/> which prefers the

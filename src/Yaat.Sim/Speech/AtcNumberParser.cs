@@ -319,6 +319,24 @@ public static class AtcNumberParser
     }
 
     /// <summary>
+    /// Cardinal word for a small non-negative integer: 5 → "five", 21 → "twenty one".
+    /// Used for spoken procedure version numbers ("RAZRR Five"). Values ≥ 100 (and negatives)
+    /// fall back to digit-by-digit spelling.
+    /// </summary>
+    public static string CardinalWord(int value)
+    {
+        if (value is < 0 or >= 100)
+        {
+            return string.Join(' ', value.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(c => DigitToWord[c - '0']));
+        }
+        if (value < 10)
+        {
+            return DigitToWord[value];
+        }
+        return PairToWords((char)('0' + (value / 10)), (char)('0' + (value % 10)));
+    }
+
+    /// <summary>
     /// Removes any comma that has a digit on both sides — i.e. English thousand-separator
     /// commas like the one in <c>2,000</c>. Walks the string character-by-character so we don't
     /// pull in a regex dependency for what is essentially a one-line transformation. Sentence

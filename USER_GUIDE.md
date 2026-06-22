@@ -1460,6 +1460,8 @@ Optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simplify t
 
 Handoffs to unattended positions can be automatically accepted after a configurable delay. Enable in **Settings > General > Auto-accept handoffs**.
 
+In **solo training mode** this is overridden so the session behaves as if you are the only controller working a live position: handoffs to **your own (student) position** are never auto-accepted — you accept them by hand, just as you would on the network — while handoffs between the automated background positions always auto-accept (never faster than 3 seconds) so traffic keeps flowing even when you have auto-accept switched off.
+
 #### Command Run Delay
 
 A teaching aid that makes aircraft take time to comply with your instructions, simulating how long a real pilot needs to read back the clearance and set up the FMC / autopilot panel. Set a **min–max range (seconds)** in **Settings > General > Command run delay** (or live, per session, in the session-settings flyout on the command bar). Each command waits a random delay in that range before the aircraft acts — set both to the same number for a fixed delay, or set the max to 0 to turn it off (the default). A few seconds (3–8) is realistic.

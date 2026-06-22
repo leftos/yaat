@@ -109,7 +109,7 @@ public class M102AirborneCheckInTests
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("approach, american one twenty three level six thousand, with information Alpha.", line!.Tts);
+        Assert.Equal("approach, american one twenty three, level six thousand, with information Alpha.", line!.Tts);
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class M102AirborneCheckInTests
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("approach, american one twenty three flight level two three zero, with information Alpha.", line!.Tts);
+        Assert.Equal("approach, american one twenty three, flight level two three zero, with information Alpha.", line!.Tts);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class M102AirborneCheckInTests
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("center, american one twenty three flight level two four zero.", line!.Tts);
+        Assert.Equal("center, american one twenty three, flight level two four zero.", line!.Tts);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class M102AirborneCheckInTests
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("center, american one twenty three level one two thousand, with information Alpha.", line!.Tts);
+        Assert.Equal("center, american one twenty three, level one two thousand, with information Alpha.", line!.Tts);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class M102AirborneCheckInTests
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("tower, american one twenty three runway two eight right, with information Alpha.", line!.Tts);
+        Assert.Equal("tower, american one twenty three, runway two eight right, with information Alpha.", line!.Tts);
     }
 
     [Fact]
@@ -175,7 +175,105 @@ public class M102AirborneCheckInTests
 
         var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
 
-        Assert.Equal("Oakland Tower, american one twenty three runway two eight right, with information Alpha.", line!.Tts);
+        Assert.Equal("Oakland Tower, american one twenty three, runway two eight right, with information Alpha.", line!.Tts);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // IFR vertical-state verb: descend-via / climb-via / climbing / descending.
+    // AIM 5-3-1.b.2.a (level / leaving X climbing|descending Y), 5-4-1.b.2 (STAR),
+    // 5-2-9.b.9 (SID). Altitude rounds to the nearest 100 ft; FL form ≥ FL180.
+    // ─────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Ifr_Approach_DescendingViaStar_RoundsToFlightLevel_NamesArrival()
+    {
+        // Repro of the bundle bug: 25,264 ft descending via RAZRR5 was reported "level 25331".
+        var ac = MakeAircraft("AAL123", isVfr: false, altitude: 25264);
+        ac.Procedure.StarViaMode = true;
+        ac.Procedure.ActiveStarId = "RAZRR5";
+        ac.Targets.TargetAltitude = 20000;
+        var sc = MakeScenario("APP");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        var (procTerm, procTts) = PhraseologyVerbalizer.ProcedureName("RAZRR5");
+        Assert.Equal(
+            $"approach, american one twenty three, leaving flight level two five three, descending via the {procTts} arrival, with information Alpha.",
+            line!.Tts
+        );
+        Assert.Equal($"approach, AAL123, leaving FL253, descending via the {procTerm} arrival, with information Alpha.", line.Terminal);
+    }
+
+    [Fact]
+    public void Ifr_Approach_ClimbingViaSid_IsDeparture_DropsAtis()
+    {
+        var ac = MakeAircraft("AAL123", isVfr: false, altitude: 2000);
+        ac.Procedure.SidViaMode = true;
+        ac.Procedure.ActiveSidId = "LAURA2";
+        ac.Targets.TargetAltitude = 14000;
+        var sc = MakeScenario("APP");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        var (_, procTts) = PhraseologyVerbalizer.ProcedureName("LAURA2");
+        Assert.Equal($"approach, american one twenty three, leaving two thousand, climbing via the {procTts} departure.", line!.Tts);
+    }
+
+    [Fact]
+    public void Ifr_Approach_PlainClimbing_WithAssigned_LeavingClimbing_DropsAtis()
+    {
+        var ac = MakeAircraft("AAL123", isVfr: false, altitude: 8000);
+        ac.Targets.AssignedAltitude = 14000;
+        var sc = MakeScenario("APP");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal("approach, american one twenty three, leaving eight thousand climbing one four thousand.", line!.Tts);
+    }
+
+    [Fact]
+    public void Ifr_Approach_PlainDescending_WithAssigned_LeavingDescending_KeepsAtis()
+    {
+        var ac = MakeAircraft("AAL123", isVfr: false, altitude: 15000);
+        ac.Targets.AssignedAltitude = 9000;
+        var sc = MakeScenario("APP");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal("approach, american one twenty three, leaving one five thousand descending nine thousand, with information Alpha.", line!.Tts);
+    }
+
+    [Fact]
+    public void Ifr_Approach_Descending_AssignedUnknown_OmitsTargetAltitude()
+    {
+        var ac = MakeAircraft("AAL123", isVfr: false, altitude: 15000);
+        ac.Targets.TargetAltitude = 9000; // direction only; no discrete assigned altitude
+        var sc = MakeScenario("APP");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal("approach, american one twenty three, leaving one five thousand descending, with information Alpha.", line!.Tts);
+    }
+
+    [Fact]
+    public void Ifr_Approach_Level_TerminalIncludesCallsign()
+    {
+        var ac = MakeAircraft("AAL123", isVfr: false, altitude: 6000);
+        var sc = MakeScenario("APP");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.Equal("approach, AAL123, level 6000, with information Alpha.", line!.Terminal);
+    }
+
+    [Theory]
+    [InlineData("ZZZZZ5", "ZZZZZ5", "zzzzz five")]
+    [InlineData("ZZZZZ12", "ZZZZZ12", "zzzzz twelve")]
+    public void ProcedureName_SplitsTrailingVersionDigits(string id, string expectedTerm, string expectedTts)
+    {
+        var (term, tts) = PhraseologyVerbalizer.ProcedureName(id);
+        Assert.Equal(expectedTerm, term);
+        Assert.Equal(expectedTts, tts);
     }
 
     // ─────────────────────────────────────────────────────────────────────

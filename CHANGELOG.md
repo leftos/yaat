@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- Aircraft checking in with the student after a handoff (solo training) now report their altitude correctly. The altitude is rounded to the nearest hundred feet and uses flight-level form above 18,000 ft, and the vertical state is spoken properly: an arrival descending via a STAR now checks in "leaving FL253, descending via the [arrival]" and a climbing departure "leaving … climbing …" / "climbing via the [SID]", instead of always saying "level" at an unrounded altitude (e.g. "level 25331"). Check-in transmissions also now include the aircraft's callsign in the displayed text.
+- In solo training mode, handoffs to the student's own position are no longer auto-accepted — the student accepts them by hand, as in a real session. Handoffs between the automated (AI) positions still auto-accept, never faster than 3 seconds, so background traffic keeps flowing even when auto-accept is switched off.
 - Stacking several `CFIX` crossing restrictions on one aircraft no longer logs spurious "queue cleared (lost: …)" warnings; every restriction was always applied and flown.
 - On a routeless (vectored) aircraft, a chain of `CFIX` commands builds the crossing profile in the order issued.
 
