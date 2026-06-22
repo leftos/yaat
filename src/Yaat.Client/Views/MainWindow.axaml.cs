@@ -2044,7 +2044,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         menu.IsEnabled = true;
         foreach (var entry in recent)
         {
-            var item = new MenuItem { Header = entry.Name, Tag = entry };
+            var header = entry.IsApi ? entry.Name : $"(Local) {entry.Name}";
+            var item = new MenuItem { Header = header, Tag = entry };
             item.Click += OnRecentScenarioClick;
             ToolTip.SetTip(item, entry.IsApi ? $"API: {entry.ApiId}" : entry.FilePath);
             menu.Items.Add(item);

@@ -4,6 +4,7 @@
 
 ### Added
 - Radar view: **Ctrl+F8** toggles the DCB (Display Control Bar), hiding it to give the scope more room. Matches CRC's DCB toggle; the state is remembered between sessions.
+- The **Load Recent Scenario** menu now marks entries loaded from a local file with a **(Local)** prefix, so it's clear at a glance which recent scenarios came from a file versus the vNAS ARTCC catalog.
 
 ### Fixed
 - Push-to-talk voice commands no longer intermittently fail to produce a command. Releasing PTT at the moment an aircraft spawned or was removed — or pressing PTT before navigation data finished loading at startup — could abort speech recognition before it issued anything.

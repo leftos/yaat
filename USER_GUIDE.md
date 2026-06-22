@@ -768,7 +768,7 @@ Select a scenario and click **Load** (or double-click). Aircraft spawn at their 
 
 When a scenario has multiple difficulty levels, YAAT shows a **Scenario Setup** dialog before loading. In solo training, the same dialog can also show workload pacing sliders for scenarios that have parking spawns or arrival generators. See [Solo Training](#solo-training).
 
-Both API and local scenarios appear in the **Scenario > Load Recent Scenario** menu for quick reloading.
+Both API and local scenarios appear in the **Scenario > Load Recent Scenario** menu for quick reloading; entries loaded from a local file are marked with a **(Local)** prefix to distinguish them from vNAS catalog scenarios.
 
 ### Unloading a Scenario
 
