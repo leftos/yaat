@@ -171,8 +171,10 @@ internal static class NavigationCommandHandler
         // CFIX names a fix that is already on the route. Stamp the restriction on that fix in
         // place, preserving the rest of the route (fixes before and after) and any restriction
         // already on another fix — so multiple CFIX commands are additive instead of clobbering
-        // one another. If the named fix is not on the route, fall back to proceeding direct to
-        // it (a single-fix route).
+        // one another. If the named fix is not on the route, append it (with its restriction) to
+        // the end of the route rather than wiping the route — so a chain of CFIX on a vectored
+        // aircraft builds a crossing profile in issue order. An empty route therefore becomes a
+        // single-fix direct route.
         var existing = aircraft.Targets.NavigationRoute.Find(f => f.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
         {
@@ -188,7 +190,6 @@ internal static class NavigationCommandHandler
         }
         else
         {
-            aircraft.Targets.NavigationRoute.Clear();
             aircraft.Targets.NavigationRoute.Add(
                 new NavigationTarget
                 {

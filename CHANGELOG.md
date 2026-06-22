@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Stacking several `CFIX` crossing restrictions on one aircraft no longer logs spurious "queue cleared (lost: …)" warnings; every restriction was always applied and flown.
+- On a routeless (vectored) aircraft, a chain of `CFIX` commands builds the crossing profile in the order issued.
+
 ## v0.7.24-beta [2026/06/22]
 
 ### Fixed

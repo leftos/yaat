@@ -164,4 +164,22 @@ public class QueueClearWarningTests : IDisposable
         Assert.DoesNotContain(ac.PendingWarnings, w => w.Contains("queue cleared", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(ac.Queue.Blocks, b => b.NaturalDescription.Contains("Enter right downwind"));
     }
+
+    [Fact]
+    public void SupersedingAlreadyAppliedImmediateBlock_DoesNotWarn()
+    {
+        // A chain of same-dimension immediate commands accumulates already-applied blocks in the
+        // queue (each took effect when dispatched). Superseding an already-applied block is not a
+        // loss, so no "queue cleared" warning should fire. This is the general form of the
+        // CFIX-chain false alarm — it must hold for any immediate command, not just CFIX.
+        var ac = MakeAirborne();
+        DispatchOk(ac, "CM 050"); // applied at index 0 (current)
+        DispatchOk(ac, "CM 070"); // applied at index 1 (non-current — already took effect)
+        Assert.True(ac.Queue.Blocks.Count >= 2);
+        ac.PendingWarnings.Clear();
+
+        DispatchOk(ac, "CM 090"); // supersedes the already-applied CM 070 — not a loss
+
+        Assert.DoesNotContain(ac.PendingWarnings, w => w.Contains("queue cleared", StringComparison.OrdinalIgnoreCase));
+    }
 }

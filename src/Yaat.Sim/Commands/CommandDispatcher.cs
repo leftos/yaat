@@ -2100,7 +2100,10 @@ public static class CommandDispatcher
     /// <paramref name="droppedDescriptions"/> receives a description of every pending block
     /// that was lost outright (full conflict or fast-path wipe), so callers can warn the
     /// RPO. Partial splits — where some commands in a block were preserved — are NOT
-    /// reported, since the queued instruction survived in modified form.
+    /// reported, since the queued instruction survived in modified form. Already-applied
+    /// blocks are likewise NOT reported: their effect already took hold (e.g. a chain of
+    /// CFIX crossing restrictions stamped on the route, or an earlier DM/SPEED), so
+    /// superseding them is not a loss the RPO needs to re-issue.
     /// </summary>
     private static List<CommandBlock> ClearConflictingBlocks(
         AircraftState aircraft,
@@ -2124,7 +2127,10 @@ public static class CommandDispatcher
             int fastStart = queue.CurrentBlockIndex + (queue.CurrentBlock is { IsApplied: true } ? 1 : 0);
             for (int i = fastStart; i < queue.Blocks.Count; i++)
             {
-                droppedDescriptions.Add(DescribeQueueBlock(queue.Blocks[i]));
+                if (!queue.Blocks[i].IsApplied)
+                {
+                    droppedDescriptions.Add(DescribeQueueBlock(queue.Blocks[i]));
+                }
             }
             queue.Blocks.Clear();
             queue.CurrentBlockIndex = 0;
@@ -2163,7 +2169,13 @@ public static class CommandDispatcher
             var split = SplitBlockNonConflicting(block, incomingDimensions, ctx);
             if (split is null)
             {
-                droppedDescriptions.Add(DescribeQueueBlock(block));
+                // Already-applied blocks have delivered their effect; superseding them is not a
+                // loss (e.g. a chain of CFIX restrictions already stamped on the route), so drop
+                // them silently. Only not-yet-applied queued work is reported as lost.
+                if (!block.IsApplied)
+                {
+                    droppedDescriptions.Add(DescribeQueueBlock(block));
+                }
             }
             else
             {

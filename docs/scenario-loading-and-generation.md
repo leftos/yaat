@@ -380,8 +380,11 @@ spawn:
 ### The CFIX composition case
 
 `CFIX` is **additive** — `DispatchCrossFix` stamps the restriction on the named route fix in place, preserving the rest of the
-route and any restriction already on another fix. So multiple `CFIX` presets are dispatched independently and all their crossing
-restrictions land at spawn simultaneously.
+route and any restriction already on another fix. If the named fix is not yet on the route, it is *appended* (not used to wipe the
+route), so a chain of `CFIX` builds a crossing profile in issue order even on a routeless aircraft. So multiple `CFIX` presets are
+dispatched independently and all their crossing restrictions land at spawn simultaneously. Each immediate `CFIX` leaves an
+already-applied block in the `CommandQueue`; the next `CFIX` supersedes it without emitting a spurious "queue cleared … (lost:
+CFIX …)" warning, because `ClearConflictingBlocks` only reports *not-yet-applied* blocks as lost.
 
 Composition is still needed for the **mixed** case: when a `CFIX` is followed by a non-`CFIX` command (e.g. `CFIX ...; CAPP`).
 Dispatched separately, the later block (`CAPP`) would rebuild the route and lose the `CFIX` restrictions, so the presets are

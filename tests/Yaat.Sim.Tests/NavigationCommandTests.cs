@@ -308,6 +308,36 @@ public class NavigationCommandTests : IDisposable
         Assert.Equal(8000, aircraft.Targets.NavigationRoute.First(f => f.Name == "BRAVO").AltitudeRestriction!.Altitude1Ft);
     }
 
+    [Fact]
+    public void Cfix_MultipleOffRoute_BuildChainInIssueOrder_NotLastWins()
+    {
+        // A chain of CFIX naming fixes that are NOT already on the route (e.g. a vectored aircraft
+        // with no STAR) must build the route in issue order, each carrying its own crossing
+        // restriction — not collapse to only the last fix by wiping the route each time.
+        var aircraft = MakeAircraft(heading: 090, altitude: 16000);
+
+        CommandDispatcher.Dispatch(
+            new CrossFixCommand("SUNOL", 37.6, -121.9, 12000, CrossFixAltitudeType.At, 280),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
+        CommandDispatcher.Dispatch(
+            new CrossFixCommand("CEDES", 37.5, -122.0, 9000, CrossFixAltitudeType.At, 250),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
+        CommandDispatcher.Dispatch(
+            new CrossFixCommand("EDDYY", 37.4, -122.1, 6000, CrossFixAltitudeType.At, 230),
+            aircraft,
+            TestDispatch.Context(Random.Shared)
+        );
+
+        Assert.Equal(new[] { "SUNOL", "CEDES", "EDDYY" }, aircraft.Targets.NavigationRoute.Select(f => f.Name).ToArray());
+        Assert.Equal(12000, aircraft.Targets.NavigationRoute[0].AltitudeRestriction!.Altitude1Ft);
+        Assert.Equal(9000, aircraft.Targets.NavigationRoute[1].AltitudeRestriction!.Altitude1Ft);
+        Assert.Equal(6000, aircraft.Targets.NavigationRoute[2].AltitudeRestriction!.Altitude1Ft);
+    }
+
     // --- DVIA ---
 
     [Fact]
