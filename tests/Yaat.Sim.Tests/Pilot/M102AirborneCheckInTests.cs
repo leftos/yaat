@@ -113,6 +113,23 @@ public class M102AirborneCheckInTests
     }
 
     [Fact]
+    public void Ifr_Approach_HeavyAircraft_AppendsHeavyToTerminalAndTts()
+    {
+        // AIM 4-2-4.a.5: a heavy aircraft identifies itself with "heavy" after the call sign,
+        // in both the spoken (TTS) and the terminal SAY echo (the airborne check-in is the one
+        // path that carries the callsign inline in the terminal text).
+        var ac = MakeAircraft("AAL123", isVfr: false, altitude: 6000);
+        ac.AircraftType = "B763"; // CWT C -> Heavy
+        var sc = MakeScenario("APP");
+
+        var line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+
+        Assert.NotNull(line);
+        Assert.Equal("approach, american one twenty three heavy, level six thousand, with information Alpha.", line!.Tts);
+        Assert.Contains("AAL123 heavy", line.Terminal);
+    }
+
+    [Fact]
     public void Ifr_Approach_FL180Plus_FlightLevelForm()
     {
         var ac = MakeAircraft("AAL123", isVfr: false, altitude: 23000);

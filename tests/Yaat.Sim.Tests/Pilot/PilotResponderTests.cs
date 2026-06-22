@@ -401,6 +401,54 @@ public class PilotResponderTests
         Assert.Equal($"{expectedClause}, november four three six mike sierra.", result);
     }
 
+    // --- A8-1: heavy/super wake-class suffix on the aircraft's own callsign (AIM 4-2-4.a.5) ---
+
+    [Fact]
+    public void BuildReadback_HeavyAircraft_AppendsHeavyToSpokenCallsign()
+    {
+        var ac = MakeAircraft("AAL123");
+        ac.AircraftType = "B77W"; // CWT B -> Heavy
+        var compound = Compound(new DescendMaintainCommand(5000));
+
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+
+        Assert.Equal("descend and maintain five thousand, american one twenty three heavy.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_SuperAircraft_AppendsSuperToSpokenCallsign()
+    {
+        var ac = MakeAircraft("AAL123");
+        ac.AircraftType = "A388"; // CWT A -> Super
+        var compound = Compound(new DescendMaintainCommand(5000));
+
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+
+        Assert.Equal("descend and maintain five thousand, american one twenty three super.", result);
+    }
+
+    [Fact]
+    public void BuildReadback_LargeAircraft_NoWakeSuffix()
+    {
+        var ac = MakeAircraft("AAL123"); // B738 default -> Large (CWT F)
+        var compound = Compound(new DescendMaintainCommand(5000));
+
+        var result = PilotResponder.BuildReadback(compound, ac)?.Tts;
+
+        Assert.Equal("descend and maintain five thousand, american one twenty three.", result);
+    }
+
+    [Fact]
+    public void BuildHoldingShortReady_HeavyAircraft_AppendsHeavyToProactiveCallsign()
+    {
+        var ac = MakeAircraft("AAL123");
+        ac.AircraftType = "B763"; // CWT C -> Heavy
+
+        var result = PilotResponder.BuildHoldingShortReady(ac, "28R");
+
+        Assert.Equal("tower, american one twenty three heavy holding short runway two eight right, ready for departure.", result.Tts);
+    }
+
     // --- Dual-output readback: compact terminal SAY echo vs spelled TTS (issue #193) ---
 
     [Fact]

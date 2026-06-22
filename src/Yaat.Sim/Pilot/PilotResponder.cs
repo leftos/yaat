@@ -159,9 +159,47 @@ public static class PilotResponder
     /// </summary>
     private static PilotSpeechText FrameReadback(AircraftState aircraft, string terminalBody, string ttsBody)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText(terminalBody, NormalizeForTts($"{ttsBody}, {spoken}."));
     }
+
+    /// <summary>
+    /// Spoken form of the aircraft's own callsign with the "heavy"/"super" wake-class suffix
+    /// appended when applicable. Air carriers and any heavy/super aircraft identify themselves with
+    /// the word "super" or "heavy" after the call sign (AIM 4-2-4.a.5, e.g. "United Twenty-Five
+    /// Heavy"). Large and Small aircraft get no suffix.
+    /// </summary>
+    private static string SpokenOwnCallsign(AircraftState aircraft)
+    {
+        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var suffix = WakeClassSuffix(aircraft);
+        return suffix is null ? spoken : $"{spoken} {suffix}";
+    }
+
+    /// <summary>
+    /// Terminal (compact, ICAO) form of the aircraft's own callsign with the "heavy"/"super"
+    /// wake-class suffix appended when applicable — the terminal counterpart to
+    /// <see cref="SpokenOwnCallsign"/>, used where a builder echoes the callsign inline in the
+    /// terminal SAY text (the airborne check-in).
+    /// </summary>
+    private static string TerminalOwnCallsign(AircraftState aircraft)
+    {
+        var suffix = WakeClassSuffix(aircraft);
+        return suffix is null ? aircraft.Callsign : $"{aircraft.Callsign} {suffix}";
+    }
+
+    /// <summary>
+    /// The wake-class identification word a pilot appends to its own call sign per AIM 4-2-4.a.5:
+    /// "heavy" for the Heavy weight class, "super" for the Super class, or <see langword="null"/>
+    /// for Large/Small aircraft that carry no suffix.
+    /// </summary>
+    private static string? WakeClassSuffix(AircraftState aircraft) =>
+        WakeTurbulenceData.WakeClassForType(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType)) switch
+        {
+            WakeTurbulenceData.WakeClass.Heavy => "heavy",
+            WakeTurbulenceData.WakeClass.Super => "super",
+            _ => null,
+        };
 
     /// <summary>
     /// Pairs a clause's compact terminal form with its spoken form. Returns <see langword="null"/>
@@ -526,7 +564,7 @@ public static class PilotResponder
     public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName)
     {
         var location = aircraft.Ground.ParkingSpot is { Length: > 0 } spot ? $"at {spot.ToLowerInvariant()}" : "at the ramp";
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var facility = CleanFacilityCallName(facilityCallName, "ground");
         return new PilotSpeechText(
             $"{facility}, {location}, with information Alpha, ready to taxi.",
@@ -547,7 +585,7 @@ public static class PilotResponder
 
     public static PilotSpeechText BuildHoldingShortReady(AircraftState aircraft, string runwayId, string facilityCallName)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var facility = CleanFacilityCallName(facilityCallName, "tower");
         return new PilotSpeechText(
             $"{facility}, holding short runway {PhraseologyVerbalizer.CompactRunway(runwayId)}, ready for departure.",
@@ -567,7 +605,7 @@ public static class PilotResponder
 
     public static PilotSpeechText BuildLinedUpReady(AircraftState aircraft, string runwayId, string facilityCallName)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var facility = CleanFacilityCallName(facilityCallName, "tower");
         return new PilotSpeechText(
             $"{facility}, runway {PhraseologyVerbalizer.CompactRunway(runwayId)}, ready.",
@@ -603,7 +641,7 @@ public static class PilotResponder
         string facilityCallName
     )
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var facility = CleanFacilityCallName(facilityCallName, "tower");
         if (ifrWithActiveApproach && !string.IsNullOrEmpty(approachId))
         {
@@ -622,7 +660,7 @@ public static class PilotResponder
 
     public static PilotSpeechText BuildArrivalApproachRequest(AircraftState aircraft, string? runwayId, int distanceMiles, string facilityCallName)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var facility = CleanFacilityCallName(facilityCallName, "approach");
         var miles = Math.Max(1, distanceMiles);
         if (!string.IsNullOrWhiteSpace(runwayId))
@@ -652,7 +690,7 @@ public static class PilotResponder
 
     public static PilotSpeechText BuildClosedTrafficRequest(AircraftState aircraft, LatLon airportPosition, int altitudeFt, string facilityCallName)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         double distNm = GeoMath.DistanceNm(airportPosition, aircraft.Position);
         int distMiles = Math.Max(1, (int)Math.Round(distNm));
         double bearingFromAirport = GeoMath.BearingTo(airportPosition, aircraft.Position);
@@ -672,7 +710,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildContactReadback(AircraftState aircraft, string facilityName, double frequencyMhz)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         // Caller decides casing — pass Position.RadioName ("NorCal Approach") or the
         // capitalized FacilityShortname fallback ("Approach"), which reads sentence-initial.
         return new PilotSpeechText(
@@ -689,7 +727,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildFrequencyChangeApproved(AircraftState aircraft)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText("good day.", $"{spoken}, good day.");
     }
 
@@ -822,7 +860,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildMidfieldDownwindReminder(AircraftState aircraft, string runwayId)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText(
             $"midfield downwind runway {PhraseologyVerbalizer.CompactRunway(runwayId)}.",
             $"{spoken}, midfield downwind runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
@@ -839,7 +877,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildShortFinalReminder(AircraftState aircraft, string runwayId)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText(
             $"short final runway {PhraseologyVerbalizer.CompactRunway(runwayId)}.",
             $"{spoken}, short final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
@@ -853,7 +891,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildTurningLegReport(AircraftState aircraft, ReportTrigger leg, string runwayId)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var legWord = leg switch
         {
             ReportTrigger.Crosswind => "crosswind",
@@ -875,7 +913,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildMileFinalReport(AircraftState aircraft, int miles, string runwayId)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText(
             $"{miles}-mile final runway {PhraseologyVerbalizer.CompactRunway(runwayId)}.",
             $"{spoken}, {MilesToWords(miles)} mile final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
@@ -890,7 +928,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildAtFixReport(AircraftState aircraft, string fixName)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText($"passing {fixName}.", $"{spoken}, passing {fixName}.");
     }
 
@@ -928,7 +966,7 @@ public static class PilotResponder
     /// </summary>
     public static string BuildTrafficInSight(AircraftState aircraft, string? targetCallsign)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         if (string.IsNullOrWhiteSpace(targetCallsign))
         {
             return $"[{aircraft.Callsign}] {spoken}, traffic in sight.";
@@ -943,7 +981,7 @@ public static class PilotResponder
     /// </summary>
     public static string BuildFieldInSight(AircraftState aircraft)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return $"[{aircraft.Callsign}] {spoken}, field in sight.";
     }
 
@@ -953,7 +991,7 @@ public static class PilotResponder
     /// </summary>
     public static string BuildLostSightOfField(AircraftState aircraft)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return $"[{aircraft.Callsign}] {spoken}, negative contact with the field.";
     }
 
@@ -963,7 +1001,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildLostSightOfTraffic(AircraftState aircraft, string targetCallsign)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
         return new PilotSpeechText($"negative contact with {targetCallsign}.", $"{spoken}, negative contact with {targetSpoken}.");
     }
@@ -976,7 +1014,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildGoingAround(AircraftState aircraft, string reason)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         if (string.IsNullOrWhiteSpace(reason))
         {
             return new PilotSpeechText("going around.", $"{spoken}, going around.");
@@ -991,7 +1029,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildApproachingMinimumsNoLandingClearance(AircraftState aircraft)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText("approaching minimums, no landing clearance.", $"{spoken}, approaching minimums, no landing clearance.");
     }
 
@@ -1002,7 +1040,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildUnable(AircraftState aircraft, string? reason)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var cleanedReason = CleanUnableReason(reason);
         if (string.IsNullOrEmpty(cleanedReason))
         {
@@ -1038,7 +1076,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildHoldingShortTaxi(AircraftState aircraft, string label, string taxiway)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText($"{label} at {taxiway}.", $"{spoken}, {label} at {taxiway}.");
     }
 
@@ -1047,7 +1085,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildHoldingShortCrossing(AircraftState aircraft, string runwayId)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText(
             $"holding short runway {PhraseologyVerbalizer.CompactRunway(runwayId)}.",
             $"{spoken}, holding short runway {PhraseologyVerbalizer.SpellRunway(runwayId)}."
@@ -1061,7 +1099,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildClearOfRunwayText(AircraftState aircraft, string runwayId, string taxiway)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var runwaySpoken = PhraseologyVerbalizer.SpellRunway(runwayId);
         string terminal = $"clear of runway {PhraseologyVerbalizer.CompactRunway(runwayId)} at {taxiway}.";
         string tts = $"{spoken}, clear of runway {runwaySpoken} at {taxiway}.";
@@ -1074,7 +1112,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildUnableToExit(AircraftState aircraft, string taxiway)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText($"negative on the exit at {taxiway}.", $"{spoken}, negative on the exit at {taxiway}.");
     }
 
@@ -1084,7 +1122,7 @@ public static class PilotResponder
     /// </summary>
     public static string BuildUnableToMaintainSeparation(AircraftState aircraft, string leadCallsign)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var leadSpoken = CallsignParser.IcaoToSpoken(leadCallsign);
         return $"[{aircraft.Callsign}] {spoken}, unable to maintain separation from {leadSpoken}, breaking off the follow.";
     }
@@ -1094,7 +1132,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildTargetLanded(AircraftState aircraft, string targetCallsign)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
         return new PilotSpeechText(
             $"{targetCallsign} is on the ground, breaking off the follow.",
@@ -1108,7 +1146,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildUnableToCatchUp(AircraftState aircraft, string targetCallsign)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
         return new PilotSpeechText(
             $"unable to catch up to {targetCallsign}, breaking off the follow.",
@@ -1125,7 +1163,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildSequenceTightTurningBase(AircraftState aircraft, string targetCallsign)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
         return new PilotSpeechText(
             $"turning base behind {targetCallsign}, spacing is tight.",
@@ -1141,7 +1179,7 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildSTurnsForSpacing(AircraftState aircraft, string targetCallsign)
     {
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
         return new PilotSpeechText($"S-turning for spacing behind {targetCallsign}.", $"{spoken}, S-turning for spacing behind {targetSpoken}.");
     }
@@ -1175,7 +1213,7 @@ public static class PilotResponder
         }
 
         string facilityCallName = ResolveStudentFacilityCallName(scenario, positionType, fallbackFacility);
-        var spoken = CallsignParser.IcaoToSpoken(aircraft.Callsign);
+        var spoken = SpokenOwnCallsign(aircraft);
         // Pilots state altitudes to the nearest 100 ft — there is no phraseology for tens/units.
         // Rounding here also makes the FL gate (% 100 == 0) pass for every airborne check-in.
         int altitudeFt = (int)(Math.Round(aircraft.Altitude / 100.0) * 100);
@@ -1199,7 +1237,7 @@ public static class PilotResponder
         int altitudeFt
     )
     {
-        var callsign = aircraft.Callsign;
+        var callsign = TerminalOwnCallsign(aircraft);
         if (positionType == "TWR")
         {
             // Direct-to-tower IFR is rare. Mention destination runway if known; otherwise drop the runway clause.
@@ -1315,6 +1353,7 @@ public static class PilotResponder
         int altitudeFt
     )
     {
+        var callsignTerm = TerminalOwnCallsign(aircraft);
         double distNm = GeoMath.DistanceNm(primaryAirportPosition, aircraft.Position);
         int distMiles = Math.Max(1, (int)Math.Round(distNm));
         double bearingFromAirport = GeoMath.BearingTo(primaryAirportPosition, aircraft.Position);
@@ -1347,7 +1386,7 @@ public static class PilotResponder
             string heading = HeadingToBoundCardinal(aircraft.TrueHeading.Degrees);
             string positionAnchor = positionType == "TWR" ? "the field" : PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
             return new PilotSpeechText(
-                $"{facilityCallName}, {aircraft.Callsign}, {distTerm} miles {direction} of {positionAnchor}, VFR {heading}{atAltTerm}.",
+                $"{facilityCallName}, {callsignTerm}, {distTerm} miles {direction} of {positionAnchor}, VFR {heading}{atAltTerm}.",
                 $"{facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading}{atAltTts}."
             );
         }
@@ -1372,14 +1411,14 @@ public static class PilotResponder
         {
             var airportSpoken = PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
             return new PilotSpeechText(
-                $"{facilityCallName}, {aircraft.Callsign}{atAltTerm}, {distTerm} miles {direction} of {airportSpoken}, {intent}.",
+                $"{facilityCallName}, {callsignTerm}{atAltTerm}, {distTerm} miles {direction} of {airportSpoken}, {intent}.",
                 $"{facilityCallName}, {spoken}{atAltTts}, {distWords} miles {direction} of {airportSpoken}, {intent}."
             );
         }
 
         var atisSuffix = inbound ? ", with information Alpha" : "";
         return new PilotSpeechText(
-            $"{facilityCallName}, {aircraft.Callsign} {distTerm} miles {direction}{atAltTerm}, {intent}{atisSuffix}.",
+            $"{facilityCallName}, {callsignTerm} {distTerm} miles {direction}{atAltTerm}, {intent}{atisSuffix}.",
             $"{facilityCallName}, {spoken} {distWords} miles {direction}{atAltTts}, {intent}{atisSuffix}."
         );
     }
