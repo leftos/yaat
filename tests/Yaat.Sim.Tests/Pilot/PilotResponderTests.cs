@@ -125,6 +125,36 @@ public class PilotResponderTests
         Assert.Contains("cleared for immediate takeoff runway two eight right", result!);
     }
 
+    // --- A4-6: "caution wake turbulence" is a controller advisory, not a pilot readback item ---
+
+    [Fact]
+    public void BuildReadback_ClearedForTakeoffWithWakeCaution_OmitsControllerAdvisory()
+    {
+        var ac = MakeAircraftWithAssignedRunway("AAL123", "28R");
+        var compound = Compound(new ClearedForTakeoffCommand(new DefaultDeparture()) { CautionWakeTurbulence = true });
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.NotNull(result);
+        Assert.DoesNotContain("caution wake turbulence", result!.Tts);
+        Assert.DoesNotContain("caution wake turbulence", result.Terminal);
+        Assert.Contains("cleared for takeoff runway two eight right", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadback_ClearedToLandWithWakeCaution_OmitsControllerAdvisory()
+    {
+        var ac = MakeAircraftWithAssignedRunway("AAL123", "28R");
+        var compound = Compound(new ClearedToLandCommand { CautionWakeTurbulence = true });
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.NotNull(result);
+        Assert.DoesNotContain("caution wake turbulence", result!.Tts);
+        Assert.DoesNotContain("caution wake turbulence", result.Terminal);
+        Assert.Contains("cleared to land runway two eight right", result.Tts);
+    }
+
     [Fact]
     public void BuildReadback_VariedQuietFlavor_IsDeterministicAndRare()
     {

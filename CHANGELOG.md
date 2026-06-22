@@ -10,6 +10,7 @@
 - Pilots flying heavy or super aircraft now identify themselves with "heavy"/"super" after the callsign (e.g. "American Twenty-Two heavy") in their radio calls and readbacks, matching standard phraseology.
 - The "with information [letter]" a pilot states on check-in now follows the field's ATIS: the letter comes from a single scenario value (Alpha by default) and the phrase is dropped entirely when the primary field has no ATIS, instead of always being spoken as "Alpha".
 - When a pilot loses sight of the field or of traffic they were following, they now say "lost sight of …" instead of "negative contact …" — the latter is the phrase for traffic never acquired, not for losing a visual already established.
+- Pilots no longer echo "caution wake turbulence" when reading back a takeoff or landing clearance — it is a controller advisory, not a pilot readback item. The advisory still appears on the controller's issued command.
 
 ## v0.7.24-beta [2026/06/22]
 

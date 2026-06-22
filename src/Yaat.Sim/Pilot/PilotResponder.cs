@@ -263,22 +263,18 @@ public static class PilotResponder
                 cto.Immediate ? "cleared for immediate takeoff" : "cleared for takeoff",
                 cto.Departure,
                 cto.AssignedAltitude,
-                includeRunway: true,
-                cto.CautionWakeTurbulence
+                includeRunway: true
             ),
             ClearedTakeoffPresentCommand ctopp => BuildTakeoffClearanceClause(
                 aircraft,
                 "cleared for takeoff, present position",
                 ctopp.Departure,
                 ctopp.AssignedAltitude,
-                includeRunway: false,
-                cautionWakeTurbulence: false
+                includeRunway: false
             ),
             AcknowledgePilotContactCommand => null,
-            ClearedToLandCommand cland => AppendWakeAdvisoryClause(
-                BuildRunwayInstructionClause(aircraft, "cleared to land", explicitRunwayId: cland.RunwayId),
-                cland.CautionWakeTurbulence
-            ) ?? VerbalizeDual(cland, personality, activityLevel),
+            ClearedToLandCommand cland => BuildRunwayInstructionClause(aircraft, "cleared to land", explicitRunwayId: cland.RunwayId)
+                ?? VerbalizeDual(cland, personality, activityLevel),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
             TouchAndGoCommand tg => AppendTrafficPatternClause(
                 BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId)
@@ -418,8 +414,7 @@ public static class PilotResponder
         string lead,
         DepartureInstruction departure,
         int? assignedAltitude,
-        bool includeRunway,
-        bool cautionWakeTurbulence
+        bool includeRunway
     )
     {
         var term = new StringBuilder(lead);
@@ -444,12 +439,9 @@ public static class PilotResponder
             tts.Append(", climb and maintain ").Append(PhraseologyVerbalizer.AltitudeWords(altitude));
         }
 
-        if (cautionWakeTurbulence)
-        {
-            term.Append(", caution wake turbulence");
-            tts.Append(", caution wake turbulence");
-        }
-
+        // "Caution wake turbulence" is a controller advisory (AIM 4-4-7), not a pilot readback item —
+        // the pilot acknowledges the clearance without echoing it. The advisory still appears
+        // controller-side via CommandDescriber.
         return new PilotSpeechText(term.ToString(), tts.ToString());
     }
 
@@ -475,16 +467,6 @@ public static class PilotResponder
             $"{lead} runway {PhraseologyVerbalizer.CompactRunway(runwayId)}",
             $"{lead} runway {PhraseologyVerbalizer.SpellRunway(runwayId)}"
         );
-    }
-
-    private static PilotSpeechText? AppendWakeAdvisoryClause(PilotSpeechText? clause, bool cautionWakeTurbulence)
-    {
-        if (clause is null || !cautionWakeTurbulence)
-        {
-            return clause;
-        }
-
-        return new PilotSpeechText($"{clause.Terminal}, caution wake turbulence", $"{clause.Tts}, caution wake turbulence");
     }
 
     private static PilotSpeechText? AppendWithoutDelayClause(PilotSpeechText? clause, bool withoutDelay)

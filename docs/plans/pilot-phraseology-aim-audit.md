@@ -29,7 +29,7 @@ Systemic, area-by-area review of every pilot transmission YAAT emits, against th
 | A5-1 | Traffic / visual | `BuildLostSightOfField` / `BuildLostSightOfTraffic` say **"negative contact"** (a radio-contact term, not loss of visual) | "lost sight of the field/traffic" / "no joy" | 5-5-8/10/11 | HIGH | **DONE** |
 | A4-1 | Mandatory readbacks | TAXI readback completeness — hold-short / crossing only echoed if a matching rule variant exists | every (path, runway, hold-short, cross-runway) capture must be read back | 4-4-7.b.4, 4-3-18 | HIGH | **DONE**¹ |
 | A4-2 | Mandatory readbacks | Runway **L/R/C** must never be dropped from assignment readbacks | preserve the suffix | 4-4-7.b.4 | HIGH/MED | **DONE**¹ |
-| A4-6 | Mandatory readbacks | **"caution wake turbulence"** appended to the *pilot* readback (it's a controller advisory) | remove from pilot speech | 4-4-7 | MED-HIGH | TODO |
+| A4-6 | Mandatory readbacks | **"caution wake turbulence"** appended to the *pilot* readback (it's a controller advisory) | remove from pilot speech | 4-4-7 | MED-HIGH | **DONE** |
 | A3-4 | Position / pattern reports | `BuildAtFixReport` uses the raw fix id ("passing VPCBT") | `SpellFix` (TTS) / `FixDisplayText` (terminal) → "passing Lake Chabot" | PCG REPORT- | MED | TODO |
 | A1-3 | Initial contact | `BuildArrivalApproachRequest` "{N} miles to land runway X" is invented phraseology | use an AIM form | 4-2 | MED | TODO |
 | A6-1 | Ground / taxi | `BuildHoldingShortTaxi` "{label} at {taxiway}" lacks the "holding short of" verb | add the verb | 4-3-18 | MED | TODO |
