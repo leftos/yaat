@@ -7,6 +7,7 @@
 
 ### Fixed
 - Push-to-talk voice commands no longer intermittently fail to produce a command. Releasing PTT at the moment an aircraft spawned or was removed — or pressing PTT before navigation data finished loading at startup — could abort speech recognition before it issued anything.
+- Edits made to a scenario in vNAS now take effect immediately when you reload the scenario from the ARTCC catalog. The server previously cached each scenario's contents for up to 24 hours, so changes to an existing scenario would not appear until that cache expired or the server was restarted.
 
 ## v0.7.22-beta [2026/06/20]
 
