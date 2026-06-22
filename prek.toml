@@ -7,10 +7,10 @@ repo = "builtin"
 hooks = [
     { id = "check-merge-conflict" },
     { id = "detect-private-key", exclude = "tools/discord-bot/" },
-    # 8 MB ceiling: accommodates recording bundles that include snapshots for hybrid-replay
-    # tests (RecordingArchive.ReadSnapshotAt). Bundles that only need command replay can be
-    # stripped to a few KB, but tests that exercise snapshot restore must keep them inline.
-    { id = "check-added-large-files", args = ["--maxkb=8192"] },
+    # 20 MB ceiling: the recording test bundles (tests/Yaat.Sim.Tests/TestData/*.zip) are
+    # committed as regular Git objects (not Git LFS) and the largest snapshot-bearing
+    # bundles run to ~14 MB. The ceiling still catches genuinely oversized accidental commits.
+    { id = "check-added-large-files", args = ["--maxkb=20480"] },
 ]
 
 [[repos]]

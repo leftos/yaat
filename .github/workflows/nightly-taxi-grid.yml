@@ -25,10 +25,6 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          # The Category=Nightly taxi-grid tests are parametric spawn-at-parking
-          # sweeps that never open a TestData recording bundle, so skip the LFS
-          # smudge entirely - no objects fetched, no bandwidth spent.
-          lfs: false
 
       - uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7  # v5.2.0
         with:

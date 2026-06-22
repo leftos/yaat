@@ -55,10 +55,6 @@ jobs:
           path: yaat
           persist-credentials: false
           fetch-depth: 0
-          # Pointers only; the cache + `git lfs pull` below give the agent real
-          # TestData bundles for replay-test verification without a fresh ~300 MB
-          # LFS download each night (Actions LFS traffic is metered).
-          lfs: false
           token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
 
       - name: Checkout yaat-server (sibling for Yaat.Sim project ref)
@@ -69,18 +65,6 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           token: ${{ secrets.NIGHTLY_REVIEW_TOKEN }}
-
-      # Restore yaat's LFS object store (keyed on the bundle pointers) so the
-      # agent can run replay/snapshot tests without re-fetching all bundles.
-      - name: Cache LFS objects
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
-        with:
-          path: yaat/.git/lfs/objects
-          key: lfs-${{ hashFiles('yaat/tests/Yaat.Sim.Tests/TestData/*.zip') }}
-
-      - name: Pull LFS objects
-        working-directory: yaat
-        run: git lfs pull
 
       - uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7  # v5.2.0
         with:

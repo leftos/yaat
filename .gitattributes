@@ -1,5 +1,7 @@
 # Normalize all text files to LF in the repo and on checkout (matches CSharpier).
-# Binary files are auto-detected; the LFS rules below override with -text.
+# Binary files are auto-detected; the rule below also pins the test bundles.
 * text=auto eol=lf
 
-tests/Yaat.Sim.Tests/TestData/*.zip filter=lfs diff=lfs merge=lfs -text
+# Recording test bundles are committed as regular Git objects (not Git LFS).
+# Mark them binary so they are never EOL-normalized or shown as text diffs.
+tests/Yaat.Sim.Tests/TestData/*.zip binary

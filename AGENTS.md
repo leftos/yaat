@@ -56,10 +56,6 @@ Both repos live under `/agent/repos/` as siblings:
 - `/agent/repos/yaat` — client + Yaat.Sim shared library
 - `/agent/repos/yaat-server` — ASP.NET Core server (references `../yaat/src/Yaat.Sim/`)
 
-### Git LFS
-
-Test data bundles (`tests/Yaat.Sim.Tests/TestData/*.zip`) are stored in Git LFS. After cloning or fetching, run `git lfs pull` in the yaat repo to download real zip data — otherwise ~58 simulation tests fail with `InvalidDataException` (the files are LFS pointer stubs).
-
 ### Building
 
 Both repos use `.slnx` solution format and target `net10.0`. The `wasm-tools` workload is required for the `Yaat.VStrips.Web` project — run `dotnet workload restore` from the yaat repo root if the workload is missing.
