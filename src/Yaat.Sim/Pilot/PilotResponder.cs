@@ -1037,7 +1037,7 @@ public static class PilotResponder
     public static string BuildLostSightOfField(AircraftState aircraft)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        return $"[{aircraft.Callsign}] {spoken}, negative contact with the field.";
+        return $"[{aircraft.Callsign}] {spoken}, lost sight of the field.";
     }
 
     /// <summary>
@@ -1048,7 +1048,7 @@ public static class PilotResponder
     {
         var spoken = SpokenOwnCallsign(aircraft);
         var targetSpoken = CallsignParser.IcaoToSpoken(targetCallsign);
-        return new PilotSpeechText($"negative contact with {targetCallsign}.", $"{spoken}, negative contact with {targetSpoken}.");
+        return new PilotSpeechText($"lost sight of {targetCallsign}.", $"{spoken}, lost sight of {targetSpoken}.");
     }
 
     /// <summary>

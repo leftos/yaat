@@ -997,23 +997,27 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildLostSightOfField_UsesNegativeContact()
+    public void BuildLostSightOfField_SaysLostSightOfField()
     {
+        // "Negative contact" (PCG) means traffic never acquired / radio-contact failure — not the
+        // loss of a previously-acquired visual. The pilot has lost sight of the field, so the
+        // phraseology is "lost sight of the field".
         var ac = MakeAircraft("N172SP");
         var result = PilotResponder.BuildLostSightOfField(ac);
 
-        Assert.Contains("negative contact", result, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("lost sight of the field", result, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("negative contact", result, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("[N172SP]", result);
-        Assert.Contains("field", result);
     }
 
     [Fact]
-    public void BuildLostSightOfTraffic_NamesTarget()
+    public void BuildLostSightOfTraffic_SaysLostSightOfAndNamesTarget()
     {
         var ac = MakeAircraft("N172SP");
         var result = PilotResponder.BuildLostSightOfTraffic(ac, "N784ME");
 
-        Assert.Contains("negative contact", result.Tts, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("lost sight of", result.Tts, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("negative contact", result.Tts, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("november seven eight four mike echo", result.Tts);
     }
 
