@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.7.24-beta [2026/06/22]
 
 ### Fixed
 - Scenario auto-handoffs between automated control positions now work. A preset such as `AT SERFR HO 2B` on an aircraft owned by an autocontroller — for example background traffic being handed from Center to the approach controller — silently failed instead of starting the handoff. The handoff is now initiated and the receiving automated position accepts it, the same way the autotrack-driven handoffs already did.
