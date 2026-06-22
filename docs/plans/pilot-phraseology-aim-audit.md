@@ -27,8 +27,8 @@ Systemic, area-by-area review of every pilot transmission YAAT emits, against th
 | A8-1 | Callsign pronunciation | `IcaoToSpoken` never appends **"heavy"/"super"** — affects *every* heavy/super transmission | "American Twenty Two" → "American Twenty Two heavy" | 4-2-4.a.5 | HIGH | **DONE** |
 | A1-2 | Initial contact | `"with information Alpha"` ATIS letter is **hardcoded in ~6 sites** | drive from the live scenario ATIS letter; suppress when no ATIS exists (keep the colloquial "with information" wording) | 4-2-3.a.3, 4-1-13 | HIGH | **DONE** |
 | A5-1 | Traffic / visual | `BuildLostSightOfField` / `BuildLostSightOfTraffic` say **"negative contact"** (a radio-contact term, not loss of visual) | "lost sight of the field/traffic" / "no joy" | 5-5-8/10/11 | HIGH | **DONE** |
-| A4-1 | Mandatory readbacks | TAXI readback completeness — hold-short / crossing only echoed if a matching rule variant exists | every (path, runway, hold-short, cross-runway) capture must be read back | 4-4-7.b.4, 4-3-18 | HIGH | TODO¹ |
-| A4-2 | Mandatory readbacks | Runway **L/R/C** must never be dropped from assignment readbacks | preserve the suffix | 4-4-7.b.4 | HIGH/MED | TODO¹ |
+| A4-1 | Mandatory readbacks | TAXI readback completeness — hold-short / crossing only echoed if a matching rule variant exists | every (path, runway, hold-short, cross-runway) capture must be read back | 4-4-7.b.4, 4-3-18 | HIGH | **DONE**¹ |
+| A4-2 | Mandatory readbacks | Runway **L/R/C** must never be dropped from assignment readbacks | preserve the suffix | 4-4-7.b.4 | HIGH/MED | **DONE**¹ |
 | A4-6 | Mandatory readbacks | **"caution wake turbulence"** appended to the *pilot* readback (it's a controller advisory) | remove from pilot speech | 4-4-7 | MED-HIGH | TODO |
 | A3-4 | Position / pattern reports | `BuildAtFixReport` uses the raw fix id ("passing VPCBT") | `SpellFix` (TTS) / `FixDisplayText` (terminal) → "passing Lake Chabot" | PCG REPORT- | MED | TODO |
 | A1-3 | Initial contact | `BuildArrivalApproachRequest` "{N} miles to land runway X" is invented phraseology | use an AIM form | 4-2 | MED | TODO |
@@ -40,9 +40,14 @@ Systemic, area-by-area review of every pilot transmission YAAT emits, against th
 | A9-1 | Punctuation / pacing | callsign placement / terminal-include convention varies per builder | apply the house convention (above) repo-wide | 4-2-3.a | MED | TODO |
 | A8-2 | Cleanup | three distance spellers (`MilesToWords` / `SpellMiles` / `SpellDistanceDigits`) | consolidate | — | LOW | TODO |
 
-¹ **Verify first:** A4-1 / A4-2 depend on the `PhraseologyRules.cs` rule set, inferred but not read
-directly during the audit. The first execution task is to enumerate `PhraseologyRules.cs` TAXI rule
-coverage and confirm the gap before changing anything.
+¹ **Verified — no gap found.** Enumerated the `PhraseologyRules.cs` TAXI rules: all eight
+combinations of `{rwy?, crossrwy?, holdshort?}` × `{path}` exist (lines ~665–696), and
+`PhraseologyVerbalizer.PickPreferredRule` selects the richest rule whose captures are all
+satisfied — so a full taxi clearance reads back path + destination runway + cross-runway +
+hold-short, none dropped. `SpellRunway`/`CompactRunway` retain the L/R/C suffix (R→"right",
+L→"left", C→"center"). No production change was required; regression tests now lock in both
+behaviours (`BuildReadback_TaxiWithRunwayCrossAndHoldShort_ReadsBackEveryCapture`,
+`BuildReadback_TaxiPreservesCenterRunwaySuffix`).
 
 ## Suggested fix sequence (high → low)
 1. A8-1 heavy/super suffix in spoken callsign

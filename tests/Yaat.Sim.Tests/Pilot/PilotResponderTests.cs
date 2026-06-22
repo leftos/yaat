@@ -607,6 +607,45 @@ public class PilotResponderTests
         Assert.Contains("november two two five", result.Tts);
     }
 
+    // --- A4-1: TAXI readback completeness (path + runway + cross + hold-short all echoed) ---
+
+    [Fact]
+    public void BuildReadback_TaxiWithRunwayCrossAndHoldShort_ReadsBackEveryCapture()
+    {
+        var ac = MakeAircraft("N225R");
+        // "taxi to runway 28L via B C, cross runway 10R, hold short runway 28R" — the richest
+        // capture set. PickPreferredRule must choose the four-capture TAXI variant so none of the
+        // path / destination runway / cross runway / hold-short clauses are dropped.
+        var compound = Compound(new TaxiCommand(["B", "C"], ["28R"], DestinationRunway: "28L", CrossRunways: ["10R"]));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.NotNull(result);
+        Assert.Contains("B C", result!.Terminal);
+        Assert.Contains("28L", result.Terminal);
+        Assert.Contains("10R", result.Terminal);
+        Assert.Contains("28R", result.Terminal);
+        Assert.Contains("bravo, charlie", result.Tts);
+        Assert.Contains("two eight left", result.Tts);
+        Assert.Contains("one zero right", result.Tts);
+        Assert.Contains("two eight right", result.Tts);
+    }
+
+    // --- A4-2: runway L/R/C suffix is never dropped from a taxi readback ---
+
+    [Fact]
+    public void BuildReadback_TaxiPreservesCenterRunwaySuffix()
+    {
+        var ac = MakeAircraft("N225R");
+        var compound = Compound(new TaxiCommand(["A"], [], DestinationRunway: "1C"));
+
+        var result = PilotResponder.BuildReadback(compound, ac);
+
+        Assert.NotNull(result);
+        Assert.Contains("1C", result!.Terminal);
+        Assert.Contains("one center", result.Tts);
+    }
+
     // --- EXT readback (issue #154 #7) ---
 
     [Fact]
