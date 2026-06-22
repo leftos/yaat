@@ -1090,6 +1090,30 @@ public class PilotResponderTests
         Assert.Contains("november seven eight four mike echo", result.Tts);
     }
 
+    // --- A3-4: fix-passage report uses the spoken/display name, not the raw fix id ---
+
+    [Fact]
+    public void BuildAtFixReport_UsesDisplayNameInTerminalAndSpokenNameInTts()
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        var ac = MakeAircraft("N123AB");
+        var displayName = PhraseologyVerbalizer.FixDisplayText("VPCBT");
+        // Guard: this visual fix has a human display name distinct from the raw alias, so the
+        // assertions below are meaningful (not a vacuous "VPCBT" == "VPCBT").
+        Assert.NotEqual("VPCBT", displayName);
+
+        var result = PilotResponder.BuildAtFixReport(ac, "VPCBT");
+
+        Assert.Equal($"passing {displayName}.", result.Terminal);
+        Assert.EndsWith($"passing {PhraseologyVerbalizer.SpellFix("VPCBT")}.", result.Tts);
+        Assert.DoesNotContain("VPCBT", result.Tts);
+    }
+
     [Fact]
     public void BuildGoingAround_IncludesReason()
     {

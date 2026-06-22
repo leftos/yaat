@@ -314,7 +314,10 @@ public static class PilotResponder
                 $"will report {report.DistanceNm}-mile final",
                 $"will report {MilesToWords(report.DistanceNm ?? 0)} mile final"
             ),
-            ReportTrigger.AtFix => Dual($"will report passing {report.FixName}", $"will report passing {report.FixName}"),
+            ReportTrigger.AtFix when report.FixName is { } fixName => Dual(
+                $"will report passing {PhraseologyVerbalizer.FixDisplayText(fixName)}",
+                $"will report passing {PhraseologyVerbalizer.SpellFix(fixName)}"
+            ),
             _ => null,
         };
 
@@ -956,7 +959,10 @@ public static class PilotResponder
     public static PilotSpeechText BuildAtFixReport(AircraftState aircraft, string fixName)
     {
         var spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText($"passing {fixName}.", $"{spoken}, passing {fixName}.");
+        return new PilotSpeechText(
+            $"passing {PhraseologyVerbalizer.FixDisplayText(fixName)}.",
+            $"{spoken}, passing {PhraseologyVerbalizer.SpellFix(fixName)}."
+        );
     }
 
     /// <summary>Cardinal spelling of a final-report distance (1–20 NM) for TTS, falling back to digits.</summary>
