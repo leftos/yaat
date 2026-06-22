@@ -183,6 +183,7 @@ To the left of the command box, the **active-position selector** shows the [TCP]
 | Backspace | Undo the last route waypoint |
 | Click | Place a route waypoint (while drawing) |
 | Ctrl+Click | Open the flight-plan editor for an aircraft |
+| Ctrl+F8 | Toggle the DCB (Display Control Bar) — hides it to give the scope more room |
 | Scroll | Zoom in / out |
 
 Route drawing and heading mode start from the aircraft right-click menu.

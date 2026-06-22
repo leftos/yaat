@@ -291,7 +291,7 @@ Views/
   CommandFlyout.cs              # Floating focused command-entry popup opened from aircraft right-click menus (radar/ground/flight list)
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
   HoldShortMenuHelper.cs        # Shared resolver: held runway from the "Holding Short {rwy}" phase, used by ground-map + aircraft-list cross/LUAW menu items
-  WindowHotkeys.cs              # App-wide class handler for window-level hotkeys (focus command input + always-on-top); routes focus to the visible CommandInputView and toggles topmost via IAlwaysOnTopToggle
+  WindowHotkeys.cs              # App-wide class handler for window-level hotkeys (focus command input + always-on-top + Ctrl+F8 radar DCB toggle); routes focus to the visible CommandInputView and toggles topmost via IAlwaysOnTopToggle
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
 
 Views/Map/

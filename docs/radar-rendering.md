@@ -373,6 +373,11 @@ The DCB (display control bar) buttons are wired in `RadarView.axaml.cs`. `BriteB
 the active adjust target; the mouse wheel then steps that target's brightness (`OnDcbPointerWheelChanged`, `:535-567`).
 RANGE / range-ring-size / PTL-length / history-count use the same latch-then-scroll pattern.
 
+**Hiding the DCB:** `Ctrl+F8` toggles the whole bar via `RadarViewModel.ToggleDcbVisible` (`IsDcbVisible`, persisted as
+`UserPreferences.RadarDcbVisible`), mirroring CRC's `StarsSpecialKey.Dcb`. The `DcbContainer` border binds
+`IsVisible="{Binding IsDcbVisible}"`; collapsing it lets `RadarCanvas` (the `DockPanel` fill) reclaim the strip. Hiding
+resets the sub-menu to `Main`. The keybind is a fixed binding dispatched by `WindowHotkeys.OnWindowKeyDown`.
+
 Brightness flows to the canvas via `SyncCanvasBrightness` (map A/B, range-ring, history) and the per-map A/B category lookup
 via `SetBrightnessLookup` (`:75`). `SyncAssignmentTint` (`:494-518`) pushes the rest of the radar-relevant
 `UserPreferences` into the canvas: `LocalUserInitials`, assignment/unassigned/selected tint colors, `EuroScopeMode`,

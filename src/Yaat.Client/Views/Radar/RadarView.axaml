@@ -140,7 +140,7 @@
 
     <DockPanel>
         <!-- DCB Container -->
-        <Border x:Name="DcbContainer" DockPanel.Dock="Top" Background="#0D1A0D" Height="80" PointerWheelChanged="OnDcbPointerWheelChanged">
+        <Border x:Name="DcbContainer" DockPanel.Dock="Top" Background="#0D1A0D" Height="80" IsVisible="{Binding IsDcbVisible}" PointerWheelChanged="OnDcbPointerWheelChanged">
           <ScrollViewer x:Name="DcbScroller" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
           <Panel>
 

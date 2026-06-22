@@ -121,6 +121,13 @@ public partial class RadarViewModel : ObservableObject
             _ => "DCNF",
         };
 
+    /// <summary>
+    /// Whether the DCB (Display Control Bar) is shown. Toggled by Ctrl+F8 and persisted globally
+    /// (<see cref="Services.UserPreferences.RadarDcbVisible"/>), mirroring CRC's <c>IsDcbVisible</c>.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isDcbVisible = true;
+
     [ObservableProperty]
     private AircraftModel? _selectedAircraft;
 
@@ -305,6 +312,7 @@ public partial class RadarViewModel : ObservableObject
     {
         _preferences = prefs;
         DeconflictMode = prefs.RadarDeconflictMode;
+        IsDcbVisible = prefs.RadarDcbVisible;
     }
 
     public void SetAircraftLookup(Func<string, AircraftModel?> lookup)
@@ -989,6 +997,19 @@ public partial class RadarViewModel : ObservableObject
     {
         ActiveBriteTarget = null;
         DcbMode = DcbMenuMode.Main;
+    }
+
+    [RelayCommand]
+    private void ToggleDcbVisible()
+    {
+        IsDcbVisible = !IsDcbVisible;
+        if (!IsDcbVisible)
+        {
+            ActiveBriteTarget = null;
+            DcbMode = DcbMenuMode.Main;
+        }
+
+        _preferences?.SetRadarDcbVisible(IsDcbVisible);
     }
 
     [RelayCommand]

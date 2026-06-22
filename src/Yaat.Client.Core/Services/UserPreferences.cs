@@ -357,6 +357,7 @@ public sealed class UserPreferences
     public GroundFilterMode GroundShowSpot => (GroundFilterMode)_data.GroundShowSpot;
     public DatablockDeconflictMode GroundDeconflictMode => (DatablockDeconflictMode)_data.GroundDeconflictMode;
     public DatablockDeconflictMode RadarDeconflictMode => (DatablockDeconflictMode)_data.RadarDeconflictMode;
+    public bool RadarDcbVisible => _data.RadarDcbVisible;
     public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
     public bool GroundHideDataBlocksByDefault => _data.GroundHideDataBlocksByDefault;
     public bool GroundShowSatelliteImage => _data.GroundShowSatelliteImage;
@@ -1009,6 +1010,13 @@ public sealed class UserPreferences
         Save();
     }
 
+    /// <summary>Persists radar-view DCB visibility. Toggled by Ctrl+F8.</summary>
+    public void SetRadarDcbVisible(bool visible)
+    {
+        _data.RadarDcbVisible = visible;
+        Save();
+    }
+
     public void SetGroundHideDataBlocksByDefault(bool hide)
     {
         _data.GroundHideDataBlocksByDefault = hide;
@@ -1431,6 +1439,7 @@ public sealed class UserPreferences
             GroundShowSpot = GetFieldOr(obj, "groundShowSpot", 0),
             GroundDeconflictMode = GetFieldOr(obj, "groundDeconflictMode", 0),
             RadarDeconflictMode = GetFieldOr(obj, "radarDeconflictMode", 0),
+            RadarDcbVisible = GetFieldOr(obj, "radarDcbVisible", true),
             GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
             GroundHideDataBlocksByDefault = GetFieldOr(obj, "groundHideDataBlocksByDefault", false),
             GroundShowSatelliteImage = GetFieldOr(obj, "groundShowSatelliteImage", false),
@@ -1707,6 +1716,7 @@ public sealed class UserPreferences
         public int GroundShowSpot { get; set; }
         public int GroundDeconflictMode { get; set; }
         public int RadarDeconflictMode { get; set; }
+        public bool RadarDcbVisible { get; set; } = true;
         public bool GroundPanZoomLocked { get; set; }
         public bool GroundHideDataBlocksByDefault { get; set; }
         public bool GroundShowSatelliteImage { get; set; }

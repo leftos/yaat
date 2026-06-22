@@ -22,6 +22,8 @@ namespace Yaat.Client.Views;
 /// terminal). Scoped to <see cref="MainViewModel"/>-backed windows plus Strips/TDLS.</item>
 /// <item><b>Always on top</b> — toggles the focused window's topmost state via
 /// <see cref="IAlwaysOnTopToggle"/>.</item>
+/// <item><b>Toggle DCB</b> — Ctrl+F8 shows/hides the radar Display Control Bar, mirroring CRC's
+/// <c>StarsSpecialKey.Dcb</c>. Fixed binding, scoped to YAAT working windows.</item>
 /// </list>
 ///
 /// These are in-app shortcuts (they only fire while a YAAT window has focus), deliberately unlike the
@@ -73,6 +75,15 @@ internal static class WindowHotkeys
         if (window is IAlwaysOnTopToggle toggle && Matches(vm.Preferences.AlwaysOnTopKey, e))
         {
             toggle.ToggleAlwaysOnTop();
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl+F8 toggles the radar Display Control Bar (DCB), mirroring CRC's StarsSpecialKey.Dcb.
+        // Fixed (non-configurable) binding; the focus-input scope guard keeps it off modal dialogs.
+        if (IsFocusInputScope(window) && (e.Key == Key.F8) && (e.KeyModifiers == KeyModifiers.Control))
+        {
+            vm.Radar.ToggleDcbVisibleCommand.Execute(null);
             e.Handled = true;
         }
     }
