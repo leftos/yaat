@@ -146,6 +146,13 @@ public sealed class SimScenarioState
     public string? StudentPositionType { get; set; }
     public List<ResolvedAtcPosition> AtcPositions { get; set; } = [];
 
+    // The current ATIS information letter for the primary field ("A".."Z"), the single source for
+    // the "with information X" clause pilots append on initial contact. Static for the session
+    // (defaults to "A"); not snapshotted because there is no runtime setter and restore mutates the
+    // existing scenario object, leaving this untouched — like ArtccConfig, which drives whether the
+    // clause is spoken at all (suppressed when the primary field has no ATIS position).
+    public string AtisLetter { get; set; } = "A";
+
     // ARTCC config — populated by the server's ArtccConfigService at scenario load time, or
     // by SimulationEngine.Replay when the recording bundle includes a config snapshot.
     // Used by TrackResolver as a fallback when a TCP code isn't in StudentTcp/AtcPositions.

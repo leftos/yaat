@@ -2041,6 +2041,7 @@ public sealed class SimulationEngine
             StudentPosition = Scenario?.StudentPosition,
             ArtccId = Scenario?.ArtccId,
             PrimaryAirportId = Scenario?.PrimaryAirportId,
+            AtisLetter = PilotResponder.ResolvePrimaryFieldAtisLetter(Scenario),
             InitialContactTransfers = Scenario?.InitialContactTransfers ?? Yaat.Sim.Data.InitialContactTransferCatalog.Empty,
             StudentRadioName = PilotResponder.ResolveStudentRadioName(Scenario),
             IsHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Contains(nodeId) : null,

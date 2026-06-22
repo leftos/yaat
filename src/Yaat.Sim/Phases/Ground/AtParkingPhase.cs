@@ -58,7 +58,7 @@ public sealed class AtParkingPhase : Phase
             if (TryReserveInitialCallupSlot(ctx))
             {
                 var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "GND", "ground");
-                var line = PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName);
+                var line = PilotResponder.BuildReadyToTaxi(ctx.Aircraft, facilityCallName, ctx.AtisLetter);
                 PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
                 PilotRequestTracker.RecordRequest(
                     ctx.Aircraft,

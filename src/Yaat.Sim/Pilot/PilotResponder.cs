@@ -202,6 +202,44 @@ public static class PilotResponder
         };
 
     /// <summary>
+    /// Resolves the ATIS information letter a pilot states on initial contact with the primary
+    /// field, or <see langword="null"/> to suppress the "with information X" clause entirely when
+    /// that field has no ATIS position (AIM 4-2-3.a.3 / 4-1-13). The letter comes from
+    /// <see cref="SimScenarioState.AtisLetter"/>; suppression is driven by the ARTCC config.
+    /// </summary>
+    public static string? ResolvePrimaryFieldAtisLetter(SimScenarioState? scenario)
+    {
+        if (scenario is null)
+        {
+            return "A";
+        }
+        var letter = string.IsNullOrEmpty(scenario.AtisLetter) ? "A" : scenario.AtisLetter;
+        if (scenario.ArtccConfig is null || string.IsNullOrEmpty(scenario.PrimaryAirportId))
+        {
+            return letter;
+        }
+        return scenario.ArtccConfig.AirportHasAtis(scenario.PrimaryAirportId) ? letter : null;
+    }
+
+    /// <summary>
+    /// The ", with information X" ATIS clause a pilot appends on initial contact, or empty when
+    /// <paramref name="atisLetter"/> is null/empty (the field has no ATIS — clause suppressed). The
+    /// leading comma is included so the clause inserts mid-sentence or appends before the period;
+    /// the terminal and spoken forms are identical.
+    /// </summary>
+    private static string AtisInfoClause(string? atisLetter)
+    {
+        if (string.IsNullOrEmpty(atisLetter))
+        {
+            return "";
+        }
+        var letter = char.ToUpperInvariant(atisLetter[0]);
+        var word = NatoPhoneticAlphabet.TryGetWord(letter, out var w) ? w : letter.ToString();
+        var display = char.ToUpperInvariant(word[0]) + word[1..];
+        return $", with information {display}";
+    }
+
+    /// <summary>
     /// Pairs a clause's compact terminal form with its spoken form. Returns <see langword="null"/>
     /// when there is no spoken form (the command has no readback).
     /// </summary>
@@ -558,18 +596,16 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft)
     {
-        return BuildReadyToTaxi(aircraft, "ground");
+        return BuildReadyToTaxi(aircraft, "ground", "A");
     }
 
-    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName)
+    public static PilotSpeechText BuildReadyToTaxi(AircraftState aircraft, string facilityCallName, string? atisLetter)
     {
         var location = aircraft.Ground.ParkingSpot is { Length: > 0 } spot ? $"at {spot.ToLowerInvariant()}" : "at the ramp";
         var spoken = SpokenOwnCallsign(aircraft);
         var facility = CleanFacilityCallName(facilityCallName, "ground");
-        return new PilotSpeechText(
-            $"{facility}, {location}, with information Alpha, ready to taxi.",
-            $"{facility}, {spoken} {location}, with information Alpha, ready to taxi."
-        );
+        var info = AtisInfoClause(atisLetter);
+        return new PilotSpeechText($"{facility}, {location}{info}, ready to taxi.", $"{facility}, {spoken} {location}{info}, ready to taxi.");
     }
 
     /// <summary>
@@ -629,7 +665,7 @@ public static class PilotResponder
         int distanceMilesForVfr
     )
     {
-        return BuildOnFinal(aircraft, runwayId, ifrWithActiveApproach, approachId, distanceMilesForVfr, "tower");
+        return BuildOnFinal(aircraft, runwayId, ifrWithActiveApproach, approachId, distanceMilesForVfr, "tower", "A");
     }
 
     public static PilotSpeechText BuildOnFinal(
@@ -638,7 +674,8 @@ public static class PilotResponder
         bool ifrWithActiveApproach,
         string? approachId,
         int distanceMilesForVfr,
-        string facilityCallName
+        string facilityCallName,
+        string? atisLetter
     )
     {
         var spoken = SpokenOwnCallsign(aircraft);
@@ -652,9 +689,10 @@ public static class PilotResponder
         }
 
         var miles = Math.Max(1, distanceMilesForVfr);
+        var info = AtisInfoClause(atisLetter);
         return new PilotSpeechText(
-            $"{facility}, {miles}-mile final runway {PhraseologyVerbalizer.CompactRunway(runwayId)}, with information Alpha.",
-            $"{facility}, {spoken} {SpellMiles(miles)}-mile final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}, with information Alpha."
+            $"{facility}, {miles}-mile final runway {PhraseologyVerbalizer.CompactRunway(runwayId)}{info}.",
+            $"{facility}, {spoken} {SpellMiles(miles)}-mile final runway {PhraseologyVerbalizer.SpellRunway(runwayId)}{info}."
         );
     }
 
@@ -685,10 +723,16 @@ public static class PilotResponder
     /// </summary>
     public static PilotSpeechText BuildClosedTrafficRequest(AircraftState aircraft, LatLon airportPosition, int altitudeFt)
     {
-        return BuildClosedTrafficRequest(aircraft, airportPosition, altitudeFt, "tower");
+        return BuildClosedTrafficRequest(aircraft, airportPosition, altitudeFt, "tower", "A");
     }
 
-    public static PilotSpeechText BuildClosedTrafficRequest(AircraftState aircraft, LatLon airportPosition, int altitudeFt, string facilityCallName)
+    public static PilotSpeechText BuildClosedTrafficRequest(
+        AircraftState aircraft,
+        LatLon airportPosition,
+        int altitudeFt,
+        string facilityCallName,
+        string? atisLetter
+    )
     {
         var spoken = SpokenOwnCallsign(aircraft);
         double distNm = GeoMath.DistanceNm(airportPosition, aircraft.Position);
@@ -696,9 +740,10 @@ public static class PilotResponder
         double bearingFromAirport = GeoMath.BearingTo(airportPosition, aircraft.Position);
         string direction = BearingToCardinal8(bearingFromAirport);
         var facility = CleanFacilityCallName(facilityCallName, "tower");
+        var info = AtisInfoClause(atisLetter);
         return new PilotSpeechText(
-            $"{facility}, {distMiles} miles {direction} at {PhraseologyVerbalizer.CompactAltitude(altitudeFt)}, request closed traffic, with information Alpha.",
-            $"{facility}, {spoken}, {SpellDistanceDigits(distMiles)} miles {direction} at {AtcNumberParser.AltitudeToWords(altitudeFt)}, request closed traffic, with information Alpha."
+            $"{facility}, {distMiles} miles {direction} at {PhraseologyVerbalizer.CompactAltitude(altitudeFt)}, request closed traffic{info}.",
+            $"{facility}, {spoken}, {SpellDistanceDigits(distMiles)} miles {direction} at {AtcNumberParser.AltitudeToWords(altitudeFt)}, request closed traffic{info}."
         );
     }
 
@@ -1214,15 +1259,16 @@ public static class PilotResponder
 
         string facilityCallName = ResolveStudentFacilityCallName(scenario, positionType, fallbackFacility);
         var spoken = SpokenOwnCallsign(aircraft);
+        var atisLetter = ResolvePrimaryFieldAtisLetter(scenario);
         // Pilots state altitudes to the nearest 100 ft — there is no phraseology for tens/units.
         // Rounding here also makes the FL gate (% 100 == 0) pass for every airborne check-in.
         int altitudeFt = (int)(Math.Round(aircraft.Altitude / 100.0) * 100);
 
         if (aircraft.FlightPlan.IsVfr)
         {
-            return BuildVfrAirborne(aircraft, scenario, primaryAirportPosition, positionType, facilityCallName, spoken, altitudeFt);
+            return BuildVfrAirborne(aircraft, scenario, primaryAirportPosition, positionType, facilityCallName, spoken, altitudeFt, atisLetter);
         }
-        return BuildIfrAirborne(aircraft, positionType, facilityCallName, spoken, altitudeFt);
+        return BuildIfrAirborne(aircraft, positionType, facilityCallName, spoken, altitudeFt, atisLetter);
     }
 
     // Climb/descent vs level deadband for the check-in vertical-state verb — below this the
@@ -1234,20 +1280,19 @@ public static class PilotResponder
         string positionType,
         string facilityCallName,
         string spoken,
-        int altitudeFt
+        int altitudeFt,
+        string? atisLetter
     )
     {
         var callsign = TerminalOwnCallsign(aircraft);
+        var info = AtisInfoClause(atisLetter);
         if (positionType == "TWR")
         {
             // Direct-to-tower IFR is rare. Mention destination runway if known; otherwise drop the runway clause.
             var rwy = aircraft.Procedure.DestinationRunway;
             var rwyClauseTts = !string.IsNullOrEmpty(rwy) ? ", runway " + PhraseologyVerbalizer.SpellRunway(rwy) : "";
             var rwyClauseTerm = !string.IsNullOrEmpty(rwy) ? ", runway " + PhraseologyVerbalizer.CompactRunway(rwy) : "";
-            return new PilotSpeechText(
-                $"{facilityCallName}, {callsign}{rwyClauseTerm}, with information Alpha.",
-                $"{facilityCallName}, {spoken}{rwyClauseTts}, with information Alpha."
-            );
+            return new PilotSpeechText($"{facilityCallName}, {callsign}{rwyClauseTerm}{info}.", $"{facilityCallName}, {spoken}{rwyClauseTts}{info}.");
         }
 
         var (clauseTerm, clauseTts, isDeparture) = BuildVerticalStateClause(aircraft, altitudeFt);
@@ -1255,7 +1300,7 @@ public static class PilotResponder
         // Departures (climbing / climb-via) reference the departure ATIS via the tower, not arrival
         // ATIS — drop the suffix. Class A enroute (CTR ≥ FL180) has no airport ATIS reference.
         bool dropAtis = isDeparture || (positionType == "CTR" && isFlightLevel);
-        var atisSuffix = dropAtis ? "" : ", with information Alpha";
+        var atisSuffix = dropAtis ? "" : info;
 
         var clauseTermPart = clauseTerm.Length == 0 ? "" : ", " + clauseTerm;
         var clauseTtsPart = clauseTts.Length == 0 ? "" : ", " + clauseTts;
@@ -1350,7 +1395,8 @@ public static class PilotResponder
         string positionType,
         string facilityCallName,
         string spoken,
-        int altitudeFt
+        int altitudeFt,
+        string? atisLetter
     )
     {
         var callsignTerm = TerminalOwnCallsign(aircraft);
@@ -1416,7 +1462,7 @@ public static class PilotResponder
             );
         }
 
-        var atisSuffix = inbound ? ", with information Alpha" : "";
+        var atisSuffix = inbound ? AtisInfoClause(atisLetter) : "";
         return new PilotSpeechText(
             $"{facilityCallName}, {callsignTerm} {distTerm} miles {direction}{atAltTerm}, {intent}{atisSuffix}.",
             $"{facilityCallName}, {spoken} {distWords} miles {direction}{atAltTts}, {intent}{atisSuffix}."

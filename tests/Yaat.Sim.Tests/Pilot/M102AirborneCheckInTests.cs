@@ -89,6 +89,14 @@ public class M102AirborneCheckInTests
                                 Callsign = callsign,
                                 RadioName = radioName,
                             },
+                            // A real towered field publishes an ATIS — include it so the
+                            // "with information" clause is not suppressed.
+                            new PositionConfig
+                            {
+                                Id = "oak-atis",
+                                Name = "ATIS",
+                                RadioName = "ATIS",
+                            },
                         ],
                     },
                 ],

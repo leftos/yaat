@@ -98,6 +98,14 @@ public sealed class PhaseContext
     /// <summary>Scenario primary airport id used when an aircraft lacks a filed destination.</summary>
     public string? PrimaryAirportId { get; init; }
 
+    /// <summary>
+    /// Resolved ATIS information letter for the primary field (e.g. "A"), or null to suppress the
+    /// "with information X" clause when the field has no ATIS. Production sets this from
+    /// <see cref="Pilot.PilotResponder.ResolvePrimaryFieldAtisLetter"/>; the "A" default keeps the
+    /// clause present for test-constructed contexts.
+    /// </summary>
+    public string? AtisLetter { get; init; } = "A";
+
     /// <summary>ARTCC-specific SOP exceptions for initial pilot contact transfer.</summary>
     public InitialContactTransferCatalog InitialContactTransfers { get; init; } = InitialContactTransferCatalog.Empty;
 

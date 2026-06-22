@@ -626,6 +626,41 @@ public static class ArtccConfigResolver
     }
 
     /// <summary>
+    /// True when the airport's facility publishes an ATIS — i.e. the facility found for
+    /// <paramref name="airportId"/> (matched on its FAA id, with a leading ICAO "K" stripped if
+    /// needed) has a position named or radio-named "ATIS". Returns <see langword="true"/> when the
+    /// facility cannot be resolved, so an unknown field is treated as having an ATIS — virtually
+    /// every towered field broadcasts one, and suppressing the clause requires positive evidence of
+    /// no ATIS.
+    /// </summary>
+    public static bool AirportHasAtis(this ArtccConfigRoot config, string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return true;
+        }
+
+        var facility = config.FindFacility(airportId);
+        if (facility is null && airportId.Length == 4 && char.ToUpperInvariant(airportId[0]) == 'K')
+        {
+            facility = config.FindFacility(airportId[1..]);
+        }
+        if (facility is null)
+        {
+            return true;
+        }
+
+        foreach (var pos in facility.Positions)
+        {
+            if (pos.Name.Equals("ATIS", StringComparison.OrdinalIgnoreCase) || pos.RadioName.Contains("ATIS", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Returns the ASDEX config for a facility (airport).
     /// </summary>
     public static AsdexConfig? GetAsdexConfigForFacility(this ArtccConfigRoot config, string facilityId) =>

@@ -2,9 +2,11 @@ using Xunit;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Pilot;
 
@@ -449,6 +451,127 @@ public class PilotResponderTests
         Assert.Equal("tower, american one twenty three heavy holding short runway two eight right, ready for departure.", result.Tts);
     }
 
+    // --- A1-2: data-driven ATIS letter + suppression when the field has no ATIS ---
+
+    [Fact]
+    public void BuildReadyToTaxi_NoAtis_DropsInformationClause()
+    {
+        var ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
+
+        var result = PilotResponder.BuildReadyToTaxi(ac, "ground", atisLetter: null);
+
+        Assert.Equal("ground, november one two three alpha bravo at gate b22, ready to taxi.", result.Tts);
+        Assert.DoesNotContain("information", result.Tts);
+    }
+
+    [Fact]
+    public void BuildReadyToTaxi_NonDefaultLetter_SpeaksThatLetter()
+    {
+        var ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
+
+        var result = PilotResponder.BuildReadyToTaxi(ac, "ground", atisLetter: "B");
+
+        Assert.Contains("with information Bravo", result.Tts);
+    }
+
+    [Fact]
+    public void BuildClosedTrafficRequest_NoAtis_DropsInformationClause()
+    {
+        var airport = new LatLon(37.7212, -122.2208);
+        var ac = MakeAircraft("N123AB", isVfr: true);
+        ac.Position = GeoMath.ProjectPoint(airport, new TrueHeading(180), 3);
+
+        var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 1500, "tower", atisLetter: null);
+
+        Assert.EndsWith("request closed traffic.", result.Tts);
+        Assert.DoesNotContain("information", result.Tts);
+    }
+
+    [Fact]
+    public void ResolvePrimaryFieldAtisLetter_FieldHasAtis_ReturnsScenarioLetter()
+    {
+        var sc = ScenarioWithPrimaryFieldAtis("KOAK", hasAtis: true, atisLetter: "C");
+
+        Assert.Equal("C", PilotResponder.ResolvePrimaryFieldAtisLetter(sc));
+    }
+
+    [Fact]
+    public void ResolvePrimaryFieldAtisLetter_FieldHasNoAtisPosition_ReturnsNull()
+    {
+        var sc = ScenarioWithPrimaryFieldAtis("KOAK", hasAtis: false, atisLetter: "A");
+
+        Assert.Null(PilotResponder.ResolvePrimaryFieldAtisLetter(sc));
+    }
+
+    [Fact]
+    public void ResolvePrimaryFieldAtisLetter_NoArtccConfig_AssumesAtisAndReturnsLetter()
+    {
+        var sc = new SimScenarioState
+        {
+            ScenarioId = "t",
+            ScenarioName = "t",
+            RngSeed = 0,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = "KOAK",
+            AtisLetter = "A",
+        };
+
+        Assert.Equal("A", PilotResponder.ResolvePrimaryFieldAtisLetter(sc));
+    }
+
+    private static SimScenarioState ScenarioWithPrimaryFieldAtis(string primaryAirportId, bool hasAtis, string atisLetter)
+    {
+        var positions = new List<PositionConfig>
+        {
+            new()
+            {
+                Id = "twr",
+                Name = "Tower",
+                RadioName = "Tower",
+            },
+        };
+        if (hasAtis)
+        {
+            positions.Add(
+                new PositionConfig
+                {
+                    Id = "atis",
+                    Name = "ATIS",
+                    RadioName = "ATIS",
+                }
+            );
+        }
+        return new SimScenarioState
+        {
+            ScenarioId = "t",
+            ScenarioName = "t",
+            RngSeed = 0,
+            OriginalScenarioJson = "{}",
+            PrimaryAirportId = primaryAirportId,
+            AtisLetter = atisLetter,
+            ArtccConfig = new ArtccConfigRoot
+            {
+                Id = "ZOA",
+                Facility = new FacilityConfig
+                {
+                    Id = "ZOA",
+                    Type = "Artcc",
+                    Name = "Oakland",
+                    ChildFacilities =
+                    [
+                        new FacilityConfig
+                        {
+                            Id = "OAK",
+                            Type = "Atct",
+                            Name = "Oakland",
+                            Positions = positions,
+                        },
+                    ],
+                },
+            },
+        };
+    }
+
     // --- Dual-output readback: compact terminal SAY echo vs spelled TTS (issue #193) ---
 
     [Fact]
@@ -565,7 +688,7 @@ public class PilotResponderTests
     public void BuildReadyToTaxi_WithRadioName_AddressesFacility()
     {
         var ac = MakeAircraft("N123AB", parkingSpot: "GATE B22");
-        var result = PilotResponder.BuildReadyToTaxi(ac, "Oakland Ground");
+        var result = PilotResponder.BuildReadyToTaxi(ac, "Oakland Ground", "A");
 
         Assert.Equal("Oakland Ground, november one two three alpha bravo at gate b22, with information Alpha, ready to taxi.", result.Tts);
     }
@@ -661,7 +784,15 @@ public class PilotResponderTests
     public void BuildOnFinal_WithRadioName_AddressesFacility()
     {
         var ac = MakeAircraft("N123AB", isVfr: true);
-        var result = PilotResponder.BuildOnFinal(ac, "28R", ifrWithActiveApproach: false, approachId: null, distanceMilesForVfr: 3, "Oakland Tower");
+        var result = PilotResponder.BuildOnFinal(
+            ac,
+            "28R",
+            ifrWithActiveApproach: false,
+            approachId: null,
+            distanceMilesForVfr: 3,
+            "Oakland Tower",
+            "A"
+        );
 
         Assert.Equal(
             "Oakland Tower, november one two three alpha bravo three-mile final runway two eight right, with information Alpha.",
@@ -727,7 +858,7 @@ public class PilotResponderTests
         var ac = MakeAircraft("N123AB", isVfr: true);
         ac.Position = GeoMath.ProjectPoint(airport, new TrueHeading(180), 3);
 
-        var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 1500, "Oakland Tower");
+        var result = PilotResponder.BuildClosedTrafficRequest(ac, airport, altitudeFt: 1500, "Oakland Tower", "A");
 
         Assert.Equal(
             "Oakland Tower, november one two three alpha bravo, three miles south at one thousand five hundred, request closed traffic, with information Alpha.",

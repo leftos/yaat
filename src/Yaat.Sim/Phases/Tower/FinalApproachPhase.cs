@@ -464,7 +464,15 @@ public sealed class FinalApproachPhase : Phase
             var ifrWithApch = !ctx.Aircraft.FlightPlan.IsVfr && clearance is not null;
             var distMiles = (int)Math.Round(startDist);
             var facilityCallName = PilotResponder.ResolveContextFacilityCallName(ctx.StudentPositionType, ctx.StudentRadioName, "TWR", "tower");
-            var line = PilotResponder.BuildOnFinal(ctx.Aircraft, rwyId, ifrWithApch, clearance?.ApproachId, distMiles, facilityCallName);
+            var line = PilotResponder.BuildOnFinal(
+                ctx.Aircraft,
+                rwyId,
+                ifrWithApch,
+                clearance?.ApproachId,
+                distMiles,
+                facilityCallName,
+                ctx.AtisLetter
+            );
             PilotResponder.QueueSoloPilotTransmission(ctx.Aircraft, line, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
             PilotRequestTracker.RecordRequest(
                 ctx.Aircraft,

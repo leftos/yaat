@@ -8,6 +8,7 @@
 - Stacking several `CFIX` crossing restrictions on one aircraft no longer logs spurious "queue cleared (lost: …)" warnings; every restriction was always applied and flown.
 - On a routeless (vectored) aircraft, a chain of `CFIX` commands builds the crossing profile in the order issued.
 - Pilots flying heavy or super aircraft now identify themselves with "heavy"/"super" after the callsign (e.g. "American Twenty-Two heavy") in their radio calls and readbacks, matching standard phraseology.
+- The "with information [letter]" a pilot states on check-in now follows the field's ATIS: the letter comes from a single scenario value (Alpha by default) and the phrase is dropped entirely when the primary field has no ATIS, instead of always being spoken as "Alpha".
 
 ## v0.7.24-beta [2026/06/22]
 
