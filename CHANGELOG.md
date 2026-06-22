@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Scenario auto-handoffs between automated control positions now work. A preset such as `AT SERFR HO 2B` on an aircraft owned by an autocontroller — for example background traffic being handed from Center to the approach controller — silently failed instead of starting the handoff. The handoff is now initiated and the receiving automated position accepts it, the same way the autotrack-driven handoffs already did.
+- Center-to-TRACON handoff targets written with a facility prefix now resolve. A handoff to a neighboring TRACON position can be named by its single-character facility prefix plus TCP code (e.g. `Q2B` for NorCal's Boulder sector), matching how the target appears in ERAM, in addition to the bare TCP code (`2B`).
+
 ## v0.7.23-beta [2026/06/22]
 
 ### Highlights

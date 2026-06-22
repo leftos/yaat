@@ -636,6 +636,10 @@ public sealed class SimulationEngine
         sw.Restart();
         ProcessDeferredDispatches(delta);
         AccumulateTiming("Physics.Deferred", sw);
+
+        sw.Restart();
+        ProcessTriggeredTrackBlocks();
+        AccumulateTiming("Physics.TrackBlocks", sw);
     }
 
     private void RecordWorldTiming(string bucket, double ms)
@@ -1796,6 +1800,136 @@ public sealed class SimulationEngine
         }
     }
 
+    /// <summary>
+    /// Routes an immediate (unconditional) preset that is purely track commands straight to the track
+    /// engine. Such presets never reach <see cref="CommandDispatcher.EnqueueBlocks"/> — the leading block
+    /// applies inline through <see cref="CommandDispatcher.ApplyCommand"/>, which has no track-command arm
+    /// (the <c>__NO_DISPATCHER_ARM__</c> default). Conditional or mixed compounds return false and fall
+    /// through to the normal dispatcher, where <see cref="ProcessTriggeredTrackBlocks"/> handles any
+    /// triggered track commands.
+    /// </summary>
+    private bool TryDispatchImmediateTrackPreset(CompoundCommand compound, AircraftState aircraft)
+    {
+        if (compound.Blocks.Count != 1 || compound.Blocks[0].Condition is not null)
+        {
+            return false;
+        }
+
+        var commands = compound.Blocks[0].Commands;
+        if (commands.Count == 0 || !commands.TrueForAll(TrackEngine.IsTrackCommand))
+        {
+            return false;
+        }
+
+        var scenario = Scenario!;
+        foreach (var command in commands)
+        {
+            var result = TrackEngine.Dispatch(command, aircraft, identity: null, scenario, scenario.ArtccConfig);
+            if (result is { Success: false })
+            {
+                aircraft.PendingWarnings.Add($"{aircraft.Callsign}: {result.Message}");
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Dispatches track commands (HO/TRACK/DROP/…) carried by triggered command-queue blocks. Track
+    /// commands have no arm in <see cref="CommandDispatcher.ApplyCommand"/>; they must reach
+    /// <see cref="TrackEngine.Dispatch"/>, which needs the live <see cref="Scenario"/> and ARTCC config.
+    /// Runs inside <see cref="TickPhysics"/> (shared by the standalone sim/replay and the server tick) so
+    /// the routing fires regardless of host. The block's own <c>ApplyAction</c> deliberately omits track
+    /// commands (see <see cref="CommandDispatcher.EnqueueBlocks"/>), so this is the single place they
+    /// execute. <see cref="CommandBlock.TrackApplied"/> guards against the per-sub-tick scan re-firing,
+    /// and survives snapshot restore.
+    /// </summary>
+    public void ProcessTriggeredTrackBlocks()
+    {
+        var scenario = Scenario;
+        if (scenario is null)
+        {
+            return;
+        }
+
+        foreach (var aircraft in World.GetSnapshot())
+        {
+            var blocks = aircraft.Queue.Blocks;
+            for (int i = 0; i < blocks.Count; i++)
+            {
+                var block = blocks[i];
+                if (!block.IsApplied || !block.HasTrackCommand || block.TrackApplied)
+                {
+                    continue;
+                }
+
+                // Mark before dispatching so the scan never re-fires this block, even if dispatch throws.
+                block.TrackApplied = true;
+
+                foreach (var trackCommand in ResolveTrackCommandsForBlock(block, aircraft))
+                {
+                    var result = TrackEngine.Dispatch(trackCommand, aircraft, identity: null, scenario, scenario.ArtccConfig);
+                    if (result is { Success: false })
+                    {
+                        var label = !string.IsNullOrEmpty(block.SourceCommandText) ? block.SourceCommandText : block.NaturalDescription;
+                        aircraft.PendingWarnings.Add($"{aircraft.Callsign} {label}: {result.Message}");
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Resolves the parsed track commands for a triggered block. Prefers the live
+    /// <see cref="CommandBlock.ParsedCommands"/>; when those are absent (the block was restored from a
+    /// snapshot, which does not serialize parsed commands) it re-parses
+    /// <see cref="CommandBlock.SourceCommandText"/> and recovers the track commands from the matching
+    /// sub-block.
+    /// </summary>
+    private List<ParsedCommand> ResolveTrackCommandsForBlock(CommandBlock block, AircraftState aircraft)
+    {
+        if (block.ParsedCommands is { } live)
+        {
+            return live.Where(TrackEngine.IsTrackCommand).ToList();
+        }
+
+        if (string.IsNullOrEmpty(block.SourceCommandText))
+        {
+            return [];
+        }
+
+        var reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
+        if (!reparsed.IsSuccess || reparsed.Value is not { } compound)
+        {
+            return [];
+        }
+
+        var trackBlocks = compound.Blocks.Where(b => b.Commands.Exists(TrackEngine.IsTrackCommand)).ToList();
+        if (trackBlocks.Count == 1)
+        {
+            return trackBlocks[0].Commands.Where(TrackEngine.IsTrackCommand).ToList();
+        }
+
+        // Multiple sub-blocks share this source text — disambiguate by the block's at-fix trigger.
+        if (block.Trigger is { Type: BlockTriggerType.ReachFix, FixName: { } fixName })
+        {
+            var match = trackBlocks.Find(b =>
+                b.Condition is AtFixCondition at && string.Equals(at.FixName, fixName, StringComparison.OrdinalIgnoreCase)
+            );
+            if (match is not null)
+            {
+                return match.Commands.Where(TrackEngine.IsTrackCommand).ToList();
+            }
+        }
+
+        _logger.LogDebug(
+            "[TrackBlock] {Callsign}: could not disambiguate restored track block from source '{Source}'",
+            aircraft.Callsign,
+            block.SourceCommandText
+        );
+        return [];
+    }
+
     private static string DescribeDeferredPayload(DeferredDispatch d)
     {
         var parts = new List<string>();
@@ -2662,6 +2796,12 @@ public sealed class SimulationEngine
 
             var compound = timedResult.Value!;
 
+            if (TryDispatchImmediateTrackPreset(compound, aircraft))
+            {
+                EmitTerminal("System", preset.Callsign, $"[Preset] {preset.Command}");
+                continue;
+            }
+
             var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
             var presetCtx = new DispatchContext(
                 groundLayout,
@@ -2764,6 +2904,12 @@ public sealed class SimulationEngine
         }
 
         var compound = presetResult.Value!;
+
+        if (TryDispatchImmediateTrackPreset(compound, aircraft))
+        {
+            EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
+            return;
+        }
 
         var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
         var singlePresetCtx = new DispatchContext(

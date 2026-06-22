@@ -2362,10 +2362,17 @@ public static class CommandDispatcher
                 aircraft.PendingWarnings.Add($"AT ground entity not found: {FormatGroundLabel(unresolved)}");
                 continue;
             }
+            // Track commands (HO/TRACK/DROP/…) have no arm in ApplyCommand — they must reach the track
+            // engine instead. Keep them out of the ApplyAction so a triggered block doesn't hit the
+            // __NO_DISPATCHER_ARM__ default arm; SimulationEngine.ProcessTriggeredTrackBlocks dispatches
+            // them at fire time (it reads ParsedCommands, which retains the full command list).
+            bool hasTrackCommand = parsedBlock.Commands.Exists(TrackEngine.IsTrackCommand);
+            var applyCommands = hasTrackCommand ? parsedBlock.Commands.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : parsedBlock.Commands;
+
             var commandBlock = new CommandBlock
             {
                 Trigger = trigger,
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, ctx),
+                ApplyAction = BuildApplyAction(applyCommands, ctx),
                 ParsedCommands = parsedBlock.Commands.ToList(),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
@@ -2373,6 +2380,7 @@ public static class CommandDispatcher
                 WaitRemainingSeconds = waitTime?.Seconds ?? 0,
                 WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
                 SourceCommandText = compound.SourceText,
+                HasTrackCommand = hasTrackCommand,
             };
 
             var blockDims = CommandDimension.None;

@@ -265,13 +265,15 @@ public static class ArtccConfigResolver
             return null;
         }
 
+        // Use the matched TCP's canonical subset/sector, not the caller's input, so the owner doesn't
+        // echo lower-case or otherwise non-canonical input (FindTcpByCode matches case-insensitively).
         var pos = config.FindPositionByTcpId(tcp.Id);
         if (pos is null)
         {
-            return TrackOwner.CreateStars("", facilityId, subset, sectorId);
+            return TrackOwner.CreateStars("", facilityId, tcp.Subset, tcp.SectorId);
         }
 
-        return config.ResolvePosition(pos.Id) ?? TrackOwner.CreateStars(pos.Callsign, facilityId, subset, sectorId);
+        return config.ResolvePosition(pos.Id) ?? TrackOwner.CreateStars(pos.Callsign, facilityId, tcp.Subset, tcp.SectorId);
     }
 
     /// <summary>
@@ -321,6 +323,63 @@ public static class ArtccConfigResolver
             if (owner is not null)
             {
                 return owner;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Resolves an ERAM→STARS handoff code like <c>Q2B</c> to the receiving <see cref="TrackOwner"/>. The
+    /// leading character is the neighboring STARS facility's single-character handoff id (from the ERAM
+    /// facility's <c>eramConfiguration.neighboringStarsConfigurations</c> — e.g. NCT → "Q"); the remainder
+    /// is the TCP code (subset+sector) within that facility (e.g. <c>2B</c> = Boulder). Mirrors
+    /// <see cref="ResolveEramCode"/> (Center <c>C44</c>) and <see cref="ResolveStarsHandoffCode"/>
+    /// (TRACON backtick). Returns null when the leading character is not a configured neighbor prefix or
+    /// the remainder is not a valid TCP within that facility.
+    /// </summary>
+    public static TrackOwner? ResolveEramToStarsHandoffCode(this ArtccConfigRoot config, string code)
+    {
+        if (code.Length < 2)
+        {
+            return null;
+        }
+
+        var prefix = code[..1];
+        var tcpCode = code[1..];
+
+        var facilityId = FindNeighboringStarsFacility(config.Facility, prefix);
+        return facilityId is null ? null : config.ResolveTcpCode(facilityId, tcpCode);
+    }
+
+    /// <summary>
+    /// Finds the neighboring STARS facility whose ERAM handoff prefix (<c>singleCharacterStarsId</c>, or
+    /// the optional <c>fieldELetter</c> override) equals <paramref name="prefix"/>. Walks the facility
+    /// tree because the neighbor table lives on the ERAM (Center) facility's configuration.
+    /// </summary>
+    private static string? FindNeighboringStarsFacility(FacilityConfig facility, string prefix)
+    {
+        var neighbors = facility.EramConfiguration?.NeighboringStarsConfigurations;
+        if (neighbors is not null)
+        {
+            foreach (var neighbor in neighbors)
+            {
+                if (
+                    prefix.Equals(neighbor.SingleCharacterStarsId, StringComparison.OrdinalIgnoreCase)
+                    || (neighbor.FieldELetter is { } letter && prefix.Equals(letter, StringComparison.OrdinalIgnoreCase))
+                )
+                {
+                    return neighbor.FacilityId;
+                }
+            }
+        }
+
+        foreach (var child in facility.ChildFacilities)
+        {
+            var found = FindNeighboringStarsFacility(child, prefix);
+            if (found is not null)
+            {
+                return found;
             }
         }
 

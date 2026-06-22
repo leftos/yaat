@@ -214,6 +214,22 @@ public class CommandBlock
     /// </summary>
     public string? SourceCommandText { get; init; }
 
+    /// <summary>
+    /// True when this block contains a track command (HO/TRACK/DROP/ACCEPT/…). Track commands are not
+    /// handled by <see cref="CommandDispatcher.ApplyCommand"/>; instead
+    /// <see cref="Simulation.SimulationEngine.ProcessTriggeredTrackBlocks"/> routes them through the
+    /// track engine at trigger-fire time (where the live scenario and ARTCC config are available).
+    /// Serialized so the routing survives snapshot restore.
+    /// </summary>
+    public bool HasTrackCommand { get; init; }
+
+    /// <summary>
+    /// Guard set once <see cref="HasTrackCommand"/>'s track commands have been dispatched, so they fire
+    /// exactly once even though the post-physics scan runs every sub-tick. Serialized so an already-fired
+    /// block is not re-dispatched after a snapshot restore.
+    /// </summary>
+    public bool TrackApplied { get; set; }
+
     public CommandBlockDto ToSnapshot() =>
         new()
         {
@@ -231,6 +247,8 @@ public class CommandBlock
             NaturalDescription = NaturalDescription,
             SourceCommandText = SourceCommandText,
             Dimensions = (int)Dimensions,
+            HasTrackCommand = HasTrackCommand,
+            TrackApplied = TrackApplied,
         };
 
     public static CommandBlock FromSnapshot(CommandBlockDto dto) =>
@@ -250,8 +268,11 @@ public class CommandBlock
             NaturalDescription = dto.NaturalDescription,
             SourceCommandText = dto.SourceCommandText,
             Dimensions = (CommandDimension)dto.Dimensions,
-            // ApplyAction is NOT restored here — it's re-derived by CommandQueue.FromSnapshot
-            // for unapplied blocks that have SourceCommandText
+            HasTrackCommand = dto.HasTrackCommand,
+            TrackApplied = dto.TrackApplied,
+            // ApplyAction is NOT restored here. Non-track commands re-derive it from SourceCommandText;
+            // track commands are re-dispatched by SimulationEngine.ProcessTriggeredTrackBlocks, which
+            // re-parses SourceCommandText when ParsedCommands is absent after restore.
         };
 }
 

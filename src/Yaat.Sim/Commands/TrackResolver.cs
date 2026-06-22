@@ -69,12 +69,18 @@ public static class TrackResolver
         }
 
         var facilityId = scenario.StudentPosition?.FacilityId;
-        if (string.IsNullOrEmpty(facilityId))
+        if (!string.IsNullOrEmpty(facilityId))
         {
-            return null;
+            var resolved = artccConfig.ResolveTcpCode(facilityId, tcpCode) ?? artccConfig.ResolveEramCode(tcpCode);
+            if (resolved is not null)
+            {
+                return resolved;
+            }
         }
 
-        return artccConfig.ResolveTcpCode(facilityId, tcpCode) ?? artccConfig.ResolveEramCode(tcpCode);
+        // ERAM→STARS prefixed handoff codes (e.g. "Q2B" = NCT Boulder) carry the facility prefix, so they
+        // self-identify the receiving facility and resolve even without a student facility.
+        return artccConfig.ResolveEramToStarsHandoffCode(tcpCode);
     }
 
     /// <summary>

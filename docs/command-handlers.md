@@ -192,6 +192,16 @@ but leaves a queued altitude block alone; mixed-dimension blocks are split via `
 3. Otherwise fall back to `ApplyCommand`.
 4. After a *successful* apply, call `NotifyPhaseCommandAccepted` (`:2142`).
 
+**Track commands are excluded from the closure.** `TrackEngine.IsTrackCommand` verbs (`HO`/`TRACK`/`DROP`/`ACCEPT`/…)
+have no arm in `ApplyCommand`, so a triggered `AT FIX HO 2B` would hit `__NO_DISPATCHER_ARM__`. `EnqueueBlocks`
+therefore omits track commands from the `ApplyAction` and flags the block `HasTrackCommand`; when the trigger fires,
+`SimulationEngine.ProcessTriggeredTrackBlocks` (run inside `TickPhysics`, shared by the standalone sim and the
+server tick) dispatches them through `TrackEngine.Dispatch` — the one path with the live `SimScenarioState` and
+ARTCC config needed to resolve the target. `TrackApplied` guards against the per-sub-tick scan re-firing and
+survives snapshot restore (the post step re-parses `SourceCommandText` when `ParsedCommands` is dropped by
+`FromSnapshot`). Immediate (unconditional) track-command presets are routed straight to `TrackEngine.Dispatch` by
+`SimulationEngine.TryDispatchImmediateTrackPreset` before they ever reach `DispatchCompound`.
+
 ## Phase-acceptance notification
 
 `NotifyPhaseCommandAccepted` (`CommandDispatcher.cs:1299`) releases phase-internal holds (e.g. the RV-SID runway-heading hold in `InitialClimbPhase`)

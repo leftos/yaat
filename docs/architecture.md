@@ -746,7 +746,7 @@ AircraftSpecEntry.cs           # VNAS aircraft specs model
 AircraftCwtEntry.cs            # VNAS aircraft CWT model
 ArtccConfig.cs                 # ARTCC config models (ArtccConfigRoot, FacilityConfig, PositionConfig, TcpConfig, StarsConfig, etc.)
 ArtccConfigResolver.cs         # Pure-function resolvers as extension methods on ArtccConfigRoot:
-                               # ResolvePosition / ResolveTcpCode / ResolveEramCode / FindPositionByCallsign / FindTcpByCode /
+                               # ResolvePosition / ResolveTcpCode / ResolveEramCode / ResolveEramToStarsHandoffCode (Q2B-style ERAM→STARS prefix) / FindPositionByCallsign / FindTcpByCode /
                                # ExpandTcpShorthand / GetCoordinationChannels / GetAllAsdexAirports / GetAllTowerCabAirports /
                                # GetAllAccessibleStripBays / GetAccessibleFacilities / GetConsolidationItems / GetConsolidationOwner /
                                # GetSidInitialAltitudeFt (departure TDLS initial-altitude cap) / etc.

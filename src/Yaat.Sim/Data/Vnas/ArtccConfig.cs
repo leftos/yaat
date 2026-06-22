@@ -35,6 +35,9 @@ public class FacilityConfig
     [JsonPropertyName("childFacilities")]
     public List<FacilityConfig> ChildFacilities { get; set; } = [];
 
+    [JsonPropertyName("eramConfiguration")]
+    public EramFacilityConfig? EramConfiguration { get; set; }
+
     [JsonPropertyName("starsConfiguration")]
     public StarsConfig? StarsConfiguration { get; set; }
 
@@ -85,6 +88,32 @@ public class EramPositionConfig
 {
     [JsonPropertyName("sectorId")]
     public string SectorId { get; set; } = "";
+}
+
+/// <summary>
+/// Facility-level ERAM configuration (distinct from the position-level <see cref="EramPositionConfig"/>).
+/// Only the neighboring-STARS handoff prefix table is modeled — it maps each adjacent terminal facility to
+/// the single character an ERAM controller types ahead of a TCP code when handing off (e.g. NCT → "Q", so
+/// the Boulder position 2B is reached as "Q2B"). Other fields of the vNAS ERAM config are ignored.
+/// </summary>
+public class EramFacilityConfig
+{
+    [JsonPropertyName("neighboringStarsConfigurations")]
+    public List<NeighboringStarsConfig> NeighboringStarsConfigurations { get; set; } = [];
+}
+
+public class NeighboringStarsConfig
+{
+    [JsonPropertyName("facilityId")]
+    public string FacilityId { get; set; } = "";
+
+    /// <summary>Single character the ERAM controller types as the handoff prefix for this facility (e.g. "Q").</summary>
+    [JsonPropertyName("singleCharacterStarsId")]
+    public string SingleCharacterStarsId { get; set; } = "";
+
+    /// <summary>Optional Field-E display letter that overrides <see cref="SingleCharacterStarsId"/> when present.</summary>
+    [JsonPropertyName("fieldELetter")]
+    public string? FieldELetter { get; set; }
 }
 
 public class StarsPositionConfig

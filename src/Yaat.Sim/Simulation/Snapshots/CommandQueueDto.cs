@@ -22,6 +22,14 @@ public sealed class CommandBlockDto
     public required string NaturalDescription { get; init; }
     public string? SourceCommandText { get; init; }
     public int Dimensions { get; init; }
+
+    // Track commands (HO/TRACK/DROP/…) in a queued block are dispatched through the track engine at
+    // trigger-fire time, not through CommandDispatcher.ApplyCommand. HasTrackCommand flags such blocks so
+    // SimulationEngine.ProcessTriggeredTrackBlocks knows to route them; TrackApplied guards against
+    // re-dispatch (and survives snapshot restore). Both default false so older snapshots — and blocks
+    // with no track command — are simply skipped.
+    public bool HasTrackCommand { get; init; }
+    public bool TrackApplied { get; init; }
 }
 
 public sealed class TrackedCommandDto

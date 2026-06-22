@@ -12,7 +12,11 @@ There are two distinct layers and this doc owns only the upper one.
 - **Ownership state machine** — *who is tracking a target.* `AircraftTrack.Owner` / `HandoffPeer` / `Pointout`, mutated by
   `TrackEngine` (TRACK, DROP, HO, ACCEPT, CANCEL HO, POINTOUT, scratchpad, temp alt, …). These commands bypass `CommandDispatcher`
   entirely — see [command-pipeline.md](command-pipeline.md) (the track-command bypass section) and
-  [command-handlers.md](command-handlers.md). The ownership and pointout commands infer the *acting* position from the track itself —
+  [command-handlers.md](command-handlers.md). Scenario **presets** reach `TrackEngine` the same way: an immediate `HO 2B` routes
+  through `SimulationEngine.TryDispatchImmediateTrackPreset`, and a conditional `AT FIX HO 2B` is flagged on its `CommandBlock`
+  (`HasTrackCommand`) and dispatched by `SimulationEngine.ProcessTriggeredTrackBlocks` when the trigger fires — never through
+  `CommandDispatcher.ApplyCommand`'s `__NO_DISPATCHER_ARM__` arm (see [command-handlers.md](command-handlers.md), Triggered re-dispatch).
+  The ownership and pointout commands infer the *acting* position from the track itself —
   the current `Owner` for HO/DROP/CANCEL/POINTOUT-initiate, the `HandoffPeer` for ACCEPT, the pointout `Recipient` for OK/PORJ, the
   pointout `Sender` for PORT — rather than checking the issuer's resolved identity (the `AS` prefix / active position /
   `StudentPosition` default). So an RPO ghosting many positions never needs `AS` for these. The exceptions still require an identity:
