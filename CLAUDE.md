@@ -131,6 +131,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`ground/`](docs/ground/README.md) — ground/taxi stack index → [`fillet-generator`](docs/ground/fillet-generator.md), [`pathfinder`](docs/ground/pathfinder.md), [`navigator`](docs/ground/navigator.md)
 - [`speech-recognition-pipeline.md`](docs/speech-recognition-pipeline.md) — `src/Yaat.Sim/Speech/`, `WhisperSttEngine`, `LocalLlm*`, `SpeechRecognitionService`, `tools/Yaat.SpeechSandbox` (STT input)
 - [`solo-training-pilot-speech.md`](docs/solo-training-pilot-speech.md) — `src/Yaat.Sim/Pilot/`, `PendingPilotTransmissions`, `ActiveFrequency`, `PilotVoiceService` (TTS output)
+- [`pilot-phraseology.md`](docs/pilot-phraseology.md) — `PilotResponder.Build*`, `PhraseologyVerbalizer`, `PilotSpeechText` (Terminal/Tts/RpoTerminal): what pilots say + AIM/7110.65 grounding (read before changing any pilot wording)
 - [`flight-strips.md`](docs/flight-strips.md) — `FlightStripState`, `StripItemDto`, `CrcClientState.Strips.cs`, strip commands
 - [`phases.md`](docs/phases.md) — anything under `src/Yaat.Sim/Phases/` (base contract, `CommandAcceptance`, `PhaseRunner`)
 - [`snapshots-and-replay.md`](docs/snapshots-and-replay.md) — `Simulation/Snapshots/`, `Simulation/Replay/`, `RecordingArchive`, `SnapshotSchemaMigrator`, bug bundles

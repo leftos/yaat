@@ -55,6 +55,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 | Radar display & rendering | [radar-rendering.md](radar-rendering.md) |
 | Flight strips / vTDLS | [flight-strips.md](flight-strips.md), [vtdls.md](vtdls.md) |
 | Speech (STT) & pilot speech (TTS) | [speech-recognition-pipeline.md](speech-recognition-pipeline.md), [solo-training-pilot-speech.md](solo-training-pilot-speech.md) |
+| Pilot phraseology (wording / forms / AIM) | [pilot-phraseology.md](pilot-phraseology.md) |
 | Logging | [logging.md](logging.md) |
 | Test harness & fixtures | [test-harness.md](test-harness.md) |
 
@@ -591,7 +592,7 @@ RunwayExitPhase.cs             # Rolls on centerline until exit found; builds Ta
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 ClearRunwayPhase.cs            # CLRWY: pulls a tail-over-runway aircraft (hold-short of a taxiway sitting closer than its own length past a crossed runway) forward until just clear (½ length past the bars), then holds
 
-# Pilot/ — solo-training pilot AI (deterministic readbacks)
+# Pilot/ — solo-training pilot AI (deterministic readbacks). Phraseology/forms reference: docs/pilot-phraseology.md; delivery plumbing: docs/solo-training-pilot-speech.md
 Pilot/PhraseologyVerbalizer.cs # Static: inverts a PhraseologyRule for a given accepted ParsedCommand → Verbalize() spoken-English / VerbalizeTerminal() compact readback (shared rule, per-token formatter strategy).
                                # Picks the first-declared rule per CanonicalCommandType by default; Varied mode can use PilotShortcuts when the frequency is busy.
 Pilot/FrequencyActivityMeter.cs # Rolling 60-second pilot-transmission counter; classifies active frequency load as Quiet/Moderate/Busy/Saturated.

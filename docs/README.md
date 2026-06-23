@@ -26,6 +26,7 @@
 | Client (`MainViewModel`) | [`client-mainviewmodel.md`](./client-mainviewmodel.md) |
 | Radar / map rendering | [`radar-rendering.md`](./radar-rendering.md) |
 | Speech (STT) / pilot speech (TTS) | [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md), [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md) |
+| Pilot phraseology (wording / AIM) | [`pilot-phraseology.md`](./pilot-phraseology.md) |
 | Tests | [`test-harness.md`](./test-harness.md), [`e2e-tdd-issue-debugging.md`](./e2e-tdd-issue-debugging.md) |
 
 The table above is a quick index, not the full list — **[`../CLAUDE.md`](../CLAUDE.md) holds the complete, authoritative subsystem-references table.** When in doubt, consult it.

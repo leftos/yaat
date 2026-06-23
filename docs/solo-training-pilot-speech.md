@@ -80,31 +80,25 @@ For commands that *produce* a readback, both gates run sequentially: dispatch cl
 
 ## Dual-output builders (terminal vs TTS)
 
-A readback rendered for TTS reads digit-by-digit ("two eight right"), spelled-out ("november one two three alpha bravo"), and ends with the spoken callsign. The terminal `SAY` log displays the same readback compactly ("8R", "fly heading 270") **without** the callsign — the `SAY` line already has its own callsign column. The two forms are produced **independently** by builders, never derived by regex-stripping the TTS output. `BuildReadback` returns `PilotSpeechText?`; every proactive `Build*` builder returns `PilotSpeechText` (or `PilotSpeechText?` where nullable). The terminal-emit sites (`SimulationEngine` standalone, `TickProcessor` server) render the `Text` field; the TTS/voice broadcast uses `SpeechText`.
+> **Wording, output forms, and routing-by-mode live in [`pilot-phraseology.md`](pilot-phraseology.md).** This section covers only what the queue/airtime plumbing needs.
 
-The shared record:
+Every builder returns a `PilotSpeechText` whose `Terminal` (compact, no callsign) and `Tts`
+(spelled, ends with the spoken callsign) forms are built **independently** — never by regex-stripping
+the TTS string. A third `RpoTerminal` form carries instructor-only diagnostics (the lead/target
+callsign in traffic & follow calls). When a transmission lands in `PendingPilotTransmissions`, its
+`PilotTransmission.Text` is the terminal form and `SpeechText` is the TTS form; the drain emits
+`Text` to the SAY transcript and `SpeechText` to the voice broadcast.
 
-```csharp
-public sealed record PilotSpeechText(string Terminal, string Tts);
-```
+`PilotResponder` has three routers — `RouteSoloOrRpoTransmission`, `RouteRpoSayReadback`,
+`RouteRpoTransmission` — that pick the channel from `(soloTrainingMode, rpoShowPilotSpeech, studentPositionType)`.
+The full mode → channel matrix (and how `RpoTerminal` is resolved per branch) is in
+[`pilot-phraseology.md`](pilot-phraseology.md#routing-the-forms-by-mode). The two well-known position
+lists are `PilotResponder.SoloPositionsTower` (`["TWR"]`) and `SoloPositionsTowerApproach`
+(`["TWR","APP"]`).
 
-The verbalizer produces both forms from one rule-driven switch: `PhraseologyVerbalizer.Verbalize(cmd)` (spoken) and `VerbalizeTerminal(cmd)` (compact) share the same `PhraseologyRule` patterns and selection — only per-capture token formatting differs (runway `08R` → "eight right" vs `8R`, heading → "two seven zero" vs `270`).
-
-`PilotResponder.RouteSoloOrRpoTransmission(... PilotSpeechText, soloRelevantPositions, ...)` is the four-way router:
-
-| Mode | Student position relevant? | Where it lands |
-|---|---|---|
-| Solo | yes (TWR for clear-of-runway, TWR/APP for pattern/approach) | `PendingPilotTransmissions` (audio + terminal SAY) |
-| Solo | no | terminal warning only (orange) — student isn't on this frequency |
-| RPO + `RpoShowPilotSpeech` | n/a | `PendingPilotSpeech` (green SAY) |
-| RPO default | n/a | `PendingWarnings` (orange) |
-
-Two well-known position lists:
-
-- `PilotResponder.SoloPositionsTower` — `["TWR"]`. Used for clear-of-runway, holding-short, lined-up-ready, short-final reminder.
-- `PilotResponder.SoloPositionsTowerApproach` — `["TWR", "APP"]`. Used for pattern reports, follow events, going-around, airspace-boundary holds, approaching-minimums-no-landing-clearance.
-
-`RouteSoloOrRpoTransmission` takes a `PilotSpeechText`; the RPO-default warning channel uses `Terminal`. The string overloads that remain are `QueueSoloPilotTransmission(string)` / `QueueSoloPilotReadback(string)` (for stored follow-up lines re-queued by `PilotRequestTracker`, whose `LastPilotLine` is snapshot-serialized as a plain string, and for the notification-style SAY readbacks like "looking for the field") and `RouteRpoTransmission` / `RouteRpoSayReadback` (RPO-only spoken paths whose terminal warning comes from a separate string). The string queue overloads strip the bracketed callsign prefix for the terminal form.
+String overloads remain only for stored follow-up lines re-queued by `PilotRequestTracker`
+(`LastPilotLine` is snapshot-serialized as a plain string) and notification-style SAY readbacks
+("looking for the field"); they strip the bracketed callsign prefix for the terminal form.
 
 ## Position reports vs intent declarations
 
