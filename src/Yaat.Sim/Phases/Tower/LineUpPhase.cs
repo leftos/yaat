@@ -86,7 +86,11 @@ public sealed class LineUpPhase : Phase
     /// <summary>Ground-speed threshold (kts) at which arc playback is allowed to advance. I7: no pivot-in-place.</summary>
     private const double ArcSpeedFloorKts = 0.1;
 
-    /// <summary>Distance-to-target threshold (ft) at which a straight segment transitions to its successor.</summary>
+    /// <summary>
+    /// Along-track-remaining threshold (ft) at which a straight segment transitions to its
+    /// successor. Compared against the signed distance to the target along the segment bearing
+    /// so a single-step overshoot (negative remaining) still triggers the transition.
+    /// </summary>
     private const double StraightArrivalFt = 3.0;
 
     /// <summary>Distance-to-stop threshold (ft) at which Rollout transitions to Stop.</summary>
@@ -329,11 +333,21 @@ public sealed class LineUpPhase : Phase
         ctx.Targets.TargetTrueHeading = new TrueHeading(bearingDeg);
         ctx.Targets.TargetSpeed = ExpediteStraightSpeed(ctx, targetSpeedKts);
 
-        double distFt = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(toLat, toLon)) * GeoMath.FeetPerNm;
+        // Along-track distance remaining to the target, measured along the segment
+        // bearing. Positive = target still ahead; negative = aircraft has driven
+        // past it. We arrive when this drops to/below the tolerance — which catches
+        // an *overshoot* (negative remaining) as well as a clean arrival. A pure
+        // straight-line distance check cannot: a corner-speed segment steps
+        // ~6 ft per 0.25 s sub-tick, wider than the ±3 ft window, so the target
+        // can fall in the blind gap between two samples and the aircraft drives
+        // off the runway forever (OAK 30 LUAW/CTO drove into the bay).
+        double alongRemainingFt =
+            GeoMath.AlongTrackDistanceNm(toLat, toLon, ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon, new TrueHeading(bearingDeg))
+            * GeoMath.FeetPerNm;
 
-        if (distFt < StraightArrivalFt)
+        if (alongRemainingFt <= StraightArrivalFt)
         {
-            Log.LogDebug("[LineUp] {Callsign}: {From} -> {To} (dist={D:F2}ft)", ctx.Aircraft.Callsign, CurrentState, onArrive, distFt);
+            Log.LogDebug("[LineUp] {Callsign}: {From} -> {To} (alongRem={D:F2}ft)", ctx.Aircraft.Callsign, CurrentState, onArrive, alongRemainingFt);
             switch (onArrive)
             {
                 case State.Arc:
