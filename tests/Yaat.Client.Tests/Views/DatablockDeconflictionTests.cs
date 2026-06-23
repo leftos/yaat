@@ -47,6 +47,34 @@ public class DatablockDeconflictionTests
         return (ix <= 0f || iy <= 0f) ? 0f : ix * iy;
     }
 
+    private static SKPoint Center(SKRect r) => new((r.Left + r.Right) / 2f, (r.Top + r.Bottom) / 2f);
+
+    // Leader length = distance from the symbol anchor to the nearest point on the block rect (mirrors
+    // how the renderer draws the leader). A value clearly above the base-ring radius (~28px for a 40x30
+    // block) means the deconfliction pass extended the leader to clear a conflict.
+    private static float LeaderLength(DatablockDeconfliction.Item item, IReadOnlyDictionary<string, SKPoint> resolved)
+    {
+        var rect = ResolvedRect(item, resolved);
+        float cx = Math.Clamp(item.Anchor.X, rect.Left, rect.Right);
+        float cy = Math.Clamp(item.Anchor.Y, rect.Top, rect.Bottom);
+        float dx = item.Anchor.X - cx;
+        float dy = item.Anchor.Y - cy;
+        return MathF.Sqrt((dx * dx) + (dy * dy));
+    }
+
+    private static float TotalOverlap(IReadOnlyList<DatablockDeconfliction.Item> items, IReadOnlyDictionary<string, SKPoint> resolved)
+    {
+        float sum = 0f;
+        for (int i = 0; i < items.Count; i++)
+        {
+            for (int j = i + 1; j < items.Count; j++)
+            {
+                sum += Overlap(ResolvedRect(items[i], resolved), ResolvedRect(items[j], resolved));
+            }
+        }
+        return sum;
+    }
+
     [Fact]
     public void Resolve_EmptyList_DoesNotThrow()
     {
@@ -249,5 +277,171 @@ public class DatablockDeconflictionTests
 
         Assert.Equal(prefA, resolved["AAL1"]);
         Assert.Equal(prefB, resolved["UAL2"]);
+    }
+
+    [Fact]
+    public void CompassSnap_DenseCluster_ExtendsLeadersUntilNoOverlap()
+    {
+        var pref = new SKPoint(28, -28);
+        // Six co-located aircraft: the eight fixed compass slots cannot seat them all without overlap,
+        // so the pass must extend leaders onto larger rings to fully deconflict.
+        var items = new[]
+        {
+            Item("AAL1", 500, 500, pref),
+            Item("UAL2", 500, 500, pref),
+            Item("DAL3", 500, 500, pref),
+            Item("SWA4", 500, 500, pref),
+            Item("JBU5", 500, 500, pref),
+            Item("AAY6", 500, 500, pref),
+        };
+        var resolved = new Dictionary<string, SKPoint>();
+
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.CompassSnap,
+            items,
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            resolved
+        );
+
+        Assert.Equal(0f, TotalOverlap(items, resolved));
+        Assert.Contains(items, it => LeaderLength(it, resolved) > 32f);
+    }
+
+    [Fact]
+    public void CompassSnap_SparseCluster_DoesNotExtendLeaders()
+    {
+        var pref = new SKPoint(28, -28);
+        // Two aircraft far apart: neither block overlaps, so both keep their base-ring preferred offset.
+        var items = new[] { Item("AAL1", 300, 300, pref), Item("UAL2", 700, 700, pref) };
+        var resolved = new Dictionary<string, SKPoint>();
+
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.CompassSnap,
+            items,
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            resolved
+        );
+
+        foreach (var it in items)
+        {
+            Assert.True(LeaderLength(it, resolved) <= 32f, $"{it.Callsign} extended its leader unnecessarily ({LeaderLength(it, resolved):F1}px)");
+        }
+    }
+
+    [Fact]
+    public void CompassSnap_HorizontalRow_PreservesLeftToRightOrder()
+    {
+        var pref = new SKPoint(28, -28);
+        // Four aircraft in a left-to-right row, packed tighter than a block width so labels must move.
+        // Items are listed in left-to-right anchor order; resolved block centers must not cross.
+        var items = new[] { Item("AAA1", 480, 500, pref), Item("BBB2", 505, 500, pref), Item("CCC3", 530, 500, pref), Item("DDD4", 555, 500, pref) };
+        var resolved = new Dictionary<string, SKPoint>();
+
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.CompassSnap,
+            items,
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            resolved
+        );
+
+        const float tol = 4f;
+        float prevX = float.NegativeInfinity;
+        foreach (var it in items)
+        {
+            float cx = Center(ResolvedRect(it, resolved)).X;
+            Assert.True(cx >= prevX - tol, $"{it.Callsign} block center {cx:F1} crosses left of previous {prevX:F1}");
+            prevX = cx;
+        }
+    }
+
+    [Fact]
+    public void CompassSnap_VerticalColumn_PreservesTopToBottomOrder()
+    {
+        var pref = new SKPoint(28, -28);
+        // Four aircraft stacked top-to-bottom, packed tighter than a block height so labels must move.
+        var items = new[] { Item("AAA1", 500, 470, pref), Item("BBB2", 500, 490, pref), Item("CCC3", 500, 510, pref), Item("DDD4", 500, 530, pref) };
+        var resolved = new Dictionary<string, SKPoint>();
+
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.CompassSnap,
+            items,
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            resolved
+        );
+
+        const float tol = 4f;
+        float prevY = float.NegativeInfinity;
+        foreach (var it in items)
+        {
+            float cy = Center(ResolvedRect(it, resolved)).Y;
+            Assert.True(cy >= prevY - tol, $"{it.Callsign} block center {cy:F1} crosses above previous {prevY:F1}");
+            prevY = cy;
+        }
+    }
+
+    [Fact]
+    public void FreeForm_HorizontalRow_PreservesOrder()
+    {
+        var pref = new SKPoint(28, -28);
+        var items = new[] { Item("AAA1", 480, 500, pref), Item("BBB2", 505, 500, pref), Item("CCC3", 530, 500, pref), Item("DDD4", 555, 500, pref) };
+        var resolved = new Dictionary<string, SKPoint>();
+
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.FreeForm,
+            items,
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            resolved
+        );
+
+        const float tol = 4f;
+        float prevX = float.NegativeInfinity;
+        foreach (var it in items)
+        {
+            float cx = Center(ResolvedRect(it, resolved)).X;
+            Assert.True(cx >= prevX - tol, $"{it.Callsign} block center {cx:F1} crosses left of previous {prevX:F1}");
+            prevX = cx;
+        }
+    }
+
+    [Fact]
+    public void CompassSnap_DenseCluster_Deterministic()
+    {
+        var pref = new SKPoint(28, -28);
+        var items = new[]
+        {
+            Item("AAL1", 500, 500, pref),
+            Item("UAL2", 500, 500, pref),
+            Item("DAL3", 500, 500, pref),
+            Item("SWA4", 500, 500, pref),
+            Item("JBU5", 500, 500, pref),
+            Item("AAY6", 500, 500, pref),
+        };
+
+        var first = new Dictionary<string, SKPoint>();
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.CompassSnap,
+            items,
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            first
+        );
+        var second = new Dictionary<string, SKPoint>();
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.CompassSnap,
+            items,
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            second
+        );
+
+        foreach (var key in first.Keys)
+        {
+            Assert.Equal(first[key], second[key]);
+        }
     }
 }

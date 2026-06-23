@@ -19,6 +19,7 @@
 - A VFR pilot requesting closed traffic now states its altitude rounded to the nearest hundred feet, instead of an exact figure.
 - When a pilot reports traffic in sight, or breaks off following traffic (lost sight of it, can't keep up, can't maintain separation, sequencing tight, S-turning for spacing), they no longer speak the other aircraft's callsign — a pilot identifies traffic from the controller's position/type call, not by callsign. The spoken call and the solo student's view now read "traffic in sight", "lost sight of the traffic", "unable to maintain separation, breaking off the follow", and so on; the other aircraft's callsign still appears in the RPO/instructor view as a diagnostic of which traffic was meant.
 - The RPO pilot-speech panel no longer shows an internal "[CALLSIGN]" prefix on traffic/field-in-sight and follow break-off transmissions.
+- Datablock deconfliction (the **DCNF** auto-declutter) now fully separates tightly-packed labels and keeps them in order. In Snap mode it lengthens a label's leader line when the eight compass directions at the normal distance can't clear the overlap, instead of leaving labels on top of each other; and in both Snap and Free modes the repositioned labels keep the same left-to-right / top-to-bottom order as the aircraft they belong to, instead of crossing over. Applies to both the radar and ground views.
 
 ## v0.7.24-beta [2026/06/22]
 

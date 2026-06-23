@@ -8,8 +8,10 @@ namespace Yaat.Client.Views.Map;
 /// visible aircraft's symbol anchor, block bounds, and preferred placement, it returns an effective
 /// text-origin offset per aircraft that keeps overlapping datablocks readable. Two modes:
 /// <see cref="DatablockDeconflictMode.CompassSnap"/> snaps each block to one of the eight STARS
-/// compass leader directions; <see cref="DatablockDeconflictMode.FreeForm"/> slides blocks freely
-/// via damped repulsion. Both are deterministic and frame-stable when fed the prior frame's result.
+/// compass leader directions, extending the leader onto larger rings when the base ring cannot
+/// deconflict; <see cref="DatablockDeconflictMode.FreeForm"/> slides blocks freely via damped
+/// repulsion. Both bias the resulting layout toward the aircraft's lateral order and are deterministic
+/// and frame-stable when fed the prior frame's result.
 /// </summary>
 public static class DatablockDeconfliction
 {
@@ -55,6 +57,12 @@ public static class DatablockDeconfliction
         public required float WLeaderLen { get; init; }
         public required float WDefault { get; init; }
         public required float WOffscreen { get; init; }
+        public required float WOrder { get; init; }
+        public required float WOrderForce { get; init; }
+        public required float DirTiebreak { get; init; }
+        public required float LeaderRingStep { get; init; }
+        public required float LeaderRingPenalty { get; init; }
+        public required int LeaderExtraRings { get; init; }
         public required float SymbolPad { get; init; }
         public required float SymbolHitCost { get; init; }
         public required float HysteresisMargin { get; init; }
@@ -73,6 +81,12 @@ public static class DatablockDeconfliction
                 WLeaderLen = 0.5f,
                 WDefault = 40f,
                 WOffscreen = 2f,
+                WOrder = 5f,
+                WOrderForce = 0.02f,
+                DirTiebreak = 1f,
+                LeaderRingStep = 22f,
+                LeaderRingPenalty = 20f,
+                LeaderExtraRings = 3,
                 SymbolPad = 2f,
                 SymbolHitCost = 800f,
                 HysteresisMargin = 250f,
@@ -81,6 +95,12 @@ public static class DatablockDeconfliction
                 FreeFormIterations = 12,
             };
     }
+
+    /// <summary>One candidate placement: its text-origin offset plus a fixed preference cost.</summary>
+    private readonly record struct Candidate(SKPoint Offset, float Preference, bool IsPreferred);
+
+    /// <summary>An already-placed block, kept with its anchor so later blocks can avoid it and stay in order.</summary>
+    private readonly record struct Placed(SKRect Rect, SKPoint Anchor);
 
     /// <summary>
     /// Resolves an effective text-origin offset for every item. Pinned items are written through with
@@ -148,9 +168,9 @@ public static class DatablockDeconfliction
         Dictionary<string, SKPoint> resolvedOffsets
     )
     {
-        movable.Sort(CompareMovable);
-        var placed = new List<SKRect>(movable.Count);
-        var candidates = new List<SKPoint>(CompassDirs.Length + 1);
+        SortMovable(movable);
+        var placed = new List<Placed>(movable.Count);
+        var candidates = new List<Candidate>((o.LeaderExtraRings + 1) * CompassDirs.Length + 1);
 
         foreach (var item in movable)
         {
@@ -159,7 +179,7 @@ public static class DatablockDeconfliction
             float bestCost = float.MaxValue;
             for (int i = 0; i < candidates.Count; i++)
             {
-                float c = CandidateCost(item, candidates[i], i, placed, pinnedRects, allItems, o);
+                float c = CandidateCost(item, candidates[i], placed, pinnedRects, allItems, o);
                 if (c < bestCost)
                 {
                     bestCost = c;
@@ -170,24 +190,23 @@ public static class DatablockDeconfliction
             bestIdx = ApplyHysteresis(item, candidates, bestIdx, bestCost, placed, pinnedRects, allItems, o, previousResolved);
 
             var chosen = candidates[bestIdx];
-            placed.Add(Translate(item.RectAtOrigin, Add(item.Anchor, chosen)));
-            resolvedOffsets[item.Callsign] = chosen;
+            placed.Add(new Placed(Translate(item.RectAtOrigin, Add(item.Anchor, chosen.Offset)), item.Anchor));
+            resolvedOffsets[item.Callsign] = chosen.Offset;
         }
     }
 
     private static float CandidateCost(
         in Item item,
-        SKPoint offset,
-        int index,
-        List<SKRect> placed,
+        in Candidate candidate,
+        List<Placed> placed,
         List<SKRect> pinned,
         IReadOnlyList<Item> allItems,
         in Options o
     )
     {
-        var rect = Translate(item.RectAtOrigin, Add(item.Anchor, offset));
-        float c = Cost(rect, item.Anchor, item.Callsign, index, placed, pinned, allItems, o);
-        if (item.IsPriority && index == 0)
+        var rect = Translate(item.RectAtOrigin, Add(item.Anchor, candidate.Offset));
+        float c = Cost(rect, item.Anchor, item.Callsign, candidate.Preference, placed, pinned, allItems, o);
+        if (item.IsPriority && candidate.IsPreferred)
         {
             c -= o.PriorityBias;
         }
@@ -196,10 +215,10 @@ public static class DatablockDeconfliction
 
     private static int ApplyHysteresis(
         in Item item,
-        List<SKPoint> candidates,
+        List<Candidate> candidates,
         int bestIdx,
         float bestCost,
-        List<SKRect> placed,
+        List<Placed> placed,
         List<SKRect> pinned,
         IReadOnlyList<Item> allItems,
         in Options o,
@@ -217,7 +236,7 @@ public static class DatablockDeconfliction
             return bestIdx;
         }
 
-        float incCost = CandidateCost(item, candidates[incumbent], incumbent, placed, pinned, allItems, o);
+        float incCost = CandidateCost(item, candidates[incumbent], placed, pinned, allItems, o);
         return incCost <= bestCost + o.HysteresisMargin ? incumbent : bestIdx;
     }
 
@@ -230,7 +249,7 @@ public static class DatablockDeconfliction
         Dictionary<string, SKPoint> resolvedOffsets
     )
     {
-        movable.Sort(CompareMovable);
+        SortMovable(movable);
         int n = movable.Count;
         var offsets = new SKPoint[n];
         for (int i = 0; i < n; i++)
@@ -261,6 +280,7 @@ public static class DatablockDeconfliction
         var delta = new SKPoint[n];
         AccumulateBlockForces(rects, delta);
         AccumulatePinnedForces(rects, pinned, delta);
+        AccumulateOrderForces(movable, rects, delta, o);
         ApplyForces(movable, allItems, rects, delta, o, offsets);
     }
 
@@ -288,6 +308,26 @@ public static class DatablockDeconfliction
                 if (MinTranslation(rects[i], p) is { } v)
                 {
                     delta[i] = Add(delta[i], v);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gentle restoring force that nudges any pair of blocks whose centers have crossed back toward the
+    /// lateral order of their anchors. Kept small so block/pinned repulsion still dominates separation.
+    /// </summary>
+    private static void AccumulateOrderForces(List<Item> movable, SKRect[] rects, SKPoint[] delta, in Options o)
+    {
+        int n = movable.Count;
+        for (int i = 0; i < n; i++)
+        {
+            for (int j = i + 1; j < n; j++)
+            {
+                if (OrderForce(movable[i].Anchor, Center(rects[i]), movable[j].Anchor, Center(rects[j]), o) is { } v)
+                {
+                    delta[i] = Add(delta[i], Scale(v, 0.5f));
+                    delta[j] = Add(delta[j], Scale(v, -0.5f));
                 }
             }
         }
@@ -330,17 +370,19 @@ public static class DatablockDeconfliction
         SKRect rect,
         SKPoint anchor,
         string ownCallsign,
-        int candidateIndex,
-        List<SKRect> placed,
+        float preference,
+        List<Placed> placed,
         List<SKRect> pinned,
         IReadOnlyList<Item> items,
         in Options o
     )
     {
-        float cost = candidateIndex * o.WDefault;
-        foreach (var r in placed)
+        float cost = preference;
+        var center = Center(rect);
+        foreach (var p in placed)
         {
-            cost += o.WOverlap * IntersectArea(rect, r);
+            cost += o.WOverlap * IntersectArea(rect, p.Rect);
+            cost += o.WOrder * OrderInversion(anchor, center, p.Anchor, Center(p.Rect));
         }
         foreach (var r in pinned)
         {
@@ -370,13 +412,28 @@ public static class DatablockDeconfliction
         return penalty;
     }
 
-    private static void BuildCandidates(in Item item, in Options o, List<SKPoint> dest)
+    /// <summary>
+    /// Builds the candidate offsets for one block: the preferred offset (candidate 0), then the eight
+    /// compass directions at the base ring and on <see cref="Options.LeaderExtraRings"/> larger rings.
+    /// The preference cost keeps the preferred offset strongly favored and the base ring tried before
+    /// any extension, while leaving direction choice to overlap/leader/order so a longer leader is only
+    /// taken when it actually clears a conflict.
+    /// </summary>
+    private static void BuildCandidates(in Item item, in Options o, List<Candidate> dest)
     {
         dest.Clear();
-        dest.Add(item.PreferredOffset);
-        foreach (var (hx, hy) in CompassDirs)
+        dest.Add(new Candidate(item.PreferredOffset, 0f, true));
+        for (int ring = 0; ring <= o.LeaderExtraRings; ring++)
         {
-            dest.Add(CompassOffset(hx, hy, item.RectAtOrigin, o.LeaderGap));
+            float gap = o.LeaderGap + (ring * o.LeaderRingStep);
+            float ringPenalty = ring * o.LeaderRingPenalty;
+            for (int d = 0; d < CompassDirs.Length; d++)
+            {
+                var (hx, hy) = CompassDirs[d];
+                var offset = CompassOffset(hx, hy, item.RectAtOrigin, gap);
+                float preference = o.WDefault + (d * o.DirTiebreak) + ringPenalty;
+                dest.Add(new Candidate(offset, preference, false));
+            }
         }
     }
 
@@ -393,28 +450,107 @@ public static class DatablockDeconfliction
         return new SKPoint(desiredCenterX - centerX, desiredCenterY - centerY);
     }
 
-    private static int CompareMovable(Item a, Item b)
+    /// <summary>
+    /// Sorts movable items into a deterministic greedy-placement order: priority first, then along the
+    /// cluster's wider spread axis (so a horizontal row is placed left-to-right and a column
+    /// top-to-bottom), then the cross axis, then callsign.
+    /// </summary>
+    private static void SortMovable(List<Item> movable)
+    {
+        float minX = float.MaxValue;
+        float maxX = float.MinValue;
+        float minY = float.MaxValue;
+        float maxY = float.MinValue;
+        foreach (var it in movable)
+        {
+            minX = MathF.Min(minX, it.Anchor.X);
+            maxX = MathF.Max(maxX, it.Anchor.X);
+            minY = MathF.Min(minY, it.Anchor.Y);
+            maxY = MathF.Max(maxY, it.Anchor.Y);
+        }
+
+        bool xPrimary = (maxX - minX) >= (maxY - minY);
+        movable.Sort((a, b) => CompareMovable(a, b, xPrimary));
+    }
+
+    private static int CompareMovable(Item a, Item b, bool xPrimary)
     {
         if (a.IsPriority != b.IsPriority)
         {
             return a.IsPriority ? -1 : 1;
         }
 
-        int cy = a.Anchor.Y.CompareTo(b.Anchor.Y);
-        if (cy != 0)
+        float a1 = xPrimary ? a.Anchor.X : a.Anchor.Y;
+        float b1 = xPrimary ? b.Anchor.X : b.Anchor.Y;
+        int c1 = a1.CompareTo(b1);
+        if (c1 != 0)
         {
-            return cy;
+            return c1;
         }
 
-        int cx = a.Anchor.X.CompareTo(b.Anchor.X);
-        return cx != 0 ? cx : string.CompareOrdinal(a.Callsign, b.Callsign);
+        float a2 = xPrimary ? a.Anchor.Y : a.Anchor.X;
+        float b2 = xPrimary ? b.Anchor.Y : b.Anchor.X;
+        int c2 = a2.CompareTo(b2);
+        return c2 != 0 ? c2 : string.CompareOrdinal(a.Callsign, b.Callsign);
     }
 
-    private static int MatchCandidate(List<SKPoint> candidates, SKPoint target)
+    /// <summary>
+    /// Penalty (in pixels of crossing) for a candidate block center that sits on the wrong side of an
+    /// already-placed neighbor relative to their anchors, measured on whichever axis the anchors are
+    /// more separated. Zero when the anchors are co-located on that axis or the order is preserved.
+    /// </summary>
+    private static float OrderInversion(SKPoint anchorCur, SKPoint centerCur, SKPoint anchorNbr, SKPoint centerNbr)
+    {
+        float dx = anchorCur.X - anchorNbr.X;
+        float dy = anchorCur.Y - anchorNbr.Y;
+        if (MathF.Abs(dx) >= MathF.Abs(dy))
+        {
+            if (MathF.Abs(dx) < 1f)
+            {
+                return 0f;
+            }
+            float wrong = (centerCur.X - centerNbr.X) * MathF.Sign(dx);
+            return wrong < 0f ? -wrong : 0f;
+        }
+
+        if (MathF.Abs(dy) < 1f)
+        {
+            return 0f;
+        }
+        float wrongY = (centerCur.Y - centerNbr.Y) * MathF.Sign(dy);
+        return wrongY < 0f ? -wrongY : 0f;
+    }
+
+    /// <summary>Restoring force toward correct order for a crossed pair (null when order is preserved).</summary>
+    private static SKPoint? OrderForce(SKPoint anchorI, SKPoint centerI, SKPoint anchorJ, SKPoint centerJ, in Options o)
+    {
+        float dx = anchorI.X - anchorJ.X;
+        float dy = anchorI.Y - anchorJ.Y;
+        if (MathF.Abs(dx) >= MathF.Abs(dy))
+        {
+            if (MathF.Abs(dx) < 1f)
+            {
+                return null;
+            }
+            float sign = MathF.Sign(dx);
+            float wrong = (centerI.X - centerJ.X) * sign;
+            return wrong < 0f ? new SKPoint(sign * o.WOrderForce * -wrong, 0f) : null;
+        }
+
+        if (MathF.Abs(dy) < 1f)
+        {
+            return null;
+        }
+        float signY = MathF.Sign(dy);
+        float wrongY = (centerI.Y - centerJ.Y) * signY;
+        return wrongY < 0f ? new SKPoint(0f, signY * o.WOrderForce * -wrongY) : null;
+    }
+
+    private static int MatchCandidate(List<Candidate> candidates, SKPoint target)
     {
         for (int i = 0; i < candidates.Count; i++)
         {
-            if (Near(candidates[i], target))
+            if (Near(candidates[i].Offset, target))
             {
                 return i;
             }
@@ -511,6 +647,8 @@ public static class DatablockDeconfliction
         float dy = anchor.Y - cy;
         return MathF.Sqrt((dx * dx) + (dy * dy));
     }
+
+    private static SKPoint Center(SKRect r) => new((r.Left + r.Right) / 2f, (r.Top + r.Bottom) / 2f);
 
     private static SKRect Translate(SKRect r, SKPoint p) => new(r.Left + p.X, r.Top + p.Y, r.Right + p.X, r.Bottom + p.Y);
 

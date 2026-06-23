@@ -469,10 +469,10 @@ In busy traffic, datablocks pile on top of each other and become unreadable. **D
 The button cycles through three modes:
 
 - **off** (`DCNF`) — no automatic repositioning; datablocks keep their default/leader-line placement.
-- **Snap** (`DCNF S`) — each overlapping datablock snaps to one of the eight leader directions, the way a controller sets leader lines on a real scope. Positions are stable and don't jitter as aircraft move.
+- **Snap** (`DCNF S`) — each overlapping datablock snaps to one of the eight leader directions, the way a controller sets leader lines on a real scope, lengthening the leader line when the eight directions at the normal distance can't separate a dense cluster. Positions are stable and don't jitter as aircraft move.
 - **Free-form** (`DCNF F`) — datablocks slide freely until they separate. This clears denser clusters than Snap, at the cost of leader lines at arbitrary angles.
 
-Datablocks you have **dragged by hand stay put**, and the rest route around them. To hand a dragged datablock back to automatic placement, right-click it and choose **Reset datablock position** (radar: in the **Display** submenu, labeled "Reset to student position"; ground: "Reset datablock position"). Deconfliction only moves labels that actually overlap — an uncrowded datablock stays in its normal spot.
+Datablocks you have **dragged by hand stay put**, and the rest route around them. To hand a dragged datablock back to automatic placement, right-click it and choose **Reset datablock position** (radar: in the **Display** submenu, labeled "Reset to student position"; ground: "Reset datablock position"). Deconfliction only moves labels that actually overlap — an uncrowded datablock stays in its normal spot. Repositioned labels keep the same left-to-right and top-to-bottom order as the aircraft they belong to, so they don't cross over.
 
 #### Assigning a Note to an Aircraft
 

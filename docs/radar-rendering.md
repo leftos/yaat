@@ -223,8 +223,12 @@ leaves stale or absent bounds, so `FindTagFieldAtPoint` returns `None` for it un
 ground views that repositions overlapping datablocks so labels stay readable. It is **opt-in** per view via a 3-way
 `DatablockDeconflictMode` (`Off` / `CompassSnap` / `FreeForm`, persisted globally as `UserPreferences.RadarDeconflictMode`
 / `GroundDeconflictMode`, cycled by the DCNF button). `CompassSnap` greedily snaps each block to one of the eight STARS
-leader directions with previous-frame hysteresis (no jitter); `FreeForm` runs damped rect repulsion seeded from the prior
-frame. Both are deterministic given the same inputs + previous result.
+leader directions with previous-frame hysteresis (no jitter), and — when the base ring can't separate a dense cluster —
+onto the same directions at successively longer leader rings (`LeaderExtraRings` × `LeaderRingStep`); the leader line is
+drawn to the block edge by the renderer, so it stretches to follow. `FreeForm` runs damped rect repulsion seeded from the
+prior frame. Both bias the layout toward the aircraft's lateral order — a soft order-inversion penalty in `CompassSnap`'s
+cost and a gentle restoring force in `FreeForm` keep repositioned blocks reading in the same left-to-right / top-to-bottom
+order as their anchors — and both are deterministic given the same inputs + previous result.
 
 **Where it runs (and why):** the pass runs on the **UI thread** inside `RadarCanvas.CreateRenderSnapshot` (and the ground
 equivalent), not on the render thread. The hit-test path (`ComputeDataBlockPlacement` / `FindDataBlockAtPoint`) is also
