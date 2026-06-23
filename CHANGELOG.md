@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Accepting a STARS handoff from the keyboard now works in CRC. Pressing the handoff key and Enter while a handoff flashes to you — or typing the aircraft's callsign and the handoff key — now accepts the inbound handoff, instead of being rejected with "TRACK NOT FOUND". (Slewing the data block already worked.) The same keyboard entry also recalls a pending outbound handoff you own, and `<HND OFF> <position> <callsign>` initiates a handoff without slewing.
+
 ## v0.7.25-beta [2026/06/22]
 
 ### Highlights
