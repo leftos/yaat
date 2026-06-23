@@ -165,12 +165,21 @@ public class PhaseAcceptanceAuditTests
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
     }
 
+    /// <summary>
+    /// Inside the 5 nm gate a speed-class command (RFAS, SPD, RNS, DSR, Mach) must be
+    /// <em>rejected</em> with a pilot "unable" — NOT clear the phase. The aircraft is
+    /// committed to its stabilized final approach speed (§5-7-1.b.4); tearing the
+    /// approach down for a speed instruction wiped an established ILS final (SWA4587 on
+    /// the OAK ILS 30 lost its approach to a stray RFAS).
+    /// </summary>
     [Theory]
     [MemberData(nameof(SpeedFamily))]
-    public void FinalApproachPhase_SpeedFamily_ClearsPhaseInsideFiveNm(CanonicalCommandType cmd)
+    public void FinalApproachPhase_SpeedFamily_RejectedInsideFiveNm(CanonicalCommandType cmd)
     {
         var phase = new FinalApproachPhase { DistanceToThresholdNm = 3.0 };
-        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(cmd));
+        var acceptance = phase.CanAcceptCommand(cmd);
+        Assert.True(acceptance.IsRejected, $"{cmd} inside 5 nm should be rejected, not clear the approach");
+        Assert.False(acceptance.ClearsThePhase);
     }
 
     [Fact]

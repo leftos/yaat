@@ -59,7 +59,7 @@ public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
 Phases that auto-resume a captured speed (e.g. `MakeTurnPhase`, `STurnPhase`, `VfrHoldPhase` via `ManeuverSpeedController`) must also cancel that auto-resume in `OnCommandAccepted` for the **whole** speed family (`IsSpeedFamilyCommand`), or a controller-issued `RFAS`/`RNS`/`DSR` would be clobbered when the phase ends.
 
 Two intentional exceptions accept the speed family but **not** the full additive family:
-- `FinalApproachPhase` returns `ClearsPhase` for the speed family inside `SpeedCommandFinalGateNm` — the aircraft is committed to the final approach speed.
+- `FinalApproachPhase` **rejects** the speed family inside `SpeedCommandFinalGateNm` (pilot "unable", 7110.65 §5-7-1.b.4) — the aircraft is committed to its stabilized final approach speed, so a speed instruction is declined, not honored. It must **reject**, never `ClearsPhase`: tearing the approach down for a speed command once wiped an established ILS final (SWA4587 on OAK ILS 30, killed by a stray `RFAS`). Outside the gate the speed family is additive. `SPEEDF` (the explicit override) is always allowed.
 - `PatternEntryPhase` guards on `IsSpeedFamilyCommand` only; a `CM`/`DM` during the entry **clears** the phase and warns the RPO, because a climb/descend mid-entry usually means the aircraft is no longer being sequenced into this pattern. The in-pattern legs (`DownwindPhase`, etc.) take `CM`/`DM` additively.
 
 `PhaseAcceptanceAuditTests` pins this contract across the whole phase set.

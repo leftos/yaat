@@ -14,7 +14,7 @@ namespace Yaat.Sim.Phases;
 /// approach families (returns <c>"approach to RWY 28R"</c>); falls back to the
 /// active phase's <see cref="Phase.Name"/> for everything else.
 /// </summary>
-internal static class PhaseClearSummary
+public static class PhaseClearSummary
 {
     /// <summary>
     /// Returns a label describing what will be cancelled, or <c>null</c> when
@@ -30,10 +30,16 @@ internal static class PhaseClearSummary
 
         // Walk pending phases from the current index forward. A pattern chain is
         // recognised when at least two pattern-family phases remain (e.g. Pattern
-        // Entry → Downwind → Base → Final → Landing). The runway tag comes from
-        // PatternRunway when set (cross-runway closed traffic) or AssignedRunway.
+        // Entry → Downwind → Base → Final → Landing). A bare [FinalApproach, Landing]
+        // is an instrument approach, NOT a pattern — so it only counts as a pattern
+        // when a genuine VFR circuit is present: a real circuit leg (any pattern-family
+        // phase other than Final/Landing) remains, or closed-traffic is set
+        // (TrafficDirection, the same signal FinalApproachPhase uses for IsPatternTraffic).
+        // The runway tag comes from PatternRunway when set (cross-runway closed traffic)
+        // or AssignedRunway.
         int patternFamilyCount = 0;
         int totalRemaining = 0;
+        bool hasCircuitLeg = false;
         for (int i = phases.CurrentIndex; i < phases.Phases.Count; i++)
         {
             var p = phases.Phases[i];
@@ -47,9 +53,15 @@ internal static class PhaseClearSummary
             {
                 patternFamilyCount++;
             }
+
+            if (IsCircuitLeg(p))
+            {
+                hasCircuitLeg = true;
+            }
         }
 
-        if (patternFamilyCount >= 2 && patternFamilyCount == totalRemaining)
+        bool isVfrPattern = hasCircuitLeg || phases.TrafficDirection is not null;
+        if (patternFamilyCount >= 2 && patternFamilyCount == totalRemaining && isVfrPattern)
         {
             var runwayId = phases.PatternRunway?.Designator ?? phases.AssignedRunway?.Designator;
             return runwayId is not null ? $"pattern to RWY {RunwayIdentifier.ToDisplayDesignator(runwayId)}" : "pattern";
@@ -76,4 +88,9 @@ internal static class PhaseClearSummary
                 or VfrFollowPhase
                 or FinalApproachPhase
                 or LandingPhase;
+
+    // A genuine VFR-circuit leg: a pattern-family phase other than the Final/Landing
+    // pair an instrument approach also uses. Its presence distinguishes a closed-traffic
+    // pattern from a straight-in instrument final.
+    private static bool IsCircuitLeg(Phase p) => IsPatternFamily(p) && p is not (FinalApproachPhase or LandingPhase);
 }

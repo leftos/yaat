@@ -1344,11 +1344,15 @@ public sealed class FinalApproachPhase : Phase
 
         // Speed-class commands are additive only when the aircraft is still
         // outside SpeedCommandFinalGateNm. Inside that gate the aircraft is
-        // committed to the final approach speed and the controller should
-        // either send GA or accept the FAS profile.
+        // committed to the final approach speed: the pilot declines ("unable")
+        // rather than the approach being torn down. Rejecting — not clearing —
+        // keeps the stabilized final intact (a stray RFAS once wiped SWA4587's
+        // OAK ILS 30). SPEEDF (handled above) is the controller's explicit override.
         if (IsSpeedFamilyCommand(cmd))
         {
-            return DistanceToThresholdNm > SpeedCommandFinalGateNm ? CommandAcceptance.Allowed : CommandAcceptance.ClearsPhase;
+            return DistanceToThresholdNm > SpeedCommandFinalGateNm
+                ? CommandAcceptance.Allowed
+                : CommandAcceptance.Rejected("unable, inside 5nm final [7110.65 §5-7-1.b.4]");
         }
 
         // Heading / nav / pattern / approach changes all take the aircraft off
