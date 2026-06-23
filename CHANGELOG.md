@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.25-beta [2026/06/22]
+
+### Highlights
+- **Speed changes on short final no longer cancel the approach** — a speed instruction (`RFAS`, `SPD`, `RNS`, `DSR`, or a Mach assignment) given to an aircraft established within 5 nm of the runway now draws an "unable" and the aircraft stays on the glidepath, instead of tearing down the whole approach.
+- **Line-up-and-wait and takeoff clearances no longer occasionally drive off the airport** — fixed an intermittent case where the aircraft taxied straight across the runway instead of pivoting onto the centerline.
+- **`EXT` right after a pattern-entry clearance now works** — extending a leg (e.g. `EXT DOWNWIND` right after `ERD`, or a bare `EXT`) before the aircraft reaches the pattern now arms and fires on arrival, instead of being rejected.
+- **More realistic pilot radio calls** — heavy/super appended to the callsign, correct check-in altitudes in solo training, "lost sight of" instead of "negative contact", and fixes named when reporting position.
 
 ### Fixed
 - Extending a pattern leg right after a pattern-entry clearance now works. Issuing `EXT DOWNWIND` (or bare `EXT`) immediately after `ERD` — while the aircraft is still flying toward the pattern — arms the extension so it takes effect when the aircraft reaches the downwind, instead of being rejected with "Extend applies on upwind, crosswind, or downwind". Bare `EXT` extends whichever leg the entry leads onto (downwind after `ERD`/`ELD`, crosswind after `ERC`/`ELC`).
