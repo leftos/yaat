@@ -413,6 +413,116 @@ public class PatternCommandHandlerTests
         Assert.Contains("downwind", result.Message!, StringComparison.OrdinalIgnoreCase);
     }
 
+    // -------------------------------------------------------------------------
+    // TryExtendPattern — during pattern entry (after ERD/ERC, before the numbered
+    // leg becomes active). Regression for the N34945 bug: EXT issued while still
+    // flying the entry leg must arm the queued leg, not reject.
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Build a circuit fronted by an active PatternEntryPhase — the state ERD/ERC installs for
+    /// a far aircraft: navigating to the entry point with the numbered legs pending behind it.
+    /// </summary>
+    private static AircraftState MakeAircraftOnPatternEntry(PatternEntryLeg entryLeg, out PhaseList phases)
+    {
+        var ac = MakeAircraft();
+        var rwy = DefaultRunway();
+        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left, null, null, null);
+        var circuit = PatternBuilder.BuildCircuit(
+            rwy,
+            AircraftCategory.Jet,
+            PatternDirection.Left,
+            entryLeg,
+            touchAndGo: false,
+            finalDistanceNm: null,
+            patternSizeNm: null,
+            altitudeOverrideFt: null,
+            airportRunways: null
+        );
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+        ac.Phases.Add(
+            new PatternEntryPhase
+            {
+                EntryLat = wp.DownwindAbeamLat,
+                EntryLon = wp.DownwindAbeamLon,
+                PatternAltitude = wp.PatternAltitude,
+                Kind = PatternEntryKind.FortyFive,
+            }
+        );
+        foreach (var p in circuit)
+        {
+            ac.Phases.Add(p);
+        }
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        phases = ac.Phases;
+        return ac;
+    }
+
+    [Fact]
+    public void TryExtendPattern_DownwindArgDuringPatternEntry_PreArmsPendingDownwind()
+    {
+        var ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Downwind, out var phases);
+        Assert.IsType<PatternEntryPhase>(phases.CurrentPhase);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+
+        Assert.True(result.Success);
+        // Pre-arm must not tear down the entry leg the aircraft is flying.
+        Assert.IsType<PatternEntryPhase>(phases.CurrentPhase);
+        Assert.True(phases.Phases.OfType<DownwindPhase>().First().IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_BareExtDuringDownwindEntry_ExtendsPendingDownwind()
+    {
+        var ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Downwind, out var phases);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
+
+        Assert.True(result.Success);
+        Assert.IsType<PatternEntryPhase>(phases.CurrentPhase);
+        Assert.True(phases.Phases.OfType<DownwindPhase>().First().IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_BareExtDuringCrosswindEntry_ExtendsPendingCrosswind()
+    {
+        var ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Crosswind, out var phases);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, requestedLeg: null);
+
+        Assert.True(result.Success);
+        Assert.IsType<PatternEntryPhase>(phases.CurrentPhase);
+        // Bare EXT extends the leg the entry leads into (crosswind), not the later downwind.
+        Assert.True(phases.Phases.OfType<CrosswindPhase>().First().IsExtended);
+        Assert.False(phases.Phases.OfType<DownwindPhase>().First().IsExtended);
+    }
+
+    [Fact]
+    public void TryExtendPattern_CrosswindArgDuringDownwindEntry_Rejected()
+    {
+        // ERD-style entry: no crosswind leg in the queue, so EXT CROSSWIND has nothing to arm.
+        var ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Downwind, out _);
+
+        var result = PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Crosswind);
+
+        Assert.False(result.Success);
+        Assert.Contains("crosswind", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryExtendPattern_PatternEntryPreArm_PersistsToActiveDownwind()
+    {
+        var ac = MakeAircraftOnPatternEntry(PatternEntryLeg.Downwind, out var phases);
+        PatternCommandHandler.TryExtendPattern(ac, PatternEntryLeg.Downwind);
+
+        var ctx = CommandDispatcher.BuildMinimalContext(ac);
+        phases.AdvanceToNext(ctx); // pattern entry -> downwind
+
+        var downwind = Assert.IsType<DownwindPhase>(phases.CurrentPhase);
+        Assert.True(downwind.IsExtended);
+    }
+
     [Fact]
     public void TryExtendPattern_BaseLegArgument_Rejected()
     {

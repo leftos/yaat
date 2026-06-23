@@ -27,7 +27,9 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   * EXT during HoldingShort/LineUp/Takeoff/InitialClimb when the initial
 ///     circuit's UpwindPhase already exists as a pending phase in the queue →
 ///     sets IsExtended directly on that pending UpwindPhase (no flag needed).
-///   * EXT CROSSWIND from a non-pattern-leg phase still rejects (scope decision).
+///   * EXT CROSSWIND/DOWNWIND from a non-pattern-leg phase pre-arms the matching pending leg
+///     when one is queued (e.g. after ERC/ERD before the leg becomes active); it rejects only
+///     when no such leg is queued — as here, where the touch-and-go's next lap starts on upwind.
 /// </summary>
 public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
 {
@@ -368,10 +370,11 @@ public class ExtDuringTouchAndGoTests(ITestOutputHelper output)
         var result = engine.SendCommand(Callsign, "EXT C");
         output.WriteLine($"EXT C result: Success={result.Success}, Message={result.Message}");
 
-        // Scope guard: EXT CROSSWIND / EXT DOWNWIND keep original rejection from
-        // non-pattern-leg phases. Only EXT UPWIND (and bare EXT) get the pre-arm.
+        // EXT CROSSWIND rejects here because no Crosswind is queued — the next lap after the
+        // touch-and-go starts on Upwind. (When a Crosswind IS queued, e.g. after ERC, it
+        // pre-arms instead; see PatternCommandHandlerTests.TryExtendPattern_*DuringCrosswindEntry.)
         Assert.False(result.Success);
-        Assert.Contains("upwind", result.Message ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("crosswind", result.Message ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         Assert.False(aircraft.Pattern.ExtendNextUpwind);
     }
 }

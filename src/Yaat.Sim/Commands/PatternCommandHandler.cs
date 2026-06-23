@@ -870,14 +870,20 @@ internal static class PatternCommandHandler
         var currentLeg = GetCurrentPatternLeg(aircraft.Phases?.CurrentPhase);
         if (currentLeg is not { } current)
         {
-            // EXT UPWIND from a non-pattern-leg phase (HoldingShort, LineUp, Takeoff,
-            // InitialClimb, FinalApproach pre-T/G, TouchAndGo): arm the upcoming Upwind
-            // either directly in the queue or, if the next circuit hasn't been appended
-            // yet, via the AircraftPattern.ExtendNextUpwind one-shot flag. EXT CROSSWIND
-            // / EXT DOWNWIND keep the original rejection — scope decision in plan.
+            // Not on a numbered leg yet (PatternEntry after ERD/ERC/ELD/ELC, HoldingShort,
+            // LineUp, Takeoff, InitialClimb, FinalApproach pre-T/G, TouchAndGo). Pre-arm the
+            // requested upcoming leg if it's queued so the extension fires automatically when
+            // the aircraft reaches it. Upwind arms either the pending UpwindPhase or, if the
+            // next circuit hasn't been appended yet, the AircraftPattern.ExtendNextUpwind
+            // one-shot flag; Crosswind/Downwind arm the matching pending phase in the queue
+            // (e.g. EXT DOWNWIND right after ERD 28R, before the aircraft flies onto downwind).
             if (leg == PatternEntryLeg.Upwind && TryArmNextUpwind(aircraft) is { } armed)
             {
                 return armed;
+            }
+            if (leg is PatternEntryLeg.Crosswind or PatternEntryLeg.Downwind)
+            {
+                return TryArmFutureLeg(aircraft, leg);
             }
             return new CommandResult(false, "Extend applies on upwind, crosswind, or downwind");
         }
@@ -922,9 +928,15 @@ internal static class PatternCommandHandler
             case BasePhase:
                 return new CommandResult(false, "Extend not allowed on base leg");
             default:
-                // Bare EXT from a non-pattern-leg phase: same upcoming-Upwind arm path
-                // used by EXT UPWIND. This is the common case where the user wants to
-                // extend the next upwind during a touch-and-go ground roll.
+                // Bare EXT from a non-numbered-leg phase. During pattern entry (after
+                // ERD/ERC/ELD/ELC) extend the leg the entry is leading into — the first
+                // pending Upwind/Crosswind/Downwind in the queue. During a touch-and-go ground
+                // roll, extend the next lap's upwind (queued, or via the ExtendNextUpwind
+                // one-shot when the next circuit isn't appended yet).
+                if (TryArmFirstPendingPatternLeg(aircraft) is { } armedEntry)
+                {
+                    return armedEntry;
+                }
                 if (TryArmNextUpwind(aircraft) is { } armed)
                 {
                     return armed;
@@ -957,6 +969,53 @@ internal static class PatternCommandHandler
             aircraft.Pattern.ExtendNextUpwind = true;
             Log.LogDebug("[ExtendPattern] {Callsign}: set ExtendNextUpwind flag — next circuit not yet queued", aircraft.Callsign);
             return CommandDispatcher.Ok("Extend upwind (queued for next circuit)");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Arm IsExtended on the first pending Upwind/Crosswind/Downwind in the queue — the leg a
+    /// PatternEntryPhase is leading into. Used by bare EXT from a non-numbered-leg phase so that,
+    /// right after an entry clearance, EXT extends the entry leg (ERD/ELD → downwind, ERC/ELC →
+    /// crosswind, near-DER upwind override → upwind). Stops at and returns null on a leading
+    /// Base/Final (ERB/EF entry — nothing extendable) or when no numbered leg is queued (a
+    /// touch-and-go whose next circuit isn't appended yet), so the caller falls back to
+    /// TryArmNextUpwind's append path or the rejection.
+    /// </summary>
+    private static CommandResult? TryArmFirstPendingPatternLeg(AircraftState aircraft)
+    {
+        var phases = aircraft.Phases;
+        if (phases is null)
+        {
+            return null;
+        }
+
+        for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
+        {
+            var p = phases.Phases[i];
+            if (p.Status != PhaseStatus.Pending)
+            {
+                continue;
+            }
+
+            switch (p)
+            {
+                case UpwindPhase up:
+                    up.IsExtended = true;
+                    Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending entry UpwindPhase", aircraft.Callsign);
+                    return CommandDispatcher.Ok("Extend upwind");
+                case CrosswindPhase cw:
+                    cw.IsExtended = true;
+                    Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending entry CrosswindPhase", aircraft.Callsign);
+                    return CommandDispatcher.Ok("Extend crosswind");
+                case DownwindPhase dw:
+                    dw.IsExtended = true;
+                    Log.LogDebug("[ExtendPattern] {Callsign}: armed IsExtended on pending entry DownwindPhase", aircraft.Callsign);
+                    return CommandDispatcher.Ok("Extend downwind");
+                case BasePhase or FinalApproachPhase:
+                    return null; // entry leads onto base/final — nothing extendable
+            }
         }
 
         return null;
