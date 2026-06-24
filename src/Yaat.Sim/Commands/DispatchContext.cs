@@ -35,6 +35,16 @@ namespace Yaat.Sim.Commands;
 /// payload must not supersede sibling pending conditionals: it preserves triggered queue
 /// blocks and leaves other deferred dispatches intact. Every other dispatch (fresh live
 /// command, preset, replay) passes false.</para>
+///
+/// <para><see cref="IsScenarioScripted"/> is true when the dispatch originates from scenario
+/// scripting (a preset), not from a live or replayed controller action. Scripted automation
+/// is not the student establishing two-way comms, so a successful scripted ground clearance
+/// must NOT mark <see cref="AircraftState.HasMadeInitialContact"/> — otherwise a runway-spawn
+/// CTO-preset departure would never make its post-takeoff check-in. Live and replayed
+/// controller commands pass false (they additionally record contact via
+/// <see cref="Pilot.PilotInitialContactEligibility.RegisterControllerContact"/>). A deferred
+/// payload inherits the value from the deferral that produced it (a preset WAIT/BEHIND stays
+/// scripted; a reaction-delay deferral of a live command stays non-scripted).</para>
 /// </summary>
 public sealed record DispatchContext(
     AirportGroundLayout? GroundLayout,
@@ -49,5 +59,6 @@ public sealed record DispatchContext(
     Action<TerminalEntry>? TerminalEmitter,
     ArtccConfigRoot? ArtccConfig,
     double ScenarioElapsedSeconds,
-    bool PreserveConditionals
+    bool PreserveConditionals,
+    bool IsScenarioScripted
 );

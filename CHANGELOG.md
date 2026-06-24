@@ -9,6 +9,7 @@
   - Conflict alert: `<CA>K` + callsign toggles CA inhibit for the named track.
 - CRC STARS multifunction `M` and `Y` track entries are now honored (both keyboard-with-callsign and slew forms): scratchpad 1 and 2 (set and clear), pilot-reported altitude, temporary altitude, amended filed/requested altitude, assigned beacon code, and Mode-C display inhibit. Previously these multifunction entries were silently ignored.
 - Amending an aircraft's beacon code (via the Flight Plan Editor's beacon field, or a STARS entry) now changes only the *assigned* code, not the code the aircraft is actually squawking. A controller assigns a beacon; the pilot keeps squawking their current code until told to squawk the new one, so the data block correctly shows a beacon mismatch until they comply — instead of the transponder silently snapping to the new code.
+- In solo training, a departure cleared for takeoff by the scenario (a runway-spawn aircraft with a `CTO` preset, or one whose hold-for-release you lift and the automated tower then clears) now makes its initial check-in call after takeoff when it comes under your control, instead of climbing away in silence. The scripted/automated takeoff clearance was being treated as if you had already been talking to the pilot, which suppressed the check-in. A takeoff clearance you issue yourself while the aircraft is on the ground still does not produce a redundant check-in.
 
 ## v0.7.25-beta [2026/06/22]
 

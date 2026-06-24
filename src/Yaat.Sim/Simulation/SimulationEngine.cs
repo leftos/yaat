@@ -1313,7 +1313,8 @@ public sealed class SimulationEngine
                 _terminalEntries.Add,
                 Scenario?.ArtccConfig,
                 Scenario?.ElapsedSeconds ?? 0,
-                PreserveConditionals: false
+                PreserveConditionals: false,
+                IsScenarioScripted: false
             );
             result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
         }
@@ -1784,7 +1785,8 @@ public sealed class SimulationEngine
                     _terminalEntries.Add,
                     Scenario?.ArtccConfig,
                     Scenario?.ElapsedSeconds ?? 0,
-                    PreserveConditionals: true
+                    PreserveConditionals: true,
+                    IsScenarioScripted: d.IsScenarioScripted
                 );
                 var deferredResult = CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
                 if (!deferredResult.Success)
@@ -2692,7 +2694,7 @@ public sealed class SimulationEngine
     /// Auto-issues a takeoff clearance to released hold-for-release ground departures once they are
     /// holding short of their departure runway, after a short deterministic tower-readback jitter.
     /// </summary>
-    private void ProcessReleasedGroundDepartures()
+    internal void ProcessReleasedGroundDepartures()
     {
         var scenario = Scenario!;
         foreach (var ac in World.GetSnapshot())
@@ -2752,7 +2754,11 @@ public sealed class SimulationEngine
             _terminalEntries.Add,
             Scenario!.ArtccConfig,
             Scenario!.ElapsedSeconds,
-            PreserveConditionals: false
+            PreserveConditionals: false,
+            // The takeoff clearance is issued by the automated tower, not by the student (who only
+            // lifted the hold-for-release). It is not the student establishing two-way comms, so it
+            // must not mark initial contact — the departure still checks in after takeoff.
+            IsScenarioScripted: true
         );
         CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
         EmitTerminal("System", aircraft.Callsign, "[HFR] Released — cleared for takeoff");
@@ -2820,7 +2826,8 @@ public sealed class SimulationEngine
                 _terminalEntries.Add,
                 scenario.ArtccConfig,
                 scenario.ElapsedSeconds,
-                PreserveConditionals: false
+                PreserveConditionals: false,
+                IsScenarioScripted: true
             );
             CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
 
@@ -2929,7 +2936,8 @@ public sealed class SimulationEngine
             _terminalEntries.Add,
             Scenario!.ArtccConfig,
             Scenario!.ElapsedSeconds,
-            PreserveConditionals: false
+            PreserveConditionals: false,
+            IsScenarioScripted: true
         );
         CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
@@ -3292,7 +3300,8 @@ public sealed class SimulationEngine
             _terminalEntries.Add,
             Scenario?.ArtccConfig,
             Scenario?.ElapsedSeconds ?? 0,
-            PreserveConditionals: false
+            PreserveConditionals: false,
+            IsScenarioScripted: false
         );
         var replayDispatchResult = CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
         if (replayDispatchResult.Success)

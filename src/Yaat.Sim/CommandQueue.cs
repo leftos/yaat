@@ -329,6 +329,14 @@ public sealed class DeferredDispatch
     /// </summary>
     public bool IsReactionDelay { get; init; }
 
+    /// <summary>
+    /// True when the deferral was created during a scenario-scripted (preset) dispatch rather
+    /// than a live/replayed controller command. Propagated into the re-dispatch context so a
+    /// preset WAIT/BEHIND payload firing on the ground does not falsely mark
+    /// <see cref="AircraftState.HasMadeInitialContact"/>. Defaults false (live/controller origin).
+    /// </summary>
+    public bool IsScenarioScripted { get; init; }
+
     public DeferredDispatch(double seconds, Commands.CompoundCommand payload)
     {
         RemainingSeconds = seconds;
@@ -357,6 +365,7 @@ public sealed class DeferredDispatch
             GiveWayTarget = GiveWayTarget,
             SourceText = SourceText,
             IsReactionDelay = IsReactionDelay,
+            IsScenarioScripted = IsScenarioScripted,
         };
 
     public static DeferredDispatch? FromSnapshot(DeferredDispatchDto dto)
@@ -374,14 +383,27 @@ public sealed class DeferredDispatch
 
         if (dto.GiveWayTarget is not null)
         {
-            return new DeferredDispatch(parseResult.Value!, dto.GiveWayTarget) { SourceText = dto.SourceText };
+            return new DeferredDispatch(parseResult.Value!, dto.GiveWayTarget)
+            {
+                SourceText = dto.SourceText,
+                IsScenarioScripted = dto.IsScenarioScripted,
+            };
         }
 
         if (dto.IsDistanceBased)
         {
-            return new DeferredDispatch(parseResult.Value!, dto.RemainingDistanceNm) { SourceText = dto.SourceText };
+            return new DeferredDispatch(parseResult.Value!, dto.RemainingDistanceNm)
+            {
+                SourceText = dto.SourceText,
+                IsScenarioScripted = dto.IsScenarioScripted,
+            };
         }
 
-        return new DeferredDispatch(dto.RemainingSeconds, parseResult.Value!) { SourceText = dto.SourceText, IsReactionDelay = dto.IsReactionDelay };
+        return new DeferredDispatch(dto.RemainingSeconds, parseResult.Value!)
+        {
+            SourceText = dto.SourceText,
+            IsReactionDelay = dto.IsReactionDelay,
+            IsScenarioScripted = dto.IsScenarioScripted,
+        };
     }
 }

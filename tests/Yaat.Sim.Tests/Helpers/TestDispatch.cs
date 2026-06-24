@@ -27,7 +27,8 @@ internal static class TestDispatch
         Action<TerminalEntry>? terminalEmitter = null,
         ArtccConfigRoot? artccConfig = null,
         double scenarioElapsedSeconds = 0,
-        bool preserveConditionals = false
+        bool preserveConditionals = false,
+        bool isScenarioScripted = false
     ) =>
         new(
             groundLayout,
@@ -42,6 +43,7 @@ internal static class TestDispatch
             terminalEmitter,
             artccConfig,
             scenarioElapsedSeconds,
-            preserveConditionals
+            preserveConditionals,
+            isScenarioScripted
         );
 }

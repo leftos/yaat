@@ -69,4 +69,7 @@ public sealed class DeferredDispatchDto
     // Optional — defaults false so older snapshots deserialize as controller-authored WAIT/BEHIND
     // deferrals (predates the command-run delay).
     public bool IsReactionDelay { get; init; }
+
+    // Optional — defaults false so older snapshots deserialize as live/controller-origin deferrals.
+    public bool IsScenarioScripted { get; init; }
 }

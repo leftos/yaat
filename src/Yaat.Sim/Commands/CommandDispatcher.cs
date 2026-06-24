@@ -41,15 +41,20 @@ public static class CommandDispatcher
 
     public static CommandResult DispatchCompound(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
-        // A successful command issued to a ground aircraft is itself evidence of
-        // established controller-pilot contact (the pilot read back the clearance
-        // the controller spoke). Setting this here covers every dispatch path —
-        // user-typed (RoomEngine.SendCommandAsync) and replay (RecordingManager) —
-        // without each call site re-implementing the gate. Suppresses the spurious
-        // post-takeoff airborne check-in for departures cleared during taxi.
+        // A successful command issued to a ground aircraft by the controller is itself evidence of
+        // established controller-pilot contact (the pilot read back the clearance the controller
+        // spoke). Setting this here covers every controller dispatch path — user-typed
+        // (RoomEngine.SendCommandAsync) and replay (RecordingManager) — without each call site
+        // re-implementing the gate. Suppresses the spurious post-takeoff airborne check-in for
+        // departures the controller cleared during taxi.
+        //
+        // Scenario-scripted dispatch (a preset, or the automated tower's auto-CTO on
+        // hold-for-release) is NOT the student establishing contact, so it must not set this — a
+        // runway-spawn CTO-preset departure handed to the student via auto-track still makes its
+        // post-takeoff check-in.
         var wasOnGround = aircraft.IsOnGround;
         var result = DispatchCompoundCore(compound, aircraft, ctx);
-        if (result.Success && wasOnGround)
+        if (result.Success && wasOnGround && !ctx.IsScenarioScripted)
         {
             aircraft.HasMadeInitialContact = true;
         }
@@ -61,7 +66,7 @@ public static class CommandDispatcher
         // Leading WAIT → deferred dispatch: extract the timer and store the remaining
         // blocks as a deferred payload. The payload dispatches fresh when the timer expires,
         // without touching phases or the command queue.
-        var deferredResult = TryDeferLeadingWait(compound, aircraft);
+        var deferredResult = TryDeferLeadingWait(compound, aircraft, ctx);
         if (deferredResult is not null)
         {
             return deferredResult;
@@ -1197,7 +1202,7 @@ public static class CommandDispatcher
     /// The remaining blocks become the payload, validated now but dispatched later when the
     /// timer expires. Returns null if the compound doesn't start with a bare WAIT.
     /// </summary>
-    private static CommandResult? TryDeferLeadingWait(CompoundCommand compound, AircraftState aircraft)
+    private static CommandResult? TryDeferLeadingWait(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
         var firstBlock = compound.Blocks[0];
         if (firstBlock.Condition is not null)
@@ -1272,12 +1277,20 @@ public static class CommandDispatcher
         string timerDesc;
         if (waitCmd is not null)
         {
-            deferred = new DeferredDispatch(waitCmd.Seconds, payload) { SourceText = compound.SourceText };
+            deferred = new DeferredDispatch(waitCmd.Seconds, payload)
+            {
+                SourceText = compound.SourceText,
+                IsScenarioScripted = ctx.IsScenarioScripted,
+            };
             timerDesc = $"{waitCmd.Seconds}s";
         }
         else
         {
-            deferred = new DeferredDispatch(payload, waitDistCmd!.DistanceNm) { SourceText = compound.SourceText };
+            deferred = new DeferredDispatch(payload, waitDistCmd!.DistanceNm)
+            {
+                SourceText = compound.SourceText,
+                IsScenarioScripted = ctx.IsScenarioScripted,
+            };
             timerDesc = $"{waitDistCmd.DistanceNm}nm";
         }
 
@@ -1322,7 +1335,9 @@ public static class CommandDispatcher
         // The deferred-dispatch carries its own GiveWayTarget gate; no need to mirror
         // it onto aircraft.Ground.Hold during the wait — the aircraft remains under its
         // prior phase control until the condition fires and the payload dispatches.
-        aircraft.DeferredDispatches.Add(new DeferredDispatch(payload, gw.TargetCallsign) { SourceText = compound.SourceText });
+        aircraft.DeferredDispatches.Add(
+            new DeferredDispatch(payload, gw.TargetCallsign) { SourceText = compound.SourceText, IsScenarioScripted = ctx.IsScenarioScripted }
+        );
         return new CommandResult(true, $"After {gw.TargetCallsign} passes: {payloadDesc}");
     }
 

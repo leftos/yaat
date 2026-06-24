@@ -109,6 +109,15 @@ Towered-field pilots do not self-announce every pattern leg on entry. Two kinds 
 
 Output channel follows the usual split: solo mode lands in `PendingNotifications` (gray pilot speech, AI voices the pilot); RPO mode lands in `PendingWarnings` (orange controller-facing nag) unless `RpoShowPilotSpeech` routes it to `PendingPilotSpeech`. Never delete the `PendingWarnings` text — it is the default fallback when pilot-speech mode is off.
 
+## Initial contact and scripted clearances
+
+`AircraftState.HasMadeInitialContact` gates the proactive check-ins (`PilotProactive.TickAirborneCheckIn` and the parking/pattern call-ups) — once set, the pilot has already established two-way comms with the student and won't volunteer another check-in. It is set two ways:
+
+- The pilot makes the call (the proactive paths set it on success).
+- The **student** issues a clearance to a ground aircraft. `CommandDispatcher.DispatchCompound` sets it on any successful command to an on-ground aircraft (the pilot read back the clearance the student spoke). This deliberately suppresses a redundant post-takeoff check-in for a departure the student cleared during taxi. `PilotInitialContactEligibility.RegisterControllerContact` additionally marks the controller side (`HasControllerAcknowledgedInitialContact`) and, for aircraft the pilot could never call first (owned by another position, no handoff inbound), the pilot side too.
+
+**Scenario-scripted clearances are not the student talking.** A `CTO` preset (`DispatchSinglePreset` / `ProcessTimedPresets`) and the automated-tower auto-CTO on a hold-for-release release (`AutoIssueTakeoffClearance`) flow through the same `DispatchCompound`, but pass `DispatchContext.IsScenarioScripted = true`, so they do **not** set `HasMadeInitialContact`. A runway-spawn CTO-preset departure (or a released held departure) handed to a non-tower student via auto-track therefore still makes its airborne check-in. The flag rides through deferral on `DeferredDispatch.IsScenarioScripted` (so a preset `WAIT … ; CTO` firing on the ground stays scripted); live and reaction-delay deferrals default to non-scripted. Live and replayed *controller* commands pass `IsScenarioScripted = false` and keep the suppression.
+
 ## "Unable" routing on rejected commands
 
 `CommandResult` now carries the rejected `CanonicalCommandType`:
