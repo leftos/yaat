@@ -4,6 +4,11 @@
 
 ### Fixed
 - Accepting a STARS handoff from the keyboard now works in CRC. Pressing the handoff key and Enter while a handoff flashes to you — or typing the aircraft's callsign and the handoff key — now accepts the inbound handoff, instead of being rejected with "TRACK NOT FOUND". (Slewing the data block already worked.) The same keyboard entry also recalls a pending outbound handoff you own, and `<HND OFF> <position> <callsign>` initiates a handoff without slewing.
+- More CRC STARS commands now work by keyboard (typing the callsign), not only by slewing the data block — they previously returned "TRACK NOT FOUND":
+  - Drop track: `<TERM CNTL>` + callsign drops the named track; `<TERM CNTL>ALL` drops every track you own.
+  - Conflict alert: `<CA>K` + callsign toggles CA inhibit for the named track.
+- CRC STARS multifunction `M` and `Y` track entries are now honored (both keyboard-with-callsign and slew forms): scratchpad 1 and 2 (set and clear), pilot-reported altitude, temporary altitude, amended filed/requested altitude, assigned beacon code, and Mode-C display inhibit. Previously these multifunction entries were silently ignored.
+- Amending an aircraft's beacon code (via the Flight Plan Editor's beacon field, or a STARS entry) now changes only the *assigned* code, not the code the aircraft is actually squawking. A controller assigns a beacon; the pilot keeps squawking their current code until told to squawk the new one, so the data block correctly shows a beacon mismatch until they comply — instead of the transponder silently snapping to the new code.
 
 ## v0.7.25-beta [2026/06/22]
 

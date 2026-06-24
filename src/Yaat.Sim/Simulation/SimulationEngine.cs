@@ -1586,7 +1586,10 @@ public sealed class SimulationEngine
         }
         if (amendment.BeaconCode is not null)
         {
-            ac.Transponder.Code = amendment.BeaconCode.Value;
+            // Amend only the *assigned* beacon code, never the code the transponder transmits — a
+            // controller assigns a beacon; the pilot keeps squawking the current code until told to
+            // squawk the new one (matching the auto-assign-on-filing branch below). The resulting
+            // beacon mismatch is shown on the data block until the pilot complies.
             ac.Transponder.AssignedCode = amendment.BeaconCode.Value;
         }
 
