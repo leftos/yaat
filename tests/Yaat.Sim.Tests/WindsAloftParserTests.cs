@@ -124,4 +124,34 @@ public class WindsAloftParserTests
         Assert.Equal(360, wind.Value.DirectionTrue);
         Assert.Equal(10, wind.Value.SpeedKts);
     }
+
+    [Fact]
+    public void DecodeWind_HighAltitudeUnsignedTemperature()
+    {
+        // At FL300 and above the FD bulletin omits the (always-negative) temperature sign,
+        // producing a 6-char "DDSSTT" group. "521463" → DD=52 ≥ 50 → direction (52-50)*10 = 020°,
+        // speed 14+100 = 114 kt; the trailing "63" (= -63 °C) must be stripped, not rejected.
+        var wind = WindsAloftParser.DecodeWind(39000, "521463");
+        Assert.NotNull(wind);
+        Assert.Equal(20, wind.Value.DirectionTrue);
+        Assert.Equal(114, wind.Value.SpeedKts);
+        Assert.False(wind.Value.IsLightVariable);
+    }
+
+    [Fact]
+    public void Parse_HighAltitudeLevels_DecodeFromUnsignedGroups()
+    {
+        // The 30000/34000/39000 columns in SampleFd use 6-char unsigned-temperature groups
+        // (header note "TEMPS NEG ABV 24000"). They must still decode into wind layers.
+        var sfo = WindsAloftParser.Parse(SampleFd)[0];
+
+        Assert.Contains(sfo.Winds, w => w.AltitudeFt == 30000);
+        Assert.Contains(sfo.Winds, w => w.AltitudeFt == 34000);
+        Assert.Contains(sfo.Winds, w => w.AltitudeFt == 39000);
+
+        // SFO 30000 = "257840" → 250° at 78 kt.
+        var w30000 = sfo.Winds.First(w => w.AltitudeFt == 30000);
+        Assert.Equal(250, w30000.DirectionTrue);
+        Assert.Equal(78, w30000.SpeedKts);
+    }
 }

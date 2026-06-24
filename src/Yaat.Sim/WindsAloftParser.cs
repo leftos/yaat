@@ -163,11 +163,18 @@ public static class WindsAloftParser
     /// </summary>
     internal static WindAtLevel? DecodeWind(int altitudeFt, string code)
     {
-        // Strip temperature suffix (e.g., "2714-08" → "2714", "2321+03" → "2321")
+        // Strip temperature suffix (e.g., "2714-08" → "2714", "2321+03" → "2321").
         int signIdx = code.IndexOfAny(['+', '-']);
         if (signIdx >= 4)
         {
             code = code[..signIdx];
+        }
+        else if (code.Length > 4)
+        {
+            // At FL300 and above the bulletin omits the (always-negative) temperature sign,
+            // producing a 6-char "DDSSTT" group (e.g. "257840" = 250°/78kt/-40°C). Strip the
+            // trailing temperature so the wind still decodes instead of being rejected.
+            code = code[..4];
         }
 
         // Must be exactly 4 digits

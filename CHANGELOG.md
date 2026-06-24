@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Live winds aloft above FL240 (the 30,000 / 34,000 / 39,000 ft levels) are now decoded instead of silently dropped. The FAA winds-aloft (FD) bulletin omits the temperature sign at those levels — always-negative aloft — so groups like `257840` arrived as 6 characters and were rejected by the decoder; aircraft cruising in the flight levels under live weather were getting wind clamped to the 24,000 ft layer. Scenario weather was unaffected.
+
 ## v0.7.26-beta [2026/06/23]
 
 ### Highlights
