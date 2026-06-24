@@ -302,6 +302,8 @@ public class AircraftState
 
     public AircraftGhostTrack Ghost { get; set; } = new();
 
+    public AircraftDataBlock DataBlock { get; set; } = new();
+
     // Position history for STARS radar trails (recorded every ~5 sim-seconds)
     public List<(double Lat, double Lon)> PositionHistory { get; } = new(10);
 
@@ -349,6 +351,7 @@ public class AircraftState
             Eram = AircraftEramState.FromSnapshot(dto.Eram),
             Clearance = AircraftClearance.FromSnapshot(dto.Clearance),
             Ghost = AircraftGhostTrack.FromSnapshot(dto.Ghost),
+            DataBlock = dto.DataBlock is not null ? AircraftDataBlock.FromSnapshot(dto.DataBlock) : new(),
             Queue = CommandQueue.FromSnapshot(dto.Queue),
             Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
         };
@@ -424,6 +427,7 @@ public class AircraftState
             Eram = Eram.ToSnapshot(),
             Clearance = Clearance.ToSnapshot(),
             Ghost = Ghost.ToSnapshot(),
+            DataBlock = DataBlock.ToSnapshot(),
             PositionHistory = PositionHistory.Count > 0 ? PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon }).ToList() : null,
             ActiveApproachScore = ActiveApproachScore is { } score
                 ? new ApproachScoreDto

@@ -135,6 +135,8 @@ public enum CanonicalCommandType
     JRing,
     Cone,
     GhostTrack,
+    RepositionToLocation,
+    RepositionMove,
     Annotate,
     Scratchpad1,
     Scratchpad2,

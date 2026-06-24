@@ -134,6 +134,10 @@ public sealed class AircraftSnapshotDto
     public required AircraftClearanceDto Clearance { get; init; }
     public required AircraftGhostTrackDto Ghost { get; init; }
 
+    // Not required: added at schema V14 (STARS Track Reposition). Older snapshots lacking the field
+    // deserialize to null and FromSnapshot default-constructs a Bound datablock (no reposition).
+    public AircraftDataBlockDto? DataBlock { get; init; }
+
     // Position history
     public List<PositionDto>? PositionHistory { get; init; }
 

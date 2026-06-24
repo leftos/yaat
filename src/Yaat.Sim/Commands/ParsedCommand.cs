@@ -680,6 +680,20 @@ public record ConeCommand(bool Enable, double? Size) : ParsedCommand;
 public record GhostTrackCommand(string Callsign, string? AirportCode, string? RunwayId, double? Latitude, double? Longitude) : ParsedCommand;
 
 /// <summary>
+/// STARS Track Reposition Form 2 (<c>&lt;TRK RPOS&gt;&lt;SLEW&gt;&lt;LOCATION&gt;</c>): park the
+/// flight-plan datablock of <see cref="Callsign"/> at a fixed location, leaving the surveillance
+/// track as a bare unassociated LDB. Canonical: <c>RPOSLOC {callsign} {lat} {lon}</c>.
+/// </summary>
+public record RepositionToLocationCommand(string Callsign, double Latitude, double Longitude) : ParsedCommand;
+
+/// <summary>
+/// STARS Track Reposition Forms 1 &amp; 3 (move a datablock between tracks): move the datablock from
+/// <see cref="FromCallsign"/> onto the unassociated track <see cref="ToCallsign"/>, which becomes
+/// associated. Canonical: <c>RPOSMOVE {from} {to}</c>.
+/// </summary>
+public record RepositionMoveCommand(string FromCallsign, string ToCallsign) : ParsedCommand;
+
+/// <summary>
 /// AN (strip annotate) parsed command. <see cref="Box"/> is the canonical
 /// annotation slot identifier:
 /// <list type="bullet">

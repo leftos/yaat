@@ -359,7 +359,9 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 AircraftState.cs               # Mutable aircraft entity. Identity + kinematics flat at top; cohesive
                                # state grouped into sub-objects (FlightPlan, Transponder, Ground, Track,
                                # Stars, Eram, Approach, Procedure, Pattern, Clearance, HoldAnnotation,
-                               # Ghost, Voice). Each sub-object owns its own ToSnapshot/FromSnapshot pair
+                               # Ghost, DataBlock, Voice). DataBlock = STARS Track Reposition (TRK RPOS)
+                               # surveillance/datablock split: Parked emits a second wire StarsTrackDto.
+                               # Each sub-object owns its own ToSnapshot/FromSnapshot pair
                                # with a matching DTO under Simulation/Snapshots/.
                                # DeclinationCachePosition (LatLon?): null = "not cached", not serialized.
                                # Ground.Layout is [JsonIgnore]; Ground.LayoutAirportId preserves the

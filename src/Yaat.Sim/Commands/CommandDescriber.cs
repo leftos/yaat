@@ -258,6 +258,8 @@ public static class CommandDescriber
             JRingCommand => CanonicalCommandType.JRing,
             ConeCommand => CanonicalCommandType.Cone,
             GhostTrackCommand => CanonicalCommandType.GhostTrack,
+            RepositionToLocationCommand => CanonicalCommandType.RepositionToLocation,
+            RepositionMoveCommand => CanonicalCommandType.RepositionMove,
             // Coordination commands — routed by RoomEngine before reaching dispatcher
             CoordinationReleaseCommand => CanonicalCommandType.CoordinationRelease,
             CoordinationHoldCommand => CanonicalCommandType.CoordinationHold,
@@ -1041,6 +1043,8 @@ public static class CommandDescriber
                 or CanonicalCommandType.JRing
                 or CanonicalCommandType.Cone
                 or CanonicalCommandType.GhostTrack
+                or CanonicalCommandType.RepositionToLocation
+                or CanonicalCommandType.RepositionMove
                 or CanonicalCommandType.Consolidate
                 or CanonicalCommandType.ConsolidateFull
                 or CanonicalCommandType.Deconsolidate

@@ -824,6 +824,8 @@ public static class CommandParser
             Cone when arg is null => PR.Ok(new ConeCommand(false, null)),
             Cone => ParseTpaSize(arg, size => new ConeCommand(true, size)),
             GhostTrack when arg is not null => ParseGhostTrackArg(arg),
+            RepositionToLocation when arg is not null => ParseRepositionToLocationArg(arg),
+            RepositionMove when arg is not null => ParseRepositionMoveArg(arg),
             // Data operations
             Annotate when arg is not null => ParseStripAnnotate(arg),
             StripMove when arg is not null => ParseStripMove(arg),
@@ -1180,6 +1182,34 @@ public static class CommandParser
             3 => PR.Ok(new GhostTrackCommand(parts[0].ToUpperInvariant(), parts[1].ToUpperInvariant(), parts[2].ToUpperInvariant(), null, null)),
             _ => PR.Fail("GHOST requires callsign [airport] runway or callsign lat lon"),
         };
+    }
+
+    private static PR ParseRepositionToLocationArg(string arg)
+    {
+        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        if (
+            parts.Length == 3
+            && double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lat)
+            && double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lon)
+        )
+        {
+            return PR.Ok(new RepositionToLocationCommand(parts[0].ToUpperInvariant(), lat, lon));
+        }
+
+        return PR.Fail("RPOSLOC requires callsign lat lon");
+    }
+
+    private static PR ParseRepositionMoveArg(string arg)
+    {
+        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 2)
+        {
+            return PR.Ok(new RepositionMoveCommand(parts[0].ToUpperInvariant(), parts[1].ToUpperInvariant()));
+        }
+
+        return PR.Fail("RPOSMOVE requires source and target callsigns");
     }
 
     /// <summary>

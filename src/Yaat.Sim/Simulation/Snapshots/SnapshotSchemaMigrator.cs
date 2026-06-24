@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 13;
+    public const int CurrentSchemaVersion = 14;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -93,6 +93,9 @@ public static class SnapshotSchemaMigrator
         //   controller's EXIT preference was dropped across rewind/reconnect). No data transformation —
         //   older snapshots default RequestedExitTaxiway to null; a legacy RequestedExit side now restores
         //   instead of being silently discarded.
+        // V13→V14: Added AircraftSnapshotDto.DataBlock (STARS Track Reposition surveillance/datablock
+        //   split). No data transformation — older snapshots default to a Bound datablock (no parked
+        //   unsupported datablock), exactly the pre-feature behavior.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

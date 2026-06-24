@@ -1028,6 +1028,28 @@ public static class CommandRegistry
                     ),
                 ]
             ),
+            Cmd(
+                RepositionToLocation,
+                "Reposition Datablock To Location",
+                "Track Operations",
+                true,
+                ["RPOSLOC"],
+                [
+                    O(
+                        null,
+                        [R("callsign", "aircraft callsign"), R("lat", "latitude"), R("lon", "longitude")],
+                        "Park datablock at a location (STARS TRK RPOS)"
+                    ),
+                ]
+            ),
+            Cmd(
+                RepositionMove,
+                "Reposition Datablock To Track",
+                "Track Operations",
+                true,
+                ["RPOSMOVE"],
+                [O(null, [R("from", "source callsign"), R("to", "target callsign")], "Move datablock onto another track (STARS TRK RPOS)")]
+            ),
         ];
 
     private static CommandDefinition[] DataCommands() =>
