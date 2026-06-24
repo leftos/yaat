@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.7.26-beta [2026/06/23]
+
+### Highlights
+- **CRC STARS commands now work from the keyboard, not just by slewing the data block** — accepting, recalling, and initiating handoffs, dropping tracks, toggling conflict-alert inhibit, and the `M`/`Y` multifunction entries (scratchpads, temporary/pilot-reported/amended altitudes, beacon assignment, Mode-C inhibit) all now work by typing the aircraft's callsign.
+- **STARS Track Reposition (`TRK RPOS`, F2) now works** — park an aircraft's data block away from its target and slew it back onto the target to re-associate.
+- **STARS command rejections now use the real STARS error codes** — `NO TRK` and `ILL TRK`, matching CRC, instead of YAAT's non-standard `TRACK NOT FOUND` / `NOT YOUR TRACK`.
+- **Solo training: a departure the scenario clears for takeoff now checks in** after takeoff when it comes under your control, instead of climbing away in silence.
 
 ### Fixed
 - Accepting a STARS handoff from the keyboard now works in CRC. Pressing the handoff key and Enter while a handoff flashes to you — or typing the aircraft's callsign and the handoff key — now accepts the inbound handoff, instead of being rejected with "TRACK NOT FOUND". (Slewing the data block already worked.) The same keyboard entry also recalls a pending outbound handoff you own, and `<HND OFF> <position> <callsign>` initiates a handoff without slewing.
