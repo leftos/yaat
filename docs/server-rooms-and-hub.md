@@ -179,6 +179,12 @@ Implements `ITrainingBroadcast` (`Simulation/ITrainingBroadcast.cs`). Two parall
   the admin path (`BroadcastAdminUpdates` / `BroadcastRoomToAdmin`) only guards on `scenario is null` — suppressed rooms
   reach it carrying an empty `TickChanges` because `SimulationHostedService.DetectChanges` (`:212`) skips them when
   populating per-tick flags, so nothing aircraft-shaped is sent for them.
+- **CRC connections** — `CrcBroadcastService.BroadcastUpdatesAsync` runs in the same after-the-loop, *un-gated* phase as
+  `DetectChanges`/`BroadcastUpdates`, but it snapshots `room.World` itself rather than reading `TickChanges`. It must
+  therefore skip `room.IsBroadcastSuppressed` rooms explicitly (alongside `scenario is null`) — otherwise a rewind /
+  recording reload, which tears the world down and briefly repopulates it with the full initial scenario before restoring
+  the target snapshot, leaks those transient aircraft to CRC as additive `ReceiveStarsTracks` adds that never get deleted
+  (STARS ghost tracks; see [crc-display-state.md](crc-display-state.md) "Rewind / recording-load resync").
 
 `ToTrainingDto(...)` is reused for both audiences and for the delayed-spawn DTO (`ToDelayedDto`, `:277`).
 
