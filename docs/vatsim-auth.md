@@ -21,14 +21,16 @@ present a YAAT token to `/hubs/training` — never a VATSIM token.
 **Desktop (system browser + loopback handoff):**
 ```
 client opens browser → GET <server>/auth/vatsim/start?return=http://127.0.0.1:<port>/cb
-  server stores {state,return} → 302 to auth.vatsim.net/oauth/authorize (redirect_uri = <server>/auth/vatsim/callback)
+  server stores {state,return,PKCE} → 302 to auth.vatsim.net/oauth/authorize (redirect_uri = <server>/auth/vatsim/callback)
     user logs in → 302 back to <server>/auth/vatsim/callback?code&state
-      server exchanges code (secret) → /api/user → VATUSA isMentor → mints YAAT access+refresh
-        → 302 to http://127.0.0.1:<port>/cb?accessToken&refreshToken&cid&name&rating&subdivision&isMentor
-client HttpListener captures tokens → stores in auth-sessions.json → connects /hubs/training with Bearer
+      server exchanges code (PKCE) → /api/user → VATUSA isMentor → mints YAAT access+refresh
+        → stores them behind a single-use exchange code → 302 to http://127.0.0.1:<port>/cb?code=<exchangeCode>
+client HttpListener captures the code → POST /auth/exchange → receives tokens+identity
+  → stores them (DPAPI-encrypted) in auth-sessions.json → connects /hubs/training with Bearer
 ```
 Only the **server callback** is registered with VATSIM. The loopback is server→desktop, so **no custom
-URI scheme / protocol handler is needed** — plain `https://` is enough.
+URI scheme / protocol handler is needed** — plain `https://` is enough. The tokens travel via a
+single-use POST exchange (RFC 8252 style), never in the loopback redirect URL.
 
 **Web (vStrips/vTDLS — same-origin cookie):**
 ```
@@ -67,10 +69,35 @@ The per-ARTCC bcrypt key system is gone — rating is the sole gate.
 ## Tokens
 
 `YaatTokenService` mints HS256 JWTs (claims `sub`=cid, `name`, `rating`, `subdivision`, `is_mentor`,
-`token_use`). Access token ~1h (hub Bearer / `yaat_session` cookie); refresh token ~30d
-(`yaat_refresh` cookie / desktop `auth-sessions.json`) re-mints access via `/auth/refresh` and
-`/auth/token`. JwtBearer reads the token from the `access_token` query (desktop) or the `yaat_session`
-cookie (web) for `/hubs/training`.
+`token_use`; refresh tokens additionally carry a `jti`). Access token ~1h (hub Bearer / `yaat_session`
+cookie); refresh token ~30d (`yaat_refresh` cookie / desktop `auth-sessions.json`) re-mints access via
+`/auth/refresh` (desktop) and `/auth/token` (web). JwtBearer reads the token from the `access_token`
+query (desktop) or the `yaat_session` cookie (web) for `/hubs/training`.
+
+## Security model
+
+The OAuth/PKCE/state core, the connection gate, and hub claim-trust are deliberately fail-closed
+(unknown/blank ratings deny; claims come only from the signed token, never client arguments). Beyond
+that:
+
+- **Access-only at the hub.** Access and refresh tokens share the signing key, issuer, and audience, so
+  JwtBearer's `OnTokenValidated` rejects any token whose `token_use` ≠ `access`. A refresh token can't
+  be replayed as a hub credential. HS256 is pinned via `ValidAlgorithms` (alg-confusion defense).
+- **Refresh rotation + revocation.** `/auth/refresh` issues a new refresh token and revokes the
+  consumed one's `jti` (`RefreshTokenRegistry`); `/auth/logout` (and desktop sign-out) revoke the
+  presented token. The registry is in-memory and cleared on restart — a restarted single-node server
+  re-trusts not-yet-expired tokens, which is acceptable and far better than the prior no-revocation
+  state. The web `/auth/token` path does **not** rotate (a single browser session makes concurrent
+  vStrips+vTDLS calls); its refresh cookie is revoked only on logout.
+- **Exchange-code desktop handoff.** The loopback receives a single-use code, not the tokens; the
+  client POSTs it to `/auth/exchange` (`AuthExchangeStore`, 2-min TTL). Desktop tokens are then stored
+  DPAPI-encrypted (Windows, per-user) at `auth-sessions.json`.
+- **Secure cookies behind the proxy.** Caddy terminates TLS and proxies plain HTTP, so `UseForwardedHeaders`
+  honors `X-Forwarded-Proto` — otherwise `Request.IsHttps` is false and `yaat_session`/`yaat_refresh`
+  never get their `Secure` flag.
+- **Dev endpoint double-gated.** `/auth/dev` (which mints an arbitrary identity from query input) is
+  mounted only when `RequireVatsimAuth=false` **and** the host is in the Development environment, so a
+  single misconfigured knob in a real deployment can't expose it.
 
 ## Configuration (per server)
 
@@ -118,8 +145,9 @@ set `RequireVatsimAuth=true` + the `Vatsim:*` config.
 ## Key files
 
 - Server: `src/Yaat.Server/Auth/*` (`VatsimAuthService`, `VatusaService`, `YaatTokenService`,
-  `AuthEndpoints`, `AuthStateStore`, `TrainingHubAccessRequirement`, `VatsimUser`), `YaatHost.cs`
-  (JwtBearer + policy wiring), `Hubs/TrainingHub.cs` (gate + claim reading),
+  `AuthEndpoints`, `AuthStateStore`, `AuthExchangeStore`, `RefreshTokenRegistry`,
+  `TrainingHubAccessRequirement`, `VatsimUser`), `YaatHost.cs` (JwtBearer + `token_use` gate +
+  forwarded headers + policy wiring), `Hubs/TrainingHub.cs` (gate + claim reading),
   `Simulation/ScenarioLifecycleService.cs` (scenario gate), `YaatOptions.cs`.
 - Shared: `src/Yaat.Sim/Scenarios/ScenarioRatingClassifier.cs`.
 - Desktop: `src/Yaat.Client.Core/Services/VatsimAuthClient.cs`, `ServerConnection.cs`.
@@ -128,5 +156,14 @@ set `RequireVatsimAuth=true` + the `Vatsim:*` config.
 
 ## Residual / follow-ups
 
-- The CRC `/hubs/client` JWT (`NegotiateHandler`) is still decoded without signature verification; CRC
-  is rating-exempt, but validating that token against VATSIM's signing key is a worthwhile follow-up.
+- **CRC fsd-jwt is unverifiable, by design of VATSIM's network.** CRC obtains a genuine VATSIM fsd-jwt
+  from a hardcoded `https://auth.vatsim.net/api/fsd-jwt` and presents it to `/hubs/client`.
+  `NegotiateHandler` reads its `sub` CID **without** verifying the signature, because VATSIM does not
+  publish the fsd-jwt signing key to non-sanctioned operators (the from-scratch openfsd server has to
+  redirect clients to its *own* fsd-jwt endpoint for exactly this reason). Verifying against a key we
+  can't obtain would reject every legitimate CRC client. The exposure is contained: a CID only resolves
+  to a room (`TrainingRoomManager.GetRoomForCid`) when that CID joined via the OAuth-gated training hub,
+  so a forged CID can at most bind to a room whose owner's CID it already knows — one room's STARS/ERAM
+  feed and CRC mutations, no cross-room/server escalation. CRC is rating-exempt regardless. The
+  negotiate connection token uses `RandomNumberGenerator`. A proper fix (e.g. lobby-only binding with
+  an explicit instructor pull) is tracked for a future design pass.

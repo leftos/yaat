@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -87,10 +88,36 @@ public sealed class VatsimAuthClient
     public void SignOut(string serverUrl)
     {
         var key = NormalizeServer(serverUrl);
+        string? refreshToken = null;
         lock (_gate)
         {
+            if (_sessions.TryGetValue(key, out var session))
+            {
+                refreshToken = session.RefreshToken;
+            }
+
             _sessions.Remove(key);
             SaveSessions();
+        }
+
+        if (!string.IsNullOrEmpty(refreshToken))
+        {
+            _ = RevokeRefreshTokenAsync(key, refreshToken);
+        }
+    }
+
+    // Best-effort server-side revocation so a sign-out invalidates the refresh token network-side, not
+    // just locally. Failures are swallowed — the local session has already been cleared.
+    private async Task RevokeRefreshTokenAsync(string serverUrl, string refreshToken)
+    {
+        try
+        {
+            using var content = new FormUrlEncodedContent(new Dictionary<string, string> { ["refreshToken"] = refreshToken });
+            using var response = await _http.PostAsync($"{serverUrl}/auth/logout", content, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _log.LogWarning(ex, "Server-side logout failed for {Server}", serverUrl);
         }
     }
 
@@ -137,7 +164,8 @@ public sealed class VatsimAuthClient
 
             var context = await contextTask;
             var query = context.Request.QueryString;
-            await RespondAndCloseAsync(context, query["accessToken"] is not null);
+            var code = query["code"];
+            await RespondAndCloseAsync(context, !string.IsNullOrEmpty(code));
 
             if (query["error"] is { } error)
             {
@@ -145,11 +173,42 @@ public sealed class VatsimAuthClient
                 return null;
             }
 
-            return SessionFromQuery(query);
+            if (string.IsNullOrEmpty(code))
+            {
+                _log.LogWarning("VATSIM login returned no exchange code for {Server}", serverUrl);
+                return null;
+            }
+
+            return await ExchangeCodeAsync(serverUrl, code, ct);
         }
         finally
         {
             listener.Stop();
+        }
+    }
+
+    // Trades the single-use loopback exchange code for the actual session tokens over a POST, so the
+    // access/refresh tokens never travel in the loopback redirect URL.
+    private async Task<StoredSession?> ExchangeCodeAsync(string serverUrl, string code, CancellationToken ct)
+    {
+        try
+        {
+            using var content = new FormUrlEncodedContent(new Dictionary<string, string> { ["code"] = code });
+            using var response = await _http.PostAsync($"{serverUrl}/auth/exchange", content, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _log.LogWarning("Token exchange failed with status {Status} for {Server}", (int)response.StatusCode, serverUrl);
+                return null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            return SessionFromJson(doc.RootElement);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            _log.LogWarning(ex, "Token exchange failed for {Server}", serverUrl);
+            return null;
         }
     }
 
@@ -200,12 +259,18 @@ public sealed class VatsimAuthClient
             }
 
             var accessToken = at.GetString()!;
+
+            // The server rotates the refresh token on each refresh and revokes the one just used, so we must
+            // store the new refresh token or the next refresh will be rejected.
+            var newRefreshToken =
+                doc.RootElement.TryGetProperty("refreshToken", out var rt) && rt.ValueKind == JsonValueKind.String ? rt.GetString()! : refreshToken;
+
             StoredSession? updated = null;
             lock (_gate)
             {
                 if (_sessions.TryGetValue(serverUrl, out var session))
                 {
-                    updated = session with { AccessToken = accessToken, AccessExpiresUtc = ReadExpiry(accessToken) };
+                    updated = session with { AccessToken = accessToken, AccessExpiresUtc = ReadExpiry(accessToken), RefreshToken = newRefreshToken };
                     _sessions[serverUrl] = updated;
                     SaveSessions();
                 }
@@ -218,28 +283,6 @@ public sealed class VatsimAuthClient
             _log.LogWarning(ex, "Token refresh failed for {Server}", serverUrl);
             return null;
         }
-    }
-
-    private static StoredSession? SessionFromQuery(System.Collections.Specialized.NameValueCollection query)
-    {
-        var accessToken = query["accessToken"];
-        var refreshToken = query["refreshToken"];
-        var cid = query["cid"];
-        if (string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(refreshToken) || string.IsNullOrEmpty(cid))
-        {
-            return null;
-        }
-
-        return new StoredSession(
-            accessToken,
-            refreshToken,
-            ReadExpiry(accessToken),
-            cid,
-            query["name"] ?? "",
-            query["rating"] ?? "",
-            string.IsNullOrEmpty(query["subdivision"]) ? null : query["subdivision"],
-            string.Equals(query["isMentor"], "true", StringComparison.OrdinalIgnoreCase)
-        );
     }
 
     private static StoredSession? SessionFromJson(JsonElement root)
@@ -363,7 +406,7 @@ public sealed class VatsimAuthClient
         {
             if (File.Exists(_sessionFilePath))
             {
-                var json = File.ReadAllText(_sessionFilePath);
+                var json = Encoding.UTF8.GetString(Unprotect(File.ReadAllBytes(_sessionFilePath)));
                 var loaded = JsonSerializer.Deserialize<Dictionary<string, StoredSession>>(json);
                 if (loaded is not null)
                 {
@@ -371,7 +414,7 @@ public sealed class VatsimAuthClient
                 }
             }
         }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or CryptographicException)
         {
             _log.LogWarning(ex, "Failed to load saved auth sessions; starting fresh");
         }
@@ -384,13 +427,22 @@ public sealed class VatsimAuthClient
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_sessionFilePath)!);
-            File.WriteAllText(_sessionFilePath, JsonSerializer.Serialize(_sessions));
+            File.WriteAllBytes(_sessionFilePath, Protect(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(_sessions))));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
         {
             _log.LogWarning(ex, "Failed to persist auth sessions");
         }
     }
+
+    // Session tokens are encrypted at rest with Windows DPAPI (per-user scope). DPAPI is unavailable on
+    // non-Windows platforms, so there the file is written as-is — it still lives under the user's profile
+    // directory, readable only by that user.
+    private static byte[] Protect(byte[] plaintext) =>
+        OperatingSystem.IsWindows() ? ProtectedData.Protect(plaintext, optionalEntropy: null, DataProtectionScope.CurrentUser) : plaintext;
+
+    private static byte[] Unprotect(byte[] stored) =>
+        OperatingSystem.IsWindows() ? ProtectedData.Unprotect(stored, optionalEntropy: null, DataProtectionScope.CurrentUser) : stored;
 
     private static string? ReadString(JsonElement obj, string name) =>
         obj.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
