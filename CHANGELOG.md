@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.7.27-beta [2026/06/25]
+
+### Highlights
+- **Rewinding the timeline no longer leaves stale STARS ghost tracks** on connected CRC clients — scrubbing back in time used to push phantom tracks that lingered until a CRC reconnect.
+- **Live winds aloft above 24,000 ft are now applied** — aircraft cruising in the flight levels under live weather were getting the 24,000 ft wind instead of the real higher-altitude wind.
+- **Flight-strip annotations survive a flight-plan amendment** — the lower-right boxes (`9`, `8a`, `8b`) are no longer erased when an aircraft's flight plan is amended.
 
 ### Fixed
 - Rewinding with the timeline bar no longer leaves stale STARS ghost tracks on connected CRC clients. Scrubbing back in time briefly let the periodic CRC broadcast catch the simulation mid-reconstruction and push tracks for aircraft that weren't present at the rewound time; those phantom tracks lingered on STARS until the controller disconnected CRC and reconnected. The display now stays in sync with the rewound state without a reconnect.
