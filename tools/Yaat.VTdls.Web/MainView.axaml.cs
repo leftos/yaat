@@ -65,11 +65,10 @@ public partial class MainView : UserControl
         }
         else
         {
-            // The static landing form in wwwroot/index.html gates the WASM
-            // load on having all three identity params, so this branch should
-            // never run via the normal flow. Recovery hint for the
-            // URL-mangled case.
-            SetStatus("Missing identity in URL — reload /vtdls/ to fill in CID, initials, and ARTCC.");
+            // The static sign-in page in wwwroot/index.html authenticates with VATSIM and fills in the
+            // initials/ARTCC params before loading the WASM, so this branch should never run via the
+            // normal flow. Recovery hint for the URL-mangled case.
+            SetStatus("Missing initials/ARTCC — reload /vtdls/ to sign in and set them.");
         }
     }
 
@@ -141,9 +140,7 @@ public partial class MainView : UserControl
     }
 
     private bool HasIdentity() =>
-        !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("cid"))
-        && !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("initials"))
-        && !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("artcc"));
+        !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("initials")) && !string.IsNullOrWhiteSpace(_queryParams.GetValueOrDefault("artcc"));
 
     private async Task SendCommandAsync(string callsign, string command, string initials)
     {
@@ -163,17 +160,14 @@ public partial class MainView : UserControl
     }
 
     /// <summary>
-    /// Live connect path. Server URL defaults to relative ("" resolves to the
-    /// current origin since SignalR.Client treats an empty/relative URL as
-    /// same-origin, which is what we want when yaat-server hosts /vtdls/).
-    /// Override via <c>?server=...</c> for cross-origin cases (mostly dev).
-    /// Auto-joins the room bound to the supplied CID, mirroring
-    /// Yaat.VStrips.Web's ConnectAndAutoJoinAsync.
+    /// Live connect path. Server URL defaults to the current origin (yaat-server hosts /vtdls/).
+    /// Override via <c>?server=...</c> for cross-origin cases (mostly dev). The VATSIM identity comes
+    /// from the same-origin session cookie established by the sign-in page, so the server resolves the
+    /// CID itself; we auto-join the room bound to that CID.
     /// </summary>
     private async Task ConnectAndAutoJoinAsync(VTdlsViewModel vm)
     {
         var serverUrl = _queryParams.GetValueOrDefault("server", App.LocationOrigin);
-        var cid = _queryParams.GetValueOrDefault("cid", "");
         var initials = _queryParams.GetValueOrDefault("initials", "");
         var artcc = _queryParams.GetValueOrDefault("artcc", "");
         var explicitRoomId = _queryParams.GetValueOrDefault("room", "");
@@ -196,35 +190,28 @@ public partial class MainView : UserControl
         if (!string.IsNullOrEmpty(explicitRoomId))
         {
             SetStatus($"Joining room {explicitRoomId}...");
-            await JoinRoomAsync(vm, explicitRoomId, cid, initials, artcc);
-            return;
-        }
-
-        if (string.IsNullOrEmpty(cid))
-        {
-            Log.LogInformation("No CID supplied; staying connected without a room");
-            SetStatus("Connected. No CID supplied — pass ?cid=<your VATSIM CID> to auto-join a room.");
+            await JoinRoomAsync(vm, explicitRoomId, initials, artcc);
             return;
         }
 
         try
         {
-            var room = await _connection.FindRoomForMyCidAsync(cid);
+            var room = await _connection.FindRoomForMyCidAsync();
             if (room is null)
             {
-                Log.LogInformation("No active room found for CID {Cid}; will auto-join when one becomes available", cid);
-                SetStatus($"Connected, CID {cid} — no active room yet. Waiting for one to become available...");
+                Log.LogInformation("No active room found yet; will auto-join when one becomes available");
+                SetStatus("Connected — no active room yet. Waiting for one to become available...");
                 _connection.RoomAvailableForCid += async roomId =>
                 {
                     if (vm.IsConnected)
                     {
-                        await Dispatcher.UIThread.InvokeAsync(() => JoinRoomAsync(vm, roomId, cid, initials, artcc));
+                        await Dispatcher.UIThread.InvokeAsync(() => JoinRoomAsync(vm, roomId, initials, artcc));
                     }
                 };
                 return;
             }
             SetStatus($"Connected, found room {room.RoomId} ({room.CreatorInitials}) — joining...");
-            await JoinRoomAsync(vm, room.RoomId, cid, initials, artcc);
+            await JoinRoomAsync(vm, room.RoomId, initials, artcc);
         }
         catch (Exception ex)
         {
@@ -233,18 +220,18 @@ public partial class MainView : UserControl
         }
     }
 
-    private async Task JoinRoomAsync(VTdlsViewModel vm, string roomId, string cid, string initials, string artcc)
+    private async Task JoinRoomAsync(VTdlsViewModel vm, string roomId, string initials, string artcc)
     {
         try
         {
-            var state = await _connection.JoinRoomAsync(roomId, cid, initials, artcc, ClientKind.VTdls);
+            var state = await _connection.JoinRoomAsync(roomId, initials, artcc, ClientKind.VTdls);
             if (state is null)
             {
                 Log.LogWarning("JoinRoom {RoomId} returned null state", roomId);
                 SetStatus($"JoinRoom {roomId} returned null — room may have ended");
                 return;
             }
-            Log.LogInformation("Joined {RoomId} as {Cid}/{Initials}; scenario={Scenario}", roomId, cid, initials, state.ScenarioName ?? "(none)");
+            Log.LogInformation("Joined {RoomId} as {Initials}; scenario={Scenario}", roomId, initials, state.ScenarioName ?? "(none)");
             SetStatus($"Joined {roomId} ({state.ScenarioName ?? "no scenario"}) — fetching TDLS state...");
 
             // Pull accessible facilities + auto-select the first facility's

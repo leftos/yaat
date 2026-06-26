@@ -709,7 +709,7 @@ Pop-out state for the student strips entry is saved in `preferences.json` under 
 
 The **vTDLS** tab is YAAT's emulation of vNAS's [Tower Data Link Services](https://tdls.virtualnas.net/) web app — the Pre-Departure Clearance (PDC) console real controllers use to issue clearances over data-link. It opens next to **Strips** under **View → vTDLS** as soon as the server tells the client which TDLS facilities the student position can access (typically the position's own ATCT, plus any consolidated child facilities when working a parent TRACON).
 
-vTDLS state lives on the server and broadcasts over SignalR — there is no CRC topic counterpart, so trainees do not see a vTDLS view in their CRC. The same display is also available in any browser at `/vtdls/` on the server (no install), backed by the WASM `Yaat.VTdls.Web` bundle. While connected, **Tools → Open TDLS in Browser** opens that page in your default browser with your CID/initials/ARTCC/room prefilled — the vTDLS counterpart to **Open Strips in Browser**.
+vTDLS state lives on the server and broadcasts over SignalR — there is no CRC topic counterpart, so trainees do not see a vTDLS view in their CRC. The same display is also available in any browser at `/vtdls/` on the server (no install), backed by the WASM `Yaat.VTdls.Web` bundle. While connected, **Tools → Open TDLS in Browser** opens that page in your default browser with your initials/ARTCC/room pre-filled — the vTDLS counterpart to **Open Strips in Browser**. The browser page signs in with VATSIM itself (so your CID is verified there too).
 
 #### Lists
 
@@ -1423,7 +1423,7 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 
 Open **Settings** to configure:
 
-- **Identity** — VATSIM CID, user initials (required), [ARTCC](#glossary) ID, and an optional **Training access key** (see below)
+- **Identity** — your operating initials (required) and [ARTCC](#glossary) ID. Your VATSIM CID, name, and controller rating come from **VATSIM sign-in** when you connect (see below) — they are no longer entered by hand. After your first sign-in, ARTCC is pre-filled from your VATSIM subdivision and initials are suggested from your name; both stay editable.
 - **Scenarios** — Solo Training Mode, auto-accept handoff settings, auto-delete aircraft override, simulation shortcuts (auto-clear to land, auto-cross runways), validate DCT fixes against route
 - **Commands** — Alias editor for customizing command verbs. Use **Reset to Defaults** to restore built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros))
@@ -1433,17 +1433,24 @@ Open **Settings** to configure:
 - **Colors** — Radar display colors (assignment tint, unassigned tint, selected aircraft color) and ground view colors
 - **Advanced** — Aircraft select keybind, focus command input keybind, take control keybind, always-on-top keybind, and server admin mode
 
-#### Training Access Key
+#### Signing in with VATSIM
 
-ARTCC scenarios marked with a required controller rating (Student3 / Controller1 / Instructor1 — OTS, advanced, or instructor material) are hidden by default in the ARTCC scenarios picker. To unlock them, paste the key your facility Training Administrator gave you into **Settings → Identity → Training access key** and save.
+When you connect to a server, YAAT signs you in through **VATSIM Connect**: your browser opens to the
+VATSIM login page, and after you authorize, YAAT receives your verified identity (CID, name, controller
+rating) and connects. There is nothing to type — the old manual CID field is gone. Your session is
+remembered, so subsequent connects don't reopen the browser unless it has expired.
 
-The single key field covers three hierarchical tiers, and a higher-tier key automatically unlocks every lower tier:
+Deployed servers only admit **mentors and instructors**: you can connect if you hold a VATUSA mentor
+role, or if your VATSIM rating is Instructor (I1/I2/I3) or higher. Lower ratings without a mentor role
+are turned away at connect — this is intentional, since YAAT is a mentoring tool. (The students being
+trained connect with CRC, which is not rating-gated.)
 
-- An **S3 key** unlocks Student3-rated scenarios (S3 OTS).
-- A **C1 key** unlocks Controller1-rated scenarios *and* Student3 scenarios.
-- An **I1 key** unlocks Instructor1-rated scenarios *and* Controller1 *and* Student3.
+#### Scenario rating access
 
-When the picker opens it asks the server which scenarios your key unlocks. Hidden scenarios never reach your client — instead an inline note shows how many are filtered. If your ARTCC hasn't set up gating yet, all scenarios are visible regardless of whether you have a key.
+ARTCC scenarios marked with a required controller rating (Student3 / Controller1 / Instructor1 — OTS,
+advanced, or instructor material) are gated by **your verified VATSIM rating**. You can load any scenario
+at or below your rating; higher-rated scenarios are hidden in the picker, with an inline note showing how
+many are filtered. There are no training keys to enter anymore — access follows your real rating.
 
 The **Local Files** tab is not gated. Trainer authors and developers can load any scenario JSON they have on disk.
 

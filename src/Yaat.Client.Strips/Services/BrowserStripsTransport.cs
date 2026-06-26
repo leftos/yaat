@@ -140,8 +140,7 @@ public sealed class BrowserStripsTransport : IStripsTransport, IAsyncDisposable
     /// <see cref="RoomAvailableForCid"/> to wait until one becomes
     /// available.
     /// </summary>
-    public Task<BrowserRoomInfoDto?> FindRoomForMyCidAsync(string cid) =>
-        RequireConnection().InvokeAsync<BrowserRoomInfoDto?>("FindRoomForMyCid", cid);
+    public Task<BrowserRoomInfoDto?> FindRoomForMyCidAsync() => RequireConnection().InvokeAsync<BrowserRoomInfoDto?>("FindRoomForMyCid");
 
     /// <summary>
     /// Joins a training room. <paramref name="kind"/> is a string from
@@ -149,8 +148,8 @@ public sealed class BrowserStripsTransport : IStripsTransport, IAsyncDisposable
     /// <c>RoomStateDto</c>; we deserialize into a strip-only subset so
     /// the WASM bundle doesn't have to ship the full DTO graph.
     /// </summary>
-    public Task<BrowserJoinRoomResultDto?> JoinRoomAsync(string roomId, string cid, string initials, string artccId, string kind) =>
-        RequireConnection().InvokeAsync<BrowserJoinRoomResultDto?>("JoinRoom", roomId, cid, initials, artccId, kind);
+    public Task<BrowserJoinRoomResultDto?> JoinRoomAsync(string roomId, string initials, string artccId, string kind) =>
+        RequireConnection().InvokeAsync<BrowserJoinRoomResultDto?>("JoinRoom", roomId, initials, artccId, kind);
 
     public Task<CommandResultDto> SendCommandAsync(string callsign, string command, string initials) =>
         RequireConnection().InvokeAsync<CommandResultDto>("SendCommand", callsign, command, initials);

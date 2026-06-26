@@ -9,7 +9,7 @@ public partial class ConnectViewModel : ObservableObject
 {
     private readonly Func<string, CancellationToken, Task<string?>> _connectAction;
     private readonly Action<IList<SavedServer>, string> _saveAction;
-    private readonly Action<string, string, string> _identitySaveAction;
+    private readonly Action<string, string> _identitySaveAction;
     private readonly Action _closeAction;
     private CancellationTokenSource? _currentCts;
 
@@ -30,9 +30,6 @@ public partial class ConnectViewModel : ObservableObject
     private string? _errorMessage;
 
     [ObservableProperty]
-    private string _vatsimCid = "";
-
-    [ObservableProperty]
     private string _userInitials = "";
 
     [ObservableProperty]
@@ -41,12 +38,11 @@ public partial class ConnectViewModel : ObservableObject
     public ConnectViewModel(
         IReadOnlyList<SavedServer> servers,
         string lastUsedUrl,
-        string vatsimCid,
         string userInitials,
         string artccId,
         Func<string, CancellationToken, Task<string?>> connectAction,
         Action<IList<SavedServer>, string> saveAction,
-        Action<string, string, string> identitySaveAction,
+        Action<string, string> identitySaveAction,
         Action closeAction
     )
     {
@@ -56,7 +52,6 @@ public partial class ConnectViewModel : ObservableObject
         _identitySaveAction = identitySaveAction;
         _closeAction = closeAction;
         SelectedServer = Servers.FirstOrDefault(s => s.Url == lastUsedUrl) ?? Servers.FirstOrDefault();
-        VatsimCid = vatsimCid;
         UserInitials = userInitials;
         ArtccId = artccId;
 
@@ -204,7 +199,7 @@ public partial class ConnectViewModel : ObservableObject
         }
 
         // Persist identity before connect so AttemptConnectAsync sees the new values via Preferences.
-        _identitySaveAction(VatsimCid.Trim(), UserInitials.Trim(), ArtccId.Trim());
+        _identitySaveAction(UserInitials.Trim(), ArtccId.Trim());
 
         using var cts = new CancellationTokenSource();
         _currentCts = cts;

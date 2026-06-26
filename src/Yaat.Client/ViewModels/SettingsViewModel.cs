@@ -109,16 +109,10 @@ public partial class SettingsViewModel : ObservableObject
         .ToArray();
 
     [ObservableProperty]
-    private string _vatsimCid = "";
-
-    [ObservableProperty]
     private string _userInitials = "";
 
     [ObservableProperty]
     private string _artccId = "";
-
-    [ObservableProperty]
-    private string _trainingKey = "";
 
     [ObservableProperty]
     private string _testCommandInput = "";
@@ -598,10 +592,8 @@ public partial class SettingsViewModel : ObservableObject
         GroupedVerbMappings = new DataGridCollectionView(VerbMappings);
         GroupedVerbMappings.GroupDescriptions.Add(new DataGridPathGroupDescription("Category"));
         LoadFromScheme(_preferences.CommandScheme);
-        _vatsimCid = _preferences.VatsimCid;
         _userInitials = _preferences.UserInitials;
         _artccId = _preferences.ArtccId;
-        _trainingKey = _preferences.TrainingKey;
         _isAdminMode = _preferences.IsAdminMode;
         _adminPassword = _preferences.AdminPassword;
         _autoAcceptEnabled = _preferences.AutoAcceptEnabled;
@@ -739,10 +731,8 @@ public partial class SettingsViewModel : ObservableObject
     {
         var scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
-        _preferences.SetVatsimCid(VatsimCid);
         _preferences.SetUserInitials(UserInitials);
         _preferences.SetArtccId(ArtccId);
-        _preferences.SetTrainingKey(TrainingKey);
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetCommandRunDelay(CommandRunDelayMinSeconds, CommandRunDelayMaxSeconds);

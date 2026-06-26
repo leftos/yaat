@@ -59,13 +59,16 @@
                 BorderThickness="0,1,0,0"
                 Margin="0,12,0,0"
                 Padding="0,12,0,0">
-            <Grid ColumnDefinitions="Auto,90,12,Auto,80,12,Auto,*">
-                <TextBlock Grid.Column="0" Text="VATSIM CID:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <TextBox Grid.Column="1" Text="{Binding VatsimCid}" Watermark="1234567" />
-                <TextBlock Grid.Column="3" Text="Initials:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <TextBox Grid.Column="4" Text="{Binding UserInitials}" MaxLength="2" Watermark="AB" />
-                <TextBlock Grid.Column="6" Text="ARTCC:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <TextBox Grid.Column="7" Text="{Binding ArtccId}" MaxLength="4" Watermark="ZOA" />
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,80,12,Auto,*">
+                <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="5"
+                           Text="You'll sign in with VATSIM when you connect."
+                           Foreground="#888"
+                           FontSize="11"
+                           Margin="0,0,0,8" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Initials:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding UserInitials}" MaxLength="2" Watermark="AB" />
+                <TextBlock Grid.Row="1" Grid.Column="3" Text="ARTCC:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBox Grid.Row="1" Grid.Column="4" Text="{Binding ArtccId}" MaxLength="4" Watermark="ZOA" />
             </Grid>
         </Border>
 

@@ -26,6 +26,9 @@ public partial class MainViewModel : ObservableObject
     private readonly ServerConnection _connection = new();
     public ServerConnection Connection => _connection;
     private readonly UserPreferences _preferences = new();
+    private readonly VatsimAuthClient _auth = new();
+    private VatsimIdentity? _identity;
+    internal string? CurrentCid => _identity?.Cid;
     private readonly CommandInputController _commandInput = new();
     private readonly IFilePickerService _filePicker;
     private readonly VideoMapService _videoMapService = new();

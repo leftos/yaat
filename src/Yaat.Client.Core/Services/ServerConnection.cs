@@ -78,7 +78,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
-    public async Task ConnectAsync(string serverUrl, CancellationToken ct = default)
+    public async Task ConnectAsync(string serverUrl, Func<Task<string?>> accessTokenProvider, CancellationToken ct = default)
     {
         if (_connection is not null)
         {
@@ -89,7 +89,16 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _log.LogInformation("Connecting to {Url}", hubUrl);
 
         _connection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
+            .WithUrl(
+                hubUrl,
+                options =>
+                {
+                    // Supplies the YAAT session token as the SignalR access token. It rides as the
+                    // access_token query string on the WebSocket negotiate, where the server's
+                    // JwtBearer handler lifts it onto the request.
+                    options.AccessTokenProvider = accessTokenProvider;
+                }
+            )
             .WithAutomaticReconnect()
             .AddJsonProtocol(options =>
             {
@@ -234,16 +243,16 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
     // --- Room lifecycle ---
 
-    public async Task<string> CreateRoomAsync(string cid, string initials, string artccId, string kind)
+    public async Task<string> CreateRoomAsync(string initials, string artccId, string kind)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<string>("CreateRoom", cid, initials, artccId, kind);
+        return await _connection!.InvokeAsync<string>("CreateRoom", initials, artccId, kind);
     }
 
-    public async Task<RoomStateDto?> JoinRoomAsync(string roomId, string cid, string initials, string artccId, string kind)
+    public async Task<RoomStateDto?> JoinRoomAsync(string roomId, string initials, string artccId, string kind)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<RoomStateDto?>("JoinRoom", roomId, cid, initials, artccId, kind);
+        return await _connection!.InvokeAsync<RoomStateDto?>("JoinRoom", roomId, initials, artccId, kind);
     }
 
     public async Task LeaveRoomAsync()
@@ -258,10 +267,10 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<List<TrainingRoomInfoDto>>("GetActiveRooms");
     }
 
-    public async Task<TrainingRoomInfoDto?> FindRoomForMyCidAsync(string cid)
+    public async Task<TrainingRoomInfoDto?> FindRoomForMyCidAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<TrainingRoomInfoDto?>("FindRoomForMyCid", cid);
+        return await _connection!.InvokeAsync<TrainingRoomInfoDto?>("FindRoomForMyCid");
     }
 
     // --- Scenario lifecycle ---
@@ -287,36 +296,26 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
 
     /// <summary>
     /// ARTCC-tab load path, step 1. Resolves the canonical scenario JSON from the server's catalog,
-    /// gated by the rating-key check, so the client can run the difficulty/pacing setup before
-    /// loading it back via <see cref="LoadScenarioAsync"/>. A non-null AccessDeniedReason means the
-    /// key doesn't unlock the scenario (or the client isn't in a room) and no JSON is returned.
+    /// gated by the caller's verified VATSIM rating, so the client can run the difficulty/pacing setup
+    /// before loading it back via <see cref="LoadScenarioAsync"/>. A non-null AccessDeniedReason means
+    /// the caller's rating is below the scenario's minimum (or the client isn't in a room) and no JSON
+    /// is returned.
     /// </summary>
-    public async Task<ScenarioJsonResultDto> GetScenarioJsonByIdAsync(string scenarioId, string accessKey)
+    public async Task<ScenarioJsonResultDto> GetScenarioJsonByIdAsync(string scenarioId)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<ScenarioJsonResultDto>("GetScenarioJsonById", scenarioId, accessKey);
+        return await _connection!.InvokeAsync<ScenarioJsonResultDto>("GetScenarioJsonById", scenarioId);
     }
 
     /// <summary>
-    /// Returns the scenarios visible to the supplied training key for the room's ARTCC,
-    /// plus a count of scenarios hidden by the rating gate. The picker uses the count to
-    /// surface "N scenarios hidden — requires training access key" inline.
+    /// Returns the scenarios the caller's verified VATSIM rating can load for the room's ARTCC, plus a
+    /// count of scenarios hidden by the rating gate. The picker uses the count to surface "N scenarios
+    /// hidden — requires a higher rating" inline.
     /// </summary>
-    public async Task<ScenarioCatalogResponseDto> GetScenariosAsync(string accessKey)
+    public async Task<ScenarioCatalogResponseDto> GetScenariosAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<ScenarioCatalogResponseDto>("GetScenarios", accessKey);
-    }
-
-    /// <summary>
-    /// Validates a training key against the given ARTCC. Returns the tier names the key
-    /// unlocks (subset of "S3", "I1"; empty means the key matches nothing or the ARTCC isn't
-    /// enrolled in gating).
-    /// </summary>
-    public async Task<string[]> ValidateTrainingKeyAsync(string artccId, string key)
-    {
-        EnsureConnected();
-        return await _connection!.InvokeAsync<string[]>("ValidateTrainingKey", artccId, key);
+        return await _connection!.InvokeAsync<ScenarioCatalogResponseDto>("GetScenarios");
     }
 
     // --- Flight-strips facility discovery ---

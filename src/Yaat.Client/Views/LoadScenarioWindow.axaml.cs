@@ -118,7 +118,7 @@ public partial class LoadScenarioWindow : Window
         ScenarioCatalogResponseDto response;
         try
         {
-            response = await _connection.GetScenariosAsync(_preferences.TrainingKey);
+            response = await _connection.GetScenariosAsync();
         }
         catch (Exception ex)
         {

@@ -46,18 +46,10 @@
             <TabItem Header="Identity">
                 <ScrollViewer>
                     <StackPanel Margin="12" Spacing="12">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="VATSIM CID:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <TextBox Text="{Binding VatsimCid}"
-                                     Watermark="e.g. 1234567"
-                                     Width="120"
-                                     HorizontalAlignment="Left" />
-                            <TextBlock Text="Your VATSIM CID. Used to link your CRC client to the correct training room."
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
+                        <TextBlock Text="Your identity and CID come from VATSIM sign-in when you connect."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11" />
                         <StackPanel Spacing="4">
                             <TextBlock Text="Initials (2 letters):"
                                        Foreground="{DynamicResource SubtleTextBrush}" />
@@ -80,18 +72,6 @@
                                      Width="80"
                                      HorizontalAlignment="Left" />
                             <TextBlock Text="Your ARTCC identifier. Used in room names and to determine facility data."
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Training access key:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <TextBox Text="{Binding TrainingKey}"
-                                     PasswordChar="•"
-                                     Width="280"
-                                     HorizontalAlignment="Left" />
-                            <TextBlock Text="Issued by your facility TA. Unlocks rating-gated scenarios for your ARTCC. Leave blank if you don't have one."
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />

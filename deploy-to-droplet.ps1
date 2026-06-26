@@ -1,6 +1,12 @@
-# Deploy yaat-server to DigitalOcean droplet
-# Usage: .\deploy-to-droplet.ps1 [-NoLogs] [-NoCache] [-SkipSessionSave] [-DrainSeconds <sec>] [-CacheReserveGb <gb>]
-#        .\deploy-to-droplet.ps1 -RebootOnly [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
+# Deploy yaat-server to a DigitalOcean droplet
+# Usage: .\deploy-to-droplet.ps1 [-Target <name>] [-NoLogs] [-NoCache] [-SkipSessionSave] [-DrainSeconds <sec>] [-CacheReserveGb <gb>]
+#        .\deploy-to-droplet.ps1 -Target yaat2 -RebootOnly [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
+#
+# -Target  Which deployment to act on (default "yaat1"). Selects the droplet IP, server path,
+#          public URL, and remote compose env file from the $targets map below. Add a new
+#          entry to $targets to deploy another domain (e.g. yaat2). Each target's secrets
+#          (ADMIN_PASSWORD, DISCORD_STATUS_WEBHOOK_URL) are read from a local .env.<target>
+#          file if present, falling back to .env.
 #
 # By default, active training sessions are preserved across deploy:
 #   POST /admin/prepare-restart (drain + checkpoint) -> rebuild container -> restore on boot.
@@ -32,6 +38,7 @@
 #                  layers so the next incremental deploy stays fast.
 
 param(
+  [string]$Target = "yaat1",
   [switch]$NoLogs,
   [switch]$NoCache,
   [switch]$SkipSessionSave,
@@ -42,17 +49,45 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Per-deployment configuration. Add an entry here for each domain you deploy.
+# RemoteEnvFile is the env file docker compose reads ON the droplet (--env-file); it must define
+# YAAT_DOMAIN, VATSIM_CLIENT_ID, JWT_SIGNING_KEY, etc. (see yaat-server/.env.example). ".env" is the
+# compose default, so a single-deployment droplet can keep using ".env".
+$targets = @{
+  yaat1 = @{
+    DropletIp     = "143.198.111.198"
+    ServerPath    = "/home/yaat/yaat-server"
+    ServerUrl     = "https://yaat1.leftos.dev"
+    RemoteEnvFile = ".env"
+  }
+  # yaat2 = @{
+  #   DropletIp     = "<droplet-ip>"
+  #   ServerPath    = "/home/yaat/yaat-server"
+  #   ServerUrl     = "https://yaat2.leftos.dev"
+  #   RemoteEnvFile = ".env.yaat2"
+  # }
+}
+
+if (-not $targets.ContainsKey($Target)) {
+  throw "Unknown target '$Target'. Known targets: $($targets.Keys -join ', '). Add it to the `$targets map in deploy-to-droplet.ps1."
+}
+$cfg = $targets[$Target]
+
 # Configuration
-$dropletIp = "143.198.111.198"
+$dropletIp = $cfg.DropletIp
 $dropletUser = "root"
 $yaatUser = "yaat"
-$serverPath = "/home/yaat/yaat-server"
-$serverUrl = "https://yaat1.leftos.dev"
-$logFile = "/tmp/yaat-deploy-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+$serverPath = $cfg.ServerPath
+$serverUrl = $cfg.ServerUrl
+$remoteEnvFile = $cfg.RemoteEnvFile
+$logFile = "/tmp/yaat-deploy-$Target-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
 $followLogs = -not $NoLogs
 
-# Load secrets from .env (repo root)
-$envFile = Join-Path $PSScriptRoot ".env"
+# Load this target's secrets from a local .env.<target> if present, else the shared .env.
+$envFile = Join-Path $PSScriptRoot ".env.$Target"
+if (-not (Test-Path $envFile)) {
+  $envFile = Join-Path $PSScriptRoot ".env"
+}
 $discordWebhook = $null
 $adminPassword = $null
 if (Test-Path $envFile) {
@@ -134,8 +169,10 @@ function Invoke-PrepareRestartSessions {
 $headerTitle = if ($RebootOnly) { "YAAT Server Reboot (refresh nav data, no redeploy)" } else { "YAAT Server Deployment" }
 Write-Host $headerTitle -ForegroundColor Cyan
 Write-Host "=====================" -ForegroundColor Cyan
+Write-Host "Target:     $Target ($serverUrl)"
 Write-Host "Droplet:    $dropletIp"
 Write-Host "Path:       $serverPath"
+Write-Host "Env file:   $remoteEnvFile (remote)"
 Write-Host "Log file:   $logFile"
 if ($SkipSessionSave) {
   Write-Host "Sessions:   NOT preserved (-SkipSessionSave)" -ForegroundColor Yellow
@@ -162,7 +199,7 @@ function Test-DropletReachable {
 function Show-ServerLogs {
   Write-Host "Following server logs (Ctrl-C to detach)..." -ForegroundColor Cyan
   Write-Host ""
-  ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose logs -f yaat-server`""
+  ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose --env-file $remoteEnvFile logs -f yaat-server`""
 }
 
 # Poll the container logs until the server reports it is listening. Relies on a
@@ -172,7 +209,7 @@ function Wait-ServerReady {
   $retry = 0
   $maxRetries = 30
   while ($retry -lt $maxRetries) {
-    $null = ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose logs yaat-server 2>/dev/null | grep -q 'Now listening on'`"" 2>&1
+    $null = ssh "$dropletUser@$dropletIp" "su - $yaatUser -c `"cd $serverPath && docker compose --env-file $remoteEnvFile logs yaat-server 2>/dev/null | grep -q 'Now listening on'`"" 2>&1
     if ($LASTEXITCODE -eq 0) {
       return $true
     }
@@ -213,7 +250,7 @@ function Invoke-ServerReboot {
   # (cache + session-checkpoints) persist. The app's startup vNAS serial-staleness
   # check downloads a new AIRAC cycle if the published serial changed. Commit hashes
   # are baked into the image at build time, so /api/version stays correct.
-  Invoke-OnDroplet "cd $serverPath && docker compose up -d --force-recreate yaat-server" | Tee-Object -Append -FilePath $logFile
+  Invoke-OnDroplet "cd $serverPath && docker compose --env-file $remoteEnvFile up -d --force-recreate yaat-server" | Tee-Object -Append -FilePath $logFile
 
   Write-Host ""
   Write-Host "[4/4] Waiting for server to be ready..." -ForegroundColor Yellow
@@ -255,7 +292,7 @@ try {
 
   Write-Host ""
   Write-Host "[2/8] Checking current status..." -ForegroundColor Yellow
-  Invoke-OnDroplet "cd $serverPath && docker compose ps" | Tee-Object -Append -FilePath $logFile
+  Invoke-OnDroplet "cd $serverPath && docker compose --env-file $remoteEnvFile ps" | Tee-Object -Append -FilePath $logFile
 
   Write-Host ""
   Write-Host "[3/8] Preparing for restart..." -ForegroundColor Yellow
@@ -289,7 +326,7 @@ try {
   Write-Host "[5/8] Rebuilding and recreating services..." -ForegroundColor Yellow
   $buildFlags = if ($NoCache) { "--no-cache " } else { "" }
   # --force-recreate replaces the container; named volumes (cache + session-checkpoints) persist.
-  Invoke-OnDroplet "cd $serverPath && YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose build $buildFlags&& YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose up -d --force-recreate" | Tee-Object -Append -FilePath $logFile
+  Invoke-OnDroplet "cd $serverPath && YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose --env-file $remoteEnvFile build $buildFlags&& YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose --env-file $remoteEnvFile up -d --force-recreate" | Tee-Object -Append -FilePath $logFile
 
   Write-Host ""
   Write-Host "[6/8] Waiting for server to be ready..." -ForegroundColor Yellow

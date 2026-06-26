@@ -157,7 +157,8 @@ Logging/
   FileLoggerProvider.cs         # Writes to YaatPaths.AppDataRoot/<logFileName> (yaat-client.log)
 
 Services/
-  ServerConnection.cs           # SignalR client to /hubs/training (JSON). Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings). Includes PilotTransmissionBroadcastDto + PilotTransmissionReceived for solo-training audio.
+  ServerConnection.cs           # SignalR client to /hubs/training (JSON). Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings). Includes PilotTransmissionBroadcastDto + PilotTransmissionReceived for solo-training audio. ConnectAsync takes an access-token provider (the YAAT session token).
+  VatsimAuthClient.cs           # Client side of server-mediated VATSIM Connect: system-browser + loopback handoff (or /auth/dev when a server is in dev-bypass), token refresh, per-server session persistence to auth-sessions.json. Supplies the SignalR access token.
   UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (%LOCALAPPDATA%/yaat/). Stores PilotVoiceEnabled/Volume/RadioFxEnabled, default off.
   UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel).
   YaatHubJsonContext.cs         # Source-generated JsonSerializerContext for the broader DTO surface (room state, aircraft, weather, CRC, scenarios). Strip DTOs live in YaatStripsHubJsonContext (Strips); both contexts insert into the same resolver chain.
@@ -775,9 +776,9 @@ AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseI
 DepartureSpawnClassifier.cs    # IsHeldSpawnCandidate(loaded) — classifies a departure for hold-for-release spawn-gating
 AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator)
 SpawnRequest.cs                # Spawn descriptor
-ScenarioRatingTier.cs          # ScenarioRatingTier enum (Ungated/S3/C1/I1) + ScenarioRatingClassifier
-                               # (ordinal-based, hierarchical IsAccessible). Maps both short and long form
-                               # rating names (S3 / Student3 etc.) from the vNAS data-api. Shared by the
+ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Student3 etc.) to an ordinal;
+                               # IsRatingSufficient(rating, required) for the scenario gate and
+                               # IsInstructorOrAbove(rating) for the server connection gate. Shared by the
                                # client picker filter and the server-side gating decision.
 
 # Simulation/

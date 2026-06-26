@@ -83,7 +83,6 @@ public sealed class UserPreferences
     public CommandScheme CommandScheme => _commandScheme;
     public IReadOnlyList<SavedServer> SavedServers => _data.SavedServers;
     public string LastUsedServerUrl => _data.LastUsedServerUrl;
-    public string VatsimCid => _data.VatsimCid;
     public string UserInitials => _data.UserInitials;
     public string ArtccId => _data.ArtccId;
 
@@ -98,7 +97,6 @@ public sealed class UserPreferences
     }
     public bool IsAdminMode => _data.IsAdminMode;
     public string AdminPassword => _data.AdminPassword;
-    public string TrainingKey => _data.TrainingKey;
     public SavedWindowGeometry? MainWindowGeometry => _data.MainWindowGeometry;
     public SavedWindowGeometry? SettingsWindowGeometry => _data.SettingsWindowGeometry;
     public SavedWindowGeometry? TerminalWindowGeometry => _data.TerminalWindowGeometry;
@@ -452,12 +450,6 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetVatsimCid(string cid)
-    {
-        _data.VatsimCid = cid.Trim();
-        Save();
-    }
-
     public void SetUserInitials(string initials)
     {
         _data.UserInitials = initials.ToUpperInvariant();
@@ -474,12 +466,6 @@ public sealed class UserPreferences
     {
         _data.IsAdminMode = isAdmin;
         _data.AdminPassword = password;
-        Save();
-    }
-
-    public void SetTrainingKey(string key)
-    {
-        _data.TrainingKey = key.Trim();
         Save();
     }
 
@@ -1357,7 +1343,6 @@ public sealed class UserPreferences
             CommandScheme = GetFieldOr<SavedCommandScheme?>(obj, "commandScheme", null),
             SavedServers = GetFieldOr<List<SavedServer>>(obj, "savedServers", []),
             LastUsedServerUrl = GetFieldOr(obj, "lastUsedServerUrl", "http://localhost:5000"),
-            VatsimCid = GetFieldOr(obj, "vatsimCid", ""),
             UserInitials = GetFieldOr(obj, "userInitials", ""),
             ArtccId = GetFieldOr(obj, "artccId", ""),
             IsAdminMode = GetFieldOr(obj, "isAdminMode", false),
@@ -1616,12 +1601,10 @@ public sealed class UserPreferences
         public SavedCommandScheme? CommandScheme { get; set; }
         public List<SavedServer> SavedServers { get; set; } = [];
         public string LastUsedServerUrl { get; set; } = "https://yaat1.leftos.dev";
-        public string VatsimCid { get; set; } = "";
         public string UserInitials { get; set; } = "";
         public string ArtccId { get; set; } = "";
         public bool IsAdminMode { get; set; }
         public string AdminPassword { get; set; } = "";
-        public string TrainingKey { get; set; } = "";
         public SavedWindowGeometry? MainWindowGeometry { get; set; }
         public SavedWindowGeometry? SettingsWindowGeometry { get; set; }
         public SavedWindowGeometry? TerminalWindowGeometry { get; set; }

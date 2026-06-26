@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+- **Sign in with VATSIM.** Connecting to a server now authenticates you through VATSIM Connect in your browser instead of asking you to type your CID — your CID, name, and controller rating come from VATSIM and are verified. Your sign-in is remembered between launches. The vStrips and vTDLS browser pages sign in the same way. After your first sign-in, your ARTCC is pre-filled from your VATSIM subdivision and your operating initials are suggested from your name (both still editable in Settings).
+
+### Changed
+- **Scenario access now follows your verified VATSIM rating** instead of a per-ARTCC training key. Scenarios marked Student3 / Controller1 / Instructor1 are available to controllers at or above that rating, and the manual "Training access key" field has been removed.
+- **Deployed servers now admit only mentors and instructors.** You can connect if you hold a VATUSA mentor role, or if your VATSIM rating is Instructor (I1/I2/I3) or higher; lower ratings without a mentor role are turned away at connect. Students being trained connect with CRC, which is unaffected.
+
 ### Fixed
 - Aircraft can taxi **along** a runway named as a segment of a `TAXI` clearance again — e.g. `TAXI 28R G D` taxis along runway 28R's centerline, then turns off onto taxiways G and D (a back-taxi). The recent ground-movement (taxi pathfinder) rewrite regressed this: naming a runway anywhere but the destination was rejected with "Cannot find taxiway 28R in layout." The aircraft taxis straight onto the cleared runway (no hold-short at its entry), while a *different* runway the route crosses still holds short, and the readback uses runway phraseology ("taxi … on runway two eight right …", per 7110.65 §3-7-2.a). If the named runway doesn't actually meet the adjacent taxiway, the clearance is rejected with a clear "does not intersect" message instead of detouring.
 - A `TAXI` clearance to a parking (`@`) or spot (`$`) destination that hangs off the far end of the final taxiway no longer sends the aircraft the wrong way down that taxiway and then detours the long way back to reach it — another regression from the ground-movement rewrite. The final-taxiway junction is now steered toward the destination (as it already was for runway destinations), so e.g. OAK `TAXI G D @NEW1` taxis straight up D to NEW1 instead of looping down C, across E, back over runway 28R, and around via H.

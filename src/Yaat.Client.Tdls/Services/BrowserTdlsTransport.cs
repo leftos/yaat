@@ -126,8 +126,7 @@ public sealed class BrowserTdlsTransport : ITdlsTransport, IAsyncDisposable
     /// room is active — pair with <see cref="RoomAvailableForCid"/> to wait
     /// until one becomes available.
     /// </summary>
-    public Task<BrowserTdlsRoomInfoDto?> FindRoomForMyCidAsync(string cid) =>
-        RequireConnection().InvokeAsync<BrowserTdlsRoomInfoDto?>("FindRoomForMyCid", cid);
+    public Task<BrowserTdlsRoomInfoDto?> FindRoomForMyCidAsync() => RequireConnection().InvokeAsync<BrowserTdlsRoomInfoDto?>("FindRoomForMyCid");
 
     /// <summary>
     /// Joins a training room. <paramref name="kind"/> is a string from
@@ -135,8 +134,8 @@ public sealed class BrowserTdlsTransport : ITdlsTransport, IAsyncDisposable
     /// deserialize into a TDLS-only subset so the WASM bundle doesn't have
     /// to ship the full DTO graph.
     /// </summary>
-    public Task<BrowserTdlsJoinRoomResultDto?> JoinRoomAsync(string roomId, string cid, string initials, string artccId, string kind) =>
-        RequireConnection().InvokeAsync<BrowserTdlsJoinRoomResultDto?>("JoinRoom", roomId, cid, initials, artccId, kind);
+    public Task<BrowserTdlsJoinRoomResultDto?> JoinRoomAsync(string roomId, string initials, string artccId, string kind) =>
+        RequireConnection().InvokeAsync<BrowserTdlsJoinRoomResultDto?>("JoinRoom", roomId, initials, artccId, kind);
 
     public Task<CommandResultDto> SendCommandAsync(string callsign, string command, string initials) =>
         RequireConnection().InvokeAsync<CommandResultDto>("SendCommand", callsign, command, initials);

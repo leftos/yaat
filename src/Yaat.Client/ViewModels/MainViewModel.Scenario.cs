@@ -258,7 +258,7 @@ public partial class MainViewModel
     {
         try
         {
-            var result = await _connection.GetScenarioJsonByIdAsync(apiScenarioId, _preferences.TrainingKey);
+            var result = await _connection.GetScenarioJsonByIdAsync(apiScenarioId);
 
             if (result.AccessDeniedReason is { } reason)
             {

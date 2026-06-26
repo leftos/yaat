@@ -9,6 +9,14 @@
 > broadcast *timing* see [tick-loop.md](tick-loop.md); for the parallel CRC (MessagePack) protocol see
 > [crc-display-state.md](crc-display-state.md).
 
+## Authentication
+
+`/hubs/training` is `[Authorize]`-gated (mentor-or-instructor connection gate). Clients present a YAAT session
+token: the desktop supplies it via the SignalR `AccessTokenProvider` (→ `access_token` query), the WASM apps via
+the same-origin `yaat_session` cookie. The server reads the controller's CID/rating from the token claims, so
+room/scenario methods that used to take a `cid`/`accessKey` argument no longer do. See
+[vatsim-auth.md](vatsim-auth.md) for the full flow.
+
 ## What this contract is
 
 YAAT Client talks to yaat-server over a standard ASP.NET Core SignalR connection using the **JSON** hub protocol on
@@ -61,15 +69,14 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 
 | Client wrapper (`ServerConnection.cs`) | Invoke string | Server method (`TrainingHub.cs`) |
 |---|---|---|
-| `CreateRoomAsync(cid, initials, artccId, kind)` | `CreateRoom` | `CreateRoom(cid, initials, artccId, kind)` `:110` |
-| `JoinRoomAsync(roomId, cid, initials, artccId, kind)` | `JoinRoom` | `JoinRoom(...)` `:139` |
-| `LeaveRoomAsync()` | `LeaveRoom` | `LeaveRoom()` `:186` |
-| `GetActiveRoomsAsync()` | `GetActiveRooms` | `GetActiveRooms()` `:217` |
-| `FindRoomForMyCidAsync(cid)` | `FindRoomForMyCid` | `FindRoomForMyCid(cid)` `:228` |
-| `LoadScenarioAsync(json, …rates)` | `LoadScenario` | `LoadScenario(...)` `:297` |
-| `GetScenarioJsonByIdAsync(id, key)` | `GetScenarioJsonById` | `GetScenarioJsonById(id, key)` `:336` |
-| `GetScenariosAsync(accessKey)` | `GetScenarios` | `GetScenarios(accessKey)` `:365` |
-| `ValidateTrainingKeyAsync(artccId, key)` | `ValidateTrainingKey` | `ValidateTrainingKey(...)` `:397` |
+| `CreateRoomAsync(initials, artccId, kind)` | `CreateRoom` | `CreateRoom(initials, artccId, kind)` — CID/rating from token claims |
+| `JoinRoomAsync(roomId, initials, artccId, kind)` | `JoinRoom` | `JoinRoom(roomId, initials, artccId, kind)` |
+| `LeaveRoomAsync()` | `LeaveRoom` | `LeaveRoom()` |
+| `GetActiveRoomsAsync()` | `GetActiveRooms` | `GetActiveRooms()` |
+| `FindRoomForMyCidAsync()` | `FindRoomForMyCid` | `FindRoomForMyCid()` — CID from token claims |
+| `LoadScenarioAsync(json, …rates)` | `LoadScenario` | `LoadScenario(...)` |
+| `GetScenarioJsonByIdAsync(id)` | `GetScenarioJsonById` | `GetScenarioJsonById(id)` — gated by caller rating |
+| `GetScenariosAsync()` | `GetScenarios` | `GetScenarios()` — filtered by caller rating |
 | `UnloadScenarioAircraftAsync()` | `UnloadScenarioAircraft` | `UnloadScenarioAircraft()` `:449` |
 | `ConfirmUnloadScenarioAsync()` | `ConfirmUnloadScenario` | `ConfirmUnloadScenario()` `:460` |
 | `SendCommandAsync(callsign, command, initials)` | `SendCommand` | `SendCommand(...)` `:508` |

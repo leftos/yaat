@@ -2478,14 +2478,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         var connectVm = new ConnectViewModel(
             vm.Preferences.SavedServers,
             vm.Preferences.LastUsedServerUrl,
-            vm.Preferences.VatsimCid,
             vm.Preferences.UserInitials,
             vm.Preferences.ArtccId,
             connectAction: vm.AttemptConnectAsync,
             saveAction: (servers, lastUrl) => vm.Preferences.SetSavedServers(servers, lastUrl),
-            identitySaveAction: (cid, initials, artcc) =>
+            identitySaveAction: (initials, artcc) =>
             {
-                vm.Preferences.SetVatsimCid(cid);
                 vm.Preferences.SetUserInitials(initials);
                 vm.Preferences.SetArtccId(artcc);
             },

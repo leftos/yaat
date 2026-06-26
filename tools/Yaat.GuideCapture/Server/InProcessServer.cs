@@ -21,7 +21,11 @@ internal sealed class InProcessServer : IAsyncDisposable
         var port = PickFreeLoopbackPort();
         Url = $"http://127.0.0.1:{port}";
 
-        var args = new[] { "--urls", Url };
+        // Development + RequireVatsimAuth=false so the in-process host uses the dev JWT signing key and
+        // enables the /auth/dev token issuer — the capture client then mints a session without a VATSIM
+        // browser round-trip. (The appsettings.Development.json that would set this lives in the server's
+        // output dir, not the capture tool's, so it's passed explicitly here.)
+        var args = new[] { "--urls", Url, "--environment", "Development", "--Yaat:Auth:RequireVatsimAuth", "false" };
         _app = await YaatHost.BuildAsync(args);
         await _app.StartAsync();
     }

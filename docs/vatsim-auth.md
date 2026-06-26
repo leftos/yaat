@@ -1,0 +1,132 @@
+# VATSIM OAuth & access control
+
+YAAT authenticates controllers with **VATSIM Connect (OAuth2)** instead of self-asserted CID/initials.
+The server is the identity authority; clients never hold the OAuth secret or the VATSIM token.
+
+> Read this before touching `src/Yaat.Server/Auth/`, the training-hub connection gate, the desktop
+> `VatsimAuthClient`, or the vStrips/vTDLS sign-in pages.
+
+## Why
+
+Replaces manual CID/initials/ARTCC entry and the old per-ARTCC bcrypt training keys with verified
+VATSIM identity. Goals: prove who the user is, gate scenario access by real controller rating, and keep
+sub-mentor ratings (OBS/S1 and non-instructor non-mentors) off deployed servers.
+
+## Architecture — server-mediated
+
+`yaat-server` is the only registered VATSIM OAuth client (holds `client_secret`), performs the code
+exchange + userinfo call, and issues short-lived **YAAT session tokens** (HS256 JWTs). All clients
+present a YAAT token to `/hubs/training` — never a VATSIM token.
+
+**Desktop (system browser + loopback handoff):**
+```
+client opens browser → GET <server>/auth/vatsim/start?return=http://127.0.0.1:<port>/cb
+  server stores {state,return} → 302 to auth.vatsim.net/oauth/authorize (redirect_uri = <server>/auth/vatsim/callback)
+    user logs in → 302 back to <server>/auth/vatsim/callback?code&state
+      server exchanges code (secret) → /api/user → VATUSA isMentor → mints YAAT access+refresh
+        → 302 to http://127.0.0.1:<port>/cb?accessToken&refreshToken&cid&name&rating&subdivision&isMentor
+client HttpListener captures tokens → stores in auth-sessions.json → connects /hubs/training with Bearer
+```
+Only the **server callback** is registered with VATSIM. The loopback is server→desktop, so **no custom
+URI scheme / protocol handler is needed** — plain `https://` is enough.
+
+**Web (vStrips/vTDLS — same-origin cookie):**
+```
+GET /vstrips/ → JS calls /auth/token; 401 → "Sign in with VATSIM" → /auth/vatsim/start?return=/vstrips/
+  → auth.vatsim.net → /auth/vatsim/callback → sets HttpOnly yaat_refresh + yaat_session cookies → 302 /vstrips/
+WASM boots → connects /hubs/training; the browser sends yaat_session automatically (same origin)
+```
+The WASM apps need no token plumbing — the cookie rides the same-origin negotiate. `/auth/token` (called
+by the sign-in page) re-mints the access token, refreshes the `yaat_session` cookie, and returns the
+identity so the page can pre-fill initials/ARTCC.
+
+## VATSIM / VATUSA endpoints
+
+- Authorize `https://auth.vatsim.net/oauth/authorize`, token `…/oauth/token`, userinfo `…/api/user`.
+- Scopes: `full_name vatsim_details` (`vatsim_details` exposes rating + subdivision).
+- Userinfo → `data.cid`, `data.personal.name_full`, `data.vatsim.rating.short`, `data.vatsim.subdivision`.
+- VATUSA mentor status: `GET https://api.vatusa.net/v2/user/{cid}` → `data.isMentor` (MTR role at home facility).
+- The flow is **Authorization Code + PKCE (S256)**. A **public** VATSIM client (no secret) is supported and is the
+  expected setup; a **confidential** client additionally sends `client_secret` (set `Yaat:Vatsim:ClientSecret`).
+
+## Connection gate (who may connect)
+
+`/hubs/training` carries `[Authorize(Policy = TrainingHubAccessRequirement.PolicyName)]`. A controller
+may connect when **`isMentor` (VATUSA) is true, OR their VATSIM rating is instructor-or-above (I1/I2/I3,
+SUP, ADM)** — `ScenarioRatingClassifier.IsInstructorOrAbove`. Everyone else (OBS/S1/S2/S3/C1/C3 without a
+mentor role) is rejected at connect. CRC trainees on `/hubs/client` are **exempt** — they're the students
+being trained and are not rating-gated.
+
+## Scenario gate (what they may load)
+
+A scenario's `minimumRating` is checked against the caller's verified rating via
+`ScenarioRatingClassifier.IsRatingSufficient(callerRating, minimumRating)` in
+`ScenarioLifecycleService.ResolveGatedJsonAsync` (and `TrainingHub.GetScenarios` for catalog filtering).
+The per-ARTCC bcrypt key system is gone — rating is the sole gate.
+
+## Tokens
+
+`YaatTokenService` mints HS256 JWTs (claims `sub`=cid, `name`, `rating`, `subdivision`, `is_mentor`,
+`token_use`). Access token ~1h (hub Bearer / `yaat_session` cookie); refresh token ~30d
+(`yaat_refresh` cookie / desktop `auth-sessions.json`) re-mints access via `/auth/refresh` and
+`/auth/token`. JwtBearer reads the token from the `access_token` query (desktop) or the `yaat_session`
+cookie (web) for `/hubs/training`.
+
+## Configuration (per server)
+
+VATSIM allows **one redirect URI per OAuth client**, so **each deployed server registers its own VATSIM
+client** with its own callback. Config (secrets via env / `appsettings.Local.json`, never committed):
+
+| Key | Meaning |
+|-----|---------|
+| `Yaat:Vatsim:ClientId` / `ClientSecret` | This server's VATSIM Connect client (`ClientSecret` blank for a public/PKCE client) |
+| `Yaat:Vatsim:CallbackUrl` | This server's registered redirect — in Docker, derived as `https://<YAAT_DOMAIN>/auth/vatsim/callback` |
+| `Yaat:Vatusa:Enabled` / `ApiKey` | VATUSA mentor lookup (disable for non-US; ApiKey optional) |
+| `Yaat:Auth:RequireVatsimAuth` | `true` (default, fail-secure). `false` enables `/auth/dev` for local dev |
+| `Yaat:Auth:JwtSigningKey` | HS256 key (≥32 bytes). Required in Production; a fixed dev key is used if blank in Development |
+
+### Multi-domain Docker deployment
+
+`docker-compose.yml` derives the callback URL and Caddy's TLS site address from a single `YAAT_DOMAIN`
+variable, so one repo serves yaat1, yaat2, or any other domain by swapping the env file. Put each
+deployment's values in a gitignored `.env.<target>` file (copied from `.env.example`):
+
+```dotenv
+# .env.yaat1
+YAAT_DOMAIN=yaat1.leftos.dev
+VATSIM_CLIENT_ID=1883
+VATSIM_CLIENT_SECRET=        # blank for a public/PKCE client
+VATUSA_API_KEY=
+JWT_SIGNING_KEY=             # openssl rand -base64 48 (unique per server, stable across restarts)
+ADMIN_PASSWORD=
+REQUIRE_VATSIM_AUTH=true
+```
+
+Each VATSIM client's registered redirect must equal `https://<YAAT_DOMAIN>/auth/vatsim/callback`. Copy
+`Caddyfile.example` to `Caddyfile` once (it reads `{$YAAT_DOMAIN}`, so it needs no per-domain edit).
+Deploy/update a target with `./update.sh <target>` (e.g. `./update.sh yaat1`), which runs every
+`docker compose` command with `--env-file .env.<target>`. With no argument it falls back to `.env`.
+
+## Local development
+
+`dotnet run` is Development, and `appsettings.Development.json` sets `RequireVatsimAuth=false`. In that
+mode the server exposes `/auth/dev`, and the desktop `VatsimAuthClient` (and the GuideCapture in-process
+host) mint a dev session (rating `I1`) without any VATSIM round-trip. To test the real flow locally,
+register an `http://localhost:5000/auth/vatsim/callback` redirect on a dedicated dev VATSIM client and
+set `RequireVatsimAuth=true` + the `Vatsim:*` config.
+
+## Key files
+
+- Server: `src/Yaat.Server/Auth/*` (`VatsimAuthService`, `VatusaService`, `YaatTokenService`,
+  `AuthEndpoints`, `AuthStateStore`, `TrainingHubAccessRequirement`, `VatsimUser`), `YaatHost.cs`
+  (JwtBearer + policy wiring), `Hubs/TrainingHub.cs` (gate + claim reading),
+  `Simulation/ScenarioLifecycleService.cs` (scenario gate), `YaatOptions.cs`.
+- Shared: `src/Yaat.Sim/Scenarios/ScenarioRatingClassifier.cs`.
+- Desktop: `src/Yaat.Client.Core/Services/VatsimAuthClient.cs`, `ServerConnection.cs`.
+- Web: `tools/Yaat.VStrips.Web/wwwroot/index.html`, `tools/Yaat.VTdls.Web/wwwroot/index.html`,
+  `src/Yaat.Client.Strips/Services/BrowserStripsTransport.cs`, `…Tdls/BrowserTdlsTransport.cs`.
+
+## Residual / follow-ups
+
+- The CRC `/hubs/client` JWT (`NegotiateHandler`) is still decoded without signature verification; CRC
+  is rating-exempt, but validating that token against VATSIM's signing key is a worthwhile follow-up.

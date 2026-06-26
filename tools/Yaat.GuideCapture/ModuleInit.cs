@@ -10,8 +10,9 @@ namespace Yaat.GuideCapture;
 // logs, or vNAS cache. Same pattern as tests/Yaat.Client.UI.Tests/ModuleInit.cs.
 //
 // Also seeds a minimal preferences.json so MainViewModel.AttemptConnectAsync
-// passes its identity validation gates (UserInitials, VatsimCid, ArtccId all
-// required before a connection attempt is made).
+// passes its identity validation gates (UserInitials + ArtccId). The VATSIM
+// identity itself comes from the in-process server's dev token issuer
+// (RequireVatsimAuth=false), so no CID needs to be seeded here.
 //
 // Cleanup: a .yaat-pid file inside each dir records the owning process. The
 // sweep at startup deletes any sibling dir whose owning process has exited;
@@ -41,7 +42,6 @@ internal static class ModuleInit
             prefsPath,
             """
             {
-              "vatsimCid": "9999999",
               "userInitials": "1M",
               "artccId": "ZOA",
               "assignmentTintEnabled": true,

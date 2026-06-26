@@ -20,26 +20,47 @@ public partial class MainViewModel
     /// </summary>
     internal async Task<string?> AttemptConnectAsync(string url, CancellationToken ct)
     {
-        if (_preferences.UserInitials.Length != 2)
-        {
-            return "Set your 2-letter initials in Settings before connecting";
-        }
-
-        if (string.IsNullOrWhiteSpace(_preferences.VatsimCid))
-        {
-            return "Set your VATSIM CID in Settings before connecting";
-        }
-
-        if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
-        {
-            return "Set your ARTCC ID in Settings before connecting";
-        }
-
         try
         {
             IsConnecting = true;
+            StatusText = "Signing in with VATSIM...";
+            var identity = await _auth.EnsureSignedInAsync(url, ct);
+            if (identity is null)
+            {
+                IsConnecting = false;
+                return "VATSIM sign-in was cancelled or failed";
+            }
+
+            _identity = identity;
+
+            if (string.IsNullOrWhiteSpace(_preferences.ArtccId) && !string.IsNullOrWhiteSpace(identity.Subdivision))
+            {
+                _preferences.SetArtccId(identity.Subdivision);
+            }
+
+            if (_preferences.UserInitials.Length != 2)
+            {
+                var derived = DeriveInitials(identity.Name);
+                if (derived.Length == 2)
+                {
+                    _preferences.SetUserInitials(derived);
+                }
+            }
+
+            if (_preferences.UserInitials.Length != 2)
+            {
+                IsConnecting = false;
+                return "Set your 2-letter initials in Settings before connecting";
+            }
+
+            if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
+            {
+                IsConnecting = false;
+                return "Set your ARTCC ID in Settings before connecting";
+            }
+
             StatusText = "Connecting...";
-            await _connection.ConnectAsync(url, ct);
+            await _connection.ConnectAsync(url, () => _auth.GetValidAccessTokenAsync(url), ct);
             _connectedServerUrl = url;
             IsConnected = true;
             IsConnecting = false;
@@ -63,6 +84,22 @@ public partial class MainViewModel
             IsConnected = false;
             return $"Error: {ex.Message}";
         }
+    }
+
+    private static string DeriveInitials(string name)
+    {
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return "";
+        }
+
+        if (parts.Length == 1)
+        {
+            return parts[0].Length >= 2 ? parts[0][..2].ToUpperInvariant() : "";
+        }
+
+        return $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}";
     }
 
     [RelayCommand(CanExecute = nameof(CanDisconnect))]
@@ -117,10 +154,6 @@ public partial class MainViewModel
 
         var baseUrl = _connectedServerUrl.TrimEnd('/');
         var qs = new List<string>();
-        if (!string.IsNullOrWhiteSpace(_preferences.VatsimCid))
-        {
-            qs.Add($"cid={Uri.EscapeDataString(_preferences.VatsimCid)}");
-        }
         if (!string.IsNullOrWhiteSpace(_preferences.UserInitials))
         {
             qs.Add($"initials={Uri.EscapeDataString(_preferences.UserInitials)}");
@@ -164,10 +197,6 @@ public partial class MainViewModel
 
         var baseUrl = _connectedServerUrl.TrimEnd('/');
         var qs = new List<string>();
-        if (!string.IsNullOrWhiteSpace(_preferences.VatsimCid))
-        {
-            qs.Add($"cid={Uri.EscapeDataString(_preferences.VatsimCid)}");
-        }
         if (!string.IsNullOrWhiteSpace(_preferences.UserInitials))
         {
             qs.Add($"initials={Uri.EscapeDataString(_preferences.UserInitials)}");
@@ -202,20 +231,9 @@ public partial class MainViewModel
     {
         try
         {
-            var roomId = await _connection.CreateRoomAsync(
-                _preferences.VatsimCid,
-                _preferences.UserInitials,
-                _preferences.ArtccId,
-                Yaat.Sim.ClientKind.Main
-            );
+            var roomId = await _connection.CreateRoomAsync(_preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
 
-            var state = await _connection.JoinRoomAsync(
-                roomId,
-                _preferences.VatsimCid,
-                _preferences.UserInitials,
-                _preferences.ArtccId,
-                Yaat.Sim.ClientKind.Main
-            );
+            var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
 
             if (state is null)
             {
@@ -242,13 +260,7 @@ public partial class MainViewModel
     {
         try
         {
-            var state = await _connection.JoinRoomAsync(
-                roomId,
-                _preferences.VatsimCid,
-                _preferences.UserInitials,
-                _preferences.ArtccId,
-                Yaat.Sim.ClientKind.Main
-            );
+            var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
 
             if (state is null)
             {
@@ -345,7 +357,7 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task KickMemberAsync(string cid)
     {
-        if (cid == _preferences.VatsimCid)
+        if (cid == _identity?.Cid)
         {
             return;
         }
@@ -474,11 +486,11 @@ public partial class MainViewModel
     private async Task TryRejoinRoomAfterReconnectAsync()
     {
         var roomId = ActiveRoomId ?? _preferences.LastActiveRoomId;
-        if (string.IsNullOrWhiteSpace(roomId) && !string.IsNullOrWhiteSpace(_preferences.VatsimCid))
+        if (string.IsNullOrWhiteSpace(roomId) && _identity is not null)
         {
             try
             {
-                var found = await _connection.FindRoomForMyCidAsync(_preferences.VatsimCid);
+                var found = await _connection.FindRoomForMyCidAsync();
                 roomId = found?.RoomId;
             }
             catch (Exception ex)
@@ -499,13 +511,7 @@ public partial class MainViewModel
 
         try
         {
-            var state = await _connection.JoinRoomAsync(
-                roomId,
-                _preferences.VatsimCid,
-                _preferences.UserInitials,
-                _preferences.ArtccId,
-                Yaat.Sim.ClientKind.Main
-            );
+            var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
 
             if (state is not null)
             {
@@ -613,13 +619,7 @@ public partial class MainViewModel
 
             try
             {
-                var state = await _connection.JoinRoomAsync(
-                    roomId,
-                    _preferences.VatsimCid,
-                    _preferences.UserInitials,
-                    _preferences.ArtccId,
-                    Yaat.Sim.ClientKind.Main
-                );
+                var state = await _connection.JoinRoomAsync(roomId, _preferences.UserInitials, _preferences.ArtccId, Yaat.Sim.ClientKind.Main);
 
                 if (state is not null)
                 {
