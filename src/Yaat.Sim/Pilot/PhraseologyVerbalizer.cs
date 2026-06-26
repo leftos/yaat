@@ -156,6 +156,15 @@ public static class PhraseologyVerbalizer
             return $"cross {fmt.Fix(cfBelow.FixName)} at or below {fmt.Altitude(cfBelow.Altitude)}";
         }
 
+        // A TAXI clearance naming a runway as a path segment (taxi ALONG it) needs per-segment
+        // connectors — "via" for the taxiway route, "on" for the runway (7110.65 §3-7-2.a separates
+        // "VIA (route)" from "ON (runway)") — which the flat "taxi via {path}" rule template can't
+        // express. Render it directly.
+        if (cmd is TaxiCommand alongRwy && TaxiPathHasRunway(alongRwy))
+        {
+            return RenderTaxiAlongRunway(alongRwy, fmt);
+        }
+
         var canonicalType = CommandDescriber.ToCanonicalType(cmd);
         if (!RulesByType.TryGetValue(canonicalType, out var rules))
         {
@@ -345,6 +354,63 @@ public static class PhraseologyVerbalizer
         }
 
         return string.Join(separator, parts);
+    }
+
+    private static bool TaxiPathHasRunway(TaxiCommand taxi) => taxi.Path.Any(t => !t.StartsWith('#') && CommandParser.IsRunwayArg(t));
+
+    /// <summary>
+    /// Renders a TAXI readback whose path includes a runway segment with FAA-correct connectors
+    /// (7110.65 §3-7-2.a, §3-1-3.b): the taxiway route is introduced with "via", a runway taxied along
+    /// is introduced with "on" — "taxi via bravo, on runway two eight right, golf, delta" (and, runway
+    /// first, "taxi on runway two eight right, golf, delta"). Trailing cross/hold-short/destination-runway
+    /// captures match the rule-driven forms.
+    /// </summary>
+    private static string RenderTaxiAlongRunway(TaxiCommand taxi, CaptureFormatter fmt)
+    {
+        var hints = taxi.PathTurnHints;
+        var parts = new List<string>(taxi.Path.Count);
+        bool firstSegment = true;
+        for (int i = 0; i < taxi.Path.Count; i++)
+        {
+            string name = taxi.Path[i];
+            if (name.StartsWith('#'))
+            {
+                continue;
+            }
+
+            if (CommandParser.IsRunwayArg(name))
+            {
+                parts.Add(fmt.RunwaySegment(name));
+            }
+            else
+            {
+                var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
+                string twy = fmt.TaxiTurn(name, hint);
+                parts.Add(firstSegment ? $"via {twy}" : twy);
+            }
+
+            firstSegment = false;
+        }
+
+        string body = $"taxi {string.Join(fmt.TaxiSeparator, parts)}";
+
+        if (taxi.CrossRunways is { Count: > 0 } cross)
+        {
+            body += $" cross runway {string.Join(" and ", cross.Select(fmt.Runway))}";
+        }
+
+        if (taxi.HoldShorts is { Count: > 0 } holdShorts)
+        {
+            body +=
+                $" hold short of {string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? $"runway {fmt.Runway(h)}" : fmt.Taxiway(h)))}";
+        }
+
+        if (taxi.DestinationRunway is { Length: > 0 } rwy)
+        {
+            body = $"runway {fmt.Runway(rwy)} {body}";
+        }
+
+        return body;
     }
 
     private static IReadOnlyDictionary<string, string> Map(string k, string v) => new Dictionary<string, string> { [k] = v };
@@ -934,6 +1000,12 @@ public static class PhraseologyVerbalizer
         public abstract string Squawk(int code);
         public abstract string TaxiPath(TaxiCommand taxi);
         public abstract string TaxiTurn(string taxiway, TurnDirection? hint);
+
+        /// <summary>A runway taxied ALONG as a path segment: "on runway two eight right" / "on 28R" (7110.65 §3-7-2.a "ON (runway)").</summary>
+        public abstract string RunwaySegment(string id);
+
+        /// <summary>Separator between taxi-path segments: comma-spoken, space-terminal.</summary>
+        public abstract string TaxiSeparator { get; }
     }
 
     private sealed class SpokenCaptureFormatter : CaptureFormatter
@@ -971,6 +1043,10 @@ public static class PhraseologyVerbalizer
                 TurnDirection.Left => $"left on {SpellTaxiway(taxiway)}",
                 _ => SpellTaxiway(taxiway),
             };
+
+        public override string RunwaySegment(string id) => $"on runway {SpellRunway(id)}";
+
+        public override string TaxiSeparator => ", ";
     }
 
     private sealed class TerminalCaptureFormatter : CaptureFormatter
@@ -1009,5 +1085,9 @@ public static class PhraseologyVerbalizer
                 TurnDirection.Left => $"left on {Taxiway(taxiway)}",
                 _ => Taxiway(taxiway),
             };
+
+        public override string RunwaySegment(string id) => $"on {CompactRunway(id)}";
+
+        public override string TaxiSeparator => " ";
     }
 }

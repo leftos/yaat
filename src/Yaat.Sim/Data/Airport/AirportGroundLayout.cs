@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Phases;
@@ -683,6 +684,34 @@ public sealed class AirportGroundLayout
     }
 
     private Dictionary<string, List<GroundNode>>? _nodesByTaxiway;
+
+    /// <summary>
+    /// Resolves a runway designator (e.g. <c>"28R"</c>) to the canonical centerline edge name used as a
+    /// taxiway-graph key (e.g. <c>"RWY28R/10L"</c>), so a runway can be routed as a named taxi segment.
+    /// Uses the same zero-pad normalization as <see cref="IGroundEdge.MatchesRunway"/>. Returns false when
+    /// no runway centerline edge carries the designator (i.e. the token is not a runway at this airport).
+    /// </summary>
+    public bool TryGetRunwayCenterlineName(string designator, [NotNullWhen(true)] out string? centerlineName)
+    {
+        if (_nodesByTaxiway is not null)
+        {
+            foreach (var key in _nodesByTaxiway.Keys)
+            {
+                if (
+                    key.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                    && !key.Contains(":link", StringComparison.OrdinalIgnoreCase)
+                    && IGroundEdge.RunwayNameContainsDesignator(key, designator)
+                )
+                {
+                    centerlineName = key;
+                    return true;
+                }
+            }
+        }
+
+        centerlineName = null;
+        return false;
+    }
 
     public GroundNode? FindParkingByName(string name)
     {

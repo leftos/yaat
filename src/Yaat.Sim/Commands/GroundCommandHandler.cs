@@ -348,7 +348,7 @@ internal static class GroundCommandHandler
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
-        string msg = $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi))}";
+        string msg = $"Taxi via {route.ToSummary(BuildTurnHintMap(taxi), taxi.Path)}";
         if (route.Warnings.Count > 0)
         {
             msg += " [" + string.Join("; ", route.Warnings) + "]";

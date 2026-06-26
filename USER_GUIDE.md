@@ -949,6 +949,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `CM 050, FH 090` | Climb to 5,000 **and** turn to 090 simultaneously |
 | `CM 100; LV 050 FH 270` | Climb to 10,000; at 5,000 ft, turn heading 270 |
 | `TAXI S T U` | Taxi via taxiways S, T, U |
+| `TAXI 28R G D` | Taxi **along** runway 28R, then off onto taxiways G, D (a runway named mid-path is taxied along its centerline) |
 | `CLAND` | Cleared to land |
 | `CLAND 28R` | Cleared to land on runway 28R (a following aircraft is cleared even before it has its own runway) |
 | `CLANDF` | Force landing — clears the aircraft and forces it down regardless of energy state, overriding the automatic go-around (RPO-only; cancel with `GA` or `CLC`) |

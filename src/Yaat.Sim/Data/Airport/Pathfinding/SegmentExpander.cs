@@ -465,7 +465,7 @@ public static class SegmentExpander
     // Waypoint resolution
     // -----------------------------------------------------------------------
 
-    private sealed record WaypointToken(string Name, bool IsNodeRef, int ResolvedNodeId, TurnDirection? TurnHint);
+    private sealed record WaypointToken(string Name, bool IsNodeRef, int ResolvedNodeId, TurnDirection? TurnHint, bool IsRunway);
 
     private static List<WaypointToken> ResolveWaypoints(SearchContext ctx)
     {
@@ -477,16 +477,30 @@ public static class SegmentExpander
             var hint = (hints is not null && i < hints.Count) ? hints[i] : null;
             if (token.StartsWith('#') && int.TryParse(token.AsSpan(1), out int nodeId))
             {
-                result.Add(new WaypointToken(token, IsNodeRef: true, ResolvedNodeId: nodeId, TurnHint: hint));
+                result.Add(new WaypointToken(token, IsNodeRef: true, ResolvedNodeId: nodeId, TurnHint: hint, IsRunway: false));
+            }
+            else if (ctx.Layout.TryGetRunwayCenterlineName(token, out string? centerlineName))
+            {
+                // A runway named in the path is taxied ALONG: rewrite to the canonical centerline edge
+                // name (e.g. "28R" → "RWY28R/10L") so the name-keyed walk routes over the runway surface.
+                // A turn glyph on a runway token has no meaning — travel direction is fixed by the adjacent
+                // waypoints' junctions — so the hint is dropped to avoid a spurious unhonored-turn advisory.
+                result.Add(new WaypointToken(centerlineName, IsNodeRef: false, ResolvedNodeId: -1, TurnHint: null, IsRunway: true));
             }
             else
             {
-                result.Add(new WaypointToken(token, IsNodeRef: false, ResolvedNodeId: -1, TurnHint: hint));
+                result.Add(new WaypointToken(token, IsNodeRef: false, ResolvedNodeId: -1, TurnHint: hint, IsRunway: false));
             }
         }
 
         return result;
     }
+
+    /// <summary>True when a waypoint name is the canonical runway-centerline form (e.g. <c>"RWY28R/10L"</c>).</summary>
+    private static bool IsRunwayWaypoint(string name) => name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Display form of a canonical runway waypoint name for messages — strips the <c>RWY</c> prefix.</summary>
+    private static string RunwayWaypointDisplay(string name) => IsRunwayWaypoint(name) ? name[3..] : name;
 
     // -----------------------------------------------------------------------
     // Segment expansion (T_i → T_{i+1})
@@ -2526,6 +2540,28 @@ public static class SegmentExpander
     )
     {
         ctx.DiagnosticLog?.Invoke($"[detour] attempting detour {fromTaxiway}→{toTaxiway} from head={head.HeadNodeId}");
+
+        // A runway can only be entered or left where a taxiway physically crosses it — there is no
+        // "connect via a connector taxiway" detour onto a runway surface. When either side of the
+        // transition is a runway and no direct junction exists, fail cleanly rather than fabricating a
+        // connector route onto the runway.
+        if (IsRunwayWaypoint(fromTaxiway) || IsRunwayWaypoint(toTaxiway))
+        {
+            string taxiway = IsRunwayWaypoint(fromTaxiway) ? toTaxiway : fromTaxiway;
+            string runway = IsRunwayWaypoint(fromTaxiway) ? fromTaxiway : toTaxiway;
+            string subject = IsRunwayWaypoint(taxiway) ? $"Runway {RunwayWaypointDisplay(taxiway)}" : $"Taxiway {taxiway}";
+            return (
+                null,
+                null,
+                new PathfindingFailure(
+                    FailureKind.TaxiwayNotConnected,
+                    $"{subject} does not intersect runway {RunwayWaypointDisplay(runway)}.",
+                    taxiway,
+                    $"{fromTaxiway} → {toTaxiway}",
+                    null
+                )
+            );
+        }
 
         // Find entry nodes onto toTaxiway — any node on that taxiway.
         var toTaxiwayNodes = ctx.Layout.GetNodesOnTaxiway(toTaxiway);

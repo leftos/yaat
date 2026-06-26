@@ -81,6 +81,19 @@ public static class RouteMaterialiser
         var seen = new HashSet<int>();
         var taxiwayHoldShortTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // Runways the controller cleared the aircraft to taxi ALONG (named as path waypoints). Entering
+        // such a runway is authorized, so no hold-short is placed at its boundary — the route flows
+        // straight onto and along it. A DIFFERENT runway merely crossed is not in this set and still
+        // pairs/annotates below. The destination runway (handled first) keeps its own terminus stop.
+        var clearedRunways = new List<string>();
+        foreach (string token in ctx.WaypointSequence)
+        {
+            if (ctx.Layout.TryGetRunwayCenterlineName(token, out _))
+            {
+                clearedRunways.Add(token);
+            }
+        }
+
         // Entry/exit pairing by encounter order (ported from HoldShortAnnotator): the first
         // RunwayHoldShort node for a runway is the entry side (annotate); the second distinct
         // node for that runway is the exit side of the same crossing (skip). The destination
@@ -119,6 +132,12 @@ public static class RouteMaterialiser
                             TargetName = destRwy,
                         }
                     );
+                    continue;
+                }
+
+                // Cleared to taxi along this runway: no hold-short at its boundary (taxi straight on).
+                if (clearedRunways.Exists(d => runwayId.Contains(d)))
+                {
                     continue;
                 }
 

@@ -26,7 +26,7 @@ public sealed class TaxiRoute
     /// a route through RAMP, the RAMP↔D corner, then D C B reads <c>"RAMP D C B"</c>, not
     /// <c>"RAMP D - RAMP D C B"</c>. Drives the Aircraft List Info column and the DTO TaxiRoute field.
     /// </summary>
-    public string FormatTaxiwaySequence() => string.Join(" ", TaxiwaySequence());
+    public string FormatTaxiwaySequence() => string.Join(" ", TaxiwaySequence([]).Select(t => t.Display));
 
     /// <summary>
     /// The cleared taxiways in order: distinct consecutive segment names with junction/membership
@@ -34,10 +34,10 @@ public sealed class TaxiRoute
     /// <see cref="ToSummary"/> so both render the same sequence — an arc is a transition between
     /// taxiways, not a leg of one, and must never surface as a named token.
     /// </summary>
-    private List<string> TaxiwaySequence()
+    private List<(string Display, bool IsRunway)> TaxiwaySequence(IReadOnlyCollection<string> clearedRunways)
     {
-        var taxiways = new List<string>();
-        string? last = null;
+        var taxiways = new List<(string, bool)>();
+        string? lastRaw = null;
         foreach (var seg in Segments)
         {
             if (seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
@@ -45,14 +45,36 @@ public sealed class TaxiRoute
                 continue;
             }
 
-            if (seg.TaxiwayName != last)
+            if (seg.TaxiwayName == lastRaw)
             {
-                taxiways.Add(seg.TaxiwayName);
-                last = seg.TaxiwayName;
+                continue;
             }
+
+            lastRaw = seg.TaxiwayName;
+            taxiways.Add(seg.Edge.Edge.IsRunwayCenterline ? (RunwayDisplay(seg, clearedRunways), true) : (seg.TaxiwayName, false));
         }
 
         return taxiways;
+    }
+
+    /// <summary>
+    /// Operator-facing token for a runway taxied ALONG. The segment carries the internal combined
+    /// centerline name (<c>"RWY28R/10L"</c>); show the single FAA end the controller cleared (matched
+    /// from <paramref name="clearedRunways"/> — the command path) de-padded to <c>"28R"</c>. With no
+    /// command context (snapshot/Aircraft List), fall back to the de-padded combined id (<c>"28R/10L"</c>).
+    /// </summary>
+    private static string RunwayDisplay(TaxiRouteSegment seg, IReadOnlyCollection<string> clearedRunways)
+    {
+        foreach (string designator in clearedRunways)
+        {
+            if (seg.Edge.Edge.MatchesRunway(designator))
+            {
+                return RunwayIdentifier.ToDisplayDesignator(designator);
+            }
+        }
+
+        string name = seg.TaxiwayName;
+        return name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) ? RunwayIdentifier.ToDisplayDesignator(name[3..]) : name;
     }
 
     /// <summary>
@@ -163,22 +185,36 @@ public sealed class TaxiRoute
     /// <summary>
     /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L, RWY 30").
     /// </summary>
-    public string ToSummary() => ToSummary(null);
+    public string ToSummary() => ToSummary(null, []);
+
+    public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints) => ToSummary(turnHints, []);
 
     /// <summary>
     /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L, RWY 30"). When
     /// <paramref name="turnHints"/> is supplied (keyed by taxiway name), a cleared taxiway the
     /// controller prefixed with a turn glyph (<c>&gt;A</c> / <c>&lt;C</c>) renders as "right on A" /
     /// "left on C" — matching the pilot readback — so the controller's echo confirms the requested turn.
+    /// A runway taxied ALONG renders as "on 28R" (7110.65 §3-7-2.a "ON (runway)"), with the single cleared
+    /// end resolved from <paramref name="clearedRunways"/> (pass the command's taxi path; non-runway tokens
+    /// are ignored).
     /// </summary>
-    public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints)
+    public string ToSummary(IReadOnlyDictionary<string, TurnDirection>? turnHints, IReadOnlyCollection<string> clearedRunways)
     {
         var parts = new List<string>();
-        foreach (string twy in TaxiwaySequence())
+        foreach (var (twy, isRunway) in TaxiwaySequence(clearedRunways))
         {
-            parts.Add(
-                turnHints is not null && turnHints.TryGetValue(twy, out var dir) ? $"{(dir == TurnDirection.Left ? "left" : "right")} on {twy}" : twy
-            );
+            if (isRunway)
+            {
+                parts.Add($"on {twy}");
+            }
+            else
+            {
+                parts.Add(
+                    turnHints is not null && turnHints.TryGetValue(twy, out var dir)
+                        ? $"{(dir == TurnDirection.Left ? "left" : "right")} on {twy}"
+                        : twy
+                );
+            }
         }
 
         // Emit each explicit hold-short once; collapse consecutive duplicates of the same target
