@@ -1127,6 +1127,23 @@ public static class SegmentExpander
             lookaheadAnchor = ResolveRunwayHoldShortAnchorOnTaxiway(toTaxiway, destRunwayId, ctx);
         }
 
+        // Final named transition into a parking/spot/helipad destination: the destination node hangs
+        // off toTaxiway (e.g. OAK "TAXI G D @NEW1" — NEW1 is on a ramp stub off D's north end). Anchor
+        // junction selection toward it for the same reason as the runway case above — otherwise the
+        // cheapest junction can land the aircraft on toTaxiway facing away from the destination, the
+        // destination-aware terminus search then can't reach it without an inadmissible U-turn, and the
+        // route walks to the far terminus and detours the long way back.
+        if (
+            lookaheadAnchor is null
+            && lookaheadTaxiway is null
+            && ctx.Destination.Kind is DestinationKind.Parking or DestinationKind.Spot or DestinationKind.Helipad
+            && ctx.Destination.TargetNodeId is { } destNodeId
+            && ctx.Layout.Nodes.TryGetValue(destNodeId, out var destNode)
+        )
+        {
+            lookaheadAnchor = (destNode.Position.Lat, destNode.Position.Lon);
+        }
+
         ctx.DiagnosticLog?.Invoke(
             $"[segment] twy={fromTaxiway}→{toTaxiway} head={head.HeadNodeId} junctions={junctionCandidates.Count} lookahead={lookaheadTaxiway ?? "(none)"}"
         );

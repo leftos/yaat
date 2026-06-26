@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- A `TAXI` clearance to a parking (`@`) or spot (`$`) destination that hangs off the far end of the final taxiway no longer sends the aircraft the wrong way down that taxiway and then detours the long way back to reach it. The final-taxiway junction is now steered toward the destination (as it already was for runway destinations), so e.g. OAK `TAXI G D @NEW1` taxis straight up D to NEW1 instead of looping down C, across E, back over runway 28R, and around via H.
+
 ### Added
 - Aircraft can now taxi **along** a runway named as a segment of a `TAXI` clearance — e.g. `TAXI 28R G D` taxis along runway 28R's centerline, then turns off onto taxiways G and D (a back-taxi). Previously naming a runway anywhere but the destination was rejected with "Cannot find taxiway 28R in layout." The aircraft taxis straight onto the cleared runway (no hold-short at its entry), while a *different* runway the route crosses still holds short, and the readback uses runway phraseology ("taxi … on runway two eight right …", per 7110.65 §3-7-2.a). If the named runway doesn't actually meet the adjacent taxiway, the clearance is rejected with a clear "does not intersect" message instead of detouring.
 
