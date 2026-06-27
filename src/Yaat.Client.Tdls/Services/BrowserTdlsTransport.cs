@@ -57,7 +57,10 @@ public sealed class BrowserTdlsTransport : ITdlsTransport, IAsyncDisposable
             await DisconnectAsync();
         }
 
-        var hubUrl = string.IsNullOrEmpty(serverUrl) ? "/hubs/training" : serverUrl.TrimEnd('/') + "/hubs/training";
+        var baseUrl = string.IsNullOrEmpty(serverUrl) ? "/hubs/training" : serverUrl.TrimEnd('/') + "/hubs/training";
+        // Identify as a vTDLS position tool so the server exempts this connection from the
+        // mentor/instructor connect gate (students use vStrips/vTDLS like CRC).
+        var hubUrl = $"{baseUrl}?clientKind={ClientKind.VTdls}";
         Log.LogInformation("Connecting to {Url}", hubUrl);
 
         _connection = new HubConnectionBuilder()
