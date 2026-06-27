@@ -13,6 +13,7 @@
 - With datablock deconfliction on, an aircraft's datablock no longer lingers pinned to the edge of the ground (or radar) display after you pan its symbol out of view. The deconfliction pass was clamping the stray block back inside the viewport every frame, leaving a floating label with no aircraft under it; a symbol panned off-screen now drops its datablock along with the icon.
 - The desktop client now keeps trying to reconnect through a full server restart instead of giving up after ~40 seconds. A server deployment is down for roughly 7–10 minutes while it rebuilds, but the client used to abandon reconnection almost immediately and leave you to reconnect by hand; it now retries for up to 15 minutes, so your session resumes automatically when the server comes back. The "server restarting" banner also shows a realistic downtime estimate (~10 minutes) instead of a 30-second countdown that implied the server would be right back.
 - Suspending a track on a CRC SAAB SAID surface display no longer crashes CRC; the aircraft is hidden and reappears when un-suspended.
+- Un-terminating (tagging) a track on a CRC SAAB SAID surface display redisplays it immediately, even when the aircraft is stationary.
 
 ## v0.8.0-beta [2026/06/26]
 
