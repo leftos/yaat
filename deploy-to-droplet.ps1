@@ -58,7 +58,7 @@ $targets = @{
     DropletIp     = "143.198.111.198"
     ServerPath    = "/home/yaat/yaat-server"
     ServerUrl     = "https://yaat1.leftos.dev"
-    RemoteEnvFile = ".env"
+    RemoteEnvFile = ".env.yaat1"
   }
   # yaat2 = @{
   #   DropletIp     = "<droplet-ip>"
@@ -311,6 +311,9 @@ try {
   Write-Host ""
   Write-Host "[4/8] Pulling latest code and submodules..." -ForegroundColor Yellow
   Invoke-OnDroplet "cd $serverPath && git pull && git submodule update --init --remote --recursive" | Tee-Object -Append -FilePath $logFile
+  if ($LASTEXITCODE -ne 0) {
+    throw "git pull / submodule update failed on the droplet (exit $LASTEXITCODE). Aborting so a stale build isn't shipped — check 'git -C $serverPath status' for local changes blocking the pull."
+  }
 
   # Get the commit hashes after pulling
   $commitInfo = Invoke-OnDroplet "cd $serverPath && git log -1 --format='%h %s'"
