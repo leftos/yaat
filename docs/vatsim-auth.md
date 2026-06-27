@@ -55,13 +55,23 @@ filled automatically and not prompted for.
 - The flow is **Authorization Code + PKCE (S256)**. A **public** VATSIM client (no secret) is supported and is the
   expected setup; a **confidential** client additionally sends `client_secret` (set `Yaat:Vatsim:ClientSecret`).
 
-## Connection gate (who may connect)
+## Connection gate + capability tier (who may connect / do what)
 
-`/hubs/training` carries `[Authorize(Policy = TrainingHubAccessRequirement.PolicyName)]`. A controller
-may connect when **`isMentor` (VATUSA) is true, OR their VATSIM rating is instructor-or-above (I1/I2/I3,
-SUP, ADM)** — `ScenarioRatingClassifier.IsInstructorOrAbove`. Everyone else (OBS/S1/S2/S3/C1/C3 without a
-mentor role) is rejected at connect. CRC trainees on `/hubs/client` are **exempt** — they're the students
-being trained and are not rating-gated.
+`/hubs/training` carries `[Authorize(Policy = TrainingHubAccessRequirement.PolicyName)]`, which admits
+**any authenticated VATSIM controller**. Capability is tiered on the hub methods, not at connect time:
+
+- **Mentors/instructors** (`isMentor` from VATUSA, OR rating instructor-or-above I1/I2/I3/SUP/ADM via
+  `ScenarioRatingClassifier.IsInstructorOrAbove`) run sessions: create rooms, load/unload scenarios, kick.
+- **Non-mentors connect as limited RPOs.** They wait in the lobby until a mentor pulls them into a room:
+  `PullRpo(connectionId)` records an invite on the room (`TrainingRoom.InvitedCids`) and pushes
+  `RoomAvailableForCid`, which the client auto-joins. `JoinRoom` rejects an uninvited non-mentor "main"
+  client (`CanJoinRoomCore`); `CreateRoom`, `LoadScenario`, `UnloadScenarioAircraft`/`ConfirmUnloadScenario`,
+  and `KickMember` throw `HubException` for non-mentors (`RequireMentorOrInstructor`). The vStrips/vTDLS
+  position tools join freely (they follow the main client).
+- The mentor's **Room Members** modal lists waiting RPOs (`GetRpoLobbyClients` + the `RpoLobbyChanged`
+  broadcast) and CRC clients alongside each other for one-click pull.
+
+CRC trainees on `/hubs/client` are unaffected — they're not rating-gated.
 
 ## Scenario gate (what they may load)
 

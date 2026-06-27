@@ -124,6 +124,8 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `KickCrcClientAsync(id)` | `KickCrcClient` | `KickCrcClient(id)` `:1218` |
 | `KickMemberAsync(cid)` | `KickMember` | `KickMember(cid)` `:1243` |
 | `GetCrcRoomMembersAsync()` | `GetCrcRoomMembers` | `GetCrcRoomMembers()` `:1288` |
+| `GetRpoLobbyClientsAsync()` | `GetRpoLobbyClients` | `GetRpoLobbyClients()` (mentor-only) |
+| `PullRpoAsync(connectionId)` | `PullRpo` | `PullRpo(connectionId)` (mentor-only; invites + auto-joins) |
 | heartbeat loop (`RunHeartbeat`) | `Heartbeat` | `Heartbeat()` `:1110` (no-op) |
 
 `SpawnAircraft` / `DeleteAircraft` are **not** standalone hub methods (the legacy yaat-server CLAUDE.md list is stale on
@@ -154,6 +156,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `PilotTransmissionBroadcast` | `PilotTransmissionBroadcastDto` | `PilotTransmissionReceived` |
 | `RoomMemberChanged` | `RoomMemberChangedDto` | `RoomMemberChanged` |
 | `CrcLobbyChanged` | `CrcLobbyChangedDto` | `CrcLobbyChanged` |
+| `RpoLobbyChanged` | `RpoLobbyChangedDto` | `RpoLobbyChanged` (waiting non-mentor RPOs) |
 | `CrcRoomMembersChanged` | `CrcRoomMembersChangedDto` | `CrcRoomMembersChanged` |
 | `WeatherChanged` | `WeatherChangedDto` | `WeatherChanged` |
 | `ArrivalGeneratorsChanged` | `ArrivalGeneratorsChangedDto` | `ArrivalGeneratorsChanged` |

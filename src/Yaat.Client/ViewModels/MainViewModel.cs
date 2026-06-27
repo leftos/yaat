@@ -133,6 +133,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(LoadLiveWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(OpenStripsInBrowserCommand))]
     [NotifyCanExecuteChangedFor(nameof(OpenTdlsInBrowserCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowRpoWaiting))]
     private bool _isConnected;
 
     [ObservableProperty]
@@ -309,6 +310,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
+    [NotifyPropertyChangedFor(nameof(IsInRoom))]
+    [NotifyPropertyChangedFor(nameof(ShowRpoWaiting))]
     private string? _activeRoomId;
 
     [ObservableProperty]
@@ -379,9 +382,6 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _showRoomList;
-
-    [ObservableProperty]
-    private bool _showCrcPanel;
 
     [ObservableProperty]
     private bool _showRoomMembersPanel;
@@ -638,6 +638,12 @@ public partial class MainViewModel : ObservableObject
     public string ConnectMenuText => IsConnected ? "_Disconnect" : "_Connect";
 
     public bool IsInRoom => ActiveRoomId is not null;
+
+    /// <summary>
+    /// True when a limited RPO is connected but not yet in a room — they see a non-interactive "waiting
+    /// for an instructor to add you" prompt instead of the room picker.
+    /// </summary>
+    public bool ShowRpoWaiting => IsConnected && IsLimitedRpo && !IsInRoom;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanExecuteInRoom))]
@@ -1100,7 +1106,20 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<CrcRoomMemberDto> CrcRoomMembers { get; } = [];
 
+    /// <summary>Connected non-mentor YAAT clients (RPOs) a mentor can pull into the room.</summary>
+    public ObservableCollection<RpoLobbyClientDto> RpoLobbyClients { get; } = [];
+
     public ObservableCollection<RoomMemberDto> RoomMembers { get; } = [];
+
+    /// <summary>
+    /// True when the signed-in controller is a limited RPO (not a mentor/instructor): they can be pulled
+    /// into a room but can't create rooms or load/unload scenarios. Drives which controls are shown.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
+    [NotifyPropertyChangedFor(nameof(ShowRpoWaiting))]
+    private bool _isLimitedRpo;
 
     [ObservableProperty]
     private SpeechStatus _speechStatus = SpeechStatus.Idle;
@@ -1260,6 +1279,7 @@ public partial class MainViewModel : ObservableObject
         _connection.PilotTransmissionReceived += OnPilotTransmissionReceived;
         _connection.RoomMemberChanged += OnRoomMemberChanged;
         _connection.CrcLobbyChanged += OnCrcLobbyChanged;
+        _connection.RpoLobbyChanged += OnRpoLobbyChanged;
         _connection.CrcRoomMembersChanged += OnCrcRoomMembersChanged;
         _connection.WeatherChanged += OnWeatherChanged;
         _connection.ArrivalGeneratorsChanged += OnArrivalGeneratorsChanged;

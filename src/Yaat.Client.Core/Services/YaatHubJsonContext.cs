@@ -42,6 +42,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(PilotTransmissionBroadcastDto))]
 [JsonSerializable(typeof(RoomMemberChangedDto))]
 [JsonSerializable(typeof(CrcLobbyChangedDto))]
+[JsonSerializable(typeof(RpoLobbyChangedDto))]
 [JsonSerializable(typeof(CrcRoomMembersChangedDto))]
 [JsonSerializable(typeof(WeatherChangedDto))]
 [JsonSerializable(typeof(ArrivalGeneratorsChangedDto))]
@@ -77,6 +78,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(ApproachReportDto))]
 [JsonSerializable(typeof(SessionReportDto))]
 [JsonSerializable(typeof(List<CrcLobbyClientDto>))]
+[JsonSerializable(typeof(List<RpoLobbyClientDto>))]
 [JsonSerializable(typeof(List<CrcRoomMemberDto>))]
 [JsonSerializable(typeof(List<OnlineControllerDto>))]
 // --- Method argument types beyond primitives. ---
@@ -87,6 +89,7 @@ namespace Yaat.Client.Services;
 // are registered in YaatStripsHubJsonContext (Yaat.Client.Strips).
 [JsonSerializable(typeof(RoomMemberDto))]
 [JsonSerializable(typeof(CrcLobbyClientDto))]
+[JsonSerializable(typeof(RpoLobbyClientDto))]
 [JsonSerializable(typeof(CrcRoomMemberDto))]
 [JsonSerializable(typeof(OnlineControllerDto))]
 [JsonSerializable(typeof(WindLayerDto))]

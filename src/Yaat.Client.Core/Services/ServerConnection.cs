@@ -33,6 +33,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<PilotTransmissionBroadcastDto>? PilotTransmissionReceived;
     public event Action<RoomMemberChangedDto>? RoomMemberChanged;
     public event Action<CrcLobbyChangedDto>? CrcLobbyChanged;
+    public event Action<RpoLobbyChangedDto>? RpoLobbyChanged;
     public event Action<CrcRoomMembersChangedDto>? CrcRoomMembersChanged;
     public event Action<WeatherChangedDto>? WeatherChanged;
     public event Action<ArrivalGeneratorsChangedDto>? ArrivalGeneratorsChanged;
@@ -144,6 +145,8 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<RoomMemberChangedDto>("RoomMemberChanged", dto => RoomMemberChanged?.Invoke(dto));
 
         _connection.On<CrcLobbyChangedDto>("CrcLobbyChanged", dto => CrcLobbyChanged?.Invoke(dto));
+
+        _connection.On<RpoLobbyChangedDto>("RpoLobbyChanged", dto => RpoLobbyChanged?.Invoke(dto));
 
         _connection.On<CrcRoomMembersChangedDto>("CrcRoomMembersChanged", dto => CrcRoomMembersChanged?.Invoke(dto));
 
@@ -681,6 +684,20 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<bool>("KickCrcClient", clientId);
     }
 
+    // --- RPO lobby ---
+
+    public async Task<List<RpoLobbyClientDto>> GetRpoLobbyClientsAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<RpoLobbyClientDto>>("GetRpoLobbyClients");
+    }
+
+    public async Task<bool> PullRpoAsync(string connectionId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<bool>("PullRpo", connectionId);
+    }
+
     public async Task<bool> KickMemberAsync(string cid)
     {
         EnsureConnected();
@@ -1090,6 +1107,10 @@ public record PilotTransmissionBroadcastDto(
 public record CrcLobbyClientDto(string ClientId, string? Cid, string? DisplayName, string? ArtccId, string? PositionId, bool IsActive);
 
 public record CrcLobbyChangedDto(List<CrcLobbyClientDto> Clients);
+
+public record RpoLobbyClientDto(string ConnectionId, string Cid, string Name, string Rating);
+
+public record RpoLobbyChangedDto(List<RpoLobbyClientDto> Clients);
 
 public record CrcRoomMemberDto(string ClientId, string? Cid, string? DisplayName, string? PositionId, bool IsActive);
 

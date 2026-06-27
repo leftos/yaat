@@ -33,6 +33,10 @@ public partial class MainViewModel
 
             _identity = identity;
 
+            // Non-mentors connect as limited RPOs: they can be pulled into a room but can't create rooms
+            // or load/unload scenarios (the server enforces this too).
+            IsLimitedRpo = !(identity.IsMentor || Yaat.Sim.Scenarios.ScenarioRatingClassifier.IsInstructorOrAbove(identity.Rating));
+
             // ARTCC is resolved authoritatively from VATUSA (home facility) with a VATSIM-subdivision
             // fallback, so the apps no longer prompt for it. Overwrite any stored value each sign-in.
             if (!string.IsNullOrWhiteSpace(identity.Artcc))
@@ -66,10 +70,20 @@ public partial class MainViewModel
             _connectedServerUrl = url;
             IsConnected = true;
             IsConnecting = false;
-            StatusText = "Connected — select or create a room";
             AddSystemEntry($"Connected to {url}");
-            await RefreshRoomListAsync();
-            ShowRoomList = true;
+            if (IsLimitedRpo)
+            {
+                // Non-mentors don't pick rooms — they wait for an instructor to pull them in.
+                StatusText = "Connected — waiting for an instructor to add you to a room";
+                ShowRoomList = false;
+            }
+            else
+            {
+                StatusText = "Connected — select or create a room";
+                await RefreshRoomListAsync();
+                ShowRoomList = true;
+            }
+
             return null;
         }
         catch (OperationCanceledException)
@@ -255,7 +269,7 @@ public partial class MainViewModel
         }
     }
 
-    private bool CanCreateRoom() => IsConnected && !IsInRoom;
+    private bool CanCreateRoom() => IsConnected && !IsInRoom && !IsLimitedRpo;
 
     [RelayCommand]
     private async Task JoinRoomAsync(string roomId)
@@ -336,7 +350,7 @@ public partial class MainViewModel
         ShowRoomList = true;
     }
 
-    private bool CanShowRooms() => IsConnected && !IsInRoom;
+    private bool CanShowRooms() => IsConnected && !IsInRoom && !IsLimitedRpo;
 
     // --- Room members panel ---
 
@@ -346,7 +360,7 @@ public partial class MainViewModel
         ShowRoomMembersPanel = !ShowRoomMembersPanel;
         if (ShowRoomMembersPanel)
         {
-            _ = RefreshCrcLobbyAsync();
+            _ = RefreshRoomMembersAsync();
         }
     }
 
@@ -354,6 +368,15 @@ public partial class MainViewModel
     private void DismissRoomMembersPanel()
     {
         ShowRoomMembersPanel = false;
+    }
+
+    // Refreshes both pull lobbies (CRC clients + waiting RPOs) plus the in-room CRC list for the unified
+    // Room Members modal.
+    [RelayCommand]
+    private async Task RefreshRoomMembersAsync()
+    {
+        await RefreshCrcLobbyAsync();
+        await RefreshRpoLobbyAsync();
     }
 
     [RelayCommand]
@@ -380,22 +403,6 @@ public partial class MainViewModel
     }
 
     // --- CRC client management ---
-
-    [RelayCommand]
-    private void ToggleCrcPanel()
-    {
-        ShowCrcPanel = !ShowCrcPanel;
-        if (ShowCrcPanel)
-        {
-            _ = RefreshCrcLobbyAsync();
-        }
-    }
-
-    [RelayCommand]
-    private void DismissCrcPanel()
-    {
-        ShowCrcPanel = false;
-    }
 
     [RelayCommand]
     private async Task RefreshCrcLobbyAsync()
@@ -441,6 +448,48 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "PullCrcClient failed");
+            StatusText = $"Pull error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task RefreshRpoLobbyAsync()
+    {
+        // GetRpoLobbyClients is mentor-only; a limited RPO has no lobby to manage.
+        if (IsLimitedRpo)
+        {
+            return;
+        }
+
+        try
+        {
+            var lobby = await _connection.GetRpoLobbyClientsAsync();
+            RpoLobbyClients.Clear();
+            foreach (var c in lobby)
+            {
+                RpoLobbyClients.Add(c);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to refresh RPO lobby");
+        }
+    }
+
+    [RelayCommand]
+    private async Task PullRpoAsync(string connectionId)
+    {
+        try
+        {
+            var ok = await _connection.PullRpoAsync(connectionId);
+            if (!ok)
+            {
+                StatusText = "Failed to pull RPO — they may already be in a room";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "PullRpo failed");
             StatusText = $"Pull error: {ex.Message}";
         }
     }
@@ -538,7 +587,7 @@ public partial class MainViewModel
                 StatusText = "Room no longer active";
                 ClearRoomState();
                 await RefreshRoomListAsync();
-                ShowRoomList = true;
+                ShowRoomList = !IsLimitedRpo;
                 HideRestartBanner();
             }
         }
@@ -697,6 +746,7 @@ public partial class MainViewModel
         ApplyTimers(state.Timers);
 
         _ = RefreshCrcLobbyAsync();
+        _ = RefreshRpoLobbyAsync();
         _ = FetchAssignmentsAsync();
     }
 
@@ -706,8 +756,8 @@ public partial class MainViewModel
         ActiveRoomName = null;
         CrcLobbyClients.Clear();
         CrcRoomMembers.Clear();
+        RpoLobbyClients.Clear();
         RoomMembers.Clear();
-        ShowCrcPanel = false;
         ShowRoomMembersPanel = false;
         _aircraftAssignments = [];
         AssignableMembers.Clear();
@@ -745,7 +795,7 @@ public partial class MainViewModel
             ClearRoomState();
             StatusText = reason;
             await RefreshRoomListAsync();
-            ShowRoomList = true;
+            ShowRoomList = !IsLimitedRpo;
         });
     }
 
@@ -757,7 +807,7 @@ public partial class MainViewModel
             ClearRoomState();
             StatusText = reason;
             await RefreshRoomListAsync();
-            ShowRoomList = true;
+            ShowRoomList = !IsLimitedRpo;
         });
     }
 
@@ -774,6 +824,24 @@ public partial class MainViewModel
             foreach (var c in dto.Clients)
             {
                 CrcLobbyClients.Add(c);
+            }
+        });
+    }
+
+    private void OnRpoLobbyChanged(RpoLobbyChangedDto dto)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            // The lobby is broadcast to everyone; only a mentor manages it.
+            if (IsLimitedRpo)
+            {
+                return;
+            }
+
+            RpoLobbyClients.Clear();
+            foreach (var c in dto.Clients)
+            {
+                RpoLobbyClients.Add(c);
             }
         });
     }
