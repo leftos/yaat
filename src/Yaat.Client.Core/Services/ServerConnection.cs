@@ -99,7 +99,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
                     options.AccessTokenProvider = accessTokenProvider;
                 }
             )
-            .WithAutomaticReconnect()
+            .WithAutomaticReconnect(new YaatReconnectPolicy())
             .AddJsonProtocol(options =>
             {
                 // Insert both source-generated contexts at the head of the

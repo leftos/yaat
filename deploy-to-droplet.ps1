@@ -83,6 +83,12 @@ $remoteEnvFile = $cfg.RemoteEnvFile
 $logFile = "/tmp/yaat-deploy-$Target-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
 $followLogs = -not $NoLogs
 
+# Realistic end-to-end downtime users should expect, surfaced in the Discord status messages.
+# A full deploy rebuilds the container (~7-10 min); a reboot-only just recreates it from the
+# existing image, so it is back much sooner. This is the user-facing outage estimate, distinct
+# from the short -DrainSeconds connection-drain/session-save window.
+$estimatedDowntime = if ($RebootOnly) { "a few minutes" } else { "~10 minutes" }
+
 # Load this target's secrets from a local .env.<target> if present, else the shared .env.
 $envFile = Join-Path $PSScriptRoot ".env.$Target"
 if (-not (Test-Path $envFile)) {
@@ -234,13 +240,13 @@ function Invoke-ServerReboot {
   Write-Host "[2/4] Preparing for restart..." -ForegroundColor Yellow
   $sessionsSaved = $false
   if ($SkipSessionSave) {
-    Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is rebooting to refresh nav data (sessions not preserved)." -Color 16776960
+    Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is rebooting to refresh nav data (sessions not preserved). Expect $estimatedDowntime of downtime." -Color 16776960
   }
   else {
-    Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is saving active sessions, then rebooting to refresh nav data (~${DrainSeconds}s)." -Color 16776960
+    Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is saving active sessions, then rebooting to refresh nav data. Expect $estimatedDowntime of downtime." -Color 16776960
     $sessionsSaved = Invoke-PrepareRestartSessions -DrainSec $DrainSeconds
     if (-not $sessionsSaved) {
-      Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is rebooting to refresh nav data (session save skipped or failed)." -Color 16776960
+      Send-DiscordStatus -Title "Server rebooting" -Description "``$serverUrl`` is rebooting to refresh nav data (session save skipped or failed). Expect $estimatedDowntime of downtime." -Color 16776960
     }
   }
 
@@ -298,13 +304,13 @@ try {
   Write-Host "[3/8] Preparing for restart..." -ForegroundColor Yellow
   $sessionsSaved = $false
   if ($SkipSessionSave) {
-    Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (sessions not preserved)." -Color 16776960
+    Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (sessions not preserved). Expect $estimatedDowntime of downtime." -Color 16776960
   }
   else {
-    Send-DiscordStatus -Title "Server restarting for deployment" -Description "``$serverUrl`` is saving active sessions, then updating (~${DrainSeconds}s)." -Color 16776960
+    Send-DiscordStatus -Title "Server restarting for deployment" -Description "``$serverUrl`` is saving active sessions, then updating. Expect $estimatedDowntime of downtime." -Color 16776960
     $sessionsSaved = Invoke-PrepareRestartSessions -DrainSec $DrainSeconds
     if (-not $sessionsSaved) {
-      Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (session save skipped or failed)." -Color 16776960
+      Send-DiscordStatus -Title "Server going down for deployment" -Description "``$serverUrl`` is being updated (session save skipped or failed). Expect $estimatedDowntime of downtime." -Color 16776960
     }
   }
 

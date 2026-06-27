@@ -552,8 +552,11 @@ public partial class MainViewModel
         {
             if (IsServerRestarting)
             {
-                StatusText = "Server restarting — session will resume when the server is back";
-                ShowRestartBanner(RestartBanner.Disconnected, "Server restarting — waiting for it to come back…");
+                StatusText = $"Server restarting — session resumes when it's back (usually within {RestartDowntimeEstimate})";
+                ShowRestartBanner(
+                    RestartBanner.Disconnected,
+                    $"Server restarting — usually back within {RestartDowntimeEstimate}, waiting for it to come back…"
+                );
                 return;
             }
 
@@ -579,7 +582,7 @@ public partial class MainViewModel
             }
 
             IsServerRestarting = true;
-            StatusText = $"Server restarting for maintenance — session resumes in ~{drainSeconds}s";
+            StatusText = $"Server restarting for maintenance — usually back within {RestartDowntimeEstimate}";
             AddSystemEntry($"Server restart scheduled ({reason}). Your session will be preserved.");
             StartRestartBannerCountdown(restartAt, drainSeconds);
         });
@@ -591,7 +594,10 @@ public partial class MainViewModel
         {
             StatusText = "Server restart ready — reconnecting shortly...";
             // Drain finished; switch the banner to "waiting for server".
-            ShowRestartBanner(RestartBanner.Disconnected, "Server restarting — waiting for it to come back…");
+            ShowRestartBanner(
+                RestartBanner.Disconnected,
+                $"Server restarting — usually back within {RestartDowntimeEstimate}, waiting for it to come back…"
+            );
         });
     }
 
@@ -973,6 +979,11 @@ public partial class MainViewModel
 
     // --- Restart banner helpers ---
 
+    // Operator deploys (deploy-to-droplet.ps1) take ~7-10 minutes end to end while the server
+    // container rebuilds. Surface that realistic window so users don't read the short connection-
+    // drain timer as the whole outage.
+    private const string RestartDowntimeEstimate = "~10 minutes";
+
     private void StartRestartBannerCountdown(DateTime restartAtUtc, int drainSeconds)
     {
         _restartTargetUtc = restartAtUtc;
@@ -1030,6 +1041,6 @@ public partial class MainViewModel
 
     private static string FormatDrainText(int remainingSeconds) =>
         remainingSeconds > 0
-            ? $"Server restarting for planned maintenance — session resumes in ~{remainingSeconds}s. Commands disabled."
-            : "Server restarting now — session will resume when it comes back. Commands disabled.";
+            ? $"Server going down for planned maintenance in ~{remainingSeconds}s — usually back within {RestartDowntimeEstimate}. Commands disabled."
+            : $"Server restarting now — usually back within {RestartDowntimeEstimate}. Commands disabled.";
 }
