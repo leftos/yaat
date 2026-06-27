@@ -66,12 +66,7 @@
                         <StackPanel Spacing="4">
                             <TextBlock Text="ARTCC:"
                                        Foreground="{DynamicResource SubtleTextBrush}" />
-                            <TextBox Text="{Binding ArtccId}"
-                                     MaxLength="4"
-                                     Watermark="e.g. ZOA"
-                                     Width="80"
-                                     HorizontalAlignment="Left" />
-                            <TextBlock Text="Your ARTCC identifier. Used in room names and to determine facility data."
+                            <TextBlock Text="Set automatically from your VATSIM/VATUSA profile when you sign in."
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />

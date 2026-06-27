@@ -12,7 +12,7 @@ using Yaat.Sim;
 namespace Yaat.Client.Services;
 
 /// <summary>The authenticated VATSIM identity resolved by the server from a YAAT session token.</summary>
-public sealed record VatsimIdentity(string Cid, string Name, string Rating, string? Subdivision, bool IsMentor);
+public sealed record VatsimIdentity(string Cid, string Name, string Rating, string? Subdivision, bool IsMentor, string? Artcc);
 
 /// <summary>
 /// Client side of the server-mediated VATSIM Connect flow. Drives the system-browser + loopback
@@ -303,7 +303,8 @@ public sealed class VatsimAuthClient
             ReadString(root, "name") ?? "",
             ReadString(root, "rating") ?? "",
             ReadString(root, "subdivision"),
-            root.TryGetProperty("isMentor", out var m) && m.ValueKind == JsonValueKind.True
+            root.TryGetProperty("isMentor", out var m) && m.ValueKind == JsonValueKind.True,
+            ReadString(root, "artcc")
         );
     }
 
@@ -381,7 +382,7 @@ public sealed class VatsimAuthClient
 
     private static string NormalizeServer(string serverUrl) => serverUrl.TrimEnd('/');
 
-    private static VatsimIdentity ToIdentity(StoredSession s) => new(s.Cid, s.Name, s.Rating, s.Subdivision, s.IsMentor);
+    private static VatsimIdentity ToIdentity(StoredSession s) => new(s.Cid, s.Name, s.Rating, s.Subdivision, s.IsMentor, s.Artcc);
 
     private bool TryGetSession(string key, out StoredSession session)
     {
@@ -455,6 +456,7 @@ public sealed class VatsimAuthClient
         string Name,
         string Rating,
         string? Subdivision,
-        bool IsMentor
+        bool IsMentor,
+        string? Artcc
     );
 }

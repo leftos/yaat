@@ -9,7 +9,7 @@ public partial class ConnectViewModel : ObservableObject
 {
     private readonly Func<string, CancellationToken, Task<string?>> _connectAction;
     private readonly Action<IList<SavedServer>, string> _saveAction;
-    private readonly Action<string, string> _identitySaveAction;
+    private readonly Action<string> _identitySaveAction;
     private readonly Action _closeAction;
     private CancellationTokenSource? _currentCts;
 
@@ -32,17 +32,13 @@ public partial class ConnectViewModel : ObservableObject
     [ObservableProperty]
     private string _userInitials = "";
 
-    [ObservableProperty]
-    private string _artccId = "";
-
     public ConnectViewModel(
         IReadOnlyList<SavedServer> servers,
         string lastUsedUrl,
         string userInitials,
-        string artccId,
         Func<string, CancellationToken, Task<string?>> connectAction,
         Action<IList<SavedServer>, string> saveAction,
-        Action<string, string> identitySaveAction,
+        Action<string> identitySaveAction,
         Action closeAction
     )
     {
@@ -53,7 +49,6 @@ public partial class ConnectViewModel : ObservableObject
         _closeAction = closeAction;
         SelectedServer = Servers.FirstOrDefault(s => s.Url == lastUsedUrl) ?? Servers.FirstOrDefault();
         UserInitials = userInitials;
-        ArtccId = artccId;
 
         // Subscribe to property changes on existing servers
         foreach (var server in Servers)
@@ -198,8 +193,9 @@ public partial class ConnectViewModel : ObservableObject
             return;
         }
 
-        // Persist identity before connect so AttemptConnectAsync sees the new values via Preferences.
-        _identitySaveAction(UserInitials.Trim(), ArtccId.Trim());
+        // Persist initials before connect so AttemptConnectAsync sees the new value via Preferences.
+        // ARTCC is resolved from VATSIM/VATUSA after sign-in, not entered here.
+        _identitySaveAction(UserInitials.Trim());
 
         using var cts = new CancellationTokenSource();
         _currentCts = cts;

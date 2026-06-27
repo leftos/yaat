@@ -112,9 +112,6 @@ public partial class SettingsViewModel : ObservableObject
     private string _userInitials = "";
 
     [ObservableProperty]
-    private string _artccId = "";
-
-    [ObservableProperty]
     private string _testCommandInput = "";
 
     [ObservableProperty]
@@ -593,7 +590,6 @@ public partial class SettingsViewModel : ObservableObject
         GroupedVerbMappings.GroupDescriptions.Add(new DataGridPathGroupDescription("Category"));
         LoadFromScheme(_preferences.CommandScheme);
         _userInitials = _preferences.UserInitials;
-        _artccId = _preferences.ArtccId;
         _isAdminMode = _preferences.IsAdminMode;
         _adminPassword = _preferences.AdminPassword;
         _autoAcceptEnabled = _preferences.AutoAcceptEnabled;
@@ -717,22 +713,12 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
-    partial void OnArtccIdChanged(string value)
-    {
-        var upper = value.ToUpperInvariant();
-        if (upper != value)
-        {
-            ArtccId = upper;
-        }
-    }
-
     [RelayCommand]
     private void Save()
     {
         var scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
         _preferences.SetUserInitials(UserInitials);
-        _preferences.SetArtccId(ArtccId);
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetCommandRunDelay(CommandRunDelayMinSeconds, CommandRunDelayMaxSeconds);

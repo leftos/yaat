@@ -15,9 +15,9 @@
     </div>
     <script type="module">
         // Sign-in gate. Order: (1) ensure a VATSIM session via the same-origin
-        // session cookie (/auth/token), (2) ensure operating initials + ARTCC are
-        // present (VATSIM doesn't supply them — auto-filled + editable), then (3)
-        // boot the WASM bundle. Avoids paying the ~5 s WASM boot just to show a form.
+        // session cookie (/auth/token), (2) ensure operating initials are present
+        // (VATSIM doesn't supply them; ARTCC is resolved from VATSIM/VATUSA), then
+        // (3) boot the WASM bundle. Avoids paying the ~5 s WASM boot just to show a form.
         const APP_PATH = '/vstrips/';
         const STORAGE_KEY = 'yaat-vstrips-identity';
         const params = new URLSearchParams(window.location.search);
@@ -61,7 +61,8 @@
             }
 
             const initialInitials = params.get('initials') || stored.initials || deriveInitials(session.name);
-            const initialArtcc = params.get('artcc') || stored.artcc || session.subdivision || '';
+            // ARTCC is resolved from VATSIM/VATUSA (session.artcc); only prompt when it can't be determined.
+            const initialArtcc = params.get('artcc') || session.artcc || stored.artcc || session.subdivision || '';
 
             const out = clearOut();
             const form = el('form', { id: 'connect-form', className: 'landing-form', autocomplete: 'on' });
@@ -74,15 +75,20 @@
                 required: true, autofocus: true, value: initialInitials,
                 style: 'text-transform:uppercase',
             })));
-            form.appendChild(field('ARTCC', input({
-                name: 'artcc', type: 'text', maxLength: 4, pattern: '[A-Za-z0-9]{2,4}',
-                required: true, value: initialArtcc,
-                style: 'text-transform:uppercase',
-            })));
+            if (!initialArtcc) {
+                form.appendChild(field('ARTCC', input({
+                    name: 'artcc', type: 'text', maxLength: 4, pattern: '[A-Za-z0-9]{2,4}',
+                    required: true, value: '',
+                    style: 'text-transform:uppercase',
+                })));
+            }
 
             const submit = el('button', { type: 'submit', textContent: 'Continue' });
             form.appendChild(submit);
-            form.appendChild(el('p', { className: 'note', textContent: 'Initials and ARTCC are saved in your browser for next time.' }));
+            const noteText = initialArtcc
+                ? `ARTCC ${initialArtcc} (from VATSIM/VATUSA). Your initials are saved in your browser for next time.`
+                : 'Initials and ARTCC are saved in your browser for next time.';
+            form.appendChild(el('p', { className: 'note', textContent: noteText }));
             form.addEventListener('submit', onSubmit);
             out.appendChild(form);
 
@@ -91,7 +97,7 @@
                 const data = new FormData(form);
                 const values = {
                     initials: (data.get('initials') || '').trim().toUpperCase(),
-                    artcc: (data.get('artcc') || '').trim().toUpperCase(),
+                    artcc: (data.get('artcc') || initialArtcc || '').trim().toUpperCase(),
                 };
                 try {
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(values));

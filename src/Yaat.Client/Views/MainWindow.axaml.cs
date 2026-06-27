@@ -2479,14 +2479,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.Preferences.SavedServers,
             vm.Preferences.LastUsedServerUrl,
             vm.Preferences.UserInitials,
-            vm.Preferences.ArtccId,
             connectAction: vm.AttemptConnectAsync,
             saveAction: (servers, lastUrl) => vm.Preferences.SetSavedServers(servers, lastUrl),
-            identitySaveAction: (initials, artcc) =>
-            {
-                vm.Preferences.SetUserInitials(initials);
-                vm.Preferences.SetArtccId(artcc);
-            },
+            identitySaveAction: initials => vm.Preferences.SetUserInitials(initials),
             closeAction: () => connectWindow?.Close()
         );
         connectWindow = new ConnectWindow(connectVm, vm.Preferences);

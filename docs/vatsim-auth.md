@@ -39,15 +39,19 @@ GET /vstrips/ → JS calls /auth/token; 401 → "Sign in with VATSIM" → /auth/
 WASM boots → connects /hubs/training; the browser sends yaat_session automatically (same origin)
 ```
 The WASM apps need no token plumbing — the cookie rides the same-origin negotiate. `/auth/token` (called
-by the sign-in page) re-mints the access token, refreshes the `yaat_session` cookie, and returns the
-identity so the page can pre-fill initials/ARTCC.
+by the sign-in page) re-resolves VATUSA, re-mints the access token, refreshes the `yaat_session` cookie,
+and returns the identity (including the resolved `artcc`) so the page can confirm initials; ARTCC is
+filled automatically and not prompted for.
 
 ## VATSIM / VATUSA endpoints
 
 - Authorize `https://auth.vatsim.net/oauth/authorize`, token `…/oauth/token`, userinfo `…/api/user`.
 - Scopes: `full_name vatsim_details` (`vatsim_details` exposes rating + subdivision).
 - Userinfo → `data.cid`, `data.personal.name_full`, `data.vatsim.rating.short`, `data.vatsim.subdivision`.
-- VATUSA mentor status: `GET https://api.vatusa.net/v2/user/{cid}` → `data.isMentor` (MTR role at home facility).
+- VATUSA: `GET https://api.vatusa.net/v2/user/{cid}` → `data.isMentor` (MTR role) + `data.facility` (home
+  ARTCC, used to auto-fill the controller's ARTCC). Queried at login and re-queried on every token refresh
+  (best-effort: a null result — outage or VATUSA disabled — keeps the cached identity, so it never flips a
+  live session). Non-VATUSA controllers fall back to the VATSIM `subdivision`.
 - The flow is **Authorization Code + PKCE (S256)**. A **public** VATSIM client (no secret) is supported and is the
   expected setup; a **confidential** client additionally sends `client_secret` (set `Yaat:Vatsim:ClientSecret`).
 
@@ -68,8 +72,10 @@ The per-ARTCC bcrypt key system is gone — rating is the sole gate.
 
 ## Tokens
 
-`YaatTokenService` mints HS256 JWTs (claims `sub`=cid, `name`, `rating`, `subdivision`, `is_mentor`,
-`token_use`; refresh tokens additionally carry a `jti`). Access token ~1h (hub Bearer / `yaat_session`
+`YaatTokenService` mints HS256 JWTs (claims `sub`=cid, `name`, `rating`, `subdivision`, `artcc`,
+`is_mentor`, `token_use`; refresh tokens additionally carry a `jti`). `artcc` is the resolved ARTCC
+(VATUSA home facility, else the subdivision) and is re-resolved from VATUSA on each refresh so a
+controller's transfer or mentor-role change takes effect within the access-token lifetime (~1h). Access token ~1h (hub Bearer / `yaat_session`
 cookie); refresh token ~30d (`yaat_refresh` cookie / desktop `auth-sessions.json`) re-mints access via
 `/auth/refresh` (desktop) and `/auth/token` (web). JwtBearer reads the token from the `access_token`
 query (desktop) or the `yaat_session` cookie (web) for `/hubs/training`.

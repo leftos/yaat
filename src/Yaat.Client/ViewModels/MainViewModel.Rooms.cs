@@ -33,9 +33,11 @@ public partial class MainViewModel
 
             _identity = identity;
 
-            if (string.IsNullOrWhiteSpace(_preferences.ArtccId) && !string.IsNullOrWhiteSpace(identity.Subdivision))
+            // ARTCC is resolved authoritatively from VATUSA (home facility) with a VATSIM-subdivision
+            // fallback, so the apps no longer prompt for it. Overwrite any stored value each sign-in.
+            if (!string.IsNullOrWhiteSpace(identity.Artcc))
             {
-                _preferences.SetArtccId(identity.Subdivision);
+                _preferences.SetArtccId(identity.Artcc);
             }
 
             if (_preferences.UserInitials.Length != 2)
@@ -56,7 +58,7 @@ public partial class MainViewModel
             if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
             {
                 IsConnecting = false;
-                return "Set your ARTCC ID in Settings before connecting";
+                return "Your ARTCC couldn't be determined from VATSIM/VATUSA. Make sure your VATSIM profile lists a subdivision.";
             }
 
             StatusText = "Connecting...";

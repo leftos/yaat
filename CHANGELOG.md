@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- Your ARTCC is now filled in automatically from your VATSIM/VATUSA profile when you sign in — the ARTCC field is gone from the connect dialog, the web sign-in pages, and Settings. US controllers get their home ARTCC from VATUSA; everyone else falls back to their VATSIM subdivision. If you transfer facilities it updates on its own within about an hour, no re-sign-in needed.
+
 ### Fixed
 - The desktop client now keeps trying to reconnect through a full server restart instead of giving up after ~40 seconds. A server deployment is down for roughly 7–10 minutes while it rebuilds, but the client used to abandon reconnection almost immediately and leave you to reconnect by hand; it now retries for up to 15 minutes, so your session resumes automatically when the server comes back. The "server restarting" banner also shows a realistic downtime estimate (~10 minutes) instead of a 30-second countdown that implied the server would be right back.
 

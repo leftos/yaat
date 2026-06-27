@@ -59,16 +59,15 @@
                 BorderThickness="0,1,0,0"
                 Margin="0,12,0,0"
                 Padding="0,12,0,0">
-            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,80,12,Auto,*">
-                <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="5"
-                           Text="You'll sign in with VATSIM when you connect."
+            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,80,*">
+                <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                           Text="You'll sign in with VATSIM when you connect. Your ARTCC is set automatically from VATSIM/VATUSA."
                            Foreground="#888"
                            FontSize="11"
+                           TextWrapping="Wrap"
                            Margin="0,0,0,8" />
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Initials:" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding UserInitials}" MaxLength="2" Watermark="AB" />
-                <TextBlock Grid.Row="1" Grid.Column="3" Text="ARTCC:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                <TextBox Grid.Row="1" Grid.Column="4" Text="{Binding ArtccId}" MaxLength="4" Watermark="ZOA" />
             </Grid>
         </Border>
 
