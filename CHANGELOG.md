@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.8.0-beta [2026/06/26]
+
+### Highlights
+- **Sign in with VATSIM** — connecting now verifies you through VATSIM in your browser instead of asking for your CID; your name and controller rating come from VATSIM. The vStrips and vTDLS pages sign in the same way.
+- **Scenario access follows your verified VATSIM rating** — higher-rating scenarios open automatically based on your rating, and the manual training-access-key field is gone.
+- **Deployed servers admit only mentors and instructors** — you can connect with a VATUSA mentor role or a VATSIM Instructor rating (I1/I2/I3+); students connect with CRC as before.
+- **Taxiing along a named runway works again** — a clearance like `TAXI 28R G D` back-taxis along the runway, then turns off onto the taxiways.
 
 ### Added
 - **Sign in with VATSIM.** Connecting to a server now authenticates you through VATSIM Connect in your browser instead of asking you to type your CID — your CID, name, and controller rating come from VATSIM and are verified. Your sign-in is remembered between launches. The vStrips and vTDLS browser pages sign in the same way. After your first sign-in, your ARTCC is pre-filled from your VATSIM subdivision and your operating initials are suggested from your name (both still editable in Settings).

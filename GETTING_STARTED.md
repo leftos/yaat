@@ -59,17 +59,18 @@ If an instructor is already hosting a YAAT server and you want to pin your sourc
 
 Your git working tree must be clean. Return to the latest code with `git checkout main` afterwards. If you don't need a specific commit, the prebuilt installer is a simpler way to connect to a hosted server.
 
-## Step 2: Configure Your Identity
+## Step 2: Sign In with VATSIM
 
-Before connecting, open **Settings** (gear icon) and fill in the **Identity** tab:
+YAAT verifies your identity through **VATSIM sign-in** — you no longer type your CID. When you connect to a server (Step 3), your browser opens to the VATSIM login page; after you authorize, YAAT receives your verified **CID, name, and controller rating** straight from VATSIM and remembers your sign-in between launches.
+
+Two fields stay yours to set, under **Settings** (gear icon) → **Identity** tab. After your first sign-in they're filled in for you and remain editable:
 
 | Field | What to enter |
 |-------|---------------|
-| **[VATSIM](#glossary) CID** | Your VATSIM ID number |
-| **Initials** | Any two letters (e.g., your initials — "JE", "AB") |
-| **[ARTCC](#glossary) ID** | The facility you're training (e.g., `ZOA`, `ZLA`, `ZNY`) |
+| **Initials** | Your operating initials (e.g., "JE", "AB") — suggested from your VATSIM name |
+| **[ARTCC](#glossary) ID** | The facility you're training (e.g., `ZOA`, `ZLA`, `ZNY`) — pre-filled from your VATSIM subdivision |
 
-All three fields are required — you cannot connect without them.
+> **Who can connect:** a hosted server admits you if you hold a VATUSA mentor role, or a VATSIM Instructor rating (I1/I2/I3) or higher. Students being trained connect with [CRC](#glossary) and are unaffected.
 
 ## Step 3: Connect and Create a Room
 
@@ -77,7 +78,7 @@ All three fields are required — you cannot connect without them.
 2. Enter the **server URL**:
    - `http://localhost:5000` if you're running `start.ps1`/`start.sh` on your own machine
    - The URL your instructor gave you (e.g., `https://yaat1.leftos.dev`) for a hosted server
-3. Click **Connect**. YAAT remembers the URL so you don't retype it next time.
+3. Click **Connect**. The first time you connect to a given server, your browser opens to **VATSIM sign-in** — authorize, and YAAT receives your verified identity. YAAT remembers both the URL and your sign-in, so you don't repeat either next time.
 4. The **room list** appears. Either:
    - **Create** a new room (give it a name), or
    - **Join** an existing room that another instructor created
