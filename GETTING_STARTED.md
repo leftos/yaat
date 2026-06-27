@@ -63,14 +63,9 @@ Your git working tree must be clean. Return to the latest code with `git checkou
 
 YAAT verifies your identity through **VATSIM sign-in** — you no longer type your CID. When you connect to a server (Step 3), your browser opens to the VATSIM login page; after you authorize, YAAT receives your verified **CID, name, and controller rating** straight from VATSIM and remembers your sign-in between launches.
 
-Two fields stay yours to set, under **Settings** (gear icon) → **Identity** tab. After your first sign-in they're filled in for you and remain editable:
+One field stays yours to set, under **Settings** (gear icon) → **Identity** tab — your operating **initials** (e.g., "JE", "AB"), suggested from your VATSIM name and shown in the terminal so other RPOs can see who issued each command. Your **[ARTCC](#glossary)** is filled in automatically from your VATSIM/VATUSA profile when you sign in (US controllers from VATUSA, everyone else from their VATSIM subdivision) and updates on its own if you transfer facilities — there is no ARTCC field to enter.
 
-| Field | What to enter |
-|-------|---------------|
-| **Initials** | Your operating initials (e.g., "JE", "AB") — suggested from your VATSIM name |
-| **[ARTCC](#glossary) ID** | The facility you're training (e.g., `ZOA`, `ZLA`, `ZNY`) — pre-filled from your VATSIM subdivision |
-
-> **Who can connect:** a hosted server admits you if you hold a VATUSA mentor role, or a VATSIM Instructor rating (I1/I2/I3) or higher. Students being trained connect with [CRC](#glossary) and are unaffected.
+> **Who can connect:** a hosted server admits you to **create rooms and load scenarios** if you hold a VATUSA mentor role or a VATSIM Instructor rating (I1/I2/I3) or higher. Any other signed-in VATSIM controller can connect as an **[RPO](#glossary)**: you wait on a "waiting for room assignment" screen until an instructor pulls you into a room, then work the position like any room member (but you can't create rooms or load/unload scenarios). Students being trained connect with [CRC](#glossary) and are unaffected.
 
 ## Step 3: Connect and Create a Room
 

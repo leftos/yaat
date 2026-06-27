@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.8.1-beta [2026/06/26]
+
+### Highlights
+- **Non-mentor controllers can join as RPOs** — any signed-in VATSIM controller can now connect; an instructor pulls them into a room to work the position.
+- **Your ARTCC is set automatically** — it now comes from your VATSIM/VATUSA profile when you sign in (the ARTCC field is gone from the connect dialog and Settings), and updates on its own if you transfer facilities.
+- **One Room Members window** — the separate Members and Students dialogs are now a single window that lists everyone in the room and lets you pull RPOs and CRC students from their lobbies.
+- **Sessions reconnect through a server restart** — the client keeps retrying for up to 15 minutes during a deploy, so your session resumes automatically instead of giving up after about 40 seconds.
 
 ### Added
 - **Non-mentor controllers can now join a session as an RPO.** A deployed server used to admit only mentors and instructors; now any signed-in VATSIM controller can connect, and an instructor pulls them into a room. While waiting, an RPO sees a "waiting for room assignment" screen; once pulled in they work the position like any room member but can't create rooms or load/unload scenarios.

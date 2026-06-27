@@ -40,7 +40,6 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
 - [Multi-User Features](#multi-user-features)
   - [Aircraft Assignments](#aircraft-assignments)
   - [Room Members](#room-members)
-  - [Students Panel](#students-panel)
   - [Controllers](#controllers)
 - [Connecting CRC for Students](#connecting-crc-for-students)
 - [Customization](#customization)
@@ -1219,25 +1218,17 @@ Assignments are cleared when a member leaves, an aircraft is deleted, or the sce
 
 ### Room Members
 
-Open **Room > Members...** to see everyone in the current training room:
+Open **Room > Members...** for one window that shows everyone in the current training room and everyone available to pull into it. It has four sections:
 
-- **Instructors** — YAAT clients in the room (initials, CID, ARTCC). Click **Kick** to remove.
-- **CRC Students** — CRC clients bound to the room (display name, position, active status). Click **Kick** to remove.
-
-The panel updates in real-time as members join or leave.
-
-### Students Panel
-
-Open **Room > Students...** to manage CRC clients:
-
-**In Room** — CRC clients currently bound to your room. Click **Kick** to remove (they return to the lobby).
-
-**Lobby** — CRC clients not in any room. Click **Pull** to bring a client into your room.
+- **YAAT Members** — YAAT clients in the room: instructors and any RPOs you've pulled in (initials, CID, ARTCC). Click **Kick** to remove.
+- **CRC Students** — CRC clients bound to the room (display name, position, active status). Click **Kick** to remove (they return to the lobby).
+- **YAAT Lobby** — signed-in controllers connected as RPOs who are waiting for a room (name, CID, rating). Click **Pull** to bring one into your room; they immediately start working the position.
+- **CRC Lobby** — CRC clients not in any room (display name, ARTCC, position). Click **Pull** to bring one into your room.
 
 **Notes:**
-- CRC clients with a CID matching a YAAT client in a room are automatically bound to that room
-- If all YAAT clients leave a room, CRC clients are automatically unbound to the lobby
-- Use **Refresh** to manually re-fetch both lists
+- A CRC client whose CID matches a YAAT client already in a room is bound to that room automatically.
+- If all YAAT clients leave a room, its CRC clients return to the lobby.
+- The window updates in real time as people join, leave, or connect; use **Refresh** to re-fetch on demand.
 
 ### Controllers
 
@@ -1311,7 +1302,7 @@ Once CRC is configured:
 2. Have the student restart CRC (it reads `DevEnvironments.json` on startup)
 3. In CRC's environment selector, the student chooses **YAAT1** (or **YAAT Local**)
 4. The student connects with their VATSIM credentials
-5. In YAAT, open **Room > Students...** and click **Pull** to bring the student into your room — they immediately start seeing your room's traffic
+5. In YAAT, open **Room > Members...** and click **Pull** next to the student in the **CRC Lobby** to bring them into your room — they immediately start seeing your room's traffic
 
 If the student's VATSIM CID matches a YAAT client in the room, they're pulled in automatically.
 
@@ -1423,7 +1414,7 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 
 Open **Settings** to configure:
 
-- **Identity** — your operating initials (required) and [ARTCC](#glossary) ID. Your VATSIM CID, name, and controller rating come from **VATSIM sign-in** when you connect (see below) — they are no longer entered by hand. After your first sign-in, ARTCC is pre-filled from your VATSIM subdivision and initials are suggested from your name; both stay editable.
+- **Identity** — your operating initials (required). Your VATSIM CID, name, and controller rating come from **VATSIM sign-in** when you connect (see below) — they are no longer entered by hand. Initials are suggested from your name and stay editable. Your [ARTCC](#glossary) is filled in automatically from your VATSIM/VATUSA profile (US controllers from VATUSA, everyone else from their VATSIM subdivision) and re-resolves on its own if you transfer facilities — there is no ARTCC field to edit.
 - **Scenarios** — Solo Training Mode, auto-accept handoff settings, auto-delete aircraft override, simulation shortcuts (auto-clear to land, auto-cross runways), validate DCT fixes against route
 - **Commands** — Alias editor for customizing command verbs. Use **Reset to Defaults** to restore built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros))
@@ -1440,10 +1431,12 @@ VATSIM login page, and after you authorize, YAAT receives your verified identity
 rating) and connects. There is nothing to type — the old manual CID field is gone. Your session is
 remembered, so subsequent connects don't reopen the browser unless it has expired.
 
-Deployed servers only admit **mentors and instructors**: you can connect if you hold a VATUSA mentor
-role, or if your VATSIM rating is Instructor (I1/I2/I3) or higher. Lower ratings without a mentor role
-are turned away at connect — this is intentional, since YAAT is a mentoring tool. (The students being
-trained connect with CRC, which is not rating-gated.)
+Deployed servers admit **mentors and instructors** with full control: you can create rooms and load
+scenarios if you hold a VATUSA mentor role, or if your VATSIM rating is Instructor (I1/I2/I3) or higher.
+Any other signed-in VATSIM controller can connect as an **[RPO](#glossary)** — they wait on a "waiting
+for room assignment" screen until an instructor pulls them into a room from the **YAAT Lobby** (see
+[Room Members](#room-members)), then work the position like any room member, but can't create rooms or
+load/unload scenarios. (The students being trained connect with CRC, which is not rating-gated.)
 
 #### Scenario rating access
 

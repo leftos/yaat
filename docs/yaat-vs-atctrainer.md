@@ -19,7 +19,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Aspect | ATCTrainer | YAAT |
 |--------|-----------|------|
 | Session model | All training sessions on the same server occupy the same world instance | Room-based: training scenarios can be run without conflicting with each other |
-| CRC client management | Via VATSIM network | Pull/kick from lobby; Students Panel UI |
+| CRC client management | Via VATSIM network | Pull/kick from lobby; Room Members window |
 
 ## Scenario Management
 

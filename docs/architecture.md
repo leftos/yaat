@@ -159,6 +159,7 @@ Logging/
 Services/
   ServerConnection.cs           # SignalR client to /hubs/training (JSON). Implements IStripsTransport from Strips. Inline DTOs for everything outside the strip surface (rooms, aircraft, weather, CRC, recordings). Includes PilotTransmissionBroadcastDto + PilotTransmissionReceived for solo-training audio. ConnectAsync takes an access-token provider (the YAAT session token).
   VatsimAuthClient.cs           # Client side of server-mediated VATSIM Connect: system-browser + loopback handoff (or /auth/dev when a server is in dev-bypass), token refresh, per-server session persistence to auth-sessions.json. Supplies the SignalR access token.
+  YaatReconnectPolicy.cs        # IRetryPolicy for the SignalR HubConnection: keeps retrying through a full server restart/deploy (up to ~15 min) instead of giving up after ~40s, so a session resumes automatically once the server is back.
   UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (%LOCALAPPDATA%/yaat/). Stores PilotVoiceEnabled/Volume/RadioFxEnabled, default off.
   UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel).
   YaatHubJsonContext.cs         # Source-generated JsonSerializerContext for the broader DTO surface (room state, aircraft, weather, CRC, scenarios). Strip DTOs live in YaatStripsHubJsonContext (Strips); both contexts insert into the same resolver chain.
