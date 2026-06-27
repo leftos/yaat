@@ -444,4 +444,80 @@ public class DatablockDeconflictionTests
             Assert.Equal(first[key], second[key]);
         }
     }
+
+    [Theory]
+    [InlineData(DatablockDeconflictMode.CompassSnap)]
+    [InlineData(DatablockDeconflictMode.FreeForm)]
+    public void OffscreenAnchor_IsExcluded_NoClampedBlock(DatablockDeconflictMode mode)
+    {
+        var pref = new SKPoint(28, -28);
+        // Anchor far to the left of the 1000x1000 screen: the symbol is off-display, so its datablock
+        // must not be clamped into the viewport. The pass emits no offset and the view falls back to its
+        // default placement, which clips off-screen with the symbol instead of stranding a block at the edge.
+        var items = new[] { Item("OFF", -800, 500, pref) };
+        var resolved = new Dictionary<string, SKPoint>();
+
+        DatablockDeconfliction.Resolve(mode, items, DatablockDeconfliction.Options.Default(Screen), new Dictionary<string, SKPoint>(), resolved);
+
+        Assert.False(resolved.ContainsKey("OFF"));
+    }
+
+    [Fact]
+    public void OffscreenAnchor_Dropped_WhileOnscreenKept()
+    {
+        var pref = new SKPoint(28, -28);
+        var onScreen = Item("ON", 500, 500, pref);
+        var offScreen = Item("OFF", 500, 2000, pref); // 1000px below the bottom edge
+
+        var resolved = new Dictionary<string, SKPoint>();
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.CompassSnap,
+            [onScreen, offScreen],
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            resolved
+        );
+
+        Assert.True(resolved.ContainsKey("ON"));
+        Assert.False(resolved.ContainsKey("OFF"));
+        // The off-screen block is not an obstacle, so the lone on-screen block keeps its preferred offset.
+        Assert.Equal(pref, resolved["ON"]);
+    }
+
+    [Fact]
+    public void OffscreenPinned_NotWrittenThrough()
+    {
+        var pref = new SKPoint(28, -28);
+        var pinnedOff = Item("PIN", -500, 500, pref, pinned: true);
+
+        var resolved = new Dictionary<string, SKPoint>();
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.CompassSnap,
+            [pinnedOff],
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            resolved
+        );
+
+        Assert.False(resolved.ContainsKey("PIN"));
+    }
+
+    [Fact]
+    public void AnchorJustOffEdge_StillDeconflicted()
+    {
+        var pref = new SKPoint(28, -28);
+        // A symbol a few pixels past the left edge is still partly visible, so its block keeps deconflicting.
+        var items = new[] { Item("EDGE", -10, 500, pref) };
+
+        var resolved = new Dictionary<string, SKPoint>();
+        DatablockDeconfliction.Resolve(
+            DatablockDeconflictMode.CompassSnap,
+            items,
+            DatablockDeconfliction.Options.Default(Screen),
+            new Dictionary<string, SKPoint>(),
+            resolved
+        );
+
+        Assert.True(resolved.ContainsKey("EDGE"));
+    }
 }

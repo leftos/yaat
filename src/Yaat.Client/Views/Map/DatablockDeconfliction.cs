@@ -19,6 +19,13 @@ public static class DatablockDeconfliction
     private const float Damping = 0.5f;
     private const float MatchEpsilon = 0.5f;
 
+    /// <summary>
+    /// How far a symbol anchor may sit outside the viewport before its datablock is excluded from the
+    /// pass. Covers the on-screen portion of a symbol straddling the edge so a block keeps deconflicting
+    /// while its symbol is visible, then is dropped once the symbol is panned out of sight.
+    /// </summary>
+    private const float OffscreenAnchorMargin = 24f;
+
     // Eight screen-compass unit directions (Y is down): N, NE, E, SE, S, SW, W, NW.
     private static readonly (int X, int Y)[] CompassDirs = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1)];
 
@@ -122,9 +129,19 @@ public static class DatablockDeconfliction
             return;
         }
 
+        // Deconfliction only repositions datablocks for symbols the user can actually see. An aircraft
+        // panned outside the viewport is dropped here (it emits no offset and is not an obstacle) so the
+        // view falls back to its default placement, which clips off-screen with the symbol rather than
+        // clamping a stranded block to the viewport edge.
+        var visible = OnScreenItems(items, options.ScreenBounds);
+        if (visible.Count == 0)
+        {
+            return;
+        }
+
         var pinnedRects = new List<SKRect>();
-        var movable = new List<Item>(items.Count);
-        foreach (var item in items)
+        var movable = new List<Item>(visible.Count);
+        foreach (var item in visible)
         {
             if (item.IsPinned)
             {
@@ -145,10 +162,10 @@ public static class DatablockDeconfliction
         switch (mode)
         {
             case DatablockDeconflictMode.CompassSnap:
-                ResolveCompassSnap(movable, items, pinnedRects, options, previousResolved, resolvedOffsets);
+                ResolveCompassSnap(movable, visible, pinnedRects, options, previousResolved, resolvedOffsets);
                 break;
             case DatablockDeconflictMode.FreeForm:
-                ResolveFreeForm(movable, items, pinnedRects, options, previousResolved, resolvedOffsets);
+                ResolveFreeForm(movable, visible, pinnedRects, options, previousResolved, resolvedOffsets);
                 break;
             default:
                 foreach (var item in movable)
@@ -618,6 +635,30 @@ public static class DatablockDeconfliction
 
         return new SKPoint(offset.X + dx, offset.Y + dy);
     }
+
+    /// <summary>
+    /// Returns the items whose symbol anchor lies within the viewport (expanded by
+    /// <see cref="OffscreenAnchorMargin"/>). Off-screen anchors are dropped so deconfliction never
+    /// clamps a stranded datablock into view for an aircraft the user has panned out of sight.
+    /// </summary>
+    private static List<Item> OnScreenItems(IReadOnlyList<Item> items, SKRect bounds)
+    {
+        var result = new List<Item>(items.Count);
+        foreach (var item in items)
+        {
+            if (AnchorVisible(item.Anchor, bounds))
+            {
+                result.Add(item);
+            }
+        }
+        return result;
+    }
+
+    private static bool AnchorVisible(SKPoint anchor, SKRect bounds) =>
+        (anchor.X >= bounds.Left - OffscreenAnchorMargin)
+        && (anchor.X <= bounds.Right + OffscreenAnchorMargin)
+        && (anchor.Y >= bounds.Top - OffscreenAnchorMargin)
+        && (anchor.Y <= bounds.Bottom + OffscreenAnchorMargin);
 
     private static float IntersectArea(SKRect a, SKRect b)
     {
