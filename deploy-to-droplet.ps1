@@ -21,6 +21,14 @@
 #              (honors -SkipSessionSave / -DrainSeconds). -NoCache / -CacheReserveGb are
 #              ignored (nothing is built or pruned).
 #
+# -WaitForEmptyRooms  Do NOT deploy. Poll the target's /admin/status endpoint every
+#                     -PollSeconds (default 60) and block until the server reports zero
+#                     rooms in memory, printing the active rooms each check. Used by the
+#                     prepare-release flow to hold a release until the server is quiet so
+#                     no in-progress training session is disrupted. Requires ADMIN_PASSWORD
+#                     (read from .env.<target>/.env, same as prepare-restart). Ctrl-C to
+#                     stop waiting. Ignores all build/deploy flags.
+#
 # -NoCache  Pass --no-cache to docker compose build, forcing every layer
 #           to rebuild from scratch (including the wasm-tools workload
 #           install in the Dockerfile, which adds ~1-3 minutes). Off by
@@ -43,7 +51,9 @@ param(
   [switch]$NoCache,
   [switch]$SkipSessionSave,
   [switch]$RebootOnly,
+  [switch]$WaitForEmptyRooms,
   [int]$DrainSeconds = 30,
+  [int]$PollSeconds = 60,
   [int]$CacheReserveGb = 10
 )
 
@@ -172,19 +182,61 @@ function Invoke-PrepareRestartSessions {
   }
 }
 
-$headerTitle = if ($RebootOnly) { "YAAT Server Reboot (refresh nav data, no redeploy)" } else { "YAAT Server Deployment" }
+# Block until the target server reports zero rooms in memory. Polls /admin/status every
+# $PollSec seconds, printing the active rooms each check. Returns once the server is empty.
+# A transient query failure (server briefly unreachable) is reported and retried, never
+# treated as "empty" — we only stop when the server affirmatively says roomCount == 0.
+function Invoke-WaitForEmptyRooms {
+  param([int]$PollSec)
+
+  if (-not $adminPassword) {
+    throw "ADMIN_PASSWORD not set in $envFile — cannot query /admin/status. Set it (matching the droplet) and retry."
+  }
+
+  Write-Host "Waiting for all rooms on $serverUrl to clear (polling every ${PollSec}s, Ctrl-C to stop)..." -ForegroundColor Cyan
+  $headers = @{ "X-Yaat-Admin-Password" = $adminPassword }
+  while ($true) {
+    try {
+      $status = Invoke-RestMethod -Uri "$serverUrl/admin/status" -Method Get -Headers $headers -TimeoutSec 15
+      $count = [int]$status.roomCount
+      if ($count -eq 0) {
+        Write-Host "✓ No active rooms — server is quiet." -ForegroundColor Green
+        return
+      }
+
+      $summary = ($status.rooms | ForEach-Object {
+          $members = if ($_.memberInitials -and $_.memberInitials.Count -gt 0) { $_.memberInitials -join "," } else { "no members" }
+          $scenario = if ($_.scenarioName) { $_.scenarioName } else { "(no scenario)" }
+          "$($_.roomId) [$members] $scenario $($_.aircraftCount)ac"
+        }) -join "; "
+      Write-Host ("  {0} room(s) active: {1}" -f $count, $summary) -ForegroundColor Yellow
+    }
+    catch {
+      Write-Host "⚠ Could not query $serverUrl/admin/status ($_) — retrying in ${PollSec}s..." -ForegroundColor Yellow
+    }
+
+    Start-Sleep -Seconds $PollSec
+  }
+}
+
+$headerTitle =
+  if ($WaitForEmptyRooms) { "YAAT Server: wait for empty rooms (no deploy)" }
+  elseif ($RebootOnly) { "YAAT Server Reboot (refresh nav data, no redeploy)" }
+  else { "YAAT Server Deployment" }
 Write-Host $headerTitle -ForegroundColor Cyan
 Write-Host "=====================" -ForegroundColor Cyan
 Write-Host "Target:     $Target ($serverUrl)"
-Write-Host "Droplet:    $dropletIp"
-Write-Host "Path:       $serverPath"
-Write-Host "Env file:   $remoteEnvFile (remote)"
-Write-Host "Log file:   $logFile"
-if ($SkipSessionSave) {
-  Write-Host "Sessions:   NOT preserved (-SkipSessionSave)" -ForegroundColor Yellow
-}
-else {
-  Write-Host "Sessions:   preserved when server is up and ADMIN_PASSWORD is set"
+if (-not $WaitForEmptyRooms) {
+  Write-Host "Droplet:    $dropletIp"
+  Write-Host "Path:       $serverPath"
+  Write-Host "Env file:   $remoteEnvFile (remote)"
+  Write-Host "Log file:   $logFile"
+  if ($SkipSessionSave) {
+    Write-Host "Sessions:   NOT preserved (-SkipSessionSave)" -ForegroundColor Yellow
+  }
+  else {
+    Write-Host "Sessions:   preserved when server is up and ADMIN_PASSWORD is set"
+  }
 }
 Write-Host ""
 
@@ -282,6 +334,11 @@ function Invoke-ServerReboot {
 }
 
 try {
+  if ($WaitForEmptyRooms) {
+    Invoke-WaitForEmptyRooms -PollSec $PollSeconds
+    return
+  }
+
   if ($RebootOnly) {
     Invoke-ServerReboot
     if ($followLogs) { Show-ServerLogs }

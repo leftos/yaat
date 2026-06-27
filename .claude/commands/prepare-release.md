@@ -157,15 +157,22 @@ Once the user approves:
 5. Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, `docs/architecture.md` if changed, **and every user-facing doc updated in Step 6** (e.g. `COMMANDS.md`, `docs/command-cheatsheet.json`, `docs/command-cheatsheet.html`, `USER_GUIDE.md`, `INSTALL.md`, etc.). List them explicitly so the user can audit before commit.
 6. Commit: `release: v{version}`.
 7. Create tag: `git tag v{version}`.
-8. **Ask the user whether to also deploy to the droplet** at the same time as pushing the tag. Use `AskUserQuestion` (single-select: deploy alongside push / push only / abort). The droplet runs yaat-server in production; deploying alongside the tag push keeps client and server cycles aligned. Capture the answer before proceeding to step 9 — if "abort" is picked, stop here and let the user resume manually.
-9. Push both repos so any cross-repo work made during this cycle ships together:
-   - First push yaat-server's pending commits (no tag — yaat-server isn't release-tagged):
-     `git -C ../yaat-server push origin main`
-     Run even if you think there's nothing pending — it's idempotent. If a worktree, use the real yaat-server path. If the push is rejected because the CI submodule-bump landed on remote, rebase (`git -C ../yaat-server pull --rebase origin main`) and re-push.
-   - Then push yaat's release commit and tag:
-     `git push origin main --tags`
+8. **Ask the user how to push and deploy.** Use `AskUserQuestion` (single-select) with these options:
+   - **Deploy now alongside push** — push immediately, then deploy to the droplet (active sessions are checkpointed and restored across the deploy).
+   - **Wait for rooms to clear, then push + deploy** — hold *both* the push and the deploy until the live server reports zero rooms, so no in-progress training session is disrupted at all.
+   - **Push only** — push the release, no droplet deploy.
+   - **Abort** — stop here; the user resumes manually.
 
-   Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. Pushing yaat second triggers yaat-server's `submodule-updated` CI dispatch (which bumps `extern/yaat` on yaat-server), so yaat-server's main already has the cycle's work when the bump arrives.
-10. **If the user approved a droplet deploy in step 8**: run `pwsh deploy-to-droplet.ps1 -NoLogs` and tee output to `.tmp/deploy-droplet.log`. Always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. The script calls `POST /admin/prepare-restart` first (needs `ADMIN_PASSWORD` in yaat `.env`, matching the droplet) so active training sessions survive the deploy. Use `-SkipSessionSave` only for emergency deploys. Wait for the `Deployment complete!` banner before declaring the release done.
+   The droplet runs yaat-server in production; deploying alongside the tag push keeps client and server cycles aligned. Capture the answer before proceeding. If "abort" is picked, stop.
+9. **If the user chose "wait for rooms to clear":** before pushing, run `pwsh deploy-to-droplet.ps1 -WaitForEmptyRooms` **in the background** (it polls `GET /admin/status` every 60s and blocks until the server has zero rooms, printing the active rooms each check — it can run for many minutes, so backgrounding keeps the agent responsive; you're re-invoked when it exits). The script reads `ADMIN_PASSWORD` from yaat `.env` itself — do not read the secret yourself. When it exits cleanly (rooms cleared), continue to step 10. For the other choices, skip this step. *(The real deploy in step 11 still calls `prepare-restart` as a safety net for any room that appears between "cleared" and "deployed".)*
+10. **Unless "abort" was chosen:** push both repos so any cross-repo work made during this cycle ships together:
+    - First push yaat-server's pending commits (no tag — yaat-server isn't release-tagged):
+      `git -C ../yaat-server push origin main`
+      Run even if you think there's nothing pending — it's idempotent. If a worktree, use the real yaat-server path. If the push is rejected because the CI submodule-bump landed on remote, rebase (`git -C ../yaat-server pull --rebase origin main`) and re-push.
+    - Then push yaat's release commit and tag:
+      `git push origin main --tags`
+
+    Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. Pushing yaat second triggers yaat-server's `submodule-updated` CI dispatch (which bumps `extern/yaat` on yaat-server), so yaat-server's main already has the cycle's work when the bump arrives.
+11. **If the user chose a deploy option ("deploy now" or "wait for rooms to clear"):** run `pwsh deploy-to-droplet.ps1 -NoLogs` and tee output to `.tmp/deploy-droplet.log`. Always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. The script calls `POST /admin/prepare-restart` first (needs `ADMIN_PASSWORD` in yaat `.env`, matching the droplet) so active training sessions survive the deploy. Use `-SkipSessionSave` only for emergency deploys. Wait for the `Deployment complete!` banner before declaring the release done.
 
 The tag push triggers the `release.yml` GitHub Actions workflow. The workflow extracts the matching section from `CHANGELOG.md` (using the tag name), splits out the `### Highlights` subsection for the GitHub Release's "Highlights" block, and uses the rest of the section as the "Changelog" block. The highlights you and the user agreed on in Step 7 are exactly what ships — no AI rewriting at release time.
