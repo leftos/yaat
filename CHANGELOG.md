@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.2-beta [2026/06/27]
 
 ### Added
 - **"Fly runway heading" (`CTO RH`) now works for IFR departures.** Runway heading used to be a VFR-only takeoff modifier, but it's routinely issued to IFR aircraft too (for example departing off parallels). The aircraft holds runway heading after takeoff and awaits vectors instead of turning onto its SID. `CTO MRH` and `CTO MSO` behave the same way.
