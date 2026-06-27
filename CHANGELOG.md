@@ -14,6 +14,7 @@
 - The desktop client now keeps trying to reconnect through a full server restart instead of giving up after ~40 seconds. A server deployment is down for roughly 7–10 minutes while it rebuilds, but the client used to abandon reconnection almost immediately and leave you to reconnect by hand; it now retries for up to 15 minutes, so your session resumes automatically when the server comes back. The "server restarting" banner also shows a realistic downtime estimate (~10 minutes) instead of a 30-second countdown that implied the server would be right back.
 - Suspending a track on a CRC SAAB SAID surface display no longer crashes CRC; the aircraft is hidden and reappears when un-suspended.
 - Un-terminating (tagging) a track on a CRC SAAB SAID surface display redisplays it immediately, even when the aircraft is stationary.
+- On a CRC ASDE-X display, un-terminating (tagging) or suspending a stationary track now updates immediately instead of waiting for the aircraft to move.
 
 ## v0.8.0-beta [2026/06/26]
 
