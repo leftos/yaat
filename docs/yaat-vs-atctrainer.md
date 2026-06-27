@@ -154,7 +154,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 |---------|-----------|------|------------|
 | Cleared for takeoff | `CTO [heading]` | `CTO` + rich modifiers | YAAT has many more CTO forms (see below) |
 | CTO left/right traffic | `CTOMLT`/`CTOMRT` | `CTO MLT`/`CTO MRT` (+ `CTOMLT`/`CTOMRT` aliases) | YAAT supports as modifiers and standalone verbs |
-| CTO runway heading | `CTORH` | `CTO RH`/`CTO MRH`/`CTO MSO` | YAAT supports as modifier |
+| CTO runway heading | `CTORH` | `CTO RH`/`CTO MRH`/`CTO MSO` | YAAT supports as modifier (IFR and VFR) |
 | GA heading (± alt) | — | `GA 270`, `GA 270 5000`, `GA RH 2000` | **YAAT-only** |
 | GA + traffic pattern | — | `GA MRT`, `GA MLT` (VFR/visual only) | **YAAT-only** |
 | Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CLAND [runway]`/`CL` | **YAAT-only** optional explicit landing clearance; `CLAND 28R` can pre-clear a following aircraft that has no runway yet (armed, applied when it joins the traffic's final) |
@@ -170,11 +170,12 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 
 #### CTO Modifiers (YAAT-only richness)
 
-YAAT's CTO command supports a comprehensive set of departure modifiers that ATCTrainer lacks. All pattern and runway-relative modifiers are VFR-only — IFR aircraft accept only bare `CTO` (follow SID) or `CTO` with a numeric heading vector:
+YAAT's CTO command supports a comprehensive set of departure modifiers that ATCTrainer lacks. Pattern and most runway-relative modifiers are VFR-only — IFR aircraft accept bare `CTO` (follow SID), a numeric heading vector, or `CTO RH` (fly runway heading):
 
 | Modifier | Example | VFR/IFR | Notes |
 |----------|---------|---------|-------|
 | Right/left heading | `CTO RH270`, `CTO LH270` | Both | Explicit turn direction |
+| Fly runway heading | `CTO RH`, `CTO MRH`, `CTO MSO` | Both | Holds runway heading and awaits vectors; suppresses the SID for IFR (rejoin via `DCT <fix>` + `CVIA`) |
 | Crosswind departure | `CTO MRC`, `CTO MLC` | VFR only | Flies upwind, turns crosswind, then departs on the crosswind heading |
 | Downwind departure | `CTO MRD`, `CTO MLD` | VFR only | Flies upwind, crosswind, downwind, then departs on the downwind heading |
 | 45-degree & 270-degree turn departures | `CTO MR45`, `CTO ML270` | VFR only | Single relative turn of any degree from runway heading |

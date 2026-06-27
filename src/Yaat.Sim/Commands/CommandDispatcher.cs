@@ -507,15 +507,16 @@ public static class CommandDispatcher
 
     private static readonly CommandResult IfrCtoVfrModifierResult = new(
         false,
-        "IFR aircraft can only receive a bare CTO (follow SID) or CTO with an assigned heading; pattern/relative modifiers (MRC, ML*, RH, OC, DCT, MLT, MRT, ...) require VFR"
+        "IFR aircraft can only receive a bare CTO (follow SID), CTO with an assigned heading, or CTO RH (runway heading); pattern/relative modifiers (MRC, ML*, OC, DCT, MLT, MRT, ...) require VFR"
     );
 
     /// <summary>
-    /// IFR departure clearances accept only <see cref="DefaultDeparture"/> (follow SID) or
-    /// <see cref="FlyHeadingDeparture"/> (assigned numeric heading). Pattern-relative
-    /// modifiers (MRC, ML*, RH, OC, DCT, MLT/MRT) are VFR-only and must be rejected so
-    /// the aircraft doesn't peel off runway heading immediately at liftoff. Returns null
-    /// if the command is allowed for this aircraft.
+    /// IFR departure clearances accept only <see cref="DefaultDeparture"/> (follow SID),
+    /// <see cref="FlyHeadingDeparture"/> (assigned numeric heading), or
+    /// <see cref="RunwayHeadingDeparture"/> (CTO RH — hold runway heading and await vectors;
+    /// routinely issued to IFR departures). Pattern-relative modifiers (MRC, ML*, OC, DCT, MLT/MRT)
+    /// are VFR-only and must be rejected so the aircraft doesn't peel off toward the pattern
+    /// immediately at liftoff. Returns null if the command is allowed for this aircraft.
     /// </summary>
     private static CommandResult? CheckIfrDepartureCompatibility(ParsedCommand command, AircraftState aircraft)
     {
@@ -531,7 +532,7 @@ public static class CommandDispatcher
             _ => null,
         };
 
-        if (departure is null or DefaultDeparture or FlyHeadingDeparture or PresentPositionHoverDeparture)
+        if (departure is null or DefaultDeparture or FlyHeadingDeparture or RunwayHeadingDeparture or PresentPositionHoverDeparture)
         {
             return null;
         }

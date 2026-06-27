@@ -1077,9 +1077,13 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchClimbVia(ClimbViaCommand cmd, AircraftState aircraft)
     {
-        if (aircraft.Procedure.ActiveSidId is null)
+        // "Climb via the [SID]" only requires the SID to be in the cleared route (AIM 5-2-9). If no SID
+        // is active yet — e.g. the aircraft was given runway heading (CTO RH) or vectored off and then
+        // re-cleared DCT to a downstream SID fix — activate the one in the filed route and overlay its
+        // published crossing restrictions onto the live lateral route.
+        if (aircraft.Procedure.ActiveSidId is null && !TryActivateFiledSid(aircraft))
         {
-            return new CommandResult(false, "No active SID — climb via requires an active SID");
+            return new CommandResult(false, "No active SID — climb via requires a SID in the filed route");
         }
 
         aircraft.Procedure.SidViaMode = true;
@@ -1226,6 +1230,114 @@ internal static class NavigationCommandHandler
         }
         allLegs.AddRange(star.CommonLegs);
         foreach (var transition in star.RunwayTransitions.Values)
+        {
+            allLegs.AddRange(transition.Legs);
+        }
+
+        var byName = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
+        foreach (var target in DepartureClearanceHandler.ResolveLegsToTargets(allLegs))
+        {
+            if ((target.AltitudeRestriction is not null || target.SpeedRestriction is not null) && !byName.ContainsKey(target.Name))
+            {
+                byName[target.Name] = target;
+            }
+        }
+
+        foreach (var fix in aircraft.Targets.NavigationRoute)
+        {
+            if (byName.TryGetValue(fix.Name, out var source))
+            {
+                fix.AltitudeRestriction = source.AltitudeRestriction;
+                fix.SpeedRestriction = source.SpeedRestriction;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Activates the SID named in the aircraft's filed route when none is active yet, so a bare
+    /// <c>CVIA</c> works after the aircraft was given runway heading (<c>CTO RH</c>) or vectored off
+    /// its SID and then re-cleared <c>DCT</c> to a downstream SID fix (the SID being in the cleared
+    /// route is the only real-world precondition for "climb via", AIM 5-2-9). Sets
+    /// <see cref="AircraftProcedure.ActiveSidId"/> and overlays the published CIFP altitude/speed
+    /// restrictions onto the existing (already-sequenced) lateral route by fix name — it does not
+    /// rebuild the route, so fixes the aircraft has already passed are not re-added. Returns false
+    /// when the aircraft is VFR or the filed route contains no resolvable SID.
+    /// </summary>
+    private static bool TryActivateFiledSid(AircraftState aircraft)
+    {
+        // SIDs are an IFR construct; a VFR aircraft never flies one.
+        if (aircraft.FlightPlan.IsVfr)
+        {
+            return false;
+        }
+
+        var navDb = NavigationDatabase.Instance;
+        var departure = aircraft.FlightPlan.Departure;
+        if (string.IsNullOrEmpty(departure) || string.IsNullOrWhiteSpace(aircraft.FlightPlan.Route))
+        {
+            return false;
+        }
+
+        foreach (var token in aircraft.FlightPlan.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            // Filed routes carry versioned SID names (e.g. NIMI5), so the strict route-token
+            // resolver is correct here — a bare enroute fix must not be mistaken for a SID.
+            if (navDb.ResolveSidId(token) is not { } resolvedSidId)
+            {
+                continue;
+            }
+
+            var sid = navDb.GetSid(departure, resolvedSidId);
+            if (sid is null)
+            {
+                continue;
+            }
+
+            OverlaySidRestrictions(aircraft, sid);
+            aircraft.Procedure.ActiveSidId = resolvedSidId;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Copies each published altitude/speed restriction from <paramref name="sid"/> onto the matching
+    /// fix (by name) already present in the aircraft's navigation route, reusing the same leg→target
+    /// resolution as the departure clearance so the constraint semantics are identical. The runway
+    /// transition matching <see cref="AircraftProcedure.DepartureRunway"/> (a persistent field that
+    /// survives the phase teardown a CVIA triggers when issued mid-InitialClimb) is gathered first, so
+    /// the first-wins dedup prefers the flown runway's values; when that runway can't be resolved, every
+    /// runway transition is considered — harmless because a rejoin route only holds downstream fixes.
+    /// </summary>
+    private static void OverlaySidRestrictions(AircraftState aircraft, CifpSidProcedure sid)
+    {
+        var allLegs = new List<CifpLeg>();
+
+        CifpTransition? assignedRwTransition = null;
+        if (aircraft.Procedure.DepartureRunway is { } rwy)
+        {
+            if (!sid.RunwayTransitions.TryGetValue("RW" + rwy, out assignedRwTransition))
+            {
+                // CIFP "B" suffix means both L/R share one transition (e.g. "RW28B").
+                sid.RunwayTransitions.TryGetValue("RW" + rwy.TrimEnd('L', 'R', 'C') + "B", out assignedRwTransition);
+            }
+        }
+
+        if (assignedRwTransition is not null)
+        {
+            allLegs.AddRange(assignedRwTransition.Legs);
+        }
+        else
+        {
+            foreach (var transition in sid.RunwayTransitions.Values)
+            {
+                allLegs.AddRange(transition.Legs);
+            }
+        }
+
+        allLegs.AddRange(sid.CommonLegs);
+        foreach (var transition in sid.EnrouteTransitions.Values)
         {
             allLegs.AddRange(transition.Legs);
         }

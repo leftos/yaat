@@ -131,10 +131,39 @@ public class RadarContextMenuStateTests
         var cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
         Assert.NotNull(cto);
         var ctoHeaders = Headers(cto!);
+        // IFR gets the default (follow-SID) clearance and an explicit runway-heading clearance (issue #221).
+        Assert.Contains("Default (SID/on course)", ctoHeaders);
         Assert.Contains("Fly runway heading", ctoHeaders);
-        Assert.Contains("Fly on course", ctoHeaders);
+        // On-course and pattern modifiers are VFR-only — hidden for IFR.
+        Assert.DoesNotContain("Fly on course", ctoHeaders);
         Assert.DoesNotContain("Make left traffic", ctoHeaders);
         Assert.DoesNotContain("360 overhead", ctoHeaders);
+    }
+
+    [AvaloniaFact]
+    public void VfrTakeoffClearance_ShowsRunwayHeadingAndOnCourseAndModifiers()
+    {
+        var (view, vm) = Harness();
+        var ac = new AircraftModel
+        {
+            Callsign = "N123",
+            IsOnGround = true,
+            CurrentPhase = "LinedUpAndWaiting",
+            FlightRules = "VFR",
+            AssignedRunway = "30",
+        };
+
+        var tower = view.BuildTowerSubmenu(vm, "N123", "AB", ac);
+        Assert.NotNull(tower);
+
+        var cto = tower!.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is "Cleared for takeoff");
+        Assert.NotNull(cto);
+        var ctoHeaders = Headers(cto!);
+        Assert.Contains("Default (SID/on course)", ctoHeaders);
+        Assert.Contains("Fly runway heading", ctoHeaders);
+        Assert.Contains("Fly on course", ctoHeaders);
+        Assert.Contains("Make left traffic", ctoHeaders);
+        Assert.Contains("360 overhead", ctoHeaders);
     }
 
     [AvaloniaFact]

@@ -706,7 +706,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO MR270` | Cleared for takeoff, right 270° departure (turn right 270° from runway heading) — VFR only |
 | `CTO MR45` | Cleared for takeoff, turn right 45° from runway heading — VFR only |
 | `CTO ML270` / `MLC` / `MLD` / `ML45` | Left-turn equivalents of MR270/MRC/MRD/MR{N} — VFR only |
-| `CTO MRH` / `RH` / `MSO` | Cleared for takeoff, fly runway heading — VFR only |
+| `CTO MRH` / `RH` / `MSO` | Cleared for takeoff, fly runway heading (holds runway heading, awaits vectors) — IFR and VFR |
 | `CTO H270` | Cleared for takeoff, fly heading 270 (shortest turn) |
 | `CTO RH270` / `RT270` | Cleared for takeoff, turn right heading 270 |
 | `CTO LH270` / `LT270` | Cleared for takeoff, turn left heading 270 |
@@ -755,7 +755,7 @@ Append `CWT` after any CTO form to include "caution wake turbulence" in the take
 
 Append `IMM` (or its interchangeable aliases `WD` / `ND`) after any CTO form for a **cleared for immediate takeoff** (AIM 4-4-13): the pilot taxis briskly onto the runway and begins the takeoff roll without stopping at the centerline — useful to fit a departure in ahead of an arrival. `CTO IMM`, `CTO RT270 IMM`, `CTO IMM CWT`. The same modifier on `LUAW` (`LUAW WD`) gives a "line up and wait, without delay": the aircraft taxis briskly onto the runway but still stops and holds at the centerline. Super/Heavy aircraft still make a standing-start (non-rolling) takeoff per 7110.65 §3-9-5.3, so `IMM` only speeds their taxi onto the runway, not the takeoff start.
 
-**IFR aircraft** can only use bare `CTO` (default SID/route departure) or `CTO` with a numeric heading (`CTO 270`, `CTO H270`, `CTO RH270`, etc.). Pattern exit and runway-relative modifiers (`MRC`, `MRD`, `MRH` / `MSO` / `RH`, `OC`, `MLT`, `DCT`, etc.) are VFR-only — dispatch rejects them with a message naming the IFR restriction so the controller can reissue with a vector or let the SID run.
+**IFR aircraft** can use bare `CTO` (default SID/route departure), `CTO` with a numeric heading (`CTO 270`, `CTO H270`, `CTO RH270`, etc.), or `CTO RH` / `MRH` / `MSO` (fly runway heading — holds runway heading and awaits vectors, suppressing the SID; routinely issued to IFR departures). Pattern-exit and other runway-relative modifiers (`MRC`, `MRD`, `MR{N}`, `OC`, `MLT`, `DCT`, etc.) are VFR-only — dispatch rejects them with a message naming the IFR restriction so the controller can reissue with a vector or let the SID run. An IFR aircraft given `CTO RH` (or vectored off its SID) **rejoins** its filed SID when issued `DCT <SID fix>` followed by `CVIA` (climb via), which self-activates the filed SID and overlays its published crossing restrictions (see [Navigation Commands](#navigation-commands)).
 
 After liftoff most assigned departure turns (`MR{N}`/`ML{N}`, `H{N}`, `RH{N}`, `DCT`, `OC`) are **deferred** to InitialClimbPhase. The aircraft holds runway heading until it reaches the minimum safe altitude — 400 ft above field elevation for IFR (TERPS criterion: AIM 5-2-9.e.1 / 7110.65 5-8-3, no turns below 400 ft AGL and no lateral past-DER requirement), or pattern altitude − 300 ft **and** past the departure end of runway for VFR (AIM 4-3-2) — then makes the single relative turn.
 
@@ -770,7 +770,7 @@ For a **radar-vectors SID** (e.g. NIMI6 off KOAK), the published departure headi
 | `H{N}` | Fly heading N (shortest turn) | Both |
 | `RH{N}` / `RT{N}` | Turn right heading N | Both |
 | `LH{N}` / `LT{N}` | Turn left heading N | Both |
-| `MRH` / `MSO` / `RH` | Fly runway heading (straight out) | VFR only |
+| `MRH` / `MSO` / `RH` | Fly runway heading (straight out — holds runway heading, awaits vectors; suppresses the SID for IFR) | Both |
 | `MRC` / `MLC` | Right/left **crosswind departure** — fly upwind, turn crosswind, then depart on the crosswind heading | VFR only |
 | `MRD` / `MLD` | Right/left **downwind departure** — fly upwind, crosswind, downwind, then depart on the downwind heading | VFR only |
 | `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading (single relative turn, not a pattern) | VFR only |
@@ -1041,7 +1041,7 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 | `DVIA` | Descend via STAR — enables altitude/speed constraint following on active STAR |
 | `DVIA 240` | Descend via STAR, except maintain FL240 (altitude floor) |
 | `DVIA SPD 180 SUNOL` | Descend via STAR with speed restriction (maintain 180 knots at SUNOL) |
-| `CVIA` | Climb via SID — re-enables altitude/speed constraint following on active SID |
+| `CVIA` | Climb via SID — enables altitude/speed constraint following; self-activates the filed SID if none is active (e.g. after `CTO RH` or vectors) |
 | `CVIA 190` | Climb via SID, except maintain FL190 (altitude ceiling) |
 | `DEPART SUNOL 270` | Depart fix SUNOL on heading 270 |
 
@@ -1059,10 +1059,10 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 
 | Procedure | Default | Enable via mode | Disable via mode |
 |-----------|---------|-----------------|------------------|
-| SID (after CTO) | **ON** — aircraft follows published climb restrictions | `CVIA` (re-enable after CM override) | `CM` (any altitude command) |
+| SID (after CTO) | **ON** — aircraft follows published climb restrictions | `CVIA` (re-enable after `CM`, `CTO RH`, or vectors) | `CM` (any altitude command) |
 | STAR (after JARR) | **OFF** — aircraft maintains altitude, follows lateral path only | `DVIA` (enable descent restrictions) | `DM` (any altitude command) |
 
-`DVIA` no longer requires a prior `JARR`: when no STAR is active, it activates the STAR filed in the flight-plan route and applies that STAR's published crossing restrictions before descending.
+`DVIA` no longer requires a prior `JARR`: when no STAR is active, it activates the STAR filed in the flight-plan route and applies that STAR's published crossing restrictions before descending. Symmetrically, `CVIA` no longer requires an active SID: when none is active — for example after `CTO RH` or being vectored off the SID — it activates the SID filed in the route and overlays its published crossing restrictions onto the current route. Issue `DCT <SID fix>` first to reload the lateral path, then `CVIA` to climb via.
 
 `CVIA 190` and `DVIA 240` enable via mode with an altitude cap/floor — "climb/descend via, except maintain." `FH`, `DCT`, and heading commands clear the entire procedure (lateral path + via mode).
 

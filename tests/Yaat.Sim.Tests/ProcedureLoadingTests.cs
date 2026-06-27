@@ -42,6 +42,11 @@ public class ProcedureLoadingTests
         ["BDEGA3"] = ["BDEGA", "CEDES", "FAITH", "BRIXX"],
     };
 
+    private static readonly Dictionary<string, IReadOnlyList<string>> DefaultSidBodies = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["PORTE3"] = ["MOLEN", "PORTE", "OAK", "SUNOL"],
+    };
+
     private static NavigationDatabase CreateNavDb(
         CifpSidProcedure? sid = null,
         CifpStarProcedure? star = null,
@@ -62,7 +67,13 @@ public class ProcedureLoadingTests
             fixes = DefaultFixes;
         }
 
-        return TestNavDbFactory.WithFixesAndProcedures(fixes, sid is not null ? [sid] : null, star is not null ? [star] : null, DefaultStarBodies);
+        return TestNavDbFactory.WithFixesAndProcedures(
+            fixes,
+            sid is not null ? [sid] : null,
+            star is not null ? [star] : null,
+            DefaultStarBodies,
+            DefaultSidBodies
+        );
     }
 
     private static AircraftState CreateIfrAircraft(string route, string departure = "KSFO", string destination = "KSFO")
@@ -396,6 +407,106 @@ public class ProcedureLoadingTests
 
         Assert.False(result.Success);
         Assert.Null(aircraft.Procedure.ActiveStarId);
+    }
+
+    // --- CVIA self-resolve from filed route (issue #221) ---
+    // After CTO RH (or vectors off the SID), no SID is active and the lateral route is reloaded by
+    // a DCT to a downstream SID fix. A subsequent bare CVIA must self-activate the filed SID and
+    // overlay its published crossing restrictions, mirroring the DVIA / descend-via arrival path.
+
+    [Fact]
+    public void Cvia_NoActiveSid_SelfResolvesSidFromFiledRouteAndOverlaysRestrictions()
+    {
+        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        aircraft.Altitude = 3000;
+        // The departure runway snapshot persists from the takeoff clearance and drives runway-transition
+        // selection (it survives the phase teardown a CVIA triggers mid-InitialClimb).
+        aircraft.Procedure.DepartureRunway = "28R";
+
+        // Simulate the post-DCT state: the lateral SID fixes are present but carry no restrictions,
+        // and no SID is active.
+        foreach (var name in new[] { "PORTE", "OAK" })
+        {
+            aircraft.Targets.NavigationRoute.Add(
+                new NavigationTarget { Name = name, Position = new LatLon(DefaultFixes[name].Lat, DefaultFixes[name].Lon) }
+            );
+        }
+        Assert.Null(aircraft.Procedure.ActiveSidId);
+
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("PORTE3", aircraft.Procedure.ActiveSidId);
+        Assert.True(aircraft.Procedure.SidViaMode);
+
+        // Published crossing restrictions overlaid onto the existing fixes, without re-adding any.
+        Assert.Equal(2, aircraft.Targets.NavigationRoute.Count);
+        var porte = aircraft.Targets.NavigationRoute.First(t => t.Name == "PORTE");
+        Assert.NotNull(porte.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, porte.AltitudeRestriction!.Type);
+        Assert.Equal(4000, porte.AltitudeRestriction.Altitude1Ft);
+        var oak = aircraft.Targets.NavigationRoute.First(t => t.Name == "OAK");
+        Assert.NotNull(oak.AltitudeRestriction);
+        Assert.Equal(10000, oak.AltitudeRestriction!.Altitude1Ft);
+        Assert.NotNull(oak.SpeedRestriction);
+        Assert.Equal(250, oak.SpeedRestriction!.SpeedKts);
+    }
+
+    [Fact]
+    public void Cvia_NoSidInFiledRoute_StillFails()
+    {
+        var aircraft = CreateIfrAircraft("KSFO DIRECT KSFO");
+        aircraft.Altitude = 3000;
+
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.Null(aircraft.Procedure.ActiveSidId);
+        Assert.Contains("No active SID", result.Message);
+    }
+
+    [Fact]
+    public void Cvia_VfrAircraft_Rejected()
+    {
+        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        aircraft.FlightPlan.FlightRules = "VFR";
+        aircraft.Altitude = 3000;
+        aircraft.Procedure.DepartureRunway = "28R";
+
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(null), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.False(result.Success);
+        Assert.Null(aircraft.Procedure.ActiveSidId);
+    }
+
+    [Fact]
+    public void Cvia_WithCeiling_SelfResolvesAndSetsCeiling()
+    {
+        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        aircraft.Altitude = 3000;
+        aircraft.Procedure.DepartureRunway = "28R";
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget { Name = "OAK", Position = new LatLon(DefaultFixes["OAK"].Lat, DefaultFixes["OAK"].Lon) }
+        );
+
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var result = CommandDispatcher.Dispatch(new ClimbViaCommand(19000), aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("PORTE3", aircraft.Procedure.ActiveSidId);
+        Assert.True(aircraft.Procedure.SidViaMode);
+        Assert.Equal(19000, aircraft.Procedure.SidViaCeiling);
     }
 
     // --- SID resolution ---

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **"Fly runway heading" (`CTO RH`) now works for IFR departures.** Runway heading used to be a VFR-only takeoff modifier, but it's routinely issued to IFR aircraft too (for example departing off parallels). The aircraft holds runway heading after takeoff and awaits vectors instead of turning onto its SID. `CTO MRH` and `CTO MSO` behave the same way.
+- **An IFR aircraft on runway heading (or vectored off its SID) can rejoin its filed SID.** Send it direct to a fix on the SID (`DCT <fix>`), then `CVIA` (climb via): climb via now activates the SID filed in the route and restores its published altitude/speed crossing restrictions, even when no SID was active.
+- The radar **Cleared for takeoff** menu now has a default clearance plus a **Fly runway heading** item that works for IFR as well as VFR; **Fly on course** appears only for VFR aircraft, where it's valid.
+
 ## v0.8.1-beta [2026/06/26]
 
 ### Highlights

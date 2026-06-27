@@ -21,9 +21,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// N513SJ given <c>CTO 360 020</c> — turn starts at ~250 ft AGL.
 ///
 /// Two-part fix:
-///   1. IFR aircraft must reject VFR-only CTO modifiers (MRC, ML*, RH, OC,
-///      DCT, MLT, MRT, …). Only bare CTO (follow SID) or a numeric heading
-///      vector is valid for IFR.
+///   1. IFR aircraft must reject VFR-only CTO modifiers (MRC, ML*, OC,
+///      DCT, MLT, MRT, …). Only bare CTO (follow SID), runway heading (RH),
+///      or a numeric heading vector is valid for IFR.
 ///   2. For the IFR cases that remain (bare CTO with RV SID, or
 ///      FlyHeadingDeparture), defer the heading change in
 ///      <c>InitialClimbPhase</c> until the aircraft is ≥ 400 ft above field
@@ -94,12 +94,11 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// CTO with VFR-only modifiers (RH, ML90, OC, MLT, MRT) must all be
-    /// rejected for IFR. Mirrors the user-stated rule that IFR departures
-    /// accept only bare CTO or a numeric heading.
+    /// CTO with VFR-only modifiers (ML90, OC, MLT, MRT) must all be rejected
+    /// for IFR. Mirrors the rule that IFR departures accept only bare CTO
+    /// (follow SID), runway heading (RH), or a numeric heading.
     /// </summary>
     [Theory]
-    [InlineData("CTO RH 020")]
     [InlineData("CTO ML90 020")]
     [InlineData("CTO OC 020")]
     [InlineData("CTO MLT 020")]
@@ -176,6 +175,33 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
         output.WriteLine($"CTO 360 020 result: success={result.Success} message={result.Message}");
 
         Assert.True(result.Success, $"CTO with numeric heading must be accepted for IFR: {result.Message}");
+    }
+
+    /// <summary>
+    /// CTO RH (fly runway heading) must be accepted for IFR aircraft — runway
+    /// heading is routinely issued to IFR departures (issue #221). The aircraft
+    /// holds runway heading and awaits vectors; no SID is loaded.
+    /// </summary>
+    [Fact]
+    public void CtoRunwayHeading_AcceptedForIfrAircraft()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        engine.Replay(recording, 767);
+        var n152sp = engine.FindAircraft("N152SP");
+        Assert.NotNull(n152sp);
+        Assert.False(n152sp.FlightPlan.IsVfr, "Recording fixture invariant: N152SP filed IFR.");
+
+        var result = engine.SendCommand("N152SP", "CTO RH 020");
+
+        output.WriteLine($"CTO RH 020 result: success={result.Success} message={result.Message}");
+
+        Assert.True(result.Success, $"CTO RH (runway heading) must be accepted for IFR: {result.Message}");
     }
 
     // -------------------------------------------------------------------

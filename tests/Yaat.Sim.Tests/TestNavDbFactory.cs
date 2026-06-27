@@ -83,10 +83,11 @@ internal static class TestNavDbFactory
         IReadOnlyDictionary<string, (double Lat, double Lon)> fixes,
         IReadOnlyList<CifpSidProcedure>? sids = null,
         IReadOnlyList<CifpStarProcedure>? stars = null,
-        IReadOnlyDictionary<string, IReadOnlyList<string>>? starBodies = null
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? starBodies = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? sidBodies = null
     )
     {
-        return NavigationDatabase.ForTesting(fixes, null, null, null, sids, stars, starBodies);
+        return NavigationDatabase.ForTesting(fixes, null, null, null, sids, stars, starBodies, null, null, sidBodies);
     }
 
     /// <summary>

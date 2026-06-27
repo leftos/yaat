@@ -1128,12 +1128,15 @@ public partial class RadarView
     {
         var menu = new MenuItem { Header = "Cleared for takeoff" };
 
-        menu.Items.Add(CreateMenuItem("Fly runway heading", () => vm.ClearedForTakeoffAsync(cs, init, null)));
-        menu.Items.Add(CreateMenuItem("Fly on course", () => vm.ClearedForTakeoffAsync(cs, init, "OC")));
+        // Default clearance: IFR follows the filed SID, VFR flies runway heading.
+        menu.Items.Add(CreateMenuItem("Default (SID/on course)", () => vm.ClearedForTakeoffAsync(cs, init, null)));
+        // Explicit runway heading — valid for both VFR and IFR (issue #221).
+        menu.Items.Add(CreateMenuItem("Fly runway heading", () => vm.ClearedForTakeoffAsync(cs, init, "RH")));
 
-        // Pattern / closed-traffic modifiers are VFR-only — the server rejects them for IFR.
+        // On-course, pattern, and closed-traffic modifiers are VFR-only — the server rejects them for IFR.
         if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac))
         {
+            menu.Items.Add(CreateMenuItem("Fly on course", () => vm.ClearedForTakeoffAsync(cs, init, "OC")));
             menu.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MLT")));
             menu.Items.Add(CreateMenuItem("Make right traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MRT")));
             menu.Items.Add(CreateMenuItem("Turn left crosswind", () => vm.ClearedForTakeoffAsync(cs, init, "MLC")));
