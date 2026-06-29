@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- On a CRC SAAB SAID surface display, suspending a track now marks it suspended on the display instead of hiding the aircraft, the same as ASDE-X. CRC has fixed the crash that rendering a suspended SAID track used to trigger, so the temporary workaround that hid suspended SAID tracks has been removed.
+
 ## v0.8.2-beta [2026/06/27]
 
 ### Added
