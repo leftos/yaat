@@ -27,14 +27,14 @@ Latest binaries are attached to the [crc-config-v\* releases](https://github.com
 | Platform | File |
 |----------|------|
 | Windows  | `yaat-crc-config-windows-x86_64.exe` |
-| macOS (Universal: Intel + Apple Silicon) | `yaat-crc-config-macos-universal` |
+| macOS (Universal: Intel + Apple Silicon) | `yaat-crc-config-macos-universal.dmg` |
 | Linux x86_64 | `yaat-crc-config-linux-x86_64` |
 
 `SHA256SUMS.txt` is published alongside each release.
 
 ## First-run security warnings
 
-These binaries are **not yet code-signed**. Each platform shows a one-time warning:
+The **macOS** download is a signed, notarized `.dmg`, so it opens without a Gatekeeper workaround. The **Windows** and **Linux** binaries are not code-signed and show a one-time warning:
 
 ### Windows — SmartScreen "Windows protected your PC"
 1. Click **More info**
@@ -42,10 +42,8 @@ These binaries are **not yet code-signed**. Each platform shows a one-time warni
 
 After running once, SmartScreen remembers it and won't warn again on the same machine.
 
-### macOS — Gatekeeper "yaat-crc-config-macos-universal cannot be opened"
-Either:
-- **In Finder**: right-click (or Control-click) the file → choose **Open** → confirm in the dialog. Gatekeeper remembers this.
-- **In Terminal**: `xattr -d com.apple.quarantine ~/Downloads/yaat-crc-config-macos-universal && chmod +x ~/Downloads/yaat-crc-config-macos-universal`
+### macOS
+Open `yaat-crc-config-macos-universal.dmg` and run the `yaat-crc-config` binary inside. It is signed with a Developer ID certificate and notarized by Apple, so no right-click-to-open or `xattr` step is needed.
 
 ### Linux
 ```sh

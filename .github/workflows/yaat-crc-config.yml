@@ -25,7 +25,7 @@ jobs:
           - os: macos-latest
             target: universal2-apple-darwin
             artifact_name: yaat-crc-config
-            asset_name: yaat-crc-config-macos-universal
+            asset_name: yaat-crc-config-macos-universal.dmg
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -54,12 +54,120 @@ jobs:
             target/aarch64-apple-darwin/release/yaat-crc-config \
             target/x86_64-apple-darwin/release/yaat-crc-config
 
-      - name: Stage asset
+      - name: Stage asset (non-macOS)
+        if: matrix.os != 'macos-latest'
         shell: bash
         working-directory: tools/yaat-crc-config
         run: |
           mkdir -p ../../dist
           cp "target/${{ matrix.target }}/release/${{ matrix.artifact_name }}" "../../dist/${{ matrix.asset_name }}"
+
+      - name: Import signing certificate and notary profile (macOS)
+        id: signing
+        if: matrix.os == 'macos-latest'
+        env:
+          # Reuses the client's Developer ID Application certificate + notary key
+          # (see docs/macos-code-signing.md). The Installer cert is not needed —
+          # a .dmg is signed with the Application identity, not the Installer one.
+          DEVID_APP_CERT_BASE64: ${{ secrets.MACOS_DEVID_APP_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_DEVID_CERT_PASSWORD }}
+          NOTARY_API_KEY_BASE64: ${{ secrets.MACOS_NOTARY_API_KEY_P8_BASE64 }}
+          NOTARY_API_KEY_ID: ${{ secrets.MACOS_NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER_ID: ${{ secrets.MACOS_NOTARY_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          # Signing is optional: a fork (or this repo before the secrets are
+          # configured) still produces a working — if unsigned — .dmg, the same
+          # way the client's package-macos job degrades when secrets are absent.
+          if [ -z "$DEVID_APP_CERT_BASE64" ]; then
+            echo "::warning::macOS signing secrets not configured — building an UNSIGNED, un-notarized .dmg. macOS Gatekeeper will warn users on first launch. See docs/macos-code-signing.md to enable signing."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          keychain="$RUNNER_TEMP/crc-config-signing.keychain-db"
+          keychain_pw="$(openssl rand -base64 24)"
+          app_cert="$RUNNER_TEMP/devid_app.p12"
+          notary_key="$RUNNER_TEMP/notary_key.p8"
+
+          echo -n "$DEVID_APP_CERT_BASE64" | base64 --decode -o "$app_cert"
+          echo -n "$NOTARY_API_KEY_BASE64" | base64 --decode -o "$notary_key"
+
+          security create-keychain -p "$keychain_pw" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_pw" "$keychain"
+
+          security import "$app_cert" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+
+          # Without an explicit partition list, codesign triggers a GUI password
+          # prompt that hangs the headless runner even though -A was passed.
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_pw" "$keychain" >/dev/null
+
+          # Put our keychain on the search list so codesign/notarytool find it.
+          security list-keychain -d user -s "$keychain"
+
+          # Store the App Store Connect API key as a notarytool profile inside the
+          # same keychain notarytool is told to use via --keychain.
+          xcrun notarytool store-credentials "notary-profile" \
+            --key "$notary_key" \
+            --key-id "$NOTARY_API_KEY_ID" \
+            --issuer "$NOTARY_API_ISSUER_ID" \
+            --keychain "$keychain"
+
+          rm -f "$app_cert" "$notary_key"
+
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          echo "KEYCHAIN_PATH=$keychain" >> "$GITHUB_ENV"
+
+      - name: Package macOS .dmg (sign, notarize, staple)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        working-directory: tools/yaat-crc-config
+        env:
+          SIGNING_ENABLED: ${{ steps.signing.outputs.enabled }}
+          SIGN_APP_IDENTITY: ${{ secrets.MACOS_SIGN_APP_IDENTITY }}
+        run: |
+          set -euo pipefail
+          bin="target/universal2-apple-darwin/release/yaat-crc-config"
+          staging="$RUNNER_TEMP/dmg-staging"
+          dmg="$RUNNER_TEMP/yaat-crc-config-macos-universal.dmg"
+
+          rm -rf "$staging"
+          mkdir -p "$staging"
+          cp "$bin" "$staging/yaat-crc-config"
+          chmod +x "$staging/yaat-crc-config"
+
+          if [ "$SIGNING_ENABLED" = "true" ]; then
+            # Hardened runtime (--options runtime) and a secure timestamp are
+            # mandatory for notarization. The binary needs no entitlements.
+            codesign --force --timestamp --options runtime \
+              --sign "$SIGN_APP_IDENTITY" --keychain "$KEYCHAIN_PATH" \
+              "$staging/yaat-crc-config"
+            codesign --verify --strict --verbose=2 "$staging/yaat-crc-config"
+          fi
+
+          # UDZO = compressed read-only image; the volume mounts as "yaat-crc-config".
+          hdiutil create -volname "yaat-crc-config" -srcfolder "$staging" \
+            -ov -format UDZO "$dmg"
+
+          if [ "$SIGNING_ENABLED" = "true" ]; then
+            codesign --force --timestamp \
+              --sign "$SIGN_APP_IDENTITY" --keychain "$KEYCHAIN_PATH" "$dmg"
+            # --wait blocks until Apple finishes (usually a few minutes). If the
+            # submission is rejected there is no ticket, so the following
+            # stapler staple fails and the step errors out.
+            xcrun notarytool submit "$dmg" \
+              --keychain-profile "notary-profile" --keychain "$KEYCHAIN_PATH" --wait
+            xcrun stapler staple "$dmg"
+            xcrun stapler validate "$dmg"
+          fi
+
+          mkdir -p ../../dist
+          cp "$dmg" "../../dist/${{ matrix.asset_name }}"
+
+      - name: Clean up signing keychain (macOS)
+        if: ${{ always() && matrix.os == 'macos-latest' && steps.signing.outputs.enabled == 'true' }}
+        run: security delete-keychain "$RUNNER_TEMP/crc-config-signing.keychain-db"
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
@@ -107,7 +215,7 @@ jobs:
             | Platform | File |
             |----------|------|
             | Windows  | `yaat-crc-config-windows-x86_64.exe` |
-            | macOS (Intel + Apple Silicon) | `yaat-crc-config-macos-universal` |
+            | macOS (Intel + Apple Silicon) | `yaat-crc-config-macos-universal.dmg` |
             | Linux x86_64 | `yaat-crc-config-linux-x86_64` |
 
             Verify with `SHA256SUMS.txt`.
@@ -123,8 +231,10 @@ jobs:
 
             ### First-run security warnings
 
-            These binaries are unsigned. Expect:
+            The macOS `.dmg` is signed with a Developer ID certificate and
+            notarized by Apple, so it opens without a Gatekeeper workaround. The
+            Windows and Linux binaries are unsigned:
             - **Windows SmartScreen**: Click "More info" → "Run anyway".
-            - **macOS Gatekeeper**: Right-click → Open, or
-              `xattr -d com.apple.quarantine yaat-crc-config-macos-universal`.
+            - **macOS**: Open the `.dmg` and run the `yaat-crc-config` binary
+              inside — no right-click-to-open or `xattr` step needed.
             - **Linux**: `chmod +x yaat-crc-config-linux-x86_64` then run.

@@ -28,6 +28,14 @@ can be done from any machine with the `gh` CLI.
 The build keychain password is generated fresh on every run, so it is not a
 secret.
 
+The standalone **`yaat-crc-config`** tool (`.github/workflows/yaat-crc-config.yml`)
+reuses the same Developer ID **Application** certificate and notary key to sign,
+notarize, and staple its macOS `.dmg`. A `.dmg` is signed with the Application
+identity, so the tool does **not** touch the Installer cert or identity (those
+are only for the client's `.pkg`) — it reads six of the eight secrets:
+`MACOS_DEVID_APP_CERT_P12_BASE64`, `MACOS_DEVID_CERT_PASSWORD`,
+`MACOS_SIGN_APP_IDENTITY`, and the three `MACOS_NOTARY_API_*` values.
+
 ## Step 1 — Create the two Developer ID certificates (on a Mac)
 
 You need **two** certificates: one signs the `.app`, the other signs the

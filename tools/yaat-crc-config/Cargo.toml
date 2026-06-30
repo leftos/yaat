@@ -1,6 +1,6 @@
 [package]
 name = "yaat-crc-config"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Standalone tool that adds YAAT server entries to CRC's DevEnvironments.json"
 publish = false
