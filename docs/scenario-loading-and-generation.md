@@ -311,8 +311,12 @@ All four drain in `TickPrePhysics` (`SimulationEngine.cs:465`) once per sim-seco
   present in the live corpus, so YAAT keeps its sane 10 nm fallback rather than vNAS's literal `0`, which would spawn on the
   threshold.) The model is:
   - **Cadence**: `IntervalTime` (pacing-scaled, optional ±25% jitter via `EffectiveSpawnIntervalSeconds`) drives *when* the next
-    arrival is due — the only spawn trigger is `ElapsedSeconds >= NextSpawnSeconds`. At load `NextSpawnSeconds = StartTimeOffset`,
-    so the first arrival fires as soon as the generator activates.
+    arrival is due — the only spawn trigger is `ElapsedSeconds >= NextSpawnSeconds`. At load the **first** generator gets
+    `NextSpawnSeconds = StartTimeOffset` (fires as soon as it activates). Each **subsequent** generator with `RandomizeInterval`
+    on gets `NextSpawnSeconds = StartTimeOffset + rng*IntervalTime` — a random initial phase within its first interval, so
+    multiple generators that share a `StartTimeOffset` don't all spawn on the same first tick. Non-randomized generators keep the
+    authored `StartTimeOffset` (deterministic). The "first" slot is the first generator successfully added, so one skipped for a
+    missing runway doesn't claim it.
   - **Placement** (`#2`, back of the stream, bounded): when due, the arrival is placed at
     `D = max(InitialDistance, rearmost + gap)`, where `gap = SpacingGapNm` is the larger (binding) of the configured
     `IntervalDistance` and the 7110.65 Table 5-5-2 wake-turbulence minimum for the leader/follower pair (the two constraints

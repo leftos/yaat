@@ -552,12 +552,23 @@ public sealed class SimulationEngine
                 continue;
             }
 
+            // The first generator fires on its authored schedule. Each subsequent generator with
+            // randomized intervals gets a random initial phase within its first interval, so multiple
+            // generators that share a startTimeOffset don't all spawn on the same first tick. Keyed off
+            // the count of already-added generators, so a generator skipped for a missing runway above
+            // doesn't consume the "first" slot.
+            var firstSpawnSeconds = (double)genConfig.StartTimeOffset;
+            if (Scenario.Generators.Count > 0 && genConfig.RandomizeInterval)
+            {
+                firstSpawnSeconds += World.Rng.NextDouble() * genConfig.IntervalTime;
+            }
+
             Scenario.Generators.Add(
                 new GeneratorState
                 {
                     Config = genConfig,
                     Runway = runway,
-                    NextSpawnSeconds = genConfig.StartTimeOffset,
+                    NextSpawnSeconds = firstSpawnSeconds,
                 }
             );
         }
