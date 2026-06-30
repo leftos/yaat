@@ -268,13 +268,11 @@ jobs:
             Existing unrelated entries in `DevEnvironments.json` are preserved. Re-running
             the tool is safe — it updates URLs in place.
 
-            ### First-run security warnings
+            ### Running it
 
-            The macOS `.app` (shipped inside the `.dmg`) is signed with a
-            Developer ID certificate and notarized by Apple, so it opens without
-            a Gatekeeper workaround. The Windows and Linux binaries are unsigned:
-            - **Windows SmartScreen**: Click "More info" → "Run anyway".
-            - **macOS**: Open the `.dmg`, then double-click `yaat-crc-config.app`
-              (or drag it to Applications). Click **Open** on the standard
-              first-launch prompt — no right-click-to-open or `xattr` step.
-            - **Linux**: `chmod +x yaat-crc-config-linux-x86_64` then run.
+            - **macOS**: Open `yaat-crc-config-macos-universal.dmg` and double-click
+              `yaat-crc-config.app` (or drag it to Applications). It's signed and
+              notarized, so click **Open** on the first-launch prompt and it runs.
+            - **Windows**: Run `yaat-crc-config-windows-x86_64.exe`. If SmartScreen
+              appears, click "More info" → "Run anyway".
+            - **Linux**: `chmod +x yaat-crc-config-linux-x86_64`, then run it.
