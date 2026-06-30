@@ -15,7 +15,7 @@ There are two distinct layers and this doc owns only the upper one.
   [command-handlers.md](command-handlers.md). Scenario **presets** reach `TrackEngine` the same way: an immediate `HO 2B` routes
   through `SimulationEngine.TryDispatchImmediateTrackPreset`, and a conditional `AT FIX HO 2B` is flagged on its `CommandBlock`
   (`HasTrackCommand`) and dispatched by `SimulationEngine.ProcessTriggeredTrackBlocks` when the trigger fires — never through
-  `CommandDispatcher.ApplyCommand`'s `__NO_DISPATCHER_ARM__` arm (see [command-handlers.md](command-handlers.md), Triggered re-dispatch).
+  `CommandDispatcher.ApplyCommand`'s no-dispatcher-arm (`default:`) arm (see [command-handlers.md](command-handlers.md), Triggered re-dispatch).
   The ownership and pointout commands infer the *acting* position from the track itself —
   the current `Owner` for HO/DROP/CANCEL/POINTOUT-initiate, the `HandoffPeer` for ACCEPT, the pointout `Recipient` for OK/PORJ, the
   pointout `Sender` for PORT — rather than checking the issuer's resolved identity (the `AS` prefix / active position /

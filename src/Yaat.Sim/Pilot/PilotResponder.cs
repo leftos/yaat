@@ -1109,7 +1109,6 @@ public static class PilotResponder
         }
 
         var cleaned = reason.Trim();
-        cleaned = cleaned.Replace("__NO_DISPATCHER_ARM__", "", StringComparison.Ordinal);
         cleaned = Regex.Replace(cleaned, @"^\s*unable\b[:,\s-]*", "", RegexOptions.IgnoreCase);
         cleaned = cleaned.Trim(' ', '.', ',', ';', ':', '-');
         if (cleaned.Length == 0)

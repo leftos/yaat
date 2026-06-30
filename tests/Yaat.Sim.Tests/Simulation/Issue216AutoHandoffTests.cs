@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// "S3-NCTA-1 | Area A Familiarization", background traffic owned by the autocontroller OAK_14_CTR is
 /// supposed to auto-hand-off to another autocontroller (NCT) via preset commands of the form
 /// <c>AT &lt;fix&gt; HO &lt;tcp&gt;</c>. Before the fix the conditional handoff hit
-/// <c>CommandDispatcher.ApplyCommand</c>'s unhandled <c>default:</c> arm (<c>__NO_DISPATCHER_ARM__</c>)
+/// <c>CommandDispatcher.ApplyCommand</c>'s unhandled <c>default:</c> arm (the no-dispatcher-arm fallback)
 /// because the preset path never routed track commands to the track engine.
 ///
 /// Recording: the live bug bundle. Aircraft ASA221 spawns at t=0 owned by OAK_14_CTR and carries

@@ -28,8 +28,8 @@ the single most important thing to get right.
 | `ApplyCommand` | `CommandDispatcher.cs:433` | Airborne / nav / flight / squawk / say / approach-clearance / pattern-entry verbs. The general arm. |
 | `TryApplyTowerCommand` | `CommandDispatcher.cs:1345` | Phase-interactive tower & ground verbs (CTO, LUAW, CLAND, pattern turns, TAXI, CROSS, hold-short, exits). |
 
-`ApplyCommand` is the fallback: it returns a real `CommandResult` for everything it knows, and the `__NO_DISPATCHER_ARM__` sentinel
-(`CommandDispatcher.cs:786`) for anything it doesn't. `TryApplyTowerCommand` is *nullable*: it returns a `CommandResult` when it recognizes the verb
+`ApplyCommand` is the fallback: it returns a real `CommandResult` for everything it knows, and a `NoDispatcherArm` result
+(its `default:` arm) for anything it doesn't. `TryApplyTowerCommand` is *nullable*: it returns a `CommandResult` when it recognizes the verb
 and `null` (its `default:` arm, `CommandDispatcher.cs:1617`) when it doesn't — `null` means "not a tower verb, let the caller try `ApplyCommand`."
 
 ### Why some verbs live in both
@@ -51,7 +51,7 @@ method either way — the duplication exists because the command can arrive **wi
 command into a compound for `DispatchCompound`, but that path is not how a user-typed `BREAK`/`GO` arrives.)
 
 > If you add a phase-interactive verb to **only** `ApplyCommand`, an immediate dispatch may work, but a *queued/triggered* instance of that verb that
-> re-fires after a phase transition will hit the `__NO_DISPATCHER_ARM__` fallback in `BuildApplyAction` (see [Triggered re-dispatch](#triggered-re-dispatch-buildapplyaction)). Add it to both, or to `TryApplyTowerCommand` only if it always requires a phase.
+> re-fires after a phase transition will hit the no-dispatcher-arm fallback in `BuildApplyAction` (see [Triggered re-dispatch](#triggered-re-dispatch-buildapplyaction)). Add it to both, or to `TryApplyTowerCommand` only if it always requires a phase.
 
 ## `DispatchCompoundCore` control flow
 
@@ -105,9 +105,10 @@ Both are `CommandResult` values detected by identity/substring, **not** exceptio
   The clear sequence (build a `PhaseContext` via `BuildMinimalContext`, capture a `PhaseClearSummary`, `Phases.Clear(ctx)`, null out `Phases`, reset
   turn-rate overrides, `AirborneFollowHelper.ClearFollowState`) is **re-implemented identically** at `CommandDispatcher.cs:176` (immediate dispatch)
   and `CommandDispatcher.cs:2110` (triggered re-dispatch). Both sites must stay in sync.
-- `NoDispatcherArmMarker` = `"__NO_DISPATCHER_ARM__"` (`CommandDispatcher.cs:33`) — embedded in the user-visible failure text of `ApplyCommand`'s
-  `default:` arm. `DryRunApplyCommand` (`:852`, check at `:868`) and `BuildApplyAction` detect it by `StartsWith` / `Contains` to know a verb fell through to no arm.
-  `WithRejectedCommand` (`:2159`) also checks for it so a no-arm failure isn't mislabeled with a rejected command type.
+- `CommandResult.NoDispatcherArm` — set true by `ApplyCommand`'s `default:` arm, which also logs the command type (for bug triage) and
+  returns a plain user-facing message: a ground command to an airborne aircraft → "… requires the aircraft to be on the ground", otherwise
+  "Unable to …". `DryRunApplyCommand` and `WithRejectedCommand` branch on the typed flag (no message-string parsing) to know a verb fell
+  through to no arm, so a no-arm failure isn't mislabeled with a rejected command type.
 
 > Returning a generic `CommandResult(false, …)` where one of these sentinels is expected silently breaks the tower-fallback routing.
 
@@ -186,14 +187,14 @@ but leaves a queued altitude block alone; mixed-dimension blocks are split via `
 ([tick-loop.md](tick-loop.md) step 9). It captures the parsed commands and the `DispatchContext`, then for each command:
 
 1. If a phase is active, try `TryApplyTowerCommand` first (mirroring the user-typed path). This is why queued tower verbs (`TAXI … ; CTO MRT`) re-fire
-   correctly after a phase transition instead of hitting `__NO_DISPATCHER_ARM__`.
+   correctly after a phase transition instead of hitting the no-dispatcher-arm fallback.
 2. If `TryApplyTowerCommand` returns the `PhaseShouldBeCleared` sentinel, run the same phase-clear sequence as `DispatchCompoundCore`, then apply via
    `ApplyCommand` against the cleared state (`:2105`). We're already past validation here (the block was enqueued through the same dispatcher).
 3. Otherwise fall back to `ApplyCommand`.
 4. After a *successful* apply, call `NotifyPhaseCommandAccepted` (`:2142`).
 
 **Track commands are excluded from the closure.** `TrackEngine.IsTrackCommand` verbs (`HO`/`TRACK`/`DROP`/`ACCEPT`/…)
-have no arm in `ApplyCommand`, so a triggered `AT FIX HO 2B` would hit `__NO_DISPATCHER_ARM__`. `EnqueueBlocks`
+have no arm in `ApplyCommand`, so a triggered `AT FIX HO 2B` would hit the no-dispatcher-arm fallback. `EnqueueBlocks`
 therefore omits track commands from the `ApplyAction` and flags the block `HasTrackCommand`; when the trigger fires,
 `SimulationEngine.ProcessTriggeredTrackBlocks` (run inside `TickPhysics`, shared by the standalone sim and the
 server tick) dispatches them through `TrackEngine.Dispatch` — the one path with the live `SimScenarioState` and
@@ -249,14 +250,14 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
    A pure status verb that must never clear a phase goes in `CommandDescriber.IsPhaseTransparent` (broad list, fast path) and/or the dispatcher-local
    `IsPhaseTransparentCommand` (narrow list, phase gate).
 6. **Verify the triggered path** — if the verb can be queued behind a trigger (`AT FIX` / `LV alt`), confirm `BuildApplyAction` re-dispatches it
-   correctly (tower verbs need a `TryApplyTowerCommand` arm to avoid `__NO_DISPATCHER_ARM__`).
+   correctly (tower verbs need a `TryApplyTowerCommand` arm to avoid the no-dispatcher-arm fallback).
 
 ## Footguns / Pitfalls
 
-- **Two switch surfaces, not one.** Add a phase-interactive verb to only `ApplyCommand` and a queued/triggered instance hits `__NO_DISPATCHER_ARM__`
-  when it re-fires after a phase transition. Tower verbs that can be queued need an arm in **both** `ApplyCommand` and `TryApplyTowerCommand`.
-- **The two sentinels are values, not exceptions.** `PhaseShouldBeCleared` is detected by `ReferenceEquals`; `__NO_DISPATCHER_ARM__` is detected by
-  string substring on the message. Returning a generic failure where one is expected silently breaks tower-fallback routing.
+- **Two switch surfaces, not one.** Add a phase-interactive verb to only `ApplyCommand` and a queued/triggered instance hits the
+  no-dispatcher-arm fallback when it re-fires after a phase transition. Tower verbs that can be queued need an arm in **both** `ApplyCommand` and `TryApplyTowerCommand`.
+- **`PhaseShouldBeCleared` is a sentinel value, not an exception** — detected by `ReferenceEquals`. The no-dispatcher-arm case is the typed
+  `CommandResult.NoDispatcherArm` flag. Returning a generic failure where one is expected silently breaks tower-fallback routing.
 - **Phase clearing is deferred until after dry-run.** `DispatchWithPhase` returns the sentinel rather than clearing in place; clearing before
   validation would destroy pattern/approach state on a command that then fails. The same clear sequence is duplicated in `BuildApplyAction`
   (`:2110`) for triggered blocks — both sites must stay in sync.

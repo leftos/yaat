@@ -1820,7 +1820,7 @@ public sealed class SimulationEngine
     /// Routes an immediate (unconditional) preset that is purely track commands straight to the track
     /// engine. Such presets never reach <see cref="CommandDispatcher.EnqueueBlocks"/> — the leading block
     /// applies inline through <see cref="CommandDispatcher.ApplyCommand"/>, which has no track-command arm
-    /// (the <c>__NO_DISPATCHER_ARM__</c> default). Conditional or mixed compounds return false and fall
+    /// (the no-dispatcher-arm default). Conditional or mixed compounds return false and fall
     /// through to the normal dispatcher, where <see cref="ProcessTriggeredTrackBlocks"/> handles any
     /// triggered track commands.
     /// </summary>

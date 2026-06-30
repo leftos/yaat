@@ -16,8 +16,17 @@ namespace Yaat.Sim.Commands;
 /// Result of dispatching a command. <see cref="Advisory"/> carries an optional instructor-facing
 /// terminal note emitted alongside the command (e.g. a procedure resolved from a retired AIRAC cycle);
 /// it is surfaced via <see cref="DispatchContext.TerminalEmitter"/>, not spoken as pilot phraseology.
+/// <see cref="NoDispatcherArm"/> marks the dispatcher fallback (a command that reached
+/// <c>ApplyCommand</c> with no handler arm in its current context) so callers can branch on the case
+/// without parsing the user-facing <see cref="Message"/>.
 /// </summary>
-public record CommandResult(bool Success, string? Message = null, CanonicalCommandType? RejectedCommandType = null, string? Advisory = null);
+public record CommandResult(
+    bool Success,
+    string? Message = null,
+    CanonicalCommandType? RejectedCommandType = null,
+    string? Advisory = null,
+    bool NoDispatcherArm = false
+);
 
 public static class CommandDispatcher
 {
@@ -28,14 +37,6 @@ public static class CommandDispatcher
     /// Clear() mutated it in place, making restore impossible).
     /// </summary>
     private static readonly CommandResult PhaseShouldBeCleared = new(true, "__CLEAR_PHASES__");
-
-    /// <summary>
-    /// Sentinel marker for the "no dispatcher arm" message. Embedded in the user-visible
-    /// failure text so callers can detect the case via a substring check without using a
-    /// private side-channel. The full message also includes the command type and natural
-    /// description so the user (or maintainer reading a bug report) can identify the gap.
-    /// </summary>
-    private const string NoDispatcherArmMarker = "__NO_DISPATCHER_ARM__";
 
     private static readonly ILogger Log = SimLog.CreateLogger("CommandDispatcher");
 
@@ -952,10 +953,20 @@ public static class CommandDispatcher
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
             default:
-                return new CommandResult(
-                    false,
-                    $"{NoDispatcherArmMarker} no dispatcher arm for {command.GetType().Name} ({CommandDescriber.DescribeNatural(command)})"
+                // No handler arm for this command in the current context. Keep the command type in the
+                // log for bug triage, but give the user a plain, actionable message. The most common
+                // trigger is a ground command (TAXI/PUSH/…) sent to an airborne aircraft.
+                Log.LogWarning(
+                    "No dispatcher arm for {CommandType} ({Description}) on {Callsign}",
+                    command.GetType().Name,
+                    CommandDescriber.DescribeNatural(command),
+                    aircraft.Callsign
                 );
+                var fallbackMessage =
+                    CommandDescriber.IsGroundCommand(command) && !aircraft.IsOnGround
+                        ? $"{CommandDescriber.DescribeNatural(command)} requires the aircraft to be on the ground"
+                        : $"Unable to {CommandDescriber.DescribeNatural(command)}";
+                return new CommandResult(false, fallbackMessage, NoDispatcherArm: true);
         }
     }
 
@@ -1033,7 +1044,7 @@ public static class CommandDispatcher
 
         // Then try ApplyCommand — handles flight, nav, pattern entry, etc.
         var result = ApplyCommand(cmd, clone, ctx);
-        if (result.Message is null || !result.Message.StartsWith(NoDispatcherArmMarker, StringComparison.Ordinal))
+        if (!result.NoDispatcherArm)
         {
             return result;
         }
@@ -2392,7 +2403,7 @@ public static class CommandDispatcher
             }
             // Track commands (HO/TRACK/DROP/…) have no arm in ApplyCommand — they must reach the track
             // engine instead. Keep them out of the ApplyAction so a triggered block doesn't hit the
-            // __NO_DISPATCHER_ARM__ default arm; SimulationEngine.ProcessTriggeredTrackBlocks dispatches
+            // no-dispatcher-arm default arm; SimulationEngine.ProcessTriggeredTrackBlocks dispatches
             // them at fire time (it reads ParsedCommands, which retains the full command list).
             bool hasTrackCommand = parsedBlock.Commands.Exists(TrackEngine.IsTrackCommand);
             var applyCommands = hasTrackCommand ? parsedBlock.Commands.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : parsedBlock.Commands;
@@ -2438,8 +2449,8 @@ public static class CommandDispatcher
     /// the user-typed dispatch path. Without this, queued tower verbs that re-fire
     /// after a phase transition (e.g. <c>TAXI ... ; CTO MRT</c> firing CTO when
     /// the aircraft reaches the hold-short) would hit the <see cref="ApplyCommand"/>
-    /// fallback, which has no arm for those verbs and returns the <c>__NO_DISPATCHER_ARM__</c>
-    /// sentinel.
+    /// fallback, which has no arm for those verbs and returns a
+    /// <see cref="CommandResult.NoDispatcherArm"/> result.
     /// </summary>
     internal static Func<AircraftState, CommandResult> BuildApplyAction(List<ParsedCommand> commands, DispatchContext ctx)
     {
@@ -2523,7 +2534,7 @@ public static class CommandDispatcher
             return result;
         }
 
-        if (result.Message?.Contains(NoDispatcherArmMarker, StringComparison.Ordinal) == true)
+        if (result.NoDispatcherArm)
         {
             return result;
         }
