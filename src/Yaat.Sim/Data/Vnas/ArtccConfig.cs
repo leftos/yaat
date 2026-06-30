@@ -510,6 +510,15 @@ public class AtpaVolumeConfig
     [JsonPropertyName("twoPointFiveApproachEnabled")]
     public bool TwoPointFiveApproachEnabled { get; set; }
 
+    /// <summary>
+    /// Distance from the threshold (nm) within which the reduced 2.5 NM final separation applies when
+    /// <see cref="TwoPointFiveApproachEnabled"/> is set (vNAS "Reduced Separation Final Approach Distance",
+    /// typically 10). Outside this distance the radar floor reverts to 3.0 NM. Absent in older configs,
+    /// where it defaults to 0 so reduced separation does not apply.
+    /// </summary>
+    [JsonPropertyName("twoPointFiveApproachDistance")]
+    public double TwoPointFiveApproachDistance { get; set; }
+
     [JsonPropertyName("scratchpads")]
     public List<AtpaScratchpadConfig> Scratchpads { get; set; } = [];
 

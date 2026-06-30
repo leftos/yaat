@@ -118,4 +118,39 @@ public class AtpaProcessorExclusionTests
         Assert.True(results.ContainsKey("UAL202"));
         Assert.Equal("CALLSIGNSWA101", results["UAL202"].TargetTrackId);
     }
+
+    [Theory]
+    // "Ineligible" keeps the matched middle track as a spacing reference, so the trailing aircraft's cone
+    // points at it (the nearer lead). "Exclude" removes it, so the trailing aircraft re-links to the lead.
+    [InlineData("Ineligible", "CALLSIGNDAL150")]
+    [InlineData("Exclude", "CALLSIGNSWA101")]
+    public void Process_ScratchpadType_DistinguishesIneligibleFromExclude(string type, string expectedTrailingTarget)
+    {
+        var owner = TrackOwner.CreateStars("NCT_APP", "NCT", 4, "A");
+        List<AircraftState> snapshot =
+        [
+            MakeApproachAircraft("SWA101", 3, owner), // lead, eligible
+            MakeApproachAircraft("DAL150", 5, owner), // middle, scratchpad-matched
+            MakeApproachAircraft("UAL202", 7, owner), // trailing, eligible
+        ];
+        snapshot[1].Stars.Scratchpad1 = "NORD";
+
+        var volume = MakeVolume([]);
+        volume.Scratchpads =
+        [
+            new AtpaScratchpadConfig
+            {
+                Entry = "NORD",
+                ScratchPadNumber = "One",
+                Type = type,
+            },
+        ];
+
+        var results = new AtpaProcessor().Process(snapshot, [volume], MakeStarsConfig());
+
+        // The matched middle track never gets a cone of its own, regardless of type.
+        Assert.False(results.ContainsKey("DAL150"));
+        Assert.True(results.ContainsKey("UAL202"));
+        Assert.Equal(expectedTrailingTarget, results["UAL202"].TargetTrackId);
+    }
 }

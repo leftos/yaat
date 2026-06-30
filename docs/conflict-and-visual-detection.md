@@ -135,9 +135,37 @@ ATPA (Automated Terminal Proximity Alert) advises the controller when an arrival
 separation behind the aircraft ahead in the same approach volume. `AtpaProcessor.Process` (`AtpaProcessor.cs:25`)
 returns a `Dictionary<callsign, AtpaResult>` consumed by `CrcBroadcastService` and surfaced in the STARS datablock.
 
-### Volume membership & the established filter
+### Exclusive single-volume association
 
-For each `AtpaVolumeConfig`, `ProcessVolume` collects aircraft that pass **four** filters:
+ATPA in-trail monitoring is strictly **per final approach course** (7110.65 §5-9-5/§5-9-6: in-trail separation
+applies to "the same final approach course"; *different*-final pairs get a separate diagonal standard). So `Process`
+runs in **two phases**: an aircraft is associated to **exactly one** volume, then paired only within it. This
+matters where adapted volumes physically overlap — closely-spaced or convergent finals (KOAK 30 vs 28R are only
+~18° apart, and the OAK 30 volume's 90° `MaximumHeadingDeviation` + 3 nm half-width reach across the 28R final).
+Without exclusive association an aircraft falls inside both boxes and gets coned in-trail against traffic on the
+*other* runway — the wrong separation standard for that pair.
+
+**Active-volume filter (first).** `Process` first drops **disabled** volumes via `AtpaVolumeGeometry.IsActiveVolume`.
+vNAS disables a volume by repointing its `airportId` at an unrelated airport (e.g. the SFO side-by volumes set to
+`OVE`) while leaving the threshold at the real runway, so a volume with a **non-empty** `airportId` that resolves no
+runway end within 0.5 nm of its threshold is treated as inactive and never captures traffic or competes in best-fit.
+A volume with no `airportId` (legacy/synthetic) or any volume when the nav DB is unavailable stays active.
+
+**Phase 1 — membership.** For each aircraft, every active volume it passes the **four candidate filters** below is a
+candidate; it is assigned to the single **best-fit** one. The fit score (`AtpaProcessor.FitScore`, lower = better)
+sums **heading deviation** (normalized to the 30° established tolerance) and absolute **cross-track distance** to the
+centerline (normalized to a **fixed** `CrossTrackFitReferenceNm` ≈ 1 nm — *not* the volume's own half-width, which
+would discount a geometrically wide volume and could pull a track nearest its own centerline into a wider neighbor on
+closely-spaced parallels). Both terms are required: heading-deviation alone degenerates for true parallels (28L/28R
+share a course), cross-track alone can misjudge convergent finals. On a geometric tie (within `FitTieEpsilon`), the
+**scratchpad runway** breaks it — `ScratchpadMatchesVolumeRunway` parses a runway from `Stars.Scratchpad1` (tolerant
+suffix match: the lossy scenario `I8R` matches canonical `28R`, `7L` matches `17L`) against
+`AtpaVolumeGeometry.VolumeRunwayDesignator`; an empty/unparseable scratchpad just doesn't fire, leaving association to
+geometry. Final tie-break is input order, for determinism. Re-association is recomputed statelessly each broadcast
+(no hysteresis): an established track sits at `cross ≈ 0` on its own centerline, anchoring its own-volume score near
+zero, so the assignment is stable without persisted state.
+
+The four candidate filters:
 
 1. **`AtpaVolumeGeometry.IsInside`** — a threshold-anchored rectangle that extends **OUTBOUND** from the threshold
    (the reciprocal of the approach course — aircraft established on the final sit behind the threshold relative to the
@@ -151,21 +179,28 @@ For each `AtpaVolumeConfig`, `ProcessVolume` collects aircraft that pass **four*
 2. **`IsExcludedByTcp`** (`AtpaProcessor.cs:174`) — drops aircraft whose track owner's `{Subset}{SectorId}` TCP code
    matches one of the volume's `ExcludedTcpIds`. The excluded ULIDs are resolved to codes via the same ULID→`{Subset}{SectorId}`
    map (`BuildTcpCodeMap`) used for the monitor/alert cones, then compared against the owner's code.
-3. **`IsExcludedByScratchpad`** (`:190`) — drops aircraft whose `Stars.Scratchpad1`/`Scratchpad2` (selected by the
-   config's `ScratchPadNumber` of `"One"`/`"Two"`) matches a configured exclusion `Entry`.
+3. **`ClassifyScratchpad`** — matches `Stars.Scratchpad1`/`Scratchpad2` (selected by the config's `ScratchPadNumber`
+   of `"One"`/`"Two"`) against a configured `Entry`, returning the rule's `Type`. **`Exclude`** drops the track from the
+   volume entirely (candidate filter — `continue`); **`Ineligible`** keeps it in the chain as a valid lead/reference for
+   the track behind it but flags it `SubjectEligible = false` so `PairVolume` emits no cone *for* it. Any non-`Ineligible`
+   type is treated as the stricter `Exclude`. An ineligible track interleaved between two arrivals therefore anchors the
+   trailing aircraft's cone at the *nearer* (ineligible) lead, not the next eligible one beyond it.
 4. **`IsEstablishedOnApproach`** (`AtpaVolumeGeometry.cs:77`) — airborne, `VerticalSpeed ≤ 100 fpm` (`MaxVerticalSpeedFpm`),
    and track within ±30° (`ApproachHeadingTolerance`) of the volume heading. Filters out departures, overflights, and
    vectored traffic that merely pass through the box.
 
 ### Sort, pair, and required separation
 
-Survivors are sorted ascending by along-track distance from threshold (lead at index 0). Each follower (`i ≥ 1`) is
-paired with the aircraft immediately ahead (`i-1`). Actual separation is the slant `DistanceNm`; required separation
-comes from `ComputeRequiredSeparation` (`AtpaProcessor.cs:114`):
+**Phase 2 — pairing.** `PairVolume` takes only the aircraft *assigned* to that volume in Phase 1, sorted ascending by
+along-track distance from threshold (lead at index 0). Each follower (`i ≥ 1`) is paired with the aircraft immediately
+ahead (`i-1`). Actual separation is the slant `DistanceNm`; required separation comes from `ComputeRequiredSeparation`:
 
-- If the volume has `TwoPointFiveApproachEnabled`, required separation is a flat **2.5 nm** (overrides the matrix).
-- Otherwise a wake matrix keyed on the **lead** and **follower** weight classes (derived from CWT, falling back to
-  `AircraftCategory` — see `MapCwtToWeightClass` at `:150`):
+- The radar floor is **2.5 nm** when `TwoPointFiveApproachEnabled` **and** the follower's along-final distance from
+  the threshold is within `TwoPointFiveApproachDistance` nm (vNAS "Reduced Separation Final Approach Distance", ~10);
+  outside that distance — or when reduced separation is off — the floor is **3.0 nm**. `TwoPointFiveApproachDistance`
+  defaults to 0 in older configs that omit it, so reduced separation simply doesn't apply there.
+- The wake (CWT) minimum still binds on top via `max(floor, wake)` — a matrix keyed on the **lead** and **follower**
+  weight classes (derived from CWT, falling back to `AircraftCategory`):
 
 | Lead \ Follower | Super | Heavy | Large | Small |
 |---|---|---|---|---|
@@ -178,8 +213,9 @@ STARS track's `TpaType` (Key 30 / `RemoteTpaType`), which is what CRC actually s
 when spacing is healthy, **Warning** (caution/yellow) when a loss is predicted within 45 s, **Alert** (orange) when
 already lost or predicted within 24 s. The two **static** adaptation lists tell CRC which positions may see each cone:
 `AtpaMonitorTcps` = the volume's `AlertAndMonitor` TCPs; `AtpaAlertTcps` = its `Alert` **and** `AlertAndMonitor` TCPs
-(the vNAS `AtpaConeType` enum is `{ Alert, AlertAndMonitor }` — not `Monitor`). Each follower's result is keyed by callsign and the **most
-recent volume wins** — real STARS shows only one ATPA pairing per aircraft.
+(the vNAS `AtpaConeType` enum is `{ Alert, AlertAndMonitor }` — not `Monitor`). Each follower's result is keyed by
+callsign; because Phase 1 association is exclusive, an aircraft is paired in at most one volume — real STARS shows only
+one ATPA pairing per aircraft.
 
 ---
 
@@ -299,8 +335,9 @@ here and have `aviation-sim-expert` review against the local FAA references.
 | `WidthLeft` / `WidthRight` | per-config | **feet** | Cross-track half-widths |
 | `Length` | per-config | nm | Along-track length |
 | `MaximumHeadingDeviation` | per-config | deg | Membership track tolerance |
-| 2.5-approach override | 2.5 | nm | Required separation when `TwoPointFiveApproachEnabled` |
-| Wake matrix | 3.0–8.0 | nm | Required separation by lead/follower weight class |
+| `CrossTrackFitReferenceNm` | 1.0 | nm | Fixed cross-track normalizer in the best-fit `FitScore` |
+| `TwoPointFiveApproachDistance` | per-config (~10) | nm | Within this distance of the threshold the floor is 2.5 nm (with `TwoPointFiveApproachEnabled`); else 3.0 |
+| Wake matrix | 3.0–8.0 | nm | Required separation by lead/follower weight class (binds on top via `max(floor, wake)`) |
 
 ### Visual acquisition — `VisualDetection.cs` + `VisualAcquisition.cs`
 
@@ -343,6 +380,14 @@ here and have `aviation-sim-expert` review against the local FAA references.
 - **Approach-corridor suppression is purely geometric.** `IsInAnyApproachCorridor` (`:202`) consults neither phase, nor
   active approach, nor destination. Any track merely flying through *any* internal airport's 4 nm × 30 nm × glideslope
   box suppresses CA — even an overflight not landing there.
+
+- **ATPA membership is exclusive — one aircraft, one volume.** `Process` Phase 1 assigns each established track to its
+  single best-fit volume *before* pairing, so a track is never sequenced in-trail against traffic on another final. Do
+  **not** revert to per-volume independent scanning: where adapted volumes overlap (KOAK 30/28R ~18° apart; the OAK 30
+  volume's 90° `MaximumHeadingDeviation` + 3 nm half-width reach onto the 28R final) that produced a bogus cross-runway
+  cone displaying the *wrong* separation standard (7110.65 §5-9-6 diagonal, not §5-9-5 in-trail). The fit metric must
+  keep **both** heading-deviation and cross-track terms — dropping cross-track breaks true parallels (28L/28R share a
+  course); the scratchpad runway is only a tie-break, never a hard gate (it's frequently empty for vectored-to-visual).
 
 - **`ExcludedTcpIds` matches on `{Subset}{SectorId}`, not the ULID.** The volume's `ExcludedTcpIds` hold ULIDs, but
   `Track.Owner` carries only `Subset`/`SectorId`. Rather than propagate the ULID onto `TrackOwner`, `IsExcludedByTcp`
