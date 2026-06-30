@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.8.4-beta [2026/06/29]
+
+### Highlights
+- **Coordinate-staged IFR departures start on the ground and taxi** — a "ready to taxi" departure placed at map coordinates with a preset `TAXI` route now follows it instead of flying off on unpause; no more recovering each one by hand.
+- **Arrival generators no longer all fire at once on startup** — with several randomized-interval generators, arrivals trickle in across the runways instead of appearing as a simultaneous burst.
+- **STARS ATPA in-trail cones stay within their own volume** — cones no longer appear between arrivals in separate ATPA volumes (e.g. Oakland 30 vs 28R), and reduced 2.5 NM spacing applies only inside the volume's final-approach distance.
+- **Clearer command rejections** — a command that can't apply in the aircraft's current state (e.g. a ground command issued to an airborne aircraft) now reads plainly instead of showing an internal "no dispatcher arm" diagnostic.
 
 ### Fixed
 - IFR departures staged at map coordinates at field elevation (with a preset `TAXI` command) now start on the ground and taxi via their preset route, instead of flying off in their spawn heading the moment the simulation is unpaused. Scenarios commonly place "ready to taxi" departures this way rather than at a named parking spot; previously each one had to be recovered by hand — setting its airport, warping it onto a taxiway, and re-issuing the taxi.
