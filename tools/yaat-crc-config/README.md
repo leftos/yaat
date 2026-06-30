@@ -43,7 +43,7 @@ The **macOS** download is a signed, notarized `.dmg`, so it opens without a Gate
 After running once, SmartScreen remembers it and won't warn again on the same machine.
 
 ### macOS
-Open `yaat-crc-config-macos-universal.dmg` and run the `yaat-crc-config` binary inside. It is signed with a Developer ID certificate and notarized by Apple, so no right-click-to-open or `xattr` step is needed.
+Open `yaat-crc-config-macos-universal.dmg` and double-click **`yaat-crc-config.app`** inside (or drag it to Applications first). The app is signed with a Developer ID certificate and notarized by Apple, so no right-click-to-open or `xattr` step is needed — on first launch just click **Open** in the standard macOS download prompt.
 
 ### Linux
 ```sh

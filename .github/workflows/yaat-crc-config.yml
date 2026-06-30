@@ -119,48 +119,87 @@ jobs:
           echo "enabled=true" >> "$GITHUB_OUTPUT"
           echo "KEYCHAIN_PATH=$keychain" >> "$GITHUB_ENV"
 
-      - name: Package macOS .dmg (sign, notarize, staple)
+      - name: Package macOS .app + .dmg (sign, notarize, staple)
         if: matrix.os == 'macos-latest'
         shell: bash
         working-directory: tools/yaat-crc-config
         env:
           SIGNING_ENABLED: ${{ steps.signing.outputs.enabled }}
           SIGN_APP_IDENTITY: ${{ secrets.MACOS_SIGN_APP_IDENTITY }}
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          version="${TAG#crc-config-v}"
           bin="target/universal2-apple-darwin/release/yaat-crc-config"
           staging="$RUNNER_TEMP/dmg-staging"
+          app="$staging/yaat-crc-config.app"
           dmg="$RUNNER_TEMP/yaat-crc-config-macos-universal.dmg"
 
+          # ---- Wrap the CLI binary in a minimal .app bundle ----
+          # The tool is dialog-driven (osascript on macOS) and meant to be
+          # double-clicked. A bare Mach-O cannot carry a stapled notarization
+          # ticket, so Gatekeeper re-verifies it on every launch and blocks it
+          # on recent macOS; an .app bundle can be stapled, so it opens offline.
           rm -rf "$staging"
-          mkdir -p "$staging"
-          cp "$bin" "$staging/yaat-crc-config"
-          chmod +x "$staging/yaat-crc-config"
+          mkdir -p "$app/Contents/MacOS"
+          cp "$bin" "$app/Contents/MacOS/yaat-crc-config"
+          chmod +x "$app/Contents/MacOS/yaat-crc-config"
+          {
+            echo '<?xml version="1.0" encoding="UTF-8"?>'
+            echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+            echo '<plist version="1.0">'
+            echo '<dict>'
+            echo '  <key>CFBundleName</key><string>yaat-crc-config</string>'
+            echo '  <key>CFBundleDisplayName</key><string>YAAT CRC Config</string>'
+            echo '  <key>CFBundleIdentifier</key><string>dev.leftos.yaat-crc-config</string>'
+            echo '  <key>CFBundleExecutable</key><string>yaat-crc-config</string>'
+            echo '  <key>CFBundlePackageType</key><string>APPL</string>'
+            echo '  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>'
+            echo "  <key>CFBundleVersion</key><string>$version</string>"
+            echo "  <key>CFBundleShortVersionString</key><string>$version</string>"
+            echo '  <key>LSMinimumSystemVersion</key><string>10.13</string>'
+            echo '</dict>'
+            echo '</plist>'
+          } > "$app/Contents/Info.plist"
 
-          if [ "$SIGNING_ENABLED" = "true" ]; then
-            # Hardened runtime (--options runtime) and a secure timestamp are
-            # mandatory for notarization. The binary needs no entitlements.
-            codesign --force --timestamp --options runtime \
-              --sign "$SIGN_APP_IDENTITY" --keychain "$KEYCHAIN_PATH" \
-              "$staging/yaat-crc-config"
-            codesign --verify --strict --verbose=2 "$staging/yaat-crc-config"
+          # Conventional drag-to-install target alongside the app.
+          ln -s /Applications "$staging/Applications"
+
+          if [ "$SIGNING_ENABLED" != "true" ]; then
+            # UDZO = compressed read-only image; the volume mounts as "yaat-crc-config".
+            hdiutil create -volname "yaat-crc-config" -srcfolder "$staging" \
+              -ov -format UDZO "$dmg"
+            mkdir -p ../../dist
+            cp "$dmg" "../../dist/${{ matrix.asset_name }}"
+            exit 0
           fi
 
-          # UDZO = compressed read-only image; the volume mounts as "yaat-crc-config".
+          # ---- Sign, notarize, and staple the .app (hardened runtime) ----
+          # Staple the bundle itself so it launches offline regardless of the
+          # surrounding .dmg.
+          codesign --force --timestamp --options runtime \
+            --sign "$SIGN_APP_IDENTITY" --keychain "$KEYCHAIN_PATH" "$app"
+          codesign --verify --strict --verbose=2 "$app"
+
+          app_zip="$RUNNER_TEMP/yaat-crc-config-app.zip"
+          ditto -c -k --keepParent "$app" "$app_zip"
+          # --wait blocks until Apple finishes (usually a few minutes). If the
+          # submission is rejected there is no ticket, so stapler staple fails
+          # and the step errors out.
+          xcrun notarytool submit "$app_zip" \
+            --keychain-profile "notary-profile" --keychain "$KEYCHAIN_PATH" --wait
+          xcrun stapler staple "$app"
+          xcrun stapler validate "$app"
+
+          # ---- Build the .dmg from the stapled app, then notarize + staple it ----
           hdiutil create -volname "yaat-crc-config" -srcfolder "$staging" \
             -ov -format UDZO "$dmg"
-
-          if [ "$SIGNING_ENABLED" = "true" ]; then
-            codesign --force --timestamp \
-              --sign "$SIGN_APP_IDENTITY" --keychain "$KEYCHAIN_PATH" "$dmg"
-            # --wait blocks until Apple finishes (usually a few minutes). If the
-            # submission is rejected there is no ticket, so the following
-            # stapler staple fails and the step errors out.
-            xcrun notarytool submit "$dmg" \
-              --keychain-profile "notary-profile" --keychain "$KEYCHAIN_PATH" --wait
-            xcrun stapler staple "$dmg"
-            xcrun stapler validate "$dmg"
-          fi
+          codesign --force --timestamp \
+            --sign "$SIGN_APP_IDENTITY" --keychain "$KEYCHAIN_PATH" "$dmg"
+          xcrun notarytool submit "$dmg" \
+            --keychain-profile "notary-profile" --keychain "$KEYCHAIN_PATH" --wait
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
 
           mkdir -p ../../dist
           cp "$dmg" "../../dist/${{ matrix.asset_name }}"
@@ -231,10 +270,11 @@ jobs:
 
             ### First-run security warnings
 
-            The macOS `.dmg` is signed with a Developer ID certificate and
-            notarized by Apple, so it opens without a Gatekeeper workaround. The
-            Windows and Linux binaries are unsigned:
+            The macOS `.app` (shipped inside the `.dmg`) is signed with a
+            Developer ID certificate and notarized by Apple, so it opens without
+            a Gatekeeper workaround. The Windows and Linux binaries are unsigned:
             - **Windows SmartScreen**: Click "More info" → "Run anyway".
-            - **macOS**: Open the `.dmg` and run the `yaat-crc-config` binary
-              inside — no right-click-to-open or `xattr` step needed.
+            - **macOS**: Open the `.dmg`, then double-click `yaat-crc-config.app`
+              (or drag it to Applications). Click **Open** on the standard
+              first-launch prompt — no right-click-to-open or `xattr` step.
             - **Linux**: `chmod +x yaat-crc-config-linux-x86_64` then run.

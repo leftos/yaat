@@ -922,7 +922,7 @@ The OAK clearances scenario `docs/atctrainer-scenario-examples/01H06NVK7VN8BS7MC
 
 ## yaat-crc-config — Standalone Rust binary (`tools/yaat-crc-config/`)
 
-Tiny (~200 KB) standalone tool that ports the YAAT client's `Tools → Configure CRC Environments` flow into a single small binary. Lets students who only want to point CRC at YAAT skip installing the full client. Released independently from the `crc-config-v*` tag via `.github/workflows/yaat-crc-config.yml`; the macOS build is signed with the client's Developer ID Application certificate and shipped as a notarized, stapled `.dmg`, while Windows and Linux ship the bare executable.
+Tiny (~200 KB) standalone tool that ports the YAAT client's `Tools → Configure CRC Environments` flow into a single small binary. Lets students who only want to point CRC at YAAT skip installing the full client. Released independently from the `crc-config-v*` tag via `.github/workflows/yaat-crc-config.yml`; the macOS build wraps the binary in a minimal `.app` bundle (the tool is dialog-driven, so it is double-clickable), signs it with the client's Developer ID Application certificate, and ships it notarized and stapled inside a likewise-notarized `.dmg`. A bare Mach-O cannot carry a stapled ticket, so the `.app` wrapper is what lets Gatekeeper clear it offline. Windows and Linux ship the bare executable.
 
 ```
 Cargo.toml                     # Size-optimized release profile (opt-level=z, lto=fat, panic=abort, strip)

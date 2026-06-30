@@ -30,11 +30,13 @@ secret.
 
 The standalone **`yaat-crc-config`** tool (`.github/workflows/yaat-crc-config.yml`)
 reuses the same Developer ID **Application** certificate and notary key to sign,
-notarize, and staple its macOS `.dmg`. A `.dmg` is signed with the Application
-identity, so the tool does **not** touch the Installer cert or identity (those
-are only for the client's `.pkg`) — it reads six of the eight secrets:
-`MACOS_DEVID_APP_CERT_P12_BASE64`, `MACOS_DEVID_CERT_PASSWORD`,
-`MACOS_SIGN_APP_IDENTITY`, and the three `MACOS_NOTARY_API_*` values.
+notarize, and staple its macOS build: the CLI binary is wrapped in a `.app`
+bundle (a bare Mach-O cannot be stapled), and both the `.app` and the enclosing
+`.dmg` are signed with the Application identity. The tool does **not** touch the
+Installer cert or identity (those are only for the client's `.pkg`) — it reads
+six of the eight secrets: `MACOS_DEVID_APP_CERT_P12_BASE64`,
+`MACOS_DEVID_CERT_PASSWORD`, `MACOS_SIGN_APP_IDENTITY`, and the three
+`MACOS_NOTARY_API_*` values.
 
 ## Step 1 — Create the two Developer ID certificates (on a Mac)
 
