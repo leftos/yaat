@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- IFR departures staged at map coordinates at field elevation (with a preset `TAXI` command) now start on the ground and taxi via their preset route, instead of flying off in their spawn heading the moment the simulation is unpaused. Scenarios commonly place "ready to taxi" departures this way rather than at a named parking spot; previously each one had to be recovered by hand — setting its airport, warping it onto a taxiway, and re-issuing the taxi.
 - STARS ATPA in-trail cones no longer appear between arrivals that belong to different ATPA volumes (for example one aircraft on final to runway 30 and another to 28R at Oakland, which sit in the separate O30 and O28 volumes). Each arrival is now assigned to a single ATPA volume and only compared against other aircraft in that same volume, instead of being pulled into a neighboring volume whose geometry happened to overlap its final.
 - STARS ATPA reduced (2.5 NM) final separation now applies only within the volume's configured final-approach distance (typically 10 NM of the threshold); beyond that distance the required spacing reverts to 3.0 NM. It was previously applied across the whole volume.
 - STARS ATPA scratchpad "Ineligible" rules now keep the matched track as a spacing reference for the aircraft behind it (with no cone of its own), instead of removing it from the sequence entirely the way an "Exclude" rule does.

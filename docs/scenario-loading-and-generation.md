@@ -99,16 +99,19 @@ to the world and `DispatchPresetCommands` runs synchronously; delayed aircraft a
 
 | Type | Position source | Phase seeding | Notes |
 |---|---|---|---|
-| `Coordinates` | explicit lat/lon | none until ground check (below) | airborne unless near field elevation at 0 kt |
+| `Coordinates` | explicit lat/lon | none until ground check (below) | airborne unless at/near field elevation with no positive authored speed |
 | `FixOrFrd` | `FrdResolver.Resolve(fix)` | none until ground check | accepts a fix name or an FRD string |
 | `OnRunway` | `AircraftInitializer.InitializeOnRunway` | `LinedUpAndWaiting → Takeoff → InitialClimb` | helicopter swaps in `HelicopterTakeoffPhase` |
 | `OnFinal` | `AircraftInitializer.InitializeOnFinal` | `FinalApproach(SkipInterceptCheck) → Landing` | helicopter swaps in `HelicopterLandingPhase` |
 | `Parking` | `layout.FindParkingByName ?? FindSpotByName` | `AtParkingPhase` | sets `Ground.AutoDeleteExempt` and `IsScriptedDeparture` |
 
-`Coordinates` and `FixOrFrd` share a code path: after resolving position/altitude/speed, if `speed <= 0` and altitude is within
-200 ft of field elevation, the aircraft is marked `IsOnGround`, given an `AtParkingPhase`, and assigned a ground layout
-(`ScenarioLoader.cs:277`). Speed defaults are subtle: when **both** altitude and speed are omitted, speed is `0` (a ground
-spawn); otherwise an omitted speed is `-1`, later resolved to `AircraftPerformance.DefaultSpeed` for the type/category/altitude.
+`Coordinates` and `FixOrFrd` share a code path. The ground check runs **before** the cruise-speed default: if the authored speed is
+non-positive (`0` when both altitude and speed are omitted, `-1` when altitude is authored but speed omitted) and altitude is within
+200 ft of field elevation, the aircraft is a ground spawn — speed is forced to `0`, it is marked `IsOnGround`, given an
+`AtParkingPhase`, assigned a ground layout, and (mirroring the `Parking` path) flagged `Ground.AutoDeleteExempt` +
+`IsScriptedDeparture` so a `TAXI` preset fires and it isn't culled under `autoDeleteMode: Parked`. Only an airborne spawn falls
+through to `AircraftPerformance.DefaultSpeed`. Order matters: resolving the default first would turn the `-1` sentinel into a
+positive cruise speed and spawn a field-elevation departure airborne.
 
 `AircraftInitializer` (`src/Yaat.Sim/Scenarios/AircraftInitializer.cs`) is the shared phase/pose builder:
 
@@ -444,8 +447,11 @@ reattachment pattern.
 - **`AircraftType` is the physical type; `FlightPlan.AircraftType` is opt-in filed paperwork.** Performance always reads the
   top-level type. Treating the filed FP type as the physical type breaks performance for any scenario that files a different
   type (or none).
-- **The `Coordinates`/`FixOrFrd` speed default is mode-dependent.** Both altitude and speed omitted → speed 0 (ground spawn).
-  Only one omitted → `-1` → resolved to a category default. Don't assume omitted speed always means a default cruise speed.
+- **The `Coordinates`/`FixOrFrd` speed default is mode-dependent, and the ground check runs first.** Both altitude and speed
+  omitted → speed 0 (ground spawn). Altitude authored at/near field elevation with speed omitted → also a ground spawn (speed
+  forced to 0), *not* a cruise default — the ground gate is evaluated against the `-1` sentinel before `DefaultSpeed` resolves it.
+  Only a genuinely airborne spawn (above field elevation, or an explicit positive speed) resolves to a category cruise default.
+  Don't reorder the default resolution ahead of the ground check, or field-elevation departures spawn airborne and fly off.
 - **Generator `MaxTime` is `int?`; null means run forever, not "stop at 3600".** Most published scenarios omit `maxTime`, so the
   generator must keep feeding traffic for the whole session — only a non-null value exhausts it. Likewise an omitted
   `intervalDistance` resolves to `0` (radar/wake floor only), not a 5 nm author floor. Don't reintroduce non-null numeric

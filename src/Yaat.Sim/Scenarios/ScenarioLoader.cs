@@ -263,7 +263,18 @@ public static class ScenarioLoader
 
         var category = AircraftCategorization.Categorize(ac.AircraftType);
 
-        if (speed < 0)
+        // Ground detection runs against the *unresolved* speed sentinel, before the cruise-speed
+        // default. `speed` is 0 (altitude and speed both omitted) or -1 (altitude authored at field
+        // elevation, speed omitted) — both mean "no positive authored speed", i.e. a ground spawn.
+        // Resolving DefaultSpeed first would turn the -1 sentinel into a positive cruise speed and
+        // make the gate fail, spawning a departure that sits at field elevation airborne.
+        var agl = alt - fieldElevation;
+        var onGround = speed <= 0 && agl < 200;
+        if (onGround)
+        {
+            speed = 0;
+        }
+        else if (speed < 0)
         {
             speed = AircraftPerformance.DefaultSpeed(ac.AircraftType, category, alt, null);
         }
@@ -274,18 +285,20 @@ public static class ScenarioLoader
         state.IndicatedAirspeed = speed;
         AssignSpawnBeacon(state, ac, rng);
 
-        // Ground detection: near field elevation + zero speed = on the ground
-        var agl = alt - fieldElevation;
-        if (speed <= 0 && agl < 200)
+        if (onGround)
         {
             state.IsOnGround = true;
             var phases = new PhaseList();
             phases.Add(new AtParkingPhase());
             state.Phases = phases;
 
-            // Resolve ground layout from departure (on-ground aircraft) or destination
+            // Resolve ground layout from departure (on-ground aircraft) or destination, mirror the
+            // Parking path: exempt from Parked auto-delete and flag scripted-departure when a TAXI
+            // preset drives the ground sequence.
             var groundAirportId = ac.FlightPlan?.Departure ?? ac.FlightPlan?.Destination;
             state.Ground.Layout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
+            state.Ground.AutoDeleteExempt = true;
+            state.Ground.IsScriptedDeparture = HasTaxiPreset(ac.PresetCommands);
         }
 
         var navigationPath = ResolveVersionChanges(cond.NavigationPath ?? "", state, warnings);
