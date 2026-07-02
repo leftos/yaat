@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.8.6-beta [2026/07/02]
+
+### Highlights
+- **Call for Release (CFR) windows** — release a departure around an assigned Zulu time with the FAA −2/+1 min compliance window, a live countdown badge, and an amber alert if it departs outside it.
+- **Per-aircraft command recall** — with an aircraft selected, Up/Down in the command line walk only the commands you sent to that aircraft (plus global ones like `PAUSE`); remembered across restarts.
+- **Terminal strip-traffic channel (STRP)** — a new toggle hides flight-strip command echoes and their feedback in one click, with its own customizable color.
+- **Re-route a holding or following aircraft** — right-clicking one that's holding in position or following another on the ground now offers Preset/Draw taxi route without resuming its taxi first.
 
 ### Added
 - **Call for Release (CFR) release-time window.** `CFR <HHMM>` releases the selected departure with the FAA −2/+1 min compliance window around the assigned Zulu time (7110.65 §4-3-4.e.5); bare `CFR` releases immediately, `CFR OFF` clears it, and `CFR CHECK` prints the window status. It never blocks a takeoff — if the departure gets airborne outside the window, or is still holding when it expires, YAAT posts an amber instructor warning (plus an aircraft bubble when warning bubbles are on). While a window is active the Aircraft List shows a live `CFR M:SS` countdown badge in the Info column. The window tracks real-world time, so it's unaffected by pausing or scrubbing the timeline.
