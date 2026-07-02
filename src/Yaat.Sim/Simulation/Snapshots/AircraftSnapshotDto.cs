@@ -227,20 +227,37 @@ public sealed class PilotPendingRequestDto
 
 public sealed class ApproachScoreDto
 {
+    // Identity
     public required string Callsign { get; init; }
+
+    // AircraftType was added when ApproachScore round-trip was wired (issue #220); pre-fix
+    // snapshots that carried an ActiveApproachScore lack it, so it defaults to "" rather than null.
+    public string AircraftType { get; init; } = "";
     public required string ApproachId { get; init; }
-    public required string AirportCode { get; init; }
     public required string RunwayId { get; init; }
-    public double? InterceptAngleDeg { get; init; }
-    public double? InterceptDistanceNm { get; init; }
-    public double? EstablishedDistanceNm { get; init; }
-    public double? EstablishedAngleDeg { get; init; }
-    public double? GlideSlopeDeviationAtThresholdDeg { get; init; }
-    public double? LocalizerDeviationAtThresholdDeg { get; init; }
-    public double? TouchdownDistanceFromThresholdFt { get; init; }
-    public double? TouchdownCenterlineOffsetFt { get; init; }
-    public required bool GoAround { get; init; }
-    public string? GoAroundReason { get; init; }
+    public required string AirportCode { get; init; }
+
+    // Intercept metrics
+    public double InterceptAngleDeg { get; init; }
+    public double InterceptDistanceNm { get; init; }
+    public double MinInterceptDistanceNm { get; init; }
+    public double GlideSlopeDeviationFt { get; init; }
+    public double SpeedAtInterceptKts { get; init; }
+    public bool WasForced { get; init; }
+    public bool IsPatternTraffic { get; init; }
+
+    // TBL 5-9-1 legality
+    public double MaxAllowedAngleDeg { get; init; }
+    public bool IsInterceptAngleLegal { get; init; }
+    public bool IsInterceptDistanceLegal { get; init; }
+
+    // Timestamps (scenario elapsed seconds)
+    public double EstablishedAtSeconds { get; init; }
+    public double? LandedAtSeconds { get; init; }
+
+    // Position at establishment (for separation computation)
+    public double EstablishedLat { get; init; }
+    public double EstablishedLon { get; init; }
 }
 
 public sealed class PendingApproachDto

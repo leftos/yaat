@@ -1,3 +1,5 @@
+using Yaat.Sim.Simulation.Snapshots;
+
 namespace Yaat.Sim.Phases;
 
 /// <summary>
@@ -35,4 +37,52 @@ public sealed class ApproachScore
     // Position at establishment (for separation computation)
     public double EstablishedLat { get; set; }
     public double EstablishedLon { get; set; }
+
+    public ApproachScoreDto ToSnapshot() =>
+        new()
+        {
+            Callsign = Callsign,
+            AircraftType = AircraftType,
+            ApproachId = ApproachId,
+            RunwayId = RunwayId,
+            AirportCode = AirportCode,
+            InterceptAngleDeg = InterceptAngleDeg,
+            InterceptDistanceNm = InterceptDistanceNm,
+            MinInterceptDistanceNm = MinInterceptDistanceNm,
+            GlideSlopeDeviationFt = GlideSlopeDeviationFt,
+            SpeedAtInterceptKts = SpeedAtInterceptKts,
+            WasForced = WasForced,
+            IsPatternTraffic = IsPatternTraffic,
+            MaxAllowedAngleDeg = MaxAllowedAngleDeg,
+            IsInterceptAngleLegal = IsInterceptAngleLegal,
+            IsInterceptDistanceLegal = IsInterceptDistanceLegal,
+            EstablishedAtSeconds = EstablishedAtSeconds,
+            LandedAtSeconds = LandedAtSeconds,
+            EstablishedLat = EstablishedLat,
+            EstablishedLon = EstablishedLon,
+        };
+
+    public static ApproachScore FromSnapshot(ApproachScoreDto dto) =>
+        new()
+        {
+            Callsign = dto.Callsign,
+            AircraftType = dto.AircraftType,
+            ApproachId = dto.ApproachId,
+            RunwayId = dto.RunwayId,
+            AirportCode = dto.AirportCode,
+            InterceptAngleDeg = dto.InterceptAngleDeg,
+            InterceptDistanceNm = dto.InterceptDistanceNm,
+            MinInterceptDistanceNm = dto.MinInterceptDistanceNm,
+            GlideSlopeDeviationFt = dto.GlideSlopeDeviationFt,
+            SpeedAtInterceptKts = dto.SpeedAtInterceptKts,
+            WasForced = dto.WasForced,
+            IsPatternTraffic = dto.IsPatternTraffic,
+            MaxAllowedAngleDeg = dto.MaxAllowedAngleDeg,
+            IsInterceptAngleLegal = dto.IsInterceptAngleLegal,
+            IsInterceptDistanceLegal = dto.IsInterceptDistanceLegal,
+            EstablishedAtSeconds = dto.EstablishedAtSeconds,
+            LandedAtSeconds = dto.LandedAtSeconds,
+            EstablishedLat = dto.EstablishedLat,
+            EstablishedLon = dto.EstablishedLon,
+        };
 }

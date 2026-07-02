@@ -354,6 +354,7 @@ public class AircraftState
             DataBlock = dto.DataBlock is not null ? AircraftDataBlock.FromSnapshot(dto.DataBlock) : new(),
             Queue = CommandQueue.FromSnapshot(dto.Queue),
             Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
+            ActiveApproachScore = dto.ActiveApproachScore is not null ? ApproachScore.FromSnapshot(dto.ActiveApproachScore) : null,
         };
 
         ac.WindComponents = (dto.WindN, dto.WindE);
@@ -429,19 +430,7 @@ public class AircraftState
             Ghost = Ghost.ToSnapshot(),
             DataBlock = DataBlock.ToSnapshot(),
             PositionHistory = PositionHistory.Count > 0 ? PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon }).ToList() : null,
-            ActiveApproachScore = ActiveApproachScore is { } score
-                ? new ApproachScoreDto
-                {
-                    Callsign = score.Callsign,
-                    ApproachId = score.ApproachId,
-                    AirportCode = score.AirportCode,
-                    RunwayId = score.RunwayId,
-                    InterceptAngleDeg = score.InterceptAngleDeg,
-                    InterceptDistanceNm = score.InterceptDistanceNm,
-                    EstablishedDistanceNm = score.MinInterceptDistanceNm,
-                    GoAround = false,
-                }
-                : null,
+            ActiveApproachScore = ActiveApproachScore?.ToSnapshot(),
             Targets = Targets.ToSnapshot(),
             Queue = Queue.ToSnapshot(),
             Phases = Phases?.ToSnapshot(),

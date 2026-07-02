@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 14;
+    public const int CurrentSchemaVersion = 15;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -96,6 +96,13 @@ public static class SnapshotSchemaMigrator
         // V13→V14: Added AircraftSnapshotDto.DataBlock (STARS Track Reposition surveillance/datablock
         //   split). No data transformation — older snapshots default to a Bound datablock (no parked
         //   unsupported datablock), exactly the pre-feature behavior.
+        // V14→V15: Reshaped ApproachScoreDto to faithfully round-trip ApproachScore and started
+        //   restoring AircraftSnapshotDto.ActiveApproachScore in AircraftState.FromSnapshot (it was
+        //   serialized lossily and never restored, so an approach established-but-not-yet-landed lost
+        //   its score across rewind/reload and the subsequent landing was never stamped). No data
+        //   transformation — the removed phantom fields are ignored on read and the added fields
+        //   default cleanly (AircraftType to "", others to 0/false); a legacy ActiveApproachScore now
+        //   restores best-effort instead of being silently dropped.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

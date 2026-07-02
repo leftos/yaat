@@ -5,6 +5,9 @@
 ### Added
 - Right-clicking an aircraft that is holding in position or following another aircraft on the ground now offers **Preset taxi route** and **Draw taxi route...**, so you can re-route it from its current position without first resuming its taxi. These options were previously available only for parked, actively-taxiing, and holding-short aircraft.
 
+### Fixed
+- After a timeline rewind or recording reload, an aircraft established on final still records its landing in the session's approach report and runway spacing stats.
+
 ## v0.8.5-beta [2026/07/01]
 
 ### Fixed
