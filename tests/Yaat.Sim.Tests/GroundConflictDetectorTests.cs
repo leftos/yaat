@@ -1063,4 +1063,63 @@ public class GroundConflictDetectorTests
             $"Merge-order leader (nearer node 17) must proceed, got limit={winner.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
         );
     }
+
+    /// <summary>
+    /// Issue #224: a follower taxiing up behind a stationary lead on a merging TE lane at OAK
+    /// must be the one HELD — never released "through" the lead. Two B738s merge onto TE lane
+    /// 949→1: SWA863 (route starts at node 949) sits stationary having just been cleared to
+    /// taxi; SWA1182 taxis down TE with SWA863 dead ahead (~1° off its nose). The merge node is
+    /// SWA863's route-start (a from-node, invisible to convergence detection) and the current
+    /// segments differ, so the pair classifies as Crossing and both compute a mutual
+    /// proximity-stop. The mutual-stop tie-break must hold the follower (SWA1182) and let the
+    /// lead (SWA863) proceed — not pick by callsign ordinal, which held SWA863 and released
+    /// SWA1182 straight into it (7110.65 §3-7-2.a FOLLOW/BEHIND sequencing).
+    ///
+    /// Captured geometry (bundle t≈585): SWA863 37.709154/-122.214694 hdg 107.5;
+    /// SWA1182 hdg 216, ~146 ft NE. The real 146 ft gap sits only in the trail band; the
+    /// mutual-stop branch fires inside the ~135 ft two-B738 stop distance, so the test tightens
+    /// the gap to 90 ft with SWA863 placed dead ahead on SWA1182's 216° nose.
+    /// </summary>
+    [Fact]
+    public void Crossing_FollowerBehindStationaryLead_HoldsFollower_ReleasesLead()
+    {
+        TestVnasData.EnsureInitialized();
+
+        // A throwaway edge so both aircraft classify as Taxiing (routes only need a current
+        // segment; layout is passed null so the pair resolves via the Crossing path — matching
+        // the real bug, where FindSharedUpcomingNode misses the route-start merge node).
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge = layout.Edges[0];
+
+        var swa863Pos = new LatLon(37.709154, -122.214694);
+        // SWA1182 sits 90 ft from SWA863 on bearing 036°, so SWA863 is dead ahead on
+        // SWA1182's 216° nose (216 = 036 + 180) while SWA1182 is ~71° off SWA863's nose.
+        var swa1182Pos = GeoMath.ProjectPoint(swa863Pos, new TrueHeading(36.0), 90.0 / FtPerNm);
+
+        var swa863 = MakeAircraft(
+            "SWA863",
+            swa863Pos,
+            heading: 107.5,
+            gs: 0,
+            taxiRoute: MakeRoute(MakeSeg(949, 1, "TE", edge)),
+            phase: new TaxiingPhase()
+        );
+        var swa1182 = MakeAircraft(
+            "SWA1182",
+            swa1182Pos,
+            heading: 216.0,
+            gs: 8,
+            taxiRoute: MakeRoute(MakeSeg(948, 949, "TE", edge)),
+            phase: new TaxiingPhase()
+        );
+
+        GroundConflictDetector.ApplySpeedLimits([swa863, swa1182], null);
+
+        // The follower (SWA863 dead ahead of it) holds; the lead (pointed away) proceeds.
+        Assert.Equal(0.0, swa1182.Ground.SpeedLimit);
+        Assert.True(
+            swa863.Ground.SpeedLimit is null || swa863.Ground.SpeedLimit > 0,
+            $"Lead SWA863 should proceed (SWA1182 is ~71° off its nose), got limit={swa863.Ground.SpeedLimit?.ToString("F1") ?? "null"}"
+        );
+    }
 }

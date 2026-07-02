@@ -25,10 +25,12 @@
 //   • Crossing          — close in space, no shared route node, not same-edge.
 //     Resolved to one-holds-one-goes (ResolveCrossing): an aircraft on the
 //     runway surface has priority; a yielder keeps its heading-based closing
-//     pin even when stopped (no self-pin crawl); if both would stop, one
-//     deterministic holder (callsign) holds while the other proceeds. Head-on
-//     fallback (both stop) applies only to near-anti-parallel approaches
-//     (>= HeadOnMinHeadingDiffDeg); oblique crossings use the holder arbitration.
+//     pin even when stopped (no self-pin crawl); if both would stop, the holder
+//     is chosen by ChooseMutualStopHolder — the follower (other aircraft nearly
+//     dead-ahead of it) holds while the lead proceeds, or a deterministic callsign
+//     tie-break for near-symmetric geometry. Head-on fallback (both stop) applies
+//     only to near-anti-parallel approaches (>= HeadOnMinHeadingDiffDeg); oblique
+//     crossings use the holder arbitration.
 //
 // Hold classification: a routed aircraft with Ground.Hold set (HOLDPOSITION or
 // GIVEWAY) classifies as Stationary. It won't move until the resume condition
@@ -86,6 +88,16 @@ public static class GroundConflictDetector
     // mutual-stop that real ground control never does. They resolve via the
     // closing/arbitration rules (one holds, one goes) instead.
     private const double HeadOnMinHeadingDiffDeg = 150.0;
+
+    // When two same-priority movers would each stop for the other, hold the "follower" (the one
+    // with the other nearer dead-ahead — a small off-nose angle) and release the "lead" (the one
+    // with the other more abeam), which increases separation as it proceeds. This is the auto
+    // equivalent of FOLLOW/BEHIND sequencing (7110.65 3-7-2.a). Only trust it when the two
+    // off-nose angles differ by at least this margin; below it the geometry is effectively
+    // symmetric (a true perpendicular crossing / near head-on) with no follow relationship, so the
+    // deterministic callsign tie-break stands. Purely a function of positions+headings+callsigns,
+    // so it is deterministic and cannot oscillate.
+    private const double FollowerLeadOffNoseMarginDeg = 30.0;
 
     public static Action<string>? DebugSink { get; set; }
     public static bool WingspanLateralCheckEnabled { get; set; } = true;
@@ -859,9 +871,12 @@ public static class GroundConflictDetector
 
         if (limitForA is { Limit: <= 0 } && limitForB is { Limit: <= 0 })
         {
-            // Crossing collision course: both would stop. Pick one holder
-            // deterministically so one proceeds instead of a mutual deadlock.
-            var holder = string.CompareOrdinal(a.Callsign, b.Callsign) >= 0 ? a : b;
+            // Crossing collision course: both would stop. Hold one so the other proceeds instead of
+            // a mutual deadlock. When one aircraft is the clear follower (the other dead-ahead of
+            // it), hold the follower and let the lead go — never release a follower through the
+            // aircraft it is trailing; symmetric geometry falls back to a deterministic callsign
+            // tie-break. closeDirA/closeDirB are non-null here (a <= 0 limit was computed from each).
+            var holder = ChooseMutualStopHolder(a, closeDirA!.Value, b, closeDirB!.Value);
             var mover = ReferenceEquals(holder, a) ? b : a;
             diagnosticLog?.Invoke($"  [Crossing] mutual stop: {holder.Callsign} holds, {mover.Callsign} proceeds");
             ApplyMinLimit(holder, 0, "crossing hold", mover, distFt);
@@ -911,9 +926,10 @@ public static class GroundConflictDetector
             // The pair is a Crossing on the ground graph — i.e. they are on different, non-converging
             // edges, so their routes diverge past this point (a true same-corridor head-on would have
             // classified as SameEdgeHeadOn). Stopping BOTH gridlocks them — and a turning aircraft is
-            // momentarily anti-parallel to a neighbour it will turn away from. Hold one deterministically
-            // and let the other proceed; its closing-proximity limit still fires if they actually close.
-            var holder = string.CompareOrdinal(a.Callsign, b.Callsign) >= 0 ? a : b;
+            // momentarily anti-parallel to a neighbour it will turn away from. Hold one and let the
+            // other proceed (follower-aware, callsign fallback for the near-symmetric anti-parallel
+            // case); its closing-proximity limit still fires if they actually close.
+            var holder = ChooseMutualStopHolder(a, dirA, b, dirB);
             var mover = ReferenceEquals(holder, a) ? b : a;
             ApplyMinLimit(holder, 0, "head-on hold", mover, distFt);
             return;
@@ -1034,6 +1050,28 @@ public static class GroundConflictDetector
             diff = 360 - diff;
         }
         return diff;
+    }
+
+    /// <summary>
+    /// Picks which aircraft to HOLD when two same-priority movers would each stop for the other.
+    /// If one has the other clearly more dead-ahead than vice versa (off-nose angles differ by at
+    /// least <see cref="FollowerLeadOffNoseMarginDeg"/>), that aircraft is the follower and holds,
+    /// letting the lead — which has the other more abeam and moves away as it proceeds — go first
+    /// (auto FOLLOW/BEHIND, 7110.65 3-7-2.a). Otherwise the geometry is effectively symmetric and a
+    /// deterministic callsign tie-break decides. <paramref name="dirA"/>/<paramref name="dirB"/> are
+    /// the movement (closing) directions the caller already resolved. Deterministic; no oscillation.
+    /// </summary>
+    private static AircraftState ChooseMutualStopHolder(AircraftState a, double dirA, AircraftState b, double dirB)
+    {
+        double offNoseA = HeadingDifference(dirA, GeoMath.BearingTo(a.Position, b.Position));
+        double offNoseB = HeadingDifference(dirB, GeoMath.BearingTo(b.Position, a.Position));
+
+        if (Math.Abs(offNoseA - offNoseB) >= FollowerLeadOffNoseMarginDeg)
+        {
+            return offNoseA < offNoseB ? a : b;
+        }
+
+        return string.CompareOrdinal(a.Callsign, b.Callsign) >= 0 ? a : b;
     }
 
     private static double DistToSegTarget(AircraftState ac, TaxiRouteSegment seg, AirportGroundLayout layout)
