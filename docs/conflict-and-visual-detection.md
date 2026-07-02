@@ -110,7 +110,7 @@ writing the minimum surviving cap onto `Ground.SpeedLimit`:
 |---|---|
 | `Distant` | Too far apart to interact — no cap |
 | `Stationary` | One/both parked or held — wingspan-lateral-clearance bypass lets movers pass |
-| `Pushback` | A pushing aircraft is involved |
+| `Pushback` | A pushing aircraft is involved. A pusher hard-stops for a moving/taxiing/pushing aircraft in its rear arc, but a **genuinely parked/held** neighbor (`IsParkedOrHeld`) is a passable obstacle — it routes through the graduated closing logic (`ApplyClosingLimit`) so a gate pushback clears an aircraft parked at the adjacent gate, stopping only within actual collision distance |
 | `SameEdgeTrailing` | Same edge, same direction (`ToNodeId` matches) — trailing aircraft caps to follow |
 | `SameEdgeHeadOn` | Same edge, opposite direction — deterministic holder picked (more remaining route, callsign tie-break) |
 | `Converging` | Routes share an upcoming node from different edges — yielder (farther from the node) holds, merge-order leader (nearer) proceeds through first |

@@ -456,6 +456,51 @@ public class GroundConflictDetectorTests
     }
 
     [Fact]
+    public void PushingTowardParkedNeighbor_DoesNotHardStop()
+    {
+        // Issue #222: A pushes back south toward B, which is PARKED at an adjacent
+        // gate ~180 ft ahead — beyond collision distance (stopDist ~154 ft for the
+        // B738 pair) but inside the 200 ft pushback buffer. A pushback must not be
+        // pinned to 0 by a parked neighbor; it may creep at its pushback speed.
+        var a = MakeAircraft("A", new LatLon(BaseLat + 1.8 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        a.Phases = new PhaseList();
+        a.Phases.Add(new PushbackPhase());
+        a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+
+        var b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        // Not pinned to 0 — the pushback can still creep (>= slow-taxi speed) past
+        // the parked aircraft rather than deadlocking until the controller issues BREAK.
+        Assert.True(
+            a.Ground.SpeedLimit is null || a.Ground.SpeedLimit > 0,
+            $"Pushback should not be hard-stopped by a parked neighbor, but SpeedLimit={a.Ground.SpeedLimit}"
+        );
+    }
+
+    [Fact]
+    public void PushingTowardParkedNeighbor_TooClose_StillStops()
+    {
+        // Safety floor: when the parked neighbor is within actual collision distance
+        // (~120 ft < stopDist ~154 ft for the B738 pair, dead ahead), the pushback
+        // still hard-stops so it does not back into the parked aircraft.
+        var a = MakeAircraft("A", new LatLon(BaseLat + 1.2 * OffsetLatPer100Ft, BaseLon), heading: 0, gs: 3, pushbackHeading: 180);
+        a.Phases = new PhaseList();
+        a.Phases.Add(new PushbackPhase());
+        a.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+
+        var b = MakeAircraft("B", new LatLon(BaseLat, BaseLon), heading: 0, gs: 0, phase: new AtParkingPhase());
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null);
+
+        Assert.NotNull(a.Ground.SpeedLimit);
+        Assert.Equal(0.0, a.Ground.SpeedLimit!.Value);
+    }
+
+    [Fact]
     public void TwoMoving_HeadOn_NoLayout_BothStop()
     {
         // A heading north, B heading south, 250ft apart, both moving

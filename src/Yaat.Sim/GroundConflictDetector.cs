@@ -231,7 +231,7 @@ public static class GroundConflictDetector
                     case PairKind.Pushback:
                         // Pushback is its own world — the dedicated buffer logic is
                         // sufficient; we don't run closing/head-on on top.
-                        ResolvePushbackYield(a, stateA, dirA, b, stateB, dirB, distFt);
+                        ResolvePushbackYield(a, stateA, dirA, b, stateB, dirB, distFt, diagnosticLog);
                         break;
 
                     case PairKind.SameEdgeTrailing:
@@ -608,7 +608,8 @@ public static class GroundConflictDetector
         AircraftState b,
         MovementState stateB,
         double? dirB,
-        double distFt
+        double distFt,
+        Action<string>? diagnosticLog
     )
     {
         if (distFt > PushbackBufferFt)
@@ -618,19 +619,38 @@ public static class GroundConflictDetector
 
         if (stateA == MovementState.Pushing && dirA is not null)
         {
-            double bearing = GeoMath.BearingTo(a.Position, b.Position);
-            if (HeadingDifference(dirA.Value, bearing) < 90)
+            // A genuinely parked/held neighbor at a gate is a passable obstacle, not a
+            // hard stop — a gate pushback clears an aircraft parked at the adjacent gate
+            // as a matter of course. Use the graduated closing logic (stop only within
+            // actual collision distance, otherwise creep past) instead of pinning the
+            // pusher to 0, which otherwise forced the controller to issue repeated BREAKs.
+            if (IsParkedOrHeld(b))
             {
-                ApplyMinLimit(a, 0, "pushback yield", b, distFt);
+                ApplyClosingLimit(a, dirA.Value, b, stateB, distFt, diagnosticLog);
+            }
+            else
+            {
+                double bearing = GeoMath.BearingTo(a.Position, b.Position);
+                if (HeadingDifference(dirA.Value, bearing) < 90)
+                {
+                    ApplyMinLimit(a, 0, "pushback yield", b, distFt);
+                }
             }
         }
 
         if (stateB == MovementState.Pushing && dirB is not null)
         {
-            double bearing = GeoMath.BearingTo(b.Position, a.Position);
-            if (HeadingDifference(dirB.Value, bearing) < 90)
+            if (IsParkedOrHeld(a))
             {
-                ApplyMinLimit(b, 0, "pushback yield", a, distFt);
+                ApplyClosingLimit(b, dirB.Value, a, stateA, distFt, diagnosticLog);
+            }
+            else
+            {
+                double bearing = GeoMath.BearingTo(b.Position, a.Position);
+                if (HeadingDifference(dirB.Value, bearing) < 90)
+                {
+                    ApplyMinLimit(b, 0, "pushback yield", a, distFt);
+                }
             }
         }
 
