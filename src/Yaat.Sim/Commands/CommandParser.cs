@@ -690,6 +690,7 @@ public static class CommandParser
             DisarmHoldForRelease when arg is { Length: > 0 } => PR.Ok(new DisarmHoldForReleaseCommand(arg.Trim().ToUpperInvariant())),
             DisarmHoldForRelease => PR.Fail("HFROFF requires an airport"),
             ReleaseDeparture => ParseRelease(arg),
+            Cfr => ParseCfr(arg),
             Add when arg is not null => PR.Ok(new AddAircraftCommand(arg)),
             // Tower
             LineUpAndWait => DepartureCommandParser.ParseLuawArg(arg),
@@ -1021,6 +1022,7 @@ public static class CommandParser
                 or HoldForRelease
                 or DisarmHoldForRelease
                 or ReleaseDeparture
+                or Cfr
                 or CanonicalCommandType.Timer
                 or Taxi
                 or CrossRunway
@@ -2653,6 +2655,32 @@ public static class CommandParser
         }
 
         return PR.Fail("REL syntax: REL <airport|callsign> [interval-minutes]");
+    }
+
+    /// <summary>
+    /// Parses the CFR / APREQ argument. No arg → window valid from approval for the configured duration.
+    /// <c>OFF</c> / <c>CANCEL</c> → clear the window. A 3–4 digit HHMM in 0000..2359 → an explicit Zulu
+    /// release time bracketed by the configured before/after offsets.
+    /// </summary>
+    private static PR ParseCfr(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Ok(new CfrDepartureCommand(null, Clear: false));
+        }
+
+        var token = arg.Trim().ToUpperInvariant();
+        if (token is "OFF" or "CANCEL")
+        {
+            return PR.Ok(new CfrDepartureCommand(null, Clear: true));
+        }
+
+        if (token.Length is 3 or 4 && int.TryParse(token, out var hhmm) && hhmm is >= 0 and <= 2359 && hhmm % 100 < 60)
+        {
+            return PR.Ok(new CfrDepartureCommand(hhmm, Clear: false));
+        }
+
+        return PR.Fail("CFR syntax: CFR [HHMM | OFF]");
     }
 
     /// <summary>

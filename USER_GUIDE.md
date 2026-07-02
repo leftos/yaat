@@ -786,6 +786,12 @@ Release them in any of these ways:
 
 A **Releases** button on the command bar (visible while any field is armed) opens a live rundown of what's held at each field, with per-departure and per-field release buttons. Released aircraft don't appear instantly — they take off after a short, realistic delay.
 
+### Call for Release (release-time window)
+
+When a departure needs a Call for Release (CFR) from the overlying facility, you can grant the release with a compliance window and let YAAT watch it for you. Select the departure and type `CFR <HHMM>` to release it with a window that runs from **2 minutes before to 1 minute after** the assigned Zulu time (the FAA 7110.65 window) — e.g. `CFR 1830` sets a window of 1828–1831Z. Type `CFR` with no time for an **immediate release** — the same −2/+1 window, assigned two minutes out so it opens right now. `CFR OFF` clears the window, and `APREQ` works as an alias.
+
+This is an instructor aid only — it never blocks a takeoff. If the departure gets airborne **after** the window expires, **before** it opens, or is **still holding** when the window lapses, YAAT posts an amber warning to the terminal (and, if you've enabled warning speech bubbles, a bubble on the aircraft). The window tracks real-world (wall-clock) time, so it isn't affected by pausing, rewinding, or fast-forwarding.
+
 ### Timers
 
 Set a countdown reminder with `TIMER <mm:ss|seconds> [message]` (alias `TMR`). When it expires, a green SAY line appears in the terminal — your message, or `timer expired` if you didn't give one. Duration accepts `5:00`, `1:30`, or bare seconds like `90`.

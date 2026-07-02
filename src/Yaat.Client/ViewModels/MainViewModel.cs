@@ -681,6 +681,10 @@ public partial class MainViewModel : ObservableObject
     // Drain countdown + auto-dismiss timer (one per banner episode).
     private DispatcherTimer? _restartBannerTimer;
     private DateTime _restartTargetUtc;
+
+    // 1 s wall-clock sweep for CFR release-window expiry alerts (a stationary held departure stops
+    // broadcasting, so expiry can't ride the AircraftUpdated stream). Runs for the app lifetime.
+    private DispatcherTimer? _cfrExpiryTimer;
     private DateTime _restartBannerHideAtUtc;
 
     public bool HasScenario => ActiveScenarioId is not null;
@@ -1267,6 +1271,10 @@ public partial class MainViewModel : ObservableObject
         _connection.AircraftUpdated += OnAircraftUpdated;
         _connection.AircraftDeleted += OnAircraftDeleted;
         _connection.AircraftSpawned += OnAircraftSpawned;
+
+        _cfrExpiryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _cfrExpiryTimer.Tick += (_, _) => SweepCfrExpiry();
+        _cfrExpiryTimer.Start();
         _connection.SimulationStateChanged += OnSimulationStateChanged;
         _connection.Reconnecting += OnReconnecting;
         _connection.Reconnected += OnReconnected;

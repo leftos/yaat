@@ -349,7 +349,8 @@
         { "verb": "SPAWNDELAY", "aliases": [], "description": "Set spawn delay (seconds)" },
         { "verb": "HFR", "aliases": [], "description": "Hold airport's IFR departures for release", "global": true },
         { "verb": "HFROFF", "aliases": [], "description": "Disarm hold-for-release (auto-releases held)", "global": true },
-        { "verb": "REL", "aliases": ["ctoa"], "description": "Release next at field / a callsign / whole queue (REL apt mins)", "global": true }
+        { "verb": "REL", "aliases": ["ctoa"], "description": "Release next at field / a callsign / whole queue (REL apt mins)", "global": true },
+        { "verb": "CFR", "aliases": ["apreq"], "description": "Release selected departure with a −2/+1 min CFR window (CFR HHMM), or bare CFR for an immediate release; alerts if it departs outside it. CFR OFF clears" }
       ],
       "notes": []
     },

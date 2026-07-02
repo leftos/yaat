@@ -114,6 +114,9 @@ public enum CanonicalCommandType
     DisarmHoldForRelease,
     ReleaseDeparture,
 
+    // Call For Release release-time window (aircraft-scoped, alert-only)
+    Cfr,
+
     // Track operations
     SetActivePosition,
     TrackAircraft,

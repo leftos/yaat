@@ -42,4 +42,10 @@ public sealed class AircraftGroundOpsDto
 
     /// <summary>Scenario-elapsed seconds at which the departure was released (drives the auto-CTO jitter).</summary>
     public double ReleasedAtSeconds { get; init; }
+
+    /// <summary>Absolute-UTC start of the Call-For-Release window, or null. Alert-only (GitHub issue #230).</summary>
+    public DateTime? ReleaseWindowStartUtc { get; init; }
+
+    /// <summary>Absolute-UTC end of the Call-For-Release window, or null.</summary>
+    public DateTime? ReleaseWindowEndUtc { get; init; }
 }

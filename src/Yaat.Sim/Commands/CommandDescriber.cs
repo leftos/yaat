@@ -181,6 +181,7 @@ public static class CommandDescriber
             HoldForReleaseCommand => CanonicalCommandType.HoldForRelease,
             DisarmHoldForReleaseCommand => CanonicalCommandType.DisarmHoldForRelease,
             ReleaseDepartureCommand => CanonicalCommandType.ReleaseDeparture,
+            CfrDepartureCommand => CanonicalCommandType.Cfr,
             AddAircraftCommand => CanonicalCommandType.Add,
             AssignRunwayCommand => CanonicalCommandType.AssignRunway,
             ConsolidateCommand cmd => cmd.Full ? CanonicalCommandType.ConsolidateFull : CanonicalCommandType.Consolidate,

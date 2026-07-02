@@ -752,6 +752,14 @@ public partial class AircraftModel : ObservableObject
     /// </summary>
     public bool IsHeldForRelease { get; set; }
 
+    /// <summary>
+    /// Absolute-UTC bounds of this aircraft's Call-For-Release window (CFR/APREQ), or null. Evaluated
+    /// against real UTC by the MainViewModel to raise instructor-facing expiry alerts (GitHub issue #230).
+    /// </summary>
+    public DateTime? CfrWindowStartUtc { get; set; }
+
+    public DateTime? CfrWindowEndUtc { get; set; }
+
     public static AircraftModel FromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
         var model = new AircraftModel
@@ -783,6 +791,8 @@ public partial class AircraftModel : ObservableObject
             IsOnGround = dto.IsOnGround,
             GroundAirportId = dto.GroundAirportId,
             IsHeldForRelease = dto.HeldForRelease,
+            CfrWindowStartUtc = dto.CfrWindowStartUtc,
+            CfrWindowEndUtc = dto.CfrWindowEndUtc,
             PhaseSequence = dto.PhaseSequence,
             ActivePhaseIndex = dto.ActivePhaseIndex,
             LandingClearance = dto.LandingClearance,
@@ -872,6 +882,8 @@ public partial class AircraftModel : ObservableObject
         IsOnGround = dto.IsOnGround;
         GroundAirportId = dto.GroundAirportId;
         IsHeldForRelease = dto.HeldForRelease;
+        CfrWindowStartUtc = dto.CfrWindowStartUtc;
+        CfrWindowEndUtc = dto.CfrWindowEndUtc;
         PhaseSequence = dto.PhaseSequence;
         ActivePhaseIndex = dto.ActivePhaseIndex;
         LandingClearance = dto.LandingClearance;

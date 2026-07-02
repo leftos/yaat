@@ -897,6 +897,21 @@ public static class CommandRegistry
                     ),
                 ]
             ),
+            Cmd(
+                Cfr,
+                "Call For Release",
+                "Sim Control",
+                false,
+                ["CFR", "APREQ"],
+                [
+                    O(
+                        null,
+                        [Opt("time", "HHMM Zulu release time")],
+                        "Release the selected departure with a −2/+1 min CFR window; alerts if it departs outside it (no time = immediate release from now)"
+                    ),
+                    O("Clear", [L("OFF")], "Clear the release window"),
+                ]
+            ),
         ];
 
     private static CommandDefinition[] TrackCommands() =>

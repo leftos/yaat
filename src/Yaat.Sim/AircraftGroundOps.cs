@@ -195,6 +195,17 @@ public class AircraftGroundOps
     /// </summary>
     public double ReleasedAtSeconds { get; set; }
 
+    /// <summary>
+    /// Absolute-UTC start of this departure's Call-For-Release window (<c>CFR</c>/<c>APREQ</c>), or null
+    /// when no window is set. Wall-clock based and used only for instructor-facing expiry alerts on the
+    /// client — never gates takeoff and never influences the simulation (GitHub issue #230). Paired with
+    /// <see cref="ReleaseWindowEndUtc"/>.
+    /// </summary>
+    public DateTime? ReleaseWindowStartUtc { get; set; }
+
+    /// <summary>Absolute-UTC end of the Call-For-Release window (see <see cref="ReleaseWindowStartUtc"/>).</summary>
+    public DateTime? ReleaseWindowEndUtc { get; set; }
+
     public AircraftGroundOpsDto ToSnapshot() =>
         new()
         {
@@ -222,6 +233,8 @@ public class AircraftGroundOps
             HeldForRelease = HeldForRelease,
             ReleasedForDeparture = ReleasedForDeparture,
             ReleasedAtSeconds = ReleasedAtSeconds,
+            ReleaseWindowStartUtc = ReleaseWindowStartUtc,
+            ReleaseWindowEndUtc = ReleaseWindowEndUtc,
         };
 
     public static AircraftGroundOps FromSnapshot(AircraftGroundOpsDto dto, AirportGroundLayout? layout) =>
@@ -251,6 +264,8 @@ public class AircraftGroundOps
             HeldForRelease = dto.HeldForRelease,
             ReleasedForDeparture = dto.ReleasedForDeparture,
             ReleasedAtSeconds = dto.ReleasedAtSeconds,
+            ReleaseWindowStartUtc = dto.ReleaseWindowStartUtc,
+            ReleaseWindowEndUtc = dto.ReleaseWindowEndUtc,
         };
 
     private static HoldDirective? HoldFromSnapshot(bool isHeld, string? giveWayTarget)

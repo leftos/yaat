@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Core.Services;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.ViewModels;
 
@@ -46,6 +48,26 @@ public partial class MainViewModel
                 Message = message,
             }
         );
+    }
+
+    /// <summary>
+    /// Adds an amber Warning terminal entry attributed to a specific aircraft and (when the user has
+    /// opted in) an anchored speech bubble on it. Unlike <see cref="AddWarningEntry"/> the callsign is
+    /// set, so <see cref="MaybeAttachSpeechBubble"/> can anchor the bubble.
+    /// </summary>
+    public void AddAircraftWarning(string callsign, string message)
+    {
+        AddTerminalEntry(
+            new TerminalEntry
+            {
+                Timestamp = DateTime.Now,
+                Initials = "",
+                Kind = TerminalEntryKind.Warning,
+                Callsign = callsign,
+                Message = message,
+            }
+        );
+        MaybeAttachSpeechBubble(TerminalEntryKind.Warning, callsign, message);
     }
 
     private void OnTerminalEntry(TerminalBroadcastDto dto)
@@ -149,9 +171,11 @@ public partial class MainViewModel
                 var wasDelayed = existing.IsDelayed;
                 var wasUnsupported = existing.IsUnsupported;
                 var wasGhostOverlay = existing.IsGhostOverlay;
+                var wasOnGround = existing.IsOnGround;
                 existing.UpdateFromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(existing);
                 ApplyDelayedSpawnTransition(wasDelayed, existing.IsDelayed);
+                EvaluateCfrAlerts(existing, wasOnGround);
                 if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported || existing.IsGhostOverlay != wasGhostOverlay)
                 {
                     RefreshAircraftView();
@@ -162,6 +186,7 @@ public partial class MainViewModel
                 var model = AircraftModel.FromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(model);
                 Aircraft.Add(model);
+                EvaluateCfrAlerts(model, wasOnGround: model.IsOnGround);
                 if (model.IsDelayed)
                 {
                     PendingDelayedSpawnCount++;
@@ -177,10 +202,56 @@ public partial class MainViewModel
         });
     }
 
+    private readonly CfrAlertMonitor _cfrMonitor = new();
+
+    /// <summary>
+    /// Per-second sweep that raises the "release window expired while still on the ground" alert. A held
+    /// departure stops broadcasting once stationary, so this can't ride the <see cref="OnAircraftUpdated"/>
+    /// stream. Wired to a 1 s <c>DispatcherTimer</c> in the constructor.
+    /// </summary>
+    internal void SweepCfrExpiry()
+    {
+        foreach (var ac in Aircraft)
+        {
+            if (ac.CfrWindowStartUtc is not null)
+            {
+                EvaluateCfrAlerts(ac, wasOnGround: ac.IsOnGround);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Evaluates one aircraft's Call-For-Release window against real UTC and surfaces any newly-tripped
+    /// violation as an instructor warning. <paramref name="wasOnGround"/> is the ground state before the
+    /// current update (equal to the current state for the periodic sweep, so only expiry-while-grounded
+    /// can fire there). Alert-only — never affects the simulation (GitHub issue #230).
+    /// </summary>
+    private void EvaluateCfrAlerts(AircraftModel ac, bool wasOnGround)
+    {
+        var kind = _cfrMonitor.Evaluate(ac.Callsign, ac.CfrWindowStartUtc, ac.CfrWindowEndUtc, ac.IsOnGround, wasOnGround, DateTime.UtcNow);
+        if (kind is { } fired)
+        {
+            AddAircraftWarning(ac.Callsign, FormatCfrAlert(fired, ac));
+        }
+    }
+
+    private static string FormatCfrAlert(CfrAlertKind kind, AircraftModel ac)
+    {
+        var window = $"{ac.CfrWindowStartUtc:HHmm}–{ac.CfrWindowEndUtc:HHmm}Z";
+        return kind switch
+        {
+            CfrAlertKind.EarlyTakeoff => $"{ac.Callsign} departed before its release window opened ({window})",
+            CfrAlertKind.LateTakeoff => $"{ac.Callsign} departed after its release window expired ({window})",
+            CfrAlertKind.ExpiredGrounded => $"{ac.Callsign} release window expired ({window}) — still holding for release",
+            _ => $"{ac.Callsign} release window alert ({window})",
+        };
+    }
+
     private void OnAircraftDeleted(string callsign)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            _cfrMonitor.Remove(callsign);
             FlightPlanEditorManager.Close();
             Radar.RemoveShownPath(callsign);
             Ground.RemoveShownTaxiRoute(callsign);

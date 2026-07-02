@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- **Call for Release (CFR) release-time window.** `CFR <HHMM>` (alias `APREQ`) releases the selected departure with the FAA −2/+1 min compliance window around the assigned Zulu time (7110.65 §4-3-4.e.5); bare `CFR` releases immediately and `CFR OFF` clears it. It never blocks a takeoff — if the departure gets airborne outside the window, or is still holding when it expires, YAAT posts an amber instructor warning (plus an aircraft bubble when warning bubbles are on). The window tracks real-world time, so it's unaffected by pausing or scrubbing the timeline.
 - Right-clicking an aircraft that is holding in position or following another aircraft on the ground now offers **Preset taxi route** and **Draw taxi route...**, so you can re-route it from its current position without first resuming its taxi. These options were previously available only for parked, actively-taxiing, and holding-short aircraft.
 
 ### Fixed
