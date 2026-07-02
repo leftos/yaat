@@ -1047,7 +1047,7 @@ public class PilotResponderTests
         // The solo terminal and the spoken form omit the target callsign (the pilot acquired the
         // traffic by position/type, not by callsign); only the RPO diagnostic names it.
         Assert.Equal("traffic in sight.", result.Terminal);
-        Assert.Equal("traffic in sight, N784ME.", result.TerminalForRpo);
+        Assert.Equal("traffic (N784ME) in sight.", result.TerminalForRpo);
         Assert.Equal("november two nine four mike golf, traffic in sight.", result.Tts);
         Assert.DoesNotContain("seven eight four", result.Tts);
     }

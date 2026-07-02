@@ -221,10 +221,11 @@ public class ReportInSightTests
 
         Assert.True(result.Success);
         Assert.True(ownship.Approach.HasReportedTrafficInSight);
-        // Pilot readback uses the compact "traffic in sight, <target>" form on the SAY channel
+        // Pilot readback uses the compact "traffic (<target>) in sight" form on the SAY channel
         // via PendingPilotReadbacks. The terminal entry's own callsign column shows the speaker,
-        // so the message drops the leading ownship.
-        Assert.Equal("traffic in sight, LEAD.", ownship.PendingPilotReadbacks[0]);
+        // so the message drops the leading ownship; the acquired traffic's callsign is a
+        // parenthetical RPO diagnostic (not a trailing own-callsign suffix).
+        Assert.Equal("traffic (LEAD) in sight.", ownship.PendingPilotReadbacks[0]);
     }
 
     // When the pilot can't acquire traffic on the first check, RTIS now soft-fails:
@@ -316,7 +317,7 @@ public class ReportInSightTests
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
 
         Assert.True(result.Success);
-        Assert.Equal("traffic in sight, LEAD.", ac.PendingPilotReadbacks[0]);
+        Assert.Equal("traffic (LEAD) in sight.", ac.PendingPilotReadbacks[0]);
     }
 
     // -------------------------------------------------------------------------

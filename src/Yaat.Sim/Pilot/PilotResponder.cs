@@ -1016,7 +1016,7 @@ public static class PilotResponder
         {
             return new PilotSpeechText("traffic in sight.", tts);
         }
-        return new PilotSpeechText("traffic in sight.", tts) { RpoTerminal = $"traffic in sight, {targetCallsign}." };
+        return new PilotSpeechText("traffic in sight.", tts) { RpoTerminal = $"traffic ({targetCallsign}) in sight." };
     }
 
     /// <summary>

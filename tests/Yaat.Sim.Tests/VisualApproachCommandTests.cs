@@ -253,7 +253,7 @@ public class VisualApproachCommandTests : IDisposable
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("UAL456"), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);
         // Traffic acquisition routes through PendingPilotReadbacks (SAY channel).
-        Assert.Equal("traffic in sight, UAL456.", Assert.Single(aircraft.PendingPilotReadbacks));
+        Assert.Equal("traffic (UAL456) in sight.", Assert.Single(aircraft.PendingPilotReadbacks));
     }
 
     [Fact]

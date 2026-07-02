@@ -13,6 +13,7 @@
 - Right-clicking a departure on the ground map or in the aircraft list and choosing **Cleared for takeoff** (or **Line up and wait**) now clears the aircraft instead of failing with "Unrecognized: CTO 28R". These menu items were appending the runway to a command that takes none; they now send the bare clearance, with the runway shown in the menu label only (the aircraft's assigned runway is used automatically).
 - After a timeline rewind or recording reload, an aircraft established on final still records its landing in the session's approach report and runway spacing stats.
 - Sending `EF` (enter final) to an aircraft already on short final for that runway no longer sends it looping outbound to re-enter — it now continues its approach. A pattern-entry or runway switch that can't be flown from short final is rejected ("unable, short final") and the aircraft stays on its current approach instead of touring the airspace.
+- When an aircraft reports traffic in sight (after `RTIS`), the RPO/instructor readback now reads `traffic (N456) in sight` instead of `traffic in sight, N456`, which looked like the reporting aircraft was stating its own callsign was N456. The spoken transmission and the solo-student view are unchanged (they never name the traffic's callsign).
 
 ## v0.8.5-beta [2026/07/01]
 
