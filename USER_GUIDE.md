@@ -644,7 +644,7 @@ Bay layout (number of racks per bay, which bays are own vs external, whether sep
 
 The printer modal is a centered overlay reachable via the **Printer** toggle, **Tab**, or **Esc** (when nothing is selected). The racks stay visible behind the modal, so dropping a strip from the printer onto a rack updates immediately without dismissing the modal.
 
-- **Request Strip** — type a callsign and click to ask the server to print that aircraft's strip
+- **Request Strip** — type a callsign and click to ask the server to print that aircraft's strip. Requesting one for an aircraft that already has a strip prints a fresh copy that stacks in the printer, so a lost or late strip can be reprinted.
 - **Print Blank Strip** — adds a blank to the printer queue
 - **Departure printer carousel** — ❮ ❯ arrows step through queued strips, **N/M** counter shows position
   - **Move to Bay** — opens a bay picker for the visible strip

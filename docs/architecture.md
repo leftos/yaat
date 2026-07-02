@@ -284,7 +284,7 @@ Views/
   MacroImportWindow.axaml.cs    # Macro import selection dialog
   LoadWeatherWindow.axaml.cs    # Weather profile picker modal (folder scan, name + layer count)
   WeatherEditorControl.axaml.cs # Per-period weather editing UserControl (precipitation, wind layers grid, METARs)
-  AboutWindow.axaml.cs          # Help → About dialog: version, build kind, .NET runtime, log path, GitHub link
+  AboutWindow.axaml.cs          # Help → About dialog: version, build kind, .NET runtime, log path, GitHub link, optional Ko-fi support link
   WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
   ArrivalGeneratorsEditorWindow.axaml.cs # Live arrival-generator editor: row grid + Apply (push to sim) / Save As (new scenario JSON)
   ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)

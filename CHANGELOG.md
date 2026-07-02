@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.7-beta [2026/07/02]
 
 ### Added
 - Help → About now has an optional **Support the dev on Ko-fi** link, with a note making clear that YAAT is free and donating is entirely optional.
