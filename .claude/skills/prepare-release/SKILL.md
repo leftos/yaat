@@ -21,3 +21,5 @@ Use this skill when the user asks to prepare, cut, or ship a YAAT release.
 ## Output
 
 Show the draft highlights, full changelog section, and heading promotion before asking for approval, matching the canonical command.
+
+Also determine and report the deployment-scope verdict (client-only vs server-affecting) as the canonical command's Step 7 describes: if every change since the previous release is confined to the desktop client — nothing in `Yaat.Sim`, the server, or the web-deployed UI (vStrips/vTDLS) — recommend skipping the droplet deploy to avoid downtime, and default the push/deploy prompt accordingly.
