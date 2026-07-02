@@ -3563,8 +3563,8 @@ public static class CommandParser
 
     /// <summary>
     /// Determines if a token is a runway identifier rather than a distance.
-    /// Contains L/C/R suffix → runway. Contains decimal → not runway.
-    /// Exactly 2 digits (01-36) → runway. Otherwise numeric → not runway.
+    /// 1-2 digits with an L/C/R suffix → runway. Contains decimal → not runway.
+    /// Exactly 2 digits (01-36) → runway. Otherwise → not runway.
     /// </summary>
     internal static bool IsRunwayArg(string token)
     {
@@ -3573,11 +3573,13 @@ public static class CommandParser
             return false;
         }
 
-        // Has L/C/R suffix → runway
+        // <1-2 digits> + L/C/R suffix → runway (28R, 10L, 9C). The prefix must be numeric so
+        // taxiway names ending in L/C/R (e.g. TC) are not misclassified as runways.
         char last = char.ToUpperInvariant(token[^1]);
-        if (last is 'L' or 'C' or 'R' && token.Length >= 2)
+        if (last is 'L' or 'C' or 'R')
         {
-            return true;
+            string prefix = token[..^1];
+            return prefix.Length is 1 or 2 && prefix.All(char.IsDigit);
         }
 
         // Has decimal → distance
