@@ -30,11 +30,13 @@ public class VnasScenarioParseTests
 
     [Theory]
     [InlineData("ZAB")]
+    [InlineData("ZAN")]
     [InlineData("ZAU")]
     [InlineData("ZBW")]
     [InlineData("ZDC")]
     [InlineData("ZDV")]
     [InlineData("ZFW")]
+    [InlineData("ZHN")]
     [InlineData("ZHU")]
     [InlineData("ZID")]
     [InlineData("ZJX")]
@@ -48,6 +50,7 @@ public class VnasScenarioParseTests
     [InlineData("ZOA")]
     [InlineData("ZOB")]
     [InlineData("ZSE")]
+    [InlineData("ZSU")]
     [InlineData("ZTL")]
     public void AllScenarios_PresetCommandsParse(string artccId)
     {
