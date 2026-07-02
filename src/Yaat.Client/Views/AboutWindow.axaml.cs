@@ -40,6 +40,12 @@ public partial class AboutWindow : Window
             openRepoBtn.Click += (_, _) => UrlLauncher.OpenInBrowser(DocLinks.Repo);
         }
 
+        var supportBtn = this.FindControl<Button>("SupportButton");
+        if (supportBtn is not null)
+        {
+            supportBtn.Click += (_, _) => UrlLauncher.OpenInBrowser(DocLinks.Donate);
+        }
+
         var closeBtn = this.FindControl<Button>("CloseButton");
         if (closeBtn is not null)
         {

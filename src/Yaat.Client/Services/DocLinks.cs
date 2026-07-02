@@ -15,6 +15,9 @@ public static class DocLinks
     public static string Issues => $"{RepoUrl}/issues/new/choose";
     public static string Releases => $"{RepoUrl}/releases";
 
+    // Optional "buy me a coffee" support link surfaced in Help → About.
+    public static string Donate => "https://ko-fi.com/leftos";
+
     public static string GettingStarted => $"{RepoUrl}/blob/{Ref}/GETTING_STARTED.md";
     public static string UserGuide => $"{RepoUrl}/blob/{Ref}/USER_GUIDE.md";
     public static string Commands => $"{RepoUrl}/blob/{Ref}/COMMANDS.md";

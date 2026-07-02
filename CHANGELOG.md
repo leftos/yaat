@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Help → About now has an optional **Support the dev on Ko-fi** link, with a note making clear that YAAT is free and donating is entirely optional.
+
 ### Fixed
 - Requesting a flight strip that already exists prints a duplicate that stacks in the printer, so a lost or late strip can be reprinted.
 - Amending a flight plan prints a new revised strip and clears stale printer copies, leaving strips already filed into a bay untouched.

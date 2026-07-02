@@ -4,9 +4,9 @@
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="About YAAT"
         Width="460"
-        Height="360"
+        Height="440"
         MinWidth="380"
-        MinHeight="320"
+        MinHeight="400"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
 
@@ -79,6 +79,20 @@
                        Foreground="{DynamicResource SubtleTextBrush}"
                        Margin="0,12,0,0"
                        Text="Instructor / RPO desktop client for ATC training. Connects to a yaat-server instance and feeds CRC clients via the standard CRC protocol." />
+
+            <Border CornerRadius="6"
+                    Background="{DynamicResource DataGridAlternateRowBrush}"
+                    Padding="12,10"
+                    Margin="0,14,0,0">
+                <StackPanel Spacing="8">
+                    <TextBlock TextWrapping="Wrap"
+                               FontSize="12"
+                               Text="YAAT is free and built in my spare time. If it's been useful and you feel like buying me a coffee, you can — but it's completely optional and there's no pressure at all. Either way, thanks for using YAAT!" />
+                    <Button Content="Support the dev on Ko-fi"
+                            x:Name="SupportButton"
+                            HorizontalAlignment="Left" />
+                </StackPanel>
+            </Border>
         </StackPanel>
 
     </DockPanel>
