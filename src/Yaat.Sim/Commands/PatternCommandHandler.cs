@@ -138,6 +138,38 @@ internal static class PatternCommandHandler
             return ApplySidestep(aircraft, finalApproach, runway, category);
         }
 
+        // EF to the runway the aircraft is already established on final for, when it is
+        // inside the standard entry point (short final), is redundant — it is already
+        // in the commanded state (7110.65 §3-8-1). Tearing down the live FinalApproach
+        // to rebuild an entry from there places the fixed entry point behind the
+        // aircraft and routes it on a bogus outbound re-entry (#228); real pilots just
+        // continue (AIM §4-4-1). Continue the approach instead, preserving the live
+        // final / glideslope / clearance state. An aircraft still outside the entry
+        // point takes the normal (inbound) re-sequence below.
+        if (
+            entryLeg == PatternEntryLeg.Final
+            && previousActivePhase is FinalApproachPhase
+            && previousAssignedRunway is not null
+            && string.Equals(previousAssignedRunway.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            var thresholdLl = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+            double angleOffFinal = aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading);
+            double crossTrackNm = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(aircraft.Position, thresholdLl, runway.TrueHeading));
+            double alongTrackOutbound = GeoMath.AlongTrackDistanceNm(aircraft.Position, thresholdLl, runway.TrueHeading.ToReciprocal());
+            double standardEntryDistNm =
+                CategoryPerformance.PatternAltitudeAgl(category) / GlideSlopeGeometry.FeetPerNm(GlideSlopeGeometry.AngleForCategory(category));
+            if (
+                angleOffFinal <= EstablishedFinalAngleOffDeg
+                && crossTrackNm <= EstablishedFinalCrossTrackNm
+                && alongTrackOutbound > 0
+                && alongTrackOutbound < standardEntryDistNm
+            )
+            {
+                return CommandDispatcher.Ok($"Continuing final{CommandDispatcher.RunwayLabel(aircraft)}");
+            }
+        }
+
         // Detect if the aircraft is on the wrong side of the runway
         bool isOnWrongSide = false;
         PatternWaypoints? waypoints = null;
@@ -373,11 +405,50 @@ internal static class PatternCommandHandler
                 arcNm
             );
 
+            // EF must never route the aircraft outbound / farther from the field
+            // (COMMANDS.md contract). An aircraft already on the final approach course
+            // (aligned, near the centerline, on the approach side) but inside the
+            // category minimum final — genuine short final — would have the fixed entry
+            // point placed behind it; flying there reverses it away from the runway
+            // (the #228 "tour of the airspace"). Reject and leave it on its current
+            // approach instead. Aircraft farther out, off to the side, or misaligned
+            // still get the normal far-entry reposition below.
+            double acAlongOutbound = GeoMath.AlongTrackDistanceNm(
+                aircraft.Position,
+                new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
+                waypoints.FinalHeading.ToReciprocal()
+            );
+            double entryAlongOutbound = GeoMath.DistanceNm(eLat, eLon, waypoints.ThresholdLat, waypoints.ThresholdLon);
+            double angleOffFinal = aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading);
+            double crossTrackAbsNm = Math.Abs(
+                GeoMath.SignedCrossTrackDistanceNm(
+                    aircraft.Position,
+                    new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
+                    waypoints.FinalHeading
+                )
+            );
+            bool onShortFinalInsideEntry =
+                angleOffFinal <= MaxCloseInFinalAngleOffDeg(acAlongOutbound, category)
+                && acAlongOutbound > 0
+                && acAlongOutbound < MinimumPerpendicularBaseFinalDistanceNm(category)
+                && crossTrackAbsNm <= EstablishedFinalCrossTrackNm
+                && entryAlongOutbound > acAlongOutbound + OutboundFinalEntryMarginNm;
+
             // Reject if the required arc exceeds what the aircraft can fly in
             // the available straight-line distance. The aircraft physically
             // cannot complete the turns before reaching the entry point.
-            if ((totalTurnDeg > 180) && (arcNm > distToEntry))
+            bool cannotCompleteTurns = (totalTurnDeg > 180) && (arcNm > distToEntry);
+
+            if (onShortFinalInsideEntry || cannotCompleteTurns)
             {
+                // A runway argument already retargeted AssignedRunway/DestinationRunway
+                // above; restore the prior runway so a rejected EF leaves the aircraft
+                // fully on its current approach.
+                if (runwayId is not null && previousAssignedRunway is not null)
+                {
+                    aircraft.Phases.AssignedRunway = previousAssignedRunway;
+                    NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, previousAssignedRunway.Designator);
+                }
                 return new CommandResult(false, "Unable, short final");
             }
         }
@@ -2001,6 +2072,24 @@ internal static class PatternCommandHandler
     /// distance left to capture the parallel centerline before flare.
     /// </summary>
     private const double MinSidestepAglFt = 500.0;
+
+    /// <summary>
+    /// Tolerances for treating an aircraft as "already established on final" for the
+    /// requested runway, so a redundant same-runway EF is a graceful no-op (continue
+    /// the approach) rather than a phase rebuild. Keyed off the aircraft actually being
+    /// in FinalApproachPhase for that runway; these guard against a nonsensically
+    /// off-course "final" phase.
+    /// </summary>
+    private const double EstablishedFinalAngleOffDeg = 30.0;
+    private const double EstablishedFinalCrossTrackNm = 0.5;
+
+    /// <summary>
+    /// Slack (NM) allowed before an EF Final entry point is considered to lie farther
+    /// outbound than the aircraft. Beyond this the reposition would route the aircraft
+    /// away from the field, which EF must never do (COMMANDS.md contract) — reject
+    /// "Unable, short final" instead and leave the aircraft on its current approach.
+    /// </summary>
+    private const double OutboundFinalEntryMarginNm = 0.1;
 
     /// <summary>
     /// Maximum heading delta (degrees) from runway heading for EF to engage the

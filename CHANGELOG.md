@@ -12,6 +12,7 @@
 - When one aircraft is stopped ahead of another on a taxiway and the two are merging onto the same lane, giving the lead aircraft its taxi clearance no longer causes the follower behind it to drive forward through it. The trailing aircraft now holds behind the one it is following while the lead proceeds, instead of the two swapping so the follower was released into the stopped lead — a situation that previously required a manual `BREAK` to recover.
 - Right-clicking a departure on the ground map or in the aircraft list and choosing **Cleared for takeoff** (or **Line up and wait**) now clears the aircraft instead of failing with "Unrecognized: CTO 28R". These menu items were appending the runway to a command that takes none; they now send the bare clearance, with the runway shown in the menu label only (the aircraft's assigned runway is used automatically).
 - After a timeline rewind or recording reload, an aircraft established on final still records its landing in the session's approach report and runway spacing stats.
+- Sending `EF` (enter final) to an aircraft already on short final for that runway no longer sends it looping outbound to re-enter — it now continues its approach. A pattern-entry or runway switch that can't be flown from short final is rejected ("unable, short final") and the aircraft stays on its current approach instead of touring the airspace.
 
 ## v0.8.5-beta [2026/07/01]
 

@@ -258,6 +258,19 @@ centerline through one of three paths in `TryEnterPattern`:
 3. **Fixed fallback**: aligned aircraft *outside* the close-in distance (and explicit-distance `EF`) keep the
    fixed glideslope-TPA entry (`PatternAltitudeAgl / FeetPerNm`) plus the loop-feasibility check.
 
+**Short-final guards (both return before the phase teardown, so the aircraft keeps its current approach — #228).**
+An aircraft on very short final is *inside* the fixed entry point, so paths 1–3 would otherwise place the fixed
+entry behind it and fly it outbound to re-enter (the "tour of the airspace" bug):
+- **Same-runway continue (no-op):** if the aircraft is already in `FinalApproachPhase` for the requested runway,
+  aligned + near the centerline + inside the standard entry distance, `TryEnterPattern` returns success
+  ("continuing final") without rebuilding — preserving the live final / glideslope / clearance state
+  (`PatternCommandHandler.cs`, right after the parallel-sidestep branch).
+- **Never-outbound reject:** the loop-feasibility block also rejects "Unable, short final" when the aircraft is on
+  the final approach course, genuinely short final (inside `MinimumPerpendicularBaseFinalDistanceNm`), and the
+  fixed entry point lies farther outbound than the aircraft. A runway argument that already retargeted
+  `AssignedRunway`/`DestinationRunway` is restored on this reject. This is the backstop for the cases the no-op
+  doesn't cover (not on `FinalApproachPhase`, or a non-parallel runway switch from short final).
+
 When the altitude-aware join is capped at along-track but the aircraft still cannot lose its altitude over the
 cut-in + final at the category `PatternDescentRate`, `EF` succeeds but raises an `AircraftState.PendingWarnings`
 entry ("unable to descend for straight-in … — too high") — a controller-facing advisory, not radio phraseology.
@@ -591,6 +604,8 @@ Which command handler builds which phase (parsing/dispatch live in
 | **PTAC** (present-heading intercept) | `ApproachCommandHandler.TryPtac` (`:395`) | `InterceptCoursePhase` (`ForcedIntercept = cmd.Forced`) → `FinalApproachPhase` → landing |
 | Missed-approach hold | `ApproachCommandHandler` (`:1053`) | `ApproachNavigationPhase` → `HoldingPatternPhase` |
 | **Pattern** (TPAT / pattern legs, SA/MNA/TB/EXT/OFL/OFR) | `PatternCommandHandler` (`:462`, `:486`) | `PatternEntryPhase` / `MidfieldCrossingPhase` / `TeardropReentryPhase` + circuit legs |
+| **EF** (enter final) — parallel sidestep | `PatternCommandHandler.TryEnterPattern` → `ApplySidestep` | none — retargets the **active** `FinalApproachPhase` in place (`RetargetRunway`); only when the target is a parallel of the runway the aircraft is on final for, ≥ `MinSidestepAglFt` |
+| **EF** — same-runway short-final continue | `PatternCommandHandler.TryEnterPattern` | none — redundant re-clearance while established on final inside the entry point returns "continuing final" and leaves the live phases untouched (#228) |
 | **FOLLOW** | `CommandDispatcher` (`:2461`) | `VfrFollowPhase` |
 | Holding (HOLD) | `NavigationCommandHandler` (`:876`) | `HoldingPatternPhase` |
 
