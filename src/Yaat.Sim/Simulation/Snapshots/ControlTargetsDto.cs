@@ -81,4 +81,7 @@ public sealed class ProcedureLegDto
     public AltitudeRestrictionDto? AltitudeRestriction { get; init; }
     public SpeedRestrictionDto? SpeedRestriction { get; init; }
     public required bool IsFlyOver { get; init; }
+    public LatLon? TerminationReferencePosition { get; init; }
+    public double? TerminationDistanceNm { get; init; }
+    public double? TerminationRadialMagnetic { get; init; }
 }

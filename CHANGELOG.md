@@ -8,6 +8,7 @@
 ### Fixed
 - Pushing an aircraft back from a gate no longer stalls when another aircraft is parked at the adjacent gate. Ground-conflict avoidance treated the parked neighbor as a hazard and pinned the pushback to a stop, forcing the controller to repeatedly issue `BREAK` to inch it out. A pushback now clears an aircraft parked at an adjacent gate on its own, while still stopping if it would actually back into another aircraft.
 - A taxi clearance routed through a taxiway whose name ends in **L**, **C**, or **R** (for example `TAXI W B T TC @10` at Oakland, where `TC` is a ramp connector) is no longer rejected as if that taxiway were a runway ("Taxiway T does not reach runway TC"). A trailing token is now treated as a destination runway only when it is an actual runway number, optionally with an L/C/R suffix (e.g. `28R`, `9L`), so taxiway names like `TC` stay in the taxi path.
+- Aircraft now honor charted climb restrictions on SID legs defined by a DME distance, such as the Oakland **COAST9**'s "cross the OAK 4 DME between 1400 and 2000". The aircraft levels off at the window's top altitude until it passes the DME point, then resumes the climb. Previously the sim dropped these legs entirely and the aircraft climbed straight through the restriction.
 - After a timeline rewind or recording reload, an aircraft established on final still records its landing in the session's approach report and runway spacing stats.
 
 ## v0.8.5-beta [2026/07/01]

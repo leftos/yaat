@@ -371,7 +371,7 @@ AircraftState.cs               # Mutable aircraft entity. Identity + kinematics 
                                # PendingObservations: ephemeral pilot-side "watch for condition" state (not persisted in snapshots)
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
-ProcedureLeg.cs                # Typed ARINC-424 procedure leg (path terminator + course/altitude/turn) flown by DepartureProcedurePhase; built by ProcedureLegResolver
+ProcedureLeg.cs                # Typed ARINC-424 procedure leg (path terminator + course/altitude/turn, + DME/along-track distance or radial termination for CD/VD/FD/FC/CR/VR) flown by DepartureProcedurePhase; built by ProcedureLegResolver
                                # NavigationTarget: Position (LatLon) + optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
                                # TargetMach: when set, UpdateSpeed recomputes equivalent IAS each tick (Mach hold)
 LatLon.cs                      # Readonly record struct: public LatLon(double Lat, double Lon). The canonical coordinate type
@@ -561,7 +561,7 @@ LineUpArcPlayback.cs           # Closed-form circular-arc playback (invariant I2
 LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
 InitialClimbPhase.cs           # Climb to 1500ft AGL, assigned, or the SID's published TDLS initial-altitude cap (AircraftProcedure.SidInitialAltitudeFt); activates SID via mode; RV SID heading hold until handoff+5s; hands off to DepartureProcedurePhase at the TERPS gate for charted heading/course SID legs
-DepartureProcedurePhase.cs     # Flies charted ARINC-424 SID legs: VA (heading→alt), VI/CI (heading/course→intercept), VM (heading→manual), CA (course→alt), course-tracked CF; then loads NavigationRoute for the fix-to-fix remainder
+DepartureProcedurePhase.cs     # Flies charted ARINC-424 SID legs: VA (heading→alt), VI/CI (heading/course→intercept), VM (heading→manual), CA (course→alt), course-tracked CF, CD/VD/FD/FC (course/heading→DME or along-track distance), CR/VR (→radial); levels off at a leg's at-or-below/between crossing altitude until it sequences (AIM 5-2-9.e), then loads NavigationRoute for the fix-to-fix remainder
 FinalApproachPhase.cs          # Glideslope; no-clearance warning/go-around at DA/MDA when published, otherwise 200ft AGL; illegal intercept check (§5-9-1)
 LandingPhase.cs                # Flare→touchdown→rollout; continuous exit evaluation (resolve→brake→commit/abandon→relax preference); LAHSO-aware
 RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)
@@ -646,7 +646,7 @@ Speech/Data/                   # Static reference data: airlines.tsv (OpenFlight
 Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways/airways/SID/STAR indexes + lazy CIFP procedures.
                                # Access via NavigationDatabase.Instance (initialized at startup, SetInstance for tests).
 Data/RouteExpander.cs          # Static: expands route strings (SID/STAR/airway/fix tokens) into ordered fix lists
-Data/ProcedureLegResolver.cs   # Static: resolves CIFP legs → typed ProcedureLeg sequence (keeps VA/VI/VM/CA heading legs the flat resolver drops); extracts the active leading prefix for DepartureProcedurePhase
+Data/ProcedureLegResolver.cs   # Static: resolves CIFP legs → typed ProcedureLeg sequence (keeps VA/VI/VM/CA heading legs + CD/VD/FD/FC/CR/VR distance/radial legs the flat resolver drops); extracts the active leading prefix for DepartureProcedurePhase
 Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading from Data/ARTCCs/{ARTCC}/CustomFixes/*.json
 Data/TaxiRouteDefinition.cs    # Per-route value type (path tokens, destination, canonical-command synthesis) carried in the sidecar's taxiRoutes section.
 Data/AirportSidecarDefinition.cs / AirportSidecarLoader.cs / AirportSidecarCatalog.cs  # Unified per-airport ground sidecar from Data/ARTCCs/{ARTCC}/Airports/{airport}.json (avoidTaxiways + taxiRoutes + implicitConnectors + oneWayEdges + blockedTurns sections).

@@ -191,6 +191,8 @@ After liftoff, a relative/heading/direct departure turn is deferred until the ai
 
 YAAT also flies charted SID legs coded as headings or courses rather than fixes. A departure such as the **LINDZ ONE** out of Aspen ("climb heading 343° to 9100, then climbing left turn to 273° to intercept the I-PKN back course to LINDZ") climbs to the charted altitude before turning, flies the charted turn, then intercepts and tracks the published course to the fix — handing off to the normal route once the coded legs are flown. ATCTrainer flies straight out on runway heading and cannot make the turn or join the back course.
 
+This extends to legs terminated by a DME distance or radial rather than an altitude or fix. The Oakland **COAST9** ("climb heading 296° to cross the OAK 4 DME between 1400 and 2000") levels off at the 2000 ft window ceiling if it reaches it before the DME point, then resumes the climb once past it — matching the published crossing restriction (AIM 5-2-9.e). ATCTrainer ignores the DME-defined window and climbs straight through.
+
 ### Approach
 
 | Command | ATCTrainer | YAAT | Difference |

@@ -68,6 +68,35 @@ public enum CifpPathTerminator
     /// leg on most US STARs that hand off to radar (e.g. KOAK WNDSR2, OAKES3).
     /// </summary>
     FM,
+
+    /// <summary>
+    /// CD — Course to a DME Distance. ARINC 424 §5.21. Fly the published <c>OutboundCourse</c>
+    /// until reaching <c>LegDistanceNm</c> DME from <c>RecommendedNavaidId</c>. Carries the
+    /// terminating altitude window (e.g. the KOAK COAST9 "OAK 4 DME between 1400–2000").
+    /// </summary>
+    CD,
+
+    /// <summary>VD — Heading to a DME Distance. Like <see cref="CD"/> but flown as a raw heading.</summary>
+    VD,
+
+    /// <summary>
+    /// FD — Track from a Fix to a DME Distance. Fly the course from the named fix until reaching
+    /// <c>LegDistanceNm</c> DME from <c>RecommendedNavaidId</c>.
+    /// </summary>
+    FD,
+
+    /// <summary>
+    /// FC — Track from a Fix for a Distance. Fly the <c>OutboundCourse</c> from the named fix for
+    /// <c>LegDistanceNm</c> along-track nm (the fix is the leg's origin, not its terminus).
+    /// </summary>
+    FC,
+
+    /// <summary>CR — Course to a Radial termination. Fly the course until crossing the <c>Theta</c> radial from <c>RecommendedNavaidId</c>.</summary>
+    CR,
+
+    /// <summary>VR — Heading to a Radial termination. Like <see cref="CR"/> but flown as a raw heading.</summary>
+    VR,
+
     Other,
 }
 

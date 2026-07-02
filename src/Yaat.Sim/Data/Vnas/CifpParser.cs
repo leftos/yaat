@@ -833,6 +833,12 @@ public static partial class CifpParser
             "VI" => CifpPathTerminator.VI,
             "CI" => CifpPathTerminator.CI,
             "FM" => CifpPathTerminator.FM,
+            "CD" => CifpPathTerminator.CD,
+            "VD" => CifpPathTerminator.VD,
+            "FD" => CifpPathTerminator.FD,
+            "FC" => CifpPathTerminator.FC,
+            "CR" => CifpPathTerminator.CR,
+            "VR" => CifpPathTerminator.VR,
             _ => CifpPathTerminator.Other,
         };
     }

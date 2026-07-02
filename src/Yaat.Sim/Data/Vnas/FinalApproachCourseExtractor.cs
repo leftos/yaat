@@ -139,8 +139,20 @@ public static class FinalApproachCourseExtractor
         for (int i = mapIndex - 1; i >= 0; i--)
         {
             var leg = legs[i];
-            // Skip continuation records (parser tags them with PathTerminator.Other and may have empty fix id)
-            if (leg.PathTerminator == CifpPathTerminator.Other || string.IsNullOrEmpty(leg.FixIdentifier))
+            // Skip continuation records (parser tags them with PathTerminator.Other and may have empty
+            // fix id) and course/heading-to-distance/radial legs, whose named fix (if any) is the leg's
+            // origin, not its terminus — using it as the segment's end point would skew the bearing.
+            if (
+                leg.PathTerminator
+                    is CifpPathTerminator.Other
+                        or CifpPathTerminator.CD
+                        or CifpPathTerminator.VD
+                        or CifpPathTerminator.FD
+                        or CifpPathTerminator.FC
+                        or CifpPathTerminator.CR
+                        or CifpPathTerminator.VR
+                || string.IsNullOrEmpty(leg.FixIdentifier)
+            )
             {
                 continue;
             }

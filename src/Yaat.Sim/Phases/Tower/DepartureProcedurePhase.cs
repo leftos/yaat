@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -29,6 +30,11 @@ public sealed class DepartureProcedurePhase : Phase
     private double? _previousSignedCrossTrack;
     private double _legElapsedSeconds;
 
+    /// <summary>Overall climb ceiling (cruise / assigned). A leg's at-or-below window only ever
+    /// caps <i>below</i> this — never raises it — so releasing a leg cap restores this ceiling,
+    /// leaving any higher assigned/top-altitude limit intact.</summary>
+    private double _climbCeiling;
+
     /// <summary>The coded leading legs to fly (heading/course legs and any interior fixes).</summary>
     public required List<ProcedureLeg> Legs { get; init; }
 
@@ -45,7 +51,8 @@ public sealed class DepartureProcedurePhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        ctx.Targets.TargetAltitude = ResolveClimbCeiling();
+        _climbCeiling = ResolveClimbCeiling();
+        ctx.Targets.TargetAltitude = _climbCeiling;
         _legEntryPosition = ctx.Aircraft.Position;
         ApplyActiveLegHeading(ctx);
         Log.LogDebug(
@@ -70,6 +77,7 @@ public sealed class DepartureProcedurePhase : Phase
 
         _legElapsedSeconds += ctx.DeltaSeconds;
         var leg = Legs[_legIndex];
+        ApplyLegAltitudeCap(ctx, leg);
         bool sequence = leg.Type switch
         {
             ProcedureLegType.HeadingToAltitude => FlyToAltitude(ctx, leg, asTrack: false),
@@ -78,6 +86,10 @@ public sealed class DepartureProcedurePhase : Phase
             ProcedureLegType.CourseToIntercept => FlyToIntercept(ctx, leg, asTrack: true),
             ProcedureLegType.CourseToFix => TrackCourseToFix(ctx, leg),
             ProcedureLegType.HeadingToManual => HoldManualHeading(ctx, leg),
+            ProcedureLegType.CourseToDistance => FlyToDistance(ctx, leg, asTrack: true),
+            ProcedureLegType.HeadingToDistance => FlyToDistance(ctx, leg, asTrack: false),
+            ProcedureLegType.CourseToRadial => FlyToRadial(ctx, leg, asTrack: true),
+            ProcedureLegType.HeadingToRadial => FlyToRadial(ctx, leg, asTrack: false),
             _ => FlyToFix(ctx, leg),
         };
 
@@ -199,6 +211,72 @@ public sealed class DepartureProcedurePhase : Phase
         return false;
     }
 
+    /// <summary>CD/FD/FC (track) or VD (heading): fly the course until reaching the DME/along-track distance.</summary>
+    private bool FlyToDistance(PhaseContext ctx, ProcedureLeg leg, bool asTrack)
+    {
+        SteerHeadingOrTrack(ctx, leg, asTrack);
+        if (leg.TerminationReferencePosition is not { } reference || leg.TerminationDistanceNm is not { } distance)
+        {
+            return true;
+        }
+        return GeoMath.DistanceNm(ctx.Aircraft.Position, reference) >= distance;
+    }
+
+    /// <summary>CR (track) or VR (heading): fly the course until crossing the target radial from the reference navaid.</summary>
+    private bool FlyToRadial(PhaseContext ctx, ProcedureLeg leg, bool asTrack)
+    {
+        SteerHeadingOrTrack(ctx, leg, asTrack);
+        if (leg.TerminationReferencePosition is not { } reference || leg.TerminationRadialMagnetic is not { } radialMagnetic)
+        {
+            return true;
+        }
+
+        var radialTrue = new MagneticHeading(radialMagnetic).ToTrue(ctx.Aircraft.Declination);
+        var bearingFromNavaid = new TrueHeading(GeoMath.BearingTo(reference, ctx.Aircraft.Position));
+        double signed = radialTrue.SignedAngleTo(bearingFromNavaid);
+        // Only the near-side (0°) crossing terminates: gating on |angle| < 90° rejects the reciprocal
+        // radial, where SignedAngleTo's ±180° wrap would otherwise read as a spurious sign flip.
+        bool flipped =
+            _previousSignedCrossTrack is { } prev
+            && Math.Abs(prev) < 90.0
+            && Math.Abs(signed) < 90.0
+            && ((prev > 0 && signed <= 0) || (prev < 0 && signed >= 0));
+        _previousSignedCrossTrack = signed;
+
+        // Guard against bad CIFP data (a course that never crosses the radial): give up and sequence.
+        if (_legElapsedSeconds >= MaxInterceptSeconds)
+        {
+            Log.LogWarning(
+                "[DepartureProcedure] {Callsign}: radial leg {Idx} did not cross in {Sec:F0}s — sequencing",
+                ctx.Aircraft.Callsign,
+                _legIndex,
+                _legElapsedSeconds
+            );
+            return true;
+        }
+
+        return flipped;
+    }
+
+    /// <summary>
+    /// Caps the climb at an active leg's "at", "at or below", or "between" crossing altitude
+    /// (AIM §5-2-9.e): a pure ceiling, never a target. The aircraft levels off only if it reaches the
+    /// cap before the leg sequences; the cap is released (restored to <see cref="_climbCeiling"/>) on
+    /// the next leg. "At or above" is deliberately excluded — its floor is satisfied by the climb.
+    /// </summary>
+    private void ApplyLegAltitudeCap(PhaseContext ctx, ProcedureLeg leg)
+    {
+        double ceiling = _climbCeiling;
+        if (
+            leg.AltitudeRestriction is { } restriction
+            && restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrBelow or CifpAltitudeRestrictionType.Between
+        )
+        {
+            ceiling = Math.Min(ceiling, restriction.Altitude1Ft);
+        }
+        ctx.Targets.TargetAltitude = ceiling;
+    }
+
     private bool FlyToFix(PhaseContext ctx, ProcedureLeg leg)
     {
         if (leg.FixPosition is not { } fix)
@@ -248,6 +326,9 @@ public sealed class DepartureProcedurePhase : Phase
     private bool Finish(PhaseContext ctx)
     {
         ctx.Targets.PreferredTurnDirection = null;
+        // Release any leg altitude cap — the remaining route's own crossing restrictions are
+        // enforced by FlightPhysics.UpdateNavigation from here.
+        ctx.Targets.TargetAltitude = _climbCeiling;
         ctx.Targets.NavigationRoute.Clear();
 
         var flown = new HashSet<string>(Legs.Where(l => l.FixName is not null).Select(l => l.FixName!), StringComparer.OrdinalIgnoreCase);
@@ -381,6 +462,9 @@ public sealed class DepartureProcedurePhase : Phase
         phase._legEntryPosition = dto.LegEntryPosition;
         phase._previousSignedCrossTrack = dto.PreviousSignedCrossTrack;
         phase._legElapsedSeconds = dto.LegElapsedSeconds;
+        // Deterministic from Legs/AssignedAltitude/CruiseAltitude (all restored above) — recompute
+        // rather than persist. OnStart is not called on restore.
+        phase._climbCeiling = phase.ResolveClimbCeiling();
         return phase;
     }
 }

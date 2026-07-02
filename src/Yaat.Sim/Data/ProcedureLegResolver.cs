@@ -98,6 +98,27 @@ internal static class ProcedureLegResolver
                     continue;
             }
 
+            // Course/heading to a DME distance, along-track distance, or radial (CD/VD/FD/FC/CR/VR).
+            // The named fix on these legs (FC/FD) is the leg's origin, not its terminus, so they
+            // resolve to a reference point + a distance/radial trigger rather than a destination fix.
+            if (
+                leg.PathTerminator
+                is CifpPathTerminator.CD
+                    or CifpPathTerminator.VD
+                    or CifpPathTerminator.FD
+                    or CifpPathTerminator.FC
+                    or CifpPathTerminator.CR
+                    or CifpPathTerminator.VR
+            )
+            {
+                var distanceOrRadial = ResolveDistanceOrRadialLeg(leg, navDb, turn);
+                if (distanceOrRadial is not null)
+                {
+                    result.Add(distanceOrRadial);
+                }
+                continue;
+            }
+
             // Fix-bearing legs (IF/TF/DF/CF/FM/HA/HF/HM/RF/AF/Other).
             if (string.IsNullOrWhiteSpace(leg.FixIdentifier))
             {
@@ -203,7 +224,66 @@ internal static class ProcedureLegResolver
                 or ProcedureLegType.HeadingToIntercept
                 or ProcedureLegType.CourseToIntercept
                 or ProcedureLegType.HeadingToManual
-                or ProcedureLegType.CourseToFix;
+                or ProcedureLegType.CourseToFix
+                or ProcedureLegType.CourseToDistance
+                or ProcedureLegType.HeadingToDistance
+                or ProcedureLegType.CourseToRadial
+                or ProcedureLegType.HeadingToRadial;
+
+    /// <summary>
+    /// Resolves a CD/VD/FD/FC/CR/VR leg to a distance- or radial-terminated <see cref="ProcedureLeg"/>.
+    /// Reference point is the origin fix for FC, the recommended navaid otherwise. Returns null when
+    /// the reference position, distance, or radial can't be resolved.
+    /// </summary>
+    private static ProcedureLeg? ResolveDistanceOrRadialLeg(CifpLeg leg, NavigationDatabase navDb, TurnDirection? turn)
+    {
+        string? referenceId = leg.PathTerminator == CifpPathTerminator.FC ? leg.FixIdentifier : leg.RecommendedNavaidId;
+        if (string.IsNullOrWhiteSpace(referenceId))
+        {
+            return null;
+        }
+        var refPos = navDb.GetFixPosition(referenceId);
+        if (refPos is null)
+        {
+            return null;
+        }
+        var reference = new LatLon(refPos.Value.Lat, refPos.Value.Lon);
+
+        bool isHeading = leg.PathTerminator is CifpPathTerminator.VD or CifpPathTerminator.VR;
+
+        if (leg.PathTerminator is CifpPathTerminator.CR or CifpPathTerminator.VR)
+        {
+            if (leg.Theta is not { } radial)
+            {
+                return null;
+            }
+            return new ProcedureLeg
+            {
+                Type = isHeading ? ProcedureLegType.HeadingToRadial : ProcedureLegType.CourseToRadial,
+                CourseMagnetic = leg.OutboundCourse,
+                TerminationReferencePosition = reference,
+                TerminationRadialMagnetic = radial,
+                AltitudeRestriction = leg.Altitude,
+                SpeedRestriction = leg.Speed,
+                Turn = turn,
+            };
+        }
+
+        if (leg.LegDistanceNm is not { } distance)
+        {
+            return null;
+        }
+        return new ProcedureLeg
+        {
+            Type = isHeading ? ProcedureLegType.HeadingToDistance : ProcedureLegType.CourseToDistance,
+            CourseMagnetic = leg.OutboundCourse,
+            TerminationReferencePosition = reference,
+            TerminationDistanceNm = distance,
+            AltitudeRestriction = leg.Altitude,
+            SpeedRestriction = leg.Speed,
+            Turn = turn,
+        };
+    }
 
     private static void ExpandArc(List<ProcedureLeg> result, LatLon center, double radiusNm, LatLon previousFix, LatLon terminatorFix, bool turnRight)
     {

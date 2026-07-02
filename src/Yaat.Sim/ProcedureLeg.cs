@@ -42,6 +42,24 @@ public enum ProcedureLegType
 
     /// <summary>Pre-expanded RF/AF arc waypoint; fly direct to the position.</summary>
     Arc,
+
+    /// <summary>
+    /// CD/FD/FC — track the ground course until reaching <see cref="TerminationDistanceNm"/> from
+    /// <see cref="TerminationReferencePosition"/> (a DME navaid for CD/FD, the origin fix for FC).
+    /// </summary>
+    CourseToDistance,
+
+    /// <summary>VD — fly the raw heading until reaching a DME distance from the reference navaid.</summary>
+    HeadingToDistance,
+
+    /// <summary>
+    /// CR — track the ground course until crossing the <see cref="TerminationRadialMagnetic"/>
+    /// radial from <see cref="TerminationReferencePosition"/>.
+    /// </summary>
+    CourseToRadial,
+
+    /// <summary>VR — fly the raw heading until crossing a radial from the reference navaid.</summary>
+    HeadingToRadial,
 }
 
 /// <summary>
@@ -72,6 +90,18 @@ public sealed class ProcedureLeg
 
     /// <summary>Crossing altitude restriction at the terminating fix (e.g. CF ≥16000).</summary>
     public CifpAltitudeRestriction? AltitudeRestriction { get; init; }
+
+    /// <summary>
+    /// Reference point for a distance/radial termination: the DME navaid (CD/VD/FD/CR/VR) or the
+    /// origin fix (FC). Null for all other leg types.
+    /// </summary>
+    public LatLon? TerminationReferencePosition { get; init; }
+
+    /// <summary>DME/along-track distance (nm) that terminates a CourseToDistance/HeadingToDistance leg.</summary>
+    public double? TerminationDistanceNm { get; init; }
+
+    /// <summary>Magnetic radial from the reference navaid that terminates a CourseToRadial/HeadingToRadial leg.</summary>
+    public double? TerminationRadialMagnetic { get; init; }
 
     /// <summary>Crossing speed restriction at the terminating fix.</summary>
     public CifpSpeedRestriction? SpeedRestriction { get; init; }
@@ -106,6 +136,9 @@ public sealed class ProcedureLeg
                 ? new SpeedRestrictionDto { Type = SpeedRestrictionDto.ToTypeCode(SpeedRestriction.Type), Speed = SpeedRestriction.SpeedKts }
                 : null,
             IsFlyOver = IsFlyOver,
+            TerminationReferencePosition = TerminationReferencePosition,
+            TerminationDistanceNm = TerminationDistanceNm,
+            TerminationRadialMagnetic = TerminationRadialMagnetic,
         };
 
     public static ProcedureLeg FromSnapshot(ProcedureLegDto dto) =>
@@ -134,5 +167,8 @@ public sealed class ProcedureLeg
                 ? new CifpSpeedRestriction(dto.SpeedRestriction.Speed, SpeedRestrictionDto.FromTypeCode(dto.SpeedRestriction.Type))
                 : null,
             IsFlyOver = dto.IsFlyOver,
+            TerminationReferencePosition = dto.TerminationReferencePosition,
+            TerminationDistanceNm = dto.TerminationDistanceNm,
+            TerminationRadialMagnetic = dto.TerminationRadialMagnetic,
         };
 }

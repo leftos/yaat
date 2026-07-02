@@ -1049,6 +1049,12 @@ internal static class DepartureClearanceHandler
                     or CifpPathTerminator.VA
                     or CifpPathTerminator.TF
                     or CifpPathTerminator.CF
+                    or CifpPathTerminator.CD
+                    or CifpPathTerminator.VD
+                    or CifpPathTerminator.FD
+                    or CifpPathTerminator.FC
+                    or CifpPathTerminator.CR
+                    or CifpPathTerminator.VR
                     or CifpPathTerminator.Other
             )
             {
