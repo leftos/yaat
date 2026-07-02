@@ -251,6 +251,10 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
    `IsPhaseTransparentCommand` (narrow list, phase gate).
 6. **Verify the triggered path** — if the verb can be queued behind a trigger (`AT FIX` / `LV alt`), confirm `BuildApplyAction` re-dispatches it
    correctly (tower verbs need a `TryApplyTowerCommand` arm to avoid the no-dispatcher-arm fallback).
+7. **Give it display names** — add an arm for the new `ParsedCommand` in **both** `CommandDescriber.DescribeCommand` (canonical short form) and
+   `CommandDescriber.DescribeNatural` (user-friendly text). Without them the command falls through to the record's `ToString()` and leaks raw text
+   like `"DeleteCommand { }"` into every queued-block description, the RPO ack, `SHOWAT`/`DELAT`, and the client "Pending Cmds" column (issue #226).
+   `CommandDescriberCompletenessTests` enforces both switches cover every subtype, so a missing arm fails the build.
 
 ## Footguns / Pitfalls
 

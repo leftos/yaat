@@ -68,22 +68,38 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
     [Fact]
     public void DescribeCommand_CoversAllParsedCommandTypes()
     {
+        AssertAllTypesCovered(CommandDescriber.DescribeCommand, "DescribeCommand");
+    }
+
+    [Fact]
+    public void DescribeNatural_CoversAllParsedCommandTypes()
+    {
+        AssertAllTypesCovered(CommandDescriber.DescribeNatural, "DescribeNatural");
+    }
+
+    /// <summary>
+    /// Asserts that a describer produces an explicit friendly string for every ParsedCommand
+    /// subtype — never the "?" or the record's default <c>ToString()</c> fallback (which leaks
+    /// raw text like "DeleteCommand { }" into the command line, see GitHub issue #226).
+    /// A subtype that <see cref="CreateDummy"/> cannot construct fails the test loudly rather
+    /// than being silently skipped, so the guardrail can't be defeated by an un-dummyable type.
+    /// </summary>
+    private void AssertAllTypesCovered(Func<ParsedCommand, string> describe, string describerName)
+    {
         var uncovered = new List<string>();
+        var unconstructible = new List<string>();
 
         foreach (var type in AllParsedCommandTypes)
         {
             var cmd = CreateDummy(type);
             if (cmd is null)
             {
+                unconstructible.Add(type.Name);
                 continue;
             }
 
-            var desc = CommandDescriber.DescribeCommand(cmd);
-            // The default fallback is command.ToString() — if that's what we get
-            // for a known type, it means the switch doesn't have an explicit case.
-            // But ToString() returns the record's default representation which isn't
-            // a useful canonical form. We check for the "?" fallback only.
-            if (desc == "?")
+            var desc = describe(cmd);
+            if (desc == "?" || desc == cmd.ToString())
             {
                 uncovered.Add(type.Name);
             }
@@ -91,14 +107,24 @@ public class CommandDescriberCompletenessTests(ITestOutputHelper output)
 
         if (uncovered.Count > 0)
         {
-            output.WriteLine("DescribeCommand returns '?' for:");
+            output.WriteLine($"{describerName} falls back to ToString()/'?' for:");
             foreach (var name in uncovered)
             {
                 output.WriteLine($"  - {name}");
             }
         }
 
-        // This is informational — ToString() fallback is acceptable for display
+        if (unconstructible.Count > 0)
+        {
+            output.WriteLine("Cannot construct a dummy for (extend MakeDummyArg):");
+            foreach (var name in unconstructible)
+            {
+                output.WriteLine($"  - {name}");
+            }
+        }
+
+        Assert.True(uncovered.Count == 0, $"{describerName} is missing an arm for: {string.Join(", ", uncovered)}");
+        Assert.True(unconstructible.Count == 0, $"CreateDummy cannot build: {string.Join(", ", unconstructible)}");
     }
 
     /// <summary>

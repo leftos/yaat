@@ -579,6 +579,8 @@ public static class CommandDescriber
             SafetyAlertCommand => "SAFAL",
             WakeAdvisoryCommand => "CWT",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"DELAT {del.BlockNumber}" : "DELAT",
+            DeleteCommand => "DEL",
+            CancelAutoDeleteCommand => "NODEL",
             ShowQueuedCommand => "SHOWAT",
             ChangeDestinationCommand cmd => $"APT {cmd.Airport}",
             CreateFlightPlanCommand cmd => $"FP {cmd.AircraftType} {cmd.CruiseAltitude / 100:D3} {cmd.Route}",
@@ -608,9 +610,129 @@ public static class CommandDescriber
             TdlsSendCommand cmd => $"TDLSS {string.Join('|', cmd.Fields)}",
             TdlsWilcoCommand => "TDLSW",
             TdlsDumpCommand => "TDLSDUMP",
+            // Track operations
+            SetActivePositionCommand cmd => $"AS {cmd.TcpCode}",
+            TrackAircraftCommand cmd => cmd.TcpCode is not null ? $"TRACK {cmd.TcpCode}" : "TRACK",
+            DropTrackCommand => "DROP",
+            InitiateHandoffCommand cmd => cmd.TcpCode is not null ? $"HO {cmd.TcpCode}" : "HO",
+            ForceHandoffCommand cmd => $"HOF {cmd.TcpCode}",
+            AcceptHandoffCommand cmd => cmd.Callsign is not null ? $"ACCEPT {cmd.Callsign}" : "ACCEPT",
+            CancelHandoffCommand => "CANCEL",
+            AcceptAllHandoffsCommand => "ACCEPTALL",
+            InitiateHandoffAllCommand cmd => $"HOALL {cmd.TcpCode}",
+            PointOutCommand cmd => cmd.TcpCode is not null ? $"PO {cmd.TcpCode}" : "PO",
+            AcknowledgeCommand => "OK",
+            RejectPointoutCommand => "PORJ",
+            RetractPointoutCommand => "PORT",
+            AcknowledgeConflictAlertCommand => "CAACK",
+            InhibitConflictAlertCommand => "CAINH",
+            PilotReportedAltitudeCommand cmd => $"PRA {cmd.AltitudeHundreds}",
+            LeaderDirectionCommand cmd => $"LDR {cmd.Direction}",
+            GhostTrackCommand cmd => FormatGhostCanonical(cmd),
+            RepositionToLocationCommand cmd => $"RPOSLOC {cmd.Callsign} {cmd.Latitude} {cmd.Longitude}",
+            RepositionMoveCommand cmd => $"RPOSMOVE {cmd.FromCallsign} {cmd.ToCallsign}",
+            OnHandoffCommand => "ONHO",
+            // Coordination
+            CoordinationReleaseCommand cmd => cmd.ListId is not null ? $"RD {cmd.ListId}" : "RD",
+            CoordinationHoldCommand cmd => cmd.ListId is not null ? $"RDH {cmd.ListId}" : "RDH",
+            CoordinationRecallCommand cmd => cmd.ListId is not null ? $"RDR {cmd.ListId}" : "RDR",
+            CoordinationAcknowledgeCommand cmd => cmd.ListId is not null ? $"RDACK {cmd.ListId}" : "RDACK",
+            CoordinationAutoAckCommand cmd => $"RDAUTO {cmd.ListId}",
+            // Data / ASDE-X
+            AssignRunwayCommand cmd => $"RWY {cmd.RunwayId}",
+            Scratchpad1Command cmd => cmd.Text.Length > 0 ? $"SP1 {cmd.Text}" : "SP1",
+            Scratchpad2Command cmd => cmd.Text.Length > 0 ? $"SP2 {cmd.Text}" : "SP2",
+            TemporaryAltitudeCommand cmd => $"TEMPALT {cmd.AltitudeHundreds}",
+            CruiseCommand cmd => $"CRUISE {cmd.AltitudeHundreds}",
+            StripAnnotateCommand cmd => cmd.Text is not null ? $"ANNOTATE {cmd.Box} {cmd.Text}" : $"ANNOTATE {cmd.Box}",
+            AsdexEditCommand cmd => FormatAsdexEditCanonical(cmd),
+            AsdexVerbCommand cmd => FormatAsdexVerbCanonical(cmd),
+            AsdexEnableAllAlertsCommand => "ASDXALERTS",
+            CancelIfrCommand => "CIFR",
+            TaxiAutoCommand cmd => FormatTaxiAutoCanonical(cmd),
+            TimerCommand cmd => FormatTimerCanonical(cmd),
+            // Sim control
+            PauseCommand => "PAUSE",
+            UnpauseCommand => "UNPAUSE",
+            SimRateCommand cmd => $"SIMRATE {cmd.Rate}",
+            SpawnNowCommand => "SPAWN",
+            SpawnDelayCommand cmd => $"SPAWNDELAY {cmd.Seconds}",
+            HoldForReleaseCommand cmd => $"HFR {cmd.Airport}",
+            DisarmHoldForReleaseCommand cmd => $"HFROFF {cmd.Airport}",
+            ReleaseDepartureCommand cmd => cmd.IntervalSeconds is int iv ? $"REL {cmd.Target} {iv}" : $"REL {cmd.Target}",
+            AddAircraftCommand cmd => $"ADD {cmd.Args}",
+            ConsolidateCommand cmd => cmd.Full
+                ? $"CON {cmd.ReceivingTcpCode} {cmd.SendingTcpCode} FULL"
+                : $"CON {cmd.ReceivingTcpCode} {cmd.SendingTcpCode}",
+            DeconsolidateCommand cmd => $"DECON {cmd.TcpCode}",
+            UnsupportedCommand cmd => cmd.RawText,
             _ => command.ToString() ?? "?",
         };
     }
+
+    private static string FormatGhostCanonical(GhostTrackCommand cmd)
+    {
+        if ((cmd.Latitude is double lat) && (cmd.Longitude is double lon))
+        {
+            return $"GHOST {cmd.Callsign} {lat} {lon}";
+        }
+
+        if (cmd.AirportCode is not null)
+        {
+            return $"GHOST {cmd.Callsign} {cmd.AirportCode} {cmd.RunwayId}";
+        }
+
+        return $"GHOST {cmd.Callsign} {cmd.RunwayId}";
+    }
+
+    private static string FormatTimerCanonical(TimerCommand timer)
+    {
+        if (timer.IsCancel)
+        {
+            return timer.CancelAll ? "TIMER CANCEL ALL" : $"TIMER CANCEL {timer.CancelId}";
+        }
+
+        var seconds = (int)(timer.Seconds ?? 0);
+        var duration = $"{seconds / 60}:{seconds % 60:D2}";
+        return string.IsNullOrWhiteSpace(timer.Message) ? $"TIMER {duration}" : $"TIMER {duration} {timer.Message}";
+    }
+
+    private static string FormatTaxiAutoCanonical(TaxiAutoCommand cmd)
+    {
+        if (cmd.DestinationRunway is not null)
+        {
+            return $"TAXIAUTO {cmd.DestinationRunway}";
+        }
+
+        return cmd.DestinationParking is not null ? $"TAXIAUTO @{cmd.DestinationParking}" : "TAXIAUTO";
+    }
+
+    private static string FormatAsdexEditCanonical(AsdexEditCommand cmd)
+    {
+        var verb = cmd.Field switch
+        {
+            AsdexEditField.Scratchpad1 => "ASDXSP1",
+            AsdexEditField.Scratchpad2 => "ASDXSP2",
+            AsdexEditField.Callsign => "ASDXCS",
+            AsdexEditField.BeaconCode => "ASDXBCN",
+            AsdexEditField.Category => "ASDXCAT",
+            AsdexEditField.AircraftType => "ASDXTYPE",
+            AsdexEditField.Fix => "ASDXFIX",
+            _ => throw new InvalidOperationException($"Unhandled AsdexEditField: {cmd.Field}"),
+        };
+        return string.IsNullOrEmpty(cmd.Text) ? verb : $"{verb} {cmd.Text}";
+    }
+
+    private static string FormatAsdexVerbCanonical(AsdexVerbCommand cmd) =>
+        cmd.Verb switch
+        {
+            AsdexVerb.Tag => "ASDXTAG",
+            AsdexVerb.Terminate => "ASDXTERM",
+            AsdexVerb.Suspend => "ASDXSUSP",
+            AsdexVerb.Unsuspend => "ASDXUSUS",
+            AsdexVerb.InhibitAlerts => "ASDXINHIB",
+            _ => throw new InvalidOperationException($"Unhandled AsdexVerb: {cmd.Verb}"),
+        };
 
     private static string FormatTokenizedCanonical(string verb, IReadOnlyList<string>? tokens)
     {
@@ -866,6 +988,8 @@ public static class CommandDescriber
             SafetyAlertCommand => "Safety alert",
             WakeAdvisoryCommand => "Caution wake turbulence",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"Delete queued block {del.BlockNumber}" : "Delete all queued commands",
+            DeleteCommand => "Delete aircraft",
+            CancelAutoDeleteCommand => "Cancel auto-delete",
             ShowQueuedCommand => "Show queued commands",
             ChangeDestinationCommand cmd => $"Change destination to {cmd.Airport}",
             CreateFlightPlanCommand cmd => $"Create {cmd.FlightRules} flight plan: {cmd.AircraftType}, {cmd.CruiseAltitude:N0} ft, {cmd.Route}",
@@ -878,9 +1002,121 @@ public static class CommandDescriber
             HalfStripAmendCommand cmd => DescribeHalfStripAmendNatural(cmd),
             HalfStripDeleteCommand cmd => DescribeHalfStripDeleteNatural(cmd),
             HalfStripEditCommand cmd => $"Edit half-strip {cmd.StripId}",
+            // Track operations
+            SetActivePositionCommand cmd => $"Act as position {cmd.TcpCode}",
+            TrackAircraftCommand cmd => cmd.TcpCode is not null ? $"Track ({cmd.TcpCode})" : "Track",
+            DropTrackCommand => "Drop track",
+            InitiateHandoffCommand cmd => cmd.TcpCode is not null ? $"Initiate handoff to {cmd.TcpCode}" : "Initiate handoff",
+            ForceHandoffCommand cmd => $"Force handoff to {cmd.TcpCode}",
+            AcceptHandoffCommand cmd => cmd.Callsign is not null ? $"Accept handoff, {cmd.Callsign}" : "Accept handoff",
+            CancelHandoffCommand => "Cancel handoff",
+            AcceptAllHandoffsCommand => "Accept all handoffs",
+            InitiateHandoffAllCommand cmd => $"Handoff all tracked aircraft to {cmd.TcpCode}",
+            PointOutCommand cmd => cmd.TcpCode is not null ? $"Point out to {cmd.TcpCode}" : "Point out",
+            AcknowledgeCommand => "Acknowledge",
+            RejectPointoutCommand => "Reject pointout",
+            RetractPointoutCommand => "Retract pointout",
+            AcknowledgeConflictAlertCommand => "Acknowledge conflict alert",
+            InhibitConflictAlertCommand => "Inhibit conflict alert",
+            PilotReportedAltitudeCommand cmd => DescribePilotReportedAltitudeNatural(cmd),
+            LeaderDirectionCommand cmd => $"Set leader line direction {cmd.Direction}",
+            GhostTrackCommand cmd => $"Create ghost track {cmd.Callsign}",
+            RepositionToLocationCommand cmd => $"Reposition {cmd.Callsign} datablock to location",
+            RepositionMoveCommand cmd => $"Move datablock from {cmd.FromCallsign} to {cmd.ToCallsign}",
+            OnHandoffCommand => "On handoff",
+            // Coordination
+            CoordinationReleaseCommand cmd => cmd.ListId is not null ? $"Release rundown on {cmd.ListId}" : "Release rundown",
+            CoordinationHoldCommand cmd => cmd.ListId is not null ? $"Hold release on {cmd.ListId}" : "Hold release",
+            CoordinationRecallCommand cmd => cmd.ListId is not null ? $"Recall release on {cmd.ListId}" : "Recall release",
+            CoordinationAcknowledgeCommand cmd => cmd.ListId is not null ? $"Acknowledge release on {cmd.ListId}" : "Acknowledge release",
+            CoordinationAutoAckCommand cmd => $"Toggle auto-ack on {cmd.ListId}",
+            // Data / ASDE-X
+            AssignRunwayCommand cmd => $"Assign runway {cmd.RunwayId}",
+            Scratchpad1Command cmd => cmd.Text.Length > 0 ? $"Set scratchpad 1: {cmd.Text}" : "Clear scratchpad 1",
+            Scratchpad2Command cmd => cmd.Text.Length > 0 ? $"Set scratchpad 2: {cmd.Text}" : "Clear scratchpad 2",
+            TemporaryAltitudeCommand cmd => $"Temporary altitude {cmd.AltitudeHundreds * 100:N0}",
+            CruiseCommand cmd => $"Cruise altitude {cmd.AltitudeHundreds * 100:N0}",
+            StripAnnotateCommand cmd => cmd.Text is not null ? $"Annotate strip box {cmd.Box}: {cmd.Text}" : $"Annotate strip box {cmd.Box}",
+            AsdexEditCommand cmd => DescribeAsdexEditNatural(cmd),
+            AsdexVerbCommand cmd => DescribeAsdexVerbNatural(cmd),
+            AsdexEnableAllAlertsCommand => "Enable all ASDE-X alerts",
+            CancelIfrCommand => "Cancel IFR",
+            TaxiAutoCommand cmd => DescribeTaxiAutoNatural(cmd),
+            // Strip / separator / blank / TDLS
+            StripMoveCommand => "Move flight strip",
+            StripScanCommand => "Scan flight strip",
+            StripDeleteCommand => "Delete flight strip",
+            StripOffsetCommand => "Toggle strip offset",
+            HalfStripMoveCommand => "Move half-strip",
+            HalfStripOffsetCommand => "Toggle half-strip offset",
+            HalfStripSlideCommand => "Slide half-strip",
+            SeparatorCreateCommand => "Create separator",
+            SeparatorDeleteCommand => "Delete separator",
+            SeparatorEditCommand => "Edit separator",
+            SeparatorMoveCommand => "Move separator",
+            BlankCreateCommand => "Create blank strip",
+            BlankDeleteCommand => "Delete blank strip",
+            TdlsQueueCommand => "Queue TDLS clearance",
+            TdlsSendCommand => "Send TDLS clearance",
+            TdlsWilcoCommand => "TDLS wilco",
+            TdlsDumpCommand => "Dump TDLS state",
+            // Sim control
+            PauseCommand => "Pause",
+            UnpauseCommand => "Unpause",
+            SimRateCommand cmd => $"Set sim rate to {cmd.Rate}",
+            SpawnNowCommand => "Spawn now",
+            SpawnDelayCommand cmd => $"Set spawn delay to {cmd.Seconds} s",
+            HoldForReleaseCommand cmd => $"Hold for release: {cmd.Airport}",
+            DisarmHoldForReleaseCommand cmd => $"Disarm hold for release: {cmd.Airport}",
+            ReleaseDepartureCommand cmd => cmd.IntervalSeconds is not null
+                ? $"Release {cmd.Target} departures, spaced"
+                : $"Release departure {cmd.Target}",
+            AddAircraftCommand => "Add aircraft",
+            ConsolidateCommand cmd => cmd.Full ? "Consolidate (full)" : "Consolidate",
+            DeconsolidateCommand => "Deconsolidate",
             _ => command.ToString() ?? "?",
         };
     }
+
+    private static string DescribePilotReportedAltitudeNatural(PilotReportedAltitudeCommand cmd) =>
+        cmd.AltitudeHundreds == 0 ? "Clear pilot-reported altitude" : $"Pilot reported altitude {cmd.AltitudeHundreds * 100:N0}";
+
+    private static string DescribeTaxiAutoNatural(TaxiAutoCommand cmd)
+    {
+        if (cmd.DestinationRunway is not null)
+        {
+            return $"Taxi (auto) to runway {cmd.DestinationRunway}";
+        }
+
+        return cmd.DestinationParking is not null ? $"Taxi (auto) to {cmd.DestinationParking}" : "Taxi (auto)";
+    }
+
+    private static string DescribeAsdexEditNatural(AsdexEditCommand cmd)
+    {
+        var field = cmd.Field switch
+        {
+            AsdexEditField.Scratchpad1 => "ASDE-X scratchpad 1",
+            AsdexEditField.Scratchpad2 => "ASDE-X scratchpad 2",
+            AsdexEditField.Callsign => "ASDE-X callsign",
+            AsdexEditField.BeaconCode => "ASDE-X beacon code",
+            AsdexEditField.Category => "ASDE-X category",
+            AsdexEditField.AircraftType => "ASDE-X aircraft type",
+            AsdexEditField.Fix => "ASDE-X fix",
+            _ => throw new InvalidOperationException($"Unhandled AsdexEditField: {cmd.Field}"),
+        };
+        return string.IsNullOrEmpty(cmd.Text) ? $"Clear {field}" : $"Set {field}: {cmd.Text}";
+    }
+
+    private static string DescribeAsdexVerbNatural(AsdexVerbCommand cmd) =>
+        cmd.Verb switch
+        {
+            AsdexVerb.Tag => "ASDE-X tag target",
+            AsdexVerb.Terminate => "ASDE-X terminate track",
+            AsdexVerb.Suspend => "ASDE-X suspend track",
+            AsdexVerb.Unsuspend => "ASDE-X unsuspend track",
+            AsdexVerb.InhibitAlerts => "ASDE-X inhibit alerts",
+            _ => throw new InvalidOperationException($"Unhandled AsdexVerb: {cmd.Verb}"),
+        };
 
     private static string DescribeTimerNatural(TimerCommand timer)
     {

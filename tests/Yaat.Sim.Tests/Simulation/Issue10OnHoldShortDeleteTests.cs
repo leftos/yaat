@@ -101,6 +101,11 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
         var result = engine.SendCommand(Callsign, "ONHS DEL");
         Assert.True(result.Success, $"ONHS DEL should dispatch successfully: {result.Message}");
 
+        // Issue #226: the queued-block ack must use the friendly command name, not the raw
+        // record ToString() ("DeleteCommand { }") that leaks when a describer arm is missing.
+        Assert.DoesNotContain("DeleteCommand", result.Message ?? "");
+        Assert.Contains("Delete aircraft", result.Message ?? "");
+
         bool sawHoldingAfterExit = false;
         for (int t = 1; t <= 180; t++)
         {
