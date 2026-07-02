@@ -863,6 +863,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _showTdlsEntries = true;
 
+    [ObservableProperty]
+    private bool _showStripEntries = true;
+
     public event Action? TerminalFilterChanged;
 
     /// <summary>
@@ -905,6 +908,8 @@ public partial class MainViewModel : ObservableObject
     partial void OnShowChatEntriesChanged(bool value) => OnTerminalToggleChanged();
 
     partial void OnShowTdlsEntriesChanged(bool value) => OnTerminalToggleChanged();
+
+    partial void OnShowStripEntriesChanged(bool value) => OnTerminalToggleChanged();
 
     partial void OnTerminalSearchTextChanged(string value) => TerminalFilterChanged?.Invoke();
 
@@ -994,6 +999,11 @@ public partial class MainViewModel : ObservableObject
             visible.Add(TerminalEntryKind.Tdls);
         }
 
+        if (ShowStripEntries)
+        {
+            visible.Add(TerminalEntryKind.Strip);
+        }
+
         return visible;
     }
 
@@ -1010,6 +1020,7 @@ public partial class MainViewModel : ObservableObject
             ShowErrorEntries = visible.Contains(TerminalEntryKind.Error);
             ShowChatEntries = visible.Contains(TerminalEntryKind.Chat);
             ShowTdlsEntries = visible.Contains(TerminalEntryKind.Tdls);
+            ShowStripEntries = visible.Contains(TerminalEntryKind.Strip);
         }
         finally
         {
@@ -1062,6 +1073,11 @@ public partial class MainViewModel : ObservableObject
             hidden.Add(TerminalEntryKind.Tdls);
         }
 
+        if (!ShowStripEntries)
+        {
+            hidden.Add(TerminalEntryKind.Strip);
+        }
+
         _preferences.SetHiddenTerminalKinds(hidden);
         TerminalFilterChanged?.Invoke();
     }
@@ -1077,6 +1093,7 @@ public partial class MainViewModel : ObservableObject
             TerminalEntryKind.Error => ShowErrorEntries,
             TerminalEntryKind.Chat => ShowChatEntries,
             TerminalEntryKind.Tdls => ShowTdlsEntries,
+            TerminalEntryKind.Strip => ShowStripEntries,
             _ => true,
         };
 
@@ -1100,7 +1117,27 @@ public partial class MainViewModel : ObservableObject
 
     public IEnumerable<TerminalEntry> GetFilteredTerminalEntries() => TerminalEntries.Where(IsEntryVisible);
 
-    public ObservableCollection<string> CommandHistory { get; } = [];
+    public ObservableCollection<CommandHistoryEntry> CommandHistory { get; } = [];
+
+    /// <summary>
+    /// The up-arrow recall candidates for the current selection, newest first. When an aircraft
+    /// is selected, only commands sent to it (plus untargeted/global commands, which carry an
+    /// empty callsign) are returned; with no selection, every command is returned. The
+    /// controller's typed-prefix filter composes on top of this.
+    /// </summary>
+    public IReadOnlyList<string> GetRecallHistory()
+    {
+        var selected = SelectedAircraft?.Callsign;
+        if (string.IsNullOrEmpty(selected))
+        {
+            return CommandHistory.Select(e => e.Command).ToList();
+        }
+
+        return CommandHistory
+            .Where(e => e.Callsign.Length == 0 || string.Equals(e.Callsign, selected, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.Command)
+            .ToList();
+    }
 
     public ObservableCollection<TerminalEntry> TerminalEntries { get; } = [];
 
@@ -1218,6 +1255,7 @@ public partial class MainViewModel : ObservableObject
         _showErrorEntries = !hidden.Contains(TerminalEntryKind.Error);
         _showChatEntries = !hidden.Contains(TerminalEntryKind.Chat);
         _showTdlsEntries = !hidden.Contains(TerminalEntryKind.Tdls);
+        _showStripEntries = !hidden.Contains(TerminalEntryKind.Strip);
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged, _preferences);
         Ground.ShownAirportChanged += () => OnPropertyChanged(nameof(GroundShownAirportId));
         Ground.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
@@ -1472,6 +1510,11 @@ public partial class MainViewModel : ObservableObject
         Ground.SelectedAircraft = value;
         Radar.SelectedAircraft = value;
         _isSyncingSelection = false;
+
+        // Recall is filtered by the selected aircraft, so the candidate list changes when the
+        // selection does. Reset navigation state so a subsequent up-arrow starts fresh from the
+        // new list instead of indexing into the previously-filtered one.
+        _commandInput.ResetHistoryNavigation();
     }
 
     /// <summary>
@@ -1797,7 +1840,7 @@ public partial class MainViewModel : ObservableObject
                 try
                 {
                     await _connection.SendChatAsync(_preferences.UserInitials, chatMessage);
-                    AddHistory(text);
+                    AddHistory("", text);
                 }
                 catch (Exception ex)
                 {
@@ -1818,7 +1861,7 @@ public partial class MainViewModel : ObservableObject
             HandleScopeMarkerCommand(text);
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
-            AddHistory(text);
+            AddHistory("", text);
             CommandText = "";
             return;
         }
@@ -1953,7 +1996,7 @@ public partial class MainViewModel : ObservableObject
                     // Always drop the typed text: even when the server rejects, the RPO has
                     // seen the result and should not retype the whole command. The error
                     // message surfaces through StatusText and the terminal history.
-                    AddHistory(originalInput);
+                    AddHistory("", originalInput);
                     _commandInput.DismissSuggestions();
                     _commandInput.ResetHistoryNavigation();
                     CommandText = "";
@@ -1991,7 +2034,7 @@ public partial class MainViewModel : ObservableObject
             // not retype the whole command. The error surfaces through StatusText and
             // the terminal history. The leading callsign is stripped so up-arrow recall
             // produces the canonical command alone — easy to rerun on a new aircraft.
-            AddHistory(CommandHistoryFormatter.Format(originalInput, resolvedCallsign, compound.CanonicalString));
+            AddHistory(target.Callsign, CommandHistoryFormatter.Format(originalInput, resolvedCallsign, compound.CanonicalString));
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
@@ -2077,7 +2120,7 @@ public partial class MainViewModel : ObservableObject
                 RecordCommandMarker(target.Callsign, mappedCompound.CanonicalString, result.ServerElapsedSeconds);
             }
 
-            AddHistory(CommandHistoryFormatter.Format(originalInput, historyCallsign, mappedCompound.CanonicalString));
+            AddHistory(target.Callsign, CommandHistoryFormatter.Format(originalInput, historyCallsign, mappedCompound.CanonicalString));
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
@@ -2098,14 +2141,14 @@ public partial class MainViewModel : ObservableObject
         if (parsed.Type == CanonicalCommandType.Pause)
         {
             await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
-            AddHistory("PAUSE");
+            AddHistory("", "PAUSE");
             CommandText = "";
             return;
         }
         if (parsed.Type == CanonicalCommandType.Unpause)
         {
             await _connection.SendCommandAsync("", "UNPAUSE", _preferences.UserInitials);
-            AddHistory("UNPAUSE");
+            AddHistory("", "UNPAUSE");
             CommandText = "";
             return;
         }
@@ -2114,7 +2157,7 @@ public partial class MainViewModel : ObservableObject
             if (int.TryParse(parsed.Argument, out var rate))
             {
                 await _connection.SendCommandAsync("", $"SIMRATE {rate}", _preferences.UserInitials);
-                AddHistory($"SIMRATE {rate}");
+                AddHistory("", $"SIMRATE {rate}");
             }
             CommandText = "";
             return;
@@ -2131,7 +2174,7 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 await _connection.SendCommandAsync("", verb, _preferences.UserInitials);
-                AddHistory(verb);
+                AddHistory("", verb);
             }
             catch (Exception ex)
             {
@@ -2154,7 +2197,7 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory(canonical);
+                AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, "ADD");
             }
             catch (Exception ex)
@@ -2179,7 +2222,7 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory(canonical);
+                AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, verb);
             }
             catch (Exception ex)
@@ -2211,7 +2254,7 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory(canonical);
+                AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, verb);
             }
             catch (Exception ex)
@@ -2229,7 +2272,7 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory(canonical);
+                AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, "TAXIALL");
             }
             catch (Exception ex)
@@ -2252,7 +2295,7 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
-                AddHistory(canonical);
+                AddHistory("", canonical);
                 StatusText = CommandStatusResolver.Resolve(result, "TIMER");
             }
             catch (Exception ex)
@@ -2278,7 +2321,7 @@ public partial class MainViewModel : ObservableObject
                 return true;
             }
             await TakeControlAsync(target.Callsign);
-            AddHistory(originalInput);
+            AddHistory(target.Callsign, originalInput);
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
@@ -2299,7 +2342,7 @@ public partial class MainViewModel : ObservableObject
                 return true;
             }
             await GiveControlAsync(target.Callsign, initials);
-            AddHistory(originalInput);
+            AddHistory(target.Callsign, originalInput);
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
@@ -2314,7 +2357,7 @@ public partial class MainViewModel : ObservableObject
                 return true;
             }
             await ReleaseControlAsync(target.Callsign);
-            AddHistory(originalInput);
+            AddHistory(target.Callsign, originalInput);
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
@@ -3079,18 +3122,22 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    internal void AddHistory(string entry)
+    internal void AddHistory(string callsign, string command)
     {
-        var normalizedEntry = entry.ToUpperInvariant();
+        var entry = new CommandHistoryEntry(callsign.ToUpperInvariant(), command.ToUpperInvariant());
         for (var i = CommandHistory.Count - 1; i >= 0; i--)
         {
-            if (string.Equals(CommandHistory[i], normalizedEntry, StringComparison.OrdinalIgnoreCase))
+            var existing = CommandHistory[i];
+            if (
+                string.Equals(existing.Callsign, entry.Callsign, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(existing.Command, entry.Command, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 CommandHistory.RemoveAt(i);
             }
         }
 
-        CommandHistory.Insert(0, normalizedEntry);
+        CommandHistory.Insert(0, entry);
         while (CommandHistory.Count > 50)
         {
             CommandHistory.RemoveAt(CommandHistory.Count - 1);

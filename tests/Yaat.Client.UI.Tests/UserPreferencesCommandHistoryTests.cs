@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.UI.Tests;
@@ -21,32 +22,45 @@ public class UserPreferencesCommandHistoryTests
     }
 
     [Fact]
-    public void SetCommandHistory_RoundTripsThroughDisk()
+    public void SetCommandHistory_RoundTripsCallsignAndCommandThroughDisk()
     {
         const string scenarioId = "TEST-roundtrip-ABC";
-        var entries = new[] { "fh 270", "DH 5000", "ERD 28R" };
+        var entries = new[]
+        {
+            new CommandHistoryEntry("UAL1", "fh 270"),
+            new CommandHistoryEntry("AAL2", "DH 5000"),
+            new CommandHistoryEntry("", "PAUSE"),
+        };
 
         var writer = new UserPreferences();
         writer.SetCommandHistory(scenarioId, entries);
 
-        // A fresh instance reads preferences.json from disk, proving persistence.
+        // A fresh instance reads preferences.json from disk, proving persistence — including
+        // the per-entry callsign, uppercased to match the in-memory normalization.
         var reader = new UserPreferences();
         var loaded = reader.GetCommandHistory(scenarioId);
 
-        Assert.Equal(["FH 270", "DH 5000", "ERD 28R"], loaded);
+        Assert.Equal(
+            [new CommandHistoryEntry("UAL1", "FH 270"), new CommandHistoryEntry("AAL2", "DH 5000"), new CommandHistoryEntry("", "PAUSE")],
+            loaded
+        );
     }
 
     [Fact]
-    public void SetCommandHistory_UppercasesAndDedupesCaseVariants()
+    public void SetCommandHistory_DedupesByCallsignAndCommand()
     {
         const string scenarioId = "TEST-normalize-case-GHI";
 
         var prefs = new UserPreferences();
-        prefs.SetCommandHistory(scenarioId, ["cland", "CLAND", "fh 270"]);
+        // Same command text on different aircraft must survive; case variants collapse.
+        prefs.SetCommandHistory(
+            scenarioId,
+            [new CommandHistoryEntry("UAL1", "cland"), new CommandHistoryEntry("UAL1", "CLAND"), new CommandHistoryEntry("AAL2", "cland")]
+        );
 
         var loaded = new UserPreferences().GetCommandHistory(scenarioId);
 
-        Assert.Equal(["CLAND", "FH 270"], loaded);
+        Assert.Equal([new CommandHistoryEntry("UAL1", "CLAND"), new CommandHistoryEntry("AAL2", "CLAND")], loaded);
     }
 
     [Fact]
@@ -55,12 +69,12 @@ public class UserPreferencesCommandHistoryTests
         const string scenarioId = "TEST-overwrite-DEF";
 
         var prefs = new UserPreferences();
-        prefs.SetCommandHistory(scenarioId, ["OLD1", "OLD2"]);
-        prefs.SetCommandHistory(scenarioId, ["NEW"]);
+        prefs.SetCommandHistory(scenarioId, [new CommandHistoryEntry("", "OLD1"), new CommandHistoryEntry("", "OLD2")]);
+        prefs.SetCommandHistory(scenarioId, [new CommandHistoryEntry("", "NEW")]);
 
         var loaded = new UserPreferences().GetCommandHistory(scenarioId);
 
-        Assert.Equal(["NEW"], loaded);
+        Assert.Equal([new CommandHistoryEntry("", "NEW")], loaded);
     }
 
     [Fact]
@@ -70,12 +84,12 @@ public class UserPreferencesCommandHistoryTests
         const string scenarioB = "TEST-iso-B";
 
         var prefs = new UserPreferences();
-        prefs.SetCommandHistory(scenarioA, ["A1", "A2"]);
-        prefs.SetCommandHistory(scenarioB, ["B1"]);
+        prefs.SetCommandHistory(scenarioA, [new CommandHistoryEntry("", "A1"), new CommandHistoryEntry("", "A2")]);
+        prefs.SetCommandHistory(scenarioB, [new CommandHistoryEntry("", "B1")]);
 
         var reader = new UserPreferences();
-        Assert.Equal(["A1", "A2"], reader.GetCommandHistory(scenarioA));
-        Assert.Equal(["B1"], reader.GetCommandHistory(scenarioB));
+        Assert.Equal([new CommandHistoryEntry("", "A1"), new CommandHistoryEntry("", "A2")], reader.GetCommandHistory(scenarioA));
+        Assert.Equal([new CommandHistoryEntry("", "B1")], reader.GetCommandHistory(scenarioB));
     }
 
     [Fact]
@@ -107,7 +121,7 @@ public class UserPreferencesCommandHistoryTests
                 var prefs = new UserPreferences();
                 for (int j = 0; j < writesPerWriter; j++)
                 {
-                    prefs.SetCommandHistory($"TEST-race-{i}-{j}", [$"CMD{i}-{j}"]);
+                    prefs.SetCommandHistory($"TEST-race-{i}-{j}", [new CommandHistoryEntry("", $"CMD{i}-{j}")]);
                 }
             }
         );
@@ -116,8 +130,8 @@ public class UserPreferencesCommandHistoryTests
         // round-trips. Other writers' scenarios may have been overwritten;
         // we only assert the file is parseable and the last write survives.
         var final = new UserPreferences();
-        final.SetCommandHistory("TEST-race-final", ["FINAL"]);
+        final.SetCommandHistory("TEST-race-final", [new CommandHistoryEntry("", "FINAL")]);
         var reread = new UserPreferences();
-        Assert.Equal(["FINAL"], reread.GetCommandHistory("TEST-race-final"));
+        Assert.Equal([new CommandHistoryEntry("", "FINAL")], reread.GetCommandHistory("TEST-race-final"));
     }
 }

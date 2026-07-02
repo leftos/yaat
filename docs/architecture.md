@@ -171,10 +171,11 @@ Services/
   IAlwaysOnTopToggle.cs         # Window contract for the central always-on-top hotkey (WindowHotkeys); each window delegates to its WindowGeometryHelper.ToggleTopmost
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames
   GroundColorScheme.cs          # Theme/color scheme for strips
-  TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say)
+  TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say/Warning/Error/Chat/PilotSpeech/Tdls/Strip)
 
 Models/
-  TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat); defaults match the legacy hard-coded scheme
+  TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat/Tdls/Strip); defaults match the legacy hard-coded scheme
+  CommandHistoryEntry.cs        # Up-arrow recall entry: (Callsign, Command). Callsign-less command text + the aircraft it was sent to (empty = global/untargeted); recall filters by selected aircraft
   DatablockDeconflictMode.cs    # Per-view datablock-deconfliction setting (Off / Snap / Free-form); persisted per view in UserPreferences
 
 ViewModels/
@@ -192,7 +193,7 @@ Views/
 Models/
   AircraftModel.cs              # ObservableObject wrapping AircraftDto; computed displays; FromDto/UpdateFromDto
   AircraftSpeechBubble.cs       # Per-aircraft speech bubble model for opt-in SAY/pilot (green) and WARN (amber) overlays on Radar/Ground views (text, severity, user-scaled duration or persist-until-clicked, dismiss state).
-  TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say)
+  TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say/Warning/Error/Chat/PilotSpeech/Tdls/Strip)
 
 Services/
   ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs

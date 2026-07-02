@@ -173,7 +173,12 @@ three separate setters — `OnSessionSoloPacingRateChanged` / `OnSessionSoloPark
 
 The **terminal-filter solo** feature uses the identical guard pattern under a different flag,
 `_isProgrammaticTerminalToggle` (`MainViewModel.cs:821`): `ApplyVisibilityProgrammatic` sets it while flipping the
-`Show*Entries` toggles so `OnTerminalToggleChanged` skips persistence and the cancel-solo side effect.
+`Show*Entries` toggles so `OnTerminalToggleChanged` skips persistence and the cancel-solo side effect. There is one
+`Show<Kind>Entries` toggle per `TerminalEntryKind` (Command/Response/System/Say/Warning/Error/Chat/Tdls/**Strip**); adding
+a channel means touching this toggle set plus `IsEntryVisible`, `CurrentVisibleKinds`, `ApplyVisibilityProgrammatic`,
+`PersistTerminalFilters`, the constructor seed, the `TerminalPanelView` toggle button + `EnumerateCategoryToggles`, and the
+`TerminalColorScheme`/colorizer/Settings color row (the `Strip` channel — strip command echoes + feedback, tagged server-side
+in `RoomEngine.HandleStripCmd` — is the most recent example).
 
 ## The command pipeline entry point — `SendCommandAsync`
 

@@ -24,6 +24,13 @@ public enum TerminalEntryKind
     /// colored, filtered, and (eventually) routed to a dedicated channel toggle.
     /// </summary>
     Tdls,
+
+    /// <summary>
+    /// Flight-strip command echo and its feedback (STRIP, HSC, SEP, BLANK, …). Routine strip
+    /// traffic is high-volume, so it carries its own kind to get a dedicated channel toggle
+    /// that hides both the command echo and the response in one click.
+    /// </summary>
+    Strip,
 }
 
 public sealed class TerminalEntry

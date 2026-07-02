@@ -394,7 +394,8 @@ public sealed class UserPreferences
             _data.TerminalWarningColor,
             _data.TerminalErrorColor,
             _data.TerminalChatColor,
-            _data.TerminalTdlsColor
+            _data.TerminalTdlsColor,
+            _data.TerminalStripColor
         );
 
     /// <summary>Raised after <see cref="SetTerminalColors"/> persists; subscribers refresh terminal styling.</summary>
@@ -912,6 +913,7 @@ public sealed class UserPreferences
         _data.TerminalErrorColor = scheme.Error;
         _data.TerminalChatColor = scheme.Chat;
         _data.TerminalTdlsColor = scheme.Tdls;
+        _data.TerminalStripColor = scheme.Strip;
         Save();
         TerminalColorsChanged?.Invoke();
     }
@@ -1189,7 +1191,7 @@ public sealed class UserPreferences
     /// Returns the persisted up-arrow command history for a scenario, newest first.
     /// Empty list when no history has been saved for the given scenario.
     /// </summary>
-    public IReadOnlyList<string> GetCommandHistory(string scenarioId)
+    public IReadOnlyList<CommandHistoryEntry> GetCommandHistory(string scenarioId)
     {
         return _data.ScenarioCommandHistory.TryGetValue(scenarioId, out var history) ? NormalizeCommandHistoryEntries(history) : [];
     }
@@ -1199,19 +1201,24 @@ public sealed class UserPreferences
     /// snapshot. Caller is responsible for ordering (newest first) and trimming
     /// (MainViewModel caps at 50 entries before calling).
     /// </summary>
-    public void SetCommandHistory(string scenarioId, IEnumerable<string> entries)
+    public void SetCommandHistory(string scenarioId, IEnumerable<CommandHistoryEntry> entries)
     {
         _data.ScenarioCommandHistory[scenarioId] = NormalizeCommandHistoryEntries(entries);
         Save();
     }
 
-    private static List<string> NormalizeCommandHistoryEntries(IEnumerable<string> entries)
+    private static List<CommandHistoryEntry> NormalizeCommandHistoryEntries(IEnumerable<CommandHistoryEntry> entries)
     {
-        var normalized = new List<string>();
+        var normalized = new List<CommandHistoryEntry>();
         foreach (var entry in entries)
         {
-            var value = entry.ToUpperInvariant();
-            if (normalized.Contains(value, StringComparer.OrdinalIgnoreCase))
+            var value = new CommandHistoryEntry(entry.Callsign.ToUpperInvariant(), entry.Command.ToUpperInvariant());
+            if (
+                normalized.Any(e =>
+                    string.Equals(e.Callsign, value.Callsign, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(e.Command, value.Command, StringComparison.OrdinalIgnoreCase)
+                )
+            )
             {
                 continue;
             }
@@ -1457,6 +1464,7 @@ public sealed class UserPreferences
             TerminalErrorColor = GetFieldOr(obj, "terminalErrorColor", TerminalColorScheme.DefaultError),
             TerminalChatColor = GetFieldOr(obj, "terminalChatColor", TerminalColorScheme.DefaultChat),
             TerminalTdlsColor = GetFieldOr(obj, "terminalTdlsColor", TerminalColorScheme.DefaultTdls),
+            TerminalStripColor = GetFieldOr(obj, "terminalStripColor", TerminalColorScheme.DefaultStrip),
             SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
             AutoExpandSuggestionOnEnter = GetFieldOr(obj, "autoExpandSuggestionOnEnter", true),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
@@ -1465,7 +1473,7 @@ public sealed class UserPreferences
             GroundDatablockFontSize = GetFieldOr(obj, "groundDatablockFontSize", 12),
             GroundLabelFontSize = GetFieldOr(obj, "groundLabelFontSize", 13),
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
-            ScenarioCommandHistory = GetFieldOr<Dictionary<string, List<string>>>(obj, "scenarioCommandHistory", []),
+            ScenarioCommandHistory = GetFieldOr<Dictionary<string, List<CommandHistoryEntry>>>(obj, "scenarioCommandHistory", []),
             SoloGoAroundProbabilityPercent = GetFieldOr(obj, "soloGoAroundProbabilityPercent", 0),
             SoloGoAroundProbabilityByScenario = GetFieldOr<Dictionary<string, int>>(obj, "soloGoAroundProbabilityByScenario", []),
         };
@@ -1732,6 +1740,7 @@ public sealed class UserPreferences
         public string TerminalErrorColor { get; set; } = TerminalColorScheme.DefaultError;
         public string TerminalChatColor { get; set; } = TerminalColorScheme.DefaultChat;
         public string TerminalTdlsColor { get; set; } = TerminalColorScheme.DefaultTdls;
+        public string TerminalStripColor { get; set; } = TerminalColorScheme.DefaultStrip;
         public string SignatureHelpPlacement { get; set; } = "Above";
         public bool AutoExpandSuggestionOnEnter { get; set; } = true;
         public int DataGridFontSize { get; set; } = 12;
@@ -1753,7 +1762,7 @@ public sealed class UserPreferences
         // Per-scenario up-arrow recall history. Keyed by ActiveScenarioId; values are
         // ordered newest-first, capped at 50 entries by MainViewModel before save.
         // Discarded for commands typed while no scenario is active.
-        public Dictionary<string, List<string>> ScenarioCommandHistory { get; set; } = [];
+        public Dictionary<string, List<CommandHistoryEntry>> ScenarioCommandHistory { get; set; } = [];
 
         // Speech recognition. With the LM-Kit engine swap, WhisperModelSize and LlmModelPath
         // hold LM-Kit model sources — curated IDs (e.g. "whisper-large-turbo3", "qwen3.5:4b"),

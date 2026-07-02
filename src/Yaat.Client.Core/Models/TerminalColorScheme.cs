@@ -15,7 +15,8 @@ public sealed record TerminalColorScheme(
     string Warning,
     string Error,
     string Chat,
-    string Tdls
+    string Tdls,
+    string Strip
 )
 {
     public const string DefaultCommand = "#FFFFFF";
@@ -34,8 +35,26 @@ public sealed record TerminalColorScheme(
     /// </summary>
     public const string DefaultTdls = "#FFB000";
 
+    /// <summary>
+    /// Default flight-strip color — a soft violet, distinct from the amber TDLS, green
+    /// Say/PilotSpeech, and cyan Chat so routine strip traffic is identifiable at a glance
+    /// (and stays visually grouped when the Strip channel is soloed).
+    /// </summary>
+    public const string DefaultStrip = "#C586C0";
+
     public static TerminalColorScheme Default { get; } =
-        new(DefaultCommand, DefaultResponse, DefaultSystem, DefaultSay, DefaultPilotSpeech, DefaultWarning, DefaultError, DefaultChat, DefaultTdls);
+        new(
+            DefaultCommand,
+            DefaultResponse,
+            DefaultSystem,
+            DefaultSay,
+            DefaultPilotSpeech,
+            DefaultWarning,
+            DefaultError,
+            DefaultChat,
+            DefaultTdls,
+            DefaultStrip
+        );
 
     public string For(TerminalEntryKind kind) =>
         kind switch
@@ -49,6 +68,7 @@ public sealed record TerminalColorScheme(
             TerminalEntryKind.Error => Error,
             TerminalEntryKind.Chat => Chat,
             TerminalEntryKind.Tdls => Tdls,
+            TerminalEntryKind.Strip => Strip,
             _ => DefaultCommand,
         };
 }

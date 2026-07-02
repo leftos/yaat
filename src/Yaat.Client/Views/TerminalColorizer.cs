@@ -50,6 +50,7 @@ internal sealed class TerminalColorizer : DocumentColorizingTransformer
             [TerminalEntryKind.Error] = Parse(scheme.Error, Brushes.Red),
             [TerminalEntryKind.Chat] = Parse(scheme.Chat, Brushes.Cyan),
             [TerminalEntryKind.Tdls] = Parse(scheme.Tdls, new SolidColorBrush(Color.Parse("#FFB000"))),
+            [TerminalEntryKind.Strip] = Parse(scheme.Strip, new SolidColorBrush(Color.Parse("#C586C0"))),
         };
 
     private static IBrush Parse(string hex, IBrush fallback)

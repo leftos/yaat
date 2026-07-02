@@ -339,6 +339,9 @@ public partial class SettingsViewModel : ObservableObject
     private string _terminalTdlsColor = TerminalColorScheme.DefaultTdls;
 
     [ObservableProperty]
+    private string _terminalStripColor = TerminalColorScheme.DefaultStrip;
+
+    [ObservableProperty]
     private int _groundSatelliteImageBrightness = 50;
 
     [ObservableProperty]
@@ -685,6 +688,8 @@ public partial class SettingsViewModel : ObservableObject
         _terminalWarningColor = terminalColors.Warning;
         _terminalErrorColor = terminalColors.Error;
         _terminalChatColor = terminalColors.Chat;
+        _terminalTdlsColor = terminalColors.Tdls;
+        _terminalStripColor = terminalColors.Strip;
         _groundSatelliteImageBrightness = _preferences.GroundSatelliteImageBrightness;
         _groundVideoMapOverlayBrightness = _preferences.GroundVideoMapOverlayBrightness;
         _groundYaatLayoutBrightness = _preferences.GroundYaatLayoutBrightness;
@@ -797,7 +802,8 @@ public partial class SettingsViewModel : ObservableObject
                 TerminalWarningColor,
                 TerminalErrorColor,
                 TerminalChatColor,
-                TerminalTdlsColor
+                TerminalTdlsColor,
+                TerminalStripColor
             )
         );
         _preferences.SetGroundLayerSettings(
@@ -1455,6 +1461,7 @@ public partial class SettingsViewModel : ObservableObject
         TerminalErrorColor = t.Error;
         TerminalChatColor = t.Chat;
         TerminalTdlsColor = t.Tdls;
+        TerminalStripColor = t.Strip;
     }
 
     /// <summary>
@@ -1528,6 +1535,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnTerminalChatColorChanged(string value) => VisualSettingsChanged?.Invoke();
 
     partial void OnTerminalTdlsColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnTerminalStripColorChanged(string value) => VisualSettingsChanged?.Invoke();
 
     partial void OnDataGridFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 

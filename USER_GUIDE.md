@@ -100,7 +100,7 @@ Each line shows:
 HH:MM:SS  CMD  AB  UAL123  FH 270
 ```
 - **Timestamp** — when the entry was received
-- **Kind tag** — entry category (CMD, RSP, SYS, SAY, WRN, ERR, CHAT)
+- **Kind tag** — entry category (CMD, RSP, SYS, SAY, WRN, ERR, CHAT, TDLS, STRP)
 - **Initials** — who issued the command
 - **Callsign** — which aircraft was targeted
 - **Message** (colored by type):
@@ -111,10 +111,14 @@ HH:MM:SS  CMD  AB  UAL123  FH 270
   - **Orange** — warnings (WRN)
   - **Red** — errors (ERR)
   - **Cyan** — chat messages (CHAT)
+  - **Amber** — vTDLS PDC broadcasts (TDLS)
+  - **Violet** — flight-strip commands and feedback (STRP)
+
+Every terminal color is customizable under **Settings → terminal colors**.
 
 #### Filters
 
-The terminal header includes toggle buttons to filter entries by kind: **CMD**, **RSP**, **SYS**, **SAY**, **WRN**, **ERR**, **CHAT**. Click a toggle to hide/show that kind. Hidden entries remain in the backing store — toggling a filter back on restores all entries. All entries are always written to the client log file regardless of filter state. Filter state persists across sessions.
+The terminal header includes toggle buttons to filter entries by kind: **CMD**, **RSP**, **SYS**, **SAY**, **WRN**, **ERR**, **CHAT**, **TDLS**, **STRP**. Click a toggle to hide/show that kind. The **STRP** toggle hides flight-strip command echoes and their feedback in one click, which is handy when strip traffic is burying requests and commands. **Shift+Click** a toggle to *solo* that channel (hide all others); Shift+Click it again to restore the previous set. Hidden entries remain in the backing store — toggling a filter back on restores all entries. All entries are always written to the client log file regardless of filter state. Filter state persists across sessions.
 
 #### Multi-User Visibility
 
@@ -1411,8 +1415,10 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 
 - **Up** — recall the previous command
 - **Down** — move forward through history (or restore what you were typing)
+- **Recall is filtered to the selected aircraft.** With an aircraft selected, Up/Down walk through only the commands you sent to *that* aircraft (plus global commands like `PAUSE`). Deselect (Esc) to recall across all aircraft. This lets you re-run a command on the selected aircraft without the previous callsign getting in the way, and keeps one aircraft's history from cluttering another's.
 - If you type something first, only history entries starting with that text are shown
 - Commands are stored in uppercase; retyping the same command with different casing updates one history entry
+- History is remembered per scenario and persists across restarts
 
 ### Settings
 

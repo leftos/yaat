@@ -88,6 +88,13 @@
                               Padding="4,1"
                               Foreground="#FFB000"
                               ToolTip.Tip="Show vTDLS PDC broadcasts. Shift+Click: solo (toggle to restore)." />
+                <ToggleButton x:Name="StripToggle"
+                              IsChecked="{Binding ShowStripEntries}"
+                              Content="STRP"
+                              FontSize="10"
+                              Padding="4,1"
+                              Foreground="#C586C0"
+                              ToolTip.Tip="Show flight-strip commands and feedback. Shift+Click: solo (toggle to restore)." />
             </StackPanel>
             <Button Grid.Column="3"
                     Content="{Binding IsTerminalDocked,

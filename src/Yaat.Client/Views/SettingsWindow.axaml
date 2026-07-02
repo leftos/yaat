@@ -616,7 +616,11 @@
                                 <TextBlock Text="vTDLS (PDC):" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
                                 <ColorPicker Color="{Binding TerminalTdlsColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
                             </StackPanel>
-                            <TextBlock Text="Foreground colors per terminal channel. Pilot Speech is sim-initiated transmissions in RPO mode; SAY is controller-issued SAY-class verbs; vTDLS is the ACARS-style PDC delivery line. Saved settings apply to the live terminal immediately."
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Flight strips:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding TerminalStripColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <TextBlock Text="Foreground colors per terminal channel. Pilot Speech is sim-initiated transmissions in RPO mode; SAY is controller-issued SAY-class verbs; vTDLS is the ACARS-style PDC delivery line; Flight strips is strip-command echoes and feedback. Saved settings apply to the live terminal immediately."
                                        TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
                         </StackPanel>
                         <Separator Margin="0,4" />

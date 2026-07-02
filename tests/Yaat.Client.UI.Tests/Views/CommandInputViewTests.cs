@@ -35,9 +35,10 @@ public class CommandInputViewTests
     public void Up_WithNoPopup_WalksHistoryBackwards()
     {
         var (window, view, vm) = SetupInputView();
-        // Populate history (CommandHistory is ObservableCollection<string>, newest at index 0)
-        vm.CommandHistory.Insert(0, "OLDER");
-        vm.CommandHistory.Insert(0, "NEWER");
+        // Populate history (CommandHistory is ObservableCollection<CommandHistoryEntry>, newest at
+        // index 0). No aircraft is selected, so untargeted (empty-callsign) entries recall for all.
+        vm.CommandHistory.Insert(0, new CommandHistoryEntry("", "OLDER"));
+        vm.CommandHistory.Insert(0, new CommandHistoryEntry("", "NEWER"));
 
         var textBox = FindCommandInput(view);
         textBox.Focus();

@@ -148,7 +148,7 @@ public partial class CommandInputView : UserControl
                 }
                 else
                 {
-                    var older = input.NavigateHistory(-1, vm.CommandText, vm.CommandHistory);
+                    var older = input.NavigateHistory(-1, vm.CommandText, vm.GetRecallHistory());
                     if (older is not null)
                     {
                         vm.CommandText = older;
@@ -165,7 +165,7 @@ public partial class CommandInputView : UserControl
                 }
                 else
                 {
-                    var newer = input.NavigateHistory(1, vm.CommandText, vm.CommandHistory);
+                    var newer = input.NavigateHistory(1, vm.CommandText, vm.GetRecallHistory());
                     if (newer is not null)
                     {
                         vm.CommandText = newer;

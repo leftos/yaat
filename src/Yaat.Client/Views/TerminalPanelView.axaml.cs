@@ -117,6 +117,7 @@ public partial class TerminalPanelView : UserControl
         yield return (ErrToggle, TerminalEntryKind.Error);
         yield return (ChatToggle, TerminalEntryKind.Chat);
         yield return (TdlsToggle, TerminalEntryKind.Tdls);
+        yield return (StripToggle, TerminalEntryKind.Strip);
     }
 
     private void OnTogglePointerPressed(object? sender, PointerPressedEventArgs e)
@@ -153,13 +154,18 @@ public partial class TerminalPanelView : UserControl
             return;
         }
 
+        // Capture the auto-scroll intent before RebuildDocument replaces the document text,
+        // which resets the ScrollViewer to the top and (via OnScrollChanged) would clobber
+        // _autoScroll to false. Restoring it keeps a bottom-pinned view pinned across a filter
+        // rebuild — e.g. undoing a Shift+Click solo — instead of jumping to the top.
+        var stickToBottom = _autoScroll;
         var newSearch = vm.TerminalSearchText ?? string.Empty;
         var searchJustCleared = _lastSearchText.Length > 0 && newSearch.Length == 0;
         _lastSearchText = newSearch;
 
         RebuildDocument(vm);
 
-        if (searchJustCleared)
+        if (stickToBottom || searchJustCleared)
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(ScrollToBottom, Avalonia.Threading.DispatcherPriority.Background);
         }
@@ -276,6 +282,7 @@ public partial class TerminalPanelView : UserControl
             TerminalEntryKind.Error => "ERR",
             TerminalEntryKind.Chat => "CHAT",
             TerminalEntryKind.Tdls => "TDLS",
+            TerminalEntryKind.Strip => "STRP",
             _ => "???",
         };
 
