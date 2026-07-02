@@ -91,6 +91,10 @@ YAAT's speech recognition and command interpretation pipelines are powered by [L
 
 Airline telephony data is derived from [OpenFlights](https://openflights.org/data.html), licensed under ODbL 1.0. See `NOTICE` and `src/Yaat.Sim/Speech/Data/LICENSE-OPENFLIGHTS.txt`.
 
+## Support
+
+YAAT is free and always will be. If it's useful to you and you'd like to support its development, you can [buy the dev a coffee on Ko-fi](https://ko-fi.com/leftos) — entirely optional, and much appreciated.
+
 ## License
 
 [MIT](LICENSE)
