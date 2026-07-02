@@ -100,6 +100,37 @@ together. Both filter to **own** (non-external) bays so auto-routed
 strips always land in the student's own facility, never in a linked
 external bay.
 
+### Manual strip requests & amendment reprints
+
+Two flows print strips **on demand**, distinct from the idempotent auto-print
+above:
+
+- **Manual "Request Strip"** — the RPO/instructor Strips-tab button
+  (`VStripsViewModel.RequestStripAsync` → `RoomEngine.RequestFlightStripForAircraft`)
+  and the CRC vStrips *Request Strip* action (`CrcClientState.HandleRequestFlightStrip`)
+  both **always print a fresh departure strip**, stacking a distinct copy when one
+  already exists. This matches real vStrips ([`vstrips.md`](crc/vstrips.md)):
+  repeated requests stack in the printer so a lost or late strip can be reprinted.
+  The copy reuses the canonical `STRIP_{callsign}` id when free, otherwise mints
+  `STRIP_{callsign}_{shortGuid}` (the same coexisting-copy id scheme as `SCAN`),
+  so multiple strips for one aircraft render independently and stay individually
+  addressable via the id-forms of `STRIPD` / `STRIPO` / `AN`.
+
+- **Flight-plan amendment** — `RoomEngine.AmendFlightPlan` prints a **new**
+  departure strip carrying the bumped revision number rather than editing existing
+  strips in place. Outdated departure copies still sitting in the **printer** are
+  removed first; copies already moved into a bay rack are left untouched (the
+  controller removes them by hand). This mirrors vStrips ([`vstrips.md`](crc/vstrips.md):
+  "a revised flight strip … removes outdated flight strips … from the printer …
+  bay strips are not automatically edited or deleted"). Because each amendment
+  clears the prior printer copy before printing, the printer holds at most one
+  departure strip per aircraft.
+
+Both flows funnel through the non-idempotent
+`StripMutations.PrintDepartureStripForAircraft`; the automatic triggers keep using
+the idempotent `StripMutations.RequestDepartureStripForAircraft` / `…IntoBay` so
+per-tick re-firing never duplicates a strip.
+
 ## Server state model
 
 Strip state lives on the per-room `TrainingRoom.StripState` property,

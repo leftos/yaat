@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Requesting a flight strip that already exists prints a duplicate that stacks in the printer, so a lost or late strip can be reprinted.
+- Amending a flight plan prints a new revised strip and clears stale printer copies, leaving strips already filed into a bay untouched.
+
 ## v0.8.6-beta [2026/07/02]
 
 ### Highlights
