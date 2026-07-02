@@ -177,9 +177,20 @@ public partial class CommandInputController : ObservableObject
         // Cursor on the first token, with no callsign prefix (verbIndex ∈ {-1, 0})
         else if (parsed.ActiveTokenIndex == 0 && parsed.VerbIndex <= 0 && hasUserPartial)
         {
-            // Single-token context: could be callsign, command verb, or condition
-            AddCallsignSuggestions(activeTokenText, aircraft, text, parsed);
-            AddCommandVerbSuggestions(activeTokenText, text, scheme, targetAircraft, parsed);
+            // Single-token context: could be callsign, command verb, or condition. When the token
+            // is a *complete* command alias (e.g. "TB" = turn base), rank the command above partial
+            // callsign matches so it leads the dropdown and Enter/Tab pick it; otherwise callsigns
+            // lead (the common "type a partial callsign to select" case).
+            if (IsKnownVerb(activeTokenText, scheme))
+            {
+                AddCommandVerbSuggestions(activeTokenText, text, scheme, targetAircraft, parsed);
+                AddCallsignSuggestions(activeTokenText, aircraft, text, parsed);
+            }
+            else
+            {
+                AddCallsignSuggestions(activeTokenText, aircraft, text, parsed);
+                AddCommandVerbSuggestions(activeTokenText, text, scheme, targetAircraft, parsed);
+            }
             AddConditionSuggestions(activeTokenText, text, parsed);
         }
         // Cursor on first token (the callsign) when verb is at index 1

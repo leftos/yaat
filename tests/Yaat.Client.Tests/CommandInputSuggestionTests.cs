@@ -364,4 +364,21 @@ public class CommandInputSuggestionTests
         // Should include callsign suggestions matching "A" prefix
         Assert.Contains(controller.Suggestions, s => s.Kind == SuggestionKind.Callsign && s.Text == "AAL1234");
     }
+
+    [Fact]
+    public void SingleToken_CompleteCommandAlias_RanksCommandAbovePartialCallsign()
+    {
+        // Typing the complete command "TB" (turn base) while an aircraft whose callsign contains
+        // "TB" is on frequency must rank the command first, not the partial-callsign match. The
+        // callsign stays available lower in the list for users who meant to select the aircraft.
+        var controller = Controller();
+        IReadOnlyCollection<AircraftModel> aircraft = [Ac("N172TB")];
+
+        controller.UpdateSuggestions("TB", "TB".Length, aircraft, Scheme);
+
+        Assert.True(controller.IsSuggestionsVisible);
+        Assert.Equal(SuggestionKind.Command, controller.Suggestions[0].Kind);
+        Assert.Contains("TB", controller.Suggestions[0].Text);
+        Assert.Contains(controller.Suggestions, s => s.Kind == SuggestionKind.Callsign && s.Text == "N172TB");
+    }
 }

@@ -1832,11 +1832,16 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        // If the input is a single token that matches a callsign, just select it
+        // If the input is a single token that matches a callsign, just select it.
+        // A complete command verb (e.g. "TB" = turn base) must win over a *partial*
+        // (substring) callsign match, so a bare command never silently selects an aircraft
+        // whose callsign merely contains those letters. An exact callsign still selects;
+        // ambiguous substrings already fall through to command dispatch.
         if (!text.Contains(' ') && !text.Contains(',') && !text.Contains(';'))
         {
-            var callsignMatch = ResolveAircraft(text);
-            if (callsignMatch is not null)
+            var (callsignMatch, outcome, _) = CallsignMatcher.Match(text, Aircraft);
+            bool completeCommandOverrides = (globalParsed is not null) && (outcome == CallsignMatcher.Outcome.UniqueSubstring);
+            if (callsignMatch is not null && !completeCommandOverrides)
             {
                 SelectedAircraft = callsignMatch;
                 _commandInput.DismissSuggestions();
