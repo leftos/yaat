@@ -59,23 +59,20 @@ public partial class DataGridView
             }
         }
 
-        // Departure clearances. For a runway-crossing hold the relevant runway is the one
-        // being held; for taxi-out / lined-up departures it falls back to the assigned runway.
+        // Departure clearances. The runway is shown in the label for context, but the
+        // command is always the bare verb — LUAW and CTO have no runway argument; the
+        // server resolves the departure runway from the aircraft's assigned runway.
         var depRwy = HoldShortMenuHelper.HeldRunway(phase, ac);
         var depRwyLabel = !string.IsNullOrEmpty(depRwy) ? $" {RunwayIdentifier.ToDisplayDesignator(depRwy)}" : "";
 
         if (AircraftCommandApplicability.CanLineUpAndWait(ac))
         {
-            menu.Items.Add(MakeItem($"Line up and wait{depRwyLabel}", () => Cmd(!string.IsNullOrEmpty(depRwy) ? $"LUAW {depRwy}" : "LUAW")));
+            menu.Items.Add(MakeItem($"Line up and wait{depRwyLabel}", () => Cmd("LUAW")));
         }
 
         if (AircraftCommandApplicability.CanClearForTakeoff(ac))
         {
-            // Name the runway in the command when holding short of / taxiing to it so the
-            // clearance is unambiguous; a lined-up or rolling aircraft is already on its runway.
-            var nameRunwayInCommand =
-                !string.IsNullOrEmpty(depRwy) && (phase.StartsWith("Holding Short", StringComparison.Ordinal) || phase == "Taxiing");
-            menu.Items.Add(MakeItem($"Cleared for takeoff{depRwyLabel}", () => Cmd(nameRunwayInCommand ? $"CTO {depRwy}" : "CTO")));
+            menu.Items.Add(MakeItem($"Cleared for takeoff{depRwyLabel}", () => Cmd("CTO")));
         }
 
         if (AircraftCommandApplicability.CanCancelTakeoff(ac))

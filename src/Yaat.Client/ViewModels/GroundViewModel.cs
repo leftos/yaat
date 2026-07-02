@@ -728,19 +728,15 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, $"CROSS {runwayId}", initials);
     }
 
-    public async Task LineUpAndWaitAsync(string callsign, string initials, string runwayId)
+    public async Task LineUpAndWaitAsync(string callsign, string initials)
     {
-        await _sendCommand(callsign, $"LUAW {runwayId}", initials);
+        await _sendCommand(callsign, "LUAW", initials);
     }
 
-    public async Task ClearedForTakeoffAsync(string callsign, string initials, string runwayId)
+    public async Task ClearedForTakeoffAsync(string callsign, string initials, string? arg)
     {
-        await _sendCommand(callsign, $"CTO {runwayId}", initials);
-    }
-
-    public async Task ClearedForTakeoffModifierAsync(string callsign, string initials, string modifier)
-    {
-        await _sendCommand(callsign, $"CTO {modifier}", initials);
+        var cmd = string.IsNullOrWhiteSpace(arg) ? "CTO" : $"CTO {arg.Trim()}";
+        await _sendCommand(callsign, cmd, initials);
     }
 
     public async Task GoAroundAsync(string callsign, string initials)
