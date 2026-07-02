@@ -902,7 +902,7 @@ public static class CommandRegistry
                 "Call For Release",
                 "Sim Control",
                 false,
-                ["CFR", "APREQ"],
+                ["CFR"],
                 [
                     O(
                         null,
@@ -910,6 +910,7 @@ public static class CommandRegistry
                         "Release the selected departure with a −2/+1 min CFR window; alerts if it departs outside it (no time = immediate release from now)"
                     ),
                     O("Clear", [L("OFF")], "Clear the release window"),
+                    O("Check", [L("CHECK")], "Report the release-window status without changing it"),
                 ]
             ),
         ];

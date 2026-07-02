@@ -792,9 +792,11 @@ A **Releases** button on the command bar (visible while any field is armed) open
 
 ### Call for Release (release-time window)
 
-When a departure needs a Call for Release (CFR) from the overlying facility, you can grant the release with a compliance window and let YAAT watch it for you. Select the departure and type `CFR <HHMM>` to release it with a window that runs from **2 minutes before to 1 minute after** the assigned Zulu time (the FAA 7110.65 window) — e.g. `CFR 1830` sets a window of 1828–1831Z. Type `CFR` with no time for an **immediate release** — the same −2/+1 window, assigned two minutes out so it opens right now. `CFR OFF` clears the window, and `APREQ` works as an alias.
+When a departure needs a Call for Release (CFR) from the overlying facility, you can grant the release with a compliance window and let YAAT watch it for you. Select the departure and type `CFR <HHMM>` to release it with a window that runs from **2 minutes before to 1 minute after** the assigned Zulu time (the FAA 7110.65 window) — e.g. `CFR 1830` sets a window of 1828–1831Z. Type `CFR` with no time for an **immediate release** — the same −2/+1 window, assigned two minutes out so it opens right now. `CFR OFF` clears the window.
 
 This is an instructor aid only — it never blocks a takeoff. If the departure gets airborne **after** the window expires, **before** it opens, or is **still holding** when the window lapses, YAAT posts an amber warning to the terminal (and, if you've enabled warning speech bubbles, a bubble on the aircraft). The window tracks real-world (wall-clock) time, so it isn't affected by pausing, rewinding, or fast-forwarding.
+
+While a window is active, the departure's row in the **Aircraft List** shows a live `CFR M:SS` countdown in its Info column (amber, turning red `CFR EXP` once the window closes). To read the exact window and time remaining at any point, type `CFR CHECK` or use the **Check release window** item in the aircraft's right-click menu.
 
 ### Timers
 

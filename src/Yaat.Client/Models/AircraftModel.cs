@@ -2,6 +2,7 @@ using System.Collections;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
@@ -729,6 +730,16 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private AircraftStatusSeverity _smartStatusSeverity = AircraftStatusSeverity.Normal;
 
+    // Live CFR release-window badge shown as a prefix in the Aircraft List Info column.
+    [ObservableProperty]
+    private string _cfrBadge = "";
+
+    [ObservableProperty]
+    private bool _hasCfrBadge;
+
+    [ObservableProperty]
+    private bool _cfrBadgeExpired;
+
     /// <summary>
     /// Opt-in transient overlay populated by <see cref="ViewModels.MainViewModel"/> when a
     /// SAY-family or RPO pilot-speech terminal entry arrives. The radar / ground renderers
@@ -753,12 +764,39 @@ public partial class AircraftModel : ObservableObject
     public bool IsHeldForRelease { get; set; }
 
     /// <summary>
-    /// Absolute-UTC bounds of this aircraft's Call-For-Release window (CFR/APREQ), or null. Evaluated
+    /// Absolute-UTC bounds of this aircraft's Call-For-Release window (CFR), or null. Evaluated
     /// against real UTC by the MainViewModel to raise instructor-facing expiry alerts (GitHub issue #230).
     /// </summary>
     public DateTime? CfrWindowStartUtc { get; set; }
 
     public DateTime? CfrWindowEndUtc { get; set; }
+
+    /// <summary>
+    /// Recomputes the live CFR release-window badge (Info column) from the window vs <paramref name="nowUtc"/>:
+    /// <c>CFR opens M:SS</c> before it opens, <c>CFR M:SS</c> while open, <c>CFR EXP</c> (red) past close.
+    /// Shown only while on the ground — it drops at wheels-up. Driven by the view-model's 1 s sweep.
+    /// </summary>
+    public void UpdateCfrBadge(DateTime nowUtc)
+    {
+        if (!IsOnGround || CfrWindowStartUtc is not { } start || CfrWindowEndUtc is not { } end)
+        {
+            CfrBadge = "";
+            HasCfrBadge = false;
+            CfrBadgeExpired = false;
+            return;
+        }
+
+        var remaining = CfrCountdown.Evaluate(new ReleaseWindow(start, end), nowUtc);
+        (CfrBadge, CfrBadgeExpired) = remaining.Phase switch
+        {
+            CfrPhase.BeforeOpen => ($"CFR opens {FormatMinSec(remaining.Seconds)}", false),
+            CfrPhase.Open => ($"CFR {FormatMinSec(remaining.Seconds)}", false),
+            _ => ("CFR EXP", true),
+        };
+        HasCfrBadge = true;
+    }
+
+    private static string FormatMinSec(int seconds) => $"{seconds / 60}:{seconds % 60:D2}";
 
     public static AircraftModel FromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {

@@ -426,6 +426,11 @@ public partial class GroundView : UserControl
         menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));
         menu.Items.Add(new Separator());
 
+        if (ac is { IsOnGround: true, CfrWindowStartUtc: not null })
+        {
+            menu.Items.Add(CreateMenuItem("Check release window", () => vm.SendRawCommandAsync(callsign, initials, "CFR CHECK")));
+        }
+
         AddRelativeGroundItems(menu, vm, prevSelected, callsign, initials, isRelative);
 
         if (phase == "At Parking")

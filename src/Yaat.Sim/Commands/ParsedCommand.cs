@@ -1027,12 +1027,11 @@ public record DisarmHoldForReleaseCommand(string Airport) : ParsedCommand;
 public record ReleaseDepartureCommand(string Target, int? IntervalSeconds = null) : ParsedCommand;
 
 /// <summary>
-/// Mark the selected departure with a Call-For-Release time window (<c>CFR</c> / <c>APREQ</c>).
-/// <paramref name="Hhmm"/> is an optional Zulu release time (null → valid from approval for the
-/// configured duration); <paramref name="Clear"/> removes an existing window (<c>CFR OFF</c>).
-/// Alert-only — never gates takeoff.
+/// A Call-For-Release command for the selected departure (<c>CFR</c>).
+/// <paramref name="Action"/> selects set / clear / check; <paramref name="Hhmm"/> is the optional Zulu
+/// release time when setting (null → immediate release). Alert-only — never gates takeoff.
 /// </summary>
-public record CfrDepartureCommand(int? Hhmm, bool Clear) : ParsedCommand;
+public record CfrDepartureCommand(int? Hhmm, CfrAction Action) : ParsedCommand;
 
 public record AddAircraftCommand(string Args) : ParsedCommand;
 

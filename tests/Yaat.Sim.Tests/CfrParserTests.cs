@@ -6,12 +6,12 @@ namespace Yaat.Sim.Tests;
 public class CfrParserTests
 {
     [Fact]
-    public void Cfr_NoArg_NoTimeNoClear()
+    public void Cfr_NoArg_ImmediateSet()
     {
         var cmd = CommandParser.Parse("CFR");
         var cfr = Assert.IsType<CfrDepartureCommand>(cmd.Value);
         Assert.Null(cfr.Hhmm);
-        Assert.False(cfr.Clear);
+        Assert.Equal(CfrAction.Set, cfr.Action);
     }
 
     [Fact]
@@ -20,7 +20,7 @@ public class CfrParserTests
         var cmd = CommandParser.Parse("CFR 1830");
         var cfr = Assert.IsType<CfrDepartureCommand>(cmd.Value);
         Assert.Equal(1830, cfr.Hhmm);
-        Assert.False(cfr.Clear);
+        Assert.Equal(CfrAction.Set, cfr.Action);
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class CfrParserTests
         var cmd = CommandParser.Parse("CFR OFF");
         var cfr = Assert.IsType<CfrDepartureCommand>(cmd.Value);
         Assert.Null(cfr.Hhmm);
-        Assert.True(cfr.Clear);
+        Assert.Equal(CfrAction.Clear, cfr.Action);
     }
 
     [Fact]
@@ -45,15 +45,30 @@ public class CfrParserTests
     {
         var cmd = CommandParser.Parse("CFR CANCEL");
         var cfr = Assert.IsType<CfrDepartureCommand>(cmd.Value);
-        Assert.True(cfr.Clear);
+        Assert.Equal(CfrAction.Clear, cfr.Action);
     }
 
     [Fact]
-    public void Apreq_Alias_ParsesToCfr()
+    public void Cfr_Check_Queries()
     {
-        var cmd = CommandParser.Parse("APREQ 0530");
+        var cmd = CommandParser.Parse("CFR CHECK");
         var cfr = Assert.IsType<CfrDepartureCommand>(cmd.Value);
-        Assert.Equal(530, cfr.Hhmm);
+        Assert.Equal(CfrAction.Check, cfr.Action);
+    }
+
+    [Fact]
+    public void Cfr_Status_AliasesCheck()
+    {
+        var cmd = CommandParser.Parse("CFR STATUS");
+        var cfr = Assert.IsType<CfrDepartureCommand>(cmd.Value);
+        Assert.Equal(CfrAction.Check, cfr.Action);
+    }
+
+    [Fact]
+    public void Apreq_IsNotAnAlias()
+    {
+        // APREQ (Approval Request) is broader than a departure release, so it is deliberately not a CFR alias.
+        Assert.False(CommandParser.Parse("APREQ 0530").IsSuccess);
     }
 
     [Fact]

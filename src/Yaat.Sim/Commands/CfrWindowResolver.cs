@@ -80,3 +80,30 @@ public static class CfrAlertEvaluator
         return null;
     }
 }
+
+/// <summary>
+/// Evaluates how a release window relates to the current wall-clock time — the shared basis for the
+/// live Info-column countdown badge and the <c>CFR CHECK</c> readout. Pure; takes <c>nowUtc</c> explicitly.
+/// </summary>
+public static class CfrCountdown
+{
+    /// <summary>
+    /// Before the window opens → <see cref="CfrPhase.BeforeOpen"/> with seconds to open; inside →
+    /// <see cref="CfrPhase.Open"/> with seconds to close; past the end → <see cref="CfrPhase.Expired"/>
+    /// with seconds since close. Seconds are always non-negative whole seconds.
+    /// </summary>
+    public static CfrRemaining Evaluate(ReleaseWindow window, DateTime nowUtc)
+    {
+        if (nowUtc < window.StartUtc)
+        {
+            return new CfrRemaining(CfrPhase.BeforeOpen, (int)Math.Ceiling((window.StartUtc - nowUtc).TotalSeconds));
+        }
+
+        if (nowUtc <= window.EndUtc)
+        {
+            return new CfrRemaining(CfrPhase.Open, (int)Math.Ceiling((window.EndUtc - nowUtc).TotalSeconds));
+        }
+
+        return new CfrRemaining(CfrPhase.Expired, (int)Math.Floor((nowUtc - window.EndUtc).TotalSeconds));
+    }
+}

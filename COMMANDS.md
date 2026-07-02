@@ -581,7 +581,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Hold for release | `HFR SJC` | — | Arms hold-for-release for an airport's IFR departures (global) |
 | Disarm hold for release | `HFROFF SJC` | — | Auto-releases anything still held (global) |
 | Release departure | `REL SJC` | `CTOA` | `REL N123` releases a specific aircraft; `REL SJC 2` releases the field's queue 2 min apart (global) |
-| Call for release | `CFR 1830` | `APREQ` | Marks the selected departure released with a −2/+1 min CFR window; alerts the instructor if it departs outside it. `CFR` = immediate release (window opens now); `CFR OFF` clears |
+| Call for release | `CFR 1830` | — | Marks the selected departure released with a −2/+1 min CFR window; alerts the instructor if it departs outside it. `CFR` = immediate release; `CFR OFF` clears; `CFR CHECK` prints the window status |
 | Wait (seconds) | `WAIT 30` | — | — |
 | Wait (distance) | `WAITD 4` | — | — |
 | Timer | `TIMER 5:00 text` | `TMR` | Countdown reminder; on expiry posts a green SAY (`text`, or `timer expired`). Global, or prefix a callsign. `TIMER CANCEL <id\|ALL>` cancels |
@@ -1355,7 +1355,7 @@ short readback delay) and departs normally. The **Releases** flyout on the comma
 rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a
 one-click "Release (HFR)" item in its radar right-click menu.
 
-### Call for Release (CFR / APREQ)
+### Call for Release (CFR)
 
 Models the Call-for-Release coordination a tower performs with the overlying TRACON/Center for a
 departure that needs an approved release time. The instructor grants the release and YAAT tracks the
@@ -1368,6 +1368,7 @@ unlike the airport-scoped `HFR`/`REL`.
 | `CFR <HHMM>` | Release the selected on-ground departure with a window of **2 min before to 1 min after** the assigned Zulu time (FAA 7110.65 §4-3-4.e.5). E.g. `CFR 1830` → window 1828–1831Z. |
 | `CFR` (no time) | **Immediate release** — the same −2/+1 window, assigned 2 min out so it **opens right now** (e.g. window 1800–1803Z). |
 | `CFR OFF` (or `CANCEL`) | Clear the release window on the selected departure. |
+| `CFR CHECK` (or `STATUS`) | Print the current window status to the terminal (opens-in / closes-in / expired), without changing it. |
 
 The window is tracked against **real wall-clock UTC** and is purely an instructor aid, so it is
 deliberately unaffected by pause / rewind / fast-forward (its alerts may be inconsistent while
@@ -1375,6 +1376,10 @@ scrubbing a replay). YAAT raises an instructor warning — an amber terminal lin
 on the aircraft when warning bubbles are enabled — when the departure **departs after** the window
 expires (late), **departs before** the window opens (early), or is **still holding for release** when
 the window expires. Rejected if the aircraft is already airborne (nothing to release).
+
+While a window is active, the **Aircraft List** "Info" column shows a live amber `CFR M:SS` countdown
+badge for that departure (turning red `CFR EXP` past the window); the aircraft's right-click menu
+(radar / ground / list) also gains a **Check release window** item that runs `CFR CHECK`.
 
 ### Timer (TIMER / TMR)
 

@@ -176,6 +176,7 @@ public partial class MainViewModel
                 ApplyAutoClearedToLand(existing);
                 ApplyDelayedSpawnTransition(wasDelayed, existing.IsDelayed);
                 EvaluateCfrAlerts(existing, wasOnGround);
+                existing.UpdateCfrBadge(DateTime.UtcNow);
                 if (existing.IsDelayed != wasDelayed || existing.IsUnsupported != wasUnsupported || existing.IsGhostOverlay != wasGhostOverlay)
                 {
                     RefreshAircraftView();
@@ -187,6 +188,7 @@ public partial class MainViewModel
                 ApplyAutoClearedToLand(model);
                 Aircraft.Add(model);
                 EvaluateCfrAlerts(model, wasOnGround: model.IsOnGround);
+                model.UpdateCfrBadge(DateTime.UtcNow);
                 if (model.IsDelayed)
                 {
                     PendingDelayedSpawnCount++;
@@ -211,8 +213,10 @@ public partial class MainViewModel
     /// </summary>
     internal void SweepCfrExpiry()
     {
+        var now = DateTime.UtcNow;
         foreach (var ac in Aircraft)
         {
+            ac.UpdateCfrBadge(now);
             if (ac.CfrWindowStartUtc is not null)
             {
                 EvaluateCfrAlerts(ac, wasOnGround: ac.IsOnGround);

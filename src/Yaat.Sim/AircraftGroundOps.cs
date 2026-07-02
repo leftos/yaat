@@ -196,7 +196,7 @@ public class AircraftGroundOps
     public double ReleasedAtSeconds { get; set; }
 
     /// <summary>
-    /// Absolute-UTC start of this departure's Call-For-Release window (<c>CFR</c>/<c>APREQ</c>), or null
+    /// Absolute-UTC start of this departure's Call-For-Release window (<c>CFR</c>), or null
     /// when no window is set. Wall-clock based and used only for instructor-facing expiry alerts on the
     /// client — never gates takeoff and never influences the simulation (GitHub issue #230). Paired with
     /// <see cref="ReleaseWindowEndUtc"/>.

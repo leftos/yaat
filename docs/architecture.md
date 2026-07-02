@@ -161,7 +161,7 @@ Services/
   VatsimAuthClient.cs           # Client side of server-mediated VATSIM Connect: system-browser + loopback handoff (or /auth/dev when a server is in dev-bypass), token refresh, per-server session persistence to auth-sessions.json. Supplies the SignalR access token.
   YaatReconnectPolicy.cs        # IRetryPolicy for the SignalR HubConnection: keeps retrying through a full server restart/deploy (up to ~15 min) instead of giving up after ~40s, so a session resumes automatically once the server is back.
   UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (%LOCALAPPDATA%/yaat/). Stores PilotVoiceEnabled/Volume/RadioFxEnabled, default off.
-  CfrAlertMonitor.cs            # Per-aircraft CFR/APREQ release-window latch; evaluates each window vs real UTC (via CfrAlertEvaluator) and reports early/late/expired violations once. Wall-clock, alert-only (#230)
+  CfrAlertMonitor.cs            # Per-aircraft CFR release-window latch; evaluates each window vs real UTC (via CfrAlertEvaluator) and reports early/late/expired violations once. Wall-clock, alert-only (#230)
   UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel).
   YaatHubJsonContext.cs         # Source-generated JsonSerializerContext for the broader DTO surface (room state, aircraft, weather, CRC, scenarios). Strip DTOs live in YaatStripsHubJsonContext (Strips); both contexts insert into the same resolver chain.
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost; composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability
@@ -522,7 +522,7 @@ Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, 
                                     # GetDimension, GetCommandDimension, GetCompoundDimensions for queue clearing
 Commands/TrafficAdvisoryMatcher.cs  # Shared RTIS/SAFAL target matching: clock + VFR relative-octant/pattern-leg/landmark forms, best-candidate-by-weighted-error + Exact/Imprecise grade
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
-Commands/CfrWindow.cs               # CFR/APREQ types: ReleaseWindow, CfrAlertKind, FAA-fixed −2/+1 window constants (7110.65 §4-3-4.e.5)
+Commands/CfrWindow.cs               # CFR types: ReleaseWindow, CfrAlertKind, CfrAction/CfrPhase, FAA-fixed −2/+1 window constants (7110.65 §4-3-4.e.5)
 Commands/CfrWindowResolver.cs       # Pure HHMM→absolute-UTC window resolver (nearest-instant) + CfrAlertEvaluator (early/late/expired-grounded)
 Commands/NodeRefToken.cs            # Parses user-typed `#<id>` node-reference tokens used in TAXI clearances; co-located with the parser since the token format is grammar, not routing
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
@@ -822,7 +822,7 @@ SnapshotDiff.cs                # Pure-function diff between an engine's live air
 ReplayResult.cs                # ReplayResult / SnapshotDriftReport / AircraftDrift / FieldDrift records.
 ScenarioQueues.cs              # DelayedSpawn (+ HeldForRelease), ScheduledTrigger, ScheduledPreset, ScheduledRelease, ActiveTimer (TIMER countdowns), GeneratorState, DelayedHandoff
 HeldReleaseService.cs          # Hold-for-release: Arm/Disarm/Release an airport's IFR departures + BuildRundown. See docs/hold-for-release.md
-CfrDepartureService.cs         # CFR/APREQ: sets/clears a departure's alert-only release-time window (AircraftGroundOps.ReleaseWindow*Utc) + echo
+CfrDepartureService.cs         # CFR: sets/clears/reports a departure's alert-only release-time window (AircraftGroundOps.ReleaseWindow*Utc) + echo
 ConsolidationState.cs          # Thread-safe manual consolidation overrides
 
 # Simulation/Snapshots/

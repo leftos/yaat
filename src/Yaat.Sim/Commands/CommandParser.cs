@@ -2658,29 +2658,34 @@ public static class CommandParser
     }
 
     /// <summary>
-    /// Parses the CFR / APREQ argument. No arg → window valid from approval for the configured duration.
-    /// <c>OFF</c> / <c>CANCEL</c> → clear the window. A 3–4 digit HHMM in 0000..2359 → an explicit Zulu
-    /// release time bracketed by the configured before/after offsets.
+    /// Parses the CFR argument. No arg → immediate release. <c>OFF</c> / <c>CANCEL</c> → clear the
+    /// window. <c>CHECK</c> / <c>STATUS</c> → report the window without changing it. A 3–4 digit HHMM in
+    /// 0000..2359 → a release around that assigned Zulu time.
     /// </summary>
     private static PR ParseCfr(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return PR.Ok(new CfrDepartureCommand(null, Clear: false));
+            return PR.Ok(new CfrDepartureCommand(null, CfrAction.Set));
         }
 
         var token = arg.Trim().ToUpperInvariant();
         if (token is "OFF" or "CANCEL")
         {
-            return PR.Ok(new CfrDepartureCommand(null, Clear: true));
+            return PR.Ok(new CfrDepartureCommand(null, CfrAction.Clear));
+        }
+
+        if (token is "CHECK" or "STATUS")
+        {
+            return PR.Ok(new CfrDepartureCommand(null, CfrAction.Check));
         }
 
         if (token.Length is 3 or 4 && int.TryParse(token, out var hhmm) && hhmm is >= 0 and <= 2359 && hhmm % 100 < 60)
         {
-            return PR.Ok(new CfrDepartureCommand(hhmm, Clear: false));
+            return PR.Ok(new CfrDepartureCommand(hhmm, CfrAction.Set));
         }
 
-        return PR.Fail("CFR syntax: CFR [HHMM | OFF]");
+        return PR.Fail("CFR syntax: CFR [HHMM | OFF | CHECK]");
     }
 
     /// <summary>

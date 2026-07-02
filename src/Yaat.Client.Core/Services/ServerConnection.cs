@@ -902,7 +902,7 @@ public record AircraftDto(
     // (on final/glideslope, or cleared for a full approach and flying it). Computed server-side via
     // PhaseList.IsEstablishedOnApproach(); the radar uses it to inhibit the MVA altitude tint.
     bool IsEstablishedOnApproach = false,
-    // Absolute-UTC bounds of the aircraft's Call-For-Release window (CFR/APREQ), or null. The client
+    // Absolute-UTC bounds of the aircraft's Call-For-Release window (CFR), or null. The client
     // evaluates these against real UTC to raise instructor-facing expiry alerts; they never affect the
     // simulation (GitHub issue #230). Kept name-for-name in sync with the server's AircraftStateDto.
     DateTime? CfrWindowStartUtc = null,

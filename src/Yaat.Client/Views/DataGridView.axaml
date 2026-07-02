@@ -118,7 +118,12 @@
             <DataGridTemplateColumn Header="Info" Width="Auto" SortMemberPath="SmartStatus">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding SmartStatus}" Foreground="{Binding SmartStatusSeverity, Converter={x:Static vm:SmartStatusSeverityBrushConverter.Instance}}" Margin="4,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Orientation="Horizontal" Margin="4,0" Spacing="4" VerticalAlignment="Center">
+                            <Border IsVisible="{Binding HasCfrBadge}" BorderBrush="{Binding CfrBadgeExpired, Converter={x:Static vm:CfrBadgeBrushConverter.Instance}}" BorderThickness="1" CornerRadius="3" Padding="4,1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CfrBadge}" Foreground="{Binding CfrBadgeExpired, Converter={x:Static vm:CfrBadgeBrushConverter.Instance}}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="{Binding SmartStatus}" Foreground="{Binding SmartStatusSeverity, Converter={x:Static vm:SmartStatusSeverityBrushConverter.Instance}}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>

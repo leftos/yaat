@@ -33,3 +33,32 @@ public enum CfrAlertKind
     LateTakeoff = 2,
     ExpiredGrounded = 4,
 }
+
+/// <summary>What a CFR command does to the selected departure's release window.</summary>
+public enum CfrAction
+{
+    /// <summary>Set (or replace) the window — immediate when no time is given, else around the assigned Zulu time.</summary>
+    Set,
+
+    /// <summary>Clear the window (CFR OFF / CANCEL).</summary>
+    Clear,
+
+    /// <summary>Report the current window status without changing it (CFR CHECK).</summary>
+    Check,
+}
+
+/// <summary>Where wall-clock time sits relative to a release window.</summary>
+public enum CfrPhase
+{
+    /// <summary>Before the window opens (a future assigned time).</summary>
+    BeforeOpen,
+
+    /// <summary>Inside the window — cleared to depart.</summary>
+    Open,
+
+    /// <summary>Past the window's end.</summary>
+    Expired,
+}
+
+/// <summary>A release window's phase plus the whole seconds to (or since) the relevant boundary.</summary>
+public readonly record struct CfrRemaining(CfrPhase Phase, int Seconds);

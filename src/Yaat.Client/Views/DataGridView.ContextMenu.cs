@@ -80,6 +80,11 @@ public partial class DataGridView
             menu.Items.Add(MakeItem("Cancel takeoff clearance", () => Cmd("CTOC")));
         }
 
+        if (ac.CfrWindowStartUtc is not null && ac.IsOnGround)
+        {
+            menu.Items.Add(MakeItem("Check release window", () => Cmd("CFR CHECK")));
+        }
+
         // Arrival / landing clearances
         if (
             AircraftCommandApplicability.CanClearToLand(ac)

@@ -105,6 +105,10 @@ public partial class RadarView
             {
                 menu.Items.Add(CreateMenuItem($"Release {callsign} (HFR)", () => vm.SendRawCommandAsync(callsign, initials, $"REL {callsign}")));
             }
+            if (ac.CfrWindowStartUtc is not null && ac.IsOnGround)
+            {
+                menu.Items.Add(CreateMenuItem($"Check {callsign} release window", () => vm.SendRawCommandAsync(callsign, initials, "CFR CHECK")));
+            }
         }
 
         menu.Items.Add(new Separator());

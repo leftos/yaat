@@ -342,7 +342,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | Set spawn delay | — | `DELAY {n}` (M:SS supported) | **YAAT-only** |
 | Hold for release | — | `HFR {airport}` / `HFROFF {airport}` | **YAAT-only** — hold an airport's IFR departures for release |
 | Release departure | — | `REL {airport\|callsign}` (alias `CTOA`), `REL {airport} {min}` | **YAAT-only** — release next / specific / whole queue auto-spaced |
-| Call for release | — | `CFR {HHMM}` (alias `APREQ`), `CFR`, `CFR OFF` | **YAAT-only** — release a departure with a −2/+1 min CFR window (FAA §4-3-4.e.5); instructor-alerts if it departs outside it |
+| Call for release | — | `CFR {HHMM}`, `CFR`, `CFR OFF`, `CFR CHECK` | **YAAT-only** — release a departure with a −2/+1 min CFR window (FAA §4-3-4.e.5); instructor-alerts if it departs outside it |
 
 ### Add Aircraft
 
