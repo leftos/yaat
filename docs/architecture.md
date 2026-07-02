@@ -225,7 +225,7 @@ Services/
   MenuGroup.cs                  # Enum of context menu groups (Heading, Altitude, Speed, Tower, etc.)
   ContextMenuProfile.cs         # Record: Primary/Secondary/Hidden menu groups for a phase
   ContextMenuProfileService.cs  # Static: maps phase name + isOnGround → ContextMenuProfile (which radar submenu GROUPS show)
-  AircraftCommandApplicability.cs # Static: single source of truth for whether a tower/landing/pattern command fits an aircraft's state (CanClearForTakeoff/CanClearToLand/CanIssueVfrOption/CanExitRunway/...); consumed by all three right-click surfaces + phase classifiers used by ContextMenuProfileService
+  AircraftCommandApplicability.cs # Static: single source of truth for whether a tower/ground/landing/pattern command fits an aircraft's state (CanClearForTakeoff/CanClearToLand/CanIssueVfrOption/CanExitRunway/CanDrawTaxiRoute/...); consumed by all three right-click surfaces + phase classifiers used by ContextMenuProfileService
   RelativeTrafficActions.cs     # Static pure gating for selected→right-clicked traffic menu items (RTIS/FOLLOW in radar, GIVEWAY/FOLLOWG on ground): HasRelativeContext, ShouldOfferFollow (airborne + LastReportedTrafficCallsign match), ShouldOfferGroundActions
   BuildInfo.cs                  # Static: version (from AssemblyInformationalVersion) + release-vs-dev detection (VelopackLocator.Current); used by title bar, About window, and startup log line
   DocLinks.cs                   # Static: GitHub URLs for user-facing docs (README/USER_GUIDE/COMMANDS/CHANGELOG/issues), pinned to release tag for installed builds, main for dev

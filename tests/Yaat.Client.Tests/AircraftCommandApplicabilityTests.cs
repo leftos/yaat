@@ -58,6 +58,7 @@ public class AircraftCommandApplicabilityTests
         Assert.False(AircraftCommandApplicability.CanCancelLandingClearance(null));
         Assert.False(AircraftCommandApplicability.CanExitRunway(null));
         Assert.False(AircraftCommandApplicability.CanEnterPattern(null));
+        Assert.False(AircraftCommandApplicability.CanDrawTaxiRoute(null));
     }
 
     // --- Departures: Line up and wait ---
@@ -240,5 +241,30 @@ public class AircraftCommandApplicabilityTests
     public void CanEnterPattern_ByPhaseAndRules(string phase, string rules, bool onGround, bool expected)
     {
         Assert.Equal(expected, AircraftCommandApplicability.CanEnterPattern(Ac(phase, onGround, rules)));
+    }
+
+    // --- Ground routing: draw / preset taxi route ---
+
+    [Theory]
+    [InlineData("At Parking", true, true)]
+    [InlineData("Pushback", true, true)]
+    [InlineData("Pushback to Spot", true, true)]
+    [InlineData("Taxiing", true, true)]
+    [InlineData("Holding After Exit", true, true)]
+    [InlineData("Holding After Pushback", true, true)]
+    [InlineData("Holding In Position", true, true)] // held mid-taxi — was resume-only
+    [InlineData("Holding Short 28L/10R", true, true)]
+    [InlineData("Following UAL123", true, true)] // ground taxi-follow — was hold-only
+    [InlineData("Crossing Runway", true, false)] // transient runway phase
+    [InlineData("Runway Exit", true, false)]
+    [InlineData("LiningUp", true, false)]
+    [InlineData("LinedUpAndWaiting", true, false)]
+    [InlineData("AirTaxi", true, false)]
+    [InlineData("Following UAL123", false, false)] // not on ground (guards airborne name reuse)
+    [InlineData("VFR Follow", false, false)] // airborne pattern follow — distinct phase name
+    [InlineData("FinalApproach", false, false)] // airborne arrival
+    public void CanDrawTaxiRoute_ByPhase(string phase, bool onGround, bool expected)
+    {
+        Assert.Equal(expected, AircraftCommandApplicability.CanDrawTaxiRoute(Ac(phase, onGround)));
     }
 }

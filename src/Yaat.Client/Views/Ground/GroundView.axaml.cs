@@ -559,10 +559,7 @@ public partial class GroundView : UserControl
             menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
         }
 
-        if (
-            phase is "At Parking" or "Pushback" or "Pushback to Spot" or "Taxiing" or "Holding After Exit" or "Holding After Pushback"
-            || phase.StartsWith("Holding Short", StringComparison.Ordinal)
-        )
+        if (AircraftCommandApplicability.CanDrawTaxiRoute(ac))
         {
             menu.Items.Add(new Separator());
             var presetSubmenu = BuildPresetTaxiSubmenu(vm, ac, callsign, initials);

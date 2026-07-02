@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Right-clicking an aircraft that is holding in position or following another aircraft on the ground now offers **Preset taxi route** and **Draw taxi route...**, so you can re-route it from its current position without first resuming its taxi. These options were previously available only for parked, actively-taxiing, and holding-short aircraft.
+
 ## v0.8.5-beta [2026/07/01]
 
 ### Fixed

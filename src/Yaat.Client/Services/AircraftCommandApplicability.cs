@@ -229,6 +229,37 @@ public static class AircraftCommandApplicability
         return phase is "Landing" or "Runway Exit";
     }
 
+    // --- Ground routing ---
+
+    /// <summary>
+    /// Draw / preset a taxi route — offered for on-ground aircraft that are parked, taxiing,
+    /// or stopped/held/following mid-ground, so a controller can (re)route them from their
+    /// current position. Excludes transient runway phases (crossing / exit / line-up) and
+    /// airborne states. Drawing sends a fresh TAXI that clears the active ground phase and
+    /// re-plans, so the target phases must accept a new TAXI (HoldingInPositionPhase /
+    /// FollowingPhase treat it as ClearsPhase). The airborne pattern-follow phase is named
+    /// "VFR Follow", so the "Following" prefix here matches only the ground taxi-follow.
+    /// </summary>
+    public static bool CanDrawTaxiRoute(AircraftModel? ac)
+    {
+        if (ac is null || !ac.IsOnGround)
+        {
+            return false;
+        }
+
+        var phase = ac.CurrentPhase ?? "";
+        return phase
+                is "At Parking"
+                    or "Pushback"
+                    or "Pushback to Spot"
+                    or "Taxiing"
+                    or "Holding After Exit"
+                    or "Holding After Pushback"
+                    or "Holding In Position"
+            || phase.StartsWith("Holding Short", StringComparison.Ordinal)
+            || phase.StartsWith("Following", StringComparison.Ordinal);
+    }
+
     // --- Pattern ---
 
     /// <summary>
