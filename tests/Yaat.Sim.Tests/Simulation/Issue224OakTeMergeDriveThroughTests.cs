@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
@@ -65,12 +66,16 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
             return;
         }
 
-        var captured = new List<string>();
+        // DebugSink is a process-global static; xUnit runs test classes in parallel, so another
+        // engine replaying the same callsigns can fire this sink from a foreign thread while we
+        // enumerate the captures below. A ConcurrentQueue makes that append safe (its enumerator
+        // is a moment-in-time snapshot) where a plain List throws "Collection was modified".
+        var captured = new ConcurrentQueue<string>();
         GroundConflictDetector.DebugSink = line =>
         {
             if (line.Contains(Lead) && line.Contains(Follower))
             {
-                captured.Add(line);
+                captured.Enqueue(line);
             }
         };
 
