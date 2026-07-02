@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.5-beta [2026/07/01]
 
 ### Fixed
 - Typing a bare command such as `TB` (turn base), `TC`, or `TD` no longer selects an aircraft whose callsign merely contains those letters. Complete commands now take priority over partial (substring) callsign matches — both when the command is sent (it reaches the selected aircraft instead of being swallowed) and in the autocomplete dropdown, where the command is listed above matching callsigns so Enter and Tab pick it without needing Escape first. An exact callsign match still selects the aircraft.
