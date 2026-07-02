@@ -661,6 +661,12 @@ public static class CommandDescriber
             HoldForReleaseCommand cmd => $"HFR {cmd.Airport}",
             DisarmHoldForReleaseCommand cmd => $"HFROFF {cmd.Airport}",
             ReleaseDepartureCommand cmd => cmd.IntervalSeconds is int iv ? $"REL {cmd.Target} {iv}" : $"REL {cmd.Target}",
+            CfrDepartureCommand cfr => cfr.Action switch
+            {
+                CfrAction.Clear => "CFR OFF",
+                CfrAction.Check => "CFR CHECK",
+                _ => cfr.Hhmm is int hhmm ? $"CFR {hhmm:D4}" : "CFR",
+            },
             AddAircraftCommand cmd => $"ADD {cmd.Args}",
             ConsolidateCommand cmd => cmd.Full
                 ? $"CON {cmd.ReceivingTcpCode} {cmd.SendingTcpCode} FULL"
@@ -1072,6 +1078,12 @@ public static class CommandDescriber
             ReleaseDepartureCommand cmd => cmd.IntervalSeconds is not null
                 ? $"Release {cmd.Target} departures, spaced"
                 : $"Release departure {cmd.Target}",
+            CfrDepartureCommand cfr => cfr.Action switch
+            {
+                CfrAction.Clear => "Clear release window",
+                CfrAction.Check => "Check release window",
+                _ => cfr.Hhmm is int hhmm ? $"Call for release at {hhmm:D4}Z" : "Release departure now",
+            },
             AddAircraftCommand => "Add aircraft",
             ConsolidateCommand cmd => cmd.Full ? "Consolidate (full)" : "Consolidate",
             DeconsolidateCommand => "Deconsolidate",
