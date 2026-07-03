@@ -13,6 +13,7 @@
 - Scenario preset strip commands (e.g. auto-checking a departure-strip box shortly after spawn) now apply to the aircraft's strip.
 - Track commands scheduled behind a `WAIT` — scratchpad, temporary altitude, and similar — now apply when the wait expires.
 - A single-taxiway clearance to a terminal gate (e.g. SFO `TAXI B @F1`) now routes directly to the ramp instead of looping the long way around.
+- An aircraft leaving a ramp spot on a clearance via multiple taxiways (e.g. an Oakland GA parking given `TAXI D C B 28R`) now taxis straight out onto the first taxiway instead of doubling back through the ramp and spinning.
 
 ## v0.8.9-beta [2026/07/03]
 

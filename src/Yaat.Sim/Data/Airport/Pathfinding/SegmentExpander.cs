@@ -976,9 +976,15 @@ public static class SegmentExpander
             }
 
             double cost = candHead.AccumulatedCost - head.AccumulatedCost;
-            // No bias (no destination / next-junction signal): prefer the nearest access node,
-            // matching the original nearest-first behaviour.
-            double score = bias is { } b ? ScoreBridgeCandidate(candHead, taxiwayName, b, ctx) : cost;
+            // Score each candidate as f = g + h: the cost of the bridge path itself (g, which already
+            // carries distance, the turn budget, and the reverse-arc penalty) plus how well its
+            // continuation heads toward where the route must go (h, the bias-proximity probe). Using h
+            // alone let a candidate win purely because its taxiway entry sat closest to the bias, even
+            // when reaching it meant threading a doubling-back ramp cross-connector (a spot whose only
+            // link is a tight fillet arc pointing the wrong way); folding g back in keeps the smooth,
+            // shorter straight bridge ahead of the zigzag. With no bias (no destination / next-junction
+            // signal) fall back to the nearest access node — the original nearest-first behaviour.
+            double score = bias is { } b ? cost + ScoreBridgeCandidate(candHead, taxiwayName, b, ctx) : cost;
 
             if ((score < bestScore - 1e-9) || ((Math.Abs(score - bestScore) <= 1e-9) && (cost < bestCost)))
             {
