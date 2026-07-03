@@ -687,6 +687,7 @@ Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-
 Data/VideoMapMetadata.cs       # Video map metadata model
 Data/VideoMapData.cs           # Video map data structures (lines, labels, filters)
 Data/VideoMapParser.cs         # GeoJSON → VideoMapData
+Data/HttpFileCache.cs          # Shared vNAS download→disk cache: AlwaysRefetch (/api, no HEAD/Last-Modified) vs HeadLastModified (/Files) freshness, optional disk-TTL skip, network-failure fallback. Used by AirportLayoutDownloader, ArtccAirportResolver, ArtccConfigService (server), VideoMapService, GroundViewModel tower-cab.
 
 # Data/Airport/
 IAirportGroundData.cs          # Interface: GetLayout(airportId) + GetSourceGeoJson(airportId)

@@ -60,16 +60,9 @@ public sealed class AirportLayoutDownloader : IDisposable
     {
         var faaCode = ToFaaCode(airportId);
         var cachePath = GetCachePath(faaCode);
-        Directory.CreateDirectory(_cacheDir);
+        var url = $"{TrainingApiBase}/{faaCode}/map";
 
-        await EnsureFreshAsync(faaCode, cachePath, cancellationToken);
-
-        if (!File.Exists(cachePath))
-        {
-            return null;
-        }
-
-        return await File.ReadAllTextAsync(cachePath, cancellationToken);
+        return await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.AlwaysRefetch, diskTtl: null, Log, cancellationToken);
     }
 
     /// <summary>
@@ -116,46 +109,6 @@ public sealed class AirportLayoutDownloader : IDisposable
         if (_ownsHttp)
         {
             _http.Dispose();
-        }
-    }
-
-    /// <summary>
-    /// Unconditionally GETs the current map and overwrites the cache when the content changed.
-    /// The origin 405s HEAD and sends no Last-Modified/ETag, so a conditional probe cannot detect
-    /// updates — a full GET is the only reliable refresh. Failures are logged and swallowed so a
-    /// transient outage (or 404) falls back to whatever is already on disk.
-    /// </summary>
-    private async Task EnsureFreshAsync(string faaCode, string cachePath, CancellationToken cancellationToken)
-    {
-        var url = $"{TrainingApiBase}/{faaCode}/map";
-
-        try
-        {
-            using var getResp = await _http.GetAsync(url, cancellationToken);
-            if (getResp.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                Log.LogInformation("No airport layout available from vNAS for {Url} (HTTP 404)", url);
-                return;
-            }
-
-            getResp.EnsureSuccessStatusCode();
-            var json = await getResp.Content.ReadAsStringAsync(cancellationToken);
-
-            if (File.Exists(cachePath) && string.Equals(await File.ReadAllTextAsync(cachePath, cancellationToken), json, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            await File.WriteAllTextAsync(cachePath, json, cancellationToken);
-            Log.LogDebug("Refreshed cached airport layout for {AirportId}", faaCode);
-        }
-        catch (HttpRequestException ex)
-        {
-            Log.LogWarning(ex, "Failed to refresh airport layout for {AirportId}; using cached copy if present", faaCode);
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            Log.LogWarning(ex, "Timed out refreshing airport layout for {AirportId}; using cached copy if present", faaCode);
         }
     }
 }

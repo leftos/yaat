@@ -85,79 +85,20 @@ public sealed class VideoMapService
         var cachePath = Path.Combine(artccCacheDir, $"{mapId}.geojson");
         var url = $"{DataApiBase}/{artccId}/{mapId}.geojson";
 
-        // Freshness check: the vNAS data-api (Cloudflare origin) returns 200 OK on HEAD requests
-        // regardless of If-Modified-Since, so we compare Last-Modified against the cached file's
-        // mtime ourselves instead of relying on 304 responses.
-        try
-        {
-            if (File.Exists(cachePath))
-            {
-                var fileInfo = new FileInfo(cachePath);
-                using var headReq = new HttpRequestMessage(HttpMethod.Head, url);
-                using var headResp = await _http.SendAsync(headReq);
-
-                if (headResp.IsSuccessStatusCode)
-                {
-                    var serverLastModified = headResp.Content.Headers.LastModified?.UtcDateTime;
-                    if ((serverLastModified is { } sm) && (sm <= fileInfo.LastWriteTimeUtc))
-                    {
-                        _log.LogDebug("Video map {Id} is up to date", mapId);
-                    }
-                    else
-                    {
-                        _log.LogDebug("Video map {Id} has been updated, re-downloading", mapId);
-                        await DownloadAsync(url, cachePath, serverLastModified);
-                    }
-                }
-                else
-                {
-                    _log.LogWarning("HEAD request for video map {Id} returned {Status}; using cached copy", mapId, headResp.StatusCode);
-                }
-            }
-            else
-            {
-                _log.LogDebug("Downloading video map {Id}", mapId);
-                await DownloadAsync(url, cachePath, serverLastModified: null);
-            }
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "Failed to download/check video map {Id}", mapId);
-        }
-
-        // Parse from cache
-        if (!File.Exists(cachePath))
+        var json = await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log);
+        if (json is null)
         {
             return null;
         }
 
         try
         {
-            var json = await File.ReadAllTextAsync(cachePath);
             return VideoMapParser.Parse(mapId, json);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Failed to parse video map {Id}", mapId);
             return null;
-        }
-    }
-
-    /// <summary>
-    /// Downloads the map body and stamps the local file's mtime with the server's Last-Modified
-    /// (when available) so subsequent freshness checks remain consistent.
-    /// </summary>
-    private async Task DownloadAsync(string url, string cachePath, DateTime? serverLastModified)
-    {
-        using var getResp = await _http.GetAsync(url);
-        getResp.EnsureSuccessStatusCode();
-        var json = await getResp.Content.ReadAsStringAsync();
-        await File.WriteAllTextAsync(cachePath, json);
-
-        var stamp = serverLastModified ?? getResp.Content.Headers.LastModified?.UtcDateTime;
-        if (stamp is { } s)
-        {
-            File.SetLastWriteTimeUtc(cachePath, s);
         }
     }
 

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.Services;
 
@@ -85,45 +86,14 @@ public sealed class ArtccAirportResolver
             return cached;
         }
 
-        Directory.CreateDirectory(CacheDir);
         var url = $"{DataApiBase}/{artccId}";
-
-        try
+        var json = await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.AlwaysRefetch, CacheTtl, _log);
+        if (json is not null)
         {
-            if (File.Exists(cachePath))
-            {
-                var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(cachePath);
-                if (age < CacheTtl)
-                {
-                    _log.LogDebug("ARTCC config {Artcc} is fresh (age {AgeMin:F0} min)", artccId, age.TotalMinutes);
-                    var diskJson = await File.ReadAllTextAsync(cachePath);
-                    _jsonCache[artccId] = diskJson;
-                    return diskJson;
-                }
-
-                _log.LogDebug("ARTCC config {Artcc} is stale (age {AgeHr:F1} h), re-downloading", artccId, age.TotalHours);
-            }
-
-            var json = await _http.GetStringAsync(url);
-            await File.WriteAllTextAsync(cachePath, json);
             _jsonCache[artccId] = json;
-            _log.LogDebug("Downloaded ARTCC config {Artcc}", artccId);
-            return json;
         }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "Failed to fetch ARTCC config for {Artcc}", artccId);
 
-            // Fall back to disk cache
-            if (File.Exists(cachePath))
-            {
-                var diskJson = await File.ReadAllTextAsync(cachePath);
-                _jsonCache[artccId] = diskJson;
-                return diskJson;
-            }
-
-            return null;
-        }
+        return json;
     }
 
     private static List<string> ExtractUnderlyingAirports(string json)

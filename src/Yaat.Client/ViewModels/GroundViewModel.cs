@@ -7,6 +7,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Ground;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ViewModels;
@@ -339,53 +340,14 @@ public partial class GroundViewModel : ObservableObject
         return await _artccResolver.GetTowerCabVideoMapIdAsync(artccId, airportId);
     }
 
-    private static async Task<TowerCabMapData?> DownloadAndParseTowerCabMapAsync(string videoMapBaseUrl, string artccId, string videoMapId)
+    private async Task<TowerCabMapData?> DownloadAndParseTowerCabMapAsync(string videoMapBaseUrl, string artccId, string videoMapId)
     {
-        var cacheDir = YaatPaths.Combine("cache", "towercab-maps", artccId);
-        Directory.CreateDirectory(cacheDir);
-        var cachePath = Path.Combine(cacheDir, $"{videoMapId}.geojson");
-
-        // Conditional download
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var cachePath = Path.Combine(YaatPaths.Combine("cache", "towercab-maps", artccId), $"{videoMapId}.geojson");
         var url = $"{videoMapBaseUrl}/{artccId}/{videoMapId}.geojson";
 
-        try
-        {
-            if (File.Exists(cachePath))
-            {
-                var fileInfo = new FileInfo(cachePath);
-                using var request = new HttpRequestMessage(HttpMethod.Head, url);
-                using var headResponse = await http.SendAsync(request);
-
-                // The origin ignores If-Modified-Since (never 304) but does serve a Last-Modified on
-                // HEAD, so compare it against the cached file's mtime ourselves instead of expecting a
-                // 304 — otherwise every load redownloads the map.
-                if (headResponse.IsSuccessStatusCode)
-                {
-                    var serverLastModified = headResponse.Content.Headers.LastModified?.UtcDateTime;
-                    if ((serverLastModified is { } sm) && (sm <= fileInfo.LastWriteTimeUtc))
-                    {
-                        var cachedJson = await File.ReadAllTextAsync(cachePath);
-                        return TowerCabMapParser.Parse(cachedJson);
-                    }
-                }
-            }
-
-            var json = await http.GetStringAsync(url);
-            await File.WriteAllTextAsync(cachePath, json);
-            return TowerCabMapParser.Parse(json);
-        }
-        catch (Exception)
-        {
-            // Fall back to cache if available
-            if (File.Exists(cachePath))
-            {
-                var cachedJson = await File.ReadAllTextAsync(cachePath);
-                return TowerCabMapParser.Parse(cachedJson);
-            }
-
-            throw;
-        }
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var json = await HttpFileCache.GetOrRefreshAsync(http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log);
+        return json is null ? null : TowerCabMapParser.Parse(json);
     }
 
     public void SaveLayerSettings()
