@@ -256,6 +256,16 @@ The VM cannot reach a control (MVVM), so two parameterless events let it poke th
   (when `AutoFocusInputAfterSpeech` is set); `MainWindow` forwards to `CommandInputView.FocusCommandInput()`
   (`MainWindow.axaml.cs:226`). A new "VM needs to poke a control" requirement should follow this pattern, not a direct
   control reference.
+- **`RequestCommandInputFocus` has a second trigger the bullet above omits.** The app-wide focus-input hotkey
+  (default `` ` ``/`OemTilde`, `UserPreferences.FocusInputKey`) also raises it, via a central class handler in
+  `src/Yaat.Client/Views/WindowHotkeys.cs` (`InputElement.KeyDownEvent.AddClassHandler<Window>`, registered once at
+  `App.OnFrameworkInitializationCompleted`, outside the desktop-lifetime block so headless tests run it too;
+  `WindowHotkeys.cs:70` → `vm.FocusCommandInput()`). Scope: `DataContext is MainViewModel` or
+  `VStripsViewWindow`/`VTdlsViewWindow`; modal dialogs are excluded. The actual forwarding handler,
+  `MainWindow.FocusActiveCommandInput` (`MainWindow.axaml.cs:3056`), branches on `IsTerminalDocked` — docked routes to the
+  embedded `CommandInputView`, popped-out routes to `_terminalWindow.FocusCommandInput()`. `WindowHotkeys.cs` also owns a
+  sibling always-on-top hotkey (default `Ctrl+Shift+T`) that toggles the *focused* window's topmost via `IAlwaysOnTopToggle`
+  (`Yaat.Client.Core/Views`), implemented per-window as `ToggleAlwaysOnTop() => _geometryHelper.ToggleTopmost()`.
 
 (`TerminalFilterChanged` is a third such event, consumed by the terminal view's filter predicate.)
 

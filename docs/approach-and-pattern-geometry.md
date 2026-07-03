@@ -683,3 +683,50 @@ Which command handler builds which phase (parsing/dispatch live in
   `ManagesSpeed` at its default `false` — auto speed is instead suppressed because `ActiveApproach` is set (see
   [tick-loop.md](tick-loop.md) step 7). A pattern phase that forgets to set `TargetSpeed` leaves the aircraft at
   whatever speed it had (see phases.md "ManagesSpeed is contagious").
+- **A speed command inside 5 nm of the threshold is *Rejected*, never `ClearsPhase`.** `FinalApproachPhase.CanAcceptCommand`
+  returns `Rejected("unable, inside 5 nm final")` for the whole speed family (`SPD`/`RFAS`/`RNS`/`DSR`/Mach) within
+  `SpeedCommandFinalGateNm = 5 nm` (cached `DistanceToThresholdNm`) — the pilot says "unable" and the established ILS
+  final stays intact. Clearing the phase tore down an established `FinalApproach → Landing` chain (SWA4587 leveled off
+  on OAK ILS 30 and couldn't re-land). Footgun: there are **two independent 5 nm gates** — the handler-level one in
+  `FlightCommandHandler` rejects `SpeedCommand` *only* (it reads `cmd.Force`), so `RFAS`/`RNS`/`DSR`/Mach relied entirely
+  on the phase-level gate; the phase-level branch must reject the whole family, not just `SPD`. `SPEEDF` stays
+  always-Allowed; outside 5 nm the family is additive. Tests: `Swa4587RfasRejectsInsideGateTests`,
+  `PhaseAcceptanceAuditTests.FinalApproachPhase_SpeedFamily_RejectedInsideFiveNm`.
+- **The no-landing-clearance warning has two *separate* latches — don't collapse them.** `_noClearanceFlashIssued`
+  drives the red `NoLndgClnc` datablock flash (`AircraftState.NoLandingClearanceWarningActive`) and arms **earlier** for
+  controller reaction time: 2 nm on a visual (`NoClearanceFlashDistNm`) or `MAP + 1000 ft` on an instrument approach.
+  `_noClearanceWarningIssued` drives the AI pilot's verbal "short final" callout at realistic timing: 1 nm visual
+  (`NoClearanceWarningDistNm`) or `MAP + 1000 ft`. `FinalApproachPhase` is the **only** writer of the flash flag
+  (re-asserts it every tick), so it is cleared in the single phase-exit hook `FinalApproachPhase.OnEnd` — never in the
+  individual go-around paths (a manual `GA` rebuild once left the flash stuck on forever). Both latches are
+  snapshot-serialized. Test: `GoAroundClearsNoLandingClearanceFlashTests`.
+- **Pattern re-entry picks its terminal phase from `LandingClearance`, not `TrafficDirection`.** `PhaseList.TrafficDirection`
+  is overloaded (turn-side geometry *and*, historically, touch-and-go intent), and `PatternCommandHandler.TryEnterPattern`
+  stamps it on every EF/ERB/ELB/… rebuild to preserve the turn side — so choosing the rebuilt circuit's terminal from that
+  field silently converted a landing into a touch-and-go on the *second* entry (turn side now non-null). Branch on
+  `aircraft.Phases.LandingClearance`: `ClearedToLand` → full-stop `LandingPhase`; `ClearedForOption`/`TouchAndGo`/`StopAndGo`/`LowApproach`
+  → touch-and-go family; no clearance → fall back to `TrafficDirection is not null` (closed-traffic work). A touch-and-go
+  is authorized only by `TG`/`COPT`/`SG`/`LA`, never as a side effect of re-entering the pattern. Tests:
+  `PatternEntryPreservesLandingClearanceTests`, `N713UpErbLandingClearanceTests`.
+- **Re-inserting a phase re-runs its `OnStart`.** `PhaseList.AdvanceToNext`/`Start`/`SkipTo` always call `OnStart` when a
+  phase becomes current (only snapshot restore sets `CurrentIndex` without it), so an in-final maneuver that does
+  `InsertAfterCurrent([maneuver, resumeFinal])` re-fires the resume phase's `OnStart` side effects. All three in-final
+  maneuver paths (`ClonePatternPhase` for `L360`/`R360`, `TryMakeSTurns` for `MLS`/`MRS`, and the automatic spacing
+  S-turn) resume via `FinalApproachPhase.CloneForResume()` = `new() { SkipInterceptCheck = true, _goAroundRolled = true }` —
+  it realigns geometry from `ctx.Runway`/`ActiveApproach` and consumes the one-shot solo go-around RNG roll so a maneuver
+  can't add a second roll. Without it a 360/S-turn on final advanced straight into `LandingPhase` far out, which descends
+  at the category rate with no glideslope tracking → touchdown ~2,600 ft short. Defense-in-depth:
+  `LandingPhase.ApplyGlidepathFloor` clamps the pre-flare descent target to the per-category glidepath altitude at the
+  current distance (keep `GlideSlopeGeometry.AngleForCategory` — don't hardcode 3°; the 6° helicopter path must survive),
+  releasing at `FlareEntryAgl`. Tests: `OakLandingShortAfter360Tests`, `MlsOnFinalResumesApproachTests`,
+  `LandingPhaseGlidepathFloorTests`.
+- **`JFAC`/`JLOC` is a *relaxed armed join*, distinct from `ForcedIntercept`.** `JFAC`/`JLOC` is usually appended to a
+  vector (`FH 220, JLOC`) and must not deviate from it — the aircraft flies the assigned heading and joins the localizer
+  at *any* cut when it intercepts, never busting through. `DispatchJfac` sets `InterceptCoursePhase.RelaxedJoin`, which
+  bypasses the 30° `BustThroughAlignmentDeg` gate like `ForcedIntercept` but stays **passive** (no pre-LOC steering; turns
+  only at capture) — keep the two flags distinct. Only `PTAC` expects a controller-limited intercept. **A bare same-approach
+  `CAPP` on an established JFAC/JLOC join upgrades in place** via `CommandDispatcher.TryUpgradeLateralJoinInPlace` (early
+  short-circuit before phase-clearing): it flips `LateralInterceptOnly` false and cancels the assigned speed
+  (7110.65 §5-7-1) with no teardown/rebuild, so there is no spurious "…cancelled by CAPP" warning. `CAPPF`/`AT`/`DCT`/altitude/different-approach
+  still rebuild. The glideslope-established bypass is scoped to `PTACF` via `ApproachClearance.ForcedInterceptCapture` (not
+  the old steep-capture-angle proxy); `InterceptCaptureAngleDeg` now only feeds approach scoring.

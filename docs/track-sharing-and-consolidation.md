@@ -185,6 +185,15 @@ facility) is a no-op.
 (`DtoConverter.cs:59`), where `MapSharedState` (`DtoConverter.cs:568`) converts each entry's `LeaderDirection`/`TpaType` ints into
 their CRC enum types.
 
+**`SharedState` is keyed by `Tcp.Id` (the ULID), never `Tcp.ToString()`.** `Tcp.Id` is the value CRC sends as `OurTcp.Id` and that
+`ArtccConfigResolver.GetTcpForPosition(...).Id` returns; `Tcp.ToString()` is the human-readable `"{Subset}{SectorId}"` code (e.g. `"2S"`)
+and is **not** a valid key. (Contrast the STARS *pointout* Recipient/Sender matching below, which *does* compare by `Tcp.ToString()`.) The
+student-scope mirror shipped inert because `StarsDatablockClassifier.Classify` looked up `SharedState` by `studentTcp.ToString()` while
+every writer keyed by `.Id`, so `IsHighlighted`/`LeaderDirection`/`WasPreviouslyOwned`/`ForceFdb` silently fell back to defaults — and the
+classifier tests masked it by keying fixtures the buggy (reader) way. When testing a keyed lookup, key the fixture the way the real
+*writer* does. `StarsTrackSharedState` also carries `IsRecentlyAcceptedIncomingPointout` (inbound wire Key 11; the nested re-broadcast
+`common/StarsTrackSharedState` puts it at Key 7), consumed as a pointout on the `StarsDatablockColor.Pointout` render path.
+
 ### ERAM — `AircraftEramState`
 
 `AircraftEramState` (`AircraftEramState.cs:9`) holds the ERAM-tier display overrides: `IsDwellLocked`, `IsVci`, `LeaderDirection`,
@@ -211,6 +220,16 @@ A STARS pointout is a single `StarsPointout?` on `AircraftTrack.Pointout` (`Airc
 Recipient/sender matching is by the **stringified TCP** `$"{Subset}{SectorId}"` (`Tcp.ToString()`, `Tcp.cs:11`), e.g.
 `TrackEngine.cs:165`. STARS pointouts ride the `StarsTracks` topic via `DtoConverter.ToStarsTrack` →
 `MapStarsPointout` (`DtoConverter.cs:45`, `DtoConverter.cs:887`).
+
+**Recipient datablock color keys off `IsPending || IsRecentlyAcceptedIncomingPointout`, never `IsAccepted`.** `StarsDatablockClassifier`
+colors the *recipient's* track yellow while the pointout is pending or was recently accepted (the transient, server-set
+`IsRecentlyAcceptedIncomingPointout` flag above). It must **not** key off `StarsPointout.IsAccepted`: `HandleAcknowledge` flips the status
+Pending→Accepted but never clears `Track.Pointout`, so an `IsAccepted` term would pin the recipient yellow forever after the student slews
+to clear. (CRC's `IsAccepted` branch in `DisplayElementTracks` is the *sender/owner* 5-second "PO" indicator — a different thing.) Recipient
+sequence: Yellow FDB (pending) → Yellow FDB (accepted) → Green PDB (recipient slews to clear). The flag is **server-originated** (CRC never
+sets it true locally): `TrackEngine.AcceptIncomingPointout` (from `HandleAcknowledge` + the `PO` accept branch) sets
+`SharedState[recipient.Id].IsRecentlyAcceptedIncomingPointout = true` on accept, and `TrackEngine.ClearDismissedIncomingPointout` drops the
+stale accepted pointout on the true→false slew flip.
 
 ### ERAM pointouts — `AircraftEramState.Pointouts`
 
@@ -274,6 +293,14 @@ Per-track shared state and pointouts do **not** have their own topic — they ri
   Skip it and a stale override survives for the rest of the room session, silently reshaping the hierarchy.
 - **The override store is keyed by the *sending* TCP.** `Deconsolidate(tcp)` removes the entry where that TCP is the sender. To
   remove an override where the TCP is the *receiver*, you need `RemoveOverridesInvolving` — `Deconsolidate` alone won't do it.
+- **Center→TRACON handoff codes carry a STARS-facility prefix (`Q2B`).** A handoff code like `Q2B` from an ERAM (Center) position is
+  `singleCharacterStarsId` + TCP: `Q` is `facility.eramConfiguration.neighboringStarsConfigurations[].singleCharacterStarsId` (NCT → "Q"),
+  `2B` is the TCP. `ArtccConfigResolver.ResolveEramToStarsHandoffCode(code)` strips the prefix, then `ResolveTcpCode(facility, rest)`; it is
+  wired **last** in both `TrackResolver.ResolveTcpToOwner` (Sim) and `TrackCommandHandler.ResolveTcpToOwner` (server) so it never shadows a
+  bare TCP. It models a facility-level `EramFacilityConfig`/`NeighboringStarsConfig` in `ArtccConfig.cs` (previously only the position-level
+  `EramPositionConfig.sectorId` existed), extending STARS interfacility handoff-code resolution (see [crc-display-state.md](crc-display-state.md))
+  to the Center→TRACON direction. Preset/triggered track commands themselves route via `SimulationEngine.ProcessTriggeredTrackBlocks` — see
+  [command-handlers.md](command-handlers.md) "Triggered re-dispatch."
 - **`SharedState` is per-(aircraft, viewing-TCP), not global.** Writing to the wrong TCP id (or to `GlobalLeaderDirection` when you
   meant a per-TCP entry, or vice versa) targets the wrong scope. `WasPreviouslyOwned` in particular is written into the *previous*
   owner's entry, not the new owner's (`TickProcessor.cs:1038`).

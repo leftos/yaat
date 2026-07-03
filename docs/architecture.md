@@ -543,7 +543,8 @@ Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Tra
                                     # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
                                     # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.
                                     # Dispatch(parsed, ac, identity, scenario, ?artccConfig): top-level switch routing any track ParsedCommand to
-                                    # the right HandleX/ApplyX. Server's TrackCommandHandler delegates to this for the pure cases; replay applier uses it.
+                                    # the right HandleX/ApplyX. Used ONLY by replay (ReplayTrackApplier + SimulationEngine re-sim); the live server path
+                                    # is TrackCommandHandler.HandleTrackCommand's own parallel switch (shares the TrackEngine.HandleX leaves) — keep both in sync.
 Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" → "ACCEPT" + "3Y" override), scenario-first TCP→TrackOwner
                                     # resolution with optional ARTCC-config fallback, owner→TCP lookup. Shared by yaat-server's live track path
                                     # and Sim's replay applier.
@@ -740,7 +741,7 @@ AirlineFleets.cs               # Static map: airline ICAO ↔ ICAO Doc 8643 airc
                                # Refresh via tools/refresh-airline-fleets.py — see docs/airline-fleets.md
 airline-fleets.json            # Generated map (Airfleets World Fleet Listing, paid quarterly snapshot)
 airline-fleets.meta            # Provenance sidecar (per-PDF SHA-256, parsed counts) — committed alongside
-AirportAirlines.cs             # Static map: airport IATA/ICAO -> served airline ICAO list for arrival-generator callsign selection
+AirportAirlines.cs             # Static map: airport IATA/ICAO -> served airline ICAO list for arrival-generator callsign selection. See docs/airport-airlines.md.
                                # Loaded lazily from airport-airlines.json.br; normalizes K/P-prefixed U.S. ICAOs to local IDs
 airport-airlines.json.br       # Generated Brotli fixture from BTS T-100 segment data for current generator airports
                                # OpenFlights route backfill is used only for airports missing BTS carrier hits

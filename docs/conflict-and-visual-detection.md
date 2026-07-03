@@ -304,6 +304,10 @@ for both the ATPA wake matrix and the visual traffic-detection range. It **must 
    representative type per bucket.
 3. **Aircraft category** — broad Jet/Turboprop/Piston/Helicopter fallback when the type is in neither table.
 
+`WakeTurbulenceData.OnApproachWakeSeparationNm` is the single shared on-approach wake-separation source: both `AtpaProcessor.ComputeRequiredSeparation` (precise per-type CWT) and the arrival-generator spawn gap (`SimulationEngine.SpacingGapNm`, coarse `WakeClass(WakeClass)` fallback — follower type isn't chosen yet at gap time) call it. It encodes FAA 7110.65 TBL 5-5-2 mile-based CWT minima, keyed by `(leaderCWT, followerCWT)` A-I; a pair absent from the table is 0 (no wake add-on) and the caller floors at the radar minimum. These mile-based minima **replace**, not add to, the legacy time-based wake minima; wake still binds under 2.5 nm final (5-5-4 para 10) — don't drop it.
+
+**GOTCHA — CWT category → weight class** (verified against `tests/Yaat.Sim.Tests/TestData/AircraftCwt.json` `weightCode`): `A→Super; B,C,D→Heavy; E,F,G→Large; H,I→Small`. **CWT D is HEAVY** (B744/A339/IL76/A400/AN22), NOT Large — a stale mapping had D→Large, silently zeroing heavy-widebody wake spacing in the generator (fixed). **B757 is CWT E**, not D. Regional jets (CRJ7/CRJ9/E170) are CWT G → Large.
+
 ---
 
 ## Tuning & thresholds reference

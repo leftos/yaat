@@ -151,3 +151,11 @@ xcrun stapler validate YaatClient-<ver>-osx-Setup.pkg               # → "The v
 - **Entitlements** live in `build/macos/Yaat.Client.entitlements`. The four
   `cs.*` keys are required for any notarized .NET app; `device.audio-input` is
   for `AudioCaptureService`'s push-to-talk microphone capture.
+- **`notarytool` 403 "required agreement missing or has expired"** at the "Import signing certificates and notary profile" step
+  (`xcrun notarytool store-credentials`) is an **Apple account-side issue, not a YAAT bug or a secrets-rotation problem** — the
+  cert/key secrets are still valid. Apple periodically publishes a new Developer Program License Agreement (or one expires); until the
+  **Account Holder** re-accepts it at <https://developer.apple.com/account> / <https://appstoreconnect.apple.com> (Agreements, Tax,
+  and Banking → Membership), notarization credential validation 403s — even on a release that signed fine the day before. The main
+  `Release` workflow (Windows/Linux) is independent and still publishes; only the macOS installer is missing until the rerun
+  completes. Once the agreement is accepted, re-run just the failed job — no new tag needed:
+  `gh run rerun <run-id> --repo leftos/yaat --failed`.

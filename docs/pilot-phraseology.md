@@ -79,6 +79,12 @@ House rules every builder follows. **These are intentional — don't "correct" t
   "clear of runway X" (binary, no "fully"), paired airline flight numbers, "november …" for US GA
   tails, "with information Alpha" (accepted trainer ATIS-ack wording). Pilot transmissions are
   not held to controller phraseology — keep the colloquial wording.
+- **Runway-segment taxi echo shows the single cleared end, not the reciprocal.** A taxi route with a
+  runway segment (e.g. `TAXI 28R G D`) renders "on runway two eight right" / terminal "on 28R" — never
+  the internal combined centerline id `28R/10L`. `TaxiRoute.ToSummary(turnHints, clearedRunways)` resolves
+  the displayed designator via `seg.Edge.Edge.MatchesRunway(d)` against the cleared path
+  (`GroundCommandHandler` passes `taxi.Path`); with no command context (snapshot / Aircraft List) it falls
+  back to the de-padded combined id `28R/10L`.
 
 ## AIM-grounded rules
 
@@ -97,6 +103,7 @@ The decisions established by the phraseology audit, with the authority. Local co
 | Go-around: spoken call is just **"going around"**; the internal reason stays terminal-only | `BuildGoingAround` | 5-4-21, 5-5-5 |
 | An arrival with no approach issued gives a brief **"request approach assignment, {callsign}"** — names neither runway nor approach type (ATC assigns both) | `BuildArrivalApproachRequest` | 4-1-8 |
 | Mandatory readbacks keep the full taxi route (path + runway + cross-runway + hold-short) and the runway **L/R/C** suffix | `PhraseologyRules` TAXI rules + `SpellRunway`/`CompactRunway` | 4-4-7.b.4, 4-3-18 |
+| A taxi clearance that includes a runway segment says **ON** the runway, never "via" — VIA is for taxiways | `PhraseologyVerbalizer.RenderTaxiAlongRunway` (bypasses the flat `via`-only rule template) / `CaptureFormatter.RunwaySegment` | 3-7-2.a |
 
 Note the arrival check-in vs approach-request distinction: an IFR arrival checks in with its
 altitude and lateral state (and ATIS if held) — it does **not** request a runway (ATC assigns it).
@@ -137,6 +144,12 @@ path; don't route headings through the distance/cardinal helpers.
   in `RpoTerminal` only. The router resolves `TerminalForRpo` for the RPO branch.
 - **Don't regex-strip the TTS form to make the terminal form.** Build both directly. If the RPO
   view needs a diagnostic the solo view shouldn't have, set `RpoTerminal`.
+- **TAXI has two independent readback outputs — don't conflate them.** The **RSP** (controller-facing
+  `CommandResult.Message`) is built in `GroundCommandHandler.TryTaxi` — `"Taxi via " + route.ToSummary(turnHints, clearedRunways)`
+  — directly from the *resolved* route, fed turn hints via `BuildTurnHintMap(taxi)`. The **TTS/Terminal** pilot
+  readback is a separate call, `PilotResponder.BuildReadback` → `PhraseologyVerbalizer`, built from the *parsed*
+  `TaxiCommand` — which renders a turn hint as "right on J" / "left on J" (`TaxiTurn`), never "right turn"/"onto".
+  Changing one does not change the other.
 - **Don't merge `SpellDistanceDigits` into `CardinalWord`.** They're different phraseology
   (digit-by-digit position distance vs cardinal mile-final) and the airborne-check-in form is
   test-pinned.

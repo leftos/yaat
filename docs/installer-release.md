@@ -61,3 +61,8 @@ Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 ## Shipping a release
 
 Use the `/prepare-release` skill: it bumps the version, promotes the changelog, drafts highlights, tags, and pushes after approval.
+
+The flow can optionally wait for `deploy-to-droplet.ps1 -WaitForEmptyRooms` before deploying, so an in-progress training session
+isn't disrupted. That flag polls the live server's `/admin/status`; it **can't gate the very release that first ships that endpoint**
+(or any future release-gating endpoint) — the live droplet 404s until the new build is deployed, and the poll treats a 404 as
+"retry, not empty," so it never terminates. Expect this once per new gating endpoint: stop the wait (Ctrl-C) and deploy normally.

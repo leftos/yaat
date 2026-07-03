@@ -176,6 +176,39 @@ runway* (the tower can't roll the next until the prior cleared) is a tower-ops (
 **not** modeled. v1 spacing is controller-driven — manual sequencing, or the auto-interval whose
 defaults are wake-informed. Void times are not modeled (they're non-towered only, §4-3-4.f).
 
+## CFR — release-time compliance window
+
+`CFR` is a **separate feature from HFR/REL above** — keep them distinct. HFR/REL is a hard gate (LUAW/CTO are rejected until
+released); `CFR` is **alert-only and never gates anything** — it never blocks takeoff and never affects the simulation (issue #230).
+It marks an on-ground IFR departure with a release-time compliance window so the student practices release-time discipline without
+the sim enforcing it mechanically.
+
+`CfrDepartureCommand(int? Hhmm, CfrAction Action)`, `CfrAction { Set, Clear, Check }`. Aircraft-scoped (`isGlobal:false`) — **no
+`APREQ` alias** (APREQ is broader than a departure release).
+
+- `CFR <HHMM>` → window `[HHMM-2min, HHMM+1min]`.
+- Bare `CFR` → immediate release: assigned time = now+2min, so the window opens now (`[now, now+3min]`).
+- `CFR OFF` / `CFR CANCEL` → clears the window.
+- `CFR CHECK` / `CFR STATUS` → read-only status readout (opens-in / closes-in / expired) via `CfrDepartureService.DescribeStatus` —
+  no mutation, still broadcasts a terminal line. Right-click "Check release window" in radar/ground/list menus sends `CFR CHECK`.
+
+**The −2/+1 window is FAA-fixed** (7110.65 §4-3-4.e.5), not a user/session preference — hardcoded constants in `Commands/CfrWindow.cs`
+(`WindowBeforeSeconds=120`, `WindowAfterSeconds=60`). `CfrWindowResolver.Resolve(hhmm, nowUtc)` (pure, nearest-instant HHMM, handles
+midnight rollover) computes the assigned time and brackets it uniformly.
+
+**Wall-clock UTC, client-evaluated** — deliberately un-anchored from sim time (cosmetic, so it's fine that it's inconsistent under
+pause/rewind/FF). The server (`RoomEngine.HandleCfrCmd` → `CfrDepartureService.Apply`, one `DateTime.UtcNow` read) only resolves and
+stores the absolute-UTC window on `AircraftGroundOps.ReleaseWindowStartUtc/EndUtc` and broadcasts it (the same 5-point `HeldForRelease`
+broadcast path, both `AircraftChangeTracker` sites). The **client** owns all alerting: `CfrAlertMonitor` (per-callsign latch) +
+`CfrAlertEvaluator` fire early/late/expired-grounded via `MainViewModel.OnAircraftUpdated` (on wheels-up, capturing was-on-ground) plus
+a 1s `DispatcherTimer` sweep (`SweepCfrExpiry`, for the expired-while-stationary case that stops broadcasting). Alerts surface as a
+warning terminal line + amber bubble (`AddAircraftWarning`) — no datablock flash, no flyout countdown, no audio ding. A live `CFR M:SS`
+countdown badge (amber, red when expired) renders in the Aircraft List Info column (`AircraftModel.UpdateCfrBadge` via shared
+`CfrCountdown.Evaluate`, on-ground only).
+
+**Excluded from the recorded action log** (`RoomEngine` negative filter next to Pause/SimRate) — the window itself survives snapshot
+via `AircraftGroundOps`, so a rewind reproduces it, but replaying a recording never re-issues the `CFR` command itself.
+
 ## Footguns
 
 - **Disarm auto-releases the field.** `HFROFF` (and the spawn gate's `Contains` check going false)

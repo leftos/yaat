@@ -51,6 +51,12 @@ unchanged. The base it merges onto is:
 
 Only types that appear in the override file are affected; every other type behaves exactly as before.
 
+**Init order matters.** `AircraftProfileDatabase.Initialize` must run *after* `AircraftSiblingMap.Initialize` and
+`AircraftCategorization.Initialize` — sibling resolution and the no-profile category-baseline merge both depend on them.
+`VnasDataService.InitializeAircraftProfiles` and `TestVnasData.EnsureInitialized` both init siblings/categorization before
+profiles for this reason; a caller that initializes `AircraftProfileDatabase` standalone gets silent sibling/category fallback
+misses instead of a clear error.
+
 ## Submitting a correction
 
 1. Find the ICAO type designator (e.g. `SF50`, `C172`, `B738`).

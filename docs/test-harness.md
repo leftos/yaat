@@ -204,6 +204,13 @@ drop it in `TestData/<lowercase-short-id>.geojson`. See `AirportLayoutDownloader
 (`TestData/artcc-zoa-snapshot.json`, refreshed via `tools/refresh-artcc-snapshot.py`) for tests exercising replay-time TCP/ERAM
 resolution. It returns `null` when the snapshot is absent — same silent-skip convention.
 
+**Raw `GeoJsonParser.Parse` needs the nav DB only for runway crossings.** `GeoJsonParser.Parse(airportId, geoJson, runwayAirportCode)`
+runs `RunwayCrossingDetector.DetectRunwayCrossings`, which reads `NavigationDatabase.Instance` — so a non-null `runwayAirportCode` (e.g.
+`"OAK"`) throws `NavigationDatabase not initialized` in a test that hasn't loaded nav data. A test that only needs the graph or fillet
+arcs (taxiway topology, `TurnAngleDeg`) should pass `runwayAirportCode: null` to skip the runway-crossing pass while still producing
+nodes/edges/arcs (`OneWayResolverTests`, `GroundArcRenderFilterTests`, `DtoConverterGroundLayoutTests` all do). Use the harness's
+pre-initialized layout only when you actually need runway crossings.
+
 ## Debugging aircraft movement — `TickRecorder`
 
 `TickRecorder` (`Helpers/TickRecorder.cs`) captures per-tick aircraft state to a JSON document (with embedded type/wingspan/length/color
@@ -367,3 +374,19 @@ verify the cross-repo build with `pwsh tools/test-all.ps1`.
   strictly more complete than production. Any oracle-vs-production diff is exactly where production's node-id-only pruning loses. Keep it
   in lock-step with `AutoRouter.cs`.
 - **Making `internal` members `public` for tests is fine.** No reflection, no `InternalsVisibleTo` hacks.
+- **A recording replay silently runs with `GroundLayout == null` if the destination airport's geojson is missing from `TestData/`.**
+  `TestAirportGroundData.GetLayout` returns null for a missing file (no download fallback), and the replay runs anyway — a landed aircraft
+  falls into `RunwayExitPhase`'s layout-less analog-rollout fallback (`StartExitNavigation` bails on null `ctx.GroundLayout`, `TickRolling`
+  steers along runway heading), which can drift off the field and trip the pure-pursuit **orbit** guard (`ThrowOnOrbit=true` →
+  `InvalidOperationException`) — often on an *incidental* ground aircraft, not the one the test asserts on, so a bisect falsely pins the orbit
+  to an unrelated commit. Diagnose by printing `engine.World.GroundLayout?.AirportId` (null); fix by committing the map: `curl -sS -o
+  tests/Yaat.Sim.Tests/TestData/<faa>.geojson https://data-api.vnas.vatsim.net/api/training/airports/<FAA>/map`.
+- **A `TestData/*.geojson` refresh can flip a borderline taxi route via coordinate-precision truncation.** A vNAS re-download can
+  re-serialize coordinates at truncated precision (geometry identical to sub-meter, but every feature differs textually and fillet/spot nodes
+  renumber + shift). A sub-meter shift can flip a marginal route so `SegmentExpander` rejects it ("Cannot reach destination from end of taxi
+  path"), the replayed command is rejected, and the aircraft "never taxis" (stuck in `HoldingAfterPushbackPhase`, which only exits on an
+  explicit `TAXI`). Because `ReplayCommand` swallows the rejection, the symptom gets misattributed to whatever commit landed at the same
+  rebase. Confirm with a **layout A/B** (swap `git show <refresh-commit>^:tests/.../sfo.geojson` back in and re-run). Pin the fixture to a
+  committed full-precision snapshot via `Helpers/PinnedSfoGroundData.cs`, and build gate-coverage routes from taxiway **names**
+  (`FindIntersectionNode`, `TaxiPathfinder.FindRoute`), not hardcoded node IDs. `SimulationEngine.ReplayCommand` logs rejected replayed
+  commands at Debug (category `SimulationEngine`).

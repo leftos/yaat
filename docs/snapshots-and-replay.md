@@ -58,6 +58,8 @@ If you see `[JsonIgnore]` on a field, also check that there's a separate carrier
 
 `PhaseDto` is the abstract base; every concrete phase DTO has a `[JsonDerivedType(typeof(XyzPhaseDto), "Xyz")]` registration. See [phases.md](phases.md) for the four steps required to add a new phase to the snapshot system.
 
+**Never remove a phase's `[JsonDerivedType]` if a committed recording may have captured that phase in a snapshot.** Polymorphic deserialization throws `JsonException: Read unrecognized type discriminator id 'Xyz'` **before** `SnapshotSchemaMigrator` runs, so a version bump / migrator can't rescue it. The failure misleads — affected tests pass in isolation and fail only once a test that replays the offending recording runs (it looks like a static-singleton race but is the discriminator). When a phase is superseded, **retain the old class + its DTO + `JsonDerivedType` for restore-only**: mark it clearly and stop creating it from the command path (e.g. `PushbackToSpotPhase`, kept only for restore after the #233 pushback rewrite). "Unreleased software: delete freely" does **not** extend to types serialized into committed recording fixtures. Verify with `pwsh tools/test-all.ps1` (full suite), not just targeted tests.
+
 ## Recording — `RecordingArchive.cs`
 
 A recording is a ZIP with this layout:
@@ -125,6 +127,15 @@ artcc-config logs       install     validate
 ```
 
 For single-aircraft triage, `history --callsign X` is one chronological view that replaces 5+ targeted `snapshot --at` calls. See `.claude/skills/bug-bundle/SKILL.md` for the full reference and CLAUDE.md for examples.
+
+Bundles embed a room-scoped, anonymized `yaat-server.log`, including for **remote** servers (not just a local disk read).
+Server-side: `RoomLogStore` (Simulation) is a per-room bounded ring buffer (50k-line cap, marks earlier lines dropped) that
+`FileLogger` mirrors lines into only while inside `BeginRoomScope` (tick loop, `SendCommand`, CRC dispatch) — unscoped lines are
+file-only and never exported. `SessionLogAnonymizer` (pure/static) replaces each participant's CID + real name + initials with a
+stable pseudonym (`A0`..`B9`, whole-word matched so CIDs embedded in beacon codes/callsigns survive) before
+`TrainingHub.GetSessionServerLog()` returns the text. Client: `ServerConnection.GetSessionServerLogAsync()` →
+`MainViewModel.Timeline` always embeds the text into the archive. Tests: `RoomLogStoreTests`, `FileLoggerRoomScopeTests`,
+`SessionLogAnonymizerTests`.
 
 ## Pitfalls
 

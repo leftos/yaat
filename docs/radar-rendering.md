@@ -268,6 +268,18 @@ the non-top-down view, so a departure doesn't appear on the radar before it clim
 CRC STARS' coast/skip below the same floor. Every `Find*` helper and `CreateRenderSnapshot` re-invokes `FilterAircraft`, so a
 visibility change goes in one place — but you must preserve that draw/hit symmetry.
 
+### Ghost / unsupported tracks — per-view visibility
+
+`FilterAircraft` above is the **radar** view's filter; the Ground View and Aircraft List each have their *own* filter, and ghost / "unsupported" STARS tracks (`AircraftGhostTrack.IsUnsupported`) render differently on each — don't assume a shared rule. Two ghost kinds: pure **phantom** (CRC `DA`/`VP`, no real body, `IsOverlay=false`) and **overlay** (`GHOST`/AID slew on a real aircraft, `IsOverlay=true`).
+
+| Surface | Filter | Rule |
+|---|---|---|
+| Radar / STARS | `RadarCanvas.FilterAircraft` | Hides airborne below the acquisition floor via server-stamped `BelowDisplayFloor`; otherwise shows ghosts. |
+| Ground / Tower-Cab | `GroundCanvas.FilterActiveAircraft` (render + both hit-testers) | Out-the-window picture: shows real aircraft, drops **only** pure phantoms (`IsUnsupported && !IsGhostOverlay`). An overlay is a real aircraft → shown airborne or on-ground (no `IsOnGround` coupling, so no flicker at rotation); the ≤10 nm / ≤ min(ceiling, 6000 ft) AGL bound lives in `GroundRenderer.IsAirborneVisible`, not the filter. |
+| Aircraft List | `MainViewModel.IsAircraftVisible` | Hides pure phantoms, keeps overlays. |
+
+**DTO position split:** the CRC **STARS** track uses the ghost's pinned position (`ac.Ghost.Latitude ?? ac.Position.Lat`), but the YAAT **SignalR** `AircraftStateDto` always sends the *real* `ac.Position` plus `IsUnsupported`/`IsGhostOverlay` booleans — so the YAAT client only ever draws the real position and handles ghosts by flag, never as a separate object. An overlay can stay `IsUnsupported` while airborne below the floor until it auto-resolves at the 100 ft STARS floor (`CrcVisibilityTracker.EvaluateStars`).
+
 ## Pointer-handler priority ladder
 
 `RadarCanvas.OnPointerPressed` (`:864-1080`) is a strict ladder of early-returns guarded by `e.Handled`. Inserting a mode at
@@ -405,6 +417,12 @@ The data shown comes from `AircraftModel` (the client mirror of the wire `Aircra
 underlying state on the wire — see [aircraft-data-model.md](aircraft-data-model.md) and
 [crc-display-state.md](crc-display-state.md) for how a field reaches the client. This doc owns only the on-screen rendering.
 
+## Instructor TPA overlays — `JRING` / `CONE`
+
+Instructor `JRING`/`CONE` are TPA proximity overlays drawn on **YAAT's own radar only**, never projected to the student's CRC. State lives on `ac.Stars.TpaType` (1 = J-Ring, 2 = Cone) + `ac.Stars.TpaSize` (nm, 1–30, parser-validated), flows client-ward via `AircraftStateDto.TpaType`/`TpaSize` → `AircraftModel` → `TargetRenderer.DrawTpaGraphic`, and is snapshotted on `AircraftStarsStateDto` so it replays. Geometry (from the decompiled CRC `DrawTpaCone`/`DrawTpaJRing`): a J-Ring is a geo circle of radius `TpaSize`; a Cone is a ±`UserPreferences.TpaConeHalfAngleDegrees` (default 2°) needle of length `TpaSize`, drawn along `ac.Heading` (YAAT's leader-line axis — not ground track, unlike CRC, for visual consistency with the YAAT leader). STARS TCW TPA color = `(90, 180, 255)`.
+
+This is distinct from the **automatic ATPA cone**: `StarsTrackDto.TpaType` (Key 30, CRC `RemoteTpaType`) is reserved for the server-computed ATPA cone (`DtoConverter.MapAtpaTpaType` from `AtpaResult`) and is *never* fed from `ac.Stars.TpaType` — doing so leaked one instructor's manual cone onto every student CRC scope (fixed with #189). CRC controllers draw their own `*J`/`*P` locally and sync via shared track state, so the CRC implied-slew `*J`/`*P` dispatch in `CrcClientState.Stars.cs` is a deliberate no-op — don't convert it into a YAAT overlay. See [crc-display-state.md](crc-display-state.md) for the Key-30 server side.
+
 ## Pitfalls
 
 - **The two-thread split is unenforced.** `CreateRenderSnapshot` (UI thread) must capture everything;
@@ -436,3 +454,15 @@ underlying state on the wire — see [aircraft-data-model.md](aircraft-data-mode
   wrong position and it silently steals clicks from a lower rung.
 - **`ShownRouteBuilder.cs` is not in this stack and not command-input UX** — it builds the route path segments that
   `RadarViewModel` assembles into the `ShownPathEntry` overlay drawn by `RadarRenderer.DrawShownPaths`.
+- **Don't re-attempt SSAA / TAA / MSAA on the Radar or Ground views.** 2×/3× supersampling was implemented (offscreen GPU
+  `SKSurface` at N× device resolution, downscaled) and **reverted** — the downscale softens the crisp edges and text more
+  than the original jaggies bother. Every paint already sets `IsAntialias = true` (per-primitive analytic coverage) and text
+  uses `SubpixelText`, which is the ceiling for crisp 2D vector content; supersampling only trades sharpness for smoothness.
+  The only real lever for "crisp and not jagged" is higher pixel density (OS scaling > 100% or a higher-DPI monitor) — a
+  spatial-resolution limit, not an AA-technique one.
+- **Use legacy `SKFilterQuality`, not `SKSamplingOptions`.** Avalonia 11.3.13 depends on **SkiaSharp 2.88.9**, which predates
+  `SKSamplingOptions`/`SKFilterMode`/`SKMipmapMode` (added in SkiaSharp 3.0.0, which also `[Obsolete]`d `SKFilterQuality`), so
+  reaching for the newer API is a `CS0246` build error. Use `new SKPaint { FilterQuality = SKFilterQuality.High }` +
+  `canvas.DrawImage(image, srcRect, destRect, paint)` (e.g. `GroundRenderer`'s tower-cab blit). You can't pin SkiaSharp 3.x
+  under Avalonia 11.3 (breaking major) — it needs an Avalonia upgrade. Offscreen GPU rendering uses the Skia lease
+  (`ISkiaSharpApiLeaseFeature` → `GrContext`, `SKSurface.Create`).

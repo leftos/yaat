@@ -61,6 +61,14 @@ counterpart of a JSON-compatible type or it deserializes to the client default.
 `AssignedHeading` (`DtoConverter.cs:644`), not the transient `Target*` physics goal. The wire DTO is the autopilot/UI
 projection, not the raw physics state.
 
+**Heading frame mismatch — `Heading` is TRUE, `AssignedHeading` is MAGNETIC.** The DTO's bare `Heading` field carries
+`ac.TrueHeading.Degrees` (`DtoConverter.cs:844`) — true heading — while `AssignedHeading` carries
+`ac.Targets.AssignedMagneticHeading?.Degrees` (`:850`) — magnetic. Client-side, `AircraftModel` reconstructs typed
+`TrueHeading`/`MagneticHeading?` structs on receipt; to display the live heading in magnetic (what controllers read), convert at
+the aircraft's position via `Heading.ToMagnetic(MagneticDeclination.GetDeclination(Position))`. Both heading structs expose
+`ToDisplayString()` (3-digit zero-padded, north = `360`, never `000`) — use it for every UI/readback heading instead of
+hand-rolling `:F0`/`:D3` on `.Degrees`.
+
 ## Hub method catalog (client → server)
 
 Every row is `ServerConnection` wrapper → the **string literal** passed to `InvokeAsync` → server hub method. The

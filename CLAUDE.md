@@ -253,14 +253,17 @@ When invoking aviation-sim-expert, always include:
 - **Warnings are errors**: Build with `dotnet build -p:TreatWarningsAsErrors=true` before committing.
 - **No `-q` flag**: Never pass `-q` to any dotnet command — causes spurious errors.
 - **Pre-commit**: Automated via `prek` (`prek.toml`). Runs: trailing-whitespace fix, EOF newline fix, merge conflict check, private key detection, large file check, `dotnet format style`, `dotnet format analyzers`, `dotnet csharpier format .`, `dotnet build -p:TreatWarningsAsErrors=true`. Run `prek run` manually to check; hooks fire automatically on `git commit`. Do NOT run bare `dotnet format`. Do NOT pass `-v q`, `--nologo`, or extra flags to `dotnet format`.
+- **prek's build hook is cross-repo**: `prek.toml`'s `dotnet build` compiles `yaat.slnx`, which includes the sibling `yaat-server` project. A *partial* commit (`git commit -- <subset>`) stashes your other yaat changes, so if yaat-server's on-disk code depends on a just-stashed `Yaat.Sim` change, the hook build fails with `CS0246`/signature errors from `yaat-server`. Before such a partial commit: `git -C X:/dev/yaat-server stash push -u`, commit, then `stash pop`. Likewise a dependency pin that's only modified-not-committed gets reverted by the stash during the hook build — commit the pin, don't just leave it in the tree.
 
 ### Documentation
 - Update `USER_GUIDE.md` before committing user-facing changes.
 - Update `COMMANDS.md` whenever a command is added, removed, aliased, or changes behavior/arguments. This is the canonical user-facing command reference — both the **Quick Reference** tables and the **Detailed Command Documentation** section must stay in sync with the code (`CommandRegistry.All`, `CanonicalCommandType`, handler behavior).
 - Update `docs/yaat-vs-atctrainer.md` when commands/features/behavior vs ATCTrainer changes.
 - Update `docs/architecture.md` before each commit.
+- Update the in-app command cheatsheet when a command's quick-reference changes: edit the row data in `docs/command-cheatsheet.json`, then run `node tools/build-cheatsheet.mjs` to regenerate `docs/command-cheatsheet.html`. Never hand-edit the HTML — `prek` + CI run `--check` and fail the build if JSON and HTML drift.
 
 ### Git & Issues
+- **Commit directly to `main`**: This project overrides the global "never push to main / use branches + PRs" rule — the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Don't create feature branches or open PRs unless explicitly asked. (Still ask before committing — auto-commit is never OK.)
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
 - **Cross-repo issues**: GitHub issues tracked on **yaat** repo. In yaat-server commits use full URL `Closes https://github.com/leftos/yaat/issues/N`, never bare `Closes #N`.
 - **Cross-repo completeness**: Features spanning both repos must be implemented together — no half-done features.

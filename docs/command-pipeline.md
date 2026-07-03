@@ -67,7 +67,7 @@ SendCommandAsync(callsign, command, initials)
                                           CommandDispatcher.DispatchCompound
 ```
 
-Track commands go to `TrackEngine.Dispatch` (pure logic in `Yaat.Sim`) — `TrackCommandHandler` is a thin adapter. The replay applier (`ReplayTrackApplier`) shares this engine, so live and replay paths always agree.
+Track commands take a separate path (see **Track command bypass** below): the **live** server switch (`TrackCommandHandler.HandleTrackCommand`) and the **replay** switch (`TrackEngine.Dispatch`) are two parallel dispatch tables that share only the `TrackEngine.Handle*` leaf logic — not a single adapter.
 
 After validation, every command is recorded for replay: `Record(new RecordedCommand(scenario.ElapsedSeconds, callsign, command, initials, connectionId) { ReactionDelaySeconds = … })` — the pilot-reaction delay, if any, is baked in so replays reproduce it exactly (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)). **Including rejected ones** — replay needs a faithful history, not a clean one.
 
@@ -141,7 +141,13 @@ Adding a new contextual flag to handlers? Add it to `DispatchContext`, set it at
 
 ## Track command bypass — `TrackCommandHandler` / `TrackEngine`
 
-`TRACK`, `DROP`, `HO`, `ACCEPT`, `CANCEL HO`, `POINTOUT`, scratchpad, temp alt, cruise, `AS <tcp> …` — these change ownership and STARS-track metadata, not flight controls. They go through `TrackEngine.Dispatch` directly (pure-domain logic in `Yaat.Sim`), not `CommandDispatcher`. `ReplayTrackApplier` uses the same `TrackEngine` so live and replay agree.
+`TRACK`, `DROP`, `HO`, `ACCEPT`, `CANCEL HO`, `POINTOUT`, scratchpad, temp alt, cruise, `AS <tcp> …` — these change ownership and STARS-track metadata, not flight controls, and bypass `CommandDispatcher`.
+
+**Two parallel switch tables dispatch them — keep both in sync:**
+- **Live** (server): `TrackCommandHandler.HandleTrackCommand` (yaat-server) has its own `cmd switch`, plus server-only branches (consolidation-redirect handoff, conflict-alert engine state, ghost-track creation) and its own inline identity-guard exemption list.
+- **Replay** (Sim): `TrackEngine.Dispatch` (`Yaat.Sim`) is a *second* switch used **only** by `ReplayTrackApplier` and `SimulationEngine`'s replay/re-sim paths; its guard is `TrackEngine.RequiresIdentity`.
+
+Both ultimately call the shared `TrackEngine.Handle*` leaf methods, so the per-command *behavior* is shared — but the routing, arg handling, and identity guards are **duplicated**. A track-command change applied to only one table passes that path's tests and silently misbehaves on the other (live works, replay doesn't, or vice-versa). Edit both switches **and** both guards, and add tests in both `Yaat.Sim.Tests` (Dispatch) and `Yaat.Server.Tests` (HandleTrackCommand). TCP-arg resolution differs too: `TrackResolver.ResolveTcpToOwner` (Sim) vs the server handler's instance `ResolveTcpToOwner` (adds a STARS-handoff-code fallback). Example: issue #199 `TRACK [position]`.
 
 ## Coordination command bypass — `CoordinationCommandHandler`
 

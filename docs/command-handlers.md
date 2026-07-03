@@ -290,3 +290,32 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   load-bearing for the queued-block path even though they look redundant for immediate dispatch — the in-code comment warns against removing them.
 - **APT/DEST is not in `ApplyCommand`.** `ChangeDestinationCommand` is dispatched server-side in `RoomEngine.cs:563`, calling
   `FlightPlanCommandHandler.TryChangeDestination` directly. Don't expect to find it in either dispatcher switch.
+- **A queued `CommandBlock.ApplyAction` closure is NOT restored after a snapshot.** `CommandBlock.FromSnapshot` (`CommandQueue.cs`)
+  persists only `SourceCommandText`; despite a doc comment claiming `ApplyAction` is "re-derived by `CommandQueue.FromSnapshot`," no such
+  re-derivation exists (verified in both repos). At fire time `FlightPhysics.ApplyBlock` does `block.ApplyAction?.Invoke(...)` — a
+  null-conditional that silently no-ops and *then still marks the block applied*. So any `AT`/`ATFN`/`LV` conditional block whose effect is
+  carried by the closure (rather than re-applied from `SourceCommandText`) silently drops after replay/rewind/failover restore. **Don't build
+  snapshot-spanning deferred behavior on the command-queue closure** — hold the state on the aircraft instead (as the `REPORT` armed flags do on
+  `AircraftApproachState`). Track commands avoid this because `ProcessTriggeredTrackBlocks` re-parses `SourceCommandText` on restore (see
+  "Triggered re-dispatch" above).
+- **`CTO`/`LUAW` take no runway argument — only `CROSS` does.** The server resolves the departure runway from `aircraft.Phases.AssignedRunway`
+  (`DepartureClearanceHandler.TryClearedForTakeoff`); `ParseCtoArg`/`ParseLuawArg` *reject* a runway token (`"CTO does not understand '28R'"`). A
+  runway is valid for `CTO` only as the optional 2nd token after `MLT`/`MRT` (`CTO MRT 28R`). Context-menu convention: show the runway in the
+  **label** (`Cleared for takeoff {ToDisplayDesignator(rwy)}`) but send the **bare verb** — appending the runway the way `CROSS` menus do is the
+  #229 bug that hit the Ground and aircraft-list menus. New Ground/DataGrid takeoff or line-up items pass `Cmd("CTO")`/`Cmd("LUAW")`, never a runway.
+- **`CTO RH` is allowed for IFR; `CVIA` self-activates the filed SID.** `RunwayHeadingDeparture` is in `CheckIfrDepartureCompatibility`'s allowed
+  set — after `CTO RH` the aircraft holds runway heading with no SID loaded (`ActiveSidId` stays null). `CVIA` (`NavigationCommandHandler.DispatchClimbVia`)
+  then self-activates the filed SID when `ActiveSidId is null` via `TryActivateFiledSid` + `OverlaySidRestrictions` — a mirror of the arrival-side
+  `DVIA`/`TryActivateFiledStar`. Two-step rejoin: `DCT <SID fix>` reloads the lateral remainder, then `CVIA` overlays the published crossing
+  restrictions. **Footgun:** `OverlaySidRestrictions` must read the persistent `Procedure.DepartureRunway`, not `Phases.AssignedRunway` — a `CVIA`
+  issued mid-`InitialClimbPhase` ClearsPhase, so the dispatcher nulls `aircraft.Phases` before `DispatchClimbVia` runs (`AssignedRunway` gone), but
+  the DCT-loaded `NavigationRoute` survives.
+- **Runway *identity* stays zero-padded everywhere; de-pad only at display.** FAA drops the leading zero ("8R", "9") but the sim keys identity on
+  the padded canonical ("08R", "09"). `RunwayIdentifier.NormalizeDesignator` pads (identity); `ToDisplayDesignator` strips (display; token-aware —
+  handles "26L/08R", "RWY 08R", comma-joined queue text). Keep padded in `RunwayInfo.Designator`, `ClearedRunwayId`, command args, wire DTOs, and
+  **all** comparisons/lookups. De-padding the stored `RunwayInfo.Designator` silently breaks `RunwayInfo.IsEnd1` (wrong threshold geometry),
+  `NavigationCommandHandler.LookupRunwayTransition` (drops STAR transitions), `AirportGroundLayout.FindRunway`, `ApproachGateDatabase`, CIFP
+  key-building (`"RW"+Designator`), and old-recording replay. `CommandDescriber.DescribeCommand` (canonical, shared with the CRC FP/STARS amendment
+  code) is machine-facing — never de-pad it; de-pad at display sites (`PhraseologyVerbalizer.SpellRunway`, `AircraftStatusDescriber`, menu labels,
+  `RunwayDisplayConverter`). Use `RunwayIdentifier.Contains` (end-exact) for hold-short matching, never `RunwayId.ToString().Contains(x)` (accepts
+  the opposite end).

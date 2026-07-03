@@ -24,3 +24,18 @@ Parse failures fall into two categories:
 2. **Unsupported commands** — commands YAAT doesn't implement yet. These may need parser additions.
 
 The output includes the scenario name so ARTCC staff can locate and fix the affected scenarios.
+
+## Cross-ARTCC batch validation (Discord CI)
+
+A separate weekly pipeline (`discord-scenario-validation.yml`) runs `ScenarioValidator.Validate()` against **every** ARTCC and
+posts per-ARTCC reports to Discord (see [discord-integration.md](discord-integration.md)). The ARTCC set is duplicated in **four
+hardcoded lists** that must stay in sync — miss one and the pipeline half-works:
+
+1. `yaat-server/tools/Yaat.ScenarioValidator/Program.cs` — `AllArtccs` (the weekly `--all` CI run)
+2. `yaat-server/tools/validate-all-scenarios.py` — `ALL_ARTCCS` (local dev refresh/report tool)
+3. `tests/Yaat.Sim.Tests/Scenarios/VnasScenarioParseTests.cs` — `[InlineData]` theory (local-only; skips when `TestData/Scenarios/{ID}` is absent)
+4. `tools/discord-bot/validation-channels.json` — ARTCC → Discord channel snowflake (the routing key the weekly cron, `ensure-validation-buttons.js`, and `/validate` all iterate)
+
+Current set (23 of vNAS's 24 ARTCCs): all 20 CONUS ARTCCs plus ZAN (Anchorage), ZHN (Honolulu — vNAS id is `ZHN`, not `HCF`), and
+ZSU (San Juan). **ZUA (Guam) is deliberately excluded — 0 training scenarios**, so don't add it for "completeness." Adding an ARTCC
+needs a real Discord channel in the "Scenario Validation" category wired into list 4 before the report can post.

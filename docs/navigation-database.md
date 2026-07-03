@@ -141,6 +141,14 @@ name **but preserves at least 2 characters** (`end > 2` guard); it returns the i
 An exact-ID lookup that bypasses these resolvers will silently miss the current cycle's procedure whenever the scenario filed an
 older version.
 
+**Command-only version-less escape valve.** Do not extend `ResolveSidId`/`ResolveStarId` to resolve a bare, digit-less base name
+(`TEJAS`) globally — STARs are named after their first fix, so a global version-less resolver would mis-classify a bare fix token
+as a STAR and expand the whole procedure inside `RouteExpander`/`ScenarioLoader`/`ScenarioValidator`. For controller/pilot commands
+that should accept a short STAR name (e.g. `JARR`), resolve explicitly via `NavigationDatabase.ResolveCommandStarId(airport, rawId)`
+(`:1104`; CIFP first, then NavData bodies, returns the input unchanged on no match) before calling the strict lookups — the `JARR`
+handler (`NavigationCommandHandler`) and `AircraftGenerator` do this. `DVIA` self-resolve scans the *filed route* (already-versioned
+names) with the strict `ResolveStarId`, so it doesn't need the loose form.
+
 ### Supplementary CIFP chain for retired procedures
 
 A procedure's coded legs can be absent from the *current* FAA CIFP while a scenario still files it — either the procedure was
@@ -365,6 +373,13 @@ Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
 - **Retired procedures need the supplementary CIFP.** A SID dropped from the current FAA cycle resolves only via
   `GetSid → GetSupplementarySids`. Without `supplementaryCifpFilePath` wired (production passes it; a bare `ForTesting`/`new`
   with no supplementary path does not), the SID returns `null`.
+- **CIFP speed limits carry a *type*, and continuation records are skipped.** `CifpParser.ParseSpeedRestriction(speedStr, descChar)`
+  maps the ARINC 424 §5.261 speed-limit description (col 117) to `CifpSpeedRestrictionType { AtOrBelow, AtOrAbove, Mandatory }`:
+  `'-'` → AtOrBelow (max), `'+'` → AtOrAbove (min — only ~4 legs in all US CIFP, e.g. KIAH DOOBI3 HHART 230+), blank → Mandatory.
+  Physics maps AtOrBelow/Mandatory → `SpeedCeiling` and AtOrAbove → `SpeedFloor` (skipped in the decel look-ahead so a minimum never
+  slows the aircraft; the 91.117 250-kt cap still clamps the floor). The parser also **skips ARINC continuation records**
+  (continuation-record number at col 38 ≠ `' '`/`'0'`/`'1'`) — they repeat a fix with a different field layout, so their reserved
+  padding otherwise injects phantom speed/alt restrictions (e.g. IAH RNAV 08R MATON → 2 kt) and duplicate fixes.
 - **FAA↔ICAO K-prefix fallback is duplicated across several lookups.** `GetAirportElevation`, `GetAirportName`, and
   `HasRunwayAtLeast` each re-implement it. A new airport-keyed lookup that forgets it fails for whichever of `OAK`/`KOAK`
   the caller didn't pass. `GetRunway` notably does *not* carry the fallback — callers (e.g. `ApproachGateDatabase.Initialize`)
