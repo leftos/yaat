@@ -44,8 +44,11 @@ public class GroundNavigatorCornerSpeedTests
     [Fact]
     public void ModerateChordChain_SlowsWithLegLength()
     {
-        // 20° bends over 15 ft chords (a tighter ramp chain): feasibility cap ≈ 20·(0.5·15)/20 = 7.5 ft/s ≈ 4.4 kt.
-        double speed = GroundNavigator.CornerSpeed(AircraftCategory.Jet, 20.0, Nm(15.0), Nm(15.0));
+        // 20° bends over 25 ft chords: the turn-rate feasibility cap ≈ GroundTurnRate·(0.5·L)/θ =
+        // 12·(0.5·25)/20 = 7.5 ft/s ≈ 4.4 kt at the realistic Jet ceiling (12 °/s) — a moderate,
+        // non-floored speed that demonstrates the feasibility cap tracking leg length. (Tighter 15 ft
+        // ramp chords floor at the slow-turn creep — see VeryTightShortChord_FlooredAtSlowTurnSpeed.)
+        double speed = GroundNavigator.CornerSpeed(AircraftCategory.Jet, 20.0, Nm(25.0), Nm(25.0));
 
         Assert.InRange(speed, 3.5, 6.0);
     }

@@ -128,8 +128,10 @@ When an aircraft vacates **between two parallel runways** — e.g. lands OAK 28L
 | Default rollout decel (kts/s) | 2.5 | 2.0 | 2.5 | 0 |
 | High-speed exit turn-off (kts) | 30 | 25 | 18 | 15 |
 | Standard exit turn-off (kts) | 15 | 15 | 12 | 10 |
-| Ground turn rate (deg/s) | 20 | 25 | 35 | 30 |
-| Taxi corner speed (kts) | 15 | 15 | 20 | 10 |
+| Ground turn rate ceiling (deg/s) | 12 | 16 | 20 | 30 |
+| Taxi corner speed (kts) | 15 | 15 | 10 | 10 |
+
+`Ground turn rate` is now a **ceiling**, not a flat rate: achievable ground yaw is `ω = v/R` at the tight nose-wheel radius (`CategoryPerformance.GroundYawRateAtSpeed`), capped at the ceiling above the ~3 kt crossover. A taxiing aircraft can only slew its nose as fast as it rolls forward, so a near-stationary aircraft no longer pivots at the full rate (a 120° turn takes ~6 s piston / ~10 s jet, not ~2 s). Helicopters are exempt (a wheeled pedal-turn holds the hover rate). Tight fillets are additionally held at their curvature speed via `GroundArc.MaxSafeSpeedKts` (which folds in the same `ω·r` yaw-rate cap), so a jet no longer accelerates through a sharp ramp fillet at 20 kt / 0.84 g.
 
 | Constant | Value | Purpose |
 |----------|-------|---------|

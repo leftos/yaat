@@ -352,12 +352,13 @@ public sealed class AircraftPerformanceTests
 
     [Theory]
     // v = omega * r: the fastest ground speed at which the gear-limited turn rate can still track an
-    // arc of the given radius. At each category's nose-wheel minimum radius this is a sharp-corner /
-    // spot-exit taxi speed (~5 kt jet), not the 3 kt SMGCS creep the flat SlowTurnSpeedKts implied.
-    // Jet 20 deg/s * 25 ft -> 5.17 kt; TP 25 deg/s * 18 ft -> 4.65 kt; Piston 35 deg/s * 10 ft -> 3.62 kt.
-    [InlineData(AircraftCategory.Jet, 25.0, 5.17)]
-    [InlineData(AircraftCategory.Turboprop, 18.0, 4.65)]
-    [InlineData(AircraftCategory.Piston, 10.0, 3.62)]
+    // arc of the given radius. At each category's nose-wheel minimum radius this is a slow, deliberate
+    // tight-pivot speed (~3 kt) at the realistic (ponderous) GroundTurnRate ceilings — routine turns use
+    // a wider radius and run faster. Jet 12 deg/s * 25 ft -> 3.10 kt; TP 16 deg/s * 18 ft -> 2.98 kt
+    // (floored to SlowTurnSpeedKts 3.0); Piston 20 deg/s * 15 ft -> 3.10 kt.
+    [InlineData(AircraftCategory.Jet, 25.0, 3.10)]
+    [InlineData(AircraftCategory.Turboprop, 18.0, 3.00)]
+    [InlineData(AircraftCategory.Piston, 15.0, 3.10)]
     public void TurnRateLimitedSpeed_AtNoseWheelRadius_IsRealisticCornerSpeed(AircraftCategory category, double radiusFt, double expectedKts)
     {
         double v = CategoryPerformance.TurnRateLimitedSpeedKts(category, radiusFt);

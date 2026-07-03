@@ -18,16 +18,21 @@ namespace Yaat.Sim.Tests.Simulation;
 /// proceeds while SWA897 holds, so the pair is never simultaneously stopped.
 ///
 /// Recording: <c>oak-uw-merge-deadlock-recording.zip</c> (S2-OAK-5, ZOA), trimmed to ~t=1050.
-/// Assertions are scoped to the pre-BREAK window (t &lt;= 972) so the user's manual BREAK at
-/// t=973 cannot mask the bug.
+/// With realistic (v/R-coupled) taxi timing the two aircraft no longer reach node 17 simultaneously:
+/// JSX177 leads through the merge (~t=961) and SWA897 trails onto the shared W lane and auto-yields
+/// to it (~t=988, after JSX's manual BREAK at t=973 has already expired — so the yield is the auto
+/// merge-sequencer, not the BREAK). The window runs to t=1000 to capture that break-independent
+/// auto-yield; the anti-deadlock assertion (never both-stopped) holds throughout because the leader
+/// keeps moving while the follower yields.
 /// </summary>
 public class OakUwMergeDeadlockTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/oak-uw-merge-deadlock-recording.zip";
 
-    // The merge conflict forms around t=955-972 (BREAK is at t=973).
+    // JSX177 leads through node 17 (~t=961); SWA897 trails and auto-yields on the shared W lane (~t=988,
+    // after the manual BREAK at t=973 has expired). The window spans the whole sequence.
     private const int WindowStart = 940;
-    private const int PreBreakEnd = 972;
+    private const int MergeWindowEnd = 1000;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -88,7 +93,7 @@ public class OakUwMergeDeadlockTests(ITestOutputHelper output)
         int jsxStartSeg = -1;
         int jsxEndSeg = -1;
 
-        for (int t = WindowStart; t <= PreBreakEnd; t++)
+        for (int t = WindowStart; t <= MergeWindowEnd; t++)
         {
             var jsx = engine.FindAircraft("JSX177");
             var swa = engine.FindAircraft("SWA897");

@@ -56,10 +56,11 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
     /// (t=1910) → ERB 28L for a single right-base entry (t=2032) → COPT (t=2109)
     /// → TouchAndGo (t≈2195) → auto-cycled next circuit (rebuilt at t=2215).
     ///
-    /// At t=2250 the aircraft is mid-Crosswind/Downwind on the new circuit.
-    /// The new circuit's <see cref="PhaseList.TrafficDirection"/> should be Left
-    /// (auto-cycle honors the persistent MLT intent), not Right (the transient
-    /// ERB stamp from the previous approach).
+    /// By t=2300 the aircraft has completed the ERB right-base approach + touch-and-go (~t=2270) and is
+    /// mid-Upwind/MidfieldCrossing on the auto-cycled new circuit. Its
+    /// <see cref="PhaseList.TrafficDirection"/> should be Left (auto-cycle honors the persistent MLT
+    /// intent), not Right (the transient ERB stamp from the previous approach). The sample time sits
+    /// after the touch-and-go so it is robust to small replay-timeline shifts.
     /// </summary>
     [Fact]
     public void N342T_AfterErbAndCopt_NextCircuitResumesLeftTraffic()
@@ -73,8 +74,8 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
 
         engine.Replay(recording, 0);
 
-        // Replay through all the user actions up to mid-new-circuit (t=2250).
-        for (int t = 1; t <= 2250; t++)
+        // Replay through the ERB approach + touch-and-go into the auto-cycled new circuit (t=2300).
+        for (int t = 1; t <= 2300; t++)
         {
             engine.ReplayOneSecond();
         }
@@ -84,7 +85,7 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
         Assert.NotNull(aircraft.Phases);
 
         output.WriteLine(
-            $"t=2250 N342T: Pattern.TrafficDirection={aircraft.Pattern.TrafficDirection?.ToString() ?? "null"}, "
+            $"t=2300 N342T: Pattern.TrafficDirection={aircraft.Pattern.TrafficDirection?.ToString() ?? "null"}, "
                 + $"Phases.TrafficDirection={aircraft.Phases.TrafficDirection?.ToString() ?? "null"}, "
                 + $"AssignedRunway={aircraft.Phases.AssignedRunway?.Designator ?? "null"}, "
                 + $"phases={DescribePhases(aircraft)}"

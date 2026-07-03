@@ -46,8 +46,16 @@ namespace Yaat.Sim.Tests.Helpers;
 /// </summary>
 internal static class TaxiBudgetDeriver
 {
-    public const double TimeFudgeMultiplier = 1.5;
-    public const double SecondsPerCorner = 4.0;
+    // Generous headroom over the optimal traversal so the budget catches spins/orbits (5-10× over)
+    // without flaking on legitimately slow taxi. Ground turns are v/R-coupled and capped at the
+    // realistic GroundTurnRate ceiling (jet 12 / TP 16 / piston 20 °/s), and tight fillets are held at
+    // their curvature speed (a jet creeps a sharp ramp fillet at ~5 kt), so real taxi runs meaningfully
+    // slower than a full-nominal-speed optimum — especially through corner-dense ramp routes. The
+    // optimalTimeSec floor is arc-aware (per-segment MaxSafeSpeedKts) but still assumes nominal speed on
+    // straights, so the corner approach/exit slowdown is absorbed by these overheads. The orbit
+    // invariant (ThrowOnOrbit, 360° net turn on one segment) remains the real spin guard.
+    public const double TimeFudgeMultiplier = 2.0;
+    public const double SecondsPerCorner = 10.0;
 
     /// <summary>
     /// Constant startup overhead added to every time budget. Covers the

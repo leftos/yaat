@@ -764,7 +764,7 @@ public sealed class GroundNavigator
             // built next must start at the incoming heading to round tangent.
             if (!sharpCornerAhead && _nextSegmentBearing is { } nextBrg)
             {
-                double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+                double maxTurn = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurn);
             }
             PrevDistToTarget = double.MaxValue;
@@ -843,7 +843,7 @@ public sealed class GroundNavigator
             }
         }
 
-        double maxTurnDeg = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+        double maxTurnDeg = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearingToSteerDeg, maxTurnDeg);
 
         double targetSpeed = ComputeTargetSpeed(ctx, distNm, isHoldShortCleared);
@@ -973,7 +973,7 @@ public sealed class GroundNavigator
         {
             if (_nextSegmentBearing is { } nextBrg)
             {
-                double maxTurnArc = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+                double maxTurnArc = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurnArc);
             }
             PrevDistToTarget = double.MaxValue;
@@ -1039,7 +1039,7 @@ public sealed class GroundNavigator
         {
             if (_nextSegmentBearing is { } nextBrg)
             {
-                double maxTurnArc = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+                double maxTurnArc = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
                 ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurnArc);
             }
             PrevDistToTarget = double.MaxValue;

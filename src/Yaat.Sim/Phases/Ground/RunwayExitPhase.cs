@@ -210,7 +210,7 @@ public sealed class RunwayExitPhase : Phase
     {
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.TargetSpeed = _coastSpeed;
-        // Use ground rollout decel (category-specific, 2.5 kt/s jet, 1.5 kt/s
+        // Use ground rollout decel (category-specific, 5 kt/s jet, 2 kt/s
         // piston) rather than the airborne default from AircraftPerformance.DecelRate.
         ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
         // Use ground turn rate (20 deg/s jet, 35 deg/s piston) rather than the

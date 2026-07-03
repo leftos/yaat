@@ -151,8 +151,12 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
     [Fact]
     public void OffSegmentAircraft_ApproachesSegmentLine_WithinFirstSeconds()
     {
-        // Stronger assertion: within the first 5 seconds (20 ticks at 0.25 s),
-        // the off-segment aircraft should have closed most of the 35 ft gap.
+        // Stronger assertion: the off-segment aircraft should promptly close most of the 35 ft gap.
+        // A B738 re-acquires at its realistic (ponderous) 12 °/s ground-turn ceiling, so it winds in a
+        // ~34° pure-pursuit crab over the first ~3 s, then slides onto the line at the establish-straight
+        // speed, closing half the gap by ~5.25 s and fully converging (<5 ft) over the longer run. An
+        // orbiting/diverging aircraft would oscillate and never close half. Window is 6 s (24 ticks at
+        // 0.25 s) to allow the ponderous jet the ~1 s it needs to establish the crab.
         var from = MakeNode(1, 37.0, -122.0);
         double segBearing = 90.0;
         var (endLat, endLon) = GeoMath.ProjectPoint(from.Position, new TrueHeading(segBearing), 500.0 / GeoMath.FeetPerNm);
@@ -167,7 +171,7 @@ public class GroundNavigatorStraightPursuitTests(ITestOutputHelper output)
         double initialCrossFt = 35.0;
         double minCrossFt = double.MaxValue;
 
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 24; i++)
         {
             FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
             nav.Tick(ctx, isLastSegment: true, _ => true);

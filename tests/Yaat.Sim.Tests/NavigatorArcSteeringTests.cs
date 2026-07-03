@@ -13,13 +13,14 @@ namespace Yaat.Sim.Tests;
 public class NavigatorArcSteeringTests
 {
     [Fact]
-    public void MaxSafeSpeedKts_LateralAccelModel_RadiusGoverns()
+    public void MaxSafeSpeedKts_TightRadius_YawRateCapGoverns()
     {
-        // 75 ft radius, near-straight (0° turn): the lateral-accel cap v = sqrt(a_lat · r), a_lat = 0.13 g,
-        // governs (~10.5 kt), well under the Jet corner ceiling (TaxiSpeed = 30 kt for a near-straight arc).
+        // 75 ft radius, near-straight (0° turn): the lateral-accel cap is ~10.5 kt, but the yaw-rate cap
+        // v = ω·r at the Jet ceiling (12 °/s · 75 ft ≈ 9.3 kt) is tighter, so it governs — the nose can't
+        // track a 75 ft arc faster than that without exceeding the gear-limited turn rate. (For a jet the
+        // yaw-rate cap governs below ~95 ft; above it the lateral-accel term takes over.)
         var arc = MakeArc(radiusFt: 75.0, turnAngleDeg: 0.0);
-        double radiusM = 75.0 * 0.3048;
-        double expectedKts = Math.Sqrt(0.13 * 9.80665 * radiusM) / 0.514444;
+        double expectedKts = CategoryPerformance.TurnRateLimitedSpeedKts(AircraftCategory.Jet, 75.0);
 
         Assert.Equal(expectedKts, arc.MaxSafeSpeedKts(AircraftCategory.Jet), 0.01);
     }

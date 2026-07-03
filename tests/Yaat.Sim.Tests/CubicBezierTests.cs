@@ -201,11 +201,13 @@ public class CubicBezierTests
     // --- MaxSafeSpeedKts (GroundArc method) ---
 
     [Fact]
-    public void MaxSafeSpeedKts_75FtRadius_LateralAccelModel()
+    public void MaxSafeSpeedKts_WideRadius_LateralAccelModel()
     {
-        // Lateral-accel cap: v = sqrt(a_lat · r), a_lat = 0.13 g. At 75 ft this is ~10.5 kt, under the
-        // Jet corner ceiling (TaxiSpeed = 30 kt for a near-straight arc), so the radius term governs.
-        double radiusFt = 75.0;
+        // Lateral-accel cap: v = sqrt(a_lat · r), a_lat = 0.13 g. At 150 ft this is ~14.8 kt, under the
+        // Jet corner ceiling (TaxiSpeed = 30 kt) AND under the yaw-rate cap (12 °/s · 150 ft ≈ 18.6 kt),
+        // so the lateral-accel term governs. (Below ~95 ft the yaw-rate cap takes over for a jet — see
+        // NavigatorArcSteeringTests.MaxSafeSpeedKts_TightRadius_YawRateCapGoverns.)
+        double radiusFt = 150.0;
         double radiusM = radiusFt * 0.3048;
         double expected = Math.Sqrt(0.13 * 9.80665 * radiusM) / 0.514444;
 

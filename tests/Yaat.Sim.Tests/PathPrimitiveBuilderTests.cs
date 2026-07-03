@@ -307,8 +307,11 @@ public class PathPrimitiveBuilderTests
         {
             double nose = CategoryPerformance.NoseWheelTurnRadiusFt(cat);
             double lineup = CategoryPerformance.LineUpTurnRadiusFt(cat);
+            // Piston nose-wheel radius is 15 ft (widened so slow-turns don't yaw past the 20 °/s ceiling)
+            // vs a 25 ft lineup radius — exactly 0.6; the guard allows up to 0.65 so it stays a clear
+            // "substantially tighter" check without pinning the piston pair to the boundary.
             Assert.True(
-                nose < lineup * 0.6,
+                nose < lineup * 0.65,
                 $"{cat}: nose-wheel radius ({nose} ft) should be substantially tighter than lineup radius ({lineup} ft)"
             );
             Assert.True(nose > 0, $"{cat}: nose-wheel radius must be positive");

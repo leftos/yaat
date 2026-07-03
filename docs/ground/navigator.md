@@ -28,7 +28,7 @@ Phases run **before** physics each sub-tick (see [`../tick-loop.md`](../tick-loo
 
 **Writes:**
 - `ctx.Targets.TargetSpeed` (always) and `ctx.Targets.TargetTrueHeading` (on curves).
-- On straights: turns `ctx.Aircraft.TrueHeading` toward the steer bearing, bounded by turn rate, and lets physics advance position.
+- On straights: turns `ctx.Aircraft.TrueHeading` toward the steer bearing, bounded by the **speed-coupled** ground yaw rate (`CategoryPerformance.GroundYawRateAtSpeed` — `ω = v/R` at the tight nose-wheel radius, capped at the `GroundTurnRate` ceiling; full authority above ~3 kt, falling to ~0 at a standstill), and lets physics advance position. This is why a near-stationary aircraft no longer pivots at the full ceiling. Arcs are already `v/R`-coupled by construction (the closed-form advance is `dAngle = v·dt/r`), and `GroundArc.MaxSafeSpeedKts` folds the same `ω·r` cap into the arc speed so a jet can't carry taxi speed through a tight fillet.
 - On Bézier arcs and slow-turns: writes `ctx.Aircraft.Position` and `ctx.Aircraft.TrueHeading` **directly** from closed-form curve state.
 - `ctx.Aircraft.Ground.LastNavDiag` — a `NavTickDiag` per-tick record (`GroundNavigator.cs:26`) consumed by `TickRecorder` CSV traces and `Yaat.LayoutInspector --tick-table`.
 

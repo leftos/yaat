@@ -75,7 +75,7 @@ public sealed class FollowingPhase : Phase
 
         // Turn toward the target
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Position, target.Position);
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+        double maxTurn = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.GroundSpeed) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
         // Speed: match target with distance-based adjustment

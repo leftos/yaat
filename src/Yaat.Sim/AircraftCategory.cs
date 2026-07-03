@@ -586,20 +586,56 @@ public static class CategoryPerformance
     }
 
     /// <summary>
-    /// Ground turn rate while taxiing (deg/sec).
-    /// Calibrated at 15 kt corner speed: jet → 22 m radius (B737/A320 outer main gear sweep),
-    /// turboprop → 18 m (ATR-72/CRJ-700), piston → 13 m (C172).
+    /// Maximum ground yaw rate while taxiing (deg/sec) — the gear/tiller-limited ceiling, reached only
+    /// once the aircraft is rolling faster than the low crossover speed (~3 kt) where v/R at the tight
+    /// nose-wheel radius meets it. Below that, achievable yaw is v/R-limited (see
+    /// <see cref="GroundYawRateAtSpeed"/>): nose-wheel steering sets path curvature 1/R, so heading
+    /// change per unit distance is fixed and heading change per unit time is ω = v/R — an aircraft
+    /// creeping at walking pace cannot slew its nose at the full rate. Values reflect real ground
+    /// handling: jets pivot ponderously (~12 °/s at max tiller),
+    /// turboprops tighter, light singles briskly (~20 °/s full rudder + differential brake). A 120°
+    /// turn then takes ~6 s (piston) to ~10 s (jet). Helicopters keep the hover pedal-turn rate
+    /// (their air-taxi rate is separately speed-blended in <c>AirTaxiPhase</c>).
+    ///
+    /// Governing invariant: every traced arc radius R ≥ <see cref="SlowTurnSpeedKts"/> / this rate,
+    /// so the ceiling is actually reachable at creep speed without the slow-turn floor re-inflating
+    /// the yaw past it (see <see cref="NoseWheelTurnRadiusFt"/>).
     /// </summary>
     public static double GroundTurnRate(AircraftCategory cat)
     {
         return cat switch
         {
-            AircraftCategory.Jet => 20,
-            AircraftCategory.Turboprop => 25,
-            AircraftCategory.Piston => 35,
+            AircraftCategory.Jet => 12,
+            AircraftCategory.Turboprop => 16,
+            AircraftCategory.Piston => 20,
             AircraftCategory.Helicopter => 30,
-            _ => 20,
+            _ => 12,
         };
+    }
+
+    /// <summary>
+    /// Ground yaw rate (deg/sec) achievable at groundspeed <paramref name="groundSpeedKts"/>: ω = v/R
+    /// at the tightest steerable (nose-wheel) radius <see cref="NoseWheelTurnRadiusFt"/>, capped at the
+    /// gear-limited <see cref="GroundTurnRate"/> ceiling. The aircraft can steer to its minimum radius,
+    /// so it reaches the ceiling at a low speed (~3 kt) and keeps full corner / pure-pursuit re-acquire
+    /// authority above that; only below it does the rate fall off (a near-stationary aircraft cannot
+    /// slew its nose fast — at 1 kt a piston manages ~6 °/s, not the ceiling). Using the tight radius
+    /// rather than a wide routine-taxi radius is deliberate: the navigator's low-speed re-acquire needs
+    /// the tight-radius authority, and throttling it to a wide-radius rate makes the aircraft orbit
+    /// ramp-connector fillets. Helicopters are exempt — a wheeled ground pivot is a pedal turn, so it
+    /// holds the full hover rate at any speed.
+    /// </summary>
+    public static double GroundYawRateAtSpeed(AircraftCategory cat, double groundSpeedKts)
+    {
+        double ceiling = GroundTurnRate(cat);
+        if (cat == AircraftCategory.Helicopter)
+        {
+            return ceiling;
+        }
+
+        double vFtPerSec = groundSpeedKts * GeoMath.FeetPerNm / 3600.0;
+        double yawRateDegPerSec = (vFtPerSec / NoseWheelTurnRadiusFt(cat)) * (180.0 / Math.PI);
+        return Math.Min(ceiling, yawRateDegPerSec);
     }
 
     /// <summary>
@@ -635,6 +671,11 @@ public static class CategoryPerformance
     /// deflection ≈ 25 ft; narrower for smaller categories). Used by the
     /// <see cref="PathPrimitiveKind.SlowTurn"/> primitive for tight programmatic
     /// maneuvers (lineup pivots). Roughly ⅓ of <see cref="LineUpTurnRadiusFt"/>.
+    ///
+    /// Each value must satisfy R ≥ <see cref="SlowTurnSpeedKts"/> / <see cref="GroundTurnRate"/> so
+    /// that a slow-turn played at the speed floor does not yaw faster than the category ceiling
+    /// (piston 15 ft = 3 kt / 20 °/s; a light single swings a realistic ~15 ft arc out of a spot
+    /// rather than full-lock pivoting on the nose wheel).
     /// </summary>
     public static double NoseWheelTurnRadiusFt(AircraftCategory cat)
     {
@@ -642,7 +683,7 @@ public static class CategoryPerformance
         {
             AircraftCategory.Jet => 25.0,
             AircraftCategory.Turboprop => 18.0,
-            AircraftCategory.Piston => 10.0,
+            AircraftCategory.Piston => 15.0,
             AircraftCategory.Helicopter => 10.0,
             _ => 25.0,
         };

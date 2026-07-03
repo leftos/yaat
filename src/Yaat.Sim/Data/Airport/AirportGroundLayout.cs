@@ -323,19 +323,27 @@ public sealed class GroundArc : IGroundEdge
     private const double KnotsToMetersPerSecond = 0.514444;
 
     /// <summary>
-    /// Maximum safe taxi speed (kts) along this arc, from a lateral-acceleration limit on the
-    /// curvature radius — the speed at which centripetal acceleration v²/r reaches
-    /// <see cref="TaxiLateralAccelMps2"/> — capped by the angle-based
-    /// <see cref="CategoryPerformance.CornerSpeedForAngle"/> ceiling and floored at
-    /// <see cref="CategoryPerformance.SlowTurnSpeedKts"/> so a degenerate-radius arc never commands a stop.
-    /// Degrades as √r: ~4.7 kt @15 ft, ~7.6 kt @40 ft, ~9.1 kt @56 ft.
+    /// Maximum safe taxi speed (kts) along this arc, the min of three curvature limits, floored at
+    /// <see cref="CategoryPerformance.SlowTurnSpeedKts"/> so a degenerate-radius arc never commands a stop:
+    /// <list type="bullet">
+    /// <item>a lateral-acceleration limit — the speed at which centripetal acceleration v²/r reaches
+    /// <see cref="TaxiLateralAccelMps2"/> (degrades as √r: ~4.7 kt @15 ft, ~7.6 kt @40 ft, ~9.1 kt @56 ft);</item>
+    /// <item>the angle-based <see cref="CategoryPerformance.CornerSpeedForAngle"/> ceiling;</item>
+    /// <item>a yaw-rate limit <c>v = ω·r</c> at the gear-limited <see cref="CategoryPerformance.GroundTurnRate"/>
+    /// (<see cref="CategoryPerformance.TurnRateLimitedSpeedKts"/>) — without it a tight fillet whose lateral-accel
+    /// speed exceeds ω·r is traversed faster than the nose wheel can track, and the aircraft yaws past the ceiling
+    /// (the KOAK taxi-out fillet swung 45 °/s at 20 kt). This is the arc analogue of the straight-segment
+    /// <see cref="CategoryPerformance.GroundYawRateAtSpeed"/> coupling.</item>
+    /// </list>
     /// </summary>
     public double MaxSafeSpeedKts(AircraftCategory category)
     {
         double radiusM = MinRadiusOfCurvatureFt * MetersPerFoot;
         double lateralAccelKts = Math.Sqrt(TaxiLateralAccelMps2 * radiusM) / KnotsToMetersPerSecond;
         double cornerCeilingKts = CategoryPerformance.CornerSpeedForAngle(category, TurnAngleDeg);
-        return Math.Max(Math.Min(lateralAccelKts, cornerCeilingKts), CategoryPerformance.SlowTurnSpeedKts);
+        double yawRateKts = CategoryPerformance.TurnRateLimitedSpeedKts(category, MinRadiusOfCurvatureFt);
+        double curvatureCapKts = Math.Min(Math.Min(lateralAccelKts, cornerCeilingKts), yawRateKts);
+        return Math.Max(curvatureCapKts, CategoryPerformance.SlowTurnSpeedKts);
     }
 
     public bool SharesTaxiway(IGroundEdge other)
