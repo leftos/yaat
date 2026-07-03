@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.8.8-beta [2026/07/02]
+
+### Highlights
+- **Find in flight strips and vTDLS** — press Ctrl+F to search every visible field and jump between matches with F3.
+- **Import and export favorite command buttons** — share your favorites as `.yaat-favorites.json` files to hand presets to other controllers.
+- **One-step forced visual approach and follow** — `CVAF` / `FOLF` clear a visual approach or a visual follow without a prior "field in sight" / "traffic in sight" report (RPO-only).
+- **Visual approaches now require the field in sight** — `CVA` is rejected until the pilot reports the airport with `RFIS`; when following traffic, reporting that traffic in sight is enough.
 
 ### Added
 - **Forced visual-approach and follow clearances.** `CVAF <rwy>` (`VISUALF`) and `FOLLOWF [callsign]` (`FOLF`) clear a visual approach or a visual follow in one step, without first getting the pilot to report the field or traffic in sight — they fold the `RFISF`/`RTISF` in. Both are RPO-only and rejected in solo training, matching `RFISF`/`RTISF`.
