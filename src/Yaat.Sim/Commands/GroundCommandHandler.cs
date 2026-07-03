@@ -12,6 +12,13 @@ internal static class GroundCommandHandler
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GroundCommandHandler");
 
+    // PUSH $spot pull-forward (tug pulls the aircraft forward onto the marking to line up straight after
+    // reversing past it). Distance = clamp(factor × fuselage length, min, max) ft; the cap keeps the
+    // staging point on the sub-lane (SFO ramp lanes are only ~150-180 ft deep). Aviation-reviewed.
+    private const double SpotPullForwardFactor = 0.75;
+    private const double SpotPullForwardMinFt = 40.0;
+    private const double SpotPullForwardMaxFt = 100.0;
+
     internal static CommandResult TryTaxi(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, bool autoCrossRunway = false)
     {
         if (!aircraft.IsOnGround)
@@ -959,28 +966,31 @@ internal static class GroundCommandHandler
             }
         }
 
-        // Resolve final heading: explicit heading, facing taxiway, or parking node's heading
-        int? resolvedHeading = push.MagneticHeading?.ToDisplayInt();
-        if (resolvedHeading is null && push.FacingTaxiway is not null)
+        int? resolvedHeading = ResolvePushbackHeading(push, destNode, groundLayout);
+
+        // A spot pushback lines the aircraft up straight on the marking: reverse past the spot to a staging
+        // point, then pull forward onto it so the nosewheel (a half-fuselage ahead of the centroid) sits on
+        // the mark (mirrors the taxi-to-spot setback, issue #234). @parking keeps the single-leg reverse.
+        double targetLat = destNode.Position.Lat;
+        double targetLon = destNode.Position.Lon;
+        double? pullForwardLat = null;
+        double? pullForwardLon = null;
+        if (push.DestinationSpot is not null)
         {
-            var facingNode = groundLayout.FindExitByTaxiway(destNode.Position, push.FacingTaxiway);
-            if (facingNode is not null)
-            {
-                double bearingToFacing = GeoMath.BearingTo(destNode.Position, facingNode.Position);
-                double? edgeBearing = groundLayout.GetEdgeBearingForTaxiway(destNode, push.FacingTaxiway, bearingToFacing);
-                resolvedHeading = edgeBearing is not null
-                    ? FlightPhysics.BearingToDisplayInt(edgeBearing.Value)
-                    : FlightPhysics.BearingToDisplayInt(bearingToFacing);
-            }
+            (targetLat, targetLon, pullForwardLat, pullForwardLon, resolvedHeading) = ResolveSpotPushbackTargets(
+                destNode,
+                resolvedHeading,
+                groundLayout,
+                aircraft.AircraftType
+            );
         }
 
-        resolvedHeading ??= destNode.TrueHeading is not null ? destNode.TrueHeading.Value.ToDisplayInt() : null;
-
         Log.LogDebug(
-            "[Pushback] {Callsign}: direct reverse to {DestLabel}, finalHdg={Hdg}",
+            "[Pushback] {Callsign}: reverse to {DestLabel}, finalHdg={Hdg}, twoLeg={TwoLeg}",
             aircraft.Callsign,
             destLabel,
-            resolvedHeading?.ToString() ?? "none"
+            resolvedHeading?.ToString() ?? "none",
+            pullForwardLat is not null
         );
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
@@ -989,8 +999,10 @@ internal static class GroundCommandHandler
         var phase = new PushbackPhase
         {
             TargetHeading = resolvedHeading,
-            TargetLatitude = destNode.Position.Lat,
-            TargetLongitude = destNode.Position.Lon,
+            TargetLatitude = targetLat,
+            TargetLongitude = targetLon,
+            PullForwardLatitude = pullForwardLat,
+            PullForwardLongitude = pullForwardLon,
         };
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
@@ -1010,6 +1022,64 @@ internal static class GroundCommandHandler
         }
 
         return CommandDispatcher.Ok(msg);
+    }
+
+    /// <summary>
+    /// Resolves a pushback's final facing heading: an explicit magnetic heading, else a facing taxiway
+    /// (snapped to that taxiway's own edge direction), else the destination node's own heading (parking
+    /// nodes only — spot nodes carry none, so a spot pushback derives one downstream).
+    /// </summary>
+    private static int? ResolvePushbackHeading(PushbackCommand push, GroundNode destNode, AirportGroundLayout groundLayout)
+    {
+        if (push.MagneticHeading?.ToDisplayInt() is { } explicitHeading)
+        {
+            return explicitHeading;
+        }
+
+        if (push.FacingTaxiway is not null && groundLayout.FindExitByTaxiway(destNode.Position, push.FacingTaxiway) is { } facingNode)
+        {
+            double bearingToFacing = GeoMath.BearingTo(destNode.Position, facingNode.Position);
+            double? edgeBearing = groundLayout.GetEdgeBearingForTaxiway(destNode, push.FacingTaxiway, bearingToFacing);
+            return FlightPhysics.BearingToDisplayInt(edgeBearing ?? bearingToFacing);
+        }
+
+        return destNode.TrueHeading?.ToDisplayInt();
+    }
+
+    /// <summary>
+    /// Computes the two-leg targets for a <c>PUSH $spot</c>: a nose-out facing (derived from the spot's
+    /// outbound sub-lane edge when none was given), a staging point behind the marking to reverse to, and
+    /// the rest point to pull forward onto so the nosewheel sits on the mark — a half-fuselage ahead of the
+    /// centroid, mirroring the taxi-to-spot setback in issue #234. Falls back to the spot node itself
+    /// (single-leg reverse, no pull-forward) if no facing can be resolved.
+    /// </summary>
+    private static (
+        double TargetLat,
+        double TargetLon,
+        double? PullForwardLat,
+        double? PullForwardLon,
+        int? ResolvedHeading
+    ) ResolveSpotPushbackTargets(GroundNode spot, int? resolvedHeading, AirportGroundLayout groundLayout, string aircraftType)
+    {
+        if (resolvedHeading is null && groundLayout.TryGetSpotOutboundHeading(spot, out double outBearing))
+        {
+            resolvedHeading = FlightPhysics.BearingToDisplayInt(outBearing);
+        }
+
+        if (resolvedHeading is not { } outHdg)
+        {
+            return (spot.Position.Lat, spot.Position.Lon, null, null, resolvedHeading);
+        }
+
+        double lengthFt = FaaAircraftDatabase.Get(aircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraftType);
+        double halfLenNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+        double pullFwdNm = Math.Clamp(SpotPullForwardFactor * lengthFt, SpotPullForwardMinFt, SpotPullForwardMaxFt) / GeoMath.FeetPerNm;
+
+        var intoRamp = new TrueHeading(outHdg).ToReciprocal();
+        var rest = GeoMath.ProjectPoint(spot.Position, intoRamp, halfLenNm);
+        var staging = GeoMath.ProjectPoint(spot.Position, intoRamp, halfLenNm + pullFwdNm);
+
+        return (staging.Lat, staging.Lon, rest.Lat, rest.Lon, resolvedHeading);
     }
 
     internal static CommandResult TryAssignRunway(AircraftState aircraft, string runwayId)

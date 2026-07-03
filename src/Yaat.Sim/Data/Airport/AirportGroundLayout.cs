@@ -2337,6 +2337,126 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// Computes the outbound heading of a ramp spot — the direction along its sub-lane toward the parent
+    /// movement-area taxiway (away from the ramp interior). A departure pushed onto a spot faces this way,
+    /// ready to taxi out. Of the spot's two sub-lane neighbours, the outbound one reaches a movement-area
+    /// taxiway (an edge naming a taxiway that is not the sub-lane, not RAMP, and not a runway) in the fewest
+    /// hops; the other dead-ends in the ramp. Returns false if neither side reaches a movement area.
+    /// Used by <c>PUSH $spot</c> (see docs/ground/pushback.md).
+    /// </summary>
+    public bool TryGetSpotOutboundHeading(GroundNode spot, out double bearing)
+    {
+        bearing = 0;
+
+        var subLaneNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var edge in spot.Edges)
+        {
+            if (edge is GroundEdge straight && !straight.IsRunwayCenterline && !straight.IsRamp)
+            {
+                subLaneNames.Add(straight.TaxiwayName);
+            }
+        }
+
+        double? bestBearing = null;
+        int bestHops = int.MaxValue;
+        foreach (var edge in spot.Edges)
+        {
+            if (edge is not GroundEdge first || first.IsRunwayCenterline || first.IsRamp)
+            {
+                continue;
+            }
+
+            int hops = HopsToMovementArea(first.OtherNode(spot), spot, subLaneNames);
+            if (hops >= 0 && hops < bestHops)
+            {
+                bestHops = hops;
+                bestBearing = GeoMath.BearingTo(spot.Position, first.OtherNode(spot).Position);
+            }
+        }
+
+        if (bestBearing is null)
+        {
+            return false;
+        }
+
+        bearing = bestBearing.Value;
+        return true;
+    }
+
+    private const int SpotOutboundMaxHops = 8;
+
+    /// <summary>
+    /// BFS from <paramref name="start"/> (never crossing back through <paramref name="blocked"/>, the spot)
+    /// along non-runway edges; returns the hop count at which an edge naming a movement-area taxiway is
+    /// first seen (not a sub-lane name, not RAMP), or -1 if none within <see cref="SpotOutboundMaxHops"/>.
+    /// </summary>
+    private static int HopsToMovementArea(GroundNode start, GroundNode blocked, HashSet<string> subLaneNames)
+    {
+        var visited = new HashSet<int> { blocked.Id, start.Id };
+        var frontier = new Queue<(GroundNode Node, int Depth)>();
+        frontier.Enqueue((start, 0));
+
+        while (frontier.Count > 0)
+        {
+            var (node, depth) = frontier.Dequeue();
+            foreach (var edge in node.Edges)
+            {
+                if (edge.IsRunwayCenterline)
+                {
+                    continue;
+                }
+                if (EdgeReachesMovementArea(edge, subLaneNames))
+                {
+                    return depth;
+                }
+                if (depth + 1 > SpotOutboundMaxHops)
+                {
+                    continue;
+                }
+                var other = edge.OtherNode(node);
+                if (visited.Add(other.Id))
+                {
+                    frontier.Enqueue((other, depth + 1));
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// True if the edge names a movement-area taxiway — a taxiway that is neither one of the spot's
+    /// sub-lane names, nor RAMP (nonmovement), nor a runway.
+    /// </summary>
+    private static bool EdgeReachesMovementArea(IGroundEdge edge, HashSet<string> subLaneNames)
+    {
+        if (edge.IsRunwayCenterline)
+        {
+            return false;
+        }
+
+        string[] names = edge is GroundArc arc ? arc.TaxiwayNames : [((GroundEdge)edge).TaxiwayName];
+        foreach (string name in names)
+        {
+            if (string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            if (subLaneNames.Contains(name))
+            {
+                continue;
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Get the taxiway name for the edge connected to a node that leads away from the runway.
     /// </summary>
     public string? GetExitTaxiwayName(GroundNode exitNode)

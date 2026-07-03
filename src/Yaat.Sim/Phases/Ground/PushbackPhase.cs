@@ -13,6 +13,9 @@ namespace Yaat.Sim.Phases.Ground;
 ///      (≈1.3× aircraft length) so the aircraft clears its gate.
 ///   2. Heading only: push back along a curved arc while rotating nose to target heading.
 ///   3. Target position (taxiway): arc toward target, then optionally rotate to heading.
+/// A spot pushback (<see cref="PullForwardLatitude"/> set) adds a second leg: the reverse target is a
+/// staging point behind the marking, and once reached the tug pulls the aircraft FORWARD onto the spot so
+/// the nosewheel lines up on the mark, nose out.
 /// </summary>
 public sealed class PushbackPhase : Phase
 {
@@ -36,6 +39,17 @@ public sealed class PushbackPhase : Phase
     public double? TargetLongitude { get; init; }
 
     /// <summary>
+    /// Optional second-leg target for a spot pushback: after reversing to the staging point
+    /// (<see cref="TargetLatitude"/>/<see cref="TargetLongitude"/>, set behind the marking), the tug pulls
+    /// the aircraft FORWARD onto this point so the nosewheel lines up on the spot. Null for every other
+    /// pushback (gate/taxiway/simple), which stop at the reverse target.
+    /// </summary>
+    public double? PullForwardLatitude { get; init; }
+    public double? PullForwardLongitude { get; init; }
+
+    private bool _pullingForward;
+
+    /// <summary>
     /// Updates the target facing heading mid-pushback. Returns false if the nose
     /// has already begun rotating to the prior target (the "turn" the controller
     /// can no longer revise). Simple-mode is gated on alignment; targeted-mode
@@ -47,7 +61,7 @@ public sealed class PushbackPhase : Phase
 
         if (isTargeted)
         {
-            if (_reachedTarget)
+            if (_reachedTarget || _pullingForward)
             {
                 return false;
             }
@@ -183,13 +197,21 @@ public sealed class PushbackPhase : Phase
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Aircraft.Ground.PushbackTrueHeading = null;
         }
+        else if (_pullingForward)
+        {
+            ctx.Targets.TargetSpeed = CategoryPerformance.PushbackAlignSpeed(ctx.Category);
+        }
         else
         {
             ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
         }
 
         bool result;
-        if (TargetLatitude is not null && TargetLongitude is not null)
+        if (_pullingForward)
+        {
+            result = TickPullForward(ctx, turnRate);
+        }
+        else if (TargetLatitude is not null && TargetLongitude is not null)
         {
             result = TickTargetedPushback(ctx, turnRate);
         }
@@ -226,6 +248,16 @@ public sealed class PushbackPhase : Phase
 
             if (dist <= TargetReachedThresholdNm)
             {
+                if (PullForwardLatitude is not null && PullForwardLongitude is not null && !_pullingForward)
+                {
+                    // Second leg: reached the staging point behind the spot; now pull forward onto the mark.
+                    _pullingForward = true;
+                    _startLat = ctx.Aircraft.Position.Lat;
+                    _startLon = ctx.Aircraft.Position.Lon;
+                    Log.LogDebug("[Push] {Callsign}: reached staging, pulling forward onto spot", ctx.Aircraft.Callsign);
+                    return false;
+                }
+
                 ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
                 _reachedTarget = true;
@@ -267,6 +299,37 @@ public sealed class PushbackPhase : Phase
         }
 
         return TurnNoseToward(ctx, new TrueHeading(finalHdg), turnRate);
+    }
+
+    /// <summary>
+    /// Second leg of a spot pushback: creep FORWARD from the staging point onto the marking. Displacement
+    /// points at the rest target (which sits ahead of the out-facing nose), so the aircraft moves nose-first
+    /// while the nose is held on the out heading. Completes when the centroid reaches the rest point — a
+    /// half-fuselage behind the spot, putting the nosewheel on the mark, lined up straight.
+    /// </summary>
+    private bool TickPullForward(PhaseContext ctx, double turnRate)
+    {
+        var rest = new LatLon(PullForwardLatitude!.Value, PullForwardLongitude!.Value);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, rest);
+
+        if (dist <= TargetReachedThresholdNm)
+        {
+            ctx.Aircraft.IndicatedAirspeed = 0;
+            ctx.Targets.TargetSpeed = 0;
+            ctx.Aircraft.Ground.PushbackTrueHeading = null;
+            _reachedTarget = true;
+            Log.LogDebug("[Push] {Callsign}: pulled forward onto spot, lined up nose-out", ctx.Aircraft.Callsign);
+            return true;
+        }
+
+        double bearingToRest = GeoMath.BearingTo(ctx.Aircraft.Position, rest);
+        ctx.Aircraft.Ground.PushbackTrueHeading = new TrueHeading(bearingToRest);
+        if (TargetHeading is { } outHdg)
+        {
+            TurnNoseToward(ctx, new TrueHeading(outHdg), turnRate);
+        }
+
+        return false;
     }
 
     private bool TickSimplePushback(PhaseContext ctx, double turnRate)
@@ -356,6 +419,9 @@ public sealed class PushbackPhase : Phase
             TargetHeading = TargetHeading,
             TargetLatitude = TargetLatitude,
             TargetLongitude = TargetLongitude,
+            PullForwardLatitude = PullForwardLatitude,
+            PullForwardLongitude = PullForwardLongitude,
+            PullingForward = _pullingForward,
             StartLat = _startLat,
             StartLon = _startLon,
             TotalDistToTarget = _totalDistToTarget,
@@ -371,12 +437,15 @@ public sealed class PushbackPhase : Phase
             TargetHeading = dto.TargetHeading,
             TargetLatitude = dto.TargetLatitude,
             TargetLongitude = dto.TargetLongitude,
+            PullForwardLatitude = dto.PullForwardLatitude,
+            PullForwardLongitude = dto.PullForwardLongitude,
         };
         phase._startLat = dto.StartLat;
         phase._startLon = dto.StartLon;
         phase._totalDistToTarget = dto.TotalDistToTarget;
         phase._reachedTarget = dto.ReachedTarget;
         phase._isAligned = dto.IsAligned;
+        phase._pullingForward = dto.PullingForward;
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;

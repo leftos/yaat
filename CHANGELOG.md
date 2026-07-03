@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- Pushing an aircraft onto a ramp spot (`PUSH $7A`) now lines it up straight on the marking the way a tug does — reversing past the spot then pulling forward so the nosewheel sits on the mark, ending nose-out toward the parent taxiway ready to taxi. Previously it stopped centered on the spot at an arbitrary heading, jutting a half-fuselage toward the adjacent taxiway. Add `FACE <dir>` to override the facing.
+
 ### Fixed
 - A taxi clearance to a terminal gate via named taxiways (e.g. SFO `TAXI B K A @F10`) now routes directly instead of looping the long way around.
 - Pushing an aircraft back to a spot or gate (`PUSH $5A`, `PUSH @B13`) now reverses straight there instead of routing onto an adjacent taxiway and back.

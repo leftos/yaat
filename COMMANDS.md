@@ -610,10 +610,11 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `PUSH TE FACE E` | Push back onto TE, aligning with whichever direction of TE is closest to east |
 | `PUSH TE TAIL W` | Same — `TAIL W` and `FACE E` resolve to the same alignment |
 | `PUSH TE T` | Push back onto taxiway TE, facing toward taxiway T |
-| `PUSH @4A` | Push back directly to spot 4A (straight/curved reverse, use parking heading) |
-| `PUSH @4A A` | Push back to spot 4A, face toward taxiway A |
-| `PUSH @4A FACE NE` | Push back to spot 4A, facing northeast |
-| `PUSH $7A TAIL W` | Push back to spot 7A with tail pointing west (= face east) |
+| `PUSH @4A` | Push back directly to gate 4A (straight/curved reverse, use parking heading) |
+| `PUSH @4A A` | Push back to gate 4A, face toward taxiway A |
+| `PUSH @4A FACE NE` | Push back to gate 4A, facing northeast |
+| `PUSH $7A` | Push onto spot 7A — reverse past it then pull forward, ending lined up **nose-out** toward the parent taxiway with the nosewheel on the mark |
+| `PUSH $7A TAIL W` | Push onto spot 7A with tail pointing west (= face east), overriding the default nose-out facing |
 | `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1 |
 | `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
 | `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
@@ -645,7 +646,9 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 
 Pushback orientation accepts the eight compass points: `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`. Use `FACE C` (or shorthand `>C`) to specify the nose direction, or `TAIL C` (`<C`) to specify the tail direction. When pushed onto a taxiway, the cardinal acts as a hint — the aircraft aligns with whichever of the taxiway's two directions is closest. For parking/spot destinations, the cardinal is the absolute facing.
 
-A `PUSH @parking` / `PUSH $spot` reverses **directly** to the target (a straight or gently curved tug reverse), like the tug pushing along the ramp lead line — it does not taxi there along the taxiway graph and never routes through a movement-area taxiway to reach a ramp spot.
+A `PUSH @parking` reverses **directly** to the gate node (a straight or gently curved tug reverse), like the tug pushing along the ramp lead line — it does not taxi there along the taxiway graph and never routes through a movement-area taxiway to reach the gate.
+
+A `PUSH $spot` lines the aircraft up straight on the marking the way a tug positions it onto a stand: it reverses *past* the spot to a staging point behind it, then pulls **forward** onto the mark so the **nosewheel** sits on it (the fuselage doesn't jut a half-length past the mark toward the adjacent taxiway). With no facing given it ends **nose-out**, facing the parent taxiway ready to taxi — add `FACE <dir>` / `TAIL <dir>` to override. Like `@parking` it never routes onto a movement-area taxiway to get there.
 
 While a pushback is already in progress, a **heading-only** `PUSH FACE C` / `PUSH TAIL C` / `PUSH >C` / `PUSH <C` amends the target facing in place — no new phase, no restart. Accepted until the aircraft has begun rotating the nose to the prior target (simple-mode: until alignment completes; taxiway-, spot-, and parking-target: until 60% of the push distance is covered). After the turn begins, the amendment is rejected with `Unable, pushback turn in progress`. Non-heading-only PUSH commands (`PUSH A`, `PUSH @SPOT`, etc.) issued during active pushback are rejected — only the facing can be amended.
 

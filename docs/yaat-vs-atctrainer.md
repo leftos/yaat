@@ -244,7 +244,7 @@ This extends to legs terminated by a DME distance or radial rather than an altit
 
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
-| Pushback | `PUSH [twy/spot]` | `PUSH`, `PUSH FACE E`, `PUSH <E`, `PUSH A`, `PUSH TE FACE W`, `PUSH TE TAIL E`, `PUSH TE T`, `PUSH @4A`, `PUSH @4A A`, `PUSH @4A FACE NE`, `PUSH $7A TAIL W` | YAAT adds cardinal facing/tail (`FACE C`/`TAIL C` or `<C`/`>C`, C∈N/NE/E/SE/S/SW/W/NW), taxiway+cardinal-hint (snaps to nearest edge direction), `@parking` and `$spot` A* pathfinding forms |
+| Pushback | `PUSH [twy/spot]` | `PUSH`, `PUSH FACE E`, `PUSH <E`, `PUSH A`, `PUSH TE FACE W`, `PUSH TE TAIL E`, `PUSH TE T`, `PUSH @4A`, `PUSH @4A A`, `PUSH @4A FACE NE`, `PUSH $7A`, `PUSH $7A TAIL W` | YAAT adds cardinal facing/tail (`FACE C`/`TAIL C` or `<C`/`>C`, C∈N/NE/E/SE/S/SW/W/NW), taxiway+cardinal-hint (snaps to nearest edge direction), a direct `@parking` reverse, and a `$spot` reverse-past-then-pull-forward that lines up nose-out on the mark |
 | Taxi | `TAXI {path} [hs-list]` / `RWY {rwy} TAXI {path}` | Same + `TAXI !42 !18` (node IDs), `TAXI A !42 B` (mixed) | YAAT adds node ID references for precise routing |
 | Follow (ground) | — | `FOLLOWG`/`FOLG` | YAAT-only |
 | Give way | `GIVEWAY`/`GW`/`PB` (standalone) | `GIVEWAY`/`BEHIND` (condition prefix) | ATCTrainer: standalone. YAAT: condition prefix in compound chains |

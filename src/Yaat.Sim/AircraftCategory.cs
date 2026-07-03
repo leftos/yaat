@@ -510,6 +510,16 @@ public static class CategoryPerformance
         return 5;
     }
 
+    /// <summary>
+    /// Forward alignment creep speed (knots) for the final pull onto a ramp spot. Final stand/spot
+    /// positioning ("docking") is done at walking pace for precision, slower than the reverse leg.
+    /// </summary>
+    public static double PushbackAlignSpeed(AircraftCategory cat)
+    {
+        _ = cat;
+        return 3;
+    }
+
     /// <summary>Pushback turn rate (deg/sec). Tug-steered, slower than self-powered taxi. Flat across categories.</summary>
     public static double PushbackTurnRate(AircraftCategory cat)
     {

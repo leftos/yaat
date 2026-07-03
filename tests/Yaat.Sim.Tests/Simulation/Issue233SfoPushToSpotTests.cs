@@ -1,6 +1,7 @@
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -168,8 +169,15 @@ public class Issue233SfoPushToSpotTests(ITestOutputHelper output)
         // 3. Pushback speed stays within tug limits (<= 5kt, small epsilon).
         Assert.True(maxGroundSpeed <= 5.5, $"Pushback ground speed peaked at {maxGroundSpeed:F1}kt, above the ~5kt tug limit");
 
-        // 4. Ends parked at spot 5A.
+        // 4. Ends lined up nose-at-spot 5A: the tug pulls the aircraft forward onto the mark so the
+        //    nosewheel sits on it, leaving the centroid a half-fuselage back (see PushToSpotLineupTests /
+        //    issue #234). The precise nose-out lineup is covered there; here we just confirm the reverse
+        //    still finishes at spot 5A (not centered on it, not short of it).
         Assert.True(reachedParking, $"Pushback should complete to AtParkingPhase, got: {ac.Phases?.CurrentPhase?.Name ?? "null"}");
-        Assert.True(finalDistToSpotFt <= 40, $"Aircraft should end at spot 5A, but is {finalDistToSpotFt:F0}ft away");
+        double halfLenFt = (FaaAircraftDatabase.Get(ac.AircraftType)?.LengthFt ?? 110.0) / 2.0;
+        Assert.True(
+            finalDistToSpotFt <= halfLenFt + 25.0,
+            $"Aircraft should end nose-at-spot 5A (centroid ~{halfLenFt:F0}ft back), but is {finalDistToSpotFt:F0}ft away"
+        );
     }
 }

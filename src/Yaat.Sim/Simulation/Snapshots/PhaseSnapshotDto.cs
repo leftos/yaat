@@ -416,6 +416,11 @@ public sealed class PushbackPhaseDto : PhaseDto
     public int? TargetHeading { get; init; }
     public double? TargetLatitude { get; init; }
     public double? TargetLongitude { get; init; }
+
+    // Spot pushback second leg (null/false for every other pushback — old snapshots restore as single-leg).
+    public double? PullForwardLatitude { get; init; }
+    public double? PullForwardLongitude { get; init; }
+    public bool PullingForward { get; init; }
     public required double StartLat { get; init; }
     public required double StartLon { get; init; }
     public required double TotalDistToTarget { get; init; }
