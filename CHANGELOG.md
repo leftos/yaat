@@ -1,9 +1,16 @@
 # Changelog
 
-## Unreleased
+## v0.8.9-beta [2026/07/03]
+
+### Highlights
+- **Realistic touchdown points** — aircraft now land at a proper aiming point down the runway (light aircraft near the numbers, turboprops in the touchdown zone) instead of right on the threshold.
+- **Smoother, realistic taxi turns** — aircraft slow down for corners and turn at a speed-appropriate rate instead of whipping the nose around or braking hard on the far side.
+- **Taxi and pushback routing goes direct** — routes to terminal gates and ramp spots no longer loop the wrong way around, even through complex intersections.
+- **Arrivals slow to final approach speed at varied distances** — instead of every arrival reducing at the same ~2 NM point, the arrival stream spreads out like the live network.
 
 ### Changed
 - Pushing an aircraft onto a ramp spot (`PUSH $7A`) now lines it up straight on the marking the way a tug does — reversing past the spot then pulling forward so the nosewheel sits on the mark, ending nose-out toward the parent taxiway ready to taxi. Previously it stopped centered on the spot at an arbitrary heading, jutting a half-fuselage toward the adjacent taxiway. Add `FACE <dir>` to override the facing.
+- **Arriving aircraft now vary how far out they slow to final approach speed.** Instead of every arrival reducing to its final approach speed at the same tight ~2 NM from the runway, each aircraft picks its own distance — most settle around 2–3.5 NM, but some slow to final approach speed as far as 5 NM out, reproducing the live-network spread where virtual pilots reduce early and compress the arrival stream. The distance is fixed per aircraft and reproduces the same way in replays.
 
 ### Fixed
 - A taxi clearance to a terminal gate via named taxiways (e.g. SFO `TAXI B K A @F10`) now routes directly instead of looping the long way around.
@@ -14,9 +21,6 @@
 - Landing aircraft now touch down at a realistic aiming point down the runway instead of right on the threshold — light single-engine aircraft land near the numbers and turboprops land in the touchdown zone, rather than on the threshold marks. A high or rushed approach that reaches the threshold still too high to land now hands off to the flare/go-around logic instead of continuing straight past the runway and climbing away.
 - Aircraft no longer whip their nose around at unrealistically high rates when turning at low taxi speed — ground turn rate is now coupled to how fast the aircraft is actually rolling, so a near-stationary aircraft turns slowly (a 120° turn takes several seconds, not ~2) and jets pivot more ponderously than light aircraft. Aircraft also no longer carry full taxi speed through tight ramp/fillet corners.
 - An aircraft taxiing to a ramp parking spot now stops with its nose at the spot marking instead of centered on it, so it no longer juts a half-fuselage toward the adjacent taxiway and slows traffic taxiing past (e.g. SFO's tightly-spaced spot 7 ramp off taxiway A).
-
-### Changed
-- **Arriving aircraft now vary how far out they slow to final approach speed.** Instead of every arrival reducing to its final approach speed at the same tight ~2 NM from the runway, each aircraft picks its own distance — most settle around 2–3.5 NM, but some slow to final approach speed as far as 5 NM out, reproducing the live-network spread where virtual pilots reduce early and compress the arrival stream. The distance is fixed per aircraft and reproduces the same way in replays.
 
 ## v0.8.8-beta [2026/07/02]
 
