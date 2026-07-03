@@ -14,6 +14,7 @@
 - Looking up a callsign with no flight plan in CRC's flight plan editor — including an unknown or mistyped callsign — no longer crashes CRC.
 - Fixed a crash that could occur when an aircraft was removed from the aircraft list.
 - An unexpected error on the app's UI thread no longer closes the client — it is logged and the app keeps running.
+- Departures lining up for takeoff now follow the taxiway and its painted lead-on line onto the runway centerline, instead of cutting the corner across the taxiway/runway junction (e.g. Oakland RWY 33 from taxiway C).
 - Scenario preset strip commands (e.g. auto-checking a departure-strip box shortly after spawn) now apply to the aircraft's strip.
 - Track commands scheduled behind a `WAIT` — scratchpad, temporary altitude, and similar — now apply when the wait expires.
 - A single-taxiway clearance to a terminal gate (e.g. SFO `TAXI B @F1`) now routes directly to the ramp instead of looping the long way around.

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -57,6 +58,14 @@ public sealed class LineUpPhase : Phase
     {
         /// <summary>Before <see cref="OnStart"/> has built a plan.</summary>
         Setup,
+
+        /// <summary>
+        /// Graph path: follow the real taxiway edges to the runway edge and curve
+        /// onto the centerline via the baked junction fillet arc, played back by a
+        /// <see cref="GroundNavigator"/>. Preferred over the synthetic pivot when a
+        /// departure-aligned onto-runway arc route resolves (issue #239).
+        /// </summary>
+        GraphTaxi,
 
         /// <summary>Aligned path: straight roll toward the arc entry tangent point.</summary>
         NoseOut,
@@ -124,6 +133,14 @@ public sealed class LineUpPhase : Phase
     public LineUpPathPlan? PathPlan { get; private set; }
 
     /// <summary>
+    /// Forward-speed cap of the active lineup maneuver (kts): the graph-taxi
+    /// navigator's max speed for a graph route (<see cref="State.GraphTaxi"/>), or
+    /// the plan arc speed for the synthetic aligned/pivot paths. Used to bound the
+    /// rolling-takeoff handoff speed. 0 before <see cref="OnStart"/>.
+    /// </summary>
+    public double ManeuverSpeedKts => _navigator?.MaxSpeedKts ?? PathPlan?.ArcSpeedKts ?? 0.0;
+
+    /// <summary>
     /// Rolling takeoff mode. When true, <see cref="State.Rollout"/> holds
     /// speed at the plan's cruise speed instead of braking to zero, and the
     /// phase completes at the stop point for handoff to <see cref="TakeoffPhase"/>.
@@ -147,6 +164,13 @@ public sealed class LineUpPhase : Phase
 
     /// <summary>Working copy of the arc/slow-turn playback state. Valid during Arc, PivotTurn1, PivotTurn2.</summary>
     private LineUpArcPlayback _arcState;
+
+    /// <summary>Graph-taxi (ArcFollow) route + navigator. Non-null only in <see cref="State.GraphTaxi"/>.</summary>
+    private TaxiRoute? _lineUpRoute;
+    private GroundNavigator? _navigator;
+
+    /// <summary>Departure runway heading captured at <see cref="OnStart"/> for the graph-taxi completion.</summary>
+    private double _runwayHeadingDeg;
 
     /// <summary>Target forward-speed cap for the active arc. Varies by state (aligned arc vs slow turn).</summary>
     private double _arcTargetSpeedKts;
@@ -183,6 +207,18 @@ public sealed class LineUpPhase : Phase
             // spawned directly on a runway or in the air — those don't
             // reach LineUpPhase via the normal ground pipeline.
             Fault(ctx, "ctx.GroundLayout is null (LineUpPhase requires an airport ground layout)");
+            return;
+        }
+
+        _runwayHeadingDeg = rwy.TrueHeading.Degrees;
+
+        // Preferred path: follow the real taxiway to the runway edge and curve onto
+        // the centerline via the baked junction fillet arc (issue #239). Falls
+        // through to the synthetic pivot below when no departure-aligned onto-runway
+        // arc route resolves (parallel-taxiway / shallow-angle poses, or a missing
+        // junction arc).
+        if (TryStartGraphTaxi(ctx, rwy))
+        {
             return;
         }
 
@@ -237,6 +273,103 @@ public sealed class LineUpPhase : Phase
         }
     }
 
+    /// <summary>
+    /// Try to line up by following the real taxiway graph onto the runway. Resolves
+    /// a route (taxiway edges → junction fillet arc → centerline node) and, if one
+    /// exists, drives it through a <see cref="GroundNavigator"/> in
+    /// <see cref="State.GraphTaxi"/>. Returns false to fall through to the synthetic
+    /// pivot when no departure-aligned onto-runway arc route resolves.
+    /// </summary>
+    private bool TryStartGraphTaxi(PhaseContext ctx, RunwayInfo rwy)
+    {
+        if (ctx.GroundLayout is null)
+        {
+            return false;
+        }
+
+        var plan = LineUpGraphRoute.TryPlan(ctx.GroundLayout, ctx.Aircraft.Position, rwy, ctx.Category);
+        if (plan is null)
+        {
+            return false;
+        }
+
+        _lineUpRoute = plan.Route;
+        _lineUpRoute.CurrentSegmentIndex = 0;
+
+        double maxSpeed = ctx.Aircraft.Ground.IsExpeditingLineup ? plan.MaxSpeedKts * CategoryPerformance.TaxiExpediteMultiplier : plan.MaxSpeedKts;
+
+        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed };
+
+        // Rolling takeoff (CTO in hand): keep a speed floor so the aircraft flows
+        // through the lineup onto the centerline without braking to a stop, then
+        // hands off to TakeoffPhase at taxi speed — matching the synthetic rolling
+        // rollout. LUAW leaves the floor at 0 so the navigator brakes to a stop on
+        // the centerline rollout straight.
+        if (RollingMode)
+        {
+            _navigator.MinSpeedKts = plan.MaxSpeedKts;
+        }
+
+        _navigator.SetupSegment(_lineUpRoute, ctx, _ => true);
+
+        CurrentState = State.GraphTaxi;
+        ctx.Targets.TargetTrueHeading = new TrueHeading(plan.RunwayHeadingDeg);
+        ctx.Targets.TargetSpeed = maxSpeed;
+
+        Log.LogDebug(
+            "[LineUp] {Callsign}: graph-taxi lineup onto {Rwy} — {Segs} segments, centerline node {Node}, maxSpeed={Speed:F1}kt (rolling={Rolling})",
+            ctx.Aircraft.Callsign,
+            rwy.Designator,
+            _lineUpRoute.Segments.Count,
+            plan.CenterlineNode.Id,
+            maxSpeed,
+            RollingMode
+        );
+        return true;
+    }
+
+    private bool TickGraphTaxi(PhaseContext ctx)
+    {
+        if (_lineUpRoute is null || _navigator is null)
+        {
+            Fault(ctx, "graph-taxi state with no route/navigator");
+            return false;
+        }
+
+        // Not "isLastSegment" braking-wise until the final rollout straight — the
+        // fillet arc must complete carrying speed rather than braking to a stop
+        // mid-arc.
+        bool isLastSegment = _lineUpRoute.CurrentSegmentIndex + 1 >= _lineUpRoute.Segments.Count;
+        var result = _navigator.Tick(ctx, isLastSegment, _ => true);
+
+        if (result == NavigatorResult.ArrivedAtNode)
+        {
+            _lineUpRoute.CurrentSegmentIndex += 1;
+            if (_lineUpRoute.IsComplete)
+            {
+                // On the centerline, aligned with the runway heading. LUAW arrives
+                // stopped; rolling arrives at taxi speed for TakeoffPhase to pick up.
+                ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeadingDeg);
+                if (!RollingMode)
+                {
+                    ctx.Aircraft.IndicatedAirspeed = 0;
+                    ctx.Targets.TargetSpeed = 0;
+                }
+                Log.LogDebug(
+                    "[LineUp] {Callsign}: graph-taxi lineup complete (rolling={Rolling}, gs={Gs:F1}kt)",
+                    ctx.Aircraft.Callsign,
+                    RollingMode,
+                    ctx.Aircraft.GroundSpeed
+                );
+                return true;
+            }
+
+            _navigator.SetupSegment(_lineUpRoute, ctx, _ => true);
+        }
+
+        return false;
+    }
+
     public override bool OnTick(PhaseContext ctx)
     {
         // CTOC mid-line-up: hold position where we are. Stop and stay in the
@@ -245,6 +378,11 @@ public sealed class LineUpPhase : Phase
         {
             ctx.Targets.TargetSpeed = 0;
             return false;
+        }
+
+        if (CurrentState == State.GraphTaxi)
+        {
+            return TickGraphTaxi(ctx);
         }
 
         if (PathPlan is null)
@@ -552,7 +690,7 @@ public sealed class LineUpPhase : Phase
 
     /// <summary>
     /// Return true iff the given aircraft type is eligible for a rolling
-    /// takeoff per FAA 7110.65 §3-9-5.3. Super and Heavy aircraft are
+    /// takeoff per FAA 7110.65 §3-9-6c. Super and Heavy aircraft are
     /// prohibited from rolling takeoffs (except during volcanic-ash ops,
     /// which YAAT does not model) because the controller wake-turbulence
     /// separation timers key off the moment full takeoff power is applied
@@ -575,7 +713,7 @@ public sealed class LineUpPhase : Phase
     ///   <item>the aircraft's indicated airspeed is below <see cref="RollingUpgradeMinSpeedKts"/>,</item>
     ///   <item>the aircraft is in <see cref="State.Rollout"/> and has covered more
     ///         than <see cref="RollingUpgradeMaxRolloutFraction"/> of the rollout length,</item>
-    ///   <item>the aircraft type is not eligible for rolling takeoff per 7110.65 §3-9-5.3.</item>
+    ///   <item>the aircraft type is not eligible for rolling takeoff per 7110.65 §3-9-6c.</item>
     /// </list>
     /// </summary>
     public bool TryUpgradeToRolling(PhaseContext ctx)
@@ -595,7 +733,7 @@ public sealed class LineUpPhase : Phase
         if (!IsAircraftEligibleForRollingTakeoff(ctx.Aircraft.AircraftType))
         {
             Log.LogDebug(
-                "[LineUp] {Callsign}: rolling upgrade rejected — type {Type} is Super/Heavy (7110.65 §3-9-5.3)",
+                "[LineUp] {Callsign}: rolling upgrade rejected — type {Type} is Super/Heavy (7110.65 §3-9-6c)",
                 ctx.Aircraft.Callsign,
                 ctx.Aircraft.AircraftType
             );
@@ -618,6 +756,15 @@ public sealed class LineUpPhase : Phase
         }
 
         RollingMode = true;
+
+        // Graph-taxi: raise the navigator's speed floor so it flows through the
+        // rest of the lineup onto the centerline instead of braking to a stop — the
+        // aircraft was cleared for takeoff while still taxiing in and never stopped.
+        if (CurrentState == State.GraphTaxi && _navigator is not null)
+        {
+            _navigator.MinSpeedKts = _navigator.MaxSpeedKts;
+        }
+
         Log.LogDebug(
             "[LineUp] {Callsign}: upgraded to rolling mode mid-phase (state={State}, ias={Ias:F1}kt)",
             ctx.Aircraft.Callsign,
@@ -640,7 +787,7 @@ public sealed class LineUpPhase : Phase
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
-            RunwayHeadingDeg = PathPlan?.RunwayHeadingDeg ?? 0,
+            RunwayHeadingDeg = PathPlan?.RunwayHeadingDeg ?? _runwayHeadingDeg,
             Initialized = PathPlan is not null,
             TimeSinceLastLog = 0,
             PerpHeadingDeg = 0,

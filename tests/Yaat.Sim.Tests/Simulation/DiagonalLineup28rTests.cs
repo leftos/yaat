@@ -103,9 +103,9 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
             if (enteredLineUp && phase is LineUpPhase livePhase)
             {
                 wasRolling = wasRolling || livePhase.RollingMode;
-                if (livePhase.PathPlan is { } plan && arcSpeedKts == 0)
+                if (arcSpeedKts == 0 && livePhase.ManeuverSpeedKts > 0)
                 {
-                    arcSpeedKts = plan.ArcSpeedKts;
+                    arcSpeedKts = livePhase.ManeuverSpeedKts;
                 }
             }
 
