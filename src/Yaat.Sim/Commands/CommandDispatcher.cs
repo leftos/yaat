@@ -952,6 +952,14 @@ public static class CommandDispatcher
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
+            case var strip when TrackEngine.IsStripCommand(strip):
+                // Strip state is host-owned (yaat-server's TrainingRoom.StripState) — the Sim has no
+                // strip handler. Queue preset/deferred/triggered strip commands for the host to drain
+                // (TickProcessor.ProcessDeferredStripDispatches → StripCommandHandler) rather than
+                // letting them fall to the no-dispatcher-arm default below.
+                aircraft.PendingStripDispatches.Add(strip);
+                return Ok(CommandDescriber.DescribeNatural(strip));
+
             default:
                 // No handler arm for this command in the current context. Keep the command type in the
                 // log for bug triage, but give the user a plain, actionable message. The most common

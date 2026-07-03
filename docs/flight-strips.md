@@ -236,11 +236,28 @@ Defined in `src/Yaat.Sim/Commands/`:
 | `BlankCreate` | `BLANK` | — | `BlankCreateCommand(BayName, Rack, Index)` |
 | `BlankDelete` | `BLANKD` | — | `BlankDeleteCommand(BayName)` |
 
-All strip commands are marked **phase-transparent** in `CommandDescriber.IsPhaseTransparent`
-— they never interact with flight physics — and the parser routes them
-through `TrackEngine.IsStripCommand`, which is checked in
-`RoomEngine.SendCommandAsync` *before* the dispatcher so they bypass
-aircraft phase gating and go straight to `HandleStripCmd`.
+Strip commands never interact with flight physics. Live and CRC-sourced strip
+commands are classified by `TrackEngine.IsStripCommand`, which is checked in
+`RoomEngine.SendCommandAsync` / `RecordAndDispatchStripAsync` *before* the
+dispatcher so they bypass aircraft phase gating and go straight to
+`HandleStripCmd`. (`Annotate` / `HalfStripCreate` / `HalfStripAmend` /
+`HalfStripDelete` also appear on `CommandDescriber.IsPhaseTransparent`, but that
+list is not the routing mechanism — the pre-dispatcher `IsStripCommand` check is.)
+
+### Preset / deferred / triggered strip commands
+
+Presets and deferred payloads (`WAIT 2 ANNOTATE 10 ✓`) are dispatched **inside
+`Yaat.Sim`** (`SimulationEngine.DispatchPresetCommands` / `ProcessDeferredDispatches`),
+which never touch `RoomEngine`'s pre-dispatcher interception. Because the Sim has
+no strip state, `CommandDispatcher.ApplyCommand` **queues** any strip command onto
+`AircraftState.PendingStripDispatches` (rather than failing on the no-dispatcher-arm
+default). The host drains that queue every tick:
+`TickProcessor.ProcessDeferredStripDispatches` calls `World.DrainAllStripDispatches()`
+and routes each command through `StripCommandHandler.HandleAsync`, so a preset
+checkmark lands on the aircraft's auto-printed strip. (Standalone `Yaat.Sim`
+consumers drain-and-discard via `SimulationEngine.TickPostPhysics`, firing the
+optional `StripDispatchRequested` event.) Before this bridge existed, every preset
+strip command failed with `[Deferred] could not apply: Unable to Annotate strip box …`.
 
 ### Full strip: `STRIP`, `AN`, `STRIPD`, `STRIPO`
 

@@ -333,6 +333,35 @@ public sealed class SimulationWorld
         return result;
     }
 
+    /// <summary>
+    /// Drains every aircraft's <see cref="AircraftState.PendingStripDispatches"/> — strip commands
+    /// queued by preset/deferred/triggered dispatch that the Sim cannot apply itself (strip state is
+    /// host-owned). The host (yaat-server) dispatches each through <c>StripCommandHandler</c>; the
+    /// standalone engine's <see cref="SimulationEngine.TickPostPhysics"/> drains-and-discards so the
+    /// lists never accumulate. Mirrors <see cref="DrainAllWarnings"/>.
+    /// </summary>
+    public List<(string Callsign, Commands.ParsedCommand Command)> DrainAllStripDispatches()
+    {
+        var result = new List<(string, Commands.ParsedCommand)>();
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                if (ac.PendingStripDispatches.Count > 0)
+                {
+                    foreach (var cmd in ac.PendingStripDispatches)
+                    {
+                        result.Add((ac.Callsign, cmd));
+                    }
+
+                    ac.PendingStripDispatches.Clear();
+                }
+            }
+        }
+
+        return result;
+    }
+
     public List<(string Callsign, string PilotSpeech)> DrainAllPilotSpeech()
     {
         var result = new List<(string, string)>();

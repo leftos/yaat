@@ -140,6 +140,16 @@ public class AircraftState
     public List<string> PendingNotifications { get; } = [];
 
     /// <summary>
+    /// Strip commands (AN / STRIP / SCAN / HSC / …) produced by preset, deferred, or triggered
+    /// dispatch. The Sim has no strip state — <c>FlightStripState</c> lives on the host
+    /// (yaat-server's <c>TrainingRoom</c>), so <see cref="Commands.CommandDispatcher.ApplyCommand"/>
+    /// queues strip commands here instead of failing, and the host drains them each tick
+    /// (yaat-server's <c>TickProcessor.ProcessDeferredStripDispatches</c>) into
+    /// <c>StripCommandHandler</c>. Transient — not snapshot-serialized.
+    /// </summary>
+    public List<Commands.ParsedCommand> PendingStripDispatches { get; } = [];
+
+    /// <summary>
     /// Pilot transmissions emitted by the sim in RPO mode when the
     /// <c>RpoShowPilotSpeech</c> scenario setting is on. Drained per tick into the
     /// terminal as <c>PilotSpeech</c>-kind entries (green), rendered with the spelled-out

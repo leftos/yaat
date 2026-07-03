@@ -130,6 +130,22 @@ public sealed class SimulationEngine
         WarningEmitted?.Invoke(callsign, warning);
     }
 
+    /// <summary>
+    /// Fires during the post-physics drain for each <see cref="AircraftState.PendingStripDispatches"/>
+    /// entry — a strip command (AN / STRIP / SCAN / …) produced by preset, deferred, or triggered
+    /// dispatch that the Sim cannot apply (strip state is host-owned). The host (yaat-server) drains
+    /// <see cref="SimulationWorld.DrainAllStripDispatches"/> directly and routes to
+    /// <c>StripCommandHandler</c>; this event lets standalone consumers (solo client, tests) observe
+    /// the same commands. Default null = the entry is still drained (so it does not accumulate) but
+    /// otherwise discarded. Mirrors <see cref="WarningEmitted"/>.
+    /// </summary>
+    public event Action<string, ParsedCommand>? StripDispatchRequested;
+
+    private void FireStripDispatchRequested(string callsign, ParsedCommand command)
+    {
+        StripDispatchRequested?.Invoke(callsign, command);
+    }
+
     public SimulationEngine(IAirportGroundData groundData, ILogger? logger = null)
     {
         _groundData = groundData;
@@ -698,6 +714,12 @@ public sealed class SimulationEngine
         foreach (var (callsign, warning) in warnings)
         {
             FireWarningEmitted(callsign, warning);
+        }
+
+        var stripDispatches = World.DrainAllStripDispatches();
+        foreach (var (callsign, command) in stripDispatches)
+        {
+            FireStripDispatchRequested(callsign, command);
         }
 
         var notifications = World.DrainAllNotifications();
@@ -1808,6 +1830,14 @@ public sealed class SimulationEngine
 
                     _logger.LogInformation("[Deferred] {Callsign}: {Condition} → {Payload}", aircraft.Callsign, conditionDesc, payloadDesc);
                     EmitTerminal("System", aircraft.Callsign, $"[Deferred] {conditionDesc} → {payloadDesc}");
+                }
+
+                // A pure-track deferred payload (e.g. WAIT 5 SP1 …) has no ApplyCommand arm; route it to
+                // the track engine directly, mirroring DispatchSinglePreset. Strip payloads stay on
+                // DispatchCompound below — the ApplyCommand strip arm queues them for the host to apply.
+                if (TryDispatchImmediateTrackPreset(d.Payload, aircraft))
+                {
+                    continue;
                 }
 
                 var groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
