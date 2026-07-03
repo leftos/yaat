@@ -23,6 +23,7 @@
 - Airport ground layouts now pick up map corrections published to vNAS instead of reusing the first-downloaded copy indefinitely — the freshness check relied on an HTTP method the vNAS server rejects, so an updated taxiway layout never reached the simulation until the on-disk cache was cleared by hand.
 - Other cached vNAS data — video maps and ARTCC facility configs — likewise now refreshes when it changes server-side instead of staying pinned to the first copy for the whole session; their in-memory caches previously never re-checked.
 - A VFR aircraft cleared for a pattern-exit departure (`CTO MRC`/`MRD`/`MLC`/`MLD`) with no filed cruise altitude and no assigned altitude now climbs to pattern altitude instead of descending straight back into the ground after liftoff.
+- An aircraft joining a traffic pattern after crossing midfield (e.g. `ELD`/`ERD` to a runway on the far side, or a cross-runway closed-traffic departure) now re-intercepts the correct downwind track instead of holding a too-close downwind and overshooting the turn to final onto the parallel runway.
 
 ## v0.8.9-beta [2026/07/03]
 

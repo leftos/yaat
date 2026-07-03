@@ -17,6 +17,15 @@ public sealed class DownwindPhase : Phase
 
     private const double AlongTrackToleranceNm = 0.3;
 
+    // Downwind-track re-intercept. After a wrong-side / cross-runway MidfieldCrossing join the aircraft
+    // can be left off the computed downwind line (e.g. dropped inside its own pattern); steer back onto
+    // it rather than holding the wrong offset — which would make the base/final geometry (built for the
+    // computed pattern width) turn early and overshoot onto the far side / a parallel runway. No-op once
+    // established on the line (cross-track ≈ 0), so a normally-established downwind is unaffected.
+    private const double DownwindTrackToleranceNm = 0.03;
+    private const double DownwindInterceptGainDegPerNm = 200.0;
+    private const double MaxDownwindInterceptDeg = 45.0;
+
     private double _baseTurnAlongTrack;
     private double _abeamAlongTrack;
     private double _thresholdLat;
@@ -41,6 +50,14 @@ public sealed class DownwindPhase : Phase
     /// <see cref="PatternCommandHandler.TryMakeShortApproach"/>.
     /// </summary>
     public bool ShortApproachArmed { get; set; }
+
+    /// <summary>
+    /// If true, the leg re-intercepts the computed downwind track when the aircraft is off it. Set only
+    /// for a downwind entered from a wrong-side / cross-runway <see cref="MidfieldCrossingPhase"/> join,
+    /// which can drop the aircraft inside its own pattern; a normally-established downwind is already on
+    /// the track, so this stays false there to leave that flow untouched.
+    /// </summary>
+    public bool RejoinTrack { get; set; }
 
     /// <summary>
     /// Active lateral offset state set by OFL/OFR. While non-null, OnTick overrides
@@ -159,6 +176,27 @@ public sealed class DownwindPhase : Phase
                 new LatLon(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon),
                 LateralOffset
             );
+        }
+        else if (RejoinTrack && Waypoints is not null)
+        {
+            // Re-intercept the computed downwind line (through the abeam point, on the downwind heading)
+            // when the aircraft is off it — turn toward the line with a bounded intercept angle,
+            // decreasing to zero as it re-establishes. See DownwindTrackToleranceNm above.
+            double xtk = GeoMath.SignedCrossTrackDistanceNm(
+                ctx.Aircraft.Position,
+                new LatLon(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon),
+                _downwindHeading
+            );
+            if (Math.Abs(xtk) > DownwindTrackToleranceNm)
+            {
+                double intercept = Math.Min(MaxDownwindInterceptDeg, Math.Abs(xtk) * DownwindInterceptGainDegPerNm);
+                double corrected = _downwindHeading.Degrees + (xtk > 0 ? -intercept : intercept);
+                ctx.Targets.TargetTrueHeading = new TrueHeading(corrected);
+            }
+            else
+            {
+                ctx.Targets.TargetTrueHeading = _downwindHeading;
+            }
         }
 
         double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
@@ -478,6 +516,7 @@ public sealed class DownwindPhase : Phase
             AltitudeFloor = _altitudeFloor,
             MidfieldBroadcastIssued = _midfieldBroadcastIssued,
             ShortApproachArmed = ShortApproachArmed,
+            RejoinTrack = RejoinTrack,
             LateralOffsetTargetNm = LateralOffset?.TargetNm,
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
@@ -490,6 +529,7 @@ public sealed class DownwindPhase : Phase
             Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
             IsExtended = dto.IsExtended,
             ShortApproachArmed = dto.ShortApproachArmed,
+            RejoinTrack = dto.RejoinTrack ?? false,
             LateralOffset = dto.LateralOffsetTargetNm is { } target
                 ? new PatternLateralOffsetState
                 {

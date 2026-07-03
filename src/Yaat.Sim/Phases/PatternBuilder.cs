@@ -181,7 +181,9 @@ public static class PatternBuilder
         {
             new UpwindPhase { Waypoints = departureWaypoints },
             new MidfieldCrossingPhase { Waypoints = patternWaypoints, BiasTurnToPatternSide = true },
-            new DownwindPhase { Waypoints = patternWaypoints },
+            // The midfield crossing can drop the aircraft inside the pattern-runway downwind track;
+            // re-intercept it so the base/final geometry rolls out on centerline.
+            new DownwindPhase { Waypoints = patternWaypoints, RejoinTrack = true },
             new BasePhase { Waypoints = patternWaypoints },
             new FinalApproachPhase(),
         };

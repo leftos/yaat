@@ -630,6 +630,12 @@ internal static class PatternCommandHandler
             {
                 phases.Add(new TeardropReentryPhase { Waypoints = waypoints });
             }
+            else if (circuitPhases.OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
+            {
+                // The crossing can drop a piston/helicopter inside the computed downwind track; have
+                // the downwind re-intercept it so the base/final geometry rolls out on centerline.
+                joinDownwind.RejoinTrack = true;
+            }
         }
 
         foreach (var phase in circuitPhases)
@@ -753,6 +759,11 @@ internal static class PatternCommandHandler
                         airportRunways
                     )
                 );
+                // The crossing can drop the aircraft inside the computed downwind track; re-intercept it.
+                if (rebuiltChain.OfType<DownwindPhase>().FirstOrDefault() is { } joinDownwind)
+                {
+                    joinDownwind.RejoinTrack = true;
+                }
             }
             else
             {

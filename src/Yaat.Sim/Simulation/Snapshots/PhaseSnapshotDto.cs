@@ -842,6 +842,10 @@ public sealed class DownwindPhaseDto : PhaseDto
     public required double AltitudeFloor { get; init; }
     public required bool MidfieldBroadcastIssued { get; init; } = false;
     public bool ShortApproachArmed { get; init; }
+
+    /// <summary>Downwind re-intercepts its computed track (wrong-side / cross-runway join). Nullable
+    /// for tolerance of recordings predating this field.</summary>
+    public bool? RejoinTrack { get; init; }
     public double? LateralOffsetTargetNm { get; init; }
     public int? LateralOffsetDirection { get; init; }
     public bool LateralOffsetAcquired { get; init; }
