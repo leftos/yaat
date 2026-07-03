@@ -8,7 +8,7 @@ Cloudflare Worker that bridges Discord forum threads and GitHub issues.
 - `/track-issue <issue#>` — links the current forum thread to an existing GitHub bug issue (recovery path when `/create-issue` failed); run outside a thread, it instead creates a new thread in the bug-reports forum
 - `/track-feature-request <issue#>` — same, for feature requests (feature-requests forum)
 
-**Auto-sync:** New thread replies are posted as GitHub issue comments every 15 minutes. Running the slash command again in a linked thread triggers an immediate sync.
+**Auto-sync:** New thread replies are posted as GitHub issue comments every 5 minutes (the `*/5` cron in `wrangler.toml`). Running the slash command again in a linked thread triggers an immediate sync.
 
 **GitHub → Discord:** When an issue is labeled (in progress, completed, won't fix, not a bug, duplicate), closed, or reopened, a status update is posted back to the Discord thread.
 
