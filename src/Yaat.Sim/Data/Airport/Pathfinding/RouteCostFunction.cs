@@ -23,6 +23,20 @@ public static class RouteCostFunction
     /// <summary>Turn budget: 180° ≈ 0.09 nm, ~540 ft equivalent.</summary>
     public const double TurnBudgetWeightNmPerDeg = 0.0005;
 
+    /// <summary>
+    /// Soft first-hop heading bias (nm-equivalent per degree). The very first edge of a search has no
+    /// prior edge, so the turn-budget term below is skipped and the edge is admitted in any direction —
+    /// nothing otherwise stops a taxi from starting with an unmotivated turn (or U-turn) away from the
+    /// direction the aircraft is physically facing. When the real heading is known
+    /// (<see cref="SearchContext.StartHeadingTrue"/>) and no explicit <c>&gt;</c>/<c>&lt;</c> turn hint
+    /// governs the first taxiway, this gently prefers the first edge that continues that heading.
+    /// Turn-budget scale (180° ≈ 0.09 nm) — kept well below the avoided (5 nm) / hint (50 nm) /
+    /// unresolvable (1000 nm) penalties so it only breaks near-ties and never overrides a genuinely
+    /// cheaper route: a forced reversal, where every first-edge candidate pays it equally, still wins.
+    /// Added to the g-score only (never the <see cref="Heuristic"/>), so A* stays admissible.
+    /// </summary>
+    public const double FirstHopHeadingBiasNmPerDeg = 0.0005;
+
     /// <summary>Each taxiway transition: ~300 ft equivalent.</summary>
     public const double TaxiwayTransitionCostNm = 0.05;
 
@@ -125,6 +139,24 @@ public static class RouteCostFunction
                 double delta = HeadingDelta(arrivalBearing, departureBearing);
                 cost += delta * turnWeight;
             }
+        }
+
+        // First-hop heading bias: the turn penalty above is skipped on the first edge (no prior edge),
+        // so its direction is otherwise cost-only and can point away from where the aircraft is facing.
+        // When the real heading is known and no explicit turn hint governs the first taxiway, softly
+        // steer the first edge toward that heading. See FirstHopHeadingBiasNmPerDeg for why this is safe
+        // (soft, finite, first-edge-only, g-score-only, suppressed under an explicit hint).
+        if (
+            ctx.Preference != RoutePreference.Shortest
+            && current.LastEdge is null
+            && ctx.StartHeadingTrue is { } firstHopHeading
+            && !FirstWaypointHasTurnHint(ctx)
+        )
+        {
+            GroundNode firstHeadNode = candidate.Nodes[0].Id == current.HeadNodeId ? candidate.Nodes[0] : candidate.Nodes[1];
+            double firstDepartureBearing = GeometricAdmissibility.GetDepartureBearing(candidate, firstHeadNode, nextNode);
+            double firstHopDelta = HeadingDelta(firstHopHeading, firstDepartureBearing);
+            cost += firstHopDelta * FirstHopHeadingBiasNmPerDeg;
         }
 
         // Taxiway transition penalty.
@@ -293,6 +325,13 @@ public static class RouteCostFunction
 
         return false;
     }
+
+    /// <summary>
+    /// True when the controller supplied an explicit <c>&gt;</c>/<c>&lt;</c> turn hint on the first
+    /// taxiway. In that case the existing turn-hint machinery directs the first move, so the default
+    /// <see cref="FirstHopHeadingBiasNmPerDeg"/> is suppressed to leave hinted routes unchanged.
+    /// </summary>
+    private static bool FirstWaypointHasTurnHint(SearchContext ctx) => ctx.WaypointTurnHints is { Count: > 0 } hints && hints[0] is not null;
 
     private static GroundNode? FindPrevNode(PartialRoute current, IGroundEdge candidate)
     {

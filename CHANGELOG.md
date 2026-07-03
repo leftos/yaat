@@ -5,6 +5,7 @@
 ### Fixed
 - A taxi clearance to a terminal gate via named taxiways (e.g. SFO `TAXI B K A @F10`) now routes directly instead of looping the long way around.
 - Pushing an aircraft back to a spot or gate (`PUSH $5A`, `PUSH @B13`) now reverses straight there instead of routing onto an adjacent taxiway and back.
+- Taxiing via a taxiway through a complex intersection no longer sends the aircraft the wrong way. Previously, e.g. `TAXI C D @NEW1` at Oakland could turn an aircraft the wrong way onto C — away from the parking — looping across a runway before doubling back to the spot; it now heads directly to the destination.
 
 ## v0.8.8-beta [2026/07/02]
 

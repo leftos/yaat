@@ -76,4 +76,56 @@ public class ParkingExtensionDirectionTests
         Assert.DoesNotContain(route.Segments, s => s.TaxiwayName == "C");
         Assert.True(route.TotalDistanceNm < 1.5, $"expected a short direct route to NEW1, got {route.TotalDistanceNm:F2} nm");
     }
+
+    [Fact]
+    public void Oak_TaxiGCD_ToNew1_TurnsTowardParking_NotWrongWayDownCAcrossRunway()
+    {
+        var layout = new TestAirportGroundData(FilletMode.Standard).GetLayout("OAK");
+        if (layout is null || TestVnasData.NavigationDb is null)
+        {
+            _output.WriteLine("oak layout / navdata unavailable — skipping");
+            return;
+        }
+
+        var newParking = layout.FindParkingByName("NEW1");
+        Assert.NotNull(newParking);
+
+        // Same start as the TAXI G D case above: a node on taxiway G near the 28R crossing.
+        // Naming C explicitly (TAXI C D @NEW1) turns G→C into an INTERMEDIATE transition scored by
+        // the tail-probe, which — unlike the final, destination-anchored C→D — has no destination
+        // awareness. At OAK's collapsed G/C/D interchange the probe picks the wrong-way-onto-C junction
+        // because its tail dead-ends short of NEW1 (turning onto D there is an inadmissible U-turn), so
+        // the probe never charges the real detour. The route then loops the wrong way down C, threads
+        // taxiway E, doubles back across runway 28R, and only then reaches D → NEW1 (~3× the distance).
+        var start = NearestNodeOnTaxiway(layout, "G", 37.727440, -122.212859);
+        _output.WriteLine($"start node = {start.Id}, NEW1 = {newParking.Id}");
+
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            start.Id,
+            ["G", "C", "D"],
+            out string? failReason,
+            new ExplicitPathOptions
+            {
+                AirportId = "OAK",
+                DestinationHintNode = newParking,
+                DiagnosticLog = msg => _output.WriteLine(msg),
+            },
+            AircraftCategory.Piston
+        );
+
+        Assert.NotNull(route);
+        Assert.Null(failReason);
+        _output.WriteLine($"Route: {route.Segments.Count} segments, {route.TotalDistanceNm:F2} nm → {route.ToSummary()}");
+
+        // Reaches NEW1. (C is legitimately touched at the interchange, so — unlike the TAXI G D case —
+        // this route may contain C segments; the wrong-way signature is the E leg + the 28R re-cross.)
+        Assert.Equal(newParking.Id, route.Segments[^1].ToNodeId);
+        Assert.DoesNotContain(route.Segments, s => s.Edge.Edge.IsRunwayCenterline);
+        Assert.DoesNotContain(route.Segments, s => s.TaxiwayName == "E");
+        // The direct route is G → D → ramp to NEW1 (~0.87 nm). The wrong-way loop is ~1.30 nm and its
+        // signature is the E leg + the 28R re-cross above; the distance bound guards against a partial
+        // regression that keeps the loop but trims it. (Segment count is not a proxy: D is densely noded.)
+        Assert.True(route.TotalDistanceNm < 1.1, $"expected a short direct route to NEW1, got {route.TotalDistanceNm:F2} nm");
+    }
 }

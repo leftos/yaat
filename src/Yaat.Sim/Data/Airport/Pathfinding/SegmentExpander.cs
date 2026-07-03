@@ -458,7 +458,66 @@ public static class SegmentExpander
             return TailUnresolvablePenaltyNm;
         }
 
-        return Math.Max(0.0, tailHead.AccumulatedCost - probeStart.AccumulatedCost);
+        double tailCost = Math.Max(0.0, tailHead.AccumulatedCost - probeStart.AccumulatedCost);
+
+        // Resolving the tail tokens is not the same as reaching the destination. When the destination
+        // is a concrete node and the tail terminated short of it — the destination-aware terminus walk
+        // in ExpandLastWaypoint fell through to the natural terminus because the onward turn onto the
+        // destination was inadmissible — the tail is deceptively cheap. Charge the true remaining reach
+        // cost so a junction that strands the aircraft where the destination is unreachable without a
+        // long detour cannot beat a junction from which the destination is genuinely reachable. (OAK
+        // "TAXI C D @NEW1": the wrong-way-onto-C junction's tail dead-ends at the C/D junction, where
+        // turning onto D toward NEW1 is a ~185° U-turn; without this it out-scores the correct junction.)
+        if (
+            ctx.Destination.Kind is DestinationKind.Parking or DestinationKind.Spot or DestinationKind.Helipad or DestinationKind.Node
+            && ctx.Destination.TargetNodeId is { } destId
+            && tailHead.HeadNodeId != destId
+        )
+        {
+            tailCost += ProbeDestinationReachCost(tailHead, destId, ctx);
+        }
+
+        return tailCost;
+    }
+
+    /// <summary>
+    /// Additional cost to actually reach a concrete-node destination from a tail probe's terminus,
+    /// used by <see cref="ProbeTailCost"/> so a junction whose tail dead-ends short of the destination
+    /// does not score deceptively cheap. Runs a bounded A* from the tail terminus — inheriting its
+    /// arrival bearing via <paramref name="tailHead"/> so admissibility fires on the first reach edge —
+    /// to the destination node. Bounded to <see cref="MaxDetourExpansions"/> expansions; a destination
+    /// unreachable within that bound returns <see cref="TailUnresolvablePenaltyNm"/> — either way the
+    /// dead-ending junction is penalised out of contention.
+    /// </summary>
+    private static double ProbeDestinationReachCost(PartialRoute tailHead, int destinationNodeId, SearchContext ctx)
+    {
+        var reachCtx = ctx with
+        {
+            StartNodeId = tailHead.HeadNodeId,
+            Destination = new DestinationDescriptor(
+                destinationNodeId,
+                null,
+                ctx.Destination.ParkingName,
+                ctx.Destination.SpotName,
+                ctx.Destination.Kind
+            ),
+            WaypointSequence = [],
+            AuthorizedTaxiways = null,
+        };
+
+        var (route, failure) = AutoRouter.Run(reachCtx, startOverride: tailHead, maxExpansions: MaxDetourExpansions);
+        if (failure is not null || route is null)
+        {
+            return TailUnresolvablePenaltyNm;
+        }
+
+        double reachCost = 0.0;
+        foreach (var seg in route.Segments)
+        {
+            reachCost += seg.Edge.DistanceNm;
+        }
+
+        return reachCost;
     }
 
     // -----------------------------------------------------------------------

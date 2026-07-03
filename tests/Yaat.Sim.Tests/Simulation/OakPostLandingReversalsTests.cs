@@ -195,6 +195,72 @@ public class OakPostLandingReversalsTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// End-to-end guard for the intermediate-transition direction bug: N9225L, just off 28R/10L on
+    /// taxiway G, given <c>TAXI C D @NEW1</c>. Naming C makes G→C an intermediate (tail-probed)
+    /// transition; at OAK's collapsed G/C/D interchange the probe used to pick the wrong-way-onto-C
+    /// junction (its tail dead-ends where turning onto D is an inadmissible U-turn), producing a loop
+    /// that threads taxiway E and doubles back across runway 28R before reaching NEW1. This exercises
+    /// the real command path — the CurrentTaxiway="G" prepend (<c>[G,C,D]</c>) and start-heading
+    /// plumbing in GroundCommandHandler.TryTaxi — from the deterministic HoldingAfterExit state, and
+    /// asserts the route goes directly to NEW1 without re-crossing the runway.
+    /// </summary>
+    [Fact]
+    public void N9225L_TaxiCD_AtNEW1_GoesDirectNotWrongWayAcrossRunway()
+    {
+        var archive = RecordingLoader.OpenArchive(RecordingPath);
+        if (archive is null)
+        {
+            return;
+        }
+
+        using (archive)
+        {
+            var recording = archive.ToBaseSessionRecording();
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            // Anchor on STATE, not the clock (see N9225L_TaxiD_AtNEW1_HasNoReversals): replay to just
+            // before the recorded taxi, then tick (which does not fire recorded commands) until N9225L
+            // settles into HoldingAfterExit — a deterministic position off the runway on G.
+            engine.Replay(recording, 423);
+
+            var ac = engine.FindAircraft("N9225L");
+            Assert.NotNull(ac);
+            for (int t = 0; (t < 120) && (ac!.Phases?.CurrentPhase?.Name != "Holding After Exit"); t++)
+            {
+                engine.TickOneSecond();
+                ac = engine.FindAircraft("N9225L");
+            }
+
+            Assert.Equal("Holding After Exit", ac!.Phases?.CurrentPhase?.Name);
+
+            var taxi = engine.SendCommand("N9225L", "TAXI C D @NEW1");
+            Assert.True(taxi.Success, $"TAXI C D @NEW1 failed: {taxi.Message}");
+
+            ac = engine.FindAircraft("N9225L");
+            Assert.NotNull(ac);
+            Assert.NotNull(ac.Ground.AssignedTaxiRoute);
+
+            var segments = ac.Ground.AssignedTaxiRoute.Segments;
+            output.WriteLine($"N9225L AssignedTaxiRoute: {segments.Count} segments, {ac.Ground.AssignedTaxiRoute.TotalDistanceNm:F2} nm");
+
+            // The wrong-way loop's signature is threading taxiway E and re-crossing runway 28R/10L on
+            // the way to NEW1. The direct route is G → D → ramp; C is only touched at the interchange.
+            Assert.DoesNotContain(segments, s => s.Edge.Edge.IsRunwayCenterline);
+            Assert.DoesNotContain(segments, s => s.TaxiwayName == "E");
+            Assert.Equal(0, CountReversals(segments));
+
+            TickUntilAtParking(engine, "N9225L", maxTicks: 600);
+            ac = engine.FindAircraft("N9225L");
+            Assert.NotNull(ac);
+            Assert.Equal("At Parking", ac.Phases?.CurrentPhase?.Name);
+        }
+    }
+
     [Fact]
     public void N436MS_TaxiC_AtJSX1_HasNoReversals()
     {
