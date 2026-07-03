@@ -823,8 +823,10 @@ public sealed class PatternExitPhaseDto : PhaseDto
 
     /// <summary>0=Left, 1=Right (matches PatternDirection).</summary>
     public required int Direction { get; init; }
-    public int? AssignedAltitude { get; init; }
-    public required int CruiseAltitude { get; init; }
+
+    /// <summary>Fully-resolved continuous-climb target (ft MSL): assigned altitude, else filed cruise,
+    /// else pattern altitude. Nullable for tolerance of recordings predating this field.</summary>
+    public int? ClimbTargetFt { get; init; }
 }
 
 public sealed class DownwindPhaseDto : PhaseDto

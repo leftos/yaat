@@ -53,6 +53,32 @@ public class PatternExitDepartureBuilderTests
     }
 
     [Fact]
+    public void BuildPatternExitCircuit_NoCruiseNoAssigned_ClimbsToPatternAltitude_NotZero()
+    {
+        // Regression (issue #241): a VFR aircraft with no filed cruise altitude
+        // (FlightPlan.CruiseAltitude defaults to 0) and no assigned altitude must climb toward
+        // pattern altitude, never 0 ft MSL — otherwise the legs target 0 and fly the climb rate
+        // straight into the ground.
+        var phases = PatternBuilder.BuildPatternExitCircuit(
+            Oak28R(),
+            AircraftCategory.Piston,
+            PatternDirection.Right,
+            PatternEntryLeg.Downwind,
+            assignedAltitude: null,
+            cruiseAltitude: 0,
+            patternSizeNm: null,
+            altitudeOverrideFt: null,
+            airportRunways: null
+        );
+
+        // OAK 28R piston pattern altitude = field elev 9 ft + 1000 ft AGL = 1009 ft MSL.
+        const int patternAlt = 1009;
+        Assert.Equal(patternAlt, ((UpwindPhase)phases[0]).DepartureClimbTargetFt);
+        Assert.Equal(patternAlt, ((CrosswindPhase)phases[1]).DepartureClimbTargetFt);
+        Assert.Equal(patternAlt, ((PatternExitPhase)phases[2]).ClimbTargetFt);
+    }
+
+    [Fact]
     public void BuildPatternExitCircuit_CrosswindExit_UpwindThenExit_NoCrosswindLeg()
     {
         var phases = PatternBuilder.BuildPatternExitCircuit(
@@ -72,7 +98,7 @@ public class PatternExitDepartureBuilderTests
         // An assigned altitude wins as the climb target.
         Assert.Equal(3000, ((UpwindPhase)phases[0]).DepartureClimbTargetFt);
         var exit = Assert.IsType<PatternExitPhase>(phases[1]);
-        Assert.Equal(3000, exit.AssignedAltitude);
+        Assert.Equal(3000, exit.ClimbTargetFt);
         Assert.Equal(PatternDirection.Left, exit.Direction);
     }
 

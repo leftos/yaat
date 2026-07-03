@@ -96,7 +96,12 @@ public static class PatternBuilder
     )
     {
         var waypoints = PatternGeometry.Compute(runway, category, direction, patternSizeNm, altitudeOverrideFt, airportRunways);
-        int climbTo = assignedAltitude ?? cruiseAltitude;
+
+        // Altitude resolution (COMMANDS.md, CTO Departure Modifiers): an assigned altitude wins; else
+        // the filed cruise altitude; else pattern altitude. A VFR departure without a filed cruise still
+        // climbs toward pattern altitude — it must never target 0 ft MSL and fly the climb rate into
+        // the ground. (CruiseAltitude defaults to 0 for a VFR aircraft with no filed cruise.)
+        int climbTo = assignedAltitude ?? (cruiseAltitude > 0 ? cruiseAltitude : (int)Math.Round(waypoints.PatternAltitude));
 
         var phases = new List<Phase>
         {
@@ -120,8 +125,7 @@ public static class PatternBuilder
             {
                 ExitHeading = exitHeading,
                 Direction = direction,
-                AssignedAltitude = assignedAltitude,
-                CruiseAltitude = cruiseAltitude,
+                ClimbTargetFt = climbTo,
             }
         );
 

@@ -25,11 +25,12 @@ public sealed class PatternExitPhase : Phase
     /// <summary>Pattern side, which determines the turn direction onto the exit leg.</summary>
     public PatternDirection Direction { get; set; }
 
-    /// <summary>Controller-assigned altitude from the CTO command, if any.</summary>
-    public int? AssignedAltitude { get; set; }
-
-    /// <summary>Filed cruise altitude — the climb target when no altitude was assigned.</summary>
-    public int CruiseAltitude { get; set; }
+    /// <summary>
+    /// Fully-resolved continuous-climb target (ft MSL): the controller-assigned altitude, else the
+    /// filed cruise altitude, else pattern altitude. A departing aircraft keeps climbing toward this
+    /// and never levels at pattern altitude. Resolved by <see cref="PatternBuilder.BuildPatternExitCircuit"/>.
+    /// </summary>
+    public int ClimbTargetFt { get; set; }
 
     public override string Name => "PatternExit";
 
@@ -46,7 +47,7 @@ public sealed class PatternExitPhase : Phase
         // Continue the takeoff-rate climb toward the assigned/cruise altitude — a departing
         // aircraft never levels at pattern altitude. Release the slower pattern speed target so
         // FlightPhysics accelerates to the normal climb-out speed for the altitude band.
-        int climbTo = AssignedAltitude ?? CruiseAltitude;
+        int climbTo = ClimbTargetFt;
         ctx.Targets.TargetAltitude = climbTo;
         ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetSpeed = null;
@@ -93,8 +94,7 @@ public sealed class PatternExitPhase : Phase
             Requirements = SnapshotRequirements(),
             ExitHeadingDeg = ExitHeading.Degrees,
             Direction = (int)Direction,
-            AssignedAltitude = AssignedAltitude,
-            CruiseAltitude = CruiseAltitude,
+            ClimbTargetFt = ClimbTargetFt,
         };
 
     public static PatternExitPhase FromSnapshot(PatternExitPhaseDto dto)
@@ -103,8 +103,7 @@ public sealed class PatternExitPhase : Phase
         {
             ExitHeading = new TrueHeading(dto.ExitHeadingDeg),
             Direction = (PatternDirection)dto.Direction,
-            AssignedAltitude = dto.AssignedAltitude,
-            CruiseAltitude = dto.CruiseAltitude,
+            ClimbTargetFt = dto.ClimbTargetFt ?? 0,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
