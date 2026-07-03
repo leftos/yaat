@@ -20,6 +20,8 @@ GeoJSON ─► TaxiwayGraphBuilder ─► [1] Fillet generator ─► filleted g
 | 2 | **Pathfinder** | resolves a clearance into a `TaxiRoute` over that graph | [`pathfinder.md`](./pathfinder.md) | `TaxiPathfinder` · `Data/Airport/Pathfinding/*` |
 | 3 | **Navigator** | follows the route + arc geometry per tick (heading/speed) | [`navigator.md`](./navigator.md) | `GroundNavigator` (in `TaxiingPhase`) |
 
+**Pushback** is a separate ground-movement mechanism (tail-first tug reverse, not a taxi route) — see [`pushback.md`](./pushback.md) · `PushbackPhase`.
+
 ## Design principle
 
 When a consumer trips on the ground geometry, remember: **the graph is correct-but-different, not broken** — it faithfully mirrors the source data (coincident edges, taxiways that connect only via a third connector, membership-named junction arcs). **Adapt the consumer; do not "fix" the graph.**

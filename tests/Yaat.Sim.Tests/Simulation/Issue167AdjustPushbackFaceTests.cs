@@ -10,6 +10,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// E2E coverage for issue #167 — heading-only PUSH during an active pushback
 /// updates the target facing in place, until the nose has begun rotating to
 /// the prior target. After that the amendment is rejected.
+///
+/// A push to a spot/parking is a direct-reverse <see cref="PushbackPhase"/> (targeted
+/// mode); the amendment gate is its 60%-of-push-progress threshold.
 /// </summary>
 public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
 {
@@ -73,20 +76,20 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
         // Initial PUSH @B13 FACE N — face north
         var result = engine.SendCommand("SWA1360", "PUSH @B13 FACE N");
         Assert.True(result.Success, $"Initial PUSH failed: {result.Message}");
-        Assert.IsType<PushbackToSpotPhase>(ac.Phases?.CurrentPhase);
+        Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
 
-        // Tick a few seconds — should still be in PushbackToSpotPhase, well before final node
+        // Tick a few seconds — should still be pushing back, well before the nose rotation begins
         for (int t = 0; t < 5; t++)
         {
             engine.TickOneSecond();
         }
-        Assert.IsType<PushbackToSpotPhase>(ac.Phases?.CurrentPhase);
+        Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
 
         // Amend: PUSH FACE S (heading-only) → south
         var amend = engine.SendCommand("SWA1360", "PUSH FACE S");
         _output.WriteLine($"Amend result: success={amend.Success} msg={amend.Message}");
         Assert.True(amend.Success, $"PUSH FACE S amendment failed: {amend.Message}");
-        Assert.IsType<PushbackToSpotPhase>(ac.Phases?.CurrentPhase);
+        Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
 
         // Tick to completion
         bool reachedParking = false;
@@ -128,18 +131,18 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
         Assert.NotNull(ac);
 
         Assert.True(engine.SendCommand("SWA1360", "PUSH @B13 FACE N").Success);
-        Assert.IsType<PushbackToSpotPhase>(ac.Phases?.CurrentPhase);
+        Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
 
         // Try a non-heading-only PUSH — should fail without disturbing the active phase
         var bad = engine.SendCommand("SWA1360", "PUSH @B12");
         _output.WriteLine($"Bad PUSH result: success={bad.Success} msg={bad.Message}");
         Assert.False(bad.Success, "Non-heading-only PUSH during active pushback should fail");
         Assert.Contains("face/tail amendment", bad.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.IsType<PushbackToSpotPhase>(ac.Phases?.CurrentPhase);
+        Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
     }
 
     [Fact]
-    public void HeadingOnlyPush_AfterFinalNode_Rejected()
+    public void HeadingOnlyPush_AfterTargetReached_Rejected()
     {
         var engine = SpawnSwa1360();
         if (engine is null)
@@ -151,52 +154,46 @@ public class Issue167AdjustPushbackFaceTests(ITestOutputHelper output)
         Assert.NotNull(ac);
 
         Assert.True(engine.SendCommand("SWA1360", "PUSH @B13 FACE N").Success);
+        var originalPush = ac.Phases?.CurrentPhase;
+        Assert.IsType<PushbackPhase>(originalPush);
 
-        // Drive past final-node reach (the in-place rotation stage). Bail when
-        // pushback completes — at that point the in-place turn has finished.
-        bool reachedFinalNoseRotation = false;
+        // Drive past target reach (the in-place nose-rotation stage). Bail when the original
+        // pushback completes (transitions off the phase) or reports _reachedTarget.
+        bool reachedTargetRotation = false;
         for (int tick = 0; tick < 120; tick++)
         {
             engine.TickOneSecond();
-            if (ac.Phases?.CurrentPhase is not PushbackToSpotPhase)
+            if (!ReferenceEquals(ac.Phases?.CurrentPhase, originalPush))
             {
-                reachedFinalNoseRotation = true;
+                reachedTargetRotation = true;
                 break;
             }
 
-            // Try to peek at the snapshot to detect _reachedFinalNode mid-rotation
-            if (ac.Phases?.CurrentPhase is PushbackToSpotPhase pp)
+            var snap = (Yaat.Sim.Simulation.Snapshots.PushbackPhaseDto)((PushbackPhase)originalPush!).ToSnapshot();
+            if (snap.ReachedTarget)
             {
-                var snap = (Yaat.Sim.Simulation.Snapshots.PushbackToSpotPhaseDto)pp.ToSnapshot();
-                if (snap.ReachedFinalNode)
-                {
-                    reachedFinalNoseRotation = true;
-                    break;
-                }
+                reachedTargetRotation = true;
+                break;
             }
         }
 
-        Assert.True(reachedFinalNoseRotation, "test setup: pushback should reach final-node rotation");
+        Assert.True(reachedTargetRotation, "test setup: pushback should reach target rotation");
 
-        // Amendment must fail now — either because we're past the gate (still in
-        // PushbackToSpotPhase but _reachedFinalNode=true) or because the phase
-        // already ended (transitioned to AtParkingPhase / HoldingAfterPushback).
         var late = engine.SendCommand("SWA1360", "PUSH FACE E");
         _output.WriteLine($"Late amend result: success={late.Success} msg={late.Message} phase={ac.Phases?.CurrentPhase?.Name ?? "null"}");
 
-        if (ac.Phases?.CurrentPhase is PushbackToSpotPhase)
+        if (ReferenceEquals(ac.Phases?.CurrentPhase, originalPush))
         {
-            // Still in pushback but past the gate — must be rejected with the turn-in-progress message
+            // Still the ORIGINAL pushback, past the gate — the face amendment must be rejected.
             Assert.False(late.Success);
             Assert.Contains("turn in progress", late.Message, StringComparison.OrdinalIgnoreCase);
         }
         else
         {
-            // Phase already left pushback — a new PUSH from AtParking/Holding either
-            // succeeds (starts a fresh pushback) or fails with the at-parking precondition.
-            // Either way, the active in-place rotation we'd be trying to amend is gone.
-            // We accept this branch as long as we no longer have a PushbackToSpotPhase to mutate.
-            Assert.True(ac.Phases?.CurrentPhase is not PushbackToSpotPhase);
+            // The original pushback already ended. A fresh PUSH FACE E may start a new simple
+            // pushback or be rejected by the at-parking precondition; either way the original
+            // in-place turn is no longer amendable, which is the behavior under test.
+            Assert.True(!ReferenceEquals(ac.Phases?.CurrentPhase, originalPush));
         }
     }
 

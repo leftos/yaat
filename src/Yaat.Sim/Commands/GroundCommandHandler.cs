@@ -730,6 +730,8 @@ internal static class GroundCommandHandler
         // Mid-pushback amendment: heading-only PUSH (FACE/TAIL) updates the active
         // pushback phase's target heading in place, accepted until the nose has
         // begun rotating to the prior target (issue #167).
+        // PushbackToSpotPhase is only reachable via restore of a pre-#233 recording (see that class);
+        // the current command path produces PushbackPhase, but a restored aircraft can still be amended.
         if (aircraft.Phases?.CurrentPhase is PushbackPhase or PushbackToSpotPhase)
         {
             bool headingOnly =
@@ -957,18 +959,6 @@ internal static class GroundCommandHandler
             }
         }
 
-        var startNode = groundLayout.FindNearestNode(aircraft.Position);
-        if (startNode is null)
-        {
-            return new CommandResult(false, "Cannot find position on taxiway graph");
-        }
-
-        var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, destNode.Id, AircraftCategorization.Categorize(aircraft.AircraftType));
-        if (route is null)
-        {
-            return new CommandResult(false, $"No route to {(push.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");
-        }
-
         // Resolve final heading: explicit heading, facing taxiway, or parking node's heading
         int? resolvedHeading = push.MagneticHeading?.ToDisplayInt();
         if (resolvedHeading is null && push.FacingTaxiway is not null)
@@ -987,17 +977,21 @@ internal static class GroundCommandHandler
         resolvedHeading ??= destNode.TrueHeading is not null ? destNode.TrueHeading.Value.ToDisplayInt() : null;
 
         Log.LogDebug(
-            "[Pushback] {Callsign}: push to {DestLabel} via {SegCount} segments, finalHdg={Hdg}",
+            "[Pushback] {Callsign}: direct reverse to {DestLabel}, finalHdg={Hdg}",
             aircraft.Callsign,
             destLabel,
-            route.Segments.Count,
             resolvedHeading?.ToString() ?? "none"
         );
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases!.Clear(ctx);
 
-        var phase = new PushbackToSpotPhase(route, resolvedHeading);
+        var phase = new PushbackPhase
+        {
+            TargetHeading = resolvedHeading,
+            TargetLatitude = destNode.Position.Lat,
+            TargetLongitude = destNode.Position.Lon,
+        };
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
         aircraft.Phases.Add(new AtParkingPhase());

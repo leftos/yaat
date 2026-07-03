@@ -424,6 +424,7 @@ public sealed class PushbackPhaseDto : PhaseDto
     public required double TimeSinceLastLog { get; init; }
 }
 
+// Retained for snapshot restore only (see PushbackToSpotPhase) — no longer produced by the command path.
 public sealed class PushbackToSpotPhaseDto : PhaseDto
 {
     public required TaxiRouteDto Route { get; init; }

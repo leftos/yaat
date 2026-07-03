@@ -90,7 +90,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         Assert.True(result.Success, $"PUSH @B13 failed: {result.Message}");
         _output.WriteLine($"Command result: {result.Message}");
         _output.WriteLine($"Phase after command: {ac.Phases?.CurrentPhase?.Name ?? "null"}");
-        Assert.IsType<PushbackToSpotPhase>(ac.Phases?.CurrentPhase);
+        Assert.IsType<PushbackPhase>(ac.Phases?.CurrentPhase);
 
         // Tick and trace until completion or timeout
         _output.WriteLine("");

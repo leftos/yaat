@@ -1195,9 +1195,10 @@ public class AirportE2ETests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void SFO_PushbackToSpot_RoutesAndSetsPhase()
+    public void SFO_PushbackToSpot_SetsDirectReversePhase()
     {
-        // PUSH @A9 from parking A4: should resolve a route and set PushbackToSpotPhase.
+        // PUSH @A9 from parking A4: should set a direct-reverse PushbackPhase targeting A9,
+        // with no taxi route (a pushback reverses straight to the spot, it does not taxi there).
         var layout = LoadLayout("SFO", "sfo");
         if (layout is null)
         {
@@ -1217,18 +1218,15 @@ public class AirportE2ETests
 
         Assert.True(result.Success, $"PUSH @A9 should succeed: {result.Message}");
         Assert.Contains("A9", result.Message!);
-        Assert.IsType<PushbackToSpotPhase>(ac.Phases!.CurrentPhase);
+        var phase = Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
         Assert.Equal("A9", ac.Ground.ParkingSpot);
 
-        // Route should have at least 1 segment
-        Assert.NotNull(ac.Ground.AssignedTaxiRoute);
-        Assert.True(ac.Ground.AssignedTaxiRoute.Segments.Count > 0, "Route should have segments");
-
-        // Final node should be near A9
-        var lastSeg = ac.Ground.AssignedTaxiRoute.Segments[^1];
-        var lastNode = layout.Nodes[lastSeg.ToNodeId];
-        double distToA9 = GeoMath.DistanceNm(lastNode.Position, a9.Position);
-        Assert.True(distToA9 < 0.02, $"Route should end near A9: dist={distToA9:F4}nm");
+        // Direct reverse: no taxi route, and the phase targets the A9 spot position.
+        Assert.Null(ac.Ground.AssignedTaxiRoute);
+        Assert.NotNull(phase.TargetLatitude);
+        Assert.NotNull(phase.TargetLongitude);
+        double distToA9 = GeoMath.DistanceNm(phase.TargetLatitude!.Value, phase.TargetLongitude!.Value, a9.Position.Lat, a9.Position.Lon);
+        Assert.True(distToA9 < 0.02, $"Pushback should target A9: dist={distToA9:F4}nm");
     }
 
     // -------------------------------------------------------------------------

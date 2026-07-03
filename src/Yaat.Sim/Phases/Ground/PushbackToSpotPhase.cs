@@ -10,6 +10,12 @@ namespace Yaat.Sim.Phases.Ground;
 /// Movement is via PushbackHeading (tail-first), steering through each route segment.
 /// At segment boundaries with large heading changes, stops and pivots before resuming.
 /// On arrival at the final node, rotates nose to the target heading.
+///
+/// <para><b>Retained for snapshot restore only.</b> The command path no longer creates this phase —
+/// <c>PUSH @parking</c> / <c>PUSH $spot</c> now reverse directly to the spot via a targeted
+/// <see cref="PushbackPhase"/> (issue #233 — see docs/ground/pushback.md). This class exists solely so
+/// that recordings captured before that change (whose snapshots may contain an aircraft mid-spot-pushback)
+/// still deserialize.</para>
 /// </summary>
 public sealed class PushbackToSpotPhase : Phase
 {
