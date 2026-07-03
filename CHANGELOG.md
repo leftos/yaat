@@ -9,6 +9,7 @@
 - The Ground View datablock — and a new **Fix** column in the Aircraft List — now show the ASDE-style fix instead of the destination airport: a departure's exit fix or the destination, chosen per the airport's ASDE-X/SAID facility configuration (falling back to the destination when no fix rule applies). This matches how a real ASDE-X / tower surface display labels each target.
 
 ### Fixed
+- Looking up a callsign with no flight plan in CRC's flight plan editor — including an unknown or mistyped callsign — no longer crashes CRC.
 - Scenario preset strip commands (e.g. auto-checking a departure-strip box shortly after spawn) now apply to the aircraft's strip.
 - Track commands scheduled behind a `WAIT` — scratchpad, temporary altitude, and similar — now apply when the wait expires.
 - A single-taxiway clearance to a terminal gate (e.g. SFO `TAXI B @F1`) now routes directly to the ramp instead of looping the long way around.
