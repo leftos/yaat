@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.FavoriteImportWindow"
+        Title="Import Favorites"
+        Width="380"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="16" Spacing="16">
+        <TextBlock x:Name="MessageText"
+                   TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8">
+            <Button x:Name="AppendButton"
+                    Content="Append"
+                    Width="90"
+                    HorizontalContentAlignment="Center"
+                    IsDefault="True"
+                    Click="OnAppendClick" />
+            <Button x:Name="ReplaceButton"
+                    Content="Replace All"
+                    Width="100"
+                    HorizontalContentAlignment="Center"
+                    Click="OnReplaceClick" />
+            <Button x:Name="CancelButton"
+                    Content="Cancel"
+                    Width="80"
+                    HorizontalContentAlignment="Center"
+                    IsCancel="True"
+                    Click="OnCancelClick" />
+        </StackPanel>
+    </StackPanel>
+</Window>

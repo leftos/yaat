@@ -1422,6 +1422,16 @@ Each favorite has a **label** (displayed on the button) and **command text** (th
 
 Airport-specific favorites are useful for airport- or position-specific presets that don't apply elsewhere. For example, while running a FLL departure scenario you can save `T T3 B` as a favorite labeled "T3 B" with **Airport (FLL)** selected — that button appears for other FLL scenarios too, while staying hidden at other airports.
 
+#### Import / Export
+
+Favorites can be shared between users as a `.yaat-favorites.json` file, using the **Import** and **Export** buttons in the pop-out **Favorites Panel** header (open it with **View > Open Favorites Panel...** or the **Panel** button).
+
+- **Export → All favorites** — save every favorite (all four tabs, including blank slots) to a file.
+- **Export → Current tab** — save just the favorites in the tab you're viewing (Air, Ground, Vehicle, or Airport).
+- **Import** — load favorites from a file. If you already have favorites, you're asked whether to **Append** them (added after your existing ones) or **Replace all** of them. With no existing favorites, the file loads directly.
+
+Scenario- and airport-scoped favorites keep their scope when shared, so an imported favorite only appears when its scenario or airport is active.
+
 ### Command History
 
 The command bar remembers your last 50 commands. Navigate with Up/Down arrows:

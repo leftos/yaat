@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -7,6 +8,8 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
@@ -23,6 +26,12 @@ public partial class FavoritesBarView : UserControl
         FavoriteCommandCategory.Vehicle,
         FavoriteCommandCategory.Airport,
     ];
+
+    private static readonly FilePickerFilter FavoritesFileType = new("YAAT Favorites", ["*.yaat-favorites.json"]);
+
+    private static readonly FilePickerFilter JsonFileType = new("JSON Files", ["*.json"]);
+
+    private static readonly ILogger Log = AppLog.CreateLogger<FavoritesBarView>();
 
     private MainViewModel? _boundVm;
     private WrapPanel? _panel;
@@ -199,6 +208,14 @@ public partial class FavoritesBarView : UserControl
         addButton.Margin = new Thickness(8, 0, 0, 0);
         DockPanel.SetDock(addButton, Dock.Right);
         header.Children.Add(addButton);
+
+        var exportButton = CreateExportButton();
+        DockPanel.SetDock(exportButton, Dock.Right);
+        header.Children.Add(exportButton);
+
+        var importButton = CreateImportButton();
+        DockPanel.SetDock(importButton, Dock.Right);
+        header.Children.Add(importButton);
 
         root.Children.Add(header);
 
@@ -398,6 +415,137 @@ public partial class FavoritesBarView : UserControl
         ToolTip.SetTip(btn, "Add multiple blank slots to the active category");
         btn.Click += OnBatchClick;
         return btn;
+    }
+
+    private Button CreateImportButton()
+    {
+        var btn = new Button
+        {
+            Content = "Import",
+            Margin = new Thickness(8, 0, 0, 0),
+            Padding = new Thickness(8, 2),
+            FontSize = 12,
+        };
+
+        ToolTip.SetTip(btn, "Import favorites from a shared file");
+        btn.Click += OnImportFavoritesClick;
+        return btn;
+    }
+
+    private Button CreateExportButton()
+    {
+        var btn = new Button
+        {
+            Content = "Export",
+            Margin = new Thickness(8, 0, 0, 0),
+            Padding = new Thickness(8, 2),
+            FontSize = 12,
+        };
+
+        ToolTip.SetTip(btn, "Export favorites to a file to share");
+        btn.Click += OnExportClick;
+        return btn;
+    }
+
+    private void OnExportClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var category = _selectedPaletteCategory;
+
+        var allItem = new MenuItem { Header = "All favorites" };
+        allItem.Click += (_, _) => _ = ExportFavoritesAsync(vm.ExportFavorites());
+
+        var tabItem = new MenuItem { Header = $"Current tab ({category})" };
+        tabItem.Click += (_, _) => _ = ExportFavoritesAsync(vm.ExportFavorites(category));
+
+        var flyout = new MenuFlyout();
+        flyout.Items.Add(allItem);
+        flyout.Items.Add(tabItem);
+        flyout.ShowAt(btn);
+    }
+
+    private async void OnImportFavoritesClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var picker = new AvaloniaFilePickerService(owner);
+        var path = await picker.OpenFileAsync(new OpenFileOptions("Import Favorites", [FavoritesFileType, JsonFileType]));
+        if (path is null)
+        {
+            return;
+        }
+
+        List<FavoriteCommand>? imported;
+        try
+        {
+            await using var stream = File.OpenRead(path);
+            imported = await JsonSerializer.DeserializeAsync<List<FavoriteCommand>>(stream, UserPreferences.JsonOptions);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Favorites import failed to read {Path}", path);
+            return;
+        }
+
+        if (imported is null || imported.Count == 0)
+        {
+            return;
+        }
+
+        if (vm.Preferences.FavoriteCommands.Count == 0)
+        {
+            vm.ImportFavorites(imported, FavoriteImportMode.Append);
+            return;
+        }
+
+        var dialog = new FavoriteImportWindow(imported.Count);
+        var mode = await dialog.ShowDialog<FavoriteImportMode?>(owner);
+        if (mode is null)
+        {
+            return;
+        }
+
+        vm.ImportFavorites(imported, mode.Value);
+    }
+
+    private async Task ExportFavoritesAsync(List<FavoriteCommand> favorites)
+    {
+        if (favorites.Count == 0 || TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        var picker = new AvaloniaFilePickerService(owner);
+        var path = await picker.SaveFileAsync(
+            new SaveFileOptions(
+                Title: "Export Favorites",
+                SuggestedFileName: "favorites.yaat-favorites.json",
+                Filters: [FavoritesFileType, JsonFileType],
+                DefaultExtension: "yaat-favorites.json"
+            )
+        );
+
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var stream = File.Create(path);
+            await JsonSerializer.SerializeAsync(stream, favorites, UserPreferences.JsonOptions);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.LogWarning(ex, "Favorites export failed to write {Path}", path);
+        }
     }
 
     private void OnFavoritePointerPressed(object? sender, PointerPressedEventArgs e)
@@ -1195,7 +1343,7 @@ public partial class FavoritesBarView : UserControl
 
     private static FavoriteCommandCategory NormalizeCategory(FavoriteCommand favorite)
     {
-        return Enum.IsDefined(favorite.Category) ? favorite.Category : FavoriteCommandCategory.Air;
+        return MainViewModel.NormalizeFavoriteCategory(favorite.Category);
     }
 
     private static double GetButtonWidth(FavoriteCommand favorite)

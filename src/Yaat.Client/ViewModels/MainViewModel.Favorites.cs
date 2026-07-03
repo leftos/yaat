@@ -51,6 +51,11 @@ public partial class MainViewModel
         return string.IsNullOrEmpty(trimmed) ? null : trimmed.ToUpperInvariant();
     }
 
+    public static FavoriteCommandCategory NormalizeFavoriteCategory(FavoriteCommandCategory category)
+    {
+        return Enum.IsDefined(category) ? category : FavoriteCommandCategory.Air;
+    }
+
     public async Task ExecuteFavoriteAsync(FavoriteCommand favorite)
     {
         if (favorite.IsSpacer)
@@ -217,4 +222,53 @@ public partial class MainViewModel
         _preferences.SetFavoriteCommands(list);
         RefreshDisplayFavorites();
     }
+
+    /// <summary>Returns a copy of every saved favorite (all categories and scopes, including blank spacers).</summary>
+    public List<FavoriteCommand> ExportFavorites()
+    {
+        return _preferences.FavoriteCommands.ToList();
+    }
+
+    /// <summary>Returns a copy of the saved favorites in a single category (including that category's blank spacers).</summary>
+    public List<FavoriteCommand> ExportFavorites(FavoriteCommandCategory category)
+    {
+        var target = NormalizeFavoriteCategory(category);
+        return _preferences.FavoriteCommands.Where(f => NormalizeFavoriteCategory(f.Category) == target).ToList();
+    }
+
+    /// <summary>
+    /// Merges imported favorites into the existing set. <see cref="FavoriteImportMode.Append"/> keeps the existing
+    /// favorites and adds the imported ones after them; <see cref="FavoriteImportMode.Replace"/> discards the existing
+    /// set and keeps only the imported favorites. Null entries (from malformed JSON arrays) are dropped.
+    /// </summary>
+    public static List<FavoriteCommand> MergeImportedFavorites(
+        IReadOnlyList<FavoriteCommand> existing,
+        IReadOnlyList<FavoriteCommand> imported,
+        FavoriteImportMode mode
+    )
+    {
+        var incoming = imported.Where(f => f is not null).ToList();
+        if (mode == FavoriteImportMode.Replace)
+        {
+            return incoming;
+        }
+
+        var merged = existing.Where(f => f is not null).ToList();
+        merged.AddRange(incoming);
+        return merged;
+    }
+
+    public void ImportFavorites(IReadOnlyList<FavoriteCommand> imported, FavoriteImportMode mode)
+    {
+        var list = MergeImportedFavorites(_preferences.FavoriteCommands, imported, mode);
+        _preferences.SetFavoriteCommands(list);
+        RefreshDisplayFavorites();
+    }
+}
+
+/// <summary>How an imported favorites file should combine with the user's existing favorites.</summary>
+public enum FavoriteImportMode
+{
+    Append,
+    Replace,
 }

@@ -94,7 +94,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Autocomplete | — | Yes — verbs, callsigns, arguments (runways, fixes, CTO modifiers), macros |
 | Fix suggestions | — | Route fixes (teal) prioritized over navdata fixes (white) |
 | Macros | Via aliases | Yes, via built-in macro editor; import/export |
-| Favorites bar | — | Quick-access buttons; click/ctrl+click/right-click; scenario-specific option |
+| Favorites bar | — | Quick-access buttons; click/ctrl+click/right-click; scenario-specific option; import/export |
 | Compound commands | — | `,` (parallel) and `;` (sequential) chaining |
 | Concatenated syntax (VICE-style) | — | `FH270`, `H270`, `CM240`, etc. — verb + number without space |
 
@@ -490,7 +490,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 ### Macros & Favorites
 - `!NAME` macros with parameters (positional/named)
 - Import/export macro files
-- Favorites bar and pop-out panel with global/scenario/airport scopes, categories, colors, sizing, blank panel slots, and ground-command overrides
+- Favorites bar and pop-out panel with global/scenario/airport scopes, categories, colors, sizing, blank panel slots, and ground-command overrides; import/export favorites as `.yaat-favorites.json` files to share them
 
 ### Autocomplete
 - Context-aware suggestions for verbs, callsigns, fixes, runways, CTO modifiers, macros

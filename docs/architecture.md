@@ -276,8 +276,9 @@ ViewModels/
 Views/
   MainWindow.axaml.cs           # Tab layout (DataGrid/Ground/Radar); room bar; pop-out management
   CommandInputView.axaml.cs     # Keyboard: Esc/Up/Down/Tab/Enter for suggestions/history
-  FavoritesBarView.axaml.cs     # Favorite command buttons bar and tabbed panel content (click/ctrl+click/right-click)
+  FavoritesBarView.axaml.cs     # Favorite command buttons bar and tabbed panel content (click/ctrl+click/right-click); palette-header Import/Export (.yaat-favorites.json)
   FavoritesPanelWindow.axaml.cs # Pop-out favorite commands panel with saved geometry
+  FavoriteImportWindow.axaml.cs # Favorites import prompt: Append vs Replace all (returns FavoriteImportMode?)
   ControllersView.axaml.cs      # Controllers tab content: CRC-style facility-grouped list (handoff id / position name / freq) over MainViewModel.ControllerGroups
   ControllersWindow.axaml.cs    # Pop-out host for ControllersView (View > Pop Out Controllers)
   MetarView.axaml.cs            # METAR tab content: per-airport METAR list over MainViewModel.Metars
