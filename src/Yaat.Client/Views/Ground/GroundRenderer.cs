@@ -1388,7 +1388,10 @@ public sealed class GroundRenderer : IDisposable
                 {
                     if (isHovered)
                     {
-                        var lines = BuildHoverLines(node.Name, node.Id, nodeEdgeNames);
+                        // Lead the hover tooltip with the token that references this node in a command —
+                        // $spot / @parking (the prefixes TAXI/PUSH/WARPG accept) — so a controller can
+                        // read straight off the map how to route or warp to it.
+                        var lines = BuildHoverLines(CommandTokenFor(node.Type, node.Name), node.Id, nodeEdgeNames);
                         _labelCandidates.Add(
                             new LabelCandidate(lines, sx + 12, sy - 14, LabelPriority.Hovered, _nodeLabelPaint, new SKColor(255, 255, 255))
                         );
@@ -1522,6 +1525,13 @@ public sealed class GroundRenderer : IDisposable
 
         return [primaryLabel, string.Join("/", twyNames)];
     }
+
+    /// <summary>
+    /// The command token that references a ground node by name: <c>$name</c> for a taxi spot,
+    /// <c>@name</c> for parking or a helipad — the <c>$</c>/<c>@</c> prefixes TAXI/PUSH/WARPG accept
+    /// (a helipad resolves through the same <c>@</c> path as parking).
+    /// </summary>
+    internal static string CommandTokenFor(string nodeType, string name) => (nodeType == "Spot" ? "$" : "@") + name;
 
     /// <summary>
     /// Computes the screen-space angle (radians) of the taxiway edge at a hold-short node.

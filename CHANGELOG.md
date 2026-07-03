@@ -5,6 +5,7 @@
 ### Added
 - **Taxi routes on the ground view.** Two new **Settings > Display** options control when an aircraft's taxi route is drawn on the ground view: **"Show taxi route when hovering an aircraft"** (on by default) temporarily draws the route of whichever aircraft the mouse is over, and **"Show all taxiing aircraft's routes"** (off by default) draws every taxiing aircraft's route at once. Right-click an aircraft and use the **Taxi route** submenu to override one aircraft — **Always show**, **Always hide**, or **Follow "Show all"** — independently of the global setting.
 - **Warp a ground aircraft to a taxi spot.** `WARPG $9` now teleports a ground aircraft to taxi spot 9, matching the `$spot` form `TAXI`/`PUSH` already accept. `WARPG` previously took only two taxiway names, a node id (`#42`), or a parking (`@B12`).
+- **Ground-view command hints on hover.** Hovering a taxi spot or parking node on the ground view now shows the token that references it in a command — `$9` for taxi spot 9, `@F7` for parking F7 — so you can read straight off the map how to `TAXI`/`PUSH`/`WARPG` to it.
 
 ### Changed
 - The Ground View datablock — and a new **Fix** column in the Aircraft List — now show the ASDE-style fix instead of the destination airport: a departure's exit fix or the destination, chosen per the airport's ASDE-X/SAID facility configuration (falling back to the destination when no fix rule applies). This matches how a real ASDE-X / tower surface display labels each target.
