@@ -209,6 +209,7 @@ public sealed class SimulationEngine
             Scenario.SoloParkingInitialCallupRatePercent = scenarioDto.SoloParkingInitialCallupRatePercent;
             Scenario.SoloArrivalGeneratorRatePercent = scenarioDto.SoloArrivalGeneratorRatePercent;
             Scenario.SoloGoAroundProbabilityPercent = ScenarioPacing.ClampGoAroundProbabilityPercent(scenarioDto.SoloGoAroundProbabilityPercent);
+            Scenario.FinalApproachSpeedVarietyEnabled = scenarioDto.FinalApproachSpeedVarietyEnabled;
             Scenario.HasSoloParkingInitialCallupSource = scenarioDto.HasSoloParkingInitialCallupSource;
             Scenario.HasSoloArrivalGeneratorSource = scenarioDto.HasSoloArrivalGeneratorSource;
             Scenario.NextSoloParkingInitialCallupSlotSeconds = scenarioDto.NextSoloParkingInitialCallupSlotSeconds;
@@ -1088,6 +1089,14 @@ public sealed class SimulationEngine
             {
                 Scenario.MetarReissuanceEnabled = recording.MetarReissuanceEnabled;
             }
+        }
+
+        // FAS-reduction variety was captured from the recording's initial snapshot: on for
+        // sessions recorded with the feature, off for pre-feature recordings so they re-simulate
+        // with the original uniform slow-down.
+        if (Scenario is not null)
+        {
+            Scenario.FinalApproachSpeedVarietyEnabled = recording.FinalApproachSpeedVarietyEnabled;
         }
 
         // Deserialize the bundled ARTCC config so TrackResolver's TCP/ERAM fallback works
@@ -2069,6 +2078,7 @@ public sealed class SimulationEngine
             ScenarioId = Scenario?.ScenarioId,
             SoloParkingInitialCallupRatePercent = Scenario?.SoloParkingInitialCallupRatePercent ?? 100,
             SoloGoAroundProbabilityPercent = Scenario?.SoloGoAroundProbabilityPercent ?? 0,
+            FinalApproachSpeedVarietyEnabled = Scenario?.FinalApproachSpeedVarietyEnabled ?? false,
             Rng = World.Rng,
             TryReserveSoloParkingInitialCallupSlot = TryReserveSoloParkingInitialCallupSlot,
             RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,

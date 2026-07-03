@@ -32,6 +32,19 @@ public class AircraftApproachState
     public string? FollowingCallsign { get; set; }
 
     /// <summary>
+    /// Per-aircraft distance-from-threshold (NM) at which this aircraft settles at final
+    /// approach speed (Vref) on final. Assigned once at spawn from the aircraft's identity so
+    /// each aircraft slows down at its own distance — reproducing the live-network spread where
+    /// pilots reduce to FAS anywhere from the tight ~2 NM competent floor out to ~5 NM (a draggy
+    /// early slow-down that compresses the arrival stream). <see cref="Phases.Tower.FinalApproachPhase"/>
+    /// reads this and slides its whole two-stage decel profile outward accordingly. Null falls
+    /// back to the phase's default <c>FasReachGateNm</c> (2.0 NM), so aircraft from pre-feature
+    /// recordings and directly-constructed test aircraft keep the original tight behavior.
+    /// Snapshot-serialized so the decision is durable across rewind, restore, and replay.
+    /// </summary>
+    public double? FinalApproachFasReachGateNm { get; set; }
+
+    /// <summary>
     /// Smallest gap (nm) seen to the follow target since the current FOLLOW was issued.
     /// Used by <see cref="Phases.AirborneFollowHelper.CheckLeadLifecycle"/> to detect
     /// monotonic divergence (runaway distance). Null until first measurement; reset
@@ -112,6 +125,7 @@ public class AircraftApproachState
             HasReportedTrafficInSight = HasReportedTrafficInSight,
             LastReportedTrafficCallsign = LastReportedTrafficCallsign,
             FollowingCallsign = FollowingCallsign,
+            FinalApproachFasReachGateNm = FinalApproachFasReachGateNm,
             FollowBestGapNm = FollowBestGapNm,
             FollowRunawaySeconds = FollowRunawaySeconds,
             AutoSpacingReleased = AutoSpacingReleased,
@@ -134,6 +148,7 @@ public class AircraftApproachState
             HasReportedTrafficInSight = dto.HasReportedTrafficInSight,
             LastReportedTrafficCallsign = dto.LastReportedTrafficCallsign,
             FollowingCallsign = dto.FollowingCallsign,
+            FinalApproachFasReachGateNm = dto.FinalApproachFasReachGateNm,
             FollowBestGapNm = dto.FollowBestGapNm,
             FollowRunawaySeconds = dto.FollowRunawaySeconds,
             AutoSpacingReleased = dto.AutoSpacingReleased,

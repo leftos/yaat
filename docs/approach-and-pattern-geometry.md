@@ -334,7 +334,24 @@ anchor. Code that hard-codes the threshold breaks offset approaches.
 
 **Speed anticipation.** Inside `SpeedAnticipationThresholdNm = 2.0` the phase decelerates to `1.3 × FAS`
 (`InterceptSpeedFasMultiplier`), not FAS itself — at 250 kt the turn radius is too large and would overshoot
-(`InterceptCoursePhase.cs:106`). `FinalApproachPhase` bleeds the rest to Vref closer in.
+(`InterceptCoursePhase.cs:106`). `FinalApproachPhase` bleeds the rest to Vref closer in — at a **per-aircraft
+distance**, not a fixed one (see the FAS-reduction-variety note below).
+
+> **FAS reduction is per-aircraft.** `FinalApproachPhase`'s two-stage decel (config `1.3·Vref`, then Vref) no
+> longer settles every aircraft at the same fixed distance. When the scenario has variety enabled, each aircraft's
+> reach gate is lazily assigned on first final approach (`FinalApproachPhase.EffectiveFasReachGateNm` →
+> `FinalApproachSpeedVariety.ComputeReachGateNm`, a deterministic right-skewed distribution over callsign: floor
+> 2.0 NM competent, median ~3.0, cap 5.0) and stored on `AircraftApproachState.FinalApproachFasReachGateNm`; both
+> gates then slide outward together preserving the current offsets. This reproduces the live-network spread where
+> pilots slow to Vref anywhere from tight-and-competent out to a draggy early slow-down that compresses the arrival
+> stream.
+>
+> The enable flag is `SimScenarioState.FinalApproachSpeedVarietyEnabled` (threaded via `PhaseContext`): **off by
+> default**, turned on by the server for every live session, and captured in the recording's snapshots so replays
+> reproduce the same variety while pre-feature recordings (flag off) replay with the original uniform ~2.0 NM
+> floor. Gating on the scenario flag — not a bare per-callsign hash — is what keeps existing recordings replaying
+> byte-for-byte (replay re-simulates from the scenario JSON, so an ungated hash would retroactively alter them).
+> See [flight-physics.md](flight-physics.md) and the `FinalApproachPhase` constant comments.
 
 **Capture & intercept legality.** `Capture` records the capture distance/angle on the clearance
 (`InterceptCaptureDistanceNm`/`InterceptCaptureAngleDeg`) and runs `CheckInterceptLegality` against the approach

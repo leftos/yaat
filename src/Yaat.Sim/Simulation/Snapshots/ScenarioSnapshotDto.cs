@@ -36,6 +36,10 @@ public sealed class ScenarioSnapshotDto
     // the original behavior where AI pilots never spontaneously go around.
     public int SoloGoAroundProbabilityPercent { get; init; }
 
+    // Optional — defaults to false so older snapshots and pre-feature recordings replay with the
+    // original uniform final-approach-speed reduction.
+    public bool FinalApproachSpeedVarietyEnabled { get; init; }
+
     public bool HasSoloParkingInitialCallupSource { get; init; }
 
     public bool HasSoloArrivalGeneratorSource { get; init; }

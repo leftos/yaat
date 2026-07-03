@@ -65,6 +65,14 @@ public sealed class PhaseContext
     public int SoloGoAroundProbabilityPercent { get; init; }
 
     /// <summary>
+    /// When true, arriving aircraft slow to final approach speed at a per-aircraft distance
+    /// (<see cref="Tower.FinalApproachSpeedVariety"/>) instead of the uniform tight floor. Sourced from
+    /// <c>SimScenarioState.FinalApproachSpeedVarietyEnabled</c>: on for live sessions and their
+    /// recordings, off for pre-feature recordings so they replay unchanged.
+    /// </summary>
+    public bool FinalApproachSpeedVarietyEnabled { get; init; }
+
+    /// <summary>
     /// Shared deterministic RNG, captured on snapshot for replay fidelity. Phases that
     /// consume RNG (e.g. <see cref="Tower.FinalApproachPhase"/> solo-training go-around
     /// roll) must use this instead of <c>new Random()</c> so replays regenerate the

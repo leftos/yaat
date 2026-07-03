@@ -56,7 +56,7 @@ Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Rea
 | `Track` | `AircraftTrack` | Ownership + handoff: `Owner`, `HandoffPeer`, `HandoffRedirectedBy`, the H-state booleans, `Pointout`. | `AircraftTrack.cs:10` |
 | `Stars` | `AircraftStarsState` | Per-track STARS display: scratchpads (CRC + ASDE-X), temp/pilot altitudes, display inhibitions, TPA, per-TCP shared dict. | `AircraftStarsState.cs:10` |
 | `Eram` | `AircraftEramState` | ERAM-side display mirrored to CRC: leader/dwell overrides, interim/procedure altitudes, pending pointouts. | `AircraftEramState.cs:9` |
-| `Approach` | `AircraftApproachState` | Controller-issued expectation, deferred clearance pending fix arrival, visual-approach pilot reports. | `AircraftApproachState.cs:11` |
+| `Approach` | `AircraftApproachState` | Controller-issued expectation, deferred clearance pending fix arrival, visual-approach pilot reports, per-aircraft FAS-reduction distance (`FinalApproachFasReachGateNm`, lazily assigned on first final when variety is enabled). | `AircraftApproachState.cs:11` |
 | `Procedure` | `AircraftProcedure` | SID/STAR state: active proc + runway, via-mode flags, DSR speed/expedite flags, `LastProcedureSpeedKts`. | `AircraftProcedure.cs:9` |
 | `Pattern` | `AircraftPattern` | Per-aircraft pattern overrides (downwind offset, pattern altitude); null fields fall back to category defaults. | `AircraftPattern.cs:11` |
 | `Clearance` | `AircraftClearance` | Departure-clearance fields originating from CRC; null per-field until issued. | `AircraftClearance.cs:9` |

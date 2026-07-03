@@ -28,6 +28,15 @@ public sealed class SessionRecording
     /// </summary>
     public string? ArtccConfigJson { get; init; }
 
+    /// <summary>
+    /// Whether the recorded session had per-aircraft final-approach-speed reduction variety enabled
+    /// (read from the initial snapshot's scenario block). Replay restores it into
+    /// <c>SimScenarioState.FinalApproachSpeedVarietyEnabled</c> so the re-simulation reproduces the
+    /// same varied slow-down distances. Defaults false for pre-feature bundles, which then replay
+    /// with the original uniform behavior.
+    /// </summary>
+    public bool FinalApproachSpeedVarietyEnabled { get; init; }
+
     public required List<RecordedAction> Actions { get; init; }
     public required double TotalElapsedSeconds { get; init; }
 

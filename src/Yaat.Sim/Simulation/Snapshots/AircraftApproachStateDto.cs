@@ -8,6 +8,13 @@ public sealed class AircraftApproachStateDto
     public required bool HasReportedTrafficInSight { get; init; }
     public string? LastReportedTrafficCallsign { get; init; }
     public string? FollowingCallsign { get; init; }
+
+    /// <summary>
+    /// Per-aircraft final-approach-speed settle distance (NM). Nullable / non-required so older
+    /// snapshots default to <see langword="null"/> → the phase's 2.0 NM competent floor.
+    /// </summary>
+    public double? FinalApproachFasReachGateNm { get; init; }
+
     public double? FollowBestGapNm { get; init; }
     public double FollowRunawaySeconds { get; init; }
 

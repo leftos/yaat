@@ -343,6 +343,7 @@ public sealed class RecordingArchive : IDisposable
             RecordedAtUtc = Manifest.RecordedAtUtc,
             RecordedBy = Manifest.RecordedBy,
             StudentPositionState = ReadInitialStudentPosition(),
+            FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
         };
     }
 
@@ -365,6 +366,21 @@ public sealed class RecordingArchive : IDisposable
             scenario.StudentPositionType,
             scenario.IsStudentTowerPosition
         );
+    }
+
+    /// <summary>
+    /// Read whether FAS-reduction variety was enabled from the first snapshot's scenario block,
+    /// mirroring <see cref="ReadInitialStudentPosition"/>. Replay uses it to reproduce the same
+    /// varied slow-down distances. Returns false when the recording has no snapshots (legacy v1).
+    /// </summary>
+    private bool ReadInitialFinalApproachSpeedVariety()
+    {
+        if (Manifest.Snapshots.Count == 0)
+        {
+            return false;
+        }
+
+        return ReadTimedSnapshot(0).State.Scenario.FinalApproachSpeedVarietyEnabled;
     }
 
     /// <summary>
@@ -408,6 +424,7 @@ public sealed class RecordingArchive : IDisposable
             RecordedAtUtc = Manifest.RecordedAtUtc,
             RecordedBy = Manifest.RecordedBy,
             StudentPositionState = ReadInitialStudentPosition(),
+            FinalApproachSpeedVarietyEnabled = ReadInitialFinalApproachSpeedVariety(),
         };
     }
 

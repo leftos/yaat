@@ -55,11 +55,14 @@ public sealed class FinalApproachPhase : Phase
     private const double AimPointMinNm = 0.1;
 
     /// <summary>
-    /// Distance from threshold by which the aircraft must be settled at FAS. Anchored
-    /// between the VMC 500-ft (~1.6 NM on a 3° GS) and IMC 1000-ft (~3.2 NM) stabilized
-    /// approach gates per FAA AC 120-71 / InFO 11009. The kinematic FAS trigger is
-    /// computed as <c>FasReachGateNm + bleedDistance</c> so the aircraft hits FAS at this
-    /// distance regardless of how much speed it had to bleed.
+    /// Default / floor distance from threshold by which the aircraft settles at FAS, used when the
+    /// aircraft has no per-aircraft settle distance assigned (pre-feature recordings, direct-construct
+    /// test aircraft). Anchored between the VMC 500-ft (~1.6 NM on a 3° GS) and IMC 1000-ft (~3.2 NM)
+    /// stabilized approach gates per FAA AC 120-71 / InFO 11009. The kinematic FAS trigger is computed
+    /// as <c>reachGate + bleedDistance</c> so the aircraft hits FAS at the reach-gate distance
+    /// regardless of how much speed it had to bleed. Spawned aircraft instead carry a per-aircraft
+    /// reach gate (<see cref="FinalApproachSpeedVariety"/>) that shifts this outward for variety;
+    /// see <see cref="EffectiveFasReachGateNm"/>.
     /// </summary>
     private const double FasReachGateNm = 2.0;
 
@@ -83,10 +86,20 @@ public sealed class FinalApproachPhase : Phase
     private const double ConfigReachGateNm = 5.0;
 
     /// <summary>
-    /// Upper bound on the kinematic configuration trigger. Caps the bleed start so
-    /// even a slow-decelerating heavy doesn't begin the configuration bleed beyond a
-    /// reasonable approach-management distance (typical FAFs are 5-7 NM from the
-    /// threshold for ILS approaches at OAK/SFO/SJC).
+    /// Upper bound on the configuration reach gate as it slides outward with a large per-aircraft FAS
+    /// reach gate. Keeps even a far early-slower's first-stage (1.3·Vref) bleed from starting absurdly
+    /// early; typical ILS FAFs sit 5-7 NM out. Above the 2.0 NM floor the offset is preserved
+    /// (config = FAS + 3.0 NM) until this cap clamps it, always leaving a plateau ≥ ~2 NM.
+    /// </summary>
+    private const double ConfigReachCapNm = 7.0;
+
+    /// <summary>
+    /// Baseline upper bound on the kinematic configuration trigger — the bleed-start distance, which
+    /// slides outward with the per-aircraft reach gate as <c>configReach + (MaxConfigTriggerNm −
+    /// ConfigReachGateNm)</c>. At the 2.0 NM floor this is the original 8.0 NM (typical ILS FAFs sit
+    /// 5-7 NM out); it reaches ~10 NM only for the far early-slower tail, where 1.3·Vref that far out
+    /// is still a legal, non-draggy speed. Caps the start so even a slow-decelerating heavy doesn't
+    /// begin the configuration bleed absurdly early.
     /// </summary>
     private const double MaxConfigTriggerNm = 8.0;
 
@@ -389,6 +402,7 @@ public sealed class FinalApproachPhase : Phase
         double approachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
         double configSpeed = approachSpeed * ConfigSpeedMultiplier;
         double decelRate = AircraftPerformance.DecelRate(ctx.AircraftType, ctx.Category);
+        double reachGate = EffectiveFasReachGateNm(ctx);
 
         double startDist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon));
 
@@ -398,7 +412,13 @@ public sealed class FinalApproachPhase : Phase
         // the stabilized window. If already at or below configSpeed (small jets, or
         // aircraft handed off from InterceptCoursePhase post-1.3·FAS), short-circuit
         // _configSet and leave TargetSpeed alone so OnTick can fire FAS later.
-        double startFasTrigger = ComputeFasTriggerDistanceNm(ctx.Aircraft.IndicatedAirspeed, approachSpeed, ctx.Aircraft.GroundSpeed, decelRate);
+        double startFasTrigger = ComputeFasTriggerDistanceNm(
+            ctx.Aircraft.IndicatedAirspeed,
+            approachSpeed,
+            ctx.Aircraft.GroundSpeed,
+            decelRate,
+            reachGate
+        );
         if (startDist <= startFasTrigger)
         {
             ctx.Targets.TargetSpeed = approachSpeed;
@@ -411,7 +431,8 @@ public sealed class FinalApproachPhase : Phase
                 ctx.Aircraft.IndicatedAirspeed,
                 configSpeed,
                 ctx.Aircraft.GroundSpeed,
-                decelRate
+                decelRate,
+                reachGate
             );
             if (startDist <= startConfigTrigger)
             {
@@ -570,7 +591,8 @@ public sealed class FinalApproachPhase : Phase
         {
             double fas = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double decelRate = AircraftPerformance.DecelRate(ctx.AircraftType, ctx.Category);
-            double fasTrigger = ComputeFasTriggerDistanceNm(ctx.Aircraft.IndicatedAirspeed, fas, ctx.Aircraft.GroundSpeed, decelRate);
+            double reachGate = EffectiveFasReachGateNm(ctx);
+            double fasTrigger = ComputeFasTriggerDistanceNm(ctx.Aircraft.IndicatedAirspeed, fas, ctx.Aircraft.GroundSpeed, decelRate, reachGate);
             if (distNm <= fasTrigger)
             {
                 ctx.Targets.TargetSpeed = fas;
@@ -593,7 +615,8 @@ public sealed class FinalApproachPhase : Phase
                         ctx.Aircraft.IndicatedAirspeed,
                         configSpeed,
                         ctx.Aircraft.GroundSpeed,
-                        decelRate
+                        decelRate,
+                        reachGate
                     );
                     if (distNm <= configTrigger)
                     {
@@ -1057,11 +1080,60 @@ public sealed class FinalApproachPhase : Phase
         return Math.Min(trigger, maxTriggerNm);
     }
 
-    private static double ComputeFasTriggerDistanceNm(double ias, double fas, double groundSpeed, double decelRateKtsPerSec) =>
-        ComputeKinematicTriggerNm(ias, fas, groundSpeed, decelRateKtsPerSec, FasReachGateNm, MaxFasTriggerNm);
+    /// <summary>
+    /// Resolves this aircraft's FAS reach gate. Once assigned, the stored per-aircraft settle
+    /// distance (<see cref="AircraftApproachState.FinalApproachFasReachGateNm"/>) wins — so it is
+    /// stable across ticks and durable across snapshot / rewind / replay. When unset and the scenario
+    /// has FAS-reduction variety enabled (live sessions and their recordings), it is lazily assigned
+    /// from the deterministic per-callsign distribution (<see cref="FinalApproachSpeedVariety"/>) and
+    /// stored. When variety is disabled (pre-feature recordings, direct-construct test aircraft), it
+    /// falls back to the tight competent <see cref="FasReachGateNm"/> floor — reproducing the original
+    /// uniform behavior so those replays stay faithful. Gating on the scenario flag (not a bare hash)
+    /// is what keeps existing recordings replaying byte-for-byte.
+    /// </summary>
+    private static double EffectiveFasReachGateNm(PhaseContext ctx)
+    {
+        if (ctx.Aircraft.Approach.FinalApproachFasReachGateNm is { } stored)
+        {
+            return stored;
+        }
 
-    private static double ComputeConfigTriggerDistanceNm(double ias, double configSpeed, double groundSpeed, double decelRateKtsPerSec) =>
-        ComputeKinematicTriggerNm(ias, configSpeed, groundSpeed, decelRateKtsPerSec, ConfigReachGateNm, MaxConfigTriggerNm);
+        if (!ctx.FinalApproachSpeedVarietyEnabled)
+        {
+            return FasReachGateNm;
+        }
+
+        double gate = FinalApproachSpeedVariety.ComputeReachGateNm(ctx.Aircraft.Callsign);
+        ctx.Aircraft.Approach.FinalApproachFasReachGateNm = gate;
+        return gate;
+    }
+
+    // The FAS and configuration gates slide outward together as the per-aircraft reach gate grows,
+    // preserving today's fixed offsets so an aircraft on the 2.0 NM floor reproduces the original
+    // constants exactly (fasReach 2.0 / maxFasTrigger 5.0 / configReach 5.0 / maxConfigTrigger 8.0).
+    // The configuration reach is capped so even a far early-slower doesn't start its first-stage
+    // bleed absurdly early; the FAS gate always leads to a real 1.3·Vref plateau.
+    private static double ComputeFasTriggerDistanceNm(double ias, double fas, double groundSpeed, double decelRateKtsPerSec, double fasReachGateNm) =>
+        ComputeKinematicTriggerNm(ias, fas, groundSpeed, decelRateKtsPerSec, fasReachGateNm, fasReachGateNm + (MaxFasTriggerNm - FasReachGateNm));
+
+    private static double ComputeConfigTriggerDistanceNm(
+        double ias,
+        double configSpeed,
+        double groundSpeed,
+        double decelRateKtsPerSec,
+        double fasReachGateNm
+    )
+    {
+        double configReach = Math.Min(fasReachGateNm + (ConfigReachGateNm - FasReachGateNm), ConfigReachCapNm);
+        return ComputeKinematicTriggerNm(
+            ias,
+            configSpeed,
+            groundSpeed,
+            decelRateKtsPerSec,
+            configReach,
+            configReach + (MaxConfigTriggerNm - ConfigReachGateNm)
+        );
+    }
 
     /// <summary>
     /// Genuine-offset (≥ <see cref="OffsetApproachThresholdDeg"/>) ramp-start AGL derived

@@ -78,6 +78,15 @@ public sealed class SimScenarioState
     /// </summary>
     public int SoloGoAroundProbabilityPercent { get; set; }
 
+    /// <summary>
+    /// When true, arriving aircraft slow to final approach speed at a per-aircraft distance
+    /// (right-skewed 2.0-5.0 NM, deterministic per callsign) instead of the uniform tight floor,
+    /// reproducing the live-network spread. Defaults false here so pre-feature recordings replay
+    /// faithfully; the server turns it on for every live session (and its rewinds), and it is
+    /// captured in the recording's snapshots so replays reproduce the same variety.
+    /// </summary>
+    public bool FinalApproachSpeedVarietyEnabled { get; set; }
+
     public bool HasSoloParkingInitialCallupSource { get; set; }
 
     public bool HasSoloArrivalGeneratorSource { get; set; }
@@ -200,6 +209,7 @@ public sealed class SimScenarioState
             SoloParkingInitialCallupRatePercent = SoloParkingInitialCallupRatePercent,
             SoloArrivalGeneratorRatePercent = SoloArrivalGeneratorRatePercent,
             SoloGoAroundProbabilityPercent = SoloGoAroundProbabilityPercent,
+            FinalApproachSpeedVarietyEnabled = FinalApproachSpeedVarietyEnabled,
             HasSoloParkingInitialCallupSource = HasSoloParkingInitialCallupSource,
             HasSoloArrivalGeneratorSource = HasSoloArrivalGeneratorSource,
             NextSoloParkingInitialCallupSlotSeconds = NextSoloParkingInitialCallupSlotSeconds,

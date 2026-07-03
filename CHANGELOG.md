@@ -7,6 +7,9 @@
 - Pushing an aircraft back to a spot or gate (`PUSH $5A`, `PUSH @B13`) now reverses straight there instead of routing onto an adjacent taxiway and back.
 - Taxiing via a taxiway through a complex intersection no longer sends the aircraft the wrong way. Previously, e.g. `TAXI C D @NEW1` at Oakland could turn an aircraft the wrong way onto C — away from the parking — looping across a runway before doubling back to the spot; it now heads directly to the destination.
 
+### Changed
+- **Arriving aircraft now vary how far out they slow to final approach speed.** Instead of every arrival reducing to its final approach speed at the same tight ~2 NM from the runway, each aircraft picks its own distance — most settle around 2–3.5 NM, but some slow to final approach speed as far as 5 NM out, reproducing the live-network spread where virtual pilots reduce early and compress the arrival stream. The distance is fixed per aircraft and reproduces the same way in replays.
+
 ## v0.8.8-beta [2026/07/02]
 
 ### Highlights
