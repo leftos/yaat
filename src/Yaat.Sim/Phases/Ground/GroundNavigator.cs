@@ -122,6 +122,28 @@ public sealed class GroundNavigator
     /// </summary>
     private const double ReacquireSpeedKts = 5.0;
 
+    /// <summary>
+    /// Maximum total straight-run length (feet) between two bracketing turns for that run to count as a
+    /// <em>short connector</em> — a lane change across parallel taxiways via a short cross taxiway (e.g. SFO
+    /// A→F1→B, ~228 ft of straight F1 between the A/F1 and F1/B ~90° corners). At or below this a real crew
+    /// flows through as one continuous low-speed maneuver rather than settling wings-level on the connector
+    /// centerline and accelerating between the two turns (AC 120-74B; aviation-reviewed, ~connector
+    /// center-to-center ≲ 250 ft for narrowbodies). The navigator holds <see cref="_connectorFlowSpeedKts"/>
+    /// across such a run instead of surging up to the braking-curve ceiling and braking back down (issue
+    /// #236). Above this a genuine straight segment exists and the normal accelerate-then-brake profile is
+    /// correct.
+    /// </summary>
+    private const double ShortConnectorMaxLenFt = 250.0;
+
+    /// <summary>
+    /// Heading change (degrees) between two consecutive straight segments (or a fillet <see cref="GroundArc"/>
+    /// segment) that marks a <em>turn</em> bracketing a short connector. Well above a chord-chain tessellation
+    /// bend and below the ~90° lane-change corners. The connector's flow-speed cap is derived from the turn
+    /// angle, so a gentle bracketing turn yields a high (no-op) cap and only genuinely sharp corners slow the
+    /// transit — the length window alone never forces a slowdown.
+    /// </summary>
+    private const double ConnectorCornerThresholdDeg = 30.0;
+
     public int TargetNodeId { get; private set; }
     public double TargetLat { get; private set; }
     public double TargetLon { get; private set; }
@@ -233,6 +255,23 @@ public sealed class GroundNavigator
     /// brakes straight to the node. Set by <see cref="BuildSpeedConstraints"/>.
     /// </summary>
     private bool _nextSegmentIsShort;
+
+    /// <summary>
+    /// True when the current straight segment is part of a <em>short connector</em> — a straight run
+    /// bracketed by two fillet corner arcs within <see cref="ShortConnectorMaxLenFt"/> (a lane change across
+    /// parallel taxiways, e.g. SFO A→F1→B). While set, <see cref="ComputeTargetSpeed"/> caps the target to
+    /// <see cref="_connectorFlowSpeedKts"/> so the aircraft flows through at a steady low speed instead of
+    /// accelerating on the short straight and braking back down for the next turn (issue #236). Recomputed
+    /// each <see cref="BuildSpeedConstraints"/> from the route, so it round-trips through a snapshot for free.
+    /// </summary>
+    private bool _onShortConnector;
+
+    /// <summary>
+    /// Speed cap (knots) held across a <see cref="_onShortConnector"/> run: the higher of the two bracketing
+    /// corner arcs' <see cref="GroundArc.MaxSafeSpeedKts"/> — the aircraft flows through at the gentler
+    /// corner's speed rather than surging. <see cref="double.MaxValue"/> (no cap) when not on a short connector.
+    /// </summary>
+    private double _connectorFlowSpeedKts = double.MaxValue;
 
     /// <summary>
     /// Net signed heading change (degrees) accumulated since the current segment was set up. Reset to 0
@@ -1026,7 +1065,121 @@ public sealed class GroundNavigator
         double normalized = Math.Clamp(angleDiff / 90.0, 0.0, 1.0);
         double speedFraction = Math.Max(0.03, 1.0 - normalized * normalized);
 
-        return Math.Min(MaxSpeedKts * speedFraction, brakingLimit);
+        double target = Math.Min(MaxSpeedKts * speedFraction, brakingLimit);
+
+        // Short-connector transit: hold a steady low speed across a short straight bracketed by two fillet
+        // corner arcs (a lane change like SFO A→F1→B) instead of accelerating up to the braking-curve ceiling
+        // on the connector and slamming back down for the next turn — a real crew flows through as one
+        // continuous low-speed maneuver (issue #236; aviation-reviewed).
+        if (_onShortConnector)
+        {
+            target = Math.Min(target, _connectorFlowSpeedKts);
+        }
+
+        return target;
+    }
+
+    /// <summary>
+    /// Detect a <em>short connector</em>: the current straight segment sits in a straight run bracketed on
+    /// both ends by a turn (a fillet <see cref="GroundArc"/> or a &gt; <see cref="ConnectorCornerThresholdDeg"/>
+    /// heading change between straights) whose total length is at most <see cref="ShortConnectorMaxLenFt"/> —
+    /// a lane change across parallel taxiways via a short cross taxiway (SFO A→F1→B). Sets
+    /// <see cref="_onShortConnector"/> and <see cref="_connectorFlowSpeedKts"/> (the higher of the two
+    /// bracketing corners' comfortable speeds) so the aircraft flows through at a steady low speed rather than
+    /// accelerating on the short straight and braking back down for the next turn (issue #236).
+    ///
+    /// <para>
+    /// Only straight segments qualify — an arc already self-caps via its own max-safe-speed. The cap is
+    /// self-limiting: a gentle bracketing turn yields a high (no-op) flow speed, so the length window alone
+    /// never slows a run; only genuinely sharp corners (the ~90° lane-change turns) pull the cap down. Both
+    /// ends must be a turn, so a single corner or a from-rest spot-exit pivot (one turn, then a long straight)
+    /// is unaffected. Direction-agnostic — an S-turn (lane change) and a compounding turn both benefit.
+    /// Recomputed each call, so it round-trips through a snapshot for free.
+    /// </para>
+    /// </summary>
+    private void DetectShortConnector(TaxiRoute route, PhaseContext ctx, TaxiRouteSegment seg)
+    {
+        _onShortConnector = false;
+        _connectorFlowSpeedKts = double.MaxValue;
+
+        if (seg.Edge.Edge is GroundArc)
+        {
+            return;
+        }
+
+        double runFt = seg.Edge.DistanceNm * GeoMath.FeetPerNm;
+
+        double? behindSpeed = FindBracketingCornerSpeed(route, ctx, route.CurrentSegmentIndex, dir: -1, ref runFt);
+        if (behindSpeed is null)
+        {
+            return;
+        }
+
+        double? aheadSpeed = FindBracketingCornerSpeed(route, ctx, route.CurrentSegmentIndex, dir: +1, ref runFt);
+        if (aheadSpeed is null)
+        {
+            return;
+        }
+
+        _onShortConnector = true;
+        _connectorFlowSpeedKts = Math.Max(behindSpeed.Value, aheadSpeed.Value);
+
+        Log.LogDebug(
+            "[Nav] short-connector transit seg={SegIdx}/{Total} runFt={Run:F0} flowKts={Flow:F1}",
+            route.CurrentSegmentIndex,
+            route.Segments.Count,
+            runFt,
+            _connectorFlowSpeedKts
+        );
+    }
+
+    /// <summary>
+    /// Walk from <paramref name="idx"/> in direction <paramref name="dir"/> (-1 behind, +1 ahead) over
+    /// straight continuation segments, adding their length to <paramref name="runFt"/>, until the bracketing
+    /// turn: a <see cref="GroundArc"/> neighbor (→ its <see cref="GroundArc.MaxSafeSpeedKts"/>) or a
+    /// &gt; <see cref="ConnectorCornerThresholdDeg"/> heading change at the intervening node
+    /// (→ <see cref="CategoryPerformance.CornerSpeedForAngle"/>). Returns that corner's comfortable speed, or
+    /// null when the run runs off the route (no bracketing turn) or exceeds <see cref="ShortConnectorMaxLenFt"/>.
+    /// </summary>
+    private static double? FindBracketingCornerSpeed(TaxiRoute route, PhaseContext ctx, int idx, int dir, ref double runFt)
+    {
+        int i = idx;
+        while (true)
+        {
+            int next = i + dir;
+            if (next < 0 || next >= route.Segments.Count)
+            {
+                return null;
+            }
+
+            var neighbor = route.Segments[next];
+            if (neighbor.Edge.Edge is GroundArc arc)
+            {
+                return arc.MaxSafeSpeedKts(ctx.Category);
+            }
+
+            // Turn angle at the node between segment i and its neighbor. SingleCornerTurnAngle(route, k) reads
+            // the turn at the node ending segment k, so index by the lower of the two segments.
+            double turn = SingleCornerTurnAngle(route, dir < 0 ? next : i);
+            if (turn > ConnectorCornerThresholdDeg)
+            {
+                // A sharp corner (over the entry-alignment threshold) is rounded by a nose-wheel-radius
+                // slow-turn at ~TurnRateLimitedSpeedKts (~5 kt for a jet), well below the angle-only comfort
+                // cap; a gentler one is taken at the angle comfort speed. Use the actual traversal speed so
+                // the whole connector holds one steady low speed rather than surging between the turns.
+                return turn > EntryAlignmentThresholdDeg
+                    ? CategoryPerformance.TurnRateLimitedSpeedKts(ctx.Category, CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category))
+                    : CategoryPerformance.CornerSpeedForAngle(ctx.Category, turn);
+            }
+
+            // Straight continuation — extend the run and keep walking outward.
+            runFt += neighbor.Edge.DistanceNm * GeoMath.FeetPerNm;
+            if (runFt > ShortConnectorMaxLenFt)
+            {
+                return null;
+            }
+            i = next;
+        }
     }
 
     private void BuildSpeedConstraints(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
@@ -1042,6 +1195,8 @@ public sealed class GroundNavigator
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
 
         _cornerRoundingRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+
+        DetectShortConnector(route, ctx, seg);
 
         if (!isHoldShortCleared(TargetNodeId))
         {

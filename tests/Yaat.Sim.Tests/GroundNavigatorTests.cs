@@ -258,6 +258,73 @@ public class GroundNavigatorTests
         Assert.True(maxTickDelta < 30.0, $"per-tick heading delta {maxTickDelta:F1}° exceeds 30° — heading is snapping");
     }
 
+    // ---- Short-connector transit (issue #236) ----
+
+    /// <summary>
+    /// Lane change across parallel taxiways: a south leg (A) → 90° onto a short east connector (F1) → 90°
+    /// onto a south leg (B). The 200 ft connector straight is bracketed by two ~90° turns within the
+    /// short-connector length, so the navigator holds the corner flow speed across it instead of accelerating
+    /// on the straight and braking back down for the second turn (issue #236 — SFO A→F1→B). Without the fix
+    /// the braking curve alone permits ~20+ kt on the connector straight. The peak is measured only once the
+    /// aircraft is aligned to the connector centerline (heading within 20° of the 90° east bearing), i.e. on
+    /// the straight itself — the entry corner is a separate slow-turn whose speed depends on leg geometry.
+    /// </summary>
+    [Fact]
+    public void ShortConnector_HoldsSteadyLowSpeed_NoSurge()
+    {
+        var n0 = MakeNode(1, 37.0, -122.0);
+        var (l1, o1) = GeoMath.ProjectPoint(n0.Position, new TrueHeading(180.0), 120.0 / GeoMath.FeetPerNm);
+        var n1 = MakeNode(2, l1, o1);
+        var (l2, o2) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), 200.0 / GeoMath.FeetPerNm);
+        var n2 = MakeNode(3, l2, o2);
+        var (l3, o3) = GeoMath.ProjectPoint(n2.Position, new TrueHeading(180.0), 200.0 / GeoMath.FeetPerNm);
+        var n3 = MakeNode(4, l3, o3);
+
+        var route = new TaxiRoute
+        {
+            Segments = [MakeStraightSegment(n0, n1, "A"), MakeStraightSegment(n1, n2, "F1"), MakeStraightSegment(n2, n3, "B")],
+            HoldShortPoints = [],
+        };
+
+        var (aircraft, ctx) = MakeFixture(n0.Position, acHeadingDeg: 180.0, startSpeedKts: 10.0);
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        nav.SetupSegment(route, ctx, _ => true);
+
+        double peakOnConnectorStraight = 0.0;
+        int straightTicks = 0;
+        for (int tick = 0; tick < 4000; tick++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            bool last = route.CurrentSegmentIndex == route.Segments.Count - 1;
+            var result = nav.Tick(ctx, last, _ => true);
+
+            bool alignedToConnector = new TrueHeading(aircraft.TrueHeading.Degrees).AbsAngleTo(new TrueHeading(90.0)) < 20.0;
+            if (route.CurrentSegmentIndex == 1 && alignedToConnector)
+            {
+                peakOnConnectorStraight = Math.Max(peakOnConnectorStraight, aircraft.IndicatedAirspeed);
+                straightTicks++;
+            }
+
+            if (result == NavigatorResult.ArrivedAtNode)
+            {
+                if (last)
+                {
+                    break;
+                }
+                route.CurrentSegmentIndex++;
+                nav.SetupSegment(route, ctx, _ => true);
+            }
+        }
+
+        _out.WriteLine($"ShortConnector: straightTicks={straightTicks} peakOnConnectorStraight={peakOnConnectorStraight:F1}kt");
+
+        Assert.True(straightTicks > 0, "aircraft never traversed the connector straight aligned to its centerline");
+        Assert.True(
+            peakOnConnectorStraight <= 8.0,
+            $"short connector straight should hold a steady low speed (~5 kt), not surge; peaked at {peakOnConnectorStraight:F1} kt"
+        );
+    }
+
     /// <summary>
     /// Aircraft already aligned with the first segment within tolerance —
     /// entry alignment must NOT inject a slow-turn. Verify by asserting the
