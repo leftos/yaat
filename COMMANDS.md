@@ -384,7 +384,9 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Holding pattern | `HOLDP SUNOL R 180 1M` | `HOLD` (with args) | — |
 | Expect approach | `EAPP I28R` | `EXPECT` | — |
 | Follow traffic | `FOLLOW UAL456` / `FOLLOW` | `FOL` | Callsign optional — bare `FOLLOW` defaults to last in-sight traffic |
-| Visual approach | `CVA 28R` | `VISUAL` | — |
+| Follow traffic (forced) | `FOLLOWF UAL456` | `FOLF` | RPO-only; folds `RTISF` in, no prior `RTIS` needed |
+| Visual approach | `CVA 28R` | `VISUAL` | Requires field-in-sight first (`RFIS`) |
+| Visual approach (forced) | `CVAF 28R` | `VISUALF` | RPO-only; folds `RFISF` (and `RTISF` when following) in |
 | Report field | `RFIS 11 18` | `RFIS` (RPO shorthand) | Descriptive form required in solo training |
 | Report field (forced) | `RFISF` | — | RPO-only |
 | Report traffic | `RTIS 3 5 W B737 024` | `RTIS` (RPO shorthand) | Descriptive form required in solo training; altitude optional (`RTIS 3 5 W B737`) |
@@ -864,7 +866,7 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 
 **Mid-pattern runway / direction switches** — `MLT 28L` (or `MRT 28R`) issued while the aircraft is on an active Upwind / Crosswind / Downwind / Base rebuilds the phase chain from the current leg with the new direction and runway. If the aircraft is on the wrong physical side for the new pattern (e.g., on the upwind from a 28R touch-and-go when switched to 28L left traffic), a midfield-crossing leg is inserted automatically so the aircraft crosses to the correct side before joining downwind — equivalent to `ELD 28L` from that position.
 
-`FOLLOW` is a **VFR-only** command (per 7110.65 §7-6-7 "Sequencing"). It requires the pilot to have reported the traffic in sight first (`RTIS` or the forced `RTISF` in RPO mode; structured `RTIS` in solo training) — a pilot cannot follow traffic they haven't visually acquired. Once `HasReportedTrafficInSight` is set, `FOLLOW` works from any airborne state — you do not need to put the follower in a pattern first. Behavior depends on where the follower and lead are:
+`FOLLOW` is a **VFR-only** command (per 7110.65 §7-6-7 "Sequencing"). It requires the pilot to have reported the traffic in sight first (`RTIS` or the forced `RTISF` in RPO mode; structured `RTIS` in solo training) — a pilot cannot follow traffic they haven't visually acquired. The one-shot **`FOLLOWF`** (`FOLF`, RPO-only, rejected in solo training) folds the `RTISF` into the follow, so you can issue it without a separate `RTIS`/`RTISF` first. Once `HasReportedTrafficInSight` is set, `FOLLOW` works from any airborne state — you do not need to put the follower in a pattern first. Behavior depends on where the follower and lead are:
 
 - **Free pursuit** (lead not yet in a pattern, or follower far from the pattern): the follower flies a trail behind the lead rather than aiming its nose at the lead's instantaneous position (AIM §5-5-12 — the pilot maneuvers as necessary to keep in-trail separation). Steering is relative to the lead's ground track: far behind, it lag-pursues a point at the desired distance behind the lead and curves into trail; once established, it flies parallel to the lead's track with only a gentle cross-track correction; when too close, it slows first and — if it's already at approach speed and slowing alone can't open the gap — makes a shallow widen (a few degrees off the lead's track, AIM §4-3-5) to bleed distance. Speed still tracks the lead with distance-based correction (±20 kts, wider free-flight spacing of 1.5/2.0/3.5 nm by category). Altitude is left at whatever the controller last assigned — real pilots do not dive/climb onto the lead; they maintain visual separation from their current level. (When the lead is nearly stopped, its ground track is unreliable, so the follower simply points at it.)
 - **Pattern auto-join** (lead is in a pattern phase, follower within 3 nm of the lead's downwind abeam point, within 5 nm of the lead, and on the correct side of the runway): the follower's phase list is rebuilt with `PatternEntryPhase → DownwindPhase → BasePhase → FinalApproachPhase → LandingPhase` copying the lead's runway, pattern direction, and altitude. From then on, the existing pattern-tight spacing (1.0/1.5/2.0 nm) and extend-downwind logic take over. While the lead is ahead of the follower in the pattern (on base or final to the same runway), the follower holds its base turn — extending the downwind up to 4 nm past its normal base-turn point — until turning base would roll it out at least the category spacing behind the lead, so it sequences in trail instead of cutting inside and overtaking it. If it reaches that 4 nm cap before it has spacing, it turns base and reports the spacing is tight.
@@ -878,7 +880,7 @@ The callsign argument is **optional**. A bare `FOLLOW` defaults to the most rece
 
 Follow is cancelled automatically when the lead disappears, the follower can't maintain separation at minimum speed, or the gap to the lead has been growing for more than 30 seconds (runaway-distance cancel). When the lead *lands*, the follower is sequenced onto its runway's final (straight-in case above) if a runway was captured; otherwise the follow is cancelled. Any subsequent vector command (`FH`, `CM`, `SPD`, etc.) clears the follow phase and returns control to the controller's direct targets. To retarget, just issue another `FOLLOW` with a different callsign — the existing phase updates in place.
 
-For **IFR** visual approaches, use `CVA 28R FOLLOW AAL123` instead — a distinct clearance that requires the pilot to have reported traffic in sight first.
+For **IFR** visual approaches, use `CVA 28R FOLLOW AAL123` instead — a distinct clearance that requires the pilot to have reported the traffic in sight first (or the one-shot `CVAF`).
 
 ### Approach Options
 
@@ -948,14 +950,15 @@ Approach clearances use FAA [CIFP](#glossary) procedure data. Approach IDs can b
 
 **Force direct to:** `DCTF` works like `DCT` but bypasses the check that the target fix must be on or ahead of the current route.
 
-**Visual approach:** `CVA 28R` clears the aircraft for a visual approach to runway 28R. No CIFP procedure is required — the aircraft navigates visually. **Requires an IFR flight plan**; VFR pattern entry uses `ELD`/`ERD`/`SI`. Pattern-entry geometry is sized for an IFR aircraft being vectored from cruise: downwind altitude is held at 2000 ft AGL above the field (clear of standard 1000 ft VFR pattern traffic), and parallel-runway pattern deconfliction does not apply. Options:
+**Visual approach:** `CVA 28R` clears the aircraft for a visual approach to runway 28R. No CIFP procedure is required — the aircraft navigates visually. **Requires an IFR flight plan**; VFR pattern entry uses `ELD`/`ERD`/`SI`. Per 7110.65 §7-4-3 the pilot must have reported **either** the field in sight (`RFIS`/`RFISF`) when number-one, **or** the preceding traffic in sight (`RTIS`/`RTISF`) when given a `FOLLOW` clause — a following aircraft need not report the field (§7-4-3.a.2 NOTE). Without the required report `CVA` is rejected (*"Field not in sight — issue RFIS first"* / *"Traffic not in sight — issue RTIS first"*). Visual separation is not authorized behind a **super**, so `CVA … FOLLOW` a super is refused. The one-shot **`CVAF`** (`VISUALF`, RPO-only, rejected in solo training) folds the required `RFISF`/`RTISF` into the clearance so no separate report is needed. Pattern-entry geometry is sized for an IFR aircraft being vectored from cruise: downwind altitude is held at 2000 ft AGL above the field (clear of standard 1000 ft VFR pattern traffic), and parallel-runway pattern deconfliction does not apply. Options:
 
 | Command | Effect |
 |---------|--------|
-| `CVA 28R` | Cleared visual approach runway 28R |
+| `CVA 28R` | Cleared visual approach runway 28R (requires RFIS first) |
 | `CVA 28R LEFT` | Visual approach with left traffic pattern |
 | `CVA 28R RIGHT` | Visual approach with right traffic pattern |
-| `CVA 28R FOLLOW AAL123` | Visual approach following AAL123 (requires RTIS first) |
+| `CVA 28R FOLLOW AAL123` | Visual approach following AAL123 (requires RTIS first; not authorized behind a super) |
+| `CVAF 28R` | Forced visual approach — bypasses the RFIS/RTIS prerequisites (RPO-only) |
 
 The aircraft execution path depends on its position relative to the runway:
 - **Straight-in** (≤30° off final course): flies directly to final approach and landing

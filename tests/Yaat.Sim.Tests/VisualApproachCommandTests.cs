@@ -1,4 +1,4 @@
-﻿using Xunit;
+using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
@@ -63,6 +63,8 @@ public class VisualApproachCommandTests : IDisposable
         return TestNavDbFactory.WithRunways(runway);
     }
 
+    private static DispatchContext Ctx(bool soloTrainingMode = false) => TestDispatch.Context(Random.Shared, soloTrainingMode: soloTrainingMode);
+
     // -------------------------------------------------------------------------
     // Straight-in (angle off ≤ 30°)
     // -------------------------------------------------------------------------
@@ -72,8 +74,9 @@ public class VisualApproachCommandTests : IDisposable
     {
         // Aircraft heading ~280 toward runway heading 280 → angle off = 0°
         var aircraft = MakeAircraft(heading: 280);
-        var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+        aircraft.Approach.HasReportedFieldInSight = true;
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null, false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -96,8 +99,9 @@ public class VisualApproachCommandTests : IDisposable
     {
         // Aircraft heading 220° toward runway heading 280° → 60° off
         var aircraft = MakeAircraft(heading: 220);
-        var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+        aircraft.Approach.HasReportedFieldInSight = true;
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null, false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
         Assert.True(result.Success);
         var phases = aircraft.Phases!.Phases.Where(p => p.Status is PhaseStatus.Active or PhaseStatus.Pending).ToList();
@@ -114,14 +118,59 @@ public class VisualApproachCommandTests : IDisposable
     {
         // Aircraft heading 100° toward runway heading 280° → 180° off
         var aircraft = MakeAircraft(heading: 100);
-        var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+        aircraft.Approach.HasReportedFieldInSight = true;
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null, false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
         Assert.True(result.Success);
         var phases = aircraft.Phases!.Phases.Where(p => p.Status is PhaseStatus.Active or PhaseStatus.Pending).ToList();
         Assert.Contains(phases, p => p is DownwindPhase);
         Assert.Contains(phases, p => p is BasePhase);
         Assert.Contains(phases, p => p is FinalApproachPhase);
+    }
+
+    // -------------------------------------------------------------------------
+    // Field-in-sight gate (7110.65 §7-4-3)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Cva_Rejects_WhenFieldNotInSight()
+    {
+        // Plain CVA requires the pilot to have the airport in sight first (RFIS).
+        var aircraft = MakeAircraft(heading: 280);
+        Assert.False(aircraft.Approach.HasReportedFieldInSight);
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null, false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
+
+        Assert.False(result.Success);
+        Assert.Contains("Field not in sight", result.Message);
+        Assert.Null(aircraft.Phases);
+    }
+
+    [Fact]
+    public void Cvaf_Succeeds_WithoutRfis()
+    {
+        // CVAF (forced) folds the RFISF in — no prior field-in-sight report needed.
+        var aircraft = MakeAircraft(heading: 280);
+        Assert.False(aircraft.Approach.HasReportedFieldInSight);
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null, true);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
+
+        Assert.True(result.Success);
+        Assert.Equal("VIS28R", aircraft.Phases!.ActiveApproach!.ApproachId);
+    }
+
+    [Fact]
+    public void Cvaf_BlockedInSoloMode()
+    {
+        // CVAF is RPO-only, like RFISF/RTISF — solo students must use RFIS first.
+        var aircraft = MakeAircraft(heading: 280);
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null, true);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx(soloTrainingMode: true));
+
+        Assert.False(result.Success);
+        Assert.Contains("RPO-only", result.Message);
+        Assert.Null(aircraft.Phases);
     }
 
     // -------------------------------------------------------------------------
@@ -132,9 +181,10 @@ public class VisualApproachCommandTests : IDisposable
     public void Cva_WithFollow_SetsFollowingCallsign()
     {
         var aircraft = MakeAircraft(heading: 280);
+        aircraft.Approach.HasReportedFieldInSight = true;
         aircraft.Approach.HasReportedTrafficInSight = true;
-        var cmd = new ClearedVisualApproachCommand("28R", null, null, "UAL456");
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, "UAL456", false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
         Assert.True(result.Success);
         Assert.Equal("UAL456", aircraft.Approach.FollowingCallsign);
@@ -149,8 +199,9 @@ public class VisualApproachCommandTests : IDisposable
     public void Cva_PatternEntry_RespectsTrafficDirection()
     {
         var aircraft = MakeAircraft(heading: 100);
-        var cmd = new ClearedVisualApproachCommand("28R", null, PatternDirection.Right, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+        aircraft.Approach.HasReportedFieldInSight = true;
+        var cmd = new ClearedVisualApproachCommand("28R", null, PatternDirection.Right, null, false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
         Assert.True(result.Success);
     }
@@ -164,8 +215,8 @@ public class VisualApproachCommandTests : IDisposable
     {
         var aircraft = MakeAircraft();
         aircraft.FlightPlan.FlightRules = "VFR";
-        var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null, false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
         Assert.False(result.Success);
         Assert.Contains("IFR", result.Message);
@@ -179,8 +230,9 @@ public class VisualApproachCommandTests : IDisposable
     public void Cva_UnknownRunway_Fails()
     {
         var aircraft = MakeAircraft();
-        var cmd = new ClearedVisualApproachCommand("99L", null, null, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+        aircraft.Approach.HasReportedFieldInSight = true;
+        var cmd = new ClearedVisualApproachCommand("99L", null, null, null, false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
         Assert.False(result.Success);
         Assert.Contains("Unknown runway", result.Message);
@@ -196,9 +248,10 @@ public class VisualApproachCommandTests : IDisposable
         // FinalApproachPhase sets its own speed target on start, so we verify
         // the explicit 210kt assignment is gone (replaced by phase speed, not 210)
         var aircraft = MakeAircraft(heading: 280);
+        aircraft.Approach.HasReportedFieldInSight = true;
         aircraft.Targets.TargetSpeed = 210;
-        var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null, false);
+        ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
         Assert.NotEqual(210, aircraft.Targets.TargetSpeed);
     }
@@ -215,8 +268,8 @@ public class VisualApproachCommandTests : IDisposable
         aircraft.Approach.HasReportedTrafficInSight = true;
         aircraft.Approach.FollowingCallsign = "OLD123";
 
-        var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+        var cmd = new ClearedVisualApproachCommand("28R", null, null, null, false);
+        ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, Ctx());
 
         Assert.False(aircraft.Approach.HasReportedFieldInSight);
         Assert.False(aircraft.Approach.HasReportedTrafficInSight);

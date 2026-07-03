@@ -101,7 +101,7 @@ public class VfrFollowPhaseTests : IDisposable
         // No current phase — the aircraft is under basic vectoring.
         Assert.Null(follower.Phases?.CurrentPhase);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.NotNull(follower.Phases);
@@ -115,7 +115,7 @@ public class VfrFollowPhaseTests : IDisposable
         var follower = MakeVfrAircraft("FOLL");
         follower.Phases = null;
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.NotNull(follower.Phases);
@@ -128,7 +128,7 @@ public class VfrFollowPhaseTests : IDisposable
         var follower = MakeVfrAircraft("FOLL");
         follower.FlightPlan.FlightRules = "IFR";
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.False(result.Success);
         Assert.Contains("VFR", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -139,7 +139,7 @@ public class VfrFollowPhaseTests : IDisposable
     {
         var follower = MakeVfrAircraft("FOLL", "C172", lat: 37.0, lon: -122.0, heading: 280, altitude: 0, ias: 0, onGround: true);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.False(result.Success);
     }
@@ -151,7 +151,7 @@ public class VfrFollowPhaseTests : IDisposable
         var follower = MakeVfrAircraft("FOLL");
         follower.Approach.HasReportedTrafficInSight = false;
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.False(result.Success);
         Assert.Contains("traffic not in sight", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -165,7 +165,7 @@ public class VfrFollowPhaseTests : IDisposable
         follower.Approach.HasReportedTrafficInSight = false;
 
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), follower, DispatchCtx());
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.IsType<VfrFollowPhase>(follower.Phases?.CurrentPhase);
@@ -176,12 +176,12 @@ public class VfrFollowPhaseTests : IDisposable
     {
         var follower = MakeVfrAircraft("FOLL");
 
-        var first = CommandDispatcher.Dispatch(new FollowCommand("LEAD1"), follower, DispatchCtx());
+        var first = CommandDispatcher.Dispatch(new FollowCommand("LEAD1", false), follower, DispatchCtx());
         Assert.True(first.Success);
         var phase1 = follower.Phases!.CurrentPhase;
         Assert.IsType<VfrFollowPhase>(phase1);
 
-        var second = CommandDispatcher.Dispatch(new FollowCommand("LEAD2"), follower, DispatchCtx());
+        var second = CommandDispatcher.Dispatch(new FollowCommand("LEAD2", false), follower, DispatchCtx());
         Assert.True(second.Success);
 
         Assert.Same(phase1, follower.Phases!.CurrentPhase);
@@ -201,7 +201,7 @@ public class VfrFollowPhaseTests : IDisposable
         var startCtx = CommandDispatcher.BuildMinimalContext(follower);
         follower.Phases.Start(startCtx);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
@@ -224,7 +224,7 @@ public class VfrFollowPhaseTests : IDisposable
         var ctx = CommandDispatcher.BuildMinimalContext(follower);
         follower.Phases.Start(ctx);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Same(downwind, follower.Phases.CurrentPhase);
@@ -244,7 +244,7 @@ public class VfrFollowPhaseTests : IDisposable
         var ctx = CommandDispatcher.BuildMinimalContext(follower);
         follower.Phases.Start(ctx);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Same(upwind, follower.Phases.CurrentPhase);
@@ -260,7 +260,7 @@ public class VfrFollowPhaseTests : IDisposable
         var ctx = CommandDispatcher.BuildMinimalContext(follower);
         follower.Phases.Start(ctx);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Same(crosswind, follower.Phases.CurrentPhase);
@@ -276,7 +276,7 @@ public class VfrFollowPhaseTests : IDisposable
         // was left dangling, leaving "following X → ..." stuck in the Aircraft List
         // Info column until something else cleared it.
         var follower = MakeVfrAircraft("FOLL");
-        var follow = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), follower, DispatchCtx());
+        var follow = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
         Assert.True(follow.Success);
         Assert.IsType<VfrFollowPhase>(follower.Phases?.CurrentPhase);
         Assert.Equal("LEAD", follower.Approach.FollowingCallsign);

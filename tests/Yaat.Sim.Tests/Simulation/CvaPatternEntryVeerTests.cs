@@ -51,8 +51,19 @@ public class CvaPatternEntryVeerTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay past ERD (t=2320), CVA (t=2394), CLAND (t=2400)
-        engine.Replay(recording, 2405);
+        // The recording issued CVA 28R (t=2394) without a prior RFIS — valid before CVA
+        // gained a field-in-sight gate (7110.65 §7-4-3). Replay to just before the CVA,
+        // inject the field-in-sight the pilot had (but never reported via a command), then
+        // step through CVA (t=2394) and CLAND (t=2400) so the >90° pattern-entry geometry
+        // under test is still exercised.
+        engine.Replay(recording, 2393);
+        var preCva = engine.FindAircraft("N3212L");
+        Assert.NotNull(preCva);
+        preCva.Approach.HasReportedFieldInSight = true;
+        for (int t = 2394; t <= 2405; t++)
+        {
+            engine.ReplayOneSecond();
+        }
 
         var ac = engine.FindAircraft("N3212L");
         Assert.NotNull(ac);

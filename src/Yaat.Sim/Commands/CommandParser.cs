@@ -754,7 +754,8 @@ public static class CommandParser
             Resume => GroundCommandParser.ParseResume(arg),
             CrossRunway => GroundCommandParser.ParseCross(arg),
             HoldShort => GroundCommandParser.ParseHoldShort(arg),
-            Follow => ParseFollowAirborne(arg),
+            Follow => ParseFollowAirborne(arg, force: false),
+            FollowForce => ParseFollowAirborne(arg, force: true),
             FollowGround => GroundCommandParser.ParseFollowGround(arg),
             GiveWay => GroundCommandParser.ParseGiveWay(arg),
             TaxiAll => GroundCommandParser.ParseTaxiAll(arg),
@@ -786,7 +787,8 @@ public static class CommandParser
             CrossFix => ApproachCommandParser.ParseCfix(arg),
             DepartFix => ApproachCommandParser.ParseDepart(arg),
             ListApproaches => PR.Ok(ApproachCommandParser.ParseApps(arg)),
-            ClearedVisualApproach => ApproachCommandParser.ParseCva(arg),
+            ClearedVisualApproach => ApproachCommandParser.ParseCva(arg, force: false),
+            ClearedVisualApproachForce => ApproachCommandParser.ParseCva(arg, force: true),
             ReportFieldInSight => ParseReportFieldInSight(arg),
             ReportFieldInSightForced when arg is null => PR.Ok(new ReportFieldInSightForcedCommand()),
             ReportTrafficInSight => ParseReportTrafficInSight(arg),
@@ -1742,22 +1744,22 @@ public static class CommandParser
         return trimmed.ToUpperInvariant();
     }
 
-    private static PR ParseFollowAirborne(string? arg)
+    private static PR ParseFollowAirborne(string? arg, bool force)
     {
         // Callsign is optional: bare FOLLOW defaults to the most recently
         // reported-in-sight traffic. The dispatcher handles the null case.
         if (arg is null)
         {
-            return PR.Ok(new FollowCommand(null));
+            return PR.Ok(new FollowCommand(null, force));
         }
 
         var callsign = arg.Trim();
         if (callsign.Length == 0)
         {
-            return PR.Ok(new FollowCommand(null));
+            return PR.Ok(new FollowCommand(null, force));
         }
 
-        return PR.Ok(new FollowCommand(callsign.ToUpperInvariant()));
+        return PR.Ok(new FollowCommand(callsign.ToUpperInvariant(), force));
     }
 
     private static PR ParseWaitSeconds(string? arg)

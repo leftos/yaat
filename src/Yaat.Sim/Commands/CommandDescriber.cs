@@ -107,7 +107,7 @@ public static class CommandDescriber
             ResumeCommand => CanonicalCommandType.Resume,
             CrossRunwayCommand => CanonicalCommandType.CrossRunway,
             HoldShortCommand => CanonicalCommandType.HoldShort,
-            FollowCommand => CanonicalCommandType.Follow,
+            FollowCommand cmd => cmd.Force ? CanonicalCommandType.FollowForce : CanonicalCommandType.Follow,
             FollowGroundCommand => CanonicalCommandType.FollowGround,
             GiveWayCommand => CanonicalCommandType.GiveWay,
             ExitLeftCommand => CanonicalCommandType.ExitLeft,
@@ -142,7 +142,9 @@ public static class CommandDescriber
             CrossFixCommand => CanonicalCommandType.CrossFix,
             DepartFixCommand => CanonicalCommandType.DepartFix,
             ListApproachesCommand => CanonicalCommandType.ListApproaches,
-            ClearedVisualApproachCommand => CanonicalCommandType.ClearedVisualApproach,
+            ClearedVisualApproachCommand cmd => cmd.Force
+                ? CanonicalCommandType.ClearedVisualApproachForce
+                : CanonicalCommandType.ClearedVisualApproach,
             ReportFieldInSightCommand => CanonicalCommandType.ReportFieldInSight,
             ReportFieldAdvisoryCommand => CanonicalCommandType.ReportFieldInSight,
             ReportFieldInSightForcedCommand => CanonicalCommandType.ReportFieldInSightForced,
@@ -520,7 +522,7 @@ public static class CommandDescriber
             ResumeCommand resume => FormatResumeCanonical(resume),
             CrossRunwayCommand cross => cross.RunwayId is null ? "CROSS" : $"CROSS {cross.RunwayId}",
             HoldShortCommand hs => $"HS {hs.Target}",
-            FollowCommand follow => $"FOLLOW {follow.TargetCallsign}",
+            FollowCommand follow => $"{(follow.Force ? "FOLLOWF" : "FOLLOW")} {follow.TargetCallsign}",
             FollowGroundCommand follow => $"FOLLOWG {follow.TargetCallsign}",
             GiveWayCommand gw => $"GIVEWAY {gw.TargetCallsign}",
             ExitLeftCommand el => (el.Taxiway is not null ? $"EL {el.Taxiway}" : "EL") + (el.Expedite ? " EXP" : ""),
@@ -2015,7 +2017,7 @@ public static class CommandDescriber
 
     private static string FormatCvaCanonical(ClearedVisualApproachCommand cmd)
     {
-        var parts = new List<string> { "CVA", cmd.RunwayId };
+        var parts = new List<string> { cmd.Force ? "CVAF" : "CVA", cmd.RunwayId };
         if (cmd.AirportCode is not null)
         {
             parts.Add(cmd.AirportCode);

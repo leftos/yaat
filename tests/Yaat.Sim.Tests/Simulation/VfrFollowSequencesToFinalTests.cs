@@ -297,7 +297,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
             : null;
 
         var superResult = CommandDispatcher.Dispatch(
-            new FollowCommand("BAW286"),
+            new FollowCommand("BAW286", false),
             follower,
             TestDispatch.Context(System.Random.Shared, findAircraft: lookup)
         );
@@ -305,7 +305,7 @@ public class VfrFollowSequencesToFinalTests(ITestOutputHelper output)
         Assert.Contains("super", superResult.Message, System.StringComparison.OrdinalIgnoreCase);
 
         var jetResult = CommandDispatcher.Dispatch(
-            new FollowCommand("UAL77"),
+            new FollowCommand("UAL77", false),
             follower,
             TestDispatch.Context(System.Random.Shared, findAircraft: lookup)
         );

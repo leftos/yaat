@@ -793,7 +793,7 @@ public static class CommandDispatcher
             case PositionTurnAltitudeClearanceCommand cmd:
                 return ApproachCommandHandler.TryPtac(cmd, aircraft);
             case ClearedVisualApproachCommand cmd:
-                return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
+                return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, ctx);
             case ReportFieldInSightCommand:
                 return NavigationCommandHandler.DispatchReportFieldInSight(aircraft, ctx);
             case ReportFieldAdvisoryCommand cmd:
@@ -2768,8 +2768,24 @@ public static class CommandDispatcher
             return new CommandResult(false, "FOLLOW requires the aircraft to be airborne");
         }
 
+        // Forced FOLLOW (FOLLOWF): the RPO folds the RTISF into the follow clearance so
+        // traffic-in-sight need not be reported first. RPO-only, like RTISF — a solo student
+        // must acquire the traffic with RTIS before following.
+        if (follow.Force)
+        {
+            if (ctx.SoloTrainingMode)
+            {
+                return new CommandResult(false, "FOLLOWF is RPO-only; use RTIS/RTISF in solo training");
+            }
+            aircraft.Approach.HasReportedTrafficInSight = true;
+            if (!string.IsNullOrWhiteSpace(follow.TargetCallsign))
+            {
+                aircraft.Approach.LastReportedTrafficCallsign = follow.TargetCallsign.ToUpperInvariant();
+            }
+        }
+
         // RTIS gate: a pilot cannot follow traffic they haven't visually acquired.
-        // Matches CVA FOLLOW behavior — controllers can force this with RTISF.
+        // Matches CVA FOLLOW behavior — controllers can force this with RTISF (or FOLLOWF).
         if (!aircraft.Approach.HasReportedTrafficInSight)
         {
             return new CommandResult(false, "Traffic not in sight — issue RTIS first");

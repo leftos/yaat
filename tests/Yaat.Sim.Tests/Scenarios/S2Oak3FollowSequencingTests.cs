@@ -91,7 +91,7 @@ public class S2Oak3FollowSequencingTests
 
             // Simulate "traffic in sight" via RTISF, then issue FOLLOW.
             CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand(leadCallsign), follower, dispatchCtx);
-            var cmdResult = CommandDispatcher.Dispatch(new FollowCommand(leadCallsign), follower, dispatchCtx);
+            var cmdResult = CommandDispatcher.Dispatch(new FollowCommand(leadCallsign, false), follower, dispatchCtx);
 
             Assert.True(cmdResult.Success, $"{follower.Callsign} FOLLOW {leadCallsign} failed: {cmdResult.Message}");
             Assert.IsType<VfrFollowPhase>(follower.Phases?.CurrentPhase);
@@ -124,7 +124,7 @@ public class S2Oak3FollowSequencingTests
 
         // Force traffic in sight then FOLLOW.
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("N9225L"), follower, dispatchCtx);
-        var cmdResult = CommandDispatcher.Dispatch(new FollowCommand("N9225L"), follower, dispatchCtx);
+        var cmdResult = CommandDispatcher.Dispatch(new FollowCommand("N9225L", false), follower, dispatchCtx);
         Assert.True(cmdResult.Success, $"FOLLOW failed: {cmdResult.Message}");
 
         // Manually build a PhaseContext like the live tick loop would, with the lookup set.

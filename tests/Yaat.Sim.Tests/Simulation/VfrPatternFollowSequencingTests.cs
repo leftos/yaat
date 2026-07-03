@@ -133,7 +133,7 @@ public class VfrPatternFollowSequencingTests
             TestDispatch.Context(Random.Shared, findAircraft: lookup)
         );
         var followResult = CommandDispatcher.Dispatch(
-            new FollowCommand(LeadCallsign),
+            new FollowCommand(LeadCallsign, false),
             follower,
             TestDispatch.Context(Random.Shared, findAircraft: lookup)
         );

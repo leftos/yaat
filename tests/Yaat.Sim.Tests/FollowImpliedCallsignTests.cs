@@ -91,7 +91,7 @@ public class FollowImpliedCallsignTests : IDisposable
         Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
 
         // Bare FOLLOW — no explicit callsign.
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null), ownship, ctx);
+        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.True(follow.Success, $"Expected bare FOLLOW to succeed but got: {follow.Message}");
         Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
@@ -108,7 +108,7 @@ public class FollowImpliedCallsignTests : IDisposable
         Assert.True(rtisf.Success);
         Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
 
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null), ownship, ctx);
+        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.True(follow.Success, $"Expected bare FOLLOW to succeed after RTISF but got: {follow.Message}");
         Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
@@ -128,7 +128,7 @@ public class FollowImpliedCallsignTests : IDisposable
         Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
 
         // Explicit callsign wins even when a different one is stored.
-        var follow = CommandDispatcher.Dispatch(new FollowCommand("OTHER"), ownship, ctx);
+        var follow = CommandDispatcher.Dispatch(new FollowCommand("OTHER", false), ownship, ctx);
 
         Assert.True(follow.Success);
         Assert.Equal("OTHER", ownship.Approach.FollowingCallsign);
@@ -151,7 +151,7 @@ public class FollowImpliedCallsignTests : IDisposable
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD2"), ownship, ctx);
         Assert.Equal("LEAD2", ownship.Approach.LastReportedTrafficCallsign);
 
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null), ownship, ctx);
+        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.True(follow.Success);
         Assert.Equal("LEAD2", ownship.Approach.FollowingCallsign);
@@ -171,7 +171,7 @@ public class FollowImpliedCallsignTests : IDisposable
         Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
 
         var ctx = TestDispatch.Context(Random.Shared);
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null), ownship, ctx);
+        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.False(follow.Success);
         Assert.Contains("not in sight", follow.Message, StringComparison.OrdinalIgnoreCase);
@@ -189,7 +189,7 @@ public class FollowImpliedCallsignTests : IDisposable
         ownship.Approach.LastReportedTrafficCallsign = null;
 
         var ctx = TestDispatch.Context(Random.Shared);
-        var follow = CommandDispatcher.Dispatch(new FollowCommand(null), ownship, ctx);
+        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, false), ownship, ctx);
 
         Assert.False(follow.Success);
         Assert.Contains("say traffic callsign", follow.Message, StringComparison.OrdinalIgnoreCase);

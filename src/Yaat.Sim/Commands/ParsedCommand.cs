@@ -498,7 +498,7 @@ public record HoldShortCommand(string Target) : ParsedCommand;
 
 public record AssignRunwayCommand(string RunwayId) : ParsedCommand;
 
-public record FollowCommand(string? TargetCallsign) : ParsedCommand;
+public record FollowCommand(string? TargetCallsign, bool Force) : ParsedCommand;
 
 public record FollowGroundCommand(string TargetCallsign) : ParsedCommand;
 
@@ -902,8 +902,13 @@ public record DepartFixCommand(string FixName, double FixLat, double FixLon, Mag
 
 public record ListApproachesCommand(string? AirportCode) : ParsedCommand;
 
-public record ClearedVisualApproachCommand(string RunwayId, string? AirportCode, PatternDirection? TrafficDirection, string? FollowCallsign)
-    : ParsedCommand;
+public record ClearedVisualApproachCommand(
+    string RunwayId,
+    string? AirportCode,
+    PatternDirection? TrafficDirection,
+    string? FollowCallsign,
+    bool Force
+) : ParsedCommand;
 
 public record ReportFieldInSightCommand : ParsedCommand;
 

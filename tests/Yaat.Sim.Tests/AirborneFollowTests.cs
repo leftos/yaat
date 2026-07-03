@@ -292,7 +292,7 @@ public class AirborneFollowTests : IDisposable
         var startCtx = CommandDispatcher.BuildMinimalContext(ac);
         ac.Phases.Start(startCtx);
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -305,9 +305,37 @@ public class AirborneFollowTests : IDisposable
         var ac = MakeAircraft();
         ac.FlightPlan.FlightRules = "IFR";
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void Followf_Succeeds_WithoutRtis()
+    {
+        // FOLLOWF folds the RTISF in — no prior traffic-in-sight report needed.
+        var ac = MakeAircraft();
+        ac.FlightPlan.FlightRules = "VFR";
+        Assert.False(ac.Approach.HasReportedTrafficInSight);
+
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", true), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
+        Assert.True(ac.Approach.HasReportedTrafficInSight);
+    }
+
+    [Fact]
+    public void Followf_BlockedInSoloMode()
+    {
+        // FOLLOWF is RPO-only, like RTISF — solo students must use RTIS first.
+        var ac = MakeAircraft();
+        ac.FlightPlan.FlightRules = "VFR";
+
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", true), ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
+
+        Assert.False(result.Success);
+        Assert.Contains("RPO-only", result.Message);
     }
 
     [Fact]
@@ -333,24 +361,43 @@ public class AirborneFollowTests : IDisposable
         var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
         ac.Approach.HasReportedTrafficInSight = false;
 
-        var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD");
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac);
+        var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
 
         Assert.False(result.Success);
         Assert.Contains("traffic not in sight", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void CvaFollow_Succeeds_WhenRtisReported()
+    public void CvaFollow_Succeeds_WithTrafficInSight_WithoutFieldInSight()
     {
+        // 7110.65 §7-4-3.a.2 NOTE: a following aircraft need not report the airport in sight —
+        // reporting the preceding traffic is sufficient. Field-in-sight is deliberately false.
         var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+        ac.Approach.HasReportedFieldInSight = false;
         ac.Approach.HasReportedTrafficInSight = true;
 
-        var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD");
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac);
+        var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
 
-        Assert.True(result.Success);
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void CvaFollow_RejectedBehindSuper()
+    {
+        // Visual separation is not authorized behind a super (7110.65 §7-4-3.a.4 NOTE, §7-2-1).
+        var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+        ac.Approach.HasReportedTrafficInSight = true;
+        var superLead = MakeAircraft(callsign: "BAW1", type: "A388", lat: 37.03, lon: -122.1);
+        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "BAW1" ? superLead : null);
+
+        var cmd = new ClearedVisualApproachCommand("28", null, null, "BAW1", false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, ctx);
+
+        Assert.False(result.Success);
+        Assert.Contains("super", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -387,11 +434,39 @@ public class AirborneFollowTests : IDisposable
         CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         // Now CVA FOLLOW should work
-        var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD");
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac);
+        var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", false);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void Cvaf_Succeeds_WithoutRtisOrRfis_WhenFollowing()
+    {
+        // CVAF folds both the RFISF and RTISF in — a following visual approach needs no
+        // prior field-in-sight or traffic-in-sight report.
+        var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+        ac.Approach.HasReportedFieldInSight = false;
+        ac.Approach.HasReportedTrafficInSight = false;
+
+        var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", true);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
+    }
+
+    [Fact]
+    public void Cvaf_BlockedInSoloMode()
+    {
+        var ac = MakeAircraft(type: "B738", heading: 280, altitude: 3000, lat: 37.05, lon: -122.1);
+
+        var cmd = new ClearedVisualApproachCommand("28", null, null, "LEAD", true);
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
+
+        Assert.False(result.Success);
+        Assert.Contains("RPO-only", result.Message);
     }
 
     // -------------------------------------------------------------------------
@@ -693,7 +768,7 @@ public class AirborneFollowTests : IDisposable
         ac.Phases!.Add(new UpwindPhase { IsExtended = true });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -707,7 +782,7 @@ public class AirborneFollowTests : IDisposable
         ac.Phases!.Add(new CrosswindPhase { IsExtended = true });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
@@ -721,7 +796,7 @@ public class AirborneFollowTests : IDisposable
         ac.Phases!.Add(new DownwindPhase { IsExtended = true });
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
+        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success);
         Assert.Equal("LEAD", ac.Approach.FollowingCallsign);

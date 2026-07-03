@@ -456,7 +456,7 @@ public static class ApproachCommandHandler
         );
     }
 
-    public static CommandResult TryClearedVisualApproach(ClearedVisualApproachCommand cmd, AircraftState aircraft)
+    public static CommandResult TryClearedVisualApproach(ClearedVisualApproachCommand cmd, AircraftState aircraft, DispatchContext ctx)
     {
         // CVA is for IFR arrivals being vectored to a visual approach (7110.65 §7-4-3).
         // VFR pattern entry uses a different command set (TPAT etc.) and a different
@@ -467,11 +467,53 @@ public static class ApproachCommandHandler
             return new CommandResult(false, "CVA requires an IFR flight plan");
         }
 
-        // RTIS gate: when following traffic, pilot must have reported traffic in sight.
-        // RPO can force this with RTISF command.
-        if ((cmd.FollowCallsign is not null) && !aircraft.Approach.HasReportedTrafficInSight)
+        // Forced CVA (CVAF): the RPO folds the pilot's in-sight report into the visual approach
+        // clearance so it need not be reported first. RPO-only, like RFISF/RTISF — a solo
+        // student must have the pilot make the report. Force whichever report the acquisition
+        // gate below requires: traffic-in-sight when following (§7-4-3.a.2), else field-in-sight.
+        if (cmd.Force)
         {
-            return new CommandResult(false, "Traffic not in sight — issue RTIS first");
+            if (ctx.SoloTrainingMode)
+            {
+                return new CommandResult(false, "CVAF is RPO-only; use RFIS/RTIS in solo training");
+            }
+            if (cmd.FollowCallsign is not null)
+            {
+                aircraft.Approach.HasReportedTrafficInSight = true;
+            }
+            else
+            {
+                aircraft.Approach.HasReportedFieldInSight = true;
+                aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
+            }
+        }
+
+        // Visual-approach acquisition gate (7110.65 §7-4-3.a; AIM §5-4-23.a): the pilot must
+        // have EITHER the preceding traffic in sight (when following) OR the airport in sight
+        // (otherwise). Per §7-4-3.a.2 NOTE, a following aircraft need not report the field.
+        // RPO can force either report with RTISF/RFISF (or CVAF).
+        if (cmd.FollowCallsign is not null)
+        {
+            if (!aircraft.Approach.HasReportedTrafficInSight)
+            {
+                return new CommandResult(false, "Traffic not in sight — issue RTIS first");
+            }
+
+            // Visual separation — and therefore CVA FOLLOW — is not authorized behind a super
+            // (7110.65 §7-4-3.a.4 NOTE, §7-2-1; AIM §5-5-11.2.5). Runs after the CVAF forced
+            // block so forcing traffic-in-sight cannot bypass the prohibition.
+            if (
+                ctx.FindAircraft?.Invoke(cmd.FollowCallsign) is { } lead
+                && WakeTurbulenceData.WakeClassForType(lead.AircraftType, AircraftCategorization.Categorize(lead.AircraftType))
+                    == WakeTurbulenceData.WakeClass.Super
+            )
+            {
+                return new CommandResult(false, $"Unable, visual separation not authorized behind super {cmd.FollowCallsign}");
+            }
+        }
+        else if (!aircraft.Approach.HasReportedFieldInSight)
+        {
+            return new CommandResult(false, "Field not in sight — issue RFIS first");
         }
 
         var navDb = NavigationDatabase.Instance;

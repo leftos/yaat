@@ -1694,12 +1694,31 @@ public static class CommandRegistry
                 [O(null, [R("runway", "runway designator")], "Clear for visual approach to runway")]
             ),
             Cmd(
+                ClearedVisualApproachForce,
+                "Cleared Visual Approach (Force)",
+                "Approach",
+                false,
+                ["CVAF", "VISUALF"],
+                [O(null, [R("runway", "runway designator")], "Clear for visual approach without RFIS/RTIS first (RPO-only)")]
+            ),
+            Cmd(
                 Follow,
                 "Follow Traffic",
                 "Approach",
                 false,
                 ["FOLLOW", "FOL"],
                 [O(null, [], "Follow last-reported traffic in sight"), O("Target", [R("callsign", "traffic callsign")], "Follow specific traffic")]
+            ),
+            Cmd(
+                FollowForce,
+                "Follow Traffic (Force)",
+                "Approach",
+                false,
+                ["FOLLOWF", "FOLF"],
+                [
+                    O(null, [], "Follow last-reported traffic without RTIS first (RPO-only)"),
+                    O("Target", [R("callsign", "traffic callsign")], "Follow specific traffic without RTIS first (RPO-only)"),
+                ]
             ),
             Cmd(
                 ReportFieldInSight,

@@ -180,6 +180,8 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
 
     private void IssueTrailerRtisAndCvaFollow(SimulationEngine engine, AircraftState trailer)
     {
+        // A following visual approach requires only traffic-in-sight, not field-in-sight
+        // (7110.65 §7-4-3.a.2 NOTE). Report the preceding traffic in sight, then CVA FOLLOW.
         var rtis = engine.SendCommand("TRAIL1", "RTIS LEAD1");
         output.WriteLine($"TRAIL1 RTIS LEAD1: {rtis.Success} — {rtis.Message}");
         Assert.True(rtis.Success, $"Trailer RTIS failed: {rtis.Message}");

@@ -641,7 +641,7 @@ internal static class ApproachCommandParser
     /// <summary>
     /// Parses CVA runwayId [LEFT|RIGHT] [FOLLOW callsign].
     /// </summary>
-    internal static PR ParseCva(string? arg)
+    internal static PR ParseCva(string? arg, bool force)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -676,7 +676,7 @@ internal static class ApproachCommandParser
             }
         }
 
-        return PR.Ok(new ClearedVisualApproachCommand(runwayId, null, direction, followCallsign));
+        return PR.Ok(new ClearedVisualApproachCommand(runwayId, null, direction, followCallsign, force));
     }
 
     /// <summary>

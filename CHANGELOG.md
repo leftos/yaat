@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Forced visual-approach and follow clearances.** `CVAF <rwy>` (`VISUALF`) and `FOLLOWF [callsign]` (`FOLF`) clear a visual approach or a visual follow in one step, without first getting the pilot to report the field or traffic in sight — they fold the `RFISF`/`RTISF` in. Both are RPO-only and rejected in solo training, matching `RFISF`/`RTISF`.
+
+### Changed
+- **A visual approach (`CVA`) now requires the pilot to have the airport in sight first** (7110.65 §7-4-3) — report it with `RFIS` (or force it with `RFISF`/`CVAF`), otherwise the clearance is rejected with "Field not in sight — issue RFIS first". When following traffic (`CVA … FOLLOW`), reporting that traffic in sight is enough (the pilot need not also see the field), and following a **super** is refused. Previously `CVA` was accepted regardless and a missing report only showed up as an advisory in the solo-training report.
+
 ## v0.8.7-beta [2026/07/02]
 
 ### Added
