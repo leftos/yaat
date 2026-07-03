@@ -781,10 +781,26 @@ public static class SegmentExpander
             return (null, null, double.MaxValue);
         }
 
-        var candidates = ctx
-            .Layout.GetNodesOnTaxiway(taxiwayName)
-            .OrderBy(n => GeoMath.DistanceNm(n.Position, destNode.Position))
-            .Take(maxStopCandidates);
+        var onTaxiway = ctx.Layout.GetNodesOnTaxiway(taxiwayName);
+
+        // Nearest-by-straight-line stop candidates (original behaviour).
+        var nearest = onTaxiway.OrderBy(n => GeoMath.DistanceNm(n.Position, destNode.Position)).Take(maxStopCandidates);
+
+        // Ramp-connector stop candidates: the junction where the cleared taxiway meets each numbered
+        // connector or RAMP. A parking/spot gate hangs off a RAMP reached via such a connector, and that
+        // junction can sit FARTHER from the gate in straight-line terms than dead-end taxiway nodes
+        // physically nearer it (the connector loops away before curving back to the ramp) — so the
+        // nearest-by-distance pool above can miss the only real join point. Seeding ONE junction per
+        // distinct connector name (the node nearest the gate) guarantees the true join point is evaluated
+        // without a nearer connector (e.g. RAMP, which meets the taxiway at many nodes) crowding it out —
+        // so the walk+extend reach-cost picker below can select it (e.g. SFO B/T9 for "TAXI B @F1"),
+        // mirroring the issue-#235 reach-probe for the no-junction case.
+        var connectorJunctions = onTaxiway
+            .SelectMany(n => RampConnectorNames(n, taxiwayName).Select(name => (Name: name, Node: n)))
+            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderBy(x => GeoMath.DistanceNm(x.Node.Position, destNode.Position)).First().Node);
+
+        var candidates = nearest.Concat(connectorJunctions).DistinctBy(n => n.Id);
 
         List<DirectionalEdge>? bestWalk = null;
         PartialRoute? bestStopHead = null;
@@ -826,6 +842,35 @@ public static class SegmentExpander
 
         ctx.DiagnosticLog?.Invoke($"[beststop] twy={taxiwayName} dest={destId} stop={bestStopHead!.HeadNodeId} total={bestTotal:F3}");
         return (bestWalk, bestStopHead, bestTotal);
+    }
+
+    /// <summary>
+    /// The distinct numbered-connector / RAMP taxiway names that branch off <paramref name="clearedTaxiway"/>
+    /// at <paramref name="node"/> — the ramp connectors reachable by turning off the cleared taxiway here
+    /// (e.g. <c>T9</c> at the B/T9 junction). A numbered/RAMP name is non-letter-only
+    /// (<see cref="SearchContext.IsLetterOnlyTaxiway"/> is false); the cleared taxiway itself and
+    /// runway-crossing edges (<c>RWY…</c>, not ramp connectors) are excluded. Arc edges carry several
+    /// names joined with <c>" - "</c>; each qualifying member counts.
+    /// </summary>
+    private static IEnumerable<string> RampConnectorNames(GroundNode node, string clearedTaxiway)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var edge in node.Edges)
+        {
+            foreach (var name in edge.TaxiwayName.Split(" - ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (
+                    !name.Equals(clearedTaxiway, StringComparison.OrdinalIgnoreCase)
+                    && !IsRunwayWaypoint(name)
+                    && !SearchContext.IsLetterOnlyTaxiway(name)
+                )
+                {
+                    names.Add(name);
+                }
+            }
+        }
+
+        return names;
     }
 
     /// <summary>
@@ -2834,6 +2879,27 @@ public static class SegmentExpander
             WaypointSequence = [],
             AuthorizedTaxiways = null,
         };
+
+        // Prefer an extension confined to the cleared taxiways + numbered connectors + RAMP (the
+        // "impliable" set): a controller clearing "TAXI B @F1" expects the gate reached by staying on B
+        // and turning onto the ramp connector, NOT by threading uncleared letter taxiways (e.g. B Q A T9
+        // RAMP). Hard-exclude every letter taxiway the controller did not name — numbered connectors and
+        // RAMP stay free, so the join stays on the cleared taxiway until a numbered ramp connector
+        // branches off. Fall back to an unconstrained search only when the confined one finds no route,
+        // so a gate genuinely reachable only across an uncleared taxiway still resolves. Mirrors the
+        // runway-destination fallback's hard-constraint (see ResolveExplicit's last-resort A*).
+        var unauthorized = UnnamedLetterTaxiways(ctx.Layout, ctx.AuthorizedTaxiways);
+        if (unauthorized.Count > 0)
+        {
+            var confinedCtx = extCtx with { AvoidedTaxiways = unauthorized, AvoidMode = AvoidTaxiwayMode.HardExclude };
+            var (confinedRoute, _) = AutoRouter.Run(confinedCtx, startOverride: head);
+            if (confinedRoute is not null)
+            {
+                return (confinedRoute.Segments.Select(s => s.Edge).ToList(), null);
+            }
+
+            ctx.DiagnosticLog?.Invoke("[extend] confined (cleared+numbered+RAMP) extension found no route; retrying unconstrained");
+        }
 
         var (route, failure) = AutoRouter.Run(extCtx, startOverride: head);
         if (failure is not null || route is null)
