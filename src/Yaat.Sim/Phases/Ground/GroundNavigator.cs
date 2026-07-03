@@ -274,6 +274,19 @@ public sealed class GroundNavigator
     private double _connectorFlowSpeedKts = double.MaxValue;
 
     /// <summary>
+    /// Speed cap (knots) for the <em>current</em> segment when it is a corner <see cref="GroundArc"/>: the
+    /// arc's own <see cref="GroundArc.MaxSafeSpeedKts"/>. The braking-curve planner only treats a corner
+    /// arc's safe speed as a <em>future</em> braking target (an approach limit at the arc's entry node), so
+    /// once the aircraft is on a long arc — entered slow, next corner far ahead — nothing holds it to the
+    /// arc's cornering speed and it accelerates toward taxi max mid-arc (the issue #236 surge, relocated onto
+    /// the arc once the pathfinder routes over it). This is the flat throughout-cap: a corner arc is never
+    /// flown faster than its safe cornering speed. <see cref="double.MaxValue"/> (no cap) when the current
+    /// segment is not an arc. Recomputed each <see cref="BuildSpeedConstraints"/>, so it round-trips through
+    /// a snapshot for free.
+    /// </summary>
+    private double _currentSegmentArcMaxKts = double.MaxValue;
+
+    /// <summary>
     /// Net signed heading change (degrees) accumulated since the current segment was set up. Reset to 0
     /// whenever a primitive begins (<see cref="SetupSegment"/> or the entry-alignment→real-segment swap)
     /// and incremented each tick by the signed heading delta. Backstops the orbit invariant
@@ -1076,6 +1089,9 @@ public sealed class GroundNavigator
             target = Math.Min(target, _connectorFlowSpeedKts);
         }
 
+        // Flat cap on the current corner arc: never exceed its safe cornering speed while on it.
+        target = Math.Min(target, _currentSegmentArcMaxKts);
+
         return target;
     }
 
@@ -1195,6 +1211,10 @@ public sealed class GroundNavigator
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
 
         _cornerRoundingRadiusFt = CategoryPerformance.NoseWheelTurnRadiusFt(ctx.Category);
+
+        // A corner arc must never be flown faster than its safe cornering speed anywhere along it — the
+        // braking curve only treats it as a future approach limit, so hold the current arc to its own cap.
+        _currentSegmentArcMaxKts = seg.Edge.Edge is GroundArc currentArc ? currentArc.MaxSafeSpeedKts(ctx.Category) : double.MaxValue;
 
         DetectShortConnector(route, ctx, seg);
 

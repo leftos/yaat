@@ -1769,9 +1769,25 @@ public static class SegmentExpander
                 // The legitimate turn onto the next taxiway (nextNode == junction) and runway-crossing
                 // arcs (IsRunwayJunction) are not penalised. Soft: the arc stays usable when it is the
                 // only continuation, so a resolvable clearance never fails.
-                if (matchesTwy && !isJunctionEdge && (edge is GroundArc { IsMembershipTaxiwayJunctionArc: true }))
+                //
+                // Exemption (issue #236 follow-up): a membership arc whose OTHER name is the taxiway we
+                // just arrived on is the INTENDED smooth turn from that cleared taxiway onto this one —
+                // a lane change / corner (e.g. the "[A,F1]" arc when transitioning A→F1). Flying that
+                // fillet arc is the whole point of the corner; penalising it forces a square pivot
+                // through the junction node instead. This is not the req ① turn-OFF case (that walks a
+                // single taxiway X and diverts onto an "X - Y" arc when arriving on X, so the arc's
+                // other name never equals the incoming taxiway), so req ① stays intact.
+                if (matchesTwy && !isJunctionEdge && (edge is GroundArc { IsMembershipTaxiwayJunctionArc: true } membershipArc))
                 {
-                    incrementalCost += RouteCostFunction.MembershipJunctionArcContinuationCostNm;
+                    bool isIntendedTransitionArc =
+                        !string.IsNullOrEmpty(current.LastTaxiwayName)
+                        && !string.Equals(current.LastTaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase)
+                        && membershipArc.TaxiwayNames.Any(name => name.Equals(current.LastTaxiwayName, StringComparison.OrdinalIgnoreCase));
+
+                    if (!isIntendedTransitionArc)
+                    {
+                        incrementalCost += RouteCostFunction.MembershipJunctionArcContinuationCostNm;
+                    }
                 }
 
                 double newGScore = current.AccumulatedCost + incrementalCost;

@@ -6,7 +6,8 @@
 - A taxi clearance to a terminal gate via named taxiways (e.g. SFO `TAXI B K A @F10`) now routes directly instead of looping the long way around.
 - Pushing an aircraft back to a spot or gate (`PUSH $5A`, `PUSH @B13`) now reverses straight there instead of routing onto an adjacent taxiway and back.
 - Taxiing via a taxiway through a complex intersection no longer sends the aircraft the wrong way. Previously, e.g. `TAXI C D @NEW1` at Oakland could turn an aircraft the wrong way onto C — away from the parking — looping across a runway before doubling back to the spot; it now heads directly to the destination.
-- Aircraft taxiing across a short cross taxiway between two parallel taxiways (e.g. SFO `A F1 B`) now flow through it at a steady low speed instead of aligning with the connector, accelerating, and braking hard for the second turn.
+- Aircraft taxiing a lane change across a short cross taxiway between two parallel taxiways (e.g. SFO `A F1 B`) now round the turns smoothly along the taxiway fillets and flow through at a steady low speed — instead of pivoting square at the junction, aligning with the connector, then accelerating and braking hard for the second turn.
+- Aircraft no longer accelerate through a taxiway corner and brake hard on the far side; a taxi turn is now held to a safe cornering speed for its radius the whole way around.
 
 ### Changed
 - **Arriving aircraft now vary how far out they slow to final approach speed.** Instead of every arrival reducing to its final approach speed at the same tight ~2 NM from the runway, each aircraft picks its own distance — most settle around 2–3.5 NM, but some slow to final approach speed as far as 5 NM out, reproducing the live-network spread where virtual pilots reduce early and compress the arrival stream. The distance is fixed per aircraft and reproduces the same way in replays.
