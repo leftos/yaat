@@ -364,7 +364,7 @@
         { "verb": "CMN", "aliases": [], "description": "Instantly set altitude" },
         { "verb": "SPDN", "aliases": ["sln", "speedn"], "description": "Instantly set speed" },
         { "verb": "WARP", "aliases": [], "description": "Teleport to FRD; optional hdg/alt/spd keep current" },
-        { "verb": "WARPG", "aliases": [], "description": "Teleport on ground to location" }
+        { "verb": "WARPG", "aliases": [], "description": "Teleport on ground: tw tw / #node / @parking / $spot" }
       ],
       "notes": []
     },

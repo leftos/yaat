@@ -818,6 +818,15 @@ internal static class FlightCommandHandler
             }
             description = $"parking {parkingName}";
         }
+        else if (cmd.SpotName is string spotName)
+        {
+            node = layout.FindSpotNodeByName(spotName);
+            if (node is null)
+            {
+                return new CommandResult(false, $"Spot '{spotName}' not found in airport layout");
+            }
+            description = $"spot {spotName}";
+        }
         else
         {
             node = CommandDispatcher.FindTaxiwayIntersection(layout, cmd.Taxiway1, cmd.Taxiway2);

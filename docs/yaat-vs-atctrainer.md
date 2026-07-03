@@ -362,7 +362,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | Force speed (gradual, override 5nm final) | — | `SPEEDF`/`SPDF`/`SLF {spd}` | YAAT-only; overrides the 5nm-final restriction but converges via physics instead of teleporting IAS |
 | Show/Hide path | `SHOWPATH`/`HIDEPATH` | — | ATCTrainer-only |
 | Warp | — | `WARP {frd} [hdg] [alt] [spd]` | YAAT-only; trailing args optional, keep current values when omitted |
-| Warp on ground | — | `WARPG {twy1} {twy2}` | YAAT-only |
+| Warp on ground | — | `WARPG {twy1} {twy2}` / `#node` / `@parking` / `$spot` | YAAT-only |
 
 ### Misc
 

@@ -288,7 +288,7 @@ public static class CommandRegistry
                 "Sim Control",
                 false,
                 ["WARPG"],
-                [O(null, [R("location", "C B / #42 / @B12")], "Teleport aircraft on ground")]
+                [O(null, [R("location", "C B / #42 / @B12 / $9")], "Teleport aircraft on ground")]
             ),
         ];
 

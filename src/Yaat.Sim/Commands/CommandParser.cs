@@ -2337,6 +2337,7 @@ public static class CommandParser
     {
         // WARPG <nodeRef>    — e.g., WARPG #42
         // WARPG @<parking>   — e.g., WARPG @B12
+        // WARPG $<spot>      — e.g., WARPG $9
         // WARPG <tw1> <tw2>  — e.g., WARPG C B
         var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 1 && NodeRefToken.IsNodeReference(parts[0]))
@@ -2349,9 +2350,14 @@ public static class CommandParser
             return PR.Ok(new WarpGroundCommand("", "", ParkingName: parts[0][1..]));
         }
 
+        if (parts.Length == 1 && parts[0].StartsWith('$') && parts[0].Length > 1)
+        {
+            return PR.Ok(new WarpGroundCommand("", "", SpotName: parts[0][1..].ToUpperInvariant()));
+        }
+
         if (parts.Length != 2)
         {
-            return PR.Fail($"invalid WARPG format '{arg}' (expected nodeRef, @parking, or tw1 tw2)");
+            return PR.Fail($"invalid WARPG format '{arg}' (expected nodeRef, @parking, $spot, or tw1 tw2)");
         }
 
         return PR.Ok(new WarpGroundCommand(parts[0].ToUpperInvariant(), parts[1].ToUpperInvariant()));

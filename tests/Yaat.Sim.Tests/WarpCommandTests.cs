@@ -132,6 +132,85 @@ public class WarpCommandTests
         Assert.False(result.IsSuccess);
     }
 
+    // ----- parser: WARPG shapes, incl. $spot -----------------------------
+
+    [Fact]
+    public void WarpGround_DollarSpot_ParsesSpotName()
+    {
+        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG $9").Value);
+        Assert.Equal("9", cmd.SpotName);
+        Assert.Null(cmd.NodeId);
+        Assert.Null(cmd.ParkingName);
+        Assert.Equal("", cmd.Taxiway1);
+        Assert.Equal("", cmd.Taxiway2);
+    }
+
+    [Fact]
+    public void WarpGround_DollarSpot_Uppercases()
+    {
+        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG $t9").Value);
+        Assert.Equal("T9", cmd.SpotName);
+    }
+
+    [Fact]
+    public void WarpGround_NodeRef_StillParses()
+    {
+        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG #42").Value);
+        Assert.Equal(42, cmd.NodeId);
+        Assert.Null(cmd.SpotName);
+    }
+
+    [Fact]
+    public void WarpGround_AtParking_StillParses()
+    {
+        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG @B12").Value);
+        Assert.Equal("B12", cmd.ParkingName);
+        Assert.Null(cmd.SpotName);
+    }
+
+    [Fact]
+    public void WarpGround_TwoTaxiways_StillParses()
+    {
+        var cmd = Assert.IsType<WarpGroundCommand>(CommandParser.Parse("WARPG C B").Value);
+        Assert.Equal("C", cmd.Taxiway1);
+        Assert.Equal("B", cmd.Taxiway2);
+        Assert.Null(cmd.SpotName);
+    }
+
+    [Fact]
+    public void WarpGround_BareDollar_Fails()
+    {
+        var result = CommandParser.Parse("WARPG $");
+        Assert.False(result.IsSuccess);
+    }
+
+    // ----- ApplyWarpGround: $spot resolution -----------------------------
+
+    [Fact]
+    public void ApplyWarpGround_SpotName_WarpsToSpotNode()
+    {
+        var layout = BuildLayoutWithSpot();
+        var ac = MakeGroundAircraft(layout);
+
+        var result = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "9"), layout);
+
+        Assert.True(result.Success, $"Expected success, got: {result.Message}");
+        Assert.Equal(layout.Nodes[2].Position.Lat, ac.Position.Lat, 6);
+        Assert.Equal(layout.Nodes[2].Position.Lon, ac.Position.Lon, 6);
+    }
+
+    [Fact]
+    public void ApplyWarpGround_UnknownSpot_ReturnsClearError()
+    {
+        var layout = BuildLayoutWithSpot();
+        var ac = MakeGroundAircraft(layout);
+
+        var result = DispatchWarp(ac, new WarpGroundCommand("", "", SpotName: "NOPE"), layout);
+
+        Assert.False(result.Success);
+        Assert.Contains("NOPE", result.Message);
+    }
+
     // ----- ApplyWarp: nulls fall back to current state -------------------
 
     [Fact]
@@ -220,6 +299,30 @@ public class WarpCommandTests
         layout.Nodes[0] = node0;
         layout.Nodes[1] = node1;
         layout.Edges.Add(edge01);
+        layout.RebuildAdjacencyLists();
+        return layout;
+    }
+
+    private static AirportGroundLayout BuildLayoutWithSpot()
+    {
+        var layout = BuildSimpleLayout();
+        var spot = new GroundNode
+        {
+            Id = 2,
+            Position = new LatLon(37.621, -122.381),
+            Type = GroundNodeType.Spot,
+            Name = "9",
+        };
+        var edge12 = new GroundEdge
+        {
+            Nodes = [layout.Nodes[1], spot],
+            TaxiwayName = "RAMP",
+            DistanceNm = 0.05,
+        };
+        layout.Nodes[1].Edges.Add(edge12);
+        spot.Edges.Add(edge12);
+        layout.Nodes[2] = spot;
+        layout.Edges.Add(edge12);
         layout.RebuildAdjacencyLists();
         return layout;
     }

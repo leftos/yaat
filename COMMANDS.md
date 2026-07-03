@@ -1520,13 +1520,14 @@ Teleport an aircraft to a specific position:
 | `WARP SJC 5000 220` | Teleport to SJC, altitude 5,000 ft, speed 220 kts; heading unchanged |
 | `WARPG C B` | Warp to the intersection of taxiways C and B (ground aircraft only) |
 | `WARPG #42` | Warp to node ID 42 (ground aircraft only; use Ctrl+D debug overlay to find IDs) |
-| `WARPG @B12` | Warp to parking spot B12 (ground aircraft only) |
+| `WARPG @B12` | Warp to parking B12 (ground aircraft only) |
+| `WARPG $9` | Warp to taxi spot 9 (ground aircraft only) |
 
 **WARP** accepts a fix name or [FRD](#fix-radial-distance-frd) as the position. The trailing heading, altitude, and speed are optional — when omitted, the aircraft keeps its current value for that parameter (the same way the radar context-menu Warp pre-fills current values).
 
 Trailing tokens are matched left-to-right against `heading → altitude → speed`. A token fills `heading` only if it is an integer in 1–360; otherwise it skips heading and is tried against altitude (`AltitudeResolver`: shorthand hundreds, full feet, or AGL form), then speed. So `WARP SJC 5000` sets altitude 5,000 ft (the value can't be a heading), and `WARP SJC 270` sets heading 270 (any value 1–360 is taken as a heading first). To set altitude alone in heading-overlap range, use full feet (e.g., `WARP SJC 5000`) rather than shorthand (`50`).
 
-**WARPG** accepts either two taxiway names (finds their intersection) or a node ID reference (`#nodeId`). Use the Ground View debug overlay (Ctrl+D) to find node IDs.
+**WARPG** accepts two taxiway names (finds their intersection), a node reference (`#nodeId`), a parking (`@parking`), or a taxi spot (`$spot`) — matching the `@`/`$` prefixes used by `TAXI`/`PUSH`. Use the Ground View debug overlay (Ctrl+D) to find node IDs.
 
 ### Say Commands
 
