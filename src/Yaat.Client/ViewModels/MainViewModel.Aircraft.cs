@@ -251,7 +251,7 @@ public partial class MainViewModel
         };
     }
 
-    private void OnAircraftDeleted(string callsign)
+    internal void OnAircraftDeleted(string callsign)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
@@ -266,9 +266,38 @@ public partial class MainViewModel
                 {
                     PendingDelayedSpawnCount--;
                 }
-                Aircraft.Remove(ac);
+                RemoveAircraftFromList(ac);
             }
         });
+    }
+
+    /// <summary>
+    /// Removes an aircraft from the list-backing collection without tripping Avalonia's
+    /// <c>DataGridCollectionView.AdjustCurrencyForRemove</c>, which dereferences a stale
+    /// <c>CurrentPosition</c> and throws <see cref="ArgumentOutOfRangeException"/> when the grid's
+    /// currency has drifted out of sync with the filtered/sorted view at the moment the source item
+    /// is removed (GitHub issue #237). Moving currency to "before first" first makes every branch of
+    /// that method a no-op; the try/catch is a last-resort net that rebuilds the view if any residual
+    /// desync still slips through (the item is already gone from the source at that point). A
+    /// selection on a <em>different</em> aircraft is preserved.
+    /// </summary>
+    private void RemoveAircraftFromList(AircraftModel ac)
+    {
+        var selectionToKeep = ReferenceEquals(SelectedAircraft, ac) ? null : SelectedAircraft;
+
+        AircraftView.MoveCurrentToPosition(-1);
+
+        try
+        {
+            Aircraft.Remove(ac);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            _log.LogWarning(ex, "DataGridCollectionView currency desync removing {Callsign}; rebuilt view", ac.Callsign);
+            AircraftView.Refresh();
+        }
+
+        SelectedAircraft = (selectionToKeep is not null && Aircraft.Contains(selectionToKeep)) ? selectionToKeep : null;
     }
 
     private void OnAircraftSpawned(AircraftDto dto)

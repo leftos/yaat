@@ -302,6 +302,16 @@ When `_isMainWindowClosing` is set, `OnClosing` also disposes the global key hoo
   `ObservableCollection` or observable property wraps its body in `Dispatcher.UIThread.Post`. Omit it and you get
   intermittent cross-thread crashes unit tests won't catch. `OnPilotTransmissionReceived` is the one deliberate
   exception (touches no UI state); don't generalize from it.
+- **`AircraftView` currency is fragile — never mutate `Aircraft` incrementally without care.** `AircraftView`
+  (`DataGridCollectionView` over `Aircraft`, with the active/text filter) drives the aircraft `DataGrid`, and Avalonia's
+  incremental collection handling under a filter+sort is buggy in two directions. **Add:** the sorted-insert mis-places a
+  new row when the filter has shrunk the view, so every `Aircraft.Add` in `OnAircraftUpdated`/`OnAircraftSpawned` is
+  followed by `RefreshAircraftView()`. **Remove:** `AdjustCurrencyForRemove` dereferences a stale `CurrentPosition` and
+  throws `ArgumentOutOfRangeException` (crashing the client) when the grid's currency has drifted out of sync — so
+  `OnAircraftDeleted` removes through `RemoveAircraftFromList`, which resets currency to "before first"
+  (`AircraftView.MoveCurrentToPosition(-1)`) before `Aircraft.Remove`, wraps it in a logged try/catch that rebuilds the
+  view as a last resort, and preserves a selection on a different aircraft (GitHub #237). Don't call `Aircraft.Remove`
+  directly.
 - **Three scenario-activation paths, one router.** `ApplyScenarioResult` (loader), `OnScenarioLoaded` (broadcast),
   and `ApplyRoomState` (join/reconnect) all go through `ApplyScenarioBootstrap`. Wiring a new scenario-derived field
   into only the loader path silently breaks it for joiners and restart-restore rejoins. Add it to the

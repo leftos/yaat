@@ -3,6 +3,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.Views;
 
@@ -46,6 +49,17 @@ public class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // A single unhandled exception on the UI dispatcher otherwise tears down the whole
+            // client (GitHub #237). Log it and keep the message loop alive so a transient fault
+            // degrades gracefully instead of crashing. Wired only for the real desktop app — the
+            // headless test host never enters this block, so tests still observe UI-thread faults.
+            var dispatcherLog = AppLog.CreateLogger("Dispatcher");
+            Dispatcher.UIThread.UnhandledException += (_, e) =>
+            {
+                dispatcherLog.LogError(e.Exception, "Unhandled UI-thread exception (recovered)");
+                e.Handled = true;
+            };
+
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.MainWindow = new MainWindow();
 
