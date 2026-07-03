@@ -7,10 +7,11 @@ namespace Yaat.Sim.Data.Airport;
 /// (<c>https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map</c>) and caches
 /// it on disk under <c>%LOCALAPPDATA%/yaat/cache/airports/</c>.
 ///
-/// Freshness is checked via HEAD + Last-Modified (the data-api Cloudflare origin
-/// returns 200 OK to conditional GETs regardless of If-Modified-Since, so the
-/// comparison is done client-side against the cached file's mtime). Mirrors the
-/// pattern used by <c>VideoMapService</c>.
+/// The origin (Cloudflare) hard-405s HEAD and sends no Last-Modified/ETag on GET (and ignores
+/// If-Modified-Since), so there is no cheap conditional freshness probe. Each resolve GETs the
+/// current map and overwrites the cache only when the content changed; a network failure falls
+/// back to the on-disk copy. Callers memoize the parsed layout per process, so the GET runs about
+/// once per airport per run.
 ///
 /// Use <see cref="GetGeoJsonAsync"/> for the raw text or <see cref="GetLayoutAsync"/>
 /// for a parsed <see cref="AirportGroundLayout"/>.
@@ -119,9 +120,10 @@ public sealed class AirportLayoutDownloader : IDisposable
     }
 
     /// <summary>
-    /// Downloads if the cache is missing; otherwise issues a HEAD and only re-downloads
-    /// when the server's Last-Modified is newer than the cached file's mtime. Failures
-    /// are logged and swallowed so a transient outage falls back to whatever is on disk.
+    /// Unconditionally GETs the current map and overwrites the cache when the content changed.
+    /// The origin 405s HEAD and sends no Last-Modified/ETag, so a conditional probe cannot detect
+    /// updates — a full GET is the only reliable refresh. Failures are logged and swallowed so a
+    /// transient outage (or 404) falls back to whatever is already on disk.
     /// </summary>
     private async Task EnsureFreshAsync(string faaCode, string cachePath, CancellationToken cancellationToken)
     {
@@ -129,57 +131,31 @@ public sealed class AirportLayoutDownloader : IDisposable
 
         try
         {
-            if (!File.Exists(cachePath))
+            using var getResp = await _http.GetAsync(url, cancellationToken);
+            if (getResp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                Log.LogDebug("Downloading airport layout for {AirportId}", faaCode);
-                await DownloadAsync(url, cachePath, serverLastModified: null, cancellationToken);
+                Log.LogInformation("No airport layout available from vNAS for {Url} (HTTP 404)", url);
                 return;
             }
 
-            var fileInfo = new FileInfo(cachePath);
-            using var headReq = new HttpRequestMessage(HttpMethod.Head, url);
-            using var headResp = await _http.SendAsync(headReq, cancellationToken);
+            getResp.EnsureSuccessStatusCode();
+            var json = await getResp.Content.ReadAsStringAsync(cancellationToken);
 
-            if (!headResp.IsSuccessStatusCode)
+            if (File.Exists(cachePath) && string.Equals(await File.ReadAllTextAsync(cachePath, cancellationToken), json, StringComparison.Ordinal))
             {
-                Log.LogDebug("HEAD for airport layout {AirportId} returned {Status}; using cached copy", faaCode, (int)headResp.StatusCode);
                 return;
             }
 
-            var serverLastModified = headResp.Content.Headers.LastModified?.UtcDateTime;
-            if ((serverLastModified is { } sm) && (sm > fileInfo.LastWriteTimeUtc))
-            {
-                Log.LogDebug("Airport layout {AirportId} has been updated, re-downloading", faaCode);
-                await DownloadAsync(url, cachePath, serverLastModified, cancellationToken);
-            }
+            await File.WriteAllTextAsync(cachePath, json, cancellationToken);
+            Log.LogDebug("Refreshed cached airport layout for {AirportId}", faaCode);
         }
         catch (HttpRequestException ex)
         {
-            Log.LogWarning(ex, "Failed to refresh airport layout for {AirportId}", faaCode);
+            Log.LogWarning(ex, "Failed to refresh airport layout for {AirportId}; using cached copy if present", faaCode);
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
-            Log.LogWarning(ex, "Timed out refreshing airport layout for {AirportId}", faaCode);
-        }
-    }
-
-    private async Task DownloadAsync(string url, string cachePath, DateTime? serverLastModified, CancellationToken cancellationToken)
-    {
-        using var getResp = await _http.GetAsync(url, cancellationToken);
-        if (getResp.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            Log.LogInformation("No airport layout available from vNAS for {Url} (HTTP 404)", url);
-            return;
-        }
-
-        getResp.EnsureSuccessStatusCode();
-        var json = await getResp.Content.ReadAsStringAsync(cancellationToken);
-        await File.WriteAllTextAsync(cachePath, json, cancellationToken);
-
-        var stamp = serverLastModified ?? getResp.Content.Headers.LastModified?.UtcDateTime;
-        if (stamp is { } s)
-        {
-            File.SetLastWriteTimeUtc(cachePath, s);
+            Log.LogWarning(ex, "Timed out refreshing airport layout for {AirportId}; using cached copy if present", faaCode);
         }
     }
 }
