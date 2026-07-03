@@ -11,6 +11,15 @@ public sealed class TaxiRoute
     public required List<HoldShortPoint> HoldShortPoints { get; init; }
     public List<string> Warnings { get; init; } = [];
 
+    /// <summary>
+    /// Number of mandatory connector insertions the resolver had to bridge between cleared taxiways
+    /// that shared no direct junction (the "X and Y do not connect directly — taxi via Z" case). A
+    /// route that honors the clearance without any blind detour has 0; used by
+    /// <see cref="Pathfinding.SegmentExpander.Run"/> to prefer a clearance-honoring variant (e.g. one
+    /// threaded through a curated connector) over a shorter route that had to blind-detour.
+    /// </summary>
+    public int MandatoryConnectorCount { get; init; }
+
     /// <summary>Parking destination name (@ prefix), if any.</summary>
     public string? DestinationParking { get; init; }
 

@@ -57,6 +57,7 @@ public static class RouteMaterialiser
             Segments = segments,
             HoldShortPoints = holdShorts,
             Warnings = warnings,
+            MandatoryConnectorCount = insertions.Count,
             CurrentSegmentIndex = 0,
             DestinationParking = ctx.Destination.ParkingName,
             DestinationSpot = ctx.Destination.SpotName,

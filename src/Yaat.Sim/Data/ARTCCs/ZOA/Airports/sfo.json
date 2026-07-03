@@ -5,6 +5,11 @@
       "connector": "LF",
       "between": ["L", "F"],
       "notes": "LF is the short connector bridging taxiways L and F. Authorized implicitly only when the controller routes L adjacent to F (TAXI L F / TAXI F L)."
+    },
+    {
+      "connector": "Q",
+      "between": ["A", "B1"],
+      "notes": "Q is the connector bridging taxiway A and the B1 stub; A and B1 do not meet directly. Authorized implicitly only when the controller routes A adjacent to B1 (TAXI A B1 / TAXI B1 A)."
     }
   ],
   "blockedTurns": [

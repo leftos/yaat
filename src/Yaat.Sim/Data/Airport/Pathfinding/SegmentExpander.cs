@@ -54,13 +54,30 @@ public static class SegmentExpander
         foreach (var variant in variants)
         {
             var (route, _) = ResolveExplicit(ctx with { WaypointSequence = variant });
-            if (route is not null && (best is null || route.TotalDistanceNm < best.TotalDistanceNm))
+            if (route is not null && (best is null || IsBetterRoute(route, best)))
             {
                 best = route;
             }
         }
 
         return best is not null ? (best, null) : primary;
+    }
+
+    /// <summary>
+    /// Prefer the route that honors the clearance with fewer mandatory blind-detour connector
+    /// insertions; distance breaks ties. A curated-connector variant threads the real connector as a
+    /// named token, so it resolves with no insertion and beats a shorter route that had to blind-detour
+    /// between two cleared taxiways sharing no junction (e.g. SFO <c>TAXI A B1</c> routing via the real
+    /// connector Q instead of a shorter bypass that drops A and B1).
+    /// </summary>
+    internal static bool IsBetterRoute(TaxiRoute candidate, TaxiRoute incumbent)
+    {
+        if (candidate.MandatoryConnectorCount != incumbent.MandatoryConnectorCount)
+        {
+            return candidate.MandatoryConnectorCount < incumbent.MandatoryConnectorCount;
+        }
+
+        return candidate.TotalDistanceNm < incumbent.TotalDistanceNm;
     }
 
     /// <summary>
