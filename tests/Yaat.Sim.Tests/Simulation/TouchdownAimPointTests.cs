@@ -25,6 +25,8 @@ public class TouchdownAimPointTests(ITestOutputHelper output)
     // floats to a realistic touchdown zone and is checked only for a sane bound.
     [Theory]
     [InlineData("C172", 400.0, 800.0)]
+    [InlineData("C208", 500.0, 1100.0)]
+    [InlineData("AT76", 500.0, 1100.0)]
     [InlineData("B738", 800.0, 2500.0)]
     public void LandsInTouchdownZone(string aircraftType, double minFt, double maxFt)
     {

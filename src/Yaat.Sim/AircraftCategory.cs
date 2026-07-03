@@ -200,15 +200,17 @@ public static class CategoryPerformance
     /// for, so the aircraft touches down at a realistic aiming point instead of on the threshold.
     /// Slow aircraft float little in the flare and would otherwise touch down essentially on the
     /// threshold; aiming the glidepath down the runway makes a light piston cross the threshold
-    /// slightly high (~20 ft) and land near the numbers (~500 ft, FAA-H-8083-3 technique). Jets
-    /// already float to a realistic touchdown in the flare, so they get no offset. Helicopter: 0.
+    /// slightly high (~20 ft) and land near the numbers (~500 ft, FAA-H-8083-3 technique).
+    /// Turboprops float even less than jets, so they need the largest offset to reach the touchdown
+    /// zone (~450 ft → ~850-1,000 ft touchdown). Jets already float ~1,700 ft down the flare to a
+    /// realistic touchdown zone, so they get no offset. Helicopter: 0 (vertical descent).
     /// </summary>
     public static double LandingAimPointOffsetFt(AircraftCategory cat)
     {
         return cat switch
         {
             AircraftCategory.Jet => 0,
-            AircraftCategory.Turboprop => 0,
+            AircraftCategory.Turboprop => 450,
             AircraftCategory.Piston => 400,
             AircraftCategory.Helicopter => 0,
             _ => 0,

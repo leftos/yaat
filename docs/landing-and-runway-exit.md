@@ -35,7 +35,7 @@ GroundNavigator
 
 A real 3° approach crosses the threshold at a threshold-crossing height and touches down at the aiming point (~1,000 ft in for jets, near the numbers for light GA), not on the threshold. Previously the glidepath aimed at the threshold (0 ft TCH), so aircraft touched down essentially on it — and because flare float scales with approach speed, slow light singles landed unrealistically short (~100 ft past the threshold).
 
-`CategoryPerformance.LandingAimPointOffsetFt` corrects this by aiming the `FinalApproachPhase` descent target a fixed distance past the threshold (piston 400 ft; jet 0 — jets already float ~1,700 ft to a realistic touchdown zone; turboprop/helicopter 0). A light single then crosses the threshold slightly high (~21 ft) and touches down near the numbers (~500 ft).
+`CategoryPerformance.LandingAimPointOffsetFt` corrects this by aiming the `FinalApproachPhase` descent target a fixed distance past the threshold (piston 400 ft; turboprop 450 ft — they float even less than jets so they need the largest offset; jet 0 — jets already float ~1,700 ft to a realistic touchdown zone; helicopter 0). A light single then crosses the threshold slightly high (~21 ft) and touches down near the numbers (~500 ft); a turboprop lands ~850-1,000 ft in.
 
 `FinalApproachPhase` completes (hands to `LandingPhase`) at `agl < 30`, near the threshold, **or once the aircraft passes the threshold**. That last condition is a safety net: a high/rushed approach that crosses still above the 50 ft AGL completion band hands off to the flare (or a stabilization-gate go-around) instead of flying past the threshold and climbing away, tracking the glideslope that rises again beyond it (distance-to-threshold is unsigned).
 
