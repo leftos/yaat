@@ -66,13 +66,16 @@ internal readonly struct DataBlockLayout
 
         // Suffix '*' marks aircraft pre-armed for auto-delete on hold-short (ONHS DEL).
         string line1 = ac.AutoDeletePending ? $"{ac.Callsign}*" : ac.Callsign;
-        string dest = ac.Destination.StartsWith('K') ? ac.Destination[1..] : ac.Destination;
+        // ASDE-style surface fix (exit fix or destination per the airport's facility config), resolved
+        // server-side and already normalized — used verbatim, no K-strip. Falls back to the destination
+        // when no rule/config applies, so it is blank only for a VFR cold-call with no destination.
+        string fix = ac.AsdexFix;
         // CWT category prepended to the physical type as "cwt/type" (e.g. "E/B738"), mirroring the
         // radar STARS datablock. Ground stays on the physical AircraftType (tower-cab "out the window"
         // surface), unlike the radar surfaces which use DisplayAircraftType.
         string cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
         string cwtType = RadarDatablockLayout.FormatCwtType(cwt, ac.AircraftType);
-        string line2 = string.IsNullOrEmpty(dest) ? cwtType : (cwtType.Length > 0 ? $"{cwtType} {dest}" : dest);
+        string line2 = string.IsNullOrEmpty(fix) ? cwtType : (cwtType.Length > 0 ? $"{cwtType} {fix}" : fix);
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
         // Ground hold / auto-yield takes precedence on line4 over the SqStby transponder hint —
         // a HOLDPOSITION, GIVEWAY, or auto-detected yield is operationally more important than a

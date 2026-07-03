@@ -137,6 +137,11 @@ public partial class AircraftModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasFlightPlan))]
     private string _destination = "";
 
+    // ASDE-style surface fix (exit fix or destination per the airport's ASDE-X/SAID facility config),
+    // resolved server-side. Shown on the Ground View datablock and the Aircraft List "Fix" column.
+    [ObservableProperty]
+    private string _asdexFix = "";
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
     [NotifyPropertyChangedFor(nameof(HasFlightPlan))]
@@ -818,6 +823,7 @@ public partial class AircraftModel : ObservableObject
             AssignedSpeed = dto.AssignedSpeed,
             Departure = dto.Departure,
             Destination = dto.Destination,
+            AsdexFix = dto.AsdexFix,
             Route = dto.Route,
             Remarks = dto.Remarks,
             Note = dto.Note,
@@ -909,6 +915,7 @@ public partial class AircraftModel : ObservableObject
         AssignedSpeed = dto.AssignedSpeed;
         Departure = dto.Departure;
         Destination = dto.Destination;
+        AsdexFix = dto.AsdexFix;
         Route = dto.Route;
         Remarks = dto.Remarks;
         Note = dto.Note;

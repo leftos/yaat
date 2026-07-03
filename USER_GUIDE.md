@@ -242,6 +242,7 @@ The default view. Shows all aircraft in your scenario, grouped into **Active** a
 | Name | Human-readable aircraft type (e.g., "Boeing 737-800", "Cessna Skyhawk 172") |
 | Rules | Flight rules ([IFR](#glossary) / [VFR](#glossary)) |
 | Dep / Dest | Departure and destination airports |
+| Fix | ASDE-style surface fix — a departure's exit fix or the destination, chosen per the airport's ASDE-X/SAID facility config (falls back to the destination when no fix rule applies) |
 | Route | Filed route |
 | P.Alt | Planned cruise altitude (e.g., 035, VFR, VFR/035, OTP/035) |
 | Remarks | Flight plan remarks |
@@ -343,7 +344,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 - **Rotate**: Shift + mouse wheel (1° per notch)
 - **Select aircraft**: click an aircraft triangle on the map
 
-**Datablock.** Each aircraft's ground datablock shows the callsign, then its CWT wake category and type as `cwt/type` with the destination (e.g. `E/B738 SFO`) — matching the radar view; an unknown type or category just shows whichever part is known. Airborne aircraft add an altitude line, and a hold / squawk-standby / auto-yield status line and any instructor note appear below.
+**Datablock.** Each aircraft's ground datablock shows the callsign, then its CWT wake category and type as `cwt/type` followed by the ASDE-style fix (e.g. `E/B738 SFO`) — a departure's exit fix or the destination airport, chosen per the airport's ASDE-X/SAID facility configuration and falling back to the destination when no fix rule applies, mirroring a real surface display. An unknown type or category just shows whichever part is known. Airborne aircraft add an altitude line, and a hold / squawk-standby / auto-yield status line and any instructor note appear below.
 
 **Right-click context menus:**
 - **Anywhere on the ground (with aircraft selected)** — the click snaps to the nearest node, so the menu appears even on an open stretch of runway or taxiway with no node directly under the cursor: up to 4 route options ("Taxi via T U W") computed via K-shortest paths. Routes that cross runways automatically append crossing commands. Also: "Push to {spot}" (parking nodes), "Draw taxi route...", "Custom taxi...", and "Warp here".

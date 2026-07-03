@@ -5,6 +5,9 @@
 ### Added
 - **Taxi routes on the ground view.** Two new **Settings > Display** options control when an aircraft's taxi route is drawn on the ground view: **"Show taxi route when hovering an aircraft"** (on by default) temporarily draws the route of whichever aircraft the mouse is over, and **"Show all taxiing aircraft's routes"** (off by default) draws every taxiing aircraft's route at once. Right-click an aircraft and use the **Taxi route** submenu to override one aircraft — **Always show**, **Always hide**, or **Follow "Show all"** — independently of the global setting.
 
+### Changed
+- The Ground View datablock — and a new **Fix** column in the Aircraft List — now show the ASDE-style fix instead of the destination airport: a departure's exit fix or the destination, chosen per the airport's ASDE-X/SAID facility configuration (falling back to the destination when no fix rule applies). This matches how a real ASDE-X / tower surface display labels each target.
+
 ### Fixed
 - Scenario preset strip commands (e.g. auto-checking a departure-strip box shortly after spawn) now apply to the aircraft's strip.
 - Track commands scheduled behind a `WAIT` — scratchpad, temporary altitude, and similar — now apply when the wait expires.

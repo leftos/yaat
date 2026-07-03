@@ -20,6 +20,9 @@ public class GroundDataBlockLayoutTests
             FlightRules = "IFR",
             Altitude = 0,
             Destination = "KSFO",
+            // Ground datablock line 2 shows the server-resolved ASDE-style fix (already normalized),
+            // not the raw destination.
+            AsdexFix = "SFO",
         };
     }
 
@@ -52,11 +55,11 @@ public class GroundDataBlockLayoutTests
     }
 
     [Fact]
-    public void Line2_CwtWithoutDestination()
+    public void Line2_CwtWithoutFix()
     {
         var ac = CreateModel();
         ac.CwtCode = "E";
-        ac.Destination = "";
+        ac.AsdexFix = "";
         using var paint = CreatePaint();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);

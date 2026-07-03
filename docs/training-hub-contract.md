@@ -283,6 +283,15 @@ rather than restating it.
    `JsonSerializerIsReflectionDisabled` at runtime.
 7. **Docs** — update `COMMANDS.md` / `docs/architecture.md` per the CLAUDE.md conventions if the field is user-visible.
 
+**Documented exception to step 4 — `AsdexFix`.** The `AsdexFix` field (the ASDE-style Ground View / Aircraft List
+fix, resolved server-side by `DtoConverter.ResolveGroundFix` from the airport's ASDE-X/SAID config) is deliberately
+**not** in `TrainingDtoFingerprint`. It is a pure function of `Destination`, `Route`, and `Scratchpad1` (all already
+fingerprinted) plus the ARTCC config and `AircraftState.AirportId` (both static for an aircraft's lifetime), so any
+runtime change to the resolved fix is already driven by a fingerprinted input and rebroadcasts correctly. Adding it
+would force `ArtccConfigService` + the ARTCC id into `CaptureTrainingDto` for zero behavioral gain. This is safe
+*only* because the derived field's dynamic inputs are themselves fingerprinted — the general rule (step 4) still holds
+for any field whose inputs are not.
+
 ## Pitfalls
 
 - **Server type name ≠ client type name for the same wire object.** `AircraftStateDto` (server) and `AircraftDto`

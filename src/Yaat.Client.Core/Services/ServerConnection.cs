@@ -906,7 +906,11 @@ public record AircraftDto(
     // evaluates these against real UTC to raise instructor-facing expiry alerts; they never affect the
     // simulation (GitHub issue #230). Kept name-for-name in sync with the server's AircraftStateDto.
     DateTime? CfrWindowStartUtc = null,
-    DateTime? CfrWindowEndUtc = null
+    DateTime? CfrWindowEndUtc = null,
+    // ASDE-style surface fix shown on the Ground View datablock and the Aircraft List "Fix" column:
+    // exit fix or destination per the airport's ASDE-X/SAID facility config, resolved server-side.
+    // Kept name-for-name in sync with the server's AircraftStateDto.
+    string AsdexFix = ""
 );
 
 public record LoadScenarioResultDto(
