@@ -22,8 +22,15 @@ const TRACKING_FORUMS = {
   "track-feature-request": "1479890009153605724",
 };
 
-// Per-repo installation tokens (valid for ~1 hour, regenerated per worker invocation)
+// Per-repo GitHub App installation tokens ({ token, expiresAt }), valid ~1 hour. Cached at module
+// scope so they survive across invocations within an isolate; refreshed before expiry.
 const cachedInstallationTokens = new Map();
+
+// Minimum spacing between mutating GitHub requests. GitHub's secondary-rate-limit guidance is to
+// "wait at least one second between mutating requests"; comment posts are spaced by a bit more.
+const GITHUB_WRITE_SPACING_MS = 1200;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Status labels → display text, emoji, and whether they represent a terminal (closed) state
 const STATUS_LABELS = {
@@ -799,6 +806,7 @@ async function syncAllThreads(env) {
 
   // Sync Discord thread replies → GitHub issue comments.
   let synced = 0;
+  let threadsSynced = 0;
   let githubToken = null;
 
   for (const key of keys.keys) {
@@ -809,14 +817,20 @@ async function syncAllThreads(env) {
       const mapping = await env.THREAD_ISSUES.get(key.name, { type: "json" });
       if (!mapping) continue;
       const count = await syncThread(env, key.name, mapping, githubToken);
-      synced += count;
+      if (count > 0) {
+        synced += count;
+        threadsSynced++;
+        // Space out mutating GitHub writes so a burst of thread syncs in one cron run doesn't
+        // trip the secondary rate limit (which would otherwise also 403 a concurrent /create-issue).
+        await sleep(GITHUB_WRITE_SPACING_MS);
+      }
     } catch (err) {
       console.error(`Failed to sync thread ${key.name}:`, err);
     }
   }
 
   if (synced > 0) {
-    console.log(`Cron sync: posted ${synced} comment(s) across ${processed} thread(s)`);
+    console.log(`Cron sync: posted ${synced} comment(s) across ${threadsSynced} thread(s)`);
   }
 }
 
@@ -958,8 +972,52 @@ async function discordPatch(path, botToken, body) {
   }
 }
 
+/**
+ * fetch() wrapper for the GitHub REST API that transparently retries on primary and secondary rate
+ * limits (HTTP 403/429). Honors Retry-After and x-ratelimit-reset; falls back to exponential backoff
+ * for a secondary limit with no timing hint. A 403 that is NOT a rate limit (e.g. a permissions
+ * error) is returned unchanged so the caller surfaces the real error.
+ */
+async function githubFetch(url, options, maxRetries = 4) {
+  const maxWaitMs = 15000; // never stall a Worker invocation longer than this on one wait
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, options);
+    if ((res.status !== 403 && res.status !== 429) || attempt >= maxRetries) {
+      return res;
+    }
+
+    const retryAfter = res.headers.get("retry-after");
+    const remaining = res.headers.get("x-ratelimit-remaining");
+    const reset = res.headers.get("x-ratelimit-reset");
+
+    let waitMs;
+    if (retryAfter) {
+      waitMs = Number(retryAfter) * 1000;
+    } else if (remaining === "0" && reset) {
+      waitMs = Number(reset) * 1000 - Date.now();
+    } else {
+      // No timing hint — only a genuine secondary rate limit is retryable; anything else
+      // (e.g. a permissions 403) is a real error, so return it unchanged.
+      const bodyText = await res.clone().text();
+      if (!/rate limit/i.test(bodyText)) {
+        return res;
+      }
+      waitMs = 1000 * 2 ** attempt; // 1s, 2s, 4s, 8s
+    }
+
+    if (!(waitMs > 0)) {
+      waitMs = 1000;
+    }
+    if (waitMs > maxWaitMs) {
+      return res; // wait exceeds what we can afford in-worker — fail with the real status
+    }
+    console.warn(`GitHub rate limit (${res.status}); retrying in ${waitMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+    await sleep(waitMs);
+  }
+}
+
 async function fetchGitHubIssue(token, repo, issueNumber) {
-  const res = await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}`, {
+  const res = await githubFetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       "User-Agent": "yaat-discord-bot",
@@ -977,7 +1035,7 @@ async function fetchGitHubComments(token, repo, issueNumber) {
   const comments = [];
   let page = 1;
   while (true) {
-    const res = await fetch(
+    const res = await githubFetch(
       `https://api.github.com/repos/${repo}/issues/${issueNumber}/comments?per_page=100&page=${page}`,
       {
         headers: {
@@ -998,7 +1056,7 @@ async function fetchGitHubComments(token, repo, issueNumber) {
 }
 
 async function createGitHubIssue(token, repo, { title, body, labels }) {
-  const res = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+  const res = await githubFetch(`https://api.github.com/repos/${repo}/issues`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1016,7 +1074,7 @@ async function createGitHubIssue(token, repo, { title, body, labels }) {
 }
 
 async function updateGitHubIssue(token, repo, issueNumber, fields) {
-  const res = await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}`, {
+  const res = await githubFetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}`, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1034,7 +1092,7 @@ async function updateGitHubIssue(token, repo, issueNumber, fields) {
 }
 
 async function createGitHubComment(token, repo, issueNumber, body) {
-  const res = await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`, {
+  const res = await githubFetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1052,7 +1110,7 @@ async function createGitHubComment(token, repo, issueNumber, body) {
 
 async function removeGitHubLabel(token, repo, issueNumber, label) {
   const encoded = encodeURIComponent(label);
-  const res = await fetch(
+  const res = await githubFetch(
     `https://api.github.com/repos/${repo}/issues/${issueNumber}/labels/${encoded}`,
     {
       method: "DELETE",
@@ -1175,8 +1233,10 @@ async function resolveInstallationId(repo, env, jwt) {
 
 async function getGitHubToken(env, repo = env.GITHUB_REPO) {
   const cached = cachedInstallationTokens.get(repo);
-  if (cached) {
-    return cached;
+  // Reuse a cached token only while it's comfortably valid (60s safety margin). Installation
+  // tokens expire after ~1 hour, and a stale one would 401 every GitHub call.
+  if (cached && cached.expiresAt > Date.now() + 60000) {
+    return cached.token;
   }
 
   const jwt = await createAppJwt(env);
@@ -1199,7 +1259,10 @@ async function getGitHubToken(env, repo = env.GITHUB_REPO) {
   }
 
   const data = await res.json();
-  cachedInstallationTokens.set(repo, data.token);
+  // Installation tokens are valid ~1 hour; cache with the returned expiry so getGitHubToken
+  // refreshes before it lapses instead of reusing an expired token for the isolate's lifetime.
+  const expiresAt = data.expires_at ? Date.parse(data.expires_at) : Date.now() + 3000000;
+  cachedInstallationTokens.set(repo, { token: data.token, expiresAt });
   return data.token;
 }
 
