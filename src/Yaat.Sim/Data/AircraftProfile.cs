@@ -39,9 +39,6 @@ public sealed record AircraftProfile
     [JsonPropertyName("groundAccelRate")]
     public double GroundAccelRate { get; init; }
 
-    [JsonPropertyName("groundDecelRate")]
-    public double GroundDecelRate { get; init; }
-
     [JsonPropertyName("takeoffDistance")]
     public double TakeoffDistance { get; init; }
 

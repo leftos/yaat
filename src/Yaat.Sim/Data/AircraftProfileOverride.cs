@@ -44,9 +44,6 @@ public sealed record AircraftProfileOverride
     [JsonPropertyName("groundAccelRate")]
     public double? GroundAccelRate { get; init; }
 
-    [JsonPropertyName("groundDecelRate")]
-    public double? GroundDecelRate { get; init; }
-
     [JsonPropertyName("takeoffDistance")]
     public double? TakeoffDistance { get; init; }
 
@@ -143,7 +140,6 @@ public sealed record AircraftProfileOverride
             AirborneAccelRate = Resolve(AirborneAccelRate, baseProfile.AirborneAccelRate, nameof(AircraftProfile.AirborneAccelRate), fields),
             AirborneDecelRate = Resolve(AirborneDecelRate, baseProfile.AirborneDecelRate, nameof(AircraftProfile.AirborneDecelRate), fields),
             GroundAccelRate = Resolve(GroundAccelRate, baseProfile.GroundAccelRate, nameof(AircraftProfile.GroundAccelRate), fields),
-            GroundDecelRate = Resolve(GroundDecelRate, baseProfile.GroundDecelRate, nameof(AircraftProfile.GroundDecelRate), fields),
             TakeoffDistance = Resolve(TakeoffDistance, baseProfile.TakeoffDistance, nameof(AircraftProfile.TakeoffDistance), fields),
             RotateSpeed = Resolve(RotateSpeed, baseProfile.RotateSpeed, nameof(AircraftProfile.RotateSpeed), fields),
             ClimbSpeedInitial = Resolve(ClimbSpeedInitial, baseProfile.ClimbSpeedInitial, nameof(AircraftProfile.ClimbSpeedInitial), fields),

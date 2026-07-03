@@ -975,7 +975,6 @@ public static class CategoryPerformance
             AirborneAccelRate = AccelRate(cat),
             AirborneDecelRate = DecelRate(cat),
             GroundAccelRate = GroundAccelRate(cat),
-            GroundDecelRate = TaxiDecelRate(cat),
             RotateSpeed = RotationSpeed(cat),
             ClimbSpeedInitial = InitialClimbSpeed(cat),
             ClimbSpeedFl150 = DefaultSpeed(cat, 15000),

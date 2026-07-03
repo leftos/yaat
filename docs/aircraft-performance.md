@@ -90,7 +90,7 @@ Only types that appear in the override file are affected; every other type behav
 All fields are nullable. The full set mirrors `AircraftProfile`:
 
 `isProp`, `isHelo`, `isHeavy`, `isSpeedLimitWaived`, `airborneAccelRate`, `airborneDecelRate`,
-`groundAccelRate`, `groundDecelRate`, `takeoffDistance`, `rotateSpeed`, `climbSpeedInitial`,
+`groundAccelRate`, `takeoffDistance`, `rotateSpeed`, `climbSpeedInitial`,
 `climbSpeedFl150`, `climbSpeedFl240`, `climbSpeedFinal`, `climbRateInitial`, `climbRateFl150`,
 `climbRateFl240`, `climbRateFinal`, `cruiseSpeed`, `cruiseAltitude`, `ceiling`, `descentSpeedInitial`,
 `descentSpeedFl100`, `initialApproachSpeed`, `descentRateInitial`, `descentRateFl100`,
