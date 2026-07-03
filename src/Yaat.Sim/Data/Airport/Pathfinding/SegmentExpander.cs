@@ -576,7 +576,7 @@ public static class SegmentExpander
             // lowest total (walk + extension) cost instead of committing to the greedy terminus —
             // mirrors V1's SelectBestStopNode. The greedy terminus is direction-blind and its single
             // from-terminus extension is often inadmissible (a U-turn at a dead-end) or wrong-way.
-            var (stopEdges, stopHead) = SelectBestParkingStop(head, waypoint.Name, destId, ctx);
+            var (stopEdges, stopHead, _) = SelectBestParkingStop(head, waypoint.Name, destId, ctx);
             if (stopEdges is not null)
             {
                 return (stopEdges, stopHead, null);
@@ -709,22 +709,23 @@ public static class SegmentExpander
     /// node. Returns (null, null) when no candidate reaches the destination — the caller falls back
     /// to the greedy terminus walk.
     /// </summary>
-    private static (List<DirectionalEdge>? Edges, PartialRoute? Head) SelectBestParkingStop(
+    private static (List<DirectionalEdge>? Edges, PartialRoute? Head, double Cost) SelectBestParkingStop(
         PartialRoute head,
         string taxiwayName,
         int destId,
-        SearchContext ctx
+        SearchContext ctx,
+        int maxStopCandidates = MaxParkingStopCandidates
     )
     {
         if (!ctx.Layout.Nodes.TryGetValue(destId, out var destNode))
         {
-            return (null, null);
+            return (null, null, double.MaxValue);
         }
 
         var candidates = ctx
             .Layout.GetNodesOnTaxiway(taxiwayName)
             .OrderBy(n => GeoMath.DistanceNm(n.Position, destNode.Position))
-            .Take(MaxParkingStopCandidates);
+            .Take(maxStopCandidates);
 
         List<DirectionalEdge>? bestWalk = null;
         PartialRoute? bestStopHead = null;
@@ -761,11 +762,54 @@ public static class SegmentExpander
 
         if (bestWalk is null)
         {
-            return (null, null);
+            return (null, null, double.MaxValue);
         }
 
         ctx.DiagnosticLog?.Invoke($"[beststop] twy={taxiwayName} dest={destId} stop={bestStopHead!.HeadNodeId} total={bestTotal:F3}");
-        return (bestWalk, bestStopHead);
+        return (bestWalk, bestStopHead, bestTotal);
+    }
+
+    /// <summary>
+    /// Number of on-taxiway stop candidates <see cref="ProbeParkingReachCost"/> evaluates per junction
+    /// candidate. Fewer than <see cref="MaxParkingStopCandidates"/>: the probe only needs a comparative
+    /// reach cost to separate "reachable this direction" from "only via a loop", and it runs once per
+    /// junction candidate, so it is kept cheap. The committed junction is later re-resolved by
+    /// <see cref="ExpandLastWaypoint"/> with the full candidate set for the actual edges.
+    /// </summary>
+    private const int ProbeStopCandidateCap = 4;
+
+    /// <summary>
+    /// Realized cost of resolving a parking/spot/helipad destination from <paramref name="segHead"/>
+    /// along <paramref name="toTaxiway"/> — mirrors <see cref="ExpandLastWaypoint"/>'s parking-branch
+    /// order (direct one-hop-off via <see cref="LocalSearchToJunction"/>, else best on-taxiway stop via
+    /// <see cref="SelectBestParkingStop"/>). Used to score a FINAL-transition junction candidate by
+    /// whether the destination is admissibly and cheaply reachable from it. Returns
+    /// <see cref="TailUnresolvablePenaltyNm"/> when the destination is not reachable staying on the
+    /// taxiway from this junction's arrival bearing, so a junction that would strand the terminus
+    /// (forcing the whole-layout loop) loses to one from which the destination is reachable.
+    /// </summary>
+    private static double ProbeParkingReachCost(PartialRoute segHead, string toTaxiway, int destId, SearchContext ctx)
+    {
+        if (segHead.HeadNodeId == destId)
+        {
+            return 0.0;
+        }
+
+        // Mirror ResolveSequence's per-segment VisitedNodeIds reset (the real terminus walk starts from
+        // a reset head, so the probe must too, or it under-counts reachability).
+        var probeHead = segHead with
+        {
+            VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(segHead.HeadNodeId),
+        };
+
+        var (directEdges, _, directCost) = LocalSearchToJunction(probeHead, toTaxiway, destId, ctx);
+        if (directEdges is not null)
+        {
+            return directCost;
+        }
+
+        var (stopEdges, _, stopCost) = SelectBestParkingStop(probeHead, toTaxiway, destId, ctx, ProbeStopCandidateCap);
+        return stopEdges is not null ? stopCost : TailUnresolvablePenaltyNm;
     }
 
     /// <summary>
@@ -1186,10 +1230,30 @@ public static class SegmentExpander
             // Look-ahead: prefer the junction whose continuation through the rest of the
             // sequence is cheapest (recursive probe), defeating first-match picks that strand
             // the route on the wrong leg of a V-shaped taxiway. When there is no meaningful tail
-            // (final transition) or we are already inside a probe, use the geometric heuristic.
-            double continuationCost = useTailProbe
-                ? ProbeTailCost(segHead!, tokens, index + 1, ctx)
-                : ComputeLookaheadPenalty(junctionNode, toTaxiway, lookaheadAnchor);
+            // (final transition) into a parking/spot/helipad destination, probe the realized cost of
+            // reaching that destination from this junction — the destination is the de-facto next
+            // waypoint (mirrors the runway anchor above), so a junction from which it is only
+            // reachable via a whole-layout loop loses to one from which it is admissibly reachable.
+            // Otherwise (inside a probe, or a runway/node/end-of-taxiway destination) use the cheap
+            // geometric heuristic.
+            double continuationCost;
+            if (useTailProbe)
+            {
+                continuationCost = ProbeTailCost(segHead!, tokens, index + 1, ctx);
+            }
+            else if (
+                enableLookahead
+                && !HasMeaningfulTail(tokens, index)
+                && ctx.Destination.Kind is DestinationKind.Parking or DestinationKind.Spot or DestinationKind.Helipad
+                && ctx.Destination.TargetNodeId is { } probeDestId
+            )
+            {
+                continuationCost = ProbeParkingReachCost(segHead!, toTaxiway, probeDestId, ctx);
+            }
+            else
+            {
+                continuationCost = ComputeLookaheadPenalty(junctionNode, toTaxiway, lookaheadAnchor);
+            }
 
             // Turn-direction hints (issue #172 W7): prefer the junction that realises the controller's
             // >/< turn. Both penalties are additive and finite (< the tail-unresolvable penalty), so a
