@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -22,6 +23,14 @@ public sealed class TaxiingPhase : Phase
     private static readonly ILogger Log = SimLog.CreateLogger("TaxiingPhase");
 
     private const double LogIntervalSeconds = 3.0;
+
+    // Fallback fuselage length (ft) for the nose-at-spot setback when the aircraft type has no FAA
+    // length. Matches GroundConflictDetector's default footprint so both reason about the same length.
+    private const double DefaultSpotStopLengthFt = 60.0;
+
+    // Slow parking-approach speed (kts) applied within a fuselage of the destination spot so the
+    // nose-at-spot terminal stop lands cleanly instead of braking abruptly from taxi speed.
+    private const double SpotApproachSpeedKts = 4.0;
 
     private GroundNavigator _nav = new();
     private bool _initialized;
@@ -89,6 +98,18 @@ public sealed class TaxiingPhase : Phase
                 ctx.Aircraft.IndicatedAirspeed - CategoryPerformance.TaxiDecelRate(ctx.Category) * ctx.DeltaSeconds
             );
             return false;
+        }
+
+        // Nose-at-spot terminal stop (issue #234): a taxiing aircraft parks with the front of its
+        // footprint (its nose) at the spot marking, not its centroid — otherwise the fuselage juts
+        // ~half its length past the spot toward the movement area, and the conflict detector (which
+        // models each aircraft as centroid ± half length) then slows traffic taxiing past on the
+        // adjacent taxiway. This stops the aircraft once its nose reaches the spot, at whatever heading
+        // the approach left it (a tight ramp lead-in may still be mid-turn — realistic for a taxi-in;
+        // aircraft are normally pushed onto spots). Spots are non-movement areas (AIM 4-3-14/4-3-17).
+        if (TryStopNoseAtSpot(ctx, route))
+        {
+            return true;
         }
 
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
@@ -333,31 +354,91 @@ public sealed class TaxiingPhase : Phase
 
         if (route.IsComplete)
         {
-            Log.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
-
-            ApplyDepartureClearanceIfPending(ctx);
-
-            var phases = ctx.Aircraft.Phases;
-            if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
-            {
-                if (route.DestinationParking is not null)
-                {
-                    ctx.Aircraft.Ground.ParkingSpot = route.DestinationParking;
-                    phases.InsertAfterCurrent(new AtParkingPhase());
-                }
-                else
-                {
-                    // DestinationSpot is an intermediate waypoint — the aircraft is awaiting
-                    // further instructions, not parked. HoldingInPositionPhase is the catch-all
-                    // idle state that accepts Taxi/Pushback/FollowGround/LineUpAndWait/etc.
-                    phases.InsertAfterCurrent(new HoldingInPositionPhase());
-                }
-            }
-
-            return true;
+            return CompleteRoute(ctx, route);
         }
 
         SetupCurrentSegment(ctx, route);
+        return false;
+    }
+
+    /// <summary>
+    /// Finish the route: apply any pending departure clearance and insert the terminal phase
+    /// (<see cref="AtParkingPhase"/> for a gate, otherwise <see cref="HoldingInPositionPhase"/> — a spot
+    /// is an intermediate waypoint where the aircraft awaits further instructions, not a parked gate).
+    /// Shared by normal last-segment arrival and the nose-at-spot terminal stop.
+    /// </summary>
+    private static bool CompleteRoute(PhaseContext ctx, TaxiRoute route)
+    {
+        Log.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
+
+        ApplyDepartureClearanceIfPending(ctx);
+
+        var phases = ctx.Aircraft.Phases;
+        if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
+        {
+            if (route.DestinationParking is not null)
+            {
+                ctx.Aircraft.Ground.ParkingSpot = route.DestinationParking;
+                phases.InsertAfterCurrent(new AtParkingPhase());
+            }
+            else
+            {
+                phases.InsertAfterCurrent(new HoldingInPositionPhase());
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Parking terminal stop for a taxi-to-spot route: brings the aircraft to rest with its nose at the
+    /// spot marking (a half-fuselage short of the spot node) rather than its centroid, and slows the
+    /// final approach so the stop lands cleanly. Returns true (route completed, aircraft stopped) once
+    /// the nose reaches the spot; otherwise applies the slow-approach cap and returns false. No-op for
+    /// non-spot routes. The half-length setback mirrors the runway-hold-short "nose at line" offset in
+    /// <see cref="HoldShortAnnotator.ComputeHoldShortPositions"/>. See issue #234 (SFO spot 7A over A).
+    /// </summary>
+    private bool TryStopNoseAtSpot(PhaseContext ctx, TaxiRoute route)
+    {
+        // Only a taxi-to-spot destination gets the setback, and only on the final approach segments
+        // (guards against a long route that merely passes near the spot node earlier).
+        if (
+            route.DestinationSpot is null
+            || ctx.GroundLayout is not { } layout
+            || route.Segments.Count == 0
+            || route.CurrentSegmentIndex < route.Segments.Count - 2
+            || !layout.Nodes.TryGetValue(route.Segments[^1].ToNodeId, out var spotNode)
+        )
+        {
+            return false;
+        }
+
+        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? DefaultSpotStopLengthFt;
+        double halfLenNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+        double distToSpotNm = GeoMath.DistanceNm(ctx.Aircraft.Position, spotNode.Position);
+
+        if (distToSpotNm <= halfLenNm)
+        {
+            ctx.Aircraft.IndicatedAirspeed = 0;
+            ctx.Targets.TargetSpeed = 0;
+            route.CurrentSegmentIndex = route.Segments.Count;
+            Log.LogDebug(
+                "[Taxi] {Callsign}: nose-at-spot stop at {Spot} — centroid {Dist:F0}ft from spot node (half-length {Half:F0}ft, hdg {Hdg:F0})",
+                ctx.Aircraft.Callsign,
+                route.DestinationSpot,
+                distToSpotNm * GeoMath.FeetPerNm,
+                lengthFt / 2.0,
+                ctx.Aircraft.TrueHeading.Degrees
+            );
+            return CompleteRoute(ctx, route);
+        }
+
+        // Within one fuselage of the spot: slow to a parking crawl so the stop above lands cleanly.
+        if (distToSpotNm <= 2.0 * halfLenNm)
+        {
+            _nav.MaxSpeedKts = Math.Min(_nav.MaxSpeedKts, SpotApproachSpeedKts);
+        }
+
         return false;
     }
 
