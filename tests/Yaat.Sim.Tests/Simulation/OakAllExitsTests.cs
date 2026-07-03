@@ -58,8 +58,8 @@ public class OakAllExitsTests(ITestOutputHelper output)
         AssertSmoothExit(result, label);
     }
 
-    // --- OAK 28R exits, ordered from threshold ---
-    private static readonly string[] Rwy28RExitsThresholdOrder = ["B", "G", "H", "E", "P", "J", "C1"];
+    // --- OAK 28R exits, ordered from threshold (measured down-runway distance) ---
+    private static readonly string[] Rwy28RExitsThresholdOrder = ["B", "E", "G", "H", "P", "J", "C1"];
 
     [Theory]
     [InlineData(null)]

@@ -824,7 +824,8 @@ public sealed class FinalApproachPhase : Phase
         // hold the assigned altitude (clamped by current altitude — never climb up to assigned
         // either) and wait for the GS to descend to meet the aircraft from above. Aircraft must
         // never fly UP to capture a glideslope.
-        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation, _gsAngleDeg);
+        double aimPointOffsetNm = CategoryPerformance.LandingAimPointOffsetFt(ctx.Category) / GeoMath.FeetPerNm;
+        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm + aimPointOffsetNm, _thresholdElevation, _gsAngleDeg);
         if (!_gsCaptured && (ctx.Aircraft.Altitude >= gsAltitude - GsCaptureWindowFt) && IsLaterallyEstablishedForGs(ctx, absXte))
         {
             _gsCaptured = true;
@@ -860,7 +861,7 @@ public sealed class FinalApproachPhase : Phase
             // Above GS: compute FPM needed to reach GS altitude at a convergence point ahead.
             // Convergence point = min(distNm - 1.0, distNm × 0.7) nm from threshold, floored at 0.5nm.
             double convergeDistNm = Math.Max(Math.Min(distNm - 1.0, distNm * 0.7), 0.5);
-            double convergeGsAlt = GlideSlopeGeometry.AltitudeAtDistance(convergeDistNm, _thresholdElevation, _gsAngleDeg);
+            double convergeGsAlt = GlideSlopeGeometry.AltitudeAtDistance(convergeDistNm + aimPointOffsetNm, _thresholdElevation, _gsAngleDeg);
             double altToLose = ctx.Aircraft.Altitude - convergeGsAlt;
             double distToConverge = distNm - convergeDistNm;
 
@@ -1028,7 +1029,14 @@ public sealed class FinalApproachPhase : Phase
         // on glideslope at the threshold, but only once they've also descended below
         // 50 ft AGL — preventing the pre-fix case where dist&lt;0.05 fired at AGL ~55 ft
         // and forced the small-offset ramp end to 100 ft (vs the AIM-aligned ~50 ft).
-        bool complete = (agl < 30) || ((distNm < 0.05) && (agl < 50));
+        //
+        // Past-threshold safety net: an aircraft that reaches the threshold still above
+        // the 50 ft AGL band (a high, unstable, or rushed approach) must still hand off to
+        // LandingPhase — which flares if it can or triggers a go-around if it can't — rather
+        // than continue in FinalApproach. Without this it would fly on past the threshold and
+        // climb away tracking the (unsigned-distance) glideslope that rises again beyond it.
+        double pastThresholdNm = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _runwayHeading);
+        bool complete = (agl < 30) || ((distNm < 0.05) && (agl < 50)) || (pastThresholdNm > 0);
         if (complete)
         {
             Log.LogDebug(

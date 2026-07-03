@@ -31,6 +31,14 @@ GroundNavigator
   - Handles the turn and arrival at hold-short
 ```
 
+## Touchdown Aiming Point
+
+A real 3° approach crosses the threshold at a threshold-crossing height and touches down at the aiming point (~1,000 ft in for jets, near the numbers for light GA), not on the threshold. Previously the glidepath aimed at the threshold (0 ft TCH), so aircraft touched down essentially on it — and because flare float scales with approach speed, slow light singles landed unrealistically short (~100 ft past the threshold).
+
+`CategoryPerformance.LandingAimPointOffsetFt` corrects this by aiming the `FinalApproachPhase` descent target a fixed distance past the threshold (piston 400 ft; jet 0 — jets already float ~1,700 ft to a realistic touchdown zone; turboprop/helicopter 0). A light single then crosses the threshold slightly high (~21 ft) and touches down near the numbers (~500 ft).
+
+`FinalApproachPhase` completes (hands to `LandingPhase`) at `agl < 30`, near the threshold, **or once the aircraft passes the threshold**. That last condition is a safety net: a high/rushed approach that crosses still above the 50 ft AGL completion band hands off to the flare (or a stabilization-gate go-around) instead of flying past the threshold and climbing away, tracking the glideslope that rises again beyond it (distance-to-threshold is unsigned).
+
 ## LandingPhase Braking Strategy
 
 LandingPhase's job is to decelerate the aircraft to the speed needed for the committed exit. For high-speed exits this is coast speed; for standard exits whose turnoff is below coast it is the exit's turnoff speed. RunwayExitPhase and GroundNavigator handle turn geometry and precision braking through the turn.

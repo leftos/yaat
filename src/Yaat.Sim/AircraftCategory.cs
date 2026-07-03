@@ -195,6 +195,26 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>
+    /// Along-runway distance (feet) past the threshold that the final-approach descent target aims
+    /// for, so the aircraft touches down at a realistic aiming point instead of on the threshold.
+    /// Slow aircraft float little in the flare and would otherwise touch down essentially on the
+    /// threshold; aiming the glidepath down the runway makes a light piston cross the threshold
+    /// slightly high (~20 ft) and land near the numbers (~500 ft, FAA-H-8083-3 technique). Jets
+    /// already float to a realistic touchdown in the flare, so they get no offset. Helicopter: 0.
+    /// </summary>
+    public static double LandingAimPointOffsetFt(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 0,
+            AircraftCategory.Turboprop => 0,
+            AircraftCategory.Piston => 400,
+            AircraftCategory.Helicopter => 0,
+            _ => 0,
+        };
+    }
+
     /// <summary>Descent rate during flare (fpm). Helicopter: 150 fpm slow descent to hover.</summary>
     public static double FlareDescentRate(AircraftCategory cat)
     {
