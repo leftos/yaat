@@ -266,4 +266,93 @@ public class Issue12ImplicitDestinationLayoutTests(ITestOutputHelper output)
             $"Aircraft never exited the runway after landing (last phase: {lastPhase}). Without an implicit destination airport the ground layout is null and the aircraft stalls on the runway."
         );
     }
+
+    // --- S1-OAK-7 report: the mirror of the issue-#12 case above. There departure AND
+    // destination were empty, so the resolver returned null. Here a parked departure has a
+    // filed VFR destination (KSMF) but no departure, so the destination layout pre-empts the
+    // physical-airport fallback: ResolveGroundLayout returned SMF's layout while N248ZV sat
+    // parked at OAK, and every taxiway/parking lookup failed ("Cannot find taxiway F in
+    // layout", "Parking/spot 'OLD1' not found in airport layout"). An aircraft on the ground
+    // must taxi on the airport its wheels are on, regardless of what the flight plan names.
+    //
+    // Reference bundle: "S1-OAK-7 | Evaluation Preparation" (VFR FP to KSMF created via CRC
+    // STARS while parked at OAK). As with issue #12 the recording bakes in the manual
+    // KOAK-amend workaround, so these are constructed for determinism rather than replayed.
+
+    private static AircraftState MakeParkedDeparture(string airportId, string filedDestination)
+    {
+        return new AircraftState
+        {
+            Callsign = "N248ZV",
+            AircraftType = "C150",
+            Position = new LatLon(37.7389, -122.2256), // OAK North Field parking
+            TrueHeading = new TrueHeading(7),
+            Altitude = 9,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR", Destination = filedDestination },
+            AirportId = airportId,
+        };
+    }
+
+    /// <summary>
+    /// An aircraft physically on the ground at OAK with a filed VFR destination of KSMF and no
+    /// filed departure must resolve to OAK's layout — the airport its wheels are on — not the
+    /// destination's. Before the fix the resolver returned SMF because a filed destination
+    /// pre-empted the physical-airport fallback.
+    /// </summary>
+    [Fact]
+    public void ResolveGroundLayout_OnGround_FiledDestinationElsewhere_UsesPhysicalAirport()
+    {
+        var engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+
+        var ac = MakeParkedDeparture(airportId: "OAK", filedDestination: "KSMF");
+
+        var layout = engine.ResolveGroundLayout(ac);
+
+        Assert.NotNull(layout);
+        Assert.Equal("OAK", layout.AirportId);
+    }
+
+    /// <summary>
+    /// The actual path from the report: a parked OAK aircraft has a VFR flight plan to KSMF
+    /// created (an <see cref="SimulationEngine.AmendFlightPlan"/> with a destination but no
+    /// departure). Its ground layout must remain OAK, and an OAK-only parking spot (OLD1) must
+    /// still resolve — proving the symptom (WARPG @OLD1 failed against the wrong layout), not
+    /// just the field.
+    /// </summary>
+    [Fact]
+    public void AmendFlightPlan_ParkedDeparture_FiledDestinationElsewhere_KeepsPhysicalLayout()
+    {
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb!);
+
+        var groundData = new TestAirportGroundData();
+        var engine = new SimulationEngine(groundData);
+
+        var oakLayout = groundData.GetLayout("OAK");
+        Assert.NotNull(oakLayout);
+
+        var ac = MakeParkedDeparture(airportId: "OAK", filedDestination: "");
+        ac.Ground.Layout = oakLayout;
+        engine.World.AddAircraft(ac);
+
+        engine.AmendFlightPlan("N248ZV", new FlightPlanAmendment(Destination: "KSMF", FlightRules: "VFR"));
+
+        ac = engine.FindAircraft("N248ZV");
+        Assert.NotNull(ac);
+        Assert.NotNull(ac.Ground.Layout);
+        Assert.Equal("OAK", ac.Ground.Layout.AirportId);
+        Assert.NotNull(ac.Ground.Layout.FindSpotByName("OLD1"));
+    }
 }

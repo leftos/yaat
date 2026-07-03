@@ -1654,6 +1654,25 @@ public sealed class SimulationEngine
 
     public AirportGroundLayout? ResolveGroundLayout(AircraftState aircraft)
     {
+        // An aircraft physically on the ground taxis on the airport its wheels are on —
+        // never on a filed destination. A departure that files a destination but no
+        // departure (e.g. a VFR plan created via CRC to KSMF while parked at OAK) would
+        // otherwise load the destination's layout and reject every taxiway/parking lookup.
+        if (aircraft.IsOnGround)
+        {
+            var physicalAirport = aircraft.Phases?.AssignedRunway?.AirportId;
+            if (string.IsNullOrEmpty(physicalAirport))
+            {
+                physicalAirport = aircraft.AirportId;
+            }
+
+            var physicalLayout = string.IsNullOrEmpty(physicalAirport) ? null : _groundData.GetLayout(physicalAirport);
+            if (physicalLayout is not null)
+            {
+                return physicalLayout;
+            }
+        }
+
         var depLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Departure) ? null : _groundData.GetLayout(aircraft.FlightPlan.Departure);
         var destLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Destination) ? null : _groundData.GetLayout(aircraft.FlightPlan.Destination);
 
