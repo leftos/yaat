@@ -14,7 +14,7 @@ const commands = [
   },
   {
     name: "track-issue",
-    description: "Create a Discord thread to track an existing GitHub bug issue",
+    description: "Link this thread to a GitHub bug issue (or create a thread if run outside one)",
     type: 1,
     options: [
       {
@@ -27,7 +27,7 @@ const commands = [
   },
   {
     name: "track-feature-request",
-    description: "Create a Discord thread to track an existing GitHub feature request",
+    description: "Link this thread to a GitHub feature request (or create a thread if run outside one)",
     type: 1,
     options: [
       {

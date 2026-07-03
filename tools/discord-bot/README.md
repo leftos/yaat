@@ -5,6 +5,8 @@ Cloudflare Worker that bridges Discord forum threads and GitHub issues.
 **Slash commands** (restricted to one user):
 - `/create-issue` — creates a GitHub issue labeled `bug` from the forum thread
 - `/create-feature-request` — creates a GitHub issue labeled `enhancement`
+- `/track-issue <issue#>` — links the current forum thread to an existing GitHub bug issue (recovery path when `/create-issue` failed); run outside a thread, it instead creates a new thread in the bug-reports forum
+- `/track-feature-request <issue#>` — same, for feature requests (feature-requests forum)
 
 **Auto-sync:** New thread replies are posted as GitHub issue comments every 15 minutes. Running the slash command again in a linked thread triggers an immediate sync.
 

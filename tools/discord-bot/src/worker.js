@@ -151,22 +151,37 @@ async function handleDiscordInteraction(request, env, ctx) {
       return ephemeral("You don't have permission to use this command.");
     }
 
-    // track-issue / track-feature-request: create a Discord thread from an existing GitHub issue
+    // track-issue / track-feature-request: connect an existing GitHub issue to a Discord thread.
+    // When run inside an existing forum thread, link THAT thread (recovery path when /create-issue
+    // failed); otherwise create a new thread in this command's forum (bug reports / feature requests).
     if (TRACKING_FORUMS[commandName]) {
       const issueNumber = interaction.data.options?.find((o) => o.name === "issue_number")?.value;
       if (!issueNumber) {
         return ephemeral("You must provide an issue number.");
       }
 
+      const trackChannel = interaction.channel;
+      const inThread = trackChannel && (trackChannel.type === 11 || trackChannel.type === 12);
+
       ctx.waitUntil(
-        processTrackCommand({
-          commandName,
-          issueNumber,
-          guildId: interaction.guild_id,
-          token: interaction.token,
-          appId: interaction.application_id,
-          env,
-        }).catch((err) => console.error("Track command processing failed:", err)),
+        (inThread
+          ? processLinkThreadCommand({
+              threadId: trackChannel.id,
+              issueNumber,
+              guildId: interaction.guild_id,
+              token: interaction.token,
+              appId: interaction.application_id,
+              env,
+            })
+          : processTrackCommand({
+              commandName,
+              issueNumber,
+              guildId: interaction.guild_id,
+              token: interaction.token,
+              appId: interaction.application_id,
+              env,
+            })
+        ).catch((err) => console.error("Track command processing failed:", err)),
       );
 
       return jsonResponse({ type: DEFERRED_CHANNEL_MESSAGE, data: { flags: 64 } });
@@ -781,6 +796,75 @@ async function processTrackCommand({ commandName, issueNumber, guildId, token, a
     console.error("Error processing track command:", err);
     await editOriginalResponse(appId, token, {
       content: `Failed to track issue: ${err.message}`,
+    });
+  }
+}
+
+// --- Link an existing thread to an existing GitHub issue ---
+
+// Recovery path for when /create-issue failed (e.g. a rate limit) but the GitHub issue already
+// exists: connect the CURRENT forum thread to it, reaching the same end state as /create-issue —
+// KV mappings both ways, the thread title prefixed with the issue number, and the sync cron picking
+// up future replies from now on. Existing thread content is not re-pushed (the issue already carries
+// it); use /sync or /recreate-issue if the issue body needs the discussion.
+async function processLinkThreadCommand({ threadId, issueNumber, guildId, token, appId, env }) {
+  try {
+    const existing = await env.THREAD_ISSUES.get(threadId, { type: "json" });
+    if (existing) {
+      await editOriginalResponse(appId, token, {
+        content: `This thread is already linked to issue #${existing.issueNumber}: ${existing.issueUrl}`,
+      });
+      return;
+    }
+
+    const otherThreadId = await findThreadForIssue(env, issueNumber);
+    if (otherThreadId && otherThreadId !== threadId) {
+      const otherUrl = `https://discord.com/channels/${guildId}/${otherThreadId}`;
+      await editOriginalResponse(appId, token, {
+        content: `Issue #${issueNumber} is already linked to another thread: ${otherUrl}`,
+      });
+      return;
+    }
+
+    const githubToken = await getGitHubToken(env);
+    const issue = await fetchGitHubIssue(githubToken, env.GITHUB_REPO, issueNumber);
+
+    // Prefix the thread title with the issue number for quick reference.
+    const thread = await discordApi(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN);
+    await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, {
+      name: withIssueNumberPrefix(thread.name, issue.number),
+    });
+
+    // Set the sync cursor to the newest current message so the cron only forwards replies posted
+    // after linking (Discord returns messages newest-first, so index 0 is the latest).
+    const messages = await discordApi(
+      `/channels/${threadId}/messages?limit=100`,
+      env.DISCORD_BOT_TOKEN,
+    );
+    const lastMessageId = messages.length > 0 ? messages[0].id : threadId;
+
+    const mapping = {
+      issueNumber: issue.number,
+      issueUrl: issue.html_url,
+      guildId,
+      lastSyncedMessageId: lastMessageId,
+    };
+    await env.THREAD_ISSUES.put(threadId, JSON.stringify(mapping));
+    await env.THREAD_ISSUES.put(`issue:${issue.number}`, threadId);
+
+    // Reflect a closed issue on the thread.
+    if (issue.state === "closed") {
+      const emoji = issue.state_reason === "not_planned" ? "🚫" : "✅";
+      await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId, emoji);
+    }
+
+    await editOriginalResponse(appId, token, {
+      content: `Linked this thread to GitHub issue #${issueNumber}: ${issue.html_url}`,
+    });
+  } catch (err) {
+    console.error("Error linking thread to issue:", err);
+    await editOriginalResponse(appId, token, {
+      content: `Failed to link thread to issue: ${err.message}`,
     });
   }
 }
