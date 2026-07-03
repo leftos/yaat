@@ -354,14 +354,20 @@ public partial class GroundViewModel : ObservableObject
             if (File.Exists(cachePath))
             {
                 var fileInfo = new FileInfo(cachePath);
-                var request = new HttpRequestMessage(HttpMethod.Head, url);
-                request.Headers.IfModifiedSince = fileInfo.LastWriteTimeUtc;
-                var headResponse = await http.SendAsync(request);
+                using var request = new HttpRequestMessage(HttpMethod.Head, url);
+                using var headResponse = await http.SendAsync(request);
 
-                if (headResponse.StatusCode == System.Net.HttpStatusCode.NotModified)
+                // The origin ignores If-Modified-Since (never 304) but does serve a Last-Modified on
+                // HEAD, so compare it against the cached file's mtime ourselves instead of expecting a
+                // 304 — otherwise every load redownloads the map.
+                if (headResponse.IsSuccessStatusCode)
                 {
-                    var cachedJson = await File.ReadAllTextAsync(cachePath);
-                    return TowerCabMapParser.Parse(cachedJson);
+                    var serverLastModified = headResponse.Content.Headers.LastModified?.UtcDateTime;
+                    if ((serverLastModified is { } sm) && (sm <= fileInfo.LastWriteTimeUtc))
+                    {
+                        var cachedJson = await File.ReadAllTextAsync(cachePath);
+                        return TowerCabMapParser.Parse(cachedJson);
+                    }
                 }
             }
 

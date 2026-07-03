@@ -8,6 +8,9 @@ namespace Yaat.Client.Services;
 /// <summary>
 /// Downloads, caches, and parses video map GeoJSON files from the
 /// vNAS data API. Maps are cached to %LOCALAPPDATA%/yaat/cache/videomaps/.
+/// The parsed in-memory cache carries a <see cref="CacheTtl"/> so a map updated on vNAS is
+/// re-checked (via the disk HEAD/Last-Modified freshness logic) instead of being pinned for the
+/// client process lifetime.
 /// </summary>
 public sealed class VideoMapService
 {
@@ -15,18 +18,21 @@ public sealed class VideoMapService
 
     private static readonly string CacheDir = YaatPaths.Combine("cache", "videomaps");
 
+    /// <summary>How long a parsed map is served from memory before the next load re-checks disk freshness.</summary>
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
+
     private readonly ILogger _log = AppLog.CreateLogger<VideoMapService>();
 
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
-    private readonly Dictionary<string, VideoMapData> _cache = [];
+    private readonly Dictionary<string, CachedVideoMap> _cache = [];
 
     /// <summary>
     /// Returns a cached parsed video map, or null if not yet loaded.
     /// </summary>
     public VideoMapData? GetCached(string mapId)
     {
-        return _cache.GetValueOrDefault(mapId);
+        return _cache.GetValueOrDefault(mapId)?.Data;
     }
 
     /// <summary>
@@ -43,9 +49,9 @@ public sealed class VideoMapService
 
         foreach (var map in maps)
         {
-            if (_cache.TryGetValue(map.Id, out var cached))
+            if (_cache.TryGetValue(map.Id, out var cached) && (DateTime.UtcNow - cached.FetchedUtc <= CacheTtl))
             {
-                results.Add(cached);
+                results.Add(cached.Data);
                 continue;
             }
 
@@ -58,7 +64,7 @@ public sealed class VideoMapService
                     {
                         lock (_cache)
                         {
-                            _cache[localMap.Id] = data;
+                            _cache[localMap.Id] = new CachedVideoMap(data, DateTime.UtcNow);
                         }
 
                         lock (results)
@@ -162,4 +168,6 @@ public sealed class VideoMapService
     {
         _cache.Clear();
     }
+
+    private sealed record CachedVideoMap(VideoMapData Data, DateTime FetchedUtc);
 }

@@ -24,13 +24,22 @@ public sealed class ArtccAirportResolver
     private readonly Dictionary<string, IReadOnlyList<string>> _airportCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _jsonCache = new(StringComparer.OrdinalIgnoreCase);
 
+    private static string CachePathFor(string artccId) => Path.Combine(CacheDir, $"{artccId}.json");
+
+    /// <summary>
+    /// The in-memory caches are valid only while the on-disk copy is within <see cref="CacheTtl"/>;
+    /// gating on the disk file's mtime keeps them honoring the same TTL as the disk cache instead of
+    /// pinning a config for the client process lifetime.
+    /// </summary>
+    private static bool IsDiskFresh(string cachePath) => File.Exists(cachePath) && (DateTime.UtcNow - File.GetLastWriteTimeUtc(cachePath) < CacheTtl);
+
     /// <summary>
     /// Returns the list of underlying airport ICAO IDs for the given ARTCC.
     /// Results are cached in-memory and on disk with conditional HTTP freshness.
     /// </summary>
     public async Task<IReadOnlyList<string>> GetAirportIdsAsync(string artccId)
     {
-        if (_airportCache.TryGetValue(artccId, out var cached))
+        if (_airportCache.TryGetValue(artccId, out var cached) && IsDiskFresh(CachePathFor(artccId)))
         {
             return cached;
         }
@@ -70,13 +79,13 @@ public sealed class ArtccAirportResolver
 
     private async Task<string?> GetArtccJsonAsync(string artccId)
     {
-        if (_jsonCache.TryGetValue(artccId, out var cached))
+        var cachePath = CachePathFor(artccId);
+        if (_jsonCache.TryGetValue(artccId, out var cached) && IsDiskFresh(cachePath))
         {
             return cached;
         }
 
         Directory.CreateDirectory(CacheDir);
-        var cachePath = Path.Combine(CacheDir, $"{artccId}.json");
         var url = $"{DataApiBase}/{artccId}";
 
         try

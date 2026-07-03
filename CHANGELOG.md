@@ -19,6 +19,7 @@
 - An aircraft leaving a ramp spot on a clearance via multiple taxiways (e.g. an Oakland GA parking given `TAXI D C B 28R`) now taxis straight out onto the first taxiway instead of doubling back through the ramp and spinning.
 - A taxi clearance whose two named taxiways meet only through a connecting taxiway (e.g. SFO `TAXI A B1`, where A and B1 are bridged by Q) now taxis through the connector (`A Q B1`) instead of dropping the named taxiways and routing a different way.
 - Airport ground layouts now pick up map corrections published to vNAS instead of reusing the first-downloaded copy indefinitely — the freshness check relied on an HTTP method the vNAS server rejects, so an updated taxiway layout never reached the simulation until the on-disk cache was cleared by hand.
+- Other cached vNAS data — video maps and ARTCC facility configs — likewise now refreshes when it changes server-side instead of staying pinned to the first copy for the whole session; their in-memory caches previously never re-checked.
 
 ## v0.8.9-beta [2026/07/03]
 
