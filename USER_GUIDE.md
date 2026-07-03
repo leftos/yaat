@@ -217,6 +217,9 @@ Route drawing and heading mode start from the aircraft right-click menu.
 | F4 | Dump the selected item |
 | F10 | Close the flight-plan editor |
 | F12 | Send the clearance |
+| Ctrl+F | Open the find bar |
+| F3 / Shift+F3 | Next / previous match (also Enter / Shift+Enter in the find box) |
+| Esc | Close the find bar |
 
 **Flight Strips** have an extensive set of bay/strip keyboard shortcuts — see [Flight Strips ▸ Keyboard shortcuts](#keyboard-shortcuts-1).
 
@@ -670,6 +673,8 @@ Strip printing is driven by the server based on student position type:
 | Key | Action |
 |-----|--------|
 | Click strip | Select |
+| Ctrl+F | Open the find bar (searches the bay you're viewing) |
+| F3 / Shift+F3 | Next / previous match; Esc closes the find bar |
 | Esc | Deselect → if nothing selected, toggle printer panel |
 | Arrow keys | Move selection between adjacent strips |
 | Ctrl+arrows | Move the selected strip |
@@ -684,6 +689,10 @@ Strip printing is driven by the server based on student position type:
 | Ctrl+Shift+H | Add a half-strip in the selected strip's rack (or rack 1) |
 | Ctrl+Shift+S | Add a handwritten separator (cycle styles afterwards with Ctrl+Shift+→) |
 | Delete / Backspace | Delete selected strip |
+
+**Find (Ctrl+F).** Press **Ctrl+F** to open a find bar in the top-right; matching strips are outlined in cyan and the view scrolls to the current match. The search covers every visible field — callsign, route, remarks, beacon, annotations — not just the callsign, and is scoped to the bay you're viewing.
+
+**Sticky bottom.** If you're scrolled to the bottom of a rack when a new strip arrives, the view stays pinned to the bottom so the newest strip stays visible. Scroll up to review older strips and the view stays where you left it.
 
 #### Command surface
 
@@ -719,6 +728,8 @@ vTDLS state lives on the server and broadcasts over SignalR — there is no CRC 
 - **DCL** (top, full width, column-wrapping) — Pending PDCs. A callsign appears here automatically when a flight plan is filed at a TDLS-configured facility (no controller action needed, just like real life). Pre-files generate entries too.
 - **PDC** (bottom-left) — Sent and Wilco'd clearances. Items stay in this list until the aircraft is tracked on STARS by any controller (it has left clearance delivery), or the 2-hour TTL fires.
 - **CPDLC** (bottom-right) — Permanently empty. VATSIM does not simulate CPDLC; the panel is rendered for visual parity with upstream.
+
+**Find (Ctrl+F).** Press **Ctrl+F** to search the DCL and PDC lists; matching entries are outlined in cyan and scrolled into view. **F3** / **Shift+F3** cycle through matches and **Esc** closes the bar. The search matches the callsign plus the filed flight-plan and clearance text (route, departure/destination, beacon code, SID…), not just the callsign.
 
 #### Issuing a PDC
 

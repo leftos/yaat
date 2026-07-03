@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yaat.Client.ViewModels"
              xmlns:svc="using:Yaat.Client.Services"
+             xmlns:find="using:Yaat.Client.Views.Find"
              x:Class="Yaat.Client.Views.VTdls.VTdlsView"
              x:DataType="vm:VTdlsViewModel"
              x:CompileBindings="True"
@@ -150,7 +151,15 @@
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="vm:TdlsItemViewModel">
-                                <TextBlock Text="{Binding AircraftId}" MinWidth="80"/>
+                                <Grid>
+                                    <TextBlock Text="{Binding AircraftId}" MinWidth="80"/>
+                                    <!-- In-view Find (Ctrl+F) highlight: thin cyan outline for a
+                                         match, thicker outline + fill for the current match. -->
+                                    <Border IsVisible="{Binding IsFindMatch}" IsHitTestVisible="False"
+                                            BorderBrush="#8018C7FF" BorderThickness="1.5" Margin="-3,-1"/>
+                                    <Border IsVisible="{Binding IsCurrentFindMatch}" IsHitTestVisible="False"
+                                            Background="#3018C7FF" BorderBrush="#FF18C7FF" BorderThickness="2" Margin="-3,-1"/>
+                                </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
@@ -181,7 +190,15 @@
                              FontSize="12">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="vm:TdlsItemViewModel">
-                                <TextBlock Text="{Binding AircraftId}"/>
+                                <Grid>
+                                    <TextBlock Text="{Binding AircraftId}"/>
+                                    <!-- In-view Find (Ctrl+F) highlight: thin cyan outline for a
+                                         match, thicker outline + fill for the current match. -->
+                                    <Border IsVisible="{Binding IsFindMatch}" IsHitTestVisible="False"
+                                            BorderBrush="#8018C7FF" BorderThickness="1.5" Margin="-3,-1"/>
+                                    <Border IsVisible="{Binding IsCurrentFindMatch}" IsHitTestVisible="False"
+                                            Background="#3018C7FF" BorderBrush="#FF18C7FF" BorderThickness="2" Margin="-3,-1"/>
+                                </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
@@ -436,6 +453,10 @@
                        Margin="0,0,10,0"
                        Foreground="{DynamicResource VTdlsFooterFg}"/>
         </Grid>
+
+        <!-- Shared in-view Find bar overlay (Ctrl+F). DataContext wired in code-behind;
+             floats top-right over the DCL/PDC lists. -->
+        <find:FindBarView x:Name="FindBar" Grid.Row="1" Grid.RowSpan="2"/>
 
         <!-- Disconnected banner — covers everything when offline. -->
         <Border Grid.Row="0" Grid.RowSpan="5"

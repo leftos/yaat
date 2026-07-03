@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -670,6 +671,189 @@ public class VStripsViewInteractionTests
         var h0 = FindVisibleField(view, "HSTRIP_remote01", "h0");
         Assert.NotNull(h0);
         Assert.False(h0!.IsFocused, "A remotely-created half-strip must not steal focus");
+    }
+
+    // ── In-view Find (Ctrl+F) ────────────────────────────────────
+
+    [AvaloniaFact]
+    public void Find_CtrlFOpensBar_TypingHighlightsMatches_EscClosesAndClears()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        SeedStripsInBay(
+            vm,
+            "bay-gnd",
+            [
+                ["UAL111", "AAL222", "UAL333"],
+                [],
+            ]
+        );
+        var (_, view) = BootView(vm);
+
+        // Ctrl+F opens the find bar.
+        view.RaiseEvent(
+            new KeyEventArgs
+            {
+                RoutedEvent = InputElement.KeyDownEvent,
+                Key = Key.F,
+                KeyModifiers = KeyModifiers.Control,
+            }
+        );
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(view.FindController.IsVisible);
+
+        // Typing a query flags exactly the matching strips; one is the current match.
+        view.FindController.Query = "UAL";
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(vm.ItemsByIdForTests["UAL111"].IsFindMatch);
+        Assert.True(vm.ItemsByIdForTests["UAL333"].IsFindMatch);
+        Assert.False(vm.ItemsByIdForTests["AAL222"].IsFindMatch);
+        Assert.Equal("1/2", view.FindController.MatchSummary);
+        var currentCount = new[] { "UAL111", "AAL222", "UAL333" }.Count(id => vm.ItemsByIdForTests[id].IsCurrentFindMatch);
+        Assert.Equal(1, currentCount);
+
+        // Next advances the current match.
+        view.FindController.Next();
+        Assert.Equal("2/2", view.FindController.MatchSummary);
+
+        // Esc closes and clears every highlight.
+        view.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(view.FindController.IsVisible);
+        Assert.False(vm.ItemsByIdForTests["UAL111"].IsFindMatch);
+        Assert.False(vm.ItemsByIdForTests["UAL333"].IsFindMatch);
+        Assert.False(vm.ItemsByIdForTests["UAL333"].IsCurrentFindMatch);
+    }
+
+    [AvaloniaFact]
+    public async Task Find_IsScopedToSelectedBay_AndRefreshesOnBaySwitch()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.ReconcileItems([FullStrip("UAL111"), FullStrip("DAL999")]);
+        vm.ReconcileFullState(
+            new FlightStripsStateDto(
+                PrinterItems: [],
+                BayItems:
+                [
+                    new StripBayContentsDto(
+                        "bay-gnd",
+                        [
+                            ["UAL111"],
+                            [],
+                        ]
+                    ),
+                    new StripBayContentsDto(
+                        "bay-loc",
+                        [
+                            ["DAL999"],
+                            [],
+                        ]
+                    ),
+                ],
+                NewItemInPrinter: false,
+                NewItemInArrivalPrinter: false,
+                NewItemInBayId: null,
+                ItemMovedOrCreatedBySessionId: null
+            )
+        );
+        var (_, view) = BootView(vm);
+
+        var gnd = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        var loc = vm.Bays.Single(b => b.BayId == "bay-loc");
+        await vm.SelectBayAsync(gnd);
+        Dispatcher.UIThread.RunJobs();
+
+        view.FindController.Open();
+        view.FindController.Query = "UAL";
+        Dispatcher.UIThread.RunJobs();
+
+        // Only the strip in the shown bay is matched; the other bay is out of scope.
+        Assert.True(vm.ItemsByIdForTests["UAL111"].IsFindMatch);
+        Assert.False(vm.ItemsByIdForTests["DAL999"].IsFindMatch);
+        Assert.Equal("1/1", view.FindController.MatchSummary);
+
+        await vm.SelectBayAsync(loc);
+        Dispatcher.UIThread.RunJobs();
+
+        // Switching bays refreshes Find: the old bay's highlight clears and "UAL"
+        // matches nothing in LOCAL.
+        Assert.False(vm.ItemsByIdForTests["UAL111"].IsFindMatch);
+        Assert.Equal("No matches", view.FindController.MatchSummary);
+    }
+
+    // ── Sticky-bottom scroll ─────────────────────────────────────
+
+    [AvaloniaFact]
+    public void StickyScroll_NewStripAtBottom_KeepsViewPinnedToBottom()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        // Enough strips to overflow the 400px window's rack viewport.
+        var ids = Enumerable.Range(0, 10).Select(i => $"S{i:D2}").ToArray();
+        SeedStripsInBay(vm, "bay-gnd", [ids, []]);
+        var (_, view) = BootView(vm);
+
+        var sv = view.FindControl<ScrollViewer>("RacksScrollViewer");
+        Assert.NotNull(sv);
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        // The test only means something if the content actually overflows.
+        Assert.True(sv!.Extent.Height > sv.Viewport.Height, $"content {sv.Extent.Height} must exceed viewport {sv.Viewport.Height}");
+
+        // Scroll to the bottom.
+        var maxBefore = sv.Extent.Height - sv.Viewport.Height;
+        sv.Offset = new Vector(sv.Offset.X, maxBefore);
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(sv.Offset.Y >= maxBefore - 1.0);
+
+        // A new strip arrives at the visual bottom (model index 0), growing the content.
+        var grown = new[] { "SNEW" }.Concat(ids).ToArray();
+        SeedStripsInBay(vm, "bay-gnd", [grown, []]);
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        var maxAfter = sv.Extent.Height - sv.Viewport.Height;
+        Assert.True(maxAfter > maxBefore, "content should have grown after the new strip");
+        Assert.True(sv.Offset.Y >= maxAfter - 1.0, $"offset {sv.Offset.Y} should stay pinned to the new bottom {maxAfter}");
+    }
+
+    [AvaloniaFact]
+    public void StickyScroll_ScrolledUp_NewStripDoesNotYankToBottom()
+    {
+        var (vm, _) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        var ids = Enumerable.Range(0, 10).Select(i => $"S{i:D2}").ToArray();
+        SeedStripsInBay(vm, "bay-gnd", [ids, []]);
+        var (_, view) = BootView(vm);
+
+        var sv = view.FindControl<ScrollViewer>("RacksScrollViewer");
+        Assert.NotNull(sv);
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(sv!.Extent.Height > sv.Viewport.Height);
+
+        // User has scrolled up to the top to review older strips.
+        sv.Offset = new Vector(sv.Offset.X, 0);
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        var grown = new[] { "SNEW" }.Concat(ids).ToArray();
+        SeedStripsInBay(vm, "bay-gnd", [grown, []]);
+        Dispatcher.UIThread.RunJobs();
+        view.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        // The view stays where the controller left it — not yanked to the bottom.
+        Assert.True(sv.Offset.Y <= 1.0, $"offset {sv.Offset.Y} should stay near the top");
     }
 
     // ── Helpers ──────────────────────────────────────────────────

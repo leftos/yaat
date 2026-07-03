@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Yaat.Client.Find;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.ViewModels;
@@ -10,9 +11,17 @@ namespace Yaat.Client.ViewModels;
 /// <see cref="Status"/>. Instance identity is preserved across reconciliation so
 /// Avalonia bindings stay stable when the server pushes a state diff.
 /// </summary>
-public partial class TdlsItemViewModel : ObservableObject
+public partial class TdlsItemViewModel : ObservableObject, IFindableItem
 {
     public string Id { get; }
+
+    // In-view Find (Ctrl+F) highlight flags. Written only by the shared FindController;
+    // the DCL/PDC list templates bind a cyan overlay to them.
+    [ObservableProperty]
+    private bool _isFindMatch;
+
+    [ObservableProperty]
+    private bool _isCurrentFindMatch;
 
     [ObservableProperty]
     private string _aircraftId = "";
@@ -70,5 +79,55 @@ public partial class TdlsItemViewModel : ObservableObject
         ExpiresUtc = dto.ExpiresUtc;
         SentPayload = dto.SentPayload;
         FlightPlan = dto.FlightPlan;
+    }
+
+    /// <summary>
+    /// All searchable text for in-view Find: callsign, CID, facility, the filed flight-plan
+    /// fields (route/dep/dest/type/equipment/remarks/beacon) and the sent clearance fields,
+    /// space-joined.
+    /// </summary>
+    public string GetFindText()
+    {
+        var parts = new List<string>();
+        void Add(string? value)
+        {
+            if (!string.IsNullOrEmpty(value))
+            {
+                parts.Add(value);
+            }
+        }
+
+        Add(AircraftId);
+        Add(Cid);
+        Add(FacilityId);
+
+        if (FlightPlan is { } fp)
+        {
+            Add(fp.Departure);
+            Add(fp.Destination);
+            Add(fp.Route);
+            Add(fp.AircraftType);
+            Add(fp.EquipmentSuffix);
+            Add(fp.Remarks);
+            if (fp.AssignedBeaconCode is { } beacon)
+            {
+                Add(beacon.ToString("D4"));
+            }
+        }
+
+        if (SentPayload is { } clearance)
+        {
+            Add(clearance.Expect);
+            Add(clearance.Sid);
+            Add(clearance.Transition);
+            Add(clearance.Climbout);
+            Add(clearance.Climbvia);
+            Add(clearance.InitialAlt);
+            Add(clearance.ContactInfo);
+            Add(clearance.LocalInfo);
+            Add(clearance.DepFreq);
+        }
+
+        return string.Join(' ', parts);
     }
 }

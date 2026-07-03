@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:find="using:Yaat.Client.Find"
+             x:Class="Yaat.Client.Views.Find.FindBarView"
+             x:DataType="find:FindController"
+             x:CompileBindings="True">
+
+    <!-- Shared in-view Find bar (Ctrl+F). Hosted by VStripsView and VTdlsView as a
+         top-right overlay; DataContext is a FindController. Dark translucent chrome
+         reads on both the vStrips grey header and the vTDLS black/white surface. -->
+    <Border IsVisible="{Binding IsVisible}"
+            Background="#F01E1E22"
+            BorderBrush="#4A4A52"
+            BorderThickness="1"
+            CornerRadius="3"
+            Padding="6,3"
+            Margin="6"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top">
+        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="Find"
+                       VerticalAlignment="Center"
+                       Foreground="#8AB4F8"
+                       FontSize="11"
+                       FontWeight="Bold"
+                       Margin="2,0,4,0"/>
+            <TextBox x:Name="QueryBox"
+                     Width="180"
+                     Text="{Binding Query, Mode=TwoWay}"
+                     Watermark="callsign, field…"
+                     FontSize="12"
+                     Padding="4,1"
+                     KeyDown="OnQueryBoxKeyDown"/>
+            <TextBlock Text="{Binding MatchSummary}"
+                       MinWidth="64"
+                       VerticalAlignment="Center"
+                       Foreground="#C0C0C0"
+                       FontSize="11"
+                       TextAlignment="Center"/>
+            <Button Content="◀"
+                    Command="{Binding PreviousMatchCommand}"
+                    ToolTip.Tip="Previous match (Shift+F3)"
+                    Padding="6,1"
+                    FontSize="11"/>
+            <Button Content="▶"
+                    Command="{Binding NextMatchCommand}"
+                    ToolTip.Tip="Next match (F3)"
+                    Padding="6,1"
+                    FontSize="11"/>
+            <Button Content="✕"
+                    Command="{Binding CloseFindCommand}"
+                    ToolTip.Tip="Close (Esc)"
+                    Padding="6,1"
+                    FontSize="11"/>
+        </StackPanel>
+    </Border>
+</UserControl>

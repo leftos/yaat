@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Find;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
@@ -24,6 +25,18 @@ namespace Yaat.Client.Views.VStrips;
 public partial class VStripsView : UserControl
 {
     private static readonly ILogger Log = SimLog.CreateLogger("VStripsView");
+
+    // Shared in-view Find (Ctrl+F). Snapshot = the selected bay's racks walked
+    // visual-top-to-bottom; scrollTo brings the matched FlightStripControl into view.
+    // Its DataContext drives the FindBar overlay.
+    private readonly FindController _findController;
+
+    // Tracks the bound VM so a SelectedBay switch can refresh Find against the newly
+    // shown bay (and clear highlights left on the previous bay's strips).
+    private VStripsViewModel? _trackedVm;
+
+    /// <summary>Test hook: the in-view Find controller backing the FindBar overlay.</summary>
+    internal FindController FindController => _findController;
 
     // Application-scoped data format for drag/drop. Strip ids fit in a string so
     // the drop target can resolve the view-model through VStripsViewModel.ItemsById
@@ -114,6 +127,136 @@ public partial class VStripsView : UserControl
         // DataTemplate Loaded timing for rack Borders.
         AddHandler(DragDrop.DragOverEvent, OnGenericDragOver);
         AddHandler(DragDrop.DropEvent, OnRootDrop);
+
+        // In-view Find. The FindBar overlay binds to this controller; the snapshot
+        // and scroll callbacks resolve the live selected bay on demand.
+        _findController = new FindController(BuildFindSnapshot, ScrollFindMatchIntoView);
+        FindBar.DataContext = _findController;
+        DataContextChanged += OnFindDataContextChanged;
+    }
+
+    // ── In-view Find (Ctrl+F) ───────────────────────────────────
+
+    private void OnFindDataContextChanged(object? sender, EventArgs e)
+    {
+        if (_trackedVm is not null)
+        {
+            _trackedVm.PropertyChanged -= OnTrackedVmPropertyChanged;
+        }
+        _trackedVm = DataContext as VStripsViewModel;
+        if (_trackedVm is not null)
+        {
+            _trackedVm.PropertyChanged += OnTrackedVmPropertyChanged;
+        }
+        _findController.Refresh();
+    }
+
+    private void OnTrackedVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // A bay switch swaps the entire searchable set — re-match and clear any
+        // highlights the previous bay's strips still carry.
+        if (e.PropertyName == nameof(VStripsViewModel.SelectedBay))
+        {
+            _findController.Refresh();
+        }
+    }
+
+    /// <summary>Selected bay's strips in visual order: racks left-to-right, each rack bottom-up.</summary>
+    private IReadOnlyList<IFindableItem> BuildFindSnapshot()
+    {
+        var result = new List<IFindableItem>();
+        if (DataContext is VStripsViewModel { SelectedBay: { } bay })
+        {
+            foreach (var rack in bay.Racks)
+            {
+                // Racks render bottom-up (index 0 at the visual bottom), so walk the
+                // collection in reverse to yield matches top-to-bottom.
+                for (var i = rack.Strips.Count - 1; i >= 0; i--)
+                {
+                    result.Add(rack.Strips[i]);
+                }
+            }
+        }
+        return result;
+    }
+
+    private void ScrollFindMatchIntoView(IFindableItem item)
+    {
+        if (item is not StripItemViewModel target)
+        {
+            return;
+        }
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () =>
+            {
+                var host = this.FindControl<ItemsControl>("RacksHost");
+                var strip = host?.GetVisualDescendants().OfType<FlightStripControl>().FirstOrDefault(c => ReferenceEquals(c.Tag, target));
+                strip?.BringIntoView();
+            },
+            Avalonia.Threading.DispatcherPriority.Loaded
+        );
+    }
+
+    /// <summary>Handles the Find keys (Ctrl+F / F3 / Shift+F3 / Esc); returns true if consumed.</summary>
+    private bool HandleFindKeys(KeyEventArgs e)
+    {
+        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
+        if (ctrl && (e.Key == Key.F))
+        {
+            _findController.Open();
+            FindBar.FocusInput();
+            e.Handled = true;
+            return true;
+        }
+        if (e.Key == Key.F3)
+        {
+            if (shift)
+            {
+                _findController.Previous();
+            }
+            else
+            {
+                _findController.Next();
+            }
+            e.Handled = true;
+            return true;
+        }
+        if ((e.Key == Key.Escape) && _findController.IsVisible)
+        {
+            _findController.Close();
+            Focus();
+            e.Handled = true;
+            return true;
+        }
+        return false;
+    }
+
+    // ── Sticky-bottom scroll ─────────────────────────────────────
+
+    // Tolerance (device pixels) for "at the bottom" comparisons and for deciding a re-pin is worth applying.
+    private const double StickyScrollEpsilon = 1.0;
+
+    private void OnRacksScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (sender is not ScrollViewer scrollViewer)
+        {
+            return;
+        }
+        var pinned = StickyScroll.PinnedBottomOffset(
+            scrollViewer.Offset.Y,
+            scrollViewer.Extent.Height,
+            scrollViewer.Viewport.Height,
+            e.OffsetDelta.Y,
+            e.ExtentDelta.Y,
+            e.ViewportDelta.Y,
+            StickyScrollEpsilon
+        );
+        if (pinned is { } y)
+        {
+            scrollViewer.Offset = new Vector(scrollViewer.Offset.X, y);
+        }
     }
 
     // ── Bay selection ───────────────────────────────────────────
@@ -1506,6 +1649,21 @@ public partial class VStripsView : UserControl
     protected override async void OnKeyDown(KeyEventArgs e)
     {
         if (DataContext is not VStripsViewModel vm)
+        {
+            base.OnKeyDown(e);
+            return;
+        }
+
+        // Find keys work regardless of connection state so the bar can open/close
+        // over an empty view; they take priority over strip shortcuts.
+        if (HandleFindKeys(e))
+        {
+            return;
+        }
+
+        // While the find box owns keyboard focus, its editing keys (arrows, Tab,
+        // Backspace, letters…) must not drive strip shortcuts.
+        if (_findController.IsVisible && FindBar.IsKeyboardFocusWithin)
         {
             base.OnKeyDown(e);
             return;

@@ -588,6 +588,21 @@ reconciles via `ReconcileFullState`/`ReconcileItems`, and emits every
 user action as a canonical command through `_sendCommand`. Supports
 drag/drop, keyboard shortcuts, and offset/offset-reverse annotation.
 
+**In-view find (Ctrl+F).** The shared `FindController` (`src/Yaat.Client.Strips/Find/`)
+drives a top-right `FindBarView`. `VStripsView` supplies a snapshot of the selected
+bay's strips (racks left-to-right, each rack bottom-up) and a scroll-into-view callback;
+`StripItemViewModel` implements `IFindableItem` (all non-empty `FieldValues`,
+newline-flattened) and exposes `IsFindMatch`/`IsCurrentFindMatch` that
+`FlightStripControl` binds to a cyan highlight (distinct from the yellow selection ring).
+Search is scoped to the shown bay and refreshes on bay switch. Ctrl+F opens, F3/Shift+F3
+(or Enter/Shift+Enter in the box) cycle matches, Esc closes. The same `FindController` /
+`FindBarView` are reused by vTDLS — see [`vtdls.md`](vtdls.md).
+
+**Sticky-bottom scroll.** `StickyScroll.PinnedBottomOffset` (pure, unit-tested) re-pins
+the racks `ScrollViewer` to the bottom when a fresh strip grows the content while the
+controller was already at the bottom, so the newest strip stays visible; scrolling up to
+review older strips opts out until the controller returns to the bottom.
+
 **Auto-focus on strip create.** When *this* client creates a half-strip
 (`HSC`), a separator (`SEP`), or a blank strip (blank create), the new
 strip's first editable field receives keyboard focus (text selected) so

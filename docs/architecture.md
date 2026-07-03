@@ -116,9 +116,18 @@ ViewModels/
   StripPrinterViewModel.cs      # Auto-print on aircraft departure/arrival
   VStripsCanonicalBuilder.cs    # Build canonical strip commands from UI mutations
 
+Find/                           # Shared in-view Find (Ctrl+F) — also reused by vTDLS
+  IFindableItem.cs              # Row contract: GetFindText() + IsFindMatch/IsCurrentFindMatch flags. Implemented by StripItemViewModel and TdlsItemViewModel.
+  FindMatcher.cs                # Pure matcher: whitespace-tokenized, case-insensitive AND over GetFindText().
+  FindController.cs             # ObservableObject driving one view's find: query/visibility, match set (tracked by reference), Next/Previous/Close/Refresh + scroll-into-view callback. No Avalonia dep — unit-tested.
+
+Views/Find/
+  FindBarView.axaml(.cs)        # Shared find-bar overlay (query box, match counter, ◀ ▶ ✕). DataContext is a FindController; hosted by VStripsView and VTdlsView.
+
 Views/VStrips/
-  VStripsView.axaml(.cs)        # Embedded vStrips UserControl
-  FlightStripControl.axaml(.cs) # Custom control rendering CRC-matching strip visuals (cream cells, barcode, handwriting, offset, disconnected ✗, selection ring)
+  VStripsView.axaml(.cs)        # Embedded vStrips UserControl. Hosts the FindBar overlay (Ctrl+F, scoped to the shown bay) and sticky-bottom rack scroll.
+  StickyScroll.cs               # Pure decision for the racks ScrollViewer sticky-bottom behavior — re-pin to bottom when content grows while the user was already at the bottom. Unit-tested.
+  FlightStripControl.axaml(.cs) # Custom control rendering CRC-matching strip visuals (cream cells, barcode, handwriting, offset, disconnected ✗, selection ring, cyan find-match highlight)
   InlineTextEditPopup.axaml(.cs) # Shared popup editor for annotations, half-strip lines, separator labels
 
 Resources/Fonts/                # JetBrainsMono-Regular.ttf, JetBrainsMono-Bold.ttf, JetBrainsMono-Italic.ttf, JetBrainsMono-BoldItalic.ttf, OFL.txt — embedded for cross-platform monospace consistency (Inter doesn't column-align); italic variants are needed so annotation cells (FontStyle=Italic + FontWeight=Bold) render real bold on WASM where Segoe Script / Lucida Handwriting aren't available
@@ -144,7 +153,7 @@ ViewModels/
   VTdlsCanonicalBuilder.cs      # Build canonical TDLS commands (TDLSQ / TDLSS Expect|Sid|... | LocalInfo / TDLSW / TDLSDUMP) from UI gestures.
 
 Views/VTdls/
-  VTdlsView.axaml(.cs)          # Embedded vTDLS UserControl. Layout mirrors upstream tdls.virtualnas.net: black header chrome, DCL list on top (full width, WrapPanel Vertical column wrap), PDC + decorative empty CPDLC split 50/50 below, flight-plan editor docks at bottom when a DCL item is selected, footer with CLEARANCE TYPE status + Zulu clock. Key bindings: F4 Dump, F10 close editor, F12 Send.
+  VTdlsView.axaml(.cs)          # Embedded vTDLS UserControl. Layout mirrors upstream tdls.virtualnas.net: black header chrome, DCL list on top (full width, WrapPanel Vertical column wrap), PDC + decorative empty CPDLC split 50/50 below, flight-plan editor docks at bottom when a DCL item is selected, footer with CLEARANCE TYPE status + Zulu clock. Hosts the shared FindBar overlay (Ctrl+F, searches the DCL + PDC lists). Key bindings: F4 Dump, F10 close editor, F12 Send, Ctrl+F / F3 / Shift+F3 find.
 ```
 
 ## Yaat.Client.Core — Shared library (`src/Yaat.Client.Core/`)

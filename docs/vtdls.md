@@ -30,6 +30,13 @@ subscribe to a TDLS topic on the WebSocket; the trainee's CRC client
 has no vTDLS view. The vTDLS surface in YAAT is purely controller-side
 state — what the issuer of the clearance sees.
 
+The desktop and browser vTDLS views share the flight-strips in-view
+**find** (Ctrl+F): `VTdlsView` hosts the same `FindBarView` / `FindController`
+(`src/Yaat.Client.Strips/Find/`) as vStrips, searching the DCL + PDC lists
+(callsign plus the filed flight-plan and clearance text) and scrolling matches
+into view. `TdlsItemViewModel` implements `IFindableItem`. See
+[`flight-strips.md`](flight-strips.md) for the shared find internals.
+
 ```
 Yaat.Client (issuer)               yaat-server                       Pilot (sim)
 ──────────────────────             ──────────────────                ─────────────

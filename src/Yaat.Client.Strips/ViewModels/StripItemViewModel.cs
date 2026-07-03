@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Yaat.Client.Find;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.ViewModels;
@@ -12,10 +13,18 @@ namespace Yaat.Client.ViewModels;
 /// Instances are updated in place (via <see cref="UpdateFromDto"/>) so DataTemplate
 /// bindings stay stable across reconciliation.
 /// </summary>
-public partial class StripItemViewModel : ObservableObject
+public partial class StripItemViewModel : ObservableObject, IFindableItem
 {
     [ObservableProperty]
     private StripItemDto _dto;
+
+    // In-view Find (Ctrl+F) highlight flags. Written only by the shared FindController;
+    // FlightStripControl binds a cyan overlay to them (distinct from the yellow selection ring).
+    [ObservableProperty]
+    private bool _isFindMatch;
+
+    [ObservableProperty]
+    private bool _isCurrentFindMatch;
 
     // Selection is a purely client-side flag — not broadcast to the server.
     // Flipped by <see cref="VStripsViewModel.SelectedStrip"/> whenever a strip
@@ -209,4 +218,11 @@ public partial class StripItemViewModel : ObservableObject
     }
 
     private string Field(int idx) => idx < FieldValues.Length ? FieldValues[idx] ?? "" : "";
+
+    /// <summary>
+    /// All searchable text for in-view Find: every non-empty field (callsign, beacon, route,
+    /// remarks, annotations, half-strip cells, separator label…), space-joined. Newlines in the
+    /// packed route/remarks field become spaces so route and remarks tokens split cleanly.
+    /// </summary>
+    public string GetFindText() => string.Join(' ', FieldValues.Where(v => !string.IsNullOrEmpty(v))).Replace('\n', ' ');
 }

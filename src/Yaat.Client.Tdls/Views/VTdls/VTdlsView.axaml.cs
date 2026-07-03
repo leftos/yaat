@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Find;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
@@ -24,9 +25,19 @@ public partial class VTdlsView : UserControl
 
     private DispatcherTimer? _clockTimer;
 
+    // Shared in-view Find (Ctrl+F). Snapshot = DCL then PDC items; scrollTo brings the
+    // matched row into view in whichever list holds it. Its DataContext drives the FindBar.
+    private readonly FindController _findController;
+
+    /// <summary>Test hook: the in-view Find controller backing the FindBar overlay.</summary>
+    internal FindController FindController => _findController;
+
     public VTdlsView()
     {
         InitializeComponent();
+
+        _findController = new FindController(BuildFindSnapshot, ScrollFindMatchIntoView);
+        FindBar.DataContext = _findController;
 
         AttachedToVisualTree += OnAttached;
         DetachedFromVisualTree += OnDetached;
@@ -41,13 +52,96 @@ public partial class VTdlsView : UserControl
         if (_trackedVm is not null)
         {
             _trackedVm.PropertyChanged -= OnVmPropertyChanged;
+            _trackedVm.DclItems.CollectionChanged -= OnFindItemsChanged;
+            _trackedVm.PdcItems.CollectionChanged -= OnFindItemsChanged;
         }
         _trackedVm = DataContext as VTdlsViewModel;
         if (_trackedVm is not null)
         {
             _trackedVm.PropertyChanged += OnVmPropertyChanged;
+            _trackedVm.DclItems.CollectionChanged += OnFindItemsChanged;
+            _trackedVm.PdcItems.CollectionChanged += OnFindItemsChanged;
             ApplyTheme(_trackedVm.IsDarkMode);
         }
+        _findController.Refresh();
+    }
+
+    // ── In-view Find (Ctrl+F) ───────────────────────────────────
+
+    private void OnFindItemsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => _findController.Refresh();
+
+    /// <summary>Searchable rows in display order: DCL list then PDC list (CPDLC is always empty).</summary>
+    private IReadOnlyList<IFindableItem> BuildFindSnapshot()
+    {
+        var result = new List<IFindableItem>();
+        if (DataContext is VTdlsViewModel vm)
+        {
+            result.AddRange(vm.DclItems);
+            result.AddRange(vm.PdcItems);
+        }
+        return result;
+    }
+
+    private void ScrollFindMatchIntoView(IFindableItem item)
+    {
+        if (item is not TdlsItemViewModel target)
+        {
+            return;
+        }
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (DataContext is not VTdlsViewModel vm)
+                {
+                    return;
+                }
+                if (vm.DclItems.Contains(target))
+                {
+                    DclListBox.ScrollIntoView(target);
+                }
+                else if (vm.PdcItems.Contains(target))
+                {
+                    PdcListBox.ScrollIntoView(target);
+                }
+            },
+            DispatcherPriority.Loaded
+        );
+    }
+
+    /// <summary>Handles the Find keys (Ctrl+F / F3 / Shift+F3 / Esc); returns true if consumed.</summary>
+    private bool HandleFindKeys(KeyEventArgs e)
+    {
+        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
+        if (ctrl && (e.Key == Key.F))
+        {
+            _findController.Open();
+            FindBar.FocusInput();
+            e.Handled = true;
+            return true;
+        }
+        if (e.Key == Key.F3)
+        {
+            if (shift)
+            {
+                _findController.Previous();
+            }
+            else
+            {
+                _findController.Next();
+            }
+            e.Handled = true;
+            return true;
+        }
+        if ((e.Key == Key.Escape) && _findController.IsVisible)
+        {
+            _findController.Close();
+            Focus();
+            e.Handled = true;
+            return true;
+        }
+        return false;
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -211,6 +305,18 @@ public partial class VTdlsView : UserControl
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not VTdlsViewModel vm)
+        {
+            return;
+        }
+
+        // In-view Find (Ctrl+F / F3 / Shift+F3 / Esc) takes priority over TDLS shortcuts.
+        if (HandleFindKeys(e))
+        {
+            return;
+        }
+
+        // While the find box owns keyboard focus, its editing keys must not trigger TDLS actions.
+        if (_findController.IsVisible && FindBar.IsKeyboardFocusWithin)
         {
             return;
         }

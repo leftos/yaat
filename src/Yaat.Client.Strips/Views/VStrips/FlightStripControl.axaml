@@ -618,6 +618,21 @@
                     BorderBrush="{StaticResource StripSelectedBorderBrush}"
                     BorderThickness="2"
                     Margin="-2"/>
+
+            <!-- In-view Find (Ctrl+F) highlight. Cyan so it reads distinct from the
+                 yellow selection ring: a thin outline on every match, a thicker
+                 outline plus a faint fill on the current (scrolled-to) match. -->
+            <Border IsVisible="{Binding IsFindMatch}"
+                    IsHitTestVisible="False"
+                    BorderBrush="#8018C7FF"
+                    BorderThickness="2"
+                    Margin="-2"/>
+            <Border IsVisible="{Binding IsCurrentFindMatch}"
+                    IsHitTestVisible="False"
+                    Background="#2818C7FF"
+                    BorderBrush="#FF18C7FF"
+                    BorderThickness="3"
+                    Margin="-3"/>
         </Grid>
     </Border>
 </UserControl>

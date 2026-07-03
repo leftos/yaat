@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yaat.Client.ViewModels"
              xmlns:vstrips="using:Yaat.Client.Views.VStrips"
+             xmlns:find="using:Yaat.Client.Views.Find"
              xmlns:svc="using:Yaat.Client.Services"
              x:Class="Yaat.Client.Views.VStrips.VStripsView"
              x:DataType="vm:VStripsViewModel"
@@ -230,7 +231,9 @@
              overlay (see below) rather than a side column, matching
              docs/crc/img/printer.png. -->
         <Grid Grid.Row="2">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="RacksScrollViewer"
+                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                          ScrollChanged="OnRacksScrollChanged">
                 <!-- LayoutTransformControl scales the racks area (including
                      strips, padding, and rack widths) without affecting the
                      header. Bound to VStripsViewModel.ZoomScale. Avalonia's
@@ -455,6 +458,10 @@
                     </DockPanel>
                 </Border>
             </Border>
+
+            <!-- Shared in-view Find bar overlay (Ctrl+F). DataContext is wired to the
+                 view's FindController in code-behind; sits top-right over the racks. -->
+            <find:FindBarView x:Name="FindBar"/>
 
         </Grid>
 
