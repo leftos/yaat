@@ -2597,6 +2597,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.Ground.SatelliteImageBrightness = vm.Preferences.GroundSatelliteImageBrightness;
             vm.Ground.VideoMapOverlayBrightness = vm.Preferences.GroundVideoMapOverlayBrightness;
             vm.Ground.YaatLayoutBrightness = vm.Preferences.GroundYaatLayoutBrightness;
+            vm.Ground.ShowTaxiRouteOnHover = vm.Preferences.GroundShowTaxiRouteOnHover;
+            vm.Ground.ShowAllTaxiRoutes = vm.Preferences.GroundShowAllTaxiRoutes;
         }
         else
         {

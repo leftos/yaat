@@ -370,6 +370,18 @@
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />
+                            <CheckBox Content="Show taxi route when hovering an aircraft"
+                                      IsChecked="{Binding GroundShowTaxiRouteOnHover}" />
+                            <TextBlock Text="When enabled, moving the mouse over an aircraft on the ground view temporarily draws its taxi route. On by default."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                            <CheckBox Content="Show all taxiing aircraft's routes"
+                                      IsChecked="{Binding GroundShowAllTaxiRoutes}" />
+                            <TextBlock Text="When enabled, every taxiing aircraft's route is drawn on the ground view by default. Use right-click > Taxi route > Always hide to opt an individual aircraft out."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
                         </StackPanel>
                         <Separator Margin="0,4" />
                         <TextBlock Text="Overlays"

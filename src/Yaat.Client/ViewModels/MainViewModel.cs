@@ -1259,6 +1259,7 @@ public partial class MainViewModel : ObservableObject
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged, _preferences);
         Ground.ShownAirportChanged += () => OnPropertyChanged(nameof(GroundShownAirportId));
         Ground.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
+        Ground.SetAircraftProvider(() => Aircraft);
         Ground.SetTowerCabServices(_vnasConfigService, _towerCabImageService, _airportResolver);
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);

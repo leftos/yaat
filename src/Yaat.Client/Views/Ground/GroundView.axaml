@@ -50,7 +50,7 @@
         <ground:GroundCanvas x:Name="Canvas"
                              Layout="{Binding Layout}"
                              SelectedAircraft="{Binding SelectedAircraft}"
-                             ActiveRoute="{Binding ActiveRoute}"
+                             HoverTaxiRoute="{Binding HoverTaxiRoute}"
                              PreviewRoute="{Binding PreviewRoute}"
                              DrawnRoutePreview="{Binding DrawnRoutePreview}"
                              DrawHoverPreview="{Binding DrawHoverPreview}"

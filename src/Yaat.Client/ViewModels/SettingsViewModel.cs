@@ -391,6 +391,12 @@ public partial class SettingsViewModel : ObservableObject
     private bool _groundHideDataBlocksByDefault;
 
     [ObservableProperty]
+    private bool _groundShowTaxiRouteOnHover;
+
+    [ObservableProperty]
+    private bool _groundShowAllTaxiRoutes;
+
+    [ObservableProperty]
     private bool _isCapturingKey;
 
     // Speech recognition settings
@@ -706,6 +712,8 @@ public partial class SettingsViewModel : ObservableObject
         _stripsZoomPercent = _preferences.StripsZoomPercent;
         _tdlsZoomPercent = _preferences.TdlsZoomPercent;
         _groundHideDataBlocksByDefault = _preferences.GroundHideDataBlocksByDefault;
+        _groundShowTaxiRouteOnHover = _preferences.GroundShowTaxiRouteOnHover;
+        _groundShowAllTaxiRoutes = _preferences.GroundShowAllTaxiRoutes;
         LoadMacros();
     }
 
@@ -830,6 +838,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetStripsZoomPercent(StripsZoomPercent);
         _preferences.SetTdlsZoomPercent(TdlsZoomPercent);
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
+        _preferences.SetGroundTaxiRouteDisplay(GroundShowTaxiRouteOnHover, GroundShowAllTaxiRoutes);
         SaveMacros();
         Saved = true;
     }

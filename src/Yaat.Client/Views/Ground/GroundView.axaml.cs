@@ -58,6 +58,7 @@ public partial class GroundView : UserControl
         _canvas.DrawNodeClicked += OnDrawNodeClicked;
         _canvas.DrawNodeFinished += OnDrawNodeFinished;
         _canvas.DrawNodeHovered += OnDrawNodeHovered;
+        _canvas.HoveredAircraftChanged += OnAircraftHovered;
 
         if (DataContext is GroundViewModel vm && vm.Preferences is not null)
         {
@@ -97,6 +98,7 @@ public partial class GroundView : UserControl
             _canvas.DrawNodeClicked -= OnDrawNodeClicked;
             _canvas.DrawNodeFinished -= OnDrawNodeFinished;
             _canvas.DrawNodeHovered -= OnDrawNodeHovered;
+            _canvas.HoveredAircraftChanged -= OnAircraftHovered;
         }
 
         if (DataContext is GroundViewModel vm && vm.Preferences is not null)
@@ -585,17 +587,12 @@ public partial class GroundView : UserControl
             );
         }
 
-        var isRouteShown = vm.IsPathShown(callsign);
-        menu.Items.Add(
-            CreateMenuItem(
-                isRouteShown ? "Hide taxi route" : "Show taxi route",
-                () =>
-                {
-                    vm.ToggleShowTaxiRoute(callsign);
-                    return Task.CompletedTask;
-                }
-            )
-        );
+        var taxiRouteMode = vm.GetTaxiRouteMode(callsign);
+        var taxiRouteMenu = new MenuItem { Header = "Taxi route" };
+        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always show", TaxiRouteDisplayMode.AlwaysShow, taxiRouteMode));
+        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Always hide", TaxiRouteDisplayMode.AlwaysHide, taxiRouteMode));
+        taxiRouteMenu.Items.Add(CreateTaxiRouteModeItem(vm, callsign, "Follow “Show all” setting", TaxiRouteDisplayMode.Follow, taxiRouteMode));
+        menu.Items.Add(taxiRouteMenu);
 
         var isDbHidden = _canvas?.IsDataBlockHidden(callsign) ?? false;
         menu.Items.Add(
@@ -922,6 +919,14 @@ public partial class GroundView : UserControl
         }
     }
 
+    private void OnAircraftHovered(string? callsign)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.SetHoveredAircraft(callsign);
+        }
+    }
+
     private void OnDrawNodeClicked(int nodeId)
     {
         if (DataContext is GroundViewModel vm)
@@ -1209,6 +1214,25 @@ public partial class GroundView : UserControl
     {
         var item = new MenuItem { Header = header };
         item.Click += async (_, _) => await action();
+        return item;
+    }
+
+    private static MenuItem CreateTaxiRouteModeItem(
+        GroundViewModel vm,
+        string callsign,
+        string header,
+        TaxiRouteDisplayMode mode,
+        TaxiRouteDisplayMode currentMode
+    )
+    {
+        var item = new MenuItem
+        {
+            Header = header,
+            ToggleType = MenuItemToggleType.Radio,
+            GroupName = "TaxiRouteMode",
+            IsChecked = mode == currentMode,
+        };
+        item.Click += (_, _) => vm.SetTaxiRouteMode(callsign, mode);
         return item;
     }
 

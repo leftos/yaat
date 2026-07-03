@@ -155,6 +155,7 @@ Subsystem references — open the matching doc *before* exploring, searching, or
 - [`track-sharing-and-consolidation.md`](docs/track-sharing-and-consolidation.md) — `ConsolidationEngine`/`ConsolidationState`, `AircraftStarsState.SharedState`, `AircraftEramState`, `StarsConsolidation`
 - [`client-mainviewmodel.md`](docs/client-mainviewmodel.md) — any `MainViewModel` partial, `MainWindow.axaml.cs`, SignalR-driven client features
 - [`radar-rendering.md`](docs/radar-rendering.md) — `Views/Radar/`, `Views/Map/` (SkiaSharp two-thread snapshot split)
+- [`ground-rendering.md`](docs/ground-rendering.md) — `Views/Ground/` (`GroundCanvas`, `GroundRenderer`, `GroundViewModel` taxi-route overlays + the client-side route-reconstruction contract)
 - [`command-input-ux.md`](docs/command-input-ux.md) — `CommandInputController`, `ArgumentSuggester`/`FixSuggester`, `SignatureHelpState`, `CommandInputParseResult` (pre-send)
 - [`weather-and-wind.md`](docs/weather-and-wind.md) — `WeatherProfile`/`WeatherTimeline`, `MetarParser`, `WindsAloftParser`, `WindInterpolator`, `MagneticDeclination`, `LiveWeatherService`
 - [`airspace-database.md`](docs/airspace-database.md) — `src/Yaat.Sim/Data/Airspace/`, `AirspaceBoundaryHoldPhase`, `PilotProactive.TickAirspaceBoundaryRespect`, Class B/C separation

@@ -25,6 +25,7 @@
 | CRC display state | [`crc-display-state.md`](./crc-display-state.md) |
 | Client (`MainViewModel`) | [`client-mainviewmodel.md`](./client-mainviewmodel.md) |
 | Radar / map rendering | [`radar-rendering.md`](./radar-rendering.md) |
+| Ground view rendering | [`ground-rendering.md`](./ground-rendering.md) |
 | Speech (STT) / pilot speech (TTS) | [`speech-recognition-pipeline.md`](./speech-recognition-pipeline.md), [`solo-training-pilot-speech.md`](./solo-training-pilot-speech.md) |
 | Pilot phraseology (wording / AIM) | [`pilot-phraseology.md`](./pilot-phraseology.md) |
 | Tests | [`test-harness.md`](./test-harness.md), [`e2e-tdd-issue-debugging.md`](./e2e-tdd-issue-debugging.md) |

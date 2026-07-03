@@ -11,6 +11,19 @@ using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ViewModels;
 
+/// <summary>Per-aircraft override for how its taxi route is drawn on the ground view.</summary>
+public enum TaxiRouteDisplayMode
+{
+    /// <summary>Track the global "show all taxiing routes" setting (the default, no override).</summary>
+    Follow,
+
+    /// <summary>Always draw this aircraft's route, regardless of the global setting.</summary>
+    AlwaysShow,
+
+    /// <summary>Never draw this aircraft's route, regardless of the global setting.</summary>
+    AlwaysHide,
+}
+
 public partial class GroundViewModel : ObservableObject
 {
     private readonly ILogger _log = AppLog.CreateLogger<GroundViewModel>();
@@ -52,7 +65,7 @@ public partial class GroundViewModel : ObservableObject
     private WeatherDisplayInfo? _weatherInfo;
 
     [ObservableProperty]
-    private TaxiRoute? _activeRoute;
+    private TaxiRoute? _hoverTaxiRoute;
 
     [ObservableProperty]
     private TaxiRoute? _previewRoute;
@@ -92,6 +105,21 @@ public partial class GroundViewModel : ObservableObject
 
     [ObservableProperty]
     private GroundFilterMode _showSpot = GroundFilterMode.LabelsAndIcons;
+
+    /// <summary>
+    /// When on, hovering an aircraft on the ground view temporarily draws its taxi route.
+    /// Persisted globally (<see cref="Services.UserPreferences.GroundShowTaxiRouteOnHover"/>); default on.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showTaxiRouteOnHover = true;
+
+    /// <summary>
+    /// When on, every taxiing aircraft's taxi route is drawn by default unless the aircraft has been
+    /// individually hidden. Persisted globally (<see cref="Services.UserPreferences.GroundShowAllTaxiRoutes"/>);
+    /// default off.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showAllTaxiRoutes;
 
     /// <summary>
     /// Opt-in datablock deconfliction mode for this ground view. Persisted globally
@@ -172,13 +200,15 @@ public partial class GroundViewModel : ObservableObject
     ];
 
     private readonly HashSet<string> _shownTaxiRouteCallsigns = new();
+    private readonly HashSet<string> _taxiRouteHiddenCallsigns = new();
     private readonly Dictionary<string, int> _taxiColorIndices = new();
-    private readonly Stack<int> _freeColorIndices = new();
+    private string? _hoveredCallsign;
 
     [ObservableProperty]
     private IReadOnlyList<ShownTaxiRouteEntry>? _shownTaxiRoutes;
 
     private Func<string, AircraftModel?>? _findAircraft;
+    private Func<IReadOnlyList<AircraftModel>>? _aircraftProvider;
 
     private string? _activeScenarioId;
     private string? _activeAirportId;
@@ -209,6 +239,8 @@ public partial class GroundViewModel : ObservableObject
             ShowHoldShort = preferences.GroundShowHoldShort;
             ShowParking = preferences.GroundShowParking;
             ShowSpot = preferences.GroundShowSpot;
+            ShowTaxiRouteOnHover = preferences.GroundShowTaxiRouteOnHover;
+            ShowAllTaxiRoutes = preferences.GroundShowAllTaxiRoutes;
             IsPanZoomLocked = preferences.GroundPanZoomLocked;
             ColorScheme = preferences.GroundColors;
             ShowSatelliteImage = preferences.GroundShowSatelliteImage;
@@ -506,7 +538,7 @@ public partial class GroundViewModel : ObservableObject
         _activeAirportId = null;
         Layout = null;
         _domainLayout = null;
-        ActiveRoute = null;
+        HoverTaxiRoute = null;
         PreviewRoute = null;
         AirportCenterLat = 0;
         AirportCenterLon = 0;
@@ -1298,40 +1330,142 @@ public partial class GroundViewModel : ObservableObject
         _findAircraft = lookup;
     }
 
-    public bool IsPathShown(string callsign)
+    /// <summary>Supplies the full live aircraft list, needed when "show all taxiing routes" is on.</summary>
+    public void SetAircraftProvider(Func<IReadOnlyList<AircraftModel>> provider)
     {
-        return _shownTaxiRouteCallsigns.Contains(callsign);
+        _aircraftProvider = provider;
     }
 
-    public void ToggleShowTaxiRoute(string callsign)
+    partial void OnShowAllTaxiRoutesChanged(bool value) => RefreshShownTaxiRoutes();
+
+    partial void OnShowTaxiRouteOnHoverChanged(bool value)
     {
-        if (_shownTaxiRouteCallsigns.Remove(callsign))
+        if (!value)
         {
-            if (_taxiColorIndices.Remove(callsign, out var freedIdx))
-            {
-                _freeColorIndices.Push(freedIdx);
-            }
+            _hoveredCallsign = null;
+            HoverTaxiRoute = null;
         }
-        else
+    }
+
+    /// <summary>
+    /// Whether <paramref name="callsign"/>'s taxi route is currently drawn persistently (ignoring the
+    /// transient hover overlay): an explicit "show" wins, an explicit "hide" wins next, otherwise the
+    /// route shows when <see cref="ShowAllTaxiRoutes"/> is on and the aircraft has an active route.
+    /// </summary>
+    public bool IsTaxiRouteVisible(string callsign)
+    {
+        if (_shownTaxiRouteCallsigns.Contains(callsign))
         {
-            _shownTaxiRouteCallsigns.Add(callsign);
-            int colorIdx = _freeColorIndices.Count > 0 ? _freeColorIndices.Pop() : _taxiColorIndices.Count % TaxiRouteColors.Length;
-            _taxiColorIndices[callsign] = colorIdx;
+            return true;
+        }
+
+        if (_taxiRouteHiddenCallsigns.Contains(callsign))
+        {
+            return false;
+        }
+
+        if (!ShowAllTaxiRoutes)
+        {
+            return false;
+        }
+
+        var ac = _findAircraft?.Invoke(callsign);
+        return ac is not null && ac.HasActiveTaxiRoute;
+    }
+
+    /// <summary>The explicit per-aircraft taxi-route override, or <see cref="TaxiRouteDisplayMode.Follow"/> when none is set.</summary>
+    public TaxiRouteDisplayMode GetTaxiRouteMode(string callsign)
+    {
+        if (_shownTaxiRouteCallsigns.Contains(callsign))
+        {
+            return TaxiRouteDisplayMode.AlwaysShow;
+        }
+
+        if (_taxiRouteHiddenCallsigns.Contains(callsign))
+        {
+            return TaxiRouteDisplayMode.AlwaysHide;
+        }
+
+        return TaxiRouteDisplayMode.Follow;
+    }
+
+    /// <summary>
+    /// Sets the per-aircraft taxi-route override backing the context-menu "Taxi route" submenu.
+    /// <see cref="TaxiRouteDisplayMode.Follow"/> clears any override so the route tracks the global
+    /// "show all" setting; the other two pin it on or off regardless of that setting.
+    /// </summary>
+    public void SetTaxiRouteMode(string callsign, TaxiRouteDisplayMode mode)
+    {
+        switch (mode)
+        {
+            case TaxiRouteDisplayMode.AlwaysShow:
+                _taxiRouteHiddenCallsigns.Remove(callsign);
+                _shownTaxiRouteCallsigns.Add(callsign);
+                break;
+            case TaxiRouteDisplayMode.AlwaysHide:
+                _shownTaxiRouteCallsigns.Remove(callsign);
+                _taxiRouteHiddenCallsigns.Add(callsign);
+                break;
+            default:
+                _shownTaxiRouteCallsigns.Remove(callsign);
+                _taxiRouteHiddenCallsigns.Remove(callsign);
+                break;
         }
 
         RefreshShownTaxiRoutes();
     }
 
-    public void RefreshShownTaxiRoutes()
+    /// <summary>
+    /// The ordered set of callsigns whose taxi route should be drawn persistently: all explicitly-shown
+    /// aircraft, plus — when <paramref name="showAll"/> is on — every aircraft with an active taxi route
+    /// that hasn't been explicitly hidden. Pure set logic (no geometry) so it can be unit-tested.
+    /// </summary>
+    public static List<string> ComputeVisibleTaxiRouteCallsigns(
+        IReadOnlySet<string> forcedShown,
+        IReadOnlySet<string> forcedHidden,
+        bool showAll,
+        IReadOnlyList<(string Callsign, bool HasActiveTaxiRoute)> allAircraft
+    )
     {
-        if (_shownTaxiRouteCallsigns.Count == 0)
+        var effective = new List<string>();
+        var seen = new HashSet<string>();
+
+        foreach (var callsign in forcedShown)
         {
-            ShownTaxiRoutes = null;
-            return;
+            if (seen.Add(callsign))
+            {
+                effective.Add(callsign);
+            }
         }
 
+        if (showAll)
+        {
+            foreach (var (callsign, hasActiveTaxiRoute) in allAircraft)
+            {
+                if (hasActiveTaxiRoute && !forcedHidden.Contains(callsign) && seen.Add(callsign))
+                {
+                    effective.Add(callsign);
+                }
+            }
+        }
+
+        return effective;
+    }
+
+    public void RefreshShownTaxiRoutes()
+    {
+        var all = _aircraftProvider?.Invoke() ?? [];
+        var effective = ComputeVisibleTaxiRouteCallsigns(
+            _shownTaxiRouteCallsigns,
+            _taxiRouteHiddenCallsigns,
+            ShowAllTaxiRoutes,
+            all.Select(ac => (ac.Callsign, ac.HasActiveTaxiRoute)).ToList()
+        );
+
+        AllocateRouteColors(effective);
+
         var entries = new List<ShownTaxiRouteEntry>();
-        foreach (var callsign in _shownTaxiRouteCallsigns)
+        foreach (var callsign in effective)
         {
             var ac = _findAircraft?.Invoke(callsign);
             if (ac is null)
@@ -1350,17 +1484,78 @@ public partial class GroundViewModel : ObservableObject
         }
 
         ShownTaxiRoutes = entries.Count > 0 ? entries : null;
+
+        RefreshHoverRoute();
+    }
+
+    /// <summary>
+    /// Keeps a stable palette index per drawn callsign: existing assignments are preserved, callsigns no
+    /// longer drawn are released, and each newcomer gets the lowest free slot (cycling past the palette).
+    /// </summary>
+    private void AllocateRouteColors(IReadOnlyList<string> effective)
+    {
+        var effectiveSet = new HashSet<string>(effective);
+        var stale = _taxiColorIndices.Keys.Where(cs => !effectiveSet.Contains(cs)).ToList();
+        foreach (var cs in stale)
+        {
+            _taxiColorIndices.Remove(cs);
+        }
+
+        var used = new HashSet<int>(_taxiColorIndices.Values);
+        foreach (var callsign in effective)
+        {
+            if (_taxiColorIndices.ContainsKey(callsign))
+            {
+                continue;
+            }
+
+            int idx = 0;
+            while (idx < TaxiRouteColors.Length && used.Contains(idx))
+            {
+                idx++;
+            }
+
+            if (idx >= TaxiRouteColors.Length)
+            {
+                idx = _taxiColorIndices.Count % TaxiRouteColors.Length;
+            }
+
+            _taxiColorIndices[callsign] = idx;
+            used.Add(idx);
+        }
+    }
+
+    /// <summary>Sets the aircraft whose route the transient hover overlay should draw (null clears it).</summary>
+    public void SetHoveredAircraft(string? callsign)
+    {
+        _hoveredCallsign = ShowTaxiRouteOnHover ? callsign : null;
+        RefreshHoverRoute();
+    }
+
+    private void RefreshHoverRoute()
+    {
+        if (_hoveredCallsign is null)
+        {
+            HoverTaxiRoute = null;
+            return;
+        }
+
+        var ac = _findAircraft?.Invoke(_hoveredCallsign);
+        HoverTaxiRoute = ac is null ? null : ResolveRemainingRoute(ac);
     }
 
     public void RemoveShownTaxiRoute(string callsign)
     {
-        if (_shownTaxiRouteCallsigns.Remove(callsign))
-        {
-            if (_taxiColorIndices.Remove(callsign, out var freedIdx))
-            {
-                _freeColorIndices.Push(freedIdx);
-            }
+        bool changed = _shownTaxiRouteCallsigns.Remove(callsign) | _taxiRouteHiddenCallsigns.Remove(callsign);
 
+        if (string.Equals(_hoveredCallsign, callsign, StringComparison.Ordinal))
+        {
+            _hoveredCallsign = null;
+            changed = true;
+        }
+
+        if (changed || ShowAllTaxiRoutes)
+        {
             RefreshShownTaxiRoutes();
         }
     }
@@ -1368,8 +1563,10 @@ public partial class GroundViewModel : ObservableObject
     public void ClearShownTaxiRoutes()
     {
         _shownTaxiRouteCallsigns.Clear();
+        _taxiRouteHiddenCallsigns.Clear();
         _taxiColorIndices.Clear();
-        _freeColorIndices.Clear();
+        _hoveredCallsign = null;
+        HoverTaxiRoute = null;
         ShownTaxiRoutes = null;
     }
 

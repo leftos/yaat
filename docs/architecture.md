@@ -53,6 +53,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 | Client↔server SignalR contract | [training-hub-contract.md](training-hub-contract.md), [server-rooms-and-hub.md](server-rooms-and-hub.md) |
 | Client MainViewModel & orchestration | [client-mainviewmodel.md](client-mainviewmodel.md) |
 | Radar display & rendering | [radar-rendering.md](radar-rendering.md) |
+| Ground view rendering & taxi-route overlays | [ground-rendering.md](ground-rendering.md) |
 | Flight strips / vTDLS | [flight-strips.md](flight-strips.md), [vtdls.md](vtdls.md) |
 | Speech (STT) & pilot speech (TTS) | [speech-recognition-pipeline.md](speech-recognition-pipeline.md), [solo-training-pilot-speech.md](solo-training-pilot-speech.md) |
 | Pilot phraseology (wording / forms / AIM) | [pilot-phraseology.md](pilot-phraseology.md) |

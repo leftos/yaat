@@ -135,7 +135,7 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor NodeParking = new(60, 180, 80, 140);
     private static readonly SKColor NodeHelipad = new(180, 60, 220, 140);
     private static readonly SKColor NodeSpot = new(220, 160, 40, 140);
-    private static readonly SKColor ActiveRouteColor = new(60, 220, 60);
+    private static readonly SKColor HoverRouteColor = new(255, 255, 255);
     private static readonly SKColor PreviewRouteColor = new(80, 180, 255, 180);
     private static readonly SKColor DrawnRouteColor = new(0, 200, 255);
     private static readonly SKColor DrawHoverPreviewColor = new(255, 180, 50);
@@ -240,10 +240,10 @@ public sealed class GroundRenderer : IDisposable
         Typeface = PlatformHelper.MonospaceTypeface,
     };
 
-    private readonly SKPaint _activeRoutePaint = new()
+    private readonly SKPaint _hoverRoutePaint = new()
     {
-        Color = ActiveRouteColor,
-        StrokeWidth = 4,
+        Color = HoverRouteColor,
+        StrokeWidth = 5,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
         StrokeCap = SKStrokeCap.Round,
@@ -553,7 +553,7 @@ public sealed class GroundRenderer : IDisposable
         AircraftModel? selectedAircraft,
         int? hoveredNodeId,
         string? hoveredRunwayEnd,
-        TaxiRoute? activeRoute,
+        TaxiRoute? hoverRoute,
         TaxiRoute? previewRoute,
         TaxiRoute? drawnRoutePreview,
         TaxiRoute? drawHoverPreview,
@@ -623,9 +623,9 @@ public sealed class GroundRenderer : IDisposable
             }
 
             DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels, showParking);
-            DrawActiveRoute(canvas, vp, layout, activeRoute);
             DrawPreviewRoute(canvas, vp, layout, previewRoute);
             DrawShownTaxiRoutes(canvas, vp, layout, shownTaxiRoutes);
+            DrawHoverRoute(canvas, vp, layout, hoverRoute);
             DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
             DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
             DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShort, showParking, showSpot);
@@ -1153,9 +1153,9 @@ public sealed class GroundRenderer : IDisposable
         canvas.DrawPath(path, paint);
     }
 
-    private void DrawActiveRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
+    private void DrawHoverRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
     {
-        DrawRoute(canvas, vp, layout, route, _activeRoutePaint);
+        DrawRoute(canvas, vp, layout, route, _hoverRoutePaint);
     }
 
     private void DrawPreviewRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
@@ -2245,7 +2245,7 @@ public sealed class GroundRenderer : IDisposable
         _taxiwayPaint.Dispose();
         _rampEdgePaint.Dispose();
         _taxiLabelPaint.Dispose();
-        _activeRoutePaint.Dispose();
+        _hoverRoutePaint.Dispose();
         _previewRoutePaint.Dispose();
         _drawnRoutePaint.Dispose();
         _drawHoverPreviewPaint.Dispose();

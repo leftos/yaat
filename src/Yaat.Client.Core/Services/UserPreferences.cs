@@ -353,6 +353,8 @@ public sealed class UserPreferences
     public GroundFilterMode GroundShowHoldShort => (GroundFilterMode)_data.GroundShowHoldShort;
     public GroundFilterMode GroundShowParking => (GroundFilterMode)_data.GroundShowParking;
     public GroundFilterMode GroundShowSpot => (GroundFilterMode)_data.GroundShowSpot;
+    public bool GroundShowTaxiRouteOnHover => _data.GroundShowTaxiRouteOnHover;
+    public bool GroundShowAllTaxiRoutes => _data.GroundShowAllTaxiRoutes;
     public DatablockDeconflictMode GroundDeconflictMode => (DatablockDeconflictMode)_data.GroundDeconflictMode;
     public DatablockDeconflictMode RadarDeconflictMode => (DatablockDeconflictMode)_data.RadarDeconflictMode;
     public bool RadarDcbVisible => _data.RadarDcbVisible;
@@ -978,6 +980,14 @@ public sealed class UserPreferences
         Save();
     }
 
+    /// <summary>Persists the ground-view taxi-route display options. Written from the Settings window.</summary>
+    public void SetGroundTaxiRouteDisplay(bool onHover, bool showAll)
+    {
+        _data.GroundShowTaxiRouteOnHover = onHover;
+        _data.GroundShowAllTaxiRoutes = showAll;
+        Save();
+    }
+
     public void SetGroundPanZoomLocked(bool locked)
     {
         _data.GroundPanZoomLocked = locked;
@@ -1429,6 +1439,8 @@ public sealed class UserPreferences
             GroundShowHoldShort = GetFieldOr(obj, "groundShowHoldShort", 0),
             GroundShowParking = GetFieldOr(obj, "groundShowParking", 0),
             GroundShowSpot = GetFieldOr(obj, "groundShowSpot", 0),
+            GroundShowTaxiRouteOnHover = GetFieldOr(obj, "groundShowTaxiRouteOnHover", true),
+            GroundShowAllTaxiRoutes = GetFieldOr(obj, "groundShowAllTaxiRoutes", false),
             GroundDeconflictMode = GetFieldOr(obj, "groundDeconflictMode", 0),
             RadarDeconflictMode = GetFieldOr(obj, "radarDeconflictMode", 0),
             RadarDcbVisible = GetFieldOr(obj, "radarDcbVisible", true),
@@ -1705,6 +1717,8 @@ public sealed class UserPreferences
         public int GroundShowHoldShort { get; set; }
         public int GroundShowParking { get; set; }
         public int GroundShowSpot { get; set; }
+        public bool GroundShowTaxiRouteOnHover { get; set; } = true;
+        public bool GroundShowAllTaxiRoutes { get; set; }
         public int GroundDeconflictMode { get; set; }
         public int RadarDeconflictMode { get; set; }
         public bool RadarDcbVisible { get; set; } = true;

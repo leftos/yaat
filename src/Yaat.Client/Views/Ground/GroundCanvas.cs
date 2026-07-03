@@ -31,7 +31,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(SelectedAircraft)
     );
 
-    public static readonly StyledProperty<TaxiRoute?> ActiveRouteProperty = AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(nameof(ActiveRoute));
+    public static readonly StyledProperty<TaxiRoute?> HoverTaxiRouteProperty = AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(
+        nameof(HoverTaxiRoute)
+    );
 
     public static readonly StyledProperty<TaxiRoute?> PreviewRouteProperty = AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(
         nameof(PreviewRoute)
@@ -236,6 +238,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     private int? _hoveredNodeId;
     private string? _hoveredRunwayEnd;
+    private string? _hoveredAircraftCallsign;
     private bool _initialFitDone;
     private bool _suppressViewSync;
     private bool _isDraggingDataBlock;
@@ -273,10 +276,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(SelectedAircraftProperty, value);
     }
 
-    public TaxiRoute? ActiveRoute
+    public TaxiRoute? HoverTaxiRoute
     {
-        get => GetValue(ActiveRouteProperty);
-        set => SetValue(ActiveRouteProperty, value);
+        get => GetValue(HoverTaxiRouteProperty);
+        set => SetValue(HoverTaxiRouteProperty, value);
     }
 
     public TaxiRoute? PreviewRoute
@@ -553,6 +556,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when the hovered node changes during draw mode. Args: nodeId (null if no node).</summary>
     public event Action<int?>? DrawNodeHovered;
 
+    /// <summary>
+    /// Fired when the aircraft under the cursor changes (null when none). Drives the transient
+    /// hover taxi-route preview. Not raised while drawing a route.
+    /// </summary>
+    public event Action<string?>? HoveredAircraftChanged;
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -570,7 +579,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         else if (
             change.Property == AircraftProperty
             || change.Property == SelectedAircraftProperty
-            || change.Property == ActiveRouteProperty
+            || change.Property == HoverTaxiRouteProperty
             || change.Property == PreviewRouteProperty
             || change.Property == DrawnRoutePreviewProperty
             || change.Property == DrawHoverPreviewProperty
@@ -630,7 +639,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         AircraftModel? SelectedAircraft,
         int? HoveredNodeId,
         string? HoveredRunwayEnd,
-        TaxiRoute? ActiveRoute,
+        TaxiRoute? HoverTaxiRoute,
         TaxiRoute? PreviewRoute,
         TaxiRoute? DrawnRoutePreview,
         TaxiRoute? DrawHoverPreview,
@@ -688,7 +697,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             SelectedAircraft,
             _hoveredNodeId,
             _hoveredRunwayEnd,
-            ActiveRoute,
+            HoverTaxiRoute,
             PreviewRoute,
             DrawnRoutePreview,
             DrawHoverPreview,
@@ -732,7 +741,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.SelectedAircraft,
             s.HoveredNodeId,
             s.HoveredRunwayEnd,
-            s.ActiveRoute,
+            s.HoverTaxiRoute,
             s.PreviewRoute,
             s.DrawnRoutePreview,
             s.DrawHoverPreview,
@@ -858,7 +867,37 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         base.OnPointerMoved(e);
-        UpdateHoveredNode(e.GetPosition(this));
+        var hoverPos = e.GetPosition(this);
+        UpdateHoveredNode(hoverPos);
+        UpdateHoveredAircraft(hoverPos);
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        SetHoveredAircraftCallsign(null);
+    }
+
+    /// <summary>
+    /// Hit-tests the aircraft under the cursor (datablock first, then position symbol) and raises
+    /// <see cref="HoveredAircraftChanged"/> when it changes. Suppressed while drawing a route.
+    /// </summary>
+    private void UpdateHoveredAircraft(Point screenPos)
+    {
+        var ac = IsDrawingRoute ? null : (FindDataBlockAtPoint(screenPos) ?? FindAircraftAtPoint(screenPos));
+        SetHoveredAircraftCallsign(ac?.Callsign);
+    }
+
+    private void SetHoveredAircraftCallsign(string? callsign)
+    {
+        if (string.Equals(_hoveredAircraftCallsign, callsign, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _hoveredAircraftCallsign = callsign;
+        HoveredAircraftChanged?.Invoke(callsign);
+        MarkDirty();
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
