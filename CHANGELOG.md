@@ -9,6 +9,7 @@
 - ERAM implied commands now work on a Center position instead of returning FORMAT: `//` toggles an aircraft's on-frequency indicator, a `1`–`9` repositions its data block, `/0`–`/3` sets its leader-line length, and a bare FLID cycles the data block between a limited and a full data block.
 - `QX <FLID>` now drops an ERAM track (only the owning sector, or any sector with `/OK`), and clears the track's pending handoff state cleanly. Dropping previously worked only through a non-standard form that left a stale handoff behind.
 - ERAM `QZ` and `QQ` altitude commands were swapped: `QZ` now sets the assigned (flight-plan) altitude — including `QZ VFR` and `QZ OTP` — and `QQ` sets the interim altitude, with `QQ R`/`L`/`P` for reported/local-interim/procedure altitudes and the bare forms to clear them. Previously each set the other's altitude field.
+- An ERAM full data block no longer lingers as a ghost after its aircraft is removed — the data block's create and delete now use the same identifier, so CRC can clear it.
 
 ## v0.8.10-beta [2026/07/03]
 
