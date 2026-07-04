@@ -11,6 +11,7 @@
 - ERAM `QZ` and `QQ` altitude commands were swapped: `QZ` now sets the assigned (flight-plan) altitude — including `QZ VFR` and `QZ OTP` — and `QQ` sets the interim altitude, with `QQ R`/`L`/`P` for reported/local-interim/procedure altitudes and the bare forms to clear them. Previously each set the other's altitude field.
 - An ERAM full data block no longer lingers as a ghost after its aircraft is removed — the data block's create and delete now use the same identifier, so CRC can clear it.
 - ERAM data blocks now render per sector: a track owned by another sector shows as a limited data block instead of a full data block, and Quick Look (`QL`) promotes a quick-looked sector's tracks (and an inbound handoff) to full data blocks. Previously every sector saw every track as a full data block.
+- ERAM (Center) data blocks now flash on a short-term conflict alert when two tracked aircraft are predicted to lose separation, and a controller on a Center position receives the conflict-alert list. Previously ERAM published no conflict alerts at all, so its data blocks never flashed.
 
 ## v0.8.10-beta [2026/07/03]
 
