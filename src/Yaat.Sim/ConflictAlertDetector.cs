@@ -118,31 +118,21 @@ public static class ConflictAlertDetector
         var eligible = new List<AircraftState>(aircraft.Count);
         foreach (var ac in aircraft)
         {
-            if (ac.IsOnGround)
+            if (IsEligible(ac))
             {
-                continue;
+                eligible.Add(ac);
             }
-
-            if (!ac.Transponder.Mode.Equals("C", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (ac.Stars.IsCaInhibited)
-            {
-                continue;
-            }
-
-            if (ac.Ghost.IsUnsupported)
-            {
-                continue;
-            }
-
-            eligible.Add(ac);
         }
 
         return eligible;
     }
+
+    /// <summary>
+    /// A track is eligible for conflict alerting when it is airborne, associated (Mode C), not CA-inhibited,
+    /// and supported. Shared by <see cref="EramConflictDetector"/> so both display types gate identically.
+    /// </summary>
+    internal static bool IsEligible(AircraftState ac) =>
+        !ac.IsOnGround && ac.Transponder.Mode.Equals("C", StringComparison.OrdinalIgnoreCase) && !ac.Stars.IsCaInhibited && !ac.Ghost.IsUnsupported;
 
     private static (double Lat, double Lon, double Altitude) Predict(AircraftState ac)
     {

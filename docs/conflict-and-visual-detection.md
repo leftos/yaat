@@ -28,8 +28,11 @@ These four hook in at four different points:
   `GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout, deltaSeconds)` at `SimulationWorld.cs:235`. It runs
   4× per sim-second (once per 0.25 s sub-tick) so the freshly-written `Ground.SpeedLimit` is consumed by physics in the
   same sub-tick. This is the only detector that runs more than once per sim-second.
-- **Airborne CA** — **PostPhysics**, server-side: `TickProcessor.ProcessConflictAlerts` (`TickProcessor.cs:1396`,
-  called from the PostPhysics fan-out at `:93`). Runs once per sim-second after all physics has integrated.
+- **Airborne CA** — **PostPhysics**, server-side. Two sibling passes registered in the PostPhysics fan-out:
+  `Run("Post.ConflictAlerts", ProcessConflictAlerts)` (terminal STARS) and
+  `Run("Post.EramConflictAlerts", ProcessEramConflictAlerts)` (en-route ERAM STCA). Each runs once per
+  sim-second after all physics has integrated and maintains its own conflict set
+  (`SimulationEngine.ConflictAlerts` vs `EramConflicts`).
 - **Visual acquisition (field & FOLLOW traffic)** — **PostPhysics**, server-side: the field-acquisition block in
   `TickProcessor` (`~:1232–1360`). Plus a per-aircraft re-check inside the physics step via
   `PilotObservationUpdater.Update` (step 10 of `FlightPhysics.Update`, runs after `UpdateCommandQueue`) for pending
@@ -92,6 +95,48 @@ airport list comes from `starsConfig.InternalAirports`.
 - **Along-track** between 0 (threshold) and 30 nm.
 - **Altitude** between field elevation and a sloped ceiling: `fieldElev + alongTrack × 318 ft/nm + 1500 ft`, i.e. the
   3° glideslope (tan 3° × 6076.12 ≈ 318 ft/nm) plus 1500 ft of headroom.
+
+---
+
+## ERAM STCA — `EramConflictDetector`
+
+The en-route (Center) Short-Term Conflict Alert. A **separate detector and conflict set** from the terminal CA
+above — same "two associated tracks losing separation" theme, but tuned to ERAM's model (docs/crc/eram.md §377-383)
+rather than STARS's. Shares only the eligibility gate (`ConflictAlertDetector.IsEligible` — airborne, Mode C, not
+CA-inhibited, supported). Output is `SimulationEngine.EramConflicts` (`EramConflictState`, keyed by `ESTCA_{a}_{b}`),
+maintained by `TickProcessor.ProcessEramConflictAlerts` and published on the `EramShortTermConflicts` topic.
+
+The model differs from terminal CA on every axis:
+
+- **4-minute look-ahead** (vs 5 s). This is the defining feature: real ERAM flashes minutes before a loss, so a
+  converging pair 25 nm apart *now* is caught. `LookAheadSeconds = 240`.
+- **Swept closest-point-of-approach** for the lateral test (vs single-endpoint prediction). `LateralClosestApproachNm`
+  solves the CPA analytically in a local tangent plane centred on aircraft A — exact for constant-velocity motion, and
+  a diverging pair naturally clamps to its current (t=0) separation.
+- **Lateral 5 nm, or 3 nm when both targets ≤ FL230** (reduced-separation airspace) — vs the flat terminal 3 nm.
+  Uses present altitude (§379 is present-tense).
+- **Data-block-altitude vertical envelope** (vs a point). Each target's altitude over the window is the interval
+  `[min(current, dataBlockAlt), max(current, dataBlockAlt)]`; a pair conflicts vertically iff the two intervals come
+  within 1000 ft (`gap < 1000` — 1000 ft exactly is still separation). This implements §381 (a descending target is
+  assumed to level off at its assignment) and §383 (a level target may move toward a differing assignment "at any
+  time"). Data-block altitude = `Eram.LocalInterimAltitude ?? ProcedureAltitude ?? InterimAltitude` (CRC field-B
+  precedence, **hundreds of feet** → ×100) else the filed `FlightPlan.CruiseAltitude` (feet); if neither, a
+  vertical-speed projection (deliberately conservative — see the source comment).
+- **No approach-corridor suppression** (terminal-specific).
+- **Hysteresis:** an active alert holds until the CPA ≥ latMin + 0.3 nm OR the vertical gap ≥ 1100 ft.
+
+### §377 facility gate (per subscriber, not in the detector)
+
+The detector produces the **facility-agnostic** room-wide set. The §377 rule — "alerts are only generated if one of
+the two targets is owned by a controller in *your* ERAM facility" — is applied per subscriber in `CrcBroadcastService`:
+`ProcessEramConflictAlerts` stamps each `EramActiveConflict` with the owning ERAM facility of both targets
+(`ac.Track.Owner.FacilityId`, refreshed each tick so a handoff is reflected), and the broadcast/data-block paths gate
+on `OwnerFacility{A,B} == subscriber.FacilityId`. New-alert broadcasts are facility-filtered; **deletes go out
+unfiltered** (an unknown id is a harmless no-op, and this prevents an orphaned flash if a target was handed off before
+the conflict cleared). The send-once FDB `ConflictStatus` is refreshed via the coarse per-aircraft "in any ERAM
+conflict" trigger, then each subscriber recomputes its own gated status. **Known gap:** because the topic broadcast is
+event-driven (new/cleared), a handoff of an aircraft *mid-conflict* does not re-attribute the RDB flash to the newly
+owning facility until the conflict re-forms; the FDB path (per-tick) is unaffected.
 
 ---
 
@@ -328,6 +373,18 @@ here and have `aviation-sim-expert` review against the local FAA references.
 | `ApproachZoneLengthNm` | 30.0 | nm | Corridor length along extended centerline |
 | `ApproachZoneCeilingAboveGsFt` | 1500 | ft | Headroom above glideslope for the corridor ceiling |
 | `GlideSlopeFtPerNm` | 318.0 | ft/nm | 3° glideslope slope (tan 3° × 6076.12) |
+
+### ERAM STCA — `EramConflictDetector.cs`
+
+| Constant | Value | Units | Meaning |
+|---|---|---|---|
+| `LookAheadSeconds` | 240.0 | s | Four-minute trajectory probe |
+| `LateralNm` | 5.0 | nm | En-route lateral threshold |
+| `ReducedLateralNm` | 3.0 | nm | Lateral threshold when both targets ≤ FL230 |
+| `ReducedSeparationCeilingFt` | 23000 | ft | FL230 reduced-separation ceiling |
+| `VerticalFt` | 1000 | ft | Vertical envelope-gap threshold |
+| `ClearLateralMarginNm` | 0.3 | nm | Hysteresis: added to latMin to clear an active alert |
+| `ClearVerticalFt` | 1100 | ft | Hysteresis: vertical gap to clear an active alert |
 
 ### ATPA — `AtpaVolumeGeometry.cs` + per-volume `AtpaVolumeConfig`
 

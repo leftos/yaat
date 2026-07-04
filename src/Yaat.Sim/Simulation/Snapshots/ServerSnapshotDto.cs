@@ -8,6 +8,7 @@ public sealed class ServerSnapshotDto
 {
     public Dictionary<string, ConsolidationOverrideDto>? ConsolidationOverrides { get; init; }
     public List<ActiveConflictDto>? ActiveConflicts { get; init; }
+    public List<EramActiveConflictDto>? EramConflicts { get; init; }
     public BeaconCodePoolDto? BeaconCodePool { get; init; }
 }
 
@@ -23,6 +24,15 @@ public sealed class ActiveConflictDto
     public required string CallsignA { get; init; }
     public required string CallsignB { get; init; }
     public required bool IsAcknowledged { get; init; }
+}
+
+public sealed class EramActiveConflictDto
+{
+    public required string Id { get; init; }
+    public required string CallsignA { get; init; }
+    public required string CallsignB { get; init; }
+    public string? OwnerFacilityA { get; init; }
+    public string? OwnerFacilityB { get; init; }
 }
 
 public sealed class BeaconCodePoolDto

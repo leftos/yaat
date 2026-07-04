@@ -17,16 +17,16 @@ public class AircraftEramState
     /// <summary>Leader length override (0-8 lines). Null = sector default.</summary>
     public int? LeaderLength { get; set; }
 
-    /// <summary>Temp altitude issued via ERAM QZ (distinct from STARS TemporaryAltitude).</summary>
+    /// <summary>Interim altitude issued via ERAM QQ, in hundreds of feet (the unit CRC renders directly).</summary>
     public int? InterimAltitude { get; set; }
 
-    /// <summary>Controller-entered interim altitude (QQ L&lt;alt&gt;).</summary>
+    /// <summary>Local interim altitude (QQ L&lt;alt&gt;), in hundreds of feet.</summary>
     public int? LocalInterimAltitude { get; set; }
 
-    /// <summary>Procedure altitude from QQ P&lt;alt&gt;.</summary>
+    /// <summary>Procedure altitude from QQ P&lt;alt&gt;, in hundreds of feet.</summary>
     public int? ProcedureAltitude { get; set; }
 
-    /// <summary>Altitude manually entered by controller via ERAM commands.</summary>
+    /// <summary>Controller-entered altitude (QQ R&lt;alt&gt; / auto-track cleared), in hundreds of feet.</summary>
     public int? ControllerEnteredAltitude { get; set; }
 
     /// <summary>Active ERAM pointouts.</summary>

@@ -85,6 +85,7 @@ public sealed class SimulationEngine
     public BeaconCodePool BeaconCodePool { get; } = new();
     public TowerListTracker TowerListTracker { get; } = new();
     public ConflictAlertState ConflictAlerts { get; } = new();
+    public EramConflictState EramConflicts { get; } = new();
 
     private readonly List<GeneratorSpawnRecord> _generatorSpawnLog = [];
 
@@ -449,10 +450,22 @@ public sealed class SimulationEngine
             }
         }
 
+        var eramConflicts = EramConflicts
+            .Conflicts.Values.Select(c => new EramActiveConflictDto
+            {
+                Id = c.Id,
+                CallsignA = c.CallsignA,
+                CallsignB = c.CallsignB,
+                OwnerFacilityA = c.OwnerFacilityA,
+                OwnerFacilityB = c.OwnerFacilityB,
+            })
+            .ToList();
+
         return new ServerSnapshotDto
         {
             ConsolidationOverrides = consolidation,
             ActiveConflicts = conflicts,
+            EramConflicts = eramConflicts,
             BeaconCodePool = new BeaconCodePoolDto
             {
                 AssignedCodes = beaconCodes,
@@ -483,6 +496,21 @@ public sealed class SimulationEngine
                     CallsignA = c.CallsignA,
                     CallsignB = c.CallsignB,
                     IsAcknowledged = c.IsAcknowledged,
+                };
+            }
+        }
+
+        if (server.EramConflicts is not null)
+        {
+            foreach (var c in server.EramConflicts)
+            {
+                EramConflicts.Conflicts[c.Id] = new EramActiveConflict
+                {
+                    Id = c.Id,
+                    CallsignA = c.CallsignA,
+                    CallsignB = c.CallsignB,
+                    OwnerFacilityA = c.OwnerFacilityA,
+                    OwnerFacilityB = c.OwnerFacilityB,
                 };
             }
         }
