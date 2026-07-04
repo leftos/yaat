@@ -12,6 +12,7 @@
 - An ERAM full data block no longer lingers as a ghost after its aircraft is removed — the data block's create and delete now use the same identifier, so CRC can clear it.
 - ERAM data blocks now render per sector: a track owned by another sector shows as a limited data block instead of a full data block, and Quick Look (`QL`) promotes a quick-looked sector's tracks (and an inbound handoff) to full data blocks. Previously every sector saw every track as a full data block.
 - ERAM (Center) data blocks now flash on a short-term conflict alert when two tracked aircraft are predicted to lose separation, and a controller on a Center position receives the conflict-alert list. Previously ERAM published no conflict alerts at all, so its data blocks never flashed.
+- Removing an aircraft that was in a conflict alert now clears that alert from every CRC controller in the room, not just one of them. In a room with multiple controllers the alert could otherwise linger on the others' STARS/ERAM displays until they reconnected.
 
 ## v0.8.10-beta [2026/07/03]
 
