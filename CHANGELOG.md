@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.8.10-beta [2026/07/03]
+
+### Highlights
+- **Taxi routes on the ground view** — draw an aircraft's taxi route on the ground view: on hover, for every taxiing aircraft at once, or pinned per aircraft via the right-click **Taxi route** submenu.
+- **ASDE-style fix on the surface display** — the ground datablock and a new Aircraft List **Fix** column now show a departure's exit fix (or the destination), matching a real tower surface display.
+- **Airport layouts pick up vNAS map corrections** — updated taxiway layouts published to vNAS now reach the simulation mid-session, instead of staying pinned to the first copy downloaded.
+- **Fewer crashes** — looking up an unknown callsign in CRC's flight plan editor, removing an aircraft from the list, or an unexpected error no longer closes the client.
 
 ### Added
 - **Taxi routes on the ground view.** Two new **Settings > Display** options control when an aircraft's taxi route is drawn on the ground view: **"Show taxi route when hovering an aircraft"** (on by default) temporarily draws the route of whichever aircraft the mouse is over, and **"Show all taxiing aircraft's routes"** (off by default) draws every taxiing aircraft's route at once. Right-click an aircraft and use the **Taxi route** submenu to override one aircraft — **Always show**, **Always hide**, or **Follow "Show all"** — independently of the global setting.

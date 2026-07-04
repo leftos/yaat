@@ -407,6 +407,8 @@ Right-click an aircraft and open the **Taxi route** submenu to override the defa
 
 Selecting a preset is identical to typing the equivalent `TAXI` command (`TAXI T T3 B RWY 10R` in the example above). Routes that aren't reachable from the aircraft's current position are silently dropped from the menu — for example, an OAK departure route won't appear when right-clicking an aircraft at SFO. Restart YAAT to pick up edits to the route JSONs.
 
+**Command-token hints:** Hovering a taxi spot or parking node shows the token that references it in a command — `$9` for taxi spot 9, `@F7` for parking F7 — so you can read straight off the map how to `TAXI` / `PUSH` / `WARPG` to it.
+
 **Debug overlay:** Press **Ctrl+D** to toggle node IDs, names, types, and edge labels on the ground map. Useful for finding node IDs for manual `#nodeId` taxi commands.
 
 **Controls bar** (top-right corner):
