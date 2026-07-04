@@ -5,6 +5,9 @@
 ### Fixed
 - The `ADD` command's `H` engine token now spawns a helicopter instead of failing with "Invalid engine type 'H'". `ADD V S H @H1` drops a light civil helicopter (R22/R44/B06) on helipad or parking spot H1; name a type to override it (e.g. `ADD V S H @H1 H60`). The weight token is cosmetic for helicopters.
 - The `ADD` command's weight-token hint now reads `S/S+/L/H` instead of the incorrect `H/J/L/S`.
+- A CRC controller working an ERAM (Center) position can now hand off tracks from the keyboard: type the receiving sector ID before an aircraft's FLID to initiate a handoff, a bare FLID to accept an inbound handoff or recall an outbound one, or `/OK` before the FLID to force-take a track owned by another sector. Previously every ERAM keyboard handoff was rejected, even though the underlying handoff logic already existed.
+- ERAM implied commands now work on a Center position instead of returning FORMAT: `//` toggles an aircraft's on-frequency indicator, a `1`–`9` repositions its data block, `/0`–`/3` sets its leader-line length, and a bare FLID cycles the data block between a limited and a full data block.
+- `QX <FLID>` now drops an ERAM track (only the owning sector, or any sector with `/OK`), and clears the track's pending handoff state cleanly. Dropping previously worked only through a non-standard form that left a stale handoff behind.
 
 ## v0.8.10-beta [2026/07/03]
 

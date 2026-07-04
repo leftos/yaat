@@ -245,9 +245,9 @@ Critic's overall read: coverage of the spec's Contents list is thorough; the dis
 ## Prioritized remediation checklist
 
 **Tier 1 — core CRC-ERAM workflows broken (do first):**
-- [ ] **Add an implied-command dispatch arm to `ProcessEramMessage`** (root cause A) — route bare `<FLID>`, numeric leader `1-9`, `/len`, `<sector> <FLID>`, and `/OK <FLID>` instead of `default → FORMAT`. Unblocks handoffs, drop, datablock toggle/positioning.
-- [ ] **Wire ERAM handoffs over the CRC path** (H1) — initiate/accept/recall/force → existing `TrackCommandHandler.HandleHandoff`/`HandleAccept`/`HandleForceHandoff`. Mirror the STARS implementation (`CrcClientState.Stars.cs:364-427`).
-- [ ] **Handle the `QX` drop verb** (H3) → `TrackEngine.HandleDrop` (which correctly clears HandoffPeer/HandoffInitiatedAt/CreatedByOwner); retire or alias the non-spec `QT D`.
+- [x] **Add an implied-command dispatch arm to `ProcessEramMessage`** (root cause A) — route bare `<FLID>`, numeric leader `1-9`, `/len`, `<sector> <FLID>`, and `/OK <FLID>` instead of `default → FORMAT`. Unblocks handoffs, drop, datablock toggle/positioning. *(#243, `DispatchImplied` + per-sector `EramRoomState.FdbOpen`.)*
+- [x] **Wire ERAM handoffs over the CRC path** (H1) — initiate/accept/recall/force → existing `TrackCommandHandler.HandleHandoff`/`HandleAccept`/`HandleForceHandoff`. Mirror the STARS implementation (`CrcClientState.Stars.cs:364-427`). *(#244; also fixed force-take leaving stale `HandoffPeer`.)*
+- [x] **Handle the `QX` drop verb** (H3) → `TrackEngine.HandleDrop` (which correctly clears HandoffPeer/HandoffInitiatedAt/CreatedByOwner); retire or alias the non-spec `QT D`. *(#245, `DispatchQx`; removed `QT D`.)*
 - [ ] **Fix the `QZ`↔`QQ` inversion** (H4) — QZ writes assigned, QQ writes interim; add QQ R/L/P sub-modes + clear forms.
 - [ ] **Fix the EramDataBlocks delete-ID mismatch** (H6) — align create/delete id (adopt the canonical vsrs id format).
 - [ ] **Compute data-block `Format` per subscribing sector** (H5) — FDB if owned/handoff-to-me/quicklooked/manually-open, else paired/unpaired LDB (mirror `vsrs eram.rs:384-446`). Also makes QL and the inbound-handoff cue work.
