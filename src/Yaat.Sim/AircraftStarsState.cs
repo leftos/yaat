@@ -36,7 +36,6 @@ public class AircraftStarsState
     public int? TemporaryAltitude { get; set; }
     public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }
-    public int? AssignedAltitude { get; set; }
     public bool IsCaInhibited { get; set; }
     public bool IsModeCInhibited { get; set; }
     public bool IsMsawInhibited { get; set; }
@@ -76,7 +75,6 @@ public class AircraftStarsState
             TemporaryAltitude = TemporaryAltitude,
             PilotReportedAltitude = PilotReportedAltitude,
             IsAnnotated = IsAnnotated,
-            AssignedAltitude = AssignedAltitude,
             IsCaInhibited = IsCaInhibited,
             IsModeCInhibited = IsModeCInhibited,
             IsMsawInhibited = IsMsawInhibited,
@@ -117,7 +115,6 @@ public class AircraftStarsState
             TemporaryAltitude = dto.TemporaryAltitude,
             PilotReportedAltitude = dto.PilotReportedAltitude,
             IsAnnotated = dto.IsAnnotated,
-            AssignedAltitude = dto.AssignedAltitude,
             IsCaInhibited = dto.IsCaInhibited,
             IsModeCInhibited = dto.IsModeCInhibited,
             IsMsawInhibited = dto.IsMsawInhibited,

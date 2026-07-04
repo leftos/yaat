@@ -29,7 +29,6 @@ public sealed class AircraftStarsStateDto
     public int? TemporaryAltitude { get; init; }
     public int? PilotReportedAltitude { get; init; }
     public required bool IsAnnotated { get; init; }
-    public int? AssignedAltitude { get; init; }
     public required bool IsCaInhibited { get; init; }
     public required bool IsModeCInhibited { get; init; }
     public required bool IsMsawInhibited { get; init; }
