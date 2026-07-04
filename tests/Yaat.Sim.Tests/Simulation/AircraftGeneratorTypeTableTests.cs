@@ -51,6 +51,7 @@ public class AircraftGeneratorTypeTableTests
     [InlineData(WeightClass.Large, EngineKind.Piston)]
     [InlineData(WeightClass.Large, EngineKind.Jet)]
     [InlineData(WeightClass.Heavy, EngineKind.Jet)]
+    [InlineData(WeightClass.Small, EngineKind.Helicopter)]
     public void EveryBucketHasAtLeastTwoTypes(WeightClass weight, EngineKind engine)
     {
         var pool = AircraftGenerator.GetTypesForCombo(weight, engine);

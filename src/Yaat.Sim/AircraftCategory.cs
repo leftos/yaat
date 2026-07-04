@@ -47,6 +47,23 @@ public static class AircraftCategorization
 
         return AircraftCategory.Jet;
     }
+
+    /// <summary>
+    /// True when <paramref name="aircraftType"/> is a known ICAO type designator in the specs
+    /// lookup (directly or via its sibling), regardless of category. Used to recognize all-letter
+    /// type overrides (e.g. "PUMA", "GAZL") in the ADD command without misreading airport ICAOs
+    /// or fix names (e.g. "KOAK") as aircraft types.
+    /// </summary>
+    public static bool IsKnownType(string aircraftType)
+    {
+        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
+        if (_lookup.ContainsKey(baseType))
+        {
+            return true;
+        }
+
+        return AircraftSiblingMap.TryResolve(baseType, out var sibling) && _lookup.ContainsKey(sibling);
+    }
 }
 
 /// <summary>

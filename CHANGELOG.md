@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- The `ADD` command's `H` engine token now spawns a helicopter instead of failing with "Invalid engine type 'H'". `ADD V S H @H1` drops a light civil helicopter (R22/R44/B06) on helipad or parking spot H1; name a type to override it (e.g. `ADD V S H @H1 H60`). The weight token is cosmetic for helicopters.
+- The `ADD` command's weight-token hint now reads `S/S+/L/H` instead of the incorrect `H/J/L/S`.
+
 ## v0.8.10-beta [2026/07/03]
 
 ### Highlights

@@ -696,7 +696,7 @@ Helicopters can also use all standard tower commands (`CTO`, `CLAND`, `LUAW`, `T
 
 For hovering in place or at a fix, use `HPP` and `HFIX <fix>` (see [Hold Commands](#hold-commands) below — both are no-orbit variants intended for helicopters).
 
-**Spawning helicopters:** Use the ADD command with a helicopter type (e.g., `H60`, `EC35`, `R44`). Use `@` prefix for helipad/parking spawn: `ADD V S P @H1 H60`.
+**Spawning helicopters:** Use the ADD command's `H` engine token: `ADD V S H @H1` spawns a light civil helicopter (R22/R44/B06) at helipad/parking spot H1. Name any other helicopter explicitly to override the default: `ADD V S H @H1 H60`. The `@` prefix marks a helipad/parking spawn. (Helicopters are also detected automatically from the ICAO type regardless of the engine token, so an explicit heli type still works with any engine.)
 
 ### Tower Commands
 
@@ -1420,7 +1420,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 | Lined up on runway | `ADD {rules} {weight} {engine} {runway}` | `ADD VFR S P 28R` |
 | Departure on runway | `ADD {rules} {weight} {engine} {runway} {route}` | `ADD IFR S P 28R NIMI6.OAK.SAU` |
 | On final | `ADD {rules} {weight} {engine} {runway} {dist}` | `ADD IFR L J 28R 8` |
-| At parking/helipad | `ADD {rules} {weight} {engine} @{spot}` | `ADD VFR S P @H1 H60` |
+| At parking/helipad | `ADD {rules} {weight} {engine} @{spot}` | `ADD VFR S H @H1` |
 | Arrival on STAR | `ADD {rules} {weight} {engine} {wpt}.{star}[.{rwy}] [alt] [SP{spd}] [LVL] [airport]` | `ADD IFR H J TBARR.TBARR4.34R 230` |
 
 **Parameters:**
@@ -1429,7 +1429,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 |-----------|--------|
 | Rules | `I`/`IFR` (instrument) or `V`/`VFR` (visual) |
 | Weight | `S` (small/GA), `S+` (smallplus — regional/commuter), `L` (large/narrow-body), `H` (heavy) |
-| Engine | `P` (piston), `T` (turboprop), `J` (jet) |
+| Engine | `P` (piston), `T` (turboprop), `J` (jet), `H` (helicopter) |
 
 **Position arguments:**
 - **Airborne**: `-{bearing}` is degrees from the primary airport, `{dist}` is distance in NM, `{alt}` is altitude in feet. Aircraft spawns heading toward the airport.
@@ -1437,7 +1437,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 - **Lined up**: `{runway}` is the runway designator (e.g., `28R`). Aircraft spawns on the runway threshold, ready for takeoff clearance.
 - **Departure on runway**: `{runway}` plus a dot-joined `{route}` (e.g., `NIMI6.OAK.SAU`, converted to the filed route `NIMI6 OAK SAU`). Spawns lined up on the runway with the route filed and the departure airport set, so a subsequent `CTO` flies the filed SID. IFR only — the route is ignored for VFR. A numeric token after the runway is the on-final distance, not a route.
 - **On final**: `{runway}` plus `{dist}` in NM. Aircraft spawns on final approach at that distance from the runway.
-- **At parking/helipad**: `@{spot}` is a parking or helipad name (e.g., `@H1`, `@B12`). Aircraft spawns at ground level. Useful for helicopters and ground operations.
+- **At parking/helipad**: `@{spot}` is a parking or helipad name (e.g., `@H1`, `@B12`). Aircraft spawns at ground level. Useful for helicopters and ground operations — use the `H` engine token (`ADD VFR S H @H1`) to spawn a helicopter.
 - **Arrival on STAR**: a dotted `{waypoint}.{star}[.{runway}]` token (e.g. `TBARR.TBARR4.34R`) spawns an IFR aircraft already established on the arrival at the named waypoint, heading down the route. By default it **descends via** the STAR's published crossing restrictions from its current altitude; add `LVL` to hold the altitude until you issue `DVIA`. Optional trailing tokens, any order: a bare number = current altitude in hundreds (e.g. `230` = FL230; omit to auto-compute a realistic establishment altitude from the STAR profile); `SP{kts}` = speed override (e.g. `SP250`); `{airport}` = ICAO/FAA destination for multi-airport STARs (defaults to the primary scenario airport). Runway transition is optional — omit it (`TBARR.TBARR4`) to fly the common legs and resolve the runway portion later. IFR only. *Note:* descending-via at spawn is a trainer convenience — by the book (7110.65 §4-5-7 / AIM §5-4-1) an aircraft on a STAR holds its altitude until ATC issues "descend via", so use `LVL` when you want to issue the descent yourself.
 
 **Optional trailing tokens:**
@@ -1455,7 +1455,9 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 
 Tiers track RECAT CWT category: Small = CWT I (light GA), SmallPlus = CWT H (upper-small business jets and commuter turboprops), Large = mainline narrow-body plus regional jets (CWT F/G), Heavy = wide-body. The SmallPlus turboprop pool keeps the CWT G commuter turboprops because their approach speeds stay short-field appropriate.
 
-IFR aircraft get a random airline callsign (e.g., UAL1234). VFR aircraft get an N-number (e.g., N1234A).
+**Helicopters (H):** the `H` engine token spawns a helicopter. With no explicit type it auto-selects a light civil helicopter (R22, R44, B06). The weight token is cosmetic for helicopters — any weight resolves to the same light pool. Name any other helicopter explicitly to override it (e.g. `ADD V S H @H1 H60`, `ADD V S H @H1 EC35`); the type drives the Helicopter category automatically. Helicopters spawned at a helipad/parking sit on the spot until you clear them (`CTOPP` for a present-position vertical departure, `ATXI` to air-taxi). See [Helicopter Commands](#helicopter-commands).
+
+IFR aircraft get a random airline callsign (e.g., UAL1234). VFR aircraft — and helicopters, which no scheduled airline operates — get an N-number (e.g., N1234A).
 
 ### Global Commands
 

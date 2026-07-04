@@ -833,8 +833,8 @@ public static class CommandRegistry
                         null,
                         [
                             R("rules", "IFR/VFR"),
-                            R("weight", "H/J/L/S"),
-                            R("engine", "J/T/P"),
+                            R("weight", "S/S+/L/H"),
+                            R("engine", "J/T/P/H"),
                             R("-bearing", "from airport"),
                             R("distance", "nm"),
                             R("altitude", "in hundreds"),
@@ -845,8 +845,8 @@ public static class CommandRegistry
                         "Arrival on STAR",
                         [
                             R("rules", "IFR"),
-                            R("weight", "H/J/L/S"),
-                            R("engine", "J/T/P"),
+                            R("weight", "S/S+/L/H"),
+                            R("engine", "J/T/P/H"),
                             R("wpt.star.rwy", "e.g. TBARR.TBARR4.34R"),
                             Opt("altitude", "in hundreds"),
                             Opt("SPspeed", "e.g. SP250"),

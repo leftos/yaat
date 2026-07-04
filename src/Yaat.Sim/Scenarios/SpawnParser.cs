@@ -24,7 +24,7 @@ public static class SpawnParser
 
         if (!TryParseEngine(tokens[2], out var engine))
         {
-            return (null, $"Invalid engine type '{tokens[2]}'. Use P (piston), T (turboprop), or J (jet)");
+            return (null, $"Invalid engine type '{tokens[2]}'. Use P (piston), T (turboprop), J (jet), or H (helicopter)");
         }
 
         var comboError = ValidateCombo(weight, engine);
@@ -455,6 +455,11 @@ public static class SpawnParser
             engine = EngineKind.Jet;
             return true;
         }
+        if (upper == "H")
+        {
+            engine = EngineKind.Helicopter;
+            return true;
+        }
         return false;
     }
 
@@ -486,8 +491,7 @@ public static class SpawnParser
             return false;
         }
 
-        // ICAO type designators are 2-4 alphanumeric characters,
-        // containing at least one letter and one digit
+        // ICAO type designators are 3-4 alphanumeric characters with at least one letter.
         bool hasLetter = false;
         bool hasDigit = false;
         foreach (char c in token)
@@ -505,6 +509,21 @@ public static class SpawnParser
                 return false;
             }
         }
-        return hasLetter && hasDigit;
+
+        if (!hasLetter)
+        {
+            return false;
+        }
+
+        // A letter+digit designator (B738, R22, H60) is unambiguous — treat it as a type without a
+        // data lookup so this works before the specs DB is loaded. An all-letter code (PUMA, GAZL) is
+        // a type only when the specs lookup confirms it, so airport ICAOs and fix names (KOAK, TBARR)
+        // on a STAR arrival aren't misread as aircraft types.
+        if (hasDigit)
+        {
+            return true;
+        }
+
+        return AircraftCategorization.IsKnownType(token);
     }
 }

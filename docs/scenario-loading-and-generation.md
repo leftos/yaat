@@ -217,14 +217,18 @@ grammar is `{rules} {weight} {engine} {position…} [type] [*airline]`:
 
 - **rules** — `I`/`IFR` or `V`/`VFR`.
 - **weight** — `S` (small — CWT I), `S+` (smallplus — CWT H upper-small bizjets/commuters), `L` (large — mainline narrow-body + regional jets), `H` (heavy).
-- **engine** — `P` (piston), `T` (turboprop), `J` (jet). `ValidateCombo` (`:338`) rejects the four impossible combos
-  (Heavy+Piston, Heavy+Turboprop, Small+Jet, SmallPlus+Piston).
+- **engine** — `P` (piston), `T` (turboprop), `J` (jet), `H` (helicopter). `ValidateCombo` (`:338`) rejects the four impossible
+  fixed-wing combos (Heavy+Piston, Heavy+Turboprop, Small+Jet, SmallPlus+Piston); `H` is valid with any weight (the weight token
+  is cosmetic for rotorcraft — see the helicopter bucket below).
 - **position** — index 3 onward, one of five variants (see table below).
 
 The trailing overrides (an explicit type like `B738`, an airline like `*UAL`) are parsed **right-to-left from the end, stopping
 at index 4** (`:41`). The stop-at-4 is the slot-skip that protects the first position token (index 3): a runway like `28R` looks
-exactly like an ICAO type (3–4 chars, letter+digit, per `IsLikelyAircraftType` at `:355`), but at index 3 it is the position, not
+exactly like an ICAO type (3–4 chars, letter+digit, per `IsLikelyAircraftType`), but at index 3 it is the position, not
 a type override. (This is the same left-to-right-vs-right-to-left slot-skip discipline used elsewhere for optional trailing args.)
+`IsLikelyAircraftType` accepts a letter+digit designator syntactically (works before the specs DB loads), but an **all-letter**
+code (`PUMA`, `GAZL`, `LYNX`) only when `AircraftCategorization.IsKnownType` confirms it's a real ICAO type — so an all-letter
+airport ICAO or fix name on a STAR arrival (`KOAK`, `TBARR`) is never misread as an aircraft type.
 
 Position variants, dispatched from the position tokens at `SpawnParser.cs:66`:
 
@@ -281,6 +285,15 @@ low-speed deceleration keep them short-field appropriate (e.g. OAK 28R, 5,448 ft
 matches the regional jets — which is why no `Large+Turboprop` bucket exists. The weight↔CWT split matters for wake spacing: a SmallPlus follower still spans weightCode LARGE (those CWT G
 turboprops) and SMALL (CWT H), so it maps to the coarse `Large` wake class (`SimulationEngine.WakeClassForWeight`), while each
 spawned type's precise CWT still drives ATPA.
+
+There is one **helicopter** bucket, `(Small, Helicopter)` = `R22`/`R44`/`B06` — the light-civil pool auto-selected by
+`ADD {rules} {weight} H @spot` when no explicit type is given. It is keyed on `Small` only; any other weight + `H` resolves to it
+via the fallback chain (engine-wins-over-size), which is why the weight token is cosmetic for helicopters. These three are the
+only helicopters with a per-type `AircraftProfiles.json` profile, so they are the only heli codes that satisfy
+`AssertEveryTypeResolves`; heavier heli types (`H60`, `S76`, `EC35`, …) are reachable only as explicit type overrides, where the
+category resolves via `AircraftCategorization` and performance falls back to the `CategoryPerformance.Helicopter` baseline. `H`
+never appears in the scenario arrival generator (`SimulationEngine.ResolveEngine` maps only Piston/Turboprop/Jet), so random
+arrival streams don't spawn helicopters — they enter only through `ADD`.
 
 The bucket↔fleet coupling is validated at startup by `AssertEveryTypeResolves` (`:42`): every `TypeTable` type must resolve
 through both `AircraftProfileDatabase` and `AircraftCategorization` (with the expected category), every **jet** type must resolve

@@ -1149,7 +1149,7 @@ Aircraft in a phase, such as taxi, takeoff, approach, pattern, landing, or holdi
 
 ### Helicopter operations
 
-Helicopters are detected automatically from the ICAO type designator (`H60`, `EC35`, `R44`, etc.) and get a dedicated set of commands for vertical takeoff, hover, and air-taxi:
+Helicopters are detected automatically from the ICAO type designator (`H60`, `EC35`, `R44`, etc.) and get a dedicated set of commands for vertical takeoff, hover, and air-taxi. To spawn one on the ground, use the `H` engine token in the ADD command — `ADD V S H @H1` drops a light civil helicopter on helipad/parking spot H1 (or name a type explicitly, e.g. `ADD V S H @H1 H60`):
 
 | Command | Effect |
 |---------|--------|

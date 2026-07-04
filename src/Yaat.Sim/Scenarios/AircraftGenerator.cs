@@ -34,6 +34,11 @@ public static class AircraftGenerator
         [(WeightClass.Large, EngineKind.Piston)] = ["AC68", "BE60", "BE58", "C421"],
         [(WeightClass.Large, EngineKind.Jet)] = ["B737", "B738", "B739", "A319", "A320", "A321", "CRJ7", "CRJ9", "E170", "E75L", "E145", "E135"],
         [(WeightClass.Heavy, EngineKind.Jet)] = ["A332", "A333", "B763", "B764", "B772", "B788", "B744"],
+        // Helicopters are a single light-civil pool: the ADD weight token is cosmetic for rotorcraft
+        // (any weight resolves here via EnumerateBucketFallbackChain). Heavier heli types (H60, S76…)
+        // remain reachable as explicit type overrides. These three are the only helicopters with a
+        // per-type profile in AircraftProfiles.json, which AssertEveryTypeResolves requires.
+        [(WeightClass.Small, EngineKind.Helicopter)] = ["R22", "R44", "B06"],
     };
 
     private static readonly string[] Airlines = ["UAL", "AAL", "DAL", "SWA", "JBU", "ASA", "NKS", "SKW", "ENY", "RPA"];
@@ -67,6 +72,7 @@ public static class AircraftGenerator
                     EngineKind.Piston => AircraftCategory.Piston,
                     EngineKind.Turboprop => AircraftCategory.Turboprop,
                     EngineKind.Jet => AircraftCategory.Jet,
+                    EngineKind.Helicopter => AircraftCategory.Helicopter,
                     _ => AircraftCategory.Jet,
                 };
                 if (cat != expectedCat)

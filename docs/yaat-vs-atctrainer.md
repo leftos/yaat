@@ -354,6 +354,8 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | At fix | — | `ADD {rules} {wt} {eng} @{fix} {alt}` | YAAT-only |
 | Arrival on STAR | — | `ADD {rules} {wt} {eng} {wpt}.{star}[.{rwy}] [alt] [SP{spd}] [LVL] [airport]` | YAAT-only — IFR aircraft established on an arrival, descending via (or `LVL` to hold) |
 
+The `{eng}` token is `P` (piston), `T` (turboprop), `J` (jet), or `H` (helicopter). `H` auto-selects a light civil helicopter (R22/R44/B06) or accepts an explicit heli type (`ADD V S H @H1 H60`); the weight token is cosmetic for helicopters.
+
 ### Debug / Force Commands
 
 | Command | ATCTrainer | YAAT | Difference |

@@ -19,6 +19,7 @@ public enum EngineKind
     Piston,
     Turboprop,
     Jet,
+    Helicopter,
 }
 
 public enum SpawnPositionType

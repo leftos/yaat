@@ -162,6 +162,7 @@ internal static class AddCommandSuggester
             "P" => EngineKind.Piston,
             "T" => EngineKind.Turboprop,
             "J" => EngineKind.Jet,
+            "H" => EngineKind.Helicopter,
             _ => null,
         };
     }
@@ -182,6 +183,7 @@ internal static class AddCommandSuggester
             [
                 ("P", "Piston — " + FormatTypes(weight, EngineKind.Piston)),
                 ("T", "Turboprop — " + FormatTypes(weight, EngineKind.Turboprop)),
+                ("H", "Helicopter — " + FormatTypes(weight, EngineKind.Helicopter)),
             ],
             WeightClass.SmallPlus =>
             [
