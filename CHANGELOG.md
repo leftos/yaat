@@ -10,6 +10,7 @@
 - `QX <FLID>` now drops an ERAM track (only the owning sector, or any sector with `/OK`), and clears the track's pending handoff state cleanly. Dropping previously worked only through a non-standard form that left a stale handoff behind.
 - ERAM `QZ` and `QQ` altitude commands were swapped: `QZ` now sets the assigned (flight-plan) altitude — including `QZ VFR` and `QZ OTP` — and `QQ` sets the interim altitude, with `QQ R`/`L`/`P` for reported/local-interim/procedure altitudes and the bare forms to clear them. Previously each set the other's altitude field.
 - An ERAM full data block no longer lingers as a ghost after its aircraft is removed — the data block's create and delete now use the same identifier, so CRC can clear it.
+- ERAM data blocks now render per sector: a track owned by another sector shows as a limited data block instead of a full data block, and Quick Look (`QL`) promotes a quick-looked sector's tracks (and an inbound handoff) to full data blocks. Previously every sector saw every track as a full data block.
 
 ## v0.8.10-beta [2026/07/03]
 

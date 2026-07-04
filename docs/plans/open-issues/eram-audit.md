@@ -250,7 +250,7 @@ Critic's overall read: coverage of the spec's Contents list is thorough; the dis
 - [x] **Handle the `QX` drop verb** (H3) → `TrackEngine.HandleDrop` (which correctly clears HandoffPeer/HandoffInitiatedAt/CreatedByOwner); retire or alias the non-spec `QT D`. *(#245, `DispatchQx`; removed `QT D`.)*
 - [x] **Fix the `QZ`↔`QQ` inversion** (H4) — QZ writes assigned, QQ writes interim; add QQ R/L/P sub-modes + clear forms. *(#246: QZ amends the flight plan via AmendFlightPlan incl. VFR/OTP; QQ interim/R/L/P/clear with interim⊥procedure; deleted redundant `Stars.AssignedAltitude`. QZ block-altitude split to a follow-up.)*
 - [x] **Fix the EramDataBlocks delete-ID mismatch** (H6) — align create/delete id (adopt the canonical vsrs id format). *(#247: create id now `CALLSIGN{callsign}`.)*
-- [ ] **Compute data-block `Format` per subscribing sector** (H5) — FDB if owned/handoff-to-me/quicklooked/manually-open, else paired/unpaired LDB (mirror `vsrs eram.rs:384-446`). Also makes QL and the inbound-handoff cue work.
+- [x] **Compute data-block `Format` per subscribing sector** (H5) — FDB if owned/handoff-to-me/quicklooked/manually-open, else paired/unpaired LDB (mirror `vsrs eram.rs:384-446`). Also makes QL and the inbound-handoff cue work. *(#248: `ComputeEramDataBlockFormat`, recomputed per subscriber; reads QuickLook + FdbOpen.)*
 - [ ] **Publish ERAM conflict alerts** (H7) — implement `EramShortTermConflicts` topic + DTO from the existing `ConflictAlertState`; set `ConflictStatus`. (Detector-fidelity retune is a follow-on.)
 
 **Tier 2 — display fidelity & notable commands:**
