@@ -37,13 +37,21 @@ public class Skw3078FixComparisonCapture(ITestOutputHelper output)
     /// <summary>Aircraft that come into play around SKW3078's taxi to B10.</summary>
     private static readonly string[] CapturedCallsigns = ["SKW3078", "DAL2581", "SKW5707", "THY9WC"];
 
-    [Fact]
+    // This is an artifact-capture tool, not an assertion test: it flips GroundConflictDetector's
+    // process-global WingspanLateralCheck flags for a full replay, which races any ground-conflict test
+    // running in parallel (e.g. Issue234Spot7AConflictTests) and made that test flaky in the full suite.
+    // The flags have no other mutator, so skipping keeps them at their production defaults everywhere.
+    // Remove the Skip (and run this class in isolation) to regenerate the .tmp/*.json for LayoutInspector.
+    private const string CaptureSkip =
+        "Diagnostic capture tool — mutates GroundConflictDetector global flags; run in isolation to regenerate artifacts.";
+
+    [Fact(Skip = CaptureSkip)]
     public void Capture_Before()
     {
         Capture(checkEnabled: false, requireStationary: true, ".tmp/skw3078-before.json");
     }
 
-    [Fact]
+    [Fact(Skip = CaptureSkip)]
     public void Capture_After()
     {
         Capture(checkEnabled: true, requireStationary: true, ".tmp/skw3078-after.json");
@@ -56,7 +64,7 @@ public class Skw3078FixComparisonCapture(ITestOutputHelper output)
     /// FilletDiagnosticTests.SKW3078_TaxiAtoB10 by changing traffic-
     /// interaction timing. Captured here for direct visual comparison.
     /// </summary>
-    [Fact]
+    [Fact(Skip = CaptureSkip)]
     public void Capture_AfterNoStationaryRestriction()
     {
         Capture(checkEnabled: true, requireStationary: false, ".tmp/skw3078-after-no-stationary.json");
