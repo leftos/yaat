@@ -145,7 +145,7 @@ public static class ScenarioLoader
             {
                 FlightRules = InferFlightRules(ac.FlightPlan),
                 AircraftType = filedType,
-                CruiseAltitude = ac.FlightPlan?.CruiseAltitude ?? 0,
+                Altitude = BuildFiledAltitude(ac.FlightPlan),
                 CruiseSpeed = ac.FlightPlan?.CruiseSpeed ?? 0,
                 Departure = ac.FlightPlan?.Departure ?? "",
                 Destination = ac.FlightPlan?.Destination ?? "",
@@ -171,6 +171,21 @@ public static class ScenarioLoader
         }
 
         return "IFR";
+    }
+
+    /// <summary>
+    /// Builds the filed <see cref="PlannedAltitude"/> from a scenario flight plan's plain
+    /// <c>CruiseAltitude</c> (feet) and inferred rules. Scenarios only file single altitudes;
+    /// block/OTP/above forms arrive later via ATC amendment.
+    /// </summary>
+    public static PlannedAltitude BuildFiledAltitude(ScenarioFlightPlan? fp)
+    {
+        var feet = fp?.CruiseAltitude ?? 0;
+        if (InferFlightRules(fp).Equals("VFR", StringComparison.OrdinalIgnoreCase))
+        {
+            return PlannedAltitude.Vfr(feet > 0 ? feet : null);
+        }
+        return feet > 0 ? PlannedAltitude.Ifr(feet) : PlannedAltitude.None;
     }
 
     // Aircraft with a filed scenario flight plan get a discrete beacon code at

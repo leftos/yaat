@@ -115,7 +115,7 @@ public class IssueN513sjNimiRvSidCifpMissTests
                 Departure = "KOAK",
                 Destination = "KAUN",
                 Route = "NIMI6 OAK V6 SAC",
-                CruiseAltitude = 5000,
+                Altitude = PlannedAltitude.Ifr(5000),
                 FlightRules = "IFR",
             },
         };
@@ -187,7 +187,7 @@ public class IssueN513sjNimiRvSidCifpMissTests
                 Departure = "KOAK",
                 Destination = "KAUN",
                 Route = route,
-                CruiseAltitude = 5000,
+                Altitude = PlannedAltitude.Ifr(5000),
                 FlightRules = "IFR",
             },
         };

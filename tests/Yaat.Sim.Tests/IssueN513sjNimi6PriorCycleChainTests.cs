@@ -227,7 +227,7 @@ public class IssueN513sjNimi6PriorCycleChainTests
                 Departure = "KOAK",
                 Destination = "KAUN",
                 Route = "NIMI6 OAK V6 SAC",
-                CruiseAltitude = 5000,
+                Altitude = PlannedAltitude.Ifr(5000),
                 FlightRules = "IFR",
             },
         };

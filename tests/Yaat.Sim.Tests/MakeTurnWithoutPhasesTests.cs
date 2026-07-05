@@ -31,7 +31,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
             FlightPlan = new AircraftFlightPlan
             {
                 Departure = "OAK",
-                CruiseAltitude = 3000,
+                Altitude = PlannedAltitude.Vfr(3000),
                 FlightRules = "VFR",
             },
         };

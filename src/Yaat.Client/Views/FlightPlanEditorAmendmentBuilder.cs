@@ -1,4 +1,5 @@
 using Yaat.Client.Models;
+using Yaat.Sim;
 
 namespace Yaat.Client.Views;
 
@@ -40,13 +41,13 @@ internal static class FlightPlanEditorAmendmentBuilder
         // CruiseSpeed: blank/unparseable → 0 (CRC's BuildFlightPlan does int.TryParse(...) ? r : 0).
         int cruiseSpeed = int.TryParse(spdText, out var parsedSpd) ? parsedSpd : 0;
 
-        // Altitude parses into (FlightRules, CruiseAltitude). Blank/unparseable → ("", 0)
-        // so the user can wipe the altitude line. The non-null pair is what tells the server
-        // "the user explicitly cleared this," distinct from null = "leave alone".
+        // Altitude parses into (Rules, PlannedAltitude). Blank/unparseable → ("", None) so the
+        // user can wipe the altitude line. The non-null value is what tells the server "the user
+        // explicitly cleared this," distinct from null = "leave alone".
         var trimmedAlt = (altText ?? "").Trim();
         var parsedAlt = AircraftModel.ParseAltitudeField(trimmedAlt);
-        string flightRules = parsedAlt?.FlightRules ?? "";
-        int cruiseAlt = parsedAlt?.CruiseAltitude ?? 0;
+        string flightRules = parsedAlt?.Rules ?? "";
+        PlannedAltitude altitude = parsedAlt?.Altitude ?? PlannedAltitude.None;
 
         // Re-glue any RMK/ prefix that was hidden during editing so the protocol header
         // (+/V/PILOT/, etc.) round-trips intact.
@@ -59,7 +60,7 @@ internal static class FlightPlanEditorAmendmentBuilder
             Departure: dep,
             Destination: dest,
             CruiseSpeed: cruiseSpeed,
-            CruiseAltitude: cruiseAlt,
+            Altitude: altitude,
             FlightRules: flightRules,
             Route: rte,
             Remarks: rebuiltRemarks,

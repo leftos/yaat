@@ -173,7 +173,7 @@ public class CvaFollowVisualE2ETests(ITestOutputHelper output)
                 Departure = "KSFO",
                 Destination = "OAK",
                 FlightRules = "IFR",
-                CruiseAltitude = (int)altitude,
+                Altitude = PlannedAltitude.Ifr((int)altitude),
             },
         };
     }

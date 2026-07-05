@@ -156,7 +156,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
                 Departure = "SFO",
                 Destination = "SFO",
                 FlightRules = "IFR",
-                CruiseAltitude = 3000,
+                Altitude = PlannedAltitude.Ifr(3000),
             },
         };
 

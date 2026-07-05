@@ -52,7 +52,7 @@ public class CompoundTowerCommandTests
             FlightPlan = new AircraftFlightPlan
             {
                 Departure = "OAK",
-                CruiseAltitude = 5000,
+                Altitude = PlannedAltitude.Vfr(5000),
                 FlightRules = "VFR",
             },
         };

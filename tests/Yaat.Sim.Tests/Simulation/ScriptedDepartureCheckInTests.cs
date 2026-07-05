@@ -61,7 +61,7 @@ public class ScriptedDepartureCheckInTests
             FlightPlan = new AircraftFlightPlan
             {
                 Departure = "OAK",
-                CruiseAltitude = 5000,
+                Altitude = PlannedAltitude.Ifr(5000),
                 FlightRules = "IFR",
                 HasFlightPlan = true,
             },
@@ -90,7 +90,7 @@ public class ScriptedDepartureCheckInTests
             {
                 Departure = "OAK",
                 Destination = "KLAX",
-                CruiseAltitude = 5000,
+                Altitude = PlannedAltitude.Ifr(5000),
                 FlightRules = "IFR",
                 HasFlightPlan = true,
             },

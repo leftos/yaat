@@ -420,7 +420,7 @@ internal static class DepartureClearanceHandler
                 RvSidHoldRunwayHeading = routeResult?.RvSidHoldRunwayHeading ?? false,
                 DepartureProcedureLegs = routeResult?.ProcedureLegs,
                 IsVfr = aircraft.FlightPlan.IsVfr,
-                CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
+                CruiseAltitude = aircraft.FlightPlan.Altitude.CruiseFeet ?? 0,
             };
             towerPhases = rolling ? [lineup, takeoffPhase, climb] : [lineup, new LinedUpAndWaitingPhase(), takeoffPhase, climb];
         }
@@ -771,7 +771,7 @@ internal static class DepartureClearanceHandler
             ped.Direction,
             ped.ExitLeg,
             assignedAltitude,
-            aircraft.FlightPlan.CruiseAltitude,
+            aircraft.FlightPlan.Altitude.CruiseFeet ?? 0,
             sizeOv,
             altOv,
             airportRunways
@@ -1426,7 +1426,7 @@ internal static class DepartureClearanceHandler
             RvSidHoldRunwayHeading = routeResult?.RvSidHoldRunwayHeading ?? false,
             DepartureProcedureLegs = routeResult?.ProcedureLegs,
             IsVfr = aircraft.FlightPlan.IsVfr,
-            CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
+            CruiseAltitude = aircraft.FlightPlan.Altitude.CruiseFeet ?? 0,
         };
 
         for (int i = 0; i < aircraft.Phases.Phases.Count; i++)
@@ -1618,7 +1618,7 @@ internal static class DepartureClearanceHandler
         {
             // Depart: vertical liftoff first, then InitialClimbPhase applies the departure turn
             // and forward acceleration once airborne.
-            var climb = new InitialClimbPhase { IsVfr = aircraft.FlightPlan.IsVfr, CruiseAltitude = aircraft.FlightPlan.CruiseAltitude };
+            var climb = new InitialClimbPhase { IsVfr = aircraft.FlightPlan.IsVfr, CruiseAltitude = aircraft.FlightPlan.Altitude.CruiseFeet ?? 0 };
             aircraft.Phases.Add(climb);
 
             routeResult = ResolveDepartureRoute(ctopp.Departure, aircraft);

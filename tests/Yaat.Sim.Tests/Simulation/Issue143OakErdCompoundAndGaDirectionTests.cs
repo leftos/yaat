@@ -290,7 +290,7 @@ public class Issue143OakErdCompoundAndGaDirectionTests(ITestOutputHelper output)
                 Departure = "KOAK",
                 Destination = destination ?? "KOAK",
                 FlightRules = "VFR",
-                CruiseAltitude = 1000,
+                Altitude = PlannedAltitude.Vfr(1000),
                 CruiseSpeed = 150,
             },
         };

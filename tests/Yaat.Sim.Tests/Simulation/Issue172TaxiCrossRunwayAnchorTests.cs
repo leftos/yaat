@@ -165,7 +165,7 @@ public class Issue172TaxiCrossRunwayAnchorTests(ITestOutputHelper output)
                 Departure = "OAK",
                 Destination = "OAK",
                 FlightRules = "VFR",
-                CruiseAltitude = 1500,
+                Altitude = PlannedAltitude.Vfr(1500),
             },
         };
         aircraft.Phases = new PhaseList();

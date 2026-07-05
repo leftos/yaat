@@ -33,7 +33,7 @@ public static class FlightPlanEditorManager
                         Departure: amendment.Departure,
                         Destination: amendment.Destination,
                         CruiseSpeed: amendment.CruiseSpeed,
-                        CruiseAltitude: amendment.CruiseAltitude,
+                        Altitude: amendment.Altitude,
                         FlightRules: amendment.FlightRules,
                         Route: amendment.Route,
                         Remarks: amendment.Remarks,

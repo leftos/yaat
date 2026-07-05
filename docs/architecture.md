@@ -393,9 +393,13 @@ LatLonBounds.cs                # Internal: axis-aligned lat/lon bbox pre-filter 
                                # (forces explicit `new LatLon(lat, lon)` at external-JSON boundaries so argument swaps don't slip through)
 Callsign.cs                    # Static IsValid(string?): regex ^[A-Z0-9\-]{1,7}$. Boundary check used by STARS DA/VP/FP creation
                                # to reject typos like "*T <fix>" before they create stray flight plans.
+PlannedAltitude.cs             # Value type for the filed flight-plan altitude (notation axis): single / block / VFR /
+                               # VFR-on-top / above, in feet. Mirrors vNAS common/ParsedAltitude minus RawValue. Distinct from
+                               # ControlTargets.AssignedAltitude (current ATC clearance) and FlightRules (IFR/VFR rules axis).
 FlightPlanAltitude.cs          # Parser + formatter for the CRC altitude grammar used in FP forms and STARS DA/VP:
                                # `VFR` (rules-only), `VFR/045` / `OTP/120` (rules + altitude), `045` (IFR + altitude), blank.
-                               # Returns FlightRules + AltitudeFeet?; round-trips through CRC FP edits without synthesizing fields.
+                               # Parse → (Rules, PlannedAltitude); Format(PlannedAltitude) → text (incl. block NNNBNNN). OTP is
+                               # VFR rules + VFR-on-top notation. FromRulesAndFeet builds a PlannedAltitude from rules + a plain int.
 FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)

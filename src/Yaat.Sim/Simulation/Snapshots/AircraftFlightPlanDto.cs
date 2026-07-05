@@ -18,7 +18,13 @@ public sealed class AircraftFlightPlanDto
     public int RevisionNumber { get; init; }
     public required string EquipmentSuffix { get; init; }
     public required string FlightRules { get; init; }
-    public required int CruiseAltitude { get; init; }
+
+    /// <summary>Filed altitude, flattened from <see cref="PlannedAltitude"/> (feet). Ceiling/single value; null = none.</summary>
+    public int? AltitudeCruiseFeet { get; init; }
+    public int? AltitudeBlockFloorFeet { get; init; }
+    public bool AltitudeIsVfr { get; init; }
+    public bool AltitudeIsVfrOnTop { get; init; }
+    public bool AltitudeIsAbove { get; init; }
     public required int CruiseSpeed { get; init; }
     public TrackOwnerDto? CreatedByOwner { get; init; }
 }

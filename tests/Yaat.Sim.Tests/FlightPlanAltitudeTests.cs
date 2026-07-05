@@ -6,27 +6,27 @@ namespace Yaat.Sim.Tests;
 /// <summary>
 /// Covers the four documented CRC FPE altitude forms: NNN, VFR, OTP, VFR/NNN, OTP/NNN.
 /// CRC's editor regex permits B and A characters but the documented grammar does not include
-/// block (B-prefix) or above (A-prefix) input — those forms are populated server-side or by
-/// scenario data, not user-typed in the FPE.
+/// block (B-prefix) or above (A-prefix) input — those forms are populated server-side (QZ) or by
+/// scenario data, not user-typed in the FPE. OTP is VFR rules with a VFR-on-top altitude notation.
 /// </summary>
 public class FlightPlanAltitudeTests
 {
     [Fact]
-    public void Parse_Empty_ReturnsVfrZero()
+    public void Parse_Empty_ReturnsVfrNoAltitude()
     {
         var result = FlightPlanAltitude.Parse("");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.FlightRules);
-        Assert.Equal(0, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
     }
 
     [Fact]
-    public void Parse_Whitespace_ReturnsVfrZero()
+    public void Parse_Whitespace_ReturnsVfrNoAltitude()
     {
         var result = FlightPlanAltitude.Parse("   ");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.FlightRules);
-        Assert.Equal(0, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
     }
 
     [Fact]
@@ -34,8 +34,8 @@ public class FlightPlanAltitudeTests
     {
         var result = FlightPlanAltitude.Parse("050");
         Assert.NotNull(result);
-        Assert.Equal("IFR", result.Value.FlightRules);
-        Assert.Equal(5000, result.Value.CruiseAltitude);
+        Assert.Equal("IFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Ifr(5000), result.Value.Altitude);
     }
 
     [Fact]
@@ -43,26 +43,28 @@ public class FlightPlanAltitudeTests
     {
         var result = FlightPlanAltitude.Parse("240");
         Assert.NotNull(result);
-        Assert.Equal("IFR", result.Value.FlightRules);
-        Assert.Equal(24000, result.Value.CruiseAltitude);
+        Assert.Equal("IFR", result.Value.Rules);
+        Assert.Equal(24000, result.Value.Altitude.CruiseFeet);
     }
 
     [Fact]
-    public void Parse_Vfr_ReturnsVfrZero()
+    public void Parse_Vfr_ReturnsVfrNoAltitude()
     {
         var result = FlightPlanAltitude.Parse("VFR");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.FlightRules);
-        Assert.Equal(0, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.True(result.Value.Altitude.IsVfr);
+        Assert.Null(result.Value.Altitude.CruiseFeet);
     }
 
     [Fact]
-    public void Parse_Otp_ReturnsOtpZero()
+    public void Parse_Otp_ReturnsVfrRulesVfrOnTopNotation()
     {
         var result = FlightPlanAltitude.Parse("OTP");
         Assert.NotNull(result);
-        Assert.Equal("OTP", result.Value.FlightRules);
-        Assert.Equal(0, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.True(result.Value.Altitude.IsVfrOnTop);
+        Assert.Null(result.Value.Altitude.CruiseFeet);
     }
 
     [Fact]
@@ -70,8 +72,8 @@ public class FlightPlanAltitudeTests
     {
         var result = FlightPlanAltitude.Parse("VFR/065");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.FlightRules);
-        Assert.Equal(6500, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Vfr(6500), result.Value.Altitude);
     }
 
     [Fact]
@@ -79,8 +81,8 @@ public class FlightPlanAltitudeTests
     {
         var result = FlightPlanAltitude.Parse("OTP/120");
         Assert.NotNull(result);
-        Assert.Equal("OTP", result.Value.FlightRules);
-        Assert.Equal(12000, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Otp(12000), result.Value.Altitude);
     }
 
     [Fact]
@@ -88,8 +90,8 @@ public class FlightPlanAltitudeTests
     {
         var result = FlightPlanAltitude.Parse("vfr/050");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.FlightRules);
-        Assert.Equal(5000, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Vfr(5000), result.Value.Altitude);
     }
 
     [Theory]
@@ -106,47 +108,58 @@ public class FlightPlanAltitudeTests
     [Fact]
     public void Format_IfrAltitude_RendersThreeDigits()
     {
-        Assert.Equal("050", FlightPlanAltitude.Format("IFR", 5000));
-        Assert.Equal("240", FlightPlanAltitude.Format("IFR", 24000));
+        Assert.Equal("050", FlightPlanAltitude.Format(PlannedAltitude.Ifr(5000)));
+        Assert.Equal("240", FlightPlanAltitude.Format(PlannedAltitude.Ifr(24000)));
     }
 
     [Fact]
-    public void Format_VfrZero_RendersBareVfr()
+    public void Format_VfrNoAltitude_RendersBareVfr()
     {
-        Assert.Equal("VFR", FlightPlanAltitude.Format("VFR", 0));
+        Assert.Equal("VFR", FlightPlanAltitude.Format(PlannedAltitude.Vfr(null)));
     }
 
     [Fact]
     public void Format_VfrWithAltitude_RendersVfrSlash()
     {
-        Assert.Equal("VFR/055", FlightPlanAltitude.Format("VFR", 5500));
+        Assert.Equal("VFR/055", FlightPlanAltitude.Format(PlannedAltitude.Vfr(5500)));
     }
 
     [Fact]
-    public void Format_OtpZero_RendersBareOtp()
+    public void Format_OtpNoAltitude_RendersBareOtp()
     {
-        Assert.Equal("OTP", FlightPlanAltitude.Format("OTP", 0));
+        Assert.Equal("OTP", FlightPlanAltitude.Format(PlannedAltitude.Otp(null)));
     }
 
     [Fact]
     public void Format_OtpWithAltitude_RendersOtpSlash()
     {
-        Assert.Equal("OTP/120", FlightPlanAltitude.Format("OTP", 12000));
+        Assert.Equal("OTP/120", FlightPlanAltitude.Format(PlannedAltitude.Otp(12000)));
     }
 
-    [Theory]
-    [InlineData("IFR", 5000)]
-    [InlineData("IFR", 24000)]
-    [InlineData("VFR", 0)]
-    [InlineData("VFR", 5500)]
-    [InlineData("OTP", 0)]
-    [InlineData("OTP", 12000)]
-    public void RoundTrip_FormatThenParse_PreservesState(string flightRules, int cruiseAltitude)
+    [Fact]
+    public void Format_Block_RendersFloorBCeiling()
     {
-        var formatted = FlightPlanAltitude.Format(flightRules, cruiseAltitude);
+        Assert.Equal("200B250", FlightPlanAltitude.Format(PlannedAltitude.Block(20000, 25000)));
+    }
+
+    public static TheoryData<PlannedAltitude> RoundTripCases =>
+        new()
+        {
+            PlannedAltitude.Ifr(5000),
+            PlannedAltitude.Ifr(24000),
+            PlannedAltitude.Vfr(null),
+            PlannedAltitude.Vfr(5500),
+            PlannedAltitude.Otp(null),
+            PlannedAltitude.Otp(12000),
+        };
+
+    [Theory]
+    [MemberData(nameof(RoundTripCases))]
+    public void RoundTrip_FormatThenParse_PreservesState(PlannedAltitude altitude)
+    {
+        var formatted = FlightPlanAltitude.Format(altitude);
         var parsed = FlightPlanAltitude.Parse(formatted);
         Assert.NotNull(parsed);
-        Assert.Equal(flightRules, parsed.Value.FlightRules);
-        Assert.Equal(cruiseAltitude, parsed.Value.CruiseAltitude);
+        Assert.Equal(altitude, parsed.Value.Altitude);
     }
 }

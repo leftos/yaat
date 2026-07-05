@@ -64,7 +64,7 @@ public class Edg320Sig4JetTaxiOutTests(ITestOutputHelper output)
                 Departure = "OAK",
                 Destination = "OAK",
                 FlightRules = "VFR",
-                CruiseAltitude = 1500,
+                Altitude = PlannedAltitude.Vfr(1500),
             },
         };
         aircraft.Phases = new PhaseList();

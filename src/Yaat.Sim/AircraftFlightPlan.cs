@@ -44,7 +44,14 @@ public class AircraftFlightPlan
     public string EquipmentSuffix { get; set; } = "A";
     public string FlightRules { get; set; } = "IFR";
     public bool IsVfr => FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
-    public int CruiseAltitude { get; set; }
+
+    /// <summary>
+    /// Filed altitude — the notation axis of the plan (single / block / VFR / OTP / above), in feet.
+    /// Distinct from <see cref="FlightRules"/> (the IFR/VFR rules axis) and from
+    /// <see cref="ControlTargets.AssignedAltitude"/> (the current ATC clearance). Defaults to
+    /// <see cref="PlannedAltitude.None"/> (no filed altitude).
+    /// </summary>
+    public PlannedAltitude Altitude { get; set; } = PlannedAltitude.None;
 
     /// <summary>
     /// Filed cruise speed, parsed from the flight plan and round-tripped through DTOs/snapshots,
@@ -75,7 +82,11 @@ public class AircraftFlightPlan
             RevisionNumber = RevisionNumber,
             EquipmentSuffix = EquipmentSuffix,
             FlightRules = FlightRules,
-            CruiseAltitude = CruiseAltitude,
+            AltitudeCruiseFeet = Altitude.CruiseFeet,
+            AltitudeBlockFloorFeet = Altitude.BlockFloorFeet,
+            AltitudeIsVfr = Altitude.IsVfr,
+            AltitudeIsVfrOnTop = Altitude.IsVfrOnTop,
+            AltitudeIsAbove = Altitude.IsAbove,
             CruiseSpeed = CruiseSpeed,
             CreatedByOwner = CreatedByOwner?.ToSnapshot(),
         };
@@ -92,7 +103,13 @@ public class AircraftFlightPlan
             RevisionNumber = dto.RevisionNumber,
             EquipmentSuffix = dto.EquipmentSuffix,
             FlightRules = dto.FlightRules,
-            CruiseAltitude = dto.CruiseAltitude,
+            Altitude = new PlannedAltitude(
+                dto.AltitudeCruiseFeet,
+                dto.AltitudeBlockFloorFeet,
+                dto.AltitudeIsVfr,
+                dto.AltitudeIsVfrOnTop,
+                dto.AltitudeIsAbove
+            ),
             CruiseSpeed = dto.CruiseSpeed,
             CreatedByOwner = dto.CreatedByOwner is not null ? TrackOwner.FromSnapshot(dto.CreatedByOwner) : null,
         };

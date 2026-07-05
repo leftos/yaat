@@ -946,7 +946,7 @@ public static class CommandDispatcher
                     return new CommandResult(false, "Aircraft is already VFR");
                 }
                 aircraft.FlightPlan.FlightRules = "VFR";
-                aircraft.FlightPlan.CruiseAltitude = 0;
+                aircraft.FlightPlan.Altitude = PlannedAltitude.Vfr(null);
                 return Ok("IFR cancelled, aircraft is now VFR");
 
             case UnsupportedCommand cmd:

@@ -90,7 +90,7 @@ public class Issue227Coast9ClimbRestrictionTests
                 Departure = "KOAK",
                 Destination = "KSAN",
                 Route = "COAST9 MCKEY LAX COMIX2",
-                CruiseAltitude = 39000,
+                Altitude = PlannedAltitude.Ifr(39000),
                 FlightRules = "IFR",
             },
         };

@@ -107,7 +107,7 @@ public class MiaRwy9RolloutExitTests(ITestOutputHelper output)
                 Departure = "MIA",
                 Destination = "MIA",
                 FlightRules = "IFR",
-                CruiseAltitude = 3000,
+                Altitude = PlannedAltitude.Ifr(3000),
             },
         };
 

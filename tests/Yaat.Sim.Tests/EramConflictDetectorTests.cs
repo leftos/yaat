@@ -55,7 +55,7 @@ public class EramConflictDetectorTests
             Transponder = new AircraftTransponder { Mode = transponderMode },
             IsOnGround = isOnGround,
         };
-        ac.FlightPlan.CruiseAltitude = cruiseAltitude;
+        ac.FlightPlan.Altitude = PlannedAltitude.Ifr(cruiseAltitude);
         ac.Eram.InterimAltitude = interimAltitude;
         ac.Stars.IsCaInhibited = caInhibited;
         ac.Ghost.IsUnsupported = unsupported;

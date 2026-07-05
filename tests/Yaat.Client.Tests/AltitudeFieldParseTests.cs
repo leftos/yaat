@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Sim;
 
 namespace Yaat.Client.Tests;
 
@@ -14,8 +15,8 @@ public class AltitudeFieldParseTests
     {
         var result = AircraftModel.ParseAltitudeField("");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.FlightRules);
-        Assert.Equal(0, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
     }
 
     [Fact]
@@ -23,8 +24,8 @@ public class AltitudeFieldParseTests
     {
         var result = AircraftModel.ParseAltitudeField("  ");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.FlightRules);
-        Assert.Equal(0, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
     }
 
     [Fact]
@@ -32,8 +33,8 @@ public class AltitudeFieldParseTests
     {
         var result = AircraftModel.ParseAltitudeField("120");
         Assert.NotNull(result);
-        Assert.Equal("IFR", result.Value.FlightRules);
-        Assert.Equal(12000, result.Value.CruiseAltitude);
+        Assert.Equal("IFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Ifr(12000), result.Value.Altitude);
     }
 
     [Fact]
@@ -41,8 +42,8 @@ public class AltitudeFieldParseTests
     {
         var result = AircraftModel.ParseAltitudeField("VFR");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.FlightRules);
-        Assert.Equal(0, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Vfr(null), result.Value.Altitude);
     }
 
     [Fact]
@@ -50,7 +51,7 @@ public class AltitudeFieldParseTests
     {
         var result = AircraftModel.ParseAltitudeField("VFR/055");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.FlightRules);
-        Assert.Equal(5500, result.Value.CruiseAltitude);
+        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal(PlannedAltitude.Vfr(5500), result.Value.Altitude);
     }
 }

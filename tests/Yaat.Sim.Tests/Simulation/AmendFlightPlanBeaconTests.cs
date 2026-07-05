@@ -49,7 +49,7 @@ public class AmendFlightPlanBeaconTests(ITestOutputHelper output)
                 Departure: null,
                 Destination: null,
                 CruiseSpeed: null,
-                CruiseAltitude: null,
+                Altitude: null,
                 FlightRules: null,
                 Route: null,
                 Remarks: null,

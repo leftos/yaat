@@ -64,7 +64,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
                 Departure = "OAK",
                 Destination = "OAK",
                 FlightRules = "VFR",
-                CruiseAltitude = 1500,
+                Altitude = PlannedAltitude.Vfr(1500),
             },
         };
 

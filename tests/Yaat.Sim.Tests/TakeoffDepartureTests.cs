@@ -92,7 +92,7 @@ public class TakeoffDepartureTests
         {
             Departure = departure,
             IsVfr = aircraft.FlightPlan.IsVfr,
-            CruiseAltitude = aircraft.FlightPlan.CruiseAltitude,
+            CruiseAltitude = aircraft.FlightPlan.Altitude.CruiseFeet ?? 0,
         };
         climbPhase.OnStart(ctx);
         climbPhase.OnTick(ctx);

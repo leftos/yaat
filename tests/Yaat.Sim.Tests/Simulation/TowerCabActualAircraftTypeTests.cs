@@ -49,7 +49,7 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
                 AircraftType = filedType,
                 FlightRules = "VFR",
                 HasFlightPlan = true,
-                CruiseAltitude = 0,
+                Altitude = PlannedAltitude.None,
             },
             Track = new AircraftTrack(),
         };

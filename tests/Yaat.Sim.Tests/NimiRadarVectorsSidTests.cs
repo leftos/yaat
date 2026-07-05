@@ -57,7 +57,7 @@ public class NimiRadarVectorsSidTests
                 Departure = "KOAK",
                 Destination = "KSAC",
                 Route = sidRoute,
-                CruiseAltitude = 11000,
+                Altitude = PlannedAltitude.Ifr(11000),
                 FlightRules = "IFR",
             },
         };
@@ -331,7 +331,7 @@ public class NimiRadarVectorsSidTests
                 Departure = "KOAK",
                 Destination = "KSAC",
                 Route = "NIMI5 OAK V6 SAC",
-                CruiseAltitude = 11000,
+                Altitude = PlannedAltitude.Ifr(11000),
                 FlightRules = "IFR",
             },
         };

@@ -91,7 +91,7 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
                 Departure = "KSFO",
                 Destination = "OAK",
                 FlightRules = "IFR",
-                CruiseAltitude = 5000,
+                Altitude = PlannedAltitude.Ifr(5000),
             },
         };
         engine.World.AddAircraft(aircraft);
@@ -165,7 +165,7 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
                 Departure = "KSFO",
                 Destination = "OAK",
                 FlightRules = "IFR",
-                CruiseAltitude = 4000,
+                Altitude = PlannedAltitude.Ifr(4000),
             },
         };
         engine.World.AddAircraft(aircraft);
@@ -240,7 +240,7 @@ public class CvaVisualApproachE2ETests(ITestOutputHelper output)
                 Departure = "KSFO",
                 Destination = "OAK",
                 FlightRules = "IFR",
-                CruiseAltitude = 3400,
+                Altitude = PlannedAltitude.Ifr(3400),
             },
         };
         engine.World.AddAircraft(aircraft);

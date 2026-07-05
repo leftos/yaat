@@ -411,8 +411,13 @@ public static class TrackEngine
 
     public static CommandResult HandleCruise(AircraftState ac, int altHundreds)
     {
-        ac.FlightPlan.CruiseAltitude = altHundreds * 100;
-        return new CommandResult(true, $"Cruise: {altHundreds * 100}");
+        var feet = altHundreds * 100;
+        // Preserve the existing altitude notation (VFR-on-top vs plain VFR vs IFR) while updating the value.
+        ac.FlightPlan.Altitude =
+            ac.FlightPlan.Altitude.IsVfrOnTop ? PlannedAltitude.Otp(feet)
+            : ac.FlightPlan.IsVfr ? PlannedAltitude.Vfr(feet)
+            : PlannedAltitude.Ifr(feet);
+        return new CommandResult(true, $"Cruise: {feet}");
     }
 
     public static CommandResult HandleOnHandoff(AircraftState ac)

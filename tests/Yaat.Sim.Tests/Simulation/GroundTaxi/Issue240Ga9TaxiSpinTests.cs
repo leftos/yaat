@@ -180,7 +180,7 @@ public class Issue240Ga9TaxiSpinTests(ITestOutputHelper output)
                 Departure = AirportId,
                 Destination = AirportId,
                 FlightRules = "VFR",
-                CruiseAltitude = 1500,
+                Altitude = PlannedAltitude.Vfr(1500),
             },
         };
 

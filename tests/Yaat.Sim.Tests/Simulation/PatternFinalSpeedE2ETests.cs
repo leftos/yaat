@@ -85,7 +85,7 @@ public class PatternFinalSpeedE2ETests(ITestOutputHelper output)
                 Departure = "KKOA",
                 Destination = "OAK",
                 FlightRules = "VFR",
-                CruiseAltitude = 1500,
+                Altitude = PlannedAltitude.Vfr(1500),
                 CruiseSpeed = 130,
             },
         };

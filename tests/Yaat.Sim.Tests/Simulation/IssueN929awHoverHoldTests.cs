@@ -87,7 +87,7 @@ public class IssueN929awHoverHoldTests(ITestOutputHelper output)
             Altitude = 2000,
             IndicatedAirspeed = 120,
             IsOnGround = false,
-            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR", CruiseAltitude = 3500 },
+            FlightPlan = new AircraftFlightPlan { FlightRules = "VFR", Altitude = PlannedAltitude.Vfr(3500) },
         };
     }
 

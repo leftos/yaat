@@ -242,7 +242,7 @@ public class PushToSpotLineupTests(ITestOutputHelper output)
                 Departure = "SFO",
                 Destination = "KLAX",
                 FlightRules = "IFR",
-                CruiseAltitude = 30000,
+                Altitude = PlannedAltitude.Ifr(30000),
             },
         };
         ac.Phases = new PhaseList();

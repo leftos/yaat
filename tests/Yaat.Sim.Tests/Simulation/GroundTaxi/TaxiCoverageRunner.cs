@@ -283,7 +283,7 @@ internal static class TaxiCoverageRunner
                 Departure = pair.AirportId,
                 Destination = pair.AirportId,
                 FlightRules = "VFR",
-                CruiseAltitude = 1500,
+                Altitude = PlannedAltitude.Vfr(1500),
             },
         };
 

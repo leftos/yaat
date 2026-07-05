@@ -313,7 +313,7 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
                 Departure = airport,
                 Destination = airport,
                 FlightRules = "IFR",
-                CruiseAltitude = 3000,
+                Altitude = PlannedAltitude.Ifr(3000),
             },
         };
 

@@ -78,7 +78,7 @@ public class KaseLindz1DepartureE2ETests
                 Departure = "KASE",
                 Destination = "KSFO",
                 Route = "LINDZ1 LINDZ JNC BEVRR KATTS INYOE DYAMD5",
-                CruiseAltitude = 33000,
+                Altitude = PlannedAltitude.Ifr(33000),
                 FlightRules = "IFR",
             },
         };
@@ -218,7 +218,7 @@ public class KaseLindz1DepartureE2ETests
                 Departure = "KASE",
                 Destination = "KSFO",
                 Route = "LINDZ1 LINDZ JNC BEVRR KATTS INYOE DYAMD5",
-                CruiseAltitude = 33000,
+                Altitude = PlannedAltitude.Ifr(33000),
                 FlightRules = "IFR",
             },
         };

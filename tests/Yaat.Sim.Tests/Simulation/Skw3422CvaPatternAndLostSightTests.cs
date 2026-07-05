@@ -221,7 +221,7 @@ public class Skw3422CvaPatternAndLostSightTests(ITestOutputHelper output)
                 Departure = "KSFO",
                 Destination = "OAK",
                 FlightRules = "IFR",
-                CruiseAltitude = (int)spawnMsl,
+                Altitude = PlannedAltitude.Ifr((int)spawnMsl),
             },
         };
         engine.World.AddAircraft(aircraft);

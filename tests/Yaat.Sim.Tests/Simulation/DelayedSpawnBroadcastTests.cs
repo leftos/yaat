@@ -39,7 +39,7 @@ public class DelayedSpawnBroadcastTests
                     FlightPlan = new AircraftFlightPlan
                     {
                         Departure = "OAK",
-                        CruiseAltitude = 10000,
+                        Altitude = PlannedAltitude.Ifr(10000),
                         FlightRules = "IFR",
                     },
                 },

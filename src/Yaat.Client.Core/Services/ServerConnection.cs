@@ -910,7 +910,14 @@ public record AircraftDto(
     // ASDE-style surface fix shown on the Ground View datablock and the Aircraft List "Fix" column:
     // exit fix or destination per the airport's ASDE-X/SAID facility config, resolved server-side.
     // Kept name-for-name in sync with the server's AircraftStateDto.
-    string AsdexFix = ""
+    string AsdexFix = "",
+    // Filed-altitude notation fields mirroring PlannedAltitude, populated server-side from
+    // AircraftState.FlightPlan.Altitude. CruiseAltitude above is the ceiling/single value;
+    // BlockFloorAltitude is the block floor (null = not a block). Kept name-for-name in sync with the
+    // server's AircraftStateDto so the client datablock/FPE can render blocks and VFR-on-top.
+    int? BlockFloorAltitude = null,
+    bool IsVfrOnTop = false,
+    bool IsAbove = false
 );
 
 public record LoadScenarioResultDto(
@@ -1218,7 +1225,7 @@ public record FlightPlanAmendmentDto(
     string? Departure = null,
     string? Destination = null,
     int? CruiseSpeed = null,
-    int? CruiseAltitude = null,
+    Yaat.Sim.PlannedAltitude? Altitude = null,
     string? FlightRules = null,
     string? Route = null,
     string? Remarks = null,

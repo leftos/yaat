@@ -373,6 +373,19 @@ public partial class AircraftModel : ObservableObject
     private int _cruiseAltitude;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CruiseAltitudeDisplay))]
+    private int? _blockFloorAltitude;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CruiseAltitudeDisplay))]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    private bool _isVfrOnTop;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CruiseAltitudeDisplay))]
+    private bool _isAbove;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
     private int _cruiseSpeed;
@@ -474,7 +487,8 @@ public partial class AircraftModel : ObservableObject
 
             if (!string.IsNullOrEmpty(FlightRules) || !string.IsNullOrEmpty(FiledAircraftType))
             {
-                parts.Add($"{FlightRules} {FiledAircraftType}".Trim());
+                var rulesLabel = IsVfrOnTop ? "OTP" : FlightRules;
+                parts.Add($"{rulesLabel} {FiledAircraftType}".Trim());
             }
 
             if (!string.IsNullOrEmpty(Departure) || !string.IsNullOrEmpty(Destination))
@@ -552,11 +566,35 @@ public partial class AircraftModel : ObservableObject
         }
     }
 
-    public string CruiseAltitudeDisplay => FlightPlanAltitude.Format(FlightRules, CruiseAltitude);
+    /// <summary>Reconstructs the filed <see cref="PlannedAltitude"/> from the flattened DTO notation fields.</summary>
+    private PlannedAltitude AsPlannedAltitude
+    {
+        get
+        {
+            if (BlockFloorAltitude is { } floor)
+            {
+                return PlannedAltitude.Block(floor, CruiseAltitude);
+            }
+            var alt = CruiseAltitude > 0 ? CruiseAltitude : (int?)null;
+            if (IsAbove)
+            {
+                return PlannedAltitude.Above(CruiseAltitude);
+            }
+            if (IsVfrOnTop)
+            {
+                return PlannedAltitude.Otp(alt);
+            }
+            if (FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
+            {
+                return PlannedAltitude.Vfr(alt);
+            }
+            return alt is { } feet ? PlannedAltitude.Ifr(feet) : PlannedAltitude.None;
+        }
+    }
 
-    internal static string FormatAltitudeField(string flightRules, int cruiseAltitude) => FlightPlanAltitude.Format(flightRules, cruiseAltitude);
+    public string CruiseAltitudeDisplay => FlightPlanAltitude.Format(AsPlannedAltitude);
 
-    internal static (string FlightRules, int CruiseAltitude)? ParseAltitudeField(string text) => FlightPlanAltitude.Parse(text);
+    internal static (string Rules, PlannedAltitude Altitude)? ParseAltitudeField(string text) => FlightPlanAltitude.Parse(text);
 
     [ObservableProperty]
     private string _taxiRoute = "";
@@ -847,6 +885,9 @@ public partial class AircraftModel : ObservableObject
             NavigationRoute = dto.NavigationRoute ?? [],
             EquipmentSuffix = dto.EquipmentSuffix,
             CruiseAltitude = dto.CruiseAltitude,
+            BlockFloorAltitude = dto.BlockFloorAltitude,
+            IsVfrOnTop = dto.IsVfrOnTop,
+            IsAbove = dto.IsAbove,
             CruiseSpeed = dto.CruiseSpeed,
             TaxiRoute = dto.TaxiRoute,
             HasActiveTaxiRoute = dto.HasActiveTaxiRoute,
@@ -939,6 +980,9 @@ public partial class AircraftModel : ObservableObject
         NavigationRoute = dto.NavigationRoute ?? [];
         EquipmentSuffix = dto.EquipmentSuffix;
         CruiseAltitude = dto.CruiseAltitude;
+        BlockFloorAltitude = dto.BlockFloorAltitude;
+        IsVfrOnTop = dto.IsVfrOnTop;
+        IsAbove = dto.IsAbove;
         CruiseSpeed = dto.CruiseSpeed;
         TaxiRoute = dto.TaxiRoute;
         HasActiveTaxiRoute = dto.HasActiveTaxiRoute;

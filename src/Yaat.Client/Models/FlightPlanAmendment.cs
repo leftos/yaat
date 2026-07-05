@@ -1,3 +1,5 @@
+using Yaat.Sim;
+
 namespace Yaat.Client.Models;
 
 public record FlightPlanAmendment(
@@ -6,7 +8,7 @@ public record FlightPlanAmendment(
     string? Departure,
     string? Destination,
     int? CruiseSpeed,
-    int? CruiseAltitude,
+    PlannedAltitude? Altitude,
     string? FlightRules,
     string? Route,
     string? Remarks,

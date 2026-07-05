@@ -102,7 +102,7 @@ public record FlightPlanAmendment(
     string? Departure = null,
     string? Destination = null,
     int? CruiseSpeed = null,
-    int? CruiseAltitude = null,
+    PlannedAltitude? Altitude = null,
     string? FlightRules = null,
     string? Route = null,
     string? Remarks = null,

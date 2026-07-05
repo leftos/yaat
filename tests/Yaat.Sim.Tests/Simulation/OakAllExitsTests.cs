@@ -149,7 +149,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
                 Departure = airportId,
                 Destination = airportId,
                 FlightRules = "IFR",
-                CruiseAltitude = 3000,
+                Altitude = PlannedAltitude.Ifr(3000),
             },
         };
 

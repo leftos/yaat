@@ -1628,9 +1628,9 @@ public sealed class SimulationEngine
         {
             ac.FlightPlan.CruiseSpeed = amendment.CruiseSpeed.Value;
         }
-        if (amendment.CruiseAltitude is not null)
+        if (amendment.Altitude is not null)
         {
-            ac.FlightPlan.CruiseAltitude = amendment.CruiseAltitude.Value;
+            ac.FlightPlan.Altitude = amendment.Altitude;
         }
         if (amendment.FlightRules is not null)
         {

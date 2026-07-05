@@ -52,7 +52,7 @@ public class SnapshotRoundTripTests
                 Route = "OAK6 OAK",
                 FlightRules = "IFR",
                 HasFlightPlan = true,
-                CruiseAltitude = 35000,
+                Altitude = PlannedAltitude.Ifr(35000),
                 CruiseSpeed = 250,
             },
             Transponder = new AircraftTransponder
@@ -287,7 +287,7 @@ public class SnapshotRoundTripTests
                         Remarks = "",
                         EquipmentSuffix = "L",
                         FlightRules = "IFR",
-                        CruiseAltitude = 35000,
+                        AltitudeCruiseFeet = 35000,
                         CruiseSpeed = 250,
                     },
                     Transponder = new AircraftTransponderDto

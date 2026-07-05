@@ -58,7 +58,7 @@ public class TaxiTurnHintEchoTests(ITestOutputHelper output)
                 Departure = "OAK",
                 Destination = "OAK",
                 FlightRules = "IFR",
-                CruiseAltitude = 3000,
+                Altitude = PlannedAltitude.Ifr(3000),
             },
         };
         aircraft.Phases = new PhaseList();

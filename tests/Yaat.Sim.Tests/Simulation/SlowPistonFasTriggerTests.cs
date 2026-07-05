@@ -91,7 +91,7 @@ public class SlowPistonFasTriggerTests(ITestOutputHelper output)
                 Departure = "OAK",
                 Destination = "OAK",
                 FlightRules = "VFR",
-                CruiseAltitude = 3000,
+                Altitude = PlannedAltitude.Vfr(3000),
             },
         };
 

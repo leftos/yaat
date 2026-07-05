@@ -158,7 +158,7 @@ public static class EramConflictDetector
             return hundreds * 100;
         }
 
-        return ac.FlightPlan.CruiseAltitude > 0 ? ac.FlightPlan.CruiseAltitude : null;
+        return ac.FlightPlan.Altitude.CruiseFeet is int cruise and > 0 ? cruise : null;
     }
 
     internal static string MakeConflictId(string callsignA, string callsignB)

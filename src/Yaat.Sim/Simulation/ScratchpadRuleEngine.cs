@@ -77,7 +77,7 @@ public static class ScratchpadRuleEngine
         // Altitude filter — rule altitudes are in hundreds of feet, CruiseAltitude is in feet
         if (rule.MinAltitude is not null)
         {
-            var altHundreds = ac.FlightPlan.CruiseAltitude / 100;
+            var altHundreds = (ac.FlightPlan.Altitude.CruiseFeet ?? 0) / 100;
             if (altHundreds < rule.MinAltitude)
             {
                 return false;
@@ -86,7 +86,7 @@ public static class ScratchpadRuleEngine
 
         if (rule.MaxAltitude is not null)
         {
-            var altHundreds = ac.FlightPlan.CruiseAltitude / 100;
+            var altHundreds = (ac.FlightPlan.Altitude.CruiseFeet ?? 0) / 100;
             if (altHundreds > rule.MaxAltitude)
             {
                 return false;

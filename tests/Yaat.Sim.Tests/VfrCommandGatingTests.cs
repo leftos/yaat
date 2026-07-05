@@ -38,7 +38,7 @@ public class VfrCommandGatingTests : IDisposable
             FlightPlan = new AircraftFlightPlan
             {
                 Departure = "KSFO",
-                CruiseAltitude = 35000,
+                Altitude = PlannedAltitude.Ifr(35000),
                 FlightRules = "IFR",
             },
         };
@@ -49,7 +49,7 @@ public class VfrCommandGatingTests : IDisposable
         var ac = MakeIfrAircraft();
         ac.Callsign = "N805FM";
         ac.AircraftType = "C172";
-        ac.FlightPlan.CruiseAltitude = 3500;
+        ac.FlightPlan.Altitude = PlannedAltitude.Vfr(3500);
         ac.IndicatedAirspeed = 120;
         ac.FlightPlan.FlightRules = "VFR";
         return ac;
@@ -136,7 +136,7 @@ public class VfrCommandGatingTests : IDisposable
     {
         var ac = MakeIfrAircraft();
         Assert.False(ac.FlightPlan.IsVfr);
-        Assert.Equal(35000, ac.FlightPlan.CruiseAltitude);
+        Assert.Equal(35000, ac.FlightPlan.Altitude.CruiseFeet);
 
         var result = Dispatch(ac, new CancelIfrCommand());
 
@@ -145,7 +145,7 @@ public class VfrCommandGatingTests : IDisposable
         Assert.True(result.Success);
         Assert.True(ac.FlightPlan.IsVfr);
         Assert.Equal("VFR", ac.FlightPlan.FlightRules);
-        Assert.Equal(0, ac.FlightPlan.CruiseAltitude);
+        Assert.Null(ac.FlightPlan.Altitude.CruiseFeet);
     }
 
     [Fact]

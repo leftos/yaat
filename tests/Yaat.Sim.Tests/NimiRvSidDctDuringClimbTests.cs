@@ -45,7 +45,7 @@ public class NimiRvSidDctDuringClimbTests
                 Departure = "KOAK",
                 Destination = "KSAC",
                 Route = "NIMI5 OAK V6 SAC",
-                CruiseAltitude = 11000,
+                Altitude = PlannedAltitude.Ifr(11000),
                 FlightRules = "IFR",
             },
         };

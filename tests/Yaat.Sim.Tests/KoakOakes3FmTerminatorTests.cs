@@ -53,7 +53,7 @@ public class KoakOakes3FmTerminatorTests
                 Departure = "KSLC",
                 Destination = "KOAK",
                 Route = "OAKES3",
-                CruiseAltitude = 35000,
+                Altitude = PlannedAltitude.Ifr(35000),
                 FlightRules = "IFR",
             },
         };

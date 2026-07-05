@@ -36,7 +36,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
                 Departure = "KOAK",
                 Destination = "KOAK",
                 CruiseSpeed = 250,
-                CruiseAltitude = 1000,
+                Altitude = PlannedAltitude.Vfr(1000),
                 FlightRules = "VFR",
                 Route = "PATTERN",
                 HasFlightPlan = true,
@@ -60,7 +60,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
                 Departure: "",
                 Destination: null,
                 CruiseSpeed: null,
-                CruiseAltitude: null,
+                Altitude: null,
                 FlightRules: null,
                 Route: null,
                 Remarks: null,
@@ -92,7 +92,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
                 Departure: null,
                 Destination: "KSFO",
                 CruiseSpeed: null,
-                CruiseAltitude: null,
+                Altitude: null,
                 FlightRules: null,
                 Route: null,
                 Remarks: null,
@@ -122,7 +122,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
                 Departure: null,
                 Destination: "",
                 CruiseSpeed: null,
-                CruiseAltitude: null,
+                Altitude: null,
                 FlightRules: null,
                 Route: "",
                 Remarks: null,
@@ -152,7 +152,7 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
                 Departure: null,
                 Destination: null,
                 CruiseSpeed: 0,
-                CruiseAltitude: 0,
+                Altitude: PlannedAltitude.None,
                 FlightRules: null,
                 Route: null,
                 Remarks: null,
@@ -165,6 +165,6 @@ public class AmendFlightPlanClearTests(ITestOutputHelper output)
         var ac = engine.FindAircraft("N342T");
         Assert.NotNull(ac);
         Assert.Equal(0, ac.FlightPlan.CruiseSpeed);
-        Assert.Equal(0, ac.FlightPlan.CruiseAltitude);
+        Assert.Null(ac.FlightPlan.Altitude.CruiseFeet);
     }
 }

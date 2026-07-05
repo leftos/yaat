@@ -80,7 +80,7 @@ public class VfrColdCallTests(ITestOutputHelper output)
         );
         Assert.True(string.IsNullOrEmpty(ac.FlightPlan.Route), $"Route should be empty for cold call (was '{ac.FlightPlan.Route}')");
         Assert.True(string.IsNullOrEmpty(ac.FlightPlan.Departure), $"Departure should be empty for cold call (was '{ac.FlightPlan.Departure}')");
-        Assert.Equal(0, ac.FlightPlan.CruiseAltitude);
+        Assert.Null(ac.FlightPlan.Altitude.CruiseFeet);
         Assert.Equal(0, ac.FlightPlan.CruiseSpeed);
         Assert.Equal("VFR", ac.FlightPlan.FlightRules);
         Assert.Equal("", ac.FlightPlan.EquipmentSuffix);
