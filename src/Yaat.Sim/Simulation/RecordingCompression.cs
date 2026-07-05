@@ -34,20 +34,22 @@ public static class RecordingCompression
             return System.Text.Encoding.UTF8.GetString(bytes);
         }
 
-        // Gzip magic: 0x1F 0x8B
+        // Gzip has an unambiguous magic number (0x1F 0x8B).
         if (bytes[0] == 0x1F && bytes[1] == 0x8B)
         {
             return DecompressGzip(bytes);
         }
 
-        // Plain JSON: starts with '{', '[', or UTF-8 BOM, or whitespace before '{'
-        if (LooksLikePlainJson(bytes))
+        // Brotli has no magic number, and its first byte can be '{' or '[' (0x7B / 0x5B) — the same
+        // bytes plain JSON starts with — so a first-byte "looks like JSON" test misfires on such
+        // streams. Decode as Brotli and fall back to plain UTF-8 JSON only when Brotli genuinely
+        // can't read it (real JSON is not a valid Brotli stream).
+        if (TryDecompressBrotli(bytes, out var brotliText))
         {
-            return System.Text.Encoding.UTF8.GetString(bytes);
+            return brotliText;
         }
 
-        // Assume Brotli for everything else
-        return DecompressBrotli(bytes);
+        return System.Text.Encoding.UTF8.GetString(bytes);
     }
 
     /// <summary>
@@ -76,6 +78,23 @@ public static class RecordingCompression
         return reader.ReadToEnd();
     }
 
+    private static bool TryDecompressBrotli(byte[] bytes, out string text)
+    {
+        try
+        {
+            text = DecompressBrotli(bytes);
+            return true;
+        }
+        // BrotliStream throws InvalidOperationException ("Decoder ran into invalid data") on
+        // non-Brotli input; InvalidDataException / IOException cover truncated or malformed streams.
+        // Any of these means "not Brotli" — fall back to plain JSON.
+        catch (Exception ex) when (ex is InvalidOperationException or InvalidDataException or IOException)
+        {
+            text = "";
+            return false;
+        }
+    }
+
     /// <summary>
     /// Returns <c>true</c> if the byte array starts with the ZIP local file header
     /// magic bytes (<c>PK\x03\x04</c>).
@@ -87,28 +106,5 @@ public static class RecordingCompression
             && bytes[1] == 0x4B // K
             && bytes[2] == 0x03
             && bytes[3] == 0x04;
-    }
-
-    private static bool LooksLikePlainJson(byte[] bytes)
-    {
-        // Skip UTF-8 BOM if present
-        int start = 0;
-        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
-        {
-            start = 3;
-        }
-
-        // Skip leading whitespace
-        while (start < bytes.Length && (bytes[start] == ' ' || bytes[start] == '\t' || bytes[start] == '\r' || bytes[start] == '\n'))
-        {
-            start++;
-        }
-
-        if (start >= bytes.Length)
-        {
-            return false;
-        }
-
-        return bytes[start] == '{' || bytes[start] == '[';
     }
 }
