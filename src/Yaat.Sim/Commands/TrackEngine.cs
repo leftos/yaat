@@ -160,6 +160,9 @@ public static class TrackEngine
         ac.Track.HandoffPeer = null;
         ac.Track.HandoffInitiatedAt = null;
         ac.Track.HandoffRedirectedBy = null;
+        // A dropped Track has no owner, so any pending accepted indicator (Oxxx/Kxxx) is meaningless and
+        // would render against a null owner — clear it.
+        ClearRecentHandoffAccepted(ac);
         // Consume the FP-creator auto-track entitlement so the next tick's
         // ProcessFlightPlanCreatorAutoTrack doesn't immediately re-acquire when
         // the pilot is still squawking the assigned code. Without this, manual
@@ -182,6 +185,7 @@ public static class TrackEngine
         ac.Track.HandoffRedirectedBy = null;
         ac.Track.HandoffAccepted = true;
         MarkPreviousOwnerRetained(ac, previousOwner, scenario);
+        MarkRecentHandoffAccepted(ac, previousOwner, wasForced: false, scenario);
         return new CommandResult(true, $"Accepted {ac.Callsign}");
     }
 
@@ -207,6 +211,36 @@ public static class TrackEngine
 
         shared.WasPreviouslyOwned = true;
         ac.Stars.SharedState[previousTcp.Id] = shared;
+    }
+
+    /// <summary>
+    /// Records the ERAM Field-E accepted indicator on the previous owner: after a handoff is accepted
+    /// (<paramref name="wasForced"/> = false → <c>Oxxx</c>) or the Track is force-taken
+    /// (<paramref name="wasForced"/> = true → <c>Kxxx</c>), the previous owner's FDB shows the acceptor's
+    /// sector for a transient window (docs/crc/eram.md §Data Blocks). No-op when there was no previous
+    /// owner (nothing to confirm). The 30 s window is enforced by the CRC broadcast against
+    /// <see cref="AircraftEramState.RecentHandoffAcceptedAtSeconds"/>; the ERAM-only rendering means STARS
+    /// previous owners are simply never matched by an ERAM subscriber. Shared by the manual accept,
+    /// accept-all, auto-accept, and force paths so they cannot drift.
+    /// </summary>
+    public static void MarkRecentHandoffAccepted(AircraftState ac, TrackOwner? previousOwner, bool wasForced, SimScenarioState scenario)
+    {
+        if (previousOwner is null)
+        {
+            return;
+        }
+
+        ac.Eram.RecentHandoffPreviousOwner = previousOwner;
+        ac.Eram.RecentHandoffWasForced = wasForced;
+        ac.Eram.RecentHandoffAcceptedAtSeconds = scenario.ElapsedSeconds;
+    }
+
+    /// <summary>Clears the ERAM accepted indicator (see <see cref="MarkRecentHandoffAccepted"/>).</summary>
+    public static void ClearRecentHandoffAccepted(AircraftState ac)
+    {
+        ac.Eram.RecentHandoffPreviousOwner = null;
+        ac.Eram.RecentHandoffWasForced = false;
+        ac.Eram.RecentHandoffAcceptedAtSeconds = null;
     }
 
     public static CommandResult HandleCancel(AircraftState ac)
@@ -572,10 +606,13 @@ public static class TrackEngine
             return new CommandResult(false, $"Unknown position: {tcpCode}");
         }
 
+        var previousOwner = ac.Track.Owner;
         ac.Track.Owner = target;
         ac.Track.HandoffPeer = null;
         ac.Track.HandoffInitiatedAt = null;
         ac.Track.HandoffRedirectedBy = null;
+        // A force-take (/OK steal) shows Kxxx on the sector it was taken from.
+        MarkRecentHandoffAccepted(ac, previousOwner, wasForced: true, scenario);
         return new CommandResult(true, $"Force handoff {ac.Callsign} to {tcpCode}");
     }
 

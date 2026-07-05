@@ -18,4 +18,10 @@ public sealed class AircraftEramStateDto
     public double? FrozenLat { get; init; }
     public double? FrozenLon { get; init; }
     public int? FrozenAltitude { get; init; }
+
+    // Transient Field-E accepted indicator (Oxxx/Kxxx): the sector that owned the Track before the accept,
+    // whether it was force-taken, and the sim-elapsed accept time. Broadcast enforces the 30 s window.
+    public TrackOwnerDto? RecentHandoffPreviousOwner { get; init; }
+    public bool RecentHandoffWasForced { get; init; }
+    public double? RecentHandoffAcceptedAtSeconds { get; init; }
 }

@@ -49,6 +49,23 @@ public class AircraftEramState
     /// <summary>Frozen (snapshot) altitude in hundreds of feet, captured at freeze time.</summary>
     public int? FrozenAltitude { get; set; }
 
+    /// <summary>
+    /// The sector that owned the Track immediately before a handoff was accepted (or the Track was
+    /// force-taken). While the accept window is open the previous owner's FDB shows the Field-E accepted
+    /// indicator <c>Oxxx</c>/<c>Kxxx</c>/<c>OUNK</c> (docs/crc/eram.md §Data Blocks; CRC
+    /// <c>FdbRenderObject</c> renders <c>RecentHandoffPeer</c> as the same-facility abbreviation context and
+    /// the current <see cref="AircraftTrack.Owner"/> — the acceptor — as the sector shown). Null when no
+    /// accept is being confirmed. Cleared on drop; overwritten by the next accept; the 30 s window is
+    /// enforced by the broadcast against <see cref="RecentHandoffAcceptedAtSeconds"/>.
+    /// </summary>
+    public TrackOwner? RecentHandoffPreviousOwner { get; set; }
+
+    /// <summary><c>Kxxx</c> (accepted with <c>/OK</c>, i.e. force-taken) when true; <c>Oxxx</c> when false.</summary>
+    public bool RecentHandoffWasForced { get; set; }
+
+    /// <summary>Sim-elapsed seconds at which the handoff was accepted; the accepted indicator expires 30 s later.</summary>
+    public double? RecentHandoffAcceptedAtSeconds { get; set; }
+
     public AircraftEramStateDto ToSnapshot() =>
         new()
         {
@@ -64,6 +81,9 @@ public class AircraftEramState
             FrozenLat = FrozenLat,
             FrozenLon = FrozenLon,
             FrozenAltitude = FrozenAltitude,
+            RecentHandoffPreviousOwner = RecentHandoffPreviousOwner?.ToSnapshot(),
+            RecentHandoffWasForced = RecentHandoffWasForced,
+            RecentHandoffAcceptedAtSeconds = RecentHandoffAcceptedAtSeconds,
             Pointouts =
                 Pointouts.Count > 0
                     ? Pointouts
@@ -98,6 +118,9 @@ public class AircraftEramState
             FrozenLat = dto.FrozenLat,
             FrozenLon = dto.FrozenLon,
             FrozenAltitude = dto.FrozenAltitude,
+            RecentHandoffPreviousOwner = dto.RecentHandoffPreviousOwner is null ? null : TrackOwner.FromSnapshot(dto.RecentHandoffPreviousOwner),
+            RecentHandoffWasForced = dto.RecentHandoffWasForced,
+            RecentHandoffAcceptedAtSeconds = dto.RecentHandoffAcceptedAtSeconds,
             Pointouts = dto.Pointouts is null
                 ? []
                 : dto

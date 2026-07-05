@@ -258,7 +258,7 @@ Critic's overall read: coverage of the spec's Contents list is thorough; the dis
 - [ ] Target `SymbolType` engine (root cause C): ident, primary(standby), VFR(1200), MCI/uncorrelated-beacon, reduced-sep from existing transponder data.
 - [ ] ERAM track `Status` (root cause D): coast-on-target-loss (CST), and a frozen field for `QH`.
 - [ ] Publish `EramTargetHistories` (root cause F) from `AircraftState.PositionHistory`.
-- [ ] Field-E accepted indicator `Oxxx`/`Kxxx`/`OUNK` (populate RecentHandoffPeer/WasForced).
+- [x] Field-E accepted indicator `Oxxx`/`Kxxx`/`OUNK` (populate RecentHandoffPeer/WasForced). *(#253: per-subscriber, previous-owner-only; 30 s sim-elapsed window (vsrs QU_AUTO_REMOVE_SECS precedent), previous owner keeps an FDB during the window; `O`=accept, `K`=force-take; set at the shared `TrackEngine.MarkRecentHandoffAccepted` choke point (manual accept / accept-all / auto-accept / force), cleared on drop.)*
 - [ ] `QR` → controller-entered reported altitude (currently mis-wired to route display).
 - [ ] `QU` route amendment (direct-to + FRD) and filed-route polyline for `QU` display.
 - [ ] `AM`, `DM`, `VP`, `QB`(assign) MCA commands.
