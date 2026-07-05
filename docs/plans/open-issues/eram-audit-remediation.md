@@ -7,7 +7,7 @@ Working checklist for the remaining medium/low ERAM-audit issues. Parent audit: 
 Chosen order (bugs → root-cause → display fidelity → commands → low):
 
 - [x] **#254** QR → controller-entered reported altitude (CERA). Unbind `QR` from `DispatchRd`; add `DispatchQr` setting `ac.Eram.ControllerEnteredAltitude` (hundreds). Field already wired to CRC. *(yaat-server `DispatchQr` + verb-switch rebind; `EramWire` test helper drives the switch end-to-end.)*
-- [ ] **#260** Populate `EramTargetDto.GroundSpeed` (Key 6, currently null) + parse numeric leader direction (`QN` + implied `1-9`).
+- [x] **#260** Populate `EramTargetDto.GroundSpeed` (Key 6, currently null) + parse numeric leader direction (`QN` + implied `1-9`). *(GroundSpeed added to `ToEramTarget`; `TryParseLeaderDirection` now accepts numeric keypad digit 1-9 matching CRC's `(LeaderDirection)int.Parse`.)*
 - [ ] **#258** Point-outs: inverted `ClearEramPointout` caller-auth; typed `QP A <sector> <FLID>`; `QP <FLID>` minimize; inter-facility parse.
 - [ ] **#259** FLID resolution by CID / assigned beacon code in `RoomEngine.FindAircraft` (root cause I; cross-cutting).
 - [ ] **#250** Target `SymbolType` engine: ident / primary(standby) / VFR(1200) / MCI-uncorrelated / reduced-sep from transponder data (root cause C).
