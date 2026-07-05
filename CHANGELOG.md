@@ -18,6 +18,8 @@
 - ERAM `QR <altitude> <FLID>` now sets the controller-entered reported altitude (CERA) shown on the data block, instead of toggling the route-line display. `QR` was mis-wired to route display (which is `QU`), so a Center controller could not enter a reported altitude at all.
 - ERAM radar targets now report ground speed to CRC — it was previously blank on the ERAM target.
 - The ERAM `QN` leader-line command now accepts the numeric keypad direction (`1`–`9`) that CRC sends, in addition to the spelled-out compass point (`N`, `NE`, …). A numeric direction was previously rejected as a format error.
+- ERAM point-out acknowledge and clear now work from the keyboard: the receiving sector acknowledges a point-out with `QP A <sector> <FLID>`, and the initiating sector (not the receiver) clears an acknowledged point-out — the clear authorization was backwards.
+- A received ERAM point-out now forces the aircraft's data block to a full data block, so its yellow P / white A indicator is visible even on a track you don't control; `QP <FLID>` minimizes it back to a limited data block. A point-out to another ARTCC's sector (e.g. `ZLA15`) is now attributed to that facility instead of your own.
 
 ## v0.8.10-beta [2026/07/03]
 

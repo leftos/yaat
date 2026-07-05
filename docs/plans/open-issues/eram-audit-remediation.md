@@ -8,7 +8,7 @@ Chosen order (bugs → root-cause → display fidelity → commands → low):
 
 - [x] **#254** QR → controller-entered reported altitude (CERA). Unbind `QR` from `DispatchRd`; add `DispatchQr` setting `ac.Eram.ControllerEnteredAltitude` (hundreds). Field already wired to CRC. *(yaat-server `DispatchQr` + verb-switch rebind; `EramWire` test helper drives the switch end-to-end.)*
 - [x] **#260** Populate `EramTargetDto.GroundSpeed` (Key 6, currently null) + parse numeric leader direction (`QN` + implied `1-9`). *(GroundSpeed added to `ToEramTarget`; `TryParseLeaderDirection` now accepts numeric keypad digit 1-9 matching CRC's `(LeaderDirection)int.Parse`.)*
-- [ ] **#258** Point-outs: inverted `ClearEramPointout` caller-auth; typed `QP A <sector> <FLID>`; `QP <FLID>` minimize; inter-facility parse.
+- [x] **#258** Point-outs: inverted `ClearEramPointout` caller-auth (now originating sector); typed `QP A <sector> <FLID>`; `QP <FLID>` minimize (new point-out-forces-FDB model + `EramRoomState.PointoutMinimized`); inter-facility concatenated-spec parse. *(`ComputeEramDataBlockFormat`/`ToEramDataBlock` gained subscriber-facility + minimize-set params; both broadcast sites updated.)*
 - [ ] **#259** FLID resolution by CID / assigned beacon code in `RoomEngine.FindAircraft` (root cause I; cross-cutting).
 - [ ] **#250** Target `SymbolType` engine: ident / primary(standby) / VFR(1200) / MCI-uncorrelated / reduced-sep from transponder data (root cause C).
 - [ ] **#251** ERAM track `Status`: coast-on-target-loss (CST) + frozen field for `QH` (root cause D).
