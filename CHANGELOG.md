@@ -33,6 +33,7 @@
 - `VP <aircraft type> <route> <FLID>` now files a VFR flight plan for an existing Center radar track that has none, and `DM <FLID>` (activate flight plan) is accepted rather than rejected — YAAT flight plans are already active, so it is a graceful no-op. Both previously returned a format error.
 - `QB` now assigns a beacon code, equipment suffix, or voice type from the ERAM keyboard: `QB <FLID>` auto-assigns a discrete code, `QB <code> <FLID>` assigns a specific code, `QB <suffix> <FLID>` sets the equipment suffix, and `QB /v`/`/r`/`/t <FLID>` sets the pilot's voice type (full voice / receive-only / text-only). Previously the `QB` keyboard command was rejected as a format error.
 - A pilot who files receive-only or text-only in the flight-plan remarks (`/r/` or `/t/`) now shows the correct voice type on the ERAM data block, with full voice assumed when no marker is present. The voice type stays in sync with the remarks whenever they are edited.
+- The ERAM (Center) `QS` command now edits the data block's fourth-line heading/speed/free-text (HSF) fields instead of the STARS scratchpad: `QS 270 <FLID>` sets an assigned heading (a 3-digit magnetic heading), `QS /250` (or `QS /M82` for a Mach number) sets an assigned speed, `` QS `<text> `` sets free text, and `QS */` / `QS /*` / `QS *` delete the heading / speed / all of them. A bare `QS <FLID>` toggles the fourth-line display. Previously `QS` wrote the STARS scratchpad and the ERAM heading and speed fields were always blank.
 
 ## v0.8.10-beta [2026/07/03]
 

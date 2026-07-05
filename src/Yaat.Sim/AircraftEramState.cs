@@ -29,6 +29,19 @@ public class AircraftEramState
     /// <summary>Controller-entered altitude (QQ R&lt;alt&gt; / auto-track cleared), in hundreds of feet.</summary>
     public int? ControllerEnteredAltitude { get; set; }
 
+    /// <summary>
+    /// ERAM FDB line-4 (HSF) assigned heading, set via the <c>QS &lt;heading&gt;</c> command (docs/crc/eram.md
+    /// §QS Command). A manual controller annotation — NOT the aircraft's actual assigned heading. Null = unset.
+    /// </summary>
+    public string? AssignedHeading { get; set; }
+
+    /// <summary>ERAM FDB line-4 (HSF) assigned speed, set via <c>QS /&lt;speed&gt;</c>. A manual annotation. Null = unset.</summary>
+    public string? AssignedSpeed { get; set; }
+
+    /// <summary>ERAM FDB line-4 (HSF) free text, set via the <c>QS `&lt;text&gt;</c> backtick form. Distinct from the
+    /// STARS scratchpad. Null = unset.</summary>
+    public string? FreeText { get; set; }
+
     /// <summary>Active ERAM pointouts.</summary>
     public List<EramPointoutState> Pointouts { get; set; } = [];
 
@@ -77,6 +90,9 @@ public class AircraftEramState
             LocalInterimAltitude = LocalInterimAltitude,
             ProcedureAltitude = ProcedureAltitude,
             ControllerEnteredAltitude = ControllerEnteredAltitude,
+            AssignedHeading = AssignedHeading,
+            AssignedSpeed = AssignedSpeed,
+            FreeText = FreeText,
             IsFrozen = IsFrozen,
             FrozenLat = FrozenLat,
             FrozenLon = FrozenLon,
@@ -114,6 +130,9 @@ public class AircraftEramState
             LocalInterimAltitude = dto.LocalInterimAltitude,
             ProcedureAltitude = dto.ProcedureAltitude,
             ControllerEnteredAltitude = dto.ControllerEnteredAltitude,
+            AssignedHeading = dto.AssignedHeading,
+            AssignedSpeed = dto.AssignedSpeed,
+            FreeText = dto.FreeText,
             IsFrozen = dto.IsFrozen,
             FrozenLat = dto.FrozenLat,
             FrozenLon = dto.FrozenLon,

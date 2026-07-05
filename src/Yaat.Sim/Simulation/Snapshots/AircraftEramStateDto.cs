@@ -10,6 +10,12 @@ public sealed class AircraftEramStateDto
     public int? LocalInterimAltitude { get; init; }
     public int? ProcedureAltitude { get; init; }
     public int? ControllerEnteredAltitude { get; init; }
+
+    // ERAM FDB line-4 HSF annotation, set via QS. Distinct from the STARS scratchpad.
+    public string? AssignedHeading { get; init; }
+    public string? AssignedSpeed { get; init; }
+    public string? FreeText { get; init; }
+
     public List<EramPointoutStateDto>? Pointouts { get; init; }
     public List<TcpDto>? ForcedPointoutsTo { get; init; }
 
