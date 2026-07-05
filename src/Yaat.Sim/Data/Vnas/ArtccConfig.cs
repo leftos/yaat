@@ -92,14 +92,58 @@ public class EramPositionConfig
 
 /// <summary>
 /// Facility-level ERAM configuration (distinct from the position-level <see cref="EramPositionConfig"/>).
-/// Only the neighboring-STARS handoff prefix table is modeled — it maps each adjacent terminal facility to
-/// the single character an ERAM controller types ahead of a TCP code when handing off (e.g. NCT → "Q", so
-/// the Boulder position 2B is reached as "Q2B"). Other fields of the vNAS ERAM config are ignored.
+/// Models the neighboring-STARS handoff prefix table — it maps each adjacent terminal facility to the
+/// single character an ERAM controller types ahead of a TCP code when handing off (e.g. NCT → "Q", so the
+/// Boulder position 2B is reached as "Q2B") — plus the conflict-alert floor and single-sensor (ASR) radar
+/// sites used to resolve radar-target symbols.
 /// </summary>
 public class EramFacilityConfig
 {
     [JsonPropertyName("neighboringStarsConfigurations")]
     public List<NeighboringStarsConfig> NeighboringStarsConfigurations { get; set; } = [];
+
+    /// <summary>
+    /// MSL altitude (feet) at or above which an uncorrelated Mode-C beacon renders as a Mode C Intruder
+    /// rather than an Uncorrelated Beacon / Code 1200 Beacon (docs/crc/eram.md Table 1). vNAS
+    /// EramConfiguration.ConflictAlertFloor; a high-altitude center typically ships 0.
+    /// </summary>
+    [JsonPropertyName("conflictAlertFloor")]
+    public int ConflictAlertFloor { get; set; }
+
+    /// <summary>
+    /// Single-sensor (ASR) radar sites. A correlated target within a site's range and at or below its
+    /// ceiling is eligible for reduced (3 nm) separation and renders the Reduced Separation symbol
+    /// (7110.65 §5-5-4). Empty at facilities with no single-sensor coverage (e.g. a center).
+    /// </summary>
+    [JsonPropertyName("asrSites")]
+    public List<EramAsrSite> AsrSites { get; set; } = [];
+}
+
+/// <summary>
+/// A single-sensor (ASR) radar site (vNAS <c>AsrSite</c>). Correlated targets within <see cref="Range"/>
+/// nautical miles and at or below <see cref="Ceiling"/> feet MSL are eligible for reduced separation.
+/// </summary>
+public class EramAsrSite
+{
+    [JsonPropertyName("location")]
+    public EramAsrLocation Location { get; set; } = new();
+
+    /// <summary>Antenna range in nautical miles (vNAS default 60).</summary>
+    [JsonPropertyName("range")]
+    public int Range { get; set; } = 60;
+
+    /// <summary>Coverage ceiling in feet MSL (vNAS default FL230).</summary>
+    [JsonPropertyName("ceiling")]
+    public int Ceiling { get; set; } = 23000;
+}
+
+public class EramAsrLocation
+{
+    [JsonPropertyName("lat")]
+    public double Lat { get; set; }
+
+    [JsonPropertyName("lon")]
+    public double Lon { get; set; }
 }
 
 public class NeighboringStarsConfig
