@@ -15,6 +15,7 @@
 - An ERAM interim, procedure, or local-interim altitude entered with `QQ` now shows at the correct flight level in CRC. The value was stored in feet instead of hundreds of feet, so `QQ 150` rendered as a nonsensical altitude on the data block.
 - Removing an aircraft that was in a conflict alert now clears that alert from every CRC controller in the room, not just one of them. In a room with multiple controllers the alert could otherwise linger on the others' STARS/ERAM displays until they reconnected.
 - ERAM `QZ` now accepts a block altitude in the `<floor>B<ceiling>` form (hundreds of feet, e.g. `QZ 200B250` for a FL200–FL250 block), shown as `200B250` on the aircraft's data block. The floor must be below the ceiling. Previously only a single assigned altitude could be entered and the block form was rejected as a format error.
+- ERAM `QR <altitude> <FLID>` now sets the controller-entered reported altitude (CERA) shown on the data block, instead of toggling the route-line display. `QR` was mis-wired to route display (which is `QU`), so a Center controller could not enter a reported altitude at all.
 
 ## v0.8.10-beta [2026/07/03]
 
