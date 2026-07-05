@@ -815,8 +815,15 @@ public sealed class SoloTrainingEvaluator
         var applicableClasses = FindApplicableAirspaceClasses(a, b, airspace, lookaheadSeconds);
         if (applicableClasses.Contains(AirspaceClass.Bravo))
         {
-            bool heavyOrTurbojetPair = IsLargeOrTurbojet(a) || IsLargeOrTurbojet(b);
-            if (!heavyOrTurbojetPair)
+            // §7-9-4.2/.3: a VFR aircraft is separated from the *other* aircraft, so the 1.5 NM floor
+            // keys on what it is separated from — the non-VFR party in a mixed pair, or either party
+            // in a VFR-from-VFR pair (each is separated from the other). Reachable only with at least
+            // one VFR-for-separation party (the both-IFR case returned above).
+            bool separatedFromHeavyOrTurbojet =
+                (aVfrForSeparation && bVfrForSeparation)
+                    ? IsLargeOrTurbojet(a) || IsLargeOrTurbojet(b)
+                    : IsLargeOrTurbojet(aVfrForSeparation ? b : a);
+            if (!separatedFromHeavyOrTurbojet)
             {
                 return new SeparationRequirement(
                     "Class B target-resolution separation",

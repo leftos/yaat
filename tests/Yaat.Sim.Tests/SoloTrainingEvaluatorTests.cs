@@ -743,6 +743,54 @@ public sealed class SoloTrainingEvaluatorTests
         Assert.Contains("Class B", requirement.Name);
     }
 
+    // ── Class B VFR standard is keyed on the aircraft the VFR is separated FROM (7110.65 §7-9-4.2/.3),
+    //    not on the VFR party's own weight/type. ──────────────────────────────────────────────────
+
+    [Fact]
+    public void ResolveRequirement_ClassBVfrTurbojetVsLightIfr_UsesTargetResolutionNotOnePointFive()
+    {
+        // §7-9-4.3: a VFR aircraft separated from a ≤19,000 lb aircraft gets target resolution. The
+        // VFR party being a turbojet is irrelevant — the standard keys on the *other* (light IFR)
+        // aircraft, so this pair is 0.25 NM, not 1.5 NM.
+        var vfrJet = CreateAircraft("SWA1", "B738", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 3000, isOnGround: false);
+        var lightIfr = CreateAircraft(
+            "N123AB",
+            "C172",
+            flightRules: "IFR",
+            GeoMath.ProjectPoint(vfrJet.Position, new TrueHeading(90), 0.2),
+            altitude: 3000,
+            isOnGround: false
+        );
+
+        var requirement = SoloTrainingEvaluator.ResolveRequirement(vfrJet, lightIfr, AirspaceDatabase.Default);
+
+        Assert.NotNull(requirement);
+        Assert.Equal(0.25, requirement.RequiredHorizontalNm);
+        Assert.Contains("target-resolution", requirement.Name);
+    }
+
+    [Fact]
+    public void ResolveRequirement_ClassBVfrPairWithTurbojet_UsesOnePointFive()
+    {
+        // §7-9-4.2: in a VFR-from-VFR pair each aircraft is separated from the other, so a turbojet
+        // on either side binds the 1.5 NM standard (the light aircraft must be 1.5 from the jet).
+        var vfrJet = CreateAircraft("SWA1", "B738", flightRules: "VFR", new LatLon(37.6213, -122.3790), altitude: 3000, isOnGround: false);
+        var lightVfr = CreateAircraft(
+            "N123AB",
+            "C172",
+            flightRules: "VFR",
+            GeoMath.ProjectPoint(vfrJet.Position, new TrueHeading(90), 0.2),
+            altitude: 3000,
+            isOnGround: false
+        );
+
+        var requirement = SoloTrainingEvaluator.ResolveRequirement(vfrJet, lightVfr, AirspaceDatabase.Default);
+
+        Assert.NotNull(requirement);
+        Assert.Equal(1.5, requirement.RequiredHorizontalNm);
+        Assert.Contains("large/turbojet", requirement.Name);
+    }
+
     [Fact]
     public void Evaluate_NoMinimaProximityCreatesAdvisoryOnlyEvents()
     {
