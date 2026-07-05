@@ -112,4 +112,58 @@ public class TrackEngineInferenceTests
         Assert.True(result.Success, result.Message);
         Assert.Equal("SFO_DEP", ac.Track.Owner.Callsign);
     }
+
+    [Fact]
+    public void HandleTrack_FrozenUnownedTrack_UnfreezesAndTracks()
+    {
+        var ac = Aircraft();
+        ac.Eram.IsFrozen = true;
+        ac.Eram.FrozenLat = 37.6;
+        ac.Eram.FrozenLon = -122.0;
+        ac.Eram.FrozenAltitude = 350;
+        var identity = TrackOwner.CreateEram("ZOA_36", "ZOA", "36");
+
+        var result = TrackEngine.HandleTrack(ac, identity);
+
+        Assert.True(result.Success, result.Message);
+        Assert.False(ac.Eram.IsFrozen);
+        Assert.Null(ac.Eram.FrozenLat);
+        Assert.Null(ac.Eram.FrozenLon);
+        Assert.Null(ac.Eram.FrozenAltitude);
+        Assert.Equal("ZOA_36", ac.Track.Owner!.Callsign);
+    }
+
+    [Fact]
+    public void HandleTrack_FrozenTrackOwnedBySelf_Unfreezes()
+    {
+        var ac = Aircraft();
+        var identity = TrackOwner.CreateEram("ZOA_36", "ZOA", "36");
+        ac.Track.Owner = identity;
+        ac.Eram.IsFrozen = true;
+        ac.Eram.FrozenLat = 37.6;
+        ac.Eram.FrozenLon = -122.0;
+        ac.Eram.FrozenAltitude = 350;
+
+        var result = TrackEngine.HandleTrack(ac, identity);
+
+        Assert.True(result.Success, result.Message);
+        Assert.False(ac.Eram.IsFrozen);
+        Assert.Null(ac.Eram.FrozenLat);
+    }
+
+    [Fact]
+    public void HandleTrack_FrozenTrackOwnedByOther_RejectedAndStaysFrozen()
+    {
+        var ac = Aircraft();
+        ac.Track.Owner = TrackOwner.CreateEram("ZOA_36", "ZOA", "36");
+        ac.Eram.IsFrozen = true;
+        ac.Eram.FrozenLat = 37.6;
+        var other = TrackOwner.CreateEram("ZOA_40", "ZOA", "40");
+
+        var result = TrackEngine.HandleTrack(ac, other);
+
+        Assert.False(result.Success);
+        Assert.True(ac.Eram.IsFrozen);
+        Assert.Equal("ZOA_36", ac.Track.Owner!.Callsign);
+    }
 }

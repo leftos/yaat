@@ -99,6 +99,25 @@ public static class TrackEngine
 
     public static CommandResult HandleTrack(AircraftState ac, TrackOwner identity)
     {
+        // Re-starting track on a QH-frozen track unfreezes it (7110.65 §5-2-15 "track start from frozen
+        // status") and re-pairs it to the live target — even when the frozen track is still owned by the
+        // acting position, which the normal already-tracked guard below would otherwise reject. A track
+        // frozen but owned by a different position still cannot be stolen.
+        if (ac.Eram.IsFrozen)
+        {
+            if (ac.Track.Owner is not null && !ac.Track.Owner.MatchesPosition(identity))
+            {
+                return new CommandResult(false, $"{ac.Callsign} already tracked by {ac.Track.Owner.Callsign}");
+            }
+
+            ac.Track.Owner = identity;
+            ac.Eram.IsFrozen = false;
+            ac.Eram.FrozenLat = null;
+            ac.Eram.FrozenLon = null;
+            ac.Eram.FrozenAltitude = null;
+            return new CommandResult(true, $"Tracking {ac.Callsign}");
+        }
+
         if (ac.Track.Owner is not null)
         {
             return new CommandResult(false, $"{ac.Callsign} already tracked by {ac.Track.Owner.Callsign}");

@@ -35,9 +35,10 @@ public class AircraftEramState
     public List<Tcp> ForcedPointoutsTo { get; set; } = [];
 
     /// <summary>
-    /// QH-frozen track (7110.65 §5-13-8): the data block is parked at <see cref="FrozenLat"/>/
-    /// <see cref="FrozenLon"/> and unpaired from the target. A frozen track shows FRZN, holds its
-    /// snapshot altitude, and is exempt from coast and every auto-removal path until re-started (TRACK).
+    /// QH-frozen track (CRC ERAM QH display function, <c>docs/crc/eram.md</c> §Freezing a Track): the data
+    /// block is parked at <see cref="FrozenLat"/>/<see cref="FrozenLon"/> and unpaired from the target. A
+    /// frozen track shows FRZN, holds its snapshot altitude, and is exempt from coast and every auto-removal
+    /// path until re-started (TRACK), which revalidates it per 7110.65 §5-2-15 ("track start from … frozen status").
     /// </summary>
     public bool IsFrozen { get; set; }
 
