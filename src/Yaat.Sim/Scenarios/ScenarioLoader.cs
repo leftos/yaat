@@ -154,6 +154,9 @@ public static class ScenarioLoader
                 EquipmentSuffix = equipmentSuffix,
                 HasFlightPlan = hasFiledFp,
             },
+            // Voice type is carried in the FP remarks (/v//r//t/, full voice implied when absent) — a VATSIM
+            // convention. Derive it so a scenario that files a text-only pilot renders correctly on the FDB.
+            Voice = new AircraftVoice { Type = FlightPlanVoice.ParseVoiceType(ac.FlightPlan?.Remarks) },
             Approach = new AircraftApproachState { Expected = effectiveApproach },
         };
     }

@@ -400,6 +400,11 @@ FlightPlanAltitude.cs          # Parser + formatter for the CRC altitude grammar
                                # `VFR` (rules-only), `VFR/045` / `OTP/120` (rules + altitude), `045` (IFR + altitude), blank.
                                # Parse → (Rules, PlannedAltitude); Format(PlannedAltitude) → text (incl. block NNNBNNN). OTP is
                                # VFR rules + VFR-on-top notation. FromRulesAndFeet builds a PlannedAltitude from rules + a plain int.
+FlightPlanVoice.cs             # Couples FP remarks ↔ voice type (AircraftVoice.Type: 1=Full/2=ReceiveOnly/3=TextOnly). Remarks are
+                               # canonical: ParseVoiceType reads a /v//r//t/ marker (full implied when absent), ApplyVoiceMarker writes it.
+                               # A VATSIM convention (no FAA field). Driven by ERAM QB /v|/r|/t and the SetVoiceType hub; derived on amend + load.
+RouteSplicer.cs                # ERAM AM RTE route-splice grammar (docs/crc/eram.md Table 8): join/resume/replace over [dep]+enroute+[dest]
+                               # with a dotted anchor list, plus [ / ] (↑/↓) departure/destination swap. Splice semantics only (no SID/STAR expansion).
 FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)

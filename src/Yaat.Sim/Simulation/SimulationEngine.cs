@@ -1645,6 +1645,9 @@ public sealed class SimulationEngine
         if (amendment.Remarks is not null)
         {
             ac.FlightPlan.Remarks = amendment.Remarks;
+            // Remarks are canonical for voice type: a /v//r//t/ marker (or its absence = full voice) drives
+            // the CRC voice-type field. A VATSIM operational convention, not an FAA flight-plan field.
+            ac.Voice.Type = FlightPlanVoice.ParseVoiceType(ac.FlightPlan.Remarks);
         }
         if (amendment.Scratchpad1 is not null)
         {
