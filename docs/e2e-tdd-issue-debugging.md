@@ -310,6 +310,8 @@ public void HybridReplay_FixAppliesAfterSnapshot()
 
 Most issue fixes in this repo use full replay — the bugs were localized enough that earlier state still reached the buggy moment correctly. Reach for hybrid when the decision rule above tells you to, not by default.
 
+**Refreshing recording fixtures is surgical, never a re-simulation.** When a snapshot `SchemaVersion` bump requires rewriting committed recordings, upgrade them with `RecordingSchemaUpgrader` / the `Yaat.RecordingUpgrader` CLI, which transforms each snapshot's JSON in place through `SnapshotSchemaMigrator`. Do **not** regenerate snapshots by replaying through a live engine: that recaptures a hybrid test's frozen pre-`T` snapshot with *current* code, turning the pinned pre-fix setup into the fixed state and silently invalidating the very test that depends on it. Re-simulation is reserved for the one v1→v2 bootstrap (v1 has no snapshots to preserve). See [snapshots-and-replay.md](snapshots-and-replay.md).
+
 ### 6. Write the real assertion
 
 Now write a test that replays to the right time and asserts the correct behavior. This test should **fail** against the current code:

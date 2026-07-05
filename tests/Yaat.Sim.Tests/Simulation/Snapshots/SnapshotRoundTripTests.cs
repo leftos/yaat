@@ -472,6 +472,29 @@ public class SnapshotRoundTripTests
     }
 
     [Fact]
+    public void SnapshotSchemaMigrator_V3AircraftWithNullFlightPlan_DoesNotThrow()
+    {
+        // A legacy v3 snapshot whose aircraft JSON omits FlightPlan deserializes (leniently) to a null
+        // FlightPlan; the v3→v4 seed must skip it rather than dereference. Regression: #264 hit this on
+        // a real .br fixture, and SimulationEngine.RestoreFromSnapshot runs the same migrator on rewind.
+        const string json = """
+            {
+              "SchemaVersion": 3,
+              "ElapsedSeconds": 10,
+              "Rng": { "S0": 1, "S1": 2, "S2": 3, "S3": 4 },
+              "Aircraft": [ { "Callsign": "AAL1", "AircraftType": "B738" } ],
+              "Scenario": { "ScenarioId": "t", "ScenarioName": "T", "RngSeed": 1, "ElapsedSeconds": 10, "SimRate": 1 }
+            }
+            """;
+        var snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(json, RecordingJsonOptions.Default)!;
+        Assert.Null(Assert.Single(snapshot.Aircraft).FlightPlan); // precondition: lenient resolver yields null
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        Assert.Equal(SnapshotSchemaMigrator.CurrentSchemaVersion, snapshot.SchemaVersion);
+    }
+
+    [Fact]
     public void ServerSnapshotDto_JsonRoundTrips()
     {
         var snapshot = new StateSnapshotDto

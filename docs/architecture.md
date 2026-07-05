@@ -831,6 +831,7 @@ RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loadi
 TimelineBookmark.cs            # TimelineBookmark + RecordingBookmarks records (the bookmarks.json payload)
 RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated layouts/source GeoJSON + bundled ArtccConfig
 RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, AirportGeoJsonIds, HasArtccConfig, metadata
+RecordingSchemaUpgrader.cs     # Surgical in-place snapshot schema upgrade (via SnapshotSchemaMigrator, never re-sim); handles .br/v4-zip/bug-bundle; drives yaat-server's Yaat.RecordingUpgrader CLI
 RecordingJsonOptions.cs        # Shared JsonSerializerOptions for recording serialization
 
 # Simulation/Replay/

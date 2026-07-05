@@ -107,7 +107,9 @@ public static class SnapshotSchemaMigrator
         {
             foreach (var ac in snapshot.Aircraft)
             {
-                if (string.IsNullOrEmpty(ac.FlightPlan.AircraftType))
+                // A legacy snapshot can carry a null FlightPlan (the lenient resolver permits it);
+                // there is nothing to seed then, so skip rather than dereference.
+                if (ac.FlightPlan is { AircraftType: null or "" })
                 {
                     ac.FlightPlan.AircraftType = ac.AircraftType;
                 }

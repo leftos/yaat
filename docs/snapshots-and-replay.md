@@ -42,7 +42,13 @@ StateSnapshotDto
 
 **Actual vs filed aircraft type (v4).** `AircraftState.AircraftType` is the physical type (fixed at spawn; drives Tower Cab, physics, and the operator Aircraft List). `AircraftFlightPlan.AircraftType` is the filed type (mutable via amendment; drives STARS, ASDE-X, the Flight Plan Editor, strips, and ERAM). Top-level wins for actual; the FP field is opt-in (no cross-fill). The migrator seeds the filed field from the top-level type for legacy v3 bundles.
 
+The table lists only the steps with a data *transform*; the authoritative full chain (currently through v15) is the `Migrate()` source. `Migrate` must tolerate leniently-deserialized nulls on the fields it touches — e.g. a legacy aircraft snapshot can carry a null `FlightPlan`, so the v3→v4 seed guards with `ac.FlightPlan is { AircraftType: null or "" }` rather than dereferencing.
+
 **Rule for adding a field**: if it defaults cleanly (`null` / `false` / `0`) and old data is correct under that default, **no migration step needed**. Just add it to the DTO. If old data needs transformation (rename, split, reinterpret), bump `SchemaVersion` and add a `Migrate()` step.
+
+### Upgrading recordings on disk — surgical, never re-simulated
+
+`SnapshotSchemaMigrator.Migrate` runs at replay (`SimulationEngine.RestoreFromSnapshot`) so old recordings load without any disk change. To rewrite committed fixtures to the current schema, `RecordingSchemaUpgrader.Upgrade(bytes)` (Yaat.Sim) transforms each snapshot's JSON **in place** via the same migrator — decompress → `StateSnapshotDto` → `Migrate` → re-serialize — across all three containers (non-zip `.br` `SessionRecording`, v4 archive zip, and bug-report bundle wrapping a v4 archive), copying every other entry verbatim. It **never re-simulates**; re-simulation with current code would rewrite a frozen pre-fix snapshot into the fixed state and silently invalidate hybrid-replay tests (see [e2e-tdd-issue-debugging.md §5b](e2e-tdd-issue-debugging.md)). The `Yaat.RecordingUpgrader` CLI (yaat-server) drives it and reserves re-simulation for the one v1→v2 bootstrap (v1 carries no snapshots to preserve). Snapshot entries are Brotli — decompress them with an explicit `BrotliStream`, not the autodetecting `RecordingCompression.Decompress`, whose plain-JSON heuristic can misfire on a Brotli stream that starts with `{`/`[`.
 
 ## What is NOT serialized
 
