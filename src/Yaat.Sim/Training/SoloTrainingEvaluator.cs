@@ -794,10 +794,13 @@ public sealed class SoloTrainingEvaluator
 
     internal static SeparationRequirement? ResolveRequirement(AircraftState a, AircraftState b, AirspaceDatabase airspace, double lookaheadSeconds)
     {
-        bool aVfr = a.FlightPlan.IsVfr;
-        bool bVfr = b.FlightPlan.IsVfr;
+        // VFR-on-top is an IFR flight (AIM §4-4-8) but is never provided IFR separation
+        // (7110.65 §7-3-1 NOTE 2), so it is the VFR party for every minimum below — including
+        // in Class B, where it takes the reduced Class B VFR standard, not 3 NM / 1000 ft.
+        bool aVfrForSeparation = a.FlightPlan.IsVfr || a.FlightPlan.Altitude.IsVfrOnTop;
+        bool bVfrForSeparation = b.FlightPlan.IsVfr || b.FlightPlan.Altitude.IsVfrOnTop;
 
-        if (!aVfr && !bVfr)
+        if (!aVfrForSeparation && !bVfrForSeparation)
         {
             return new SeparationRequirement(
                 "IFR radar separation",
@@ -835,7 +838,10 @@ public sealed class SoloTrainingEvaluator
             );
         }
 
-        if ((applicableClasses.Contains(AirspaceClass.Charlie) || IsClassCOuterAreaPair(a, b, airspace, lookaheadSeconds)) && (aVfr != bVfr))
+        if (
+            (applicableClasses.Contains(AirspaceClass.Charlie) || IsClassCOuterAreaPair(a, b, airspace, lookaheadSeconds))
+            && (aVfrForSeparation != bVfrForSeparation)
+        )
         {
             return new SeparationRequirement(
                 applicableClasses.Contains(AirspaceClass.Charlie)

@@ -147,7 +147,7 @@ minima.
 
 | Criterion (`SeparationRequirement.Name`) | Rule reference | When it applies | Minima |
 |---|---|---|---|
-| IFR radar separation | `7110.65 §5-5-4, §5-5-5, §4-5-1` | both aircraft IFR | 3.0 NM / 1000 ft |
+| IFR radar separation | `7110.65 §5-5-4, §5-5-5, §4-5-1` | both aircraft IFR (VFR-on-top excluded — see below) | 3.0 NM / 1000 ft |
 | Class B target-resolution separation | `7110.65 §7-9-4` | pair in Class B, neither large/turbojet | 0.25 NM / 500 ft |
 | Class B large/turbojet separation | `7110.65 §7-9-4` | pair in Class B, one is large (>19,000 lb) or turbojet | 1.5 NM / 500 ft |
 | Class C (outer-area) IFR/VFR target-resolution | `7110.65 §7-8-2; 7110.65 §7-8-3; AIM §3-2-4` | Class C (or within 20 NM outer area) and one IFR + one VFR | 0.25 NM / 500 ft |
@@ -155,6 +155,16 @@ minima.
 `IsLargeOrTurbojet` (`:821`) reads MTOW / engine class from `FaaAircraftDatabase`, falling back to
 `AircraftCategorization`. The Class C outer-area test (`IsInClassCOuterArea`, `:756`) treats any Class C airport
 within 20 NM and below the volume ceiling as outer area.
+
+**VFR-on-top is the VFR party for separation.** `ResolveRequirement` computes
+`aVfrForSeparation = FlightPlan.IsVfr || FlightPlan.Altitude.IsVfrOnTop` (not bare `IsVfr`). A VFR-on-top
+aircraft is an *IFR* flight everywhere else in the sim (clearances, SIDs, phraseology — AIM §4-4-8), but it is
+**never provided IFR separation** (7110.65 §7-3-1 NOTE 2), so for the minima above it is treated as the VFR side:
+outside Class B/C an OTP + IFR pair gets no separation minimum (advisory only); in Class B it takes the reduced
+Class B VFR standard (0.25/500 or 1.5/500), *not* 3/1000; in Class C an OTP + IFR pair gets target resolution
+while OTP + OTP / OTP + VFR fall through to advisory-only (Class C doesn't separate VFR-from-VFR, unlike Class B).
+The airborne CA / ERAM STCA detectors are deliberately *not* gated on this — safety alerts are a first-priority
+duty to all aircraft (§2-1-6), including VFR-on-top.
 
 ### Advisory / Visual
 

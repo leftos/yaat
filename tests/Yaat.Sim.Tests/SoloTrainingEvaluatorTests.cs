@@ -648,6 +648,101 @@ public sealed class SoloTrainingEvaluatorTests
         Assert.Equal(SoloTrainingEventCategory.Separation, requirement.Category);
     }
 
+    // ── VFR-on-top (OTP) is an IFR flight but is never owed IFR separation ──────────────────────
+    // (AIM §4-4-8; 7110.65 §7-3-1 NOTE 2). For separation the OTP aircraft is treated as the VFR
+    // party in every branch.
+
+    [Fact]
+    public void ResolveRequirement_OtpVsIfr_OutsideControlledAirspace_NoIfrRadarSeparation()
+    {
+        // Outside Class B/C, IFR separation is not applied to VFR-on-top — only a traffic advisory
+        // (7110.65 §7-3-1 NOTE 2). A plain IFR/IFR pair here would be owed 3 NM / 1000 ft.
+        var otp = CreateOtpAircraft("AAL1", new LatLon(37.0000, -121.0000), altitude: 2500);
+        var ifr = CreateAircraft(
+            "UAL2",
+            "C172",
+            flightRules: "IFR",
+            GeoMath.ProjectPoint(otp.Position, new TrueHeading(90), 0.2),
+            altitude: 2500,
+            isOnGround: false
+        );
+
+        Assert.Null(SoloTrainingEvaluator.ResolveRequirement(otp, ifr, AirspaceDatabase.Default));
+    }
+
+    [Fact]
+    public void ResolveRequirement_OtpVsIfr_InClassB_UsesReducedClassBStandardNotIfrRadar()
+    {
+        // VFR-on-top in Class B gets the reduced Class B VFR standard (0.25 NM / 500 ft for light
+        // aircraft, 7110.65 §7-9-4), NOT 3 NM / 1000 ft IFR radar separation.
+        var otp = CreateOtpAircraft("AAL1", new LatLon(37.6213, -122.3790), altitude: 2500);
+        var ifr = CreateAircraft(
+            "UAL2",
+            "C172",
+            flightRules: "IFR",
+            GeoMath.ProjectPoint(otp.Position, new TrueHeading(90), 0.2),
+            altitude: 2500,
+            isOnGround: false
+        );
+
+        var requirement = SoloTrainingEvaluator.ResolveRequirement(otp, ifr, AirspaceDatabase.Default);
+
+        Assert.NotNull(requirement);
+        Assert.Equal(0.25, requirement.RequiredHorizontalNm);
+        Assert.Equal(500.0, requirement.RequiredVerticalFt);
+        Assert.Contains("Class B", requirement.Name);
+    }
+
+    [Fact]
+    public void ResolveRequirement_OtpVsIfr_InClassC_UsesTargetResolution()
+    {
+        // Class C separates IFR-from-VFR; the OTP aircraft is the VFR party (7110.65 §7-8-3).
+        var otp = CreateOtpAircraft("AAL1", new LatLon(37.7213, -122.2208), altitude: 1000);
+        var ifr = CreateAircraft(
+            "UAL2",
+            "C172",
+            flightRules: "IFR",
+            GeoMath.ProjectPoint(otp.Position, new TrueHeading(90), 0.2),
+            altitude: 1000,
+            isOnGround: false
+        );
+
+        var requirement = SoloTrainingEvaluator.ResolveRequirement(otp, ifr, AirspaceDatabase.Default);
+
+        Assert.NotNull(requirement);
+        Assert.Equal(0.25, requirement.RequiredHorizontalNm);
+        Assert.Equal(500.0, requirement.RequiredVerticalFt);
+        Assert.Contains("Class C", requirement.Name);
+    }
+
+    [Fact]
+    public void ResolveRequirement_OtpVsOtp_InClassC_NoSeparationRequirement()
+    {
+        // Class C separates IFR-from-VFR but not VFR-from-VFR; two VFR-on-top aircraft are
+        // advisory-only (7110.65 §7-8-2).
+        var a = CreateOtpAircraft("AAL1", new LatLon(37.7213, -122.2208), altitude: 1000);
+        var b = CreateOtpAircraft("UAL2", GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 0.2), altitude: 1000);
+
+        Assert.Null(SoloTrainingEvaluator.ResolveRequirement(a, b, AirspaceDatabase.Default));
+    }
+
+    [Fact]
+    public void ResolveRequirement_OtpVsOtp_InClassB_UsesReducedClassBStandard()
+    {
+        // Class B DOES separate VFR-from-VFR (unlike Class C): two VFR-on-top aircraft in Class B
+        // still take the reduced Class B standard (0.25 NM / 500 ft light, 7110.65 §7-9-4.3). This
+        // locks the B-vs-C asymmetry — the Class B branch must never be gated on a mixed pair.
+        var a = CreateOtpAircraft("AAL1", new LatLon(37.6213, -122.3790), altitude: 2500);
+        var b = CreateOtpAircraft("UAL2", GeoMath.ProjectPoint(a.Position, new TrueHeading(90), 0.2), altitude: 2500);
+
+        var requirement = SoloTrainingEvaluator.ResolveRequirement(a, b, AirspaceDatabase.Default);
+
+        Assert.NotNull(requirement);
+        Assert.Equal(0.25, requirement.RequiredHorizontalNm);
+        Assert.Equal(500.0, requirement.RequiredVerticalFt);
+        Assert.Contains("Class B", requirement.Name);
+    }
+
     [Fact]
     public void Evaluate_NoMinimaProximityCreatesAdvisoryOnlyEvents()
     {
@@ -1819,6 +1914,14 @@ public sealed class SoloTrainingEvaluatorTests
                 FlightRules = flightRules,
             },
         };
+
+    // VFR-on-top: an IFR flight plan carrying the VFR-on-top altitude notation.
+    private static AircraftState CreateOtpAircraft(string callsign, LatLon position, double altitude)
+    {
+        var ac = CreateAircraft(callsign, "C172", flightRules: "IFR", position, altitude, isOnGround: false);
+        ac.FlightPlan.Altitude = PlannedAltitude.Otp(null);
+        return ac;
+    }
 
     private static (AircraftState A, AircraftState B) CreateConflictingIfrPair()
     {
