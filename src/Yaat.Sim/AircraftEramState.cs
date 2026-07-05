@@ -34,6 +34,20 @@ public class AircraftEramState
 
     public List<Tcp> ForcedPointoutsTo { get; set; } = [];
 
+    /// <summary>
+    /// QH-frozen track (7110.65 §5-13-8): the data block is parked at <see cref="FrozenLat"/>/
+    /// <see cref="FrozenLon"/> and unpaired from the target. A frozen track shows FRZN, holds its
+    /// snapshot altitude, and is exempt from coast and every auto-removal path until re-started (TRACK).
+    /// </summary>
+    public bool IsFrozen { get; set; }
+
+    /// <summary>Frozen location (from the QH command). Null unless <see cref="IsFrozen"/>.</summary>
+    public double? FrozenLat { get; set; }
+    public double? FrozenLon { get; set; }
+
+    /// <summary>Frozen (snapshot) altitude in hundreds of feet, captured at freeze time.</summary>
+    public int? FrozenAltitude { get; set; }
+
     public AircraftEramStateDto ToSnapshot() =>
         new()
         {
@@ -45,6 +59,10 @@ public class AircraftEramState
             LocalInterimAltitude = LocalInterimAltitude,
             ProcedureAltitude = ProcedureAltitude,
             ControllerEnteredAltitude = ControllerEnteredAltitude,
+            IsFrozen = IsFrozen,
+            FrozenLat = FrozenLat,
+            FrozenLon = FrozenLon,
+            FrozenAltitude = FrozenAltitude,
             Pointouts =
                 Pointouts.Count > 0
                     ? Pointouts
@@ -75,6 +93,10 @@ public class AircraftEramState
             LocalInterimAltitude = dto.LocalInterimAltitude,
             ProcedureAltitude = dto.ProcedureAltitude,
             ControllerEnteredAltitude = dto.ControllerEnteredAltitude,
+            IsFrozen = dto.IsFrozen,
+            FrozenLat = dto.FrozenLat,
+            FrozenLon = dto.FrozenLon,
+            FrozenAltitude = dto.FrozenAltitude,
             Pointouts = dto.Pointouts is null
                 ? []
                 : dto

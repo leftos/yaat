@@ -12,4 +12,10 @@ public sealed class AircraftEramStateDto
     public int? ControllerEnteredAltitude { get; init; }
     public List<EramPointoutStateDto>? Pointouts { get; init; }
     public List<TcpDto>? ForcedPointoutsTo { get; init; }
+
+    // QH-frozen track: parked at a fixed location, unpaired from the target, exempt from coast/auto-drop.
+    public bool IsFrozen { get; init; }
+    public double? FrozenLat { get; init; }
+    public double? FrozenLon { get; init; }
+    public int? FrozenAltitude { get; init; }
 }
