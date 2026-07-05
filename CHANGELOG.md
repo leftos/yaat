@@ -20,6 +20,7 @@
 - The ERAM `QN` leader-line command now accepts the numeric keypad direction (`1`–`9`) that CRC sends, in addition to the spelled-out compass point (`N`, `NE`, …). A numeric direction was previously rejected as a format error.
 - ERAM point-out acknowledge and clear now work from the keyboard: the receiving sector acknowledges a point-out with `QP A <sector> <FLID>`, and the initiating sector (not the receiver) clears an acknowledged point-out — the clear authorization was backwards.
 - A received ERAM point-out now forces the aircraft's data block to a full data block, so its yellow P / white A indicator is visible even on a track you don't control; `QP <FLID>` minimizes it back to a limited data block. A point-out to another ARTCC's sector (e.g. `ZLA15`) is now attributed to that facility instead of your own.
+- ERAM commands now accept a typed FLID — an aircraft's callsign, computer ID (CID), or assigned beacon code typed after a verb (e.g. `QQ 150 234`) — instead of only a slewed data block. Previously a typed FLID was rejected, and a FLID resolved by callsign only.
 
 ## v0.8.10-beta [2026/07/03]
 
