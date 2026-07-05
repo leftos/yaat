@@ -260,7 +260,7 @@ Critic's overall read: coverage of the spec's Contents list is thorough; the dis
 - [ ] Publish `EramTargetHistories` (root cause F) from `AircraftState.PositionHistory`.
 - [x] Field-E accepted indicator `Oxxx`/`Kxxx`/`OUNK` (populate RecentHandoffPeer/WasForced). *(#253: per-subscriber, previous-owner-only; 30 s sim-elapsed window (vsrs QU_AUTO_REMOVE_SECS precedent), previous owner keeps an FDB during the window; `O`=accept, `K`=force-take; set at the shared `TrackEngine.MarkRecentHandoffAccepted` choke point (manual accept / accept-all / auto-accept / force), cleared on drop.)*
 - [ ] `QR` → controller-entered reported altitude (currently mis-wired to route display).
-- [ ] `QU` route amendment (direct-to + FRD) and filed-route polyline for `QU` display.
+- [x] `QU` route amendment (direct-to + FRD) and filed-route polyline for `QU` display. *(#255: polyline traces `NavigationRoute`/route-expansion fixes truncated at minutes×gs (`/M`→destination + underlined X); toggle/clear-all/multi-FLID/30 s auto-remove sweep; amendment = present-position FRD + direct fixes + tail-keep (resumes the filed route at the direct fix — including when the fix lies on an airway already in the route, via `IsAirway`/`ExpandAirwaySegment`, per 7110.65 §4-2-5.a.3) via `AmendFlightPlan`; `<location>` left-click read from element index 6. Aviation-reviewed.)*
 - [ ] `AM`, `DM`, `VP`, `QB`(assign) MCA commands.
 - [ ] `QS` HSF fourth-line fields (heading/speed/free-text) instead of STARS Scratchpad1.
 - [ ] `QP` point-out: fix inverted `ClearEramPointout` caller-auth; typed `QP A <sector> <FLID>`; `QP <FLID>` minimize.

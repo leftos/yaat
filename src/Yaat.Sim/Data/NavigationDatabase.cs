@@ -869,6 +869,9 @@ public sealed class NavigationDatabase
         return _airways.TryGetValue(airwayId, out var fixes) ? fixes : null;
     }
 
+    /// <summary>All known airway identifiers (e.g. V27, J80). Symmetric with <see cref="GetAirwayFixes"/>.</summary>
+    public IEnumerable<string> AirwayIds => _airways.Keys;
+
     public bool IsAirway(string id)
     {
         return _airways.ContainsKey(id);
