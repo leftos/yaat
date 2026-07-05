@@ -198,6 +198,17 @@ only that room's `World.GetSnapshot()` (`:786`-`789`). There is no global aircra
 error. `UpdatePausedSince` (`:97`) stamps the continuous-pause clock that the retirement sweep reads; `IsAbandoned`
 (`:76`) is true when no clients are connected.
 
+**Join gate & kick block.** Two per-room CID sets govern who may `JoinRoom`, both consulted by the pure
+`TrainingHub.CanJoinRoomCore(isMentorOrInstructor, kind, kicked, invited, restored, alreadyMember, crcBound)`:
+`InvitedCids` — CIDs a mentor pulled in as RPOs, the allow-list that lets a limited (non-mentor "main") client join;
+and `KickedCids` — CIDs kicked from this room, a block-list. `KickedCids` is checked **first** and returns `false`
+for **everyone**, including mentors/instructors (who otherwise bypass the gate) — so a kicked user can't self-rejoin
+from the room list; `JoinRoom` throws a kicked-specific `HubException`. `KickMember` calls `room.RecordKick(cid)`
+(adds to `KickedCids`, drops any stale `InvitedCids`/`RestoredMemberCids` entry) and refuses to kick the room's
+`CreatorCid`. A kicked user re-enters only when an instructor pulls them: `PullRpo` calls `room.ClearKick(cid)` for
+the puller's room. A kicked user (mentor or RPO) surfaces in the global RPO lobby (`BuildRpoLobby` +
+`TrainingRoomManager.IsCidKickedFromAnyRoom`) so the instructor who kicked them can pull them back.
+
 ## `TrainingRoomManager` — registry (`Simulation/TrainingRoomManager.cs`)
 
 All registry mutations are under one `_lock` (`:8`) guarding a triple index: `_rooms` (roomId → room), `_clientRooms`
