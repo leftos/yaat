@@ -7,7 +7,8 @@ namespace Yaat.Sim.Tests;
 /// Covers the four documented CRC FPE altitude forms: NNN, VFR, OTP, VFR/NNN, OTP/NNN.
 /// CRC's editor regex permits B and A characters but the documented grammar does not include
 /// block (B-prefix) or above (A-prefix) input — those forms are populated server-side (QZ) or by
-/// scenario data, not user-typed in the FPE. OTP is VFR rules with a VFR-on-top altitude notation.
+/// scenario data, not user-typed in the FPE. VFR-on-top is an IFR flight (AIM 4-4-8), so OTP maps to
+/// IFR rules with a VFR-on-top altitude notation; only plain VFR maps to VFR rules.
 /// </summary>
 public class FlightPlanAltitudeTests
 {
@@ -58,11 +59,12 @@ public class FlightPlanAltitudeTests
     }
 
     [Fact]
-    public void Parse_Otp_ReturnsVfrRulesVfrOnTopNotation()
+    public void Parse_Otp_ReturnsIfrRulesVfrOnTopNotation()
     {
         var result = FlightPlanAltitude.Parse("OTP");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.Rules);
+        // VFR-on-top is an IFR flight (AIM 4-4-8); the "VFR" is only in the altitude notation.
+        Assert.Equal("IFR", result.Value.Rules);
         Assert.True(result.Value.Altitude.IsVfrOnTop);
         Assert.Null(result.Value.Altitude.CruiseFeet);
     }
@@ -81,7 +83,7 @@ public class FlightPlanAltitudeTests
     {
         var result = FlightPlanAltitude.Parse("OTP/120");
         Assert.NotNull(result);
-        Assert.Equal("VFR", result.Value.Rules);
+        Assert.Equal("IFR", result.Value.Rules);
         Assert.Equal(PlannedAltitude.Otp(12000), result.Value.Altitude);
     }
 

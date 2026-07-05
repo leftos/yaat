@@ -38,7 +38,4 @@ public sealed record PlannedAltitude(int? CruiseFeet, int? BlockFloorFeet, bool 
 
     /// <summary>True when this is a plain single altitude (no block/VFR/OTP/above flags).</summary>
     public bool IsSingle => (CruiseFeet is not null) && (BlockFloorFeet is null) && !IsVfr && !IsVfrOnTop && !IsAbove;
-
-    /// <summary>True when the notation implies VFR operation (VFR or VFR-on-top) — for "is this a VFR plan" readers.</summary>
-    public bool IsVfrRules => IsVfr || IsVfrOnTop;
 }

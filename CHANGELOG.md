@@ -14,6 +14,7 @@
 - ERAM (Center) data blocks now flash on a short-term conflict alert, and a controller on a Center position receives the conflict-alert list, when two tracked aircraft are predicted to lose separation within the next four minutes — using the en-route standard (5 miles laterally, or 3 miles at or below FL230, and 1,000 feet vertically) and taking each aircraft's assigned/interim data-block altitude into account. Alerts are scoped to your own ERAM facility. Previously ERAM published no conflict alerts at all, so its data blocks never flashed.
 - An ERAM interim, procedure, or local-interim altitude entered with `QQ` now shows at the correct flight level in CRC. The value was stored in feet instead of hundreds of feet, so `QQ 150` rendered as a nonsensical altitude on the data block.
 - Removing an aircraft that was in a conflict alert now clears that alert from every CRC controller in the room, not just one of them. In a room with multiple controllers the alert could otherwise linger on the others' STARS/ERAM displays until they reconnected.
+- ERAM `QZ` now accepts a block altitude in the `<floor>B<ceiling>` form (hundreds of feet, e.g. `QZ 200B250` for a FL200–FL250 block), shown as `200B250` on the aircraft's data block. The floor must be below the ceiling. Previously only a single assigned altitude could be entered and the block form was rejected as a format error.
 
 ## v0.8.10-beta [2026/07/03]
 

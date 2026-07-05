@@ -15,7 +15,8 @@ public static class FlightPlanAltitude
 {
     /// <summary>
     /// Parses the altitude text into the flight <c>Rules</c> ("IFR"/"VFR") and the filed
-    /// <see cref="PlannedAltitude"/> notation (feet). OTP is VFR rules with VFR-on-top notation.
+    /// <see cref="PlannedAltitude"/> notation (feet). VFR-on-top is an IFR flight (AIM 4-4-8), so
+    /// OTP maps to IFR rules with a VFR-on-top notation; only plain VFR maps to VFR rules.
     /// Empty input is treated as VFR with no altitude (matches YAAT's FPE convention). Returns
     /// null when the text doesn't match any of the four documented single/VFR/OTP forms.
     /// </summary>
@@ -28,7 +29,7 @@ public static class FlightPlanAltitude
         }
         if (text == "OTP")
         {
-            return ("VFR", PlannedAltitude.Otp(null));
+            return ("IFR", PlannedAltitude.Otp(null));
         }
         if (text.StartsWith("VFR/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out var vfrAlt))
         {
@@ -36,7 +37,7 @@ public static class FlightPlanAltitude
         }
         if (text.StartsWith("OTP/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out var otpAlt))
         {
-            return ("VFR", PlannedAltitude.Otp(otpAlt * 100));
+            return ("IFR", PlannedAltitude.Otp(otpAlt * 100));
         }
         if (int.TryParse(text, out var alt))
         {

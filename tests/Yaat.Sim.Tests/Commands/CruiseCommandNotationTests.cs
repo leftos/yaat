@@ -37,7 +37,7 @@ public class CruiseCommandNotationTests
     [Fact]
     public void HandleCruise_OtpAircraft_KeepsVfrOnTopNotation()
     {
-        var ac = Aircraft("VFR", PlannedAltitude.Otp(5500));
+        var ac = Aircraft("IFR", PlannedAltitude.Otp(5500));
         TrackEngine.HandleCruise(ac, 120);
         Assert.Equal(PlannedAltitude.Otp(12000), ac.FlightPlan.Altitude);
         Assert.True(ac.FlightPlan.Altitude.IsVfrOnTop);
