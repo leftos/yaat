@@ -98,7 +98,9 @@ public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
             _ => suffix,
         };
 
-        return $"{opposite}{oppSuffix}";
+        // Normalize so the inferred opposite is zero-padded like every other stored end
+        // (e.g. opposite of "19" is "01", not "1"); an unpadded end is unmatchable by Contains.
+        return Normalize($"{opposite}{oppSuffix}");
     }
 
     /// <summary>

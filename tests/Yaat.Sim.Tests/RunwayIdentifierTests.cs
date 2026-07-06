@@ -28,12 +28,36 @@ public class RunwayIdentifierTests
     [InlineData("1", "01", "19")]
     [InlineData("10C", "10C", "28C")]
     [InlineData("12R", "12R", "30L")]
+    // Inferred opposites in the 01-09 range must be zero-padded like every other stored end
+    // (KDCA 01/19, KSAN 09/27, etc.). Constructed from the high end, the opposite is single-digit
+    // and must still be normalized to two digits.
+    [InlineData("19", "19", "01")]
+    [InlineData("27", "27", "09")]
+    [InlineData("19L", "19L", "01R")]
+    [InlineData("26L", "26L", "08R")]
     public void SingleEndConstructor_InfersOpposite(string designator, string expectedEnd1, string expectedOpposite)
     {
         var id = new RunwayIdentifier(designator);
 
         Assert.Equal(expectedEnd1, id.End1);
         Assert.Equal(expectedOpposite, id.End2);
+    }
+
+    [Theory]
+    [InlineData("19")]
+    [InlineData("27L")]
+    [InlineData("21C")]
+    public void SingleEndConstructor_OppositeEndIsMatchableByContains(string highEnd)
+    {
+        // The inferred opposite end must be matchable by Contains in both padded and FAA
+        // (leading-zero-stripped) spellings — the same contract Contains_SingleDigit_MatchesTwoDigit
+        // asserts for the primary end. Ground pathfinding and CROSS/hold-short matching rely on it.
+        var id = new RunwayIdentifier(highEnd);
+        var oppositePadded = id.End2; // e.g. "01", "09L", "03C"
+        var oppositeFaa = RunwayIdentifier.ToDisplayDesignator(oppositePadded); // e.g. "1", "9L", "3C"
+
+        Assert.True(id.Contains(oppositePadded), $"Contains('{oppositePadded}') should match stored End2");
+        Assert.True(id.Contains(oppositeFaa), $"Contains('{oppositeFaa}') should match stored End2");
     }
 
     [Theory]
