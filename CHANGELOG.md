@@ -5,6 +5,7 @@
 ### Fixed
 - A CRC controller on an ERAM (Center) position can now create Continuous Range Readout (CRR) groups with the `LF` command — anchored to a fix, FRD, lat/long, or a clicked location — and each grouped aircraft's full data block shows a Range Data Block with the live distance to the group. The CRR view's color menu and clear/delete round-trips work too. Previously `LF` was rejected and the CRR group topic was never published.
 - ERAM (Center) scopes now show a Conflict Data Block (CDB) for an uncorrelated Mode-C intruder — a squawking, untracked target with no flight plan — when it is predicted to lose separation with one of your tracked aircraft: the intruder renders as a `TFC` block with its beacon code and reported altitude, and your tracked aircraft's data block flashes. Previously an uncorrelated intruder never triggered a conflict indication.
+- A CRC controller on an ERAM (Center) position can no longer amend the flight data of a track owned by another sector: `QZ` (assigned altitude), `QQ` (interim altitude), `QU` (route direct), and `AM` (flight-plan amendment) now reject `NOT YOUR TRACK` unless you own the track. Override the same-facility check with `/OK` on `QU` or `/TT`/`///` on `QQ`; `QZ` and `AM` have no override, so take the track first (`QT`). An untracked target stays freely editable. Previously any sector could rewrite any track's altitude, route, or flight plan.
 
 ## v0.9.0-beta [2026/07/05]
 
