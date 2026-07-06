@@ -2026,12 +2026,18 @@ public static class CommandDispatcher
     {
         var navDb = NavigationDatabase.Instance;
 
-        // Treat empty strings (VFR local traffic with no flight plan) the same as null.
-        // Fall back to the ground layout airport ID so CTO works for aircraft with no departure/destination.
+        // An aircraft physically on the ground departs/taxis on the airport its wheels are on —
+        // never on a filed destination. Prefer the physical/operational airport (mirrors
+        // SimulationEngine.ResolveGroundLayout) before the flight-plan fields, so a VFR plan filed
+        // with only a destination (e.g. KAPC while parked at OAK) does not send the runway lookup to
+        // the wrong airport and reject CTO/RWY/TAXI-to-runway. Empty strings are treated as null.
         var airportId =
-            !string.IsNullOrEmpty(aircraft.FlightPlan.Departure) ? aircraft.FlightPlan.Departure
-            : !string.IsNullOrEmpty(aircraft.FlightPlan.Destination) ? aircraft.FlightPlan.Destination
-            : aircraft.Ground.Layout?.AirportId;
+            aircraft.Phases?.AssignedRunway?.AirportId is { Length: > 0 } assignedApt ? assignedApt
+            : aircraft.AirportId is { Length: > 0 } operatingApt ? operatingApt
+            : aircraft.Ground.Layout?.AirportId is { Length: > 0 } layoutApt ? layoutApt
+            : aircraft.FlightPlan.Departure is { Length: > 0 } dep ? dep
+            : aircraft.FlightPlan.Destination is { Length: > 0 } dest ? dest
+            : null;
 
         if (airportId is null)
         {

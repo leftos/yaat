@@ -310,6 +310,12 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   restrictions. **Footgun:** `OverlaySidRestrictions` must read the persistent `Procedure.DepartureRunway`, not `Phases.AssignedRunway` — a `CVIA`
   issued mid-`InitialClimbPhase` ClearsPhase, so the dispatcher nulls `aircraft.Phases` before `DispatchClimbVia` runs (`AssignedRunway` gone), but
   the DCT-loaded `NavigationRoute` survives.
+- **Runway lookups key off the physical/operational airport, not filed flight-plan fields.** `CommandDispatcher.ResolveRunway` (used by `RWY`,
+  `TAXI … <rwy>`, and the CTO/LUAW hold-short resolution) derives the airport in physical-first order — `Phases.AssignedRunway.AirportId` →
+  `AircraftState.AirportId` → `Ground.Layout.AirportId` → `FlightPlan.Departure` → `FlightPlan.Destination` (last resort). An aircraft on the
+  ground departs on the airport its wheels are on, never on a filed destination; this mirrors `SimulationEngine.ResolveGroundLayout`. **Footgun:** do
+  not reorder the flight-plan fields ahead of the physical airport — a VFR plan filed with only a destination (e.g. KAPC while parked at OAK) would
+  then send every runway lookup to the wrong airport and reject `CTO`/`RWY`/`TAXI`-to-runway (`VfrDestinationOnlyRunwayResolutionTests`).
 - **Runway *identity* stays zero-padded everywhere; de-pad only at display.** FAA drops the leading zero ("8R", "9") but the sim keys identity on
   the padded canonical ("08R", "09"). `RunwayIdentifier.NormalizeDesignator` pads (identity); `ToDisplayDesignator` strips (display; token-aware —
   handles "26L/08R", "RWY 08R", comma-joined queue text). Keep padded in `RunwayInfo.Designator`, `ClearedRunwayId`, command args, wire DTOs, and
