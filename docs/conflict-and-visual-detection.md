@@ -141,6 +141,25 @@ conflict" trigger, then each subscriber recomputes its own gated status. **Known
 event-driven (new/cleared), a handoff of an aircraft *mid-conflict* does not re-attribute the RDB flash to the newly
 owning facility until the conflict re-forms; the FDB path (per-tick) is unaffected.
 
+### Controlled-vs-uncontrolled (Mode-C intruder → CDB)
+
+The detector pairs any two eligible targets regardless of tracking, so `ProcessEramConflictAlerts` classifies each
+pair by ownership/correlation to fill `EramActiveConflict.IntruderCallsign`:
+
+- **Both untracked** (`Track.Owner == null` on both) → dropped: a conflict alert protects a *controlled* aircraft
+  (7110.65 §2-1-6, §5-13-1) and the §377 gate has no owned target to attach to.
+- **One side untracked *and* uncorrelated** (no owner **and** `FlightPlan.HasFlightPlan == false`) → that side is the
+  **Mode-C intruder**. The tracked side's FDB status becomes `ControlledUncontrolled` (flashes) and the intruder's
+  data-block `Format` becomes `Cdb` — a callsign-less `TFC`+beacon block (docs/crc/eram.md §844-852), *replacing* its
+  limited data block rather than adding a second one.
+- **Otherwise** (both tracked, or the unowned side still has a filed flight plan) → a normal `ControlledControlled`
+  STCA; a correlated-but-unowned target flashes an ordinary data block, not a CDB.
+
+The classification is bundled per subscriber into `EramConflictRoles` (ControlledControlled / ControlledUncontrolled /
+Intruders sets, §377-gated) and consumed by `DtoConverter.ToEramDataBlock`. The intruder's CDB renders entirely from
+its existing `EramTarget` fields (beacon, Mode-C altitude, vertical rate) — no new target data. YAAT models no
+controller altitude filter, so the 1000 ft vertical envelope bounds intruder relevance instead (§5-13-5 simplification).
+
 ---
 
 ## Ground conflict detection — `GroundConflictDetector`

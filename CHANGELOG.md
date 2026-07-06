@@ -4,6 +4,7 @@
 
 ### Fixed
 - A CRC controller on an ERAM (Center) position can now create Continuous Range Readout (CRR) groups with the `LF` command — anchored to a fix, FRD, lat/long, or a clicked location — and each grouped aircraft's full data block shows a Range Data Block with the live distance to the group. The CRR view's color menu and clear/delete round-trips work too. Previously `LF` was rejected and the CRR group topic was never published.
+- ERAM (Center) scopes now show a Conflict Data Block (CDB) for an uncorrelated Mode-C intruder — a squawking, untracked target with no flight plan — when it is predicted to lose separation with one of your tracked aircraft: the intruder renders as a `TFC` block with its beacon code and reported altitude, and your tracked aircraft's data block flashes. Previously an uncorrelated intruder never triggered a conflict indication.
 
 ## v0.9.0-beta [2026/07/05]
 

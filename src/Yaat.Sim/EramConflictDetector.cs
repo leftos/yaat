@@ -8,9 +8,10 @@ namespace Yaat.Sim;
 /// than a point. No approach-corridor suppression. The §377 facility gate is applied downstream per
 /// subscriber, not here — this pass produces the facility-agnostic room-wide set.
 ///
-/// Correlated-only: like the terminal detector, both targets must be associated (Mode C, supported). The
-/// uncorrelated Mode-C-intruder path (§377 only requires one owned target, so a tracked-vs-intruder pair is
-/// a real ERAM alert) is a known false-negative gap deferred with the CDB / uncorrelated-target work.
+/// Both targets must be associated (Mode C, supported) — but not necessarily tracked. An untracked Mode-C
+/// target (<c>Track.Owner == null</c>) is eligible and pairs with a tracked one, producing the
+/// controlled-vs-uncontrolled (Mode-C-intruder) alert; the tracked/untracked classification is applied
+/// downstream (<see cref="EramActiveConflict.IntruderCallsign"/>) where ownership is known, not here.
 /// </summary>
 public static class EramConflictDetector
 {
