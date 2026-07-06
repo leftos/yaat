@@ -263,6 +263,30 @@ public class RtisSoftFailLookingTests
         Assert.Empty(ownship.PendingObservations);
     }
 
+    [Fact]
+    public void Rtisf_Bare_WhileRtisPending_FoldsInPendingTarget()
+    {
+        // RTIS soft-fails (target behind) → pending observation, no stored callsign. A
+        // bare RTISF must fold in that pending target and supersede the observation, so a
+        // subsequent bare FOLLOW/FOLLOWF has a callsign to resolve.
+        var ownship = MakeAircraft(37.75, AptLon, heading: 0, altitude: 3000, callsign: "OWN1");
+        var lead = MakeAircraft(37.70, AptLon, heading: 0, altitude: 3000, callsign: "LEAD");
+        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+
+        var rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        Assert.True(rtis.Success);
+        Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
+        Assert.Single(ownship.PendingObservations);
+
+        // Bare RTISF — no explicit callsign.
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightForcedCommand(null), ownship, ctx);
+
+        Assert.True(result.Success);
+        Assert.True(ownship.Approach.HasReportedTrafficInSight);
+        Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
+        Assert.Empty(ownship.PendingObservations);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

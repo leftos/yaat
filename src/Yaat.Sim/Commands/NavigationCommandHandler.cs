@@ -1761,6 +1761,14 @@ internal static class NavigationCommandHandler
         {
             aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
         }
+        else if (aircraft.PendingObservations.OfType<TrafficAcquisitionObservation>().FirstOrDefault() is { } pending)
+        {
+            // Bare RTISF folds in a still-pending RTIS target (same rationale as bare FOLLOWF):
+            // the target callsign lives only in PendingObservations until acquisition succeeds.
+            // RTISF supersedes that look-for-traffic, so consume and clear the observation.
+            aircraft.Approach.LastReportedTrafficCallsign = pending.TargetCallsign.ToUpperInvariant();
+            aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
+        }
         Pilot.PilotResponder.RouteRpoSayReadback(
             aircraft,
             ctx.SoloTrainingMode,

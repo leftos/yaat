@@ -114,6 +114,30 @@ public class FollowImpliedCallsignTests : IDisposable
         Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
     }
 
+    [Fact]
+    public void BareFollowF_WhileRtisPending_TargetsPendingTraffic()
+    {
+        // RTIS soft-fails (target behind the south-bound ownship → not visually acquirable),
+        // leaving a pending TrafficAcquisitionObservation but no stored callsign. A bare
+        // FOLLOWF (force) must fold in that pending traffic instead of rejecting.
+        var ownship = MakeVfrOwnship(); // heading 180 (south)
+        var lead = MakeLeader("LEAD", lat: 37.80); // north of ownship → behind
+        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+
+        var rtis = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+        Assert.True(rtis.Success, $"RTIS soft-fail setup failed: {rtis.Message}");
+        Assert.False(ownship.Approach.HasReportedTrafficInSight);
+        Assert.Null(ownship.Approach.LastReportedTrafficCallsign);
+        Assert.Single(ownship.PendingObservations);
+
+        // Bare FOLLOWF — no explicit callsign, force = true.
+        var follow = CommandDispatcher.Dispatch(new FollowCommand(null, true), ownship, ctx);
+
+        Assert.True(follow.Success, $"Expected bare FOLLOWF to fold in the pending RTIS but got: {follow.Message}");
+        Assert.Equal("LEAD", ownship.Approach.FollowingCallsign);
+        Assert.Empty(ownship.PendingObservations); // pending look-for-traffic superseded
+    }
+
     // -------------------------------------------------------------------------
     // Override
     // -------------------------------------------------------------------------

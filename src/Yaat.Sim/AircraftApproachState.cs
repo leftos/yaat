@@ -26,6 +26,9 @@ public class AircraftApproachState
     /// Callsign of the most recently acquired traffic (RTIS or RTISF). A bare
     /// FOLLOW with no explicit argument defaults to this value; a second RTIS/RTISF
     /// for different traffic replaces it. Null until the first successful report.
+    /// A bare forced verb (FOLLOWF/RTISF) with no typed callsign also populates this
+    /// from a still-pending RTIS (<see cref="TrafficAcquisitionObservation"/>), so a
+    /// called-but-not-yet-acquired target can be followed without re-typing it.
     /// </summary>
     public string? LastReportedTrafficCallsign { get; set; }
 

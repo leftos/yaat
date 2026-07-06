@@ -36,7 +36,10 @@ These four hook in at four different points:
 - **Visual acquisition (field & FOLLOW traffic)** — **PostPhysics**, server-side: the field-acquisition block in
   `TickProcessor` (`~:1232–1360`). Plus a per-aircraft re-check inside the physics step via
   `PilotObservationUpdater.Update` (step 10 of `FlightPhysics.Update`, runs after `UpdateCommandQueue`) for pending
-  `TrafficAcquisitionObservation` / `FieldAcquisitionObservation` queued by RTIS/RFIS.
+  `TrafficAcquisitionObservation` / `FieldAcquisitionObservation` queued by RTIS/RFIS. A bare forced verb
+  (`FOLLOWF`/`RTISF`) with no typed callsign consumes that still-pending `TrafficAcquisitionObservation` as its target
+  and clears it — the force declares the traffic acquired, so the "still looking" state is superseded rather than
+  waiting for a later acquisition.
 - **ATPA** — **not in the tick at all**. It is computed during the CRC broadcast pass:
   `CrcBroadcastService.ComputeAtpaResults` (`CrcBroadcastService.cs:1255`) calls `AtpaProcessor.Process` against the
   current snapshot each broadcast. It is display-cadence work, not physics.

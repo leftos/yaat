@@ -2796,6 +2796,15 @@ public static class CommandDispatcher
             {
                 aircraft.Approach.LastReportedTrafficCallsign = follow.TargetCallsign.ToUpperInvariant();
             }
+            else if (aircraft.PendingObservations.OfType<TrafficAcquisitionObservation>().FirstOrDefault() is { } pending)
+            {
+                // Bare FOLLOWF folds in a still-pending RTIS: the traffic the RPO called out but the
+                // pilot hasn't visually acquired yet lives only in PendingObservations
+                // (LastReportedTrafficCallsign isn't set until acquisition succeeds). FOLLOWF
+                // supersedes that look-for-traffic, so consume and clear the observation.
+                aircraft.Approach.LastReportedTrafficCallsign = pending.TargetCallsign.ToUpperInvariant();
+                aircraft.PendingObservations.RemoveAll(o => o is TrafficAcquisitionObservation);
+            }
         }
 
         // RTIS gate: a pilot cannot follow traffic they haven't visually acquired.
