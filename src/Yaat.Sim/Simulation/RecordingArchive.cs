@@ -7,7 +7,7 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Simulation;
 
 /// <summary>
-/// Reader for v3 recording archives. Reads the manifest eagerly on construction;
+/// Reader for v4 recording archives. Reads the manifest eagerly on construction;
 /// scenario, actions, weather, and individual snapshots are loaded on demand.
 /// Holds the underlying <see cref="ZipArchive"/> open until disposed.
 /// </summary>
@@ -108,6 +108,23 @@ public sealed class RecordingArchive : IDisposable
         var json = ReadBrotliEntry("actions.json.br");
         return JsonSerializer.Deserialize<List<RecordedAction>>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize actions from recording archive.");
+    }
+
+    /// <summary>
+    /// Reads the room's broadcast terminal log (<c>terminal-log.json.br</c>) — commands, responses,
+    /// SAY, warnings, and chat with per-line elapsed times. Returns an empty list for archives written
+    /// before the terminal-log feature (manifest flag false or entry absent).
+    /// </summary>
+    public List<RecordedTerminalEntry> ReadTerminalLog()
+    {
+        if (!Manifest.HasTerminalLog)
+        {
+            return [];
+        }
+
+        var json = ReadBrotliEntry("terminal-log.json.br");
+        return JsonSerializer.Deserialize<List<RecordedTerminalEntry>>(json, RecordingJsonOptions.Default)
+            ?? throw new InvalidOperationException("Failed to deserialize terminal log from recording archive.");
     }
 
     /// <summary>
@@ -335,6 +352,7 @@ public sealed class RecordingArchive : IDisposable
             MetarReissuanceEnabled = Manifest.MetarReissuanceEnabled,
             ArtccConfigJson = ReadArtccConfigJson(),
             Actions = actions,
+            TerminalLog = ReadTerminalLog(),
             TotalElapsedSeconds = Manifest.TotalElapsedSeconds,
             Snapshots = null,
             ScenarioName = Manifest.ScenarioName,
@@ -416,6 +434,7 @@ public sealed class RecordingArchive : IDisposable
             MetarReissuanceEnabled = Manifest.MetarReissuanceEnabled,
             ArtccConfigJson = ReadArtccConfigJson(),
             Actions = actions,
+            TerminalLog = ReadTerminalLog(),
             TotalElapsedSeconds = Manifest.TotalElapsedSeconds,
             Snapshots = snapshots,
             ScenarioName = Manifest.ScenarioName,
@@ -542,7 +561,7 @@ public sealed class RecordingArchive : IDisposable
     {
         var entry =
             _zip.GetEntry("manifest.json")
-            ?? throw new InvalidOperationException("Recording archive does not contain manifest.json — not a v3 archive.");
+            ?? throw new InvalidOperationException("Recording archive does not contain manifest.json — not a valid recording archive.");
         var json = ReadUtf8Entry(entry);
         return JsonSerializer.Deserialize<RecordingManifest>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException("Failed to deserialize manifest.json from recording archive.");

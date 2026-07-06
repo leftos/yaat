@@ -12,6 +12,7 @@ namespace Yaat.Sim.Simulation;
 [JsonDerivedType(typeof(RecordedSaidMutation), "SaidMutation")]
 [JsonDerivedType(typeof(RecordedArrivalGeneratorsChange), "ArrivalGeneratorsChange")]
 [JsonDerivedType(typeof(RecordedAircraftSpawn), "AircraftSpawn")]
+[JsonDerivedType(typeof(RecordedChat), "Chat")]
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
@@ -32,6 +33,13 @@ public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, str
     /// </summary>
     public int? SpawnJitterSeconds { get; init; }
 }
+
+/// <summary>
+/// A controller/RPO chat message sent to the training room. Chat has no simulation-state effect,
+/// so replay/reconstruction ignores it; it is recorded so exported bundles carry the chat log and
+/// forward tape-playback can re-surface it in the terminal.
+/// </summary>
+public sealed record RecordedChat(double ElapsedSeconds, string Initials, string Message) : RecordedAction(ElapsedSeconds);
 
 public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment) : RecordedAction(ElapsedSeconds);
 

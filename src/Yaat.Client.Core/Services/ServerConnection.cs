@@ -557,6 +557,17 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<TimelineInfoDto?>("GetTimelineInfo");
     }
 
+    /// <summary>
+    /// Fetches the room's recorded terminal log so the client can repopulate the terminal after
+    /// loading a recording. Empty when no scenario is active or the recording predates terminal-log
+    /// capture.
+    /// </summary>
+    public async Task<List<TerminalBroadcastDto>> GetTerminalLogAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<TerminalBroadcastDto>>("GetTerminalLog");
+    }
+
     public async Task<byte[]?> ExportRecordingAsync(string clientVersion, string clientBuildKind, CancellationToken cancellationToken = default)
     {
         EnsureConnected();
@@ -1113,7 +1124,7 @@ public record RoomMemberChangedDto(string RoomId, List<RoomMemberDto> Members, s
 
 public record UnloadScenarioResultDto(bool RequiresConfirmation, int OtherClientCount, string? Message);
 
-public record TerminalBroadcastDto(string Initials, string Kind, string Callsign, string Message, DateTime Timestamp);
+public record TerminalBroadcastDto(string Initials, string Kind, string Callsign, string Message, DateTime Timestamp, double? ElapsedSeconds);
 
 public record PilotTransmissionBroadcastDto(
     string ScenarioId,

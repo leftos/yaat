@@ -818,9 +818,10 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math (SpeedCeiling) for the generator stream — simulated approach-controller speed equalization; SimulationEngine.ApplyArrivalSpacing drives it
-SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle; StudentPositionState (from snapshot 0) for Sim-side replay restore
-RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, RequestNewBeaconCode, WeatherChange, SettingChange, AircraftSpawn
+SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle; StudentPositionState (from snapshot 0) for Sim-side replay restore; TerminalLog (broadcast terminal stream) for terminal-scrub repopulation
+RecordedAction.cs              # Polymorphic recorded actions: Command, Chat, AmendFlightPlan, RequestNewBeaconCode, WeatherChange, SettingChange, AircraftSpawn
                                # RecordedCommand bakes ReactionDelaySeconds + SpawnJitterSeconds (nullable) for replay determinism
+RecordedTerminalEntry.cs       # One broadcast terminal line (kind/callsign/message) with wall-clock Timestamp + scenario-elapsed ElapsedSeconds; persisted as terminal-log.json.br so a loaded recording repopulates the terminal and each line scrubs the replay
 RecordedCommandClassifier.cs   # Shared replay-time RecordedCommand classifier. RecordedCommandKind enum + Classify(string)
                                # static fn. Drives the switch in both SimulationEngine.ReplayCommand and the server's
                                # RecordingManager.ReplayCommand so the parse-and-decide flow stays in lockstep across repos.

@@ -121,6 +121,12 @@ public sealed class SimScenarioState
     // Scenario metadata
     public string? InitialWeatherJson { get; set; }
     public List<RecordedAction> ActionLog { get; } = [];
+
+    // The room's broadcast terminal stream (commands, responses, SAY, warnings, chat, …) with each
+    // entry's scenario-elapsed time. Persisted into the recording so a loaded recording repopulates
+    // the full terminal faithfully and every line is a replay-scrub target. Appended only while live
+    // (not during playback/reconstruction) so it captures the original session exactly once.
+    public List<RecordedTerminalEntry> TerminalLog { get; } = [];
     public bool IsPlaybackMode { get; set; }
     public int PlaybackCursor { get; set; }
     public double PlaybackEndSeconds { get; set; }

@@ -32,6 +32,13 @@
                         Spacing="2"
                         VerticalAlignment="Center"
                         Margin="0,0,6,0">
+                <Button x:Name="TimestampModeButton"
+                        Content="{Binding TerminalTimestampModeLabel}"
+                        Command="{Binding CycleTerminalTimestampModeCommand}"
+                        FontSize="10"
+                        Padding="4,1"
+                        Foreground="{DynamicResource SubtleTextBrush}"
+                        ToolTip.Tip="Timestamp shown per line. Click to cycle: wall-clock / sim-elapsed / both." />
                 <ToggleButton x:Name="CmdToggle"
                               IsChecked="{Binding ShowCommandEntries}"
                               Content="CMD"

@@ -1,5 +1,21 @@
 namespace Yaat.Client.Models;
 
+/// <summary>
+/// Which timestamp the terminal shows on each line. Cycled via the terminal header button and
+/// persisted in <c>UserPreferences</c>.
+/// </summary>
+public enum TerminalTimestampMode
+{
+    /// <summary>Real-world clock time (HH:mm:ss) — the original display.</summary>
+    WallClock,
+
+    /// <summary>Scenario-elapsed time (m:ss) — the value used to scrub the replay.</summary>
+    SimElapsed,
+
+    /// <summary>Both, wall-clock followed by scenario-elapsed in brackets.</summary>
+    Both,
+}
+
 public enum TerminalEntryKind
 {
     Command,
@@ -36,6 +52,13 @@ public enum TerminalEntryKind
 public sealed class TerminalEntry
 {
     public required DateTime Timestamp { get; init; }
+
+    /// <summary>
+    /// Scenario-elapsed seconds when this entry occurred, or null when there is no sim-time
+    /// (e.g. a system message emitted before a scenario is active). Used to scrub the replay
+    /// timeline to the moment the entry happened; null entries are not scrub targets.
+    /// </summary>
+    public required double? ElapsedSeconds { get; init; }
     public required string Initials { get; init; }
     public required TerminalEntryKind Kind { get; init; }
     public required string Callsign { get; init; }

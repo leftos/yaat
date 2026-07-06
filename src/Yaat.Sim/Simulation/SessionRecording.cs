@@ -38,6 +38,13 @@ public sealed class SessionRecording
     public bool FinalApproachSpeedVarietyEnabled { get; init; }
 
     public required List<RecordedAction> Actions { get; init; }
+
+    /// <summary>
+    /// The room's broadcast terminal log (commands, responses, SAY, warnings, chat) with per-line
+    /// elapsed times. Bundled as <c>terminal-log.json.br</c> so a loaded recording repopulates the
+    /// full terminal and every line can scrub the replay. Empty for pre-feature bundles.
+    /// </summary>
+    public IReadOnlyList<RecordedTerminalEntry> TerminalLog { get; init; } = [];
     public required double TotalElapsedSeconds { get; init; }
 
     /// <summary>

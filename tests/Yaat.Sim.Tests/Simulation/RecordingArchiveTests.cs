@@ -832,6 +832,91 @@ public class RecordingArchiveTests
         Assert.Empty(archive.ReadBookmarks());
     }
 
+    [Fact]
+    public void WriteToBytes_TerminalLog_RoundTrips()
+    {
+        var basis = CreateTestRecording(snapshotCount: 1);
+        var recording = new SessionRecording
+        {
+            Version = basis.Version,
+            ScenarioJson = basis.ScenarioJson,
+            RngSeed = basis.RngSeed,
+            WeatherJson = basis.WeatherJson,
+            Actions = [.. basis.Actions, new RecordedChat(5.0, "LF", "traffic is your three o'clock")],
+            TerminalLog =
+            [
+                new RecordedTerminalEntry(0.0, new DateTime(2026, 3, 21, 12, 0, 0, DateTimeKind.Utc), "LF", "Command", "AAL100", "H270"),
+                new RecordedTerminalEntry(
+                    5.0,
+                    new DateTime(2026, 3, 21, 12, 0, 5, DateTimeKind.Utc),
+                    "LF",
+                    "Chat",
+                    "",
+                    "traffic is your three o'clock"
+                ),
+            ],
+            TotalElapsedSeconds = basis.TotalElapsedSeconds,
+            Snapshots = basis.Snapshots,
+            ScenarioName = basis.ScenarioName,
+            ScenarioId = basis.ScenarioId,
+            ArtccId = basis.ArtccId,
+            RecordedAtUtc = basis.RecordedAtUtc,
+            RecordedBy = basis.RecordedBy,
+        };
+
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        Assert.True(archive.Manifest.HasTerminalLog);
+        var log = archive.ReadTerminalLog();
+        Assert.Equal(2, log.Count);
+        Assert.Equal("Command", log[0].Kind);
+        Assert.Equal(0.0, log[0].ElapsedSeconds);
+        Assert.Equal("H270", log[0].Message);
+        Assert.Equal("Chat", log[1].Kind);
+        Assert.Equal(5.0, log[1].ElapsedSeconds);
+
+        // Chat also survives as a first-class action (bug-bundle tooling / forward-playback echo).
+        var chat = Assert.Single(archive.ReadActions().OfType<RecordedChat>());
+        Assert.Equal("traffic is your three o'clock", chat.Message);
+
+        // The materialized session recording carries the terminal log through.
+        Assert.Equal(2, archive.ToBaseSessionRecording().TerminalLog.Count);
+    }
+
+    [Fact]
+    public void NoTerminalLog_ReadTerminalLog_ReturnsEmptyAndFlagFalse()
+    {
+        var recording = CreateTestRecording(snapshotCount: 1);
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        Assert.False(archive.Manifest.HasTerminalLog);
+        Assert.Empty(archive.ReadTerminalLog());
+    }
+
+    [Fact]
+    public void OldBundleManifest_WithoutHasTerminalLog_DeserializesAsFalse()
+    {
+        var oldStyleManifest = """
+            {
+              "Version": 4,
+              "RngSeed": 42,
+              "TotalElapsedSeconds": 0,
+              "ActionCount": 0,
+              "HasWeather": false,
+              "Snapshots": []
+            }
+            """;
+        var manifest = JsonSerializer.Deserialize<RecordingManifest>(oldStyleManifest, RecordingJsonOptions.Default);
+        Assert.NotNull(manifest);
+        Assert.False(manifest!.HasTerminalLog);
+    }
+
     private static StateSnapshotDto CreateSnapshotWithAircraft(double elapsed, string callsign, string aircraftType)
     {
         var snapshot = CreateMinimalSnapshot(elapsed);

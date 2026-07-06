@@ -869,6 +869,38 @@ public partial class MainViewModel : ObservableObject
     public event Action? TerminalFilterChanged;
 
     /// <summary>
+    /// Which timestamp the terminal shows per line (wall-clock / sim-elapsed / both). Cycled via the
+    /// terminal header button; persisted. A change rebuilds the document via <see cref="TerminalFilterChanged"/>.
+    /// </summary>
+    [ObservableProperty]
+    private Models.TerminalTimestampMode _terminalTimestampMode = Models.TerminalTimestampMode.WallClock;
+
+    partial void OnTerminalTimestampModeChanged(Models.TerminalTimestampMode value)
+    {
+        _preferences.SetTerminalTimestampMode(value);
+        OnPropertyChanged(nameof(TerminalTimestampModeLabel));
+        TerminalFilterChanged?.Invoke();
+    }
+
+    /// <summary>Short label shown on the timestamp-mode toggle button.</summary>
+    public string TerminalTimestampModeLabel =>
+        TerminalTimestampMode switch
+        {
+            Models.TerminalTimestampMode.SimElapsed => "SIM",
+            Models.TerminalTimestampMode.Both => "CLK+SIM",
+            _ => "CLK",
+        };
+
+    [RelayCommand]
+    private void CycleTerminalTimestampMode() =>
+        TerminalTimestampMode = TerminalTimestampMode switch
+        {
+            Models.TerminalTimestampMode.WallClock => Models.TerminalTimestampMode.SimElapsed,
+            Models.TerminalTimestampMode.SimElapsed => Models.TerminalTimestampMode.Both,
+            _ => Models.TerminalTimestampMode.WallClock,
+        };
+
+    /// <summary>
     /// Ephemeral case-insensitive substring filter applied on top of the kind toggles.
     /// Empty string disables the filter. Not persisted.
     /// </summary>
@@ -1256,6 +1288,7 @@ public partial class MainViewModel : ObservableObject
         _showChatEntries = !hidden.Contains(TerminalEntryKind.Chat);
         _showTdlsEntries = !hidden.Contains(TerminalEntryKind.Tdls);
         _showStripEntries = !hidden.Contains(TerminalEntryKind.Strip);
+        _terminalTimestampMode = _preferences.TerminalTimestampMode;
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged, _preferences);
         Ground.ShownAirportChanged += () => OnPropertyChanged(nameof(GroundShownAirportId));
         Ground.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));

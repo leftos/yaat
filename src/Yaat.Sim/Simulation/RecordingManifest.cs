@@ -29,6 +29,15 @@ public sealed class RecordingManifest
     /// </summary>
     public bool HasArtccConfig { get; init; }
 
+    /// <summary>
+    /// True when the archive bundles the room's broadcast terminal log (entry
+    /// <c>terminal-log.json.br</c>) — the commands, responses, SAY, warnings, and chat the user saw,
+    /// each with its scenario-elapsed time. A loaded recording repopulates the full terminal from it,
+    /// making every line a replay-scrub target. Bundles written before this feature deserialize as
+    /// false, and the terminal falls back to the legacy forward-playback command echo.
+    /// </summary>
+    public bool HasTerminalLog { get; init; }
+
     public string? ScenarioName { get; init; }
     public string? ScenarioId { get; init; }
     public string? ArtccId { get; init; }

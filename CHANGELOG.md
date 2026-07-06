@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+- Right-click a terminal line → **Rewind to this moment** scrubs the replay to the scenario-second that command, chat, or SAY happened.
+- The terminal header's timestamp button cycles each line's time display between wall-clock, scenario-elapsed, and both.
+- Loading a recording or bug bundle repopulates the full terminal history — including chat — so every line stays scrubbable.
+
 ### Fixed
 - `CM 020` and other commands whose verb appears inside a live callsign (e.g. `CMD2`) now apply to the selected aircraft instead of failing with "matches multiple aircraft".
 - `CLANDF` (force landing) now works on an aircraft that is going around, cancelling the go-around and bringing it back down onto its assigned runway.

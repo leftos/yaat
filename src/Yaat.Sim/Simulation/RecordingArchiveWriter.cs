@@ -22,6 +22,7 @@ public sealed class RecordingArchiveWriter : IDisposable
     private bool _hasWeather;
     private bool _metarReissuanceEnabled;
     private bool _hasArtccConfig;
+    private bool _hasTerminalLog;
 
     public RecordingArchiveWriter(Stream output)
     {
@@ -67,6 +68,23 @@ public sealed class RecordingArchiveWriter : IDisposable
         _actionCount = actions.Count;
         var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(actions, RecordingJsonOptions.Default);
         WriteBrotliEntry("actions.json.br", jsonBytes);
+    }
+
+    /// <summary>
+    /// Writes the room's broadcast terminal log (commands, responses, SAY, warnings, chat, …) so a
+    /// loaded recording repopulates the full terminal and every line is a replay-scrub target. No-op
+    /// when empty; the manifest flag stays false so older/empty archives read back an empty log.
+    /// </summary>
+    public void WriteTerminalLog(IReadOnlyList<RecordedTerminalEntry> terminalLog)
+    {
+        if (terminalLog.Count == 0)
+        {
+            return;
+        }
+
+        _hasTerminalLog = true;
+        var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(terminalLog, RecordingJsonOptions.Default);
+        WriteBrotliEntry("terminal-log.json.br", jsonBytes);
     }
 
     /// <summary>
@@ -143,6 +161,7 @@ public sealed class RecordingArchiveWriter : IDisposable
             HasWeather = _hasWeather,
             MetarReissuanceEnabled = _metarReissuanceEnabled,
             HasArtccConfig = _hasArtccConfig,
+            HasTerminalLog = _hasTerminalLog,
             ScenarioName = metadata.ScenarioName,
             ScenarioId = metadata.ScenarioId,
             ArtccId = metadata.ArtccId,
@@ -175,6 +194,7 @@ public sealed class RecordingArchiveWriter : IDisposable
             writer.WriteWeather(recording.WeatherJson, recording.MetarReissuanceEnabled);
             writer.WriteArtccConfig(recording.ArtccConfigJson);
             writer.WriteActions(recording.Actions);
+            writer.WriteTerminalLog(recording.TerminalLog);
 
             if (recording.Snapshots is { } snapshots)
             {

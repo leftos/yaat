@@ -22,12 +22,38 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Replaces the terminal with the history captured in a loaded recording, so each line carries the
+    /// sim-elapsed time needed to scrub the replay. Added directly (not via <see cref="AddTerminalEntry"/>)
+    /// to avoid logging every historical line.
+    /// </summary>
+    private void RepopulateTerminalFromRecording(IReadOnlyList<TerminalBroadcastDto> terminalLog)
+    {
+        TerminalEntries.Clear();
+        foreach (var dto in terminalLog)
+        {
+            TerminalEntries.Add(TerminalEntryFromBroadcast(dto));
+        }
+
+        while (TerminalEntries.Count > 2000)
+        {
+            TerminalEntries.RemoveAt(0);
+        }
+    }
+
+    /// <summary>
+    /// Scenario-elapsed seconds to stamp on a client-local terminal entry, or null when no
+    /// scenario is active (so the entry is not a replay-scrub target).
+    /// </summary>
+    private double? CurrentEntryElapsedSeconds => ActiveScenarioName is not null ? ScenarioElapsedSeconds : null;
+
     public void AddSystemEntry(string message)
     {
         AddTerminalEntry(
             new TerminalEntry
             {
                 Timestamp = DateTime.Now,
+                ElapsedSeconds = CurrentEntryElapsedSeconds,
                 Initials = "",
                 Kind = TerminalEntryKind.System,
                 Callsign = "",
@@ -42,6 +68,7 @@ public partial class MainViewModel
             new TerminalEntry
             {
                 Timestamp = DateTime.Now,
+                ElapsedSeconds = CurrentEntryElapsedSeconds,
                 Initials = "",
                 Kind = TerminalEntryKind.Warning,
                 Callsign = "",
@@ -61,6 +88,7 @@ public partial class MainViewModel
             new TerminalEntry
             {
                 Timestamp = DateTime.Now,
+                ElapsedSeconds = CurrentEntryElapsedSeconds,
                 Initials = "",
                 Kind = TerminalEntryKind.Warning,
                 Callsign = callsign,
@@ -70,40 +98,50 @@ public partial class MainViewModel
         MaybeAttachSpeechBubble(TerminalEntryKind.Warning, callsign, message);
     }
 
+    /// <summary>
+    /// Maps a wire <see cref="TerminalBroadcastDto"/> to a client <see cref="TerminalEntry"/>.
+    /// SAY-class verbs (SayPosition, SaySpeed, SayMach, SayAltitude, SayHeading,
+    /// SayExpectedApproach) and the freeform "Say" all collapse into the Say channel; the
+    /// dispatcher uses verb-specific Kind strings so future filters can split them apart, but
+    /// the visible categorization is uniform. Reused for both live broadcasts and recording-load
+    /// terminal repopulation.
+    /// </summary>
+    public static TerminalEntry TerminalEntryFromBroadcast(TerminalBroadcastDto dto)
+    {
+        TerminalEntryKind kind;
+        if (dto.Kind.StartsWith("Say", StringComparison.Ordinal))
+        {
+            kind = TerminalEntryKind.Say;
+        }
+        else if (!Enum.TryParse(dto.Kind, out kind))
+        {
+            kind = TerminalEntryKind.System;
+        }
+
+        return new TerminalEntry
+        {
+            Timestamp = dto.Timestamp.ToLocalTime(),
+            ElapsedSeconds = dto.ElapsedSeconds,
+            Initials = dto.Initials,
+            Kind = kind,
+            Callsign = dto.Callsign,
+            Message = dto.Message,
+        };
+    }
+
     private void OnTerminalEntry(TerminalBroadcastDto dto)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            // SAY-class verbs (SayPosition, SaySpeed, SayMach, SayAltitude, SayHeading,
-            // SayExpectedApproach) and the freeform "Say" all belong in the Say channel;
-            // the dispatcher uses verb-specific Kind strings so future filters can split
-            // them apart, but the visible categorization is uniform.
-            TerminalEntryKind kind;
-            if (dto.Kind.StartsWith("Say", StringComparison.Ordinal))
-            {
-                kind = TerminalEntryKind.Say;
-            }
-            else if (!Enum.TryParse(dto.Kind, out kind))
-            {
-                kind = TerminalEntryKind.System;
-            }
-            AddTerminalEntry(
-                new TerminalEntry
-                {
-                    Timestamp = dto.Timestamp.ToLocalTime(),
-                    Initials = dto.Initials,
-                    Kind = kind,
-                    Callsign = dto.Callsign,
-                    Message = dto.Message,
-                }
-            );
+            var entry = TerminalEntryFromBroadcast(dto);
+            AddTerminalEntry(entry);
 
-            if (kind == TerminalEntryKind.PilotSpeech && _preferences.RpoPilotSpeechAudibleAlert)
+            if (entry.Kind == TerminalEntryKind.PilotSpeech && _preferences.RpoPilotSpeechAudibleAlert)
             {
                 _pilotSpeechAlerts.PlayDing();
             }
 
-            MaybeAttachSpeechBubble(kind, dto.Callsign, dto.Message);
+            MaybeAttachSpeechBubble(entry.Kind, dto.Callsign, dto.Message);
         });
     }
 

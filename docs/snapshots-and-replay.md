@@ -72,11 +72,12 @@ A recording is a ZIP with this layout:
 
 ```
 manifest.json                # Version, RngSeed, ActionCount, HasWeather,
-                             # HasArtccConfig, ArtccId, ScenarioId/Name,
+                             # HasArtccConfig, HasTerminalLog, ArtccId, ScenarioId/Name,
                              # ClientVersion, ClientBuildKind, ServerVersion,
                              # Snapshots[], LayoutAirportIds[], AirportGeoJsonIds[]
 scenario.json.br             # Brotli-compressed scenario JSON
 actions.json.br              # Brotli-compressed RecordedAction[]
+terminal-log.json.br         # Brotli-compressed RecordedTerminalEntry[] (optional; HasTerminalLog)
 snapshots/NNN.json.br        # one per snapshot index
 layouts/{AirportId}.json.br  # deduplicated ground layouts (optional)
 airport-geojson/{AirportId}.geojson.br
@@ -86,6 +87,8 @@ artcc-config.json.br         # ARTCC config JSON (optional; HasArtccConfig)
 bookmarks.json               # plain JSON (optional; user-authored timeline bookmarks)
 ```
 
+**`terminal-log.json.br`** is the room's broadcast terminal stream — the command echoes, responses, SAY lines, warnings, and chat the user saw — each captured with a wall-clock `Timestamp` and the scenario-elapsed `ElapsedSeconds` it occurred at (`RecordedTerminalEntry`). The server appends to `SimScenarioState.TerminalLog` inside `TrainingBroadcastService.BroadcastTerminalEntry` only while live (never during playback/reconstruction), and preserves it across rewind reloads alongside `ActionLog`. On load, the client repopulates its terminal from it (via the `GetTerminalLog` hub method) so every terminal line is a replay-scrub target — right-click a line → `RewindToSeconds(entry.ElapsedSeconds)`. Absent in recordings written before this feature (`HasTerminalLog` false → the reader returns an empty log). For those legacy recordings, `RecordingManager.ApplyPlaybackActions` still echoes each replayed command/chat into the otherwise-empty terminal during forward playback; when a terminal log is present that echo is suppressed (guarded on `TerminalLog.Count == 0`) so it does not duplicate the repopulated lines.
+
 **Version fields** (`ClientVersion`, `ClientBuildKind`, `ServerVersion`) are stamped at export time for bug-report triage. `ClientVersion`/`ClientBuildKind` are sent by the exporting client (`BuildInfo.Version` / `BuildInfo.BuildKind`) and describe the user's build; `ServerVersion` is `SimBuildInfo.Version` — the Yaat.Sim assembly that actually ran the session on the server (Yaat.Server carries no independent version). Since the hosted server and a user's client can be on different builds, the two answer different questions: was the *user's* client behind a fix, vs. was the *sim code that ran* behind a fix. All three are null for recordings exported before this was added or migrated from legacy formats.
 
 **`bookmarks.json`** is a client-only addition: the server-built archive never writes it. The client injects it at save time via `RecordingArchive.WriteBookmarks(bytes, …)` (a copy-into-fresh-`Create` rebuild, not Update mode) from `SaveRecording`/`SaveBugReportBundle`, and reads it back via `RecordingArchive.ReadBookmarks()` in `MainViewModel.LoadRecording`. It is not tracked in the manifest, so it is absent in older recordings — `ReadBookmarks()` returns `[]` then. The server's `RecordingArchive` reader ignores the entry (it only requires `manifest.json` and fetches known entries by name), the same way it tolerates the log entries inside a bug bundle.
@@ -93,6 +96,7 @@ bookmarks.json               # plain JSON (optional; user-authored timeline book
 **`RecordedAction`** is a discriminated union via `[JsonDerivedType]`. The common members are `(ElapsedSeconds, $type)`; concrete types add their fields:
 
 - `RecordedCommand(Callsign, Command, Initials, ConnectionId)` — every user command (including ones rejected at validation; replay is faithful to history).
+- `RecordedChat(Initials, Message)` — a controller/RPO chat message. Has no simulation-state effect, so replay/reconstruction ignores it; recorded so bug-bundle tooling carries the chat log and forward tape-playback can re-surface it in the terminal.
 - `RecordedSettingChange` — sim-control toggles (e.g. `SetValidateDctFixes`). Replay handlers in both repos apply these. **Pattern: any new sim-control toggle should produce one of these so replays stay faithful.**
 - `RecordedAircraftSpawn` — full `AircraftSnapshotDto` for aircraft created by runtime generators. Replay injects this aircraft directly and skips the RNG-driven generator path when spawn actions are present, so generator implementation changes do not rename or re-type historical arrivals.
 - Spawn, preset, and other event-shaped actions.

@@ -541,10 +541,12 @@ public partial class MainViewModel
             }
 
             var bookmarks = TryReadBookmarks(recordingBytes);
+            var terminalLog = await _connection.GetTerminalLogAsync();
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 ApplyRecordingResult(result, bookmarks);
+                RepopulateTerminalFromRecording(terminalLog);
                 StatusText = $"Recording loaded: {result.ScenarioName}";
                 AddSystemEntry($"Recording loaded: {result.ScenarioName}");
             });

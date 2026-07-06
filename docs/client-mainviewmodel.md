@@ -180,6 +180,14 @@ a channel means touching this toggle set plus `IsEntryVisible`, `CurrentVisibleK
 `TerminalColorScheme`/colorizer/Settings color row (the `Strip` channel — strip command echoes + feedback, tagged server-side
 in `RoomEngine.HandleStripCmd` — is the most recent example).
 
+**Terminal scrub + timestamp mode.** Each `TerminalEntry` carries `ElapsedSeconds` (the scenario-elapsed second it
+occurred, stamped server-side into `TerminalBroadcastDto` or from `ScenarioElapsedSeconds` for client-local entries).
+`TerminalPanelView`'s right-click "Rewind to this moment" hit-tests the clicked line back to its entry (via the parallel
+`_lineEntries` list) and calls `RewindToSeconds(entry.ElapsedSeconds)` — the same seek every rewind affordance uses. On
+recording load, `LoadRecording` clears and repopulates `TerminalEntries` from `GetTerminalLogAsync()` so the reconstructed
+terminal is scrubbable. The header's timestamp-mode button cycles `TerminalTimestampMode` (WallClock / SimElapsed / Both,
+persisted in `UserPreferences`); a change raises `TerminalFilterChanged`, which rebuilds the document via `FormatEntry`.
+
 ## The command pipeline entry point — `SendCommandAsync`
 
 `SendCommandAsync` (`MainViewModel.cs:1618`) is the client-side resolution chain that runs **before** anything reaches

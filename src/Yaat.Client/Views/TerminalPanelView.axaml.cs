@@ -16,6 +16,13 @@ namespace Yaat.Client.Views;
 public partial class TerminalPanelView : UserControl
 {
     private readonly List<TerminalEntryKind> _lineKinds = [];
+
+    // Parallel to _lineKinds: the TerminalEntry that produced each rendered line, for
+    // right-click → "Rewind to this moment" hit-testing. One entry per line (messages never
+    // contain newlines), so rendered-line index maps 1:1 to this list.
+    private readonly List<TerminalEntry> _lineEntries = [];
+    private MenuItem? _rewindMenuItem;
+    private TerminalEntry? _contextEntry;
     private TerminalColorizer? _colorizer;
     private ScrollViewer? _scrollViewer;
     private bool _autoScroll = true;
@@ -60,9 +67,15 @@ public partial class TerminalPanelView : UserControl
             vm.TerminalFilterChanged += OnFilterChanged;
             RebuildDocument(vm);
 
+            _rewindMenuItem = new MenuItem { Header = "Rewind to this moment" };
+            _rewindMenuItem.Click += OnRewindToMomentClick;
             var clearItem = new MenuItem { Header = "Clear" };
             clearItem.Click += (_, _) => vm.TerminalEntries.Clear();
-            TerminalEditor.ContextMenu = new ContextMenu { Items = { clearItem } };
+            TerminalEditor.ContextMenu = new ContextMenu { Items = { _rewindMenuItem, new Separator(), clearItem } };
+
+            // Tunnel runs before the ContextMenu's own bubbling open handler, so the entry under
+            // the pointer is resolved (and the Rewind item's state refreshed) before the menu shows.
+            TerminalEditor.AddHandler(ContextRequestedEvent, OnTerminalContextRequested, RoutingStrategies.Tunnel);
         }
     }
 
@@ -77,6 +90,8 @@ public partial class TerminalPanelView : UserControl
 
     protected override void OnUnloaded(Avalonia.Interactivity.RoutedEventArgs e)
     {
+        TerminalEditor.RemoveHandler(ContextRequestedEvent, OnTerminalContextRequested);
+
         foreach (var (toggle, _) in EnumerateCategoryToggles())
         {
             toggle.RemoveHandler(PointerPressedEvent, OnTogglePointerPressed);
@@ -186,7 +201,7 @@ public partial class TerminalPanelView : UserControl
                     break;
                 }
 
-                var text = FormatEntry(entry);
+                var text = FormatEntry(entry, vm?.TerminalTimestampMode ?? TerminalTimestampMode.WallClock);
                 if (doc.TextLength > 0)
                 {
                     doc.Insert(doc.TextLength, "\n" + text);
@@ -197,6 +212,7 @@ public partial class TerminalPanelView : UserControl
                 }
 
                 _lineKinds.Add(entry.Kind);
+                _lineEntries.Add(entry);
                 break;
             }
 
@@ -230,6 +246,7 @@ public partial class TerminalPanelView : UserControl
     private void RebuildDocument(MainViewModel vm)
     {
         _lineKinds.Clear();
+        _lineEntries.Clear();
         var sb = new StringBuilder();
         var first = true;
         foreach (var entry in vm.GetFilteredTerminalEntries())
@@ -239,8 +256,9 @@ public partial class TerminalPanelView : UserControl
                 sb.Append('\n');
             }
 
-            sb.Append(FormatEntry(entry));
+            sb.Append(FormatEntry(entry, vm.TerminalTimestampMode));
             _lineKinds.Add(entry.Kind);
+            _lineEntries.Add(entry);
             first = false;
         }
 
@@ -271,6 +289,54 @@ public partial class TerminalPanelView : UserControl
         _autoScroll = true;
     }
 
+    private void OnTerminalContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        _contextEntry = null;
+        if (e.TryGetPosition(TerminalEditor, out var point))
+        {
+            var pos = TerminalEditor.GetPositionFromPoint(point);
+            if (pos is { } p)
+            {
+                var lineIndex = p.Line - 1; // TextViewPosition.Line is 1-based.
+                if (lineIndex >= 0 && lineIndex < _lineEntries.Count)
+                {
+                    _contextEntry = _lineEntries[lineIndex];
+                }
+            }
+        }
+
+        UpdateRewindMenuItem();
+    }
+
+    private void UpdateRewindMenuItem()
+    {
+        if (_rewindMenuItem is null)
+        {
+            return;
+        }
+
+        var vm = DataContext as MainViewModel;
+        var elapsed = _contextEntry?.ElapsedSeconds;
+        var canRewind = elapsed is not null && vm is { IsTimelineAvailable: true };
+        _rewindMenuItem.IsEnabled = canRewind;
+        _rewindMenuItem.Header = canRewind ? $"Rewind to {FormatElapsed(elapsed!.Value)}" : "Rewind to this moment";
+    }
+
+    private async void OnRewindToMomentClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && _contextEntry?.ElapsedSeconds is { } seconds)
+        {
+            await vm.RewindToSeconds(seconds);
+        }
+    }
+
+    /// <summary>Formats scenario-elapsed seconds as m:ss (or h:mm:ss past an hour) for terminal display.</summary>
+    internal static string FormatElapsed(double seconds)
+    {
+        var ts = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        return ts.TotalHours >= 1 ? ts.ToString(@"h\:mm\:ss") : ts.ToString(@"m\:ss");
+    }
+
     private static string KindTag(TerminalEntryKind kind) =>
         kind switch
         {
@@ -286,10 +352,32 @@ public partial class TerminalPanelView : UserControl
             _ => "???",
         };
 
-    private static string FormatEntry(TerminalEntry entry)
+    private static void AppendTimestamp(StringBuilder sb, TerminalEntry entry, TerminalTimestampMode mode)
+    {
+        var wall = entry.Timestamp.ToString("HH:mm:ss");
+        var sim = entry.ElapsedSeconds is { } seconds ? FormatElapsed(seconds) : "--:--";
+        switch (mode)
+        {
+            case TerminalTimestampMode.SimElapsed:
+                sb.Append(sim);
+                break;
+            case TerminalTimestampMode.Both:
+                sb.Append(wall);
+                sb.Append("  [");
+                sb.Append(sim);
+                sb.Append(']');
+                break;
+            default:
+                sb.Append(wall);
+                break;
+        }
+    }
+
+    /// <summary>Formats one terminal line. Public for unit testing the timestamp-mode rendering.</summary>
+    public static string FormatEntry(TerminalEntry entry, TerminalTimestampMode timestampMode)
     {
         var sb = new StringBuilder();
-        sb.Append(entry.Timestamp.ToString("HH:mm:ss"));
+        AppendTimestamp(sb, entry, timestampMode);
         sb.Append("  ");
         sb.Append(KindTag(entry.Kind).PadRight(4));
         if (!string.IsNullOrEmpty(entry.Initials))

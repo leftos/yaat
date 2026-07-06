@@ -104,6 +104,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `RewindFromSnapshotAsync(…)` | `RewindFromSnapshot` | `RewindFromSnapshot(...)` `:925` |
 | `TakeControlAsync()` | `TakeControl` | `TakeControl()` `:943` |
 | `GetTimelineInfoAsync()` | `GetTimelineInfo` | `GetTimelineInfo()` |
+| `GetTerminalLogAsync()` | `GetTerminalLog` | `GetTerminalLog()` → `List<TerminalBroadcastDto>` (recorded terminal stream; client repopulates the terminal after a recording load) |
 | `ExportRecordingAsync()` | `ExportRecording` | `ExportRecording()` `:961` (stream) |
 | `LoadRecordingAsync(bytes)` | `LoadRecording` | `LoadRecording(stream)` `:1015` |
 | `MigrateRecordingAsync(json)` | `MigrateRecording` | `MigrateRecording(json)` `:990` |

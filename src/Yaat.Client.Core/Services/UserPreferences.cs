@@ -411,6 +411,11 @@ public sealed class UserPreferences
     public int GroundDatablockFontSize => _data.GroundDatablockFontSize;
     public int GroundLabelFontSize => _data.GroundLabelFontSize;
     public int TerminalFontSize => _data.TerminalFontSize;
+
+    /// <summary>Which timestamp the terminal shows per line. Defaults to wall-clock for legacy data.</summary>
+    public TerminalTimestampMode TerminalTimestampMode =>
+        Enum.TryParse<TerminalTimestampMode>(_data.TerminalTimestampMode, out var mode) ? mode : TerminalTimestampMode.WallClock;
+
     public int InterfaceFontSize => _data.InterfaceFontSize;
     public int StripsZoomPercent => _data.StripsZoomPercent;
     public int TdlsZoomPercent => _data.TdlsZoomPercent;
@@ -918,6 +923,12 @@ public sealed class UserPreferences
         _data.TerminalStripColor = scheme.Strip;
         Save();
         TerminalColorsChanged?.Invoke();
+    }
+
+    public void SetTerminalTimestampMode(TerminalTimestampMode mode)
+    {
+        _data.TerminalTimestampMode = mode.ToString();
+        Save();
     }
 
     public void SetSignatureHelpPlacement(string placement)
@@ -1763,6 +1774,10 @@ public sealed class UserPreferences
         public int GroundDatablockFontSize { get; set; } = 12;
         public int GroundLabelFontSize { get; set; } = 13;
         public int TerminalFontSize { get; set; } = 12;
+
+        // Which timestamp the terminal shows per line: "WallClock", "SimElapsed", or "Both".
+        // Stored as a string (like HiddenTerminalKinds) so enum reordering can't misassign it.
+        public string TerminalTimestampMode { get; set; } = nameof(Models.TerminalTimestampMode.WallClock);
         public int InterfaceFontSize { get; set; } = 12;
         public int StripsZoomPercent { get; set; } = 80;
         public int TdlsZoomPercent { get; set; } = 100;

@@ -116,6 +116,14 @@ HH:MM:SS  CMD  AB  UAL123  FH 270
 
 Every terminal color is customizable under **Settings → terminal colors**.
 
+#### Timestamp Mode
+
+The button at the left of the filter toggles cycles what the leading timestamp shows: **CLK** (wall-clock `HH:MM:SS`, the default), **SIM** (scenario-elapsed `m:ss` — the time you'd scrub to), or **CLK+SIM** (both, `HH:MM:SS  [m:ss]`). The choice persists across sessions. Lines with no scenario time (e.g. a system message before a scenario is active) show `--:--` in the SIM column.
+
+#### Scrub to a Moment
+
+Right-click any terminal line and choose **Rewind to this moment** to jump the replay timeline to the scenario-second that line happened — a command, chat, SAY, response, or warning. This is the fastest way to get back to "right when I issued that clearance." It's enabled whenever the timeline is available and the line has a known scenario time. Loading a recording or bug bundle repopulates the terminal with the full session history, so every line stays scrubbable after a load.
+
 #### Filters
 
 The terminal header includes toggle buttons to filter entries by kind: **CMD**, **RSP**, **SYS**, **SAY**, **WRN**, **ERR**, **CHAT**, **TDLS**, **STRP**. Click a toggle to hide/show that kind. The **STRP** toggle hides flight-strip command echoes and their feedback in one click, which is handy when strip traffic is burying requests and commands. **Shift+Click** a toggle to *solo* that channel (hide all others); Shift+Click it again to restore the previous set. Hidden entries remain in the backing store — toggling a filter back on restores all entries. All entries are always written to the client log file regardless of filter state. Filter state persists across sessions.
