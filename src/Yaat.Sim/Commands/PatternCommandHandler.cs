@@ -843,9 +843,14 @@ internal static class PatternCommandHandler
     // direction when its along-track projection onto the crosswind-heading
     // (the bearing perpendicular to the runway pointing toward the pattern
     // side) is negative — i.e. it is on the opposite side of the threshold
-    // axis from where the pattern lives. Mirrors TryEnterPattern's local
-    // check (kept as the canonical site that drives MidfieldCrossing
-    // insertion).
+    // axis from where the pattern lives. The signed offset keeps this
+    // side-aware: an aircraft displaced toward the pattern side (positive) is
+    // never wrong-side. A WrongSidePatternDeadbandNm deadband treats an
+    // aircraft essentially on the extended centerline (e.g. climbing out on
+    // the upwind leg, offset ≈ 0) as NOT wrong-side, so a direction change
+    // there flies standard closed traffic instead of an immediate midfield
+    // crossing. Only a non-pattern-side displacement beyond the deadband (e.g.
+    // off the parallel runway) drives MidfieldCrossing insertion.
     private static bool IsOnWrongSideForPattern(LatLon position, RunwayInfo runway, PatternDirection direction)
     {
         TrueHeading crosswindHdg = direction == PatternDirection.Right ? runway.TrueHeading + 90.0 : runway.TrueHeading - 90.0;
@@ -854,7 +859,7 @@ internal static class PatternCommandHandler
             new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude),
             crosswindHdg
         );
-        return patternSideOffset < 0;
+        return patternSideOffset < -WrongSidePatternDeadbandNm;
     }
 
     // Replace the aircraft's phase list with a freshly-built chain, preserving
@@ -2101,6 +2106,18 @@ internal static class PatternCommandHandler
     /// "Unable, short final" instead and leave the aircraft on its current approach.
     /// </summary>
     private const double OutboundFinalEntryMarginNm = 0.1;
+
+    /// <summary>
+    /// Cross-track deadband (NM) for the MLT/MRT wrong-side test. An aircraft within this
+    /// distance of the runway's extended centerline is treated as essentially ON the
+    /// centerline (e.g. climbing out on the upwind leg), NOT on the wrong side — a
+    /// direction change there flies standard closed traffic (upwind → crosswind →
+    /// downwind) and the crosswind turn naturally carries it to the correct pattern side,
+    /// so no midfield crossing is needed. Only a displacement to the non-pattern side
+    /// beyond this deadband (e.g. an aircraft off the parallel runway) is a genuine
+    /// wrong-side that warrants crossing midfield. ~0.1 NM ≈ 600 ft (runway is 150 ft wide).
+    /// </summary>
+    private const double WrongSidePatternDeadbandNm = 0.1;
 
     /// <summary>
     /// Maximum heading delta (degrees) from runway heading for EF to engage the

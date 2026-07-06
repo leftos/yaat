@@ -5,6 +5,7 @@
 ### Fixed
 - `CM 020` and other commands whose verb appears inside a live callsign (e.g. `CMD2`) now apply to the selected aircraft instead of failing with "matches multiple aircraft".
 - `CLANDF` (force landing) now works on an aircraft that is going around, cancelling the go-around and bringing it back down onto its assigned runway.
+- `MLT`/`MRT` to an aircraft on the upwind leg no longer cuts it left across the field — it continues upwind and turns for the requested side.
 - The `ADD` command's `H` engine token now spawns a helicopter instead of failing with "Invalid engine type 'H'". `ADD V S H @H1` drops a light civil helicopter (R22/R44/B06) on helipad or parking spot H1; name a type to override it (e.g. `ADD V S H @H1 H60`). The weight token is cosmetic for helicopters.
 - The `ADD` command's weight-token hint now reads `S/S+/L/H` instead of the incorrect `H/J/L/S`.
 - A CRC controller working an ERAM (Center) position can now hand off tracks from the keyboard: type the receiving sector ID before an aircraft's FLID to initiate a handoff, a bare FLID to accept an inbound handoff or recall an outbound one, or `/OK` before the FLID to force-take a track owned by another sector. Previously every ERAM keyboard handoff was rejected, even though the underlying handoff logic already existed.
