@@ -102,6 +102,9 @@ public partial class AircraftModel : ObservableObject
     private uint _beaconCode;
 
     [ObservableProperty]
+    private uint _assignedBeaconCode;
+
+    [ObservableProperty]
     private string _transponderMode = "C";
 
     [ObservableProperty]
@@ -853,6 +856,7 @@ public partial class AircraftModel : ObservableObject
             Altitude = dto.Altitude,
             GroundSpeed = dto.GroundSpeed,
             BeaconCode = dto.BeaconCode,
+            AssignedBeaconCode = dto.AssignedBeaconCode,
             TransponderMode = dto.TransponderMode,
             VerticalSpeed = dto.VerticalSpeed,
             AssignedHeading = dto.AssignedHeading.HasValue ? new MagneticHeading(dto.AssignedHeading.Value) : null,
@@ -948,6 +952,7 @@ public partial class AircraftModel : ObservableObject
         Altitude = dto.Altitude;
         GroundSpeed = dto.GroundSpeed;
         BeaconCode = dto.BeaconCode;
+        AssignedBeaconCode = dto.AssignedBeaconCode;
         TransponderMode = dto.TransponderMode;
         VerticalSpeed = dto.VerticalSpeed;
         AssignedHeading = dto.AssignedHeading.HasValue ? new MagneticHeading(dto.AssignedHeading.Value) : null;

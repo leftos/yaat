@@ -52,7 +52,7 @@ Each satellite is a separate class with its own `ToSnapshot`/`FromSnapshot`. Rea
 |---|---|---|---|
 | `FlightPlan` | `AircraftFlightPlan` | Filed plan: dep/dest/route, **filed** `AircraftType`, equipment, rules, cruise, `RevisionNumber`, `CreatedByOwner`. | `AircraftFlightPlan.cs:10` |
 | `Ground` | `AircraftGroundOps` | Layout ref, taxi route, parking/taxiway, `Hold` directive, conflict overrides, pushback heading, spawn-readback gate. | `AircraftGroundOps.cs:13` |
-| `Transponder` | `AircraftTransponder` | Mode (A/C/S), assigned vs reported beacon code, IDENT timer. | `AircraftTransponder.cs:9` |
+| `Transponder` | `AircraftTransponder` | Mode (A/C/S), assigned vs reported beacon code, IDENT timer. Both codes are projected to the training wire: `AssignedCode`→`AssignedBeaconCode` (strip / FPE BCN), `Code`→`BeaconCode` (radar / squawk). | `AircraftTransponder.cs:9` |
 | `Track` | `AircraftTrack` | Ownership + handoff: `Owner`, `HandoffPeer`, `HandoffRedirectedBy`, the H-state booleans, `Pointout`. | `AircraftTrack.cs:10` |
 | `Stars` | `AircraftStarsState` | Per-track STARS display: scratchpads (CRC + ASDE-X), temp/pilot altitudes, display inhibitions, TPA, per-TCP shared dict. | `AircraftStarsState.cs:10` |
 | `Eram` | `AircraftEramState` | ERAM-side display mirrored to CRC: leader/dwell overrides, interim/procedure altitudes, pending pointouts. | `AircraftEramState.cs:9` |

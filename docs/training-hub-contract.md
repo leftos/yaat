@@ -318,3 +318,9 @@ for any field whose inputs are not.
 - **The strip/TDLS surface is larger than the Core context suggests.** Strip and TDLS DTOs cross the same connection but
   are registered in the Strips/Tdls contexts and documented in [flight-strips.md](flight-strips.md) /
   [vtdls.md](vtdls.md).
+- **Beacon code is two fields, not one.** `AircraftTransponder` has `AssignedCode` (what ATC filed/recycled) and `Code`
+  (what the pilot is actually squawking); filing a plan or `RequestNewBeaconCode` only writes `AssignedCode`, and the
+  pilot keeps squawking the old `Code` until an `SQ` command. The training DTO carries both: `BeaconCode` ← `Code`
+  (reported — radar datablock / squawk flyout / duplicate detection) and `AssignedBeaconCode` ← `AssignedCode` (the
+  flight-plan squawk the strip and the Flight Plan Editor's BCN box show). Reading `BeaconCode` where you meant the
+  assigned code shows `0000` until the pilot squawks — that was the N263FY FPE bug.

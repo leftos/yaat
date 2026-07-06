@@ -917,7 +917,12 @@ public record AircraftDto(
     // server's AircraftStateDto so the client datablock/FPE can render blocks and VFR-on-top.
     int? BlockFloorAltitude = null,
     bool IsVfrOnTop = false,
-    bool IsAbove = false
+    bool IsAbove = false,
+    // Controller-assigned beacon code (server Transponder.AssignedCode) — the flight-plan squawk the
+    // strip and the Flight Plan Editor's BCN box display. Distinct from BeaconCode above, which is the
+    // reported/squawked code (Transponder.Code) and stays 0000 until the pilot squawks the assignment.
+    // Kept name-for-name in sync with the server's AircraftStateDto.
+    uint AssignedBeaconCode = 0
 );
 
 public record LoadScenarioResultDto(

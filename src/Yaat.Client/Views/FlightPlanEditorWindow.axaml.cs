@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -66,7 +67,16 @@ public partial class FlightPlanEditorWindow : Window
 
     public void LoadAircraft(AircraftModel aircraft)
     {
+        // The read-only display (BCN, Create/Amend label) must track the live aircraft — a
+        // beacon assigned or recycled after the editor opens arrives via a later AircraftUpdated
+        // push. Re-target the subscription without re-running the editable-field copy below, which
+        // would clobber in-progress edits.
+        if (_aircraft is not null)
+        {
+            _aircraft.PropertyChanged -= OnAircraftPropertyChanged;
+        }
         _aircraft = aircraft;
+        _aircraft.PropertyChanged += OnAircraftPropertyChanged;
 
         Title = $"{aircraft.Callsign} - Flight Plan";
 
@@ -80,7 +90,7 @@ public partial class FlightPlanEditorWindow : Window
         _origRmk = SplitRemarks(aircraft.Remarks, out _strippedRemarksPrefix);
 
         AidText.Text = aircraft.Callsign;
-        BcnText.Text = aircraft.BeaconCode.ToString("D4");
+        BcnText.Text = aircraft.AssignedBeaconCode.ToString("D4");
         TypBox.Text = _origTyp;
         EqBox.Text = _origEq;
         DepBox.Text = _origDep;
@@ -122,6 +132,31 @@ public partial class FlightPlanEditorWindow : Window
         }
 
         base.OnKeyDown(e);
+    }
+
+    // Refresh only the read-only display when the live aircraft changes. Never touch the editable
+    // boxes — that would clobber the instructor's in-progress edits.
+    private void OnAircraftPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(AircraftModel.AssignedBeaconCode):
+                BcnText.Text = _aircraft.AssignedBeaconCode.ToString("D4");
+                break;
+            case nameof(AircraftModel.HasFlightPlan):
+                SubmitButton.Content = _aircraft.HasFlightPlan ? "Amend" : "Create";
+                break;
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        if (_aircraft is not null)
+        {
+            _aircraft.PropertyChanged -= OnAircraftPropertyChanged;
+        }
+
+        base.OnClosed(e);
     }
 
     private void OnFieldChanged(object? sender, TextChangedEventArgs e)

@@ -43,6 +43,7 @@
 - An ERAM data block now shows the non-RVSM indicator based on the aircraft's filed equipment suffix — only `/L`, `/Z`, `/W` and the ATC failure suffixes are RVSM — instead of treating every aircraft as RVSM-capable.
 - An ERAM Top-Down (Center) ground target no longer depicts a Boeing 757 with the heavy aircraft icon, matching real ERAM (unlike ASDE-X). Other heavy types are unaffected.
 - Autotrack now recognizes a departure filed under either its FAA or ICAO identifier for every airport — including non-CONUS airports such as Anchorage (ANC/PANC), Honolulu (HNL/PHNL) and San Juan (SJU/TJSJ) — not just the CONUS `K` prefix. Previously a mismatch between the filed identifier and the autotrack-list identifier skipped auto-tracking outside the lower 48.
+- The built-in flight plan editor's **BCN** box now shows the aircraft's assigned squawk, and updates live when you recycle the beacon (↻) or file a new plan while the editor is open. Previously it stayed `0000` even after a squawk was generated and shown on the strip.
 
 ## v0.8.10-beta [2026/07/03]
 
