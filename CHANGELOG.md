@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.9.1-beta [2026/07/06]
+
+### Highlights
+- **Continuous Range Readout groups on Center scopes** — create a CRR group with the `LF` command (anchored to a fix, FRD, lat/long, or a click); each grouped aircraft's data block shows its live range to the group.
+- **Conflict Data Blocks for untracked intruders** — a Center scope now shows a `TFC` block for a squawking, untracked Mode-C intruder predicted to lose separation with one of your tracks, and your track's data block flashes.
+- **Track edits are sector-protected on Center** — `QZ`, `QQ`, `QU`, and `AM` now reject another sector's track with `NOT YOUR TRACK` unless you own it (override with `/OK`, `/TT`, or `///`).
 
 ### Fixed
 - A CRC controller on an ERAM (Center) position can now create Continuous Range Readout (CRR) groups with the `LF` command — anchored to a fix, FRD, lat/long, or a clicked location — and each grouped aircraft's full data block shows a Range Data Block with the live distance to the group. The CRR view's color menu and clear/delete round-trips work too. Previously `LF` was rejected and the CRR group topic was never published.
