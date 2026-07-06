@@ -25,7 +25,9 @@ public static class FrdResolver
             return new LatLon(fixPos.Value.Lat, fixPos.Value.Lon);
         }
 
-        return ProjectPosition(fixPos.Value.Lat, fixPos.Value.Lon, radial.Value, distance.Value);
+        // FRD radials are magnetic (AIM 4-2-10; 7110.65 4-4-3.a.1.2); project along the equivalent true bearing.
+        double trueRadial = MagneticDeclination.MagneticToTrue(radial.Value, fixPos.Value.Lat, fixPos.Value.Lon);
+        return ProjectPosition(fixPos.Value.Lat, fixPos.Value.Lon, trueRadial, distance.Value);
     }
 
     public static (string Fix, int? Radial, int? Distance)? ParseFrd(string frdString)
@@ -110,7 +112,9 @@ public static class FrdResolver
             return bestName;
         }
 
-        int radial = (int)Math.Round(GeoMath.BearingTo(fixLat, fixLon, lat, lon));
+        // FRD radials are magnetic (AIM 4-2-10; 7110.65 4-4-3.a.1.2); convert the true bearing at the fix.
+        double trueBearing = GeoMath.BearingTo(fixLat, fixLon, lat, lon);
+        int radial = (int)Math.Round(MagneticDeclination.TrueToMagnetic(trueBearing, fixLat, fixLon));
         if (radial <= 0)
         {
             radial = 360;
@@ -130,7 +134,7 @@ public static class FrdResolver
         return $"{bestName}{radial:D3}{distance:D3}";
     }
 
-    private static LatLon ProjectPosition(double latDeg, double lonDeg, int radialDeg, int distanceNm)
+    private static LatLon ProjectPosition(double latDeg, double lonDeg, double radialDeg, int distanceNm)
     {
         double lat1 = latDeg * Math.PI / 180.0;
         double lon1 = lonDeg * Math.PI / 180.0;

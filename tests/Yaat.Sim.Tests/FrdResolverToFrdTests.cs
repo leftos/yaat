@@ -78,6 +78,52 @@ public class FrdResolverToFrdTests
     }
 
     [Fact]
+    public void ToFrd_EmitsMagneticRadial_NotTrue()
+    {
+        // A point ~10 nm due-east of OAK (37.7213, -122.2208). FRD azimuths are conventionally
+        // MAGNETIC (7110.65 4-4-3.a.1.2), not true. OAK sits in ~13-15 deg EAST declination, so the
+        // emitted magnetic radial must be that many degrees LESS than the raw true bearing.
+        double oakLat = 37.7213,
+            oakLon = -122.2208;
+        double lat = 37.7213,
+            lon = -122.0500;
+
+        double trueBrg = GeoMath.BearingTo(oakLat, oakLon, lat, lon);
+        int trueRadial = (int)Math.Round(trueBrg);
+        double magBrg = MagneticDeclination.TrueToMagnetic(trueBrg, oakLat, oakLon);
+        int expectedRadial = (int)Math.Round(magBrg);
+
+        var frd = FrdResolver.ToFrd(lat, lon, TestFixes);
+        Assert.NotNull(frd);
+        var parsed = FrdResolver.ParseFrd(frd);
+        Assert.NotNull(parsed);
+        Assert.Equal("OAK", parsed.Value.Fix);
+        Assert.Equal(expectedRadial, parsed.Value.Radial);
+
+        // Declination actually applied, correct sign and realistic magnitude for OAK.
+        Assert.True(expectedRadial < trueRadial, $"magnetic {expectedRadial} should be east-of-true less than true {trueRadial}");
+        Assert.InRange(trueRadial - expectedRadial, 10, 18);
+    }
+
+    [Fact]
+    public void Resolve_InterpretsRadialAsMagnetic()
+    {
+        // The mirror of ToFrd: a typed FRD radial is magnetic, so Resolve must convert magnetic->true
+        // before projecting. OAK090010 should land 10 nm along the 090 MAGNETIC radial.
+        double oakLat = 37.7213,
+            oakLon = -122.2208;
+        var navDb = TestNavDbFactory.WithFixes(("OAK", oakLat, oakLon));
+
+        var resolved = FrdResolver.Resolve("OAK090010", navDb);
+        Assert.NotNull(resolved);
+
+        double trueBrg = GeoMath.BearingTo(oakLat, oakLon, resolved.Value.Lat, resolved.Value.Lon);
+        double magBrg = MagneticDeclination.TrueToMagnetic(trueBrg, oakLat, oakLon);
+        Assert.InRange(magBrg, 89.0, 91.0); // resolved point is on the 090 magnetic radial
+        Assert.InRange(GeoMath.DistanceNm(oakLat, oakLon, resolved.Value.Lat, resolved.Value.Lon), 9.5, 10.5);
+    }
+
+    [Fact]
     public void ToFrd_PicksNearestFix()
     {
         // Position much closer to SUNOL than OAK
