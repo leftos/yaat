@@ -259,7 +259,6 @@ When invoking aviation-sim-expert, always include:
 ### Documentation
 - Update `USER_GUIDE.md` before committing user-facing changes.
 - Update `COMMANDS.md` whenever a command is added, removed, aliased, or changes behavior/arguments. This is the canonical user-facing command reference — both the **Quick Reference** tables and the **Detailed Command Documentation** section must stay in sync with the code (`CommandRegistry.All`, `CanonicalCommandType`, handler behavior).
-- Update `docs/yaat-vs-atctrainer.md` when commands/features/behavior vs ATCTrainer changes.
 - Update `docs/architecture.md` before each commit.
 - Update the in-app command cheatsheet when a command's quick-reference changes: edit the row data in `docs/command-cheatsheet.json`, then run `node tools/build-cheatsheet.mjs` to regenerate `docs/command-cheatsheet.html`. Never hand-edit the HTML — `prek` + CI run `--check` and fail the build if JSON and HTML drift.
 
