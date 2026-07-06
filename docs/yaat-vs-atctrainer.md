@@ -161,7 +161,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Wake advisory | — | `CWT`, `CTO ... CWT`, `CLAND ... CWT` | **YAAT-only** standalone caution-wake-turbulence advisory and clearance suffix |
 | Immediate / without delay | — | `CTO IMM` (immediate takeoff), `LUAW WD` (line up and wait, without delay) | **YAAT-only** — `IMM`/`WD`/`ND` suffix; brisk lineup taxi (+ rolling start on CTO). Super/Heavy keep a standing-start takeoff (7110.65 §3-9-5.3) |
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |
-| Force landing | — | `CLANDF` | **YAAT-only** instructor override — implies clearance and forces a touchdown regardless of energy state, suppressing the automatic go-around; RPO-only |
+| Force landing | — | `CLANDF` | **YAAT-only** instructor override — implies clearance and forces a touchdown regardless of energy state, suppressing the automatic go-around (or cancelling one already in progress and re-establishing the aircraft on final); RPO-only |
 | Cleared for option | — | `COPT` | **YAAT-only** |
 | Option + traffic pattern | — | `TG MLT`, `SG MRT`, `LA MLT`, `COPT MRT` | **YAAT-only** — set traffic direction on the go |
 | LAHSO | `LAHSO {rwy}` | `LAHSO {rwy}` | Parity |

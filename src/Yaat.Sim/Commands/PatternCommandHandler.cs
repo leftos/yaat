@@ -2407,7 +2407,21 @@ internal static class PatternCommandHandler
         bool alreadyLandingOrFinal = aircraft.Phases.CurrentPhase is FinalApproachPhase or LandingPhase or HelicopterLandingPhase;
         bool isHeli = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         Phase landing = isHeli ? new HelicopterLandingPhase() : new LandingPhase();
-        if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landing) && !alreadyLandingOrFinal)
+
+        if (aircraft.Phases.CurrentPhase is GoAroundPhase)
+        {
+            // CLANDF overrides an in-progress go-around: cancel the climb-out and re-establish the
+            // aircraft on final for the assigned runway. A go-around wipes every pending landing
+            // phase (GoAroundHelper.InstallGoAroundPhases → ReplaceUpcoming), so there is nothing
+            // for ReplaceApproachEnding to swap; install a fresh final + full-stop landing and
+            // advance to it. ForceLanding (set below) suppresses the auto-go-around
+            // FinalApproachPhase would otherwise re-trigger, driving a touchdown from any energy state.
+            var reversalCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+            aircraft.Phases.ReplaceUpcoming([new FinalApproachPhase { SkipInterceptCheck = true }, landing]);
+            aircraft.Phases.AdvanceToNext(reversalCtx);
+            FlightPhysics.NotifyPhaseAdvanced(aircraft);
+        }
+        else if (!CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landing) && !alreadyLandingOrFinal)
         {
             return new CommandResult(false, "Cannot force landing — no approach or pattern to land from (assign an approach or pattern entry first)");
         }
