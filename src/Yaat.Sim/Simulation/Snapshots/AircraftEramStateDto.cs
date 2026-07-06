@@ -19,6 +19,9 @@ public sealed class AircraftEramStateDto
     // DRI / separation halo toggled via QP J (Standard=1) / QP T (ReducedSeparation=2); null = no halo.
     public int? DriHaloType { get; init; }
 
+    // CRR group membership label (LF command); drives the FDB CrrGroup field + Range Data Block. Null = ungrouped.
+    public string? CrrGroupLabel { get; init; }
+
     public List<EramPointoutStateDto>? Pointouts { get; init; }
     public List<TcpDto>? ForcedPointoutsTo { get; init; }
 

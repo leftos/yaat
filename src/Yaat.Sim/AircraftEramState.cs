@@ -51,6 +51,16 @@ public class AircraftEramState
     /// </summary>
     public int? DriHaloType { get; set; }
 
+    /// <summary>
+    /// Label of the Continuous Range Readout (CRR) group this aircraft belongs to, assigned via the
+    /// <c>LF</c> command (docs/crc/eram.md §Continuous Range Readout View). Drives the FDB's
+    /// <c>CrrGroup</c> field so CRC renders the aircraft's Range Data Block (nm to the group location) and
+    /// lists it under the group in the CRR view. Null = not in a group. Each aircraft belongs to at most one
+    /// group (CRC models it as a single FDB field), carried on the aircraft so every sector viewing the FDB
+    /// sees the same membership (adequate for YAAT's single-ERAM-sector training, mirroring <see cref="DriHaloType"/>).
+    /// </summary>
+    public string? CrrGroupLabel { get; set; }
+
     /// <summary>Active ERAM pointouts.</summary>
     public List<EramPointoutState> Pointouts { get; set; } = [];
 
@@ -103,6 +113,7 @@ public class AircraftEramState
             AssignedSpeed = AssignedSpeed,
             FreeText = FreeText,
             DriHaloType = DriHaloType,
+            CrrGroupLabel = CrrGroupLabel,
             IsFrozen = IsFrozen,
             FrozenLat = FrozenLat,
             FrozenLon = FrozenLon,
@@ -144,6 +155,7 @@ public class AircraftEramState
             AssignedSpeed = dto.AssignedSpeed,
             FreeText = dto.FreeText,
             DriHaloType = dto.DriHaloType,
+            CrrGroupLabel = dto.CrrGroupLabel,
             IsFrozen = dto.IsFrozen,
             FrozenLat = dto.FrozenLat,
             FrozenLon = dto.FrozenLon,
