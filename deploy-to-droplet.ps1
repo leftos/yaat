@@ -1,6 +1,7 @@
 # Deploy yaat-server to a DigitalOcean droplet
 # Usage: .\deploy-to-droplet.ps1 [-Target <name>] [-NoLogs] [-NoCache] [-SkipSessionSave] [-DrainSeconds <sec>] [-CacheReserveGb <gb>]
 #        .\deploy-to-droplet.ps1 -Target yaat2 -RebootOnly [-NoLogs] [-SkipSessionSave] [-DrainSeconds <sec>]
+#        .\deploy-to-droplet.ps1 [-Target <name>] -StatusOnly    (report active rooms only, no deploy)
 #
 # -Target  Which deployment to act on (default "yaat1"). Selects the droplet IP, server path,
 #          public URL, and remote compose env file from the $targets map below. Add a new
@@ -29,6 +30,13 @@
 #                     (read from .env.<target>/.env, same as prepare-restart). Ctrl-C to
 #                     stop waiting. Ignores all build/deploy flags.
 #
+# -StatusOnly  Do NOT deploy. Query the target's /admin/status endpoint once and print the
+#              active rooms (count, members, scenario, aircraft count), then exit. Used by
+#              the prepare-release flow to report room occupancy before asking whether to
+#              deploy. Requires ADMIN_PASSWORD (read from .env.<target>/.env). Exit code 0
+#              on a successful query (whether or not rooms are active), 2 if the query
+#              failed (server unreachable or password unset). Ignores all build/deploy flags.
+#
 # -NoCache  Pass --no-cache to docker compose build, forcing every layer
 #           to rebuild from scratch (including the wasm-tools workload
 #           install in the Dockerfile, which adds ~1-3 minutes). Off by
@@ -52,6 +60,7 @@ param(
   [switch]$SkipSessionSave,
   [switch]$RebootOnly,
   [switch]$WaitForEmptyRooms,
+  [switch]$StatusOnly,
   [int]$DrainSeconds = 30,
   [int]$PollSeconds = 60,
   [int]$CacheReserveGb = 10
@@ -182,6 +191,36 @@ function Invoke-PrepareRestartSessions {
   }
 }
 
+# Format the /admin/status rooms array into a one-line human summary. Shared by the
+# single-shot status check and the wait-for-empty poll so both render rooms identically.
+function Format-RoomsSummary {
+  param($Rooms)
+  return ($Rooms | ForEach-Object {
+      $members = if ($_.memberInitials -and $_.memberInitials.Count -gt 0) { $_.memberInitials -join "," } else { "no members" }
+      $scenario = if ($_.scenarioName) { $_.scenarioName } else { "(no scenario)" }
+      "$($_.roomId) [$members] $scenario $($_.aircraftCount)ac"
+    }) -join "; "
+}
+
+# Query /admin/status once and print the active rooms without blocking or deploying.
+# Used by the prepare-release flow to report room occupancy before the deploy prompt.
+# Throws on a query failure so the caller can distinguish "queried, empty" from "unknown".
+function Invoke-StatusCheck {
+  if (-not $adminPassword) {
+    throw "ADMIN_PASSWORD not set in $envFile — cannot query /admin/status. Set it (matching the droplet) and retry."
+  }
+
+  $headers = @{ "X-Yaat-Admin-Password" = $adminPassword }
+  $status = Invoke-RestMethod -Uri "$serverUrl/admin/status" -Method Get -Headers $headers -TimeoutSec 15
+  $count = [int]$status.roomCount
+  if ($count -eq 0) {
+    Write-Host "✓ No active rooms on $serverUrl." -ForegroundColor Green
+  }
+  else {
+    Write-Host ("{0} active room(s) on {1}: {2}" -f $count, $serverUrl, (Format-RoomsSummary $status.rooms)) -ForegroundColor Yellow
+  }
+}
+
 # Block until the target server reports zero rooms in memory. Polls /admin/status every
 # $PollSec seconds, printing the active rooms each check. Returns once the server is empty.
 # A transient query failure (server briefly unreachable) is reported and retried, never
@@ -204,12 +243,7 @@ function Invoke-WaitForEmptyRooms {
         return
       }
 
-      $summary = ($status.rooms | ForEach-Object {
-          $members = if ($_.memberInitials -and $_.memberInitials.Count -gt 0) { $_.memberInitials -join "," } else { "no members" }
-          $scenario = if ($_.scenarioName) { $_.scenarioName } else { "(no scenario)" }
-          "$($_.roomId) [$members] $scenario $($_.aircraftCount)ac"
-        }) -join "; "
-      Write-Host ("  {0} room(s) active: {1}" -f $count, $summary) -ForegroundColor Yellow
+      Write-Host ("  {0} room(s) active: {1}" -f $count, (Format-RoomsSummary $status.rooms)) -ForegroundColor Yellow
     }
     catch {
       Write-Host "⚠ Could not query $serverUrl/admin/status ($_) — retrying in ${PollSec}s..." -ForegroundColor Yellow
@@ -220,13 +254,14 @@ function Invoke-WaitForEmptyRooms {
 }
 
 $headerTitle =
-  if ($WaitForEmptyRooms) { "YAAT Server: wait for empty rooms (no deploy)" }
+  if ($StatusOnly) { "YAAT Server: active-room status (no deploy)" }
+  elseif ($WaitForEmptyRooms) { "YAAT Server: wait for empty rooms (no deploy)" }
   elseif ($RebootOnly) { "YAAT Server Reboot (refresh nav data, no redeploy)" }
   else { "YAAT Server Deployment" }
 Write-Host $headerTitle -ForegroundColor Cyan
 Write-Host "=====================" -ForegroundColor Cyan
 Write-Host "Target:     $Target ($serverUrl)"
-if (-not $WaitForEmptyRooms) {
+if (-not $WaitForEmptyRooms -and -not $StatusOnly) {
   Write-Host "Droplet:    $dropletIp"
   Write-Host "Path:       $serverPath"
   Write-Host "Env file:   $remoteEnvFile (remote)"
@@ -331,6 +366,19 @@ function Invoke-ServerReboot {
   Write-Host ""
   Write-Host "✓ Reboot complete!" -ForegroundColor Green
   Write-Host ""
+}
+
+# Read-only status check runs outside the main try/catch so a query failure never sends a
+# false "Deployment failed" Discord alert. Exit 0 = queried (rooms or empty), 2 = query failed.
+if ($StatusOnly) {
+  try {
+    Invoke-StatusCheck
+    exit 0
+  }
+  catch {
+    Write-Host "⚠ Could not query $serverUrl/admin/status ($_)" -ForegroundColor Yellow
+    exit 2
+  }
 }
 
 try {

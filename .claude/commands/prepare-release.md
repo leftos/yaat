@@ -209,7 +209,11 @@ Once the user approves:
 5. Stage these explicit files only (no `git add -A`): `Directory.Build.props`, `CHANGELOG.md`, `docs/architecture.md` if changed, **and every user-facing doc updated in Step 6** (e.g. `COMMANDS.md`, `docs/command-cheatsheet.json`, `docs/command-cheatsheet.html`, `USER_GUIDE.md`, `INSTALL.md`, etc.). List them explicitly so the user can audit before commit.
 6. Commit: `release: v{version}`.
 7. Create tag: `git tag v{version}`.
-8. **Ask the user how to push and deploy.** Use `AskUserQuestion` (single-select). Order the options by the Step 7 verdict so the recommended choice is first.
+8. **Check the target server for active rooms, then ask how to push and deploy.**
+
+   First — always, regardless of the Step 7 verdict — query the live server for active training rooms so the decision is never made blind over an in-progress session. Run `pwsh deploy-to-droplet.ps1 -StatusOnly` and report the result: the active room count, and for each room its id, members, scenario, and aircraft count — or "no active rooms". The script reads `ADMIN_PASSWORD` from yaat `.env` itself — **do not read the secret yourself**. If the query fails (server unreachable, password unset — exit code 2), say so and continue to the prompt, treating occupancy as unknown/possibly-occupied. Surface the room status in the same message as the deploy question so the user weighs it when choosing.
+
+   Then use `AskUserQuestion` (single-select). Order the options by the Step 7 verdict so the recommended choice is first.
 
    **If Step 7 was CLIENT_ONLY** — lead with skipping the deploy:
    - **Push only — skip server deploy (Recommended)** — no shared-library, server, or web-UI (vStrips/vTDLS) changes this cycle, so the running server already matches the release. Pushing still ships the new client via `release.yml`; skipping the droplet deploy avoids ~10 minutes of downtime for anyone mid-session.
