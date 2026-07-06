@@ -385,6 +385,10 @@ The `{eng}` token is `P` (piston), `T` (turboprop), `J` (jet), or `H` (helicopte
 
 ## Behavioral Differences
 
+### CRC ERAM (Center) Emulation (YAAT-only)
+
+ATCTrainer has no CRC integration — students use its built-in aircraft grid. YAAT feeds real CRC and now drives the **ERAM (en-route / Center) display** alongside STARS and ASDE-X/SAID. A student on a Center position can work the full ERAM keyboard-command set: handoffs (initiate / accept / recall, `/OK` force-take), `QX` drop, `QZ`/`QQ` assigned and interim altitudes (including block and VFR/OTP), `QU` route display + amendment, `QS` data-block fourth line, `QB` beacon/suffix/voice, `AM`/`DM`/`VP` flight-plan amend/activate/file, `QP` point-outs + DRI halos, `QR` reported altitude, `QH F` freeze, and `LA`/`LB`/`LC` range readouts. Center scopes also render short-term conflict alerts (STCA), target-history trails, and coast/freeze (`CST`/`FRZN`) surveillance like a real en-route scope.
+
 ### STARS Flight-Plan Creation vs AID + Slew (YAAT-only)
 
 Typed STARS `DA`/`VP` commands are create-only — they never amend an existing flight plan. Typing against a callsign that already has a flight plan returns `DUP NEW ID`. The legitimate "aircraft exists but no FP" case (e.g. a ground aircraft before its FP is filed) is still a create — the FP is attached for the first time. No amend variants belong on `FlightPlanCommandHandler`.

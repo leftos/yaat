@@ -203,7 +203,7 @@ Views/
 Models/
   AircraftModel.cs              # ObservableObject wrapping AircraftDto; computed displays; FromDto/UpdateFromDto
   AircraftSpeechBubble.cs       # Per-aircraft speech bubble model for opt-in SAY/pilot (green) and WARN (amber) overlays on Radar/Ground views (text, severity, user-scaled duration or persist-until-clicked, dismiss state).
-  TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say/Warning/Error/Chat/PilotSpeech/Tdls/Strip)
+  FlightPlanAmendment.cs        # Immutable flight-plan amendment record (type/suffix/route/altitude/beacon/scratchpad) built by the flight plan editor and dispatched to the server
 
 Services/
   ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs
@@ -306,6 +306,7 @@ Views/
   CopyViewSettingsDialog.axaml(.cs)      # View → Copy View Settings dialog: source picker (scenario or window profile), grouped Current-vs-Source diff with per-section checkboxes, airport-mismatch warning. Returns selected keys for MainWindow to apply via ViewSettingsCopyCatalog / WindowProfileService.
   CommandFlyout.cs              # Floating focused command-entry popup opened from aircraft right-click menus (radar/ground/flight list)
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
+  FlightPlanEditorAmendmentBuilder.cs # Builds a FlightPlanAmendment from the built-in flight plan editor's field/route edits for dispatch to the server
   HoldShortMenuHelper.cs        # Shared resolver: held runway from the "Holding Short {rwy}" phase, used by ground-map + aircraft-list cross/LUAW menu items
   WindowHotkeys.cs              # App-wide class handler for window-level hotkeys (focus command input + always-on-top + Ctrl+F8 radar DCB toggle); routes focus to the visible CommandInputView and toggles topmost via IAlwaysOnTopToggle
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost
@@ -459,6 +460,8 @@ GiveWayConstants.cs            # Auto-release tuning for direct GIVEWAY holds (F
                                # stationary speed threshold, timeout clear-distance. Direct holds
                                # only — deferred BEHIND keeps pure-geometry release.
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
+EramConflictDetector.cs        # Static ERAM (en-route) STCA detection: 5nm lateral (3nm at/below FL230) + 1000ft vertical, 4-min extrapolation, uses assigned/interim data-block altitudes, scoped per ERAM facility
+EramConflictState.cs           # Per-facility ERAM conflict-alert state (active STCA pairs) driving the Center data-block flash
 Asdex/AsdexSafetyLogicDetector.cs  # Static ASDE-X Safety Logic detection: closed-runway, occupied-runway, taxi-onto-active-runway, taxiway-landing incursions → CRC surface alerts
 Training/SoloTrainingEvaluator.cs  # Solo-training scorecard: FAA separation, wake, runway-operation separation, structured traffic-advisory/safety-alert/wake-advisory/field-proof events, ARTCC WakeDirectives, Class C outer-area/no-minima advisory scoring, active timeline, report buckets
 Training/AircraftCompletion.cs     # Per-aircraft lifecycle stamps: spawn time, completion time, completion reason (Landed / Handed off / Dropped / Departed), filed route + operation classification used by the Session Report Aircraft tab.

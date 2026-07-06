@@ -1584,4 +1584,4 @@ A compact format for specifying a point in space relative to a navigation fix: `
 - `SJC090015` = 090° radial from SJC at 15 NM
 - `JFK270050` = 270° radial from JFK at 50 NM
 
-The fix name must be 2+ characters, followed by exactly 3 digits for the radial and 3 digits for the distance. FRD works anywhere a fix name is accepted (DCT, AT conditions, WARP, etc.).
+The fix name must be 2+ characters, followed by exactly 3 digits for the radial and 3 digits for the distance. FRD works anywhere a fix name is accepted (DCT, AT conditions, WARP, etc.). The radial is magnetic (aligned with the fix's magnetic variation), matching real-world VOR-radial convention (7110.65 §4-4-3).

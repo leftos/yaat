@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.0-beta [2026/07/05]
+
+### Highlights
+- **ERAM (Center) keyboard commands now work** — a controller on a CRC Center position can hand off and accept tracks, set assigned and interim altitudes, amend routes and flight plans, edit data blocks, and assign beacon codes from the keyboard. Previously every ERAM keyboard entry was rejected.
+- **Center scopes get conflict alerts and lifelike tracks** — ERAM data blocks flash on a short-term conflict alert, show target-history trails, and coast or freeze like a real en-route scope when an aircraft drops below radar coverage.
+- **"Rewind to this moment" in the terminal** — right-click any terminal line to scrub a replay to the moment that command, chat, or radio call happened; loading a recording now repopulates the full terminal history so every line stays scrubbable.
+- **Radar data block flags a beacon-code mismatch** — when an aircraft squawks a code other than the one assigned, the block shows the reported code with the assigned code pulsing beside it, matching CRC STARS.
 
 ### Added
 - Right-click a terminal line → **Rewind to this moment** scrubs the replay to the scenario-second that command, chat, or SAY happened.
