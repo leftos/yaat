@@ -472,4 +472,152 @@ public class RadarDatablockLayoutTests
             Assert.Equal(first.LineCount, sample.LineCount);
         }
     }
+
+    // --- Beacon-code mismatch line (reported code solid + assigned code dim-pulsing, CRC STARS emulation) ---
+
+    [Fact]
+    public void SquawkMismatch_LinePresent_WhenAssignedDiffersAndModeC()
+    {
+        var ac = CreateModel();
+        ac.TransponderMode = "C";
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        // Reported code solid on the left, assigned code (which the renderer dim-pulses) on the right.
+        Assert.Equal("1200 0301", layout.SquawkLine);
+    }
+
+    [Fact]
+    public void SquawkMismatch_LineAbsent_WhenCodesMatch()
+    {
+        var ac = CreateModel();
+        ac.BeaconCode = 301;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("", layout.SquawkLine);
+    }
+
+    [Fact]
+    public void SquawkMismatch_LineAbsent_WhenNoAssignedCode()
+    {
+        // VFR cold-call: squawking 1200 with nothing assigned yet — not a mismatch.
+        var ac = CreateModel();
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 0;
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("", layout.SquawkLine);
+    }
+
+    [Theory]
+    [InlineData("Standby")]
+    [InlineData("Off")]
+    public void SquawkMismatch_LineAbsent_WhenTransponderNotTransmitting(string mode)
+    {
+        var ac = CreateModel();
+        ac.TransponderMode = mode;
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("", layout.SquawkLine);
+    }
+
+    [Theory]
+    [InlineData(7500u)]
+    [InlineData(7600u)]
+    [InlineData(7700u)]
+    public void SquawkMismatch_LineAbsent_WhenReportedIsSpecialPurposeCode(uint reported)
+    {
+        // An emergency/special code takes visual priority; the mismatch indicator is suppressed.
+        var ac = CreateModel();
+        ac.BeaconCode = reported;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("", layout.SquawkLine);
+    }
+
+    [Fact]
+    public void SquawkMismatch_LineShows_WhenSquawkingVfr1200VsDiscrete()
+    {
+        // The motivating case: a VFR aircraft assigned a discrete code but still squawking 1200.
+        var ac = CreateModel();
+        ac.FlightRules = "VFR";
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 4321;
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("1200 4321", layout.SquawkLine);
+    }
+
+    [Fact]
+    public void SquawkMismatch_RectGrowsByExactlyLineHeight()
+    {
+        var ac = CreateModel();
+        using var paint = CreatePaint();
+
+        ac.BeaconCode = 301;
+        ac.AssignedBeaconCode = 301;
+        var matched = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        ac.BeaconCode = 1200;
+        var mismatched = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal(matched.LineCount + 1, mismatched.LineCount);
+        float delta = mismatched.Rect.Bottom - matched.Rect.Bottom;
+        Assert.Equal(matched.LineHeight, delta, precision: 3);
+    }
+
+    [Fact]
+    public void SquawkMismatch_RectIsTranslationInvariant()
+    {
+        var ac = CreateModel();
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var atOrigin = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "").Rect;
+        var atOffset = RadarDatablockLayout.Compute(ac, 137, -52, paint, showNoLandingClearance: false, callsignMarker: "").Rect;
+
+        Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
+        Assert.Equal(atOrigin.Top - 52, atOffset.Top, precision: 3);
+        Assert.Equal(atOrigin.Right + 137, atOffset.Right, precision: 3);
+        Assert.Equal(atOrigin.Bottom - 52, atOffset.Bottom, precision: 3);
+    }
+
+    [Fact]
+    public void SquawkMismatch_RectStableAcrossFlashCycle()
+    {
+        // The mismatch condition itself never flashes (only the assigned token dims in the renderer),
+        // so the reserved width + line count stay constant across a full 500 ms cycle.
+        var ac = CreateModel();
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var first = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "");
+        for (int i = 0; i < 10; i++)
+        {
+            Thread.Sleep(120);
+            var sample = RadarDatablockLayout.Compute(ac, 0, 0, paint, showNoLandingClearance: false, callsignMarker: "");
+            Assert.Equal(first.Rect.Width, sample.Rect.Width, precision: 3);
+            Assert.Equal(first.LineCount, sample.LineCount);
+            Assert.Equal("1200 0301", sample.SquawkLine);
+        }
+    }
 }

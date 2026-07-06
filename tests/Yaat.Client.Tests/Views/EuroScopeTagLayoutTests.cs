@@ -241,4 +241,76 @@ public class EuroScopeTagLayoutTests
         float delta = withNote.Bounds.Height - baseline.Bounds.Height;
         Assert.Equal(lineH, delta, precision: 3);
     }
+
+    // --- Beacon-code mismatch field (reported code solid + assigned code dim-pulsing, CRC STARS emulation) ---
+
+    [Fact]
+    public void SquawkField_Present_WhenAssignedDiffersAndModeC()
+    {
+        var ac = CreateModel();
+        ac.TransponderMode = "C";
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+
+        var squawk = Assert.Single(result.Fields, f => f.Field == TagFieldId.Squawk);
+        Assert.Equal("1200 0301", squawk.Text);
+    }
+
+    [Fact]
+    public void SquawkField_Absent_WhenCodesMatch()
+    {
+        var ac = CreateModel();
+        ac.BeaconCode = 301;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+
+        Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Squawk);
+    }
+
+    [Fact]
+    public void SquawkField_Absent_WhenNoAssignedCode()
+    {
+        var ac = CreateModel();
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 0;
+        using var paint = CreatePaint();
+
+        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+
+        Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Squawk);
+    }
+
+    [Theory]
+    [InlineData("Standby")]
+    [InlineData("Off")]
+    public void SquawkField_Absent_WhenTransponderNotTransmitting(string mode)
+    {
+        var ac = CreateModel();
+        ac.TransponderMode = mode;
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+
+        Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Squawk);
+    }
+
+    [Fact]
+    public void SquawkField_Absent_WhenReportedIsSpecialPurposeCode()
+    {
+        var ac = CreateModel();
+        ac.BeaconCode = 7700;
+        ac.AssignedBeaconCode = 301;
+        using var paint = CreatePaint();
+
+        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+
+        Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Squawk);
+    }
 }

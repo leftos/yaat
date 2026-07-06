@@ -59,7 +59,10 @@ counterpart of a JSON-compatible type or it deserializes to the client default.
 `AircraftStateDto` is produced by `DtoConverter.ToTrainingDto` (`DtoConverter.cs:620`). Note that the server maps
 `Assigned*` fields onto the wire `Assigned*` slots — e.g. `ac.Targets.AssignedMagneticHeading` →
 `AssignedHeading` (`DtoConverter.cs:644`), not the transient `Target*` physics goal. The wire DTO is the autopilot/UI
-projection, not the raw physics state.
+projection, not the raw physics state. The same assigned-vs-actual split applies to the transponder: `ac.Transponder.Code`
+→ `BeaconCode` (the reported/current code) and `ac.Transponder.AssignedCode` → `AssignedBeaconCode` (the ATC-assigned
+code) cross as **two** fields, so the radar datablock can flag a beacon-code mismatch when the pilot has not yet squawked
+the assigned code.
 
 **Heading frame mismatch — `Heading` is TRUE, `AssignedHeading` is MAGNETIC.** The DTO's bare `Heading` field carries
 `ac.TrueHeading.Degrees` (`DtoConverter.cs:844`) — true heading — while `AssignedHeading` carries

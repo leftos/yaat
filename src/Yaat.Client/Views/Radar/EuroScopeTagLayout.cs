@@ -167,6 +167,20 @@ public static class EuroScopeTagLayout
             lastLineYTop = y4Top;
         }
 
+        // Beacon-code mismatch line: reported code solid + assigned code dim-pulsing (the renderer
+        // split-draws and dims the assigned token). Its own line, mirroring the STARS datablock. The
+        // field rect spans the whole line so a click opens the SquawkFlyout as already dispatched.
+        if (RadarDatablockLayout.TryGetSquawkMismatch(ac, out string reportedCode, out string assignedCode))
+        {
+            float yTop = lastLineYTop + lineH;
+            float yBot = yTop + paint.TextSize;
+            x = originX;
+            x = AddField(fields, TagFieldId.Squawk, $"{reportedCode} {assignedCode}", x, yTop, yBot, paint);
+            maxWidth = MathF.Max(maxWidth, x - originX);
+            lineCount++;
+            lastLineYTop = yTop;
+        }
+
         // ModeC line: aircraft squawking standby — STARS would not be receiving Mode C.
         // Renderer draws a strikethrough through the literal "ModeC" text.
         if (ac.TransponderMode == "Standby")

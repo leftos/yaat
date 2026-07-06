@@ -32,6 +32,13 @@ internal readonly struct RadarDatablockLayout
     public readonly string Line4;
     public readonly string Line5;
 
+    /// <summary>
+    /// Beacon-code mismatch line <c>"{reported} {assigned}"</c> (e.g. <c>"1200 0301"</c>), drawn right
+    /// below the altitude/speed line, or empty when the codes match / the mismatch is suppressed. The
+    /// renderer draws the reported code solid and the assigned code dim-pulsing, emulating CRC STARS.
+    /// </summary>
+    public readonly string SquawkLine;
+
     /// <summary>Instructor note line (amber), drawn at the bottom of the block. Empty when no note.</summary>
     public readonly string Line6;
 
@@ -55,6 +62,7 @@ internal readonly struct RadarDatablockLayout
         string line3,
         string line4,
         string line5,
+        string squawkLine,
         string line6,
         int lineCount,
         bool reserveOwnerSlot
@@ -69,6 +77,7 @@ internal readonly struct RadarDatablockLayout
         Line3 = line3;
         Line4 = line4;
         Line5 = line5;
+        SquawkLine = squawkLine;
         Line6 = line6;
         LineCount = lineCount;
         ReserveOwnerSlot = reserveOwnerSlot;
@@ -101,6 +110,11 @@ internal readonly struct RadarDatablockLayout
         bool reserveOwnerSlot = line3Stable.Length > 0;
         string line4 = ac.TransponderMode == "Standby" ? "ModeC" : "";
 
+        // Beacon-code mismatch line: reported code + assigned code, drawn right under the alt/speed line.
+        // The reported code draws solid and the assigned code dim-pulses (emulating CRC STARS). The
+        // condition itself does not flash, so the reserved width/height stay stable while active.
+        string squawkLine = TryGetSquawkMismatch(ac, out string reportedCode, out string assignedCode) ? $"{reportedCode} {assignedCode}" : "";
+
         // No-landing-clearance warning flashes in sync with the handoff indicator (500 ms cycle).
         // Belt-and-suspenders on auto-CTL — the sim already gates the warning on !AutoClearedToLand,
         // but if the toggle flips mid-session before the next state push, the flash stays off.
@@ -113,14 +127,19 @@ internal readonly struct RadarDatablockLayout
 
         float w1 = paint.MeasureText(line1);
         float w2 = paint.MeasureText(line2);
+        float wSquawk = squawkLine.Length > 0 ? paint.MeasureText(squawkLine) : 0f;
         float w3 = reserveOwnerSlot ? paint.MeasureText(line3Stable) : 0f;
         float w4 = line4.Length > 0 ? paint.MeasureText(line4) : 0f;
         // Reserve width for the warning line whenever it's active so the rect width doesn't pulse.
         float w5 = noLndgClncActive ? paint.MeasureText(NoLandingClearanceText) : 0f;
         float w6 = line6.Length > 0 ? paint.MeasureText(line6) : 0f;
-        float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), MathF.Max(w5, w6));
+        float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), MathF.Max(MathF.Max(w5, w6), wSquawk));
 
         int lineCount = 2;
+        if (squawkLine.Length > 0)
+        {
+            lineCount++;
+        }
         if (reserveOwnerSlot)
         {
             lineCount++;
@@ -142,7 +161,21 @@ internal readonly struct RadarDatablockLayout
         float lineH = paint.TextSize + 2;
         var rect = new SKRect(blockX - Pad, blockY - paint.TextSize - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
 
-        return new RadarDatablockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4, line5, line6, lineCount, reserveOwnerSlot);
+        return new RadarDatablockLayout(
+            rect,
+            blockX,
+            blockY,
+            lineH,
+            line1,
+            line2,
+            line3,
+            line4,
+            line5,
+            squawkLine,
+            line6,
+            lineCount,
+            reserveOwnerSlot
+        );
     }
 
     /// <summary>
@@ -215,6 +248,48 @@ internal readonly struct RadarDatablockLayout
         }
 
         return baseType;
+    }
+
+    /// <summary>
+    /// Special-purpose / emergency beacon codes (7500 hijack, 7600 radio failure, 7700 emergency, plus
+    /// 7400 lost-link and 7777 military interceptor). CRC STARS suppresses the code-mismatch indicator
+    /// while the reported code is one of these — the emergency condition takes visual priority.
+    /// </summary>
+    private static readonly HashSet<uint> SpecialPurposeCodes = [7400, 7500, 7600, 7700, 7777];
+
+    /// <summary>
+    /// Determines whether an aircraft's reported beacon code differs from its assigned code in a way the
+    /// datablock should surface, emulating CRC STARS (<c>DisplayElementTracks.BuildFdb</c>). Shows only
+    /// when a discrete code is assigned, the transponder is actively squawking (Mode C — not Standby/Off),
+    /// the codes differ, and the reported code is not a special-purpose/emergency code. VFR 1200 vs an
+    /// assigned discrete DOES surface — the common "pilot hasn't squawked the assigned code yet" case.
+    /// <paramref name="reportedCode"/> and <paramref name="assignedCode"/> are 4-digit strings on success.
+    /// </summary>
+    internal static bool TryGetSquawkMismatch(AircraftModel ac, out string reportedCode, out string assignedCode)
+    {
+        reportedCode = "";
+        assignedCode = "";
+
+        if (ac.AssignedBeaconCode == 0 || ac.BeaconCode == ac.AssignedBeaconCode)
+        {
+            return false;
+        }
+
+        // Suppress unless the transponder is actively transmitting a code. Standby/Off already show via the
+        // struck-through "ModeC" line, and there is no reported code to compare against.
+        if (ac.TransponderMode is "Standby" or "Off")
+        {
+            return false;
+        }
+
+        if (SpecialPurposeCodes.Contains(ac.BeaconCode))
+        {
+            return false;
+        }
+
+        reportedCode = ac.BeaconCode.ToString("0000");
+        assignedCode = ac.AssignedBeaconCode.ToString("0000");
+        return true;
     }
 
     /// <summary>

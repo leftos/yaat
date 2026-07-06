@@ -79,6 +79,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 - Right-click context menus on aircraft and map
 - Draw route; click on map to set waypoints, with optional altitude crossings and commands to be executed at waypoint
 - Datablocks: callsign, altitude, ground speed, owner, scratchpad
+- Beacon-code mismatch indicator — when an aircraft squawks a code other than the one assigned, the datablock shows the reported code solid + the assigned code dim-pulsing (STARS + EuroScope tag), matching CRC STARS; suppressed for standby/off transponders and emergency/special codes
 - Per-scenario settings persistence
 - Predicted track lines (PTL) — own or all aircraft
 - History trails — configurable 0-10 dots showing past positions at ~5-second intervals

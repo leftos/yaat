@@ -622,6 +622,34 @@ public sealed class TargetRenderer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Draws the beacon-code mismatch line <c>"{reported} {assigned}"</c>: the reported code solid in the
+    /// block color, then the assigned code dim-pulsing to its right on the 500 ms off-phase — emulating
+    /// CRC STARS (reported solid, assigned blinking via <c>ApplyColorBrightness(color, 25)</c>).
+    /// </summary>
+    private void DrawSquawkMismatchLine(SKCanvas canvas, string line, float x, float baseline, SKColor color)
+    {
+        int space = line.IndexOf(' ');
+        string reported = space < 0 ? line : line[..space];
+        _dataBlockPaint.Color = color;
+        canvas.DrawText(reported, x, baseline, _dataBlockPaint);
+        if (space < 0)
+        {
+            return;
+        }
+
+        float reportedWidth = _dataBlockPaint.MeasureText(reported);
+        bool blinkOff = Environment.TickCount64 / 500 % 2 != 0;
+        _dataBlockPaint.Color = blinkOff ? DimColor(color, 0.25f) : color;
+        canvas.DrawText(line[space..], x + reportedWidth, baseline, _dataBlockPaint);
+        _dataBlockPaint.Color = color;
+    }
+
+    /// <summary>Scales a color's RGB toward black by <paramref name="factor"/> (alpha preserved), matching
+    /// CRC's <c>RenderUtils.ApplyColorBrightness</c> used for the dim-pulse of a blinking datablock token.</summary>
+    private static SKColor DimColor(SKColor color, float factor) =>
+        new((byte)(color.Red * factor), (byte)(color.Green * factor), (byte)(color.Blue * factor), color.Alpha);
+
     private SKRect DrawLeaderAndDataBlock(
         SKCanvas canvas,
         float cx,
@@ -688,6 +716,12 @@ public sealed class TargetRenderer : IDisposable
         DrawAltitudeLine(canvas, layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, ResolveMvaAltitudeTint(ac));
 
         int row = 2;
+        if (layout.SquawkLine.Length > 0)
+        {
+            DrawSquawkMismatchLine(canvas, layout.SquawkLine, layout.TextX, layout.TextY + row * layout.LineHeight, color);
+            row++;
+        }
+
         if (layout.ReserveOwnerSlot)
         {
             // The slot is reserved even when the handoff is flashing blank, so advance the row
@@ -837,6 +871,12 @@ public sealed class TargetRenderer : IDisposable
                 _dataBlockPaint.Color = altTint;
                 canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
+                continue;
+            }
+
+            if (f.Field == TagFieldId.Squawk)
+            {
+                DrawSquawkMismatchLine(canvas, f.Text, f.Rect.Left, f.Rect.Bottom, color);
                 continue;
             }
 

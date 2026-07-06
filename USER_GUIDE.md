@@ -483,7 +483,13 @@ Pin reference fixes/NAVAIDs or arbitrary points on the radar (matching CRC STARS
 
 The MVA is the radar-vectoring floor from 7110.65 §5-6-1; it is a controller-judgment aid, not a navigation source.
 
-**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**. When an instructor [note](#assigning-a-note-to-an-aircraft) is set, an extra amber line is appended at the bottom of the block.
+**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**. A beacon-code mismatch (see below) adds a line right under the altitude line. When an instructor [note](#assigning-a-note-to-an-aircraft) is set, an extra amber line is appended at the bottom of the block.
+
+##### Squawk (beacon-code) mismatch
+
+When an aircraft is squawking a transponder code that differs from the code assigned to it, the datablock surfaces the discrepancy the way CRC STARS does: a line showing the **reported code solid** followed by the **assigned code pulsing** next to it (for example `1200 0301`, where `0301` — the assigned code — dims on and off). It catches, for instance, a VFR aircraft still on `1200` after you assigned it a discrete code, or an aircraft that dialed in the wrong code. The indicator appears on both the STARS datablock and the EuroScope tag; on the EuroScope tag, clicking it opens the squawk picker.
+
+It shows only while the aircraft is actively squawking Mode C (not standby/off), an assigned code exists, and the reported code is not an emergency/special code (`7500`/`7600`/`7700`, etc.) — those keep their own indication. Once the pilot squawks the assigned code (`SQ`), the line clears.
 
 ##### Datablock deconfliction
 

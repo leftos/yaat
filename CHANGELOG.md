@@ -52,6 +52,7 @@
 - Autotrack now recognizes a departure filed under either its FAA or ICAO identifier for every airport — including non-CONUS airports such as Anchorage (ANC/PANC), Honolulu (HNL/PHNL) and San Juan (SJU/TJSJ) — not just the CONUS `K` prefix. Previously a mismatch between the filed identifier and the autotrack-list identifier skipped auto-tracking outside the lower 48.
 - The built-in flight plan editor's **BCN** box now shows the aircraft's assigned squawk, and updates live when you recycle the beacon (↻) or file a new plan while the editor is open. Previously it stayed `0000` even after a squawk was generated and shown on the strip.
 - A bare `FOLLOWF` or `RTISF` issued while a traffic call is still pending now follows (or acquires) that called traffic instead of rejecting.
+- The radar data block now flags a beacon-code mismatch — when an aircraft squawks a code other than the one assigned to it, the block shows the reported code followed by the assigned code pulsing beside it (on both the STARS data block and the EuroScope tag), matching CRC STARS. It catches a VFR aircraft still on 1200 after being assigned a discrete code, or a wrong code dialed in; it stays hidden while the transponder is standby/off and for emergency/special codes (7500/7600/7700).
 
 ## v0.8.10-beta [2026/07/03]
 

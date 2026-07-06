@@ -136,19 +136,24 @@ speech bubbles are enabled.
 
 Two layout families, selected by the `EuroScopeMode` preference:
 
-**STARS — `RadarDatablockLayout.Compute`** (`RadarDatablockLayout.cs:48`). Up to five lines:
+**STARS — `RadarDatablockLayout.Compute`** (`RadarDatablockLayout.cs:48`). Lines, top to bottom:
 1. Callsign (`*`-suffixed for VFR).
 2. Altitude-hundreds + speed-tens + CWT/type.
-3. Owner + flashing handoff + scratchpads (`.sp1 +sp2`) + `[assignedTo]`.
-4. `ModeC` (rendered struck-through) when the transponder is in Standby.
-5. `NoLndgClnc` warning (red, flashing).
+3. Beacon-code mismatch (`SquawkLine`, e.g. `1200 0301`) — the reported code solid, then the assigned code
+   dim-pulsing, when they differ (see **Beacon-code mismatch** below). Empty when the codes match / it's suppressed.
+4. Owner + flashing handoff + scratchpads (`.sp1 +sp2`) + `[assignedTo]`.
+5. `ModeC` (rendered struck-through) when the transponder is in Standby.
+6. `NoLndgClnc` warning (red, flashing).
+7. Instructor note (`Line6`, amber) at the bottom of the block.
 
-**EuroScope — `EuroScopeTagLayout.Layout`** (`EuroScopeTagLayout.cs:52`). Four lines plus optional ModeC / NoLndgClnc:
+**EuroScope — `EuroScopeTagLayout.Layout`** (`EuroScopeTagLayout.cs:52`). Four lines plus optional squawk-mismatch / ModeC / NoLndgClnc:
 1. Owner initials (or `--`) + callsign.
 2. Type/CWT + destination.
 3. Current altitude + assigned altitude `(NNN)` + assigned speed `Snnn`/`ASP` + assigned heading `Hnnn`/`AHDG`.
 4. `Rrwy` + scratchpads + flashing handoff (only when at least one is set).
-5/6. `ModeC` (struck-through) and `NoLndgClnc` as needed.
+5. Beacon-code mismatch — a `TagFieldId.Squawk` field (`1200 0301`, reported solid + assigned dim-pulsing), only when
+   the codes differ. Clicking it opens the `SquawkFlyout` via the existing dispatch.
+6/7. `ModeC` (struck-through) and `NoLndgClnc` as needed.
 
 The EuroScope layout returns a `EuroScopeTagResult` carrying the tag `Bounds` plus a list of `TagFieldRect`
 (`field id, rect, text`) — one per clickable field (`EuroScopeTagLayout.cs:31-35`). Empty assigned fields still emit their
@@ -162,6 +167,27 @@ The handoff indicator (both layouts) and the `NoLndgClnc` warning blink on a 500
 hit-rect width don't pulse with the flash (`RadarDatablockLayout.cs:73-90`; `EuroScopeTagLayout.cs:181-185`). The handoff
 indicator does **not** reserve when off — the STARS hit-test path compensates by always sizing line 3 as if the handoff
 were present (`RadarCanvas.cs:1333-1334`, `BuildOwnerScratchpadLine` always includes the handoff for width).
+
+### Beacon-code mismatch (squawk mismatch)
+
+`RadarDatablockLayout.TryGetSquawkMismatch(ac, out reported, out assigned)` is the **single shared gate** used by both
+the STARS datablock (`Compute`) and the EuroScope tag (`Layout`). It emulates CRC STARS
+(`DisplayElementTracks.BuildFdb`): when an aircraft is squawking a code that differs from its ATC-assigned code, the
+block shows the **reported code solid** followed by the **assigned code**, and the renderer draws the assigned token
+**dim-pulsing** — dimmed to ~25% brightness on the 500 ms off-phase (`TargetRenderer.DimColor`, mirroring CRC's
+`ApplyColorBrightness(color, 25)`), *not* fully blanked like the handoff / `NoLndgClnc` flash. The reported code stays
+solid.
+
+The gate returns true only when **all** hold: an assigned code exists (`AssignedBeaconCode > 0`); reported ≠ assigned;
+the transponder is actively squawking (`TransponderMode` is not `Standby`/`Off`); and the reported code is not a
+special-purpose/emergency code (`7400/7500/7600/7700/7777`). A VFR aircraft still squawking `1200` after being assigned a
+discrete code **does** surface — that is the primary case. Because the mismatch *condition* never flashes (only the
+assigned token's brightness pulses), the reserved line slot and width in `Compute` stay stable across the cycle, so the
+rect never pulses. Both codes format with `.ToString("0000")` (the raw octal-as-decimal beacon convention).
+
+The assigned code reaches the client via `AircraftDto.AssignedBeaconCode` (see
+[training-hub-contract.md](training-hub-contract.md)); the STARS datablock previously carried no beacon code at all in the
+full block, so this line is purely additive — a normal (matching) aircraft shows nothing.
 
 ## Student-scope datablock view
 
