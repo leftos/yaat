@@ -42,6 +42,15 @@ public class AircraftEramState
     /// STARS scratchpad. Null = unset.</summary>
     public string? FreeText { get; set; }
 
+    /// <summary>
+    /// Distance Reference Indicator (DRI / separation halo) toggled via <c>QP J</c> (standard, 5 NM) or
+    /// <c>QP T</c> (reduced separation, 3 NM) (docs/crc/eram.md §Distance Reference Indicators). Stored as
+    /// the CRC <c>HaloType</c> ordinal: 1 = Standard, 2 = ReducedSeparation; null = no halo. A manual display
+    /// annotation carried on the aircraft, so all sectors viewing the FDB see the same halo (adequate for
+    /// YAAT's single-ERAM-sector training; real ERAM DRIs are per-controller).
+    /// </summary>
+    public int? DriHaloType { get; set; }
+
     /// <summary>Active ERAM pointouts.</summary>
     public List<EramPointoutState> Pointouts { get; set; } = [];
 
@@ -93,6 +102,7 @@ public class AircraftEramState
             AssignedHeading = AssignedHeading,
             AssignedSpeed = AssignedSpeed,
             FreeText = FreeText,
+            DriHaloType = DriHaloType,
             IsFrozen = IsFrozen,
             FrozenLat = FrozenLat,
             FrozenLon = FrozenLon,
@@ -133,6 +143,7 @@ public class AircraftEramState
             AssignedHeading = dto.AssignedHeading,
             AssignedSpeed = dto.AssignedSpeed,
             FreeText = dto.FreeText,
+            DriHaloType = dto.DriHaloType,
             IsFrozen = dto.IsFrozen,
             FrozenLat = dto.FrozenLat,
             FrozenLon = dto.FrozenLon,

@@ -16,6 +16,9 @@ public sealed class AircraftEramStateDto
     public string? AssignedSpeed { get; init; }
     public string? FreeText { get; init; }
 
+    // DRI / separation halo toggled via QP J (Standard=1) / QP T (ReducedSeparation=2); null = no halo.
+    public int? DriHaloType { get; init; }
+
     public List<EramPointoutStateDto>? Pointouts { get; init; }
     public List<TcpDto>? ForcedPointoutsTo { get; init; }
 

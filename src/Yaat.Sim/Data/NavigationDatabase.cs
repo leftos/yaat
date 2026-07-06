@@ -2106,6 +2106,25 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
+    /// True when two airport identifiers refer to the same airport, resolving each through the FAA/ICAO
+    /// index so non-CONUS pairs match too (e.g. "ANC"/"PANC", "HNL"/"PHNL", "SJU"/"TJSJ") — not just the
+    /// CONUS K-prefix. Falls back to the K-strip <see cref="AirportIdsMatch"/> when an identifier is not in
+    /// the database, so unknown airports still match on an exact/ICAO-vs-FAA basis.
+    /// </summary>
+    public bool AirportIdsMatchResolved(string? a, string? b)
+    {
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
+        {
+            return false;
+        }
+        if (TryResolveAirport(a, out var canonicalA) && TryResolveAirport(b, out var canonicalB))
+        {
+            return canonicalA.Equals(canonicalB, StringComparison.Ordinal);
+        }
+        return AirportIdsMatch(a, b);
+    }
+
+    /// <summary>
     /// Canonicalizes an approach shorthand prefix for display and prefix-matching: maps a spelled-out
     /// type word to its single-letter CIFP code (<c>ILS</c>→<c>I</c>, <c>RNAV</c>→<c>H</c>, …) and
     /// zero-pads a single-digit runway number (<c>8R</c>→<c>08R</c>) so a FAA-style no-leading-zero
