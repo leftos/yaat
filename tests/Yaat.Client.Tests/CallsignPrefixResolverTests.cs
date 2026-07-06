@@ -43,6 +43,39 @@ public class CallsignPrefixResolverTests
     }
 
     [Fact]
+    public void NotAPrefix_KnownVerb_NotPartialMatchedAgainstCallsigns()
+    {
+        // Regression (CM 020): "CM" is the Climb/Maintain verb, not a callsign. Even though it
+        // is a substring of both CMD2 and PCM8679, a known verb must never be reported as an
+        // ambiguous callsign — the command applies to the already-selected aircraft instead.
+        var result = CallsignPrefixResolver.Resolve("CM 020", Scheme, Aircraft("CMD2", "PCM8679"));
+
+        Assert.IsType<CallsignPrefixResolver.NotAPrefix>(result);
+    }
+
+    [Fact]
+    public void NotAPrefix_KnownVerb_UniqueSubstring_CommandRemainder()
+    {
+        // A known verb wins over a *unique* substring match too, even when the remainder parses
+        // as a command. "CM IDENT" is climb/maintain (with a bad altitude), never IDENT-to-CMD2.
+        var result = CallsignPrefixResolver.Resolve("CM IDENT", Scheme, Aircraft("CMD2"));
+
+        Assert.IsType<CallsignPrefixResolver.NotAPrefix>(result);
+    }
+
+    [Fact]
+    public void Resolved_ExactCallsignEqualToVerb_StillResolves()
+    {
+        // Only an EXACT callsign match overrides the known-verb guard: an aircraft literally
+        // named "CM" with a command remainder still resolves as an addressee.
+        var result = CallsignPrefixResolver.Resolve("CM FH 270", Scheme, Aircraft("CM"));
+
+        var resolved = Assert.IsType<CallsignPrefixResolver.Resolved>(result);
+        Assert.Equal("CM", resolved.Aircraft.Callsign);
+        Assert.Equal("FH 270", resolved.Remainder);
+    }
+
+    [Fact]
     public void Resolved_UniqueSubstring_ReturnsResolvedWithRemainder()
     {
         var result = CallsignPrefixResolver.Resolve("N12 FH 270", Scheme, Aircraft("N1234", "SWA456"));

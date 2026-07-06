@@ -35,9 +35,12 @@ internal static class CallsignPrefixResolver
 
     /// <summary>
     /// Inspects <paramref name="input"/> as <c>&lt;callsign-prefix&gt; &lt;command&gt;</c>.
-    /// Ambiguity is reported regardless of whether the remainder parses as a command —
-    /// telling the user that the addressee is ambiguous is more useful than complaining
-    /// about the command they tried to send to it.
+    /// A leading token that is a known command verb is never treated as a partial callsign
+    /// (only an exact callsign match overrides it), so a bare command whose verb merely
+    /// appears inside live callsigns falls through to the caller instead of reporting a
+    /// spurious addressee ambiguity. Otherwise ambiguity is reported regardless of whether
+    /// the remainder parses as a command — telling the user that the addressee is ambiguous
+    /// is more useful than complaining about the command they tried to send to it.
     /// </summary>
     internal static Result Resolve(string input, CommandScheme scheme, IReadOnlyCollection<AircraftModel> aircraft)
     {
@@ -56,6 +59,16 @@ internal static class CallsignPrefixResolver
         }
 
         var (match, outcome, candidates) = CallsignMatcher.Match(token, aircraft);
+
+        // A known command verb (e.g. "CM" = climb/maintain) must never be hijacked by a
+        // *partial* (substring) callsign match. Only an exact callsign match may claim the
+        // token as an addressee; otherwise treat the whole input as a command for the
+        // already-selected aircraft. Mirrors the single-token guard in SendCommandAsync and
+        // FindLeadingCallsignEnd's known-verb refusal.
+        if (outcome != CallsignMatcher.Outcome.Exact && scheme.IsKnownVerb(token))
+        {
+            return NotAPrefixSingleton;
+        }
 
         if (outcome == CallsignMatcher.Outcome.Ambiguous)
         {

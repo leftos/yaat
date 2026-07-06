@@ -719,21 +719,7 @@ public partial class CommandInputController : ObservableObject
         return selectedAircraft;
     }
 
-    private static bool IsKnownVerb(string token, CommandScheme scheme)
-    {
-        foreach (var pattern in scheme.Patterns.Values)
-        {
-            foreach (var alias in pattern.Aliases)
-            {
-                if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
+    private static bool IsKnownVerb(string token, CommandScheme scheme) => scheme.IsKnownVerb(token);
 
     private static bool IsCompleteSyntaxPattern(string token)
     {

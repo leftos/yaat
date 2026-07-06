@@ -11,7 +11,7 @@ The instructor types `UA H180 AT FIX1`. By the end of the tick, `ControlTargets.
 (`src/Yaat.Client/ViewModels/MainViewModel.cs`)
 
 - Macro expansion runs first (`MacroExpander.TryExpand`) so `#climb 5` could become `CM 5000`.
-- The first whitespace-delimited token is the **partial callsign**. `CallsignPrefixResolver.Resolve` matches `"UA"` against `Aircraft.Callsign` (exact, then substring via `CallsignMatcher`); when multiple aircraft match, the status bar shows an ambiguity message listing the candidates and the command is not sent.
+- The first whitespace-delimited token is the **partial callsign**. `CallsignPrefixResolver.Resolve` matches `"UA"` against `Aircraft.Callsign` (exact, then substring via `CallsignMatcher`); when multiple aircraft match, the status bar shows an ambiguity message listing the candidates and the command is not sent. A leading token that is a known command verb (e.g. `CM`) is never treated as a partial callsign — only an exact callsign match overrides it — so `CM 020` is a climb/maintain for the selected aircraft even when live callsigns like `CMD2` contain the substring.
 - Optional `**` override prefix bypasses assignment-ownership checks.
 - `CallsignArgumentResolver.TryRewrite` rewrites partial callsigns inside arguments (e.g. `FOLLOW UA` → `FOLLOW UAL123`).
 - Sends via SignalR: `SendCommand(callsign, command, initials)` — three strings, JSON-serialized.

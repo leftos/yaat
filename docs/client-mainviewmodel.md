@@ -196,7 +196,9 @@ order:
    aircraft and return (no command sent).
 5. **Macro expand** — `MacroExpander.TryExpand` so callsign-prefix resolution sees real verbs.
 6. **Callsign-prefix resolve** — `CallsignPrefixResolver.Resolve`; `Ambiguous` surfaces a status message and aborts;
-   `Resolved` sets `target` + strips the prefix from `commandText`.
+   `Resolved` sets `target` + strips the prefix from `commandText`. A leading known command verb is never taken as a
+   partial callsign (only an exact callsign match overrides), so a bare command whose verb merely appears inside live
+   callsigns (`CM` while `CMD2` is up) falls through to the selected aircraft instead of reporting a false ambiguity.
 7. **Argument rewrite** — `CallsignArgumentResolver.TryRewrite` canonicalizes partial callsigns inside arguments
    (`FOLLOW UA` → `FOLLOW UAL123`).
 8. **RPO control commands** — `TryHandleRpoCommand` (`MainViewModel.cs:2097`) intercepts `TAKE` / `GIVE <initials>` /
