@@ -180,13 +180,13 @@ Services/
   KeybindHelper.cs              # Keyboard shortcut resolution
   IAlwaysOnTopToggle.cs         # Window contract for the central always-on-top hotkey (WindowHotkeys); each window delegates to its WindowGeometryHelper.ToggleTopmost
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames
-  GroundColorScheme.cs          # Theme/color scheme for strips
-  TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say/Warning/Error/Chat/PilotSpeech/Tdls/Strip)
 
 Models/
   TerminalColorScheme.cs        # Operator-tunable per-Kind terminal foreground colors (Command/Response/System/Say/PilotSpeech/Warning/Error/Chat/Tdls/Strip); defaults match the legacy hard-coded scheme
   CommandHistoryEntry.cs        # Up-arrow recall entry: (Callsign, Command). Callsign-less command text + the aircraft it was sent to (empty = global/untargeted); recall filters by selected aircraft
   DatablockDeconflictMode.cs    # Per-view datablock-deconfliction setting (Off / Snap / Free-form); persisted per view in UserPreferences
+  GroundColorScheme.cs          # Theme/color scheme for strips
+  TerminalEntry.cs              # Terminal/radio log entry (Kind: Command/Response/System/Say/Warning/Error/Chat/PilotSpeech/Tdls/Strip)
 
 ViewModels/
   ConnectViewModel.cs           # Room/identity connection flow
@@ -306,6 +306,8 @@ Views/
   CopyViewSettingsDialog.axaml(.cs)      # View → Copy View Settings dialog: source picker (scenario or window profile), grouped Current-vs-Source diff with per-section checkboxes, airport-mismatch warning. Returns selected keys for MainWindow to apply via ViewSettingsCopyCatalog / WindowProfileService.
   CommandFlyout.cs              # Floating focused command-entry popup opened from aircraft right-click menus (radar/ground/flight list)
   ContextMenuExtensions.cs      # Helpers for building Avalonia context menus (right-click submenus, command items)
+  FlightPlanEditorWindow.axaml.cs # Built-in flight plan editor window: view/amend fields + route, recycle beacon, live squawk refresh; raises an amend callback per edit
+  FlightPlanEditorManager.cs    # Static single-instance opener/lifecycle for the flight plan editor window (reuses one open editor)
   FlightPlanEditorAmendmentBuilder.cs # Builds a FlightPlanAmendment from the built-in flight plan editor's field/route edits for dispatch to the server
   HoldShortMenuHelper.cs        # Shared resolver: held runway from the "Holding Short {rwy}" phase, used by ground-map + aircraft-list cross/LUAW menu items
   WindowHotkeys.cs              # App-wide class handler for window-level hotkeys (focus command input + always-on-top + Ctrl+F8 radar DCB toggle); routes focus to the visible CommandInputView and toggles topmost via IAlwaysOnTopToggle
