@@ -149,7 +149,7 @@ internal static class ProcedureLegResolver
                 && previousFixPos is { } rfPrev
             )
             {
-                ExpandArc(result, new LatLon(rfLat, rfLon), rfRadius, rfPrev, fixPos, leg.TurnDirection == 'R');
+                ExpandArc(result, new LatLon(rfLat, rfLon), rfRadius, rfPrev, fixPos, leg.TurnDirection);
             }
 
             // AF leg: expand the DME arc about the recommended navaid.
@@ -161,7 +161,7 @@ internal static class ProcedureLegResolver
                 && navDb.GetFixPosition(leg.RecommendedNavaidId) is { } navaid
             )
             {
-                ExpandArc(result, new LatLon(navaid.Lat, navaid.Lon), afRho, afPrev, fixPos, leg.TurnDirection != 'L');
+                ExpandArc(result, new LatLon(navaid.Lat, navaid.Lon), afRho, afPrev, fixPos, leg.TurnDirection);
             }
 
             var type = leg.PathTerminator switch
@@ -285,10 +285,18 @@ internal static class ProcedureLegResolver
         };
     }
 
-    private static void ExpandArc(List<ProcedureLeg> result, LatLon center, double radiusNm, LatLon previousFix, LatLon terminatorFix, bool turnRight)
+    private static void ExpandArc(
+        List<ProcedureLeg> result,
+        LatLon center,
+        double radiusNm,
+        LatLon previousFix,
+        LatLon terminatorFix,
+        char? turnDirection
+    )
     {
         double startBearing = GeoMath.BearingTo(center, previousFix);
         double endBearing = GeoMath.BearingTo(center, terminatorFix);
+        bool turnRight = GeoMath.ResolveArcTurnRight(turnDirection, startBearing, endBearing);
         var arcPoints = GeoMath.GenerateArcPoints(center, radiusNm, startBearing, endBearing, turnRight);
 
         // Insert intermediate points; the terminator fix itself is added by the caller.

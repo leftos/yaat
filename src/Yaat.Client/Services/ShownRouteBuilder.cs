@@ -8,14 +8,15 @@ using Yaat.Sim.Phases;
 namespace Yaat.Client.Services;
 
 /// <summary>
-/// Builds the polyline + optional vector-tail segments that the radar's "Show flight path"
+/// Builds the polyline + optional vector-tail segments that the radar's "Show nav route"
 /// overlay draws for an aircraft. Pure helpers — no UI dependency beyond
 /// <see cref="DrawnWaypoint"/> and <see cref="VectorTail"/>.
 ///
 /// Two segments may exist per aircraft:
 /// <list type="bullet">
-///   <item><see cref="BuildPrimary"/> — the current <see cref="AircraftModel.NavigationRoute"/>,
-///         with an optional vector tail off the last fix when the active SID/STAR's final leg
+///   <item><see cref="BuildPrimary"/> — the current <see cref="AircraftModel.NavRouteFixes"/>
+///         (server-provided positions + crossing-restriction labels), with an optional vector tail
+///         off the last fix when the active SID/STAR's final leg
 ///         is a published radar vector (VM/VA) or the aircraft is being vectored with no
 ///         upcoming fix.</item>
 ///   <item><see cref="BuildExpectedApproach"/> — when <see cref="AircraftModel.ExpectedApproach"/>
@@ -41,7 +42,7 @@ internal static class ShownRouteBuilder
 
     public static (List<DrawnWaypoint> Waypoints, VectorTail? Tail) BuildPrimary(AircraftModel ac, NavigationDatabase navDb)
     {
-        var waypoints = ResolveNavigationRouteWaypoints(ac, navDb);
+        var waypoints = ResolveNavigationRouteWaypoints(ac);
 
         // Tail from procedure VM/VA, if any
         var tail = TryGetProcedureVectorTail(ac, navDb, waypoints);
@@ -144,16 +145,17 @@ internal static class ShownRouteBuilder
         return (waypoints, null);
     }
 
-    private static List<DrawnWaypoint> ResolveNavigationRouteWaypoints(AircraftModel ac, NavigationDatabase navDb)
+    private static List<DrawnWaypoint> ResolveNavigationRouteWaypoints(AircraftModel ac)
     {
-        var result = new List<DrawnWaypoint>(ac.NavigationRoute.Count);
-        foreach (var name in ac.NavigationRoute)
+        // Draw the server-provided positions verbatim rather than re-resolving fix names locally.
+        // The server route already carries arc-densification vertices, custom fixes, and FRD fixes
+        // with exact coordinates — re-resolving by name would drop the synthetic ones (breaking arcs)
+        // and could disagree with the flown position. Synthetic arc vertices arrive with an empty
+        // name and render as bare polyline points.
+        var result = new List<DrawnWaypoint>(ac.NavRouteFixes.Count);
+        foreach (var fix in ac.NavRouteFixes)
         {
-            var pos = navDb.GetFixPosition(name);
-            if (pos.HasValue)
-            {
-                result.Add(new DrawnWaypoint(name, pos.Value.Lat, pos.Value.Lon));
-            }
+            result.Add(new DrawnWaypoint(fix.Name, fix.Lat, fix.Lon, fix.RestrictionLines));
         }
         return result;
     }

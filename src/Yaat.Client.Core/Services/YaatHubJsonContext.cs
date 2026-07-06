@@ -36,6 +36,8 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(byte[]))]
 [JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(List<string>))]
+[JsonSerializable(typeof(Yaat.Sim.NavRouteFixDto))]
+[JsonSerializable(typeof(List<Yaat.Sim.NavRouteFixDto>))]
 // --- Broadcast payloads (server.On<T>). ---
 [JsonSerializable(typeof(AircraftDto))]
 [JsonSerializable(typeof(TerminalBroadcastDto))]

@@ -82,6 +82,30 @@ public static class GeoMath
     }
 
     /// <summary>
+    /// Resolves the turn direction (right/clockwise vs left/counter-clockwise) for a DME (AF) or
+    /// radius-to-fix (RF) arc. An explicit ARINC 424 turn-direction code (<c>'L'</c>/<c>'R'</c>) is
+    /// honored; when the code is absent (null) the minor arc — the one whose swept angle is ≤ 180°
+    /// from <paramref name="startBearingDeg"/> to <paramref name="endBearingDeg"/> — is chosen.
+    /// Defaulting to the minor arc keeps a null-turn arc from sweeping the long way around the center
+    /// (a wrong-way DME arc); terminal AF/RF arcs only code turn direction when the intended arc is
+    /// the reflex one, so the minor arc is the correct default.
+    /// </summary>
+    public static bool ResolveArcTurnRight(char? turnDirection, double startBearingDeg, double endBearingDeg)
+    {
+        if (turnDirection is 'R' or 'r')
+        {
+            return true;
+        }
+        if (turnDirection is 'L' or 'l')
+        {
+            return false;
+        }
+
+        double rightSweep = (((endBearingDeg - startBearingDeg) % 360.0) + 360.0) % 360.0;
+        return rightSweep <= 180.0;
+    }
+
+    /// <summary>
     /// Generates intermediate waypoints along a circular arc from startBearing to endBearing,
     /// centered at (centerLat, centerLon) with the given radius.
     /// Does NOT include the start point; DOES include the end point.

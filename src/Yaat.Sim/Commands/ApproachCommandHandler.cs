@@ -1074,7 +1074,7 @@ public static class ApproachCommandHandler
                     leg.ArcRadiusNm.Value,
                     previousFixPos.Value,
                     pos.Value,
-                    leg.TurnDirection == 'R'
+                    leg.TurnDirection
                 );
             }
 
@@ -1095,7 +1095,7 @@ public static class ApproachCommandHandler
                         leg.Rho.Value,
                         previousFixPos.Value,
                         pos.Value,
-                        leg.TurnDirection != 'L'
+                        leg.TurnDirection
                     );
                 }
             }
@@ -1576,7 +1576,7 @@ public static class ApproachCommandHandler
                     leg.ArcRadiusNm.Value,
                     previousFixPos.Value,
                     pos.Value,
-                    leg.TurnDirection == 'R'
+                    leg.TurnDirection
                 );
             }
 
@@ -1598,7 +1598,7 @@ public static class ApproachCommandHandler
                         leg.Rho.Value,
                         previousFixPos.Value,
                         pos.Value,
-                        leg.TurnDirection != 'L'
+                        leg.TurnDirection
                     );
                 }
             }
@@ -1627,11 +1627,12 @@ public static class ApproachCommandHandler
         double radiusNm,
         (double Lat, double Lon) previousFix,
         (double Lat, double Lon) terminatorFix,
-        bool turnRight
+        char? turnDirection
     )
     {
         double startBearing = GeoMath.BearingTo(centerLat, centerLon, previousFix.Lat, previousFix.Lon);
         double endBearing = GeoMath.BearingTo(centerLat, centerLon, terminatorFix.Lat, terminatorFix.Lon);
+        bool turnRight = GeoMath.ResolveArcTurnRight(turnDirection, startBearing, endBearing);
 
         var arcPoints = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight);
 

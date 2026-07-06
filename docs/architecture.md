@@ -246,7 +246,7 @@ Services/
   CommandErrorFormatter.cs      # Pure formatter for unrecognized-command errors: when the leading token is a known callsign (partial/complete), names the verb after it instead of blaming the callsign. Used by MainViewModel.SendCommandAsync.
   WindowProfileService.cs       # Saves/restores named window arrangements: per-window geometry + dock/pop-out state + DataGrid column layout. Persists to UserPreferences; surfaced via View → Window Profiles. StagePreferencesPartial applies a chosen subset for the Copy View Settings dialog.
   ViewSettingsCopyCatalog.cs    # Shared catalog of Ground/Radar per-scenario view-setting groups (Key/Label/Describe/AreEqual/Copy). Single source of truth for both CopyViewSettingsDialog's diff rows and MainWindow's merge-on-copy.
-  ShownRouteBuilder.cs          # Pure builder for the radar "Show flight path" overlay. Produces a multi-segment path: published route + procedure vector tail (5 nm arrow off the last STAR fix on FM/VM/VA legs) + the expected approach line (IAF/transition → FAF → threshold, FAC extended back 5 nm when no transition is named).
+  ShownRouteBuilder.cs          # Pure builder for the radar "Show nav route" overlay. Produces a multi-segment path from AircraftModel.NavRouteFixes (server-provided positions, so arcs/custom/FRD fixes draw verbatim; synthetic arc vertices carry empty names) with per-fix crossing-restriction labels, plus a procedure vector tail (5 nm arrow off the last STAR fix on FM/VM/VA legs) + the expected approach line (IAF/transition → FAF → threshold, FAC extended back 5 nm when no transition is named).
 
 ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
@@ -387,8 +387,9 @@ AircraftState.cs               # Mutable aircraft entity. Identity + kinematics 
                                # PendingObservations: ephemeral pilot-side "watch for condition" state (not persisted in snapshots)
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
+NavRouteFixDto.cs              # Wire record (Name/Lat/Lon/RestrictionLines) for the client "Show nav route" overlay; carries server positions + pre-formatted crossing-restriction labels. Empty Name = synthetic arc vertex. Referenced by both AircraftStateDto (server) and AircraftDto (client)
 ProcedureLeg.cs                # Typed ARINC-424 procedure leg (path terminator + course/altitude/turn, + DME/along-track distance or radial termination for CD/VD/FD/FC/CR/VR) flown by DepartureProcedurePhase; built by ProcedureLegResolver
-                               # NavigationTarget: Position (LatLon) + optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
+                               # NavigationTarget: Position (LatLon) + optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode); IsSyntheticArcName(name) flags ARCnn arc-densification vertices
                                # TargetMach: when set, UpdateSpeed recomputes equivalent IAS each tick (Mach hold)
 LatLon.cs                      # Readonly record struct: public LatLon(double Lat, double Lon). The canonical coordinate type
 LatLonBounds.cs                # Internal: axis-aligned lat/lon bbox pre-filter shared by AirspaceVolume + MvaSector (O(1) reject before ray-cast)
@@ -796,6 +797,7 @@ CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SI
                                # ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix resolution
 CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSidProcedure, CifpStarProcedure, CifpLeg, CifpTransition
                                # CifpLeg: ArcRadiusNm, ArcCenterLat/Lon (RF), RecommendedNavaidId, Theta, Rho (AF)
+CrossingRestrictionLabel.cs    # Formats a CifpAltitudeRestriction/CifpSpeedRestriction into ≥/≤ FL-aware label lines for the "Show nav route" overlay; server-side, fed into NavRouteFixDto.RestrictionLines by DtoConverter
 
 # Scenarios/
 ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting conditions, nav routes, beacon codes

@@ -810,7 +810,7 @@ public record AircraftDto(
     string LandingClearance = "",
     string ClearedRunway = "",
     string PatternDirection = "",
-    List<string>? NavigationRoute = null,
+    List<Yaat.Sim.NavRouteFixDto>? NavigationRoute = null,
     string EquipmentSuffix = "",
     int CruiseAltitude = 0,
     int CruiseSpeed = 0,

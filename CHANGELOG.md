@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- The radar right-click **Display → Show nav route** (renamed from "Show flight path") now draws the exact lateral path an aircraft is flying — DME and RF arcs included, where it previously drew a straight line across the arc — and labels each fix with any crossing altitude and speed restriction, whether you set it with `CFIX` or it comes published on the SID, STAR, or approach the aircraft is flying.
+
+### Fixed
+- A DME arc (AF leg) with no charted turn direction no longer risks sweeping the long way around the navaid — the shorter arc is chosen — so aircraft on those procedures fly and display the correct curve.
+
 ## v0.9.1-beta [2026/07/06]
 
 ### Highlights

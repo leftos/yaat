@@ -604,11 +604,7 @@ public partial class RadarView
         }
         var isPathShown = vm.IsPathShown(callsign);
         menu.Items.Add(
-            new MenuItem
-            {
-                Header = isPathShown ? "Hide flight path" : "Show flight path",
-                Command = new RelayCommand(() => vm.ToggleShowPath(callsign)),
-            }
+            new MenuItem { Header = isPathShown ? "Hide nav route" : "Show nav route", Command = new RelayCommand(() => vm.ToggleShowPath(callsign)) }
         );
         menu.Items.Add(new Separator());
 

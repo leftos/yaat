@@ -130,10 +130,11 @@ public sealed class RadarRenderer : IDisposable
         Typeface = PlatformHelper.MonospaceTypeface,
     };
 
-    // Pre-allocated paints for shown flight paths (one set per palette color)
+    // Pre-allocated paints for shown nav routes (one set per palette color)
     private readonly SKPaint[] _pathLinePaints;
     private readonly SKPaint[] _pathWaypointPaints;
     private readonly SKPaint[] _pathLabelPaints;
+    private readonly SKPaint[] _pathRestrictionPaints;
     private readonly SKPaint[] _pathLeaderPaints;
     private readonly SKPaint[] _pathTailPaints;
 
@@ -154,6 +155,7 @@ public sealed class RadarRenderer : IDisposable
         _pathLinePaints = new SKPaint[colors.Length];
         _pathWaypointPaints = new SKPaint[colors.Length];
         _pathLabelPaints = new SKPaint[colors.Length];
+        _pathRestrictionPaints = new SKPaint[colors.Length];
         _pathLeaderPaints = new SKPaint[colors.Length];
         _pathTailPaints = new SKPaint[colors.Length];
 
@@ -177,6 +179,16 @@ public sealed class RadarRenderer : IDisposable
             {
                 Color = colors[i],
                 TextSize = 12,
+                IsAntialias = true,
+                SubpixelText = true,
+                Typeface = PlatformHelper.MonospaceTypeface,
+            };
+            _pathRestrictionPaints[i] = new SKPaint
+            {
+                // Crossing altitude/speed labels — same route color, slightly smaller than the fix
+                // name so they read as secondary detail hanging off the fix.
+                Color = colors[i],
+                TextSize = 10,
                 IsAntialias = true,
                 SubpixelText = true,
                 Typeface = PlatformHelper.MonospaceTypeface,
@@ -391,7 +403,7 @@ public sealed class RadarRenderer : IDisposable
             DrawPinnedMarkers(canvas, vp, pinnedMarkers);
         }
 
-        // Shown flight paths (behind aircraft)
+        // Shown nav routes (behind aircraft)
         if (shownPaths is { Count: > 0 })
         {
             DrawShownPaths(canvas, vp, shownPaths);
@@ -494,6 +506,7 @@ public sealed class RadarRenderer : IDisposable
             var linePaint = _pathLinePaints[paintIdx];
             var wpPaint = _pathWaypointPaints[paintIdx];
             var labelPaint = _pathLabelPaints[paintIdx];
+            var restrictionPaint = _pathRestrictionPaints[paintIdx];
             var leaderPaint = _pathLeaderPaints[paintIdx];
             var tailPaint = _pathTailPaints[paintIdx];
 
@@ -515,17 +528,32 @@ public sealed class RadarRenderer : IDisposable
                 canvas.DrawLine(x1, y1, x2, y2, linePaint);
             }
 
-            // Diamond markers + fix name labels (synthetic anchors with empty names are drawn unlabeled)
+            // Diamond markers + fix name labels + crossing-restriction labels. Synthetic arc vertices
+            // (empty name) are polyline points only — no diamond, label, or restriction hangs off them.
             foreach (var wp in entry.Waypoints)
             {
+                if (string.IsNullOrEmpty(wp.ResolvedName))
+                {
+                    continue;
+                }
+
                 var (wx, wy) = vp.LatLonToScreen(wp.Lat, wp.Lon);
                 canvas.DrawLine(wx, wy - diamondSize, wx + diamondSize, wy, wpPaint);
                 canvas.DrawLine(wx + diamondSize, wy, wx, wy + diamondSize, wpPaint);
                 canvas.DrawLine(wx, wy + diamondSize, wx - diamondSize, wy, wpPaint);
                 canvas.DrawLine(wx - diamondSize, wy, wx, wy - diamondSize, wpPaint);
-                if (!string.IsNullOrEmpty(wp.ResolvedName))
+                canvas.DrawText(wp.ResolvedName, wx + 8, wy - 4, labelPaint);
+
+                // Crossing restriction lines stacked under the fix name (e.g. "≥6000  250" or a
+                // window "≤17000" / "≥11000").
+                if (wp.RestrictionLines is { Count: > 0 } lines)
                 {
-                    canvas.DrawText(wp.ResolvedName, wx + 8, wy - 4, labelPaint);
+                    float ly = wy + 8;
+                    foreach (var line in lines)
+                    {
+                        canvas.DrawText(line, wx + 8, ly, restrictionPaint);
+                        ly += 11;
+                    }
                 }
             }
 
@@ -807,7 +835,9 @@ public sealed class RadarRenderer : IDisposable
             _pathLinePaints[i].Dispose();
             _pathWaypointPaints[i].Dispose();
             _pathLabelPaints[i].Dispose();
+            _pathRestrictionPaints[i].Dispose();
             _pathLeaderPaints[i].Dispose();
+            _pathTailPaints[i].Dispose();
         }
     }
 }

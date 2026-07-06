@@ -168,6 +168,21 @@ public class NavigationTarget
 {
     public required string Name { get; init; }
 
+    /// <summary>
+    /// True when <paramref name="name"/> is a synthetic arc-densification vertex (<c>ARC01</c>,
+    /// <c>ARC02</c>, …) emitted when an RF/AF (DME arc) leg is expanded into a polyline by the arc
+    /// expanders in <c>DepartureClearanceHandler</c>/<c>ApproachCommandHandler</c>. These vertices
+    /// are not real fixes — route projections skip them for name display and the radar overlay draws
+    /// them as bare path points (no diamond, label, or restriction).
+    /// </summary>
+    public static bool IsSyntheticArcName(string name) =>
+        name.Length == 5
+        && (name[0] == 'A' || name[0] == 'a')
+        && (name[1] == 'R' || name[1] == 'r')
+        && (name[2] == 'C' || name[2] == 'c')
+        && char.IsAsciiDigit(name[3])
+        && char.IsAsciiDigit(name[4]);
+
     /// <summary>Geographic position of the navigation fix.</summary>
     public required LatLon Position { get; init; }
 

@@ -326,6 +326,18 @@ public partial class AircraftModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(NavigationRouteDisplay))]
     private List<string> _navigationRoute = [];
 
+    /// <summary>
+    /// Full flown lateral route as projected by the server: each fix's geographic position (arc
+    /// vertices, custom fixes, and FRD fixes included) plus any per-fix crossing-restriction label
+    /// lines. Drives the radar "Show nav route" overlay so it draws the exact path the aircraft flies.
+    /// Synthetic arc vertices carry an empty <see cref="NavRouteFixDto.Name"/>; <see cref="NavigationRoute"/>
+    /// is the human-readable fix-name list derived from this (arc vertices filtered out).
+    /// </summary>
+    public List<NavRouteFixDto> NavRouteFixes { get; set; } = [];
+
+    private static List<string> DeriveFixNames(List<NavRouteFixDto>? fixes) =>
+        fixes is null ? [] : fixes.Where(f => f.Name.Length > 0).Select(f => f.Name).ToList();
+
     [ObservableProperty]
     private string _equipmentSuffix = "";
 
@@ -886,7 +898,7 @@ public partial class AircraftModel : ObservableObject
             AutoDeletePending = dto.AutoDeletePending,
             ClearedRunway = dto.ClearedRunway,
             PatternDirection = dto.PatternDirection,
-            NavigationRoute = dto.NavigationRoute ?? [],
+            NavigationRoute = DeriveFixNames(dto.NavigationRoute),
             EquipmentSuffix = dto.EquipmentSuffix,
             CruiseAltitude = dto.CruiseAltitude,
             BlockFloorAltitude = dto.BlockFloorAltitude,
@@ -938,6 +950,7 @@ public partial class AircraftModel : ObservableObject
             BelowDisplayFloor = dto.BelowDisplayFloor,
             IsEstablishedOnApproach = dto.IsEstablishedOnApproach,
         };
+        model.NavRouteFixes = dto.NavigationRoute ?? [];
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.SmartStatus = dto.SmartStatus;
         model.SmartStatusSeverity = dto.SmartStatusSeverity;
@@ -982,7 +995,8 @@ public partial class AircraftModel : ObservableObject
         AutoDeletePending = dto.AutoDeletePending;
         ClearedRunway = dto.ClearedRunway;
         PatternDirection = dto.PatternDirection;
-        NavigationRoute = dto.NavigationRoute ?? [];
+        NavRouteFixes = dto.NavigationRoute ?? [];
+        NavigationRoute = DeriveFixNames(dto.NavigationRoute);
         EquipmentSuffix = dto.EquipmentSuffix;
         CruiseAltitude = dto.CruiseAltitude;
         BlockFloorAltitude = dto.BlockFloorAltitude;

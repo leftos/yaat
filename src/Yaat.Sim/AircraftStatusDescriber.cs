@@ -497,6 +497,12 @@ public static class AircraftStatusDescriber
         var names = new List<string>(targets.NavigationRoute.Count);
         foreach (var nav in targets.NavigationRoute)
         {
+            // Skip synthetic arc-densification vertices — they are path points, not fixes a
+            // controller reads in a status line.
+            if (NavigationTarget.IsSyntheticArcName(nav.Name))
+            {
+                continue;
+            }
             names.Add(nav.Name);
         }
 

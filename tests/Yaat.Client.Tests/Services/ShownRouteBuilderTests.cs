@@ -53,7 +53,7 @@ public class ShownRouteBuilderTests
             Destination = Airport,
             ActiveStarId = "WNDSR2",
             DestinationRunway = RunwayDesignator,
-            NavigationRoute = ["ENROU", "WNDSR"],
+            NavRouteFixes = [new NavRouteFixDto("ENROU", 38.0, -122.5, null), new NavRouteFixDto("WNDSR", 37.85, -122.30, null)],
         };
 
         var (waypoints, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
@@ -238,10 +238,55 @@ public class ShownRouteBuilderTests
 
         var navDb = NavigationDatabase.ForTesting(fixes);
 
-        var ac = new AircraftModel { Callsign = "UAL101", NavigationRoute = ["ENROU", "WNDSR"] };
+        var ac = new AircraftModel
+        {
+            Callsign = "UAL101",
+            NavRouteFixes = [new NavRouteFixDto("ENROU", 38.0, -122.5, null), new NavRouteFixDto("WNDSR", 37.85, -122.30, null)],
+        };
 
         var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
         Assert.Null(tail);
+    }
+
+    [Fact]
+    public void BuildPrimary_DrawsServerPositionsVerbatim_WithArcVerticesAndRestrictionLabels()
+    {
+        // The overlay must draw the server-provided route positions directly — including synthetic
+        // arc-densification vertices (empty name) that no navdb lookup could resolve — and carry each
+        // fix's pre-formatted crossing-restriction lines. No navDb resolution of names.
+        var navDb = NavigationDatabase.ForTesting();
+
+        var ac = new AircraftModel
+        {
+            Callsign = "UAL909",
+            NavRouteFixes =
+            [
+                new NavRouteFixDto("SKUNK", 37.90, -122.40, ["≥6000", "250"]),
+                new NavRouteFixDto("", 37.88, -122.36, null), // synthetic arc vertex
+                new NavRouteFixDto("", 37.86, -122.33, null), // synthetic arc vertex
+                new NavRouteFixDto("DOCKR", 37.84, -122.30, ["≤17000", "≥11000"]),
+            ],
+        };
+
+        var (waypoints, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+
+        Assert.Null(tail);
+        Assert.Equal(4, waypoints.Count);
+
+        // Positions passed through verbatim.
+        Assert.Equal("SKUNK", waypoints[0].ResolvedName);
+        Assert.Equal(37.90, waypoints[0].Lat, 6);
+        Assert.Equal(-122.40, waypoints[0].Lon, 6);
+        Assert.Equal(["≥6000", "250"], waypoints[0].RestrictionLines);
+
+        // Arc vertices preserved as bare points (empty name, no restriction).
+        Assert.Equal("", waypoints[1].ResolvedName);
+        Assert.Null(waypoints[1].RestrictionLines);
+        Assert.Equal("", waypoints[2].ResolvedName);
+
+        // Window restriction preserved as two lines.
+        Assert.Equal("DOCKR", waypoints[3].ResolvedName);
+        Assert.Equal(["≤17000", "≥11000"], waypoints[3].RestrictionLines);
     }
 
     [Fact]

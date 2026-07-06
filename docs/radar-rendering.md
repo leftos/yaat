@@ -32,7 +32,7 @@ All paths are under `src/Yaat.Client/`.
 | `Views/Radar/Flyouts/*.cs` | EuroScope interactive-tag pickers (altitude, speed, runway, squawk, scratchpad, handoff) + heading mode |
 
 `Services/ShownRouteBuilder.cs` is **not** part of this stack and is **not** command-input UX — it builds the
-"show flight path" path segments (waypoints + optional vector tail) that `RadarViewModel` assembles into the
+"show nav route" path segments (waypoints + optional vector tail + crossing-restriction labels) that `RadarViewModel` assembles into the
 `ShownPathEntry` overlay list drawn by `RadarRenderer.DrawShownPaths`. It only shares the `Services/` folder with other code.
 
 ## Two-thread render pipeline
@@ -120,7 +120,7 @@ performs the fit once the viewport has pixel dimensions (`Viewport.PixelWidth >=
 2. **Video maps** — `VideoMapRenderer.Render`, A/B brightness category per map (`RadarRenderer.cs:312`).
 3. **Range rings** — concentric circles at the dedicated range-ring center/size, if `showRangeRings` (`:315-321`).
 4. **Fixes** — crosses + labels; programmed fixes get a distinct color and always-on label (`:324-327`, `DrawFixes`).
-5. **Shown flight paths** — the "show flight path" overlay, drawn behind aircraft (`:330-333`, `DrawShownPaths`).
+5. **Shown nav routes** — the "show nav route" overlay, drawn behind aircraft (`:330-333`, `DrawShownPaths`).
 6. **Aircraft targets** — `TargetRenderer.Render` (`:336-349`).
 7. **Heading-mode preview** — the live elastic vector when EuroScope heading mode is active; above aircraft, below the
    drawn route (`:352-359`, `Flyouts.HeadingPreviewRenderer.Render`).

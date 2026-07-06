@@ -262,7 +262,7 @@ public partial class RadarViewModel : ObservableObject
     private readonly List<DrawnWaypoint> _drawnWaypointsMutable = [];
     private readonly Dictionary<int, WaypointCondition> _waypointConditions = new();
 
-    // --- Show flight path state ---
+    // --- Show nav route state ---
     private static readonly SKColor[] PathColors =
     [
         SKColor.Parse("#FF6B6B"),
@@ -1997,7 +1997,7 @@ public partial class RadarViewModel : ObservableObject
         return string.Join(";", parts);
     }
 
-    // --- Show flight path ---
+    // --- Show nav route ---
 
     public bool IsPathShown(string callsign) => _shownPathCallsigns.Contains(callsign);
 
@@ -2088,11 +2088,27 @@ public partial class RadarViewModel : ObservableObject
     private static string BuildShownPathFingerprint(AircraftModel ac)
     {
         // Cache key must reflect every field ShownRouteBuilder reads. Otherwise toggling
-        // EA / SID / STAR / DRWY / heading would not invalidate cached segments and the
-        // overlay would stay stuck on stale geometry.
+        // EA / SID / STAR / DRWY / heading — or a CFIX that only changes a crossing restriction
+        // without changing the fix list — would not invalidate cached segments and the overlay
+        // would stay stuck on stale geometry or labels.
+        var sb = new System.Text.StringBuilder();
+        foreach (var fix in ac.NavRouteFixes)
+        {
+            sb.Append(fix.Name)
+                .Append(':')
+                .Append(fix.Lat.ToString("F4", System.Globalization.CultureInfo.InvariantCulture))
+                .Append(',')
+                .Append(fix.Lon.ToString("F4", System.Globalization.CultureInfo.InvariantCulture));
+            if (fix.RestrictionLines is { } lines)
+            {
+                sb.Append('[').Append(string.Join("/", lines)).Append(']');
+            }
+            sb.Append('>');
+        }
+
         return string.Join(
             "|",
-            string.Join(">", ac.NavigationRoute),
+            sb.ToString(),
             ac.ActiveSidId,
             ac.ActiveStarId,
             ac.ActiveApproachId,
@@ -2135,9 +2151,12 @@ public partial class RadarViewModel : ObservableObject
 }
 
 /// <summary>
-/// A drawn waypoint in route drawing mode.
+/// A drawn waypoint on a radar route overlay. <see cref="ResolvedName"/> is empty for synthetic
+/// arc-densification vertices — those draw as bare polyline points (no diamond, label, or
+/// restriction). <see cref="RestrictionLines"/> holds the pre-formatted crossing altitude/speed
+/// label lines for a fix that carries one (null when unrestricted or in route-drawing mode).
 /// </summary>
-public record DrawnWaypoint(string ResolvedName, double Lat, double Lon);
+public record DrawnWaypoint(string ResolvedName, double Lat, double Lon, IReadOnlyList<string>? RestrictionLines = null);
 
 /// <summary>
 /// A flight path segment to render on the radar for a specific aircraft. One aircraft may
