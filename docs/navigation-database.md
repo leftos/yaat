@@ -227,12 +227,45 @@ With `false`, the SID body emits, the `[OAK,…]` hints are suppressed on the mi
 | `NavigationDatabase.ExpandRoute` | `true` (default) | Autocomplete / UI fix highlighting (`FixSuggester` client). |
 | `PilotSayBuilder` route readback | `true` (default) | Speech "say route" — wants every reachable fix named. |
 | `NavigationDatabase.ExpandRouteForNavigation` | **`false`** | Building a flying `NavigationRoute`. |
-| `DepartureClearanceHandler.BuildFallbackNavTargets` (`:690`) | **`false`** (via `ExpandRouteForNavigation`) | NavData fallback when CIFP can't supply SID legs. |
-| `DepartureClearanceHandler` post-SID route (`:966`) | **`false`** | Post-SID enroute portion of a departure clearance. |
+| `DepartureClearanceHandler.BuildFallbackNavTargets` (`:849`) | **`false`** (via `ExpandRouteForNavigation`) | NavData fallback when CIFP can't supply SID legs. |
+| `DepartureClearanceHandler.AppendPostSidEnrouteFixes` | **`false`** | Post-SID enroute portion of a departure clearance. |
 | `RouteChainer` (`:42`) | **`false`** | Chaining a route onto the active navigation. |
-| `ScenarioLoader` (`:570`) | **`false`** | Materializing a scenario aircraft's filed route. |
+| `ArrivalRouteResolver` (`:29`) | **`false`** | Materializing a scenario aircraft's filed route. |
 
 **Rule: any new caller that produces a flying route must pass `false`.** Only autocomplete/UI/speech paths want `true`.
+
+### The second footgun: a co-located departure navaid on the CIFP departure path
+
+The `includeAllTransitionsOnMismatch` flag is not the only way a departure route can turn back over the
+field. `DepartureClearanceHandler.TryResolveSidFromCifp` builds a departure route from CIFP legs (runway
+transition → common → enroute transition), then appends the filed enroute remainder via
+`AppendPostSidEnrouteFixes`. Filed routes commonly carry the departure's **co-located reference navaid** as a
+redundant token between the SID and its transition — e.g. `HUSSH2 OAK SYRAH …`, where OAK is KOAK's on-field
+VORTAC and SYRAH names the enroute transition.
+
+Two things went wrong for a **fixed-path** RNAV SID (one with a real lateral body, unlike the RV-SIDs above):
+
+1. **Transition matching** only inspected the *first* post-SID token (`OAK`), which is not a transition
+   name, so no enroute transition was applied (the published REBAS/TAMMM/SYRAH legs were dropped).
+2. **The append** then emitted the co-located OAK VORTAC literally, *after* the SID body (HUSSH, NIITE). It
+   was not a leading fix, so `StripNearDepartureTargets` (which strips only leading targets) left it in — and
+   `NIITE → OAK` reversed the aircraft ~140° back over the airport.
+
+**The general rule** (`TryResolveSidFromCifp` + `AppendPostSidEnrouteFixes`): the first fix after the
+departure procedure is dropped when it is the departure airport's own reference — a **real navaid within
+1 nm of the field** (`IsFixColocatedWithDeparture`: OAK for KOAK) or **an identifier that doesn't resolve to
+a navaid** (MRY for KMRY, dropped by the `GetFixPosition is null` skip). A real navaid that is *not*
+co-located (SAC for KSAC, ~well outside 1 nm) is a genuine routing fix and is kept. Two mechanisms cooperate:
+
+- **Transition matching** skips a leading co-located token so `HUSSH2 OAK SYRAH` matches the SYRAH
+  transition and produces `HUSSH → NIITE → REBAS → TAMMM → SYRAH` (the published legs, with REBAS ≥ 8000).
+- **The append** still expands airways with the co-located navaid as anchor (so `NIMI5 OAK V6 SAC` resolves
+  V6 from OAK), then **drops the leading co-located fix from the result** — so it anchors expansion but is
+  never flown as a waypoint. This covers the no-transition case (`HUSSH2 OAK <non-transition-fix>`) too.
+
+RV-SIDs never needed the append fix on their own (their empty core body leaves the co-located navaid
+*leading*, where `StripNearDepartureTargets` already removed it), but the append drop now handles both SID
+shapes uniformly.
 
 ### The CIFP-absent RV-SID fallback
 

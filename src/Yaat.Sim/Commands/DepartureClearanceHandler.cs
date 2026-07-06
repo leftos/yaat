@@ -931,17 +931,38 @@ internal static class DepartureClearanceHandler
 
         orderedLegs.AddRange(sid.CommonLegs);
 
-        // Check for enroute transition (second route token matches a transition name)
-        bool hasEnrouteTransition = false;
-        if (routeTokens.Length > 1)
+        // Locate the enroute-transition token. Filed routes commonly carry the departure's co-located
+        // navaid as a redundant reference between the SID and its transition (e.g. "HUSSH2 OAK SYRAH" —
+        // OAK is KOAK's on-field VOR, SYRAH names the transition). Skip such co-located tokens so the real
+        // transition still matches instead of the navaid being appended literally as a turn-back over the
+        // field. The skip is used ONLY to find a transition: when none matches, the tokens are left
+        // untouched so a filed departure navaid can still anchor a following airway (e.g. "NIMI5 OAK V6 SAC"
+        // needs OAK as V6's entry fix).
+        int transitionTokenIdx = -1;
+        for (int i = 1; i < routeTokens.Length; i++)
         {
-            var enrouteKey = routeTokens[1].ToUpperInvariant();
-            if (sid.EnrouteTransitions.TryGetValue(enrouteKey, out var enTransition))
+            var token = routeTokens[i].ToUpperInvariant();
+            if (sid.EnrouteTransitions.ContainsKey(token))
             {
-                orderedLegs.AddRange(enTransition.Legs);
-                hasEnrouteTransition = true;
+                transitionTokenIdx = i;
+                break;
+            }
+
+            if (!IsFixColocatedWithDeparture(token, aircraft.FlightPlan.Departure, navDb))
+            {
+                break;
             }
         }
+
+        bool hasEnrouteTransition = transitionTokenIdx >= 0;
+        if (hasEnrouteTransition)
+        {
+            orderedLegs.AddRange(sid.EnrouteTransitions[routeTokens[transitionTokenIdx].ToUpperInvariant()].Legs);
+        }
+
+        // Post-SID enroute append begins after the transition token (skipping the redundant co-located
+        // navaid and the transition name), or at the first post-SID token when no transition matched.
+        int enrouteStartIdx = hasEnrouteTransition ? transitionTokenIdx + 1 : 1;
 
         if (orderedLegs.Count == 0)
         {
@@ -961,12 +982,17 @@ internal static class DepartureClearanceHandler
             {
                 // Enroute transition provides a published path from the vectors segment.
                 // Resolve only the enroute transition legs (skip the core RV legs).
-                var enrouteKey = routeTokens[1].ToUpperInvariant();
-                var enLegs = sid.EnrouteTransitions[enrouteKey].Legs;
+                var enLegs = sid.EnrouteTransitions[routeTokens[transitionTokenIdx].ToUpperInvariant()].Legs;
                 rvTargets = ResolveLegsToTargets(enLegs);
             }
 
-            AppendPostSidEnrouteFixes(rvTargets, routeTokens, sid, rvTargets.Count > 0 ? rvTargets[^1].Name : null);
+            AppendPostSidEnrouteFixes(
+                rvTargets,
+                routeTokens,
+                enrouteStartIdx,
+                rvTargets.Count > 0 ? rvTargets[^1].Name : null,
+                aircraft.FlightPlan.Departure
+            );
             StripNearDepartureTargets(rvTargets, aircraft.FlightPlan.Departure);
             return new DepartureRouteResult(rvTargets, null, heading, deferHeading, ResolvedFromCycleId: resolvedFromCycleId);
         }
@@ -978,7 +1004,7 @@ internal static class DepartureClearanceHandler
             return null;
         }
 
-        AppendPostSidEnrouteFixes(targets, routeTokens, sid, targets[^1].Name);
+        AppendPostSidEnrouteFixes(targets, routeTokens, enrouteStartIdx, targets[^1].Name, aircraft.FlightPlan.Departure);
         StripNearDepartureTargets(targets, aircraft.FlightPlan.Departure);
 
         // Typed legs preserve the VA/VI/VM/CA heading legs and course-tracked CF that the flat
@@ -1103,24 +1129,24 @@ internal static class DepartureClearanceHandler
     }
 
     /// <summary>
-    /// Appends remaining enroute fixes from the filed route (post-SID tokens) without constraints.
-    /// Delegates to <see cref="RouteExpander.Expand"/> to handle airway expansion, dot-notation,
-    /// and deduplication. Prepends the last SID fix as an anchor so airways have a from-fix.
+    /// Appends remaining enroute fixes from the filed route (tokens from <paramref name="startIdx"/> on)
+    /// without constraints. Delegates to <see cref="RouteExpander.Expand"/> to handle airway expansion,
+    /// dot-notation, and deduplication. Prepends the last SID fix as an anchor so airways have a from-fix.
+    /// The caller computes <paramref name="startIdx"/> so it points past the SID token, any redundant
+    /// co-located departure navaid, and the enroute-transition token (all already resolved into targets).
+    /// A leading fix co-located with <paramref name="departure"/> is still dropped from the appended output
+    /// (it anchors airway expansion but is never flown as a waypoint — routing to the departure field's own
+    /// navaid right after the SID body is a turn-back).
     /// </summary>
-    private static void AppendPostSidEnrouteFixes(List<NavigationTarget> targets, string[] routeTokens, CifpSidProcedure sid, string? lastSidFix)
+    private static void AppendPostSidEnrouteFixes(
+        List<NavigationTarget> targets,
+        string[] routeTokens,
+        int startIdx,
+        string? lastSidFix,
+        string? departure
+    )
     {
         var navDb = NavigationDatabase.Instance;
-
-        // Skip the SID token and any enroute transition token
-        int startIdx = 1;
-        if (routeTokens.Length > 1)
-        {
-            var secondToken = routeTokens[1].ToUpperInvariant();
-            if (sid.EnrouteTransitions.ContainsKey(secondToken))
-            {
-                startIdx = 2;
-            }
-        }
 
         if (startIdx >= routeTokens.Length)
         {
@@ -1132,9 +1158,8 @@ internal static class DepartureClearanceHandler
         var postSidTokens = routeTokens[startIdx..];
         string postSidRoute = anchor is not null ? anchor + " " + string.Join(' ', postSidTokens) : string.Join(' ', postSidTokens);
 
-        // The SID token has already been stripped from postSidRoute, so the mismatch fallback won't
-        // fire here today — but keep the flight-plan flag explicit so future routes that contain a
-        // second SID token (theoretical) don't slip past.
+        // Flight-plan context: suppress the "emit all transitions on mismatch" fallback so an RV-SID's
+        // adapted-route hints can't fabricate a turn-back through every synthesized transition fix.
         var expandedFixes = RouteExpander.Expand(postSidRoute, navDb, includeAllTransitionsOnMismatch: false);
 
         // Skip expanded fixes up to and including the anchor (already covered by SID targets)
@@ -1151,13 +1176,25 @@ internal static class DepartureClearanceHandler
             }
         }
 
+        // Drop a leading co-located departure navaid (the field's own VOR, listed as a routing hint or used
+        // to anchor a following airway). It served its purpose during RouteExpander airway expansion above,
+        // but flying to it right after the SID body reverses the aircraft back over the departure field.
+        bool atLeadingBoundary = true;
         for (int i = fixStart; i < expandedFixes.Count; i++)
         {
             var pos = navDb.GetFixPosition(expandedFixes[i]);
-            if (pos is not null)
+            if (pos is null)
             {
-                targets.Add(new NavigationTarget { Name = expandedFixes[i].ToUpperInvariant(), Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
+                continue;
             }
+
+            if (atLeadingBoundary && IsFixColocatedWithDeparture(expandedFixes[i], departure, navDb))
+            {
+                continue;
+            }
+
+            atLeadingBoundary = false;
+            targets.Add(new NavigationTarget { Name = expandedFixes[i].ToUpperInvariant(), Position = new LatLon(pos.Value.Lat, pos.Value.Lon) });
         }
     }
 
@@ -1185,6 +1222,28 @@ internal static class DepartureClearanceHandler
                 targets.RemoveAt(0);
             }
         }
+    }
+
+    /// <summary>
+    /// True when the named fix resolves to a position within 1 nm of the departure airport — i.e. the
+    /// airport's co-located reference navaid (e.g. OAK VOR on KOAK). Filed routes often list this navaid
+    /// redundantly between the SID and its transition; it must never be flown as a routing point.
+    /// </summary>
+    private static bool IsFixColocatedWithDeparture(string fixName, string? departure, NavigationDatabase navDb)
+    {
+        if (departure is null)
+        {
+            return false;
+        }
+
+        var airportPos = navDb.GetFixPosition(departure);
+        var fixPos = navDb.GetFixPosition(fixName);
+        if (airportPos is null || fixPos is null)
+        {
+            return false;
+        }
+
+        return GeoMath.DistanceNm(new LatLon(airportPos.Value.Lat, airportPos.Value.Lon), new LatLon(fixPos.Value.Lat, fixPos.Value.Lon)) <= 1.0;
     }
 
     /// <summary>
