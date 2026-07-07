@@ -41,7 +41,7 @@
       "rows": [
         { "verb": "CM", "aliases": [], "description": "Climb and maintain alt" },
         { "verb": "DM", "aliases": [], "description": "Descend and maintain alt" },
-        { "verb": "SPD", "aliases": ["s", "sl", "slow", "speed", "ds", "is"], "description": "Speed (knots IAS); 210+ / 210- floor/ceil" },
+        { "verb": "SPD", "aliases": ["s", "sl", "slow", "speed", "ds", "is"], "description": "Speed (knots IAS); 210+ / 210- floor/ceil; while taxiing sets taxi speed" },
         { "verb": "SPEEDF", "aliases": ["spdf", "slf"], "description": "Force speed, overriding 5nm-final restriction (210+/210- ok)" },
         { "verb": "RNS", "aliases": ["ns"], "description": "Resume normal speed" },
         { "verb": "RFAS", "aliases": ["fas"], "description": "Reduce to final approach speed" },

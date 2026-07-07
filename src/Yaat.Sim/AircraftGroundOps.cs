@@ -75,6 +75,17 @@ public class AircraftGroundOps
     public bool IsExpeditingTaxi { get; set; }
 
     /// <summary>
+    /// Controller-commanded taxi-speed cap (kts) for the active TaxiingPhase, or null to use
+    /// the category default (<see cref="CategoryPerformance.TaxiSpeed"/>). Set by <c>SPD &lt;n&gt;</c>
+    /// while taxiing (clamped to [<see cref="CategoryPerformance.MinCommandedTaxiSpeedKts"/>,
+    /// 1.3× the category default]); applied as the navigator's straight-segment ceiling, so
+    /// corner/arc/braking/conflict caps still win downstream. Mutually exclusive with
+    /// <see cref="IsExpeditingTaxi"/> — setting one clears the other. Persists across HOLD/RES;
+    /// cleared by <c>SPD 0</c> (resume normal), a new TAXI route, or deletion.
+    /// </summary>
+    public double? CommandedTaxiSpeedKts { get; set; }
+
+    /// <summary>
     /// When true, a just-landed aircraft clears the runway as fast as possible:
     /// LandingPhase brakes at <see cref="CategoryPerformance.ExpediteExitDecelRate"/>
     /// (vs the firm 5 kts/s) to take the earliest reachable exit, and
@@ -226,6 +237,7 @@ public class AircraftGroundOps
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
             IsScriptedDeparture = IsScriptedDeparture,
             IsExpeditingTaxi = IsExpeditingTaxi,
+            CommandedTaxiSpeedKts = CommandedTaxiSpeedKts,
             IsExpeditingExit = IsExpeditingExit,
             IsExpeditingLineup = IsExpeditingLineup,
             HoldElapsedSeconds = HoldElapsedSeconds,
@@ -257,6 +269,7 @@ public class AircraftGroundOps
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,
             IsScriptedDeparture = dto.IsScriptedDeparture,
             IsExpeditingTaxi = dto.IsExpeditingTaxi,
+            CommandedTaxiSpeedKts = dto.CommandedTaxiSpeedKts,
             IsExpeditingExit = dto.IsExpeditingExit,
             IsExpeditingLineup = dto.IsExpeditingLineup,
             HoldElapsedSeconds = dto.HoldElapsedSeconds,

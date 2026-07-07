@@ -501,6 +501,23 @@ public static class CategoryPerformance
     public const double TaxiExpediteMultiplier = 1.3;
 
     /// <summary>
+    /// Lowest taxi speed (kts) a controller may command via <c>SPD &lt;n&gt;</c>. Matches the
+    /// deliberate-slow-but-still-moving pace of <see cref="PushbackSpeed"/> and sits above the
+    /// tightest-arc creep floor (<see cref="SlowTurnSpeedKts"/>), which is reserved for turn
+    /// geometry rather than a straight-line cruise cap. Aviation-reviewed.
+    /// </summary>
+    public const double MinCommandedTaxiSpeedKts = 5.0;
+
+    /// <summary>
+    /// Highest taxi speed (kts) a controller may command via <c>SPD &lt;n&gt;</c> — the same
+    /// ceiling as expedite taxi (<see cref="TaxiSpeed"/> × <see cref="TaxiExpediteMultiplier"/>,
+    /// rounded to whole knots: jet 39, turboprop 33, piston 26, helo 20). Keeps the numeric knob a
+    /// clean superset of <c>EXP</c> with no unfounded faster-than-expedite regime. Aviation-reviewed.
+    /// </summary>
+    public static double MaxCommandedTaxiSpeed(AircraftCategory cat) =>
+        Math.Round(TaxiSpeed(cat) * TaxiExpediteMultiplier, MidpointRounding.AwayFromZero);
+
+    /// <summary>
     /// Max-effort braking deceleration (kts/s) used when a runway exit is
     /// expedited (<c>EXP</c>) — above the firm 5 kts/s used for normal explicit
     /// exits. Lets LandingPhase take the earliest reachable exit and lets

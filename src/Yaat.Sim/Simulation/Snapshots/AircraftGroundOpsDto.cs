@@ -23,6 +23,9 @@ public sealed class AircraftGroundOpsDto
     public bool InitialCallupDecisionProcessed { get; init; }
     public bool IsScriptedDeparture { get; init; }
     public bool IsExpeditingTaxi { get; init; }
+
+    /// <summary>Controller-commanded taxi-speed cap (kts), or null to use the category default.</summary>
+    public double? CommandedTaxiSpeedKts { get; init; }
     public bool IsExpeditingExit { get; init; }
 
     /// <summary>True when a brisk "immediate"/"without delay" lineup has been requested (CTO IMM / LUAW WD).</summary>

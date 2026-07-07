@@ -55,7 +55,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         ctx.Aircraft.IsOnGround = true;
-        _nav.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
+        _nav.MaxSpeedKts = ctx.Aircraft.Ground.CommandedTaxiSpeedKts ?? CategoryPerformance.TaxiSpeed(ctx.Category);
         SetupCurrentSegment(ctx, route);
 
         Log.LogDebug(
@@ -84,12 +84,17 @@ public sealed class TaxiingPhase : Phase
                 ctx.Aircraft.Callsign,
                 ctx.GroundLayout is not null ? "present" : "NULL"
             );
-            _nav.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
+            _nav.MaxSpeedKts = ctx.Aircraft.Ground.CommandedTaxiSpeedKts ?? CategoryPerformance.TaxiSpeed(ctx.Category);
             SetupCurrentSegment(ctx, route);
         }
 
+        // A controller-commanded taxi speed replaces the category default outright (slower or
+        // faster); it is mutually exclusive with expedite, so at most one branch is in effect.
+        // Corner/arc/braking/conflict caps still win downstream via GroundNavigator's Math.Min chain.
         double baseTaxiSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
-        _nav.MaxSpeedKts = ctx.Aircraft.Ground.IsExpeditingTaxi ? baseTaxiSpeed * CategoryPerformance.TaxiExpediteMultiplier : baseTaxiSpeed;
+        _nav.MaxSpeedKts =
+            ctx.Aircraft.Ground.CommandedTaxiSpeedKts
+            ?? (ctx.Aircraft.Ground.IsExpeditingTaxi ? baseTaxiSpeed * CategoryPerformance.TaxiExpediteMultiplier : baseTaxiSpeed);
 
         if (ctx.Aircraft.Ground.IsImmobile)
         {
@@ -159,8 +164,9 @@ public sealed class TaxiingPhase : Phase
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.CrossRunway => CommandAcceptance.Allowed,
             CanonicalCommandType.HoldShort => CommandAcceptance.Allowed,
+            CanonicalCommandType.Speed or CanonicalCommandType.ResumeNormalSpeed => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            _ => CommandAcceptance.Rejected("aircraft is taxiing; only HOLD/RES, CROSS, or HS apply, or issue a new TAXI"),
+            _ => CommandAcceptance.Rejected("aircraft is taxiing; only HOLD/RES, CROSS, HS, or SPD apply, or issue a new TAXI"),
         };
     }
 

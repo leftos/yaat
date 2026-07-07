@@ -200,6 +200,13 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplySpeed(SpeedCommand cmd, AircraftState aircraft)
     {
+        // A taxiing aircraft: SPD sets the taxi-speed cap, not an airborne target. Reaches here
+        // from both direct dispatch and a fired conditional block (AT <taxiway> SPD <n>).
+        if (aircraft.Phases?.CurrentPhase is TaxiingPhase)
+        {
+            return ApplyTaxiSpeed(cmd, aircraft);
+        }
+
         // Reject speed commands to an aircraft inbound to land inside 5nm per §5-7-1.b.4.
         // Only arrivals on an approach / cleared to land are gated — a departure (which
         // also carries an AssignedRunway) and a go-around climbing out are not. SPEEDF
@@ -271,8 +278,41 @@ internal static class FlightCommandHandler
         };
     }
 
+    /// <summary>
+    /// SPD on a taxiing aircraft: set the taxi-speed cap (<see cref="AircraftGroundOps.CommandedTaxiSpeedKts"/>),
+    /// clamped to [<see cref="CategoryPerformance.MinCommandedTaxiSpeedKts"/>,
+    /// <see cref="CategoryPerformance.MaxCommandedTaxiSpeed"/>]. Ceiling only — the navigator's
+    /// corner/arc/braking/conflict caps still win. Floor/ceiling modifiers (<c>+</c>/<c>-</c>) have
+    /// no taxi meaning and are treated as a plain cap.
+    /// </summary>
+    private static CommandResult ApplyTaxiSpeed(SpeedCommand cmd, AircraftState aircraft)
+    {
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double defaultSpeed = CategoryPerformance.TaxiSpeed(cat);
+        double clamped = Math.Clamp((double)cmd.Speed, CategoryPerformance.MinCommandedTaxiSpeedKts, CategoryPerformance.MaxCommandedTaxiSpeed(cat));
+
+        aircraft.Ground.CommandedTaxiSpeedKts = clamped;
+        // The numeric taxi cap supersedes expedite (the fixed-1.3x variant of the same knob).
+        aircraft.Ground.IsExpeditingTaxi = false;
+
+        string suffix =
+            clamped < defaultSpeed ? ", reduce speed"
+            : clamped > defaultSpeed ? ", without delay"
+            : "";
+        return CommandDispatcher.Ok($"Taxi at {clamped:F0} knots{suffix}");
+    }
+
     internal static CommandResult ApplyResumeNormalSpeed(AircraftState aircraft)
     {
+        // On a taxiing aircraft, resume the category-default taxi speed (clear the cap/expedite);
+        // the airborne speed targets below are navigator-owned on the ground and left untouched.
+        if (aircraft.Phases?.CurrentPhase is TaxiingPhase)
+        {
+            aircraft.Ground.CommandedTaxiSpeedKts = null;
+            aircraft.Ground.IsExpeditingTaxi = false;
+            return CommandDispatcher.Ok("Resume normal taxi speed");
+        }
+
         aircraft.Targets.TargetSpeed = null;
         aircraft.Targets.AssignedSpeed = null;
         aircraft.Targets.SpeedFloor = null;
@@ -346,6 +386,8 @@ internal static class FlightCommandHandler
             }
 
             aircraft.Ground.IsExpeditingTaxi = true;
+            // Expedite supersedes any numeric taxi-speed cap (mutually exclusive knobs).
+            aircraft.Ground.CommandedTaxiSpeedKts = null;
             return CommandDispatcher.Ok("Expedite taxi");
         }
 

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Taxi speed is now adjustable — issue `SPD {n}` to a taxiing aircraft to taxi at `n` knots, slower or faster than normal (`SPD 0` restores normal).
 - macOS: a **Settings → Display → Graphics** selector to choose the graphics renderer (Automatic, Metal, OpenGL, or Software); takes effect after restart.
 
 ### Changed

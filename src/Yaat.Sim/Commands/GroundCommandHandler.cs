@@ -270,6 +270,8 @@ internal static class GroundCommandHandler
         // Set up the taxi route and phase
         aircraft.Ground.AssignedTaxiRoute = route;
         aircraft.Ground.Hold = null;
+        // A fresh taxi clearance resets the commanded taxi speed to the category default.
+        aircraft.Ground.CommandedTaxiSpeedKts = null;
 
         if (taxi.NoDelete)
         {

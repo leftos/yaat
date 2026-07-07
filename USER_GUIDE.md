@@ -415,6 +415,8 @@ Right-click an aircraft and open the **Taxi route** submenu to override the defa
 
 Selecting a preset is identical to typing the equivalent `TAXI` command (`TAXI T T3 B RWY 10R` in the example above). Routes that aren't reachable from the aircraft's current position are silently dropped from the menu — for example, an OAK departure route won't appear when right-clicking an aircraft at SFO. Restart YAAT to pick up edits to the route JSONs.
 
+**Adjusting taxi speed:** Issue `SPD {n}` to a taxiing aircraft to set its taxi speed to `n` knots — slower or faster than the category default (jet 30 / turboprop 25 / piston 20 / helo 15 kts), clamped between 5 kts and the expedite ceiling (jet 39 / turboprop 33 / piston 26 / helo 20 kts). Corner slowdowns, hold-short braking, and give-way yields still apply on top. `SPD 0` restores the normal taxi speed, as does a new `TAXI` clearance. It is mutually exclusive with `EXP` (expedite taxi), and the speed can be scripted with a condition — `AT B SPD 10` slows to 10 kts on reaching taxiway B.
+
 **Command-token hints:** Hovering a taxi spot or parking node shows the token that references it in a command — `$9` for taxi spot 9, `@F7` for parking F7 — so you can read straight off the map how to `TAXI` / `PUSH` / `WARPG` to it.
 
 **Debug overlay:** Press **Ctrl+D** to toggle node IDs, names, types, and edge labels on the ground map. Useful for finding node IDs for manual `#nodeId` taxi commands.
