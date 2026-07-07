@@ -434,6 +434,9 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplySquawkVfr(AircraftState aircraft)
     {
         aircraft.Transponder.Code = 1200;
+        // Latch off the RPO's assigned-vs-reported mismatch flash: the pilot is now squawking VFR by
+        // instruction, so the stale assigned discrete code is noise. Released when a new code is assigned.
+        aircraft.Transponder.CommandedSquawkVfr = true;
         return CommandDispatcher.Ok("Squawk VFR");
     }
 

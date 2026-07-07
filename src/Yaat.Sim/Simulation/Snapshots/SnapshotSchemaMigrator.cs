@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 15;
+    public const int CurrentSchemaVersion = 16;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -103,6 +103,10 @@ public static class SnapshotSchemaMigrator
         //   transformation — the removed phantom fields are ignored on read and the added fields
         //   default cleanly (AircraftType to "", others to 0/false); a legacy ActiveApproachScore now
         //   restores best-effort instead of being silently dropped.
+        // V15→V16: Added AircraftTransponderDto.CommandedSquawkVfr, the RPO-display latch that suppresses
+        //   the assigned-vs-reported beacon-code mismatch flash after a squawk-VFR instruction. No data
+        //   transformation — older snapshots default to false (unlatched), matching the prior behavior
+        //   where the flash was never suppressed.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

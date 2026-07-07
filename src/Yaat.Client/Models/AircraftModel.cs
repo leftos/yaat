@@ -104,6 +104,11 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private uint _assignedBeaconCode;
 
+    // Latched true when the pilot has been told to squawk VFR (SQVFR/SQV). While set, the radar datablock
+    // suppresses the assigned-vs-reported beacon-code mismatch flash; released when a new code is assigned.
+    [ObservableProperty]
+    private bool _commandedSquawkVfr;
+
     [ObservableProperty]
     private string _transponderMode = "C";
 
@@ -876,6 +881,7 @@ public partial class AircraftModel : ObservableObject
             GroundSpeed = dto.GroundSpeed,
             BeaconCode = dto.BeaconCode,
             AssignedBeaconCode = dto.AssignedBeaconCode,
+            CommandedSquawkVfr = dto.CommandedSquawkVfr,
             TransponderMode = dto.TransponderMode,
             VerticalSpeed = dto.VerticalSpeed,
             AssignedHeading = dto.AssignedHeading.HasValue ? new MagneticHeading(dto.AssignedHeading.Value) : null,
@@ -974,6 +980,7 @@ public partial class AircraftModel : ObservableObject
         GroundSpeed = dto.GroundSpeed;
         BeaconCode = dto.BeaconCode;
         AssignedBeaconCode = dto.AssignedBeaconCode;
+        CommandedSquawkVfr = dto.CommandedSquawkVfr;
         TransponderMode = dto.TransponderMode;
         VerticalSpeed = dto.VerticalSpeed;
         AssignedHeading = dto.AssignedHeading.HasValue ? new MagneticHeading(dto.AssignedHeading.Value) : null;

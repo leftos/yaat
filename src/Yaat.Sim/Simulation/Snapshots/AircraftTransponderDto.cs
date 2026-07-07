@@ -7,4 +7,5 @@ public sealed class AircraftTransponderDto
     public required uint Code { get; init; }
     public required bool IsIdenting { get; init; }
     public double? IdentStartedAt { get; init; }
+    public bool CommandedSquawkVfr { get; init; }
 }

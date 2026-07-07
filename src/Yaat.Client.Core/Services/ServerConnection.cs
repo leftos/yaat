@@ -936,7 +936,11 @@ public record AircraftDto(
     uint AssignedBeaconCode = 0,
     // Active-procedure geometry (hold racetracks, procedure turns, open-ended SID coded legs)
     // projected for the "Show nav route" overlay. Kept name-for-name in sync with AircraftStateDto.
-    List<Yaat.Sim.NavRouteShapeDto>? NavRouteShapes = null
+    List<Yaat.Sim.NavRouteShapeDto>? NavRouteShapes = null,
+    // Latched true when the pilot has been told to squawk VFR (SQVFR/SQV); the radar view then suppresses
+    // the assigned-vs-reported beacon-code mismatch flash until a new beacon code is assigned. RPO-display
+    // only. Kept name-for-name in sync with the server's AircraftStateDto.
+    bool CommandedSquawkVfr = false
 );
 
 public record LoadScenarioResultDto(

@@ -10,6 +10,7 @@
 - A DME arc (AF leg) with no charted turn direction no longer risks sweeping the long way around the navaid — the shorter arc is chosen — so aircraft on those procedures fly and display the correct curve.
 - Placing a ghost track (unsupported data block) on an aircraft no longer leaves a stray blue dot at the aircraft's real position on CRC STARS.
 - Aircraft are never assigned a reserved or non-discrete beacon code — the emergency SPCs 7500/7600/7700, 7777, and any block code ending in "00" — whether at spawn, on `RANDSQ`, or when a flight plan is filed. Previously a departure could spawn already squawking a code like 7600.
+- The radar data block's beacon-code mismatch flash now stops once an aircraft is told to squawk VFR (`SQVFR`/`SQV`), instead of pulsing the stale assigned code against the aircraft's `1200` indefinitely. It resumes if a new beacon code is later assigned (e.g. recycled from the Flight Plan Editor). An assigned-but-not-yet-squawked code still flashes, as before.
 
 ## v0.9.1-beta [2026/07/06]
 

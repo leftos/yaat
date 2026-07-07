@@ -189,6 +189,15 @@ The assigned code reaches the client via `AircraftDto.AssignedBeaconCode` (see
 [training-hub-contract.md](training-hub-contract.md)); the STARS datablock previously carried no beacon code at all in the
 full block, so this line is purely additive — a normal (matching) aircraft shows nothing.
 
+**YAAT flashes at any datablock level; CRC only in an FDB.** The mismatch line is an RPO aid, so — unlike CRC, which
+builds it only inside a Full Data Block — YAAT surfaces it at FDB/PDB/LDB alike (an assigned-but-not-yet-squawked code is
+worth flagging to the RPO regardless of who tracks the aircraft). It is therefore **not** gated on track ownership. Instead
+a per-aircraft latch, `AircraftDto.CommandedSquawkVfr` (server `Transponder.CommandedSquawkVfr`), turns the flash off: it
+latches when the pilot is told to squawk VFR (`SQVFR`/`SQV`) — at which point the stale assigned discrete code is noise the
+RPO should ignore — and releases only when a new beacon code is assigned (Flight Plan Editor recycle, `RequestNewBeaconCode`,
+an FP amendment, or a CRC beacon assign). "Squawk VFR" is a pilot instruction only; it does not change `AssignedCode`.
+`TryGetSquawkMismatch` returns false while the latch is set.
+
 ## Student-scope datablock view
 
 When the scenario has a student position, the server projects how that student's STARS scope shows each track —

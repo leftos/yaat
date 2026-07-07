@@ -1664,7 +1664,7 @@ public sealed class SimulationEngine
             // controller assigns a beacon; the pilot keeps squawking the current code until told to
             // squawk the new one (matching the auto-assign-on-filing branch below). The resulting
             // beacon mismatch is shown on the data block until the pilot complies.
-            ac.Transponder.AssignedCode = amendment.BeaconCode.Value;
+            ac.Transponder.AssignCode(amendment.BeaconCode.Value);
         }
 
         // Resolve ground layout if departure/destination changed
@@ -1684,7 +1684,7 @@ public sealed class SimulationEngine
             ac.FlightPlan.HasFlightPlan = true;
             if (ac.Transponder.AssignedCode == 0)
             {
-                ac.Transponder.AssignedCode = BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr);
+                ac.Transponder.AssignCode(BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr));
             }
         }
 
@@ -1710,7 +1710,7 @@ public sealed class SimulationEngine
 
         BeaconCodePool.Release(ac.Transponder.AssignedCode);
         var newCode = BeaconCodePool.AssignNextCode(ac.FlightPlan.IsVfr);
-        ac.Transponder.AssignedCode = newCode;
+        ac.Transponder.AssignCode(newCode);
         return newCode;
     }
 

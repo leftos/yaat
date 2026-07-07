@@ -270,6 +270,15 @@ internal readonly struct RadarDatablockLayout
         reportedCode = "";
         assignedCode = "";
 
+        // Once the pilot has been told to squawk VFR (SQVFR/SQV), the stale assigned discrete code is
+        // noise the RPO should ignore — suppress the flash until another beacon code is assigned (which
+        // releases the latch). Unlike CRC's FDB-only mismatch line, YAAT flashes at any datablock level
+        // as an RPO aid, so this latch — not track ownership — is what turns it off.
+        if (ac.CommandedSquawkVfr)
+        {
+            return false;
+        }
+
         if (ac.AssignedBeaconCode == 0 || ac.BeaconCode == ac.AssignedBeaconCode)
         {
             return false;

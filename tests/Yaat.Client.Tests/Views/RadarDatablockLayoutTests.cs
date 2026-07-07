@@ -566,6 +566,40 @@ public class RadarDatablockLayoutTests
     }
 
     [Fact]
+    public void SquawkMismatch_LineAbsent_WhenCommandedSquawkVfr()
+    {
+        // Once the pilot is told to squawk VFR (SQVFR/SQV), the latch suppresses the RPO mismatch flash
+        // even though the assigned discrete code still differs from the reported 1200.
+        var ac = CreateModel();
+        ac.TransponderMode = "C";
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        ac.CommandedSquawkVfr = true;
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("", layout.SquawkLine);
+    }
+
+    [Fact]
+    public void SquawkMismatch_LineShows_WhenAssignedButNotSquawked_AndNotCommandedVfr()
+    {
+        // The intended RPO aid: an assigned-but-not-yet-squawked code flashes at any datablock level
+        // (unlike CRC's FDB-only line). The latch is set only once the pilot is told to squawk VFR.
+        var ac = CreateModel();
+        ac.TransponderMode = "C";
+        ac.BeaconCode = 1200;
+        ac.AssignedBeaconCode = 301;
+        ac.CommandedSquawkVfr = false;
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(ac, blockX: 100, blockY: 100, paint, showNoLandingClearance: false, callsignMarker: "");
+
+        Assert.Equal("1200 0301", layout.SquawkLine);
+    }
+
+    [Fact]
     public void SquawkMismatch_RectGrowsByExactlyLineHeight()
     {
         var ac = CreateModel();
