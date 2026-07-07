@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.2-beta [2026/07/06]
+
+### Highlights
+- **Show nav route on the radar** — right-click **Display → Show nav route** now draws the exact path an aircraft is flying (DME/RF arcs, holding racetracks, procedure-turn reversals, and departure climb legs included), with each fix labeled with its crossing altitude and speed restriction.
+- **No aircraft is ever assigned a reserved squawk** — the emergency codes (7500/7600/7700), 7777, and any code ending in "00" are excluded at spawn, on `RANDSQ`, and when a flight plan is filed, so a departure can't spawn already squawking 7600.
+- **Departures track onto the scope at the right time** — a departure is no longer auto-tracked the instant its wheels leave the ground; it becomes owned once it climbs onto the display, and a closed-traffic pattern aircraft is no longer handed to the departure controller.
+- **Squawk VFR clears the beacon-mismatch flash** — telling an aircraft to squawk VFR (`SQVFR`/`SQV`) now stops the data block's assigned-code flash instead of pulsing the stale code indefinitely.
 
 ### Added
 - The radar right-click **Display → Show nav route** (renamed from "Show flight path") now draws the exact lateral path an aircraft is flying — DME and RF arcs included, where it previously drew a straight line across the arc — and labels each fix with any crossing altitude and speed restriction, whether you set it with `CFIX` or it comes published on the SID, STAR, or approach the aircraft is flying.
