@@ -123,6 +123,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<ShownPathEntry>?
     >(nameof(ShownPaths));
 
+    public static readonly StyledProperty<IReadOnlyList<ShownShapeEntry>?> ShownShapesProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<ShownShapeEntry>?
+    >(nameof(ShownShapes));
+
     public static readonly StyledProperty<int> HistoryCountProperty = AvaloniaProperty.Register<RadarCanvas, int>(nameof(HistoryCount));
 
     public static readonly StyledProperty<DatablockDeconflictMode> DeconflictModeProperty = AvaloniaProperty.Register<
@@ -331,6 +336,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(ShownPathsProperty);
         set => SetValue(ShownPathsProperty, value);
+    }
+
+    public IReadOnlyList<ShownShapeEntry>? ShownShapes
+    {
+        get => GetValue(ShownShapesProperty);
+        set => SetValue(ShownShapesProperty, value);
     }
 
     public int HistoryCount
@@ -767,6 +778,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == DrawnWaypointsProperty
             || change.Property == WaypointConditionsProperty
             || change.Property == ShownPathsProperty
+            || change.Property == ShownShapesProperty
             || change.Property == HistoryCountProperty
             || change.Property == DeconflictModeProperty
         )
@@ -844,6 +856,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         bool ShowTopDown,
         IReadOnlyList<WeatherDisplayInfo>? WeatherInfo,
         IReadOnlyList<ShownPathEntry>? ShownPaths,
+        IReadOnlyList<ShownShapeEntry>? ShownShapes,
         int HistoryCount,
         (string Text, SKPoint Pos)? MvaHover
     );
@@ -927,6 +940,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             ShowTopDown,
             WeatherInfo,
             ShownPaths,
+            ShownShapes,
             HistoryCount,
             mvaHover
         );
@@ -995,6 +1009,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.ShowTopDown,
             s.WeatherInfo,
             s.ShownPaths,
+            s.ShownShapes,
             s.HistoryCount,
             s.MvaHover
         );

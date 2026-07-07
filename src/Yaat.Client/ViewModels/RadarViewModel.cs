@@ -258,6 +258,9 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<ShownPathEntry>? _shownPaths;
 
+    [ObservableProperty]
+    private IReadOnlyList<ShownShapeEntry>? _shownShapes;
+
     private string? _drawRouteCallsign;
     private readonly List<DrawnWaypoint> _drawnWaypointsMutable = [];
     private readonly Dictionary<int, WaypointCondition> _waypointConditions = new();
@@ -2026,10 +2029,12 @@ public partial class RadarViewModel : ObservableObject
         if (_shownPathCallsigns.Count == 0)
         {
             ShownPaths = null;
+            ShownShapes = null;
             return;
         }
 
         var entries = new List<ShownPathEntry>(_shownPathCallsigns.Count);
+        var shapes = new List<ShownShapeEntry>();
         foreach (var callsign in _shownPathCallsigns)
         {
             var ac = FindAircraftByCallsign(callsign);
@@ -2040,6 +2045,14 @@ public partial class RadarViewModel : ObservableObject
 
             var fingerprint = BuildShownPathFingerprint(ac);
             var color = PathColors[_pathColorIndices[callsign]];
+
+            // Active-procedure geometry (holds/PTs/coded legs) is computed server-side and arrives
+            // ready to draw — map it straight through with the aircraft's overlay color. No caching
+            // needed (the points are cheap and change only on a phase transition).
+            foreach (var shape in ac.NavRouteShapes)
+            {
+                shapes.Add(new ShownShapeEntry(shape, color));
+            }
 
             if (_pathCache.TryGetValue(callsign, out var cached) && cached.Fingerprint == fingerprint)
             {
@@ -2083,6 +2096,7 @@ public partial class RadarViewModel : ObservableObject
         }
 
         ShownPaths = entries.Count > 0 ? entries : null;
+        ShownShapes = shapes.Count > 0 ? shapes : null;
     }
 
     private static string BuildShownPathFingerprint(AircraftModel ac)
@@ -2128,6 +2142,7 @@ public partial class RadarViewModel : ObservableObject
         _pathColorIndices.Clear();
         _freeColorIndices.Clear();
         ShownPaths = null;
+        ShownShapes = null;
     }
 
     public void RemoveShownPath(string callsign)
@@ -2187,6 +2202,12 @@ public record ShownPathEntry(
 /// <see cref="HeadingMag"/> (magnetic) for <see cref="LengthNm"/> nautical miles.
 /// </summary>
 public record VectorTail(double FromLat, double FromLon, double HeadingMag, double LengthNm = 5.0);
+
+/// <summary>
+/// A server-computed active-procedure shape (hold racetrack, procedure turn, or coded-leg vector)
+/// drawn on the "Show nav route" overlay in the owning aircraft's <see cref="Color"/>.
+/// </summary>
+public record ShownShapeEntry(Yaat.Sim.NavRouteShapeDto Shape, SKColor Color);
 
 /// <summary>
 /// Condition applied to a drawn route waypoint (crossing altitude and/or AT commands).

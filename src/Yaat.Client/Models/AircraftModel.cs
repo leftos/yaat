@@ -335,6 +335,13 @@ public partial class AircraftModel : ObservableObject
     /// </summary>
     public List<NavRouteFixDto> NavRouteFixes { get; set; } = [];
 
+    /// <summary>
+    /// Server-projected geometry for the active procedure phase (hold racetracks, procedure turns,
+    /// open-ended SID coded legs) drawn by the "Show nav route" overlay — paths the flat
+    /// <see cref="NavRouteFixes"/> route can't express. Empty unless the aircraft is in such a phase.
+    /// </summary>
+    public List<NavRouteShapeDto> NavRouteShapes { get; set; } = [];
+
     private static List<string> DeriveFixNames(List<NavRouteFixDto>? fixes) =>
         fixes is null ? [] : fixes.Where(f => f.Name.Length > 0).Select(f => f.Name).ToList();
 
@@ -951,6 +958,7 @@ public partial class AircraftModel : ObservableObject
             IsEstablishedOnApproach = dto.IsEstablishedOnApproach,
         };
         model.NavRouteFixes = dto.NavigationRoute ?? [];
+        model.NavRouteShapes = dto.NavRouteShapes ?? [];
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.SmartStatus = dto.SmartStatus;
         model.SmartStatusSeverity = dto.SmartStatusSeverity;
@@ -996,6 +1004,7 @@ public partial class AircraftModel : ObservableObject
         ClearedRunway = dto.ClearedRunway;
         PatternDirection = dto.PatternDirection;
         NavRouteFixes = dto.NavigationRoute ?? [];
+        NavRouteShapes = dto.NavRouteShapes ?? [];
         NavigationRoute = DeriveFixNames(dto.NavigationRoute);
         EquipmentSuffix = dto.EquipmentSuffix;
         CruiseAltitude = dto.CruiseAltitude;

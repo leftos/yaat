@@ -388,6 +388,8 @@ AircraftState.cs               # Mutable aircraft entity. Identity + kinematics 
                                # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
 NavRouteFixDto.cs              # Wire record (Name/Lat/Lon/RestrictionLines) for the client "Show nav route" overlay; carries server positions + pre-formatted crossing-restriction labels. Empty Name = synthetic arc vertex. Referenced by both AircraftStateDto (server) and AircraftDto (client)
+NavRouteShapeDto.cs           # Wire record (Kind/Points/Labels) for active-procedure geometry on the "Show nav route" overlay: hold racetracks, procedure turns, and open-ended SID coded-leg vectors — paths the flat NavRouteFixDto route can't express. NavRouteShapeKind styles the shape
+NavRouteOverlayProjector.cs   # Projects an aircraft's active phase (HoldingPatternPhase/ProcedureTurnPhase/DepartureProcedurePhase) into NavRouteShapeDto shapes (racetrack, PT barb, chained coded-leg vectors w/ restriction labels). Pure geometry; fed into AircraftStateDto.NavRouteShapes by DtoConverter
 ProcedureLeg.cs                # Typed ARINC-424 procedure leg (path terminator + course/altitude/turn, + DME/along-track distance or radial termination for CD/VD/FD/FC/CR/VR) flown by DepartureProcedurePhase; built by ProcedureLegResolver
                                # NavigationTarget: Position (LatLon) + optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode); IsSyntheticArcName(name) flags ARCnn arc-densification vertices
                                # TargetMach: when set, UpdateSpeed recomputes equivalent IAS each tick (Mach hold)

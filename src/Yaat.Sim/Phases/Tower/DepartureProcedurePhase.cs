@@ -49,6 +49,12 @@ public sealed class DepartureProcedurePhase : Phase
 
     public override string Name => "DepartureProcedure";
 
+    /// <summary>Index of the coded leg currently being flown — the first leg the overlay projects from.</summary>
+    public int ActiveLegIndex => _legIndex;
+
+    /// <summary>Entry position of the active coded leg (its start anchor), or null before the first tick.</summary>
+    public LatLon? LegEntryPosition => _legEntryPosition;
+
     public override void OnStart(PhaseContext ctx)
     {
         _climbCeiling = ResolveClimbCeiling();

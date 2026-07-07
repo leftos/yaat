@@ -448,6 +448,7 @@
                                WaypointConditions="{Binding WaypointConditionsSnapshot}"
                                WeatherInfo="{Binding WeatherInfo}"
                                ShownPaths="{Binding ShownPaths}"
+                               ShownShapes="{Binding ShownShapes}"
                                HistoryCount="{Binding HistoryCount}"
                                DeconflictMode="{Binding DeconflictMode}" />
 

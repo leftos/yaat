@@ -933,7 +933,10 @@ public record AircraftDto(
     // strip and the Flight Plan Editor's BCN box display. Distinct from BeaconCode above, which is the
     // reported/squawked code (Transponder.Code) and stays 0000 until the pilot squawks the assignment.
     // Kept name-for-name in sync with the server's AircraftStateDto.
-    uint AssignedBeaconCode = 0
+    uint AssignedBeaconCode = 0,
+    // Active-procedure geometry (hold racetracks, procedure turns, open-ended SID coded legs)
+    // projected for the "Show nav route" overlay. Kept name-for-name in sync with AircraftStateDto.
+    List<Yaat.Sim.NavRouteShapeDto>? NavRouteShapes = null
 );
 
 public record LoadScenarioResultDto(

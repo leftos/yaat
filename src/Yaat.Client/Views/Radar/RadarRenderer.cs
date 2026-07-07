@@ -373,6 +373,7 @@ public sealed class RadarRenderer : IDisposable
         bool showTopDown = false,
         IReadOnlyList<WeatherDisplayInfo>? weatherInfo = null,
         IReadOnlyList<ShownPathEntry>? shownPaths = null,
+        IReadOnlyList<ShownShapeEntry>? shownShapes = null,
         int historyCount = 0,
         (string Text, SKPoint Pos)? mvaHover = null
     )
@@ -407,6 +408,12 @@ public sealed class RadarRenderer : IDisposable
         if (shownPaths is { Count: > 0 })
         {
             DrawShownPaths(canvas, vp, shownPaths);
+        }
+
+        // Active-procedure geometry (hold racetracks, procedure turns, coded-leg vectors)
+        if (shownShapes is { Count: > 0 })
+        {
+            DrawShownShapes(canvas, vp, shownShapes);
         }
 
         // Aircraft targets
@@ -492,16 +499,7 @@ public sealed class RadarRenderer : IDisposable
                 continue;
             }
 
-            // Find paint set index by matching color
-            int paintIdx = 0;
-            for (int i = 0; i < _pathLinePaints.Length; i++)
-            {
-                if (_pathLinePaints[i].Color == entry.Color)
-                {
-                    paintIdx = i;
-                    break;
-                }
-            }
+            int paintIdx = PaintIndexForColor(entry.Color);
 
             var linePaint = _pathLinePaints[paintIdx];
             var wpPaint = _pathWaypointPaints[paintIdx];
@@ -562,6 +560,50 @@ public sealed class RadarRenderer : IDisposable
             if (entry.Tail is { } tail)
             {
                 DrawVectorTail(canvas, vp, tail, tailPaint, linePaint);
+            }
+        }
+    }
+
+    private int PaintIndexForColor(SKColor color)
+    {
+        for (int i = 0; i < _pathLinePaints.Length; i++)
+        {
+            if (_pathLinePaints[i].Color == color)
+            {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private void DrawShownShapes(SKCanvas canvas, MapViewport vp, IReadOnlyList<ShownShapeEntry> entries)
+    {
+        foreach (var entry in entries)
+        {
+            var shape = entry.Shape;
+            int paintIdx = PaintIndexForColor(entry.Color);
+
+            // Coded-leg vectors are open-ended (a heading flown until an altitude/distance/radial), so
+            // they draw dashed like a vector tail. Holds and procedure turns are definite flown paths,
+            // so they draw solid.
+            var linePaint = shape.Kind == NavRouteShapeKind.CodedLegVector ? _pathTailPaints[paintIdx] : _pathLinePaints[paintIdx];
+
+            for (int i = 1; i < shape.Points.Count; i++)
+            {
+                var (x1, y1) = vp.LatLonToScreen(shape.Points[i - 1][0], shape.Points[i - 1][1]);
+                var (x2, y2) = vp.LatLonToScreen(shape.Points[i][0], shape.Points[i][1]);
+                canvas.DrawLine(x1, y1, x2, y2, linePaint);
+            }
+
+            if (shape.Labels is { Count: > 0 } labels && shape.LabelLat is { } labelLat && shape.LabelLon is { } labelLon)
+            {
+                var (lx, ly) = vp.LatLonToScreen(labelLat, labelLon);
+                float ty = ly - 4;
+                foreach (var line in labels)
+                {
+                    canvas.DrawText(line, lx + 8, ty, _pathRestrictionPaints[paintIdx]);
+                    ty += 11;
+                }
             }
         }
     }
