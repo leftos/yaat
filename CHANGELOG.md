@@ -11,6 +11,9 @@
 - Placing a ghost track (unsupported data block) on an aircraft no longer leaves a stray blue dot at the aircraft's real position on CRC STARS.
 - Aircraft are never assigned a reserved or non-discrete beacon code — the emergency SPCs 7500/7600/7700, 7777, and any block code ending in "00" — whether at spawn, on `RANDSQ`, or when a flight plan is filed. Previously a departure could spawn already squawking a code like 7600.
 - The radar data block's beacon-code mismatch flash now stops once an aircraft is told to squawk VFR (`SQVFR`/`SQV`), instead of pulsing the stale assigned code against the aircraft's `1200` indefinitely. It resumes if a new beacon code is later assigned (e.g. recycled from the Flight Plan Editor). An assigned-but-not-yet-squawked code still flashes, as before.
+- A departure is no longer auto-tracked to a radar position the instant its wheels leave the ground — it becomes owned only once it climbs onto the STARS display, past the acquisition floor. A closed-traffic pattern aircraft that never leaves the tower's airspace is no longer handed to the departure controller before it appears on the scope.
+- Amending a flight plan or requesting a new beacon code in CRC's Flight Plan Editor for an aircraft whose radar track is owned by another position now shows `ILL TRK` in the STARS preview area instead of silently doing nothing.
+- Clearing a field — including the departure or destination airport — in an existing flight plan through CRC's Flight Plan Editor now applies instead of being silently ignored.
 
 ## v0.9.1-beta [2026/07/06]
 

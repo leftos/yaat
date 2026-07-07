@@ -122,7 +122,11 @@ Stateless singleton; every method takes the `TrainingRoom`.
 - **`ProcessPhysics`** (`:71`): delegates straight to `sim.TickPhysics(delta)`.
 - **`ProcessPostPhysics`** (`:80`): a fixed fan-out whose order matters. Notably
   `ProcessFlightPlanCreatorAutoTrack` runs **before** `ProcessDeferredAutoTrack` (`:88`-`:89`) so an explicit VP/DA
-  controller wins over scenario `AutoTrackAirportIds` for the aircraft they just filed for. The rest in order:
+  controller wins over scenario `AutoTrackAirportIds` for the aircraft they just filed for.
+  `ProcessDeferredAutoTrack` claims a departure only once it first appears on STARS — i.e. crosses the acquisition
+  floor (`FieldElevationResolver.IsBelowDisplayFloor`), not the instant its wheels leave the ground — so a track is
+  never owned before it is displayed (e.g. a closed-traffic pattern departure is not handed to Departure on climb-out).
+  The rest in order:
   `ClearExpiredIdents`, `ProcessAutoAccept`, the two auto-tracks, `ProcessCoordinationTimers`, `ProcessTowerLists`,
   `ProcessVisualDetection`, `ProcessConflictAlerts`, `ProcessSoloTrainingEvaluation`, `ProcessPilotProactive`, the
   warnings/notifications/pilot-speech/readback/transmission broadcast drains, `ProcessApproachScores`, the auto-strip and
