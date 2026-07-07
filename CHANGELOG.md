@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.3-beta [2026/07/07]
 
 ### Added
 - App freezes are now recorded in `yaat-client.log` with their duration and memory state — attach that log (and, on macOS, any hang report) when reporting a UI lockup.
