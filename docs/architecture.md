@@ -247,6 +247,7 @@ Services/
   WindowProfileService.cs       # Saves/restores named window arrangements: per-window geometry + dock/pop-out state + DataGrid column layout. Persists to UserPreferences; surfaced via View → Window Profiles. StagePreferencesPartial applies a chosen subset for the Copy View Settings dialog.
   ViewSettingsCopyCatalog.cs    # Shared catalog of Ground/Radar per-scenario view-setting groups (Key/Label/Describe/AreEqual/Copy). Single source of truth for both CopyViewSettingsDialog's diff rows and MainWindow's merge-on-copy.
   ShownRouteBuilder.cs          # Pure builder for the radar "Show nav route" overlay. Produces a multi-segment path from AircraftModel.NavRouteFixes (server-provided positions, so arcs/custom/FRD fixes draw verbatim; synthetic arc vertices carry empty names) with per-fix crossing-restriction labels, plus a procedure vector tail (5 nm arrow off the last STAR fix on FM/VM/VA legs) + the expected approach line (IAF/transition → FAF → threshold, FAC extended back 5 nm when no transition is named).
+  UiThreadWatchdog.cs           # Background thread that logs a [warn] + runtime/memory snapshot (working set, managed heap, .NET memory-load %, last GC pause, thread count) when the Avalonia dispatcher stalls >2s, and the stall duration + GC deltas on recovery. Diagnoses otherwise-traceless UI-thread freezes; started from App.OnFrameworkInitializationCompleted (desktop lifetime only).
 
 ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init

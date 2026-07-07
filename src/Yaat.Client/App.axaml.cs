@@ -16,6 +16,8 @@ public class App : Application
     public static string? AutoConnectTarget { get; set; }
     public static string? AutoLoadScenarioId { get; set; }
 
+    private static UiThreadWatchdog? _uiWatchdog;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -60,6 +62,13 @@ public class App : Application
                 e.Handled = true;
             };
 
+            // Watchdog for UI-thread freezes: a background thread that logs a warning with a
+            // runtime/memory snapshot whenever the dispatcher stalls for more than a couple of
+            // seconds, then logs the total duration on recovery. A freeze otherwise leaves no trace
+            // in the log because the sim and SignalR keep running on their own threads.
+            _uiWatchdog = new UiThreadWatchdog();
+            _uiWatchdog.Start();
+
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.MainWindow = new MainWindow();
 
@@ -71,6 +80,7 @@ public class App : Application
             System.Console.CancelKeyPress += (_, args) =>
             {
                 AppLifetime.MarkShuttingDown();
+                _uiWatchdog?.Dispose();
                 Yaat.Client.Views.WindowGeometryHelper.FlushAllSavedGeometries();
                 args.Cancel = false;
             };
