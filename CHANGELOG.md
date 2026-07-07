@@ -8,6 +8,7 @@
 
 ### Fixed
 - A DME arc (AF leg) with no charted turn direction no longer risks sweeping the long way around the navaid — the shorter arc is chosen — so aircraft on those procedures fly and display the correct curve.
+- Placing a ghost track (unsupported data block) on an aircraft no longer leaves a stray blue dot at the aircraft's real position on CRC STARS.
 
 ## v0.9.1-beta [2026/07/06]
 
