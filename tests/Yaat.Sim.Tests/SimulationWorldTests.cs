@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
@@ -179,6 +180,40 @@ public class SimulationWorldTests
                 Assert.True(digit >= '0' && digit <= '7', $"Non-octal digit '{digit}' in beacon code {code}");
             }
         }
+    }
+
+    [Fact]
+    public void GenerateBeaconCode_NeverReturnsReservedOrNonDiscreteCode()
+    {
+        // Fixed seed for reproducibility. 50k draws reliably surface an xy00 block
+        // code (~1.6% of raw octal draws) and occasionally 7777 — so the old,
+        // unfiltered generator fails this within the first few hundred draws.
+        var rng = new Random(0);
+        for (int i = 0; i < 50_000; i++)
+        {
+            uint code = SimulationWorld.GenerateBeaconCode(rng);
+            Assert.True(
+                BeaconCodePool.IsAssignableCode(code),
+                $"Generated non-assignable beacon code {code:D4} on draw {i} " + "(must not end in \"00\" and must not be 7777)"
+            );
+        }
+    }
+
+    [Theory]
+    [InlineData(7500u, false)] // hijack SPC
+    [InlineData(7600u, false)] // lost-comms SPC
+    [InlineData(7700u, false)] // emergency SPC
+    [InlineData(7400u, false)] // lost-link SPC
+    [InlineData(1200u, false)] // VFR conspicuity (block)
+    [InlineData(0u, false)] // 0000
+    [InlineData(4600u, false)] // arbitrary xy00 block code
+    [InlineData(7777u, false)] // military interceptor
+    [InlineData(301u, true)] // 0301 discrete
+    [InlineData(7355u, true)] // discrete
+    [InlineData(7540u, true)] // discrete, adjacent to an SPC block
+    public void IsAssignableBeaconCode_ClassifiesCodes(uint code, bool expected)
+    {
+        Assert.Equal(expected, BeaconCodePool.IsAssignableCode(code));
     }
 
     [Fact]

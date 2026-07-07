@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Training;
@@ -497,13 +498,23 @@ public sealed class SimulationWorld
 
     public static uint GenerateBeaconCode(Random rng)
     {
-        uint code = 0;
-        for (int i = 0; i < 4; i++)
+        for (int attempt = 0; attempt < 64; attempt++)
         {
-            code = (code * 10) + (uint)rng.Next(0, 8);
+            uint code = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                code = (code * 10) + (uint)rng.Next(0, 8);
+            }
+
+            // Skip reserved / non-discrete codes (7500/7600/7700 SPCs, 7777, and every xy00 block
+            // code) so a spawned or RANDSQ'd aircraft never squawks a code it could never be assigned.
+            if (BeaconCodePool.IsAssignableCode(code))
+            {
+                return code;
+            }
         }
 
-        return code;
+        return 0001; // unreachable in practice; safe discrete fallback
     }
 
     /// <summary>

@@ -2,7 +2,6 @@ namespace Yaat.Sim.Data.Vnas;
 
 public sealed class BeaconCodePool
 {
-    private static readonly HashSet<uint> ReservedCodes = [7500, 7600, 7700, 7400];
     private readonly HashSet<uint> _assigned = [];
 
     // Fallback state used when no banks are configured.
@@ -23,6 +22,16 @@ public sealed class BeaconCodePool
     {
         ConfigureBanks(banks);
     }
+
+    /// <summary>
+    /// A beacon code may be assigned to an individual aircraft (is discrete) iff its 4-digit octal form
+    /// does not end in "00" — which excludes the VFR conspicuity code 1200, the emergency SPCs
+    /// 7500/7600/7700, lost-link 7400, and 0000 along with every non-discrete block code — and is not the
+    /// military-interceptor code 7777. Mirrors CRC's IsDiscrete plus the special-purpose exclusion. This is
+    /// the single source of truth for reserved/non-discrete exclusion across every code-assigning path
+    /// (bank draw, sequential fallback, and the random spawn generator).
+    /// </summary>
+    public static bool IsAssignableCode(uint code) => (code != 7777) && !code.ToString("D4").EndsWith("00", StringComparison.Ordinal);
 
     /// <summary>
     /// Replaces the bank configuration. Clears per-bank cursors; does not release already-assigned codes.
@@ -107,7 +116,7 @@ public sealed class BeaconCodePool
             var code = _nextCandidate;
             _nextCandidate = NextOctalCode(_nextCandidate);
 
-            if (ReservedCodes.Contains(code) || _assigned.Contains(code))
+            if (!IsAssignableCode(code) || _assigned.Contains(code))
             {
                 continue;
             }
@@ -139,7 +148,7 @@ public sealed class BeaconCodePool
                 var code = cursor;
                 cursor = NextOctalCodeInRange(cursor, start, end);
 
-                if (ReservedCodes.Contains(code) || _assigned.Contains(code))
+                if (!IsAssignableCode(code) || _assigned.Contains(code))
                 {
                     continue;
                 }

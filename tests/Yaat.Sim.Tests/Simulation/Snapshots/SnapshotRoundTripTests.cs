@@ -624,13 +624,15 @@ public class SnapshotRoundTripTests
             },
         };
         var pool = new BeaconCodePool(banks);
-        pool.MarkUsed(100);
+        pool.MarkUsed(101);
 
         pool.Clear();
 
-        // After clear, bank config should still be active (assigns from bank, not sequential)
+        // After clear, bank config should still be active (assigns from bank, not sequential). The bank
+        // starts at 0100, but that is a non-discrete block code (ends in "00"), so the first assignable
+        // code drawn from the bank is 0101.
         var code = pool.AssignNextCode(false);
-        Assert.Equal((uint)100, code);
+        Assert.Equal((uint)101, code);
     }
 
     [Fact]
