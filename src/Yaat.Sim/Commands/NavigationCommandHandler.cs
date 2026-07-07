@@ -504,12 +504,15 @@ internal static class NavigationCommandHandler
     /// </summary>
     internal static CifpTransition? LookupRunwayTransition(IReadOnlyDictionary<string, CifpTransition> transitions, string runwayDesignator)
     {
-        var rwKey = "RW" + runwayDesignator;
+        // CIFP runway-transition keys are zero-padded ("RW01R"); a controller-typed single-digit
+        // designator ("1R") must be padded before the lookup or it silently misses the transition.
+        var designator = RunwayIdentifier.NormalizeDesignator(runwayDesignator);
+        var rwKey = "RW" + designator;
         if (transitions.TryGetValue(rwKey, out var rwTransition))
         {
             return rwTransition;
         }
-        var bothKey = "RW" + runwayDesignator.TrimEnd('L', 'R', 'C') + "B";
+        var bothKey = "RW" + designator.TrimEnd('L', 'R', 'C') + "B";
         return transitions.TryGetValue(bothKey, out var bothTransition) ? bothTransition : null;
     }
 
