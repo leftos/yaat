@@ -416,6 +416,9 @@ public sealed class UserPreferences
     public TerminalTimestampMode TerminalTimestampMode =>
         Enum.TryParse<TerminalTimestampMode>(_data.TerminalTimestampMode, out var mode) ? mode : TerminalTimestampMode.WallClock;
 
+    /// <summary>GPU rendering backend override (macOS only). Defaults to <see cref="RendererMode.Auto"/>.</summary>
+    public RendererMode RendererMode => Enum.TryParse<RendererMode>(_data.RendererMode, out var renderer) ? renderer : RendererMode.Auto;
+
     public int InterfaceFontSize => _data.InterfaceFontSize;
     public int StripsZoomPercent => _data.StripsZoomPercent;
     public int TdlsZoomPercent => _data.TdlsZoomPercent;
@@ -928,6 +931,12 @@ public sealed class UserPreferences
     public void SetTerminalTimestampMode(TerminalTimestampMode mode)
     {
         _data.TerminalTimestampMode = mode.ToString();
+        Save();
+    }
+
+    public void SetRendererMode(RendererMode mode)
+    {
+        _data.RendererMode = mode.ToString();
         Save();
     }
 
@@ -1778,6 +1787,10 @@ public sealed class UserPreferences
         // Which timestamp the terminal shows per line: "WallClock", "SimElapsed", or "Both".
         // Stored as a string (like HiddenTerminalKinds) so enum reordering can't misassign it.
         public string TerminalTimestampMode { get; set; } = nameof(Models.TerminalTimestampMode.WallClock);
+
+        // GPU rendering backend override, applied on macOS only. Stored as a string so enum
+        // reordering can't misassign it. "Auto" lets the platform pick (Metal on macOS).
+        public string RendererMode { get; set; } = nameof(Models.RendererMode.Auto);
         public int InterfaceFontSize { get; set; } = 12;
         public int StripsZoomPercent { get; set; } = 80;
         public int TdlsZoomPercent { get; set; } = 100;

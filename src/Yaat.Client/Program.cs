@@ -4,6 +4,7 @@ using LMKit.Global;
 using Microsoft.Extensions.Logging;
 using Velopack;
 using Yaat.Client.Logging;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim;
 
@@ -11,6 +12,11 @@ namespace Yaat.Client;
 
 public static class Program
 {
+    // Resolved from UserPreferences in Main before the Avalonia app is built, and consumed by
+    // BuildAvaloniaApp to select the macOS rendering backend. Defaults to Auto so the Avalonia
+    // designer (which calls BuildAvaloniaApp without running Main) gets the platform default.
+    private static RendererMode _rendererMode = RendererMode.Auto;
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -27,6 +33,18 @@ public static class Program
         var log = AppLog.CreateLogger("Program");
         log.LogInformation("{BuildSummary}", BuildInfo.LogSummary);
         log.LogInformation("Log file: {LogPath}", AppLog.LogPath);
+
+        // Read the rendering-backend preference before Avalonia is built — RenderingMode must be set
+        // at AppBuilder time. On macOS this lets us default to Metal (avoiding the CPU-heavy
+        // OpenGL-over-Metal emulation on Apple Silicon) while letting users fall back if it misbehaves.
+        try
+        {
+            _rendererMode = new UserPreferences().RendererMode;
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Failed to read renderer preference; using platform default");
+        }
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
@@ -95,6 +113,25 @@ public static class Program
 
     public static AppBuilder BuildAvaloniaApp()
     {
-        return AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().LogToTrace();
+        var builder = AppBuilder.Configure<App>().UsePlatformDetect();
+
+        // macOS is the only backend where the renderer choice matters: the default OpenGL path is
+        // emulated over Metal and saturates a CPU core on Apple Silicon. Windows and Linux keep
+        // Avalonia's auto-detected backend.
+        if (OperatingSystem.IsMacOS())
+        {
+            builder = builder.With(new AvaloniaNativePlatformOptions { RenderingMode = ResolveMacRenderingModes(_rendererMode) });
+        }
+
+        return builder.WithInterFont().LogToTrace();
     }
+
+    private static IReadOnlyList<AvaloniaNativeRenderingMode> ResolveMacRenderingModes(RendererMode mode) =>
+        mode switch
+        {
+            RendererMode.OpenGl => [AvaloniaNativeRenderingMode.OpenGl, AvaloniaNativeRenderingMode.Software],
+            RendererMode.Software => [AvaloniaNativeRenderingMode.Software],
+            // Auto and Metal both prefer Metal, falling back to OpenGL then software if it fails to init.
+            _ => [AvaloniaNativeRenderingMode.Metal, AvaloniaNativeRenderingMode.OpenGl, AvaloniaNativeRenderingMode.Software],
+        };
 }

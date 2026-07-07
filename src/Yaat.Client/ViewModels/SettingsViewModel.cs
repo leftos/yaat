@@ -354,6 +354,9 @@ public partial class SettingsViewModel : ObservableObject
     private int _selectedSignatureHelpPlacementIndex;
 
     [ObservableProperty]
+    private int _selectedRendererModeIndex;
+
+    [ObservableProperty]
     private bool _autoExpandSuggestionOnEnter;
 
     [ObservableProperty]
@@ -551,6 +554,12 @@ public partial class SettingsViewModel : ObservableObject
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
     public static IReadOnlyList<string> SignatureHelpPlacementOptions { get; } = ["Above", "Below"];
 
+    // Order must match the RendererMode enum (Auto, Metal, OpenGl, Software) — SelectedRendererModeIndex
+    // maps directly to the enum value. Only shown on macOS (IsMacOs), where the choice has an effect.
+    public static IReadOnlyList<string> RendererModeOptions { get; } = ["Automatic (recommended)", "Metal", "OpenGL", "Software"];
+
+    public bool IsMacOs { get; } = OperatingSystem.IsMacOS();
+
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
     public DataGridCollectionView GroupedVerbMappings { get; }
     public ObservableCollection<MacroRow> MacroRows { get; } = [];
@@ -700,6 +709,7 @@ public partial class SettingsViewModel : ObservableObject
         _groundVideoMapOverlayBrightness = _preferences.GroundVideoMapOverlayBrightness;
         _groundYaatLayoutBrightness = _preferences.GroundYaatLayoutBrightness;
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
+        _selectedRendererModeIndex = (int)_preferences.RendererMode;
         _autoExpandSuggestionOnEnter = _preferences.AutoExpandSuggestionOnEnter;
         _dataGridFontSize = _preferences.DataGridFontSize;
         _radarDatablockFontSize = _preferences.RadarDatablockFontSize;
@@ -823,6 +833,7 @@ public partial class SettingsViewModel : ObservableObject
             GroundYaatLayoutBrightness
         );
         _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
+        _preferences.SetRendererMode((RendererMode)SelectedRendererModeIndex);
         _preferences.SetAutoExpandSuggestionOnEnter(AutoExpandSuggestionOnEnter);
         _preferences.SetFontSizes(
             new FontSizePrefs(

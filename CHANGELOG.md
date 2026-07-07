@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- macOS: a **Settings → Display → Graphics** selector to choose the graphics renderer (Automatic, Metal, OpenGL, or Software); takes effect after restart.
+
+### Changed
+- macOS now renders on Metal by default instead of OpenGL, reducing CPU use on Apple Silicon Macs.
+
 ## v0.9.3-beta [2026/07/07]
 
 ### Added

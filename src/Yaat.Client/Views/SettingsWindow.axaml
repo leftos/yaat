@@ -280,6 +280,21 @@
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource SubtleTextBrush}"
                                    FontSize="11" />
+                        <StackPanel Spacing="4" IsVisible="{Binding IsMacOs}">
+                            <Separator Margin="0,4" />
+                            <TextBlock Text="Graphics"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="Renderer:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <ComboBox ItemsSource="{Binding RendererModeOptions}"
+                                      SelectedIndex="{Binding SelectedRendererModeIndex}"
+                                      Width="200"
+                                      HorizontalAlignment="Left" />
+                            <TextBlock Text="Metal is recommended on Apple Silicon Macs. Switch to OpenGL only if you see visual glitches, or Software as a last resort. Takes effect after you restart YAAT."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
                         <Separator Margin="0,4" />
                         <TextBlock Text="Command Input"
                                    FontWeight="SemiBold" />
