@@ -483,7 +483,9 @@ public static class AircraftGenerator
         };
 
         // The runway-transition designator drives both the lateral route build and the descend-via profile.
-        state.Procedure.DestinationRunway = request.StarRunway;
+        // Zero-pad it (SpawnParser leaves single-digit designators unpadded) so it matches the CIFP
+        // "RW01R" key and the RunwayInfo.Designator invariant (issue #273).
+        state.Procedure.DestinationRunway = request.StarRunway is { } starRunway ? RunwayIdentifier.NormalizeDesignator(starRunway) : null;
 
         var warnings = new List<string>();
         ArrivalRouteResolver.PopulateNavigationRoute(state, navPath, warnings);

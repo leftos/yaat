@@ -1,5 +1,6 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Scenarios;
@@ -262,14 +263,16 @@ internal static class ArrivalRouteResolver
             return null;
         }
 
-        var rwKey = "RW" + designator;
+        // CIFP runway-transition keys are zero-padded ("RW01R"); pad a single-digit designator first.
+        var padded = RunwayIdentifier.NormalizeDesignator(designator);
+        var rwKey = "RW" + padded;
         if (star.RunwayTransitions.TryGetValue(rwKey, out var transition))
         {
             return transition.Legs;
         }
 
         // Fall back to "both" key (e.g., RW19B for RW19L/RW19R)
-        var bothKey = "RW" + designator.TrimEnd('L', 'R', 'C') + "B";
+        var bothKey = "RW" + padded.TrimEnd('L', 'R', 'C') + "B";
         if (star.RunwayTransitions.TryGetValue(bothKey, out transition))
         {
             return transition.Legs;

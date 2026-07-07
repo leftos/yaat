@@ -120,6 +120,101 @@ public class ShownRouteBuilderTests
     }
 
     [Fact]
+    public void BuildPrimary_SingleDigitRunway_ResolvesPaddedRunwayTransitionVector()
+    {
+        // Aircraft assigned runway 1R; the STAR publishes the transition under the zero-padded CIFP
+        // key "RW01R". The client must pad "1R" → "RW01R" and produce that transition's vector tail
+        // (issue #273).
+        var rwyTransition = new CifpTransition(
+            "RW01R",
+            [
+                new CifpLeg("CRSEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
+                new CifpLeg("CRSEN", CifpPathTerminator.FM, null, null, null, CifpFixRole.None, 20, OutboundCourse: 112.0, null, null),
+            ]
+        );
+
+        var stars = new[]
+        {
+            new CifpStarProcedure(
+                Airport,
+                "WNDSR2",
+                CommonLegs: [new CifpLeg("HOPTA", CifpPathTerminator.IF, null, null, null, CifpFixRole.IF, 10, null, null, null)],
+                EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+                RunwayTransitions: new Dictionary<string, CifpTransition>(StringComparer.OrdinalIgnoreCase) { ["RW01R"] = rwyTransition }
+            ),
+        };
+
+        var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["HOPTA"] = (37.78, -122.15),
+            ["CRSEN"] = (37.69, -122.01),
+        };
+
+        var navDb = NavigationDatabase.ForTesting(fixes, null, null, null, null, stars);
+
+        var ac = new AircraftModel
+        {
+            Callsign = "SWA1234",
+            Destination = Airport,
+            ActiveStarId = "WNDSR2",
+            DestinationRunway = "1R",
+            NavRouteFixes = [new NavRouteFixDto("HOPTA", 37.78, -122.15, null)],
+        };
+
+        var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+
+        Assert.NotNull(tail);
+        Assert.Equal(112.0, tail!.HeadingMag, 3);
+    }
+
+    [Fact]
+    public void BuildPrimary_SingleDigitRunway_DoesNotSuffixMatchDifferentRunwayTransition()
+    {
+        // Aircraft assigned runway 1R, but the STAR only publishes an RW31R transition. The old
+        // EndsWith fallback ("RW31R".EndsWith("1R")) wrongly bound the 31R vector; zero-padding
+        // "1R" → "RW01R" finds no transition, so no vector tail is produced (issue #273).
+        var rwyTransition = new CifpTransition(
+            "RW31R",
+            [
+                new CifpLeg("CRSEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
+                new CifpLeg("CRSEN", CifpPathTerminator.FM, null, null, null, CifpFixRole.None, 20, OutboundCourse: 112.0, null, null),
+            ]
+        );
+
+        var stars = new[]
+        {
+            new CifpStarProcedure(
+                Airport,
+                "WNDSR2",
+                CommonLegs: [new CifpLeg("HOPTA", CifpPathTerminator.IF, null, null, null, CifpFixRole.IF, 10, null, null, null)],
+                EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+                RunwayTransitions: new Dictionary<string, CifpTransition>(StringComparer.OrdinalIgnoreCase) { ["RW31R"] = rwyTransition }
+            ),
+        };
+
+        var fixes = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["HOPTA"] = (37.78, -122.15),
+            ["CRSEN"] = (37.69, -122.01),
+        };
+
+        var navDb = NavigationDatabase.ForTesting(fixes, null, null, null, null, stars);
+
+        var ac = new AircraftModel
+        {
+            Callsign = "SWA1234",
+            Destination = Airport,
+            ActiveStarId = "WNDSR2",
+            DestinationRunway = "1R",
+            NavRouteFixes = [new NavRouteFixDto("HOPTA", 37.78, -122.15, null)],
+        };
+
+        var (_, tail) = ShownRouteBuilder.BuildPrimary(ac, navDb);
+
+        Assert.Null(tail);
+    }
+
+    [Fact]
     public void BuildPrimary_StarEndingAtFix_NoVectorLeg_ReturnsNullTail()
     {
         var stars = new[]

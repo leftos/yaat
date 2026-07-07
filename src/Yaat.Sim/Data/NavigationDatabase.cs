@@ -1425,8 +1425,10 @@ public sealed class NavigationDatabase
             return null;
         }
 
-        // Normalize runway ID: "30" → "RW30", "30L" → "RW30L"
-        string rwyKey = runwayId.StartsWith("RW", StringComparison.OrdinalIgnoreCase) ? runwayId : $"RW{runwayId}";
+        // Normalize runway ID: "30" → "RW30", "8L" → "RW08L", "RW30" → "RW30". CIFP runway-transition
+        // keys are zero-padded, so a single-digit designator must be padded or the lookup misses.
+        string designator = runwayId.StartsWith("RW", StringComparison.OrdinalIgnoreCase) ? runwayId[2..] : runwayId;
+        string rwyKey = "RW" + RunwayIdentifier.NormalizeDesignator(designator);
 
         foreach (var (key, transition) in star.RunwayTransitions)
         {

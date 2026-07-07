@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- An arrival cleared onto a STAR with a single-digit runway (runways 1–9, e.g. `JARR BDEGA 1R`) now flies the published runway-transition legs and shows them on the **Show nav route** overlay and STARS programmed-fix highlighting, instead of silently dropping the transition. Scenario aircraft spawned on such a STAR are fixed the same way. Previously only the zero-padded form (`01R`) resolved the transition.
+
 ## v0.9.2-beta [2026/07/06]
 
 ### Highlights
