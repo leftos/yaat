@@ -2,6 +2,7 @@ using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 
@@ -232,25 +233,20 @@ internal static class ShownRouteBuilder
 
     private static string? MatchRunwayTransitionKey(IReadOnlyDictionary<string, CifpTransition> transitions, string runway)
     {
-        // CIFP runway-transition keys are typically "RW28R", "RW10L", etc. The caller passes
-        // the bare designator ("28R") — accept both forms.
-        if (transitions.ContainsKey(runway))
+        // CIFP runway-transition keys are zero-padded ("RW01R", "RW28R"). The caller passes the bare
+        // designator ("28R", "1R") or an already-prefixed key. Strip an optional leading "RW", zero-pad
+        // the designator, then rebuild the exact key — a naive suffix match would bind "1R" to "RW11R"
+        // or "RW31R". Mirrors NavigationCommandHandler.LookupRunwayTransition (issue #273).
+        var designator = RunwayIdentifier.NormalizeDesignator(runway.StartsWith("RW", StringComparison.OrdinalIgnoreCase) ? runway[2..] : runway);
+        var rwKey = "RW" + designator;
+        if (transitions.ContainsKey(rwKey))
         {
-            return runway;
+            return rwKey;
         }
-        var prefixed = $"RW{runway}";
-        if (transitions.ContainsKey(prefixed))
-        {
-            return prefixed;
-        }
-        foreach (var key in transitions.Keys)
-        {
-            if (key.EndsWith(runway, StringComparison.OrdinalIgnoreCase))
-            {
-                return key;
-            }
-        }
-        return null;
+
+        // CIFP "B" key means both parallels share one transition (e.g. "RW01B" serves RW01L/RW01R).
+        var bothKey = "RW" + designator.TrimEnd('L', 'R', 'C') + "B";
+        return transitions.ContainsKey(bothKey) ? bothKey : null;
     }
 
     private static VectorTail? TryExtractTrailingVector(IReadOnlyList<CifpLeg> legs, NavigationDatabase navDb)

@@ -355,6 +355,25 @@ public class ProcedureLoadingTests
         Assert.Contains(aircraft.Targets.NavigationRoute, t => t.Name == "BRIXX");
     }
 
+    [Fact]
+    public void Jarr_SingleDigitRunwayTransition_StoresPaddedDestinationRunway()
+    {
+        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        aircraft.Altitude = 20000;
+
+        var navDb = CreateNavDb(star: CreateTestStar());
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        // A single-digit runway-transition arg ("1R") must be stored zero-padded ("01R"), matching the
+        // RunwayInfo.Designator invariant, so every downstream "RW" + designator lookup finds the
+        // CIFP-stored "RW01R" key instead of silently missing (issue #273).
+        var cmd = new JoinStarCommand("BDEGA3", "BDEGA", "1R");
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success);
+        Assert.Equal("01R", aircraft.Procedure.DestinationRunway);
+    }
+
     // --- DVIA self-resolve from filed route (issue #187) ---
 
     [Fact]

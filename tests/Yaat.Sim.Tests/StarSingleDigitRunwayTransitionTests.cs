@@ -1,6 +1,8 @@
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Tests;
 
@@ -68,5 +70,45 @@ public class StarSingleDigitRunwayTransitionTests : IDisposable
         var singleDigit = navDb.GetStarRunwayTransitions("KSFO", "BDEGA4", "1R");
         Assert.NotNull(singleDigit);
         Assert.Equal(padded, singleDigit);
+    }
+
+    [Fact]
+    public void SpawnOnStar_SingleDigitRunway_StoresPaddedDestinationRunway()
+    {
+        // Scenario "OnStar" spawns write StarRunway (uppercased-but-unpadded by SpawnParser) straight
+        // into Procedure.DestinationRunway. A single-digit spawn ("1R") must be zero-padded ("01R") so
+        // the flown-route and restriction lookups match the CIFP "RW01R" key (issue #273).
+        var navDb = NavigationDatabase.Instance;
+        var star = navDb.GetStar("KSFO", "BDEGA4");
+        if (star is null || star.CommonLegs.Count == 0 || !star.RunwayTransitions.ContainsKey("RW01R"))
+        {
+            return; // offline CIFP fallback lacks BDEGA4/RW01R
+        }
+
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(new List<CifpLeg>(star.CommonLegs));
+        if (targets.Count == 0 || navDb.GetFixPosition(targets[0].Name) is null)
+        {
+            return;
+        }
+
+        var request = new SpawnRequest
+        {
+            Rules = FlightRulesKind.Ifr,
+            Weight = WeightClass.Heavy,
+            Engine = EngineKind.Jet,
+            PositionType = SpawnPositionType.OnStar,
+            StarEntryFix = targets[0].Name,
+            StarId = "BDEGA4",
+            StarRunway = "1R",
+            DescendVia = false,
+            StarAltitude = null,
+            DestinationAirportId = "KSFO",
+        };
+
+        var (state, error) = AircraftGenerator.Generate(request, "KSFO", Array.Empty<AircraftState>(), groundLayout: null, new Random(1));
+
+        Assert.Null(error);
+        Assert.NotNull(state);
+        Assert.Equal("01R", state!.Procedure.DestinationRunway);
     }
 }

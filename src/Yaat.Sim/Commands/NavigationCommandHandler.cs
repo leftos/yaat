@@ -307,10 +307,12 @@ internal static class NavigationCommandHandler
         }
 
         // A runway-transition argument (JARR star 27) also designates the landing runway, so the
-        // CIFP runway-transition lookup and downstream approach selection use it.
+        // CIFP runway-transition lookup and downstream approach selection use it. Zero-pad it to the
+        // same form as RunwayInfo.Designator so a single-digit designator ("1R") matches the CIFP
+        // "RW01R" key rather than silently dropping the transition (issue #273).
         if (cmd.RunwayTransition is { } runwayArg)
         {
-            aircraft.Procedure.DestinationRunway = runwayArg;
+            aircraft.Procedure.DestinationRunway = RunwayIdentifier.NormalizeDesignator(runwayArg);
         }
 
         // Try CIFP STAR first for constrained navigation targets
