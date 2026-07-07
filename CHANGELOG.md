@@ -8,6 +8,9 @@
 ### Changed
 - macOS now renders on Metal by default instead of OpenGL, reducing CPU use on Apple Silicon Macs.
 
+### Fixed
+- Busy sessions with many aircraft no longer cause periodic multi-second UI freezes, most noticeable with taxi-route or nav-route overlays shown.
+
 ## v0.9.3-beta [2026/07/07]
 
 ### Added

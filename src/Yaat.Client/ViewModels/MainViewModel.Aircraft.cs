@@ -237,9 +237,37 @@ public partial class MainViewModel
                 RefreshAircraftView();
             }
 
-            Radar.RefreshShownPaths();
-            Ground.RefreshShownTaxiRoutes();
+            ScheduleShownRouteRefresh();
         });
+    }
+
+    private bool _shownRouteRefreshScheduled;
+
+    /// <summary>
+    /// Coalesces the global shown-route/path rebuilds. The server broadcasts one
+    /// <see cref="OnAircraftUpdated"/> per aircraft, so calling the O(n)
+    /// <see cref="RadarViewModel.RefreshShownPaths"/> / <see cref="GroundViewModel.RefreshShownTaxiRoutes"/>
+    /// directly from each update made a busy tick O(n²) and flooded the UI thread with allocations
+    /// (macOS freeze, issue #280). Instead we mark the rebuild pending and run it once at background
+    /// priority, after the current burst of updates has drained.
+    /// </summary>
+    private void ScheduleShownRouteRefresh()
+    {
+        if (_shownRouteRefreshScheduled)
+        {
+            return;
+        }
+
+        _shownRouteRefreshScheduled = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () =>
+            {
+                _shownRouteRefreshScheduled = false;
+                Radar.RefreshShownPaths();
+                Ground.RefreshShownTaxiRoutes();
+            },
+            Avalonia.Threading.DispatcherPriority.Background
+        );
     }
 
     private readonly CfrAlertMonitor _cfrMonitor = new();

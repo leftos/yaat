@@ -1420,8 +1420,13 @@ public partial class GroundViewModel : ObservableObject
         return effective;
     }
 
+    /// <summary>Number of times <see cref="RefreshShownTaxiRoutes"/> has run. Test-only: lets the
+    /// coalescing regression test assert a burst of aircraft updates triggers one rebuild, not N.</summary>
+    internal int RefreshShownTaxiRoutesCallCount { get; private set; }
+
     public void RefreshShownTaxiRoutes()
     {
+        RefreshShownTaxiRoutesCallCount++;
         var all = _aircraftProvider?.Invoke() ?? [];
         var effective = ComputeVisibleTaxiRouteCallsigns(
             _shownTaxiRouteCallsigns,
