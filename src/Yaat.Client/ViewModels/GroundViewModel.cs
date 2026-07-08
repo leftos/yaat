@@ -511,7 +511,11 @@ public partial class GroundViewModel : ObservableObject
         AirportCenterLat = 0;
         AirportCenterLon = 0;
         AirportElevation = 0;
-        BackgroundImage?.Image.Dispose();
+        // Drop the reference but do NOT Dispose the SKImage: Avalonia's compositor renders on
+        // a separate thread from a RenderSnapshot that may still hold this image, so freeing the
+        // native SkImage here races sk_image_get_width() on the render thread and crashes the
+        // process (ExecutionEngineException). The image is reclaimed by finalization once no
+        // in-flight snapshot references it — same as the scenario-switch swap in LoadTowerCabLayersAsync.
         BackgroundImage = null;
         TowerCabMap = null;
         GroundAircraft.Clear();

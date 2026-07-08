@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Unloading a scenario no longer crashes the client when the Ground view's satellite (tower-cab) background image is shown.
+
 ## v0.9.4-beta [2026/07/07]
 
 ### Highlights
