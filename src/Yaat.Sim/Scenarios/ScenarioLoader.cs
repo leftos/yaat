@@ -26,6 +26,14 @@ public class ScenarioLoadResult
     public string? AutoDeleteMode { get; init; }
     public string? MinimumRating { get; init; }
     public List<string> Warnings { get; init; } = [];
+
+    /// <summary>
+    /// Scenario-authored departure-strip pre-placement, keyed by callsign. Resolved from
+    /// <see cref="Scenario.FlightStripConfigurations"/> (aircraft ULIDs joined to callsigns)
+    /// so the spawn auto-print hook can drop each configured aircraft's strip straight into
+    /// its bay instead of the printer queue. Empty when the scenario has no configuration.
+    /// </summary>
+    public Dictionary<string, ScenarioStripBayAssignment> InitialStripBayByCallsign { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public class LoadedAircraft
@@ -102,7 +110,52 @@ public static class ScenarioLoader
             AutoDeleteMode = scenario.AutoDeleteMode,
             MinimumRating = scenario.MinimumRating,
             Warnings = warnings,
+            InitialStripBayByCallsign = ResolveStripBayAssignments(scenario),
         };
+    }
+
+    /// <summary>
+    /// Joins <see cref="Scenario.FlightStripConfigurations"/> (which reference scenario aircraft
+    /// by ULID) against the aircraft list to produce a callsign-keyed pre-placement map. The
+    /// runtime <see cref="AircraftState"/> only carries the callsign back to a config entry — its
+    /// <c>ScenarioId</c> is the scenario/room id, not the per-aircraft ULID — so the join must
+    /// happen here at load time. Configs with no bay are skipped; later configs win on collision.
+    /// </summary>
+    private static Dictionary<string, ScenarioStripBayAssignment> ResolveStripBayAssignments(Scenario scenario)
+    {
+        var map = new Dictionary<string, ScenarioStripBayAssignment>(StringComparer.OrdinalIgnoreCase);
+        if (scenario.FlightStripConfigurations.Count == 0)
+        {
+            return map;
+        }
+
+        var callsignById = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var ac in scenario.Aircraft)
+        {
+            if (!string.IsNullOrEmpty(ac.Id) && !string.IsNullOrEmpty(ac.AircraftId))
+            {
+                callsignById[ac.Id] = ac.AircraftId;
+            }
+        }
+
+        foreach (var config in scenario.FlightStripConfigurations)
+        {
+            if (string.IsNullOrEmpty(config.BayId))
+            {
+                continue;
+            }
+
+            var assignment = new ScenarioStripBayAssignment(config.FacilityId ?? "", config.BayId, config.Rack);
+            foreach (var aircraftId in config.AircraftIds)
+            {
+                if (callsignById.TryGetValue(aircraftId, out var callsign))
+                {
+                    map[callsign] = assignment;
+                }
+            }
+        }
+
+        return map;
     }
 
     internal static AircraftState CreateBaseState(ScenarioAircraft ac, string? primaryAirportId, string? primaryApproach)

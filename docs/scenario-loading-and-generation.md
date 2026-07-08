@@ -88,6 +88,15 @@ load-time triage at `ScenarioLoader.cs:71`:
 `ScenarioLoadResult` also surfaces `HasParkingSpawns` (any `Parking` spawn without a TAXI preset — drives the solo-training
 parking call-up source gate) and `HasArrivalGenerators`.
 
+It also surfaces `InitialStripBayByCallsign` — the scenario's top-level `flightStripConfigurations`
+(entries of `{ facilityId, bayId, rack, aircraftIds }`) resolved to a callsign-keyed
+`Dictionary<string, ScenarioStripBayAssignment>`. The config references aircraft by **ULID**
+(`ScenarioAircraft.Id`), but the runtime `AircraftState` only carries the callsign back to a config
+entry, so `ResolveStripBayAssignments` joins ULID → callsign at load. Both load paths copy it onto
+`SimScenarioState.InitialStripBayByCallsign`, where the server's spawn hook
+(`TickProcessor.AfterAircraftSpawned`) reads it to drop configured departures straight into their
+bay instead of the printer queue (see [`flight-strips.md`](flight-strips.md)).
+
 The server's `LoadScenarioAsync` (`ScenarioLifecycleService.cs:180`) iterates the three buckets: immediate aircraft are added
 to the world and `DispatchPresetCommands` runs synchronously; delayed aircraft are queued; deferred aircraft only have their
 `ScenarioId` stamped and are reported in the manifest. `SimulationEngine.LoadScenario`

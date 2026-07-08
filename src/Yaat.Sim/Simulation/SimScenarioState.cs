@@ -183,6 +183,13 @@ public sealed class SimScenarioState
     // alongside navigation/custom data; not snapshotted.
     public WakeDirectiveCatalog WakeDirectives { get; set; } = WakeDirectiveCatalog.Empty;
 
+    // Scenario-authored departure-strip pre-placement, keyed by callsign (resolved from the
+    // scenario's flightStripConfigurations at load). Directs the spawn auto-print hook to drop
+    // the aircraft's strip into a specific bay/rack instead of the printer queue. Set by the
+    // loader and preserved across snapshot restores (RestoreFromSnapshot leaves it untouched),
+    // same as ArtccConfig — the mapping is scenario-static, not runtime-mutated.
+    public Dictionary<string, ScenarioStripBayAssignment> InitialStripBayByCallsign { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Pilot-reaction "command run delay" range. When <see cref="CommandRunDelayMaxSeconds"/> &gt; 0,
     /// each pilot-actionable command takes effect a sampled [min, max] seconds after the controller

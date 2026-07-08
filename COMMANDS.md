@@ -1252,6 +1252,8 @@ Because of this rule, a single-token global delete like `HSD Ground` is interpre
 
 **Full-strip id form (UI default for STRIPD / STRIPO / AN / STRIP):** the four full-strip verbs accept an optional leading `STRIP_<id>` token to address a specific strip — required to manage scanned copies (`STRIP_{callsign}_{shortGuid}`) that share their callsign with the original. `STRIPD STRIP_<id>` deletes a specific strip; `STRIPO STRIP_<id>` toggles offset; `AN STRIP_<id> 3 RV` annotates; `STRIP STRIP_<id> Local/2/3` moves. Terminal users keep the bare callsign-keyed shorthand.
 
+**`AN` and `STRIPO` require the strip to be in a bay.** Both are rejected while the strip is still in the printer ("…is still in the printer — move it to a bay first"): annotation boxes are edited in a bay and offset slides a strip within a rack, neither of which applies to an unfiled printer strip (matches vStrips, whose printer view only offers *Move to Bay*). Use `STRIP <bay>` to file it first, or `STRIPD` to discard it — both still operate on printer strips.
+
 | `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |
 | `CRUISE 240` / `QZ 240` | Set cruise altitude |
 | `PRA 250` | Set pilot reported altitude (in hundreds; `PRA 0` clears) |

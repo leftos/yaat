@@ -14,6 +14,8 @@
 - Busy sessions with many aircraft no longer cause periodic multi-second UI freezes, most noticeable with taxi-route or nav-route overlays shown.
 - A taxi clearance holding short of a *taxiway* (e.g. `TAXI D C HS E RWY 28R`) now routes through that taxiway instead of detouring around it.
 - An `ER`/`EL` exit side is now honored when followed by a bare `EXIT <taxiway>` — `ER` then `EXIT D` exits right at taxiway D.
+- Scenarios that pre-assign departure strips to a bay now place them there as each aircraft spawns, rather than in the printer queue.
+- Annotating (`AN`) or offsetting (`STRIPO`) a flight strip still in the printer is now rejected with a reminder to move it to a bay first.
 
 ## v0.9.3-beta [2026/07/07]
 

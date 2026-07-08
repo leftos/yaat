@@ -100,6 +100,27 @@ together. Both filter to **own** (non-external) bays so auto-routed
 strips always land in the student's own facility, never in a linked
 external bay.
 
+#### Scenario-configured pre-placement (`flightStripConfigurations`)
+
+A scenario's top-level `flightStripConfigurations` array pre-assigns specific
+aircraft's departure strips to a bay/rack — e.g. a Ground scenario that drops its
+departures straight into the Ground bay rather than making the student pull each one
+off the printer. Each entry is `{ facilityId, bayId, rack, aircraftIds }`, where
+`aircraftIds` are **scenario aircraft ULIDs** (`ScenarioAircraft.Id`) and `rack` is
+0-based.
+
+The runtime `AircraftState` only carries the **callsign** back to a config entry
+(`AircraftState.ScenarioId` is the scenario/room id, not the per-aircraft ULID), so
+`ScenarioLoader.Load` resolves the array into a callsign-keyed
+`Dictionary<string, ScenarioStripBayAssignment>` (`ScenarioLoadResult.InitialStripBayByCallsign`),
+carried onto `SimScenarioState.InitialStripBayByCallsign`.
+`TickProcessor.AfterAircraftSpawned` consults it (via `TryPlaceConfiguredStrip`) **before**
+the position-type routing above: if the callsign is configured and the bay resolves as
+accessible to the student position (`GetAccessibleStripBayById`), the strip is placed into
+that bay via `RequestDepartureStripForAircraftIntoBay` and the default routing is skipped.
+A rack beyond the bay's rack count clamps to the last rack, mirroring vStrips "Move to Bay".
+If the bay isn't accessible/resolvable, it falls through to the position-type default.
+
 ### Manual strip requests & amendment reprints
 
 Two flows print strips **on demand**, distinct from the idempotent auto-print
@@ -287,6 +308,14 @@ that shares its callsign with the original.
   **Id form:** `STRIPD STRIP_<id>` deletes a specific strip.
 - `STRIPO` toggles the offset flag on the full strip.
   **Id form:** `STRIPO STRIP_<id>` toggles offset on a specific strip.
+
+**`AN` and `STRIPO` require the strip to be in a bay.** Both reject a strip that
+is still in the printer (`StripItemRecord.BayId` empty) with "…is still in the
+printer — move it to a bay first" — annotation boxes are edited in a bay, and offset
+slides a strip within a rack, neither of which applies to an unfiled printer strip
+(matches vStrips, whose printer view only offers *Move to Bay*). Shared guard:
+`StripCommandHandler.StripMustBeInBayError`. `STRIP` (to file it) and `STRIPD`
+(to discard it) still operate on printer strips.
 
 The strips UI always emits the id form so scanned copies are addressable;
 terminal users keep the bare callsign-keyed shorthand, and old

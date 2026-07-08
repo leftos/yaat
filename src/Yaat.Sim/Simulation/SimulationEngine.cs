@@ -554,6 +554,7 @@ public sealed class SimulationEngine
             WakeDirectives = NavigationDatabase.Instance.WakeDirectives,
             HasSoloParkingInitialCallupSource = result.HasParkingSpawns,
             HasSoloArrivalGeneratorSource = result.HasArrivalGenerators,
+            InitialStripBayByCallsign = result.InitialStripBayByCallsign,
         };
 
         // Add immediate aircraft and dispatch their presets

@@ -274,4 +274,24 @@ public class FlightStripConfiguration
 {
     [JsonPropertyName("id")]
     public string? Id { get; set; }
+
+    [JsonPropertyName("facilityId")]
+    public string? FacilityId { get; set; }
+
+    [JsonPropertyName("bayId")]
+    public string? BayId { get; set; }
+
+    [JsonPropertyName("rack")]
+    public int Rack { get; set; }
+
+    [JsonPropertyName("aircraftIds")]
+    public List<string> AircraftIds { get; set; } = [];
 }
+
+/// <summary>
+/// Resolved per-callsign strip-bay pre-placement derived from
+/// <see cref="Scenario.FlightStripConfigurations"/> at load time. Directs the spawn
+/// auto-print hook to drop the aircraft's departure strip into a specific bay/rack
+/// instead of the departure printer queue.
+/// </summary>
+public sealed record ScenarioStripBayAssignment(string FacilityId, string BayId, int Rack);
