@@ -73,7 +73,19 @@ public class AircraftViewFilterTests
     {
         // Sanity-check that the underlying status projection is unchanged — the filter is the layer
         // that hides the row, not a status rewrite. An unsupported phantom is airborne with no phase,
-        // SID, altitude, or route, which the describer reports as "No altitude asgn".
-        Assert.Equal("No altitude asgn", Describe(new AircraftStatusView { IsOnGround = false }).Text);
+        // SID, altitude, or route, which the describer reports with a leading "No altitude asgn"
+        // warning (now prepended to the normal status rather than replacing it).
+        Assert.StartsWith("No altitude asgn", Describe(new AircraftStatusView { IsOnGround = false }).Text);
+    }
+
+    [Fact]
+    public void Filter_TextSearch_MatchesPrependedWarningStatus()
+    {
+        // Warnings prepend to (not replace) the normal status, so both the warning word and the
+        // underlying activity stay searchable via the Aircraft List filter's SmartStatus match.
+        var ac = Model();
+        ac.SmartStatus = "No landing clnc · final 28R";
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "landing"));
+        Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "final"));
     }
 }

@@ -45,20 +45,35 @@ public static class AircraftStatusDescriber
     /// </summary>
     public static (string Text, AircraftStatusSeverity Severity) Describe(AircraftStatusView i)
     {
+        var (normalText, normalSeverity) = ComputeNormalStatus(i);
+
         var alert = CheckAlerts(i);
         if (alert is not null)
         {
-            return alert.Value;
+            var (alertText, alertSeverity) = alert.Value;
+            var combined = string.IsNullOrEmpty(normalText) ? alertText : $"{alertText} · {normalText}";
+            return (combined, alertSeverity);
         }
 
+        return (CapitalizeFirst(normalText), normalSeverity);
+    }
+
+    /// <summary>
+    /// The phase-driven (or no-phase) status text describing what the aircraft is doing, before any
+    /// alert is considered. Not capitalized here: <see cref="Describe"/> capitalizes it for the
+    /// no-alert case, but leaves it lowercase when an alert is prepended so the composite reads as
+    /// one sentence (e.g. "No landing clnc · final 28R").
+    /// </summary>
+    private static (string Text, AircraftStatusSeverity Severity) ComputeNormalStatus(AircraftStatusView i)
+    {
         if (!string.IsNullOrEmpty(i.CurrentPhase))
         {
             var (text, severity) = ComputePhaseStatus(i);
-            return (CapitalizeFirst(AppendHeadingIfAssigned(i, text, ShouldKeepHeadingSuffix(i.CurrentPhase))), severity);
+            return (AppendHeadingIfAssigned(i, text, ShouldKeepHeadingSuffix(i.CurrentPhase)), severity);
         }
 
         var noPhase = ComputeNoPhaseStatus(i);
-        return (CapitalizeFirst(AppendHeadingIfAssigned(i, noPhase.Text, keep: true)), noPhase.Severity);
+        return (AppendHeadingIfAssigned(i, noPhase.Text, keep: true), noPhase.Severity);
     }
 
     /// <summary>

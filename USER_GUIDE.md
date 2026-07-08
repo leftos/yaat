@@ -300,16 +300,16 @@ The **Info** column shows a contextual summary of each aircraft's state.
 - **Gold/amber** — warning that needs attention (pending handoff, no altitude assignment)
 - **Red** — critical alert requiring immediate action (on final or landing without clearance)
 
-**Alert conditions** (highest priority first):
+**Alert conditions:** When an alert is active its warning is **prepended** to the normal status (separated by ` · `), so you still see what the aircraft is doing, and the whole line takes the alert's color. The highest-priority alert wins when more than one applies:
 
-| Condition | Text | Color |
-|-----------|------|-------|
-| On final approach without landing clearance | "No landing clnc" | Red |
-| Landing without clearance | "Landing — no clnc!" | Red |
-| Handoff in progress | "HO → {sector}" | Gold |
-| Airborne, no phase/SID/STAR, no altitude assignment, no nav route | "No altitude asgn" | Gold |
+| Condition | Prepended warning | Color | Example |
+|-----------|-------------------|-------|---------|
+| On final approach without landing clearance | "No landing clnc" | Red | "No landing clnc · final 28R" |
+| Landing without clearance | "Landing — no clnc!" | Red | "Landing — no clnc! · landing 28R" |
+| Handoff in progress | "HO → {sector}" | Gold | "HO → NR · departing 28R, on course" |
+| Airborne, no phase/SID/STAR, no altitude assignment, no nav route | "No altitude asgn" | Gold | "No altitude asgn · 5,000, on course" |
 
-**Phase-based status** (white, when no alerts apply): Describes the current phase — e.g., "Taxi to RWY 28R via A B C", "LUAW 28R", "Departing 28R, hdg 270, ↑ 3,000", "ILS28R → CEPIN DUMBA AXMUL", "Left downwind 28R", "Landing 28R".
+**Phase-based status** (the normal status — shown in white on its own when no alert applies, or after the prepended warning when one does): Describes the current phase — e.g., "Taxi to RWY 28R via A B C", "LUAW 28R", "Departing 28R, hdg 270, ↑ 3,000", "ILS28R → CEPIN DUMBA AXMUL", "Left downwind 28R", "Landing 28R".
 
 **Departing aircraft** add their lateral clearance and climb target after the runway: the lateral part is the SID name, "hdg 270" (with "left/right turn" when a turn direction was assigned), "→ {fix}", "on course", "runway heading", or "{left/right} traffic" for closed traffic; the vertical part is "↑ {altitude}" for the climb target. Examples: "Departing 28R, OAK5, ↑ 5,000", "Departing 28R, → VPMID, ↑ 3,000", "Departing 28R, right traffic, ↑ 1,400".
 

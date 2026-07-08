@@ -20,8 +20,13 @@ public class SmartStatusTests
     [Fact]
     public void FinalApproach_NoLandingClearance_Critical()
     {
-        var v = new AircraftStatusView { CurrentPhase = "FinalApproach", LandingClearance = "" };
-        Assert.Equal("No landing clnc", Text(v));
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "FinalApproach",
+            LandingClearance = "",
+            AssignedRunway = "28R",
+        };
+        Assert.Equal("No landing clnc · final 28R", Text(v));
         Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
@@ -61,15 +66,20 @@ public class SmartStatusTests
             LandingClearance = "",
             AssignedRunway = "28R",
         };
-        Assert.Equal("Landing — no clnc!", Text(v));
+        Assert.Equal("Landing — no clnc! · landing 28R", Text(v));
         Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
     [Fact]
     public void LandingH_NoLandingClearance_Critical()
     {
-        var v = new AircraftStatusView { CurrentPhase = "Landing-H", LandingClearance = "" };
-        Assert.Equal("Landing — no clnc!", Text(v));
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Landing-H",
+            LandingClearance = "",
+            AssignedRunway = "28R",
+        };
+        Assert.Equal("Landing — no clnc! · landing 28R", Text(v));
         Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
@@ -90,16 +100,26 @@ public class SmartStatusTests
     [Fact]
     public void HandoffPeer_Warning()
     {
-        var v = new AircraftStatusView { HandoffPeer = "conn123", HandoffPeerSectorCode = "NR" };
-        Assert.Equal("HO → NR", Text(v));
+        var v = new AircraftStatusView
+        {
+            HandoffPeer = "conn123",
+            HandoffPeerSectorCode = "NR",
+            Altitude = 5000,
+        };
+        Assert.Equal("HO → NR · 5,000, on course", Text(v));
         Assert.Equal(AircraftStatusSeverity.Warning, Severity(v));
     }
 
     [Fact]
     public void HandoffPeer_NoSectorCode_UsesConnectionId()
     {
-        var v = new AircraftStatusView { HandoffPeer = "conn123", HandoffPeerSectorCode = null };
-        Assert.Equal("HO → conn123", Text(v));
+        var v = new AircraftStatusView
+        {
+            HandoffPeer = "conn123",
+            HandoffPeerSectorCode = null,
+            Altitude = 5000,
+        };
+        Assert.Equal("HO → conn123 · 5,000, on course", Text(v));
         Assert.Equal(AircraftStatusSeverity.Warning, Severity(v));
     }
 
@@ -114,8 +134,9 @@ public class SmartStatusTests
             ActiveStarId = "",
             AssignedAltitude = null,
             VerticalSpeed = 0,
+            Altitude = 5000,
         };
-        Assert.Equal("No altitude asgn", Text(v));
+        Assert.Equal("No altitude asgn · 5,000, on course", Text(v));
         Assert.Equal(AircraftStatusSeverity.Warning, Severity(v));
     }
 
@@ -840,7 +861,7 @@ public class SmartStatusTests
             HandoffPeer = "conn1",
             HandoffPeerSectorCode = "NR",
         };
-        Assert.Equal("HO → NR", Text(v));
+        Assert.Equal("HO → NR · taxiing", Text(v));
         Assert.Equal(AircraftStatusSeverity.Warning, Severity(v));
     }
 
@@ -852,8 +873,26 @@ public class SmartStatusTests
             CurrentPhase = "FinalApproach",
             LandingClearance = "",
             HandoffPeer = "conn1",
+            AssignedRunway = "28R",
         };
-        Assert.Equal("No landing clnc", Text(v));
+        Assert.Equal("No landing clnc · final 28R", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
+    }
+
+    [Fact]
+    public void Alert_PrependsNormalStatus_DoesNotReplaceIt()
+    {
+        // Warnings prepend to (not replace) the normal phase status, so the controller keeps
+        // seeing what the aircraft is doing. Pin the prepend contract explicitly.
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "FinalApproach",
+            LandingClearance = "",
+            ActiveApproachId = "ILS28R",
+        };
+        var text = Text(v);
+        Assert.StartsWith("No landing clnc · ", text);
+        Assert.Contains("ILS28R final", text);
         Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
