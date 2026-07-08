@@ -123,8 +123,10 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
   `BuildUnableToExit`, `BuildGoingAround`, `BuildApproachingMinimumsNoLandingClearance`.
 - **Visual acquisition** — `BuildTrafficInSight`, `BuildFieldInSight`, `BuildLostSightOfTraffic`,
   `BuildLostSightOfField`.
-- **Follow / sequencing** (all `RpoTerminal`) — `BuildTargetLanded`, `BuildUnableToCatchUp`,
+- **Follow / sequencing** (all `RpoTerminal`) — `BuildTargetLanded`,
   `BuildUnableToMaintainSeparation`, `BuildSequenceTightTurningBase`, `BuildSTurnsForSpacing`.
+  A follower never reports "unable to catch up": a lead that outpaces it is increasing separation, and the only
+  self-generated break-off is loss of visual contact (`BuildLostSightOfTraffic`) — AIM §5-5-12.a.2 / §4-4-14 NOTE.
 
 ## Number & identifier spelling
 

@@ -711,11 +711,18 @@ public class VfrFollowPhaseTests : IDisposable
         Assert.IsType<VfrFollowPhase>(follower.Phases.CurrentPhase);
     }
 
+    /// <summary>
+    /// A lead that outruns the follower must NOT auto-cancel the follow. A growing gap
+    /// increases separation and removes the overtake risk — it is a controller efficiency
+    /// concern to re-sequence, never the follower's cue to break off, and "unable to catch
+    /// up" is not a real pilot transmission (AIM §5-5-12.a.2 / §4-4-14 NOTE: the pilot
+    /// reports only on genuine loss of visual contact). Regression for the recorded
+    /// N427MX → N655EX case, where the old runaway watchdog cancelled a good follow at
+    /// ~1.1 nm in trail simply because the lead was faster.
+    /// </summary>
     [Fact]
-    public void VfrFollowPhase_RunawayDistance_CancelsFollowAfterGracePeriod()
+    public void VfrFollowPhase_LeadOutrunsFollower_KeepsFollowing()
     {
-        // Follower and lead both head east; follower is slower. Simulate enough ticks
-        // of growing distance to exceed the runaway grace period.
         var follower = MakeVfrAircraft("FOLL", lat: 37.0, lon: -122.0);
         follower.Approach.FollowingCallsign = "LEAD";
         var lead = MakeVfrAircraft("LEAD", lat: 37.0, lon: -121.9);
@@ -725,24 +732,19 @@ public class VfrFollowPhaseTests : IDisposable
         var ctx = Ctx(follower, lookup: cs => cs == "LEAD" ? lead : null, dt: 10.0);
         follower.Phases.Start(ctx);
 
-        // First tick sets the baseline best gap.
         phase.OnTick(ctx);
         Assert.False(ctx.Aircraft.Phases!.IsComplete);
 
-        // Move the lead progressively farther east on each tick until runaway triggers.
-        bool cancelled = false;
+        // Lead runs away east, far past the old 30 s / 0.1 nm runaway window.
         for (int i = 0; i < 10; i++)
         {
-            lead.Position = new LatLon(lead.Position.Lat, lead.Position.Lon + 0.1); // ~5 nm per tick at this latitude
-            if (phase.OnTick(ctx))
-            {
-                cancelled = true;
-                break;
-            }
+            lead.Position = new LatLon(lead.Position.Lat, lead.Position.Lon + 0.1); // ~5 nm per tick
+            bool ended = phase.OnTick(ctx);
+            Assert.False(ended, $"Follow cancelled at tick {i} — a lead that merely outruns the follower must not break off the follow.");
         }
 
-        Assert.True(cancelled, "Expected runaway-distance auto-cancel");
-        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.Equal("LEAD", follower.Approach.FollowingCallsign);
+        Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("catch up", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

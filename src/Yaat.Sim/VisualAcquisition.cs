@@ -30,6 +30,27 @@ public static class VisualAcquisition
     }
 
     /// <summary>
+    /// Maintained-contact variant of <see cref="TryAcquireTraffic"/> for traffic
+    /// already in sight: runs only the weather obstruction (cloud layer between),
+    /// skipping the acquisition-range, forward-hemisphere, and bank-occlusion checks.
+    /// See <see cref="VisualDetection.TryMaintainTrafficContact"/>.
+    /// </summary>
+    public static VisualAcquisitionResult TryMaintainTrafficContact(AircraftState ownship, AircraftState target, WeatherProfile? weather)
+    {
+        IReadOnlyList<MetarParser.CloudLayer>? layers = null;
+        double aptElevation = 0.0;
+        var destination = ownship.FlightPlan.Destination;
+        if (!string.IsNullOrWhiteSpace(destination))
+        {
+            var metar = weather?.GetWeatherForAirport(destination);
+            layers = metar?.Layers;
+            aptElevation = NavigationDatabase.Instance.GetAirportElevation(destination) ?? 0.0;
+        }
+
+        return VisualDetection.TryMaintainTrafficContact(ownship, target, layers, aptElevation);
+    }
+
+    /// <summary>
     /// Attempts to visually acquire <see cref="AircraftState.Destination"/>.
     /// Returns null if the aircraft has no destination assigned or the
     /// destination is not in the nav database — i.e. there is no field to

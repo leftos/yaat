@@ -103,39 +103,19 @@ public static class AirborneFollowHelper
     /// <summary>
     /// Maximum nm of along-track a downwind follower will extend past its normal
     /// base-turn point to sequence behind a pattern-flow-ahead lead. This is the
-    /// spatial bound on <see cref="ShouldHoldForLeadSequencing"/>: while the lead is
-    /// strictly leg-ahead the runaway watchdog in <see cref="CheckLeadLifecycle"/>
-    /// is suppressed, so this cap is the guard against an ahead lead crawling on a
-    /// long final. The instant the lead is no longer leg-ahead (it lands, despawns,
-    /// or the follower turns base) the watchdog resumes as the temporal guard.
+    /// spatial bound on <see cref="ShouldHoldForLeadSequencing"/> — the guard
+    /// against an ahead lead crawling on a long final; the temporal bound is the
+    /// lead-lifecycle in <see cref="CheckLeadLifecycle"/> (the lead lands, despawns,
+    /// or is lost from sight).
     /// 4.0 nm keeps the extension inside the FAA 7110.65 §4-8-1.3 circling-approach
     /// area headroom while allowing the multi-nm downwind extensions that are normal
     /// when sequencing in a busy pattern; the controller can still call the base turn
-    /// (TB) earlier or extend further (EXT) manually. When the cap forces the base
-    /// turn before adequate spacing is achieved, <see cref="Pattern.DownwindPhase"/>
-    /// emits a one-shot transmission so the controller can re-sequence.
+    /// (TB) earlier or extend further (EXT) manually. The cap is <em>advisory</em>: a
+    /// follower never self-turns to break the hold — past the cap the pilot transmits
+    /// a one-shot "extending … unable to turn" so the controller can re-sequence, then
+    /// keeps flying the leg.
     /// </summary>
     public const double MaxFollowExtensionNm = 4.0;
-
-    /// <summary>
-    /// Seconds of monotonically increasing follower-to-lead gap after which the
-    /// follow is auto-cancelled with an "unable to catch up" pilot transmission.
-    /// Mirrors the original VfrFollowPhase constant; pattern-phase followers now
-    /// share the same window via <see cref="CheckLeadLifecycle"/>.
-    /// </summary>
-    public const double RunawayGraceSeconds = 30.0;
-
-    /// <summary>
-    /// Minimum nm of gap growth above the running minimum that counts as "running
-    /// away." Without this tolerance, a follower whose spacing-control loop is
-    /// settling (gap creeping outward by ~0.001 nm/tick due to a 1-2 kt under-
-    /// shoot) would trip the 30 s runaway timer even though there's no actual
-    /// divergence — see FollowBreaksOnLeaderPatternEntryTests for the recorded
-    /// case (best=1.30 nm, now=1.33 nm over 30 s of normal pattern-tight spacing).
-    /// 0.1 nm = ~600 ft is well outside controller-perceptible "growing" while
-    /// still tight enough to catch a lead that's genuinely outpacing the follower.
-    /// </summary>
-    private const double RunawayGapTolerance = 0.1;
 
     /// <summary>
     /// Per-tick lifecycle watchdog for any aircraft with
@@ -145,14 +125,14 @@ public static class AirborneFollowHelper
     /// <list type="bullet">
     /// <item><description>The lead is no longer in the world (lookup returns null).</description></item>
     /// <item><description>The lead has transitioned to <see cref="AircraftState.IsOnGround"/>.</description></item>
-    /// <item><description>The geographic gap to the lead has been monotonically growing
-    /// for <see cref="RunawayGraceSeconds"/>.</description></item>
+    /// <item><description>The follower loses visual contact with the lead — a BKN/OVC deck slides
+    /// between them (AIM §5-5-12.a.2 / §4-4-14 NOTE). A lead that merely pulls ahead or slips
+    /// behind is still followed; a growing gap increases separation and is the controller's to
+    /// re-sequence. See <see cref="VisualDetection.TryMaintainTrafficContact"/> for why the
+    /// acquisition-range / hemisphere / bank geometry is deliberately not re-checked here.</description></item>
     /// </list>
     /// Pattern-phase OnTicks call this before applying their spacing adjustments;
     /// <see cref="Pattern.VfrFollowPhase.OnTick"/> delegates to it for the same checks.
-    /// State for the runaway timer lives on <see cref="AircraftApproachState.FollowBestGapNm"/>
-    /// and <see cref="AircraftApproachState.FollowRunawaySeconds"/> so it survives across
-    /// pattern-phase transitions.
     /// </summary>
     /// <returns>True if the follow was cancelled this tick (caller should skip its spacing logic).</returns>
     public static bool CheckLeadLifecycle(PhaseContext ctx)
@@ -196,88 +176,42 @@ public static class AirborneFollowHelper
             return true;
         }
 
-        // Pattern-flow guard: when the lead is on a LATER pattern leg than the
-        // follower on the same runway, geometric divergence is expected from the
-        // leg geometry (e.g. follower on Downwind heading east, lead on Final
-        // heading west). The gap will close again once the follower transitions
-        // toward the lead's leg, so don't accumulate runaway seconds here. Reset
-        // best gap so when the follower does turn base + final, the watchdog
-        // measures growth from the new (smaller) baseline rather than firing the
-        // moment the gap fails to shrink back to the pre-divergence minimum.
-        if (IsLeadPatternFlowAhead(follower, lead))
+        // Loss of visual contact is the ONLY self-generated follow cancel (AIM
+        // §5-5-12.a.2 / §4-4-14 NOTE). A lead that merely pulls ahead (it is faster)
+        // or slips behind is still followed — a growing gap *increases* separation and
+        // is the controller's to re-sequence, never the follower's cue to break off.
+        // The maintained-contact check therefore runs only the weather obstruction (a
+        // BKN/OVC deck lying between the two aircraft) and skips the acquisition-range /
+        // forward-hemisphere / bank-occlusion geometry, which models finding unknown
+        // traffic rather than tracking traffic already called in sight.
+        var contact = VisualAcquisition.TryMaintainTrafficContact(follower, lead, ctx.Weather);
+        if (!contact.Acquired)
         {
-            follower.Approach.FollowBestGapNm = null;
-            follower.Approach.FollowRunawaySeconds = 0;
-            return false;
+            Log.LogDebug("[Follow] {Callsign}: lost visual on {Target} ({Reason}), ending follow", follower.Callsign, targetCallsign, contact.Reason);
+            ClearFollowState(follower);
+            Pilot.PilotResponder.RouteSoloOrRpoTransmission(
+                follower,
+                ctx.SoloTrainingMode,
+                ctx.RpoShowPilotSpeech,
+                ctx.StudentPositionType,
+                Pilot.PilotResponder.BuildLostSightOfTraffic(follower, targetCallsign),
+                Pilot.PilotResponder.SoloPositionsTowerApproach
+            );
+            return true;
         }
 
-        double gapNm = GeoMath.DistanceNm(follower.Position, lead.Position);
-        double bestSoFar = follower.Approach.FollowBestGapNm ?? double.PositiveInfinity;
-        if (gapNm <= bestSoFar)
-        {
-            follower.Approach.FollowBestGapNm = gapNm;
-            follower.Approach.FollowRunawaySeconds = 0;
-            return false;
-        }
-
-        // Inside the noise band — the lead isn't actually getting away, the
-        // spacing loop is just settling. Don't tick the runaway timer (and
-        // don't reset it either — a real long-running divergence will keep
-        // pushing past tolerance and eventually fire).
-        if (gapNm - bestSoFar < RunawayGapTolerance)
-        {
-            return false;
-        }
-
-        follower.Approach.FollowRunawaySeconds += ctx.DeltaSeconds;
-        if (follower.Approach.FollowRunawaySeconds < RunawayGraceSeconds)
-        {
-            return false;
-        }
-
-        Log.LogDebug(
-            "[Follow] {Callsign}: gap to {Target} growing >{Grace:F0}s (best={Best:F1}nm, now={Now:F1}nm), cancelling",
-            follower.Callsign,
-            targetCallsign,
-            RunawayGraceSeconds,
-            bestSoFar,
-            gapNm
-        );
-        ClearFollowState(follower);
-        Pilot.PilotResponder.RouteSoloOrRpoTransmission(
-            follower,
-            ctx.SoloTrainingMode,
-            ctx.RpoShowPilotSpeech,
-            ctx.StudentPositionType,
-            Pilot.PilotResponder.BuildUnableToCatchUp(follower, targetCallsign),
-            Pilot.PilotResponder.SoloPositionsTowerApproach
-        );
-        return true;
+        return false;
     }
 
     /// <summary>
-    /// Clear the follow target and reset the runaway-distance tracking on a
-    /// follower. Call this whenever <see cref="AircraftApproachState.FollowingCallsign"/>
-    /// is being set or cleared from outside the lifecycle check (FOLLOW dispatch,
-    /// vector-command phase clear, separation-failure cancel).
+    /// Clear the follow target on a follower. Call this whenever
+    /// <see cref="AircraftApproachState.FollowingCallsign"/> is being cleared from
+    /// outside the lifecycle check (FOLLOW dispatch, vector-command phase clear,
+    /// separation-failure cancel).
     /// </summary>
     public static void ClearFollowState(AircraftState follower)
     {
         follower.Approach.FollowingCallsign = null;
-        follower.Approach.FollowBestGapNm = null;
-        follower.Approach.FollowRunawaySeconds = 0;
-    }
-
-    /// <summary>
-    /// Reset the per-pair runaway-distance tracking (best gap + elapsed seconds)
-    /// without touching <see cref="AircraftApproachState.FollowingCallsign"/>.
-    /// Call this when a fresh FOLLOW is issued so the next
-    /// <see cref="CheckLeadLifecycle"/> tick captures the new geometry.
-    /// </summary>
-    public static void ResetRunawayTracking(AircraftState follower)
-    {
-        follower.Approach.FollowBestGapNm = null;
-        follower.Approach.FollowRunawaySeconds = 0;
     }
 
     /// <summary>
@@ -607,9 +541,23 @@ public static class AirborneFollowHelper
         double clamped = Math.Clamp(adjusted, minSpeed, normalSpeed + maxSpeedAdjustKts);
 
         // Speed clamped to minimum AND too close — the follower can't maintain
-        // separation. Cancel follow and warn once so the controller can intervene.
+        // separation by speed alone.
         if ((adjusted < minSpeed) && (distance < desired * 0.5))
         {
+            // If the follower still has a lateral option — it is on an earlier pattern
+            // leg than a flow-ahead lead on the same runway — do NOT cancel. Hold at min
+            // speed and let the downwind extension / hold-base-turn logic build the
+            // spacing; the lead-lifecycle watchdog releases the follow once the lead lands
+            // or the geometry diverges. Cancelling here would clear FollowingCallsign,
+            // drop the hold, and turn the follower base in front of the still-airborne
+            // lead (7110.65 §3-10-3.a.1 same-runway separation; AIM §4-3-4.b.4 no cut-in).
+            if (IsLeadPatternFlowAhead(follower, lead))
+            {
+                return minSpeed;
+            }
+
+            // No lateral option (free-flight follow, or a same/earlier-leg lead). Cancel
+            // follow and warn once so the controller can intervene.
             ClearFollowState(follower);
             Pilot.PilotResponder.RouteRpoTransmission(
                 follower,

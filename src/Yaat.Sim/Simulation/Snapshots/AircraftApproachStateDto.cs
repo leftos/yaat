@@ -15,9 +15,6 @@ public sealed class AircraftApproachStateDto
     /// </summary>
     public double? FinalApproachFasReachGateNm { get; init; }
 
-    public double? FollowBestGapNm { get; init; }
-    public double FollowRunawaySeconds { get; init; }
-
     /// <summary>
     /// In-trail auto-spacing released latch. Non-required so older snapshots default to
     /// <see langword="false"/>.

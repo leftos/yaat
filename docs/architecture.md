@@ -494,11 +494,12 @@ MetarIssuer.cs                 # Per-room state machine: routine METAR at :53 + 
 WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
 MagneticDeclination.cs         # Static: NOAA World Magnetic Model (WMM) declination via the Geo library; TrueToMagnetic/MagneticToTrue conversion
 VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
+                               # Maintained-contact variants (already-in-sight, weather-only): TryMaintainAirportContact, TryMaintainTrafficContact
                                # Returns VisualAcquisitionResult { Acquired, Reason, DistanceNm, MaxRangeNm }
                                # VisualAcquisitionFailure enum: InClassA, AboveCeiling, MixedCeiling, BehindOwnship, OccludedByBank, OutOfRange, OppositeSideOfRunway
                                # Forward hemisphere, visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
                                # FL180 gate on airport (visual approach eligibility) but NOT traffic (pilots can see in Class A)
-VisualAcquisition.cs           # Static helpers: TryAcquireTraffic(ownship, target, weather) and TryAcquireAirport(ownship, weather)
+VisualAcquisition.cs           # Static helpers: TryAcquireTraffic(ownship, target, weather), TryMaintainTrafficContact(...) and TryAcquireAirport(ownship, weather)
                                # Bundle METAR/elevation/bank-angle lookup around VisualDetection so RTIS/RFIS first-check and
                                # PilotObservationUpdater re-check use identical inputs. TryAcquireAirport returns null when the
                                # destination is missing or not in the nav db (caller drops the observation).

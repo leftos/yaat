@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+### Changed
+- `FOLLOW` re-sequences the follower onto the traffic's runway when that traffic is landing a different runway; refused once established on base or final.
+
 ### Fixed
 - `RES CROSS <rwy>` / `RES HS <target>` now name the runway crossing or added hold-short in both the response and the pilot's readback (e.g. `RES CROSS 28L` responds "Resume taxi (cross 28L)" and the pilot reads back "resume taxi, cross runway 28L") instead of replying with just "Resume taxi".
 - Aircraft List **Info** column warnings like "No landing clnc" now prepend to the aircraft's status instead of replacing it, so the phase stays visible.
 - Parallel commands mixing a transponder verb with a ground or tower verb now all take effect, such as `SQ, SQNORM, PUSH TE T` at parking.
+- An aircraft following traffic landing ahead of it extends its downwind, turning base only after that traffic is on the ground and clear.
+- `FOLLOW` persists when the traffic is faster; only losing sight of the traffic breaks off the follow.
 
 ## v0.9.5-beta [2026/07/08]
 

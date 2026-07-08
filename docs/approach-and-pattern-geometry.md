@@ -455,15 +455,26 @@ and `VfrFollowPhase` call into it each tick.
 follower is established on a leg, `FreeFlightDistanceForLeader`, `AirborneFollowHelper.cs:706`): Jet 3.5 / TP 2.0 /
 Piston/Heli 1.5 nm. The jet 3.0 nm matches the FAA 7110.65 §5-5-4 same-runway radar minimum.
 
-**Speed adjustment** (`ComputeAdjustedSpeedWithDesired`, `AirborneFollowHelper.cs:526`): the correction is
+**Speed adjustment** (`ComputeAdjustedSpeedWithDesired`): the correction is
 `(distance − desired) × SpeedGainPerNm (25 kt/nm)`, clamped to `±maxSpeedAdjustKts`. Pattern/entry/free-flight use
 `MaxSpeedAdjustKts = 20`; final approach uses the tighter `MaxSpeedAdjustFinalKts = 10` so the follower can't blow
-through the unstabilized-go-around gate (IAS > 1.3·Vref). When the follower is at min speed and inside half the
-desired distance, the follow is auto-cancelled with an "unable to maintain separation" warning. The pattern-leg
+through the unstabilized-go-around gate (IAS > 1.3·Vref). The pattern-leg
 phases gate this block on `Approach.FollowingCallsign` (not on `TargetSpeed` — physics snaps `TargetSpeed` to null
 once the leg speed is reached, which would otherwise silently stop spacing for a settled follower) and **cap the
 result at the leg baseline** (`Math.Min(adjusted, baseline)`): spacing only ever *slows* a follower below its leg
 speed, never accelerates it above to chase a far lead — a too-far lead is handled laterally (extend / hold base turn).
+
+**At-min-speed: extend, don't cut in.** When the follower is at min speed and inside half the desired distance, it
+cannot open the gap by slowing any further. If the lead is **pattern-flow-ahead** (`IsLeadPatternFlowAhead` — same
+runway, strictly later leg or an EXTENDED same leg) the follower still has a *lateral* option, so the helper returns
+`minSpeed` and **does not cancel**: `DownwindPhase` then holds the base turn (`ShouldExtendDownwind` /
+`ShouldHoldForLeadSequencing`) and extends until `CheckLeadLifecycle` releases the follow when the lead lands. Only
+when there is no lateral option (free-flight follow, or a same/earlier-leg lead) is the follow cancelled with an
+"unable to maintain separation" warning. Cancelling on a flow-ahead lead used to clear `FollowingCallsign`, drop the
+hold, and turn the follower base *in front of* a still-airborne straight-in — a §3-10-3.a.1 same-runway separation
+bust (a light twin, SRS Cat II, has **no** reduced-distance provision behind a Cat III jet: the jet must be on the
+ground and clear before the follower crosses the threshold) and an AIM §4-3-4.b.4 cut-in.
+Regression: `N342TFollowStraightInDownwindTests`.
 
 **Structural-overtake break-off + go-around** (`ShouldBreakOffFollowForSpacing`): a follower whose own Vref exceeds
 the lead's ground speed by more than `StructuralOvertakeMarginKts = 10` can never open the gap by slowing — speed
@@ -486,33 +497,45 @@ on both aircraft being on the **same runway**:
 
 - **`IsLeadPatternFlowBehind`** ⇒ the spacing helper returns the baseline (don't slow down for a lead that hasn't
   reached the follower's leg yet — pulling the follower to Vref produces multi-minute downwind extensions).
-- **`IsLeadPatternFlowAhead`** ⇒ the **runaway watchdog is suppressed** (gap growth is expected geometry while the
-  lead is leg-ahead on a parallel-opposite track), and the follower may extend downwind to sequence.
+- **`IsLeadPatternFlowAhead`** ⇒ the follower may extend its leg to sequence, and the at-min-speed cancel in the
+  speed loop is suppressed (it holds `minSpeed` and extends instead of cutting in — see **At-min-speed** above).
   - **Extended-leg exception:** a lead on the **same leg** but with `IsExtended` set by `EXT` (`IsExtendedPatternLeg`
     — Downwind, Crosswind, or Upwind) also counts as flow-ahead. The lead has explicitly deferred its progression, so
     it stays ahead in the landing sequence despite sharing the follower's leg index. Without this, a follower on the
-    same downwind turned base at its fixed point and rolled out on final ahead of the aircraft it was told to follow,
-    and the runaway watchdog spuriously cancelled the follow as the lead ran outbound. Generic same-leg pairs are
-    still *not* flow-ahead — a lead that is merely outpacing the follower without holding out is exactly what the
-    watchdog should catch.
+    same downwind turned base at its fixed point and rolled out on final ahead of the aircraft it was told to follow.
+    Generic same-leg pairs are still *not* flow-ahead — a lead merely outpacing the follower has not deferred its
+    place in the sequence, so the follower keeps normal spacing rather than extending behind it.
 
-**The runaway watchdog** (`CheckLeadLifecycle`, `AirborneFollowHelper.cs:120`) cancels a follow when:
+**The lead lifecycle** (`CheckLeadLifecycle`) cancels a follow when:
 
-1. the lead is no longer in the world (lookup returns null), or
+1. the lead is no longer in the world (lookup returns null),
 2. the lead has gone `IsOnGround`, or
-3. the geographic gap has grown monotonically for `RunawayGraceSeconds = 30`.
+3. the follower **loses visual contact** with the lead.
 
-A `RunawayGapTolerance = 0.1 nm` (~600 ft) noise band prevents a settling spacing loop (gap creeping outward by a
-foot or two per tick) from tripping the timer. The runaway state (`FollowBestGapNm`, `FollowRunawaySeconds`) lives
-on `AircraftApproachState` so it survives pattern-phase transitions.
+**A growing gap never cancels a follow.** A lead that merely outpaces the follower is *increasing* separation and
+removing the overtake risk; the sequence is still valid. That is a controller efficiency concern to re-sequence, not
+a follower safety trigger, and "unable to catch up" is not a transmission a real pilot makes. The only
+self-generated cancel the AIM authorizes is loss of visual contact (AIM §5-5-12.a.2 / §4-4-14 NOTE — the pilot
+reports when it *cannot maintain visual contact* or cannot accept the responsibility). An earlier
+monotonic-gap-growth watchdog (30 s grace / 0.1 nm tolerance) cancelled good follows — e.g. a VFR transition holding
+a clean 1.1 nm trail behind a faster arrival — and is gone, along with its `FollowBestGapNm` /
+`FollowRunawaySeconds` state and the `BuildUnableToCatchUp` transmission.
 
-**Downwind extension caps.** `ShouldExtendDownwind` (proximity, `AirborneFollowHelper.cs:573`) holds the base turn
-when the follower is inside `desired × 0.6`. `ShouldHoldForLeadSequencing` (`AirborneFollowHelper.cs:642`) holds
+**Loss of visual is maintained-contact, not re-acquisition** (`VisualDetection.TryMaintainTrafficContact`, wrapped by
+`VisualAcquisition`). It checks **only** the weather obstruction — a BKN/OVC layer lying between the two aircraft —
+and skips *every* geometric check: acquisition range, forward hemisphere, and bank occlusion. This mirrors
+`TryMaintainAirportContact` and its rationale: those geometric checks model the problem of *finding* unknown traffic
+in a wide sky, and FOLLOW already gates on the pilot having called the traffic in sight (the RTIS gate). Re-applying
+them every tick produces false "lost sight" reports as the follower banks through its own pattern turns, as the lead
+slides aft of the 3/9 line, or while the follower lag-pursues a lead that is still opening. On loss of visual the
+pilot transmits `BuildLostSightOfTraffic` ("lost sight of the traffic").
+
+**Downwind extension caps.** `ShouldExtendDownwind` (proximity) holds the base turn
+when the follower is inside `desired × 0.6`. `ShouldHoldForLeadSequencing` holds
 while the follower's 1-D along-track sequence coordinate would not roll it out at least the desired distance behind
 a leg-ahead lead. `DownwindPhase` bounds this hold **spatially** with `MaxFollowExtensionNm = 4.0`; the **temporal**
-bound is the runaway watchdog (suppressed while the lead is leg-ahead). The two caps are complementary, not
-redundant — when the spatial cap forces an early base turn, `DownwindPhase` emits a one-shot "turning base, max
-extension reached" transmission so the controller can re-sequence.
+bound is the lead lifecycle (the lead lands, despawns, or is lost from sight). The two caps are complementary, not
+redundant.
 
 **Upwind/crosswind sequencing — remaining pattern path.** The downwind along-track hold does not transfer to the
 `UpwindPhase`/`CrosswindPhase` legs: the upwind leg's along-track runs *opposite* the downwind sequence axis (its
@@ -539,6 +562,27 @@ on `DownwindPhase` too — the old cap-forced base turn is replaced by the same 
 4-3-2.a.3.2 (the upwind leg is an explicit separation/sequencing leg) and 5-5-12.a.1 / 4-3-5 (the follower
 maneuvers as necessary and advises ATC — it does not fly an *unrequested* turn on its own).
 
+**Cross-runway FOLLOW re-sequences onto the lead's runway** (`CommandDispatcher.TryAirborneFollow` +
+`IsLeadOnDifferentRunway`). Every spacing / leg-hold path above is gated on both aircraft sharing a runway, so a
+follower flying a 28L pattern told to follow traffic landing 28R used to tag the target and sequence against
+nothing. Instead, when the lead's `Phases.AssignedRunway` differs from the follower's, the follower's (wrong-runway)
+pattern is dropped and a `VfrFollowPhase` is installed — its auto-join (`TryJoinLeadPattern` / `TryJoinLeadFinal`)
+rebuilds the circuit or final on the **lead's** runway with the usual in-trail and intercept gates. Same-runway (or
+unknown-runway) FOLLOW keeps the cheap in-place retarget.
+
+**...but not from base or final.** The re-sequence is refused when the follower is already on `BasePhase` or
+`FinalApproachPhase` ("Unable, established for runway {rwy} — vector or go around"). From there the follower is low
+and close in, and swinging it onto a closely-spaced parallel would fly a low crossing of its original runway's final
+approach course (AIM §4-3-3 FIG 4-3-3 note 7 — do not penetrate the parallel's final; §4-3-5 — no unexpected pattern
+maneuvers). The controller re-sequences explicitly (`ELB`/`ERB`), vectors, or sends it around. Re-sequencing from
+upwind / crosswind / downwind / pattern-entry is allowed.
+
+> **Known gap (closely-spaced parallels).** `TryJoinLeadFinal` has no pattern-side gate (unlike `TryJoinLeadPattern`)
+> and commits at up to `MaxFinalJoinCrossTrackNm = 1.0` nm cross-track — ~11× the 530 ft (0.087 nm) 28L/28R spacing —
+> so an opposite-side follower can still intercept through the adjacent runway's final. 7110.65 §5-9-2 TBL 5-9-1 also
+> caps intercepts at 20° (not 30°) inside 2 mi of the gate. Pre-existing for any straight-in join; the base/final
+> refusal above removes the worst (low, close-in) case.
+
 ### `VfrFollowPhase` — free pursuit + auto-join
 
 `VfrFollowPhase` (`src/Yaat.Sim/Phases/Pattern/VfrFollowPhase.cs`, built by `CommandDispatcher` for FOLLOW) keeps a
@@ -564,8 +608,8 @@ full circuit copied from the lead's runway/direction/altitude, gated on **three*
 3. follower on the **pattern side** of the runway centerline (`IsOnPatternSide`, `VfrFollowPhase.cs:315` — uses the
    positive-is-right cross-track convention).
 
-On join it resets the runaway tracking (`ResetRunawayTracking`) because pattern-tight spacing dynamics differ from
-free-flight, and skips `PatternEntryPhase` if the follower is already established on the downwind leg.
+On join it preserves `FollowingCallsign` so the pattern phases keep adjusting spacing, and skips `PatternEntryPhase`
+if the follower is already established on the downwind leg.
 
 **Straight-in lead — `TryJoinLeadFinal`.** When the lead is on a straight-in final/landing to a known runway but
 has *no* pattern-leg waypoints to copy (e.g. an IFR aircraft that spawned directly onto `FinalApproachPhase`),
@@ -689,9 +733,9 @@ Which command handler builds which phase (parsing/dispatch live in
 - **`ProcedureTurnPhase` turns back early by `TurnRadiusReserveNm` (2 nm)** before `MaxOutboundDistanceNm` so the
   180° turn radius itself stays inside protected airspace (AIM 5-4-9.a.3), clamps IAS to 200 KIAS via
   `SpeedCeiling`, and gates hand-off on a 1 nm lateral-intercept tolerance (not heading alone).
-- **The runaway watchdog is suppressed while the lead is leg-ahead** (`IsLeadPatternFlowAhead`), because gap growth
-  is then expected geometry. The only bound on a slow ahead-lead is the spatial `MaxFollowExtensionNm = 4.0` cap;
-  the temporal and spatial caps are deliberately complementary, not redundant.
+- **A growing gap never cancels a follow.** The only self-generated cancel is loss of visual contact (a cloud deck
+  between the pair); the lead landing or despawning also ends it. The bound on a slow ahead-lead is the spatial
+  `MaxFollowExtensionNm = 4.0` advisory cap — past it the pilot advises once and keeps flying the leg.
 - **`PatternWaypoints.FromSnapshot` infers `Direction` from the downwind-abeam cross-track sign** for snapshots
   predating the explicit `Direction` field (`PatternGeometry.cs:97`). Don't "simplify" it away or old recordings
   replay with the wrong pattern hand.

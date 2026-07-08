@@ -302,14 +302,7 @@ public sealed class VfrFollowPhase : Phase
         }
 
         // Preserve the follow target so the pattern phases keep adjusting spacing.
-        // Reset runaway tracking — the pattern phases use AirborneFollowHelper for
-        // tighter spacing than the free-flight pursuit, so the gap dynamics that
-        // applied during VfrFollowPhase no longer apply. Without this reset, a
-        // follower whose gap was creeping outward by 1-2 ft / s under loose free-
-        // flight spacing would carry that runaway timer into PatternEntry and trip
-        // a false-positive cancel before the new spacing has time to converge.
         ctx.Aircraft.Approach.FollowingCallsign = TargetCallsign;
-        AirborneFollowHelper.ResetRunawayTracking(ctx.Aircraft);
         ctx.Aircraft.Procedure.DestinationRunway = leadRunway.Designator;
         ApplyArmedLandingClearance(ctx.Aircraft, armedClearance, armedClearedRunwayId, leadRunway);
 
@@ -450,10 +443,8 @@ public sealed class VfrFollowPhase : Phase
         }
 
         // Keep the follow target so FinalApproachPhase keeps tightening spacing behind
-        // the lead; reset runaway tracking since pattern-phase spacing differs from the
-        // free-flight pursuit (mirrors TryJoinLeadPattern).
+        // the lead (mirrors TryJoinLeadPattern).
         ctx.Aircraft.Approach.FollowingCallsign = TargetCallsign;
-        AirborneFollowHelper.ResetRunawayTracking(ctx.Aircraft);
         ctx.Aircraft.Procedure.DestinationRunway = runway.Designator;
         ApplyArmedLandingClearance(ctx.Aircraft, armedClearance, armedClearedRunwayId, runway);
 

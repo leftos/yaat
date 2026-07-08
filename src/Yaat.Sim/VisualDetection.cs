@@ -242,6 +242,46 @@ public static class VisualDetection
     }
 
     /// <summary>
+    /// Maintained-contact check for traffic the pilot has already reported in sight.
+    /// Runs ONLY the weather obstruction (a BKN/OVC layer lying between the two
+    /// aircraft) and skips every geometric check — <see cref="VisualAcquisitionFailure.OutOfRange"/>,
+    /// <see cref="VisualAcquisitionFailure.BehindOwnship"/>, <see cref="VisualAcquisitionFailure.OccludedByBank"/>.
+    ///
+    /// <para>
+    /// Rationale mirrors <see cref="TryMaintainAirportContact"/>: the geometric checks model the
+    /// problem of <em>finding</em> an unknown target in a wide sky. Once the pilot has called the
+    /// traffic in sight (the RTIS gate FOLLOW requires) they are actively tracking a known point,
+    /// and re-applying the acquisition-range / forward-hemisphere / bank-occlusion gates every tick
+    /// produces false "lost sight" reports as the follower flies its own pattern turns or lag-pursues
+    /// a lead that is still opening. A lead that merely pulls ahead is <em>increasing</em> separation,
+    /// which is never a reason for the follower to break off — that is the controller's to re-sequence
+    /// (AIM §5-5-12.a.2 / §4-4-14 NOTE: the pilot reports only when it genuinely cannot maintain
+    /// visual contact).
+    /// </para>
+    ///
+    /// <para>
+    /// DistanceNm/MaxRangeNm in the result are zero (not meaningful for this regime), matching
+    /// <see cref="TryMaintainAirportContact"/>. Callers should read <see cref="VisualAcquisitionResult.Acquired"/>,
+    /// <see cref="VisualAcquisitionResult.Reason"/>, and <see cref="VisualAcquisitionResult.BindingLayer"/>.
+    /// </para>
+    /// </summary>
+    public static VisualAcquisitionResult TryMaintainTrafficContact(
+        AircraftState ownship,
+        AircraftState target,
+        IReadOnlyList<MetarParser.CloudLayer>? layers,
+        double airportElevation
+    )
+    {
+        var obstructing = FindObstructingLayerBetween(ownship.Altitude, target.Altitude, airportElevation, layers);
+        if (obstructing is { } mixed)
+        {
+            return VisualAcquisitionResult.FailLayer(VisualAcquisitionFailure.MixedCeiling, 0.0, 0.0, mixed);
+        }
+
+        return VisualAcquisitionResult.Success(0.0, 0.0);
+    }
+
+    /// <summary>
     /// Check if the target is occluded by the aircraft's bank angle.
     /// During a turn, the high wing blocks the view of targets on that side
     /// at or below the aircraft's altitude.

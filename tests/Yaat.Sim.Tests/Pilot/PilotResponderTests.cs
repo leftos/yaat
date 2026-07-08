@@ -1274,19 +1274,6 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildUnableToCatchUp_RpoTerminalNamesTarget_TtsDoesNot()
-    {
-        var ac = MakeAircraft("N294MG");
-        var result = PilotResponder.BuildUnableToCatchUp(ac, "N784ME");
-
-        Assert.Equal("unable to catch up to the traffic, breaking off the follow.", result.Terminal);
-        Assert.Equal("unable to catch up to N784ME, breaking off the follow.", result.TerminalForRpo);
-        Assert.Contains("unable to catch up", result.Tts);
-        Assert.Contains("breaking off", result.Tts);
-        Assert.DoesNotContain("seven eight four", result.Tts);
-    }
-
-    [Fact]
     public void BuildFollowExtendingUnableToTurn_RpoTerminalNamesTarget_TtsDoesNot()
     {
         var ac = MakeAircraft("N294MG");

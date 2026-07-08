@@ -1200,22 +1200,6 @@ public static class PilotResponder
     }
 
     /// <summary>
-    /// Pilot transmission when the pilot can't catch up to the follow target before the leader
-    /// lands or leaves the area, so the follow is being abandoned.
-    /// </summary>
-    public static PilotSpeechText BuildUnableToCatchUp(AircraftState aircraft, string targetCallsign)
-    {
-        var spoken = SpokenOwnCallsign(aircraft);
-        return new PilotSpeechText(
-            "unable to catch up to the traffic, breaking off the follow.",
-            $"{spoken}, unable to catch up to the traffic, breaking off the follow."
-        )
-        {
-            RpoTerminal = $"unable to catch up to {targetCallsign}, breaking off the follow.",
-        };
-    }
-
-    /// <summary>
     /// Pilot advisory when a following aircraft has extended its current pattern leg
     /// (<paramref name="legWord"/> = "upwind", "crosswind", or "downwind") to the maximum
     /// follow-extension distance and still cannot turn without cutting off the traffic it was told

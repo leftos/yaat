@@ -48,22 +48,6 @@ public class AircraftApproachState
     public double? FinalApproachFasReachGateNm { get; set; }
 
     /// <summary>
-    /// Smallest gap (nm) seen to the follow target since the current FOLLOW was issued.
-    /// Used by <see cref="Phases.AirborneFollowHelper.CheckLeadLifecycle"/> to detect
-    /// monotonic divergence (runaway distance). Null until first measurement; reset
-    /// to null whenever <see cref="FollowingCallsign"/> is set or cleared.
-    /// </summary>
-    public double? FollowBestGapNm { get; set; }
-
-    /// <summary>
-    /// Seconds during which the gap to the follow target has been strictly greater
-    /// than <see cref="FollowBestGapNm"/>. Reset to zero when the gap re-converges or
-    /// when FOLLOW is (re)issued. Once it exceeds the runaway grace window, the
-    /// helper cancels follow with an "unable to catch up" pilot transmission.
-    /// </summary>
-    public double FollowRunawaySeconds { get; set; }
-
-    /// <summary>
     /// One-way latch: once the in-trail arrival-spacing manager hands speed authority back
     /// (a manual speed command was issued to this generator arrival, its speed restrictions
     /// were deleted, or the student controller took the track), the manager never resumes
@@ -129,8 +113,6 @@ public class AircraftApproachState
             LastReportedTrafficCallsign = LastReportedTrafficCallsign,
             FollowingCallsign = FollowingCallsign,
             FinalApproachFasReachGateNm = FinalApproachFasReachGateNm,
-            FollowBestGapNm = FollowBestGapNm,
-            FollowRunawaySeconds = FollowRunawaySeconds,
             AutoSpacingReleased = AutoSpacingReleased,
             ReportArmedCrosswind = ReportArmedCrosswind,
             ReportArmedDownwind = ReportArmedDownwind,
@@ -152,8 +134,6 @@ public class AircraftApproachState
             LastReportedTrafficCallsign = dto.LastReportedTrafficCallsign,
             FollowingCallsign = dto.FollowingCallsign,
             FinalApproachFasReachGateNm = dto.FinalApproachFasReachGateNm,
-            FollowBestGapNm = dto.FollowBestGapNm,
-            FollowRunawaySeconds = dto.FollowRunawaySeconds,
             AutoSpacingReleased = dto.AutoSpacingReleased,
             ReportArmedCrosswind = dto.ReportArmedCrosswind,
             ReportArmedDownwind = dto.ReportArmedDownwind,

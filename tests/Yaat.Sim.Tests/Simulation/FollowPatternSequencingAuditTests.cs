@@ -530,7 +530,11 @@ public class FollowPatternSequencingAuditTests
         int worstTick = -1;
         double worstGap = double.PositiveInfinity;
 
-        for (int t = 1; t <= 400; t++)
+        // The follow survives the whole circuit (it is only cancelled when the lead lands),
+        // so the follower spends the full downwind sequencing behind the lead before turning
+        // base. That correctly-sequenced circuit needs more than the ~400 s a follower took
+        // back when the runaway watchdog spuriously cancelled the follow mid-downwind.
+        for (int t = 1; t <= 700; t++)
         {
             // Release the lead off its extended leg once the follower has demonstrably held past
             // its own normal turn point.

@@ -2888,10 +2888,12 @@ public static class CommandDispatcher
             return new CommandResult(false, "Unable, say traffic callsign");
         }
 
+        var leadAircraft = ctx.FindAircraft?.Invoke(target);
+
         // Visual separation — and therefore FOLLOW — is not authorized behind a super
         // (7110.65 §7-2-1; AIM §5-5-11.2.5). Reject when the lead resolves to a super.
         if (
-            ctx.FindAircraft?.Invoke(target) is { } lead
+            leadAircraft is { } lead
             && WakeTurbulenceData.WakeClassForType(lead.AircraftType, AircraftCategorization.Categorize(lead.AircraftType))
                 == WakeTurbulenceData.WakeClass.Super
         )
@@ -2899,15 +2901,36 @@ public static class CommandDispatcher
             return new CommandResult(false, $"Unable, visual separation not authorized behind super {target}");
         }
 
-        // If the follower is already in a pattern phase, just update the target —
-        // AirborneFollowHelper handles spacing on every pattern leg. Rebuilding
-        // through VfrFollowPhase here would route the follower back through
-        // PatternEntry for the same runway it's already flying — wasteful and
-        // confusing. Also clear any prior EXT (extended leg) on Upwind/Crosswind/
-        // Downwind: FOLLOW supersedes the controller's hold-and-call-the-next-leg
-        // instruction since the pilot now has explicit traffic to sequence behind.
+        // If the follower is already in a pattern phase to the SAME runway the lead is using,
+        // just update the target — AirborneFollowHelper handles spacing on every pattern leg.
+        // Rebuilding through VfrFollowPhase here would route the follower back through
+        // PatternEntry for the same runway it's already flying — wasteful and confusing. Also
+        // clear any prior EXT (extended leg) on Upwind/Crosswind/Downwind: FOLLOW supersedes
+        // the controller's hold-and-call-the-next-leg instruction since the pilot now has
+        // explicit traffic to sequence behind.
+        //
+        // When the lead is landing a DIFFERENT runway, in-trail sequencing against the
+        // follower's own pattern is meaningless — fall through to the VfrFollowPhase install
+        // below, whose auto-join (TryJoinLeadPattern / TryJoinLeadFinal) re-sequences the
+        // follower onto the lead's runway with proper in-trail spacing and intercept gates.
         var current = aircraft.Phases?.CurrentPhase;
-        if (current is PatternEntryPhase or UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase or FinalApproachPhase)
+        bool followerOnPatternLeg = current is PatternEntryPhase or UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase or FinalApproachPhase;
+        bool crossRunway = followerOnPatternLeg && IsLeadOnDifferentRunway(aircraft, leadAircraft);
+
+        // A cross-runway re-sequence needs room to maneuver. From Base or FinalApproach the
+        // follower is already low and close in, and swinging it onto a (typically closely
+        // spaced) parallel from there flies a low crossing of the original runway's final
+        // approach course — AIM §4-3-3 FIG 4-3-3 note 7 (do not continue on a track that
+        // penetrates the parallel runway's final) and §4-3-5 (no unexpected pattern
+        // maneuvers). Refuse; the controller re-sequences explicitly (ERB/ELB), vectors, or
+        // sends it around. Re-sequencing from upwind/crosswind/downwind/entry is fine.
+        if (crossRunway && (current is BasePhase or FinalApproachPhase))
+        {
+            string ownRunway = aircraft.Phases!.AssignedRunway!.Designator;
+            return new CommandResult(false, $"Unable, established for runway {ownRunway} — vector or go around to follow {target}");
+        }
+
+        if (followerOnPatternLeg && !crossRunway)
         {
             switch (current)
             {
@@ -2922,7 +2945,6 @@ public static class CommandDispatcher
                     break;
             }
             aircraft.Approach.FollowingCallsign = target;
-            AirborneFollowHelper.ResetRunawayTracking(aircraft);
             return Ok($"Follow {target}");
         }
 
@@ -2931,7 +2953,6 @@ public static class CommandDispatcher
         {
             vfp.UpdateTarget(target);
             aircraft.Approach.FollowingCallsign = target;
-            AirborneFollowHelper.ResetRunawayTracking(aircraft);
             return Ok($"Follow {target}");
         }
 
@@ -2948,7 +2969,27 @@ public static class CommandDispatcher
         var startCtx = BuildMinimalContext(aircraft, groundLayout: null);
         aircraft.Phases.Start(startCtx);
         aircraft.Approach.FollowingCallsign = target;
-        AirborneFollowHelper.ResetRunawayTracking(aircraft);
         return Ok($"Follow {target}");
+    }
+
+    /// <summary>
+    /// True when both the follower and the lead have a known assigned runway and those
+    /// runways differ. FOLLOW is an in-trail sequencing instruction, and in-trail only has
+    /// meaning on a shared runway — a follower told to follow traffic landing the parallel
+    /// must be re-sequenced onto that runway (the controller's intent) rather than left on
+    /// its own pattern, where none of the spacing or leg-hold logic engages (all of it is
+    /// gated on a matching runway). Returns false whenever either runway is unknown, so the
+    /// cheap in-place retarget stays the default.
+    /// </summary>
+    private static bool IsLeadOnDifferentRunway(AircraftState follower, AircraftState? lead)
+    {
+        string? followerRunway = follower.Phases?.AssignedRunway?.Designator;
+        string? leadRunway = lead?.Phases?.AssignedRunway?.Designator;
+        if ((followerRunway is null) || (leadRunway is null))
+        {
+            return false;
+        }
+
+        return !string.Equals(followerRunway, leadRunway, StringComparison.OrdinalIgnoreCase);
     }
 }

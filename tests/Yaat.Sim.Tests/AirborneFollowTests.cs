@@ -51,7 +51,7 @@ public class AirborneFollowTests : IDisposable
         return ac;
     }
 
-    private static PhaseContext Ctx(AircraftState ac, Func<string, AircraftState?>? lookup = null, double dt = 1.0)
+    private static PhaseContext Ctx(AircraftState ac, Func<string, AircraftState?>? lookup = null, double dt = 1.0, WeatherProfile? weather = null)
     {
         var rwy = DefaultRunway();
         return new PhaseContext
@@ -64,6 +64,7 @@ public class AirborneFollowTests : IDisposable
             FieldElevation = rwy.ElevationFt,
             AircraftLookup = lookup,
             Logger = NullLogger.Instance,
+            Weather = weather,
         };
     }
 
@@ -541,7 +542,8 @@ public class AirborneFollowTests : IDisposable
     /// The point-to-point gap grows for the entire duration of the follower's
     /// downwind leg, but this is expected pattern flow — the lead is on a later
     /// pattern leg and the gap will close once the follower turns base. The
-    /// runaway watchdog must NOT cancel the follow.
+    /// pattern-flow guard must suppress the loss-of-visual cancel here, so the
+    /// follow survives the whole downwind leg.
     /// </summary>
     [Fact]
     public void CheckLeadLifecycle_DoesNotCancel_WhenLeadOnFinalAndFollowerOnDownwind()
@@ -565,8 +567,9 @@ public class AirborneFollowTests : IDisposable
         var lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: StartLon, heading: 280);
 
         // Lead heads west (lon decreases), follower heads east (lon increases) —
-        // longitudinal gap grows monotonically every tick, well past the 0.1 nm
-        // runaway tolerance within the 35 s grace window.
+        // the longitudinal gap grows monotonically every tick and ends up well beyond
+        // a C172's visual detection range, so only the pattern-flow guard keeps the
+        // follow alive.
         const int Ticks = 35;
         const double LonStepDeg = 0.001;
         for (int i = 0; i < Ticks; i++)
@@ -578,7 +581,6 @@ public class AirborneFollowTests : IDisposable
         }
 
         Assert.Equal(LeadCallsign, follower.Approach.FollowingCallsign);
-        Assert.Equal(0, follower.Approach.FollowRunawaySeconds);
     }
 
     // -------------------------------------------------------------------------
@@ -803,14 +805,143 @@ public class AirborneFollowTests : IDisposable
         Assert.False(((DownwindPhase)ac.Phases.CurrentPhase!).IsExtended);
     }
 
+    private static AircraftState MakePatternFollower(string runwayDesignator)
+    {
+        var ac = MakeAircraftOnPatternPhase<DownwindPhase>(
+            callsign: "FOLL",
+            type: "C172",
+            lat: 37.00,
+            lon: -122.00,
+            heading: 100,
+            runwayDesignator: runwayDesignator
+        );
+        ac.FlightPlan.FlightRules = "VFR";
+        ac.Approach.HasReportedTrafficInSight = true;
+        return ac;
+    }
+
     /// <summary>
-    /// Control case: when both aircraft are airborne and the lead is on the
-    /// SAME leg (Downwind) but the gap genuinely grows (lead pulling away),
-    /// the runaway watchdog must still fire — the pattern-flow-ahead guard
-    /// applies only when the lead is on a LATER leg.
+    /// Cross-runway FOLLOW: the follower is flying a pattern to 28L while the lead is
+    /// landing 28R. In-trail sequencing only means something on a shared runway, so FOLLOW
+    /// must re-sequence the follower onto the LEAD's runway — it drops into
+    /// <see cref="VfrFollowPhase"/>, whose auto-join rebuilds the circuit / final for the
+    /// lead's runway — rather than silently leaving it on its own pattern where nothing
+    /// sequences. Recorded case: N342T (28L pattern) told to follow N655EX (landing 28R);
+    /// the controller had to hand-fly <c>ELB 28R 2</c> to get the intended sequence.
     /// </summary>
     [Fact]
-    public void CheckLeadLifecycle_StillCancels_WhenSameLegAndGapGrows()
+    public void Follow_CrossRunway_ReSequencesOntoLeadRunway()
+    {
+        const string LeadCallsign = "LEAD";
+        var follower = MakePatternFollower("28L");
+        var lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
+            callsign: LeadCallsign,
+            type: "C172",
+            lat: 37.01,
+            lon: -122.01,
+            heading: 280,
+            runwayDesignator: "28R"
+        );
+
+        Func<string, AircraftState?> lookup = cs => cs == LeadCallsign ? lead : null;
+        var result = CommandDispatcher.Dispatch(
+            new FollowCommand(LeadCallsign, false),
+            follower,
+            TestDispatch.Context(Random.Shared, findAircraft: lookup)
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(LeadCallsign, follower.Approach.FollowingCallsign);
+        Assert.IsType<VfrFollowPhase>(follower.Phases!.CurrentPhase);
+    }
+
+    /// <summary>
+    /// A cross-runway re-sequence needs room to maneuver. From Base or FinalApproach the
+    /// follower is low and close in, and swinging it onto a closely-spaced parallel from
+    /// there flies a low crossing of its original runway's final approach course — AIM
+    /// §4-3-3 FIG 4-3-3 note 7 (do not penetrate the parallel's final) and §4-3-5 (no
+    /// unexpected pattern maneuvers). FOLLOW must refuse and let the controller re-sequence
+    /// explicitly (ELB/ERB), vector, or send it around. Recorded case 3: N342T was 2 s onto
+    /// Base for 28L when told to follow N655EX (landing 28R); the controller then hand-flew
+    /// <c>ELB 28R 2</c> — the correct, explicit re-entry.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(BasePhase))]
+    [InlineData(typeof(FinalApproachPhase))]
+    public void Follow_CrossRunway_FromBaseOrFinal_IsRefused(Type legType)
+    {
+        const string LeadCallsign = "LEAD";
+        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.00, heading: 190);
+        follower.FlightPlan.FlightRules = "VFR";
+        follower.Approach.HasReportedTrafficInSight = true;
+        follower.Phases = new PhaseList { AssignedRunway = TestRunwayFactory.Make(designator: "28L", heading: 280, elevationFt: 0) };
+        follower.Phases.Add((Phase)Activator.CreateInstance(legType)!);
+        follower.Phases.Start(CommandDispatcher.BuildMinimalContext(follower));
+
+        var lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
+            callsign: LeadCallsign,
+            type: "C172",
+            lat: 37.01,
+            lon: -122.01,
+            heading: 280,
+            runwayDesignator: "28R"
+        );
+
+        Func<string, AircraftState?> lookup = cs => cs == LeadCallsign ? lead : null;
+        var result = CommandDispatcher.Dispatch(
+            new FollowCommand(LeadCallsign, false),
+            follower,
+            TestDispatch.Context(Random.Shared, findAircraft: lookup)
+        );
+
+        Assert.False(result.Success, $"Cross-runway FOLLOW from {legType.Name} must be refused, got: {result.Message}");
+        Assert.Contains("28L", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
+    /// <summary>
+    /// Control for <see cref="Follow_CrossRunway_ReSequencesOntoLeadRunway"/>: when the lead
+    /// is landing the SAME runway the follower is already flying, FOLLOW retargets in place
+    /// and the follower keeps its current pattern leg (rebuilding through VfrFollowPhase
+    /// would route it back through PatternEntry for the runway it is already on).
+    /// </summary>
+    [Fact]
+    public void Follow_SameRunway_KeepsExistingPatternLeg()
+    {
+        const string LeadCallsign = "LEAD";
+        var follower = MakePatternFollower("28R");
+        var lead = MakeAircraftOnPatternPhase<FinalApproachPhase>(
+            callsign: LeadCallsign,
+            type: "C172",
+            lat: 37.01,
+            lon: -122.01,
+            heading: 280,
+            runwayDesignator: "28R"
+        );
+
+        Func<string, AircraftState?> lookup = cs => cs == LeadCallsign ? lead : null;
+        var result = CommandDispatcher.Dispatch(
+            new FollowCommand(LeadCallsign, false),
+            follower,
+            TestDispatch.Context(Random.Shared, findAircraft: lookup)
+        );
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(LeadCallsign, follower.Approach.FollowingCallsign);
+        Assert.IsType<DownwindPhase>(follower.Phases!.CurrentPhase);
+    }
+
+    /// <summary>
+    /// A lead that simply outpaces the follower — same leg, gap growing monotonically —
+    /// must NOT cancel the follow. A growing gap *increases* separation and removes the
+    /// overtake risk; it is a controller efficiency concern to re-sequence, never the
+    /// follower's cue to break off. The only self-generated cancel is loss of visual
+    /// contact (AIM §5-5-12.a.2 / §4-4-14 NOTE); "unable to catch up" is not a real
+    /// pilot transmission. Regression for the recorded N427MX → N655EX case, where the
+    /// old runaway watchdog cancelled a perfectly good follow at ~1.1 nm in trail.
+    /// </summary>
+    [Fact]
+    public void CheckLeadLifecycle_DoesNotCancel_WhenSameLegAndGapGrows()
     {
         const string LeadCallsign = "LEAD";
 
@@ -823,36 +954,64 @@ public class AirborneFollowTests : IDisposable
             followingCallsign: LeadCallsign
         );
         var lead = MakeAircraftOnPatternPhase<DownwindPhase>(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, heading: 100);
-        // Lead has been on Downwind 60 s longer than follower so IsLeadPatternFlowBehind
-        // returns false (lead is ahead in the same-leg ordering — that's the *runaway*
-        // direction, not the *flow-ahead* one). Without further input the gap is just
-        // open; explicit lead motion away from follower makes the watchdog fire.
+        // Lead has been on Downwind 60 s longer than the follower, so it is ahead in the
+        // same-leg ordering (IsLeadPatternFlowBehind is false and the extended-leg
+        // flow-ahead exception does not apply) — i.e. exactly the geometry the old
+        // runaway watchdog used to cancel on.
         lead.Phases!.CurrentPhase!.ElapsedSeconds = 60;
 
-        bool cancelled = false;
-        for (int i = 0; i < 35; i++)
+        for (int i = 0; i < 60; i++)
         {
-            // Lead moves east faster than follower — distance grows monotonically.
+            // Lead moves east faster than the follower — distance grows monotonically,
+            // well past the old 0.1 nm tolerance / 30 s grace window.
             lead.Position = new LatLon(lead.Position.Lat, lead.Position.Lon + 0.001);
             var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null);
-            if (AirborneFollowHelper.CheckLeadLifecycle(ctx))
-            {
-                cancelled = true;
-                break;
-            }
+            bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
+            Assert.False(cancelled, $"Follow cancelled at tick {i} — a lead pulling away must never break off the follow.");
         }
 
-        Assert.True(cancelled, "Runaway watchdog should still fire when lead on same leg pulls away monotonically");
+        Assert.Equal(LeadCallsign, follower.Approach.FollowingCallsign);
+        Assert.DoesNotContain(follower.PendingWarnings, w => w.Contains("catch up", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Loss of visual contact IS a cancel: a BKN deck lying between the follower and the
+    /// lead obscures the traffic, so the pilot reports losing sight and breaks off
+    /// (AIM §5-5-12.a.2). This is the only self-generated follow cancel besides the lead
+    /// landing or leaving the sim.
+    /// </summary>
+    [Fact]
+    public void CheckLeadLifecycle_Cancels_WhenCloudLayerObscuresLead()
+    {
+        const string LeadCallsign = "LEAD";
+
+        // Follower at 3000 ft, lead at 1000 ft, BKN020 (2000 ft AGL) between them.
+        var follower = MakeAircraft(callsign: "FOLL", type: "C172", lat: 37.00, lon: -122.0, altitude: 3000, followingCallsign: LeadCallsign);
+        var lead = MakeAircraft(callsign: LeadCallsign, type: "C172", lat: 37.00, lon: -121.99, altitude: 1000);
+
+        var weather = new WeatherProfile
+        {
+            ParsedMetarOverrides = new Dictionary<string, MetarParser.ParsedMetar>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["KTEST"] = new MetarParser.ParsedMetar("KTEST", 2000, [new MetarParser.CloudLayer(MetarParser.CloudCover.Broken, 2000)], 10.0),
+            },
+        };
+
+        var ctx = Ctx(follower, lookup: cs => cs == LeadCallsign ? lead : null, weather: weather);
+
+        bool cancelled = AirborneFollowHelper.CheckLeadLifecycle(ctx);
+
+        Assert.True(cancelled, "A BKN deck between follower and lead must break off the follow (lost visual).");
         Assert.Null(follower.Approach.FollowingCallsign);
     }
 
     /// <summary>
     /// Same leg, but the lead has been told to EXTEND it (here Crosswind). The gap
-    /// grows as the lead runs outbound, yet this is the controller deliberately
-    /// holding the lead ahead in the sequence — not the lead getting away. The
-    /// runaway watchdog must NOT cancel the follow. Companion to
-    /// <see cref="CheckLeadLifecycle_StillCancels_WhenSameLegAndGapGrows"/>: the only
-    /// difference is the lead's <c>IsExtended</c> flag, and it flips the outcome.
+    /// grows as the lead runs outbound — the controller deliberately holding the lead
+    /// ahead in the sequence. The follow must survive, exactly as it does for any other
+    /// growing gap (see <see cref="CheckLeadLifecycle_DoesNotCancel_WhenSameLegAndGapGrows"/>);
+    /// the <c>IsExtended</c> flag additionally makes the lead flow-ahead for the
+    /// leg-hold logic.
     /// </summary>
     [Fact]
     public void CheckLeadLifecycle_DoesNotCancel_WhenSameLegLeadExtended()
@@ -883,7 +1042,7 @@ public class AirborneFollowTests : IDisposable
             }
         }
 
-        Assert.False(cancelled, "Runaway watchdog must not cancel a follow while the lead is extending its (same) pattern leg.");
+        Assert.False(cancelled, "A follow must not cancel while the lead is extending its (same) pattern leg.");
         Assert.Equal(LeadCallsign, follower.Approach.FollowingCallsign);
     }
 
