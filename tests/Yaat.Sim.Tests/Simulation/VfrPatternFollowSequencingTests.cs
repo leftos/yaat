@@ -202,7 +202,7 @@ public class VfrPatternFollowSequencingTests
     }
 
     [Fact]
-    public void Follower_TurnsBaseAndWarns_WhenExtensionCapReached()
+    public void Follower_KeepsExtendingAndWarns_WhenExtensionCapReached()
     {
         var navDb = TestVnasData.NavigationDb;
         if (navDb is null)
@@ -226,8 +226,9 @@ public class VfrPatternFollowSequencingTests
 
         // Follower B has already extended past the MaxFollowExtensionNm cap on the
         // downwind track; lead A is on final still only 0.5 nm ahead of B in the
-        // sequence coordinate — so the follower still *wants* to keep holding, but
-        // the cap forces the base turn and a one-shot warning.
+        // sequence coordinate — so the follower still *wants* to keep holding. It does
+        // NOT turn base on its own: it keeps flying the downwind and advises once so the
+        // controller can re-sequence.
         double bAlong = baseTurnAlong + AirborneFollowHelper.MaxFollowExtensionNm + 0.5;
         var followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, AirborneFollowHelper.MaxFollowExtensionNm + 0.5);
         var follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, altitude: wp.PatternAltitude, ias: 90);
@@ -263,9 +264,14 @@ public class VfrPatternFollowSequencingTests
 
         bool completed = downwind.OnTick(ctx);
 
-        Assert.True(completed, "Follower should turn base (phase completes) once it reaches the extension cap.");
+        Assert.False(completed, "Follower must NOT turn base on its own at the extension cap — it keeps flying the downwind.");
         // RPO-default warning is the pilot's compact terminal line (callsign in the SAY column).
-        Assert.Contains(follower.PendingWarnings, w => w.Contains("turning base behind", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            follower.PendingWarnings,
+            w =>
+                w.Contains("extending downwind", StringComparison.OrdinalIgnoreCase)
+                && w.Contains("unable to turn", StringComparison.OrdinalIgnoreCase)
+        );
     }
 
     private static AircraftState MakeVfr(string callsign, LatLon pos, TrueHeading heading, double altitude, double ias) =>

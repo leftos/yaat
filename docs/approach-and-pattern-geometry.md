@@ -514,6 +514,31 @@ bound is the runaway watchdog (suppressed while the lead is leg-ahead). The two 
 redundant — when the spatial cap forces an early base turn, `DownwindPhase` emits a one-shot "turning base, max
 extension reached" transmission so the controller can re-sequence.
 
+**Upwind/crosswind sequencing — remaining pattern path.** The downwind along-track hold does not transfer to the
+`UpwindPhase`/`CrosswindPhase` legs: the upwind leg's along-track runs *opposite* the downwind sequence axis (its
+heading is the runway heading, the reciprocal of downwind), so "further along upwind" means a *longer* path to
+landing, not a shorter one — a follower that is behind the lead on upwind is geometrically committed to a *shorter*
+downwind and would roll out on final *ahead* of the traffic it was told to follow. To sequence correctly on every
+leg, `RemainingPatternPathNm` (`AirborneFollowHelper`) computes the remaining circuit distance to the threshold
+(upwind → crosswind → downwind → base → final); it is monotone toward landing and *increases* when a leg is extended
+(a longer upwind lengthens the downwind; a wider crosswind lengthens the base; a longer downwind lengthens the
+final — the downwind term uses the aircraft's **actual** perpendicular offset so a widened pattern counts its longer
+base). `ShouldHoldLegForRemainingPathSequencing` holds the current leg while `remaining(follower) < remaining(lead)
++ desired`, so the follower extends its upwind/crosswind leg (chasing) until it is a full `desired` of remaining
+path behind — converging without ever having to overtake the lead on the shared leg, because the lead is
+simultaneously shrinking its own remaining. Gated (like every other follow path) by `IsLeadPatternFlowBehind` so a
+follower never extends a leg to fall in behind traffic that is actually behind it.
+
+**A follower never self-turns to break the hold.** Once told to follow, an aircraft does not turn off its leg on
+its own — it keeps flying the current leg until it is genuinely sequenced behind (the hold clears and it turns
+normally) or the controller issues a turn. The shared `MaxFollowExtensionNm = 4.0` is therefore an *advisory*
+threshold, not a forced turn: past it the pilot transmits a **one-shot** "extending {upwind/crosswind/downwind}
+behind the traffic, unable to turn — request instructions" (`PilotResponder.BuildFollowExtendingUnableToTurn`,
+latched per phase and snapshot-serialized as `FollowExtensionWarningIssued`) and continues on the leg. This applies
+on `DownwindPhase` too — the old cap-forced base turn is replaced by the same continue-and-advise behavior. AIM
+4-3-2.a.3.2 (the upwind leg is an explicit separation/sequencing leg) and 5-5-12.a.1 / 4-3-5 (the follower
+maneuvers as necessary and advises ATC — it does not fly an *unrequested* turn on its own).
+
 ### `VfrFollowPhase` — free pursuit + auto-join
 
 `VfrFollowPhase` (`src/Yaat.Sim/Phases/Pattern/VfrFollowPhase.cs`, built by `CommandDispatcher` for FOLLOW) keeps a

@@ -746,6 +746,151 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
+    /// Remaining distance to fly along the traffic pattern from an aircraft's current position to
+    /// the landing threshold, in nautical miles, following the idealized rectangular circuit
+    /// (upwind → crosswind → downwind → base → final). Monotonically decreases as the aircraft
+    /// progresses toward landing, and correctly increases when a leg is EXTENDED (a longer upwind
+    /// lengthens the downwind; a wider crosswind lengthens the base; a longer downwind lengthens
+    /// the final). This is the sequence coordinate used to order two aircraft in the pattern — the
+    /// one with more remaining path lands later — and, unlike a single along-track axis, it stays
+    /// consistent across every leg (in particular the upwind leg, whose along-track runs opposite
+    /// to the downwind sequence axis).
+    ///
+    /// <para>
+    /// Evaluated against a single reference geometry <paramref name="wp"/> (the follower's own
+    /// pattern waypoints) so two aircraft are compared on identical legs; a non-pattern phase
+    /// returns <see cref="double.PositiveInfinity"/>.
+    /// </para>
+    /// </summary>
+    public static double RemainingPatternPathNm(AircraftState ac, PatternWaypoints wp)
+    {
+        int? leg = PatternLegIndex(ac);
+        if (leg is null)
+        {
+            return double.PositiveInfinity;
+        }
+
+        var threshold = new LatLon(wp.ThresholdLat, wp.ThresholdLon);
+        var dwHeading = wp.DownwindHeading;
+
+        double AlongTrack(LatLon p) => GeoMath.AlongTrackDistanceNm(p, threshold, dwHeading);
+        double PerpOffset(LatLon p) => Math.Abs(GeoMath.SignedCrossTrackDistanceNm(p, threshold, dwHeading));
+
+        // Fixed pattern reference distances along / across the downwind axis (threshold at 0,
+        // positive toward the base turn). The DER (crosswind-turn) sits on the departure side at a
+        // negative along-track; the base turn on the approach side at a positive along-track.
+        double dDer = AlongTrack(new LatLon(wp.CrosswindTurnLat, wp.CrosswindTurnLon));
+        double dBase = AlongTrack(new LatLon(wp.BaseTurnLat, wp.BaseTurnLon));
+        double width = PerpOffset(new LatLon(wp.DownwindStartLat, wp.DownwindStartLon));
+
+        double dwLen = dBase - dDer; // downwind leg length (DER-abeam to base turn)
+        double finalLen = dBase; // final leg length (base turn along-track to threshold at 0)
+
+        double dP = AlongTrack(ac.Position);
+        double rhoP = PerpOffset(ac.Position);
+
+        return leg switch
+        {
+            // Upwind: on the centerline, departure side. Remaining upwind to the DER (0 once past),
+            // then crosswind + downwind (longer if extended past the DER) + base + final.
+            1 => Math.Max(0, dP - dDer) + width + (dBase - Math.Min(dP, dDer)) + width + finalLen,
+            // Crosswind: near the DER along-track, perpendicular 0→width. Remaining crosswind (0 if
+            // extended wider) + downwind + base (wider if extended) + final.
+            2 => Math.Max(0, width - rhoP) + dwLen + Math.Max(width, rhoP) + finalLen,
+            // Downwind: at the downwind offset, along-track DER→base turn. Remaining downwind (0 if
+            // extended past the base turn) + base (the aircraft's ACTUAL perpendicular offset, so a
+            // wider downwind from a widened crosswind counts its longer base) + final (longer if
+            // extended past the base turn).
+            3 => Math.Max(0, dBase - dP) + rhoP + Math.Max(dP, dBase),
+            // Base: near the base-turn along-track, perpendicular width→0. Remaining base + final.
+            4 => rhoP + Math.Max(dP, 0),
+            // Final: on the centerline, closing the threshold.
+            _ => Math.Max(dP, GeoMath.DistanceNm(ac.Position, threshold)),
+        };
+    }
+
+    /// <summary>
+    /// Returns true when the follower must hold its CURRENT pattern leg (defer turning to the next
+    /// leg) to stay in trail of the lead it is following, judged by remaining pattern path. The
+    /// follower holds — extending its current leg — while its remaining path to the threshold is
+    /// less than the lead's plus the category desired spacing, i.e. it would otherwise reach the
+    /// landing before it is a full <c>desired</c> behind the lead. Used by
+    /// <see cref="Pattern.UpwindPhase"/> and <see cref="Pattern.CrosswindPhase"/>.
+    ///
+    /// <para>
+    /// Remaining path (<see cref="RemainingPatternPathNm"/>) is the correct sequence coordinate on
+    /// every leg: extending the upwind lengthens the follower's path (it turns crosswind further
+    /// out, flying a longer downwind), so the hold drives it the right way — unlike a single
+    /// along-track axis, which runs backwards on the reciprocal-heading upwind leg. Because the
+    /// lead is simultaneously shrinking its own remaining path, the follower converges to
+    /// <c>desired</c> path behind without having to overtake the lead on the shared leg. The caller
+    /// bounds this hold spatially with <see cref="MaxFollowExtensionNm"/> past the leg turn point.
+    /// </para>
+    /// </summary>
+    public static bool ShouldHoldLegForRemainingPathSequencing(PhaseContext ctx, PatternWaypoints wp)
+    {
+        string? targetCallsign = ctx.Aircraft.Approach.FollowingCallsign;
+        if (targetCallsign is null)
+        {
+            return false;
+        }
+
+        var lead = ctx.AircraftLookup?.Invoke(targetCallsign);
+        if (lead is null)
+        {
+            return false;
+        }
+
+        string? followerRwy = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
+        string? leadRwy = lead.Phases?.AssignedRunway?.Designator;
+        if ((followerRwy is null) || (leadRwy is null) || !string.Equals(followerRwy, leadRwy, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // The lead must be on a pattern leg to have a finite remaining path; otherwise there is
+        // nothing to sequence against (don't hold indefinitely against an infinite remaining).
+        if (PatternLegIndex(lead) is null)
+        {
+            return false;
+        }
+
+        // Never extend a leg to fall in BEHIND traffic that is actually behind the follower in
+        // pattern flow (lead on an earlier leg, or the same leg but further along). Mirrors the
+        // guard on every other follow path — GetAdjustedSpeed, ShouldExtendDownwind — and prevents
+        // the follower from flying a huge pattern to sequence behind e.g. a lead still on the
+        // pattern-entry feeder (audit case: N172SP holding for a lead on PatternEntry behind it).
+        if (IsLeadPatternFlowBehind(ctx.Aircraft, lead))
+        {
+            return false;
+        }
+
+        // The lead's remaining path is evaluated against the FOLLOWER's waypoints so the two are
+        // compared on identical geometry; exact for same-runway same-category traffic, with a small
+        // error if the lead flies a different-size pattern (jet lead / piston follower) — acceptable
+        // for sequencing in a trainer.
+        double remainingFollower = RemainingPatternPathNm(ctx.Aircraft, wp);
+        double remainingLead = RemainingPatternPathNm(lead, wp);
+        double desired = DesiredDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
+
+        bool hold = remainingFollower < (remainingLead + desired);
+        if (hold)
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: holding {Leg} to sequence behind {Target} (remFollower={RF:F2} remLead={RL:F2} desired={D:F1})",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.Phases?.CurrentPhase?.Name,
+                targetCallsign,
+                remainingFollower,
+                remainingLead,
+                desired
+            );
+        }
+
+        return hold;
+    }
+
+    /// <summary>
     /// Returns true when a follower committed to a base or final leg can no longer
     /// keep clear of its lead and should break off the follow and go around rather than
     /// run into it — whether by overtaking from behind or cutting in front (AIM 4-3-3

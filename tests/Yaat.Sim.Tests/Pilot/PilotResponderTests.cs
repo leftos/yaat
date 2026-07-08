@@ -1287,14 +1287,14 @@ public class PilotResponderTests
     }
 
     [Fact]
-    public void BuildSequenceTightTurningBase_RpoTerminalNamesTarget_TtsDoesNot()
+    public void BuildFollowExtendingUnableToTurn_RpoTerminalNamesTarget_TtsDoesNot()
     {
         var ac = MakeAircraft("N294MG");
-        var result = PilotResponder.BuildSequenceTightTurningBase(ac, "N784ME");
+        var result = PilotResponder.BuildFollowExtendingUnableToTurn(ac, "N784ME", "downwind");
 
-        Assert.Equal("turning base behind the traffic, spacing is tight.", result.Terminal);
-        Assert.Equal("turning base behind N784ME, spacing is tight.", result.TerminalForRpo);
-        Assert.Contains("turning base behind the traffic", result.Tts);
+        Assert.Equal("extending downwind behind the traffic, unable to turn — request instructions.", result.Terminal);
+        Assert.Equal("extending downwind behind N784ME, unable to turn — request instructions.", result.TerminalForRpo);
+        Assert.Contains("extending downwind behind the traffic", result.Tts);
         Assert.DoesNotContain("seven eight four", result.Tts);
     }
 

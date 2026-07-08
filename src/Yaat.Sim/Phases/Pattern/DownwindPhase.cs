@@ -34,6 +34,7 @@ public sealed class DownwindPhase : Phase
     private bool _pastAbeam;
     private double _altitudeFloor;
     private bool _midfieldBroadcastIssued;
+    private bool _followExtensionWarningIssued;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -289,18 +290,34 @@ public sealed class DownwindPhase : Phase
 
         // Hold the base turn if following traffic and either (a) too close to the
         // leader [proximity], or (b) turning base now would roll out ahead of /
-        // too tightly behind a pattern-flow-ahead leader [sequencing]. The
-        // sequencing hold is bounded by MaxFollowExtensionNm so a slow ahead-lead
-        // can't extend the downwind indefinitely, and a deliberate short approach
-        // always wins. Both holds level the aircraft at the glideslope-intercept
-        // altitude floor while waiting.
+        // too tightly behind a pattern-flow-ahead leader [sequencing]. A deliberate
+        // short approach always wins. Both holds level the aircraft at the
+        // glideslope-intercept altitude floor while waiting.
+        //
+        // A follower does NOT turn base on its own to escape the hold: it keeps flying
+        // the downwind until it is genuinely sequenced behind (the hold clears) or the
+        // controller issues a turn. Past MaxFollowExtensionNm it advises once ("extending
+        // downwind … unable to turn") so the controller can re-sequence, then keeps going.
         bool holdForProximity = AirborneFollowHelper.ShouldExtendDownwind(ctx);
         bool wantsSequenceHold =
             !ShortApproachArmed && AirborneFollowHelper.ShouldHoldForLeadSequencing(ctx, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
-        bool underExtensionCap = aircraftAlongTrack < _baseTurnAlongTrack + AirborneFollowHelper.MaxFollowExtensionNm;
 
-        if (holdForProximity || (wantsSequenceHold && underExtensionCap))
+        if (holdForProximity || wantsSequenceHold)
         {
+            bool pastExtensionCap = aircraftAlongTrack >= _baseTurnAlongTrack + AirborneFollowHelper.MaxFollowExtensionNm;
+            if (pastExtensionCap && !_followExtensionWarningIssued && (ctx.Aircraft.Approach.FollowingCallsign is { } followTarget))
+            {
+                PilotResponder.RouteSoloOrRpoTransmission(
+                    ctx.Aircraft,
+                    ctx.SoloTrainingMode,
+                    ctx.RpoShowPilotSpeech,
+                    ctx.StudentPositionType,
+                    PilotResponder.BuildFollowExtendingUnableToTurn(ctx.Aircraft, followTarget, "downwind"),
+                    PilotResponder.SoloPositionsTowerApproach
+                );
+                _followExtensionWarningIssued = true;
+            }
+
             if (_pastAbeam && ctx.Aircraft.Altitude <= _altitudeFloor)
             {
                 ctx.Targets.TargetAltitude = _altitudeFloor;
@@ -308,25 +325,6 @@ public sealed class DownwindPhase : Phase
             }
 
             return false;
-        }
-
-        // Cap-forced release: the follower still wanted to extend to sequence behind
-        // the lead but has reached MaxFollowExtensionNm past its base-turn point.
-        // Turn base now (a slightly-tight sequence beats an unbounded downwind) but
-        // tell the controller once, since the follower may roll out tighter than the
-        // desired trail and need re-sequencing. The phase completes on this same tick
-        // (aircraftAlongTrack is already well past the base-turn point), so this fires
-        // exactly once.
-        if (wantsSequenceHold && (ctx.Aircraft.Approach.FollowingCallsign is { } followTarget))
-        {
-            PilotResponder.RouteSoloOrRpoTransmission(
-                ctx.Aircraft,
-                ctx.SoloTrainingMode,
-                ctx.RpoShowPilotSpeech,
-                ctx.StudentPositionType,
-                PilotResponder.BuildSequenceTightTurningBase(ctx.Aircraft, followTarget),
-                PilotResponder.SoloPositionsTowerApproach
-            );
         }
 
         bool complete = aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
@@ -520,6 +518,7 @@ public sealed class DownwindPhase : Phase
             LateralOffsetTargetNm = LateralOffset?.TargetNm,
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
+            FollowExtensionWarningIssued = _followExtensionWarningIssued,
         };
 
     public static DownwindPhase FromSnapshot(DownwindPhaseDto dto)
@@ -549,6 +548,7 @@ public sealed class DownwindPhase : Phase
         phase._pastAbeam = dto.PastAbeam;
         phase._altitudeFloor = dto.AltitudeFloor;
         phase._midfieldBroadcastIssued = dto.MidfieldBroadcastIssued;
+        phase._followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false;
         return phase;
     }
 

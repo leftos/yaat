@@ -815,6 +815,10 @@ public sealed class CrosswindPhaseDto : PhaseDto
     public double? LateralOffsetTargetNm { get; init; }
     public int? LateralOffsetDirection { get; init; }
     public bool LateralOffsetAcquired { get; init; }
+
+    /// <summary>One-shot: the follow-extension "unable to turn" advisory has been transmitted.
+    /// Nullable for tolerance of recordings predating this field.</summary>
+    public bool? FollowExtensionWarningIssued { get; init; }
 }
 
 public sealed class PatternExitPhaseDto : PhaseDto
@@ -849,6 +853,10 @@ public sealed class DownwindPhaseDto : PhaseDto
     public double? LateralOffsetTargetNm { get; init; }
     public int? LateralOffsetDirection { get; init; }
     public bool LateralOffsetAcquired { get; init; }
+
+    /// <summary>One-shot: the follow-extension "unable to turn" advisory has been transmitted.
+    /// Nullable for tolerance of recordings predating this field.</summary>
+    public bool? FollowExtensionWarningIssued { get; init; }
 }
 
 public sealed class UpwindPhaseDto : PhaseDto
@@ -871,6 +879,10 @@ public sealed class UpwindPhaseDto : PhaseDto
     public double? LateralOffsetTargetNm { get; init; }
     public int? LateralOffsetDirection { get; init; }
     public bool LateralOffsetAcquired { get; init; }
+
+    /// <summary>One-shot: the follow-extension "unable to turn" advisory has been transmitted.
+    /// Nullable for tolerance of recordings predating this field.</summary>
+    public bool? FollowExtensionWarningIssued { get; init; }
 }
 
 public sealed class VfrFollowPhaseDto : PhaseDto

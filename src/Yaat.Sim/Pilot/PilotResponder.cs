@@ -1216,21 +1216,23 @@ public static class PilotResponder
     }
 
     /// <summary>
-    /// Pilot transmission when a following aircraft has reached its maximum downwind
-    /// extension while sequencing behind a pattern-flow-ahead lead and must turn base
-    /// before it has the desired trail. Cues the controller to re-sequence (the
-    /// follower may roll out tight behind the lead). Spoken and solo terminal forms say "the
-    /// traffic"; the RPO terminal names the lead as a diagnostic.
+    /// Pilot advisory when a following aircraft has extended its current pattern leg
+    /// (<paramref name="legWord"/> = "upwind", "crosswind", or "downwind") to the maximum
+    /// follow-extension distance and still cannot turn without cutting off the traffic it was told
+    /// to follow. A follower does not turn on its own to resolve this — it keeps flying the leg and
+    /// cues the controller for a turn / re-sequence (AIM 5-5-12.a.1 / 4-3-5: the follower maneuvers
+    /// as necessary and advises ATC). Spoken and solo terminal forms say "the traffic"; the RPO
+    /// terminal names the lead as a diagnostic.
     /// </summary>
-    public static PilotSpeechText BuildSequenceTightTurningBase(AircraftState aircraft, string targetCallsign)
+    public static PilotSpeechText BuildFollowExtendingUnableToTurn(AircraftState aircraft, string targetCallsign, string legWord)
     {
         var spoken = SpokenOwnCallsign(aircraft);
         return new PilotSpeechText(
-            "turning base behind the traffic, spacing is tight.",
-            $"{spoken}, turning base behind the traffic, spacing is tight."
+            $"extending {legWord} behind the traffic, unable to turn — request instructions.",
+            $"{spoken}, extending {legWord} behind the traffic, unable to turn — request instructions."
         )
         {
-            RpoTerminal = $"turning base behind {targetCallsign}, spacing is tight.",
+            RpoTerminal = $"extending {legWord} behind {targetCallsign}, unable to turn — request instructions.",
         };
     }
 

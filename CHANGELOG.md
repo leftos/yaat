@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- A pattern aircraft told to **follow** traffic now sequences behind it on the **upwind and crosswind** legs as well as downwind — it extends its current leg to stay in trail instead of turning ahead of the traffic it was told to follow. It never turns on its own to break the hold: past a 4 nm extension it reports "extending … unable to turn" and keeps flying the leg until you turn or re-sequence it.
+
 ### Fixed
 - Unloading a scenario no longer crashes the client when the Ground view's satellite (tower-cab) background image is shown.
 - Runway-exit hold-short bars now sit at a consistent distance from the runway regardless of the exit taxiway's angle, so high-speed exits no longer stop aircraft closer to the runway.

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -19,6 +20,7 @@ public sealed class UpwindPhase : Phase
     private double _targetLon;
     private TrueHeading _upwindHeading;
     private double _minTurnAltitude;
+    private bool _followExtensionWarningIssued;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -160,6 +162,37 @@ public sealed class UpwindPhase : Phase
             }
         }
 
+        // Follow-aware leg hold: a follower must not turn crosswind until it is a full desired
+        // spacing behind the lead it is following in remaining pattern path — turning off the leg
+        // early rolls it onto the downwind ahead of the traffic it was told to follow. Extending
+        // the upwind lengthens the follower's path, so the hold drives it toward trail. A follower
+        // does NOT turn on its own: it keeps flying the upwind until it is sequenced behind (the
+        // hold clears) or the controller turns it. Past MaxFollowExtensionNm it advises once so the
+        // controller can re-sequence, then keeps going straight.
+        if (
+            complete
+            && (Waypoints is { } upwindWaypoints)
+            && (ctx.Aircraft.Approach.FollowingCallsign is { } followTarget)
+            && AirborneFollowHelper.ShouldHoldLegForRemainingPathSequencing(ctx, upwindWaypoints)
+        )
+        {
+            double alongPastTurn = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon), _upwindHeading);
+            if ((alongPastTurn >= AirborneFollowHelper.MaxFollowExtensionNm) && !_followExtensionWarningIssued)
+            {
+                PilotResponder.RouteSoloOrRpoTransmission(
+                    ctx.Aircraft,
+                    ctx.SoloTrainingMode,
+                    ctx.RpoShowPilotSpeech,
+                    ctx.StudentPositionType,
+                    PilotResponder.BuildFollowExtendingUnableToTurn(ctx.Aircraft, followTarget, "upwind"),
+                    PilotResponder.SoloPositionsTowerApproach
+                );
+                _followExtensionWarningIssued = true;
+            }
+
+            return false;
+        }
+
         return complete;
     }
 
@@ -204,6 +237,7 @@ public sealed class UpwindPhase : Phase
             LateralOffsetTargetNm = LateralOffset?.TargetNm,
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
+            FollowExtensionWarningIssued = _followExtensionWarningIssued,
         };
 
     public static UpwindPhase FromSnapshot(UpwindPhaseDto dto)
@@ -229,6 +263,7 @@ public sealed class UpwindPhase : Phase
         phase._targetLon = dto.TargetLon;
         phase._upwindHeading = new TrueHeading(dto.UpwindHeadingDeg);
         phase._minTurnAltitude = dto.MinTurnAltitude;
+        phase._followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false;
         return phase;
     }
 

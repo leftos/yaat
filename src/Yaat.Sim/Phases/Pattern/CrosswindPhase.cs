@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -18,6 +19,7 @@ public sealed class CrosswindPhase : Phase
     private double _targetLat;
     private double _targetLon;
     private TrueHeading _crosswindHeading;
+    private bool _followExtensionWarningIssued;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -146,6 +148,36 @@ public sealed class CrosswindPhase : Phase
             }
         }
 
+        // Follow-aware leg hold: a follower must not turn downwind until it is a full desired
+        // spacing behind the lead it is following in remaining pattern path — turning off the leg
+        // early rolls it onto the downwind ahead of the traffic it was told to follow. A follower
+        // does NOT turn on its own: it keeps flying the crosswind until it is sequenced behind (the
+        // hold clears) or the controller turns it. Past MaxFollowExtensionNm it advises once so the
+        // controller can re-sequence, then keeps going straight.
+        if (
+            complete
+            && (Waypoints is { } crosswindWaypoints)
+            && (ctx.Aircraft.Approach.FollowingCallsign is { } followTarget)
+            && AirborneFollowHelper.ShouldHoldLegForRemainingPathSequencing(ctx, crosswindWaypoints)
+        )
+        {
+            double alongPastTurn = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_targetLat, _targetLon), _crosswindHeading);
+            if ((alongPastTurn >= AirborneFollowHelper.MaxFollowExtensionNm) && !_followExtensionWarningIssued)
+            {
+                PilotResponder.RouteSoloOrRpoTransmission(
+                    ctx.Aircraft,
+                    ctx.SoloTrainingMode,
+                    ctx.RpoShowPilotSpeech,
+                    ctx.StudentPositionType,
+                    PilotResponder.BuildFollowExtendingUnableToTurn(ctx.Aircraft, followTarget, "crosswind"),
+                    PilotResponder.SoloPositionsTowerApproach
+                );
+                _followExtensionWarningIssued = true;
+            }
+
+            return false;
+        }
+
         return complete;
     }
 
@@ -188,6 +220,7 @@ public sealed class CrosswindPhase : Phase
             LateralOffsetTargetNm = LateralOffset?.TargetNm,
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
+            FollowExtensionWarningIssued = _followExtensionWarningIssued,
         };
 
     public static CrosswindPhase FromSnapshot(CrosswindPhaseDto dto)
@@ -211,6 +244,7 @@ public sealed class CrosswindPhase : Phase
         phase._targetLat = dto.TargetLat;
         phase._targetLon = dto.TargetLon;
         phase._crosswindHeading = new TrueHeading(dto.CrosswindHeadingDeg);
+        phase._followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false;
         return phase;
     }
 
