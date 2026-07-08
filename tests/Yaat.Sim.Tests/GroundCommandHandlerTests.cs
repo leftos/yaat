@@ -1820,4 +1820,58 @@ public class GroundCommandHandlerTests
         Assert.True(result.Success);
         Assert.Equal(ExitSide.Left, ac.Phases.RequestedExit?.Side);
     }
+
+    [Fact]
+    public void TryExitCommand_TaxiwayOnlyAfterSide_InheritsStandingSide()
+    {
+        // Issue #276: preset "ER ; EXIT D" is two separate exit commands. The first
+        // (ER) sets Side=Right; the second (EXIT D) is taxiway-only (Side=null) and
+        // must NOT drop the standing Right — it should exit right AT D.
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = false;
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new LandingPhase());
+
+        var er = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Right }, noDelete: false, expedite: false);
+        Assert.True(er.Success);
+
+        var exitD = GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Taxiway = "D" }, noDelete: false, expedite: false);
+        Assert.True(exitD.Success);
+
+        Assert.Equal(ExitSide.Right, ac.Phases.RequestedExit?.Side);
+        Assert.Equal("D", ac.Phases.RequestedExit?.Taxiway);
+    }
+
+    [Fact]
+    public void TryExitCommand_ExplicitSideAfterSide_Overrides()
+    {
+        // A later command that carries its own explicit side (EL D after ER) wins —
+        // the standing side is only inherited by taxiway-only commands.
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = false;
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new LandingPhase());
+
+        GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Right }, noDelete: false, expedite: false);
+        GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Side = ExitSide.Left, Taxiway = "D" }, noDelete: false, expedite: false);
+
+        Assert.Equal(ExitSide.Left, ac.Phases.RequestedExit?.Side);
+        Assert.Equal("D", ac.Phases.RequestedExit?.Taxiway);
+    }
+
+    [Fact]
+    public void TryExitCommand_TaxiwayOnlyWithNoStandingSide_KeepsNullSide()
+    {
+        // A bare EXIT D with no prior side stays side-less (inferred side is applied
+        // later during exit resolution, not here).
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = false;
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new LandingPhase());
+
+        GroundCommandHandler.TryExitCommand(ac, new ExitPreference { Taxiway = "D" }, noDelete: false, expedite: false);
+
+        Assert.Null(ac.Phases.RequestedExit?.Side);
+        Assert.Equal("D", ac.Phases.RequestedExit?.Taxiway);
+    }
 }

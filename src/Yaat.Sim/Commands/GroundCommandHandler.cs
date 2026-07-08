@@ -2128,6 +2128,16 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Exit requires a pending landing or active runway exit");
         }
 
+        // A taxiway-only exit (EXIT D) issued after an explicit side (EL/ER) keeps the
+        // standing side, so "ER ; EXIT D" exits right AT D instead of dropping Right and
+        // falling back to the inferred side (issue #276). An explicit side on the new
+        // command still wins. If D only exists on the other side, the resolver's
+        // on-/off-side fallback still takes it — the taxiway name is a hard constraint.
+        if ((preference.Side is null) && (preference.Taxiway is not null) && (aircraft.Phases.RequestedExit?.Side is { } standingSide))
+        {
+            preference = new ExitPreference { Side = standingSide, Taxiway = preference.Taxiway };
+        }
+
         aircraft.Phases.RequestedExit = preference;
         if (noDelete)
         {

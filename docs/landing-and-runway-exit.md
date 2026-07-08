@@ -64,6 +64,8 @@ When a side preference is in play (explicit from `EL`/`ER`, or inferred from run
 
 The pilot is committed to a specific exit. LandingPhase uses firm braking (up to 5 kts/s) if needed, but still targets coast speed for the handoff.
 
+A **taxiway-only** exit (`EXIT D`) issued after an explicit side (`EL`/`ER`) inherits the standing side, so a `ER ; EXIT D` sequence (two separate commands, common in scenario presets) exits *right at D* rather than dropping the side and falling back to the inferred side. The taxiway name is a hard constraint and the side a soft preference: if the named taxiway exists only on the other side, the on-/off-side fallback in `FindAdjacentHoldShort`/`FindOnSidePreferredExit` still takes it (never fails to exit). A later command carrying its own explicit side (`EL D`) still overrides. The merge lives in `GroundCommandHandler.TryExitCommand`.
+
 - Compute distance to the exit
 - Subtract a braking buffer: the distance RunwayExitPhase needs to brake from coast speed to the exit's turn-off speed (using the default decel rate)
 - Plan decel to reach coast speed at that buffer point — not at the exit itself

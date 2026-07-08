@@ -752,6 +752,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `ER W5 EXP` / `EL EXP` / `EXIT A3 EXP` | Exit **without delay** — clear the runway as fast as possible. Takes the earliest reachable exit (instead of the first comfortable one), braking harder (max-effort) to make it, then brakes firmly to the hold-short stop after the turn-off. High-speed exits keep their higher turn-off speed. `EXP` combines with `NODEL` in any order. |
 | `EXP` (standalone) | On a just-landed aircraft (rolling out or exiting), expedites the runway exit — same behavior as the `EXP` modifier above, without changing the assigned side/taxiway. |
 
+A side and a taxiway can be combined: `ER D` exits right at taxiway D, and giving the two as a sequence (`ER ; EXIT D`) does the same — a bare `EXIT <taxiway>` after `EL`/`ER` keeps the standing side. If that taxiway only exists on the other side of the runway, the aircraft still takes it (the taxiway is a hard constraint, the side a soft preference).
+
 When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a higher rollout speed and only decelerates when kinematically necessary to reach the exit at the correct turn-off speed. High-speed exits (≤45° from runway heading) target ~30 kts; standard 90° exits target ~15 kts. Without an assigned exit, aircraft decelerate uniformly to 20 kts. Adding `EXP` ("without delay") raises the braking limit to a max-effort rate (jet ~7.5 kts/s vs the normal firm 5 kts/s) so the pilot takes the earliest reachable exit and brakes firmly to the hold-short stop — reducing runway occupancy at the cost of a firmer rollout.
 
 #### CTO Departure Modifiers
