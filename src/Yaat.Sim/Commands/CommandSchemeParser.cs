@@ -25,9 +25,10 @@ public static class CommandSchemeParser
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        var aliasNormalized = NormalizeSeparatorAliases(input.Trim());
+        var aliasNormalized = SplitTrailingGiveWay(NormalizeSeparatorAliases(input.Trim()));
         var trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(aliasNormalized, scheme)));
         trimmed = CommaBeforeCondition.Replace(trimmed, ";");
+        trimmed = CommaBeforeGiveWayCondition.Replace(trimmed, ";");
         if (string.IsNullOrEmpty(trimmed))
         {
             return null;
@@ -100,6 +101,104 @@ public static class CommandSchemeParser
         return new CompoundParseResult(string.Join("; ", canonicalBlocks));
     }
 
+    /// <summary>
+    /// Splits a trailing standalone give-way clause off a single TAXI command so it dispatches as a
+    /// parallel command in the same block: <c>TAXI A A1 1R GIVEWAY KLM605</c> →
+    /// <c>TAXI A A1 1R, GIVEWAY KLM605</c>. Parallel (one block, applied in source order) is the only
+    /// form that works at runtime — a sequential give-way block sits untriggered behind the active
+    /// ground phase and never fires.
+    ///
+    /// Only fires for a single TAXI command with no existing separators whose route ends with a
+    /// GIVEWAY/BEHIND/GW alias followed by a callsign-shaped token. The callsign-shape guard avoids
+    /// mis-splitting a taxiway literally named "GW"; the give-way *condition* form
+    /// (<c>GIVEWAY cs &lt;ground-verb&gt; …</c>) is left untouched.
+    /// </summary>
+    public static string SplitTrailingGiveWay(string input)
+    {
+        if (string.IsNullOrEmpty(input) || input.Contains(',') || input.Contains(';'))
+        {
+            return input;
+        }
+
+        var tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length < 4 || !CommandRegistry.IsAliasFor(CanonicalCommandType.Taxi, tokens[0]))
+        {
+            return input;
+        }
+
+        // Require at least one route token before the give-way keyword (i >= 2) and a callsign-shaped
+        // token immediately after it; everything from the keyword onward becomes the give-way clause.
+        for (int i = 2; i < tokens.Length - 1; i++)
+        {
+            if (!CommandRegistry.IsAliasFor(CanonicalCommandType.GiveWay, tokens[i]) || !LooksLikeCallsign(tokens[i + 1]))
+            {
+                continue;
+            }
+
+            // A ground verb after the callsign means this is the give-way *condition* form, which keeps
+            // its own grammar — don't split.
+            if (i + 2 < tokens.Length && CommandParser.IsGiveWayConditionVerb(tokens[i + 2]))
+            {
+                continue;
+            }
+
+            return $"{string.Join(' ', tokens[..i])}, {string.Join(' ', tokens[i..])}";
+        }
+
+        return input;
+    }
+
+    /// <summary>
+    /// True when a block is a GIVEWAY/BEHIND/GW *condition* (callsign followed by a ground command
+    /// verb), e.g. <c>GIVEWAY SWA5456 TAXI S T</c>. Mirrors the server's
+    /// <see cref="CommandParser.IsGiveWayConditionVerb"/> disambiguation so a standalone give-way
+    /// (<c>GIVEWAY &lt;callsign&gt;</c>) is parsed as a command, not rejected as a broken condition.
+    /// </summary>
+    private static bool IsGiveWayConditionBlock(string block)
+    {
+        var upper = block.ToUpperInvariant();
+        if (!(upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW ")))
+        {
+            return false;
+        }
+
+        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return (tokens.Length >= 3) && CommandParser.IsGiveWayConditionVerb(tokens[2]);
+    }
+
+    /// <summary>
+    /// Heuristic for a callsign token: alphanumeric, at least 3 chars, containing a digit, and either
+    /// two or more letters (airline + flight number) or an N-registration. Distinguishes real callsigns
+    /// from short taxiway labels like <c>A1</c> or <c>B7</c>.
+    /// </summary>
+    private static bool LooksLikeCallsign(string token)
+    {
+        int letters = 0;
+        int digits = 0;
+        foreach (var ch in token)
+        {
+            if (char.IsLetter(ch))
+            {
+                letters++;
+            }
+            else if (char.IsDigit(ch))
+            {
+                digits++;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        if ((digits == 0) || (token.Length < 3))
+        {
+            return false;
+        }
+
+        return (letters >= 2) || (char.ToUpperInvariant(token[0]) == 'N');
+    }
+
     private static readonly HashSet<string> CanonicalConditionKeywords = new(StringComparer.OrdinalIgnoreCase)
     {
         "LV",
@@ -159,11 +258,13 @@ public static class CommandSchemeParser
             var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 3)
             {
+                failure = new ParseFailure("LV", "expects an altitude and a command (e.g. LV 5000 CM 190)");
                 return null;
             }
 
             if (!CommandParser.IsAltitudeArg(tokens[1]))
             {
+                failure = new ParseFailure("LV", "expects an altitude (e.g. LV 5000 CM 190)");
                 return null;
             }
 
@@ -175,12 +276,14 @@ public static class CommandSchemeParser
             var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
+                failure = new ParseFailure("AT", "expects a fix or altitude and a command (e.g. AT BRIXX CM 190)");
                 return null;
             }
 
             // AT with altitude requires a following command (AT 5000 CM 190)
             if (CommandParser.IsAltitudeArg(tokens[1]) && tokens.Length < 3)
             {
+                failure = new ParseFailure("AT", "expects a command after the altitude (e.g. AT 5000 CM 190)");
                 return null;
             }
 
@@ -192,25 +295,24 @@ public static class CommandSchemeParser
             var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 3)
             {
+                failure = new ParseFailure("ATFN", "expects a distance and a command (e.g. ATFN 5 CM 190)");
                 return null;
             }
 
             if (!double.TryParse(tokens[1], out _))
             {
+                failure = new ParseFailure("ATFN", "expects a numeric distance (e.g. ATFN 5 CM 190)");
                 return null;
             }
 
             parts.Add($"ATFN {tokens[1]}");
             remaining = tokens[2];
         }
-        else if (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW "))
+        else if (IsGiveWayConditionBlock(remaining))
         {
+            // GIVEWAY/BEHIND/GW as a *condition* (callsign + ground verb). A standalone give-way
+            // (GIVEWAY <callsign>) is not a condition — it falls through to the command parser below.
             var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length < 3)
-            {
-                return null;
-            }
-
             parts.Add($"GIVEWAY {tokens[1].ToUpperInvariant()}");
             remaining = tokens[2];
         }
@@ -219,6 +321,7 @@ public static class CommandSchemeParser
             var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
+                failure = new ParseFailure("ONHO", "expects a command (e.g. ONHO CM 190)");
                 return null;
             }
 
@@ -245,6 +348,7 @@ public static class CommandSchemeParser
             var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
             {
+                failure = new ParseFailure("ONHS", "expects a command (e.g. ONHS CM 190)");
                 return null;
             }
 
@@ -803,10 +907,32 @@ public static class CommandSchemeParser
     /// Promotes commas before condition keywords to semicolons so that
     /// "cm 020, at oak30num cm 014" parses as "cm 020; at oak30num cm 014".
     /// </summary>
-    private static readonly Regex CommaBeforeCondition = new(
-        @",\s*(?=(?:AT|LV|ATFN|ONHO|ONH|GIVEWAY|BEHIND|GW)\s)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled
-    );
+    private static readonly Regex CommaBeforeCondition = new(@",\s*(?=(?:AT|LV|ATFN|ONHO|ONH)\s)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Promotes a comma before GIVEWAY/BEHIND/GW to a semicolon ONLY in the condition form
+    /// (callsign followed by a ground command verb), e.g. "taxi S, GIVEWAY X TAXI T" →
+    /// "taxi S; GIVEWAY X TAXI T". A standalone give-way (GIVEWAY &lt;callsign&gt;) keeps its comma so it
+    /// stays a parallel command in the same block — a sequential give-way block never fires behind an
+    /// active ground phase. Ground verbs come from the registry to track
+    /// <see cref="CommandParser.IsGiveWayConditionVerb"/>.
+    /// </summary>
+    private static readonly Regex CommaBeforeGiveWayCondition = BuildCommaBeforeGiveWayConditionRegex();
+
+    private static Regex BuildCommaBeforeGiveWayConditionRegex()
+    {
+        var groundVerbs = new[]
+        {
+            CanonicalCommandType.Taxi,
+            CanonicalCommandType.AssignRunway,
+            CanonicalCommandType.Pushback,
+            CanonicalCommandType.FollowGround,
+        }
+            .SelectMany(CommandRegistry.AliasesFor)
+            .Select(Regex.Escape);
+        var alternation = string.Join("|", groundVerbs);
+        return new Regex($@",\s*(?=(?:GIVEWAY|BEHIND|GW)\s+\S+\s+(?:{alternation})(?:\s|$))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    }
 
     /// <summary>
     /// Greedy splitting: each verb consumes tokens until Parse fails, then the next token

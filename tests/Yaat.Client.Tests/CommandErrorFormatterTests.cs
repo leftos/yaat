@@ -63,4 +63,16 @@ public class CommandErrorFormatterTests
 
         Assert.Equal("BOGUS", result.Verb);
     }
+
+    [Fact]
+    public void TrailingConditionBlockFails_BlamesConditionVerb_NotLeadingVerb()
+    {
+        // Issue #279: a malformed trailing condition block (LV with no following command) must not
+        // blame the valid leading verb — the client used to report "Unrecognized command CM".
+        const string input = "CM 100; LV 5000";
+        var result = CommandErrorFormatter.Format(input, FailureFor(input), Scheme, Aircraft());
+
+        Assert.Equal("LV", result.Verb);
+        Assert.Contains("LV", result.StatusText);
+    }
 }

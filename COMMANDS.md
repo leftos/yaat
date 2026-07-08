@@ -189,7 +189,7 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
 
   **Disambiguation order:** sigils win first (`$` spot, `@` parking, `/` intersection), then bare digits stay altitudes (so `AT 30` is still 3,000 ft — to target SFO spot `30` use `AT $30`), then bare names try airborne fixes (`AT SUNOL`) before falling back to a taxiway. If the resolved entity is not present in the airport layout, the block is rejected with a `AT ground entity not found` warning.
 
-- **GIVEWAY** / **BEHIND** — triggers when the named aircraft no longer conflicts (ground only):
+- **GIVEWAY** / **BEHIND** — as a *condition prefix* (callsign followed by a command), gates that command until the named aircraft no longer conflicts (ground only):
   ```
   GIVEWAY SWA5456 TAXI S T U
   ```
@@ -197,6 +197,7 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
   ```
   BEHIND DAL423; TAXI S T U W
   ```
+  On its own — `GIVEWAY SWA123` — it is instead an immediate instruction to give way to (yield to) that traffic on the current taxi route until it passes (see the Ground command table). You can also append it to a taxi clearance: `TAXI A A1 1R GIVEWAY KLM605` (comma optional) taxis via A, A1 to runway 1R while giving way to KLM605.
 
 These work within compound chains:
 
@@ -336,7 +337,7 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Exit right | `ER` | `EXITR` | `ER W5 EXP` |
 | Exit taxiway | `EXIT A3` | — | `EXIT A3 EXP` |
 | Follow (ground) | `FOLLOWG SWA123` | `FOLG` | — |
-| Give way | `GIVEWAY SWA123` | `BEHIND`, `GW` | — |
+| Give way | `GIVEWAY SWA123` | `BEHIND`, `GW` | `TAXI A A1 1R GIVEWAY KLM605` |
 | Taxi all | `TAXIALL 30` | — | — |
 | Break conflict | `BREAK` | — | — |
 
@@ -641,7 +642,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `HS 28L` | Hold short at the next runway 28L crossing |
 | `RWY 30` | Assign runway 30 (override runway assignment without taxi) |
 | `FOLLOWG SWA123` | Follow another aircraft on the ground |
-| `GIVEWAY SWA123` | Wait for SWA123 to pass before executing the next command (see [Conditional Blocks](#conditional-blocks)) |
+| `GIVEWAY SWA123` | Give way to (yield to) SWA123 on the current taxi route until it passes. As a condition prefix (`GIVEWAY SWA123 TAXI …`) it instead waits for SWA123 before running the command (see [Conditional Blocks](#conditional-blocks)). Can be appended to a taxi clearance: `TAXI A A1 1R GIVEWAY KLM605`. |
 | `TAXIALL 30` | Taxi all parked aircraft to runway 30 via A* pathfinding (global command, no callsign needed) |
 | `BREAK` | Ignore ground conflicts for 15 seconds |
 

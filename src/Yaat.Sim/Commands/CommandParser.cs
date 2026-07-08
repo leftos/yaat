@@ -16,7 +16,7 @@ public static class CommandParser
     /// </summary>
     public static ParseResult<CompoundCommand> ParseCompound(string input, string? aircraftRoute = null, TextWriter? debugLog = null)
     {
-        var aliasNormalized = CommandSchemeParser.NormalizeSeparatorAliases(input.Trim());
+        var aliasNormalized = CommandSchemeParser.SplitTrailingGiveWay(CommandSchemeParser.NormalizeSeparatorAliases(input.Trim()));
         var trimmed = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(aliasNormalized)));
         debugLog?.WriteLine($"[ParseCompound] input=\"{input.Trim()}\" expanded=\"{trimmed}\"");
         if (string.IsNullOrEmpty(trimmed))
@@ -541,7 +541,7 @@ public static class CommandParser
         return (new AtGroundEntityCondition(GroundEntityKind.Taxiway, token), remainder);
     }
 
-    private static bool IsGiveWayConditionVerb(string token)
+    internal static bool IsGiveWayConditionVerb(string token)
     {
         return (CommandRegistry.IsAliasFor(Taxi, token))
             || (CommandRegistry.IsAliasFor(AssignRunway, token))

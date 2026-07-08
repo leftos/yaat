@@ -16,6 +16,7 @@
 - An `ER`/`EL` exit side is now honored when followed by a bare `EXIT <taxiway>` — `ER` then `EXIT D` exits right at taxiway D.
 - Scenarios that pre-assign departure strips to a bay now place them there as each aircraft spawns, rather than in the printer queue.
 - Annotating (`AN`) or offsetting (`STRIPO`) a flight strip still in the printer is now rejected with a reminder to move it to a bay first.
+- Appending `GIVEWAY <callsign>` to a taxi clearance now works — `TAXI A A1 1R GIVEWAY KLM605` (comma optional) taxis the route and gives way to that traffic.
 
 ## v0.9.3-beta [2026/07/07]
 

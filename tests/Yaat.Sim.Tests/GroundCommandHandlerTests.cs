@@ -1701,6 +1701,26 @@ public class GroundCommandHandlerTests
         Assert.True(hs.IsCleared);
     }
 
+    [Fact]
+    public void DispatchCompound_TaxiWithTrailingGiveWay_AssignsRouteAndYields()
+    {
+        var ac = MakeAircraftAtParking();
+        var layout = MakeSimpleLayout();
+
+        // Issue #279: "TAXI A GIVEWAY UAL999" (no comma) splits into a TAXI + standalone GIVEWAY
+        // sharing one block. Applied in source order, GIVEWAY sees the just-assigned taxi route.
+        var parsed = CommandParser.ParseCompound("TAXI A GIVEWAY UAL999");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+
+        var result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(new SerializableRandom(42), groundLayout: layout));
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.NotNull(ac.Ground.AssignedTaxiRoute);
+        Assert.NotNull(ac.Ground.Hold);
+        Assert.Equal(HoldKind.GiveWay, ac.Ground.Hold!.Kind);
+        Assert.Equal("UAL999", ac.Ground.Hold.YieldTarget);
+    }
+
     // -------------------------------------------------------------------------
     // TryGiveWay — regression guards for invalidated prior-session claims (review §7 "Closed")
     // -------------------------------------------------------------------------
