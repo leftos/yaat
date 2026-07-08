@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.4-beta [2026/07/07]
+
+### Highlights
+- **Adjust taxi speed** — issue `SPD {n}` to a taxiing aircraft to taxi faster or slower than normal; `SPD 0` restores the default.
+- **Separate Departure and Arrival strip sections** — the flight-strip printer now splits departures and arrivals, each with its own Move to Bay and Move All to Bay button.
+- **No more UI freezes in busy sessions** — sessions with many aircraft (especially with route overlays shown) no longer stutter with periodic multi-second freezes.
+- **Smoother macOS graphics** — YAAT renders on Metal by default on Apple Silicon (lower CPU), with a new **Settings → Display → Graphics** selector to switch renderers.
 
 ### Added
 - Taxi speed is now adjustable — issue `SPD {n}` to a taxiing aircraft to taxi at `n` knots, slower or faster than normal (`SPD 0` restores normal).
@@ -18,7 +24,6 @@
 - Scenarios that pre-assign departure strips to a bay now place them there as each aircraft spawns, rather than in the printer queue.
 - Annotating (`AN`) or offsetting (`STRIPO`) a flight strip still in the printer is now rejected with a reminder to move it to a bay first.
 - Appending `GIVEWAY <callsign>` to a taxi clearance now works — `TAXI A A1 1R GIVEWAY KLM605` (comma optional) taxis the route and gives way to that traffic.
-- The flight-strip printer's **Move All to Bay** no longer spams bogus "strip moved" messages for arrivals or leaves blank phantom strips behind — it moves only its own section's strips.
 
 ## v0.9.3-beta [2026/07/07]
 
