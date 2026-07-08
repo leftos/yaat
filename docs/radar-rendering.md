@@ -75,6 +75,12 @@ equirectangular projection — valid because at TRACON scale (<120 nm) the disto
 - `LatLonToScreen(lat, lon)` / `ScreenToLatLon(x, y)` — the projection pair. Longitude is scaled by
   `cos(CenterLat)` so east-west distance matches north-south at the display center (`MapViewport.cs:26,32`).
 - `Pan` / `ZoomAt` — mutate `CenterLat/CenterLon/Zoom`; `ZoomAt` keeps the point under the cursor fixed.
+  Scroll-wheel zoom in `MapCanvasBase.OnPointerWheelChanged` scales its per-event step by the
+  `MapCanvasBase.ScrollSensitivity` CLR property (`factor = Math.Pow(step, direction * ScrollSensitivity)`;
+  1.0 = one full notch = historical speed). Views push `UserPreferences.ScrollSensitivity` into the canvas
+  via `RadarView.SyncAssignmentTint` / `GroundView` prefs-apply. Discrete DCB spinners (range/PTL/history/
+  brightness) and the range-ring-size step gate through `ScrollStepAccumulator` instead, so a Mac trackpad's
+  burst of small-delta events doesn't race them (#275).
 - `RotationDeg` — **set to the local magnetic declination** (east-positive) so the display is magnetic-north-up
   (`MapViewport.cs:19-23`). `RadarCanvas` sets it from `MagneticDeclination.GetDeclination(centerLat, centerLon)` whenever
   the center changes (`RadarCanvas.cs:669`, `:1413`).

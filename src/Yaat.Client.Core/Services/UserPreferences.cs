@@ -187,6 +187,7 @@ public sealed class UserPreferences
     public bool CollapseStudentDatablocks => _data.CollapseStudentDatablocks;
     public bool SyncStudentLeaderDirection => _data.SyncStudentLeaderDirection;
     public double TpaConeHalfAngleDegrees => _data.TpaConeHalfAngleDegrees;
+    public double ScrollSensitivity => Math.Clamp(_data.ScrollSensitivity, ScrollSensitivityMin, ScrollSensitivityMax);
     public bool AutoClearedToLandGnd => _data.AutoClearedToLandGnd;
     public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
     public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
@@ -749,6 +750,16 @@ public sealed class UserPreferences
     public void SetTpaConeHalfAngleDegrees(double degrees)
     {
         _data.TpaConeHalfAngleDegrees = Math.Clamp(degrees, TpaConeHalfAngleMin, TpaConeHalfAngleMax);
+        Save();
+    }
+
+    /// <summary>Min/max scroll-wheel sensitivity (1.0 = current speed, lower = slower — tames Mac trackpad zoom).</summary>
+    public const double ScrollSensitivityMin = 0.1;
+    public const double ScrollSensitivityMax = 1.0;
+
+    public void SetScrollSensitivity(double sensitivity)
+    {
+        _data.ScrollSensitivity = Math.Clamp(sensitivity, ScrollSensitivityMin, ScrollSensitivityMax);
         Save();
     }
 
@@ -1426,6 +1437,7 @@ public sealed class UserPreferences
             CollapseStudentDatablocks = GetFieldOr(obj, "collapseStudentDatablocks", false),
             SyncStudentLeaderDirection = GetFieldOr(obj, "syncStudentLeaderDirection", false),
             TpaConeHalfAngleDegrees = GetFieldOr(obj, "tpaConeHalfAngleDegrees", 2.0),
+            ScrollSensitivity = GetFieldOr(obj, "scrollSensitivity", 1.0),
             AutoClearedToLandGnd = GetFieldOr(obj, "autoClearedToLandGnd", true),
             AutoClearedToLandTwr = GetFieldOr(obj, "autoClearedToLandTwr", false),
             AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
@@ -1694,6 +1706,7 @@ public sealed class UserPreferences
         public bool CollapseStudentDatablocks { get; set; }
         public bool SyncStudentLeaderDirection { get; set; }
         public double TpaConeHalfAngleDegrees { get; set; } = 2.0;
+        public double ScrollSensitivity { get; set; } = 1.0;
         public bool AutoClearedToLandGnd { get; set; } = true;
         public bool AutoClearedToLandTwr { get; set; }
         public bool AutoClearedToLandApp { get; set; } = true;

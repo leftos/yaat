@@ -1412,6 +1412,7 @@ public partial class GroundView : UserControl
         _canvas.DatablockTextSize = prefs.GroundDatablockFontSize;
         _canvas.LabelTextSize = prefs.GroundLabelFontSize;
         _canvas.ShowSpeechBubbles = prefs.ShowSpeechBubbles;
+        _canvas.ScrollSensitivity = prefs.ScrollSensitivity;
     }
 
     /// <summary>
@@ -1430,6 +1431,7 @@ public partial class GroundView : UserControl
         if (DataContext is GroundViewModel vm && vm.Preferences is not null)
         {
             _canvas.ShowSpeechBubbles = vm.Preferences.ShowSpeechBubbles;
+            _canvas.ScrollSensitivity = vm.Preferences.ScrollSensitivity;
         }
     }
 }

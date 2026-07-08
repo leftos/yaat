@@ -151,6 +151,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private bool _initialFitDone;
     private bool _suppressRangeFit;
     private bool _suppressCenterSync;
+    private readonly Services.ScrollStepAccumulator _rangeRingSizeScroll = new();
     private bool _rightButtonDown;
     private bool _rightDragStarted;
     private Point _rightPressPos;
@@ -1712,7 +1713,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         if (IsAdjustingRangeRingSize)
         {
             var direction = e.Delta.Y > 0 ? 1 : -1;
-            RangeRingSizeNm = RadarViewModel.CycleRangeRingSize(RangeRingSizeNm, direction);
+            int steps = _rangeRingSizeScroll.Accumulate(direction, ScrollSensitivity);
+            for (int i = 0; i < Math.Abs(steps); i++)
+            {
+                RangeRingSizeNm = RadarViewModel.CycleRangeRingSize(RangeRingSizeNm, Math.Sign(steps));
+            }
             MarkDirty();
             e.Handled = true;
             return;

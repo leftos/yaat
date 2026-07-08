@@ -348,7 +348,7 @@ To change the reference fix, **middle-click** the "Dist" column header. A flyout
 An interactive airport surface map showing taxiways, runways, and aircraft positions. Useful for tower operations.
 
 - **Pan**: right-click and drag
-- **Zoom**: mouse wheel (hold **Ctrl** for fine zoom)
+- **Zoom**: mouse wheel (hold **Ctrl** for fine zoom) — scroll speed is adjustable under **Settings > Display > Scroll / zoom sensitivity**
 - **Rotate**: Shift + mouse wheel (1° per notch)
 - **Select aircraft**: click an aircraft triangle on the map
 
@@ -439,7 +439,7 @@ When weather is loaded, wind direction/speed and altimeter setting are displayed
 A simplified [STARS](#glossary)-style radar display showing aircraft targets, video maps, and navigation fixes. Useful for approach/departure operations.
 
 - **Pan**: right-click and drag
-- **Zoom**: mouse wheel (hold **Ctrl** for fine zoom)
+- **Zoom**: mouse wheel (hold **Ctrl** for fine zoom) — scroll speed is adjustable under **Settings > Display > Scroll / zoom sensitivity**
 - **Select aircraft**: click a target on the display
 
 **DCB bar** (top of the radar view):
@@ -1480,7 +1480,7 @@ Open **Settings** to configure:
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros))
 - **Audio** — Input device (microphone for push-to-talk speech recognition) and output device (used for pilot text-to-speech and the SAY/warning notification chime)
 - **Speech** — STT and TTS settings, including optional solo pilot voice, the Piper voice-pack install/remove controls, and **opt-in speech-sample capture** for sharing problem cases with the devs (see [Speech recognition debugging](#speech-recognition-debugging))
-- **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, ground labels, **terminal** (output + command input), and the **interface** (tabs, buttons, lists, and the Controllers / METAR panels) — each independently configurable, range 8–24. Plus **Strips Zoom** and **vTDLS Zoom** page-zoom percents (50–200%) that scale the whole Strips / vTDLS panel uniformly (Strips also has on-panel zoom buttons; the value is remembered across restarts). Also: command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); **No landing clearance warning** toggle (flashes a red `NoLndgClnc` line on the radar datablock for aircraft on final without a landing clearance); ground display options (start with datablocks hidden, show taxi route on hover, show all taxiing routes); per-window always-on-top toggles. **On macOS**, a **Graphics > Renderer** selector (Automatic / Metal / OpenGL / Software) — keep it on **Automatic** (Metal) for best performance on Apple Silicon and switch to **OpenGL** only if you see visual glitches; changes take effect after you restart YAAT
+- **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, ground labels, **terminal** (output + command input), and the **interface** (tabs, buttons, lists, and the Controllers / METAR panels) — each independently configurable, range 8–24. Plus **Strips Zoom** and **vTDLS Zoom** page-zoom percents (50–200%) that scale the whole Strips / vTDLS panel uniformly (Strips also has on-panel zoom buttons; the value is remembered across restarts). Also: a **Scroll / zoom sensitivity** slider (10–100%, default 100%) that slows mouse-wheel and trackpad scrolling when zooming the Radar and Ground views (and stepping the STARS DCB spinners) — lower it to tame a too-fast Mac trackpad; command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); **No landing clearance warning** toggle (flashes a red `NoLndgClnc` line on the radar datablock for aircraft on final without a landing clearance); ground display options (start with datablocks hidden, show taxi route on hover, show all taxiing routes); per-window always-on-top toggles. **On macOS**, a **Graphics > Renderer** selector (Automatic / Metal / OpenGL / Software) — keep it on **Automatic** (Metal) for best performance on Apple Silicon and switch to **OpenGL** only if you see visual glitches; changes take effect after you restart YAAT
 - **Colors** — Radar display colors (assignment tint, unassigned tint, selected aircraft color) and ground view colors
 - **Advanced** — Aircraft select keybind, focus command input keybind, take control keybind, always-on-top keybind, and server admin mode
 

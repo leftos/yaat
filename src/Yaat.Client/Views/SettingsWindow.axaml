@@ -478,6 +478,25 @@
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />
+                            <TextBlock Text="Scroll / zoom sensitivity:"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       Margin="0,8,0,0" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Slider Value="{Binding ScrollSensitivityPercent}"
+                                        Minimum="10"
+                                        Maximum="100"
+                                        TickFrequency="5"
+                                        IsSnapToTickEnabled="True"
+                                        Width="220"
+                                        VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ScrollSensitivityPercent, StringFormat='{}{0:0}%'}"
+                                           VerticalAlignment="Center"
+                                           Width="44" />
+                            </StackPanel>
+                            <TextBlock Text="Scales how fast the mouse wheel or trackpad scrolls when zooming the Radar and Ground views (and stepping the STARS DCB spinners). 100% keeps the current speed; lower values slow scrolling, which tames a too-fast Mac trackpad. Default 100%."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
                         </StackPanel>
                         <Separator Margin="0,4" />
                         <TextBlock Text="Windows"

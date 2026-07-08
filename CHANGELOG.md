@@ -5,6 +5,7 @@
 ### Added
 - Taxi speed is now adjustable — issue `SPD {n}` to a taxiing aircraft to taxi at `n` knots, slower or faster than normal (`SPD 0` restores normal).
 - macOS: a **Settings → Display → Graphics** selector to choose the graphics renderer (Automatic, Metal, OpenGL, or Software); takes effect after restart.
+- A **Settings → Display → Scroll / zoom sensitivity** slider (10–100%) slows mouse-wheel and trackpad zoom on the Radar and Ground views, taming a too-fast Mac trackpad.
 
 ### Changed
 - macOS now renders on Metal by default instead of OpenGL, reducing CPU use on Apple Silicon Macs.

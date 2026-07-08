@@ -369,6 +369,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private double _tpaConeHalfAngleDegrees;
 
+    /// <summary>Scroll-wheel/zoom sensitivity as a percentage (100 = current speed; lower slows trackpad scroll).</summary>
+    [ObservableProperty]
+    private double _scrollSensitivityPercent;
+
     [ObservableProperty]
     private int _radarFlyoutFontSize;
 
@@ -714,6 +718,7 @@ public partial class SettingsViewModel : ObservableObject
         _dataGridFontSize = _preferences.DataGridFontSize;
         _radarDatablockFontSize = _preferences.RadarDatablockFontSize;
         _tpaConeHalfAngleDegrees = _preferences.TpaConeHalfAngleDegrees;
+        _scrollSensitivityPercent = _preferences.ScrollSensitivity * 100.0;
         _radarFlyoutFontSize = _preferences.RadarFlyoutFontSize;
         _groundDatablockFontSize = _preferences.GroundDatablockFontSize;
         _groundLabelFontSize = _preferences.GroundLabelFontSize;
@@ -765,6 +770,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetCollapseStudentDatablocks(CollapseStudentDatablocks);
         _preferences.SetSyncStudentLeaderDirection(SyncStudentLeaderDirection);
         _preferences.SetTpaConeHalfAngleDegrees(TpaConeHalfAngleDegrees);
+        _preferences.SetScrollSensitivity(ScrollSensitivityPercent / 100.0);
         _preferences.SetSimulationShortcuts(
             AutoClearedToLandGnd,
             AutoClearedToLandTwr,

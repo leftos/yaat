@@ -1493,7 +1493,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         if (IsPanZoomEnabled && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            var delta = e.Delta.Y > 0 ? 1.0 : -1.0;
+            var delta = (e.Delta.Y > 0 ? 1.0 : -1.0) * ScrollSensitivity;
             Viewport.RotationDeg = (Viewport.RotationDeg + delta) % 360.0;
             OnViewportChanged();
             InvalidateVisual();

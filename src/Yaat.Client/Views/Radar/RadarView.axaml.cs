@@ -19,6 +19,8 @@ public partial class RadarView : UserControl
     private RadarCanvas? _canvas;
     private ContextMenu? _activeContextMenu;
     private Popup? _activeFieldPopup;
+    private double _scrollSensitivity = 1.0;
+    private readonly Services.ScrollStepAccumulator _dcbSpinnerScroll = new();
     private Func<string, Task>? _pendingInputAction;
     private Func<object, Task>? _pendingListAction;
     private bool _listPopupInitializing;
@@ -603,6 +605,8 @@ public partial class RadarView : UserControl
         _canvas.SyncStudentLeaderDirection = prefs.SyncStudentLeaderDirection;
         _canvas.DatablockTextSize = prefs.RadarDatablockFontSize;
         _canvas.TpaConeHalfAngleDegrees = prefs.TpaConeHalfAngleDegrees;
+        _canvas.ScrollSensitivity = prefs.ScrollSensitivity;
+        _scrollSensitivity = prefs.ScrollSensitivity;
         Flyouts.FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
     }
 
@@ -628,40 +632,50 @@ public partial class RadarView : UserControl
             return;
         }
 
-        var delta = e.Delta.Y > 0 ? 1 : -1;
+        var direction = e.Delta.Y > 0 ? 1 : -1;
+
+        // Discrete spinners step through the accumulator so a Mac trackpad's burst of
+        // events doesn't race; the horizontal-scroll fallback stays continuous (scaled).
+        int steps = _dcbSpinnerScroll.Accumulate(direction, _scrollSensitivity);
 
         if (vm.IsAdjustingRange)
         {
-            vm.AdjustRange(-delta);
+            vm.AdjustRange(-steps);
             e.Handled = true;
         }
         else if (vm.IsAdjustingRangeRingSize)
         {
-            vm.RangeRingSizeNm = RadarViewModel.CycleRangeRingSize(vm.RangeRingSizeNm, delta);
+            for (int i = 0; i < Math.Abs(steps); i++)
+            {
+                vm.RangeRingSizeNm = RadarViewModel.CycleRangeRingSize(vm.RangeRingSizeNm, Math.Sign(steps));
+            }
             e.Handled = true;
         }
         else if (vm.IsAdjustingPtlLength)
         {
-            vm.AdjustPtlLength(delta);
+            vm.AdjustPtlLength(steps);
             e.Handled = true;
         }
         else if (vm.IsAdjustingHistory)
         {
-            vm.AdjustHistoryCount(delta);
+            vm.AdjustHistoryCount(steps);
             e.Handled = true;
         }
         else if (vm.ActiveBriteTarget is { } briteTarget)
         {
-            vm.AdjustBrightness(briteTarget, delta * 5);
-            SyncCanvasBrightness(vm);
-
-            // Update just the affected button text
-            foreach (var (target, label, name) in BriteButtons)
+            if (steps != 0)
             {
-                if (target == briteTarget)
+                vm.AdjustBrightness(briteTarget, steps * 5);
+                SyncCanvasBrightness(vm);
+
+                // Update just the affected button text
+                foreach (var (target, label, name) in BriteButtons)
                 {
-                    UpdateBriteButtonText(vm, target, label, name);
-                    break;
+                    if (target == briteTarget)
+                    {
+                        UpdateBriteButtonText(vm, target, label, name);
+                        break;
+                    }
                 }
             }
 
@@ -673,7 +687,7 @@ public partial class RadarView : UserControl
             var scroller = this.FindControl<ScrollViewer>("DcbScroller");
             if (scroller is not null)
             {
-                scroller.Offset = scroller.Offset.WithX(scroller.Offset.X - delta * 40);
+                scroller.Offset = scroller.Offset.WithX(scroller.Offset.X - direction * 40 * _scrollSensitivity);
                 e.Handled = true;
             }
         }

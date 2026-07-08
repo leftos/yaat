@@ -2,7 +2,9 @@
 
 The **Ground View** is the top-down airport surface map (taxiways, runways, parking, aircraft) used for tower/ground control. It is a **distinct control tree** from the en-route Radar View — a separate canvas, renderer, and view-model — though both extend the same `MapCanvasBase` and share its two-thread snapshot pipeline, pan/zoom, and datablock deconfliction.
 
-> Read [`radar-rendering.md`](radar-rendering.md) first for the shared `MapCanvasBase` mechanics: the **two-thread render pipeline**, the **no-StyledProperty rule** (styled-property values must be copied into the immutable render snapshot before the render thread touches them), the 100 ms force-repaint timer, and `MapViewport`. This doc covers only what is ground-specific.
+> Read [`radar-rendering.md`](radar-rendering.md) first for the shared `MapCanvasBase` mechanics: the **two-thread render pipeline**, the **no-StyledProperty rule** (styled-property values must be copied into the immutable render snapshot before the render thread touches them), the 100 ms force-repaint timer, `MapViewport`, and the `ScrollSensitivity` scroll-zoom scaling. This doc covers only what is ground-specific.
+
+Ground's Shift+wheel rotation (`GroundCanvas.OnPointerWheelChanged`) scales its per-notch degrees by the inherited `MapCanvasBase.ScrollSensitivity`, pushed from `GroundView.ApplyFontSizePreferences` / `SyncSpeechBubblePreferences` (#275).
 
 For taxi-route *resolution and following* (the pathfinder and navigator), see [`ground/README.md`](ground/README.md). This doc is about *drawing* the ground view and the client-side route overlays.
 

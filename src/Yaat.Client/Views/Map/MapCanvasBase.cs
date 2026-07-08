@@ -44,6 +44,13 @@ public abstract class MapCanvasBase : Control
         set => _isPanZoomEnabled = value;
     }
 
+    /// <summary>
+    /// Scroll-wheel sensitivity in (0, 1]. 1.0 = one full zoom step per wheel notch (the
+    /// historical speed); lower values slow scroll-zoom, taming a Mac trackpad's burst of
+    /// small-delta events. See <see cref="Yaat.Client.Services.UserPreferences.ScrollSensitivity"/>.
+    /// </summary>
+    public double ScrollSensitivity { get; set; } = 1.0;
+
     /// <summary>Triggers an immediate repaint (before the next timer tick).</summary>
     public void MarkDirty()
     {
@@ -143,7 +150,8 @@ public abstract class MapCanvasBase : Control
         var pos = e.GetPosition(this);
         bool fine = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         var step = fine ? 1.05 : 1.2;
-        var factor = e.Delta.Y > 0 ? step : 1.0 / step;
+        var direction = e.Delta.Y > 0 ? 1.0 : -1.0;
+        var factor = Math.Pow(step, direction * ScrollSensitivity);
         _viewport.ZoomAt((float)pos.X, (float)pos.Y, factor);
         OnViewportChanged();
         InvalidateVisual();

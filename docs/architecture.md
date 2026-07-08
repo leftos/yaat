@@ -213,6 +213,7 @@ Services/
   SignatureHelpState.cs         # Observable state for signature help tooltip (overload nav, active param, dedup)
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional &1 or named &hdg)
   MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
+  ScrollStepAccumulator.cs      # Converts a burst of mouse-wheel events into whole discrete steps scaled by UserPreferences.ScrollSensitivity — slows DCB range/PTL/history/brightness spinners on a fast Mac trackpad (#275)
   CommandHistoryFormatter.cs    # Pure formatter — canonicalizes partial callsign prefix in up-arrow recall history
   NaturalCommandNormalizer.cs   # Shared transcript-to-canonical normalizer for solo-mode typed natural-language ATC input
   PilotVoicePack.cs             # Shared Piper voice-pack discovery/validation for installer and sherpa-onnx playback.
