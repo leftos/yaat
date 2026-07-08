@@ -1795,7 +1795,7 @@ public static class CommandDispatcher
                     return addHs;
                 }
                 holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
-                return Ok("Resume taxi");
+                return Ok(CommandDescriber.DescribeNatural(hsResume));
             }
 
             // Helicopter commands
@@ -1828,7 +1828,12 @@ public static class CommandDispatcher
                 {
                     return addHs;
                 }
-                return GroundCommandHandler.TryResumeTaxi(aircraft);
+                var resumeResult = GroundCommandHandler.TryResumeTaxi(aircraft);
+                if (!resumeResult.Success)
+                {
+                    return resumeResult;
+                }
+                return Ok(CommandDescriber.DescribeNatural(groundResume));
             }
             case CrossRunwayCommand cross:
                 return GroundCommandHandler.TryCrossRunway(aircraft, cross);

@@ -124,6 +124,8 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
         output.WriteLine($"RES (RunwayCrossing) result: success={result.Success} msg={result.Message}");
 
         Assert.True(result.Success, $"RES should clear crossing-runway hold-short, got: {result.Message}");
+        // Bare RES (no modifiers) still reads back as plain "Resume taxi".
+        Assert.Equal("Resume taxi", result.Message);
 
         // After RES, the phase list advances to CrossingRunway then Taxiing.
         // Within ~10 ticks the aircraft should be off HoldingShort and moving.
@@ -149,5 +151,35 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
 
         int postSegIndex = ac.Ground.AssignedTaxiRoute?.CurrentSegmentIndex ?? -1;
         Assert.True(postSegIndex >= preSegIndex, $"CurrentSegmentIndex should not regress, pre={preSegIndex} post={postSegIndex}");
+    }
+
+    /// <summary>
+    /// Reported bug: <c>RES CROSS 28L</c> cleared the crossing but the controller-facing
+    /// response was just "Resume taxi", dropping the crossing clause. The response must name
+    /// the pre-cleared crossing. At t=1300 N7LJ holds short of 28L/10R (RunwayCrossing).
+    /// </summary>
+    [Fact]
+    public void ResCross_ClearsCrossing_ResponseNamesRunway()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        engine.Replay(recording, 1300);
+
+        var ac = engine.FindAircraft("N7LJ");
+        Assert.NotNull(ac);
+        var holdPhase = ac.Phases?.CurrentPhase as HoldingShortPhase;
+        Assert.NotNull(holdPhase);
+        Assert.Equal("28L/10R", holdPhase.HoldShort.TargetName);
+
+        var result = engine.SendCommand("N7LJ", "RES CROSS 28L");
+        output.WriteLine($"RES CROSS 28L result: success={result.Success} msg={result.Message}");
+
+        Assert.True(result.Success, $"RES CROSS 28L should clear the crossing, got: {result.Message}");
+        Assert.Equal("Resume taxi (cross 28L)", result.Message);
     }
 }

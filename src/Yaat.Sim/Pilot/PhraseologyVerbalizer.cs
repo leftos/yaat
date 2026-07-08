@@ -165,6 +165,14 @@ public static class PhraseologyVerbalizer
             return RenderTaxiAlongRunway(alongRwy, fmt);
         }
 
+        // RES with CROSS/HS modifiers composes clauses the flat "resume taxi" rule template can't
+        // express (same reason RenderTaxiAlongRunway exists). Bare RES has no modifiers and falls
+        // through to the rule-driven path below.
+        if (cmd is ResumeCommand { CrossRunways.Count: > 0 } or ResumeCommand { HoldShorts.Count: > 0 })
+        {
+            return RenderResume((ResumeCommand)cmd, fmt);
+        }
+
         var canonicalType = CommandDescriber.ToCanonicalType(cmd);
         if (!RulesByType.TryGetValue(canonicalType, out var rules))
         {
@@ -411,6 +419,30 @@ public static class PhraseologyVerbalizer
         }
 
         return body;
+    }
+
+    /// <summary>
+    /// Renders a RES readback that carries CROSS / HS modifiers, composing the same
+    /// "cross runway …" / "hold short of …" clauses as <see cref="RenderTaxiAlongRunway"/>
+    /// after a "resume taxi" lead-in (7110.65 §3-7-2). Bare RES never reaches here.
+    /// </summary>
+    private static string RenderResume(ResumeCommand resume, CaptureFormatter fmt)
+    {
+        var body = new StringBuilder("resume taxi");
+
+        if (resume.CrossRunways is { Count: > 0 } cross)
+        {
+            body.Append($", cross runway {string.Join(" and ", cross.Select(fmt.Runway))}");
+        }
+
+        if (resume.HoldShorts is { Count: > 0 } holdShorts)
+        {
+            body.Append(
+                $", hold short of {string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? $"runway {fmt.Runway(h)}" : fmt.Taxiway(h)))}"
+            );
+        }
+
+        return body.ToString();
     }
 
     private static IReadOnlyDictionary<string, string> Map(string k, string v) => new Dictionary<string, string> { [k] = v };
