@@ -77,21 +77,27 @@ command into a compound for `DispatchCompound`, but that path is not how a user-
 
 ## The phase gate
 
-`DispatchWithPhase` (`CommandDispatcher.cs:1172`) decides what an active phase does with the first command:
+`DispatchWithPhase` (`CommandDispatcher.cs:1369`) decides what an active phase does with the block's **driver** command:
 
+0. **Pick the driver.** `FindPhaseGateDriverIndex` (`:1511`) selects the first *phase-interactive* (non-broad-transparent) command in the parallel
+   block — **not** blindly `Commands[0]`. A block only reaches the gate because it holds at least one non-transparent command (`IsAllTransparent`
+   claims the rest), so gating on a leading transparent sibling would let any phase that doesn't whitelist it reject the whole block. `SQ, SQNORM,
+   PUSH` at parking is the canonical case: `AtParkingPhase` rejects `Squawk`, so the batch failed even though each verb succeeded on its own.
 1. **Conditional leading block** (`AT FIX` / `LV alt` / distance-final / on-handoff / ground-entity) → return `null` so the compound takes the normal
    `DryRunValidate` + `EnqueueBlocks` path and the block waits for its `BlockTrigger`. The active phase must not be torn down by a block that hasn't
-   fired yet (`:1182`).
-2. **`UnsupportedCommand`** → hard reject (`:1193`). Never let an unsupported verb interact with phases — it used to map to `FlyHeading` and destroy
-   pattern state.
-3. **Phase-transparent command** → return `null` (`:1203`). `IsPhaseTransparentCommand` (`CommandDispatcher.cs:1321`) is a **narrow** dispatcher-local
+   fired yet.
+2. **`UnsupportedCommand`** → hard reject. Never let an unsupported verb interact with phases — it used to map to `FlyHeading` and destroy
+   pattern state. (`CommandDescriber.ToCanonicalType` *throws* on `UnsupportedCommand`, so the transparency probe guards it.)
+3. **Phase-transparent command** → return `null`. `IsPhaseTransparentCommand` (`CommandDispatcher.cs:1578`) is a **narrow** dispatcher-local
    list — RFIS/RTIS and their forced variants, `SafetyAlert`, `WakeAdvisory`, and `CancelAutoDelete` (NODEL). These are pure status setters that must
    never clear a phase; routing them through normal dispatch lets `NavigationCommandHandler` apply them without disturbing the phase.
-4. **Sim-control bypass** → return `null` (`:1212`). `IsSimControlBypass` (`:1337`) is just `Warp` / `WarpGround` — destructive teleports that wipe
+4. **Sim-control bypass** → return `null`. `IsSimControlBypass` (`:1595`) is just `Warp` / `WarpGround` — destructive teleports that wipe
    phase/queue/route *inside the handler*, so the gate has nothing to protect.
-5. **Tower command** → `TryApplyTowerCommand` first (`:1218`). If it returns non-null, the result is used (and any parallel sibling commands in the
-   same block are dispatched too). This is how `EF 28L, CLAND` applies both clauses.
-6. Otherwise consult the phase's acceptance verdict (`:1264`):
+5. **Tower command** → `TryApplyTowerCommand` on the driver. If it returns non-null, the result is used and every **sibling** command in the same
+   block is then applied via `ApplyParallelSibling` (`:1531`) — transparent siblings through `ApplyCommand`, the rest through `TryApplyTowerCommand`.
+   This is how `EF 28L, CLAND` applies both clauses, and why `PUSH, SQ 0233` no longer silently drops the squawk (a squawk has no tower arm, so the
+   old tower-only sibling loop skipped it).
+6. Otherwise consult the phase's acceptance verdict:
    - **`Rejected`** → return the reason; state unchanged.
    - **`ClearsPhase`** → return the `PhaseShouldBeCleared` sentinel (`:1276`) so `DispatchCompoundCore` can validate *before* clearing.
    - **`Allowed`** → return `null` (fall through to normal dispatch). Phase notification is deferred to `BuildApplyAction` after a successful apply.
@@ -248,7 +254,8 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
 4. **Gate VFR/IFR** if applicable: add pattern/option verbs to `RequiresVfr`; add departure-clearance modifiers to `CheckIfrDepartureCompatibility`.
 5. **Wire phase acceptance** — give the relevant phase a `CanAcceptCommand` arm (`Allowed` / `Rejected` / `ClearsPhase`, see [phases.md](phases.md)).
    A pure status verb that must never clear a phase goes in `CommandDescriber.IsPhaseTransparent` (broad list, fast path) and/or the dispatcher-local
-   `IsPhaseTransparentCommand` (narrow list, phase gate).
+   `IsPhaseTransparentCommand` (narrow list, phase gate). Put it on the **broad** list if it may ever ride alongside an interactive verb in a parallel
+   block — that list is also what excludes it from driving the phase gate (see the two-lists footgun below).
 6. **Verify the triggered path** — if the verb can be queued behind a trigger (`AT FIX` / `LV alt`), confirm `BuildApplyAction` re-dispatches it
    correctly (tower verbs need a `TryApplyTowerCommand` arm to avoid the no-dispatcher-arm fallback).
 7. **Give it display names** — add an arm for the new `ParsedCommand` in **both** `CommandDescriber.DescribeCommand` (canonical short form) and
@@ -275,14 +282,21 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
 - **VFR/IFR gating lives in the dispatcher, not the handlers.** `RequiresVfr` rejects pattern/option verbs for IFR aircraft;
   `CheckIfrDepartureCompatibility` rejects pattern-relative CTO modifiers for IFR departures. A new pattern-ish verb omitted from `RequiresVfr` is
   silently accepted for IFR traffic.
-- **Two different "transparent" lists.** `CommandDescriber.IsPhaseTransparent` (`CommandDescriber.cs:948`) is the **broad** list used by the
+- **Two different "transparent" lists.** `CommandDescriber.IsPhaseTransparent` (`CommandDescriber.cs:1262`) is the **broad** list used by the
   `IsAllTransparent` fast path (squawk, ident, say, RFIS/RTIS, NODEL, CT/FCA, expedite, …). A verb on this list is applied directly by
-  `ApplyTransparentCompound` (`CommandDispatcher.cs:297`), which **skips `ClearConflictingBlocks` entirely** — so it neither consults phases nor
-  wipes the queue. The dispatcher-local `IsPhaseTransparentCommand` (`CommandDispatcher.cs:1321`) is a **narrow** subset used by the phase gate to
+  `ApplyTransparentCompound`, which **skips `ClearConflictingBlocks` entirely** — so it neither consults phases nor
+  wipes the queue. The dispatcher-local `IsPhaseTransparentCommand` (`CommandDispatcher.cs:1578`) is a **narrow** subset used by the phase gate to
   fall through to normal dispatch (apply via the handler without clearing the active phase). They are not interchangeable. The real hazard runs the
   other way: a "harmless" status verb that is **omitted** from the broad list but whose `GetCommandDimension` resolves to `None` falls through to
-  normal dispatch, where `ClearConflictingBlocks`'s `All`/`None` fast path (`CommandDispatcher.cs:1809`) clears the **entire** pending queue — wiping a
-  queued pattern entry whether or not a phase is active (the in-code comment at `CommandDispatcher.cs:73` documents this, citing N435C in S2-OAK-5).
+  normal dispatch, where `ClearConflictingBlocks`'s `All`/`None` fast path clears the **entire** pending queue — wiping a
+  queued pattern entry whether or not a phase is active (the in-code comment at `CommandDispatcher.cs:84` documents this, citing N435C in S2-OAK-5).
+  The **broad** list has a second job inside the gate: it is what `FindPhaseGateDriverIndex` uses to skip transparent siblings when picking the
+  command the phase's `CanAcceptCommand` is asked about. Adding a status verb to only the narrow list therefore still lets it wrongly drive the gate
+  when it leads a mixed parallel block.
+- **A mixed parallel block gates on its interactive command, not its first.** `SQ, SQNORM, PUSH` is one block of three parallel commands. Because
+  `PUSH` is not transparent, the block loses the `IsAllTransparent` fast path and reaches the gate — where the *driver* (`PUSH`), not the leading
+  `SQ`, is checked against `CanAcceptCommand`, and the transparent siblings are applied via `ApplyParallelSibling`. Order within the block does not
+  matter. Regression coverage: `PhaseTransparentCommandTests.ParallelBlock_*_AtParking_AppliesAll`.
 - **Installing a phase has a lifecycle.** Build a fresh `PhaseList`, `Clear()` the old one with a `PhaseContext`, `Add` phases, then `Start()` with
   another `PhaseContext` (see `DispatchJfac`, `TryAirborneFollow` at `CommandDispatcher.cs:2387` — the install sequence is at `:2452`, `DispatchHoldingPattern`). Use
   `BuildMinimalContext` (`:1666`) to construct the `PhaseContext`. Skip the `Clear()`/`Start()` and you leave stale phase indices or unstarted phases.

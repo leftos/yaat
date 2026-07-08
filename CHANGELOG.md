@@ -5,6 +5,7 @@
 ### Fixed
 - `RES CROSS <rwy>` / `RES HS <target>` now name the runway crossing or added hold-short in both the response and the pilot's readback (e.g. `RES CROSS 28L` responds "Resume taxi (cross 28L)" and the pilot reads back "resume taxi, cross runway 28L") instead of replying with just "Resume taxi".
 - Aircraft List **Info** column warnings like "No landing clnc" now prepend to the aircraft's status instead of replacing it, so the phase stays visible.
+- Parallel commands mixing a transponder verb with a ground or tower verb now all take effect, such as `SQ, SQNORM, PUSH TE T` at parking.
 
 ## v0.9.5-beta [2026/07/08]
 

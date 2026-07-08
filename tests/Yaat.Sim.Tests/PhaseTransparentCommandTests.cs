@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -275,6 +276,83 @@ public class PhaseTransparentCommandTests
         Assert.True(ac.Approach.HasReportedFieldInSight);
         Assert.NotNull(ac.Phases);
         Assert.IsType<InterceptCoursePhase>(ac.Phases.CurrentPhase);
+    }
+
+    private static AircraftState MakeAircraftAtParking()
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "SWA5115",
+            AircraftType = "B738",
+            Position = new LatLon(37.728, -122.218),
+            TrueHeading = new TrueHeading(280),
+            Altitude = 6,
+            IndicatedAirspeed = 0,
+            IsOnGround = true,
+            FlightPlan = new AircraftFlightPlan { Departure = "OAK" },
+            Transponder = new AircraftTransponder
+            {
+                AssignedCode = 233,
+                Code = 7110,
+                Mode = "Standby",
+            },
+        };
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new AtParkingPhase());
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+        return ac;
+    }
+
+    /// <summary>
+    /// Bug: a parallel block mixing phase-transparent commands with one phase-interactive
+    /// command (<c>SQ 0233, SQNORM, PUSH</c>) loses the all-transparent fast path, so it routes
+    /// through DispatchWithPhase — which gated the block on its FIRST command. That first command
+    /// was the transparent SQ, which AtParkingPhase.CanAcceptCommand rejects ("aircraft is parked
+    /// with engines off"), even though each command succeeds when issued individually. The
+    /// phase-interactive command must drive the gate regardless of its position in the block.
+    /// </summary>
+    [Fact]
+    public void ParallelBlock_TransparentFirstThenPushback_AtParking_AppliesAll()
+    {
+        var ac = MakeAircraftAtParking();
+        Assert.IsType<AtParkingPhase>(ac.Phases!.CurrentPhase);
+
+        // Parse the real reported input: `,` must yield ONE block of three parallel commands.
+        var parsed = CommandParser.ParseCompound("SQ, SQNORM, PUSH");
+        Assert.True(parsed.IsSuccess);
+        var compound = parsed.Value!;
+        Assert.Single(compound.Blocks);
+        Assert.Equal(3, compound.Blocks[0].Commands.Count);
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+
+        Assert.True(result.Success, result.Message);
+        // Bare SQ is SquawkResetCommand → squawk the assigned code.
+        Assert.Equal(233u, ac.Transponder.Code);
+        Assert.Equal("C", ac.Transponder.Mode);
+        Assert.False(ac.Phases?.CurrentPhase is AtParkingPhase, "PUSH should have moved the aircraft out of AtParkingPhase");
+    }
+
+    /// <summary>
+    /// The mirror of the above: with the phase-interactive command first, the tower path applied
+    /// PUSH and then re-dispatched the remaining parallel commands through TryApplyTowerCommand
+    /// only — which returns null for squawk, so SQ/SQNORM were silently dropped. Transparent
+    /// siblings must be applied via ApplyCommand.
+    /// </summary>
+    [Fact]
+    public void ParallelBlock_PushbackFirstThenTransparent_AtParking_AppliesAll()
+    {
+        var ac = MakeAircraftAtParking();
+
+        var compound = new CompoundCommand([
+            new ParsedBlock(null, [new PushbackCommand(null, null, null, null, null), new SquawkCommand(233u), new SquawkNormalCommand()]),
+        ]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new Random(42), validateDctFixes: false));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(233u, ac.Transponder.Code);
+        Assert.Equal("C", ac.Transponder.Mode);
+        Assert.False(ac.Phases?.CurrentPhase is AtParkingPhase, "PUSH should have moved the aircraft out of AtParkingPhase");
     }
 
     private static AircraftState MakeAircraftOnFinalApproach()

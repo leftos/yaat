@@ -1381,8 +1381,15 @@ public static class CommandDispatcher
             return null;
         }
 
-        // Extract the first command to check acceptance
-        var firstCmd = compound.Blocks[0].Commands[0];
+        // Within a parallel block the phase-interactive command drives the phase gate; its
+        // phase-transparent siblings (squawk / ident / say / …) are metadata setters that every
+        // phase tolerates. Gating on a leading transparent command wrongly rejects the whole block:
+        // "SQ, SQNORM, PUSH" at parking loses the IsAllTransparent fast path (PUSH is interactive),
+        // and AtParkingPhase.CanAcceptCommand rejects Squawk — even though each command succeeds
+        // when issued on its own.
+        var gateBlock = compound.Blocks[0];
+        int driverIdx = FindPhaseGateDriverIndex(gateBlock);
+        var firstCmd = gateBlock.Commands[driverIdx];
 
         // Bail out immediately for unsupported commands — they must never interact
         // with phases (the old default fallback in ToCanonicalType mapped them to
@@ -1420,7 +1427,7 @@ public static class CommandDispatcher
                 return WithRejectedCommand(towerResult, firstCmd);
             }
 
-            // Dispatch remaining parallel commands in the same block (e.g. CLAND after EF 28L,
+            // Dispatch the other parallel commands in the same block (e.g. CLAND after EF 28L,
             // or CROSS after TAXI). Collect every per-command message so the RPO sees the full
             // outcome — without this, CLAND's "Cleared to land 28L" would be silently dropped
             // and the user would think only the EF took effect.
@@ -1429,10 +1436,15 @@ public static class CommandDispatcher
             {
                 messages.Add(towerResult.Message);
             }
-            var block = compound.Blocks[0];
-            for (int i = 1; i < block.Commands.Count; i++)
+            for (int i = 0; i < gateBlock.Commands.Count; i++)
             {
-                var subResult = TryApplyTowerCommand(block.Commands[i], aircraft, aircraft.Phases?.CurrentPhase ?? currentPhase, ctx);
+                if (i == driverIdx)
+                {
+                    continue;
+                }
+
+                var sibling = gateBlock.Commands[i];
+                var subResult = ApplyParallelSibling(sibling, aircraft, currentPhase, ctx);
                 if (subResult is null)
                 {
                     continue;
@@ -1446,7 +1458,7 @@ public static class CommandDispatcher
                         messages.Count > 0
                             ? $"{string.Join(", ", messages)}; but {subResult.Message}"
                             : subResult.Message ?? "Subsequent command failed";
-                    return WithRejectedCommand(new CommandResult(false, combinedFail), block.Commands[i]);
+                    return WithRejectedCommand(new CommandResult(false, combinedFail), sibling);
                 }
                 if (!string.IsNullOrEmpty(subResult.Message))
                 {
@@ -1477,6 +1489,54 @@ public static class CommandDispatcher
         // <see cref="BuildApplyAction"/> after a successful apply so a later
         // validation/apply failure does not release internal state (e.g. RV SID hold).
         return null;
+    }
+
+    /// <summary>
+    /// True when a parsed command is phase-transparent — a pure transponder/metadata setter
+    /// (squawk, ident, say, scratchpad, …) that no phase needs to gate. Guards
+    /// <see cref="UnsupportedCommand"/>, which <see cref="CommandDescriber.ToCanonicalType"/> throws on.
+    /// </summary>
+    private static bool IsTransparentCommand(ParsedCommand cmd) =>
+        cmd is not UnsupportedCommand && CommandDescriber.IsPhaseTransparent(CommandDescriber.ToCanonicalType(cmd));
+
+    /// <summary>
+    /// Index of the command in a parallel block that is checked against the active phase's
+    /// <see cref="Phase.CanAcceptCommand"/> — the first phase-interactive (non-transparent) command.
+    /// Transparent siblings must not drive the gate: a block reaches <see cref="DispatchWithPhase"/>
+    /// only because it holds at least one non-transparent command, so gating on a leading transparent
+    /// one makes every phase that doesn't whitelist it (e.g. <c>AtParkingPhase</c> vs <c>Squawk</c>)
+    /// reject the whole block. Falls back to 0 for an all-transparent block — unreachable in practice,
+    /// since <see cref="IsAllTransparent"/> claims those first.
+    /// </summary>
+    private static int FindPhaseGateDriverIndex(ParsedBlock block)
+    {
+        for (int i = 0; i < block.Commands.Count; i++)
+        {
+            if (!IsTransparentCommand(block.Commands[i]))
+            {
+                return i;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Applies one non-driver command of a parallel block after the driver was applied via the tower
+    /// path. Transparent siblings never reach a tower handler, so route them through
+    /// <see cref="ApplyCommand"/> — otherwise <c>PUSH, SQ 0233</c> silently drops the squawk. Returns
+    /// null when the sibling has no handler in this context, preserving the skip-and-continue
+    /// behaviour for non-tower, non-transparent commands.
+    /// </summary>
+    private static CommandResult? ApplyParallelSibling(ParsedCommand sibling, AircraftState aircraft, Phase currentPhase, DispatchContext ctx)
+    {
+        if (IsTransparentCommand(sibling))
+        {
+            // Mirror ApplyTransparentCompound: transparent commands bypass DCT-fix validation.
+            return ApplyCommand(sibling, aircraft, ctx with { ValidateDctFixes = false });
+        }
+
+        return TryApplyTowerCommand(sibling, aircraft, aircraft.Phases?.CurrentPhase ?? currentPhase, ctx);
     }
 
     /// <summary>
