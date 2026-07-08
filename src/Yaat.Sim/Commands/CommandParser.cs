@@ -2901,12 +2901,15 @@ public static class CommandParser
     }
 
     /// <summary>
-    /// Recognizes the optional <c>STRIP_…</c> id-form prefix that strip-tab
-    /// commands (STRIPD/STRIPO/AN/STRIP) use to address a specific full strip
-    /// — most importantly a scanned copy <c>STRIP_{callsign}_{shortGuid}</c>
-    /// that shares its callsign with the original. Match is case-insensitive.
+    /// Recognizes the optional full-strip id-form prefix that strip-tab
+    /// commands (STRIPD/STRIPO/AN/STRIP) use to address a specific full strip —
+    /// a departure/scanned copy <c>STRIP_…</c> (most importantly a scanned copy
+    /// <c>STRIP_{callsign}_{shortGuid}</c> sharing its callsign with the
+    /// original) or an arrival strip <c>ARRIVAL_{callsign}</c>. Match is
+    /// case-insensitive.
     /// </summary>
-    private static bool IsFullStripIdToken(string token) => token.StartsWith("STRIP_", StringComparison.OrdinalIgnoreCase);
+    private static bool IsFullStripIdToken(string token) =>
+        token.StartsWith("STRIP_", StringComparison.OrdinalIgnoreCase) || token.StartsWith("ARRIVAL_", StringComparison.OrdinalIgnoreCase);
 
     private static PR ParseStripDelete(string? arg)
     {
@@ -2919,7 +2922,7 @@ public static class CommandParser
         {
             return PR.Ok(new StripDeleteCommand(trimmed));
         }
-        return PR.Fail($"STRIPD takes no argument or a STRIP_<id> token (got '{trimmed}')");
+        return PR.Fail($"STRIPD takes no argument or a STRIP_<id>/ARRIVAL_<id> token (got '{trimmed}')");
     }
 
     private static PR ParseStripOffset(string? arg)
@@ -2933,7 +2936,7 @@ public static class CommandParser
         {
             return PR.Ok(new StripOffsetCommand(trimmed));
         }
-        return PR.Fail($"STRIPO takes no argument or a STRIP_<id> token (got '{trimmed}')");
+        return PR.Fail($"STRIPO takes no argument or a STRIP_<id>/ARRIVAL_<id> token (got '{trimmed}')");
     }
 
     private static PR ParseStripAnnotate(string arg)

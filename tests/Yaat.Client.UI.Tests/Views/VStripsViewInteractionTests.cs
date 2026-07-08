@@ -491,7 +491,6 @@ public class VStripsViewInteractionTests
                 FacilityId: "FAC1",
                 FacilityName: "Fresno ATCT",
                 Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
-                HasTwoPrinters: false,
                 SeparatorsLocked: true,
                 UnderlyingAirports: []
             )
@@ -937,7 +936,6 @@ public class VStripsViewInteractionTests
             FacilityId: "FAC1",
             FacilityName: "Fresno ATCT",
             Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
-            HasTwoPrinters: false,
             SeparatorsLocked: false,
             UnderlyingAirports: []
         );
@@ -958,7 +956,6 @@ public class VStripsViewInteractionTests
                 new StripBayConfigDto("bay-loc", "LOCAL", 2),
                 new StripBayConfigDto("bay-ext", "NCT", 5, IsExternal: true),
             ],
-            HasTwoPrinters: false,
             SeparatorsLocked: false,
             UnderlyingAirports: []
         );

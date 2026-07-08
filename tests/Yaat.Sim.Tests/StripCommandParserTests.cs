@@ -222,6 +222,24 @@ public class StripCommandParserTests
     }
 
     [Fact]
+    public void StripD_ArrivalIdForm_ParsesId()
+    {
+        // Arrival strips are keyed ARRIVAL_{callsign}; the arrival printer's
+        // Delete button addresses them by id (issue #278).
+        var result = CommandParser.Parse("STRIPD ARRIVAL_UAL100");
+        var cmd = Assert.IsType<StripDeleteCommand>(result.Value);
+        Assert.Equal("ARRIVAL_UAL100", cmd.StripId);
+    }
+
+    [Fact]
+    public void StripO_ArrivalIdForm_ParsesId()
+    {
+        var result = CommandParser.Parse("STRIPO ARRIVAL_UAL100");
+        var cmd = Assert.IsType<StripOffsetCommand>(result.Value);
+        Assert.Equal("ARRIVAL_UAL100", cmd.StripId);
+    }
+
+    [Fact]
     public void StripD_StripIdForm_RejectsExtraTokens()
     {
         // Extra tokens are user error; the handler can't disambiguate so

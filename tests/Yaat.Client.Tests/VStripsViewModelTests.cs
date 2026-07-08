@@ -38,13 +38,15 @@ public class VStripsViewModelTests
             FacilityId: "FAC1",
             FacilityName: "Fresno ATCT",
             Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
-            HasTwoPrinters: false,
             SeparatorsLocked: false,
             UnderlyingAirports: []
         );
 
     private static StripItemDto FullStrip(string id, string callsign) =>
         new(id, callsign, IsDisconnected: false, StripItemType.DepartureStrip, IsOffset: false, FieldValues: [callsign, "", "B738/L"]);
+
+    private static StripItemDto ArrivalStrip(string id, string callsign) =>
+        new(id, callsign, IsDisconnected: false, StripItemType.ArrivalStrip, IsOffset: false, FieldValues: [callsign, "", "B738/L"]);
 
     private static StripItemDto HalfStrip(string id, string firstLine) =>
         new(id, AircraftId: null, IsDisconnected: false, StripItemType.HalfStripLeft, IsOffset: false, FieldValues: [firstLine]);
@@ -266,6 +268,45 @@ public class VStripsViewModelTests
         Assert.Equal("", entry.Callsign);
         // Wire is slash-compound 1-based: rack 1 → "2", index 2 → "3".
         Assert.Equal("STRIP S1 LOCAL/2/3", entry.Command);
+    }
+
+    [Fact]
+    public async Task MoveAllToBay_Departure_MovesOnlyDepartureStripsById()
+    {
+        // Issue #278 — "Move All to Bay" in the Departure Printer section must
+        // move only the departure strips, addressing each by id (not the bare
+        // callsign form, which would mis-target an arrival's ARRIVAL_ id and
+        // spawn a phantom server-side).
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.SelectedBay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        vm.ReconcileItems([FullStrip("STRIP_UAL100", "UAL100"), ArrivalStrip("ARRIVAL_DAL200", "DAL200")]);
+        vm.ReconcileFullState(State(printer: ["STRIP_UAL100", "ARRIVAL_DAL200"]));
+
+        await vm.MoveAllPrinterStripsToBayAsync(PrinterQueueKind.Departure);
+
+        var entry = Assert.Single(captured);
+        Assert.Equal("", entry.Callsign);
+        Assert.Equal("STRIP STRIP_UAL100 GROUND/1", entry.Command);
+    }
+
+    [Fact]
+    public async Task MoveAllToBay_Arrival_MovesOnlyArrivalStripsById()
+    {
+        // Issue #278 — the Arrival Printer section's "Move All to Bay" moves only
+        // arrival strips, addressed by their ARRIVAL_ id so the server recognizes
+        // and relocates them (no departure strips swept, no phantom).
+        var (vm, captured) = MakeVm();
+        SeedBays(vm, SimpleConfig());
+        vm.SelectedBay = vm.Bays.Single(b => b.BayId == "bay-gnd");
+        vm.ReconcileItems([FullStrip("STRIP_UAL100", "UAL100"), ArrivalStrip("ARRIVAL_DAL200", "DAL200")]);
+        vm.ReconcileFullState(State(printer: ["STRIP_UAL100", "ARRIVAL_DAL200"]));
+
+        await vm.MoveAllPrinterStripsToBayAsync(PrinterQueueKind.Arrival);
+
+        var entry = Assert.Single(captured);
+        Assert.Equal("", entry.Callsign);
+        Assert.Equal("STRIP ARRIVAL_DAL200 GROUND/1", entry.Command);
     }
 
     [Fact]
@@ -521,7 +562,6 @@ public class VStripsViewModelTests
                 new StripBayConfigDto("bay-loc", "LOCAL", 2, IsExternal: false),
                 new StripBayConfigDto("bay-nct", "NCT", 3, IsExternal: true),
             ],
-            HasTwoPrinters: false,
             SeparatorsLocked: false,
             UnderlyingAirports: []
         );
@@ -591,7 +631,6 @@ public class VStripsViewModelTests
                 FacilityId: "FAC_OWN",
                 FacilityName: "None",
                 Bays: [new StripBayConfigDto("bay-ext", "EXT", 1, IsExternal: true)],
-                HasTwoPrinters: false,
                 SeparatorsLocked: false,
                 UnderlyingAirports: []
             )
@@ -671,7 +710,6 @@ public class VStripsViewModelTests
             FacilityId: "FAC1",
             FacilityName: facilityName,
             Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2)],
-            HasTwoPrinters: false,
             SeparatorsLocked: false,
             UnderlyingAirports: airports
         );

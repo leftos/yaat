@@ -318,10 +318,10 @@
             <!-- Printer modal — matches docs/crc/img/printer.png. Centered
                  dark panel with: request-strip input + button, print-blank
                  button, then one carousel per printer (departure + arrival
-                 when HasTwoPrinters else combined) with left/right arrows
-                 flanking a single-strip preview, a "N/M" counter, and
-                 move-to-bay / delete buttons. Dims the backdrop to signal
-                 modal focus but still lets the user drag strips out if
+                 sections, always both) with left/right arrows flanking a
+                 single-strip preview, a "N/M" counter, and
+                 move-to-bay / move-all / delete buttons. Dims the backdrop to
+                 signal modal focus but still lets the user drag strips out if
                  they target a rack. -->
             <!-- No backdrop dim — the racks stay fully visible behind the
                  printer modal so "Move to Bay" updates show up immediately
@@ -370,10 +370,9 @@
                                 HorizontalAlignment="Center"
                                 Click="OnPrintBlankClick"/>
 
-                        <!-- Arrival printer — stacked below departure in the
-                             two-printer layout; hidden when HasTwoPrinters=false. -->
+                        <!-- Arrival printer — stacked below departure. Always shown
+                             as its own section so arrivals are visible and movable. -->
                         <StackPanel DockPanel.Dock="Bottom"
-                                    IsVisible="{Binding Printer.HasTwoPrinters}"
                                     Spacing="6" Margin="0,16,0,0">
                             <Separator Margin="0,4" Background="#4A4A52"/>
                             <TextBlock Text="Arrival Printer:" HorizontalAlignment="Center"
@@ -404,6 +403,10 @@
                                         Background="#2F6FB8" Foreground="White"
                                         Padding="14,4"
                                         Click="OnArrivalMoveToBayClick"/>
+                                <Button Content="Move All to Bay"
+                                        Background="#2F6FB8" Foreground="White"
+                                        Padding="14,4"
+                                        Click="OnArrivalMoveAllToBayClick"/>
                                 <Button Content="Delete"
                                         Background="#B8323A" Foreground="White"
                                         Padding="14,4"
@@ -411,11 +414,10 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- Departure printer carousel (or combined when single printer) -->
+                        <!-- Departure printer carousel -->
                         <StackPanel Spacing="6" Margin="0,16,0,0">
                             <Separator Margin="0,4" Background="#4A4A52"/>
                             <TextBlock Text="Departure Printer:"
-                                       IsVisible="{Binding Printer.HasTwoPrinters}"
                                        HorizontalAlignment="Center"
                                        FontSize="14" Foreground="White"/>
                             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
@@ -448,7 +450,7 @@
                                 <Button Content="Move All to Bay"
                                         Background="#2F6FB8" Foreground="White"
                                         Padding="14,4"
-                                        Click="OnMoveAllToBayClick"/>
+                                        Click="OnDepartureMoveAllToBayClick"/>
                                 <Button Content="Delete"
                                         Background="#B8323A" Foreground="White"
                                         Padding="14,4"

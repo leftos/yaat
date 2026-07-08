@@ -230,7 +230,7 @@ ATCT facility). That facility's `stripBays` plus its linked
 case- and whitespace-insensitive so commands can refer to `Ground 1`
 as `Ground1`. See `GetAllAccessibleStripBays` for the bare list,
 and `GetStripBay(artccId, facilityId, bayName)` for the legacy
-facility-id lookup used by `HandleStripPush` for non-tower callers.
+facility-id lookup used by `HandleStripMoveAsync` for non-tower callers.
 
 Whitespace-insensitive matching applies to both APIs; the in-facility
 exact match is tried first, then a normalized fallback.
@@ -241,7 +241,7 @@ Defined in `src/Yaat.Sim/Commands/`:
 
 | Canonical type | Primary alias | Aliases | Record |
 |----------------|---------------|---------|--------|
-| `StripPush` | `STRIP` | — | `StripPushCommand(BayName)` |
+| `StripMove` | `STRIP` | — | `StripMoveCommand(Tokens)` |
 | `StripScan` | `SCAN` | — | `StripScanCommand(Tokens)` |
 | `Annotate` | `AN` | `ANNOTATE`, `BOX` | `StripAnnotateCommand(Box, Text)` |
 | `HalfStripCreate` | `HSC` | `HALFSTRIPCREATE` | `HalfStripCreateCommand(BayName, Rack, Lines)` |
@@ -283,22 +283,30 @@ strip command failed with `[Deferred] could not apply: Unable to Annotate strip 
 ### Full strip: `STRIP`, `AN`, `STRIPD`, `STRIPO`
 
 All four are aircraft-scoped by default (resolve via the selected
-callsign) and additionally accept an optional leading `STRIP_<id>`
+callsign) and additionally accept an optional leading full-strip id
 token so the strips UI / CRC translator can address a specific full
-strip — most importantly a scanned copy `STRIP_{callsign}_{shortGuid}`
-that shares its callsign with the original.
+strip. A full-strip id is `STRIP_…` (a departure `STRIP_{callsign}`, or a
+scanned copy `STRIP_{callsign}_{shortGuid}` sharing its callsign with the
+original) or `ARRIVAL_{callsign}` (an arrival strip). `HandleStripMoveAsync`
+recognizes both prefixes via `IsFullStripId`.
 
-- `STRIP {bay}[/{rack}[/{index}]]` pushes or reassigns a full flight
-  strip keyed by `STRIP_{callsign}` to the named bay. Rack and index
-  are **1-based** on the wire and converted to 0-based internally —
-  `rack 1` in the spec means `Racks[0]` in the code. Both default to
-  the first rack / first slot when omitted. The record is type
-  `DepartureStrip (0)`. The slash-compound form removes the
-  greedy-bay-match ambiguity that applied to the older space-separated
-  syntax. **Id form:** `STRIP STRIP_<id> {bay}[/{rack}[/{index}]]` moves
-  the specific strip identified by id; the strip must already exist
-  (the handler does not synthesize a phantom record from an arbitrary
-  id) and the dispatch callsign is irrelevant.
+- `STRIP {bay}[/{rack}[/{index}]]` **moves** an existing full flight
+  strip keyed by `STRIP_{callsign}` to the named bay — it never
+  fabricates one. Rack and index are **1-based** on the wire and
+  converted to 0-based internally — `rack 1` in the spec means
+  `Racks[0]` in the code. Both default to the first rack / first slot
+  when omitted. The slash-compound form removes the greedy-bay-match
+  ambiguity that applied to the older space-separated syntax. If no
+  `STRIP_{callsign}` strip exists (e.g. the callsign is an arrival,
+  whose strip is keyed `ARRIVAL_{callsign}`), the command errors with
+  `No flight strip for {callsign}` rather than synthesizing an empty
+  phantom `DepartureStrip` (issue #278 — the old synthesis was the
+  source of the "Move All to Bay" arrival spam). **Id form:**
+  `STRIP {STRIP_<id>|ARRIVAL_<id>} {bay}[/{rack}[/{index}]]` moves the
+  specific strip identified by id; the strip must already exist and the
+  dispatch callsign is irrelevant. This is how arrival strips are moved
+  out of the arrival printer (their `ARRIVAL_` id is not a bare
+  callsign).
 - `AN {box} [text]` writes (or clears) annotation text into one of
   boxes 1–9 on the aircraft's strip. Field index is `box + 9`. Accepts
   `AN 10`–`AN 18` as aliases for `AN 1`–`AN 9`.
@@ -321,7 +329,7 @@ The strips UI always emits the id form so scanned copies are addressable;
 terminal users keep the bare callsign-keyed shorthand, and old
 recordings (which only carry the bare form) replay deterministically.
 
-`HandleStripPush` resolves the bay using `GetAccessibleStripBay(artccId, positionCallsign, bayName)`,
+`HandleStripMoveAsync` resolves the bay using `GetAccessibleStripBay(artccId, positionCallsign, bayName)`,
 closing the tower-vs-TRACON facility gap. Tower students can now `STRIP`
 against all bays visible to their tower position.
 
@@ -343,7 +351,7 @@ is deep-copied at scan time; subsequent `AN` / `STRIPO` on the originator
 do **not** propagate to the copy (and vice-versa — each facility owns its
 working copy after a scan).
 
-The destination-facility check from `HandleStripPush` carries over:
+The destination-facility check from `HandleStripMoveAsync` carries over:
 if no connected CRC client staffs a position in the receiving facility,
 the result message includes a "no controller connected" warning so the
 sending controller knows the coordination preview has no live receiver.

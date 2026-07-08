@@ -9,6 +9,7 @@
 
 ### Changed
 - macOS now renders on Metal by default instead of OpenGL, reducing CPU use on Apple Silicon Macs.
+- The flight-strip printer modal now shows separate **Departure** and **Arrival** sections, each with its own **Move to Bay** and **Move All to Bay** button.
 
 ### Fixed
 - Busy sessions with many aircraft no longer cause periodic multi-second UI freezes, most noticeable with taxi-route or nav-route overlays shown.
@@ -17,6 +18,7 @@
 - Scenarios that pre-assign departure strips to a bay now place them there as each aircraft spawns, rather than in the printer queue.
 - Annotating (`AN`) or offsetting (`STRIPO`) a flight strip still in the printer is now rejected with a reminder to move it to a bay first.
 - Appending `GIVEWAY <callsign>` to a taxi clearance now works — `TAXI A A1 1R GIVEWAY KLM605` (comma optional) taxis the route and gives way to that traffic.
+- The flight-strip printer's **Move All to Bay** no longer spams bogus "strip moved" messages for arrivals or leaves blank phantom strips behind — it moves only its own section's strips.
 
 ## v0.9.3-beta [2026/07/07]
 

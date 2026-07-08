@@ -269,7 +269,6 @@ public partial class VStripsViewModel : ObservableObject
             FacilityId = config.FacilityId;
             FacilityName = config.FacilityName;
             SeparatorsLocked = config.SeparatorsLocked;
-            Printer.HasTwoPrinters = config.HasTwoPrinters;
 
             // Follow the displayed facility: re-scope the METAR bar to its airports.
             _facilityAirports = config.UnderlyingAirports ?? [];
@@ -1155,7 +1154,7 @@ public partial class VStripsViewModel : ObservableObject
         {
             PrinterQueueKind.Departure => Printer.VisibleDepartureStrip,
             PrinterQueueKind.Arrival => Printer.VisibleArrivalStrip,
-            _ => Printer.VisibleStrip,
+            _ => Printer.VisibleDepartureStrip,
         };
         if (strip is null)
         {
@@ -1169,34 +1168,32 @@ public partial class VStripsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Moves every strip currently in the printer queues to the first rack
-    /// of <see cref="SelectedBay"/>, ordered alphabetically by callsign so
-    /// the visual top-to-bottom stack reads in callsign order. Blanks (no
-    /// callsign) sort to the bottom of the alphabetical list. Each strip is
-    /// dispatched as an explicit <c>STRIP bay/1/i</c> with a 1-based index
-    /// so the server preserves the requested order — relying on "append"
-    /// would let intervening server-side broadcasts reorder concurrent
-    /// dispatches.
+    /// Moves every strip in the <paramref name="kind"/> printer section
+    /// (departures or arrivals) to the first rack of <see cref="SelectedBay"/>,
+    /// ordered alphabetically by callsign so the visual top-to-bottom stack
+    /// reads in callsign order. Blanks (no callsign) sort to the bottom of the
+    /// list. Each strip is dispatched by id via <see cref="MoveStripAsync"/>
+    /// (append to tail), so arrival strips (<c>ARRIVAL_</c> ids) and scanned
+    /// copies target the right strip and the server never synthesizes a phantom
+    /// departure strip (issue #278). Dispatched in reverse alphabetical order so
+    /// successive appends stack ascending top-to-bottom on screen.
     /// </summary>
-    public async Task MoveAllPrinterStripsToBayAsync()
+    public async Task MoveAllPrinterStripsToBayAsync(PrinterQueueKind kind)
     {
         if (SelectedBay is null)
         {
             return;
         }
-        // Snapshot the current queue so the dispatch loop sees a stable list
-        // even as the server's broadcasts mutate Printer.* mid-flight.
-        var pending = Printer.Queue.ToList();
+        // Snapshot the section's queue so the dispatch loop sees a stable list
+        // even as the server's broadcasts (and the optimistic moves below)
+        // mutate the printer collections mid-flight.
+        var source = kind == PrinterQueueKind.Arrival ? Printer.ArrivalQueue : Printer.DepartureQueue;
+        var pending = source.ToList();
         if (pending.Count == 0)
         {
             return;
         }
-        // Sort ascending: AAL → ZZZZ. Dispatch in REVERSE so the first
-        // dispatched (last alphabetically) lands at index 0 (visual bottom)
-        // and successive appends stack above — yielding ascending top-to-
-        // bottom on screen, the natural reading order.
         var sorted = pending.OrderBy(s => s.AircraftId ?? "~", StringComparer.OrdinalIgnoreCase).ToList();
-        var initials = _getUserInitials?.Invoke() ?? "";
         for (var i = sorted.Count - 1; i >= 0; i--)
         {
             var strip = sorted[i];
@@ -1204,9 +1201,7 @@ public partial class VStripsViewModel : ObservableObject
             {
                 continue; // half-strips and separators don't sit in the printer
             }
-            var canonical = VStripsCanonicalBuilder.BuildStripMove(SelectedBay.Name, rack: 0, index: null);
-            var callsign = strip.AircraftId ?? "";
-            await _sendCommand(callsign, canonical, initials);
+            await MoveStripAsync(strip, SelectedBay, rack: 0, index: null);
         }
     }
 
@@ -1220,7 +1215,7 @@ public partial class VStripsViewModel : ObservableObject
         {
             PrinterQueueKind.Departure => Printer.VisibleDepartureStrip,
             PrinterQueueKind.Arrival => Printer.VisibleArrivalStrip,
-            _ => Printer.VisibleStrip,
+            _ => Printer.VisibleDepartureStrip,
         };
         if (strip is null)
         {
@@ -1366,15 +1361,14 @@ public enum NavDirection
 }
 
 /// <summary>
-/// Which printer carousel a command targets. Used by
-/// <see cref="VStripsViewModel.MoveVisiblePrinterStripToBayAsync"/> and
-/// <see cref="VStripsViewModel.DeleteVisiblePrinterStripAsync"/> so a single
-/// entry point services both the two-printer and the combined single-printer
-/// rendering paths.
+/// Which printer carousel a command targets — the departure section (departures
+/// and blanks) or the arrival section. Used by
+/// <see cref="VStripsViewModel.MoveVisiblePrinterStripToBayAsync"/>,
+/// <see cref="VStripsViewModel.MoveAllPrinterStripsToBayAsync"/>, and
+/// <see cref="VStripsViewModel.DeleteVisiblePrinterStripAsync"/>.
 /// </summary>
 public enum PrinterQueueKind
 {
-    Combined,
     Departure,
     Arrival,
 }

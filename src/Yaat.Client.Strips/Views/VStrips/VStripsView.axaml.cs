@@ -1572,11 +1572,19 @@ public partial class VStripsView : UserControl
         }
     }
 
-    private async void OnMoveAllToBayClick(object? sender, RoutedEventArgs e)
+    private async void OnDepartureMoveAllToBayClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is VStripsViewModel vm)
         {
-            await vm.MoveAllPrinterStripsToBayAsync();
+            await vm.MoveAllPrinterStripsToBayAsync(PrinterQueueKind.Departure);
+        }
+    }
+
+    private async void OnArrivalMoveAllToBayClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is VStripsViewModel vm)
+        {
+            await vm.MoveAllPrinterStripsToBayAsync(PrinterQueueKind.Arrival);
         }
     }
 

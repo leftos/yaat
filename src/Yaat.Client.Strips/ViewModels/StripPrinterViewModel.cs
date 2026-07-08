@@ -9,24 +9,19 @@ namespace Yaat.Client.ViewModels;
 /// into a single <see cref="FlightStripsStateDto.PrinterItems"/> array on the
 /// wire, so the VM demuxes by <see cref="StripItemDto.Type"/> into separate
 /// carousels — departure strips and blanks on one side, arrivals on the
-/// other — matching the CRC printer modal (docs/crc/img/printer.png).
+/// other — matching the CRC printer modal (docs/crc/img/printer.png). The
+/// VStrips view always renders both sections.
 ///
-/// Each carousel tracks its own <c>Visible*Index</c> pointer plus navigation
-/// commands. The VStrips view binds the printer panel to the appropriate
-/// queue + index based on <see cref="HasTwoPrinters"/>; when false, the UI
-/// shows a single combined section bound to <see cref="Queue"/>.
+/// <see cref="Queue"/> is the un-split aggregate, kept only so drag-out (a
+/// strip dragged from the printer onto a rack) and reset can locate/remove an
+/// item without knowing its section. Each carousel tracks its own
+/// <c>Visible*Index</c> pointer plus navigation commands.
 /// </summary>
 public partial class StripPrinterViewModel : ObservableObject
 {
     public ObservableCollection<StripItemViewModel> Queue { get; } = [];
     public ObservableCollection<StripItemViewModel> DepartureQueue { get; } = [];
     public ObservableCollection<StripItemViewModel> ArrivalQueue { get; } = [];
-
-    [ObservableProperty]
-    private bool _hasTwoPrinters;
-
-    [ObservableProperty]
-    private int _visibleIndex;
 
     [ObservableProperty]
     private int _visibleDepartureIndex;
@@ -37,7 +32,6 @@ public partial class StripPrinterViewModel : ObservableObject
     [ObservableProperty]
     private bool _isOpen;
 
-    public StripItemViewModel? VisibleStrip => VisibleIndex >= 0 && VisibleIndex < Queue.Count ? Queue[VisibleIndex] : null;
     public StripItemViewModel? VisibleDepartureStrip =>
         VisibleDepartureIndex >= 0 && VisibleDepartureIndex < DepartureQueue.Count ? DepartureQueue[VisibleDepartureIndex] : null;
     public StripItemViewModel? VisibleArrivalStrip =>
@@ -49,7 +43,6 @@ public partial class StripPrinterViewModel : ObservableObject
     /// </summary>
     public string DepartureCounter => DepartureQueue.Count == 0 ? "0/0" : $"{VisibleDepartureIndex + 1}/{DepartureQueue.Count}";
     public string ArrivalCounter => ArrivalQueue.Count == 0 ? "0/0" : $"{VisibleArrivalIndex + 1}/{ArrivalQueue.Count}";
-    public string CombinedCounter => Queue.Count == 0 ? "0/0" : $"{VisibleIndex + 1}/{Queue.Count}";
 
     /// <summary>
     /// Callsign the user last asked to bring into view via "Request Strip".
@@ -164,10 +157,6 @@ public partial class StripPrinterViewModel : ObservableObject
             }
         }
 
-        if (VisibleIndex >= Queue.Count)
-        {
-            VisibleIndex = Math.Max(0, Queue.Count - 1);
-        }
         if (VisibleDepartureIndex >= DepartureQueue.Count)
         {
             VisibleDepartureIndex = Math.Max(0, DepartureQueue.Count - 1);
@@ -181,18 +170,10 @@ public partial class StripPrinterViewModel : ObservableObject
         // button) now that the queue reflects the server's latest state.
         TryApplyPendingFocus();
 
-        OnPropertyChanged(nameof(VisibleStrip));
         OnPropertyChanged(nameof(VisibleDepartureStrip));
         OnPropertyChanged(nameof(VisibleArrivalStrip));
         OnPropertyChanged(nameof(DepartureCounter));
         OnPropertyChanged(nameof(ArrivalCounter));
-        OnPropertyChanged(nameof(CombinedCounter));
-    }
-
-    partial void OnVisibleIndexChanged(int value)
-    {
-        OnPropertyChanged(nameof(VisibleStrip));
-        OnPropertyChanged(nameof(CombinedCounter));
     }
 
     partial void OnVisibleDepartureIndexChanged(int value)

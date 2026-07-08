@@ -55,7 +55,6 @@ public record FlightStripsConfigDto(
     string FacilityId,
     string FacilityName,
     StripBayConfigDto[] Bays,
-    bool HasTwoPrinters,
     bool SeparatorsLocked,
     // Airports this facility controls — the airport for a tower, all underlying
     // airports for a TRACON. Scopes the current-METAR display to the facility

@@ -674,11 +674,13 @@ The printer modal is a centered overlay reachable via the **Printer** toggle, **
 
 - **Request Strip** — type a callsign and click to ask the server to print that aircraft's strip. Requesting one for an aircraft that already has a strip prints a fresh copy that stacks in the printer, so a lost or late strip can be reprinted.
 - **Print Blank Strip** — adds a blank to the printer queue
-- **Departure printer carousel** — ❮ ❯ arrows step through queued strips, **N/M** counter shows position
-  - **Move to Bay** — opens a bay picker for the visible strip
-  - **Move All to Bay** — bulk-moves the entire queue
+The modal has two sections, **Departure printer** and **Arrival printer**, each with its own carousel and buttons:
+
+- **Departure printer** — ❮ ❯ arrows step through the queued departure strips (and blanks), **N/M** counter shows position
+  - **Move to Bay** — moves the visible strip to the selected bay
+  - **Move All to Bay** — moves every departure strip to the selected bay
   - **Delete** — discards the visible strip
-- **Arrival printer carousel** — only present when the ARTCC config enables separate arrival/departure printers (`EnableSeparateArrDepPrinters`); otherwise arrivals share the departure queue.
+- **Arrival printer** — the same controls for arrival strips (auto-printed within 20 minutes of arrival). **Move All to Bay** here moves only the arrival strips, so it no longer prints spurious messages for arrivals when clearing departures.
 
 #### Auto-printing
 
