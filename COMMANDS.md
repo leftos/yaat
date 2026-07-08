@@ -620,6 +620,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
 | `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |
 | `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
+| `TAXI D C HS E RWY 28R` | Taxi via D, C, hold short of **taxiway** E, then continue to runway 28R. A taxiway named as a hold-short target also steers the route — it is taxied through (D→C→E), not detoured around — so this is equivalent to `TAXI D C E HS E RWY 28R`. (Runway hold-short targets like `HS 28L` do not add a routing waypoint.) |
 | `TAXI S T U @B12 NODEL` | Taxi via S, T, U to parking B12 (exempt from auto-delete) |
 | `TAXI #42 #18 #95` | Taxi via exact node IDs (used by draw route; see Ground View debug overlay) |
 | `TAXI A #42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |

@@ -37,6 +37,10 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
+        // A taxiway named only as a hold-short target ("... HS E") is also a directional hint:
+        // fold it into the path so the pathfinder routes through it, not just annotates it.
+        taxi = AugmentPathWithHoldShortTaxiways(groundLayout, taxi);
+
         // Find starting node. Prefer the heading-aligned endpoint of the
         // nearest taxi edge (handles post-pushback poses where the aircraft
         // rests between graph nodes — see issue #161); fall back to the
@@ -369,6 +373,46 @@ internal static class GroundCommandHandler
         }
 
         return CommandDispatcher.Ok(msg);
+    }
+
+    /// <summary>
+    /// Appends each <c>HS</c> target that names a real taxiway (not a runway, not already in the
+    /// path) to the taxi command's <see cref="TaxiCommand.Path"/> so the target steers the route as
+    /// a directional hint rather than only annotating an already-chosen route. The target stays in
+    /// <see cref="TaxiCommand.HoldShorts"/> so the hold-short is still placed at that intersection —
+    /// this turns <c>TAXI D C HS E RWY 28R</c> into the already-supported <c>TAXI D C E HS E RWY 28R</c>
+    /// shape internally. Runway hold-shorts (e.g. <c>HS 28L</c>) have no taxiway nodes and are left to
+    /// the runway-crossing machinery. Returns the command unchanged when no HS target is a routable taxiway.
+    /// </summary>
+    private static TaxiCommand AugmentPathWithHoldShortTaxiways(AirportGroundLayout groundLayout, TaxiCommand taxi)
+    {
+        if (taxi.HoldShorts.Count == 0)
+        {
+            return taxi;
+        }
+
+        List<string> path = [.. taxi.Path];
+        List<TurnDirection?>? hints = taxi.PathTurnHints is null ? null : [.. taxi.PathTurnHints];
+        bool changed = false;
+
+        foreach (var target in taxi.HoldShorts)
+        {
+            if (path.Contains(target, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (groundLayout.GetNodesOnTaxiway(target).Count == 0)
+            {
+                continue;
+            }
+
+            path.Add(target);
+            hints?.Add(null);
+            changed = true;
+        }
+
+        return changed ? taxi with { Path = path, PathTurnHints = hints } : taxi;
     }
 
     /// <summary>
