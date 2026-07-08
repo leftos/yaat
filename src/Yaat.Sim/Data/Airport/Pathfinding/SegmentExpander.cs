@@ -24,7 +24,10 @@ public static class SegmentExpander
     /// <summary>
     /// Maximum BFS hops when bridging a start node (e.g. a parking/RAMP spot) onto the
     /// first named taxiway. Matches v1's <c>BfsToTaxiway</c> bound — parking spots connect
-    /// to their taxiway within one or two RAMP/connector hops.
+    /// to their taxiway within one or two RAMP/connector hops. A runway hold-short passed through
+    /// on the way does NOT consume a hop (see <see cref="CollectBridgeCandidates"/>): a hold-short is
+    /// a degree-2 pass-through inserted at graph-build time, and counting it silently broke the
+    /// bridge when a hold-short moved onto the path between the start and the taxiway-access node.
     /// </summary>
     private const int MaxBridgeHops = 3;
 
@@ -1066,9 +1069,14 @@ public static class SegmentExpander
                     candidates.Add(neighbor.Id);
                 }
 
-                if (depth + 1 < MaxBridgeHops)
+                // A runway hold-short is a degree-2 pass-through the graph-build inserts on the
+                // taxiway; it doesn't consume a hop, so the taxiway-access node stays reachable no
+                // matter where the hold-short bar sits. (Non-hold-short nodes cost a hop as before,
+                // preserving the legacy reach for bridges that traverse no hold-short.)
+                int nextDepth = neighbor.Type == GroundNodeType.RunwayHoldShort ? depth : depth + 1;
+                if (nextDepth < MaxBridgeHops)
                 {
-                    queue.Enqueue((neighbor.Id, depth + 1));
+                    queue.Enqueue((neighbor.Id, nextDepth));
                 }
             }
         }

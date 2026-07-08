@@ -540,6 +540,13 @@ public sealed class GroundRunway
     public required double WidthFt { get; init; }
 
     /// <summary>
+    /// Author-specified runway holding-position standoff in feet from centerline (vNAS map
+    /// <c>holdShortDistance</c>). Null when unset, in which case the width-based FAA Table 3-2
+    /// heuristic is used. See <see cref="RunwayCrossingDetector.HoldShortDistanceForWidth"/>.
+    /// </summary>
+    public double? HoldShortDistanceFt { get; init; }
+
+    /// <summary>
     /// Canonical per-end identity parsed from <see cref="Name"/> (zero-pad-normalized ends, e.g.
     /// "9 - 27" → End1 "09", End2 "27"). Use this — and the <see cref="MatchesEnd"/> /
     /// <see cref="TurnoffForEnd"/> / <see cref="NoTurnoffForEnd"/> helpers — for any per-end lookup,

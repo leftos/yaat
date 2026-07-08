@@ -719,7 +719,13 @@ public class AirportE2ETests
         var parking = FindParking(layout, "NEW7");
         Assert.NotNull(parking);
 
-        var hsNode = FindHoldShortForRunway(layout, "30");
+        // Target the runway-30 hold-short nearest the parking spot — the realistic exit a taxi
+        // clearance would use. (A bare first-by-iteration hold-short can land on a mid-field
+        // high-speed exit like W3, which legitimately needs extra taxiways to taxi up.)
+        var hsNode = layout
+            .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } r && r.Contains("30"))
+            .OrderBy(n => GeoMath.DistanceNm(parking.Position, n.Position))
+            .FirstOrDefault();
         Assert.NotNull(hsNode);
 
         var routes = TaxiPathfinder.FindRoutes(layout, parking.Id, hsNode.Id, null, 3, null, AircraftCategory.Jet);

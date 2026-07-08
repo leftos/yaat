@@ -39,7 +39,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 | Phase system (base contract) | [phases.md](phases.md) |
 | Airborne approach / pattern geometry | [approach-and-pattern-geometry.md](approach-and-pattern-geometry.md) |
 | Landing rollout & runway exit | [landing-and-runway-exit.md](landing-and-runway-exit.md) |
-| Ground stack (fillet / pathfinder / navigator) | [ground/README.md](ground/README.md) |
+| Ground stack (fillet / pathfinder / navigator / hold-short placement) | [ground/README.md](ground/README.md) |
 | Navigation database & route expansion | [navigation-database.md](navigation-database.md) |
 | Conflict / alert / visual detection | [conflict-and-visual-detection.md](conflict-and-visual-detection.md) |
 | Weather & wind | [weather-and-wind.md](weather-and-wind.md) |
@@ -748,7 +748,7 @@ VirtualNode.cs                 # Factory for virtual ground nodes (negative IDs)
 TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
 GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode
 CoordinateIndex.cs             # Spatial index for coordinate-based lookups
-RunwayCrossingDetector.cs      # Detect taxiway/runway intersections
+RunwayCrossingDetector.cs      # Detect taxiway/runway crossings; seat hold-short bars at the constant perpendicular standoff (geojson holdShortDistance, else AC 150/5300-13B width heuristic) — see docs/ground/hold-short-placement.md
 RunwayIntersectionCalculator.cs # Runway centerline/projected-path intersections for LAHSO and solo-training runway scoring
 HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length
 

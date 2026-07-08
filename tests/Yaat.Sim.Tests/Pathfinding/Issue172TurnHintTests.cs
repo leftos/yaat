@@ -9,16 +9,39 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// <summary>
 /// Issue #172 W7: per-taxiway turn-direction hints (<c>&gt;A</c> right / <c>&lt;A</c> left) bias junction
 /// selection toward the controller's turn. Uses OAK node 18, a clean cross where taxiway W runs through
-/// (neighbour 682 bears 130°, neighbour 683 bears 310° — opposite) and B branches off. With the aircraft
-/// heading 40° (across W), 682 is a right turn and 683 a left turn, so <c>&gt;W</c> and <c>&lt;W</c> must
+/// (neighbour 691 bears 130°, neighbour 692 bears 310° — opposite) and B branches off. With the aircraft
+/// heading 40° (across W), 691 is a right turn and 692 a left turn, so <c>&gt;W</c> and <c>&lt;W</c> must
 /// start the route in opposite directions.
 /// </summary>
 public class Issue172TurnHintTests(ITestOutputHelper output)
 {
     private const int WCrossNode = 18;
-    private const int WRightNeighbor = 682; // bearing 130° from node 18 → right turn from heading 40°
-    private const int WLeftNeighbor = 683; // bearing 310° from node 18 → left turn from heading 40°
     private const double AcrossWHeadingDeg = 40.0;
+
+    /// <summary>
+    /// Node 18's two through-neighbors on taxiway W, classified by turn direction from the across-W
+    /// start heading (right = clockwise). Resolved from the live graph so hold-short node renumbering
+    /// never breaks the test.
+    /// </summary>
+    private static (int RightId, int LeftId) ResolveWNeighbors(AirportGroundLayout layout)
+    {
+        var node = layout.Nodes[WCrossNode];
+        var wNeighbors = node
+            .Edges.Where(e => e.TaxiwayName.Equals("W", StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.OtherNodeId(WCrossNode))
+            .Distinct()
+            .ToList();
+        Assert.Equal(2, wNeighbors.Count);
+
+        bool IsRight(int id)
+        {
+            double bearing = GeoMath.BearingTo(node.Position, layout.Nodes[id].Position);
+            double delta = ((((bearing - AcrossWHeadingDeg) % 360.0) + 540.0) % 360.0) - 180.0; // (-180, 180]
+            return delta > 0; // clockwise of the start heading = right turn
+        }
+
+        return (wNeighbors.Single(IsRight), wNeighbors.Single(id => !IsRight(id)));
+    }
 
     private static AirportGroundLayout? OakLayout(ITestOutputHelper output)
     {
@@ -64,7 +87,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
         Assert.NotNull(route);
         Assert.NotEmpty(route.Segments);
         Assert.Equal(WCrossNode, route.Segments[0].FromNodeId);
-        Assert.Equal(WRightNeighbor, route.Segments[0].ToNodeId);
+        Assert.Equal(ResolveWNeighbors(layout).RightId, route.Segments[0].ToNodeId);
     }
 
     [Fact]
@@ -82,7 +105,7 @@ public class Issue172TurnHintTests(ITestOutputHelper output)
         Assert.NotNull(route);
         Assert.NotEmpty(route.Segments);
         Assert.Equal(WCrossNode, route.Segments[0].FromNodeId);
-        Assert.Equal(WLeftNeighbor, route.Segments[0].ToNodeId);
+        Assert.Equal(ResolveWNeighbors(layout).LeftId, route.Segments[0].ToNodeId);
     }
 
     [Fact]

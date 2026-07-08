@@ -17,9 +17,9 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// </summary>
 public class Issue172HoldShortDedupTests
 {
-    // SFO node 867 is the 01L/19R hold-short on taxiway G (where arrivals off 19L/19R hold) —
+    // SFO node 871 is the 01L/19R hold-short on taxiway G (where arrivals off 19L/19R hold) —
     // exactly where KLM605/EJA512/N984DC sat when issued "TAXI G B HS B" in the recording.
-    private const int GHoldShortNode = 867;
+    private const int GHoldShortNode = 871;
 
     private static int CountOccurrences(string haystack, string needle)
     {

@@ -473,7 +473,39 @@ public static class RouteMaterialiser
             }
         }
 
-        return -1;
+        // Fallback: the route reached the last cleared taxiway only at its junction. With no onward
+        // direction cleared, the aircraft stops AT the intersection (a terminus-junction), so no
+        // segment lies purely on the taxiway. Recognize the last segment whose ToNode is incident to
+        // the taxiway (the junction stop) as the entry — mirroring the node-incidence rule in
+        // SegmentExpander.RouteReachesTaxiway — so the explicit-hold-short cross extension keeps the
+        // crossing and stops at the junction, rather than truncating at the near-side hold-short and
+        // dropping the crossed taxiway entirely. Which junction candidate the resolver commits to
+        // (walk one segment onto the taxiway vs. stop at the corner) otherwise silently flips whether
+        // the crossing survives truncation.
+        int junctionEntryIdx = -1;
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (NodeIncidentToTaxiway(segments[i].Edge.ToNode, last))
+            {
+                junctionEntryIdx = i;
+            }
+        }
+
+        return junctionEntryIdx;
+    }
+
+    /// <summary>True if any edge incident to <paramref name="node"/> belongs to <paramref name="taxiwayName"/>.</summary>
+    private static bool NodeIncidentToTaxiway(GroundNode node, string taxiwayName)
+    {
+        foreach (var edge in node.Edges)
+        {
+            if (edge.MatchesTaxiway(taxiwayName))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

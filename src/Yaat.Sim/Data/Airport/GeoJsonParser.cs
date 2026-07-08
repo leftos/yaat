@@ -240,6 +240,7 @@ public static class GeoJsonParser
                     Name = rwy.Name,
                     Coordinates = new List<(double Lat, double Lon)>(rwy.Coords),
                     WidthFt = rwyWidthFt,
+                    HoldShortDistanceFt = rwy.HoldShortDistanceFt,
                     TurnoffByEnd = rwy.TurnoffByEnd,
                     PatternAltitudeAglFt = rwy.PatternAltitudeAglFt,
                     PatternSizeNm = rwy.PatternSizeNm,
@@ -666,7 +667,11 @@ public static class GeoJsonParser
 
         var noTurnoff = ParseNoTurnoff(name, props);
 
-        return new RunwayFeature(name, coords, turnoff, patternAltAgl, patternSize, noTurnoff);
+        // Authoritative per-runway hold-short standoff (ft from centerline) from the vNAS map;
+        // when absent RunwayCrossingDetector falls back to the width-based FAA Table 3-2 heuristic.
+        double? holdShortDistance = ReadOptionalDouble(props, "holdShortDistance");
+
+        return new RunwayFeature(name, coords, turnoff, patternAltAgl, patternSize, noTurnoff, holdShortDistance);
     }
 
     /// <summary>
@@ -782,7 +787,8 @@ public static class GeoJsonParser
         IReadOnlyDictionary<string, ExitSide>? TurnoffByEnd = null,
         double? PatternAltitudeAglFt = null,
         double? PatternSizeNm = null,
-        IReadOnlyDictionary<string, IReadOnlyList<string>>? NoTurnoffByEnd = null
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? NoTurnoffByEnd = null,
+        double? HoldShortDistanceFt = null
     )
     {
         public IReadOnlyDictionary<string, ExitSide> TurnoffByEnd { get; init; } =

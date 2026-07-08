@@ -15,24 +15,24 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S2-OAK-3 (2) | VFR Sequencing — N805FM (P28A) lands on OAK 28R with
 /// no exit instruction. Another aircraft (N775JW) is HoldingAfterExit at G's
-/// right-side hold-short (HS 361, the parking-bias-preferred side). Without the
+/// right-side hold-short (HS 508, the parking-bias-preferred side). Without the
 /// rule, LandingPhase commits to G_right (correct on-side), then RunwayExitPhase
-/// detects occupancy at handoff and falls back to G_left (HS 503) — wrong side.
+/// detects occupancy at handoff and falls back to G_left (HS 514) — wrong side.
 ///
 /// The rule says: when the preferred-side branch at the closer exit is unavailable
 /// and a later preferred-side exit is comfort-reachable, prefer the later one.
-/// Here that means H's right-side hold-short (HS 499 at centerlines 1323-1326)
-/// over G's left (HS 503 at centerlines 1300-1306).
+/// Here that means H's right-side hold-short (HS 509) over G's left (HS 514).
 /// </summary>
 public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/oak-prefer-later-onside-exit-recording.yaat-bug-report-bundle.zip";
 
-    // Hold-short node IDs for OAK 28R G/H (verified via Yaat.LayoutInspector --exits 28R).
-    private const int HoldShortGLeft = 503;
-    private const int HoldShortGRight = 361;
-    private const int HoldShortHLeft = 504;
-    private const int HoldShortHRight = 499;
+    // Hold-short node IDs for OAK 28R G/H — graph-dependent; regenerate via
+    // `Yaat.LayoutInspector --exits 28R` if the ground-graph or hold-short placement changes.
+    private const int HoldShortGLeft = 514;
+    private const int HoldShortGRight = 508;
+    private const int HoldShortHLeft = 515;
+    private const int HoldShortHRight = 509;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -153,7 +153,7 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
         // The inferred side at OAK 28R is Right (parking-bias). Confirm.
         Assert.Equal(ExitSide.Right, inferredSide);
 
-        // The planner must NOT have committed to G_left (HS 503). G_right (HS 361)
+        // The planner must NOT have committed to G_left (HS 514). G_right (HS 508)
         // is occupied by N775JW, so the planner should have looked further forward
         // and committed to an on-side exit at H or beyond.
         Assert.NotEqual(HoldShortGLeft, plannerCandidateHs);
@@ -163,8 +163,8 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
         Assert.NotEqual(HoldShortGLeft, finalResolvedHs);
 
         // Strong assertion: the final exit should be on the right (preferred) side.
-        // Allowed targets: H_right (499), J_right (374), or any other right-side
-        // hold-short ahead of G. Not G_left (503) and not G_right (361, occupied).
+        // Allowed targets: H_right (509), J_right (374), or any other right-side
+        // hold-short ahead of G. Not G_left (514) and not G_right (508, occupied).
         var rightSideHoldShorts = new HashSet<int>
         {
             HoldShortGRight,

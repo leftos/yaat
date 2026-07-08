@@ -20,14 +20,14 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// </summary>
 public class Issue172TerminusDirectionTests(ITestOutputHelper output)
 {
-    // SFO: node 867 = 01L/19R hold-short on taxiway G (arrival exit); the pure (pre-fillet) G/B
+    // SFO: node 871 = 01L/19R hold-short on taxiway G (arrival exit); the pure (pre-fillet) G/B
     // intersection is node 155 (tangent-cut fillet nodes 1400-1403 surround it).
-    private const int GHoldShortNode = 867;
+    private const int GHoldShortNode = 871;
     private const int GbIntersection = 155;
 
-    // SFO: node 152 = pure F1/B intersection; K crosses 10R/28L at hold-short nodes 848 and 856.
+    // SFO: node 152 = pure F1/B intersection; K crosses 10R/28L at hold-short nodes 850 and 860.
     private const int F1bIntersection = 152;
-    private static readonly int[] Rwy10RHoldShortsOnK = [848, 856];
+    private static readonly int[] Rwy10RHoldShortsOnK = [850, 860];
 
     private static AirportGroundLayout? SfoLayout(ITestOutputHelper output)
     {

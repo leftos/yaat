@@ -25,9 +25,9 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
     private const string RecordingPath = "TestData/n70cs-cross-stops-on-runway-recording.yaat-bug-report-bundle.zip";
     private const string Callsign = "N70CS";
 
-    // OAK: taxiway J approaches the 28R/10L crossing from #379 -> #378 -> #501 (entry-side hold short).
+    // OAK: taxiway J approaches the 28R/10L crossing from node 379. The entry-side (near) hold-short
+    // is resolved from the route itself (first 28R bar reached), so graph renumbering can't stale it.
     private const int JApproachNode = 379;
-    private const int Rwy28RHoldShortOnJ = 501;
 
     private SimulationEngine? BuildEngine()
     {
@@ -101,8 +101,10 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
             $"route should END at the far-side 28R hold short (just clear); ended at node {route.Segments[^1].ToNodeId}"
         );
 
-        // The near-side bar is the explicit hold-short; the far-side exit bar is dropped (auto-crossed).
-        Assert.Contains(route.HoldShortPoints, h => h.NodeId == Rwy28RHoldShortOnJ && h.Reason == HoldShortReason.ExplicitHoldShort);
+        // The near-side bar (first 28R bar reached) is the explicit hold-short; the far-side exit bar
+        // is dropped (auto-crossed).
+        int nearSideBar = rwyHoldShortNodes[0];
+        Assert.Contains(route.HoldShortPoints, h => h.NodeId == nearSideBar && h.Reason == HoldShortReason.ExplicitHoldShort);
     }
 
     [Fact]

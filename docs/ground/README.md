@@ -22,6 +22,8 @@ GeoJSON ─► TaxiwayGraphBuilder ─► [1] Fillet generator ─► filleted g
 
 **Pushback** is a separate ground-movement mechanism (tail-first tug reverse, not a taxi route) — see [`pushback.md`](./pushback.md) · `PushbackPhase`.
 
+**Runway hold-short bars** are seated at graph-build time, *before* the fillet generator — the constant perpendicular standoff from the runway centerline, angle-independent. See [`hold-short-placement.md`](./hold-short-placement.md) · `RunwayCrossingDetector`.
+
 ## Design principle
 
 When a consumer trips on the ground geometry, remember: **the graph is correct-but-different, not broken** — it faithfully mirrors the source data (coincident edges, taxiways that connect only via a third connector, membership-named junction arcs). **Adapt the consumer; do not "fix" the graph.**

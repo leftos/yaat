@@ -16,8 +16,16 @@ internal static class RunwayCrossingDetector
     /// <summary>Tolerance (nm) for runway boundary classification (~6ft).</summary>
     private const double RunwayTolerance = 0.001;
 
-    /// <summary>Tolerance (ft) for reusing an existing node as hold-short.</summary>
-    private const double HoldShortReuseFt = 50.0;
+    /// <summary>
+    /// Tolerance (ft) for reusing/snapping an existing node as hold-short instead of placing a
+    /// fresh node at the exact standoff. Tied to the fillet coincident-node threshold: reuse is
+    /// equivalent to exact placement only within this distance, because a fresh node closer than
+    /// this to a neighbor would be collapsed into it by the later fillet coincident-node merge
+    /// anyway. A larger tolerance would let the node snap to whatever shape point happens to sit
+    /// nearby, scattering the standoff by up to the tolerance and pulling acute-exit holds inside
+    /// the runway safety area boundary.
+    /// </summary>
+    private const double HoldShortSnapFt = Fillet.FilletConstants.CoincidentNodeThresholdFt;
 
     /// <summary>Maximum hops the junction walker takes while searching for a segment that crosses the ideal hold-short distance.</summary>
     private const int HoldShortWalkMaxHops = 8;
@@ -110,7 +118,7 @@ internal static class RunwayCrossingDetector
         double bearing = GeoMath.BearingTo(rwy.Coords[0].Lat, rwy.Coords[0].Lon, rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
         double lengthNm = GeoMath.DistanceNm(rwy.Coords[0].Lat, rwy.Coords[0].Lon, rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
         double halfWidthNm = (widthFt / 2.0) / GeoMath.FeetPerNm;
-        double holdShortNm = HoldShortDistanceForWidth(widthFt) / GeoMath.FeetPerNm;
+        double holdShortNm = (rwy.HoldShortDistanceFt ?? HoldShortDistanceForWidth(widthFt)) / GeoMath.FeetPerNm;
 
         return new RunwayRectangle
         {
@@ -130,7 +138,7 @@ internal static class RunwayCrossingDetector
         double bearing = GeoMath.BearingTo(coords[0].Lat, coords[0].Lon, coords[^1].Lat, coords[^1].Lon);
         double lengthNm = GeoMath.DistanceNm(coords[0].Lat, coords[0].Lon, coords[^1].Lat, coords[^1].Lon);
         double halfWidthNm = (rwy.WidthFt / 2.0) / GeoMath.FeetPerNm;
-        double holdShortNm = HoldShortDistanceForWidth(rwy.WidthFt) / GeoMath.FeetPerNm;
+        double holdShortNm = (rwy.HoldShortDistanceFt ?? HoldShortDistanceForWidth(rwy.WidthFt)) / GeoMath.FeetPerNm;
 
         return new RunwayRectangle
         {
@@ -174,7 +182,7 @@ internal static class RunwayCrossingDetector
         // intermediate nodes that serve a single taxiway.
         bool isJunction = HasMultipleTaxiwayConnections(offNode.Id, layout);
 
-        if (distOffToIdeal <= HoldShortReuseFt && offNode.Type != GroundNodeType.RunwayHoldShort && !isJunction)
+        if (distOffToIdeal <= HoldShortSnapFt && offNode.Type != GroundNodeType.RunwayHoldShort && !isJunction)
         {
             // Existing node is close enough — upgrade it to hold-short in place
             offNode.Type = GroundNodeType.RunwayHoldShort;
@@ -423,12 +431,12 @@ internal static class RunwayCrossingDetector
     }
 
     /// <summary>
-    /// Hold-short distance from runway centerline (ft) per FAA AC 150/5300-13B
-    /// Table 3-2. Runway width is used as a proxy for Aircraft Design Group (ADG),
-    /// which determines the published hold position setback. Values approximate
-    /// the CAT I/II/III ILS rows of the table and do not apply the small
-    /// elevation correction (+1 ft per 100 ft MSL) since most US airports sit
-    /// below a few hundred feet.
+    /// Fallback hold-short distance from runway centerline (ft) per FAA AC 150/5300-13B
+    /// Table 3-2, used only when the vNAS map does not author an explicit per-runway
+    /// <c>holdShortDistance</c> (<see cref="GroundRunway.HoldShortDistanceFt"/>). Runway width is
+    /// used as a proxy for Aircraft Design Group (ADG), which determines the published hold position
+    /// setback. Values approximate the CAT I/II/III ILS rows of the table and do not apply the small
+    /// elevation correction (+1 ft per 100 ft MSL) since most US airports sit below a few hundred feet.
     /// </summary>
     internal static double HoldShortDistanceForWidth(double runwayWidthFt)
     {
@@ -666,7 +674,7 @@ internal static class RunwayCrossingDetector
     /// <summary>
     /// Interpolates a hold-short node on <paramref name="edge"/> between
     /// <paramref name="nearNode"/> and <paramref name="farNode"/> at the ideal
-    /// cross-track distance. If the ideal lies within <see cref="HoldShortReuseFt"/>
+    /// cross-track distance. If the ideal lies within <see cref="HoldShortSnapFt"/>
     /// of either endpoint, upgrades that endpoint in place instead of creating a
     /// near-coincident HS that would collapse under later fillet coincident-node merge.
     /// </summary>
@@ -695,12 +703,12 @@ internal static class RunwayCrossingDetector
         double distNearToIdeal = Math.Abs(crossNearFt - idealFt);
         double distFarToIdeal = Math.Abs(crossFarFt - idealFt);
 
-        if (distNearToIdeal <= HoldShortReuseFt && TryUpgradeToHoldShort(nearNode, rect, layout))
+        if (distNearToIdeal <= HoldShortSnapFt && TryUpgradeToHoldShort(nearNode, rect, layout))
         {
             return;
         }
 
-        if (distFarToIdeal <= HoldShortReuseFt && TryUpgradeToHoldShort(farNode, rect, layout))
+        if (distFarToIdeal <= HoldShortSnapFt && TryUpgradeToHoldShort(farNode, rect, layout))
         {
             return;
         }
@@ -802,7 +810,7 @@ internal static class RunwayCrossingDetector
         double prevCrossFt =
             Math.Abs(GeoMath.SignedCrossTrackDistanceNm(prevNode.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading))
             * GeoMath.FeetPerNm;
-        if (Math.Abs(prevCrossFt - idealFt) <= HoldShortReuseFt && TryUpgradeToHoldShort(prevNode, rect, layout))
+        if (Math.Abs(prevCrossFt - idealFt) <= HoldShortSnapFt && TryUpgradeToHoldShort(prevNode, rect, layout))
         {
             Log.LogDebug(
                 "Hold-short dead-end: upgraded {Node} (prev) for {Runway} on {Taxiway} (ideal={Ideal:F0}ft, actual={Actual:F0}ft)",

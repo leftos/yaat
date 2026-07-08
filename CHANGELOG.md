@@ -4,6 +4,8 @@
 
 ### Fixed
 - Unloading a scenario no longer crashes the client when the Ground view's satellite (tower-cab) background image is shown.
+- Runway-exit hold-short bars now sit at a consistent distance from the runway regardless of the exit taxiway's angle, so high-speed exits no longer stop aircraft closer to the runway.
+- Hold-short distances now use each runway's published value from the airport data where available, instead of estimating from runway width for every runway.
 
 ## v0.9.4-beta [2026/07/07]
 

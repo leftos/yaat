@@ -50,8 +50,8 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
 
     /// <summary>
     /// Regression test for the explicit hold-short case (already worked before
-    /// the fix). At t=1216 N7LJ is in HoldingShortPhase at node 188 (28R/10L)
-    /// with reason ExplicitHoldShort because the preset included <c>HS 28R</c>.
+    /// the fix). At t=1216 N7LJ is in HoldingShortPhase at node 507 (28R/10L, B
+    /// crossing) with reason ExplicitHoldShort because the preset included <c>HS 28R</c>.
     /// </summary>
     [Fact]
     public void Res_ClearsExplicitHoldShort_AndAircraftResumesTaxi()
@@ -70,7 +70,9 @@ public class N7ljResExplicitHoldShortTests(ITestOutputHelper output)
 
         var holdPhase = ac.Phases?.CurrentPhase as HoldingShortPhase;
         Assert.NotNull(holdPhase);
-        Assert.Equal(188, holdPhase.HoldShort.NodeId);
+        // Node 507 = the B/28R-10L hold-short (graph-dependent; regenerate via
+        // `Yaat.LayoutInspector --exits 28R` if the ground graph changes).
+        Assert.Equal(507, holdPhase.HoldShort.NodeId);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, holdPhase.HoldShort.Reason);
 
         var result = engine.SendCommand("N7LJ", "RES");

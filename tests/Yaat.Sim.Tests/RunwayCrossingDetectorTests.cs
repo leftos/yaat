@@ -222,7 +222,7 @@ public class RunwayCrossingDetectorTests
     }
 
     // -------------------------------------------------------------------------
-    // DetectRunwayCrossings — node reuse within 50ft
+    // DetectRunwayCrossings — node reuse within the snap tolerance (5 ft)
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -237,8 +237,9 @@ public class RunwayCrossingDetectorTests
         double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
 
-        // Place the off-node within 50ft of the ideal hold-short distance (at 140ft, 10ft short)
-        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), (holdShortFt - 10.0) / FeetPerNm);
+        // Place the off-node within the 5 ft snap tolerance of the ideal (3 ft short, at 247 ft) so
+        // it is upgraded in place instead of minting a near-coincident node the fillet merge collapses.
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), (holdShortFt - 3.0) / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
         layout.Nodes[1] = onNode;
@@ -257,6 +258,55 @@ public class RunwayCrossingDetectorTests
         Assert.Equal(100, nextNodeId); // unchanged
         Assert.Equal(GroundNodeType.RunwayHoldShort, layout.Nodes[2].Type);
         Assert.NotNull(layout.Nodes[2].RunwayId);
+    }
+
+    /// <summary>
+    /// When an off-node sits inside the hold-short band (10 ft short of the 250 ft ideal) but the
+    /// taxiway continues past the ideal, the detector must mint the hold-short at exactly the ideal
+    /// standoff on the continuation segment — NOT snap it back to the closer shape-point. This is the
+    /// core of the angle-independence fix: an acute exit's first shape point often lands short, and a
+    /// generous reuse tolerance would pull the hold inside the runway safety area.
+    /// </summary>
+    [Fact]
+    public void DetectRunwayCrossings_OffNodeInsideBandWithContinuation_PlacesNodeAtIdeal()
+    {
+        var rwy = NorthSouthRunway();
+        var layout = EmptyLayout();
+
+        double holdShortFt = 250.0; // 150 ft-wide runway → FAA Table 3-2 250 ft
+        double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
+        var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
+
+        // Node 2 is 10 ft short of the ideal (inside the band, outside the 5 ft snap tolerance);
+        // node 3 continues to 320 ft (past the ideal), so the continuation segment straddles 250 ft.
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), (holdShortFt - 10.0) / FeetPerNm);
+        var (farLat, farLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), 320.0 / FeetPerNm);
+        var offNode = MakeNode(2, offLat, offLon);
+        var farNode = MakeNode(3, farLat, farLon);
+
+        layout.Nodes[1] = onNode;
+        layout.Nodes[2] = offNode;
+        layout.Nodes[3] = farNode;
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Position, offNode.Position)));
+        WireEdge(layout, MakeEdge(layout, 2, 3, "A", GeoMath.DistanceNm(offNode.Position, farNode.Position)));
+        layout.RebuildAdjacencyLists();
+
+        int nextNodeId = 100;
+        var coordIndex = new CoordinateIndex(0.0001);
+        coordIndex.Add(onNode.Position, 1);
+        coordIndex.Add(offNode.Position, 2);
+        coordIndex.Add(farNode.Position, 3);
+
+        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
+
+        // A new hold-short node is minted at exactly the ideal — node 2 is NOT reused.
+        Assert.Equal(GroundNodeType.TaxiwayIntersection, layout.Nodes[2].Type);
+        var hs = layout.Nodes.Values.Single(n => n.Type == GroundNodeType.RunwayHoldShort);
+
+        // Node lies due east of the centerline (same latitude), so distance from the centerline
+        // point equals the cross-track standoff.
+        double crossTrackFt = GeoMath.DistanceNm(new LatLon(midLat, rwy.Coords[0].Lon), hs.Position) * FeetPerNm;
+        Assert.InRange(crossTrackFt, 248.0, 252.0);
     }
 
     [Fact]
@@ -439,5 +489,84 @@ public class RunwayCrossingDetectorTests
         // Tolerance 240-285 ft: FAA Table 3-2 gives 280 ft for 200 ft wide CAT III
         // runways (ADG V/VI); 240 lower bound allows for ADG V rounding.
         Assert.InRange(crossTrackFt, 240.0, 285.0);
+    }
+
+    // -------------------------------------------------------------------------
+    // Angle-independent hold-short placement (OAK 30/12 W-exits)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Every runway holding-position node sits at the same perpendicular (cross-track)
+    /// distance from the runway centerline regardless of the exit taxiway's intersection
+    /// angle — the AC 150/5300-13B RSA-boundary standoff is runway-parallel by construction.
+    /// At OAK, the acute high-speed exits (W3/W4/W5, ~27-32 deg) must land at the same
+    /// standoff as the right-angle exits (W1/W2/W6/W7, ~85-90 deg), not closer to the runway.
+    /// Loads the real oak.geojson and asserts every 30/12 hold-short is within 6 ft of the
+    /// runway's ideal <see cref="RunwayRectangle.HoldShortNm"/> — asserted against the computed
+    /// ideal (not a hard-coded value) so it survives any future width-bucket change.
+    /// </summary>
+    [Fact]
+    public void DetectRunwayCrossings_Oak_Runway30_12_HoldShortsAreAngleIndependent()
+    {
+        TestVnasData.EnsureInitialized();
+        string path = Path.Combine("TestData", "oak.geojson");
+        if (!File.Exists(path))
+        {
+            return; // silently skip if TestData missing
+        }
+
+        var layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK");
+
+        var combinedId = RunwayIdentifier.Parse("30/12");
+        var rwy = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Equals(combinedId));
+        var rect = RunwayCrossingDetector.BuildRunwayRectangle(rwy);
+        double idealFt = rect.HoldShortNm * FeetPerNm;
+
+        var holdShorts = layout
+            .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId.HasValue && n.RunwayId.Value.Equals(combinedId))
+            .ToList();
+
+        Assert.NotEmpty(holdShorts);
+
+        foreach (var hs in holdShorts)
+        {
+            double crossTrackFt =
+                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(hs.Position, new LatLon(rect.RefLat, rect.RefLon), rect.TrueHeading)) * FeetPerNm;
+            Assert.True(
+                Math.Abs(crossTrackFt - idealFt) <= 6.0,
+                $"Hold-short node {hs.Id} on 30/12 is {crossTrackFt:F1} ft from centerline; ideal is {idealFt:F1} ft (±6 ft)."
+            );
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Authoritative GeoJSON holdShortDistance (per-runway) overrides the width heuristic
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// The vNAS airport map carries an explicit per-runway <c>holdShortDistance</c> (ft from
+    /// centerline) for some runways. When present it is the authoritative standoff and must be used
+    /// verbatim; when absent the width-based FAA Table 3-2 heuristic is the fallback. At OAK, 28R/10L
+    /// authors 225 ft (heuristic would give 250) while 30/12 authors none (falls back to 250).
+    /// </summary>
+    [Fact]
+    public void BuildRunwayRectangle_Oak_UsesAuthoredHoldShortDistance_ElseWidthFallback()
+    {
+        TestVnasData.EnsureInitialized();
+        string path = Path.Combine("TestData", "oak.geojson");
+        if (!File.Exists(path))
+        {
+            return; // silently skip if TestData missing
+        }
+
+        var layout = GeoJsonParser.Parse("KOAK", File.ReadAllText(path), "KOAK");
+
+        var rwy28R = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Equals(RunwayIdentifier.Parse("28R/10L")));
+        double hs28R = RunwayCrossingDetector.BuildRunwayRectangle(rwy28R).HoldShortNm * FeetPerNm;
+        Assert.Equal(225.0, hs28R, precision: 0); // authored value, not the 250 ft width heuristic
+
+        var rwy30 = layout.Runways.Single(r => RunwayIdentifier.Parse(r.Name).Equals(RunwayIdentifier.Parse("30/12")));
+        double hs30 = RunwayCrossingDetector.BuildRunwayRectangle(rwy30).HoldShortNm * FeetPerNm;
+        Assert.Equal(250.0, hs30, precision: 0); // no authored value → width fallback
     }
 }
