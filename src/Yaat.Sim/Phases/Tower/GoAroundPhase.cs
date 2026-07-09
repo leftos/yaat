@@ -5,8 +5,10 @@ using Yaat.Sim.Simulation.Snapshots;
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Go-around: full power, climb on runway heading, accelerate.
-/// Completes at 2000ft AGL (self-clear) or assigned altitude.
+/// Go-around: full power, climb on runway heading, accelerate. Completes at <see cref="TargetAltitude"/> —
+/// pattern altitude less the AIM 4-3-2 handoff margin when re-entering the pattern, the published
+/// missed-approach altitude on an instrument approach, or the controller's assigned altitude — and at
+/// 2000ft AGL (self-clear) when none of those apply.
 /// RPO commands clear the phase, allowing immediate re-vectoring.
 /// </summary>
 public sealed class GoAroundPhase : Phase
@@ -57,16 +59,16 @@ public sealed class GoAroundPhase : Phase
     }
 
     /// <summary>Heading to fly in magnetic (null = runway heading).</summary>
-    public MagneticHeading? AssignedMagneticHeading { get; init; }
+    public MagneticHeading? AssignedMagneticHeading { get; internal set; }
 
     /// <summary>Altitude to climb to (null = self-clear at 2000 AGL).</summary>
-    public int? TargetAltitude { get; init; }
+    public int? TargetAltitude { get; internal set; }
 
     /// <summary>
     /// When true, the aircraft re-enters the traffic pattern after the go-around climb.
     /// Set for pattern traffic and visual approaches; false for instrument approaches.
     /// </summary>
-    public bool ReenterPattern { get; init; }
+    public bool ReenterPattern { get; internal set; }
 
     /// <summary>
     /// True when the aircraft was on track for a full-stop landing before the go-around
@@ -93,9 +95,13 @@ public sealed class GoAroundPhase : Phase
         ctx.Targets.TargetSpeed = climbSpeed;
         // Drop any speed floor/ceiling from the approach — including the ceiling
         // AutoCancelSpeedAtFinal leaves at the 5nm gate — so the missed-approach climb
-        // is not capped at the approach speed.
+        // is not capped at the approach speed. Altitude restrictions (AOA/AOB) go too:
+        // OnTick's completion check reads the aircraft's own altitude, so a stale floor or
+        // ceiling would silently level the climb somewhere the phase never notices.
         ctx.Targets.SpeedFloor = null;
         ctx.Targets.SpeedCeiling = null;
+        ctx.Targets.AltitudeFloor = null;
+        ctx.Targets.AltitudeCeiling = null;
         ctx.Targets.TargetTrueHeading = _runwayTrueHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
@@ -147,6 +153,31 @@ public sealed class GoAroundPhase : Phase
         }
 
         return complete;
+    }
+
+    /// <summary>
+    /// Convert an in-progress climb-out into a pattern go-around, as when MLT/MRT is issued after GA.
+    /// The aircraft levels at <paramref name="targetAltitude"/> — pattern altitude less the AIM 4-3-2
+    /// handoff margin — and the pattern circuit is appended when the climb completes. Any heading the
+    /// go-around was assigned is dropped: the pattern, not a vector, now owns the aircraft's lateral
+    /// path. Amends the active phase in place (cf. <see cref="FinalApproachPhase.RetargetRunway"/>) so
+    /// the climb keeps its accumulated state instead of restarting.
+    /// </summary>
+    internal void RetargetForPatternClimbOut(PhaseContext ctx, int targetAltitude)
+    {
+        TargetAltitude = targetAltitude;
+        ReenterPattern = true;
+        AssignedMagneticHeading = null;
+        _headingAssigned = false;
+
+        ctx.Targets.TargetAltitude = targetAltitude;
+        ctx.Targets.TargetTrueHeading = _runwayTrueHeading;
+        if (!ctx.Targets.HasExplicitTurnRate)
+        {
+            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        }
+
+        Log.LogDebug("[GoAround] {Callsign}: retargeted as pattern climb-out, targetAlt={Alt}ft", ctx.Aircraft.Callsign, targetAltitude);
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

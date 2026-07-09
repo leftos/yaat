@@ -296,7 +296,7 @@ public class MissedApproachTests
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null);
-        var result = PatternCommandHandler.TryGoAround(ga, aircraft);
+        var result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
 
@@ -331,7 +331,7 @@ public class MissedApproachTests
 
         // ATC override: explicit heading
         var ga = new GoAroundCommand(new MagneticHeading(090), null, null);
-        var result = PatternCommandHandler.TryGoAround(ga, aircraft);
+        var result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
 
@@ -364,7 +364,7 @@ public class MissedApproachTests
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, 5000, null);
-        var result = PatternCommandHandler.TryGoAround(ga, aircraft);
+        var result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
 
@@ -396,7 +396,7 @@ public class MissedApproachTests
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null);
-        var result = PatternCommandHandler.TryGoAround(ga, aircraft);
+        var result = PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         Assert.True(result.Success);
 
@@ -428,7 +428,7 @@ public class MissedApproachTests
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null);
-        PatternCommandHandler.TryGoAround(ga, aircraft);
+        PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         var goAroundPhase = aircraft.Phases.Phases.OfType<GoAroundPhase>().FirstOrDefault();
         Assert.NotNull(goAroundPhase);
@@ -553,7 +553,7 @@ public class MissedApproachTests
         aircraft.Phases.Start(startCtx);
 
         var ga = new GoAroundCommand(null, null, null);
-        PatternCommandHandler.TryGoAround(ga, aircraft);
+        PatternCommandHandler.TryGoAround(ga, aircraft, groundLayout: null);
 
         var phaseTypes = aircraft.Phases.Phases.Select(p => p.GetType()).ToList();
         Assert.Contains(typeof(GoAroundPhase), phaseTypes);

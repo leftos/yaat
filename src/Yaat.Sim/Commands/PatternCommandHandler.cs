@@ -725,6 +725,29 @@ internal static class PatternCommandHandler
         aircraft.Phases.TrafficDirection = newDirection;
         aircraft.Pattern.TrafficDirection = newDirection;
 
+        // MLT/MRT during a go-around converts the climb-out into a pattern go-around: the aircraft
+        // levels 300ft below pattern altitude (AIM 4-3-2) instead of running out to the 2000ft-AGL
+        // self-clear. Clearing the upcoming phases leaves the go-around last, which is what arms
+        // PhaseRunner's auto-cycle to append the circuit once the climb-out completes — that path
+        // carries the pre-go-around landing intent, resolves the authored pattern altitude, and
+        // clears the stale landing clearance, none of which a circuit spliced in here would do.
+        if (!aircraft.IsOnGround && aircraft.Phases.CurrentPhase is GoAroundPhase activeGoAround)
+        {
+            var goAroundCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
+            activeGoAround.RetargetForPatternClimbOut(goAroundCtx, (int)(waypoints.PatternAltitude - GoAroundHelper.PatternHandoffMarginFt));
+            aircraft.Phases.ReplaceUpcoming([]);
+
+            Log.LogDebug(
+                "[ChangePatternDirection] {Callsign}: retargeted active go-around as {Dir} pattern climb-out for {Rwy}",
+                aircraft.Callsign,
+                newDirection,
+                runway.Designator
+            );
+
+            var dirStrGoAround = newDirection == PatternDirection.Left ? "left" : "right";
+            return CommandDispatcher.Ok($"Make {dirStrGoAround} traffic{CommandDispatcher.RunwayLabel(aircraft)}");
+        }
+
         // When the aircraft has an Active standard pattern leg, rebuild the
         // chain so the active phase gets a fresh OnStart with the new
         // waypoints. PatternBuilder.UpdateWaypoints only swaps the
@@ -2236,7 +2259,7 @@ internal static class PatternCommandHandler
         phases.TrafficDirection = PatternDirection.Left;
     }
 
-    internal static CommandResult TryGoAround(GoAroundCommand ga, AircraftState aircraft)
+    internal static CommandResult TryGoAround(GoAroundCommand ga, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
         if (aircraft.Phases is null || aircraft.Phases.IsComplete)
         {
@@ -2268,9 +2291,21 @@ internal static class PatternCommandHandler
             }
         }
 
-        bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
-        var gaCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         bool hasAtcOverride = ga.AssignedMagneticHeading is not null || ga.TargetAltitude is not null;
+
+        // Apply the same pattern default the automatic go-around uses (GoAroundHelper.Trigger), so a
+        // controller-issued GA behaves identically to one the simulation triggers itself. A VFR
+        // aircraft cleared to land has had both direction fields dropped by CLAND; the side it was
+        // flying is recovered from its own pattern legs. An assigned heading or altitude means the
+        // controller is flying the climb-out themselves, so no pattern is inferred — an aircraft
+        // already established in one keeps its direction regardless.
+        if (!hasAtcOverride)
+        {
+            aircraft.Phases.TrafficDirection = GoAroundHelper.ResolvePatternIntent(aircraft);
+        }
+
+        bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
+        var gaCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout ?? aircraft.Ground.Layout);
 
         // Build MAP phases for instrument approaches without an ATC override — an assigned
         // heading or altitude replaces the published missed approach.

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A VFR aircraft told to go around now re-enters the traffic pattern, levelling 300 ft below pattern altitude and turning crosswind past the departure end, instead of climbing straight out to 2,000 ft AGL. It rejoins on the side it was last assigned — a `MRT`/`MLT`, else the pattern it was already flying, else the runway's L/R side. `GA` with a heading or altitude (`GA 270`) still hands the climb-out to you.
+- `MRT` / `MLT` issued to an aircraft that is already going around now turns it back toward the pattern instead of leaving it in the climb.
+- A go-around into the pattern now levels at the airport's published pattern altitude for that runway, and honours a pattern altitude set with `MRT 28R 15`, rather than always using the aircraft category's default.
+
 ## v0.9.6-beta [2026/07/08]
 
 ### Highlights

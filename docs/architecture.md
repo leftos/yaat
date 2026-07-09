@@ -604,7 +604,8 @@ FinalApproachPhase.cs          # Glideslope; no-clearance warning/go-around at D
 FinalApproachSpeedVariety.cs   # Deterministic per-callsign FAS-reduction distance (right-skewed 2.0-5.0nm); lazily assigned in FinalApproachPhase gated on SimScenarioState.FinalApproachSpeedVarietyEnabled (off by default, server-on for live, recording-captured for replay), stored on AircraftApproachState, so arrivals slow to final approach speed at varied distances
 LandingPhase.cs                # Flare→touchdown→rollout; continuous exit evaluation (resolve→brake→commit/abandon→relax preference); LAHSO-aware
 RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)
-GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern alt for VFR/pattern traffic)
+GoAroundPhase.cs               # TOGA, runway heading. Climbs to pattern altitude−300 (VFR/pattern traffic), the published missed-approach altitude (instrument), or 2000ft AGL (self-clear)
+GoAroundHelper.cs              # Shared go-around wiring for the auto trigger + the GA command: pattern-intent resolution (ResolvePatternIntent), climb-out altitude (ResolveClimbOutAltitude), phase-list install, pre-GA landing-intent capture
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
 MakeTurnPhase.cs               # 360/270 turn tracking (cumulative degrees, exit heading); clones pattern phase for 360s; slows to holding speed then resumes
 STurnPhase.cs                  # S-turn phase: alternating 30° deviations from final heading for spacing

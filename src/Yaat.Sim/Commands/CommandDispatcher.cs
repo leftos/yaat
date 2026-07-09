@@ -916,7 +916,7 @@ public static class CommandDispatcher
             case CancelLandingClearanceCommand:
                 return PatternCommandHandler.TryCancelLandingClearance(aircraft);
             case GoAroundCommand ga:
-                return PatternCommandHandler.TryGoAround(ga, aircraft);
+                return PatternCommandHandler.TryGoAround(ga, aircraft, ctx.GroundLayout);
             case MakeLeftTrafficCommand mlt:
                 return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, mlt.Altitude, ctx.GroundLayout);
             case MakeRightTrafficCommand mrt:
@@ -1698,7 +1698,7 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryCancelLandingClearance(aircraft);
 
             case GoAroundCommand ga:
-                return PatternCommandHandler.TryGoAround(ga, aircraft);
+                return PatternCommandHandler.TryGoAround(ga, aircraft, ctx.GroundLayout);
 
             // Pattern entry commands
             case EnterLeftDownwindCommand eld:

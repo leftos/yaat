@@ -752,7 +752,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CWT` | Caution wake turbulence. Phase-transparent; in solo training it records wake-advisory proof when there is exactly one current wake context for the selected aircraft. |
 | `LAHSO 33` | Cleared to land, hold short of runway 33 (LAHSO). Includes landing clearance. Aircraft stops before the intersecting runway and waits for a taxi/cross command. |
 | `CLC` / `CTLC` | Cancel landing clearance |
-| `GA` | Go around (instrument: fly published missed approach; otherwise: runway heading, 2,000 AGL) |
+| `GA` | Go around (VFR: re-enter the traffic pattern; instrument: fly published missed approach; otherwise: runway heading, 2,000 AGL) |
 | `GA MRT` | Go around, make right traffic (VFR/visual only) |
 | `GA MLT` | Go around, make left traffic (VFR/visual only) |
 | `GA 270` | Go around, fly heading 270, climb to 2,000 AGL (self-clear) |
@@ -818,7 +818,11 @@ For a **radar-vectors SID** (e.g. NIMI6 off KOAK), the published departure headi
 
 **Navigation** — IFR `CTO` (default departure) automatically expands the filed route including [SID](#glossary) waypoints and navigates the aircraft along it. When CIFP data is available, SID legs include published altitude and speed constraints; SID via mode activates automatically so the aircraft follows the published climb profile. Use `CM` to override (disables via mode), or `CVIA` to re-enable it. `CTO DCT {fix}` turns the aircraft toward the fix after liftoff. `CTO OC` navigates toward the destination airport.
 
-The `GA` altitude argument uses the same format as CM/DM (see [Altitude Arguments](#altitude-arguments)). `RH` in the heading position means "runway heading." `GA` accepts heading only (`GA 270`), heading + altitude (`GA 270 50`), or pattern direction (`GA MRT`/`GA MLT`). Without an altitude, the aircraft self-clears at 2,000 AGL. `GA MRT`/`GA MLT` sets the aircraft into pattern mode (make right/left traffic) and climbs to pattern altitude.
+The `GA` altitude argument uses the same format as CM/DM (see [Altitude Arguments](#altitude-arguments)). `RH` in the heading position means "runway heading." `GA` accepts heading only (`GA 270`), heading + altitude (`GA 270 50`), or pattern direction (`GA MRT`/`GA MLT`). `GA MRT`/`GA MLT` sets the aircraft into pattern mode (make right/left traffic) and climbs to pattern altitude.
+
+**Pattern re-entry** — a bare `GA` given to a VFR aircraft re-enters the traffic pattern: it climbs to 300 ft below pattern altitude, turns crosswind past the departure end, and flies a full circuit (AIM 4-3-2). The side is the one the controller last assigned — a persistent `MRT`/`MLT`, else the pattern the aircraft was already flying, else the runway's L/R suffix (28R implies right traffic when 28L exists), else left traffic. The aircraft keeps its pre-go-around intent: one that was cleared to land tries to land again, one cycling touch-and-goes keeps cycling. Attach a heading or altitude (`GA 270`, `GA 50`) and the controller owns the climb-out instead — the aircraft flies the assignment and self-clears at 2,000 AGL without re-entering the pattern. IFR aircraft never auto-enter the pattern.
+
+**Pattern direction during a go-around** — `MRT`/`MLT` issued while an aircraft is climbing out on a go-around converts the climb-out into a pattern go-around: it levels 300 ft below pattern altitude instead of running out to 2,000 AGL, drops any heading assigned by `GA 270`, and flies the requested side.
 
 **Published missed approach** — When an aircraft on an instrument approach goes around — either automatically or via `GA` — it flies the published missed approach procedure from CIFP data. This includes climbing to the missed approach altitude, navigating through the MAP fix sequence, and entering a holding pattern at the final MAP fix if the procedure defines one. The aircraft holds indefinitely until given further instructions. If the procedure has no holding leg, the aircraft completes the MAP fix sequence and awaits vectors. Visual approaches and pattern traffic have no published missed approach and use the generic go-around behavior instead.
 
