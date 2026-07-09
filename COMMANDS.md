@@ -310,6 +310,19 @@ All commands grouped by category. Each table shows the primary command, aliases,
 | Squawk normal all | `SNALL` | — | — |
 | Squawk standby all | `SSALL` | — | — |
 
+**Automatic beacon-code assignment.** YAAT picks a discrete code for an aircraft in two places: when the aircraft **spawns with a flight plan** (`ADD` IFR, the arrival generator, scenario-file aircraft) and when a **flight plan is filed or amended** without an explicit code (`FP`, `VP`, `DA`). Both draw from the facility's beacon-code banks in the ARTCC config — IFR traffic from the `Ifr` banks, VFR traffic from the `Vfr` banks, each falling through to the `Any` banks — and drop to sequential octal codes from `0001` when the facility defines no matching bank or the bank is exhausted. Every assigned code is tracked, so no two live aircraft hold the same one. An aircraft that spawns **without** a flight plan (a VFR cold call) gets no assigned code and squawks `1200`.
+
+Codes that would raise a false indication on a controller's scope are never assigned automatically, and `RANDSQ` never picks one either:
+
+| Withheld | Why | Reference |
+|----------|-----|-----------|
+| Any code ending in `00` — `1200`, `4000`, `7500`, `7600`, `7700`, and every block code | Non-discrete | 7110.65 §5-2-3 … §5-2-7 |
+| The entire `7500`–`7777` block | Every discrete code in the hijack, radio-failure, and emergency series raises the SPC / RF / EMRG indicator in STARS and ERAM — not only the three ending in `00` — and `7777` is the military interceptor code | AIM §4-1-20 |
+| `1202`, `1203`, `1255`, `1276`, `1277` | VFR conspicuity codes ATC monitors: gliders, formation lead, firefighting, and SAR | 7110.65 §5-2-11 |
+| `5000`–`5062` | DoD-allocated block | FAA Order JO 7110.66 (NBCAP) |
+
+The restriction covers only codes YAAT chooses on its own. `SQ {code}` still makes an aircraft squawk any code you name — including a reserved one, which is how you stage a 7600 or 7700 scenario — and an explicit code typed into `FP` / `VP` / `DA` is honored as-is. Note that `RANDSQ` changes only the code the aircraft is *squawking*, simulating a pilot dialing the wrong code; the aircraft's assigned code is untouched, so `SQ` with no argument returns it to the assigned code.
+
 ### Navigation
 
 | Command | Primary | Aliases | Concatenated |
@@ -1470,6 +1483,8 @@ Tiers track RECAT CWT category: Small = CWT I (light GA), SmallPlus = CWT H (upp
 **Helicopters (H):** the `H` engine token spawns a helicopter. With no explicit type it auto-selects a light civil helicopter (R22, R44, B06). The weight token is cosmetic for helicopters — any weight resolves to the same light pool. Name any other helicopter explicitly to override it (e.g. `ADD V S H @H1 H60`, `ADD V S H @H1 EC35`); the type drives the Helicopter category automatically. Helicopters spawned at a helipad/parking sit on the spot until you clear them (`CTOPP` for a present-position vertical departure, `ATXI` to air-taxi). See [Helicopter Commands](#helicopter-commands).
 
 IFR aircraft get a random airline callsign (e.g., UAL1234). VFR aircraft — and helicopters, which no scheduled airline operates — get an N-number (e.g., N1234A).
+
+**Beacon codes.** An IFR spawn squawks a discrete code drawn from the facility's IFR code banks — the same allocator that assigns a code when you file a flight plan — so it never duplicates a live aircraft's code and never lands on a reserved one. A VFR spawn is a cold call: no assigned code, squawking `1200` until you file a flight plan for it. See [Automatic beacon-code assignment](#squawk--transponder).
 
 ### Global Commands
 

@@ -798,6 +798,17 @@ ArtccConfigResolver.cs         # Pure-function resolvers as extension methods on
                                # GetSidInitialAltitudeFt (departure TDLS initial-altitude cap) / etc.
                                # Server's ArtccConfigService delegates to these; replay applier uses them via TrackResolver.
 ArtccAccessRecords.cs          # AccessibleBay, AccessibleFacility, AsdexAirportInfo, TowerCabAirportInfo records used by the resolvers.
+BeaconCodePool.cs              # Discrete-code allocator. AssignNextCode(isVfr) draws from the ARTCC config's banks
+                               # (Ifr→Any for IFR, Vfr→Any for VFR), falling back to sequential 0001-7777 octal when no
+                               # matching bank exists or a bank is exhausted; returns 0 only when all 4096 are in use.
+                               # Tracks assigned codes (MarkUsed/Release) so no two live aircraft share one.
+                               # IsAssignableCode is the single reserved-code gate for every assigning path: excludes
+                               # non-discrete codes (ending in 00), the whole 7500-7777 block, the monitored VFR
+                               # conspicuity codes (1202/1203/1255/1276/1277), and the DoD 5000-5062 block.
+                               # Callers: ScenarioLoader.AssignSpawnBeacons (post-load pass, after banks are configured),
+                               # AircraftGenerator (ADD/arrival IFR spawns), SimulationEngine (FP file + amend).
+                               # SimulationWorld.GenerateBeaconCode (RANDSQ) reuses only the IsAssignableCode gate.
+                               # NextCandidate/BankCursors + RestoreCursors round-trip the draw cursors through snapshots.
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
 CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E), airport magnetic variation (A); FAF fixes, terminal waypoints
                                # ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix resolution
