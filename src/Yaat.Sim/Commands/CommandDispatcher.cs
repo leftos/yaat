@@ -2360,6 +2360,68 @@ public static class CommandDispatcher
     /// if all commands conflict. If no commands conflict, returns the original block.
     /// For partial conflicts, rebuilds the block from the remaining ParsedCommands.
     /// </summary>
+    /// <summary>
+    /// The <see cref="CommandBlock.Description"/> / <see cref="CommandBlock.NaturalDescription"/> pair for a queued
+    /// block, carried together so <see cref="CreateBlock"/> stays inside the positional-parameter budget.
+    /// </summary>
+    private readonly record struct BlockLabels(string Description, string Natural);
+
+    /// <summary>
+    /// The single construction point for queued <see cref="CommandBlock"/>s. Everything derivable from the block's
+    /// parsed commands — <see cref="CommandBlock.Commands"/>, <see cref="CommandBlock.Dimensions"/>,
+    /// <see cref="CommandBlock.HasTrackCommand"/>, <see cref="CommandBlock.IsWaitBlock"/>, and the command list behind
+    /// <see cref="CommandBlock.ApplyAction"/> — is derived here, so the enqueue path and the supersede-split path
+    /// cannot drift apart.
+    /// </summary>
+    /// <remarks>
+    /// Track commands (HO/TRACK/DROP/…) have no arm in <see cref="ApplyCommand"/>. They stay in
+    /// <see cref="CommandBlock.ParsedCommands"/>, where <c>SimulationEngine.ProcessTriggeredTrackBlocks</c> reads them
+    /// at trigger-fire time, but are kept out of the <see cref="CommandBlock.ApplyAction"/> so a triggered block never
+    /// reaches <see cref="ApplyCommand"/>'s no-dispatcher-arm default.
+    ///
+    /// A caller rebuilding an existing block must copy that block's live wait countdown and
+    /// <see cref="CommandBlock.TrackApplied"/> guard across afterwards: both are per-block runtime state and cannot be
+    /// derived from the commands.
+    /// </remarks>
+    private static CommandBlock CreateBlock(
+        List<ParsedCommand> parsedCommands,
+        BlockTrigger? trigger,
+        BlockLabels labels,
+        string? sourceCommandText,
+        DispatchContext ctx
+    )
+    {
+        bool hasTrackCommand = parsedCommands.Exists(TrackEngine.IsTrackCommand);
+        var applyCommands = hasTrackCommand ? parsedCommands.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : parsedCommands;
+
+        var tracked = new List<TrackedCommand>(parsedCommands.Count);
+        var dimensions = CommandDimension.None;
+        foreach (var cmd in parsedCommands)
+        {
+            tracked.Add(new TrackedCommand { Type = CommandDescriber.ClassifyCommand(cmd) });
+            dimensions |= CommandDescriber.GetCommandDimension(cmd);
+        }
+
+        var waitTime = parsedCommands.OfType<WaitCommand>().FirstOrDefault();
+        var waitDist = parsedCommands.OfType<WaitDistanceCommand>().FirstOrDefault();
+
+        return new CommandBlock
+        {
+            Trigger = trigger,
+            ApplyAction = BuildApplyAction(applyCommands, ctx),
+            ParsedCommands = [.. parsedCommands],
+            Commands = tracked,
+            Dimensions = dimensions,
+            Description = labels.Description,
+            NaturalDescription = labels.Natural,
+            IsWaitBlock = (waitTime is not null) || (waitDist is not null),
+            WaitRemainingSeconds = waitTime?.Seconds ?? 0,
+            WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
+            SourceCommandText = sourceCommandText,
+            HasTrackCommand = hasTrackCommand,
+        };
+    }
+
     private static CommandBlock? SplitBlockNonConflicting(CommandBlock block, CommandDimension conflictingDims, DispatchContext ctx)
     {
         // If the block has no dimensional overlap at all, keep it entirely
@@ -2396,40 +2458,19 @@ public static class CommandDispatcher
 
         // Rebuild a new block with only the non-conflicting commands
         var keptParsed = keepIndices.Select(i => block.ParsedCommands[i]).ToList();
-        var keptTracked = keepIndices.Select(i => new TrackedCommand { Type = block.Commands[i].Type }).ToList();
-        var keptDims = CommandDimension.None;
-        foreach (var idx in keepIndices)
-        {
-            keptDims |= CommandDescriber.GetCommandDimension(block.ParsedCommands[idx]);
-        }
 
         var desc = string.Join(", ", keptParsed.Select(CommandDescriber.DescribeCommand));
         var natural = string.Join(", ", keptParsed.Select(CommandDescriber.DescribeNatural));
 
-        // Track commands (HO/TRACK/DROP/…) have no arm in ApplyCommand — mirror EnqueueBlocks: flag the
-        // rebuilt block and keep the track commands out of its ApplyAction. Otherwise the split drops
-        // HasTrackCommand (so SimulationEngine.ProcessTriggeredTrackBlocks skips it and the triggered
-        // handoff never fires) while its ApplyAction still carries the track command straight into
-        // ApplyCommand's no-dispatcher-arm default at fire time.
-        bool hasTrackCommand = keptParsed.Exists(TrackEngine.IsTrackCommand);
-        var applyCommands = hasTrackCommand ? keptParsed.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : keptParsed;
+        var rebuilt = CreateBlock(keptParsed, block.Trigger, new BlockLabels(desc, natural), block.SourceCommandText, ctx);
 
-        return new CommandBlock
-        {
-            Trigger = block.Trigger,
-            ApplyAction = BuildApplyAction(applyCommands, ctx),
-            ParsedCommands = keptParsed,
-            Commands = keptTracked,
-            Dimensions = keptDims,
-            Description = desc,
-            NaturalDescription = natural,
-            IsWaitBlock = block.IsWaitBlock,
-            WaitRemainingSeconds = block.WaitRemainingSeconds,
-            WaitRemainingDistanceNm = block.WaitRemainingDistanceNm,
-            SourceCommandText = block.SourceCommandText,
-            HasTrackCommand = hasTrackCommand,
-            TrackApplied = block.TrackApplied,
-        };
+        // Runtime state the surviving commands cannot describe: a partially-elapsed wait, and the guard that
+        // stops an already-dispatched track command from firing twice. Both belong to the block being replaced.
+        rebuilt.WaitRemainingSeconds = block.WaitRemainingSeconds;
+        rebuilt.WaitRemainingDistanceNm = block.WaitRemainingDistanceNm;
+        rebuilt.TrackApplied = block.TrackApplied;
+
+        return rebuilt;
     }
 
     private static List<string> EnqueueBlocks(CompoundCommand compound, int startIndex, AircraftState aircraft, DispatchContext ctx)
@@ -2481,44 +2522,14 @@ public static class CommandDispatcher
                 blockMsg = $"On handoff: {blockMsg}";
             }
 
-            var waitTime = parsedBlock.Commands.OfType<WaitCommand>().FirstOrDefault();
-            var waitDist = parsedBlock.Commands.OfType<WaitDistanceCommand>().FirstOrDefault();
-            bool isWait = waitTime is not null || waitDist is not null;
             var trigger = ConvertCondition(parsedBlock.Condition, aircraft, ctx);
             if (trigger is null && parsedBlock.Condition is AtGroundEntityCondition unresolved)
             {
                 aircraft.PendingWarnings.Add($"AT ground entity not found: {FormatGroundLabel(unresolved)}");
                 continue;
             }
-            // Track commands (HO/TRACK/DROP/…) have no arm in ApplyCommand — they must reach the track
-            // engine instead. Keep them out of the ApplyAction so a triggered block doesn't hit the
-            // no-dispatcher-arm default arm; SimulationEngine.ProcessTriggeredTrackBlocks dispatches
-            // them at fire time (it reads ParsedCommands, which retains the full command list).
-            bool hasTrackCommand = parsedBlock.Commands.Exists(TrackEngine.IsTrackCommand);
-            var applyCommands = hasTrackCommand ? parsedBlock.Commands.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : parsedBlock.Commands;
 
-            var commandBlock = new CommandBlock
-            {
-                Trigger = trigger,
-                ApplyAction = BuildApplyAction(applyCommands, ctx),
-                ParsedCommands = parsedBlock.Commands.ToList(),
-                Description = blockDesc,
-                NaturalDescription = blockMsg,
-                IsWaitBlock = isWait,
-                WaitRemainingSeconds = waitTime?.Seconds ?? 0,
-                WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
-                SourceCommandText = compound.SourceText,
-                HasTrackCommand = hasTrackCommand,
-            };
-
-            var blockDims = CommandDimension.None;
-            foreach (var cmd in parsedBlock.Commands)
-            {
-                commandBlock.Commands.Add(new TrackedCommand { Type = CommandDescriber.ClassifyCommand(cmd) });
-                blockDims |= CommandDescriber.GetCommandDimension(cmd);
-            }
-
-            commandBlock.Dimensions = blockDims;
+            var commandBlock = CreateBlock([.. parsedBlock.Commands], trigger, new BlockLabels(blockDesc, blockMsg), compound.SourceText, ctx);
 
             aircraft.Queue.Blocks.Add(commandBlock);
             messages.Add(blockMsg);

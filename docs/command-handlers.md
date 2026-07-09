@@ -200,7 +200,7 @@ but leaves a queued altitude block alone; mixed-dimension blocks are split via `
 4. After a *successful* apply, call `NotifyPhaseCommandAccepted` (`:2142`).
 
 **Track commands are excluded from the closure.** `TrackEngine.IsTrackCommand` verbs (`HO`/`TRACK`/`DROP`/`ACCEPT`/…)
-have no arm in `ApplyCommand`, so a triggered `AT FIX HO 2B` would hit the no-dispatcher-arm fallback. `EnqueueBlocks`
+have no arm in `ApplyCommand`, so a triggered `AT FIX HO 2B` would hit the no-dispatcher-arm fallback. `CreateBlock`
 therefore omits track commands from the `ApplyAction` and flags the block `HasTrackCommand`; when the trigger fires,
 `SimulationEngine.ProcessTriggeredTrackBlocks` (run inside `TickPhysics`, shared by the standalone sim and the
 server tick) dispatches them through `TrackEngine.Dispatch` — the one path with the live `SimScenarioState` and
@@ -276,6 +276,12 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   out. `TerminalEmitter` is nulled in the dry-run context specifically so SAY-class verbs don't broadcast phantom pilot transmissions.
 - **Never call `Queue.Clear()` in a handler.** Queue clearing is dimension-aware (`ClearConflictingBlocks` + `SplitBlockNonConflicting`); a handler
   that wipes the whole queue defeats parallel-block survival (a heading command should preserve a queued altitude block).
+- **Build queued blocks only through `CreateBlock`.** Both the enqueue path (`EnqueueBlocks`) and the supersede-split path
+  (`SplitBlockNonConflicting`) construct a `CommandBlock` from a list of `ParsedCommand`s; every field derivable from those commands
+  (`Commands`, `Dimensions`, `HasTrackCommand`, `IsWaitBlock`, and the `ApplyAction`'s filtered command list) is derived inside `CreateBlock`.
+  Hand-rolling a second construction site is how the split path twice lost `HasTrackCommand` and silently dropped a queued handoff. A caller
+  rebuilding an existing block must still copy that block's live `WaitRemaining*` countdown and `TrackApplied` guard across — those are runtime
+  state, not derivable from the commands.
 - **Handlers write `ControlTargets`, never position — except Force\*.** `ApplyForceHeading`/`ApplyForceAltitude`/`ApplyForceSpeed`/WARP teleport by
   writing `aircraft.TrueHeading`/`Altitude`/`Position` directly. They are sim-control bypasses that skip the phase gate because they wipe
   phase/queue/route inside the handler.
