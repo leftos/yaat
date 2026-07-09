@@ -2505,7 +2505,7 @@ internal static class PatternCommandHandler
     /// Ensure the aircraft is in pattern mode, inferring the side the same way a go-around does
     /// (<see cref="GoAroundHelper.ResolvePatternIntent"/>): the controller's stated intent, then the
     /// pattern legs the aircraft has flown, then the runway's L/R side. Callers are the option
-    /// clearances (CTL/CSG/CLA/CFO), which are VFR-only, so the left-traffic fallback here only
+    /// clearances (TG/SG/LA/COPT), which are VFR-only, so the left-traffic fallback here only
     /// covers the IFR case that the dispatcher already rejects.
     /// </summary>
     private static void EnsurePatternMode(AircraftState aircraft)

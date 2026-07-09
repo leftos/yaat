@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.7-beta [2026/07/08]
+
+### Highlights
+- Intel Macs are supported. The macOS client now ships a separate Intel package alongside the Apple Silicon one; Apple Silicon installs update automatically.
+- A VFR aircraft told to go around re-enters the traffic pattern instead of climbing straight out to 2,000 ft.
+- `EF <rwy>` for an aircraft too close in for a straight-in continues its base and turns final onto the runway you named, instead of flying outbound down the final.
+- `MRT 30` / `MLT 30` for a runway the aircraft was not cleared to land on now cancels its landing clearance, so it can no longer touch down on a runway you never cleared it for.
 
 ### Added
 - **Intel Mac support.** The macOS client now ships as two packages — `YaatClient-<ver>-osx-arm64-Setup.pkg` for Apple Silicon and `YaatClient-<ver>-osx-x64-Setup.pkg` for Intel — each with a matching portable zip. The installer refuses the package that doesn't match your Mac. Apple Silicon installs update to the new package automatically; nothing to reinstall. macOS 14 (Sonoma) or newer is required on both architectures.
@@ -10,7 +16,7 @@
 - `MRT` / `MLT` issued to an aircraft that is already going around now turns it back toward the pattern instead of leaving it in the climb.
 - A go-around into the pattern now levels at the airport's published pattern altitude for that runway, and honours a pattern altitude set with `MRT 28R 15`, rather than always using the aircraft category's default.
 - `MRT 30` / `MLT 30` for a runway the aircraft was not cleared to land on now cancels its landing clearance, so it can no longer touch down on a runway you never cleared it for. Re-clear it for the new runway.
-- `CTL`, `CSG`, `CLA`, and `CFO` given without a traffic-pattern side now pick the same side a go-around would — the side you last assigned, then the one the aircraft is already flying, then the runway's — instead of always defaulting to left traffic.
+- `TG`, `SG`, `LA`, and `COPT` given without a traffic-pattern side now pick the same side a go-around would — the side you last assigned, then the one the aircraft is already flying, then the runway's — instead of always defaulting to left traffic.
 - A queued conditional command that pairs a maneuver with a handoff — `AT OAK FH 270, HO 2W` — no longer loses the handoff when a later command supersedes the maneuver half. Issuing `FH 090` before the aircraft reached OAK cancelled the queued turn but also silently dropped the queued `HO`, and then reported a spurious `Unable to …` when the fix was crossed. The handoff now still fires on reaching the fix.
 - When a later command supersedes part of a queued conditional command, the surviving half keeps its condition label in the command queue. `AT OAK FH 270, HO 2W` followed by `FH 090` used to leave the handoff showing as a bare `HO 2W`, with nothing to say it was still waiting on OAK; it now reads `at OAK: HO 2W`.
 - `EF <rwy>` to an aircraft too close in for a straight-in continues its base and turns final onto the runway you named, instead of flying outbound down the final.

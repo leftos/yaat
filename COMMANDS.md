@@ -884,7 +884,7 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 - **Infeasible:** an aircraft inside the category minimum final that can fly neither a stabilized straight-in nor a base entry is rejected with "unable, short final" and continues its current approach. That covers an aligned aircraft too close in, a jet or turboprop on a short base, an aircraft that has already overshot the target centerline, and one too high to descend over the remaining base + final. A runway change that can't be flown (a parallel too low to sidestep, or a non-parallel runway) likewise rejects rather than looping outbound — issue `GA` to go around and re-sequence if the switch is required.
 - **Never outbound:** an aircraft *already tracking outbound* — on the downwind, which parallels the runway in the departure direction (AIM §4-3-2.c) — may legitimately be sent ahead to an entry point farther from the threshold and then turned onto final; that is just the rest of the pattern. Any aircraft with an inbound component is never routed to an entry point behind it.
 
-**Runway changes void the landing clearance.** A landing clearance names a runway (7110.65 §3-10-5), so any pattern entry (`EF` / `ERB` / `ELB` / `ELD` / `ERD` / `ELC` / `ERC`) whose runway argument names a *different* runway than the standing clearance cancels it — reissue `CLAND`/`CTL`/`COPT` for the new runway. Re-entering the pattern for the same runway keeps the clearance. The instrument sidestep (`EF` to a closely-spaced parallel while established on `FinalApproach`) is exempt: there the approach clearance itself authorizes the landing on the parallel (7110.65 §4-8-7, AIM §5-4-19).
+**Runway changes void the landing clearance.** A landing clearance names a runway (7110.65 §3-10-5), so any pattern entry (`EF` / `ERB` / `ELB` / `ELD` / `ERD` / `ELC` / `ERC`) whose runway argument names a *different* runway than the standing clearance cancels it — reissue `CLAND`/`TG`/`SG`/`LA`/`COPT` for the new runway. Re-entering the pattern for the same runway keeps the clearance. The instrument sidestep (`EF` to a closely-spaced parallel while established on `FinalApproach`) is exempt: there the approach clearance itself authorizes the landing on the parallel (7110.65 §4-8-7, AIM §5-4-19).
 
 `P270` plans a 270° turn at the next pattern turn point without executing immediately. The turn direction is automatically determined from the traffic pattern direction (left 270 for left traffic, right 270 for right traffic). Use `NO270` to cancel.
 
@@ -930,7 +930,7 @@ For **IFR** visual approaches, use `CVA 28R FOLLOW AAL123` instead — a distinc
 | `COPT` | Cleared for the option |
 | `COPT MLT` / `COPT MRT` | Cleared for the option, make left/right traffic |
 
-TG, SG, LA, and COPT accept an optional `MLT`/`MRT` argument to set the traffic pattern direction on the go.
+TG, SG, LA, and COPT accept an optional `MLT`/`MRT` argument to set the traffic pattern direction on the go. Without one, the side is inferred the way a go-around infers it: the side you last assigned, then the pattern the aircraft is already flying, then the runway's L/R suffix, then left traffic.
 
 ### Approach Control Commands
 

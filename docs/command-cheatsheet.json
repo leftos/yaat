@@ -130,7 +130,7 @@
       "notes": [
         "CTO modes: `H270` `RH270`/`LH270` `RT270`/`LT270` `RH`/`MRH`/`MSO` (all both; `RH`/`MRH`/`MSO` = fly runway heading, suppresses SID for IFR); `MRC`/`MLC` `MRD`/`MLD` `MR270`/`ML270` `OC` `DCT fix` `TLDCT fix`/`TRDCT fix` `MRT [rwy]`/`MLT [rwy]` (VFR only — IFR accepts only bare CTO, a numeric heading, or runway heading)",
         "Immediate suffix `IMM`/`WD`/`ND` (interchangeable) on any `CTO` = cleared for immediate takeoff (brisk lineup + rolling start); on `LUAW` = without delay (brisk lineup, still holds). Super/Heavy keep a standing-start takeoff.",
-        "GA modes: `GA` (rwy hdg) `GA 270` `GA 270 50` (hdg+alt) `GA MRT [alt]`/`GA MLT [alt]` (closed traffic)"
+        "GA modes: `GA` (VFR: re-enter the pattern; instrument: published missed; else rwy hdg) `GA 270` `GA 270 50` (hdg+alt) `GA MRT [alt]`/`GA MLT [alt]` (closed traffic)"
       ]
     },
     {
