@@ -804,7 +804,7 @@ For a **radar-vectors SID** (e.g. NIMI6 off KOAK), the published departure headi
 | `TLDCT {fix}` | Turn left direct to named fix | VFR only |
 | `TRDCT {fix}` | Turn right direct to named fix | VFR only |
 | `MRT` / `MLT` | Make right/left closed traffic (enter pattern) | VFR only |
-| `MRT {rwy}` / `MLT {rwy}` | Cross-runway closed traffic (pattern for a different runway) | VFR only |
+| `MRT {rwy}` / `MLT {rwy}` | Cross-runway closed traffic (pattern for a different runway). Cancels any landing clearance held for the old runway | VFR only |
 | `MRT [rwy] [alt]` / `MLT [rwy] [alt]` | Closed traffic with optional altitude override (e.g., `CTO MLT 28R 15` = left traffic 28R at 1,500 ft) | VFR only |
 
 **Cross-runway pattern** — `CTO MRT 28R` from runway 33 clears the aircraft for takeoff on runway 33 and enters right traffic for runway 28R. The aircraft lines up and departs on the **departure runway** (33), climbs the upwind on runway 33's extended centerline, then turns toward the assigned pattern side and joins the **pattern runway** (28R) downwind. Downwind, base, and final are flown for the pattern runway (28R); subsequent circuits stay entirely on the pattern runway. (Per AIM 4-3-2: the departure/upwind leg belongs to the departure runway; downwind/base/final belong to the landing runway.)

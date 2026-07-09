@@ -270,6 +270,113 @@ public class GoAroundClimbOutTests
         Assert.Null(aircraft.Phases.TrafficDirection);
     }
 
+    // ---- Option clearances share the same inference -----------------------------------------
+
+    /// <summary>
+    /// <c>CTL</c> with no stated side puts the aircraft into pattern mode, resolving the side exactly
+    /// as a go-around does. On 28R that is right traffic (outboard of the 28L parallel), not the
+    /// blanket left-traffic default the option clearances used to apply.
+    /// </summary>
+    [Fact]
+    public void ClearedTouchAndGo_WithoutStatedSide_InfersSameDirectionAsGoAround()
+    {
+        var runway = Runway("28R");
+        if (runway is null)
+        {
+            return;
+        }
+
+        var aircraft = MakeVfrAircraft(runway);
+        aircraft.Phases!.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+
+        var result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, trafficPattern: null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(PatternDirection.Right, aircraft.Phases.TrafficDirection);
+    }
+
+    /// <summary>A side the aircraft has already flown outranks the runway-side convention.</summary>
+    [Fact]
+    public void ClearedTouchAndGo_WithoutStatedSide_KeepsTheSideAlreadyFlown()
+    {
+        var runway = Runway("28R");
+        if (runway is null)
+        {
+            return;
+        }
+
+        var aircraft = MakeVfrAircraft(runway);
+        aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Left) });
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+
+        var result = PatternCommandHandler.TrySetupTouchAndGo(aircraft, trafficPattern: null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(PatternDirection.Left, aircraft.Phases.TrafficDirection);
+    }
+
+    // ---- Cross-runway MLT/MRT ---------------------------------------------------------------
+
+    /// <summary>
+    /// A landing clearance names a runway (7110.65 §3-10-5). Sending the aircraft around a pattern for
+    /// a different runway invalidates it — <c>FinalApproachPhase.HasLandingClearance</c> reads only the
+    /// clearance type, so a surviving clearance would let the aircraft land on a runway the controller
+    /// never cleared it for, with no "no landing clearance" warning.
+    /// </summary>
+    [Fact]
+    public void MakeRightTraffic_ForADifferentRunway_InvalidatesTheLandingClearance()
+    {
+        var runway = Runway("28R");
+        if (runway is null || Runway("30") is null)
+        {
+            return;
+        }
+
+        var aircraft = MakeVfrAircraft(runway);
+        aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Right) });
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        aircraft.Phases.ClearedRunwayId = "28R";
+
+        var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: "30", altitudeOverride: null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("30", aircraft.Phases.AssignedRunway?.Designator);
+        Assert.Null(aircraft.Phases.LandingClearance);
+        Assert.Null(aircraft.Phases.ClearedRunwayId);
+    }
+
+    /// <summary>A same-runway MLT/MRT only changes the pattern side, so the landing clearance stands.</summary>
+    [Fact]
+    public void MakeRightTraffic_ForTheSameRunway_KeepsTheLandingClearance()
+    {
+        var runway = Runway("28R");
+        if (runway is null)
+        {
+            return;
+        }
+
+        var aircraft = MakeVfrAircraft(runway);
+        aircraft.Phases!.Add(new DownwindPhase { Waypoints = WaypointsFor(runway, PatternDirection.Left) });
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout: null));
+        aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        aircraft.Phases.ClearedRunwayId = "28R";
+
+        var result = PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, runwayId: "28R", altitudeOverride: null);
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(ClearanceType.ClearedToLand, aircraft.Phases.LandingClearance);
+        Assert.Equal("28R", aircraft.Phases.ClearedRunwayId);
+    }
+
     // ---- MLT/MRT during an active go-around ------------------------------------------------
 
     /// <summary>

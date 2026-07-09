@@ -689,10 +689,21 @@ internal static class PatternCommandHandler
             }
 
             aircraft.Phases ??= new PhaseList();
+            bool runwayChanged = !string.Equals(aircraft.Phases.ClearedRunwayId, resolved.Designator, StringComparison.OrdinalIgnoreCase);
             aircraft.Phases.AssignedRunway = resolved;
             NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, resolved.Designator);
             // Changing runway clears altitude override — different runway, different TPA
             aircraft.Pattern.AltitudeOverrideFt = null;
+
+            // A landing clearance names a runway (7110.65 §3-10-5), so sending the aircraft around a
+            // pattern for a different one voids it — the controller has to clear it again. Without this
+            // the aircraft keeps the clearance all the way to a touchdown it was never cleared for:
+            // FinalApproachPhase.HasLandingClearance reads only the clearance type, never the runway.
+            if (runwayChanged && aircraft.Phases.ClearedRunwayId is not null)
+            {
+                aircraft.Phases.LandingClearance = null;
+                aircraft.Phases.ClearedRunwayId = null;
+            }
         }
 
         // Set explicit altitude override if provided
@@ -826,8 +837,9 @@ internal static class PatternCommandHandler
         // Update waypoints on existing pattern phases
         bool hasPatternPhases = PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
 
-        // If no pattern phases exist yet (e.g., after takeoff or go-around),
-        // append a full pattern circuit after the current phase.
+        // If no pattern phases exist yet (a departure told to stay in closed traffic), append a full
+        // circuit after the current phase. A go-around never lands here — it returns above, letting
+        // PhaseRunner's auto-cycle build the circuit once the climb-out completes.
         if (!hasPatternPhases)
         {
             var circuit = PatternBuilder.BuildCircuit(
@@ -1701,7 +1713,7 @@ internal static class PatternCommandHandler
             aircraft.Phases.TrafficDirection = dir;
             aircraft.Pattern.TrafficDirection = dir;
         }
-        EnsurePatternMode(aircraft.Phases);
+        EnsurePatternMode(aircraft);
 
         return CommandDispatcher.Ok($"Cleared touch-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
@@ -1725,7 +1737,7 @@ internal static class PatternCommandHandler
             aircraft.Phases.TrafficDirection = dir;
             aircraft.Pattern.TrafficDirection = dir;
         }
-        EnsurePatternMode(aircraft.Phases);
+        EnsurePatternMode(aircraft);
 
         return CommandDispatcher.Ok($"Cleared stop-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
@@ -1749,7 +1761,7 @@ internal static class PatternCommandHandler
             aircraft.Phases.TrafficDirection = dir;
             aircraft.Pattern.TrafficDirection = dir;
         }
-        EnsurePatternMode(aircraft.Phases);
+        EnsurePatternMode(aircraft);
 
         return CommandDispatcher.Ok($"Cleared low approach{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
@@ -1773,7 +1785,7 @@ internal static class PatternCommandHandler
             aircraft.Phases.TrafficDirection = dir;
             aircraft.Pattern.TrafficDirection = dir;
         }
-        EnsurePatternMode(aircraft.Phases);
+        EnsurePatternMode(aircraft);
 
         return CommandDispatcher.Ok($"Cleared for the option{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
@@ -2231,32 +2243,15 @@ internal static class PatternCommandHandler
         };
 
     /// <summary>
-    /// Ensure the aircraft is in pattern mode. If TrafficDirection is not set,
-    /// infer direction from existing pattern phases or default to Left.
+    /// Ensure the aircraft is in pattern mode, inferring the side the same way a go-around does
+    /// (<see cref="GoAroundHelper.ResolvePatternIntent"/>): the controller's stated intent, then the
+    /// pattern legs the aircraft has flown, then the runway's L/R side. Callers are the option
+    /// clearances (CTL/CSG/CLA/CFO), which are VFR-only, so the left-traffic fallback here only
+    /// covers the IFR case that the dispatcher already rejects.
     /// </summary>
-    private static void EnsurePatternMode(PhaseList phases)
+    private static void EnsurePatternMode(AircraftState aircraft)
     {
-        if (phases.TrafficDirection is not null)
-        {
-            return;
-        }
-
-        // Infer from existing pattern phases
-        foreach (var phase in phases.Phases)
-        {
-            if (phase is DownwindPhase { Waypoints: not null } dw)
-            {
-                phases.TrafficDirection = dw.Waypoints.Direction;
-                return;
-            }
-            if (phase is BasePhase { Waypoints: not null } bp)
-            {
-                phases.TrafficDirection = bp.Waypoints.Direction;
-                return;
-            }
-        }
-
-        phases.TrafficDirection = PatternDirection.Left;
+        aircraft.Phases!.TrafficDirection = GoAroundHelper.ResolvePatternIntent(aircraft) ?? PatternDirection.Left;
     }
 
     internal static CommandResult TryGoAround(GoAroundCommand ga, AircraftState aircraft, AirportGroundLayout? groundLayout)
