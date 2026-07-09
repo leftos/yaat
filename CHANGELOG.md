@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.6-beta [2026/07/08]
+
+### Highlights
+- Holding short of a runway now works as instructed — `HS 28L` stops the aircraft on the entry side and overrides **Auto-cross runway** or an earlier `CROSS`, and `RES HS` applies all its targets or none.
+- An aircraft following traffic landing ahead of it now extends its leg and waits until that traffic is on the ground and clear, instead of cutting in front or breaking off the follow.
+- Spawned IFR aircraft squawk a realistic beacon code drawn from the facility's own code banks — no two aircraft share a code, and no aircraft is given one that raises a false alert on a controller's scope.
+- `ADD` altitudes now use the same shorthand as every other altitude argument — `ADD VFR S P -360 15 035` spawns at 3,500 ft instead of 35 ft.
 
 ### Changed
 - `FOLLOW` re-sequences the follower onto the traffic's runway when that traffic is landing a different runway; refused once established on base or final.
