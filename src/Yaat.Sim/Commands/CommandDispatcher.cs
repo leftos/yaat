@@ -2406,10 +2406,18 @@ public static class CommandDispatcher
         var desc = string.Join(", ", keptParsed.Select(CommandDescriber.DescribeCommand));
         var natural = string.Join(", ", keptParsed.Select(CommandDescriber.DescribeNatural));
 
+        // Track commands (HO/TRACK/DROP/…) have no arm in ApplyCommand — mirror EnqueueBlocks: flag the
+        // rebuilt block and keep the track commands out of its ApplyAction. Otherwise the split drops
+        // HasTrackCommand (so SimulationEngine.ProcessTriggeredTrackBlocks skips it and the triggered
+        // handoff never fires) while its ApplyAction still carries the track command straight into
+        // ApplyCommand's no-dispatcher-arm default at fire time.
+        bool hasTrackCommand = keptParsed.Exists(TrackEngine.IsTrackCommand);
+        var applyCommands = hasTrackCommand ? keptParsed.Where(c => !TrackEngine.IsTrackCommand(c)).ToList() : keptParsed;
+
         return new CommandBlock
         {
             Trigger = block.Trigger,
-            ApplyAction = BuildApplyAction(keptParsed, ctx),
+            ApplyAction = BuildApplyAction(applyCommands, ctx),
             ParsedCommands = keptParsed,
             Commands = keptTracked,
             Dimensions = keptDims,
@@ -2419,6 +2427,8 @@ public static class CommandDispatcher
             WaitRemainingSeconds = block.WaitRemainingSeconds,
             WaitRemainingDistanceNm = block.WaitRemainingDistanceNm,
             SourceCommandText = block.SourceCommandText,
+            HasTrackCommand = hasTrackCommand,
+            TrackApplied = block.TrackApplied,
         };
     }
 

@@ -8,6 +8,7 @@
 - A go-around into the pattern now levels at the airport's published pattern altitude for that runway, and honours a pattern altitude set with `MRT 28R 15`, rather than always using the aircraft category's default.
 - `MRT 30` / `MLT 30` for a runway the aircraft was not cleared to land on now cancels its landing clearance, so it can no longer touch down on a runway you never cleared it for. Re-clear it for the new runway.
 - `CTL`, `CSG`, `CLA`, and `CFO` given without a traffic-pattern side now pick the same side a go-around would — the side you last assigned, then the one the aircraft is already flying, then the runway's — instead of always defaulting to left traffic.
+- A queued conditional command that pairs a maneuver with a handoff — `AT OAK FH 270, HO 2W` — no longer loses the handoff when a later command supersedes the maneuver half. Issuing `FH 090` before the aircraft reached OAK cancelled the queued turn but also silently dropped the queued `HO`, and then reported a spurious `Unable to …` when the fix was crossed. The handoff now still fires on reaching the fix.
 
 ## v0.9.6-beta [2026/07/08]
 
