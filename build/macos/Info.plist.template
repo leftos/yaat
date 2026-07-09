@@ -4,12 +4,19 @@
   Custom Info.plist for the macOS .app bundle, supplied to vpk via the plist
   option. vpk copies this file verbatim (it does not merge with or template
   Velopack's generated plist), so the keys below mirror Velopack's PlistWriter
-  output and must stay in sync with it across vpk upgrades. The one addition
-  Velopack does not emit is NSMicrophoneUsageDescription, which macOS requires
+  output and must stay in sync with it across vpk upgrades. Two additions
+  Velopack does not emit: NSMicrophoneUsageDescription, which macOS requires
   before it will grant AudioCaptureService microphone access for push-to-talk
-  speech input.
+  speech input; and LSMinimumSystemVersion, which .NET 10 sets at macOS 14 —
+  without it an older Mac launches the app and crashes instead of being told
+  the OS is too old.
 
-  release.yml substitutes the version placeholders before packing:
+  The same plist is used for both the Apple Silicon and Intel bundles; nothing
+  in it is architecture-specific (vpk records the arch from its runtime option).
+  Note that XML comments cannot contain a double hyphen, so option flags are
+  named without their leading dashes throughout this comment.
+
+  release-macos.yml substitutes the version placeholders before packing:
     SHORT_VERSION placeholder becomes the numeric version, e.g. 0.6.0 (any
     prerelease tag stripped); BUNDLE_VERSION placeholder becomes the full
     version, e.g. 0.6.0-beta.
@@ -36,6 +43,8 @@
   <string>NSApplication</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>LSMinimumSystemVersion</key>
+  <string>14.0</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>YAAT uses your microphone for push-to-talk voice recognition of ATC commands.</string>
 </dict>

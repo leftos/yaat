@@ -12,9 +12,25 @@ The version lives in `Directory.Build.props` at the yaat repo root (`<Version>`)
 
 - **Windows** — `YaatClient-win-Setup.exe` and a `*-win-Portable.zip`.
 - **Linux** — `YaatClient.AppImage` (self-contained; serves as both installer and portable).
-- **macOS** — `YaatClient-osx-Setup.pkg` and a `*-osx-Portable.zip`, both signed and notarized (see below). A `.icns` is generated from `icon.png` via `sips` + `iconutil`, and a custom `Info.plist` (from `build/macos/Info.plist.template`) carries `NSMicrophoneUsageDescription` for push-to-talk capture.
+- **macOS** — one `.pkg` + `*-Portable.zip` pair per architecture (`osx-arm64`, `osx-x64`), all signed and notarized (see below). A `.icns` is generated from `icon.png` via `sips` + `iconutil`, and a custom `Info.plist` (from `build/macos/Info.plist.template`) carries `NSMicrophoneUsageDescription` for push-to-talk capture and `LSMinimumSystemVersion` for the macOS 14 floor that .NET 10 imposes.
 
 Portable archives bundle the single-file exe plus sibling native DLLs (libSkiaSharp, HarfBuzz, LM-Kit) and run without install or auto-update.
+
+## macOS architectures and update channels
+
+Apple Silicon and Intel ship as two separate packages rather than one universal bundle: `PublishSingleFile` embeds the managed payload in the apphost, so the two publishes cannot be `lipo`'d together without giving up single-file.
+
+Velopack resolves updates **by channel**, and its docs require one channel per os/arch — otherwise the updater will eventually hand an Intel package to an Apple Silicon client. So `vpk pack` is passed `--channel osx-arm64` / `--channel osx-x64`, which also puts the channel into every filename it emits (`YaatClient-osx-arm64-Setup.pkg`, `releases.osx-arm64.json`, …). It is additionally passed `--runtime <rid>`, which records the architecture as `.pkg` metadata so the macOS Installer refuses the wrong package — without it Rosetta would silently run the Intel build on Apple Silicon.
+
+`UpdateService` needs no channel argument: constructed with `channel: null`, Velopack looks for updates in whatever channel the *installed* release was packed with.
+
+**The `osx` → `osx-arm64` supersede.** Before the split, arm64 shipped on Velopack's default `osx` channel, and those installs fetch `releases.osx.json` by exact filename. `release-macos.yml` therefore publishes copies of the arm64 index under the old names (`releases.osx.json`, `assets.osx.json`, `RELEASES-osx`) alongside the new ones. An old client finds the copy, updates once, and thereafter carries the `osx-arm64` channel and follows it. Intel never had an `osx` install, so it needs no equivalent. These three copies can be deleted once the arm64 install base has moved off the old channel.
+
+## macOS Intel validation
+
+`release-macos.yml`'s `smoke-intel` job gates the release on a real x86_64 machine (`macos-15-intel` — the last Intel image GitHub offers, available until August 2027). It verifies that every native the x64 publish ships carries an `x86_64` slice, then runs a Whisper transcription through `Yaat.SpeechSandbox --lmkit-stt` to prove LM-Kit's native backend actually loads and runs on an Intel CPU.
+
+Two LM-Kit dylibs are deliberately exempt from the slice check. LM-Kit publishes its macOS natives from a RID-agnostic `runtimes/osx/` folder, so `LM-Kit.ggml.backend.metal.dylib` (arm64-only) and `LM-Kit.onnxruntime.dylib` (arm64-only) are copied into the x64 output too. Neither is loaded on Intel: Metal is skipped in favour of the CPU backend, and LM-Kit's ONNX runtime only serves ONNX models while YAAT loads GGUF exclusively. Any *other* dylib missing an `x86_64` slice fails the release rather than shipping a build that aborts at its first `dlopen`.
 
 ## Code signing and notarization (macOS)
 
@@ -50,8 +66,8 @@ Triggered on `push` of a `v*` tag. Jobs run in dependency order:
 
 1. **version** — reads `<Version>` from `Directory.Build.props` and the short SHA.
 2. **changelog** — extracts the `CHANGELOG.md` section matching the tag, splitting out a `### Highlights` subsection (authored by `/prepare-release`) from the changelog body.
-3. **build** — `dotnet publish` of `src/Yaat.Client` for `win-x64`, `linux-x64`, `osx-arm64`.
-4. **package-win / package-linux / package-macos** — `vpk pack` per platform. `package-macos` additionally imports the Developer ID certificates and an App Store Connect API key into a temporary keychain, then signs + notarizes (skipped when the `MACOS_*` secrets are absent).
+3. **build** — `dotnet publish` of `src/Yaat.Client` for `win-x64` and `linux-x64` (`release-macos.yml` publishes `osx-arm64` and `osx-x64` itself).
+4. **package-win / package-linux / package-macos** — `vpk pack` per platform. `package-macos` (in `release-macos.yml`, once per architecture) additionally imports the Developer ID certificates and an App Store Connect API key into a temporary keychain, then signs + notarizes (skipped when the `MACOS_*` secrets are absent).
 5. **release** — assembles `release/`, builds the release body from highlights + changelog + a download table, and publishes via `softprops/action-gh-release` with the default `GITHUB_TOKEN`.
 
 ### Discord announcement quirk

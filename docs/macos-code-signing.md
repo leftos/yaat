@@ -11,7 +11,9 @@ can be done from any machine with the `gh` CLI.
 
 ## What the pipeline expects
 
-`release.yml`'s `package-macos` job reads these secrets. If
+`release-macos.yml`'s `package-macos` job reads these secrets. That job runs once
+per architecture (`osx-arm64`, `osx-x64`), so each matrix leg imports the
+certificates into its own temporary keychain and notarizes independently. If
 `MACOS_DEVID_APP_CERT_P12_BASE64` is empty, the whole signing path is skipped.
 
 | Secret | What it is |
@@ -124,8 +126,8 @@ rm devid_app.p12 devid_installer.p12 AuthKey_*.p8 *.b64
 
 ## Step 6 — Verify
 
-Cut a release as usual (the `/prepare-release` skill → tag push). In the
-`package-macos` job log you should see, from `vpk pack`:
+Cut a release as usual (the `/prepare-release` skill → tag push). In each
+`package-macos` job log (one per architecture) you should see, from `vpk pack`:
 
 - `Code signing application bundle recursively (with --deep)…`
 - `Notarization completed successfully` (the upload to Apple usually takes a
@@ -136,9 +138,12 @@ Cut a release as usual (the `/prepare-release` skill → tag push). In the
 To sanity-check a downloaded artifact on a Mac:
 
 ```bash
-spctl --assess -vvv --type install YaatClient-<ver>-osx-Setup.pkg   # → "accepted, source=Notarized Developer ID"
-xcrun stapler validate YaatClient-<ver>-osx-Setup.pkg               # → "The validate action worked!"
+spctl --assess -vvv --type install YaatClient-<ver>-osx-arm64-Setup.pkg   # → "accepted, source=Notarized Developer ID"
+xcrun stapler validate YaatClient-<ver>-osx-arm64-Setup.pkg               # → "The validate action worked!"
 ```
+
+Substitute `osx-x64` for the Intel package; both are signed with the same
+certificates by the same job.
 
 ## Maintenance notes
 

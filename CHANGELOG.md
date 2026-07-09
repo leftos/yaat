@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- **Intel Mac support.** The macOS client now ships as two packages — `YaatClient-<ver>-osx-arm64-Setup.pkg` for Apple Silicon and `YaatClient-<ver>-osx-x64-Setup.pkg` for Intel — each with a matching portable zip. The installer refuses the package that doesn't match your Mac. Apple Silicon installs update to the new package automatically; nothing to reinstall. macOS 14 (Sonoma) or newer is required on both architectures.
+
 ### Fixed
 - A VFR aircraft told to go around now re-enters the traffic pattern, levelling 300 ft below pattern altitude and turning crosswind past the departure end, instead of climbing straight out to 2,000 ft AGL. It rejoins on the side it was last assigned — a `MRT`/`MLT`, else the pattern it was already flying, else the runway's L/R side. `GA` with a heading or altitude (`GA 270`) still hands the climb-out to you.
 - `MRT` / `MLT` issued to an aircraft that is already going around now turns it back toward the pattern instead of leaving it in the climb.

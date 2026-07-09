@@ -25,7 +25,10 @@ Pre-built installers and portable archives are published on the [Releases page](
 |----------|-------------------------|----------|
 | Windows  | `YaatClient-<ver>-win-Setup.exe` — auto-updates in the background | `YaatClient-<ver>-win-Portable.zip` |
 | Linux    | `YaatClient-<ver>-linux.AppImage` | (the AppImage is itself portable) |
-| macOS    | `YaatClient-<ver>-osx-Setup.pkg` | `YaatClient-<ver>-osx-Portable.zip` |
+| macOS (Apple Silicon) | `YaatClient-<ver>-osx-arm64-Setup.pkg` | `YaatClient-<ver>-osx-arm64-Portable.zip` |
+| macOS (Intel) | `YaatClient-<ver>-osx-x64-Setup.pkg` | `YaatClient-<ver>-osx-x64-Portable.zip` |
+
+macOS builds require macOS 14 (Sonoma) or newer. Pick the package matching your Mac — the installer refuses the wrong architecture.
 
 Flight strips are also available in any browser at `/vstrips/` on the YAAT server (no install — just open the URL).
 

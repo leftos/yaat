@@ -266,7 +266,7 @@ jobs:
           # On Linux there is no separate portable zip — the AppImage already
           # bundles everything and runs without install, so it serves both roles.
           # macOS assets are appended later by release-macos.yml (notarization is
-          # slow); the body's macOS row below references files that land then.
+          # slow); the body's macOS rows below reference files that land then.
           cp artifacts/yaat-installer-win/YaatClient-win-Portable.zip   "release/YaatClient-${VERSION}-win-Portable.zip"
 
           echo "=== release/ contents ==="
@@ -305,9 +305,12 @@ jobs:
             echo "|----------|------------------------|----------|"
             echo "| Windows | \`YaatClient-${VERSION}-win-Setup.exe\` | \`YaatClient-${VERSION}-win-Portable.zip\` |"
             echo "| Linux   | \`YaatClient-${VERSION}-linux.AppImage\` | (the AppImage is itself portable) |"
-            echo "| macOS   | \`YaatClient-${VERSION}-osx-Setup.pkg\` | \`YaatClient-${VERSION}-osx-Portable.zip\` |"
+            echo "| macOS (Apple Silicon) | \`YaatClient-${VERSION}-osx-arm64-Setup.pkg\` | \`YaatClient-${VERSION}-osx-arm64-Portable.zip\` |"
+            echo "| macOS (Intel) | \`YaatClient-${VERSION}-osx-x64-Setup.pkg\` | \`YaatClient-${VERSION}-osx-x64-Portable.zip\` |"
             echo ""
             echo "Installers include auto-update support. Portable archives unzip to a folder you can run from anywhere — no install, no auto-update. The Linux AppImage is itself portable."
+            echo ""
+            echo "macOS builds require macOS 14 (Sonoma) or newer. Pick the package matching your Mac — the installer refuses the wrong architecture."
           } > "$body_file"
 
           {

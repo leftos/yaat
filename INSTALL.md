@@ -17,7 +17,10 @@ Open the [Releases page](https://github.com/leftos/yaat/releases/latest) and gra
 |----------|-------------------------|----------|
 | Windows  | `YaatClient-<ver>-win-Setup.exe` | `YaatClient-<ver>-win-Portable.zip` |
 | Linux    | `YaatClient-<ver>-linux.AppImage` | (the AppImage is itself portable) |
-| macOS    | `YaatClient-<ver>-osx-Setup.pkg` | `YaatClient-<ver>-osx-Portable.zip` |
+| macOS (Apple Silicon) | `YaatClient-<ver>-osx-arm64-Setup.pkg` | `YaatClient-<ver>-osx-arm64-Portable.zip` |
+| macOS (Intel) | `YaatClient-<ver>-osx-x64-Setup.pkg` | `YaatClient-<ver>-osx-x64-Portable.zip` |
+
+On macOS, pick the package matching your Mac — click the Apple menu → **About This Mac**: a "Chip" line (M1, M2, …) means Apple Silicon, a "Processor" line means Intel. The installer refuses the wrong one. Both require macOS 14 (Sonoma) or newer.
 
 The **installers** register YAAT with your OS and keep themselves up to date automatically — when a new version ships, YAAT downloads it in the background and applies it the next time you launch.
 
@@ -36,7 +39,7 @@ chmod +x YaatClient-<ver>-linux.AppImage
 
 On some distros you'll also need `libfontconfig1` and `libfreetype6` for text rendering — see [Linux prerequisites](#linux-prerequisites) below.
 
-**macOS package:** double-click `YaatClient-<ver>-osx-Setup.pkg` and follow the installer. The package is signed and notarized by Apple, so it opens without a Gatekeeper warning. The first time you use push-to-talk, macOS asks for microphone permission — click **Allow**.
+**macOS package:** double-click the `.pkg` for your architecture (`osx-arm64` for Apple Silicon, `osx-x64` for Intel) and follow the installer. The package is signed and notarized by Apple, so it opens without a Gatekeeper warning. The first time you use push-to-talk, macOS asks for microphone permission — click **Allow**.
 
 **Windows portable:** the zip contains flat files (the executable plus its native dependencies). Create an empty folder, extract the zip into it, then double-click `Yaat.Client.exe`. Don't extract into Downloads — the app expects all its sibling files in the same folder.
 
