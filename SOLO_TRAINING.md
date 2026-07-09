@@ -7,6 +7,8 @@ This guide is written for students who may never have worked as an RPO in YAAT, 
 ## Table of Contents
 
 - [Quick Links](#quick-links)
+- [Before You Start: You Need A Mentor Or Instructor](#before-you-start-you-need-a-mentor-or-instructor)
+  - [The Mentor Does Not Have To Stay](#the-mentor-does-not-have-to-stay)
 - [The Mental Model](#the-mental-model)
 - [If You Have Never Used An RPO Tool](#if-you-have-never-used-an-rpo-tool)
 - [Start a Solo Session](#start-a-solo-session)
@@ -29,6 +31,29 @@ This guide is written for students who may never have worked as an RPO in YAAT, 
 - [User Guide: Connecting CRC for Students](USER_GUIDE.md#connecting-crc-for-students) - CRC environment setup details.
 - [Command Reference](COMMANDS.md) - every command, alias, argument, and example.
 - [Command Reference: Solo Training Command Differences](COMMANDS.md#solo-training-command-differences) - solo/RPO mode differences.
+
+## Before You Start: You Need A Mentor Or Instructor
+
+Solo Training removes the human RPO. It does not remove the mentor.
+
+On a YAAT server, creating a room and loading a scenario require a **VATUSA mentor role** or a **VATSIM Instructor rating (I1/I2/I3) or higher**. Everything else — issuing commands, working the frequency, reading the Session Report — is open to any signed-in VATSIM controller. That means there are two ways into a solo session:
+
+- **You hold a mentor role or an instructor rating.** Sign in, create your own room, load whatever scenario you like, and run the session start to finish on your own.
+- **You are a student.** You cannot start a solo session by yourself. You sign in and connect, and then you wait in the **YAAT Lobby** for a room assignment. A mentor or instructor has to create the room, load the scenario they want you to train on, and pull you into it from **Room > Members...**. Once you are in the room, you work the traffic exactly as the rest of this guide describes.
+
+As a student you cannot create a room, load or unload a scenario, join a room you were not pulled into, or kick anyone. The practical consequence is that **your mentor chooses the scenario.** Solo Training is not a self-serve sandbox — it is a training session your facility's staff sets up for you, with the pilot side automated instead of staffed by a human RPO.
+
+Once you are in a room, the **Solo Training Mode** toggle in the session-settings flyout (the gear button next to the command bar) is available to every member, so either of you can turn solo mode on after the scenario loads.
+
+### The Mentor Does Not Have To Stay
+
+Setting up the session and watching it are separate choices. Once the scenario is loaded and the student has been pulled in, the mentor can leave the room (**Room > Leave Room**) or close YAAT entirely, and the session carries on:
+
+- The room and its simulation keep running as long as at least one client is still connected. The mentor holds nothing the session needs — every command in this guide works for any room member.
+- If the student's client drops, their invitation stays valid for the life of the room, so they rejoin automatically.
+- A mentor who wants to watch instead can simply stay in the room. Nothing about the session changes either way.
+
+Two things still need the mentor. Loading a **different** scenario requires them to come back. And if the student leaves as well, the room has no clients left: it pauses and the server cleans it up a few minutes later, so the session cannot be resumed after that.
 
 ## The Mental Model
 
@@ -72,14 +97,23 @@ After you press **Enter**, check the terminal. `RSP` tells you whether YAAT acce
 
 ## Start a Solo Session
 
-1. Open **Settings > Scenarios** and enable **Solo training mode**. This is your saved default for future scenario loads.
-2. Optional: open **Settings > Speech** and enable Solo pilot voice. If TTS is off, pilot transmissions still appear in the terminal.
-3. Load traffic from **Scenario > Load Scenario...**. Solo Training works with ARTCC scenarios from vNAS and local ATCTrainer-format scenario files.
-4. If **Scenario Setup** appears, choose the difficulty and any solo workload pacing controls.
-5. Work the traffic from the command bar and watch both command feedback and pilot transmissions in the terminal.
-6. Open **Scenario > Session Report** during or after the run to review score, active issues, coaching notes, and runway/approach outcomes.
+The setup steps belong to whoever holds the mentor role or instructor rating. If that is you, you do all of it; if not, your mentor does the first list and you do the second. See [Before You Start](#before-you-start-you-need-a-mentor-or-instructor).
 
-After a scenario is loaded, the gear button next to the command bar controls live session settings, including the active Solo Training Mode toggle and any workload pacing sliders. These settings affect the room session, not only your local window.
+**Mentor / instructor:**
+
+1. Open **Settings > Scenarios** and enable **Solo training mode**. This is a saved default for future scenario loads.
+2. Create a room, then load traffic from **Scenario > Load Scenario...**. Solo Training works with ARTCC scenarios from vNAS and local ATCTrainer-format scenario files.
+3. If **Scenario Setup** appears, choose the difficulty and any solo workload pacing controls.
+4. If the student is not a mentor or instructor themselves, open **Room > Members...** and click **Pull** next to them in the **YAAT Lobby** to bring them into the room.
+5. Stay and observe, or leave — the session runs without you. See [The Mentor Does Not Have To Stay](#the-mentor-does-not-have-to-stay).
+
+**Student:**
+
+1. Optional: open **Settings > Speech** and enable Solo pilot voice. If TTS is off, pilot transmissions still appear in the terminal.
+2. Work the traffic from the command bar and watch both command feedback and pilot transmissions in the terminal.
+3. Open **Scenario > Session Report** during or after the run to review score, active issues, coaching notes, and runway/approach outcomes.
+
+After a scenario is loaded, the gear button next to the command bar controls live session settings, including the active Solo Training Mode toggle and any workload pacing sliders. Any room member can change these, and they affect the room session, not only your local window.
 
 ## Recommended Setup: CRC for the Scope, YAAT for Pilot Control
 
@@ -90,9 +124,9 @@ Solo Training is most useful when you mirror the real working environment: drive
 ### One-Time CRC Setup
 
 1. Install CRC normally and sign in once with your VATSIM credentials so the per-user config exists.
-2. In YAAT, open **Tools > Configure CRC Environments**. This writes (or updates) CRC's `DevEnvironments.json` with the YAAT environments. The hosted server entry is **YAAT1** (`https://yaat1.leftos.dev`); the local-development entry is **YAAT Local** (`http://localhost:5000`).
+2. In YAAT, open **Tools > Configure CRC Environments**. This writes (or updates) CRC's `DevEnvironments.json` with the hosted server entry, **YAAT1** (`https://yaat1.leftos.dev`). If you are running a server yourself, add an entry for it by hand.
 3. Restart CRC so it picks up the new environment list.
-4. In CRC's environment selector, choose **YAAT1** (or **YAAT Local** if you are running a server on this machine), then connect with your VATSIM credentials.
+4. In CRC's environment selector, choose **YAAT1** (or the entry for your own server), then connect with your VATSIM credentials.
 
 If you skip step 2, the [User Guide: Connecting CRC for Students](USER_GUIDE.md#connecting-crc-for-students) section covers the manual `DevEnvironments.json` edit and the PowerShell setup script.
 
