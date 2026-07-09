@@ -24,7 +24,7 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>
-  <string>YAAT Client</string>
+  <string>YAAT</string>
   <key>CFBundleIdentifier</key>
   <string>dev.leftos.yaat</string>
   <key>CFBundleVersion</key>

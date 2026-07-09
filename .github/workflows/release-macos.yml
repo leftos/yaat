@@ -282,7 +282,7 @@ jobs:
             --packVersion "$VERSION"
             --packDir "publish/$RID"
             --mainExe Yaat.Client
-            --packTitle "YAAT Client"
+            --packTitle "YAAT"
             --icon "$ICNS_PATH"
             # One Velopack channel per architecture — a shared channel would let the updater
             # hand an Apple Silicon package to an Intel client. --runtime writes the arch into

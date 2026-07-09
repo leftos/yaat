@@ -19,7 +19,7 @@ room/scenario methods that used to take a `cid`/`accessKey` argument no longer d
 
 ## What this contract is
 
-YAAT Client talks to yaat-server over a standard ASP.NET Core SignalR connection using the **JSON** hub protocol on
+The YAAT client talks to yaat-server over a standard ASP.NET Core SignalR connection using the **JSON** hub protocol on
 `/hubs/training`. There is **no shared assembly and no generated wire artifact**. The two ends are two separate sets of
 C# `record` types — `ServerConnection.cs` (client, in `Yaat.Client.Core`) and `TrainingDtos.cs` (server) — that the
 SignalR `JsonHubProtocol` happens to serialize compatibly. The only binding is **matching JSON property names**. Nothing

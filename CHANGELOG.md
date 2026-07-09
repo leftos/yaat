@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changed
+- The app is now called just **YAAT**, not "YAAT Client". The Windows Start-menu shortcut, the Add/Remove Programs entry, and the macOS application are renamed on your next update; the download filenames are unchanged.
 - The **YAAT Local** (`http://localhost:5000`) entry is no longer a default. **File > Connect...** starts with only **YAAT1**, and **Tools > Configure CRC Environments** (and the standalone `yaat-crc-config` tool and `Setup-CrcEnvironment.ps1`) add only the **YAAT1** entry to CRC. If you run a server yourself, add it with the Connect dialog's **Add** button, or pass `-Servers` to `Setup-CrcEnvironment.ps1`. Entries you already have are left alone.
 
 ## v0.9.7-beta [2026/07/08]

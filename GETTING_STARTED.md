@@ -21,8 +21,8 @@ How you launch depends on how you installed YAAT. Pick the section that matches.
 
 Launch YAAT the same way you launch any other application:
 
-- **Windows:** open the Start menu → type **YAAT** → click the YAAT Client shortcut. Or, if you grabbed the portable, unzip it into an empty folder and double-click `Yaat.Client.exe` inside.
-- **macOS:** open the Applications folder → YAAT Client. Or, if you grabbed the portable, unzip it and double-click the `Yaat.Client.app` bundle inside.
+- **Windows:** open the Start menu → type **YAAT** → click the YAAT shortcut. Or, if you grabbed the portable, unzip it into an empty folder and double-click `Yaat.Client.exe` inside.
+- **macOS:** open the Applications folder → YAAT. Or, if you grabbed the portable, unzip it and double-click the `Yaat.Client.app` bundle inside.
 - **Linux:** run the AppImage (`./YaatClient-<ver>-linux.AppImage`) — it bundles everything and doesn't need to be unzipped.
 
 YAAT opens to an empty main window — no server connection yet. That happens in Step 3.

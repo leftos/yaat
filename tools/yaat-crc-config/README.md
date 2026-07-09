@@ -19,7 +19,7 @@ The tool is **idempotent**: running it twice is safe — the second run will tel
 
 If you run a YAAT server yourself, add its entry to `DevEnvironments.json` by hand (see [Reverting](#reverting) for the file's location) — the tool only configures the hosted server.
 
-The full YAAT Client (`Tools → Configure CRC Environments`) and the `Setup-CrcEnvironment.ps1` PowerShell script all use the **same** entry list, sourced from `docs/crc-environments.json` in this repo.
+The full YAAT app (`Tools → Configure CRC Environments`) and the `Setup-CrcEnvironment.ps1` PowerShell script all use the **same** entry list, sourced from `docs/crc-environments.json` in this repo.
 
 ## Download
 

@@ -181,7 +181,7 @@ jobs:
             --packVersion ${{ needs.version.outputs.version }} `
             --packDir publish/win-x64 `
             --mainExe Yaat.Client.exe `
-            --packTitle "YAAT Client" `
+            --packTitle "YAAT" `
             --icon src/Yaat.Client/Resources/icon.ico `
             --outputDir releases
 
@@ -217,7 +217,7 @@ jobs:
             --packVersion ${{ needs.version.outputs.version }} \
             --packDir publish/linux-x64 \
             --mainExe Yaat.Client \
-            --packTitle "YAAT Client" \
+            --packTitle "YAAT" \
             --icon src/Yaat.Client/Resources/icon.png \
             --outputDir releases
 
@@ -300,7 +300,7 @@ jobs:
 
             echo "---"
             echo ""
-            echo "### YAAT Client"
+            echo "### YAAT"
             echo "| Platform | Installer (recommended) | Portable |"
             echo "|----------|------------------------|----------|"
             echo "| Windows | \`YaatClient-${VERSION}-win-Setup.exe\` | \`YaatClient-${VERSION}-win-Portable.zip\` |"

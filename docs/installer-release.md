@@ -1,6 +1,6 @@
 # Installer and release pipeline
 
-YAAT Client ships as a Velopack installer with auto-update, built and published by a tag-driven GitHub Actions workflow. This doc covers the packaging stack, the auto-update path, the CRC install-time configuration prompt, and the `release.yml` flow end-to-end.
+YAAT ships as a Velopack installer with auto-update, built and published by a tag-driven GitHub Actions workflow. This doc covers the packaging stack, the auto-update path, the CRC install-time configuration prompt, and the `release.yml` flow end-to-end.
 
 ## Versioning
 

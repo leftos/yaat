@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <!--
-    Hardened-runtime entitlements for the notarized YAAT Client .app.
+    Hardened-runtime entitlements for the notarized YAAT .app.
 
     The first four keys are the set Microsoft documents as required for a
     self-contained .NET app to pass notarization (the CoreCLR JITs code and
