@@ -263,10 +263,10 @@ jobs:
 
             Detects your CRC config directory, then adds:
             - `YAAT1` → `https://yaat1.leftos.dev`
-            - `YAAT Local` → `http://localhost:5000`
 
             Existing unrelated entries in `DevEnvironments.json` are preserved. Re-running
-            the tool is safe — it updates URLs in place.
+            the tool is safe — it updates URLs in place. If you host a YAAT server yourself,
+            add its entry to `DevEnvironments.json` by hand.
 
             ### Running it
 

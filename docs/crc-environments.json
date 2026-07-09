@@ -5,12 +5,5 @@
     "apiBaseUrl": "https://yaat1.leftos.dev",
     "isDisabled": false,
     "isSweatbox": false
-  },
-  {
-    "name": "YAAT Local",
-    "clientHubUrl": "http://localhost:5000/hubs/client",
-    "apiBaseUrl": "http://localhost:5000",
-    "isDisabled": false,
-    "isSweatbox": false
   }
 ]

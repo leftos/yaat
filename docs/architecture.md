@@ -79,7 +79,7 @@ The Task Index above tells you *which files*; these docs explain *how each subsy
 
 ```
 AGENTS.md                         # Codex project wrapper; points Codex back to CLAUDE.md and maps Claude agents/commands/hooks to Codex behavior.
-Setup-CrcEnvironment.ps1          # Adds YAAT1 + YAAT Local to CRC's DevEnvironments.json
+Setup-CrcEnvironment.ps1          # Adds YAAT1 to CRC's DevEnvironments.json (-Servers overrides for self-hosted)
 tools/codex-yaat.ps1              # Launches Codex from the YAAT repo root and adds ..\yaat-server as an extra writable/readable directory.
 tools/setup-codex.ps1             # Creates user-local Codex skill junctions and registers MCP servers without committing local state or token values.
 tools/refresh-faa-airspace.ps1    # Reads vNAS training scenario primary airports by ARTCC, then downloads matching FAA AIS Class Airspace GeoJSON/Brotli.
@@ -989,7 +989,7 @@ src/config.rs                  # Mirrors CrcConfigService.cs: find_crc_config_di
 src/dialog.rs                  # Cross-platform native dialogs: MessageBoxW (Win), osascript (Mac), zenity/kdialog/console (Linux)
 ```
 
-The canonical YAAT environment list (`YAAT1` + `YAAT Local`) lives in `docs/crc-environments.json` — a single source of truth shared by this tool, `Yaat.Client.Core/Services/CrcConfigService.cs` (embedded resource), and `Setup-CrcEnvironment.ps1` (read at script execution time when run from the repo).
+The canonical YAAT environment list (`YAAT1`) lives in `docs/crc-environments.json` — a single source of truth shared by this tool, `Yaat.Client.Core/Services/CrcConfigService.cs` (embedded resource), and `Setup-CrcEnvironment.ps1` (read at script execution time when run from the repo). Self-hosted servers are not defaults; they are added by hand or via `Setup-CrcEnvironment.ps1 -Servers`.
 
 ## yaat-server — ASP.NET Core server (`..\yaat-server\`)
 

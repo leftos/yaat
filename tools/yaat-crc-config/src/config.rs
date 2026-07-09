@@ -211,17 +211,13 @@ mod tests {
     #[test]
     fn embedded_entries_match_canonical_list() {
         let entries = yaat_entries();
-        assert_eq!(entries.len(), 2);
+        assert_eq!(entries.len(), 1);
 
         let prod = entries.iter().find(|e| e.name == "YAAT1").expect("YAAT1 present");
         assert_eq!(prod.client_hub_url, "https://yaat1.leftos.dev/hubs/client");
         assert_eq!(prod.api_base_url, "https://yaat1.leftos.dev");
         assert!(!prod.is_disabled);
         assert!(!prod.is_sweatbox);
-
-        let local = entries.iter().find(|e| e.name == "YAAT Local").expect("YAAT Local present");
-        assert_eq!(local.client_hub_url, "http://localhost:5000/hubs/client");
-        assert_eq!(local.api_base_url, "http://localhost:5000");
     }
 
     #[test]
@@ -268,11 +264,10 @@ mod tests {
         upsert_entries(&dir, &yaat_entries()).unwrap();
 
         let after: Vec<Value> = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(after.len(), 3);
+        assert_eq!(after.len(), 2);
         assert_eq!(after[0]["name"], "SomeOtherEnv");
         assert_eq!(after[0]["extraFieldFromCrc"], "preserve me");
         assert!(after.iter().any(|e| e["name"] == "YAAT1"));
-        assert!(after.iter().any(|e| e["name"] == "YAAT Local"));
     }
 
     #[test]

@@ -14,24 +14,23 @@
 
     Runs on Windows PowerShell 5.1 and PowerShell 7+ (cross-platform).
 
-    By default, adds both:
-      - YAAT1       → https://yaat1.leftos.dev
-      - YAAT Local  → http://localhost:5000
+    By default, adds:
+      - YAAT1  → https://yaat1.leftos.dev
 
     When run from the YAAT repo, the default list is loaded from
     docs/crc-environments.json (the same canonical file used by the standalone
     yaat-crc-config tool and the C# CrcConfigService). When run as a downloaded
     .ps1 with no repo nearby, the hardcoded defaults are used.
 
-    Use -Servers to override.
+    Use -Servers to override — for example to point CRC at a server you host yourself.
 .PARAMETER Servers
     Array of hashtables with Name and Url keys. Overrides the default list.
 .EXAMPLE
     .\Setup-CrcEnvironment.ps1
-    # Adds YAAT1 and YAAT Local with default URLs.
+    # Adds YAAT1 with its default URL.
 .EXAMPLE
-    .\Setup-CrcEnvironment.ps1 -Servers @(@{Name="Custom";Url="http://192.168.1.50:5000"})
-    # Adds a single custom entry.
+    .\Setup-CrcEnvironment.ps1 -Servers @(@{Name="YAAT Local";Url="http://localhost:5000"})
+    # Adds an entry for a server running on this machine.
 #>
 param(
     [hashtable[]]$Servers
@@ -42,8 +41,7 @@ $ErrorActionPreference = "Stop"
 
 function Resolve-DefaultServers {
     $hardcoded = @(
-        @{ Name = "YAAT1"; Url = "https://yaat1.leftos.dev" },
-        @{ Name = "YAAT Local"; Url = "http://localhost:5000" }
+        @{ Name = "YAAT1"; Url = "https://yaat1.leftos.dev" }
     )
 
     $scriptDir = $PSScriptRoot

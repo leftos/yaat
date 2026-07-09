@@ -1530,9 +1530,10 @@ public sealed class UserPreferences
     /// first launch when no preferences file exists, and (b) by the Connect dialog's
     /// "Restore defaults" button so a user who accidentally edits or deletes one of
     /// these can put them back without resetting unrelated preferences.
+    /// Only the hosted server is a default; anyone running a server locally adds their
+    /// own entry via the Connect dialog's "Add" button.
     /// </summary>
-    public static IReadOnlyList<SavedServer> DefaultServers { get; } =
-    [new SavedServer("YAAT1", "https://yaat1.leftos.dev"), new SavedServer("Local", "http://localhost:5000")];
+    public static IReadOnlyList<SavedServer> DefaultServers { get; } = [new SavedServer("YAAT1", "https://yaat1.leftos.dev")];
 
     private static SavedPrefs ApplyDefaultServers(SavedPrefs prefs)
     {

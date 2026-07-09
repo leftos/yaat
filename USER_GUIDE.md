@@ -1307,15 +1307,14 @@ cd path/to/yaat
 .\Setup-CrcEnvironment.ps1
 ```
 
-This finds the student's CRC installation via the registry and creates or updates its `DevEnvironments.json` with two entries:
+This finds the student's CRC installation via the registry and creates or updates its `DevEnvironments.json` with one entry:
 
 - **YAAT1** → `https://yaat1.leftos.dev` (hosted server)
-- **YAAT Local** → `http://localhost:5000` (local development)
 
-To add only specific servers, use the `-Servers` parameter:
+If you host a YAAT server yourself, name it and point CRC at it with the `-Servers` parameter:
 
 ```powershell
-.\Setup-CrcEnvironment.ps1 -Servers @(@{Name="YAAT1";Url="https://yaat1.leftos.dev"})
+.\Setup-CrcEnvironment.ps1 -Servers @(@{Name="YAAT Local";Url="http://localhost:5000"})
 ```
 
 ### Option B: Manual Configuration
@@ -1333,16 +1332,11 @@ If the student doesn't have the YAAT repo, or is on macOS/Linux:
     "apiBaseUrl": "https://yaat1.leftos.dev",
     "isDisabled": false,
     "isSweatbox": false
-  },
-  {
-    "name": "YAAT Local",
-    "clientHubUrl": "http://localhost:5000/hubs/client",
-    "apiBaseUrl": "http://localhost:5000",
-    "isDisabled": false,
-    "isSweatbox": false
   }
 ]
 ```
+
+For a server you host yourself, add a second object with your own name and base URL (`clientHubUrl` is the base URL plus `/hubs/client`).
 
 ### How Students Connect
 
@@ -1350,7 +1344,7 @@ Once CRC is configured:
 
 1. Make sure the YAAT server is running (or use the hosted YAAT1 server)
 2. Have the student restart CRC (it reads `DevEnvironments.json` on startup)
-3. In CRC's environment selector, the student chooses **YAAT1** (or **YAAT Local**)
+3. In CRC's environment selector, the student chooses **YAAT1** (or the entry for your own server)
 4. The student connects with their VATSIM credentials
 5. In YAAT, open **Room > Members...** and click **Pull** next to the student in the **CRC Lobby** to bring them into your room — they immediately start seeing your room's traffic
 

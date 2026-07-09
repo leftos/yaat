@@ -127,18 +127,11 @@ public class CrcConfigServiceTests
     {
         var entries = CrcConfigService.YaatEntries;
 
-        Assert.Equal(2, entries.Length);
-
-        var prod = Assert.Single(entries, e => e.Name == "YAAT1");
+        var prod = Assert.Single(entries);
+        Assert.Equal("YAAT1", prod.Name);
         Assert.Equal("https://yaat1.leftos.dev/hubs/client", prod.ClientHubUrl);
         Assert.Equal("https://yaat1.leftos.dev", prod.ApiBaseUrl);
         Assert.False(prod.IsDisabled);
         Assert.False(prod.IsSweatbox);
-
-        var local = Assert.Single(entries, e => e.Name == "YAAT Local");
-        Assert.Equal("http://localhost:5000/hubs/client", local.ClientHubUrl);
-        Assert.Equal("http://localhost:5000", local.ApiBaseUrl);
-        Assert.False(local.IsDisabled);
-        Assert.False(local.IsSweatbox);
     }
 }

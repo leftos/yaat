@@ -11,12 +11,13 @@ When you run it, the tool:
    - **macOS**: `~/Library/Application Support/CRC`
    - **Linux**: `~/.config/CRC`
 2. Reads `DevEnvironments.json` (creates it if missing).
-3. Adds (or updates) two entries:
+3. Adds (or updates) one entry:
    - `YAAT1` → `https://yaat1.leftos.dev`
-   - `YAAT Local` → `http://localhost:5000`
 4. Writes the file back, preserving any unrelated entries that were already there.
 
 The tool is **idempotent**: running it twice is safe — the second run will tell you the entries are already present and exit without changes.
+
+If you run a YAAT server yourself, add its entry to `DevEnvironments.json` by hand (see [Reverting](#reverting) for the file's location) — the tool only configures the hosted server.
 
 The full YAAT Client (`Tools → Configure CRC Environments`) and the `Setup-CrcEnvironment.ps1` PowerShell script all use the **same** entry list, sourced from `docs/crc-environments.json` in this repo.
 
@@ -54,7 +55,7 @@ To remove the YAAT entries:
    - Windows: `%LOCALAPPDATA%\CRC\DevEnvironments.json`
    - macOS: `~/Library/Application Support/CRC/DevEnvironments.json`
    - Linux: `~/.config/CRC/DevEnvironments.json`
-3. Delete the entries with `"name": "YAAT1"` and `"name": "YAAT Local"`.
+3. Delete the entry with `"name": "YAAT1"`.
 4. Save and restart CRC.
 
 ## Building from source
