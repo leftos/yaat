@@ -6,6 +6,12 @@
 - `FOLLOW` re-sequences the follower onto the traffic's runway when that traffic is landing a different runway; refused once established on base or final.
 
 ### Fixed
+- `HS <rwy>` and `RES HS <rwy>` now stop the aircraft at the runway when **Auto-cross runway** is on.
+- `HS <rwy>` holds on the entry side of the runway instead of stopping past it.
+- `HS <rwy>` overrides an earlier `CROSS` for the same runway, and is rejected once the aircraft has entered it.
+- A runway crossing cleared by `CROSS` while the aircraft is still taxiing toward it now transits the runway properly.
+- `RES HS` with several targets applies all of them or none.
+- `RES HS <taxiway>` stops the aircraft short of the intersection rather than on it.
 - `RES CROSS <rwy>` / `RES HS <target>` now name the runway crossing or added hold-short in both the response and the pilot's readback (e.g. `RES CROSS 28L` responds "Resume taxi (cross 28L)" and the pilot reads back "resume taxi, cross runway 28L") instead of replying with just "Resume taxi".
 - Aircraft List **Info** column warnings like "No landing clnc" now prepend to the aircraft's status instead of replacing it, so the phase stays visible.
 - Parallel commands mixing a transponder verb with a ground or tower verb now all take effect, such as `SQ, SQNORM, PUSH TE T` at parking.

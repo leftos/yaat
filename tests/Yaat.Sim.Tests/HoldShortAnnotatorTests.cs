@@ -180,24 +180,68 @@ public class HoldShortAnnotatorTests
     // AddExplicitHoldShort
     // -------------------------------------------------------------------------
 
+    private static TaxiRoute RouteOf(List<TaxiRouteSegment> segments, List<HoldShortPoint> holdShorts, int currentSegmentIndex)
+    {
+        return new TaxiRoute
+        {
+            Segments = segments,
+            HoldShortPoints = holdShorts,
+            CurrentSegmentIndex = currentSegmentIndex,
+        };
+    }
+
+    /// <summary>
+    /// Node 1 taxiway, node 2 the entry bar for 28R/10L, node 3 the runway centerline, node 4 the
+    /// exit bar, node 5 taxiway — the shape taxiway B makes crossing OAK's 28R.
+    /// </summary>
+    private static (AirportGroundLayout Layout, List<TaxiRouteSegment> Segments) CrossingLayout()
+    {
+        var rwy = new RunwayIdentifier("28R", "10L");
+        GroundNode Bar(int id) =>
+            new()
+            {
+                Id = id,
+                Position = new LatLon(0, 0),
+                Type = GroundNodeType.RunwayHoldShort,
+                RunwayId = rwy,
+            };
+
+        var layout = LayoutWith(TaxiNode(1), Bar(2), TaxiNode(3), Bar(4), TaxiNode(5));
+        List<TaxiRouteSegment> segments = [Seg(1, 2), Seg(2, 3), Seg(3, 4), Seg(4, 5)];
+        return (layout, segments);
+    }
+
+    private static HoldShortPoint Crossing28R(bool isCleared) =>
+        new()
+        {
+            NodeId = 2,
+            Reason = HoldShortReason.RunwayCrossing,
+            TargetName = "28R/10L",
+            IsCleared = isCleared,
+            ClearedByAutoCross = isCleared,
+        };
+
     [Fact]
-    public void AddExplicitHoldShort_MatchingRunwayHoldShortNode_AddsExplicitEntry()
+    public void PlanExplicitHoldShort_MatchingRunwayHoldShortNode_AddsExplicitEntry()
     {
         var hsNode = HoldShortNode(2, "28R");
         var layout = LayoutWith(TaxiNode(1), hsNode);
-        var segments = new List<TaxiRouteSegment> { Seg(1, 2) };
-        var holdShorts = new List<HoldShortPoint>();
+        var route = RouteOf([Seg(1, 2)], [], 0);
 
-        HoldShortAnnotator.AddExplicitHoldShort(layout, segments, holdShorts, "28R");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "28R");
 
-        var hs = Assert.Single(holdShorts);
+        Assert.Equal(ExplicitHoldShortOutcome.Add, plan.Outcome);
+        var hs = Assert.Single(route.HoldShortPoints);
         Assert.Equal(2, hs.NodeId);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, hs.Reason);
-        Assert.Equal("28R", hs.TargetName);
+        // Named with the node's combined runway id, matching AddImplicitRunwayHoldShorts — so a later
+        // CROSS/HS for either end resolves against the same hold-short.
+        Assert.Equal("28R/10L", hs.TargetName);
     }
 
     [Fact]
-    public void AddExplicitHoldShort_NonMatchingRunway_FallsThroughToTaxiway()
+    public void PlanExplicitHoldShort_NonMatchingRunway_FallsThroughToTaxiway()
     {
         // Node 2 is a hold-short for runway 15 — not a match for target "A".
         // Node 3 is a taxiway intersection with edge on taxiway "A".
@@ -211,19 +255,19 @@ public class HoldShortAnnotatorTests
         };
         intersectionNode.Edges.Add(MakeEdge(3, 99, "A"));
         var layout = LayoutWith(TaxiNode(1), hs15, intersectionNode);
-        var segments = new List<TaxiRouteSegment> { Seg(1, 2), Seg(2, 3) };
-        var holdShorts = new List<HoldShortPoint>();
+        var route = RouteOf([Seg(1, 2), Seg(2, 3)], [], 0);
 
-        HoldShortAnnotator.AddExplicitHoldShort(layout, segments, holdShorts, "A");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "A");
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "A");
 
-        var hs = Assert.Single(holdShorts);
+        var hs = Assert.Single(route.HoldShortPoints);
         Assert.Equal(3, hs.NodeId);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, hs.Reason);
         Assert.Equal("A", hs.TargetName);
     }
 
     [Fact]
-    public void AddExplicitHoldShort_TaxiwayIntersectionFound_AddsHoldShortAtFirstMatch()
+    public void PlanExplicitHoldShort_TaxiwayIntersectionFound_AddsHoldShortAtFirstMatch()
     {
         // Two candidate intersections — only the first in segment order should be picked.
         var node2 = new GroundNode
@@ -241,25 +285,94 @@ public class HoldShortAnnotatorTests
         };
         node3.Edges.Add(MakeEdge(3, 99, "B"));
         var layout = LayoutWith(TaxiNode(1), node2, node3);
-        var segments = new List<TaxiRouteSegment> { Seg(1, 2), Seg(2, 3) };
-        var holdShorts = new List<HoldShortPoint>();
+        var route = RouteOf([Seg(1, 2), Seg(2, 3)], [], 0);
 
-        HoldShortAnnotator.AddExplicitHoldShort(layout, segments, holdShorts, "B");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "B");
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "B");
 
-        var hs = Assert.Single(holdShorts);
+        var hs = Assert.Single(route.HoldShortPoints);
         Assert.Equal(2, hs.NodeId);
     }
 
     [Fact]
-    public void AddExplicitHoldShort_NoMatch_NothingAdded()
+    public void PlanExplicitHoldShort_NoMatch_NothingAdded()
     {
         var layout = LayoutWith(TaxiNode(1), TaxiNode(2));
-        var segments = new List<TaxiRouteSegment> { Seg(1, 2) };
-        var holdShorts = new List<HoldShortPoint>();
+        var route = RouteOf([Seg(1, 2)], [], 0);
 
-        HoldShortAnnotator.AddExplicitHoldShort(layout, segments, holdShorts, "ZZZZ");
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "ZZZZ");
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "ZZZZ");
 
-        Assert.Empty(holdShorts);
+        Assert.Equal(ExplicitHoldShortOutcome.NotOnRoute, plan.Outcome);
+        Assert.Empty(route.HoldShortPoints);
+    }
+
+    [Fact]
+    public void PlanExplicitHoldShort_AutoClearedCrossingAhead_ReArmsNearSideBar()
+    {
+        var (layout, segments) = CrossingLayout();
+        var route = RouteOf(segments, [Crossing28R(isCleared: true)], 0);
+
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "28R");
+
+        Assert.Equal(ExplicitHoldShortOutcome.ReArm, plan.Outcome);
+        var hs = Assert.Single(route.HoldShortPoints);
+        Assert.Equal(2, hs.NodeId);
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, hs.Reason);
+        Assert.False(hs.IsCleared);
+        Assert.False(hs.ClearedByAutoCross);
+    }
+
+    [Fact]
+    public void PlanExplicitHoldShort_ClearedBarBehindAircraft_ReturnsAlreadyEntered()
+    {
+        // CurrentSegmentIndex 2 => the aircraft is on segment 3→4, i.e. out on the runway.
+        var (layout, segments) = CrossingLayout();
+        var route = RouteOf(segments, [Crossing28R(isCleared: true)], 2);
+
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
+
+        Assert.Equal(ExplicitHoldShortOutcome.AlreadyEntered, plan.Outcome);
+    }
+
+    [Fact]
+    public void PlanExplicitHoldShort_UnclearedBarBehindByResumeBump_StillReArms()
+    {
+        // TaxiingPhase.BuildResumePhases bumps CurrentSegmentIndex past the bar the aircraft is
+        // stopped at, so index alone would read as "passed". An uncleared bar can never have been
+        // passed — the taxi gate would have stopped the aircraft.
+        var (layout, segments) = CrossingLayout();
+        var route = RouteOf(segments, [Crossing28R(isCleared: false)], 1);
+
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
+
+        Assert.Equal(ExplicitHoldShortOutcome.ReArm, plan.Outcome);
+    }
+
+    [Fact]
+    public void PlanExplicitHoldShort_DestinationRunway_IsNoOp()
+    {
+        var (layout, segments) = CrossingLayout();
+        var dest = Crossing28R(isCleared: false);
+        dest.Reason = HoldShortReason.DestinationRunway;
+        var route = RouteOf(segments, [dest], 0);
+
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, "28R");
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, "28R");
+
+        Assert.Equal(ExplicitHoldShortOutcome.NoOp, plan.Outcome);
+        Assert.Equal(HoldShortReason.DestinationRunway, Assert.Single(route.HoldShortPoints).Reason);
+    }
+
+    [Fact]
+    public void PlanExplicitHoldShort_NoLayout_MatchesExistingPointOnly()
+    {
+        var (_, segments) = CrossingLayout();
+        var route = RouteOf(segments, [Crossing28R(isCleared: true)], 0);
+
+        Assert.Equal(ExplicitHoldShortOutcome.ReArm, HoldShortAnnotator.PlanExplicitHoldShort(null, route, "28R").Outcome);
+        Assert.Equal(ExplicitHoldShortOutcome.NotOnRoute, HoldShortAnnotator.PlanExplicitHoldShort(null, route, "B").Outcome);
     }
 
     // -------------------------------------------------------------------------

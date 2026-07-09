@@ -1307,14 +1307,16 @@ internal static class GroundCommandHandler
     }
 
     /// <summary>
-    /// Adds or promotes explicit hold-short points on the aircraft's taxi route
-    /// for each target in <paramref name="targets"/>. Runway targets promote an
-    /// upcoming RunwayCrossing to ExplicitHoldShort (survives AutoCross); taxiway
-    /// targets add a new ExplicitHoldShort at the first matching intersection.
-    /// Strict: fails the entire command if any target can't be matched against
-    /// the route. Empty list is a no-op success. Requires the ground layout for
-    /// segment walks; will fail for targets that aren't already on the route's
-    /// HoldShortPoints list when no layout is available.
+    /// Adds or re-arms explicit hold-short points on the aircraft's taxi route for each target in
+    /// <paramref name="targets"/>. A runway target re-arms the route's entry-side hold-short for that
+    /// runway, revoking whatever cleared it (AutoCross, an earlier CROSS, the implicit first-crossing
+    /// clearance) — a controller-issued hold-short is the most recent instruction and wins. A taxiway
+    /// target adds a new ExplicitHoldShort at the first matching intersection ahead.
+    ///
+    /// Strict and atomic: every target is validated before any is applied, so a compound
+    /// <c>RES HS 28R 09L</c> whose second target is unreachable leaves the route untouched. An empty
+    /// list is a no-op success. Without a layout only targets already on the route's HoldShortPoints
+    /// can be matched.
     /// </summary>
     internal static CommandResult TryAddExplicitHoldShorts(AircraftState aircraft, AirportGroundLayout? layout, IReadOnlyList<string> targets)
     {
@@ -1329,49 +1331,56 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "No taxi route assigned");
         }
 
-        // Slice the segment list to the part of the route ahead of the current
-        // taxi position so we don't add a hold-short at a node the aircraft has
-        // already passed. The promote pass inside AddExplicitHoldShort still
-        // walks the full HoldShortPoints list — for already-satisfied past
-        // crossings the upgrade is a no-op (the aircraft is past them).
-        int startIdx = Math.Max(0, route.CurrentSegmentIndex);
-        var upcomingSegments = startIdx == 0 ? route.Segments : route.Segments.GetRange(startIdx, route.Segments.Count - startIdx);
-
+        var plans = new List<ExplicitHoldShortPlan>(targets.Count);
         foreach (var target in targets)
         {
-            if (layout is null)
+            var plan = HoldShortAnnotator.PlanExplicitHoldShort(layout, route, target);
+            if (DescribeHoldShortFailure(plan.Outcome, target) is { } failure)
             {
-                // Fall back to promote-only against the existing hold-short list.
-                bool promoted = false;
-                foreach (var hs in route.HoldShortPoints)
-                {
-                    if (hs.IsCleared || hs.Reason != HoldShortReason.RunwayCrossing || hs.TargetName is null)
-                    {
-                        continue;
-                    }
-                    if (!RunwayIdentifier.Parse(hs.TargetName).Contains(target))
-                    {
-                        continue;
-                    }
-                    hs.Reason = HoldShortReason.ExplicitHoldShort;
-                    promoted = true;
-                    break;
-                }
-                if (!promoted)
-                {
-                    return new CommandResult(false, $"No match for HS {target} in taxi route");
-                }
-                continue;
+                return failure;
             }
 
-            bool matched = HoldShortAnnotator.AddExplicitHoldShort(layout, upcomingSegments, route.HoldShortPoints, target);
-            if (!matched)
-            {
-                return new CommandResult(false, $"No match for HS {target} in taxi route");
-            }
+            plans.Add(plan);
         }
 
+        for (int i = 0; i < targets.Count; i++)
+        {
+            HoldShortAnnotator.ApplyExplicitHoldShort(route, plans[i], targets[i]);
+        }
+
+        RecomputeHoldShortPositions(aircraft, layout, route);
         return CommandDispatcher.Ok("");
+    }
+
+    /// <summary>
+    /// The rejection for a hold-short outcome the aircraft can't honour, or <c>null</c> when the plan
+    /// is applicable (including the destination-runway no-op, which is a success).
+    /// </summary>
+    private static CommandResult? DescribeHoldShortFailure(ExplicitHoldShortOutcome outcome, string target) =>
+        outcome switch
+        {
+            ExplicitHoldShortOutcome.AlreadyEntered => new CommandResult(
+                false,
+                $"Already entered RWY {RunwayIdentifier.ToDisplayDesignator(target)}; use HOLD or issue a new TAXI"
+            ),
+            ExplicitHoldShortOutcome.NotOnRoute => new CommandResult(false, $"No match for HS {target} in taxi route"),
+            _ => null,
+        };
+
+    /// <summary>
+    /// Recomputes every hold-short's stop position after the set of hold-shorts changed. A newly added
+    /// taxiway hold-short has no offset until this runs, and a re-armed one needs its offset re-applied.
+    /// </summary>
+    private static void RecomputeHoldShortPositions(AircraftState aircraft, AirportGroundLayout? layout, TaxiRoute route)
+    {
+        if (layout is null)
+        {
+            return;
+        }
+
+        double aircraftLengthFt =
+            FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
+        HoldShortAnnotator.ComputeHoldShortPositions(layout, route, aircraftLengthFt);
     }
 
     internal static CommandResult TryCrossRunway(AircraftState aircraft, CrossRunwayCommand cross)
@@ -1386,7 +1395,7 @@ internal static class GroundCommandHandler
         // Currently holding short AT the requested target: satisfy the clearance now.
         // Target match works for both runway designators (e.g. CROSS 28R against
         // "28R/10L") and taxiway/intersection names (e.g. CROSS B against "B").
-        if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase && HoldShortTargetMatches(holdPhase.HoldShort.TargetName, target))
+        if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase && HoldShortAnnotator.TargetMatches(holdPhase.HoldShort.TargetName, target))
         {
             // A DestinationRunway hold-short is a departure hold (use LUAW/CTO) only while the
             // taxi is still in progress. Once the route has completed at it, CROSS undesignates
@@ -1421,7 +1430,7 @@ internal static class GroundCommandHandler
         bool matchedAny = false;
         foreach (var hs in route.HoldShortPoints)
         {
-            if (!HoldShortTargetMatches(hs.TargetName, target))
+            if (!HoldShortAnnotator.TargetMatches(hs.TargetName, target))
             {
                 continue;
             }
@@ -1441,34 +1450,13 @@ internal static class GroundCommandHandler
 
         foreach (var hs in route.HoldShortPoints)
         {
-            if (HoldShortTargetMatches(hs.TargetName, target) && hs.Reason != HoldShortReason.DestinationRunway)
+            if (HoldShortAnnotator.TargetMatches(hs.TargetName, target) && hs.Reason != HoldShortReason.DestinationRunway)
             {
                 hs.IsCleared = true;
             }
         }
 
         return CommandDispatcher.Ok($"Cross {target}");
-    }
-
-    /// <summary>
-    /// Whether a hold-short target name matches a CROSS argument. Accepts both
-    /// runway designators (parsed via <see cref="RunwayIdentifier"/>, so
-    /// <c>28R</c> matches <c>28R/10L</c>) and taxiway/intersection names
-    /// (case-insensitive string equality, so <c>B</c> matches <c>B</c>).
-    /// </summary>
-    private static bool HoldShortTargetMatches(string? targetName, string arg)
-    {
-        if (targetName is null)
-        {
-            return false;
-        }
-
-        if (RunwayIdentifier.Parse(targetName).Contains(arg))
-        {
-            return true;
-        }
-
-        return string.Equals(targetName, arg, StringComparison.OrdinalIgnoreCase);
     }
 
     private static CommandResult TryPrepareCompletedRouteCrossing(AircraftState aircraft, HoldingShortPhase holdPhase)
@@ -1744,20 +1732,18 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "No ground layout available");
         }
 
-        bool added = route.AddHoldShortAtIntersection(hs.Target, groundLayout);
-        if (!added)
+        var plan = HoldShortAnnotator.PlanExplicitHoldShort(groundLayout, route, hs.Target);
+        if (DescribeHoldShortFailure(plan.Outcome, hs.Target) is { } failure)
         {
-            return new CommandResult(false, $"No intersection with {hs.Target} along remaining taxi route");
+            return failure;
         }
 
-        // Compute offset position for the newly added hold-short
-        double aircraftLengthFt =
-            FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
-        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
+        HoldShortAnnotator.ApplyExplicitHoldShort(route, plan, hs.Target);
+        RecomputeHoldShortPositions(aircraft, groundLayout, route);
 
         aircraft.Ground.IsExpeditingTaxi = false;
 
-        Log.LogDebug("[HS] {Callsign}: added hold short of {Target}", aircraft.Callsign, hs.Target);
+        Log.LogDebug("[HS] {Callsign}: hold short of {Target} ({Outcome})", aircraft.Callsign, hs.Target, plan.Outcome);
         return CommandDispatcher.Ok($"Hold short of {hs.Target}");
     }
 

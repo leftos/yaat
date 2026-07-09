@@ -133,65 +133,6 @@ public sealed class TaxiRoute
     }
 
     /// <summary>
-    /// Scans remaining segments for the first intersection with the given target
-    /// (taxiway name or runway ID) and inserts a hold-short point there.
-    /// Returns true if a hold-short was added.
-    /// </summary>
-    public bool AddHoldShortAtIntersection(string target, AirportGroundLayout layout)
-    {
-        for (int segIdx = CurrentSegmentIndex; segIdx < Segments.Count; segIdx++)
-        {
-            var seg = Segments[segIdx];
-            int nodeId = seg.ToNodeId;
-
-            if (GetHoldShortAt(nodeId) is not null)
-            {
-                continue;
-            }
-
-            if (!layout.Nodes.TryGetValue(nodeId, out var node))
-            {
-                continue;
-            }
-
-            // Check if this is a RunwayHoldShort node matching the target
-            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rwyId && rwyId.Contains(target))
-            {
-                HoldShortPoints.Add(
-                    new HoldShortPoint
-                    {
-                        NodeId = nodeId,
-                        Reason = HoldShortReason.ExplicitHoldShort,
-                        TargetName = rwyId.ToString(),
-                    }
-                );
-                return true;
-            }
-
-            // Check if any adjacent edge has a matching taxiway name.
-            // Hold-short is placed at the intersection node; actual stop position
-            // is offset by ComputeHoldShortPositions.
-            foreach (var edge in node.Edges)
-            {
-                if (edge.MatchesTaxiway(target))
-                {
-                    HoldShortPoints.Add(
-                        new HoldShortPoint
-                        {
-                            NodeId = nodeId,
-                            Reason = HoldShortReason.ExplicitHoldShort,
-                            TargetName = target.ToUpperInvariant(),
-                        }
-                    );
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
     /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L, RWY 30").
     /// </summary>
     public string ToSummary() => ToSummary(null, []);

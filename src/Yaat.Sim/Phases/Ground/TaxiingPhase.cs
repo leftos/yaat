@@ -330,7 +330,8 @@ public sealed class TaxiingPhase : Phase
         // has already left (landing-rollout vacate, or a crossing it just finished) has
         // no forward same-runway exit and stays in TaxiingPhase.
         if (
-            holdShort is { IsCleared: true, Reason: HoldShortReason.RunwayCrossing }
+            holdShort is { IsCleared: true }
+            && NeedsRunwayCrossing(holdShort, ctx.GroundLayout)
             && FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout, requireSameRunwayExit: true) is { } crossExitNodeId
         )
         {
@@ -464,18 +465,7 @@ public sealed class TaxiingPhase : Phase
             return phases;
         }
 
-        // ExplicitHoldShort upgraded from a RunwayCrossing (HoldShortAnnotator promotes
-        // the entry-side runway HS when "HS <rwy>" is in the command) still needs the
-        // runway-crossing flow on resume — otherwise the aircraft taxis across at 15 kt
-        // without a CrossingRunwayPhase and the route's exit-side HS isn't skipped.
-        bool isRunwayHs =
-            ctx.GroundLayout is not null
-            && ctx.GroundLayout.Nodes.TryGetValue(holdShort.NodeId, out var hsNode)
-            && hsNode.Type == GroundNodeType.RunwayHoldShort;
-        bool needsRunwayCrossing =
-            holdShort.Reason == HoldShortReason.RunwayCrossing || (holdShort.Reason == HoldShortReason.ExplicitHoldShort && isRunwayHs);
-
-        if (needsRunwayCrossing)
+        if (NeedsRunwayCrossing(holdShort, ctx.GroundLayout))
         {
             int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout, requireSameRunwayExit: false);
             if (exitNodeId is not null)
@@ -575,6 +565,26 @@ public sealed class TaxiingPhase : Phase
     /// or a crossing it already completed), which must not start a new crossing.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// Whether crossing <paramref name="holdShort"/> means driving over a runway, so the aircraft needs
+    /// a <see cref="CrossingRunwayPhase"/> rather than a plain segment advance. A hold-short sitting on
+    /// a runway bar qualifies whether it is an implicit <see cref="HoldShortReason.RunwayCrossing"/> or an
+    /// <see cref="HoldShortReason.ExplicitHoldShort"/> the controller armed there with <c>HS &lt;rwy&gt;</c> —
+    /// otherwise the aircraft creeps across at taxi speed and the far-side bar is never consumed.
+    /// </summary>
+    private static bool NeedsRunwayCrossing(HoldShortPoint holdShort, AirportGroundLayout? layout)
+    {
+        if (holdShort.Reason == HoldShortReason.RunwayCrossing)
+        {
+            return true;
+        }
+
+        return holdShort.Reason == HoldShortReason.ExplicitHoldShort
+            && layout is not null
+            && layout.Nodes.TryGetValue(holdShort.NodeId, out var node)
+            && node.Type == GroundNodeType.RunwayHoldShort;
+    }
+
     private static int? FindRunwayCrossingExitNode(
         TaxiRoute route,
         HoldShortPoint entryHoldShort,

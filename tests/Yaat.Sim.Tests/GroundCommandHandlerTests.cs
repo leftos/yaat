@@ -128,6 +128,94 @@ public class GroundCommandHandlerTests
         };
     }
 
+    /// <summary>
+    /// A KOAK-shaped taxi route out of a ramp: hold short of taxiway C at node 1, then taxiway B
+    /// across runway 28R — entry bar node 2, runway centerline node 3, exit bar node 4 — and on to
+    /// node 5. <paramref name="autoCleared"/> reproduces what <c>TaxiRouteAutoCross.Apply</c> leaves
+    /// behind when the AutoCrossRunway toggle is on: the crossing is pre-cleared before the
+    /// controller ever gets to issue <c>HS 28R</c>.
+    /// </summary>
+    private static (AirportGroundLayout Layout, TaxiRoute Route) MakeCrossingRoute(bool autoCleared)
+    {
+        var rwy = new RunwayIdentifier("28R", "10L");
+        var layout = new AirportGroundLayout { AirportId = "OAK" };
+        int[] taxiwayNodeIds = [0, 1, 3, 5];
+        int[] holdShortNodeIds = [2, 4];
+        foreach (int id in taxiwayNodeIds)
+        {
+            layout.Nodes[id] = new GroundNode
+            {
+                Id = id,
+                Position = new LatLon(0, 0),
+                Type = GroundNodeType.TaxiwayIntersection,
+            };
+        }
+        foreach (int id in holdShortNodeIds)
+        {
+            layout.Nodes[id] = new GroundNode
+            {
+                Id = id,
+                Position = new LatLon(0, 0),
+                Type = GroundNodeType.RunwayHoldShort,
+                RunwayId = rwy,
+            };
+        }
+
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                MakeSegment(0, 1, "C", 0.1),
+                MakeSegment(1, 2, "B", 0.1),
+                MakeSegment(2, 3, "B", 0.1),
+                MakeSegment(3, 4, "B", 0.1),
+                MakeSegment(4, 5, "B", 0.1),
+            ],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 1,
+                    Reason = HoldShortReason.ExplicitHoldShort,
+                    TargetName = "C",
+                },
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28R/10L",
+                    IsCleared = autoCleared,
+                    ClearedByAutoCross = autoCleared,
+                },
+            ],
+            // BuildResumePhases bumps past the segment that ended at the hold-short node the
+            // aircraft is stopped at, so an aircraft holding short of C sits at index 1.
+            CurrentSegmentIndex = 1,
+        };
+
+        return (layout, route);
+    }
+
+    private static AircraftState MakeAircraftHoldingShortOfTaxiwayC(TaxiRoute route)
+    {
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = true;
+        ac.Ground.AssignedTaxiRoute = route;
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new HoldingShortPhase(route.HoldShortPoints[0]));
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 1.0,
+                Logger = Logger,
+            }
+        );
+        return ac;
+    }
+
     // -------------------------------------------------------------------------
     // TryTaxi
     // -------------------------------------------------------------------------
@@ -1348,6 +1436,127 @@ public class GroundCommandHandlerTests
         Assert.True(route.HoldShortPoints[0].IsCleared, "28R should be pre-cleared via CROSS");
         Assert.Equal(HoldShortReason.ExplicitHoldShort, route.HoldShortPoints[1].Reason);
         Assert.False(route.HoldShortPoints[1].IsCleared, "28L should remain a stop (promoted, not cleared)");
+    }
+
+    // -------------------------------------------------------------------------
+    // HS / RES HS against an already-cleared runway crossing
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void ResHs_AutoClearedCrossing_ReArmsHoldShort()
+    {
+        var (layout, route) = MakeCrossingRoute(autoCleared: true);
+        var ac = MakeAircraftHoldingShortOfTaxiwayC(route);
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], ["28R"])])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42), groundLayout: layout));
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        var hs28R = Assert.Single(route.HoldShortPoints, h => h.TargetName == "28R/10L");
+        Assert.Equal(2, hs28R.NodeId);
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, hs28R.Reason);
+        Assert.False(hs28R.IsCleared, "HS 28R must revoke the AutoCross clearance, else the aircraft taxis straight across");
+        Assert.False(hs28R.ClearedByAutoCross);
+    }
+
+    [Fact]
+    public void Hs_AutoClearedCrossing_ReArmsNearSideBar_DoesNotAddFarSide()
+    {
+        var (layout, route) = MakeCrossingRoute(autoCleared: true);
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = route;
+
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        var hs28R = Assert.Single(route.HoldShortPoints, h => h.TargetName == "28R/10L");
+        Assert.Equal(2, hs28R.NodeId);
+        Assert.False(hs28R.IsCleared);
+        Assert.DoesNotContain(route.HoldShortPoints, h => h.NodeId == 4);
+    }
+
+    [Fact]
+    public void Hs_AfterEnteringRunway_IsRejected()
+    {
+        var (layout, route) = MakeCrossingRoute(autoCleared: true);
+        // Aircraft is on segment 2→3: past the entry bar (node 2), between the hold-short bars.
+        route.CurrentSegmentIndex = 2;
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = route;
+
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+
+        Assert.False(result.Success);
+        Assert.Contains("28R", result.Message!);
+        Assert.DoesNotContain(route.HoldShortPoints, h => h.NodeId == 4);
+    }
+
+    [Fact]
+    public void Hs_WhileHoldingShortOfSameRunway_IsNoOpSuccess()
+    {
+        // The aircraft is stopped AT the 28R bar, so BuildResumePhases has already bumped
+        // CurrentSegmentIndex past it. That must not read as "already entered the runway".
+        var (layout, route) = MakeCrossingRoute(autoCleared: false);
+        route.CurrentSegmentIndex = 2;
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = route;
+
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        var hs28R = Assert.Single(route.HoldShortPoints, h => h.TargetName == "28R/10L");
+        Assert.Equal(2, hs28R.NodeId);
+        Assert.False(hs28R.IsCleared);
+    }
+
+    [Fact]
+    public void CrossThenHs_SameRunway_ReArmsHoldShort()
+    {
+        // Latest instruction wins: HS revokes a clearance from any source, including an
+        // explicit CROSS the controller issued moments earlier.
+        var (layout, route) = MakeCrossingRoute(autoCleared: false);
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = route;
+
+        Assert.True(GroundCommandHandler.TryCrossRunway(ac, new CrossRunwayCommand("28R")).Success);
+        Assert.True(route.HoldShortPoints[1].IsCleared);
+
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.False(route.HoldShortPoints[1].IsCleared);
+        Assert.Equal(HoldShortReason.ExplicitHoldShort, route.HoldShortPoints[1].Reason);
+    }
+
+    [Fact]
+    public void Hs_DestinationRunway_IsNoOpSuccess()
+    {
+        var (layout, route) = MakeCrossingRoute(autoCleared: false);
+        route.HoldShortPoints[1].Reason = HoldShortReason.DestinationRunway;
+        var ac = MakeGroundAircraft();
+        ac.Ground.AssignedTaxiRoute = route;
+
+        var result = GroundCommandHandler.TryHoldShort(ac, new HoldShortCommand("28R"), layout);
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.Equal(HoldShortReason.DestinationRunway, route.HoldShortPoints[1].Reason);
+        Assert.Equal(2, route.HoldShortPoints.Count);
+    }
+
+    [Fact]
+    public void ResHs_MultiTarget_OneUnreachable_AppliesNeither()
+    {
+        var (layout, route) = MakeCrossingRoute(autoCleared: true);
+        var ac = MakeAircraftHoldingShortOfTaxiwayC(route);
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand([], ["28R", "09L"])])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(new SerializableRandom(42), groundLayout: layout));
+
+        Assert.False(result.Success);
+        Assert.Contains("09L", result.Message!);
+        var hs28R = Assert.Single(route.HoldShortPoints, h => h.TargetName == "28R/10L");
+        Assert.True(hs28R.IsCleared, "a failed compound must not half-apply the reachable target");
+        Assert.Equal(HoldShortReason.RunwayCrossing, hs28R.Reason);
     }
 
     // -------------------------------------------------------------------------

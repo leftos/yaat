@@ -2,6 +2,40 @@ using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport;
 
+/// <summary>What a controller-issued <c>HS &lt;target&gt;</c> resolves to against a live taxi route.</summary>
+internal enum ExplicitHoldShortOutcome
+{
+    /// <summary>An existing hold-short protects the target: re-arm it (and revoke any clearance).</summary>
+    ReArm,
+
+    /// <summary>No hold-short protects the target yet: insert one at <see cref="ExplicitHoldShortPlan.NodeId"/>.</summary>
+    Add,
+
+    /// <summary>The target is already protected in a way that must not be disturbed (destination runway).</summary>
+    NoOp,
+
+    /// <summary>The aircraft is already on or past the target runway; the hold-short cannot be honoured.</summary>
+    AlreadyEntered,
+
+    /// <summary>The target appears nowhere on the remaining route.</summary>
+    NotOnRoute,
+}
+
+/// <summary>The mutation <see cref="HoldShortAnnotator.PlanExplicitHoldShort"/> would perform.</summary>
+internal readonly record struct ExplicitHoldShortPlan
+{
+    public required ExplicitHoldShortOutcome Outcome { get; init; }
+
+    /// <summary>The hold-short to re-arm. Set only for <see cref="ExplicitHoldShortOutcome.ReArm"/>.</summary>
+    public HoldShortPoint? Existing { get; init; }
+
+    /// <summary>Node to hang a new hold-short on. Set only for <see cref="ExplicitHoldShortOutcome.Add"/>.</summary>
+    public int NodeId { get; init; }
+
+    /// <summary>Name for the new hold-short. Set only for <see cref="ExplicitHoldShortOutcome.Add"/>.</summary>
+    public string? TargetName { get; init; }
+}
+
 /// <summary>
 /// Post-processes a resolved taxi route to insert hold-short points at runway
 /// crossings, explicit controller-specified holds, and destination runway holds.
@@ -146,118 +180,149 @@ internal static class HoldShortAnnotator
     }
 
     /// <summary>
-    /// Finds the hold-short point for <paramref name="target"/> along the route.
-    /// Checks runway hold-short nodes first, then falls back to taxiway intersection
-    /// detection (first node with an adjacent edge on the target taxiway). Returns
-    /// <c>true</c> if a matching node was found (and either an existing crossing
-    /// was promoted to ExplicitHoldShort, or a new HoldShortPoint was added);
-    /// <c>false</c> if no match exists anywhere on the route.
+    /// Whether a hold-short target name matches a controller-supplied argument. Accepts both runway
+    /// designators (parsed via <see cref="RunwayIdentifier"/>, so <c>28R</c> matches <c>28R/10L</c>)
+    /// and taxiway/intersection names (case-insensitive equality, so <c>B</c> matches <c>B</c>).
     /// </summary>
-    internal static bool AddExplicitHoldShort(
-        AirportGroundLayout layout,
-        List<TaxiRouteSegment> segments,
-        List<HoldShortPoint> holdShorts,
-        string target
-    )
+    internal static bool TargetMatches(string? targetName, string arg)
     {
-        // Runway pass: an explicit HS for a runway must always hold on the entry side
-        // and must not be silently cleared by auto-cross. The implicit pass
-        // (AddImplicitRunwayHoldShorts) has already chosen the correct entry-side node
-        // and added it as RunwayCrossing — promote that entry to ExplicitHoldShort so
-        // the auto-cross loop in GroundCommandHandler.TryTaxi leaves it uncleared.
-        // Otherwise, walk segments and add the FIRST matching node only — never the
-        // exit-side, which would shadow the explicit hold on the wrong side of the runway.
-        foreach (var existing in holdShorts)
+        if (targetName is null)
         {
-            if (existing.Reason != HoldShortReason.RunwayCrossing || existing.TargetName is null)
-            {
-                continue;
-            }
-
-            if (!RunwayIdentifier.Parse(existing.TargetName).Contains(target))
-            {
-                continue;
-            }
-
-            existing.Reason = HoldShortReason.ExplicitHoldShort;
-            Log.LogDebug(
-                "[HoldShortAnnotator] Explicit HS {Target}: upgraded existing crossing at node {NodeId} to ExplicitHoldShort",
-                target,
-                existing.NodeId
-            );
-            return true;
+            return false;
         }
 
-        bool foundRunway = false;
-        foreach (var seg in segments)
+        return RunwayIdentifier.Parse(targetName).Contains(arg) || string.Equals(targetName, arg, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Works out what <c>HS &lt;target&gt;</c> would do to <paramref name="route"/> without touching it,
+    /// so a multi-target command can validate every target before mutating any. Apply the result with
+    /// <see cref="ApplyExplicitHoldShort"/>.
+    /// </summary>
+    internal static ExplicitHoldShortPlan PlanExplicitHoldShort(AirportGroundLayout? layout, TaxiRoute route, string target)
+    {
+        // The route's HoldShortPoints already carry exactly one entry per runway it crosses, on the
+        // entry side — AddImplicitRunwayHoldShorts pairs the bars and drops the far side. So an
+        // existing point is the authoritative near-side bar; never re-derive it from the segments.
+        var candidates = route.HoldShortPoints.Where(h => TargetMatches(h.TargetName, target)).ToList();
+        if (candidates.Count > 0)
         {
-            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
+            // A bar can only be behind the aircraft if it was cleared — the taxi gate physically
+            // stops it otherwise. Testing IsCleared first is what makes this safe against
+            // TaxiingPhase.BuildResumePhases, which bumps CurrentSegmentIndex past the bar the
+            // aircraft is *stopped at*.
+            var ahead = candidates.Where(h => !IsPassed(route, h)).OrderBy(h => SegmentIndexOf(route, h)).ToList();
+            if (ahead.Count == 0)
             {
-                continue;
+                return new ExplicitHoldShortPlan { Outcome = ExplicitHoldShortOutcome.AlreadyEntered };
             }
 
-            if (node.Type != GroundNodeType.RunwayHoldShort || node.RunwayId is not { } nodeRwyId)
+            var nearest = ahead[0];
+
+            // A destination-runway hold already stops the aircraft short of that runway, and its
+            // reason gates the LUAW/CTO departure flow. Re-arming it as a plain ExplicitHoldShort
+            // would strip that gate, so treat "HS <destination runway>" as a no-op.
+            if (nearest.Reason == HoldShortReason.DestinationRunway)
             {
-                continue;
+                return new ExplicitHoldShortPlan { Outcome = ExplicitHoldShortOutcome.NoOp };
             }
 
-            if (!nodeRwyId.Contains(target))
-            {
-                continue;
-            }
-
-            foundRunway = true;
-            if (!HoldShortExists(holdShorts, node.Id))
-            {
-                holdShorts.Add(
-                    new HoldShortPoint
-                    {
-                        NodeId = node.Id,
-                        Reason = HoldShortReason.ExplicitHoldShort,
-                        TargetName = target,
-                    }
-                );
-            }
-            break;
+            return new ExplicitHoldShortPlan { Outcome = ExplicitHoldShortOutcome.ReArm, Existing = nearest };
         }
 
-        if (foundRunway)
+        if (layout is null)
         {
-            return true;
+            return new ExplicitHoldShortPlan { Outcome = ExplicitHoldShortOutcome.NotOnRoute };
         }
 
-        // Second pass: taxiway intersection — find the first node with an
-        // adjacent edge on the target taxiway. The hold-short is placed at
-        // this intersection node; the actual stop position is offset back
-        // along the approach edge by ComputeHoldShortPositions later.
-        foreach (var seg in segments)
+        // No point for this target yet: walk the remaining route for the first node to hang one on.
+        // At a given node a runway bar is tried before the node's taxiway edges.
+        for (int i = Math.Max(0, route.CurrentSegmentIndex); i < route.Segments.Count; i++)
         {
-            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
+            if (!layout.Nodes.TryGetValue(route.Segments[i].ToNodeId, out var node))
             {
                 continue;
+            }
+
+            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } nodeRwyId && nodeRwyId.Contains(target))
+            {
+                return new ExplicitHoldShortPlan
+                {
+                    Outcome = ExplicitHoldShortOutcome.Add,
+                    NodeId = node.Id,
+                    TargetName = nodeRwyId.ToString(),
+                };
             }
 
             foreach (var edge in node.Edges)
             {
                 if (edge.MatchesTaxiway(target))
                 {
-                    if (!HoldShortExists(holdShorts, seg.ToNodeId))
+                    return new ExplicitHoldShortPlan
                     {
-                        holdShorts.Add(
-                            new HoldShortPoint
-                            {
-                                NodeId = seg.ToNodeId,
-                                Reason = HoldShortReason.ExplicitHoldShort,
-                                TargetName = target.ToUpperInvariant(),
-                            }
-                        );
-                    }
-                    return true;
+                        Outcome = ExplicitHoldShortOutcome.Add,
+                        NodeId = node.Id,
+                        TargetName = target.ToUpperInvariant(),
+                    };
                 }
             }
         }
 
-        return false;
+        return new ExplicitHoldShortPlan { Outcome = ExplicitHoldShortOutcome.NotOnRoute };
+    }
+
+    /// <summary>
+    /// Commits a <see cref="PlanExplicitHoldShort"/> result. A re-arm revokes the existing clearance
+    /// whatever set it — AutoCross, an earlier CROSS, or the implicit first-crossing clearance — because
+    /// the hold-short is the controller's most recent instruction for that runway.
+    /// </summary>
+    internal static void ApplyExplicitHoldShort(TaxiRoute route, ExplicitHoldShortPlan plan, string target)
+    {
+        switch (plan.Outcome)
+        {
+            case ExplicitHoldShortOutcome.ReArm when plan.Existing is { } existing:
+                existing.Reason = HoldShortReason.ExplicitHoldShort;
+                existing.IsCleared = false;
+                existing.ClearedByAutoCross = false;
+                Log.LogDebug("[HoldShortAnnotator] Explicit HS {Target}: re-armed hold-short at node {NodeId}", target, existing.NodeId);
+                break;
+
+            case ExplicitHoldShortOutcome.Add:
+                route.HoldShortPoints.Add(
+                    new HoldShortPoint
+                    {
+                        NodeId = plan.NodeId,
+                        Reason = HoldShortReason.ExplicitHoldShort,
+                        TargetName = plan.TargetName,
+                    }
+                );
+                Log.LogDebug("[HoldShortAnnotator] Explicit HS {Target}: added hold-short at node {NodeId}", target, plan.NodeId);
+                break;
+
+            case ExplicitHoldShortOutcome.NoOp:
+            case ExplicitHoldShortOutcome.AlreadyEntered:
+            case ExplicitHoldShortOutcome.NotOnRoute:
+            default:
+                break;
+        }
+    }
+
+    private static int SegmentIndexOf(TaxiRoute route, HoldShortPoint holdShort)
+    {
+        for (int i = 0; i < route.Segments.Count; i++)
+        {
+            if (route.Segments[i].ToNodeId == holdShort.NodeId)
+            {
+                return i;
+            }
+        }
+
+        return int.MaxValue;
+    }
+
+    private static bool IsPassed(TaxiRoute route, HoldShortPoint holdShort)
+    {
+        return holdShort.IsCleared && SegmentIndexOf(route, holdShort) < route.CurrentSegmentIndex;
     }
 
     /// <summary>
