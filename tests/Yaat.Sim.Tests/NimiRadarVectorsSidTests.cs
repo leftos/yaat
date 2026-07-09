@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -244,7 +245,14 @@ public class NimiRadarVectorsSidTests
         Assert.Null(parseError);
         Assert.NotNull(request);
 
-        var (ac, _) = AircraftGenerator.Generate(request, primaryAirportId: "KOAK", existingAircraft: [], groundLayout: null, rng: new Random(42));
+        var (ac, _) = AircraftGenerator.Generate(
+            request,
+            primaryAirportId: "KOAK",
+            existingAircraft: [],
+            groundLayout: null,
+            rng: new Random(42),
+            new BeaconCodePool()
+        );
         if (ac is null)
         {
             // KOAK runways not present in the test nav data — skip.

@@ -2,6 +2,7 @@ using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -137,7 +138,7 @@ public class SmallPlusTierTests
             DistanceNm = 5,
             Altitude = 3000,
         };
-        var (state, error) = AircraftGenerator.Generate(request, "KOAK", Array.Empty<AircraftState>(), groundLayout: null, rng);
+        var (state, error) = AircraftGenerator.Generate(request, "KOAK", Array.Empty<AircraftState>(), groundLayout: null, rng, new BeaconCodePool());
         Assert.True(state is not null, $"SmallPlus+Piston spawn failed: {error}");
         Assert.Equal(AircraftCategory.Piston, AircraftCategorization.Categorize(state!.AircraftType));
     }

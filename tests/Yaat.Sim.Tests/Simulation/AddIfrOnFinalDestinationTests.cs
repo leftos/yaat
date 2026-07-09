@@ -1,5 +1,6 @@
 using Xunit;
 using Xunit.Abstractions;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -47,7 +48,8 @@ public class AddIfrOnFinalDestinationTests(ITestOutputHelper output)
             primaryAirportId: "OAK",
             existingAircraft: [],
             groundLayout: null,
-            rng: new Random(42)
+            rng: new Random(42),
+            beaconPool: new BeaconCodePool()
         );
 
         Assert.Null(error);
@@ -71,7 +73,8 @@ public class AddIfrOnFinalDestinationTests(ITestOutputHelper output)
             primaryAirportId: "KOAK",
             existingAircraft: [],
             groundLayout: null,
-            rng: new Random(42)
+            rng: new Random(42),
+            beaconPool: new BeaconCodePool()
         );
 
         Assert.Null(error);
@@ -105,7 +108,8 @@ public class AddIfrOnFinalDestinationTests(ITestOutputHelper output)
             primaryAirportId: "OAK",
             existingAircraft: [],
             groundLayout: null,
-            rng: new Random(42)
+            rng: new Random(42),
+            beaconPool: new BeaconCodePool()
         );
 
         Assert.Null(error);

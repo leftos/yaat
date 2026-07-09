@@ -1442,12 +1442,14 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 | Engine | `P` (piston), `T` (turboprop), `J` (jet), `H` (helicopter) |
 
 **Position arguments:**
-- **Airborne**: `-{bearing}` is degrees from the primary airport, `{dist}` is distance in NM, `{alt}` is altitude in feet. Aircraft spawns heading toward the airport.
-- **At fix**: `@{fix}` is a fix name or FRD, `{alt}` is altitude in feet. Aircraft spawns at the fix heading toward the primary airport.
+- **Airborne**: `-{bearing}` is degrees from the primary airport, `{dist}` is distance in NM, `{alt}` is the altitude (see below). Aircraft spawns heading toward the airport.
+- **At fix**: `@{fix}` is a fix name or FRD, `{alt}` is the altitude (see below). Aircraft spawns at the fix heading toward the primary airport.
 - **Lined up**: `{runway}` is the runway designator (e.g., `28R`). Aircraft spawns on the runway threshold, ready for takeoff clearance.
 - **Departure on runway**: `{runway}` plus a dot-joined `{route}` (e.g., `NIMI6.OAK.SAU`, converted to the filed route `NIMI6 OAK SAU`). Spawns lined up on the runway with the route filed and the departure airport set, so a subsequent `CTO` flies the filed SID. IFR only — the route is ignored for VFR. A numeric token after the runway is the on-final distance, not a route.
 - **On final**: `{runway}` plus `{dist}` in NM. Aircraft spawns on final approach at that distance from the runway.
 - **At parking/helipad**: `@{spot}` is a parking or helipad name (e.g., `@H1`, `@B12`). Aircraft spawns at ground level. Useful for helicopters and ground operations — use the `H` engine token (`ADD VFR S H @H1`) to spawn a helicopter.
+**Altitude argument (`{alt}`):** same shorthand as every other altitude in YAAT. A number below 1000 is hundreds of feet (`035` = 3500 ft, `005` = 500 ft, `230` = FL230); a number at or above 1000 is literal feet (`3500` = 3500 ft). `{airport}+{hundreds}` is AGL above field elevation (`KOAK+010` = 1000 ft AGL). Zero and negative values are rejected.
+
 - **Arrival on STAR**: a dotted `{waypoint}.{star}[.{runway}]` token (e.g. `TBARR.TBARR4.34R`) spawns an IFR aircraft already established on the arrival at the named waypoint, heading down the route. By default it **descends via** the STAR's published crossing restrictions from its current altitude; add `LVL` to hold the altitude until you issue `DVIA`. Optional trailing tokens, any order: a bare number = current altitude in hundreds (e.g. `230` = FL230; omit to auto-compute a realistic establishment altitude from the STAR profile); `SP{kts}` = speed override (e.g. `SP250`); `{airport}` = ICAO/FAA destination for multi-airport STARs (defaults to the primary scenario airport). Runway transition is optional — omit it (`TBARR.TBARR4`) to fly the common legs and resolve the runway portion later. IFR only. *Note:* descending-via at spawn is a trainer convenience — by the book (7110.65 §4-5-7 / AIM §5-4-1) an aircraft on a STAR holds its altitude until ATC issues "descend via", so use `LVL` when you want to issue the descent yourself.
 
 **Optional trailing tokens:**

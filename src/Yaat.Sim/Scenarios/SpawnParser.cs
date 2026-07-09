@@ -81,13 +81,15 @@ public static class SpawnParser
 
         if (posTokens[0].StartsWith('@'))
         {
-            // Disambiguate: @name {number} = at-fix (altitude), @name alone or @name {non-number} = parking
-            if (posTokens.Length >= 2 && double.TryParse(posTokens[1], out _))
+            // Disambiguate on token count: "@name" alone = parking (ground level), "@name {alt}" = at-fix.
+            // Counting rather than sniffing posTokens[1] for a number keeps AGL altitudes ("KOAK+010")
+            // on the at-fix path instead of silently falling through to parking.
+            if (posTokens.Length == 1)
             {
-                return ParseFixVariant(posTokens, rules, weight, engine, explicitType, explicitAirline);
+                return ParseParkingVariant(posTokens, rules, weight, engine, explicitType, explicitAirline);
             }
 
-            return ParseParkingVariant(posTokens, rules, weight, engine, explicitType, explicitAirline);
+            return ParseFixVariant(posTokens, rules, weight, engine, explicitType, explicitAirline);
         }
 
         return ParseRunwayVariant(posTokens, rules, weight, engine, explicitType, explicitAirline);
@@ -107,6 +109,11 @@ public static class SpawnParser
             return (null, "Bearing variant requires: -{bearing} {distance} {altitude}");
         }
 
+        if (posTokens.Length > 3)
+        {
+            return (null, "Too many position arguments for bearing variant");
+        }
+
         if (!double.TryParse(posTokens[0][1..], out var bearing) || bearing < 0 || bearing > 360)
         {
             return (null, $"Invalid bearing '{posTokens[0]}'. Use -{{0-360}}");
@@ -117,9 +124,10 @@ public static class SpawnParser
             return (null, $"Invalid distance '{posTokens[1]}'. Must be a positive number (nm)");
         }
 
-        if (!double.TryParse(posTokens[2], out var alt) || alt < 0)
+        var alt = AltitudeResolver.Resolve(posTokens[2]);
+        if (alt is null)
         {
-            return (null, $"Invalid altitude '{posTokens[2]}'. Must be a non-negative number (feet)");
+            return (null, $"Invalid altitude '{posTokens[2]}'. Use hundreds of feet ('035'), full feet ('3500'), or AGL ('KOAK+010')");
         }
 
         return (
@@ -131,7 +139,7 @@ public static class SpawnParser
                 PositionType = SpawnPositionType.Bearing,
                 Bearing = bearing,
                 DistanceNm = dist,
-                Altitude = alt,
+                Altitude = alt.Value,
                 ExplicitType = explicitType,
                 ExplicitAirline = explicitAirline,
             },
@@ -153,15 +161,21 @@ public static class SpawnParser
             return (null, "Fix variant requires: @{fix_or_FRD} {altitude}");
         }
 
+        if (posTokens.Length > 2)
+        {
+            return (null, "Too many position arguments for fix variant");
+        }
+
         var fixId = posTokens[0][1..]; // strip '@' prefix
         if (string.IsNullOrEmpty(fixId))
         {
             return (null, "Missing fix name after '@'");
         }
 
-        if (!double.TryParse(posTokens[1], out var alt) || alt < 0)
+        var alt = AltitudeResolver.Resolve(posTokens[1]);
+        if (alt is null)
         {
-            return (null, $"Invalid altitude '{posTokens[1]}'. Must be a non-negative number (feet)");
+            return (null, $"Invalid altitude '{posTokens[1]}'. Use hundreds of feet ('035'), full feet ('3500'), or AGL ('KOAK+010')");
         }
 
         return (
@@ -172,7 +186,7 @@ public static class SpawnParser
                 Engine = engine,
                 PositionType = SpawnPositionType.AtFix,
                 FixId = fixId.ToUpperInvariant(),
-                Altitude = alt,
+                Altitude = alt.Value,
                 ExplicitType = explicitType,
                 ExplicitAirline = explicitAirline,
             },

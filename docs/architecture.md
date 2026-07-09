@@ -1036,7 +1036,6 @@ See [session-persistence.md](session-persistence.md) for planned-restart room ch
     DepartureCommandParser.cs  # Departure-specific command parsing
     GroundCommandParser.cs     # Ground operation command parsing
 
-  Spawn/SpawnParser.cs         # ADD command → SpawnRequest
   Protocol/                    # CRC binary: VarintCodec, MessageFraming, SignalRMessageParser, SignalRMessageBuilder
   Dtos/
     TrainingDtos.cs            # JSON DTOs for training client communication

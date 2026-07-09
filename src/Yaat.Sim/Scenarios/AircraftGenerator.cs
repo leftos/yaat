@@ -152,10 +152,11 @@ public static class AircraftGenerator
         string? primaryAirportId,
         IReadOnlyCollection<AircraftState> existingAircraft,
         AirportGroundLayout? groundLayout,
-        Random rng
+        Random rng,
+        BeaconCodePool beaconPool
     )
     {
-        var result = GenerateCore(request, primaryAirportId, existingAircraft, groundLayout, rng);
+        var result = GenerateCore(request, primaryAirportId, existingAircraft, groundLayout, rng, beaconPool);
         if (result.State is null)
         {
             Log.LogWarning(
@@ -192,7 +193,8 @@ public static class AircraftGenerator
         string? primaryAirportId,
         IReadOnlyCollection<AircraftState> existingAircraft,
         AirportGroundLayout? groundLayout,
-        Random rng
+        Random rng,
+        BeaconCodePool beaconPool
     )
     {
         var r = rng;
@@ -227,7 +229,8 @@ public static class AircraftGenerator
         // VFR ADD spawns are cold calls: no AssignedCode, squawking 1200 (FAA
         // VFR conspicuity code). Controller files later via DA / VP, which
         // assigns a discrete beacon. IFR ADD spawns get a discrete code at
-        // spawn so they're trackable immediately.
+        // spawn so they're trackable immediately — drawn from the facility's
+        // beacon-code banks, the same allocator that filing a flight plan uses.
         uint assignedCode;
         uint activeCode;
         if (request.Rules == FlightRulesKind.Vfr)
@@ -237,9 +240,15 @@ public static class AircraftGenerator
         }
         else
         {
-            var code = SimulationWorld.GenerateBeaconCode(r);
+            // 0 means every code is in use. Squawk 1200 rather than the illegal all-zeros code.
+            var code = beaconPool.AssignNextCode(isVfr: false);
+            if (code == 0)
+            {
+                Log.LogWarning("Beacon code pool exhausted; spawning {Callsign} on 1200 without a discrete code", callsign);
+            }
+
             assignedCode = code;
-            activeCode = code;
+            activeCode = code == 0 ? 1200u : code;
         }
 
         switch (request.PositionType)

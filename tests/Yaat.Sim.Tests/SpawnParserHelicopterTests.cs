@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
 
@@ -108,7 +109,7 @@ public class SpawnParserHelicopterTests
         Assert.Null(parseError);
         Assert.NotNull(request);
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(7));
+        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(7), new BeaconCodePool());
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -137,7 +138,7 @@ public class SpawnParserHelicopterTests
         Assert.Null(parseError);
         Assert.NotNull(request);
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(7));
+        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout, new Random(7), new BeaconCodePool());
 
         Assert.Null(error);
         Assert.NotNull(state);
@@ -167,7 +168,7 @@ public class SpawnParserHelicopterTests
             Altitude = 3000,
         };
 
-        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, new Random(11));
+        var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, new Random(11), new BeaconCodePool());
 
         Assert.Null(error);
         Assert.NotNull(state);

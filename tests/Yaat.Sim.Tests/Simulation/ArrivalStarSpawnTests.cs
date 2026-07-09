@@ -77,7 +77,7 @@ public class ArrivalStarSpawnTests
         };
 
     private static (AircraftState? State, string? Error) Generate(SpawnRequest req) =>
-        AircraftGenerator.Generate(req, Airport, Array.Empty<AircraftState>(), groundLayout: null, new Random(1));
+        AircraftGenerator.Generate(req, Airport, Array.Empty<AircraftState>(), groundLayout: null, new Random(1), new BeaconCodePool());
 
     [Fact]
     public void DescendVia_SpawnsEstablishedOnStar_WithConstraints()

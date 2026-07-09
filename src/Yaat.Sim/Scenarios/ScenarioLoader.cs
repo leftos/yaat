@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
@@ -34,6 +35,13 @@ public class ScenarioLoadResult
     /// its bay instead of the printer queue. Empty when the scenario has no configuration.
     /// </summary>
     public Dictionary<string, ScenarioStripBayAssignment> InitialStripBayByCallsign { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Every loaded aircraft — immediate, then delayed, then deferred — in a stable order. Beacon-code
+    /// assignment walks this so a rewind draws the same codes in the same sequence as the original load.
+    /// </summary>
+    public IEnumerable<AircraftState> AllAircraftStates =>
+        ImmediateAircraft.Concat(DelayedAircraft).Concat(DeferredAircraft).Select(loaded => loaded.State);
 }
 
 public class LoadedAircraft
@@ -48,6 +56,8 @@ public class LoadedAircraft
 
 public static class ScenarioLoader
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("ScenarioLoader");
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -244,21 +254,37 @@ public static class ScenarioLoader
         return feet > 0 ? PlannedAltitude.Ifr(feet) : PlannedAltitude.None;
     }
 
-    // Aircraft with a filed scenario flight plan get a discrete beacon code at
-    // spawn. Cold-call aircraft (no flightplan field in the scenario JSON) get
-    // no AssignedCode and squawk 1200 (FAA VFR conspicuity code) — controllers
-    // file via DA / VP later, which assigns the discrete code.
-    private static void AssignSpawnBeacon(AircraftState state, ScenarioAircraft ac, Random rng)
+    /// <summary>
+    /// Assigns spawn beacon codes to freshly loaded scenario aircraft. Aircraft with a filed flight plan
+    /// draw a discrete code from <paramref name="beaconPool"/> — the same allocator filing a plan uses, so
+    /// codes come from the facility's configured banks and never duplicate a live aircraft's. Cold-call
+    /// aircraft (no flightplan field in the scenario JSON) get no AssignedCode and squawk 1200 (FAA VFR
+    /// conspicuity code); controllers file via DA / VP later, which assigns the discrete code.
+    ///
+    /// Runs as a post-load pass rather than inline during <see cref="Load"/> because the pool's banks come
+    /// from the ARTCC config, which can only be resolved after the scenario's ARTCC and student position
+    /// are known — i.e. after the load has already parsed them.
+    /// </summary>
+    public static void AssignSpawnBeacons(BeaconCodePool beaconPool, IEnumerable<AircraftState> aircraft)
     {
-        if (ac.FlightPlan is not null)
+        foreach (var state in aircraft)
         {
-            var code = SimulationWorld.GenerateBeaconCode(rng);
-            state.Transponder.AssignedCode = code;
-            state.Transponder.Code = code;
-        }
-        else
-        {
-            state.Transponder.Code = 1200;
+            if (state.FlightPlan.HasFlightPlan)
+            {
+                // 0 means every code is in use. Squawk 1200 rather than the illegal all-zeros code.
+                var code = beaconPool.AssignNextCode(state.FlightPlan.IsVfr);
+                if (code == 0)
+                {
+                    Log.LogWarning("Beacon code pool exhausted; loading {Callsign} on 1200 without a discrete code", state.Callsign);
+                }
+
+                state.Transponder.AssignedCode = code;
+                state.Transponder.Code = code == 0 ? 1200u : code;
+            }
+            else
+            {
+                state.Transponder.Code = 1200;
+            }
         }
     }
 
@@ -354,7 +380,6 @@ public static class ScenarioLoader
         state.Position = new LatLon(lat, lon);
         state.Altitude = alt;
         state.IndicatedAirspeed = speed;
-        AssignSpawnBeacon(state, ac, rng);
 
         if (onGround)
         {
@@ -461,7 +486,6 @@ public static class ScenarioLoader
         state.Altitude = init.Altitude;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
-        AssignSpawnBeacon(state, ac, rng);
         state.Phases = init.Phases;
         state.Ground.Layout = groundData?.GetLayout(airportId);
 
@@ -516,7 +540,6 @@ public static class ScenarioLoader
         state.Altitude = init.Altitude;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
-        AssignSpawnBeacon(state, ac, rng);
         state.Phases = init.Phases;
 
         // Arriving aircraft: use destination airport layout for runway exit after landing
@@ -588,7 +611,6 @@ public static class ScenarioLoader
         state.Altitude = init.Altitude;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
-        AssignSpawnBeacon(state, ac, rng);
         state.Phases = init.Phases;
         state.Ground.AutoDeleteExempt = true;
         state.Ground.Layout = layout;

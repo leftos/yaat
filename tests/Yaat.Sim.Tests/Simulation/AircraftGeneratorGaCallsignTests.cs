@@ -1,6 +1,7 @@
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Tests.Helpers;
 
@@ -43,7 +44,7 @@ public class AircraftGeneratorGaCallsignTests(ITestOutputHelper output)
                 PreferredAirlineAirportId = "OAK",
             };
 
-            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng);
+            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
             Assert.Null(error);
             Assert.NotNull(state);
 

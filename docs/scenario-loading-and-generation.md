@@ -148,8 +148,13 @@ Three decisions matter:
   destination matches the primary airport (or has no destination, or there's no primary airport). The destination match
   normalizes the K-prefix via the local `NormalizeAirportCode` (`:194`). An aircraft destined elsewhere never inherits the
   primary's approach, even if the same approach id exists at its destination.
-- **Beacon.** `AssignSpawnBeacon` (`:180`): an aircraft with a filed FP gets a discrete code from
-  `SimulationWorld.GenerateBeaconCode(rng)`; a cold-call aircraft gets no `AssignedCode` and squawks 1200 (VFR conspicuity).
+- **Beacon.** Assigned by `ScenarioLoader.AssignSpawnBeacons(beaconPool, result.AllAircraftStates)`, a **post-load pass** rather
+  than an inline step: the pool's banks come from the ARTCC config, which can only be resolved once the load has parsed the
+  scenario's ARTCC and student position. Callers must invoke it after configuring banks — `SimulationEngine.LoadScenario` does so
+  immediately after `ScenarioLoader.Load` (no banks reach Yaat.Sim, so it falls back to sequential codes), and the server calls it
+  right after `ConfigureBeaconCodePool` in `ScenarioLifecycleService`. An aircraft with a filed FP draws a discrete code from
+  `BeaconCodePool.AssignNextCode(isVfr)` — the same allocator `AmendFlightPlan` uses, so codes come from the facility's IFR/VFR
+  banks and never duplicate a live aircraft's. A cold-call aircraft gets no `AssignedCode` and squawks 1200 (VFR conspicuity).
   `InferFlightRules` (`:161`) returns the explicit `rules` if set, else `VFR` when there's no FP or cruise altitude ≤ 0, else
   `IFR`.
 
@@ -257,14 +262,19 @@ owns its full order-independent trailing parse (`SP###` speed, bare-number altit
 `GenerateOnStar` builds the route + descend-via overlay via `ArrivalRouteResolver`, and computes a default establishment altitude
 from the STAR's published crossings (3:1 gradient, AIM 5-4-2.b) when none is given.
 
-The `@`-prefix disambiguation (`:71`) is the trickiest: `@FIX 5000` (a numeric second token) is an at-fix airborne spawn;
-`@GATE3` or `@GATE3 something-non-numeric` is a parking spawn. The `SpawnRequest` shape and field-per-variant usage is in
-`src/Yaat.Sim/Scenarios/SpawnRequest.cs`.
+The `@`-prefix disambiguation (`:71`) switches on token **count**, not on whether the second token parses as a number: `@GATE3`
+alone is a parking spawn, `@FIX 5000` is an at-fix airborne spawn, and anything longer is an error. Counting rather than sniffing
+for a number is what keeps an AGL altitude (`@SUNOL KOAK+010`) on the at-fix path instead of falling through to parking.
+
+Altitude arguments on the bearing and at-fix variants resolve through `AltitudeResolver.Resolve()`, so `035` = 3500 ft, `005` =
+500 ft, `3500` = 3500 ft, and `KOAK+010` = 1000 ft AGL. Zero, negative, and unparseable values are rejected, as are extra position
+tokens. The `SpawnRequest` shape and field-per-variant usage is in `src/Yaat.Sim/Scenarios/SpawnRequest.cs`.
 
 ## `AircraftGenerator`: buckets, airline-fleet coupling, fallback chain, callsigns
 
-`AircraftGenerator.Generate(request, primaryAirportId, existingAircraft, groundLayout, rng)`
-(`src/Yaat.Sim/Scenarios/AircraftGenerator.cs:124`) is the synthesizer. `GenerateCore` (`:164`) does, in order:
+`AircraftGenerator.Generate(request, primaryAirportId, existingAircraft, groundLayout, rng, beaconPool)`
+(`src/Yaat.Sim/Scenarios/AircraftGenerator.cs:124`) is the synthesizer, used by both the `ADD` command and the arrival generator.
+`GenerateCore` (`:164`) does, in order:
 
 1. **Airline first (IFR only).** For IFR, pick the airline *before* the type so the type can be constrained to that airline's
    real fleet (`:178`). Resolution order: explicit `*airline` override → `PickCompatibleAirportAirline` (weighted by the

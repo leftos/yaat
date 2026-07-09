@@ -1,6 +1,7 @@
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Tests.Helpers;
 
@@ -59,7 +60,7 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
                 Altitude = 8000,
             };
 
-            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng);
+            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
             Assert.Null(error);
             Assert.NotNull(state);
 
@@ -129,7 +130,7 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
                 ExplicitAirline = "SWA",
             };
 
-            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng);
+            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
             Assert.Null(error);
             Assert.NotNull(state);
             Assert.StartsWith("SWA", state.Callsign);
@@ -181,7 +182,7 @@ public class AircraftGeneratorAirlineFleetMatchTests(ITestOutputHelper output)
                 PreferredAirlineAirportId = "OAK",
             };
 
-            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng);
+            var (state, error) = AircraftGenerator.Generate(request, "OAK", [], groundLayout: null, rng, new BeaconCodePool());
             Assert.Null(error);
             Assert.NotNull(state);
 

@@ -2,6 +2,7 @@ using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Tests.Helpers;
 
@@ -84,7 +85,8 @@ public class AircraftGeneratorTypeTableTests
                     primaryAirportId: "KOAK",
                     existingAircraft: Array.Empty<AircraftState>(),
                     groundLayout: null,
-                    rng
+                    rng,
+                    beaconPool: new BeaconCodePool()
                 );
                 Assert.True(state is not null, $"{weight}+{engine}: spawn failed with '{error}'");
             }
@@ -113,7 +115,8 @@ public class AircraftGeneratorTypeTableTests
                 primaryAirportId: "KOAK",
                 existingAircraft: Array.Empty<AircraftState>(),
                 groundLayout: null,
-                rng
+                rng,
+                beaconPool: new BeaconCodePool()
             );
             Assert.True(state is not null, $"spawn failed: {error}");
             var category = AircraftCategorization.Categorize(state!.AircraftType);

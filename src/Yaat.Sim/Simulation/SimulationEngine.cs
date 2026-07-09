@@ -539,8 +539,13 @@ public sealed class SimulationEngine
         World.ReleaseJitterRng = new SerializableRandom(rngSeed);
         ApproachEvaluator.Reset();
         SoloTrainingEvaluator.Reset();
+        BeaconCodePool.Clear();
 
         var result = ScenarioLoader.Load(json, _groundData, World.Rng);
+
+        // No ARTCC config reaches Yaat.Sim, so the pool has no banks here and falls back to sequential
+        // codes. The server configures banks from the facility before running its own assignment pass.
+        ScenarioLoader.AssignSpawnBeacons(BeaconCodePool, result.AllAircraftStates);
 
         Scenario = new SimScenarioState
         {
@@ -2524,7 +2529,7 @@ public sealed class SimulationEngine
 
         var existing = World.GetSnapshot();
         var groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
-        var (state, error) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, existing, groundLayout, World.Rng);
+        var (state, error) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, existing, groundLayout, World.Rng, BeaconCodePool);
 
         if (state is null)
         {

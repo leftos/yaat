@@ -194,7 +194,7 @@ public class SimulationWorldTests
             uint code = SimulationWorld.GenerateBeaconCode(rng);
             Assert.True(
                 BeaconCodePool.IsAssignableCode(code),
-                $"Generated non-assignable beacon code {code:D4} on draw {i} " + "(must not end in \"00\" and must not be 7777)"
+                $"Generated non-assignable beacon code {code:D4} on draw {i} (reserved SPC, conspicuity, military, or non-discrete block code)"
             );
         }
     }
@@ -208,9 +208,11 @@ public class SimulationWorldTests
     [InlineData(0u, false)] // 0000
     [InlineData(4600u, false)] // arbitrary xy00 block code
     [InlineData(7777u, false)] // military interceptor
+    [InlineData(7540u, false)] // discrete, but inside the withheld 7500-7777 SPC block
+    [InlineData(7601u, false)] // discrete radio-failure series — still raises the RF indicator
+    [InlineData(1202u, false)] // monitored VFR conspicuity code (gliders)
     [InlineData(301u, true)] // 0301 discrete
-    [InlineData(7355u, true)] // discrete
-    [InlineData(7540u, true)] // discrete, adjacent to an SPC block
+    [InlineData(7355u, true)] // discrete, below the withheld block
     public void IsAssignableBeaconCode_ClassifiesCodes(uint code, bool expected)
     {
         Assert.Equal(expected, BeaconCodePool.IsAssignableCode(code));

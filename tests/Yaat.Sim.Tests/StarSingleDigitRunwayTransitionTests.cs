@@ -105,7 +105,14 @@ public class StarSingleDigitRunwayTransitionTests : IDisposable
             DestinationAirportId = "KSFO",
         };
 
-        var (state, error) = AircraftGenerator.Generate(request, "KSFO", Array.Empty<AircraftState>(), groundLayout: null, new Random(1));
+        var (state, error) = AircraftGenerator.Generate(
+            request,
+            "KSFO",
+            Array.Empty<AircraftState>(),
+            groundLayout: null,
+            new Random(1),
+            new BeaconCodePool()
+        );
 
         Assert.Null(error);
         Assert.NotNull(state);

@@ -24,14 +24,44 @@ public sealed class BeaconCodePool
     }
 
     /// <summary>
-    /// A beacon code may be assigned to an individual aircraft (is discrete) iff its 4-digit octal form
-    /// does not end in "00" — which excludes the VFR conspicuity code 1200, the emergency SPCs
-    /// 7500/7600/7700, lost-link 7400, and 0000 along with every non-discrete block code — and is not the
-    /// military-interceptor code 7777. Mirrors CRC's IsDiscrete plus the special-purpose exclusion. This is
-    /// the single source of truth for reserved/non-discrete exclusion across every code-assigning path
-    /// (bank draw, sequential fallback, and the random spawn generator).
+    /// Whether a beacon code may be auto-assigned to an individual aircraft. This is the single source of
+    /// truth for reserved-code exclusion across every code-assigning path (bank draw and sequential
+    /// fallback). Codes are stored as decimal digits representing octal, so <c>1200u</c> means squawk 1200.
+    ///
+    /// "Ends in 00" alone is not the definition of reserved: it captures the non-discrete codes, but the
+    /// reserved *discrete* special-purpose codes slip through it. Assigning one of those to ordinary
+    /// traffic raises a false indicator on a controller's scope, so each family is excluded explicitly:
+    ///
+    /// <list type="bullet">
+    /// <item>Non-discrete codes (last two octal digits zero): VFR conspicuity 1200, the SPCs 7500/7600/7700,
+    /// UAS lost-link 7400, military 4000, 0000, and every block code. FAA 7110.65 §5-2-3 … §5-2-7.</item>
+    /// <item>The whole 7500-7777 octal block. Every discrete code in the 7600 (radio failure) and 7700
+    /// (emergency) series triggers the RF / EMRG indicator in STARS and ERAM — not just the two members
+    /// ending in 00 — and 7777 is the military interceptor code. AIM §4-1-20 "Code Changes"; PCG.</item>
+    /// <item>The VFR conspicuity codes ATC monitors besides 1200: 1202 (gliders), 1203 (formation lead),
+    /// 1255 (firefighting), 1276 and 1277 (SAR). FAA 7110.65 §5-2-11.</item>
+    /// <item>The DoD-allocated 5000-5062 block. NBCAP (FAA Order JO 7110.66).</item>
+    /// </list>
     /// </summary>
-    public static bool IsAssignableCode(uint code) => (code != 7777) && !code.ToString("D4").EndsWith("00", StringComparison.Ordinal);
+    public static bool IsAssignableCode(uint code)
+    {
+        if (code.ToString("D4").EndsWith("00", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (code is >= 7500 and <= 7777)
+        {
+            return false;
+        }
+
+        if (code is >= 5000 and <= 5062)
+        {
+            return false;
+        }
+
+        return code is not (1202 or 1203 or 1255 or 1276 or 1277);
+    }
 
     /// <summary>
     /// Replaces the bank configuration. Clears per-bank cursors; does not release already-assigned codes.
@@ -49,8 +79,11 @@ public sealed class BeaconCodePool
     /// Assigns the next available beacon code.
     /// When banks are configured, IFR traffic draws from "Ifr" banks then "Any" banks;
     /// VFR traffic draws from "Vfr" banks then "Any" banks.
-    /// When no banks are configured, falls back to sequential 0001–7777 octal iteration.
-    /// Returns 0 if the pool is exhausted.
+    ///
+    /// Every miss falls through to sequential 0001–7777 octal iteration: a facility config may define banks
+    /// for one flight-rules type and not the other, and a bank can be exhausted. Without the fallback those
+    /// cases yield 0, which callers would write straight onto a transponder as the illegal all-zeros squawk.
+    /// Returns 0 only when all 4096 codes are in use.
     /// </summary>
     public uint AssignNextCode(bool isVfr)
     {
@@ -60,7 +93,7 @@ public sealed class BeaconCodePool
         }
 
         var primary = isVfr ? _vfrBanks : _ifrBanks;
-        return AssignFromBanks(primary) ?? AssignFromBanks(_anyBanks) ?? 0;
+        return AssignFromBanks(primary) ?? AssignFromBanks(_anyBanks) ?? AssignSequential();
     }
 
     /// <summary>

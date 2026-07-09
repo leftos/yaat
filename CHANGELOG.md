@@ -17,6 +17,10 @@
 - Parallel commands mixing a transponder verb with a ground or tower verb now all take effect, such as `SQ, SQNORM, PUSH TE T` at parking.
 - An aircraft following traffic landing ahead of it extends its downwind, turning base only after that traffic is on the ground and clear.
 - `FOLLOW` persists when the traffic is faster; only losing sight of the traffic breaks off the follow.
+- `ADD` altitudes now use the same shorthand as every other altitude argument: `ADD VFR S P -360 15 035` spawns at 3500 ft instead of 35 ft. Full feet (`3500`) and AGL (`KOAK+010`) work too, on both the airborne and at-fix variants.
+- `ADD` now rejects extra position arguments instead of silently dropping them — `ADD VFR S P @BERKS 0 035` reported a successful spawn while placing the aircraft at 0 ft.
+- Spawned IFR aircraft now squawk a beacon code drawn from the facility's configured code banks — the same code filing a flight plan would assign — instead of a random one, and two aircraft can no longer be assigned the same code. Applies to `ADD`, the arrival generator, and scenario-file aircraft.
+- Aircraft are never assigned a beacon code that raises a false alert on a controller's scope. Codes in the 7600 (radio failure) and 7700 (emergency) series, the monitored VFR conspicuity codes (1202, 1203, 1255, 1276, 1277), and the military 5000-5062 block are now withheld — previously only codes ending in `00`, plus 7777, were.
 
 ## v0.9.5-beta [2026/07/08]
 
