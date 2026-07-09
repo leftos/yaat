@@ -570,7 +570,7 @@ Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Tra
 Commands/TrackResolver.cs           # AS-prefix extraction (e.g. "AS 3Y ACCEPT" → "ACCEPT" + "3Y" override), scenario-first TCP→TrackOwner
                                     # resolution with optional ARTCC-config fallback, owner→TCP lookup. Shared by yaat-server's live track path
                                     # and Sim's replay applier.
-Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry, same-runway short-final continue no-op + never-route-outbound reject
+Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry, same-runway continue no-op, never-route-outbound reject, and the pattern retarget that degrades a too-close EF into a base entry; runway-changing entries void the landing clearance
 Commands/StripCommandHandler.cs     # Flight strip CRUD (STRIP, SCAN, STRIPD, STRIPO, AN, HSC, HSA, HSD, HSM, HSO, HSS, SEP, SEPD, BLANK, BLANKD); dispatches to StripMutations
 Commands/FlightPlanCommandHandler.cs # Flight-plan amendment validation: TryChangeDestination resolves FAA/ICAO airport input via NavigationDatabase.TryResolveAirport,
                                     # writes canonical ICAO to FlightPlan.Destination, rejects unknown airports. Called from yaat-server's RoomEngine APT handler.

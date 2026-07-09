@@ -10,6 +10,11 @@
 - `CTL`, `CSG`, `CLA`, and `CFO` given without a traffic-pattern side now pick the same side a go-around would — the side you last assigned, then the one the aircraft is already flying, then the runway's — instead of always defaulting to left traffic.
 - A queued conditional command that pairs a maneuver with a handoff — `AT OAK FH 270, HO 2W` — no longer loses the handoff when a later command supersedes the maneuver half. Issuing `FH 090` before the aircraft reached OAK cancelled the queued turn but also silently dropped the queued `HO`, and then reported a spurious `Unable to …` when the fix was crossed. The handoff now still fires on reaching the fix.
 - When a later command supersedes part of a queued conditional command, the surviving half keeps its condition label in the command queue. `AT OAK FH 270, HO 2W` followed by `FH 090` used to leave the handoff showing as a bare `HO 2W`, with nothing to say it was still waiting on OAK; it now reads `at OAK: HO 2W`.
+- `EF <rwy>` to an aircraft too close in for a straight-in continues its base and turns final onto the runway you named, instead of flying outbound down the final.
+- `EF <rwy>` refuses "unable, short final" when the base turn can't be flown — a jet or turboprop, an aircraft past the centerline, or one too high to descend.
+- `EF <rwy>` for the runway an aircraft is already on final for continues the approach, even mid base-to-final turn.
+- A pattern entry (`EF` / `ERB` / `ELB` / `ELD` / `ERD` / `ELC` / `ERC`) naming a different runway than the aircraft is cleared to land on cancels the clearance.
+- A rejected pattern entry, such as `ERB` when the aircraft is too close for a base, leaves its current approach intact.
 
 ## v0.9.6-beta [2026/07/08]
 

@@ -252,24 +252,61 @@ centerline through one of three paths in `TryEnterPattern`:
    **capped at the aircraft's along-track-outbound distance** so `EF` never routes the aircraft outbound / behind
    its present position (which also makes the loop check inapplicable — the reverse-to-a-far-entry geometry can't
    form — so it is skipped when this distance is set, `PatternCommandHandler.cs:232`). When even the minimum final
-   exceeds the along-track cap the helper returns `null` and the fixed fallback (path 3 below) handles the
-   geometry. The `PatternEntryPhase` descends to the glideslope altitude at the join (`PatternCommandHandler.cs:454`),
-   then `FinalApproachPhase` tracks the 3° slope inbound.
-3. **Fixed fallback**: aligned aircraft *outside* the close-in distance (and explicit-distance `EF`) keep the
+   exceeds the along-track cap the helper returns `null`, and the pattern retarget (path 3) or the fixed fallback
+   (path 4) handles the geometry. The `PatternEntryPhase` descends to the glideslope altitude at the join
+   (`PatternCommandHandler.cs:454`), then `FinalApproachPhase` tracks the 3° slope inbound.
+3. **Pattern retarget** (`isPatternRetarget`): a *crossing* aircraft — one outside the close-in angle envelope
+   and **not** already tracking outbound — that is *inside* the category minimum final. The diagonal join above
+   has already bailed (its along-track cap is inside the minimum final), and the fixed entry (path 4) lies behind
+   it, so a straight-in is impossible. `EF` degrades to a **base entry**: `effectiveEntryLeg = Base`,
+   `effectiveFinalDistanceNm = ` the aircraft's along-track, `useAircraftPositionAsEntry = true` — the
+   ERB-no-distance shape, so `PatternBuilder.BuildCircuit` yields `BasePhase → FinalApproachPhase → terminator`
+   from the present position with no `PatternEntryPhase` (#284). Gates: the target centerline is still *ahead*
+   (cross-track is closing, not overshot), the along-track exceeds `MinPatternRetargetFinalNm` (¼ nm for
+   pistons/helicopters per AIM FIG 4-3-2 note 3; jets/turboprops keep the straight-in floor, which makes their
+   retarget window empty so they reject), and the aircraft can descend over the remaining base + final at the
+   category `PatternDescentRate`. The base leg's **side is derived from the aircraft's signed cross-track**, not
+   from `InferDefaultPatternDirection` — an aircraft north of the 28L centerline flies a *right* base to 28L
+   regardless of 28L's default left pattern. Aircraft already in `FinalApproachPhase` for the requested runway are
+   excluded (mid roll-out their heading reads as "crossing"; the same-runway continue below owns them).
+4. **Fixed fallback**: aligned aircraft *outside* the close-in distance (and explicit-distance `EF`) keep the
    fixed glideslope-TPA entry (`PatternAltitudeAgl / FeetPerNm`) plus the loop-feasibility check.
 
-**Short-final guards (both return before the phase teardown, so the aircraft keeps its current approach — #228).**
-An aircraft on very short final is *inside* the fixed entry point, so paths 1–3 would otherwise place the fixed
-entry behind it and fly it outbound to re-enter (the "tour of the airspace" bug):
+**Short-final guards (all return before the phase teardown, so the aircraft keeps its current approach — #228).**
+An aircraft on very short final is *inside* the fixed entry point, so the paths above would otherwise place the
+fixed entry behind it and fly it outbound to re-enter (the "tour of the airspace" bug):
 - **Same-runway continue (no-op):** if the aircraft is already in `FinalApproachPhase` for the requested runway,
-  aligned + near the centerline + inside the standard entry distance, `TryEnterPattern` returns success
-  ("continuing final") without rebuilding — preserving the live final / glideslope / clearance state
-  (`PatternCommandHandler.cs`, right after the parallel-sidestep branch).
-- **Never-outbound reject:** the loop-feasibility block also rejects "Unable, short final" when the aircraft is on
-  the final approach course, genuinely short final (inside `MinimumPerpendicularBaseFinalDistanceNm`), and the
-  fixed entry point lies farther outbound than the aircraft. A runway argument that already retargeted
-  `AssignedRunway`/`DestinationRunway` is restored on this reject. This is the backstop for the cases the no-op
-  doesn't cover (not on `FinalApproachPhase`, or a non-parallel runway switch from short final).
+  near the centerline (`EstablishedFinalCrossTrackNm`) and inside the standard entry distance, `TryEnterPattern`
+  returns success ("continuing final") without rebuilding — preserving the live final / glideslope / clearance
+  state (`PatternCommandHandler.cs`, right after the parallel-sidestep branch). The angle tolerance spans the
+  whole base-to-final roll-out (`EstablishedFinalAngleOffDeg` = 90°), so a mid-turn `EF` is not mistaken for a
+  crossing aircraft.
+- **Never-outbound reject** (loop-feasibility block, "Unable, short final"). Two sibling conditions, both
+  requiring the aircraft to be on the approach side with the fixed entry point behind it:
+  - `onShortFinalInsideEntry` — *aligned* (within the close-in angle envelope), near the centerline, inside
+    `MinimumPerpendicularBaseFinalDistanceNm`. An aligned aircraft merely *offset* from the centerline is **not**
+    short final; it re-intercepts via the far entry, which is the normal way back onto a final it is parallelling.
+  - `crossingFinalInsideFloor` — *crossing* the final approach course, not tracking outbound, inside the category
+    floor, and not retargetable (path 3 declined it: too steep for its category, too high, or already past the
+    centerline). This is the #284 backstop.
+
+  "Tracking outbound" means the ground track lies within `OutboundTrackToleranceDeg` (60°) of the runway
+  reciprocal — the downwind leg (AIM §4-3-2.c.4), plus the 45° downwind entry of §4-3-3. That is the only
+  aircraft for which an entry point farther from the threshold is the rest of the pattern rather than a reversal;
+  a textbook 90° base leg sits a comfortable 30° outside the cone. Upwind and crosswind traffic never reaches
+  either condition — it is on the departure side of the threshold, so its along-track-outbound is negative and the
+  `acAlongOutbound > 0` term excludes it. A runway argument that already retargeted `AssignedRunway`/
+  `DestinationRunway` is restored on this reject.
+
+**Rejects never destroy the phase chain.** `aircraft.Phases.Clear(ctx)` runs only after every reject path,
+immediately before the new chain is built. Clearing earlier meant a rejected entry (e.g. `ERB` "too close for
+base") left the aircraft with a skipped, dead chain and no current phase at all, flying straight ahead.
+
+**Runway changes void the landing clearance.** A clearance names a runway (7110.65 §3-10-5), so a pattern entry
+whose runway argument differs from `ClearedRunwayId` nulls `LandingClearance` + `ClearedRunwayId` (and therefore
+also the `touchAndGo` terminator choice). Same-runway re-entry keeps it. Mirrors `TryChangePatternDirection`
+(MRT/MLT). `ApplySidestep` returns before this and deliberately *transfers* the clearance — the instrument
+approach clearance authorizes the parallel (§4-8-7).
 
 When the altitude-aware join is capped at along-track but the aircraft still cannot lose its altitude over the
 cut-in + final at the category `PatternDescentRate`, `EF` succeeds but raises an `AircraftState.PendingWarnings`

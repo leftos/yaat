@@ -56,6 +56,7 @@ internal static class PatternCommandHandler
         // parallel-runway sidestep detection below can compare current vs target.
         var previousAssignedRunway = aircraft.Phases?.AssignedRunway;
         var previousActivePhase = aircraft.Phases?.CurrentPhase;
+        var previousClearedRunwayId = aircraft.Phases?.ClearedRunwayId;
 
         // Resolve runway from argument if provided
         if (runwayId is not null)
@@ -85,6 +86,20 @@ internal static class PatternCommandHandler
         var runway = aircraft.Phases.AssignedRunway;
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
 
+        // A landing clearance names a runway (7110.65 §3-10-5), so a pattern entry that reassigns
+        // the aircraft to a different runway voids it — the controller must clear it again for the
+        // new runway ("CHANGE TO RUNWAY (n), RUNWAY (n) CLEARED TO LAND", §3-10-5.c). Re-entering
+        // the pattern for the SAME runway keeps the standing clearance. Mirrors the equivalent
+        // guard in TryChangePatternDirection (MRT/MLT). The instrument sidestep branch below is
+        // exempt and returns before the rebuild: there the approach clearance itself authorizes
+        // the landing on the parallel (§4-8-7, AIM §5-4-19).
+        bool voidsLandingClearance =
+            runwayId is not null
+            && previousClearedRunwayId is not null
+            && !string.Equals(previousClearedRunwayId, runway.Designator, StringComparison.OrdinalIgnoreCase);
+
+        var standingClearance = voidsLandingClearance ? null : aircraft.Phases.LandingClearance;
+
         // The terminal phase of the rebuilt circuit follows the controller's
         // standing landing clearance, not the transient pattern turn-direction.
         // A full-stop CLAND must survive a later pattern-entry command
@@ -95,7 +110,7 @@ internal static class PatternCommandHandler
         // With no landing clearance, fall back to pattern-work state (closed
         // traffic via MRT/MLT/CTO defaults to touch-and-go and re-enters; a plain
         // entry full-stops and auto-goes-around at minimums if never cleared).
-        bool touchAndGo = aircraft.Phases.LandingClearance switch
+        bool touchAndGo = standingClearance switch
         {
             ClearanceType.ClearedToLand => false,
             ClearanceType.ClearedForOption or ClearanceType.ClearedTouchAndGo or ClearanceType.ClearedStopAndGo or ClearanceType.ClearedLowApproach =>
@@ -326,16 +341,63 @@ internal static class PatternCommandHandler
             }
         }
 
+        // For Final entry inside the category straight-in floor: an aircraft with an inbound
+        // component (a base leg, or a diagonal cut-in) is not flying a straight-in at all — it
+        // is flying a pattern. The straight-in machinery has nothing to offer it: the diagonal
+        // join above already bailed (its along-track cap is inside the minimum final), and the
+        // fixed entry point is farther from the threshold than the aircraft, so navigating to it
+        // means turning away from the field (#284). What such an aircraft actually does is
+        // continue its base and roll onto the target runway's centerline — a runway change in
+        // the pattern (7110.65 §3-10-5.c "CHANGE TO RUNWAY (n)"), not a straight-in and not the
+        // instrument "sidestep" of the FinalApproachPhase branch above.
+        //
+        // Retarget the pattern instead: BasePhase from the aircraft's present position onto the
+        // new centerline, reusing the ERB-no-distance machinery below. The straight-in floor is
+        // deliberately NOT applied — AIM FIG 4-3-2 note 3 only requires the turn to final be
+        // complete 1/4 mile out (MinPatternRetargetFinalNm), which jets and turboprops cannot
+        // fly, so their retarget window is empty and they fall through to the reject below.
+        //
+        // An aircraft already flying FinalApproachPhase for the requested runway is excluded: it
+        // is doing what EF asks, and mid base-to-final roll-out its heading is transiently far off
+        // the final course, which would otherwise read as a "crossing" aircraft and re-insert a
+        // base leg it has already flown. The same-runway continue / short-final guards own it.
+        bool alreadyOnFinalForRequestedRunway =
+            previousActivePhase is FinalApproachPhase
+            && previousAssignedRunway is not null
+            && string.Equals(previousAssignedRunway.Designator, runway.Designator, StringComparison.OrdinalIgnoreCase);
+
+        bool isPatternRetarget = false;
+        double retargetAlongTrackNm = 0.0;
+        if (
+            !aircraft.IsOnGround
+            && entryLeg == PatternEntryLeg.Final
+            && finalDistanceNm is null
+            && !isCloseInFinal
+            && finalEntryDistanceNm is null
+            && !alreadyOnFinalForRequestedRunway
+        )
+        {
+            var gate = EvaluatePatternRetarget(aircraft, runway, category, direction, groundLayout, ref waypoints);
+            if (gate.IsRetarget)
+            {
+                isPatternRetarget = true;
+                retargetAlongTrackNm = gate.AlongTrackNm;
+                direction = gate.Side;
+                waypoints = gate.Waypoints;
+            }
+        }
+
         // For Final entry: reject if the maneuver would create a 360° loop. Skipped when
         // the altitude-aware join is in play (finalEntryDistanceNm) — that entry is, by
         // construction, never placed beyond the aircraft's along-track, so the reverse-to-
-        // a-far-entry loop this guards against cannot form.
+        // a-far-entry loop this guards against cannot form. Also skipped for a pattern
+        // retarget, which never leaves the aircraft's present position.
         // Compute the two heading changes: (1) turn from current heading to the
         // bearing toward the entry point, (2) turn from arrival bearing at the
         // entry point to the runway (approach) heading. If BOTH exceed 90°, the
         // total turn approaches 360° — the aircraft must reverse to the entry
         // point and then reverse again to align with final. That's a loop.
-        if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && !isCloseInFinal && finalEntryDistanceNm is null)
+        if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final && !isCloseInFinal && finalEntryDistanceNm is null && !isPatternRetarget)
         {
             var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
             var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
@@ -406,13 +468,17 @@ internal static class PatternCommandHandler
             );
 
             // EF must never route the aircraft outbound / farther from the field
-            // (COMMANDS.md contract). An aircraft already on the final approach course
-            // (aligned, near the centerline, on the approach side) but inside the
-            // category minimum final — genuine short final — would have the fixed entry
-            // point placed behind it; flying there reverses it away from the runway
-            // (the #228 "tour of the airspace"). Reject and leave it on its current
-            // approach instead. Aircraft farther out, off to the side, or misaligned
-            // still get the normal far-entry reposition below.
+            // (COMMANDS.md contract). Only an aircraft ALREADY tracking outbound — the downwind
+            // leg, which parallels the runway in the departure direction (AIM 4-3-2.c.4) — may
+            // legitimately be sent ahead to an entry point farther from the threshold and then
+            // turned onto final; that is just the pattern. (Upwind and crosswind traffic is on
+            // the departure side of the threshold, so its along-track-outbound is negative and
+            // the `acAlongOutbound > 0` term below excludes it without needing the cone.)
+            // An aircraft with any inbound component (final, base, or a diagonal cut-in) on the
+            // approach side would have to turn AWAY from the runway to reach an entry point
+            // behind it: the #228 "tour of the airspace" for an aligned aircraft, and the #284
+            // outbound run down the final for a base leg. Reject and leave it on its current
+            // approach. (A base leg that CAN fly the join was already retargeted above.)
             double acAlongOutbound = GeoMath.AlongTrackDistanceNm(
                 aircraft.Position,
                 new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon),
@@ -427,20 +493,54 @@ internal static class PatternCommandHandler
                     waypoints.FinalHeading
                 )
             );
+            bool trackingOutbound = aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading.ToReciprocal()) <= OutboundTrackToleranceDeg;
+            bool insideCategoryFloor = acAlongOutbound > 0 && acAlongOutbound < MinimumPerpendicularBaseFinalDistanceNm(category);
+            bool entryLiesBehindAircraft = entryAlongOutbound > acAlongOutbound + OutboundFinalEntryMarginNm;
+
+            // (1) Aligned, on the final approach course, genuine short final: the fixed entry point
+            // sits behind the aircraft and flying there reverses it away from the runway — the #228
+            // "tour of the airspace". An aligned aircraft merely OFFSET from the centerline (beyond
+            // EstablishedFinalCrossTrackNm) is not on short final; it re-intercepts via the far
+            // entry, which is the normal way back onto a final it is parallelling.
             bool onShortFinalInsideEntry =
                 angleOffFinal <= MaxCloseInFinalAngleOffDeg(acAlongOutbound, category)
-                && acAlongOutbound > 0
-                && acAlongOutbound < MinimumPerpendicularBaseFinalDistanceNm(category)
+                && insideCategoryFloor
                 && crossTrackAbsNm <= EstablishedFinalCrossTrackNm
-                && entryAlongOutbound > acAlongOutbound + OutboundFinalEntryMarginNm;
+                && entryLiesBehindAircraft;
+
+            // (2) CROSSING the final approach course (a base leg, or a diagonal cut-in) inside the
+            // category floor: it cannot fly a stabilized straight-in, and the retarget above already
+            // declined it (too steep for its category, too high to descend, or the centerline is
+            // behind it). The fixed entry point is behind it too, so routing there flies it outbound
+            // down the final — issue #284. Reject; the controller re-vectors or goes around.
+            //
+            // Aircraft already tracking outbound (the downwind, AIM 4-3-2.c.4) are excluded: for
+            // them the entry point ahead is simply the rest of the pattern, not a reversal.
+            bool crossingFinalInsideFloor =
+                angleOffFinal > MaxCloseInFinalAngleOffDeg(acAlongOutbound, category)
+                && !trackingOutbound
+                && insideCategoryFloor
+                && entryLiesBehindAircraft;
 
             // Reject if the required arc exceeds what the aircraft can fly in
             // the available straight-line distance. The aircraft physically
             // cannot complete the turns before reaching the entry point.
             bool cannotCompleteTurns = (totalTurnDeg > 180) && (arcNm > distToEntry);
 
-            if (onShortFinalInsideEntry || cannotCompleteTurns)
+            if (onShortFinalInsideEntry || crossingFinalInsideFloor || cannotCompleteTurns)
             {
+                Log.LogDebug(
+                    "[EF-Reject] {Callsign}: shortFinal={ShortFinal} crossingInsideFloor={Crossing} cannotCompleteTurns={CannotTurn} — acAlong={AcAlong:F2}nm entryAlong={EntryAlong:F2}nm crossTrack={Cross:F2}nm angleOffFinal={AngleF:F0}° trackingOutbound={Tracking}",
+                    aircraft.Callsign,
+                    onShortFinalInsideEntry,
+                    crossingFinalInsideFloor,
+                    cannotCompleteTurns,
+                    acAlongOutbound,
+                    entryAlongOutbound,
+                    crossTrackAbsNm,
+                    angleOffFinal,
+                    trackingOutbound
+                );
                 // A runway argument already retargeted AssignedRunway/DestinationRunway
                 // above; restore the prior runway so a rejected EF leaves the aircraft
                 // fully on its current approach.
@@ -453,13 +553,18 @@ internal static class PatternCommandHandler
             }
         }
 
-        // Clear current phases and build new sequence from entry leg
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
-        aircraft.Phases.Clear(ctx);
-
-        // For wrong-side entry: midfield crossing then downwind entry
-        PatternEntryLeg effectiveEntryLeg = isOnWrongSide ? PatternEntryLeg.Downwind : entryLeg;
-        double? effectiveFinalDistanceNm = isCloseInFinal ? closeInAlongTrack : (isOnWrongSide ? null : finalDistanceNm);
+        // For wrong-side entry: midfield crossing then downwind entry.
+        // For a pattern retarget: a base leg from the aircraft's present position onto the new
+        // centerline (the ERB-no-distance shape), never a Final entry to a far waypoint.
+        PatternEntryLeg effectiveEntryLeg =
+            isOnWrongSide ? PatternEntryLeg.Downwind
+            : isPatternRetarget ? PatternEntryLeg.Base
+            : entryLeg;
+        double? effectiveFinalDistanceNm =
+            isPatternRetarget ? retargetAlongTrackNm
+            : isCloseInFinal ? closeInAlongTrack
+            : isOnWrongSide ? null
+            : finalDistanceNm;
 
         // If the aircraft is airborne, heading roughly aligned with the runway,
         // near the runway (within 3nm of departure end), and NOT already close to
@@ -497,7 +602,7 @@ internal static class PatternCommandHandler
         // than aiming for the standard pattern base turn point (which would force
         // a diagonal leg). Setting useAircraftPositionAsEntry skips PatternEntryPhase
         // below so BasePhase starts immediately from the aircraft's current position.
-        bool useAircraftPositionAsEntry = isCloseInFinal;
+        bool useAircraftPositionAsEntry = isCloseInFinal || isPatternRetarget;
         if (!aircraft.IsOnGround && !isOnWrongSide && effectiveEntryLeg == PatternEntryLeg.Base && effectiveFinalDistanceNm is null)
         {
             TrueHeading reciprocal = waypoints.FinalHeading.ToReciprocal();
@@ -537,6 +642,14 @@ internal static class PatternCommandHandler
             useAircraftPositionAsEntry = true;
         }
 
+        // Only now, past every reject, tear down the running phases. Clearing earlier left a
+        // rejected entry (e.g. ERB "too close for base") with a skipped, dead phase chain and an
+        // aircraft flying straight ahead with no phase at all — the command must be a no-op when
+        // it fails. The same reasoning is why the close-in and retarget gates above fall through
+        // rather than rejecting from inside their own blocks.
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        aircraft.Phases.Clear(ctx);
+
         var (circuitSizeOv, circuitAltOv) = PatternGeometry.ResolveAuthoredOverrides(
             runway,
             (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
@@ -557,8 +670,8 @@ internal static class PatternCommandHandler
 
         var phases = new PhaseList { AssignedRunway = runway };
         NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, runway.Designator);
-        phases.LandingClearance = aircraft.Phases.LandingClearance;
-        phases.ClearedRunwayId = aircraft.Phases.ClearedRunwayId;
+        phases.LandingClearance = standingClearance;
+        phases.ClearedRunwayId = voidsLandingClearance ? null : aircraft.Phases.ClearedRunwayId;
         // Stamp the commanded pattern direction so a subsequent go-around preserves
         // it (GoAroundHelper otherwise defaults VFR to Left, regardless of the
         // ERD/ELB/ERB/ELD intent). Applies to wrong-side entries too — the
@@ -2130,8 +2243,13 @@ internal static class PatternCommandHandler
     /// the approach) rather than a phase rebuild. Keyed off the aircraft actually being
     /// in FinalApproachPhase for that runway; these guard against a nonsensically
     /// off-course "final" phase.
+    ///
+    /// The angle tolerance spans the whole base-to-final roll-out (a pattern base is
+    /// perpendicular, so the transient heading reaches ~90° off the final course before the
+    /// turn completes). An aircraft rolling onto the centerline it was asked to join is already
+    /// complying; the cross-track bound is what actually establishes it is on that final.
     /// </summary>
-    private const double EstablishedFinalAngleOffDeg = 30.0;
+    private const double EstablishedFinalAngleOffDeg = 90.0;
     private const double EstablishedFinalCrossTrackNm = 0.5;
 
     /// <summary>
@@ -2141,6 +2259,147 @@ internal static class PatternCommandHandler
     /// "Unable, short final" instead and leave the aircraft on its current approach.
     /// </summary>
     private const double OutboundFinalEntryMarginNm = 0.1;
+
+    /// <summary>
+    /// Angular tolerance (degrees) between the aircraft's track and the runway's outbound
+    /// (reciprocal) axis for it to count as "already tracking outbound". AIM 4-3-2.c defines the
+    /// traffic-pattern legs by track: the downwind parallels the runway in the departure direction,
+    /// base is perpendicular, final is along the landing direction. Only a downwind aircraft may be
+    /// routed to a Final entry point farther from the threshold than its present position — for it
+    /// that is simply the rest of the pattern. Anything with an inbound component would have to turn
+    /// away from the field. 60° leaves a 30° margin against a textbook 90° base leg, and admits the
+    /// 45° downwind entry of AIM 4-3-3. Upwind and crosswind traffic sits on the departure side of
+    /// the threshold and is excluded by its negative along-track-outbound, not by this cone.
+    /// </summary>
+    private const double OutboundTrackToleranceDeg = 60.0;
+
+    /// <summary>
+    /// Minimum along-track (NM) at which a pattern retarget can still complete its turn to final.
+    /// AIM FIG 4-3-2 note 3 requires only that the turn to final be complete at least 1/4 mile
+    /// from the runway. This is light-aircraft pattern geometry.
+    /// </summary>
+    private const double MinPatternTurnToFinalNm = 0.25;
+
+    /// <summary>
+    /// Along-track floor (NM) for an EF pattern retarget. Pistons and helicopters fly the AIM
+    /// 1/4-mile turn-to-final; jets and turboprops cannot fly a stabilized final that short, so
+    /// they keep the straight-in floor. That makes their retarget window
+    /// (<see cref="MinPatternRetargetFinalNm"/>, <see cref="MinimumPerpendicularBaseFinalDistanceNm"/>)
+    /// empty by construction: a jet inside its straight-in floor rejects "Unable, short final"
+    /// rather than being retargeted onto a final it cannot stabilize on.
+    /// </summary>
+    private static double MinPatternRetargetFinalNm(AircraftCategory category) =>
+        category switch
+        {
+            AircraftCategory.Piston or AircraftCategory.Helicopter => MinPatternTurnToFinalNm,
+            _ => MinimumPerpendicularBaseFinalDistanceNm(category),
+        };
+
+    /// <summary>
+    /// Outcome of the EF pattern-retarget gate. <see cref="IsRetarget"/> false means the aircraft
+    /// keeps the straight-in machinery (and, inside the category floor, the never-outbound reject).
+    /// </summary>
+    /// <param name="IsRetarget">True when EF should degrade to a base entry from the present position.</param>
+    /// <param name="AlongTrackNm">Along-track distance from the threshold: the final segment the base rolls out onto.</param>
+    /// <param name="Side">Base-leg side, derived from which side of the centerline the aircraft is on.</param>
+    /// <param name="Waypoints">Pattern geometry recomputed for <paramref name="Side"/>.</param>
+    private readonly record struct PatternRetargetGate(bool IsRetarget, double AlongTrackNm, PatternDirection Side, PatternWaypoints Waypoints);
+
+    /// <summary>
+    /// Decides whether an <c>EF</c> should degrade into a base entry (see the call site in
+    /// <c>TryEnterPattern</c>). Engages only for an aircraft crossing the final approach course,
+    /// not already tracking outbound, inside the category straight-in floor but outside the AIM
+    /// FIG 4-3-2 note 3 turn-to-final minimum, still closing on the target centerline, and able to
+    /// descend over the remaining base + final. Purely a decision — mutates nothing.
+    /// </summary>
+    /// <param name="waypoints">
+    /// Lazily computed pattern geometry, shared with the caller so it isn't recomputed. Replaced
+    /// with geometry for the retargeted side when the gate engages.
+    /// </param>
+    private static PatternRetargetGate EvaluatePatternRetarget(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        AircraftCategory category,
+        PatternDirection direction,
+        AirportGroundLayout? groundLayout,
+        ref PatternWaypoints? waypoints
+    )
+    {
+        var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+        var (sizeOv, altOv) = PatternGeometry.ResolveAuthoredOverrides(
+            runway,
+            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runway.Designator),
+            aircraft.Pattern.SizeOverrideNm,
+            aircraft.Pattern.AltitudeOverrideFt
+        );
+        waypoints ??= PatternGeometry.Compute(runway, category, direction, sizeOv, altOv, airportRunways);
+
+        var threshold = new LatLon(waypoints.ThresholdLat, waypoints.ThresholdLon);
+        double alongTrackNm = GeoMath.AlongTrackDistanceNm(aircraft.Position, threshold, waypoints.FinalHeading.ToReciprocal());
+        double angleOffFinal = aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading);
+        double angleOffOutbound = aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading.ToReciprocal());
+
+        // Which side of the target centerline is the aircraft on, and is it still flying toward it?
+        // Positive right-offset ⇒ a right base. An aircraft that has already crossed the centerline
+        // (or is diverging from it) cannot fly a normal base-to-final onto it — it would need an
+        // S-turn back across a final it has already passed (AIM 4-3-3 FIG 4-3-3 note 7).
+        double rightOffsetNm = GeoMath.AlongTrackDistanceNm(aircraft.Position, threshold, runway.TrueHeading + 90.0);
+        TrueHeading towardCenterline = rightOffsetNm >= 0 ? runway.TrueHeading - 90.0 : runway.TrueHeading + 90.0;
+        bool closingOnCenterline = aircraft.TrueHeading.AbsAngleTo(towardCenterline) < 90.0;
+
+        bool engages =
+            (angleOffFinal > MaxCloseInFinalAngleOffDeg(alongTrackNm, category))
+            && (angleOffOutbound > OutboundTrackToleranceDeg)
+            && (alongTrackNm > MinPatternRetargetFinalNm(category))
+            && (alongTrackNm < MinimumPerpendicularBaseFinalDistanceNm(category))
+            && closingOnCenterline
+            && CanDescendOverBaseAndFinal(aircraft, runway, category, Math.Abs(rightOffsetNm), alongTrackNm);
+
+        if (!engages)
+        {
+            return new PatternRetargetGate(false, 0.0, direction, waypoints);
+        }
+
+        // The base leg's side is a fact about where the aircraft is, not about the runway's default
+        // pattern side. EF infers direction from the runway (28L with 28R present → Left), but an
+        // aircraft north of the 28L centerline is on a RIGHT base for 28L; building a left base
+        // there would be a wrong-side base.
+        var side = rightOffsetNm >= 0 ? PatternDirection.Right : PatternDirection.Left;
+        var retargetWaypoints = PatternGeometry.Compute(runway, category, side, sizeOv, altOv, airportRunways);
+
+        Log.LogDebug(
+            "[EF-Retarget] {Callsign}: alongTrack={Along:F2}nm rightOffset={Cross:F2}nm angleOffFinal={AngleFinal:F0}° angleOffOutbound={AngleOut:F0}° side={Side}",
+            aircraft.Callsign,
+            alongTrackNm,
+            rightOffsetNm,
+            angleOffFinal,
+            angleOffOutbound,
+            side
+        );
+
+        return new PatternRetargetGate(true, alongTrackNm, side, retargetWaypoints);
+    }
+
+    /// <summary>
+    /// Can the aircraft descend from its current altitude to runway elevation over the remaining
+    /// base + final path at the category pattern descent rate and base speed? Mirrors the
+    /// ERB/ELB-no-distance altitude check — an aircraft well above TPA should be descended first
+    /// (AIM 4-3-3: pattern entry at TPA), so rejecting here prompts a DM.
+    /// </summary>
+    private static bool CanDescendOverBaseAndFinal(
+        AircraftState aircraft,
+        RunwayInfo runway,
+        AircraftCategory category,
+        double crossTrackAbsNm,
+        double alongTrackNm
+    )
+    {
+        double totalPathNm = crossTrackAbsNm + alongTrackNm;
+        double baseSpeedKt = CategoryPerformance.BaseSpeed(category);
+        double pathMinutes = totalPathNm / (baseSpeedKt / 60.0);
+        double maxDescentFt = CategoryPerformance.PatternDescentRate(category) * pathMinutes;
+        return (aircraft.Altitude - runway.ElevationFt) <= maxDescentFt;
+    }
 
     /// <summary>
     /// Cross-track deadband (NM) for the MLT/MRT wrong-side test. An aircraft within this

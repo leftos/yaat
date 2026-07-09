@@ -1,6 +1,8 @@
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -52,15 +54,16 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// N342T: CTO MLT (left traffic, t=890) → many left circuits → FH 360 vector
-    /// (t=1910) → ERB 28L for a single right-base entry (t=2032) → COPT (t=2109)
-    /// → TouchAndGo (t≈2195) → auto-cycled next circuit (rebuilt at t=2215).
+    /// N342T: CTO MLT (left traffic, t=890) → many left circuits → FH vector → ERB 28L for a single
+    /// right-base entry → COPT → TouchAndGo → auto-cycled next circuit. Its
+    /// <see cref="PhaseList.TrafficDirection"/> must end up Left (auto-cycle honors the persistent
+    /// MLT intent), not Right (the transient ERB stamp from the previous approach).
     ///
-    /// By t=2300 the aircraft has completed the ERB right-base approach + touch-and-go (~t=2270) and is
-    /// mid-Upwind/MidfieldCrossing on the auto-cycled new circuit. Its
-    /// <see cref="PhaseList.TrafficDirection"/> should be Left (auto-cycle honors the persistent MLT
-    /// intent), not Right (the transient ERB stamp from the previous approach). The sample time sits
-    /// after the touch-and-go so it is robust to small replay-timeline shifts.
+    /// The recording is replayed only to t=1880 — before its <c>EF 28L</c> at t=1891, which the
+    /// controller issued while N342T was already rolling onto final for 28L. Under issue #284 that
+    /// EF flew the aircraft outbound down the final, and every operator input after it (FH 360,
+    /// TR 180, ERB 28L, COPT) was a correction for that. With EF fixed the aircraft simply continues
+    /// its approach, so the vector/ERB/COPT sequence is issued by the test instead of replayed.
     /// </summary>
     [Fact]
     public void N342T_AfterErbAndCopt_NextCircuitResumesLeftTraffic()
@@ -72,20 +75,56 @@ public class PatternDirectionResetTests(ITestOutputHelper output)
             return;
         }
 
-        engine.Replay(recording, 0);
-
-        // Replay through the ERB approach + touch-and-go into the auto-cycled new circuit (t=2300).
-        for (int t = 1; t <= 2300; t++)
-        {
-            engine.ReplayOneSecond();
-        }
+        // Replay the left circuits flown after CTO MLT (t=890), stopping before the recorded EF.
+        engine.Replay(recording, 1880);
 
         var aircraft = engine.FindAircraft("N342T");
         Assert.NotNull(aircraft);
-        Assert.NotNull(aircraft.Phases);
+        Assert.Equal(PatternDirection.Left, aircraft.Pattern.TrafficDirection);
 
+        // Vector it off the approach, exactly as the recording's FH 360 did.
+        Assert.True(engine.SendCommand("N342T", "FH 360").Success);
+        for (int t = 1; t <= 120; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        // Single-approach right-base entry + cleared for the option, as in the recording. The
+        // explicit 2 nm final keeps the entry independent of exactly where the vector left it.
+        var erb = engine.SendCommand("N342T", "ERB 28L 2");
+        output.WriteLine($"ERB 28L 2 -> Success={erb.Success} Message='{erb.Message}'");
+        Assert.True(erb.Success, erb.Message);
+        Assert.Equal(PatternDirection.Right, aircraft.Phases!.TrafficDirection);
+
+        var copt = engine.SendCommand("N342T", "COPT");
+        Assert.True(copt.Success, copt.Message);
+
+        // Fly the right-base approach, the touch-and-go, and into the auto-cycled next circuit.
+        bool touchAndGoSeen = false;
+        for (int t = 1; t <= 600; t++)
+        {
+            engine.TickOneSecond();
+            aircraft = engine.FindAircraft("N342T");
+            Assert.NotNull(aircraft);
+            Assert.NotNull(aircraft.Phases);
+
+            if (aircraft.Phases.CurrentPhase is TouchAndGoPhase)
+            {
+                touchAndGoSeen = true;
+            }
+            else if (touchAndGoSeen && aircraft.Phases.CurrentPhase is UpwindPhase)
+            {
+                break;
+            }
+        }
+
+        Assert.True(touchAndGoSeen, "N342T never reached the touch-and-go");
+
+        aircraft = engine.FindAircraft("N342T");
+        Assert.NotNull(aircraft);
+        Assert.NotNull(aircraft.Phases);
         output.WriteLine(
-            $"t=2300 N342T: Pattern.TrafficDirection={aircraft.Pattern.TrafficDirection?.ToString() ?? "null"}, "
+            $"N342T: Pattern.TrafficDirection={aircraft.Pattern.TrafficDirection?.ToString() ?? "null"}, "
                 + $"Phases.TrafficDirection={aircraft.Phases.TrafficDirection?.ToString() ?? "null"}, "
                 + $"AssignedRunway={aircraft.Phases.AssignedRunway?.Designator ?? "null"}, "
                 + $"phases={DescribePhases(aircraft)}"

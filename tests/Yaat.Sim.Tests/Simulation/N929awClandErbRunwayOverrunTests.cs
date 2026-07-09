@@ -10,8 +10,8 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
-/// E2E regression for N929AW (BE33) at OAK 28L. User cleared the aircraft to
-/// land (<c>CLAND</c>) and then issued an extended right base (<c>ERB 28L</c>).
+/// E2E regression for N929AW (BE33) at OAK 28R. User cleared the aircraft to
+/// land (<c>CLAND</c>) and then issued an extended right base (<c>ERB 28R</c>).
 /// <c>CLAND</c> sets <c>phases.TrafficDirection=null</c>; <c>ERB</c> rebuilds the chain to
 /// end in <see cref="LandingPhase"/> (full-stop terminator) but then stamps
 /// <c>phases.TrafficDirection=Right</c>. When the Landing rollout completed,
@@ -24,7 +24,12 @@ namespace Yaat.Sim.Tests.Simulation;
 /// The fix discriminates the post-completion behavior by terminator phase type:
 /// LandingPhase → exit the runway, regardless of TrafficDirection.
 ///
-/// Recording: S2-OAK-4 | VFR Transitions/Radar Concepts.
+/// Recording: S2-OAK-4 | VFR Transitions/Radar Concepts. The recording is replayed only up to
+/// t=2100; the <c>ERB</c> that arms the bug is issued by the test. The recorded <c>EF 28L</c> at
+/// t=2137 was the controller reacting to issue #284 (EF routed a base-leg aircraft outbound down
+/// the final), so once EF is fixed the operator inputs after it no longer describe a flyable
+/// situation — the recorded ERB lands on an aircraft already 0.9 nm from the threshold and is
+/// correctly refused "too close for base".
 /// </summary>
 public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
 {
@@ -47,6 +52,15 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
         return new SimulationEngine(groundData);
     }
 
+    /// <summary>
+    /// Replay time (s) chosen to sit after the recorded <c>CLAND</c> (t=2050) and while N929AW is
+    /// still on the downwind for 28R, but before the recorded <c>EF 28L</c> (t=2137). That EF was
+    /// the controller reacting to issue #284 (EF flew the aircraft outbound down the final); with
+    /// EF fixed, the operator inputs after it no longer describe a flyable situation. The ERB that
+    /// sets up this bug is therefore issued by the test rather than replayed.
+    /// </summary>
+    private const int PreErbSeconds = 2100;
+
     [Fact]
     public void N929AW_LandingAfterClandThenErb_ExitsRunwayInsteadOfCyclingPattern()
     {
@@ -57,12 +71,24 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
             return;
         }
 
-        // Replay to just before LandingPhase entry. Touchdown is at t=2215 in
-        // the recording. Starting at t=2210 keeps the aircraft on short final
-        // with the LandingPhase pending.
-        engine.Replay(recording, 2210);
+        engine.Replay(recording, PreErbSeconds);
 
         var ac = engine.FindAircraft(Callsign);
+        Assert.NotNull(ac);
+        Assert.NotNull(ac.Phases);
+        output.WriteLine(
+            $"t={PreErbSeconds}: phase={ac.Phases.CurrentPhase?.Name}, clearance={ac.Phases.LandingClearance}/{ac.Phases.ClearedRunwayId}"
+        );
+
+        // CLAND (t=2050) is already standing for 28R. Issue the extended right base ourselves so
+        // this test owns its own precondition instead of inheriting it from the recording. The
+        // explicit 2 nm final is used because the aircraft is barely past the abeam point on the
+        // downwind, where a no-distance ERB is (correctly) refused "too close for base".
+        var erb = engine.SendCommand(Callsign, "ERB 28R 2");
+        output.WriteLine($"ERB 28R 2 -> Success={erb.Success} Message='{erb.Message}'");
+        Assert.True(erb.Success, $"ERB 28R 2 must set up the CLAND+ERB precondition. Got: '{erb.Message}'");
+
+        ac = engine.FindAircraft(Callsign);
         Assert.NotNull(ac);
         Assert.NotNull(ac.Phases);
 
@@ -77,12 +103,14 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
 
         // Walk forward until LandingPhase completes. Assert the chain never
         // grows a pattern-cycle suffix (Upwind/Crosswind/TouchAndGo) at any
-        // point — that's the bug signature.
+        // point — that's the bug signature. Tick rather than replay: the recorded
+        // commands from here on were reactions to the #284 bug.
+        bool landingStarted = false;
         bool landingCompleted = false;
         double maxIasAfterLanding = 0;
-        for (int t = 1; t <= 120; t++)
+        for (int t = 1; t <= 400; t++)
         {
-            engine.ReplayOneSecond();
+            engine.TickOneSecond();
             ac = engine.FindAircraft(Callsign);
             Assert.NotNull(ac);
             Assert.NotNull(ac.Phases);
@@ -90,16 +118,20 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
             bool hasCyclePhase = ac.Phases.Phases.Any(p => p is UpwindPhase or CrosswindPhase or TouchAndGoPhase);
             Assert.False(
                 hasCyclePhase,
-                $"t+{t} (replay t={2210 + t}): pattern cycle phase auto-appended after Landing — "
+                $"t+{t}: pattern cycle phase auto-appended after Landing — "
                     + $"chain is now [{string.Join(" -> ", ac.Phases.Phases.Select(p => p.Name))}]. "
                     + "CLAND aircraft should exit the runway, not cycle the pattern."
             );
 
-            if (!landingCompleted && ac.Phases.CurrentPhase is not LandingPhase and not FinalApproachPhase)
+            if (ac.Phases.CurrentPhase is LandingPhase)
+            {
+                landingStarted = true;
+            }
+            else if (landingStarted && !landingCompleted)
             {
                 landingCompleted = true;
                 output.WriteLine(
-                    $"t+{t} (replay t={2210 + t}): Landing complete. Current phase = "
+                    $"t+{t}: Landing complete. Current phase = "
                         + $"{ac.Phases.CurrentPhase?.Name ?? "(none)"}, "
                         + $"IAS={ac.IndicatedAirspeed:F1}, IsOnGround={ac.IsOnGround}"
                 );
@@ -111,7 +143,7 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
                 if (ac.Phases.CurrentPhase is RunwayExitPhase or HoldingAfterExitPhase)
                 {
                     output.WriteLine(
-                        $"t+{t} (replay t={2210 + t}): reached {ac.Phases.CurrentPhase.Name}. "
+                        $"t+{t}: reached {ac.Phases.CurrentPhase.Name}. "
                             + $"IAS={ac.IndicatedAirspeed:F1}, maxIasAfterLanding={maxIasAfterLanding:F1}"
                     );
                     break;
@@ -119,7 +151,8 @@ public class N929awClandErbRunwayOverrunTests(ITestOutputHelper output)
             }
         }
 
-        Assert.True(landingCompleted, "LandingPhase never completed within the 120s walk window");
+        Assert.True(landingStarted, "LandingPhase was never entered within the 400s walk window");
+        Assert.True(landingCompleted, "LandingPhase never completed within the 400s walk window");
 
         // The current phase after Landing must be a ground-exit phase, not a
         // re-launched pattern leg.
