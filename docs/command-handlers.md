@@ -281,7 +281,9 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   (`Commands`, `Dimensions`, `HasTrackCommand`, `IsWaitBlock`, and the `ApplyAction`'s filtered command list) is derived inside `CreateBlock`.
   Hand-rolling a second construction site is how the split path twice lost `HasTrackCommand` and silently dropped a queued handoff. A caller
   rebuilding an existing block must still copy that block's live `WaitRemaining*` countdown and `TrackApplied` guard across — those are runtime
-  state, not derivable from the commands.
+  state, not derivable from the commands. The condition label (`"at OAK: "`) is likewise not derivable: `BuildConditionLabels` produces it once
+  from the `BlockCondition`, and `CreateBlock` stores it on the block as `DescriptionPrefix`/`NaturalDescriptionPrefix` so a split can re-apply it
+  verbatim instead of re-deriving it from the lossy `BlockTrigger`.
 - **Handlers write `ControlTargets`, never position — except Force\*.** `ApplyForceHeading`/`ApplyForceAltitude`/`ApplyForceSpeed`/WARP teleport by
   writing `aircraft.TrueHeading`/`Altitude`/`Position` directly. They are sim-control bypasses that skip the phase gate because they wipe
   phase/queue/route inside the handler.

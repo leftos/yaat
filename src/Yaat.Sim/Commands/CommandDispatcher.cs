@@ -2361,10 +2361,45 @@ public static class CommandDispatcher
     /// For partial conflicts, rebuilds the block from the remaining ParsedCommands.
     /// </summary>
     /// <summary>
-    /// The <see cref="CommandBlock.Description"/> / <see cref="CommandBlock.NaturalDescription"/> pair for a queued
-    /// block, carried together so <see cref="CreateBlock"/> stays inside the positional-parameter budget.
+    /// The condition label a queued block's descriptions are prefixed with — <c>("at OAK: ", "At OAK: ")</c> for
+    /// <c>AT OAK …</c>, both empty for an unconditional block. Carried as one value so <see cref="CreateBlock"/> stays
+    /// inside the positional-parameter budget.
     /// </summary>
-    private readonly record struct BlockLabels(string Description, string Natural);
+    private readonly record struct BlockLabels(string DescriptionPrefix, string NaturalPrefix);
+
+    /// <summary>
+    /// Maps a block's parsed condition to the label its descriptions are prefixed with. The sole source of those
+    /// prefixes: <see cref="CreateBlock"/> stores them on the block so a supersede-split can re-apply them verbatim
+    /// rather than re-deriving them from the (lossy) <see cref="BlockTrigger"/>.
+    /// </summary>
+    private static BlockLabels BuildConditionLabels(BlockCondition? condition)
+    {
+        switch (condition)
+        {
+            case LevelCondition lv:
+                return new BlockLabels($"at {lv.Altitude}ft: ", $"At {lv.Altitude:N0} ft: ");
+            case AtFixCondition at:
+            {
+                var atLabel = FormatAtLabel(at);
+                return new BlockLabels($"at {atLabel}: ", $"At {atLabel}: ");
+            }
+            case AtGroundEntityCondition ge:
+            {
+                var geLabel = FormatGroundLabel(ge);
+                return new BlockLabels($"at {geLabel}: ", $"At {geLabel}: ");
+            }
+            case GiveWayCondition gw:
+                return new BlockLabels($"giveway {gw.TargetCallsign}: ", $"After {gw.TargetCallsign} passes: ");
+            case DistanceFinalCondition df:
+                return new BlockLabels($"at {df.DistanceNm}nm final: ", $"At {df.DistanceNm}nm final: ");
+            case OnHoldShortCondition:
+                return new BlockLabels("on hold-short: ", "Once holding short: ");
+            case OnHandoffCondition:
+                return new BlockLabels("on handoff: ", "On handoff: ");
+            default:
+                return new BlockLabels("", "");
+        }
+    }
 
     /// <summary>
     /// The single construction point for queued <see cref="CommandBlock"/>s. Everything derivable from the block's
@@ -2405,6 +2440,9 @@ public static class CommandDispatcher
         var waitTime = parsedCommands.OfType<WaitCommand>().FirstOrDefault();
         var waitDist = parsedCommands.OfType<WaitDistanceCommand>().FirstOrDefault();
 
+        var description = labels.DescriptionPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeCommand));
+        var naturalDescription = labels.NaturalPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeNatural));
+
         return new CommandBlock
         {
             Trigger = trigger,
@@ -2412,8 +2450,10 @@ public static class CommandDispatcher
             ParsedCommands = [.. parsedCommands],
             Commands = tracked,
             Dimensions = dimensions,
-            Description = labels.Description,
-            NaturalDescription = labels.Natural,
+            Description = description,
+            NaturalDescription = naturalDescription,
+            DescriptionPrefix = labels.DescriptionPrefix,
+            NaturalDescriptionPrefix = labels.NaturalPrefix,
             IsWaitBlock = (waitTime is not null) || (waitDist is not null),
             WaitRemainingSeconds = waitTime?.Seconds ?? 0,
             WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
@@ -2456,13 +2496,12 @@ public static class CommandDispatcher
             return block;
         }
 
-        // Rebuild a new block with only the non-conflicting commands
+        // Rebuild a new block with only the non-conflicting commands, keeping the condition label ("at OAK: ") that
+        // tells the controller when the survivors will fire.
         var keptParsed = keepIndices.Select(i => block.ParsedCommands[i]).ToList();
+        var labels = new BlockLabels(block.DescriptionPrefix, block.NaturalDescriptionPrefix);
 
-        var desc = string.Join(", ", keptParsed.Select(CommandDescriber.DescribeCommand));
-        var natural = string.Join(", ", keptParsed.Select(CommandDescriber.DescribeNatural));
-
-        var rebuilt = CreateBlock(keptParsed, block.Trigger, new BlockLabels(desc, natural), block.SourceCommandText, ctx);
+        var rebuilt = CreateBlock(keptParsed, block.Trigger, labels, block.SourceCommandText, ctx);
 
         // Runtime state the surviving commands cannot describe: a partially-elapsed wait, and the guard that
         // stops an already-dispatched track command from firing twice. Both belong to the block being replaced.
@@ -2481,47 +2520,6 @@ public static class CommandDispatcher
         {
             var parsedBlock = compound.Blocks[i];
 
-            var blockDesc = string.Join(", ", parsedBlock.Commands.Select(CommandDescriber.DescribeCommand));
-            var blockMsg = string.Join(", ", parsedBlock.Commands.Select(CommandDescriber.DescribeNatural));
-
-            if (parsedBlock.Condition is LevelCondition lv)
-            {
-                blockDesc = $"at {lv.Altitude}ft: {blockDesc}";
-                blockMsg = $"At {lv.Altitude:N0} ft: {blockMsg}";
-            }
-            else if (parsedBlock.Condition is AtFixCondition at)
-            {
-                var atLabel = FormatAtLabel(at);
-                blockDesc = $"at {atLabel}: {blockDesc}";
-                blockMsg = $"At {atLabel}: {blockMsg}";
-            }
-            else if (parsedBlock.Condition is AtGroundEntityCondition ge)
-            {
-                var geLabel = FormatGroundLabel(ge);
-                blockDesc = $"at {geLabel}: {blockDesc}";
-                blockMsg = $"At {geLabel}: {blockMsg}";
-            }
-            else if (parsedBlock.Condition is GiveWayCondition gw)
-            {
-                blockDesc = $"giveway {gw.TargetCallsign}: {blockDesc}";
-                blockMsg = $"After {gw.TargetCallsign} passes: {blockMsg}";
-            }
-            else if (parsedBlock.Condition is DistanceFinalCondition df)
-            {
-                blockDesc = $"at {df.DistanceNm}nm final: {blockDesc}";
-                blockMsg = $"At {df.DistanceNm}nm final: {blockMsg}";
-            }
-            else if (parsedBlock.Condition is OnHoldShortCondition)
-            {
-                blockDesc = $"on hold-short: {blockDesc}";
-                blockMsg = $"Once holding short: {blockMsg}";
-            }
-            else if (parsedBlock.Condition is OnHandoffCondition)
-            {
-                blockDesc = $"on handoff: {blockDesc}";
-                blockMsg = $"On handoff: {blockMsg}";
-            }
-
             var trigger = ConvertCondition(parsedBlock.Condition, aircraft, ctx);
             if (trigger is null && parsedBlock.Condition is AtGroundEntityCondition unresolved)
             {
@@ -2529,10 +2527,11 @@ public static class CommandDispatcher
                 continue;
             }
 
-            var commandBlock = CreateBlock([.. parsedBlock.Commands], trigger, new BlockLabels(blockDesc, blockMsg), compound.SourceText, ctx);
+            var labels = BuildConditionLabels(parsedBlock.Condition);
+            var commandBlock = CreateBlock([.. parsedBlock.Commands], trigger, labels, compound.SourceText, ctx);
 
             aircraft.Queue.Blocks.Add(commandBlock);
-            messages.Add(blockMsg);
+            messages.Add(commandBlock.NaturalDescription);
         }
 
         return messages;

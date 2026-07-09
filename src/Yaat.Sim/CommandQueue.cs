@@ -202,6 +202,22 @@ public class CommandBlock
     public string NaturalDescription { get; set; } = "";
 
     /// <summary>
+    /// The condition label <see cref="Description"/> is prefixed with (e.g. <c>"at FIXIE: "</c>); empty for an
+    /// unconditional block. Retained so <c>CommandDispatcher.SplitBlockNonConflicting</c> can re-apply it when a
+    /// superseding command forces the block to be rebuilt around its surviving commands.
+    ///
+    /// NOT serialized — like <see cref="ParsedCommands"/>, it is only needed for the current dispatch lifecycle: a
+    /// block restored from a snapshot has no <see cref="ParsedCommands"/> and therefore cannot be split.
+    /// </summary>
+    public string DescriptionPrefix { get; init; } = "";
+
+    /// <summary>
+    /// The condition label <see cref="NaturalDescription"/> is prefixed with (e.g. <c>"At FIXIE: "</c>); empty for an
+    /// unconditional block. See <see cref="DescriptionPrefix"/>.
+    /// </summary>
+    public string NaturalDescriptionPrefix { get; init; } = "";
+
+    /// <summary>
     /// Deferred action that applies this block's commands to the aircraft.
     /// Set by the CommandDispatcher when building the queue.
     /// Returns a CommandResult with success/failure and optional message.
