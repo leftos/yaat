@@ -2,9 +2,21 @@
 
 ## Unreleased
 
+### Added
+- **VFR arrival generators.** Generate GA traffic inbound to the field on a bearing arc, with distance, altitude, direct-to fix, and initial descent rate.
+- **Overflight generators.** Generate VFR traffic transiting the airspace, with the bearing arc it arrives on and the arc it leaves on.
+- **Active toggle on every generator**, to start or stop a traffic stream mid-session regardless of its start-offset and max-time window.
+- Generated VFR traffic never spawns inside Class B or C airspace, nor within standard radar separation of an aircraft already flying.
+- Overflights fly the correct VFR cruising altitude for their course, and are removed once past their exit distance unless you hold the track.
+
 ### Changed
+- **Scenario > Edit Arrival Generators...** is now **Edit Aircraft Generators...**, with a tab per generator kind and Save As writing all three.
+- Applying generator edits keeps each surviving generator's spawn cadence, instead of re-phasing every stream.
 - The app is now called just **YAAT**, not "YAAT Client". The Windows Start-menu shortcut, the Add/Remove Programs entry, and the macOS application are renamed on your next update; the download filenames are unchanged.
 - The **YAAT Local** (`http://localhost:5000`) entry is no longer a default. **File > Connect...** starts with only **YAAT1**, and **Tools > Configure CRC Environments** (and the standalone `yaat-crc-config` tool and `Setup-CrcEnvironment.ps1`) add only the **YAAT1** entry to CRC. If you run a server yourself, add it with the Connect dialog's **Add** button, or pass `-Servers` to `Setup-CrcEnvironment.ps1`. Entries you already have are left alone.
+
+### Fixed
+- A generator with a blank **Max time** keeps producing traffic for the whole session, instead of expiring an hour after you apply an edit.
 
 ## v0.9.7-beta [2026/07/08]
 

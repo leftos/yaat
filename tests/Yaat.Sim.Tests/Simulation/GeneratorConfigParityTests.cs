@@ -113,7 +113,7 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
         engine.Scenario.ElapsedSeconds = 4000;
         engine.TickOneSecond();
 
-        Assert.False(engine.Scenario.Generators[0].IsExhausted, "a generator with no maxTime must keep producing traffic");
+        Assert.True(engine.Scenario.Generators[0].WasActive, "a generator with no maxTime must keep producing traffic");
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class GeneratorConfigParityTests(ITestOutputHelper output)
         engine.Scenario.ElapsedSeconds = 1500;
         engine.TickOneSecond();
 
-        Assert.True(engine.Scenario.Generators[0].IsExhausted, "a generator past its maxTime must exhaust");
+        Assert.False(engine.Scenario.Generators[0].WasActive, "a generator past its maxTime must stop producing traffic");
     }
 
     [Fact]

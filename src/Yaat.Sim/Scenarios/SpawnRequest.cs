@@ -39,10 +39,17 @@ public sealed class SpawnRequest
     public required EngineKind Engine { get; init; }
     public required SpawnPositionType PositionType { get; init; }
 
-    // Bearing variant
+    // Bearing variant. Bearing is TRUE degrees from the airport; callers holding a magnetic bearing
+    // convert with MagneticDeclination.MagneticToTrue first.
     public double Bearing { get; init; }
     public double DistanceNm { get; init; }
     public double Altitude { get; init; }
+
+    // VFR-generator variant. Null (the ADD-command default) spawns a VFR aircraft as a cold call:
+    // no filed plan, no assigned code, squawking 1200. Non-null files a VFR plan to this destination and
+    // draws a discrete code from the facility's VFR beacon bank, matching how scenarios hand-author VFR
+    // arrivals — and letting the server's auto-delete-on-landing recognise the aircraft as an arrival.
+    public string? VfrFiledDestination { get; init; }
 
     // Runway variant
     public string RunwayId { get; init; } = "";

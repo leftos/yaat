@@ -4,10 +4,14 @@
     x:Class="Yaat.Client.Views.ArrivalGeneratorsEditorWindow"
     x:DataType="vm:ArrivalGeneratorsEditorViewModel"
     Icon="avares://Yaat.Client/Resources/icon.png"
-    Title="Edit Arrival Generators (Live Session)"
-    MinWidth="720"
-    MinHeight="520"
+    Title="Edit Aircraft Generators (Live Session)"
+    MinWidth="760"
+    MinHeight="560"
     CanResize="True">
+
+    <Window.Resources>
+        <x:String x:Key="ActiveTooltip">Checked: always spawning. Unchecked: never spawning. Indeterminate: follow the start offset / max time window below.</x:String>
+    </Window.Resources>
 
     <DockPanel Margin="12">
 
@@ -29,101 +33,316 @@
             </StackPanel>
         </Grid>
 
-        <!-- Main: master-detail -->
-        <Grid ColumnDefinitions="220,12,*">
+        <TabControl>
 
-            <!-- Left: generator list -->
-            <DockPanel Grid.Column="0">
-                <TextBlock DockPanel.Dock="Top" Text="Generators" FontWeight="Bold" Margin="0,0,0,4" />
-                <StackPanel DockPanel.Dock="Bottom"
-                            Orientation="Horizontal"
-                            Spacing="4"
-                            Margin="0,4,0,0">
-                    <Button Content="+ Add" Command="{Binding AddGeneratorCommand}" Padding="8,2" />
-                    <Button Content="- Remove" Command="{Binding RemoveGeneratorCommand}" Padding="8,2" />
-                </StackPanel>
-                <ListBox ItemsSource="{Binding Generators}"
-                         SelectedItem="{Binding SelectedGenerator}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:GeneratorRowViewModel">
-                            <TextBlock Text="{Binding DisplayLabel}" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </DockPanel>
+            <!-- ============================ IFR arrivals ============================ -->
+            <TabItem Header="IFR Arrivals">
+                <Grid ColumnDefinitions="220,12,*" Margin="0,8,0,0">
 
-            <!-- Right: selected generator detail -->
-            <ScrollViewer Grid.Column="2" DataContext="{Binding SelectedGenerator}">
-                <StackPanel Spacing="10">
+                    <DockPanel Grid.Column="0">
+                        <StackPanel DockPanel.Dock="Bottom"
+                                    Orientation="Horizontal"
+                                    Spacing="4"
+                                    Margin="0,4,0,0">
+                            <Button Content="+ Add" Command="{Binding AddGeneratorCommand}" Padding="8,2" />
+                            <Button Content="- Remove" Command="{Binding RemoveGeneratorCommand}" Padding="8,2" />
+                        </StackPanel>
+                        <ListBox ItemsSource="{Binding Generators}"
+                                 SelectedItem="{Binding SelectedGenerator}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GeneratorRowViewModel">
+                                    <TextBlock Text="{Binding DisplayLabel}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
 
-                    <TextBlock Text="Identity" FontWeight="Bold" />
-                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" Margin="8,0,0,0">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Id" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding Id}" Margin="0,2" />
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Runway" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <AutoCompleteBox Grid.Row="1" Grid.Column="1"
-                                         ItemsSource="{Binding RunwayOptions}"
-                                         Text="{Binding Runway, Mode=TwoWay}"
-                                         FilterMode="ContainsOrdinal"
-                                         MinimumPrefixLength="0"
-                                         Watermark="e.g. 28R" Margin="0,2" />
-                    </Grid>
+                    <ScrollViewer Grid.Column="2" DataContext="{Binding SelectedGenerator}">
+                        <StackPanel Spacing="10">
 
-                    <TextBlock Text="Spawn rate" FontWeight="Bold" />
-                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,0,0,0">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Initial dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding InitialDistance}" Margin="0,2" />
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Max dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding MaxDistance}" Margin="0,2" />
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Interval dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding IntervalDistance}" Margin="0,2" />
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Interval time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="3" Grid.Column="1" Text="{Binding IntervalTime}" Margin="0,2" />
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Start offset (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="4" Grid.Column="1" Text="{Binding StartTimeOffset}" Margin="0,2" />
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Max time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="5" Grid.Column="1" Text="{Binding MaxTime}" Margin="0,2" />
-                    </Grid>
-                    <CheckBox Content="Randomize interval (±25%)" IsChecked="{Binding RandomizeInterval}" Margin="8,0,0,0" />
+                            <TextBlock Text="Identity" FontWeight="Bold" />
+                            <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Id" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding Id}" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Runway" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <AutoCompleteBox Grid.Row="1" Grid.Column="1"
+                                                 ItemsSource="{Binding RunwayOptions}"
+                                                 Text="{Binding Runway, Mode=TwoWay}"
+                                                 FilterMode="ContainsOrdinal"
+                                                 MinimumPrefixLength="0"
+                                                 Watermark="e.g. 28R" Margin="0,2" />
+                            </Grid>
 
-                    <TextBlock Text="Aircraft" FontWeight="Bold" />
-                    <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" Margin="8,0,0,0">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Engine" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <ComboBox Grid.Row="0" Grid.Column="1"
-                                  ItemsSource="{Binding EngineOptions}"
-                                  SelectedItem="{Binding EngineType}" Margin="0,2" />
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Weight" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <ComboBox Grid.Row="1" Grid.Column="1"
-                                  ItemsSource="{Binding WeightOptions}"
-                                  SelectedItem="{Binding WeightCategory}" Margin="0,2" />
-                    </Grid>
-                    <CheckBox Content="Randomize weight category (varies around the weight selected above)" IsChecked="{Binding RandomizeWeightCategory}" Margin="8,0,0,0" />
+                            <TextBlock Text="Spawn rate" FontWeight="Bold" />
+                            <CheckBox Content="Active"
+                                      IsThreeState="True"
+                                      IsChecked="{Binding Enabled}"
+                                      ToolTip.Tip="{StaticResource ActiveTooltip}"
+                                      Margin="8,0,0,0" />
+                            <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Initial dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding InitialDistance}" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Max dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding MaxDistance}" Margin="0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Interval dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding IntervalDistance}" Margin="0,2" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Interval time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="3" Grid.Column="1" Text="{Binding IntervalTime}" Margin="0,2" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Start offset (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="4" Grid.Column="1" Text="{Binding StartTimeOffset}" Margin="0,2" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Max time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="5" Grid.Column="1" Text="{Binding MaxTime}" Watermark="whole session" Margin="0,2" />
+                            </Grid>
+                            <CheckBox Content="Randomize interval (±25%)" IsChecked="{Binding RandomizeInterval}" Margin="8,0,0,0" />
 
-                    <TextBlock Text="AutoTrack (optional)" FontWeight="Bold" />
-                    <CheckBox Content="Enable AutoTrack" IsChecked="{Binding AutoTrackEnabled}" Margin="8,0,0,0" />
-                    <Grid ColumnDefinitions="120,*"
-                          RowDefinitions="Auto,Auto,Auto,Auto"
-                          IsEnabled="{Binding AutoTrackEnabled}"
-                          Margin="8,0,0,0">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Position" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <ComboBox Grid.Row="0" Grid.Column="1"
-                                  ItemsSource="{Binding PositionOptions}"
-                                  SelectedValue="{Binding AutoTrackPositionId}"
-                                  SelectedValueBinding="{Binding Id}"
-                                  DisplayMemberBinding="{Binding DisplayLabel}"
-                                  Margin="0,2" />
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Handoff delay (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding AutoTrackHandoffDelay}" Margin="0,2" />
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Scratchpad" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding AutoTrackScratchPad}" Margin="0,2" />
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Cleared altitude" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox  Grid.Row="3" Grid.Column="1" Text="{Binding AutoTrackClearedAltitude}" Margin="0,2" />
-                    </Grid>
+                            <TextBlock Text="Aircraft" FontWeight="Bold" />
+                            <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Engine" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <ComboBox Grid.Row="0" Grid.Column="1"
+                                          ItemsSource="{Binding EngineOptions}"
+                                          SelectedItem="{Binding EngineType}" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Weight" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <ComboBox Grid.Row="1" Grid.Column="1"
+                                          ItemsSource="{Binding WeightOptions}"
+                                          SelectedItem="{Binding WeightCategory}" Margin="0,2" />
+                            </Grid>
+                            <CheckBox Content="Randomize weight category (varies around the weight selected above)" IsChecked="{Binding RandomizeWeightCategory}" Margin="8,0,0,0" />
 
-                </StackPanel>
-            </ScrollViewer>
+                            <TextBlock Text="AutoTrack (optional)" FontWeight="Bold" />
+                            <CheckBox Content="Enable AutoTrack" IsChecked="{Binding AutoTrackEnabled}" Margin="8,0,0,0" />
+                            <Grid ColumnDefinitions="120,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto"
+                                  IsEnabled="{Binding AutoTrackEnabled}"
+                                  Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Position" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <ComboBox Grid.Row="0" Grid.Column="1"
+                                          ItemsSource="{Binding PositionOptions}"
+                                          SelectedValue="{Binding AutoTrackPositionId}"
+                                          SelectedValueBinding="{Binding Id}"
+                                          DisplayMemberBinding="{Binding DisplayLabel}"
+                                          Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Handoff delay (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding AutoTrackHandoffDelay}" Margin="0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Scratchpad" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding AutoTrackScratchPad}" Margin="0,2" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Cleared altitude" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="3" Grid.Column="1" Text="{Binding AutoTrackClearedAltitude}" Margin="0,2" />
+                            </Grid>
 
-        </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ VFR arrivals ============================ -->
+            <TabItem Header="VFR Arrivals">
+                <Grid ColumnDefinitions="220,12,*" Margin="0,8,0,0">
+
+                    <DockPanel Grid.Column="0">
+                        <StackPanel DockPanel.Dock="Bottom"
+                                    Orientation="Horizontal"
+                                    Spacing="4"
+                                    Margin="0,4,0,0">
+                            <Button Content="+ Add" Command="{Binding AddVfrArrivalGeneratorCommand}" Padding="8,2" />
+                            <Button Content="- Remove" Command="{Binding RemoveVfrArrivalGeneratorCommand}" Padding="8,2" />
+                        </StackPanel>
+                        <ListBox ItemsSource="{Binding VfrArrivalGenerators}"
+                                 SelectedItem="{Binding SelectedVfrArrivalGenerator}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:VfrArrivalGeneratorRowViewModel">
+                                    <TextBlock Text="{Binding DisplayLabel}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+
+                    <ScrollViewer Grid.Column="2" DataContext="{Binding SelectedVfrArrivalGenerator}">
+                        <StackPanel Spacing="10">
+
+                            <TextBlock Text="Identity" FontWeight="Bold" />
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Id" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding Id}" Margin="0,2" />
+                            </Grid>
+
+                            <TextBlock Text="Where they appear" FontWeight="Bold" />
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Bearing from (°M)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding BearingFrom}" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Bearing to (°M)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding BearingTo}" Margin="0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Min dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding InitialDistance}" Margin="0,2" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Max dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="3" Grid.Column="1" Text="{Binding MaxDistance}" Margin="0,2" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Min altitude (ft)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="4" Grid.Column="1" Text="{Binding AltitudeMin}" Margin="0,2" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Max altitude (ft)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="5" Grid.Column="1" Text="{Binding AltitudeMax}" Margin="0,2" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Direct to" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="6" Grid.Column="1" Text="{Binding DirectTo}" Watermark="the field — or a fix / FRD" Margin="0,2" />
+                            </Grid>
+                            <TextBlock Text="Spawns are re-rolled until clear of Class B/C and standard separation from existing traffic." TextWrapping="Wrap" Foreground="#9aa6b2" Margin="8,0,0,0" />
+
+                            <TextBlock Text="Descent" FontWeight="Bold" />
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Initial V/S (fpm)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding InitialVsFpm}" Watermark="0 = level" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Descend to (ft)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding DescendToAltitude}" Watermark="pattern altitude" Margin="0,2" />
+                            </Grid>
+                            <TextBlock Text="Leave V/S at 0 to have them arrive level, for the controller to step down." TextWrapping="Wrap" Foreground="#9aa6b2" Margin="8,0,0,0" />
+
+                            <TextBlock Text="Spawn rate" FontWeight="Bold" />
+                            <CheckBox Content="Active"
+                                      IsThreeState="True"
+                                      IsChecked="{Binding Enabled}"
+                                      ToolTip.Tip="{StaticResource ActiveTooltip}"
+                                      Margin="8,0,0,0" />
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Interval time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding IntervalTime}" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Start offset (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding StartTimeOffset}" Margin="0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Max time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding MaxTime}" Watermark="whole session" Margin="0,2" />
+                            </Grid>
+                            <CheckBox Content="Randomize interval (±25%)" IsChecked="{Binding RandomizeInterval}" Margin="8,0,0,0" />
+
+                            <TextBlock Text="Aircraft" FontWeight="Bold" />
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Engine" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <ComboBox Grid.Row="0" Grid.Column="1"
+                                          ItemsSource="{Binding EngineOptions}"
+                                          SelectedItem="{Binding EngineType}" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Weight" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <ComboBox Grid.Row="1" Grid.Column="1"
+                                          ItemsSource="{Binding WeightOptions}"
+                                          SelectedItem="{Binding WeightCategory}" Margin="0,2" />
+                            </Grid>
+
+                            <TextBlock Text="AutoTrack (optional)" FontWeight="Bold" />
+                            <CheckBox Content="Enable AutoTrack" IsChecked="{Binding AutoTrackEnabled}" Margin="8,0,0,0" />
+                            <Grid ColumnDefinitions="140,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto"
+                                  IsEnabled="{Binding AutoTrackEnabled}"
+                                  Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Position" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <ComboBox Grid.Row="0" Grid.Column="1"
+                                          ItemsSource="{Binding PositionOptions}"
+                                          SelectedValue="{Binding AutoTrackPositionId}"
+                                          SelectedValueBinding="{Binding Id}"
+                                          DisplayMemberBinding="{Binding DisplayLabel}"
+                                          Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Handoff delay (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding AutoTrackHandoffDelay}" Margin="0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Scratchpad" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding AutoTrackScratchPad}" Margin="0,2" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Cleared altitude" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="3" Grid.Column="1" Text="{Binding AutoTrackClearedAltitude}" Margin="0,2" />
+                            </Grid>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ Overflights ============================ -->
+            <TabItem Header="Overflights">
+                <Grid ColumnDefinitions="220,12,*" Margin="0,8,0,0">
+
+                    <DockPanel Grid.Column="0">
+                        <StackPanel DockPanel.Dock="Bottom"
+                                    Orientation="Horizontal"
+                                    Spacing="4"
+                                    Margin="0,4,0,0">
+                            <Button Content="+ Add" Command="{Binding AddOverflightGeneratorCommand}" Padding="8,2" />
+                            <Button Content="- Remove" Command="{Binding RemoveOverflightGeneratorCommand}" Padding="8,2" />
+                        </StackPanel>
+                        <ListBox ItemsSource="{Binding OverflightGenerators}"
+                                 SelectedItem="{Binding SelectedOverflightGenerator}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:OverflightGeneratorRowViewModel">
+                                    <TextBlock Text="{Binding DisplayLabel}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+
+                    <ScrollViewer Grid.Column="2" DataContext="{Binding SelectedOverflightGenerator}">
+                        <StackPanel Spacing="10">
+
+                            <TextBlock Text="Identity" FontWeight="Bold" />
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Id" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding Id}" Margin="0,2" />
+                            </Grid>
+
+                            <TextBlock Text="Transit geometry" FontWeight="Bold" />
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Coming from (°M)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding FromBearingFrom}" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="…through (°M)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding FromBearingTo}" Margin="0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Going to (°M)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding ToBearingFrom}" Margin="0,2" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="…through (°M)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="3" Grid.Column="1" Text="{Binding ToBearingTo}" Margin="0,2" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Min dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="4" Grid.Column="1" Text="{Binding InitialDistance}" Margin="0,2" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Max dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="5" Grid.Column="1" Text="{Binding MaxDistance}" Margin="0,2" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Exit dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="6" Grid.Column="1" Text="{Binding ExitDistance}" Watermark="max dist + 5" Margin="0,2" />
+                                <TextBlock Grid.Row="7" Grid.Column="0" Text="Min altitude (ft)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="7" Grid.Column="1" Text="{Binding AltitudeMin}" Margin="0,2" />
+                                <TextBlock Grid.Row="8" Grid.Column="0" Text="Max altitude (ft)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="8" Grid.Column="1" Text="{Binding AltitudeMax}" Margin="0,2" />
+                            </Grid>
+                            <TextBlock Text="Transits are deleted once they pass the exit distance, unless a controller owns the track." TextWrapping="Wrap" Foreground="#9aa6b2" Margin="8,0,0,0" />
+
+                            <CheckBox Content="Snap to VFR cruising altitudes (odd/even + 500 by course)"
+                                      IsChecked="{Binding SnapHemisphericAltitude}"
+                                      ToolTip.Tip="14 CFR 91.159(a). Uncheck to stage a target at a deliberately non-conforming altitude."
+                                      Margin="8,0,0,0" />
+
+                            <TextBlock Text="Spawn rate" FontWeight="Bold" />
+                            <CheckBox Content="Active"
+                                      IsThreeState="True"
+                                      IsChecked="{Binding Enabled}"
+                                      ToolTip.Tip="{StaticResource ActiveTooltip}"
+                                      Margin="8,0,0,0" />
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Interval time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding IntervalTime}" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Start offset (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding StartTimeOffset}" Margin="0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Max time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding MaxTime}" Watermark="whole session" Margin="0,2" />
+                            </Grid>
+                            <CheckBox Content="Randomize interval (±25%)" IsChecked="{Binding RandomizeInterval}" Margin="8,0,0,0" />
+
+                            <TextBlock Text="Aircraft" FontWeight="Bold" />
+                            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" Margin="8,0,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Engine" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <ComboBox Grid.Row="0" Grid.Column="1"
+                                          ItemsSource="{Binding EngineOptions}"
+                                          SelectedItem="{Binding EngineType}" Margin="0,2" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Weight" VerticalAlignment="Center" Margin="0,2,8,2" />
+                                <ComboBox Grid.Row="1" Grid.Column="1"
+                                          ItemsSource="{Binding WeightOptions}"
+                                          SelectedItem="{Binding WeightCategory}" Margin="0,2" />
+                            </Grid>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </Grid>
+            </TabItem>
+
+        </TabControl>
 
     </DockPanel>
 </Window>

@@ -15,6 +15,10 @@ public partial class MainViewModel
 {
     public IReadOnlyList<ScenarioGeneratorConfig> LatestArrivalGenerators { get; private set; } = [];
 
+    public IReadOnlyList<VfrArrivalGeneratorConfig> LatestVfrArrivalGenerators { get; private set; } = [];
+
+    public IReadOnlyList<OverflightGeneratorConfig> LatestOverflightGenerators { get; private set; } = [];
+
     public IReadOnlyList<ScenarioPositionDto> LatestPositions { get; private set; } = [];
 
     public string? LoadedScenarioJson { get; private set; }
@@ -60,10 +64,14 @@ public partial class MainViewModel
 
     internal void StashScenarioGeneratorsAndPositions(
         IReadOnlyList<ScenarioGeneratorConfig>? generators,
+        IReadOnlyList<VfrArrivalGeneratorConfig>? vfrArrivalGenerators,
+        IReadOnlyList<OverflightGeneratorConfig>? overflightGenerators,
         IReadOnlyList<ScenarioPositionDto>? positions
     )
     {
         LatestArrivalGenerators = generators ?? [];
+        LatestVfrArrivalGenerators = vfrArrivalGenerators ?? [];
+        LatestOverflightGenerators = overflightGenerators ?? [];
         LatestPositions = positions ?? [];
     }
 
@@ -72,7 +80,14 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             LatestArrivalGenerators = dto.Generators;
-            _log.LogInformation("Arrival generators updated: {Count} entries", dto.Generators.Count);
+            LatestVfrArrivalGenerators = dto.VfrArrivalGenerators;
+            LatestOverflightGenerators = dto.OverflightGenerators;
+            _log.LogInformation(
+                "Generators updated: {Arrivals} arrival, {VfrArrivals} VFR arrival, {Overflights} overflight",
+                dto.Generators.Count,
+                dto.VfrArrivalGenerators.Count,
+                dto.OverflightGenerators.Count
+            );
         });
     }
 }

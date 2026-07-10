@@ -81,6 +81,8 @@ public sealed class ScenarioSnapshotDto
     public List<ScheduledTriggerDto>? TriggerQueue { get; init; }
     public List<ScheduledPresetDto>? PresetQueue { get; init; }
     public List<GeneratorStateDto>? Generators { get; init; }
+    public List<VfrArrivalGeneratorStateDto>? VfrArrivalGenerators { get; init; }
+    public List<OverflightGeneratorStateDto>? OverflightGenerators { get; init; }
     public List<DelayedHandoffDto>? DelayedHandoffQueue { get; init; }
 
     // Coordination channels (stored as serializable DTOs)
@@ -139,7 +141,21 @@ public sealed class GeneratorStateDto
     public required string ConfigJson { get; init; }
     public required RunwayInfoDto Runway { get; init; }
     public required double NextSpawnSeconds { get; init; }
-    public required bool IsExhausted { get; init; }
+    public required bool WasActive { get; init; }
+}
+
+public sealed class VfrArrivalGeneratorStateDto
+{
+    public required string ConfigJson { get; init; }
+    public required double NextSpawnSeconds { get; init; }
+    public required bool WasActive { get; init; }
+}
+
+public sealed class OverflightGeneratorStateDto
+{
+    public required string ConfigJson { get; init; }
+    public required double NextSpawnSeconds { get; init; }
+    public required bool WasActive { get; init; }
 }
 
 public sealed class DelayedHandoffDto

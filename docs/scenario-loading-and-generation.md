@@ -54,7 +54,9 @@ delayed-spawns → generators → triggers → timed-presets, before physics run
 
 - `Aircraft` — `List<ScenarioAircraft>`, the authored traffic.
 - `InitializationTriggers` — timed global commands.
-- `AircraftGenerators` — `List<ScenarioGeneratorConfig>` arrival generators.
+- `AircraftGenerators` — `List<ScenarioGeneratorConfig>` IFR arrival generators. Upstream vNAS shape.
+- `VfrArrivalGenerators` — `List<VfrArrivalGeneratorConfig>`. **YAAT extension**; absent from vNAS scenarios.
+- `OverflightGenerators` — `List<OverflightGeneratorConfig>`. **YAAT extension**; absent from vNAS scenarios.
 - `Atc` — ATC positions to resolve (student + auto-track owners).
 - `PrimaryAirportId`, `PrimaryApproach`, `StudentPositionId`, `AutoDeleteMode`, `MinimumRating`, `FlightStripConfigurations`.
 
@@ -70,6 +72,46 @@ Each `ScenarioAircraft` carries `AircraftId` (the callsign), `AircraftType` (the
 
 Real example JSONs live in `docs/atctrainer-scenario-examples/`. Parse coverage is asserted by `VnasScenarioParseTests`
 (see [scenario-validation.md](scenario-validation.md)).
+
+### Generators
+
+Three kinds, each with its own top-level array, runtime state, and tick loop, all sharing `IGeneratorConfig`
+(cadence + activation) and `IGeneratorRuntimeState` (spawn cursor + activation edge):
+
+| Kind | Config | Runtime | Spawns |
+|---|---|---|---|
+| IFR arrival | `ScenarioGeneratorConfig` | `GeneratorState` (carries a `RunwayInfo`) | `OnFinal`, in-trail spaced along a runway's final approach corridor |
+| VFR arrival | `VfrArrivalGeneratorConfig` | `VfrArrivalGeneratorState` | `Bearing`, direct to a fix / the field |
+| Overflight | `OverflightGeneratorConfig` | `OverflightGeneratorState` | `Bearing`, routed to an exit point and deleted past it |
+
+**Backwards compatibility.** Only `aircraftGenerators` exists upstream. Every field YAAT adds — including
+`enabled` on `ScenarioGeneratorConfig` — is optional and serialized `WhenWritingNull`, so a stock ATCTrainer
+scenario round-trips byte-identical. `GeneratorConfigParityTests` guards this.
+
+**Activation.** `GeneratorActivation.IsActive(config, elapsedSeconds)` is the single gate:
+`Enabled ?? (elapsed >= StartTimeOffset && elapsed <= MaxTime)`. It is derived fresh every tick, never latched —
+that is what lets an instructor toggle a generator back on after its window has expired. `Enabled` is the
+instructor's live override (the editor's three-state Active checkbox); `null` means "follow the window".
+When a generator is switched on manually while its next spawn is still scheduled ahead, `SimulationEngine`
+pulls the cadence forward so traffic appears immediately rather than after a silent wait.
+
+**VFR spawn siting.** `VfrSpawnSiting` re-rolls a bearing/distance/altitude (up to `MaxSpawnAttempts`) until
+the point is clear of Class B/C (`AirspaceDatabase.Default.FindContaining`) and outside standard radar
+separation of every airborne aircraft — 3 NM **and** 1000 ft, since terminal minima are 3 NM *or* 1000 ft
+(7110.65 §5-5-4), so violating only one is not a loss of separation. A VFR code cannot legally appear inside
+Class B (AIM 3-2-3.b) or Class C (AIM 3-2-4.c.3), and in solo mode a spawn inside the boundary would
+immediately trip `AirspaceBoundaryHoldPhase` and orbit a fresh inbound.
+
+**Overflight altitudes.** `HemisphericAltitude.Snap` applies 14 CFR 91.159(a) / AIM 3-1-5 to *level* transits
+more than 3000 ft AGL, keyed on the aircraft's actual magnetic course toward its exit point (not the author's
+"to" radial — the ground track between two points differs from a radial off the field). Off by
+`snapHemisphericAltitude: false`.
+
+**Flight plans.** A generated VFR arrival files a VFR plan to the primary airport and draws a discrete code
+from the VFR beacon bank — modelling a VFR aircraft already receiving radar service, which is what a Class C
+arrival must be (7110.65 §7-8-2.a.1). That is also what lets the server's destination-matching auto-delete
+clean it up after landing. Overflights stay cold calls on 1200; they leave via
+`TickProcessor.ProcessAutoDelete`'s exit-radius branch instead, which skips any aircraft a controller owns.
 
 ## Load pipeline and the immediate / delayed / deferred split
 

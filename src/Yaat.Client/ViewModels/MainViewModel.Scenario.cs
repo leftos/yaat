@@ -407,7 +407,7 @@ public partial class MainViewModel
                 result.AllAircraft
             )
         );
-        StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.Positions);
+        StashScenarioGeneratorsAndPositions(result.AircraftGenerators, result.VfrArrivalGenerators, result.OverflightGenerators, result.Positions);
         ApplySimState(result.IsPaused, result.SimRate);
         ApplySessionSettingsFromLoadScenarioResult(result);
 
@@ -442,7 +442,7 @@ public partial class MainViewModel
                     dto.AllAircraft
                 )
             );
-            StashScenarioGeneratorsAndPositions(dto.AircraftGenerators, dto.Positions);
+            StashScenarioGeneratorsAndPositions(dto.AircraftGenerators, dto.VfrArrivalGenerators, dto.OverflightGenerators, dto.Positions);
             ApplySimState(dto.IsPaused, dto.SimRate);
 
             // Apply session settings from the server (set by the loading RPO).

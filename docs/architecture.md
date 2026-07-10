@@ -273,8 +273,10 @@ ViewModels/
   SettingsViewModel.cs          # Settings tabs: identity/admin/sim/audio/speech/visuals/keybinds; includes STT/TTS model download flows.
   WeatherPeriodViewModel.cs     # Per-period VM: wind layers, METARs, precipitation, start/transition minutes
   WeatherTimelineEditorViewModel.cs  # Timeline editor VM: period list, BuildJson (v1 if 1 period, v2 if 2+), FromJson
-  ArrivalGeneratorsEditorViewModel.cs # Arrival generator editor VM: row list, Apply (push to sim), Save As (write scenario JSON)
-  GeneratorRowViewModel.cs      # Per-row VM for ArrivalGeneratorsEditor: airport/runway/airline/type/rate/etc. fields
+  ArrivalGeneratorsEditorViewModel.cs # Aircraft generator editor VM: three row lists, Apply (push to sim), Save As (write scenario JSON)
+  GeneratorRowViewModel.cs      # Per-row VM for the IFR-arrival tab: runway/type/rate/AutoTrack/Active fields
+  VfrArrivalGeneratorRowViewModel.cs # Per-row VM for the VFR-arrival tab: bearing arc/alt band/direct-to/initial V-S/Active
+  OverflightGeneratorRowViewModel.cs # Per-row VM for the overflight tab: from/to arcs, exit distance, hemispheric snap, Active
   *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp, RunwayDisplay)
 
 Views/
@@ -821,7 +823,8 @@ CrossingRestrictionLabel.cs    # Formats a CifpAltitudeRestriction/CifpSpeedRest
 ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting conditions, nav routes, beacon codes
 ArrivalRouteResolver.cs        # Shared STAR-route builder: PopulateNavigationRoute + ApplyAltitudeProfile (descend-via
                                # overlay). Used by ScenarioLoader (onAltitudeProfile arrivals) + AircraftGenerator (ADD on-STAR)
-ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand, etc.
+ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand,
+                               # IGeneratorConfig + the three generator configs (IFR arrival / VFR arrival / overflight), GeneratorsPayload
                                # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
 ScenarioIdentity.cs            # Shared scenario ID fallback hashing/normalization for server load and sim replay
 ScenarioValidator.cs           # Validates preset commands via CommandParser.ParseCompound; shared by client + yaat-server CLI
@@ -830,6 +833,9 @@ ScenarioValidator.cs           # Validates preset commands via CommandParser.Par
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
 DepartureSpawnClassifier.cs    # IsHeldSpawnCandidate(loaded) — classifies a departure for hold-for-release spawn-gating
 AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator)
+GeneratorActivation.cs         # IsActive(config, elapsed) = Enabled ?? time window; the single per-tick activation gate
+HemisphericAltitude.cs         # 14 CFR 91.159(a) VFR cruising altitudes: snap a level overflight to odd/even+500 by course
+VfrSpawnSiting.cs              # VFR spawn gates: clear of Class B/C, clear of standard radar separation; bearing/range rolls
 SpawnRequest.cs                # Spawn descriptor
 ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Student3 etc.) to an ordinal;
                                # IsRatingSufficient(rating, required) for the scenario gate and
@@ -872,7 +878,8 @@ ReplayTrackApplier.cs          # Replay-time dispatcher for track + AS-prefix co
 SnapshotDiff.cs                # Pure-function diff between an engine's live aircraft state and a captured snapshot's DTOs.
                                # Used by ReplayRangeWithVerification to surface drift between replay and recorded snapshots.
 ReplayResult.cs                # ReplayResult / SnapshotDriftReport / AircraftDrift / FieldDrift records.
-ScenarioQueues.cs              # DelayedSpawn (+ HeldForRelease), ScheduledTrigger, ScheduledPreset, ScheduledRelease, ActiveTimer (TIMER countdowns), GeneratorState, DelayedHandoff
+ScenarioQueues.cs              # DelayedSpawn (+ HeldForRelease), ScheduledTrigger, ScheduledPreset, ScheduledRelease, ActiveTimer (TIMER countdowns),
+                               # IGeneratorRuntimeState + GeneratorState / VfrArrivalGeneratorState / OverflightGeneratorState, DelayedHandoff
 HeldReleaseService.cs          # Hold-for-release: Arm/Disarm/Release an airport's IFR departures + BuildRundown. See docs/hold-for-release.md
 CfrDepartureService.cs         # CFR: sets/clears/reports a departure's alert-only release-time window (AircraftGroundOps.ReleaseWindow*Utc) + echo
 ConsolidationState.cs          # Thread-safe manual consolidation overrides

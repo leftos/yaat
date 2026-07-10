@@ -974,6 +974,8 @@ public record LoadScenarioResultDto(
     string? StudentPositionType = null,
     FlightStripsConfigDto? FlightStripsConfig = null,
     List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
+    List<Yaat.Sim.Scenarios.VfrArrivalGeneratorConfig>? VfrArrivalGenerators = null,
+    List<Yaat.Sim.Scenarios.OverflightGeneratorConfig>? OverflightGenerators = null,
     List<ScenarioPositionDto>? Positions = null,
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0
@@ -1081,6 +1083,8 @@ public record ScenarioLoadedDto(
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null,
     List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig>? AircraftGenerators = null,
+    List<Yaat.Sim.Scenarios.VfrArrivalGeneratorConfig>? VfrArrivalGenerators = null,
+    List<Yaat.Sim.Scenarios.OverflightGeneratorConfig>? OverflightGenerators = null,
     List<ScenarioPositionDto>? Positions = null,
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0
@@ -1088,7 +1092,11 @@ public record ScenarioLoadedDto(
 
 public record ScenarioPositionDto(string Id, string Callsign, string Name);
 
-public record ArrivalGeneratorsChangedDto(List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig> Generators);
+public record ArrivalGeneratorsChangedDto(
+    List<Yaat.Sim.Scenarios.ScenarioGeneratorConfig> Generators,
+    List<Yaat.Sim.Scenarios.VfrArrivalGeneratorConfig> VfrArrivalGenerators,
+    List<Yaat.Sim.Scenarios.OverflightGeneratorConfig> OverflightGenerators
+);
 
 /// <summary>One held departure in the hold-for-release rundown.</summary>
 public record HeldDepartureDto(string Callsign, string Airport, string AircraftType, string Destination, bool IsGroundDeparture, string Status);

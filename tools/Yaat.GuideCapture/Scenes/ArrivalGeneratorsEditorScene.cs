@@ -65,7 +65,33 @@ internal sealed class ArrivalGeneratorsEditorScene : StandaloneWindowSceneBase
 
         var runways = new List<string> { "12", "30", "10L", "28R", "10R", "28L" };
 
-        var vm = new ArrivalGeneratorsEditorViewModel(generators, positions, runways);
+        var vfrArrivals = new List<VfrArrivalGeneratorConfig>
+        {
+            new()
+            {
+                Id = "vfr-south",
+                BearingFrom = 120,
+                BearingTo = 200,
+                InitialDistance = 12,
+                MaxDistance = 20,
+                IntervalTime = 240,
+            },
+        };
+
+        var overflights = new List<OverflightGeneratorConfig>
+        {
+            new()
+            {
+                Id = "of-eastwest",
+                FromBearingFrom = 80,
+                FromBearingTo = 100,
+                ToBearingFrom = 260,
+                ToBearingTo = 280,
+                IntervalTime = 300,
+            },
+        };
+
+        var vm = new ArrivalGeneratorsEditorViewModel(generators, vfrArrivals, overflights, positions, runways);
         return new ArrivalGeneratorsEditorWindow(vm, new UserPreferences(), null, null);
     }
 }

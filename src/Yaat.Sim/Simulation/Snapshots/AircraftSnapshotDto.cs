@@ -76,6 +76,8 @@ public sealed class AircraftSnapshotDto
     /// in-trail spacing applied to their generator arrivals.
     /// </summary>
     public bool IsGeneratorArrival { get; init; }
+    public bool IsGeneratedOverflight { get; init; }
+    public double? OverflightExitDistanceNm { get; init; }
 
     /// <summary>
     /// Scenario-elapsed seconds at completion (landed / handed off / dropped). Non-required

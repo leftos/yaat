@@ -28,7 +28,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Loading Live Weather](#loading-live-weather)
   - [Weather Editor](#weather-editor)
   - [Weather Timelines (V2 Format)](#weather-timelines-v2-format)
-  - [Arrival Generators Editor](#arrival-generators-editor)
+  - [Aircraft Generators Editor](#aircraft-generators-editor)
 - [Solo Training](#solo-training)
 - [Commands](#commands)
   - [Compound Commands](#compound-commands)
@@ -942,27 +942,42 @@ YAAT supports a **v2 weather JSON format** that defines time-based weather evolu
 
 **Rewind:** Weather timelines are fully compatible with the rewind system. Rewinding past a transition boundary restores the correct interpolated weather.
 
-### Arrival Generators Editor
+### Aircraft Generators Editor
 
-![Arrival Generators Editor](docs/user-guide/img/arrival-generators-editor.png)
+![Aircraft Generators Editor](docs/user-guide/img/arrival-generators-editor.png)
 
-**Scenario > Edit Arrival Generators...** opens an editor for the live arrival-generator list of the currently loaded scenario. Edits take effect immediately on the running sim — no scenario reload needed. The original scenario file on disk is untouched; use **Save As...** to persist a tuned variant to a new JSON file for later reuse.
+**Scenario > Edit Aircraft Generators...** opens an editor for the live generator list of the currently loaded scenario. Edits take effect immediately on the running sim — no scenario reload needed. The original scenario file on disk is untouched; use **Save As...** to persist a tuned variant to a new JSON file for later reuse.
 
-The editor has two panels:
+The editor has three tabs, one per generator kind. Each tab is a list of generators with **+ Add** / **- Remove** buttons on the left and the selected generator's details on the right.
 
-- **Left panel** — generator list with **+ Add** / **- Remove** buttons. Each row summarizes its runway, engine, weight category, and interval time.
-- **Right panel** — selected generator details, grouped into Identity (id, and an editable runway box that suggests the airport's runways plus any already used by the loaded generators — you can also type a runway directly), Spawn rate (initial/max/interval distances, interval/start-offset/max time, randomize-interval toggle), Aircraft (engine type, weight category, randomize-weight toggle — checking **Randomize weight category** keeps the weight box active and uses it as the centre of a realistic mix bounded to nearby classes, so a Small/SmallPlus generator stays light and mixes in general-aviation traffic while a Large/Heavy one never spawns below the regional feed), and an optional AutoTrack block (position, handoff delay, scratchpad, cleared altitude) — applied to every arrival the generator spawns, so each one comes up owned by that position with the scratchpad set and hands off to the student after the delay, just like a scenario aircraft.
+#### IFR Arrivals
 
-**Reschedule on Apply:** When you click **Apply to Sim**, every generator is rescheduled from now. Aircraft already spawned by previous generators keep flying; only future spawns are affected.
+A stream of IFR arrivals placed on a runway's final approach course, spaced in trail. Details are grouped into Identity (id, and an editable runway box that suggests the airport's runways plus any already used by the loaded generators — you can also type a runway directly), Spawn rate (initial/max/interval distances, interval/start-offset/max time, randomize-interval toggle), Aircraft (engine type, weight category, randomize-weight toggle — checking **Randomize weight category** keeps the weight box active and uses it as the centre of a realistic mix bounded to nearby classes, so a Small/SmallPlus generator stays light and mixes in general-aviation traffic while a Large/Heavy one never spawns below the regional feed), and an optional AutoTrack block (position, handoff delay, scratchpad, cleared altitude) — applied to every arrival the generator spawns, so each one comes up owned by that position with the scratchpad set and hands off to the student after the delay, just like a scenario aircraft.
 
-- **Apply to Sim** sends the new generator list to the server and applies it immediately.
+#### VFR Arrivals
+
+GA traffic inbound to the field, spawned on an arc rather than on final. You set the **bearing range** they appear on (magnetic, from the field), the **distance** and **altitude** ranges, and what they proceed **direct to** — the field by default, or any fix or FRD. **Initial V/S** of 0 spawns them level for you to step down; a negative value has them descending toward **Descend to** (traffic-pattern altitude if you leave it blank). They arrive on a discrete beacon code with a VFR flight plan to the field, so they clean up automatically once they land.
+
+#### Overflights
+
+VFR traffic transiting the airspace without landing. You set the arc they come **from** and the arc they go **to** (both magnetic bearings from the field), plus the distance and altitude ranges. They squawk 1200 and are deleted once they pass the **exit distance** — unless a controller has taken the track, in which case they stay until dropped. **Snap to VFR cruising altitudes** (on by default) puts each level transit above 3000 ft AGL on the correct odd/even-thousand-plus-500 for its course; turn it off to stage a target at a deliberately wrong altitude.
+
+#### Common controls
+
+**Active toggle:** Each generator has a three-state **Active** checkbox. Leave it indeterminate to follow the start-offset / max-time window; check it to spawn regardless of the window (traffic starts immediately); uncheck it to stop the generator regardless. This is the live on/off switch mid-session. To bring a stream back later on a schedule, clone the generator and give the clone its own window.
+
+**Spawn placement:** VFR arrival and overflight spawn points are re-rolled until they are clear of Class B and Class C airspace and no closer than standard radar separation (3 NM *and* 1000 ft) to any existing aircraft — no aircraft is ever born inside controlled airspace on a VFR code or already in conflict. If a generator's ranges can't produce a clear point, it logs a warning and retries rather than spawning.
+
+**Cadence on Apply:** When you click **Apply to Sim**, a generator that keeps its id keeps its spawn cadence, so toggling one generator doesn't re-phase the others. A newly added generator starts one interval from now. Aircraft already spawned keep flying; only future spawns are affected.
+
+- **Apply to Sim** sends the new generator lists to the server and applies them immediately.
 - **Revert** restores the editor to the state it had when the window was opened (does not undo edits already applied to the sim).
-- **Save As...** writes the loaded scenario JSON with the edited `aircraftGenerators` array to a new file.
+- **Save As...** writes the loaded scenario JSON with the edited `aircraftGenerators`, `vfrArrivalGenerators`, and `overflightGenerators` arrays to a new file.
 - **Close** closes the editor.
 
-**Recording / replay:** Edits are recorded as a `RecordedArrivalGeneratorsChange` action and replay deterministically with the same reschedule semantics.
+**Recording / replay:** Edits are recorded as a `RecordedArrivalGeneratorsChange` action and replay deterministically.
 
-**Validation:** Empty/duplicate ids, unknown engine types, unknown weight categories, or runways that don't exist on the active airport are reported in the status line and prevent the apply.
+**Validation:** Empty/duplicate ids (across all three kinds), unknown engine types, unknown weight categories, runways that don't exist on the active airport, inverted distance/altitude ranges, or an exit distance inside the spawn corridor are reported in the status line and prevent the apply.
 
 ---
 
@@ -976,7 +991,7 @@ Use these USER_GUIDE sections as the UI reference while following the tutorial:
 
 - [Settings](#settings) - enable Solo Training Mode and optional pilot voice.
 - [Loading a Scenario](#loading-a-scenario) - load ARTCC scenarios or local ATCTrainer-format files.
-- [Arrival Generators Editor](#arrival-generators-editor) - inspect and edit generated arrival workload.
+- [Aircraft Generators Editor](#aircraft-generators-editor) - inspect and edit generated traffic workload.
 - [Command Bar](#command-bar) - type commands and read terminal feedback.
 - [Commands](#commands) - quick command introduction and links to the full command reference.
 

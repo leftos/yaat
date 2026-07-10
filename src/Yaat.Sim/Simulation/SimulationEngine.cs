@@ -382,7 +382,37 @@ public sealed class SimulationEngine
                             Config = config,
                             Runway = RunwayInfo.FromSnapshot(g.Runway),
                             NextSpawnSeconds = g.NextSpawnSeconds,
-                            IsExhausted = g.IsExhausted,
+                            WasActive = g.WasActive,
+                        }
+                    );
+                }
+            }
+
+            if (scenarioDto.VfrArrivalGenerators is not null)
+            {
+                foreach (var g in scenarioDto.VfrArrivalGenerators)
+                {
+                    Scenario.VfrArrivalGenerators.Add(
+                        new VfrArrivalGeneratorState
+                        {
+                            Config = JsonSerializer.Deserialize<VfrArrivalGeneratorConfig>(g.ConfigJson)!,
+                            NextSpawnSeconds = g.NextSpawnSeconds,
+                            WasActive = g.WasActive,
+                        }
+                    );
+                }
+            }
+
+            if (scenarioDto.OverflightGenerators is not null)
+            {
+                foreach (var g in scenarioDto.OverflightGenerators)
+                {
+                    Scenario.OverflightGenerators.Add(
+                        new OverflightGeneratorState
+                        {
+                            Config = JsonSerializer.Deserialize<OverflightGeneratorConfig>(g.ConfigJson)!,
+                            NextSpawnSeconds = g.NextSpawnSeconds,
+                            WasActive = g.WasActive,
                         }
                     );
                 }
@@ -622,6 +652,16 @@ public sealed class SimulationEngine
                     NextSpawnSeconds = firstSpawnSeconds,
                 }
             );
+        }
+
+        foreach (var cfg in result.VfrArrivalGenerators)
+        {
+            Scenario.VfrArrivalGenerators.Add(new VfrArrivalGeneratorState { Config = cfg, NextSpawnSeconds = StaggeredFirstSpawn(cfg) });
+        }
+
+        foreach (var cfg in result.OverflightGenerators)
+        {
+            Scenario.OverflightGenerators.Add(new OverflightGeneratorState { Config = cfg, NextSpawnSeconds = StaggeredFirstSpawn(cfg) });
         }
 
         // Set ground layout
@@ -2213,6 +2253,9 @@ public sealed class SimulationEngine
     private const double FinalCorridorMarginNm = 3.0;
     private const double TerminalRadarFloorNm = 3.0;
 
+    /// <summary>How far past its spawn corridor an overflight flies before it is deleted, when the author gives no exitDistance.</summary>
+    private const double DefaultOverflightExitMarginNm = 5.0;
+
     private void ProcessGenerators(List<GeneratorSpawn> generatorSpawns)
     {
         var scenario = Scenario!;
@@ -2224,31 +2267,79 @@ public sealed class SimulationEngine
             return;
         }
 
+        // The solo arrival-rate slider scales arrival streams only; overflights are not an arrival source.
         var ratePercent = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
-        if (ratePercent <= 0)
+        if (ratePercent > 0)
         {
-            return;
-        }
-
-        foreach (var gen in scenario.Generators)
-        {
-            if (gen.IsExhausted)
+            foreach (var gen in scenario.Generators)
             {
-                continue;
-            }
-            if (scenario.ElapsedSeconds < gen.Config.StartTimeOffset)
-            {
-                continue;
-            }
-            if (gen.Config.MaxTime is { } maxTime && scenario.ElapsedSeconds > maxTime)
-            {
-                gen.IsExhausted = true;
-                _logger.LogInformation("Generator '{Id}' exhausted at t={T}s (maxTime={MaxTime})", gen.Config.Id, scenario.ElapsedSeconds, maxTime);
-                continue;
+                if (IsGeneratorActive(gen))
+                {
+                    TrySpawnArrival(gen, ratePercent, generatorSpawns);
+                }
             }
 
-            TrySpawnArrival(gen, ratePercent, generatorSpawns);
+            foreach (var gen in scenario.VfrArrivalGenerators)
+            {
+                if (IsGeneratorActive(gen))
+                {
+                    TrySpawnVfrArrival(gen, ratePercent, generatorSpawns);
+                }
+            }
         }
+
+        foreach (var gen in scenario.OverflightGenerators)
+        {
+            if (IsGeneratorActive(gen))
+            {
+                TrySpawnOverflight(gen, generatorSpawns);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Derives activation fresh each tick (never latched, so an instructor can switch a generator back on
+    /// after its window has expired) and logs the transition once. When a generator is switched on manually
+    /// while its next spawn is still scheduled in the future, the cadence is pulled forward so ticking the
+    /// Active box produces traffic immediately rather than after a silent wait.
+    /// </summary>
+    private bool IsGeneratorActive(IGeneratorRuntimeState state)
+    {
+        var scenario = Scenario!;
+        var config = state.ConfigBase;
+        var isActive = GeneratorActivation.IsActive(config, scenario.ElapsedSeconds);
+
+        if (isActive != state.WasActive)
+        {
+            if (isActive && config.Enabled == true)
+            {
+                state.NextSpawnSeconds = Math.Min(state.NextSpawnSeconds, scenario.ElapsedSeconds);
+            }
+
+            _logger.LogInformation(
+                "Generator '{Id}' {Transition} at t={T}s",
+                config.Id,
+                isActive ? "activated" : "deactivated",
+                scenario.ElapsedSeconds
+            );
+            state.WasActive = isActive;
+        }
+
+        return isActive;
+    }
+
+    /// <summary>
+    /// A generator with a randomized interval gets a random initial phase within its first interval, so
+    /// several generators sharing a <c>StartTimeOffset</c> don't all fire on the same tick.
+    /// </summary>
+    private double StaggeredFirstSpawn(IGeneratorConfig config)
+    {
+        var firstSpawnSeconds = (double)config.StartTimeOffset;
+        if (config.RandomizeInterval)
+        {
+            firstSpawnSeconds += World.Rng.NextDouble() * config.IntervalTime;
+        }
+        return firstSpawnSeconds;
     }
 
     /// <summary>
@@ -2316,15 +2407,18 @@ public sealed class SimulationEngine
         gen.NextSpawnSeconds = scenario.ElapsedSeconds + EffectiveSpawnIntervalSeconds(gen, ratePercent);
     }
 
-    private double EffectiveSpawnIntervalSeconds(GeneratorState gen, int ratePercent)
+    private double EffectiveSpawnIntervalSeconds(GeneratorState gen, int ratePercent) =>
+        JitteredInterval(gen.Config, ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(gen.Config.IntervalTime, ratePercent));
+
+    /// <summary>Applies the generator's ±25% interval jitter, never dropping below the retry backoff.</summary>
+    private double JitteredInterval(IGeneratorConfig config, double intervalSeconds)
     {
-        var interval = ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(gen.Config.IntervalTime, ratePercent);
-        if (gen.Config.RandomizeInterval)
+        if (config.RandomizeInterval)
         {
-            var jitter = interval * 0.25;
-            interval += ((World.Rng.NextDouble() * 2) - 1) * jitter;
+            var jitter = intervalSeconds * 0.25;
+            intervalSeconds += ((World.Rng.NextDouble() * 2) - 1) * jitter;
         }
-        return Math.Max(interval, SpawnRetryBackoffSeconds);
+        return Math.Max(intervalSeconds, SpawnRetryBackoffSeconds);
     }
 
     /// <summary>
@@ -2567,6 +2661,366 @@ public sealed class SimulationEngine
         return state;
     }
 
+    private void TrySpawnVfrArrival(VfrArrivalGeneratorState gen, int ratePercent, List<GeneratorSpawn> generatorSpawns)
+    {
+        var scenario = Scenario!;
+        if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
+        {
+            return;
+        }
+
+        var state = SpawnGeneratedVfrArrival(gen);
+        if (state is null)
+        {
+            gen.NextSpawnSeconds = scenario.ElapsedSeconds + SpawnRetryBackoffSeconds;
+            return;
+        }
+
+        generatorSpawns.Add(new GeneratorSpawn(state, gen.Config.AutoTrackConfiguration));
+        gen.NextSpawnSeconds =
+            scenario.ElapsedSeconds
+            + JitteredInterval(gen.Config, ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(gen.Config.IntervalTime, ratePercent));
+    }
+
+    private void TrySpawnOverflight(OverflightGeneratorState gen, List<GeneratorSpawn> generatorSpawns)
+    {
+        var scenario = Scenario!;
+        if (scenario.ElapsedSeconds < gen.NextSpawnSeconds)
+        {
+            return;
+        }
+
+        var state = SpawnGeneratedOverflight(gen);
+        if (state is null)
+        {
+            gen.NextSpawnSeconds = scenario.ElapsedSeconds + SpawnRetryBackoffSeconds;
+            return;
+        }
+
+        generatorSpawns.Add(new GeneratorSpawn(state, null));
+        gen.NextSpawnSeconds = scenario.ElapsedSeconds + JitteredInterval(gen.Config, gen.Config.IntervalTime);
+    }
+
+    /// <summary>
+    /// Rolls a bearing/distance/altitude inside the generator's configured ranges until the resulting point
+    /// is legal to spawn into — clear of Class B/C (a 1200 code cannot appear inside either) and clear of
+    /// standard radar separation from every airborne aircraft. Returns null when the ranges cannot produce
+    /// a usable point, which is an authoring problem rather than a transient one.
+    /// </summary>
+    private (LatLon Position, double BearingTrue, double BearingMagnetic, double DistanceNm, double AltitudeFt)? RollVfrSpawnSite(
+        string generatorId,
+        LatLon airport,
+        double bearingFrom,
+        double bearingTo,
+        double minDistanceNm,
+        double maxDistanceNm,
+        double minAltitudeFt,
+        double maxAltitudeFt
+    )
+    {
+        var existing = World.GetSnapshot();
+        var airspace = AirspaceDatabase.Default;
+
+        for (var attempt = 0; attempt < VfrSpawnSiting.MaxSpawnAttempts; attempt++)
+        {
+            var bearingMagnetic = VfrSpawnSiting.RollBearing(bearingFrom, bearingTo, World.Rng);
+            var distanceNm = VfrSpawnSiting.RollInRange(minDistanceNm, maxDistanceNm, World.Rng);
+            var altitudeFt = VfrSpawnSiting.RollInRange(minAltitudeFt, maxAltitudeFt, World.Rng);
+
+            var bearingTrue = MagneticDeclination.MagneticToTrue(bearingMagnetic, airport);
+            var (lat, lon) = GeoMath.ProjectPoint(airport.Lat, airport.Lon, new TrueHeading(bearingTrue), distanceNm);
+            var position = new LatLon(lat, lon);
+
+            if (VfrSpawnSiting.IsUsableSpawn(position, altitudeFt, airspace, existing))
+            {
+                return (position, bearingTrue, bearingMagnetic, distanceNm, altitudeFt);
+            }
+        }
+
+        _logger.LogWarning(
+            "Generator '{Id}': no spawn point clear of Class B/C and existing traffic after {Attempts} attempts "
+                + "(bearing {From}-{To}, {MinD}-{MaxD}nm, {MinA}-{MaxA}ft)",
+            generatorId,
+            VfrSpawnSiting.MaxSpawnAttempts,
+            bearingFrom,
+            bearingTo,
+            minDistanceNm,
+            maxDistanceNm,
+            minAltitudeFt,
+            maxAltitudeFt
+        );
+        return null;
+    }
+
+    /// <summary>
+    /// Spawns one VFR arrival on the generator's bearing arc, proceeding direct to the configured fix (or the
+    /// field). It files a VFR plan to the primary airport rather than cold-calling: an arriving VFR aircraft
+    /// at a Class C primary must establish two-way and be sequenced (7110.65 §7-8-2.a.1), so it is already
+    /// receiving service and holds a discrete code — which also lets auto-delete recognise it once it lands.
+    /// </summary>
+    private AircraftState? SpawnGeneratedVfrArrival(VfrArrivalGeneratorState gen)
+    {
+        var scenario = Scenario!;
+        var config = gen.Config;
+        var airportId = scenario.PrimaryAirportId;
+        if (string.IsNullOrEmpty(airportId))
+        {
+            _logger.LogWarning("VFR arrival generator '{Id}' skipped: scenario has no primary airport", config.Id);
+            return null;
+        }
+
+        var airportPos = NavigationDatabase.Instance.GetFixPosition(airportId);
+        if (airportPos is null)
+        {
+            _logger.LogWarning("VFR arrival generator '{Id}': primary airport '{Airport}' not in navdata", config.Id, airportId);
+            return null;
+        }
+
+        var airport = new LatLon(airportPos.Value.Lat, airportPos.Value.Lon);
+        var site = RollVfrSpawnSite(
+            config.Id,
+            airport,
+            config.BearingFrom,
+            config.BearingTo,
+            config.InitialDistance,
+            config.MaxDistance,
+            config.AltitudeMin,
+            config.AltitudeMax
+        );
+        if (site is null)
+        {
+            return null;
+        }
+
+        var request = new SpawnRequest
+        {
+            Rules = FlightRulesKind.Vfr,
+            Weight = ParseWeightCategory(config.WeightCategory),
+            Engine = ResolveEngine(config.EngineType),
+            PositionType = SpawnPositionType.Bearing,
+            Bearing = site.Value.BearingTrue,
+            DistanceNm = site.Value.DistanceNm,
+            Altitude = site.Value.AltitudeFt,
+            VfrFiledDestination = airportId,
+        };
+
+        var groundLayout = _groundData.GetLayout(airportId);
+        var (state, error) = AircraftGenerator.Generate(request, airportId, World.GetSnapshot(), groundLayout, World.Rng, BeaconCodePool);
+        if (state is null)
+        {
+            _logger.LogWarning("VFR arrival generator '{Id}' spawn failed at t={T}s: {Error}", config.Id, scenario.ElapsedSeconds, error);
+            return null;
+        }
+
+        state.ScenarioId = scenario.ScenarioId;
+        state.Ground.Layout = groundLayout;
+        state.SpawnedAtSeconds = scenario.ElapsedSeconds;
+        state.FlightPlan.Altitude = PlannedAltitude.Vfr((int)Math.Round(site.Value.AltitudeFt));
+
+        var routeWarnings = new List<string>();
+        var directTo = string.IsNullOrWhiteSpace(config.DirectTo) ? airportId : config.DirectTo;
+        ArrivalRouteResolver.PopulateNavigationRoute(state, directTo, routeWarnings);
+        foreach (var warning in routeWarnings)
+        {
+            _logger.LogWarning("VFR arrival generator '{Id}': {Warning}", config.Id, warning);
+        }
+
+        PointAtFirstRouteFix(state);
+        ApplyInitialVerticalProfile(state, config, airportId);
+
+        World.AddAircraft(state);
+        if (config.AutoTrackConfiguration is null)
+        {
+            RecordGeneratedAircraftSpawn(state);
+        }
+
+        EmitTerminal("System", state.Callsign, $"[Spawn] Generated VFR arrival ({config.Id})");
+        _logger.LogInformation(
+            "VFR arrival generator '{Id}' spawned {Callsign} ({Type}) {Dist:F1}nm on the {Brg:F0} radial at {Alt:F0}ft, direct {Direct}, t={T}s",
+            config.Id,
+            state.Callsign,
+            state.AircraftType,
+            site.Value.DistanceNm,
+            site.Value.BearingMagnetic,
+            site.Value.AltitudeFt,
+            directTo,
+            scenario.ElapsedSeconds
+        );
+
+        return state;
+    }
+
+    /// <summary>
+    /// Spawns one VFR transit: in on the generator's <c>From</c> arc, routed to an exit point on its <c>To</c>
+    /// arc. Overflights stay cold calls squawking 1200 — realistic for a transient not receiving service, and
+    /// legal because <see cref="RollVfrSpawnSite"/> keeps them clear of Class B/C.
+    /// </summary>
+    private AircraftState? SpawnGeneratedOverflight(OverflightGeneratorState gen)
+    {
+        var scenario = Scenario!;
+        var config = gen.Config;
+        var airportId = scenario.PrimaryAirportId;
+        if (string.IsNullOrEmpty(airportId))
+        {
+            _logger.LogWarning("Overflight generator '{Id}' skipped: scenario has no primary airport", config.Id);
+            return null;
+        }
+
+        var airportPos = NavigationDatabase.Instance.GetFixPosition(airportId);
+        if (airportPos is null)
+        {
+            _logger.LogWarning("Overflight generator '{Id}': primary airport '{Airport}' not in navdata", config.Id, airportId);
+            return null;
+        }
+
+        var airport = new LatLon(airportPos.Value.Lat, airportPos.Value.Lon);
+        var exitDistanceNm = config.ExitDistance ?? (config.MaxDistance + DefaultOverflightExitMarginNm);
+
+        var site = RollVfrSpawnSite(
+            config.Id,
+            airport,
+            config.FromBearingFrom,
+            config.FromBearingTo,
+            config.InitialDistance,
+            config.MaxDistance,
+            config.AltitudeMin,
+            config.AltitudeMax
+        );
+        if (site is null)
+        {
+            return null;
+        }
+
+        var exitBearingMagnetic = VfrSpawnSiting.RollBearing(config.ToBearingFrom, config.ToBearingTo, World.Rng);
+        var exitBearingTrue = MagneticDeclination.MagneticToTrue(exitBearingMagnetic, airport);
+        var exitPoint = GeoMath.ProjectPoint(airport, new TrueHeading(exitBearingTrue), exitDistanceNm);
+
+        // Name the exit point as an FRD off the field so the route overlay labels it rather than drawing it
+        // as an unnamed arc vertex.
+        var exitName = $"{airportId}{(int)Math.Round(exitBearingMagnetic) % 360:000}{(int)Math.Round(exitDistanceNm):000}";
+
+        // 91.159(a) binds level cruising flight more than 3000 ft above the surface, and it keys on the
+        // aircraft's magnetic course over the ground -- which runs spawn -> exit point, not along the
+        // author's "to" radial from the field.
+        var altitudeFt = site.Value.AltitudeFt;
+        if (config.SnapHemisphericAltitude)
+        {
+            altitudeFt = SnapOverflightAltitude(config, site.Value.Position, exitPoint, altitudeFt, airportId);
+        }
+
+        var request = new SpawnRequest
+        {
+            Rules = FlightRulesKind.Vfr,
+            Weight = ParseWeightCategory(config.WeightCategory),
+            Engine = ResolveEngine(config.EngineType),
+            PositionType = SpawnPositionType.Bearing,
+            Bearing = site.Value.BearingTrue,
+            DistanceNm = site.Value.DistanceNm,
+            Altitude = altitudeFt,
+        };
+
+        var groundLayout = _groundData.GetLayout(airportId);
+        var (state, error) = AircraftGenerator.Generate(request, airportId, World.GetSnapshot(), groundLayout, World.Rng, BeaconCodePool);
+        if (state is null)
+        {
+            _logger.LogWarning("Overflight generator '{Id}' spawn failed at t={T}s: {Error}", config.Id, scenario.ElapsedSeconds, error);
+            return null;
+        }
+
+        state.ScenarioId = scenario.ScenarioId;
+        state.Ground.Layout = groundLayout;
+        state.SpawnedAtSeconds = scenario.ElapsedSeconds;
+        state.IsGeneratedOverflight = true;
+        state.OverflightExitDistanceNm = exitDistanceNm;
+
+        state.Targets.NavigationRoute.Add(new NavigationTarget { Name = exitName, Position = exitPoint });
+        PointAtFirstRouteFix(state);
+
+        World.AddAircraft(state);
+        RecordGeneratedAircraftSpawn(state);
+
+        EmitTerminal("System", state.Callsign, $"[Spawn] Generated overflight ({config.Id})");
+        _logger.LogInformation(
+            "Overflight generator '{Id}' spawned {Callsign} ({Type}) {Dist:F1}nm on the {Brg:F0} radial at {Alt:F0}ft, exiting on the {Exit:F0} radial at {ExitDist:F0}nm, t={T}s",
+            config.Id,
+            state.Callsign,
+            state.AircraftType,
+            site.Value.DistanceNm,
+            site.Value.BearingMagnetic,
+            altitudeFt,
+            exitBearingMagnetic,
+            exitDistanceNm,
+            scenario.ElapsedSeconds
+        );
+
+        return state;
+    }
+
+    private double SnapOverflightAltitude(OverflightGeneratorConfig config, LatLon spawn, LatLon exitPoint, double rolledAltitudeFt, string airportId)
+    {
+        var fieldElevation = NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0;
+        if (rolledAltitudeFt - fieldElevation <= HemisphericAltitude.AglFloorFt)
+        {
+            return rolledAltitudeFt;
+        }
+
+        var courseTrue = GeoMath.BearingTo(spawn, exitPoint);
+        var courseMagnetic = MagneticDeclination.TrueToMagnetic(courseTrue, spawn);
+        var snapped = HemisphericAltitude.Snap(courseMagnetic, rolledAltitudeFt, config.AltitudeMin, config.AltitudeMax);
+
+        if (snapped is null)
+        {
+            _logger.LogWarning(
+                "Overflight generator '{Id}': altitude band {Min}-{Max}ft contains no VFR cruising altitude for a "
+                    + "{Course:F0} magnetic course; spawning at the rolled altitude. Widen the band or disable snapHemisphericAltitude.",
+                config.Id,
+                config.AltitudeMin,
+                config.AltitudeMax,
+                courseMagnetic
+            );
+            return rolledAltitudeFt;
+        }
+
+        return snapped.Value;
+    }
+
+    /// <summary>Turns a freshly spawned aircraft toward the first fix on its route, if it has one.</summary>
+    private static void PointAtFirstRouteFix(AircraftState state)
+    {
+        if (state.Targets.NavigationRoute.Count == 0)
+        {
+            return;
+        }
+
+        var first = state.Targets.NavigationRoute[0].Position;
+        TrueHeading heading = new(GeoMath.BearingTo(state.Position, first));
+        state.TrueHeading = heading;
+        state.TrueTrack = heading;
+    }
+
+    /// <summary>
+    /// A level spawn (<c>initialVsFpm == 0</c>) gets no altitude target, so the controller steps it down.
+    /// A descending spawn needs a target altitude to descend toward — physics zeroes vertical speed without
+    /// one — defaulting to traffic-pattern altitude (AIM 4-3-3.a.1: 1000 ft AGL for propeller-driven, 1500
+    /// for large/turbine). The authored rate is capped at the type's own descent performance.
+    /// </summary>
+    private static void ApplyInitialVerticalProfile(AircraftState state, VfrArrivalGeneratorConfig config, string airportId)
+    {
+        if (config.InitialVsFpm >= 0)
+        {
+            return;
+        }
+
+        var fieldElevation = NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0;
+        var category = AircraftCategorization.Categorize(state.AircraftType);
+        var patternAglFt = category is AircraftCategory.Jet or AircraftCategory.Turboprop ? 1500.0 : 1000.0;
+        var descendTo = config.DescendToAltitude ?? (Math.Round((fieldElevation + patternAglFt) / 100.0) * 100.0);
+
+        var performanceRate = AircraftPerformance.DescentRate(state.AircraftType, category, state.Altitude);
+        state.Targets.TargetAltitude = Math.Min(descendTo, state.Altitude);
+        state.Targets.DesiredVerticalRate = Math.Min(Math.Abs(config.InitialVsFpm), performanceRate);
+    }
+
     private bool TryReserveSoloParkingInitialCallupSlot(double nowSeconds)
     {
         var scenario = Scenario;
@@ -2637,12 +3091,17 @@ public sealed class SimulationEngine
         }
     }
 
+    /// <summary>
+    /// Re-phases every arrival stream after the solo arrival-rate slider moves. Overflight generators are
+    /// not an arrival source and are not scaled by the slider, so they keep their cadence.
+    /// </summary>
     private static void RescheduleArrivalGeneratorsFromNow(SimScenarioState scenario)
     {
         var rate = ScenarioPacing.ClampArrivalGeneratorPercent(scenario.SoloArrivalGeneratorRatePercent);
-        foreach (var gen in scenario.Generators)
+
+        foreach (var gen in scenario.Generators.Cast<IGeneratorRuntimeState>().Concat(scenario.VfrArrivalGenerators))
         {
-            if (gen.IsExhausted)
+            if (!GeneratorActivation.IsActive(gen.ConfigBase, scenario.ElapsedSeconds))
             {
                 continue;
             }
@@ -2650,7 +3109,7 @@ public sealed class SimulationEngine
             gen.NextSpawnSeconds =
                 rate <= 0
                     ? double.PositiveInfinity
-                    : scenario.ElapsedSeconds + ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(gen.Config.IntervalTime, rate);
+                    : scenario.ElapsedSeconds + ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(gen.ConfigBase.IntervalTime, rate);
         }
     }
 
@@ -3191,7 +3650,7 @@ public sealed class SimulationEngine
                 ApplySettingChange(setting);
                 break;
             case RecordedArrivalGeneratorsChange generators:
-                ApplyArrivalGeneratorsJson(generators.GeneratorsJson);
+                ApplyGeneratorsJson(generators.GeneratorsJson);
                 break;
         }
     }
@@ -3582,7 +4041,12 @@ public sealed class SimulationEngine
     /// Already-spawned aircraft keep flying. Returns warnings; the swap is best-effort per generator
     /// (entries with unresolvable runways are dropped with a warning).
     /// </summary>
-    public List<string> ApplyArrivalGeneratorsJson(string generatorsJson)
+    /// <summary>
+    /// Replaces every generator on the live scenario from a <see cref="GeneratorsPayload"/> JSON document.
+    /// A generator whose id survives the edit keeps its spawn cadence and activation, so toggling one row
+    /// does not re-phase the rest of the traffic; a newly added generator starts one interval from now.
+    /// </summary>
+    public List<string> ApplyGeneratorsJson(string generatorsJson)
     {
         var warnings = new List<string>();
         var scenario = Scenario;
@@ -3592,10 +4056,10 @@ public sealed class SimulationEngine
             return warnings;
         }
 
-        List<ScenarioGeneratorConfig>? configs;
+        GeneratorsPayload? payload;
         try
         {
-            configs = JsonSerializer.Deserialize<List<ScenarioGeneratorConfig>>(generatorsJson);
+            payload = JsonSerializer.Deserialize<GeneratorsPayload>(generatorsJson);
         }
         catch (JsonException ex)
         {
@@ -3603,16 +4067,24 @@ public sealed class SimulationEngine
             return warnings;
         }
 
-        if (configs is null)
+        if (payload is null)
         {
             warnings.Add("Generators JSON deserialized to null");
             return warnings;
         }
 
+        var priorCadence = scenario
+            .Generators.Cast<IGeneratorRuntimeState>()
+            .Concat(scenario.VfrArrivalGenerators)
+            .Concat(scenario.OverflightGenerators)
+            .GroupBy(g => g.ConfigBase.Id, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => (g.First().NextSpawnSeconds, g.First().WasActive), StringComparer.Ordinal);
+
         var navDb = NavigationDatabase.Instance;
         var airportId = scenario.PrimaryAirportId ?? "";
-        var newStates = new List<GeneratorState>();
-        foreach (var cfg in configs)
+
+        var newArrivals = new List<GeneratorState>();
+        foreach (var cfg in payload.AircraftGenerators)
         {
             var runwayId = cfg.Runway ?? "";
             var runway = navDb.GetRunway(airportId, runwayId);
@@ -3622,22 +4094,66 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            newStates.Add(
+            var (next, wasActive) = ResumeCadence(cfg, scaledByArrivalRate: true);
+            newArrivals.Add(
                 new GeneratorState
                 {
                     Config = cfg,
                     Runway = runway,
-                    NextSpawnSeconds =
-                        scenario.ElapsedSeconds
-                        + ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(cfg.IntervalTime, scenario.SoloArrivalGeneratorRatePercent),
-                    IsExhausted = false,
+                    NextSpawnSeconds = next,
+                    WasActive = wasActive,
+                }
+            );
+        }
+
+        var newVfrArrivals = new List<VfrArrivalGeneratorState>();
+        foreach (var cfg in payload.VfrArrivalGenerators)
+        {
+            var (next, wasActive) = ResumeCadence(cfg, scaledByArrivalRate: true);
+            newVfrArrivals.Add(
+                new VfrArrivalGeneratorState
+                {
+                    Config = cfg,
+                    NextSpawnSeconds = next,
+                    WasActive = wasActive,
+                }
+            );
+        }
+
+        var newOverflights = new List<OverflightGeneratorState>();
+        foreach (var cfg in payload.OverflightGenerators)
+        {
+            var (next, wasActive) = ResumeCadence(cfg, scaledByArrivalRate: false);
+            newOverflights.Add(
+                new OverflightGeneratorState
+                {
+                    Config = cfg,
+                    NextSpawnSeconds = next,
+                    WasActive = wasActive,
                 }
             );
         }
 
         scenario.Generators.Clear();
-        scenario.Generators.AddRange(newStates);
+        scenario.Generators.AddRange(newArrivals);
+        scenario.VfrArrivalGenerators.Clear();
+        scenario.VfrArrivalGenerators.AddRange(newVfrArrivals);
+        scenario.OverflightGenerators.Clear();
+        scenario.OverflightGenerators.AddRange(newOverflights);
         return warnings;
+
+        (double NextSpawnSeconds, bool WasActive) ResumeCadence(IGeneratorConfig cfg, bool scaledByArrivalRate)
+        {
+            if (priorCadence.TryGetValue(cfg.Id, out var prior))
+            {
+                return prior;
+            }
+
+            var interval = scaledByArrivalRate
+                ? ScenarioPacing.EffectiveArrivalGeneratorIntervalSeconds(cfg.IntervalTime, scenario.SoloArrivalGeneratorRatePercent)
+                : cfg.IntervalTime;
+            return (scenario.ElapsedSeconds + interval, false);
+        }
     }
 
     private void ApplyWeatherJson(string weatherJson)

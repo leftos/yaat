@@ -113,8 +113,8 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
             },
         };
 
-        var json = JsonSerializer.Serialize(replacement);
-        var warnings = engine.ApplyArrivalGeneratorsJson(json);
+        var json = PayloadJson(replacement);
+        var warnings = engine.ApplyGeneratorsJson(json);
 
         Assert.Empty(warnings);
         Assert.Equal(2, engine.Scenario.Generators.Count);
@@ -126,7 +126,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
         Assert.Equal("28L", a.Config.Runway);
         Assert.Equal("Heavy", a.Config.WeightCategory);
         Assert.Equal(elapsedAtApply + 120, a.NextSpawnSeconds);
-        Assert.False(a.IsExhausted);
+        Assert.False(a.WasActive);
 
         Assert.Equal("gen-B", b.Config.Id);
         Assert.Equal(elapsedAtApply + 240, b.NextSpawnSeconds);
@@ -159,7 +159,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
             },
         };
 
-        var warnings = engine.ApplyArrivalGeneratorsJson(JsonSerializer.Serialize(replacement));
+        var warnings = engine.ApplyGeneratorsJson(PayloadJson(replacement));
 
         Assert.NotNull(engine.Scenario);
         Assert.Single(engine.Scenario.Generators);
@@ -178,7 +178,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
         }
 
         var before = engine.Scenario!.Generators.Select(g => g.Config.Id).ToList();
-        var warnings = engine.ApplyArrivalGeneratorsJson("not-valid-json");
+        var warnings = engine.ApplyGeneratorsJson("not-valid-json");
 
         Assert.NotEmpty(warnings);
         Assert.Equal(before, engine.Scenario.Generators.Select(g => g.Config.Id).ToList());
@@ -205,7 +205,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
                 IntervalTime = 600,
             },
         };
-        var replacementJson = JsonSerializer.Serialize(replacement);
+        var replacementJson = PayloadJson(replacement);
 
         // Apply at t≈10s, then continue running so ElapsedSeconds advances past
         // the action's recorded time. Replay should restore the same shape.
@@ -215,7 +215,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
         }
         var applyElapsed = engine.Scenario!.ElapsedSeconds;
 
-        engine.ApplyArrivalGeneratorsJson(replacementJson);
+        engine.ApplyGeneratorsJson(replacementJson);
         var liveAfter = SnapshotIds(engine.Scenario.Generators);
 
         // Simulate the recording pipeline: apply the change directly via the
@@ -229,7 +229,7 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
 
         // Apply via the public path — this is what ReplayCommand does internally
         // when a RecordedArrivalGeneratorsChange is dispatched.
-        var replayWarnings = freshEngine.ApplyArrivalGeneratorsJson(replacementJson);
+        var replayWarnings = freshEngine.ApplyGeneratorsJson(replacementJson);
         Assert.Empty(replayWarnings);
 
         var replayed = SnapshotIds(freshEngine.Scenario!.Generators);
@@ -237,6 +237,9 @@ public class ArrivalGeneratorsLiveEditTests(ITestOutputHelper output)
         Assert.Equal(engine.Scenario.Generators[0].NextSpawnSeconds, freshEngine.Scenario.Generators[0].NextSpawnSeconds);
         output.WriteLine($"applyElapsed={applyElapsed}; live={liveAfter[0]}; replay={replayed[0]}");
     }
+
+    private static string PayloadJson(List<ScenarioGeneratorConfig> arrivalGenerators) =>
+        JsonSerializer.Serialize(new GeneratorsPayload { AircraftGenerators = arrivalGenerators });
 
     private static List<string> SnapshotIds(IReadOnlyList<GeneratorState> gens) =>
         gens.Select(g => $"{g.Config.Id}:{g.Config.Runway}:{g.NextSpawnSeconds}").ToList();

@@ -228,6 +228,19 @@ public class AircraftState
     public bool IsGeneratorArrival { get; set; }
 
     /// <summary>
+    /// True when this aircraft was produced by an overflight generator — a VFR transit that never lands, so
+    /// the destination-matching auto-delete that cleans up arrivals can never reach it. Paired with
+    /// <see cref="OverflightExitDistanceNm"/>, which tells the server when the transit has left.
+    /// </summary>
+    public bool IsGeneratedOverflight { get; set; }
+
+    /// <summary>
+    /// Distance from the primary airport, in nautical miles, past which an outbound generated overflight is
+    /// deleted. Null for every aircraft that is not a generated overflight.
+    /// </summary>
+    public double? OverflightExitDistanceNm { get; set; }
+
+    /// <summary>
     /// Scenario-elapsed seconds at which the aircraft's session ended from the student
     /// controller's perspective (landed, handed off, or dropped). Null while the aircraft
     /// is still active. Set by <see cref="Phases.Tower.LandingPhase"/> on touchdown,
@@ -344,6 +357,8 @@ public class AircraftState
             HasLeftStudentFrequency = dto.HasLeftStudentFrequency,
             SpawnedAtSeconds = dto.SpawnedAtSeconds,
             IsGeneratorArrival = dto.IsGeneratorArrival,
+            IsGeneratedOverflight = dto.IsGeneratedOverflight,
+            OverflightExitDistanceNm = dto.OverflightExitDistanceNm,
             CompletedAtSeconds = dto.CompletedAtSeconds,
             CompletionReason = (CompletionReason)dto.CompletionReasonValue,
             CompletionDetail = dto.CompletionDetail,
@@ -421,6 +436,8 @@ public class AircraftState
             HasLeftStudentFrequency = HasLeftStudentFrequency,
             SpawnedAtSeconds = SpawnedAtSeconds,
             IsGeneratorArrival = IsGeneratorArrival,
+            IsGeneratedOverflight = IsGeneratedOverflight,
+            OverflightExitDistanceNm = OverflightExitDistanceNm,
             CompletedAtSeconds = CompletedAtSeconds,
             CompletionReasonValue = (int)CompletionReason,
             CompletionDetail = CompletionDetail,

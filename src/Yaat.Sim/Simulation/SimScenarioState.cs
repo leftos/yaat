@@ -20,6 +20,8 @@ public sealed class SimScenarioState
     public List<ScheduledTrigger> TriggerQueue { get; } = [];
     public List<ScheduledPreset> PresetQueue { get; } = [];
     public List<GeneratorState> Generators { get; } = [];
+    public List<VfrArrivalGeneratorState> VfrArrivalGenerators { get; } = [];
+    public List<OverflightGeneratorState> OverflightGenerators { get; } = [];
 
     /// <summary>
     /// Airports armed for hold-for-release (uppercased as stored on <c>FlightPlan.Departure</c>).
@@ -275,7 +277,29 @@ public sealed class SimScenarioState
                             ConfigJson = JsonSerializer.Serialize(g.Config),
                             Runway = g.Runway.ToSnapshot(),
                             NextSpawnSeconds = g.NextSpawnSeconds,
-                            IsExhausted = g.IsExhausted,
+                            WasActive = g.WasActive,
+                        })
+                        .ToList()
+                    : null,
+            VfrArrivalGenerators =
+                VfrArrivalGenerators.Count > 0
+                    ? VfrArrivalGenerators
+                        .Select(g => new VfrArrivalGeneratorStateDto
+                        {
+                            ConfigJson = JsonSerializer.Serialize(g.Config),
+                            NextSpawnSeconds = g.NextSpawnSeconds,
+                            WasActive = g.WasActive,
+                        })
+                        .ToList()
+                    : null,
+            OverflightGenerators =
+                OverflightGenerators.Count > 0
+                    ? OverflightGenerators
+                        .Select(g => new OverflightGeneratorStateDto
+                        {
+                            ConfigJson = JsonSerializer.Serialize(g.Config),
+                            NextSpawnSeconds = g.NextSpawnSeconds,
+                            WasActive = g.WasActive,
                         })
                         .ToList()
                     : null,

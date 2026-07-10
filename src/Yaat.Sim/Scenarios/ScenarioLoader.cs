@@ -22,6 +22,8 @@ public class ScenarioLoadResult
     public List<LoadedAircraft> DeferredAircraft { get; init; } = [];
     public List<InitializationTrigger> Triggers { get; init; } = [];
     public List<ScenarioGeneratorConfig> Generators { get; init; } = [];
+    public List<VfrArrivalGeneratorConfig> VfrArrivalGenerators { get; init; } = [];
+    public List<OverflightGeneratorConfig> OverflightGenerators { get; init; } = [];
     public bool HasParkingSpawns { get; init; }
     public bool HasArrivalGenerators { get; init; }
     public string? AutoDeleteMode { get; init; }
@@ -113,10 +115,14 @@ public static class ScenarioLoader
             DeferredAircraft = deferred,
             Triggers = scenario.InitializationTriggers,
             Generators = scenario.AircraftGenerators,
+            VfrArrivalGenerators = scenario.VfrArrivalGenerators,
+            OverflightGenerators = scenario.OverflightGenerators,
             HasParkingSpawns = scenario.Aircraft.Any(ac =>
                 string.Equals(ac.StartingConditions.Type, "Parking", StringComparison.OrdinalIgnoreCase) && !HasTaxiPreset(ac.PresetCommands)
             ),
-            HasArrivalGenerators = scenario.AircraftGenerators.Count > 0,
+            // Overflights are deliberately excluded: they are not an arrival source, so they neither surface
+            // the solo arrival-rate slider nor get scaled by it.
+            HasArrivalGenerators = (scenario.AircraftGenerators.Count > 0) || (scenario.VfrArrivalGenerators.Count > 0),
             AutoDeleteMode = scenario.AutoDeleteMode,
             MinimumRating = scenario.MinimumRating,
             Warnings = warnings,

@@ -76,13 +76,45 @@ public sealed class ScheduledPreset
     public required double FireAtSeconds { get; init; }
 }
 
-public sealed class GeneratorState
+/// <summary>
+/// The runtime cursor every traffic generator carries, so the per-tick activation edge is evaluated once
+/// for all generator kinds rather than duplicated per kind.
+/// </summary>
+public interface IGeneratorRuntimeState
+{
+    IGeneratorConfig ConfigBase { get; }
+
+    /// <summary>Next scheduled spawn time (<c>IntervalTime</c> cadence; bumped on a no-room defer).</summary>
+    double NextSpawnSeconds { get; set; }
+
+    /// <summary>Activation on the previous tick, so a transition is logged once instead of every tick.</summary>
+    bool WasActive { get; set; }
+}
+
+public sealed class GeneratorState : IGeneratorRuntimeState
 {
     public required ScenarioGeneratorConfig Config { get; init; }
     public required RunwayInfo Runway { get; init; }
-
-    /// <summary>Next scheduled spawn time (<c>IntervalTime</c> cadence; bumped on a no-room defer).</summary>
     public double NextSpawnSeconds { get; set; }
+    public bool WasActive { get; set; }
 
-    public bool IsExhausted { get; set; }
+    public IGeneratorConfig ConfigBase => Config;
+}
+
+public sealed class VfrArrivalGeneratorState : IGeneratorRuntimeState
+{
+    public required VfrArrivalGeneratorConfig Config { get; init; }
+    public double NextSpawnSeconds { get; set; }
+    public bool WasActive { get; set; }
+
+    public IGeneratorConfig ConfigBase => Config;
+}
+
+public sealed class OverflightGeneratorState : IGeneratorRuntimeState
+{
+    public required OverflightGeneratorConfig Config { get; init; }
+    public double NextSpawnSeconds { get; set; }
+    public bool WasActive { get; set; }
+
+    public IGeneratorConfig ConfigBase => Config;
 }

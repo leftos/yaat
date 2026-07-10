@@ -2703,7 +2703,13 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        var editorVm = new ArrivalGeneratorsEditorViewModel(vm.LatestArrivalGenerators, vm.LatestPositions, vm.LatestRunwayIds);
+        var editorVm = new ArrivalGeneratorsEditorViewModel(
+            vm.LatestArrivalGenerators,
+            vm.LatestVfrArrivalGenerators,
+            vm.LatestOverflightGenerators,
+            vm.LatestPositions,
+            vm.LatestRunwayIds
+        );
 
         _arrivalGeneratorsEditorWindow = new ArrivalGeneratorsEditorWindow(
             editorVm,

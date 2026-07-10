@@ -721,7 +721,25 @@ public class SnapshotRoundTripTests
                             WidthFt = 150,
                         },
                         NextSpawnSeconds = 180.5,
-                        IsExhausted = false,
+                        WasActive = true,
+                    },
+                ],
+                VfrArrivalGenerators =
+                [
+                    new VfrArrivalGeneratorStateDto
+                    {
+                        ConfigJson = """{"Id":"vfr1","BearingFrom":150,"BearingTo":210}""",
+                        NextSpawnSeconds = 240.0,
+                        WasActive = true,
+                    },
+                ],
+                OverflightGenerators =
+                [
+                    new OverflightGeneratorStateDto
+                    {
+                        ConfigJson = """{"Id":"of1","ExitDistance":30}""",
+                        NextSpawnSeconds = 300.0,
+                        WasActive = false,
                     },
                 ],
             },
@@ -739,7 +757,19 @@ public class SnapshotRoundTripTests
         Assert.Equal("KOAK", gen.Runway.AirportId);
         Assert.Equal("28R", gen.Runway.Designator);
         Assert.Equal(180.5, gen.NextSpawnSeconds);
-        Assert.False(gen.IsExhausted);
+        Assert.True(gen.WasActive);
+
+        Assert.NotNull(deserialized.Scenario.VfrArrivalGenerators);
+        var vfrGen = Assert.Single(deserialized.Scenario.VfrArrivalGenerators);
+        Assert.Contains("vfr1", vfrGen.ConfigJson);
+        Assert.Equal(240.0, vfrGen.NextSpawnSeconds);
+        Assert.True(vfrGen.WasActive);
+
+        Assert.NotNull(deserialized.Scenario.OverflightGenerators);
+        var overflightGen = Assert.Single(deserialized.Scenario.OverflightGenerators);
+        Assert.Contains("of1", overflightGen.ConfigJson);
+        Assert.Equal(300.0, overflightGen.NextSpawnSeconds);
+        Assert.False(overflightGen.WasActive);
     }
 
     [Fact]

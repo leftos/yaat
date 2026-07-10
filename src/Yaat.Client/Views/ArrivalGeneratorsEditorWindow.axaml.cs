@@ -16,7 +16,7 @@ public partial class ArrivalGeneratorsEditorWindow : Window
     private readonly IFilePickerService _filePicker;
 
     public ArrivalGeneratorsEditorWindow()
-        : this(new ArrivalGeneratorsEditorViewModel([], [], []), new UserPreferences(), null, null) { }
+        : this(new ArrivalGeneratorsEditorViewModel([], [], [], [], []), new UserPreferences(), null, null) { }
 
     public ArrivalGeneratorsEditorWindow(
         ArrivalGeneratorsEditorViewModel viewModel,
@@ -48,8 +48,9 @@ public partial class ArrivalGeneratorsEditorWindow : Window
         {
             var json = vm.BuildJson();
             var result = await _applyCallback(json);
+            var total = vm.Generators.Count + vm.VfrArrivalGenerators.Count + vm.OverflightGenerators.Count;
             vm.StatusMessage = result.Success
-                ? $"Applied {vm.Generators.Count} generator(s)" + (result.Message is not null ? $" — {result.Message}" : "")
+                ? $"Applied {total} generator(s)" + (result.Message is not null ? $" — {result.Message}" : "")
                 : $"Apply failed: {result.Message}";
         }
         catch (Exception ex)
@@ -96,8 +97,18 @@ public partial class ArrivalGeneratorsEditorWindow : Window
                 return;
             }
 
-            var generatorsJson = vm.BuildJson();
-            obj["aircraftGenerators"] = JsonNode.Parse(generatorsJson);
+            // The payload carries every generator kind, but each rides in its own top-level scenario array —
+            // aircraftGenerators stays the upstream vNAS shape, the other two are YAAT extensions.
+            if (JsonNode.Parse(vm.BuildJson()) is not JsonObject payload)
+            {
+                vm.StatusMessage = "Failed to serialize the generator payload";
+                return;
+            }
+
+            foreach (var key in (string[])["aircraftGenerators", "vfrArrivalGenerators", "overflightGenerators"])
+            {
+                obj[key] = payload[key]?.DeepClone();
+            }
 
             await File.WriteAllTextAsync(path, obj.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
             vm.StatusMessage = $"Saved to {path}";

@@ -124,6 +124,27 @@ public static class AircraftGenerator
     /// HasFlightPlan=false. The controller files via DA / VP later. IFR ADD = filed plan with
     /// the auto-generated type so STARS/strips have a non-blank readout.
     /// </summary>
+    /// <summary>
+    /// Flight plan for a bearing spawn. A VFR generator that names a destination files a VFR plan — modelling
+    /// a VFR aircraft already receiving radar service, which is what earns it a discrete code. Everything else
+    /// falls through to the ADD-command behavior.
+    /// </summary>
+    private static AircraftFlightPlan BuildBearingFlightPlan(SpawnRequest request, string flightRules, string aircraftType)
+    {
+        if (request.VfrFiledDestination is not { } vfrDestination)
+        {
+            return BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: "", route: "");
+        }
+
+        return new AircraftFlightPlan
+        {
+            HasFlightPlan = true,
+            FlightRules = "VFR",
+            AircraftType = aircraftType,
+            Destination = vfrDestination,
+        };
+    }
+
     private static AircraftFlightPlan BuildAddFlightPlan(string flightRules, string aircraftType, string departure, string destination, string route)
     {
         if (flightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase))
@@ -231,9 +252,13 @@ public static class AircraftGenerator
         // assigns a discrete beacon. IFR ADD spawns get a discrete code at
         // spawn so they're trackable immediately — drawn from the facility's
         // beacon-code banks, the same allocator that filing a flight plan uses.
+        // A VFR spawn that files a plan (VfrFiledDestination) draws from the VFR bank instead.
+        var isVfr = request.Rules == FlightRulesKind.Vfr;
+        var isColdCall = isVfr && request.VfrFiledDestination is null;
+
         uint assignedCode;
         uint activeCode;
-        if (request.Rules == FlightRulesKind.Vfr)
+        if (isColdCall)
         {
             assignedCode = 0;
             activeCode = 1200;
@@ -241,7 +266,7 @@ public static class AircraftGenerator
         else
         {
             // 0 means every code is in use. Squawk 1200 rather than the illegal all-zeros code.
-            var code = beaconPool.AssignNextCode(isVfr: false);
+            var code = beaconPool.AssignNextCode(isVfr);
             if (code == 0)
             {
                 Log.LogWarning("Beacon code pool exhausted; spawning {Callsign} on 1200 without a discrete code", callsign);
@@ -371,7 +396,7 @@ public static class AircraftGenerator
                 AssignedCode = assignedCode,
                 Code = activeCode,
             },
-            FlightPlan = BuildAddFlightPlan(flightRules, aircraftType, departure: "", destination: "", route: ""),
+            FlightPlan = BuildBearingFlightPlan(request, flightRules, aircraftType),
         };
 
         return (state, null);
