@@ -151,7 +151,7 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        FlightPlanEditorManager.Open(ac, vm, TopLevel.GetTopLevel(this) as Window);
+        FlightPlanEditorManager.Open(ac, vm);
     }
 
     private void OnGridContextRequested(object? sender, ContextRequestedEventArgs e)
@@ -209,7 +209,7 @@ public partial class DataGridView : UserControl
 
         menu.Items.Add(new Separator());
         var editItem = new MenuItem { Header = "Edit flight plan" };
-        editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm, TopLevel.GetTopLevel(this) as Window);
+        editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm);
         menu.Items.Add(editItem);
 
         var deleteItem = new MenuItem { Header = "Delete" };

@@ -1,4 +1,3 @@
-using Avalonia.Controls;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
@@ -12,7 +11,7 @@ public static class FlightPlanEditorManager
     private static readonly ILogger Log = AppLog.CreateLogger("FlightPlanEditorManager");
     private static FlightPlanEditorWindow? _openEditor;
 
-    public static void Open(AircraftModel ac, MainViewModel vm, Window? owner)
+    public static void Open(AircraftModel ac, MainViewModel vm)
     {
         if (_openEditor is not null)
         {
@@ -67,14 +66,8 @@ public static class FlightPlanEditorManager
 
         new WindowGeometryHelper(window, vm.Preferences, "FlightPlanEditor", 640, 250).Restore();
 
-        if (owner is not null)
-        {
-            window.Show(owner);
-        }
-        else
-        {
-            window.Show();
-        }
+        // Shown un-owned so the editor never locks above the main window or other tool windows (#287).
+        window.Show();
     }
 
     public static void Close()

@@ -12,6 +12,13 @@ public partial class MainViewModel
 {
     public ObservableCollection<FavoriteCommand> DisplayFavorites { get; } = [];
 
+    /// <summary>
+    /// Label shown in the pop-out Favorites Panel status bar so the user can see which aircraft a
+    /// favorite click will act on (favorites target <see cref="SelectedAircraft"/>). Notified via
+    /// <c>[NotifyPropertyChangedFor]</c> on <c>SelectedAircraft</c>.
+    /// </summary>
+    public string FavoritePanelTargetText => SelectedAircraft is { } aircraft ? $"Target: {aircraft.Callsign}" : "No aircraft selected";
+
     public void RefreshDisplayFavorites()
     {
         DisplayFavorites.Clear();

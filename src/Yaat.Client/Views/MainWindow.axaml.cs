@@ -349,7 +349,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         if (DataContext is MainViewModel vm)
         {
-            FavoritesPanelWindow.ShowOrActivate(vm, this);
+            FavoritesPanelWindow.ShowOrActivate(vm);
         }
     }
 
@@ -370,7 +370,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         _speechDebugWindow = new SpeechDebugWindow(vm.SpeechService, vm.SpeechSampleStore, vm.Preferences, vm.AudioCapture);
         _speechDebugWindow.Closed += (_, _) => _speechDebugWindow = null;
-        _speechDebugWindow.Show(this);
+        _speechDebugWindow.Show();
     }
 
     private static void SetupTimelineSlider(Slider slider, MainViewModel vm)
@@ -2446,7 +2446,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             _sessionReportWindow = window;
             new WindowGeometryHelper(window, vm.Preferences, "SessionReport", 1000, 700).Restore();
             await window.StartAsync();
-            window.Show(this);
+            window.Show();
         }
         catch (Exception ex)
         {

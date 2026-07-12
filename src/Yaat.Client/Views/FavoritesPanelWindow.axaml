@@ -5,6 +5,29 @@
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Favorites Panel">
 
-    <views:FavoritesBarView IsPaletteMode="True" />
+    <DockPanel>
+        <!-- Status bar: mirrors MainWindow's so a favorite click gives feedback from within the
+             panel window. Shows which aircraft the click targets plus the last command result. -->
+        <Border DockPanel.Dock="Bottom"
+                BorderBrush="#3F3F46"
+                BorderThickness="0,1,0,0"
+                Padding="8,2">
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding FavoritePanelTargetText}"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           FontSize="11" />
+                <TextBlock Grid.Column="1"
+                           Margin="12,0,0,0"
+                           HorizontalAlignment="Right"
+                           Text="{Binding StatusText}"
+                           Foreground="{DynamicResource SubtleTextBrush}"
+                           FontSize="11"
+                           TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </Border>
+
+        <views:FavoritesBarView IsPaletteMode="True" />
+    </DockPanel>
 
 </Window>

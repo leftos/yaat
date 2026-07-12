@@ -88,7 +88,7 @@ public partial class SpeechDebugWindow : Window
             return;
         }
         var dialog = new SettingsWindow(_preferences, _audioCapture, _sampleStore);
-        dialog.Show(this);
+        dialog.Show();
     }
 
     public void OnPlayClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

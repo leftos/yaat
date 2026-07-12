@@ -1444,7 +1444,7 @@ The favorites bar sits below the command input and provides quick-access buttons
 - **Ctrl+Click** a favorite to append its command text without sending (joined with `,`).
 - **Right-click** a favorite to edit its label, command text, ground override, category, visibility scope, button colors, button size, or delete it.
 - Click **+** to add a new favorite.
-- Click **Panel** or use **View > Open Favorites Panel...** for a larger pop-out panel with **Air**, **Ground**, **Vehicle**, and **Airport** tabs.
+- Click **Panel** or use **View > Open Favorites Panel...** for a larger pop-out panel with **Air**, **Ground**, **Vehicle**, and **Airport** tabs. The panel's status bar shows which aircraft a favorite will act on (your current selection) and the result of your last click. Because favorites act on the selected aircraft, select one in the main window first; the panel floats freely, so you can bring the main window forward to change your selection.
 - In the pop-out panel, set **Cols** for a fixed grid, click **Batch** to add a screenful of blank slots to the active tab, then right-click each slot to fill in its label and command. Click **Blank** for a single extra slot. Blank slots reserve button-sized space so you can line up commands in predictable positions; click-hold-drag favorites or blank slots to rearrange them, or right-click to move left/right, insert blanks before/after, change category/scope/size, or delete. The same drag and move controls are available from the main favorites bar.
 - **Right-click the command input** with text present to choose **Save as favorite…** — the add dialog opens with the command pre-filled, so you only need to type a label.
 

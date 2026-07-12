@@ -281,7 +281,7 @@ public partial class GroundView : UserControl
         var ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
         if (ac is not null)
         {
-            FlightPlanEditorManager.Open(ac, mainVm, TopLevel.GetTopLevel(this) as Window);
+            FlightPlanEditorManager.Open(ac, mainVm);
         }
     }
 

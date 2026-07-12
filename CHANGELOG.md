@@ -8,6 +8,7 @@
 - **Active toggle on every generator**, to start or stop a traffic stream mid-session regardless of its start-offset and max-time window.
 - Generated VFR traffic never spawns inside Class B or C airspace, nor within standard radar separation of an aircraft already flying.
 - Overflights fly the correct VFR cruising altitude for their course, and are removed once past their exit distance unless you hold the track.
+- The Favorites Panel now shows which aircraft your next favorite will act on and the result of your last click.
 
 ### Changed
 - **Scenario > Edit Arrival Generators...** is now **Edit Aircraft Generators...**, with a tab per generator kind and Save As writing all three.
@@ -17,6 +18,8 @@
 
 ### Fixed
 - A generator with a blank **Max time** keeps producing traffic for the whole session, instead of expiring an hour after you apply an edit.
+- Clicking a favorite command button runs its command, in both the favorites bar and the pop-out Favorites Panel.
+- The Favorites Panel, Flight Plan editor, Speech Debug, and Session Report windows no longer stay pinned above the main window.
 
 ## v0.9.7-beta [2026/07/08]
 

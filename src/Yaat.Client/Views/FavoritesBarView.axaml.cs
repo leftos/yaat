@@ -587,14 +587,16 @@ public partial class FavoritesBarView : UserControl
 
         if (props.IsLeftButtonPressed)
         {
+            // Record a *pending* drag but do NOT capture the pointer yet. Capturing on every press
+            // stole the click from the underlying Button (the CaptureLost cascade released the
+            // button's own capture), so plain clicks did nothing (#287). Capture is deferred to the
+            // moment a drag actually activates in OnFavoritePointerMoved.
             _pendingDragFavorite = fav;
             _activeDragFavorite = null;
             _lastDragTarget = null;
             _dragStartPoint = e.GetPosition(this);
             _dragPressUtc = DateTime.UtcNow;
             _lastDragReorderUtc = DateTime.MinValue;
-            _capturedPointer = e.Pointer;
-            e.Pointer.Capture(this);
         }
     }
 
@@ -661,7 +663,7 @@ public partial class FavoritesBarView : UserControl
             return;
         }
 
-        FavoritesPanelWindow.ShowOrActivate(vm, TopLevel.GetTopLevel(this) as Window);
+        FavoritesPanelWindow.ShowOrActivate(vm);
     }
 
     private void OnPaletteTabChanged(object? sender, SelectionChangedEventArgs e)
@@ -716,6 +718,12 @@ public partial class FavoritesBarView : UserControl
 
             _activeDragFavorite = dragged;
             _suppressNextFavoriteClick = true;
+
+            // Now that this is a real drag (past the hold delay + move threshold), capture the
+            // pointer so reorder moves keep flowing even if it leaves a button. The click is already
+            // suppressed above, so stealing the button's capture here no longer loses a click.
+            _capturedPointer = e.Pointer;
+            e.Pointer.Capture(this);
         }
 
         if (now - _lastDragReorderUtc < DragReorderDebounce)

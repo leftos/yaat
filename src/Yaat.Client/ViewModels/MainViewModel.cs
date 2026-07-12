@@ -153,6 +153,7 @@ public partial class MainViewModel : ObservableObject
     private int _commandCaretIndex;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FavoritePanelTargetText))]
     private AircraftModel? _selectedAircraft;
 
     [ObservableProperty]
