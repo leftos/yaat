@@ -2437,8 +2437,10 @@ public static class CommandDispatcher
             dimensions |= CommandDescriber.GetCommandDimension(cmd);
         }
 
-        var waitTime = parsedCommands.OfType<WaitCommand>().FirstOrDefault();
-        var waitDist = parsedCommands.OfType<WaitDistanceCommand>().FirstOrDefault();
+        // Sum all leading waits — `AT A WAIT 5 WAIT 10 <cmd>` merges two WaitCommands into one block.
+        double waitSeconds = parsedCommands.OfType<WaitCommand>().Sum(w => w.Seconds);
+        double waitDistanceNm = parsedCommands.OfType<WaitDistanceCommand>().Sum(w => w.DistanceNm);
+        bool hasWait = parsedCommands.Exists(c => c is WaitCommand or WaitDistanceCommand);
 
         var description = labels.DescriptionPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeCommand));
         var naturalDescription = labels.NaturalPrefix + string.Join(", ", parsedCommands.Select(CommandDescriber.DescribeNatural));
@@ -2454,9 +2456,9 @@ public static class CommandDispatcher
             NaturalDescription = naturalDescription,
             DescriptionPrefix = labels.DescriptionPrefix,
             NaturalDescriptionPrefix = labels.NaturalPrefix,
-            IsWaitBlock = (waitTime is not null) || (waitDist is not null),
-            WaitRemainingSeconds = waitTime?.Seconds ?? 0,
-            WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
+            IsWaitBlock = hasWait,
+            WaitRemainingSeconds = waitSeconds,
+            WaitRemainingDistanceNm = waitDistanceNm,
             SourceCommandText = sourceCommandText,
             HasTrackCommand = hasTrackCommand,
         };

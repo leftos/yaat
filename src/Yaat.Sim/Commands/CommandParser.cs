@@ -122,6 +122,8 @@ public static class CommandParser
         }
     }
 
+    private static bool IsWaitLikeCommand(ParsedCommand cmd) => cmd is WaitCommand or WaitDistanceCommand;
+
     // Thread-local storage for propagating block/command failure reasons through ParseBlock
     [ThreadStatic]
     private static string? _lastBlockFailure;
@@ -299,38 +301,74 @@ public static class CommandParser
         {
             // Expansion produced additional blocks — first gets this block's condition,
             // subsequent become standalone blocks
-            var subBlocks = expanded.Split(';');
-            var results = new List<ParsedBlock>();
-
-            for (int i = 0; i < subBlocks.Length; i++)
+            var subBlocks = new List<string>();
+            foreach (var raw in expanded.Split(';'))
             {
-                var sub = subBlocks[i].Trim();
-                if (string.IsNullOrEmpty(sub))
+                var s = raw.Trim();
+                if (s.Length > 0)
                 {
-                    continue;
+                    subBlocks.Add(s);
+                }
+            }
+
+            var results = new List<ParsedBlock>();
+            int index = 0;
+
+            if (subBlocks.Count > 0)
+            {
+                var firstCmds = ParseCommandList(subBlocks[0], aircraftRoute, debugLog);
+                if (firstCmds is null)
+                {
+                    return null;
                 }
 
-                if (i == 0)
+                // Merge a leading WAIT into its conditioned block. `AT A WAIT n <cmd>` expands to
+                // `WAIT n; <cmd>`; keeping `<cmd>` unconditioned would let CFIX-implicit-AT injection
+                // (or the perpetual-nav current block) fire it at the fix instead of n seconds later.
+                // Absorb the following unconditioned payload sub-blocks so the whole thing stays one
+                // conditioned block whose payload the queue holds until the wait elapses (issue #286).
+                if (condition is not null && firstCmds.Count > 0 && firstCmds.TrueForAll(IsWaitLikeCommand))
                 {
-                    var cmds = ParseCommandList(sub, aircraftRoute, debugLog);
-                    if (cmds is null)
+                    var merged = new List<ParsedCommand>(firstCmds);
+                    index = 1;
+                    while (index < subBlocks.Count)
                     {
-                        return null;
+                        var nextParsed = ParseBlock(subBlocks[index], aircraftRoute, debugLog);
+                        if (nextParsed is null)
+                        {
+                            return null;
+                        }
+
+                        // Stop at the first sub-block that introduces its own condition (or splits
+                        // further); it stays a standalone block handled by the loop below.
+                        if (nextParsed.Count != 1 || nextParsed[0].Condition is not null)
+                        {
+                            break;
+                        }
+
+                        merged.AddRange(nextParsed[0].Commands);
+                        index++;
                     }
 
-                    results.Add(new ParsedBlock(condition, cmds));
+                    results.Add(new ParsedBlock(condition, merged));
                 }
                 else
                 {
-                    // Recursive call for subsequent blocks (they may have their own conditions)
-                    var subParsed = ParseBlock(sub, aircraftRoute, debugLog);
-                    if (subParsed is null)
-                    {
-                        return null;
-                    }
-
-                    results.AddRange(subParsed);
+                    results.Add(new ParsedBlock(condition, firstCmds));
+                    index = 1;
                 }
+            }
+
+            for (; index < subBlocks.Count; index++)
+            {
+                // Recursive call for subsequent blocks (they may have their own conditions)
+                var subParsed = ParseBlock(subBlocks[index], aircraftRoute, debugLog);
+                if (subParsed is null)
+                {
+                    return null;
+                }
+
+                results.AddRange(subParsed);
             }
 
             return results.Count > 0 ? results : null;

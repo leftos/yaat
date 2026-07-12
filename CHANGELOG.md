@@ -20,6 +20,7 @@
 - A generator with a blank **Max time** keeps producing traffic for the whole session, instead of expiring an hour after you apply an edit.
 - Clicking a favorite command button runs its command, in both the favorites bar and the pop-out Favorites Panel.
 - The Favorites Panel, Flight Plan editor, Speech Debug, and Session Report windows no longer stay pinned above the main window.
+- Scenario presets that stagger a maneuver with `WAIT` (e.g. `AT TTE WAIT 170 DM 110` — descend 170 seconds after crossing TTE) now hold the aircraft for the full delay before the maneuver fires, with any `;`-sequenced command (a trailing `RNS`) running once the wait finishes.
 
 ## v0.9.7-beta [2026/07/08]
 

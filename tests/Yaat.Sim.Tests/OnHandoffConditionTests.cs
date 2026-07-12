@@ -95,21 +95,18 @@ public class OnHandoffConditionTests
     }
 
     [Fact]
-    public void CommandParser_OnhoWaitCm_ProducesTwoBlocks()
+    public void CommandParser_OnhoWaitCm_ProducesSingleWaitBlock()
     {
+        // The leading WAIT is merged into its conditioned block so the payload is held for the wait's
+        // duration after the handoff, rather than firing on the handoff (issue #286).
         var result = CommandParser.ParseCompound("ONHO WAIT 30 CM 360");
         Assert.True(result.IsSuccess);
-        Assert.Equal(2, result.Value!.Blocks.Count);
+        var block = Assert.Single(result.Value!.Blocks);
 
-        // Block 1: ONHO + WAIT 30
-        Assert.IsType<OnHandoffCondition>(result.Value!.Blocks[0].Condition);
-        Assert.Single(result.Value!.Blocks[0].Commands);
-        Assert.IsType<WaitCommand>(result.Value!.Blocks[0].Commands[0]);
-
-        // Block 2: CM 360
-        Assert.Null(result.Value!.Blocks[1].Condition);
-        Assert.Single(result.Value!.Blocks[1].Commands);
-        Assert.IsType<ClimbMaintainCommand>(result.Value!.Blocks[1].Commands[0]);
+        Assert.IsType<OnHandoffCondition>(block.Condition);
+        Assert.Equal(2, block.Commands.Count);
+        Assert.Equal(30.0, Assert.IsType<WaitCommand>(block.Commands[0]).Seconds);
+        Assert.IsType<ClimbMaintainCommand>(block.Commands[1]);
     }
 
     [Fact]

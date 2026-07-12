@@ -1150,7 +1150,7 @@ public static class FlightPhysics
         if (aircraft.Phases?.CurrentPhase is not null)
         {
             int triggerStart = queue.CurrentBlock is { IsApplied: true } ? queue.CurrentBlockIndex + 1 : queue.CurrentBlockIndex;
-            ApplyReadyConditionalBlocks(aircraft, queue, triggerStart, aircraftLookup);
+            ApplyReadyConditionalBlocks(aircraft, queue, triggerStart, deltaSeconds, aircraftLookup);
             return;
         }
 
@@ -1181,7 +1181,7 @@ public static class FlightPhysics
                 // "CM 100; LV 050 FH 270", and "SPD 210; ATFN 10 RNS" to fire
                 // on their trigger without waiting for the current lateral,
                 // altitude, or speed target to complete.
-                ApplyReadyConditionalBlocks(aircraft, queue, queue.CurrentBlockIndex + 1, aircraftLookup);
+                ApplyReadyConditionalBlocks(aircraft, queue, queue.CurrentBlockIndex + 1, deltaSeconds, aircraftLookup);
                 return;
             }
         }
@@ -1204,8 +1204,8 @@ public static class FlightPhysics
                 }
             }
 
-            // Apply the block's commands
-            ApplyBlock(aircraft, block);
+            // Apply the block's commands (a triggered WAIT holds the payload until its countdown elapses).
+            ApplyOrCountdownWait(aircraft, block, deltaSeconds);
         }
     }
 
@@ -1218,9 +1218,11 @@ public static class FlightPhysics
         AircraftState aircraft,
         CommandQueue queue,
         int startIndex,
+        double deltaSeconds,
         Func<string, AircraftState?>? aircraftLookup
     )
     {
+        bool holdApplies = false;
         for (int i = startIndex; i < queue.Blocks.Count; i++)
         {
             var block = queue.Blocks[i];
@@ -1234,19 +1236,36 @@ public static class FlightPhysics
                 break;
             }
 
-            block.TriggerMet = IsTriggerMet(aircraft, block, aircraftLookup);
+            // Latch the trigger: once met it stays met, so a post-trigger WAIT (and any later block held
+            // behind it) survives the aircraft flying past the fix (a ReachFix check would otherwise flip
+            // back to false and orphan the block).
             if (!block.TriggerMet)
             {
-                TrackFrdMiss(aircraft, block);
+                block.TriggerMet = IsTriggerMet(aircraft, block, aircraftLookup);
+                if (!block.TriggerMet)
+                {
+                    TrackFrdMiss(aircraft, block);
+                    continue;
+                }
+
+                if (block.Trigger.Type is BlockTriggerType.OnHandoff)
+                {
+                    aircraft.Track.HandoffAccepted = false;
+                }
+            }
+
+            // Once a preceding triggered WAIT is still counting down, hold the following blocks too:
+            // `;` sequences them after the wait's payload. Their trigger stays latched (above) so they
+            // apply once the wait clears, rather than firing at the fix in parallel with the wait.
+            if (holdApplies)
+            {
                 continue;
             }
 
-            if (block.Trigger.Type is BlockTriggerType.OnHandoff)
+            if (!ApplyOrCountdownWait(aircraft, block, deltaSeconds))
             {
-                aircraft.Track.HandoffAccepted = false;
+                holdApplies = true;
             }
-
-            ApplyBlock(aircraft, block);
         }
     }
 
@@ -1716,6 +1735,24 @@ public static class FlightPhysics
     }
 
     /// <summary>
+    /// Applies a triggered block, but first counts down a post-trigger WAIT so the payload fires the
+    /// wait's duration <em>after</em> the trigger fires — not on the trigger itself (issue #286).
+    /// Returns <c>true</c> when the payload was applied this tick, <c>false</c> while the wait is still
+    /// counting down. Only engages for a block that is both triggered and a wait block; a standalone
+    /// (untriggered) WAIT keeps applying immediately and counting down as the current block.
+    /// </summary>
+    private static bool ApplyOrCountdownWait(AircraftState aircraft, CommandBlock block, double deltaSeconds)
+    {
+        if (block.Trigger is not null && block.IsWaitBlock && !CheckWaitComplete(block, aircraft, deltaSeconds))
+        {
+            return false;
+        }
+
+        ApplyBlock(aircraft, block);
+        return true;
+    }
+
+    /// <summary>
     /// Called when a fix is sequenced from the navigation route or an approach phase.
     /// Scans the command queue for any pending block with a ReachFix trigger matching
     /// the given fix name and fires it immediately. This ensures AT fix triggers work
@@ -1730,6 +1767,7 @@ public static class FlightPhysics
             return;
         }
 
+        bool pendingWaitAhead = false;
         for (int i = 0; i < queue.Blocks.Count; i++)
         {
             var block = queue.Blocks[i];
@@ -1751,7 +1789,19 @@ public static class FlightPhysics
             Log.LogDebug("[AtFix] {Callsign}: fix {Fix} sequenced from route, firing block {Idx}", aircraft.Callsign, fixName, i);
 
             block.TriggerMet = true;
-            ApplyBlock(aircraft, block);
+
+            // A triggered WAIT latches its trigger here but is applied only once its countdown elapses,
+            // driven by the per-tick queue update — so the payload fires n seconds after the fix, not on
+            // it (issue #286). Blocks sequenced after it (`;`) latch too but must not fire ahead of the
+            // wait's payload, so hold them for the per-tick update as well.
+            if (block.IsWaitBlock)
+            {
+                pendingWaitAhead = true;
+            }
+            else if (!pendingWaitAhead)
+            {
+                ApplyBlock(aircraft, block);
+            }
         }
     }
 
@@ -1777,6 +1827,7 @@ public static class FlightPhysics
             return;
         }
 
+        bool pendingWaitAhead = false;
         for (int i = 0; i < queue.Blocks.Count; i++)
         {
             var block = queue.Blocks[i];
@@ -1811,7 +1862,17 @@ public static class FlightPhysics
             );
 
             block.TriggerMet = true;
-            ApplyBlock(aircraft, block);
+
+            // See NotifyFixSequenced: a triggered WAIT latches here and applies its payload only after
+            // its countdown; blocks sequenced after it (`;`) are held for the per-tick update too.
+            if (block.IsWaitBlock)
+            {
+                pendingWaitAhead = true;
+            }
+            else if (!pendingWaitAhead)
+            {
+                ApplyBlock(aircraft, block);
+            }
         }
     }
 
