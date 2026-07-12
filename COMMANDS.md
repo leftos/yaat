@@ -237,6 +237,11 @@ LV 050 WAIT 10; FH 090
 ```
 At 5,000 ft, wait 10 seconds, then fly heading 090.
 
+```
+AT TTE WAIT 170 DM 110
+```
+On crossing TTE, wait 170 seconds, then descend and maintain 11,000 ft. A `WAIT` placed after a fix or altitude condition starts counting once that condition is met, so the delay runs from the moment the aircraft reaches TTE — not from when the command was issued.
+
 ### The Conditional List
 
 Commands gated by a precondition — `AT`/`LV` (altitude or fix), `ONHO` (on handoff), `ATFN` (intercept), `BEHIND` (give-way), and `WAIT`/`WAITD` (time/distance) — accumulate into a single **conditional list**: an unordered set of pending instructions that each fire when their own trigger is met. Conditionals are **additive** — issuing one never cancels the others. A scenario or controller can pre-load `WAIT 120 RWY 18L TAXI N B`, `ONHO CM 120`, and `AT 6000 DCT MUNCH` on a departure and all three stand: it taxis at the 120s mark, climbs on handoff, and turns direct at 6,000 ft.

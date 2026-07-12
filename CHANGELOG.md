@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.8-beta [2026/07/12]
+
+### Highlights
+- **New VFR traffic generators.** Spawn GA traffic inbound to the field (VFR arrivals) or transiting your airspace (overflights), and start or stop any stream mid-session.
+- **Realistic VFR spawning.** Generated VFR traffic never appears inside Class B or C airspace or within separation of existing aircraft, and overflights fly the correct cruising altitude for their course.
+- **The app is now called "YAAT".** The desktop app, Start-menu shortcut, and macOS application are renamed from "YAAT Client" on your next update.
+- **Favorite buttons work again.** Clicking a favorite command in the bar or the pop-out panel runs its command, and tool windows no longer stay pinned above the main window.
 
 ### Added
 - **VFR arrival generators.** Generate GA traffic inbound to the field on a bearing arc, with distance, altitude, direct-to fix, and initial descent rate.
