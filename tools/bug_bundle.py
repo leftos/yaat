@@ -7,7 +7,9 @@ Usage:
 Subcommands:
     info      Manifest summary + aircraft callsigns at t=0.
     snapshot  Dump snapshot nearest to --at <seconds> (optionally filtered by --callsign).
-    track     Time-series of aircraft state across all snapshots (text or --json).
+    track     Time-series of aircraft state across all snapshots. Columns chosen
+              with --fields (keys or presets: default/nav/vert/pos/proc/full);
+              --json always emits every field.
     actions   List recorded user actions chronologically.
     history   Per-callsign chronological events: commands + phase / route / target / approach changes.
     phases    Per-callsign phase-transition timeline (subset of history).
@@ -405,19 +407,184 @@ def _phase_name(ac: dict[str, Any]) -> str:
     return name.removesuffix("Phase") if name.endswith("Phase") else name
 
 
+def _norm360(deg: float) -> float:
+    return deg % 360.0
+
+
+def _norm180(deg: float) -> float:
+    """Wrap to (-180, 180]; used for off-nose / heading-delta fields."""
+    return (deg + 180.0) % 360.0 - 180.0
+
+
+def _bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Initial great-circle bearing (deg true) from point 1 to point 2."""
+    import math
+
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dlon = math.radians(lon2 - lon1)
+    y = math.sin(dlon) * math.cos(p2)
+    x = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dlon)
+    return math.degrees(math.atan2(y, x)) % 360.0
+
+
+def _targets(ac: dict[str, Any]) -> dict[str, Any]:
+    return ac.get("Targets") or {}
+
+
+def _position(ac: dict[str, Any]) -> dict[str, Any]:
+    return ac.get("Position") or {}
+
+
+def _procedure(ac: dict[str, Any]) -> dict[str, Any]:
+    return ac.get("Procedure") or {}
+
+
+def _mag_heading(ac: dict[str, Any]) -> float | None:
+    """Magnetic heading = true heading - declination (matches TrueHeading.ToMagnetic)."""
+    th = ac.get("TrueHeadingDeg")
+    dec = ac.get("Declination")
+    if not isinstance(th, (int, float)) or not isinstance(dec, (int, float)):
+        return None
+    return _norm360(th - dec)
+
+
+def _turn_direction(ac: dict[str, Any]) -> str | None:
+    """PreferredTurnDirection: 0=Left, 1=Right, null=shortest (per TurnDirection enum)."""
+    v = _targets(ac).get("PreferredTurnDirection")
+    if v is None:
+        return None
+    return {0: "L", 1: "R"}.get(v, str(v))
+
+
+def _next_fix(ac: dict[str, Any]) -> dict[str, Any] | None:
+    route = _targets(ac).get("NavigationRoute") or []
+    return route[0] if route else None
+
+
+def _next_fix_name(ac: dict[str, Any]) -> str | None:
+    fix = _next_fix(ac)
+    return fix.get("Name") if fix else None
+
+
+def _off_nose(ac: dict[str, Any]) -> float | None:
+    """Bearing to the next nav fix minus true heading, wrapped to (-180, 180].
+
+    Negative => the fix is to the left of the nose, positive => to the right.
+    Directly answers "is the aircraft turning toward or away from its next fix".
+    """
+    fix = _next_fix(ac)
+    if not fix:
+        return None
+    fp = fix.get("Position") or {}
+    pos = _position(ac)
+    lat, lon = pos.get("Lat"), pos.get("Lon")
+    flat, flon = fp.get("Lat"), fp.get("Lon")
+    th = ac.get("TrueHeadingDeg")
+    if None in (lat, lon, flat, flon, th):
+        return None
+    return _norm180(_bearing_deg(lat, lon, flat, flon) - th)
+
+
+# Field registry for `track`: key -> (header label, column width, float precision
+# or None for strings, getter(ac) -> raw value). JSON output always emits every
+# field; --fields only shapes which columns the text table shows.
+_TRACK_FIELDS: dict[str, tuple[str, int, int | None, Any]] = {
+    "phase": ("phase", 14, None, _phase_name),
+    "alt": ("alt", 6, 0, lambda ac: ac.get("Altitude")),
+    "vs": ("vs", 5, 0, lambda ac: ac.get("VerticalSpeed")),
+    "ias": ("ias", 5, 1, lambda ac: ac.get("IndicatedAirspeed")),
+    "hdg": ("hdg", 5, 1, lambda ac: ac.get("TrueHeadingDeg")),
+    "mhdg": ("mhdg", 5, 1, _mag_heading),
+    "trk": ("trk", 5, 1, lambda ac: ac.get("TrueTrackDeg")),
+    "bank": ("bank", 5, 1, lambda ac: ac.get("BankAngle")),
+    "thdg": ("thdg", 5, 1, lambda ac: _targets(ac).get("TargetTrueHeadingDeg")),
+    "ahdg": ("ahdg", 5, 1, lambda ac: _targets(ac).get("AssignedMagneticHeadingDeg")),
+    "turn": ("turn", 4, None, _turn_direction),
+    "tgt_spd": ("tgt", 5, 1, lambda ac: _targets(ac).get("TargetSpeed")),
+    "aspd": ("aspd", 5, 0, lambda ac: _targets(ac).get("AssignedSpeed")),
+    "aalt": ("aAlt", 6, 0, lambda ac: _targets(ac).get("AssignedAltitude")),
+    "talt": ("tAlt", 6, 0, lambda ac: _targets(ac).get("TargetAltitude")),
+    "following": ("foll", 7, None, lambda ac: (ac.get("Approach") or {}).get("FollowingCallsign")),
+    "lat": ("lat", 9, 4, lambda ac: _position(ac).get("Lat")),
+    "lon": ("lon", 10, 4, lambda ac: _position(ac).get("Lon")),
+    "nextfix": ("nextfix", 8, None, _next_fix_name),
+    "offnose": ("offnose", 7, 1, _off_nose),
+    "sid": ("sid", 7, None, lambda ac: _procedure(ac).get("ActiveSidId")),
+    "star": ("star", 7, None, lambda ac: _procedure(ac).get("ActiveStarId")),
+    "deprwy": ("depRwy", 6, None, lambda ac: _procedure(ac).get("DepartureRunway")),
+}
+
+_TRACK_PRESETS: dict[str, list[str]] = {
+    "default": ["phase", "alt", "vs", "ias", "tgt_spd", "aalt", "following"],
+    "nav": ["phase", "hdg", "mhdg", "trk", "bank", "thdg", "ahdg", "turn", "nextfix", "offnose"],
+    "vert": ["phase", "alt", "vs", "ias", "aalt", "talt"],
+    "pos": ["phase", "lat", "lon", "hdg", "trk"],
+    "proc": ["phase", "sid", "star", "deprwy", "nextfix"],
+    "full": [
+        "phase", "alt", "vs", "ias", "hdg", "mhdg", "trk", "bank", "thdg", "ahdg",
+        "turn", "tgt_spd", "aspd", "aalt", "talt", "nextfix", "offnose",
+        "sid", "star", "deprwy", "following",
+    ],
+}
+_TRACK_PRESETS["all"] = _TRACK_PRESETS["full"]
+
+
+def _resolve_track_fields(spec: str) -> list[str]:
+    """Expand a --fields spec (comma-separated presets and/or field keys) to an ordered list."""
+    keys: list[str] = []
+    for raw in spec.split(","):
+        tok = raw.strip()
+        if not tok:
+            continue
+        if tok in _TRACK_PRESETS:
+            for k in _TRACK_PRESETS[tok]:
+                if k not in keys:
+                    keys.append(k)
+        elif tok in _TRACK_FIELDS:
+            if tok not in keys:
+                keys.append(tok)
+        else:
+            raise ValueError(
+                f"unknown track field or preset '{tok}'. "
+                f"presets: {', '.join(_TRACK_PRESETS)}; fields: {', '.join(_TRACK_FIELDS)}"
+            )
+    return keys or list(_TRACK_PRESETS["default"])
+
+
+def _fmt_track_cell(value: Any, width: int, prec: int | None) -> str:
+    """Format one cell to the column width (numbers right-justified, strings left).
+
+    Strings are padded to the width but never truncated, so long phase names and
+    fix identifiers stay legible even if they overflow the column.
+    """
+    if value is None:
+        return "-".rjust(width)
+    if prec is not None and isinstance(value, (int, float)):
+        return f"{value:{width}.{prec}f}"
+    return str(value).ljust(width)
+
+
 def cmd_track(args: argparse.Namespace) -> int:
     """Iterate all snapshots and emit a per-snapshot row per callsign.
 
-    For each callsign, prints t, pos/alt/hdg/ias, TargetSpeed, FollowingCallsign,
-    and the active phase. When --pair is given, also prints the gap (nm) between
-    the two callsigns and a running VfrFollowPhase-style runaway timer (seconds
-    the gap has been strictly above the best-seen gap since follow started).
+    The text table columns are chosen with --fields (comma-separated field keys
+    and/or presets: default, nav, vert, pos, proc, full). JSON output (--json)
+    always includes every field regardless of --fields. When --pair is given,
+    also prints the gap (nm) between the two callsigns and a running
+    VfrFollowPhase-style runaway timer (seconds the gap has been strictly above
+    the best-seen gap since follow started).
     """
     callsigns = [c.upper() for c in (args.callsigns or [])]
     if args.pair:
         callsigns = list({*callsigns, *[c.upper() for c in args.pair]})
     if not callsigns:
         print("error: supply at least one callsign (or --pair A B)", file=sys.stderr)
+        return 2
+
+    try:
+        field_keys = _resolve_track_fields(args.fields)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     with BundleReader(args.bundle) as reader:
@@ -452,20 +619,8 @@ def cmd_track(args: argparse.Namespace) -> int:
                 if ac is None:
                     row[cs] = None
                     continue
-                pos = ac.get("Position") or {}
-                targets = ac.get("Targets") or {}
-                row[cs] = {
-                    "lat": pos.get("Lat"),
-                    "lon": pos.get("Lon"),
-                    "alt": ac["Altitude"],
-                    "vs": ac.get("VerticalSpeed"),
-                    "ias": ac["IndicatedAirspeed"],
-                    "hdg": ac["TrueHeadingDeg"],
-                    "tgt_spd": targets.get("TargetSpeed"),
-                    "aalt": targets.get("AssignedAltitude"),
-                    "following": (ac.get("Approach") or {}).get("FollowingCallsign"),
-                    "phase": _phase_name(ac),
-                }
+                # Store every field so --json is complete; the text table selects a subset.
+                row[cs] = {key: getter(ac) for key, (_, _, _, getter) in _TRACK_FIELDS.items()}
 
             if args.pair:
                 a_cs, b_cs = args.pair[0].upper(), args.pair[1].upper()
@@ -496,17 +651,16 @@ def cmd_track(args: argparse.Namespace) -> int:
             write_output(json.dumps(rows, indent=2), args.out)
             return 0
 
-        # Text table
+        # Text table: one column group per callsign, only the --fields subset.
+        col_widths = {key: max(_TRACK_FIELDS[key][1], len(_TRACK_FIELDS[key][0])) for key in field_keys}
+        prefix = len(callsigns) > 1
         lines: list[str] = []
         header_cols = ["t"]
         for cs in callsigns:
-            header_cols.append(f"{cs}.phase")
-            header_cols.append(f"{cs}.alt")
-            header_cols.append(f"{cs}.vs")
-            header_cols.append(f"{cs}.ias")
-            header_cols.append(f"{cs}.tgt")
-            header_cols.append(f"{cs}.aAlt")
-            header_cols.append(f"{cs}.foll")
+            for key in field_keys:
+                label = _TRACK_FIELDS[key][0]
+                name = f"{cs}.{label}" if prefix else label
+                header_cols.append(name.ljust(col_widths[key]) if not prefix else name)
         if args.pair:
             header_cols.extend(["gap_nm", "best", "runaway_s"])
         lines.append(" | ".join(header_cols))
@@ -515,19 +669,10 @@ def cmd_track(args: argparse.Namespace) -> int:
             parts: list[str] = [f"{row['t']:4}"]
             for cs in callsigns:
                 d = row.get(cs)
-                if d is None:
-                    parts.extend(["-", "-", "-", "-", "-", "-", "-"])
-                else:
-                    tgt = d["tgt_spd"]
-                    vs = d["vs"]
-                    aalt = d["aalt"]
-                    parts.append(f"{d['phase']:<14}")
-                    parts.append(f"{d['alt']:6.0f}")
-                    parts.append(f"{vs:5.0f}" if isinstance(vs, (int, float)) else "  -  ")
-                    parts.append(f"{d['ias']:5.1f}")
-                    parts.append(f"{tgt:5.1f}" if isinstance(tgt, (int, float)) else "  -  ")
-                    parts.append(f"{aalt:6.0f}" if isinstance(aalt, (int, float)) else "   -  ")
-                    parts.append(f"{(d['following'] or '-'):<7}")
+                for key in field_keys:
+                    prec = _TRACK_FIELDS[key][2]
+                    value = None if d is None else d.get(key)
+                    parts.append(_fmt_track_cell(value, col_widths[key], prec))
             if args.pair:
                 gap = row.get("gap_nm")
                 bg = row.get("best_gap")
@@ -1519,6 +1664,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_trk.add_argument("--pair", nargs=2, default=None, metavar=("FOLLOWER", "LEADER"), help="compute gap + runaway timer between two callsigns")
     p_trk.add_argument("--start", type=float, default=None, help="only include snapshots at t >= START")
     p_trk.add_argument("--end", type=float, default=None, help="only include snapshots at t <= END")
+    p_trk.add_argument(
+        "--fields",
+        type=str,
+        default="default",
+        metavar="SPEC",
+        help=(
+            "comma-separated columns for the text table (JSON always includes all). "
+            "presets: " + ", ".join(_TRACK_PRESETS) + "; "
+            "fields: " + ", ".join(_TRACK_FIELDS)
+        ),
+    )
     p_trk.add_argument("--json", action="store_true", help="structured JSON output")
     p_trk.set_defaults(func=cmd_track)
 
