@@ -302,6 +302,9 @@ public class VisualApproachCommandTests : IDisposable
     {
         var aircraft = MakeAircraft();
         aircraft.Approach.HasReportedTrafficInSight = true;
+        // Re-confirming the same in-sight traffic takes the fast-path echo without re-running
+        // acquisition (a different callsign would fall through to validation + acquisition).
+        aircraft.Approach.LastReportedTrafficCallsign = "UAL456";
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("UAL456"), aircraft, TestDispatch.Context(Random.Shared));
         Assert.True(result.Success);

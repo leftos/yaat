@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `RTIS` rejects a callsign that isn't traffic on frequency, instead of reading back "traffic in sight" for a typo or leftover command text.
+
 ## v0.9.8-beta [2026/07/12]
 
 ### Highlights

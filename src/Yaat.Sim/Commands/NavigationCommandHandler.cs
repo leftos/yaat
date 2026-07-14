@@ -1459,37 +1459,40 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, "Use RTIS <clock> <miles> <direction> <type> [altitude] in solo training");
         }
 
-        // Fast path: if the tick processor has already confirmed acquisition on an
-        // active FOLLOW, just echo the in-sight response. Still update the stored
-        // callsign if a new one is supplied so a later bare FOLLOW targets the
-        // most recently reported traffic.
-        if (aircraft.Approach.HasReportedTrafficInSight)
+        string? normalizedCallsign = string.IsNullOrWhiteSpace(targetCallsign) ? null : targetCallsign.Trim().ToUpperInvariant();
+
+        // Fast path: the aircraft already has traffic in sight (tick processor confirmed an active
+        // FOLLOW, or a prior RTIS/RTISF/FOLLOWF). A bare RTIS — or one naming the same traffic
+        // already reported — re-echoes the in-sight response without re-running visual acquisition
+        // (which could now geometrically soft-fail on the followed traffic). A different callsign is
+        // a new sighting: fall through to full validate + acquisition so a bogus callsign is
+        // rejected and a real one is actually acquired.
+        if (
+            aircraft.Approach.HasReportedTrafficInSight
+            && ((normalizedCallsign is null) || (normalizedCallsign == aircraft.Approach.LastReportedTrafficCallsign))
+        )
         {
-            if (!string.IsNullOrWhiteSpace(targetCallsign))
-            {
-                aircraft.Approach.LastReportedTrafficCallsign = targetCallsign.ToUpperInvariant();
-            }
             Pilot.PilotResponder.RouteRpoSayReadback(
                 aircraft,
                 ctx.SoloTrainingMode,
                 ctx.RpoShowPilotSpeech,
-                Pilot.PilotResponder.BuildTrafficInSight(aircraft, targetCallsign)
+                Pilot.PilotResponder.BuildTrafficInSight(aircraft, normalizedCallsign)
             );
             return CommandDispatcher.Ok("Traffic in sight");
         }
 
-        if (string.IsNullOrWhiteSpace(targetCallsign))
+        if (normalizedCallsign is null)
         {
             return new CommandResult(false, "Unable, no traffic specified");
         }
 
-        var target = ctx.FindAircraft?.Invoke(targetCallsign);
+        var target = ctx.FindAircraft?.Invoke(normalizedCallsign);
         if (target is null)
         {
-            return new CommandResult(false, $"Negative contact, {targetCallsign} not on this frequency");
+            return new CommandResult(false, $"Negative contact, {normalizedCallsign} not on this frequency");
         }
 
-        return DispatchReportTrafficInSightForTarget(aircraft, targetCallsign, target, ctx);
+        return DispatchReportTrafficInSightForTarget(aircraft, normalizedCallsign, target, ctx);
     }
 
     private static CommandResult DispatchReportTrafficInSightForTarget(

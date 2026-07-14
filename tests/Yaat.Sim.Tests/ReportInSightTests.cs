@@ -308,16 +308,93 @@ public class ReportInSightTests
     }
 
     [Fact]
-    public void Rtis_FastPath_WhenFlagAlreadySet()
+    public void Rtis_FastPath_BareRtis_EchoesInSight()
     {
+        // Bare RTIS while the flag is already set re-confirms the current in-sight traffic
+        // without re-running acquisition (heading north would otherwise fail the geometry check).
         var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
         ac.Approach.HasReportedTrafficInSight = true;
+        var ctx = TestDispatch.Context(Random.Shared);
+
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), ac, ctx);
+
+        Assert.True(result.Success);
+        Assert.Equal("traffic in sight.", ac.PendingPilotReadbacks[0]);
+    }
+
+    [Fact]
+    public void Rtis_FastPath_SameTraffic_EchoesInSight()
+    {
+        // Re-issuing RTIS for the traffic already in sight echoes without re-acquisition. The
+        // context has no findAircraft, proving the acquisition path is not re-entered.
+        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
+        ac.Approach.HasReportedTrafficInSight = true;
+        ac.Approach.LastReportedTrafficCallsign = "LEAD";
         var ctx = TestDispatch.Context(Random.Shared);
 
         var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ac, ctx);
 
         Assert.True(result.Success);
         Assert.Equal("traffic (LEAD) in sight.", ac.PendingPilotReadbacks[0]);
+    }
+
+    [Fact]
+    public void Rtis_FastPath_UnknownCallsign_HardFails()
+    {
+        // Regression for #290: once an aircraft has reported traffic in sight, a DIFFERENT
+        // callsign that resolves to no aircraft must be rejected — not echoed as
+        // "traffic (X) in sight". The bogus callsign must not overwrite the real in-sight
+        // traffic or emit a pilot readback.
+        var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK");
+        ac.Approach.HasReportedTrafficInSight = true;
+        ac.Approach.LastReportedTrafficCallsign = "N263FY";
+        var ctx = TestDispatch.Context(Random.Shared, findAircraft: _ => null);
+
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("TB"), ac, ctx);
+
+        Assert.False(result.Success);
+        Assert.Contains("TB", result.Message);
+        Assert.Contains("not on this frequency", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("N263FY", ac.Approach.LastReportedTrafficCallsign);
+        Assert.Empty(ac.PendingPilotReadbacks);
+    }
+
+    [Fact]
+    public void Rtis_FastPath_DifferentValidTraffic_InFront_ReAcquires()
+    {
+        // A different, valid aircraft in front is a new sighting: the fast path falls through and
+        // actually acquires it, updating the stored callsign.
+        var ownship = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "OWN1");
+        ownship.Approach.HasReportedTrafficInSight = true;
+        ownship.Approach.LastReportedTrafficCallsign = "OLD1";
+        var lead = MakeAircraft(37.73, -122.221, heading: 180, altitude: 3000, destination: "KOAK", callsign: "LEAD");
+        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+
+        Assert.True(result.Success);
+        Assert.Equal("LEAD", ownship.Approach.LastReportedTrafficCallsign);
+        Assert.Equal("traffic (LEAD) in sight.", ownship.PendingPilotReadbacks[0]);
+    }
+
+    [Fact]
+    public void Rtis_FastPath_DifferentValidTraffic_Behind_SoftFails()
+    {
+        // A different, valid aircraft behind ownship soft-fails ("looking") and queues an
+        // observation — it does not falsely echo "in sight", and the prior sighting is preserved.
+        var ownship = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "OWN1");
+        ownship.Approach.HasReportedTrafficInSight = true;
+        ownship.Approach.LastReportedTrafficCallsign = "OLD1";
+        var lead = MakeAircraft(37.70, -122.221, heading: 0, altitude: 3000, destination: "KOAK", callsign: "LEAD");
+        var ctx = TestDispatch.Context(Random.Shared, findAircraft: cs => cs == "LEAD" ? lead : null);
+
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("LEAD"), ownship, ctx);
+
+        Assert.True(result.Success);
+        Assert.Contains("Looking for traffic", result.Message);
+        Assert.Contains("looking", ownship.PendingPilotReadbacks[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("OLD1", ownship.Approach.LastReportedTrafficCallsign);
+        Assert.IsType<TrafficAcquisitionObservation>(Assert.Single(ownship.PendingObservations));
     }
 
     // -------------------------------------------------------------------------
