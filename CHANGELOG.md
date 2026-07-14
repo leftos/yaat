@@ -14,6 +14,7 @@
 - A manually placed STARS ghost track (an unsupported data block typed on the scope, e.g. `1 DA`) no longer appears on the ASDE-X, SAAB SAID, or Tower Cab surface displays, and terminating control of one now removes it cleanly instead of leaving a lingering phantom target that trips conflict alerts.
 - `P270` (plan a 270 at the next pattern turn) now turns the aircraft the long way round — away from the runway and back onto final — to open spacing.
 - Aircraft cleared for takeoff while still taxiing now fly the SID's initial departure heading instead of turning straight toward the first fix.
+- A `WAIT`-staggered scenario preset with a trailing `;`-command on the same fix (e.g. `AT FIX WAIT 30 …; AT FIX …`) now runs that trailing command in every case — previously it was still dropped when the aircraft was being vectored rather than flying a route.
 
 ## v0.9.8-beta [2026/07/12]
 

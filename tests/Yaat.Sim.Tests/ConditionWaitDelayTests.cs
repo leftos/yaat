@@ -252,4 +252,71 @@ public class ConditionWaitDelayTests
         Assert.True(waitApplied, "WAIT payload never fired");
         Assert.True(laterApplied, "Later block never fired after the WAIT completed");
     }
+
+    [Fact]
+    public void CurrentBlockWait_HoldsPayload_AndSequencesLaterBlockAfterWait()
+    {
+        var ac = MakeAircraft();
+
+        // Same as the lookahead case but WITHOUT a leading perpetual Navigation block, so the wait
+        // block is the queue's *current* (advancing) block (index 0) rather than reached via lookahead.
+        // This is the non-CFIX shape `AT FIX WAIT 30 CMD1; AT FIX CMD2` given to a vectored aircraft
+        // whose FIX trigger fires by proximity (IsTriggerMet), not by route-sequencing.
+        var trigger = new BlockTrigger
+        {
+            Type = BlockTriggerType.ReachFix,
+            FixLat = ac.Position.Lat,
+            FixLon = ac.Position.Lon,
+        };
+        bool waitApplied = false;
+        bool laterApplied = false;
+        var waitBlock = new CommandBlock
+        {
+            Trigger = trigger,
+            Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
+            IsWaitBlock = true,
+            WaitRemainingSeconds = 30,
+            ApplyAction = _ =>
+            {
+                waitApplied = true;
+                return new CommandResult(true);
+            },
+        };
+        var laterBlock = new CommandBlock
+        {
+            Trigger = new BlockTrigger
+            {
+                Type = BlockTriggerType.ReachFix,
+                FixLat = ac.Position.Lat,
+                FixLon = ac.Position.Lon,
+            },
+            Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
+            ApplyAction = _ =>
+            {
+                laterApplied = true;
+                return new CommandResult(true);
+            },
+        };
+        ac.Queue.Blocks.Add(waitBlock);
+        ac.Queue.Blocks.Add(laterBlock);
+
+        // 10 s in: the wait is still counting down. Neither may have fired.
+        for (int i = 0; i < 10; i++)
+        {
+            FlightPhysics.Update(ac, 1.0, null, null);
+        }
+
+        Assert.False(waitApplied, "WAIT payload fired before its delay elapsed");
+        Assert.False(laterApplied, "Later `;`-sequential block fired before the WAIT completed");
+
+        // Past 30 s total — the wait payload fires, then the later block, which must NOT orphan even
+        // though the aircraft has flown well past the trigger fix during the wait countdown.
+        for (int i = 0; i < 25; i++)
+        {
+            FlightPhysics.Update(ac, 1.0, null, null);
+        }
+
+        Assert.True(waitApplied, "WAIT payload never fired");
+        Assert.True(laterApplied, "Later block orphaned: never fired after the WAIT completed (aircraft passed the fix during the countdown)");
+    }
 }
