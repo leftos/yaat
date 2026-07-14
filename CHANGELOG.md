@@ -16,6 +16,7 @@
 - Aircraft cleared for takeoff while still taxiing now fly the SID's initial departure heading instead of turning straight toward the first fix.
 - A `WAIT`-staggered scenario preset with a trailing `;`-command on the same fix (e.g. `AT FIX WAIT 30 …; AT FIX …`) now runs that trailing command in every case — previously it was still dropped when the aircraft was being vectored rather than flying a route.
 - An aircraft told to `FOLLOW` traffic that is holding out on the downwind now turns base behind it, instead of cutting in front onto final.
+- A `FOLLOW` cancelled mid-pattern — lost sight, traffic gone, or spacing lost — now holds heading for your next instruction instead of turning base on its own.
 
 ## v0.9.8-beta [2026/07/12]
 

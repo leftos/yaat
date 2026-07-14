@@ -575,6 +575,19 @@ on both aircraft being on the **same runway**:
 2. the lead has gone `IsOnGround`, or
 3. the follower **loses visual contact** with the lead.
 
+**On an involuntary cancel the follower holds its present vector — it does not turn on its own**
+(`CancelFollowHoldingLeg`). The pilot's only outstanding instruction was to follow, so once following
+ends it is not authorized to turn; if it is on an Upwind/Crosswind/Downwind leg it sets that leg's
+`IsExtended`, continuing straight and levelling at the glideslope-intercept floor until the controller
+turns it (`TB`) or re-sequences it (AIM §5-5-12.a.2 — advise ATC and maintain, don't maneuver on your
+own). This covers the lost-visual (case 3), lead-despawned (case 1), and the at-min-speed
+"unable to maintain separation" cancels. **The landing exception (case 2) is the one that does *not*
+hold:** when the lead reaches the ground the follower is number one, so it keeps bare `ClearFollowState`
+and continues its own approach (turns base, lands). Base/Final are committed to the approach and
+free-flight legs have nothing to hold, so those continue regardless. A controller command that
+supersedes the follow (vector / new approach) and a Base/Final go-around break-off also use bare
+`ClearFollowState` — the new instruction or the go-around governs.
+
 **A growing gap never cancels a follow.** A lead that merely outpaces the follower is *increasing* separation and
 removing the overtake risk; the sequence is still valid. That is a controller efficiency concern to re-sequence, not
 a follower safety trigger, and "unable to catch up" is not a transmission a real pilot makes. The only

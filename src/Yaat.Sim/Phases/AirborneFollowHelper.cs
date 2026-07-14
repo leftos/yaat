@@ -149,7 +149,7 @@ public static class AirborneFollowHelper
         if (lead is null)
         {
             Log.LogDebug("[Follow] {Callsign}: target {Target} not found, ending follow", follower.Callsign, targetCallsign);
-            ClearFollowState(follower);
+            CancelFollowHoldingLeg(follower);
             Pilot.PilotResponder.RouteSoloOrRpoTransmission(
                 follower,
                 ctx.SoloTrainingMode,
@@ -188,7 +188,7 @@ public static class AirborneFollowHelper
         if (!contact.Acquired)
         {
             Log.LogDebug("[Follow] {Callsign}: lost visual on {Target} ({Reason}), ending follow", follower.Callsign, targetCallsign, contact.Reason);
-            ClearFollowState(follower);
+            CancelFollowHoldingLeg(follower);
             Pilot.PilotResponder.RouteSoloOrRpoTransmission(
                 follower,
                 ctx.SoloTrainingMode,
@@ -204,14 +204,44 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
-    /// Clear the follow target on a follower. Call this whenever
-    /// <see cref="AircraftApproachState.FollowingCallsign"/> is being cleared from
-    /// outside the lifecycle check (FOLLOW dispatch, vector-command phase clear,
-    /// separation-failure cancel).
+    /// Clear the follow target on a follower without holding its pattern leg — for cases where
+    /// the follower should proceed, not freeze on present vector: the lead has LANDED (the
+    /// follower is now number one and continues its approach), a controller command supersedes
+    /// the follow (vector / new approach), or a Base/Final break-off to a go-around. Involuntary
+    /// in-pattern cancels (lead lost/despawned, spacing unmaintainable) use
+    /// <see cref="CancelFollowHoldingLeg"/> instead.
     /// </summary>
     public static void ClearFollowState(AircraftState follower)
     {
         follower.Approach.FollowingCallsign = null;
+    }
+
+    /// <summary>
+    /// End a follow that was cancelled involuntarily — the lead despawned or was lost from
+    /// sight, or spacing could not be held — while the follower is still flying a pattern leg.
+    /// The follower's only outstanding instruction was to follow, so it is NOT authorized to
+    /// turn on its own; it holds its present leg (Upwind/Crosswind/Downwind) via the
+    /// extended-leg hold and awaits a controller turn (TB) or re-sequence (AIM §5-5-12.a.2 —
+    /// advise ATC and maintain, don't maneuver on your own). Base/Final are committed to the
+    /// approach and free-flight legs have nothing to hold, so those continue unchanged. A lead
+    /// that has LANDED is the exception (the follower is now number one): those callers use
+    /// bare <see cref="ClearFollowState"/> so the follower continues its approach and lands.
+    /// </summary>
+    public static void CancelFollowHoldingLeg(AircraftState follower)
+    {
+        ClearFollowState(follower);
+        switch (follower.Phases?.CurrentPhase)
+        {
+            case UpwindPhase uw:
+                uw.IsExtended = true;
+                break;
+            case CrosswindPhase cw:
+                cw.IsExtended = true;
+                break;
+            case DownwindPhase dw:
+                dw.IsExtended = true;
+                break;
+        }
     }
 
     /// <summary>
@@ -397,7 +427,7 @@ public static class AirborneFollowHelper
         {
             // Leader disappeared — clear follow state, continue with normal speed
             Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
-            ClearFollowState(ctx.Aircraft);
+            CancelFollowHoldingLeg(ctx.Aircraft);
             return null;
         }
 
@@ -442,7 +472,7 @@ public static class AirborneFollowHelper
         if (target is null)
         {
             Log.LogDebug("[Follow] {Callsign}: target {Target} no longer found, clearing follow", ctx.Aircraft.Callsign, targetCallsign);
-            ClearFollowState(ctx.Aircraft);
+            CancelFollowHoldingLeg(ctx.Aircraft);
             return null;
         }
 
@@ -579,8 +609,9 @@ public static class AirborneFollowHelper
             }
 
             // No lateral option (free-flight follow, or a same/earlier-leg lead). Cancel
-            // follow and warn once so the controller can intervene.
-            ClearFollowState(follower);
+            // follow and warn once so the controller can intervene. Hold the present leg —
+            // the pilot's only instruction was to follow, so it does not turn on its own.
+            CancelFollowHoldingLeg(follower);
             Pilot.PilotResponder.RouteRpoTransmission(
                 follower,
                 soloTrainingMode,

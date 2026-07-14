@@ -682,6 +682,191 @@ public class FollowPatternSequencingAuditTests
         );
     }
 
+    /// <summary>
+    /// An involuntary follow-cancel that is NOT a landing (here: the lead is deleted / drops
+    /// out of the lookup) must leave the follower holding its present vector — it extends the
+    /// downwind and awaits a controller base call, rather than turning base on its own. The
+    /// follower's only outstanding instruction was to follow; once that ends, no turn is
+    /// authorized (AIM §5-5-12.a.2 — advise ATC and maintain, don't maneuver on your own).
+    /// </summary>
+    [Fact]
+    public void FollowCancel_OnLeadDespawn_HoldsPresentVector_DoesNotTurnBase()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        var rwy = navDb.GetRunway("KOAK", "28R");
+        if (rwy is null)
+        {
+            _output.WriteLine("KOAK 28R not in navdata — skipping.");
+            return;
+        }
+
+        var allRunways = navDb.GetRunways("KOAK");
+        const PatternDirection Dir = PatternDirection.Left;
+        const AircraftCategory Cat = AircraftCategory.Piston;
+        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways);
+        var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
+
+        // Follower just past its base-turn point, following a lead held 0.55 nm further down
+        // the same downwind — so it is holding to sequence behind it (not yet turning base).
+        var followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, 0.05);
+        var follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, wp.PatternAltitude, 90);
+        follower.Approach.HasReportedTrafficInSight = true;
+        AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
+
+        var leadPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, 0.55);
+        var lead = MakeVfr(LeadCallsign, leadPos, wp.DownwindHeading, wp.PatternAltitude, 90);
+        AttachCircuit(lead, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
+
+        bool leadPresent = true;
+        Func<string, AircraftState?> lookup = cs =>
+            cs == FollowerCallsign ? follower
+            : (leadPresent && (cs == LeadCallsign)) ? lead
+            : null;
+
+        lead.Phases!.Start(Ctx(lead, rwy, lookup));
+        follower.Phases!.Start(Ctx(follower, rwy, lookup));
+
+        CommandDispatcher.Dispatch(
+            new ReportTrafficInSightForcedCommand(LeadCallsign),
+            follower,
+            TestDispatch.Context(Random.Shared, findAircraft: lookup)
+        );
+        var followResult = CommandDispatcher.Dispatch(
+            new FollowCommand(LeadCallsign, false),
+            follower,
+            TestDispatch.Context(Random.Shared, findAircraft: lookup)
+        );
+        Assert.True(followResult.Success, $"FOLLOW failed: {followResult.Message}");
+
+        for (int t = 1; t <= 4; t++)
+        {
+            foreach (var ac in new[] { lead, follower })
+            {
+                var ctx = Ctx(ac, rwy, lookup);
+                FlightPhysics.Update(ac, ctx.DeltaSeconds);
+                PhaseRunner.Tick(ac, ctx);
+            }
+        }
+        Assert.IsType<DownwindPhase>(follower.Phases?.CurrentPhase);
+
+        // Lead vanishes — an involuntary follow-cancel that is not a landing.
+        leadPresent = false;
+
+        for (int t = 1; t <= 45; t++)
+        {
+            var ctx = Ctx(follower, rwy, lookup);
+            FlightPhysics.Update(follower, ctx.DeltaSeconds);
+            PhaseRunner.Tick(follower, ctx);
+            Assert.True(
+                follower.Phases?.CurrentPhase is DownwindPhase,
+                $"t={t} after lead despawn: follower turned {follower.Phases?.CurrentPhase?.Name} — it must hold present vector "
+                    + "(extend the downwind) and await a base call, not turn base on its own."
+            );
+        }
+
+        Assert.Null(follower.Approach.FollowingCallsign);
+        Assert.True(
+            ((DownwindPhase)follower.Phases!.CurrentPhase!).IsExtended,
+            "Follower should be holding the downwind (extended) after the involuntary follow-cancel."
+        );
+    }
+
+    /// <summary>
+    /// The landing exception: when the followed traffic reaches the ground, the follower is
+    /// now number one and continues its own approach — it turns base to land rather than
+    /// holding. (Only non-landing cancels freeze the follower on its present vector.)
+    /// </summary>
+    [Fact]
+    public void FollowCancel_OnLeadLanding_ContinuesApproach_TurnsBase()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        var rwy = navDb.GetRunway("KOAK", "28R");
+        if (rwy is null)
+        {
+            _output.WriteLine("KOAK 28R not in navdata — skipping.");
+            return;
+        }
+
+        var allRunways = navDb.GetRunways("KOAK");
+        const PatternDirection Dir = PatternDirection.Left;
+        const AircraftCategory Cat = AircraftCategory.Piston;
+        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways);
+        var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
+
+        var followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, 0.05);
+        var follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, wp.PatternAltitude, 90);
+        follower.Approach.HasReportedTrafficInSight = true;
+        AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
+        follower.Phases!.LandingClearance = ClearanceType.ClearedToLand;
+
+        var leadPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, 0.55);
+        var lead = MakeVfr(LeadCallsign, leadPos, wp.DownwindHeading, wp.PatternAltitude, 90);
+        AttachCircuit(lead, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
+
+        Func<string, AircraftState?> lookup = cs =>
+            cs == FollowerCallsign ? follower
+            : cs == LeadCallsign ? lead
+            : null;
+
+        lead.Phases!.Start(Ctx(lead, rwy, lookup));
+        follower.Phases!.Start(Ctx(follower, rwy, lookup));
+
+        CommandDispatcher.Dispatch(
+            new ReportTrafficInSightForcedCommand(LeadCallsign),
+            follower,
+            TestDispatch.Context(Random.Shared, findAircraft: lookup)
+        );
+        var followResult = CommandDispatcher.Dispatch(
+            new FollowCommand(LeadCallsign, false),
+            follower,
+            TestDispatch.Context(Random.Shared, findAircraft: lookup)
+        );
+        Assert.True(followResult.Success, $"FOLLOW failed: {followResult.Message}");
+
+        for (int t = 1; t <= 4; t++)
+        {
+            foreach (var ac in new[] { lead, follower })
+            {
+                var ctx = Ctx(ac, rwy, lookup);
+                FlightPhysics.Update(ac, ctx.DeltaSeconds);
+                PhaseRunner.Tick(ac, ctx);
+            }
+        }
+        Assert.IsType<DownwindPhase>(follower.Phases?.CurrentPhase);
+
+        // The lead lands — the follower is now number one and continues its approach.
+        lead.IsOnGround = true;
+
+        string leftInto = "(still downwind)";
+        for (int t = 1; t <= 45; t++)
+        {
+            var ctx = Ctx(follower, rwy, lookup);
+            FlightPhysics.Update(follower, ctx.DeltaSeconds);
+            PhaseRunner.Tick(follower, ctx);
+            if (follower.Phases?.CurrentPhase is not DownwindPhase)
+            {
+                leftInto = follower.Phases?.CurrentPhase?.Name ?? "(null)";
+                break;
+            }
+        }
+
+        Assert.True(
+            follower.Phases?.CurrentPhase is BasePhase or FinalApproachPhase or LandingPhase,
+            $"After the lead landed, the follower should continue its approach and turn base, but it is on {leftInto}."
+        );
+        Assert.Null(follower.Approach.FollowingCallsign);
+    }
+
     private static CommandResult DispatchTower(string command, AircraftState ac, Func<string, AircraftState?> lookup)
     {
         var parsed = CommandParser.ParseCompound(command, ac.FlightPlan.Route);
