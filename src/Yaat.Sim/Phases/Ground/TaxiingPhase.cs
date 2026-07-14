@@ -702,6 +702,7 @@ public sealed class TaxiingPhase : Phase
                 Departure = dep.Departure,
                 AssignedAltitude = dep.AssignedAltitude,
                 DepartureRoute = dep.DepartureRoute,
+                DepartureProcedureLegs = dep.DepartureProcedureLegs,
                 DepartureSidId = dep.DepartureSidId,
                 SidDepartureHeadingMagnetic = dep.SidDepartureHeadingMagnetic,
                 RvSidDeferHeadingUntilMinAlt = dep.RvSidDeferHeadingUntilMinAlt,

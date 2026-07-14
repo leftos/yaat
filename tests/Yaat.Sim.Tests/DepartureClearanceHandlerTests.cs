@@ -1217,6 +1217,53 @@ public class DepartureClearanceHandlerTests
     }
 
     [Fact]
+    public void RollingCtoDuringTaxi_TypedLegSid_InitialClimbKeepsRunwayTransitionLegs()
+    {
+        // Regression for GitHub issue #289. NUEVO8 off OAK 28L (CIFP runway transition RW28B) has
+        // coded runway-transition legs: VD 278.2° -> VM 278.2° -> CF SAPLY 168°. When the takeoff
+        // clearance is issued while the aircraft is still taxiing (a rolling CTO), the route is
+        // resolved with the runway known, but DepartureClearanceInfo did not carry the typed
+        // ProcedureLegs, so TaxiingPhase.ApplyDepartureClearanceIfPending built the InitialClimb
+        // without them. The aircraft then flew the flat route direct to SAPLY (a ~77° left turn)
+        // instead of runway heading + vectors. The InitialClimb must keep the VD/VM/CF legs.
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        var destHs = new HoldShortPoint
+        {
+            NodeId = 10,
+            Reason = HoldShortReason.DestinationRunway,
+            TargetName = "28L",
+        };
+        var ac = MakeTaxiingAircraftWithRoute([destHs]);
+        ac.FlightPlan.Departure = "KOAK";
+        ac.FlightPlan.Route = "NUEVO8 EUGEN";
+        ac.FlightPlan.FlightRules = "IFR";
+
+        using var _ = NavigationDatabase.ScopedOverride(TestVnasData.NavigationDb);
+
+        // CTO while taxiing -> stores the clearance (runway 28L resolved from the hold-short).
+        var store = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(ac, ClearanceType.ClearedForTakeoff, new DefaultDeparture(), null);
+        Assert.True(store.Success, store.Message);
+        Assert.Equal("28L", ac.Phases!.AssignedRunway?.Designator);
+
+        // Taxi completes -> TaxiingPhase consumes the stored clearance and builds the tower chain.
+        TaxiingPhase.ApplyDepartureClearanceIfPending(MinCtx(ac));
+
+        var climb = ac.Phases.Phases.OfType<InitialClimbPhase>().FirstOrDefault();
+        Assert.NotNull(climb);
+        Assert.NotNull(climb!.DepartureProcedureLegs);
+        var legs = climb.DepartureProcedureLegs!;
+        Assert.Equal(3, legs.Count);
+        Assert.Equal(ProcedureLegType.HeadingToDistance, legs[0].Type);
+        Assert.Equal(ProcedureLegType.HeadingToManual, legs[1].Type);
+        Assert.Equal(ProcedureLegType.CourseToFix, legs[2].Type);
+        Assert.Equal("SAPLY", legs[2].FixName);
+    }
+
+    [Fact]
     public void StoreDepartureClearanceDuringTaxi_RecordsOnlyHoldShortsItPreCleared()
     {
         var rwy33 = Runway33();

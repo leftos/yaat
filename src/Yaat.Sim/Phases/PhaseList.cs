@@ -55,6 +55,15 @@ public sealed class DepartureClearanceInfo
     public List<NavigationTarget>? DepartureRoute { get; init; }
 
     /// <summary>
+    /// Typed SID runway-transition legs (VD/VM/VA/VI/CA/CF …) resolved from CIFP data, mirroring
+    /// <see cref="DepartureRoute"/>. Non-null only when the filed SID has coded heading/intercept
+    /// legs. InitialClimbPhase flies these (fly runway heading, await vectors, then course-to-fix)
+    /// instead of navigating direct to the first named fix. Carried here so a clearance issued
+    /// during taxi (rolling CTO) keeps the legs through TaxiingPhase's InitialClimb construction.
+    /// </summary>
+    public List<ProcedureLeg>? DepartureProcedureLegs { get; init; }
+
+    /// <summary>
     /// SID procedure ID if departure route was resolved from CIFP data.
     /// Used to activate SID via mode during initial climb.
     /// </summary>
@@ -97,6 +106,7 @@ public sealed class DepartureClearanceInfo
             Departure = Departure.ToSnapshot(),
             AssignedAltitude = AssignedAltitude,
             DepartureRoute = DepartureRoute?.Select(t => t.ToSnapshot()).ToList(),
+            DepartureProcedureLegs = DepartureProcedureLegs?.Select(l => l.ToSnapshot()).ToList(),
             DepartureSidId = DepartureSidId,
             SidDepartureHeadingMagnetic = SidDepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = RvSidDeferHeadingUntilMinAlt,
@@ -112,6 +122,7 @@ public sealed class DepartureClearanceInfo
             Departure = DepartureInstruction.FromSnapshot(dto.Departure),
             AssignedAltitude = dto.AssignedAltitude,
             DepartureRoute = dto.DepartureRoute?.Select(NavigationTarget.FromSnapshot).ToList(),
+            DepartureProcedureLegs = dto.DepartureProcedureLegs?.Select(ProcedureLeg.FromSnapshot).ToList(),
             DepartureSidId = dto.DepartureSidId,
             SidDepartureHeadingMagnetic = dto.SidDepartureHeadingMagnetic,
             RvSidDeferHeadingUntilMinAlt = dto.RvSidDeferHeadingUntilMinAlt,

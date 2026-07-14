@@ -49,6 +49,7 @@ public sealed class DepartureClearanceDto
     public required DepartureInstructionDto Departure { get; init; }
     public int? AssignedAltitude { get; init; }
     public List<NavigationTargetDto>? DepartureRoute { get; init; }
+    public List<ProcedureLegDto>? DepartureProcedureLegs { get; init; }
     public string? DepartureSidId { get; init; }
     public double? SidDepartureHeadingMagnetic { get; init; }
     public bool RvSidDeferHeadingUntilMinAlt { get; init; }
