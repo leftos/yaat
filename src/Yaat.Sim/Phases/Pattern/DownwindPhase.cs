@@ -412,6 +412,21 @@ public sealed class DownwindPhase : Phase
     }
 
     /// <summary>
+    /// True once <paramref name="position"/> has reached or passed this leg's base-turn
+    /// point along the downwind axis — the same threshold <see cref="OnTick"/> uses to
+    /// complete the leg. An aircraft still on the downwind past this point is holding the
+    /// leg out (a controller EXT, its own follow-hold, or a proximity/sequence hold) rather
+    /// than progressing, so it has deferred its base turn and stays ahead in the landing
+    /// sequence. Used to sequence a same-leg follower behind such a lead. Returns false when
+    /// the leg's geometry is not yet initialized (<see cref="Waypoints"/> unset), so an
+    /// uninitialized phase never reads as "past base turn".
+    /// </summary>
+    public bool HasReachedBaseTurnPoint(LatLon position) =>
+        Waypoints is not null
+        && GeoMath.AlongTrackDistanceNm(position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading)
+            >= _baseTurnAlongTrack - AlongTrackToleranceNm;
+
+    /// <summary>
     /// Computes the mid-altitude target, vertical rate, and altitude floor for the
     /// past-abeam descent and writes them onto <paramref name="ctx"/>. Branches on
     /// <see cref="ShortApproachArmed"/>: normal pattern uses 60% TPA midpoint and the

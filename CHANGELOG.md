@@ -15,6 +15,7 @@
 - `P270` (plan a 270 at the next pattern turn) now turns the aircraft the long way round — away from the runway and back onto final — to open spacing.
 - Aircraft cleared for takeoff while still taxiing now fly the SID's initial departure heading instead of turning straight toward the first fix.
 - A `WAIT`-staggered scenario preset with a trailing `;`-command on the same fix (e.g. `AT FIX WAIT 30 …; AT FIX …`) now runs that trailing command in every case — previously it was still dropped when the aircraft was being vectored rather than flying a route.
+- An aircraft told to `FOLLOW` traffic that is holding out on the downwind now turns base behind it, instead of cutting in front onto final.
 
 ## v0.9.8-beta [2026/07/12]
 

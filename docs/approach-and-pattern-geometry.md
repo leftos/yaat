@@ -522,7 +522,7 @@ speed, never accelerates it above to chase a far lead — a too-far lead is hand
 
 **At-min-speed: extend, don't cut in.** When the follower is at min speed and inside half the desired distance, it
 cannot open the gap by slowing any further. If the lead is **pattern-flow-ahead** (`IsLeadPatternFlowAhead` — same
-runway, strictly later leg or an EXTENDED same leg) the follower still has a *lateral* option, so the helper returns
+runway, strictly later leg or a same leg the lead is *holding out*) the follower still has a *lateral* option, so the helper returns
 `minSpeed` and **does not cancel**: `DownwindPhase` then holds the base turn (`ShouldExtendDownwind` /
 `ShouldHoldForLeadSequencing`) and extends until `CheckLeadLifecycle` releases the follow when the lead lands. Only
 when there is no lateral option (free-flight follow, or a same/earlier-leg lead) is the follow cancelled with an
@@ -547,7 +547,7 @@ without going around.
 `PatternEntryPhase = 0`, `Upwind = 1`, `Crosswind = 2`, `Downwind = 3`, `Base = 4`, `FinalApproach = 5`,
 `Landing/TouchAndGo = 6`; non-pattern phases return null.
 
-`IsLeadPatternFlowAhead` (lead strictly later leg — **plus the same-leg case where the lead is extending**)
+`IsLeadPatternFlowAhead` (lead strictly later leg — **plus the same-leg case where the lead is holding the leg out**)
 and `IsLeadPatternFlowBehind` (lead earlier leg, or same leg broken by phase `ElapsedSeconds`) use this index, gated
 on both aircraft being on the **same runway**:
 
@@ -555,12 +555,19 @@ on both aircraft being on the **same runway**:
   reached the follower's leg yet — pulling the follower to Vref produces multi-minute downwind extensions).
 - **`IsLeadPatternFlowAhead`** ⇒ the follower may extend its leg to sequence, and the at-min-speed cancel in the
   speed loop is suppressed (it holds `minSpeed` and extends instead of cutting in — see **At-min-speed** above).
-  - **Extended-leg exception:** a lead on the **same leg** but with `IsExtended` set by `EXT` (`IsExtendedPatternLeg`
-    — Downwind, Crosswind, or Upwind) also counts as flow-ahead. The lead has explicitly deferred its progression, so
-    it stays ahead in the landing sequence despite sharing the follower's leg index. Without this, a follower on the
-    same downwind turned base at its fixed point and rolled out on final ahead of the aircraft it was told to follow.
-    Generic same-leg pairs are still *not* flow-ahead — a lead merely outpacing the follower has not deferred its
-    place in the sequence, so the follower keeps normal spacing rather than extending behind it.
+  - **Held-leg exception (`IsLeadHoldingSharedLeg`):** a lead on the **same leg** that is *holding it out* also counts
+    as flow-ahead — it has deferred its progression, so it stays ahead in the landing sequence despite sharing the
+    follower's leg index. "Holding out" is any deferral, recognized two ways:
+    - `IsExtended` set by `EXT` on Downwind, Crosswind, or Upwind (`IsExtendedPatternLeg`), and
+    - for the **downwind**, the lead still on the leg past its OWN base-turn point (`DownwindPhase.HasReachedBaseTurnPoint`,
+      evaluated against the lead's own geometry). This catches a lead holding the downwind for a reason other than a live
+      `EXT`: its own follow-hold behind other traffic (a follow chain), a proximity hold, or an `EXT` that was cleared
+      when the lead was itself told to follow (`CommandDispatcher.TryAirborneFollow` clears `IsExtended` on a follow).
+
+    Without this, a follower on the same downwind turned base at its fixed point and rolled out on final ahead of the
+    aircraft it was told to follow (AIM §4-3-5, broken sequence). Generic same-leg pairs — a lead merely progressing
+    ahead, *before* its base turn — are still *not* flow-ahead: it turns base at its own point first, so the follower
+    keeps normal spacing rather than extending behind it.
 
 **The lead lifecycle** (`CheckLeadLifecycle`) cancels a follow when:
 

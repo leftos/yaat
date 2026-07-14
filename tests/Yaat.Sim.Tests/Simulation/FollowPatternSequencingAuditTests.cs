@@ -612,6 +612,76 @@ public class FollowPatternSequencingAuditTests
         Assert.False(overtakeObserved, $"Follower overtook the lead: aFollower-aLead dropped to {worstGap:F2} nm at t={worstTick}.");
     }
 
+    /// <summary>
+    /// Regression for the held-downwind-lead overtake (bundle S2-OAK-3 (2) "VFR Sequencing"):
+    /// a lead still on the shared downwind, past its own base-turn point but WITHOUT the
+    /// <c>IsExtended</c> flag (it was cleared when the lead was itself told to follow other
+    /// traffic), must count as flow-ahead so a same-leg follower sequences behind it instead
+    /// of turning base inside it. A lead merely progressing (short of its base turn) must NOT.
+    /// </summary>
+    [Fact]
+    public void IsLeadPatternFlowAhead_TreatsHeldDownwindLead_AsFlowAhead()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        var rwy = navDb.GetRunway("KOAK", "28R");
+        if (rwy is null)
+        {
+            _output.WriteLine("KOAK 28R not in navdata — skipping.");
+            return;
+        }
+
+        var allRunways = navDb.GetRunways("KOAK");
+        const PatternDirection Dir = PatternDirection.Left;
+        const AircraftCategory Cat = AircraftCategory.Piston;
+        var wp = PatternGeometry.Compute(rwy, Cat, Dir, null, null, allRunways);
+        var baseTurn = new LatLon(wp.BaseTurnLat, wp.BaseTurnLon);
+
+        // Follower: on the downwind, 1.3 nm short of the base turn.
+        var followerPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 1.3);
+        var follower = MakeVfr(FollowerCallsign, followerPos, wp.DownwindHeading, wp.PatternAltitude, 90);
+        AttachCircuit(follower, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
+        Func<string, AircraftState?> lookup = cs => cs == FollowerCallsign ? follower : null;
+        follower.Phases!.Start(Ctx(follower, rwy, lookup));
+
+        // Held lead: on the SAME downwind, 0.3 nm PAST its base-turn point, IsExtended never
+        // set (mirrors a lead holding out via its own follow-hold). This is exactly the state
+        // the pre-fix IsExtended-only gate missed.
+        var heldPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading, 0.3);
+        var heldLead = MakeVfr(LeadCallsign, heldPos, wp.DownwindHeading, wp.PatternAltitude, 90);
+        AttachCircuit(heldLead, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
+        heldLead.Phases!.Start(Ctx(heldLead, rwy, lookup));
+        Assert.True(heldLead.Phases.CurrentPhase is DownwindPhase { IsExtended: false }, "Held lead must be on a non-extended Downwind.");
+        Assert.True(
+            ((DownwindPhase)heldLead.Phases.CurrentPhase!).HasReachedBaseTurnPoint(heldLead.Position),
+            "Held lead should be past its own base-turn point."
+        );
+        Assert.True(
+            AirborneFollowHelper.IsLeadPatternFlowAhead(follower, heldLead),
+            "A same-leg lead held past its base turn (no IsExtended) must count as flow-ahead."
+        );
+
+        // Progressing lead: on the same downwind, 0.6 nm SHORT of its base turn, not extended.
+        // It will turn base at its own point ahead of the follower, so the follower keeps normal
+        // spacing rather than extending behind it.
+        var progressingPos = GeoMath.ProjectPoint(baseTurn, wp.DownwindHeading.ToReciprocal(), 0.6);
+        var progressingLead = MakeVfr(LeadCallsign, progressingPos, wp.DownwindHeading, wp.PatternAltitude, 90);
+        AttachCircuit(progressingLead, rwy, Cat, Dir, PatternEntryLeg.Downwind, allRunways);
+        progressingLead.Phases!.Start(Ctx(progressingLead, rwy, lookup));
+        Assert.False(
+            ((DownwindPhase)progressingLead.Phases.CurrentPhase!).HasReachedBaseTurnPoint(progressingLead.Position),
+            "Progressing lead should be short of its base-turn point."
+        );
+        Assert.False(
+            AirborneFollowHelper.IsLeadPatternFlowAhead(follower, progressingLead),
+            "A same-leg lead merely progressing (short of its base turn) must NOT count as flow-ahead."
+        );
+    }
+
     private static CommandResult DispatchTower(string command, AircraftState ac, Func<string, AircraftState?> lookup)
     {
         var parsed = CommandParser.ParseCompound(command, ac.FlightPlan.Route);
