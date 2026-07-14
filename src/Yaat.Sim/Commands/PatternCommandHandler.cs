@@ -2599,7 +2599,7 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok(gaMsg);
     }
 
-    internal static CommandResult TryClearedToLand(ClearedToLandCommand ctl, AircraftState aircraft)
+    internal static CommandResult TryClearedToLand(ClearedToLandCommand ctl, AircraftState aircraft, AirportGroundLayout? groundLayout)
     {
         if (aircraft.Phases is null)
         {
@@ -2622,6 +2622,15 @@ internal static class PatternCommandHandler
                 && !string.Equals(RunwayIdentifier.NormalizeDesignator(ctl.RunwayId), assignedRunway.Designator, StringComparison.OrdinalIgnoreCase)
             )
             {
+                // Low approach on runway A, then cleared to land on a different, diverging runway B
+                // (7110.65 §3-10-5 "change to runway", issue #292). Fly the low pass, then a sharp
+                // turn onto B's final and land. Only when the aircraft is on/set up for a low approach;
+                // any other runway mismatch keeps the strict reject below.
+                if (IsOnLowApproach(aircraft))
+                {
+                    return TryRetargetLowApproachToRunway(ctl, aircraft, assignedRunway, groundLayout);
+                }
+
                 return new CommandResult(
                     false,
                     $"Cannot clear for runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId)} — {aircraft.Callsign} is established for runway {RunwayIdentifier.ToDisplayDesignator(assignedRunway.Designator)}"
@@ -2679,6 +2688,253 @@ internal static class PatternCommandHandler
         }
 
         return new CommandResult(false, "Cannot clear to land — no runway assigned");
+    }
+
+    // --- Low approach on runway A, then cleared to land on a diverging runway B (issue #292) ---
+    // 7110.65 §3-10-5 subpara 3 "change to runway"; AIM §4-3-12.1 authorizes the low-approach turn
+    // ("Unless otherwise authorized by ATC, the low approach should be made straight ahead...").
+
+    // Divergence band for the low-approach runway change. Below the minimum the runways are
+    // near-parallel — that is a sidestep (IsParallelSidestepCandidate/ApplySidestep), not this
+    // maneuver. Above the maximum the heading change exceeds a single continuous base-leg turn (>90°
+    // puts the new final behind the abeam line) and needs a downwind/base re-entry, so the pilot
+    // declines. 90° is the clean textbook base-to-final edge (aviation review).
+    private const double MinRetargetDivergenceDeg = 15.0;
+    private const double MaxRetargetDivergenceDeg = 90.0;
+
+    // Roll-out distance on the new runway's final that the turn is aimed at. This is a SHORT final by
+    // design: for diverging runways that share a corner (KOAK 28R/33) the aircraft on runway A's final
+    // is always well left of runway B's final, so B's final is only ever a tight, curved intercept —
+    // never a 1 nm straight-in. A small gate lets the aircraft fly the low approach down A and make a
+    // genuinely late, sharp turn onto B's short final, rather than peeling off a mile out.
+    private const double RetargetFinalGateNm = 0.5;
+
+    private static bool IsOnLowApproach(AircraftState aircraft)
+    {
+        var phases = aircraft.Phases;
+        if (phases is null)
+        {
+            return false;
+        }
+
+        if (phases.LandingClearance == ClearanceType.ClearedLowApproach)
+        {
+            return true;
+        }
+
+        return HasLowApproachPhase(phases);
+    }
+
+    private static bool HasLowApproachPhase(PhaseList phases) =>
+        phases.CurrentPhase is LowApproachPhase
+        || phases.Phases.Any(p => p is LowApproachPhase && p.Status is PhaseStatus.Pending or PhaseStatus.Active);
+
+    /// <summary>
+    /// Feasibility of turning a low approach on runway <paramref name="a"/> onto a landing on the
+    /// diverging runway <paramref name="b"/> (issue #292). Returns the gate point on B's final (the
+    /// roll-out target) when feasible. Reuses the EF turn-radius model so the maneuverability check is
+    /// consistent with pattern entry. Evaluated at the command instant; the actual turn follows the
+    /// low pass, so the along-track gate check (the aircraft must still be outbound of the gate) is the
+    /// load-bearing one — the low pass then carries the aircraft down to that gate.
+    /// </summary>
+    internal static (bool Feasible, string Reason, double GateLat, double GateLon) EvaluateLowApproachRetargetFeasibility(
+        AircraftState aircraft,
+        RunwayInfo a,
+        RunwayInfo b
+    )
+    {
+        string bLabel = RunwayIdentifier.ToDisplayDesignator(b.Designator);
+
+        // Gate point on B's final approach course, RetargetFinalGateNm out from B's threshold.
+        TrueHeading bFinalOutbound = b.TrueHeading.ToReciprocal();
+        var gate = GeoMath.ProjectPoint(b.ThresholdLatitude, b.ThresholdLongitude, bFinalOutbound, RetargetFinalGateNm);
+
+        // (1) Divergence band.
+        double divergence = a.TrueHeading.AbsAngleTo(b.TrueHeading);
+        if (divergence < MinRetargetDivergenceDeg)
+        {
+            return (false, $"Unable, runway {bLabel} is too close to sidestep from a low approach", gate.Lat, gate.Lon);
+        }
+        if (divergence > MaxRetargetDivergenceDeg)
+        {
+            return (false, $"Unable, will re-enter the pattern for runway {bLabel}", gate.Lat, gate.Lon);
+        }
+
+        // (2) Intersecting runways: a diverging turn across a physical crossing at low altitude is
+        //     unsafe. Non-intersecting pairs (e.g. KOAK 28R/33) pass.
+        if (
+            SegmentsIntersect(
+                new LatLon(a.ThresholdLatitude, a.ThresholdLongitude),
+                new LatLon(a.EndLatitude, a.EndLongitude),
+                new LatLon(b.ThresholdLatitude, b.ThresholdLongitude),
+                new LatLon(b.EndLatitude, b.EndLongitude)
+            )
+        )
+        {
+            return (false, $"Unable, runway {bLabel} intersects the low-approach runway", gate.Lat, gate.Lon);
+        }
+
+        // (3) Converging the wrong way / already past B's final: the aircraft must still be on the
+        //     approach side of the gate so it can turn onto B's final without turning away from the field.
+        double alongPastGate = GeoMath.AlongTrackDistanceNm(aircraft.Position, new LatLon(gate.Lat, gate.Lon), bFinalOutbound);
+        if (alongPastGate <= 0)
+        {
+            return (false, $"Unable, past the final for runway {bLabel}", gate.Lat, gate.Lon);
+        }
+
+        // (4) Turn feasibility: can the aircraft roll out on B's final at the gate given its turn radius
+        //     and the distance available? Use the rate the maneuver actually flies — the appended
+        //     PatternEntry/FinalApproach turn at the airframe-default standard rate (3°/s), not the
+        //     tighter 12°/s pattern envelope the EF loop-check uses — so the gate only approves turns
+        //     the aircraft can really complete (conservative bias, aviation review).
+        const double turnRateDegs = 3.0;
+        double speedKts = Math.Max(aircraft.GroundSpeed, 60);
+        double radiusNm = (speedKts / 3600.0) / (turnRateDegs * Math.PI / 180.0);
+
+        double bearingToGate = GeoMath.BearingTo(aircraft.Position, new LatLon(gate.Lat, gate.Lon));
+        double turnToGate = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearingToGate));
+        double turnAtGate = new TrueHeading(bearingToGate).AbsAngleTo(b.TrueHeading);
+        double distToGate = GeoMath.DistanceNm(aircraft.Position, new LatLon(gate.Lat, gate.Lon));
+        double arcNm = (turnToGate + turnAtGate) * Math.PI / 180.0 * radiusNm;
+        if ((turnToGate + turnAtGate) > 180 && arcNm > distToGate)
+        {
+            return (false, $"Unable, can't make the turn to runway {bLabel}", gate.Lat, gate.Lon);
+        }
+
+        return (true, "", gate.Lat, gate.Lon);
+    }
+
+    /// <summary>
+    /// Straddle test: do segments p1-p2 and p3-p4 cross? Treats lat/lon as planar, adequate at
+    /// runway scale. Ignores collinear/touching edge cases (runways that merely share an endpoint
+    /// are not treated as intersecting).
+    /// </summary>
+    private static bool SegmentsIntersect(LatLon p1, LatLon p2, LatLon p3, LatLon p4)
+    {
+        static double Cross(LatLon o, LatLon a, LatLon b) => ((a.Lat - o.Lat) * (b.Lon - o.Lon)) - ((a.Lon - o.Lon) * (b.Lat - o.Lat));
+
+        double d1 = Cross(p3, p4, p1);
+        double d2 = Cross(p3, p4, p2);
+        double d3 = Cross(p1, p2, p3);
+        double d4 = Cross(p1, p2, p4);
+
+        return ((d1 > 0) != (d2 > 0)) && ((d3 > 0) != (d4 > 0));
+    }
+
+    /// <summary>
+    /// CLAND &lt;B&gt; issued during a low approach on runway A, where B is a different diverging runway
+    /// (issue #292). Flies the low pass, then a sharp turn onto B's final and a landing on B. Reassigns
+    /// the runway and re-issues the landing clearance for B (7110.65 §3-10-5 change-to-runway). Rejects
+    /// with a pilot "unable" when the geometry is infeasible, leaving the low approach intact.
+    /// </summary>
+    private static CommandResult TryRetargetLowApproachToRunway(
+        ClearedToLandCommand ctl,
+        AircraftState aircraft,
+        RunwayInfo assignedRunway,
+        AirportGroundLayout? groundLayout
+    )
+    {
+        var airportId = ResolveAirportContext(aircraft);
+        if (string.IsNullOrEmpty(airportId))
+        {
+            return new CommandResult(false, "No airport context to resolve runway");
+        }
+
+        var runwayB = NavigationDatabase.Instance.GetRunway(airportId, ctl.RunwayId!);
+        if (runwayB is null)
+        {
+            return new CommandResult(false, $"Runway {RunwayIdentifier.ToDisplayDesignator(ctl.RunwayId!)} not found at {airportId}");
+        }
+
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+
+        // A low approach then a tight turn onto a diverging runway's short final is a light-aircraft
+        // VFR-pattern maneuver flown low and slow. A jet or turboprop can't fly it (aviation review),
+        // so restrict it to pistons and helicopters.
+        if (category is not (AircraftCategory.Piston or AircraftCategory.Helicopter))
+        {
+            return new CommandResult(false, "Unable, low-approach runway change is a light-aircraft maneuver");
+        }
+
+        var feasibility = EvaluateLowApproachRetargetFeasibility(aircraft, assignedRunway, runwayB);
+        if (!feasibility.Feasible)
+        {
+            return new CommandResult(false, feasibility.Reason);
+        }
+
+        var phases = aircraft.Phases!;
+        if (!HasLowApproachPhase(phases))
+        {
+            return new CommandResult(false, "Cannot change landing runway — not on a low approach");
+        }
+
+        // Make the low approach on A the current phase. It caches A's threshold/heading on OnStart, so
+        // this must run while AssignedRunway is still A. If already current this is a no-op.
+        if (phases.CurrentPhase is not LowApproachPhase)
+        {
+            phases.SkipTo<LowApproachPhase>(CommandDispatcher.BuildMinimalContext(aircraft));
+        }
+        if (phases.CurrentPhase is not LowApproachPhase lowApproach)
+        {
+            return new CommandResult(false, "Cannot change landing runway — not on a low approach");
+        }
+
+        lowApproach.EnableRetargetToDifferentRunway(feasibility.GateLat, feasibility.GateLon, runwayB.TrueHeading, RetargetFinalGateNm);
+
+        // Build the runway-B tail: pattern entry onto B's final at the gate, then final + landing.
+        var directionB = GoAroundHelper.InferDefaultPatternDirection(runwayB) ?? PatternDirection.Left;
+        var airportRunwaysB = NavigationDatabase.Instance.GetRunways(runwayB.AirportId);
+        var (sizeOvB, altOvB) = PatternGeometry.ResolveAuthoredOverrides(
+            runwayB,
+            (groundLayout ?? aircraft.Ground.Layout)?.FindRunway(runwayB.Designator),
+            aircraft.Pattern.SizeOverrideNm,
+            aircraft.Pattern.AltitudeOverrideFt
+        );
+
+        double gsAngle = GlideSlopeGeometry.AngleForCategory(category);
+        double entryAltB = GlideSlopeGeometry.AltitudeAtDistance(RetargetFinalGateNm, runwayB.ElevationFt, gsAngle);
+        var patternEntryB = new PatternEntryPhase
+        {
+            EntryLat = feasibility.GateLat,
+            EntryLon = feasibility.GateLon,
+            PatternAltitude = entryAltB,
+            Kind = PatternEntryKind.Final,
+        };
+
+        var circuitB = PatternBuilder.BuildCircuit(
+            runwayB,
+            category,
+            directionB,
+            PatternEntryLeg.Final,
+            touchAndGo: false,
+            RetargetFinalGateNm,
+            sizeOvB,
+            altOvB,
+            airportRunwaysB
+        );
+
+        var bTail = new List<Phase> { patternEntryB };
+        bTail.AddRange(circuitB);
+        phases.ReplaceUpcoming(bTail);
+
+        // Retarget runway + re-issue the landing clearance for B (7110.65 §3-10-5). AssignedRunway
+        // flips to B only now, after the low approach cached A's geometry above.
+        phases.AssignedRunway = runwayB;
+        NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, runwayB.Designator);
+        phases.LandingClearance = ClearanceType.ClearedToLand;
+        phases.ClearedRunwayId = runwayB.Designator;
+        phases.LandingRunwayChangedFromLowApproach = true;
+        phases.TrafficDirection = null;
+        aircraft.Pattern.TrafficDirection = null;
+        if (ctl.NoDelete)
+        {
+            aircraft.Ground.AutoDeleteExempt = true;
+        }
+
+        // 7110.65 §3-10-5 subpara 3: restate the runway number to emphasize the changed runway —
+        // "CHANGE TO RUNWAY (n), RUNWAY (n) CLEARED TO LAND".
+        string bDisplay = RunwayIdentifier.ToDisplayDesignator(runwayB.Designator);
+        return CommandDispatcher.Ok($"Change to runway {bDisplay}, runway {bDisplay}, cleared to land");
     }
 
     /// <summary>

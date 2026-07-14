@@ -161,6 +161,14 @@ public sealed class PhaseList
     public string? ClearedRunwayId { get; set; }
 
     /// <summary>
+    /// Transient one-shot signal: a CLAND just changed the landing runway to a diverging runway during
+    /// a low approach (#292), so the controller/pilot phraseology uses "change to runway N" (7110.65
+    /// §3-10-5). Set by the retarget, consumed and cleared by the pilot readback. Not snapshotted — a
+    /// same-tick readback cue only.
+    /// </summary>
+    public bool LandingRunwayChangedFromLowApproach { get; set; }
+
+    /// <summary>
     /// Instructor/RPO forced-landing override. Set by CLANDF (which also grants landing
     /// clearance). When true, FinalApproachPhase and LandingPhase suppress every automatic
     /// go-around and actively drive the aircraft to a touchdown regardless of energy state.

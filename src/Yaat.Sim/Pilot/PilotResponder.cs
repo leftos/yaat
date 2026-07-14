@@ -273,8 +273,7 @@ public static class PilotResponder
                 includeRunway: false
             ),
             AcknowledgePilotContactCommand => null,
-            ClearedToLandCommand cland => BuildRunwayInstructionClause(aircraft, "cleared to land", explicitRunwayId: cland.RunwayId)
-                ?? VerbalizeDual(cland, personality, activityLevel),
+            ClearedToLandCommand cland => BuildClearedToLandClause(aircraft, cland) ?? VerbalizeDual(cland, personality, activityLevel),
             LandAndHoldShortCommand lahso => BuildLandAndHoldShortClause(aircraft, lahso),
             TouchAndGoCommand tg => AppendTrafficPatternClause(
                 BuildRunwayInstructionClause(aircraft, "cleared touch and go", explicitRunwayId: tg.RunwayId)
@@ -456,6 +455,32 @@ public static class PilotResponder
         }
 
         return aircraft.Phases?.AssignedRunway?.Designator ?? "";
+    }
+
+    /// <summary>
+    /// Pilot readback for CLAND. When the clearance just changed the landing runway to a diverging
+    /// runway during a low approach (#292), the pilot prefaces the readback with "change to runway N"
+    /// (7110.65 §3-10-5); otherwise it is the normal "cleared to land runway N".
+    /// </summary>
+    private static PilotSpeechText? BuildClearedToLandClause(AircraftState aircraft, ClearedToLandCommand cland)
+    {
+        bool runwayChanged = aircraft.Phases?.LandingRunwayChangedFromLowApproach == true;
+        if (aircraft.Phases is not null)
+        {
+            aircraft.Phases.LandingRunwayChangedFromLowApproach = false;
+        }
+
+        var landingClause = BuildRunwayInstructionClause(aircraft, "cleared to land", explicitRunwayId: cland.RunwayId);
+        if ((landingClause is null) || !runwayChanged)
+        {
+            return landingClause;
+        }
+
+        string runwayId = cland.RunwayId ?? aircraft.Phases?.ClearedRunwayId ?? "";
+        return new PilotSpeechText(
+            $"change to runway {PhraseologyVerbalizer.CompactRunway(runwayId)}, cleared to land",
+            $"change to runway {PhraseologyVerbalizer.SpellRunway(runwayId)}, cleared to land"
+        );
     }
 
     private static PilotSpeechText? BuildRunwayInstructionClause(AircraftState aircraft, string lead, string? explicitRunwayId = null)

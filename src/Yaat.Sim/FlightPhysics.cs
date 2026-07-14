@@ -800,7 +800,14 @@ public static class FlightPhysics
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.StarViaFloor = null;
         aircraft.Procedure.DepartureRunway = null;
-        aircraft.Procedure.DestinationRunway = null;
+        // Keep the destination-runway datablock when the aircraft is still committed to a runway
+        // (e.g. a pattern-entry route draining onto final): nulling it here blanked the runway during
+        // the final approach after an EF/CLAND-to-runway entry (#292). Only clear it once the aircraft
+        // has no assigned runway at all.
+        if (aircraft.Phases?.AssignedRunway is null)
+        {
+            aircraft.Procedure.DestinationRunway = null;
+        }
         aircraft.Procedure.LastProcedureSpeedKts = null;
     }
 

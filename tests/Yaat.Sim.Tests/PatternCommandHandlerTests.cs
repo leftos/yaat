@@ -1511,7 +1511,7 @@ public class PatternCommandHandlerTests
         var ac = MakeAircraft(altitude: 1500, onGround: false);
         ac.Phases!.Add(new LandingPhase());
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, null);
 
         Assert.True(result.Success);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases.LandingClearance);
@@ -1527,7 +1527,7 @@ public class PatternCommandHandlerTests
         var ac = MakeAircraft(altitude: 1500, onGround: false);
         // No LandingPhase added — just an aircraft in cruise/enroute with a runway assigned.
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, null);
 
         Assert.False(result.Success);
         Assert.Contains("no pending approach", result.Message!, System.StringComparison.OrdinalIgnoreCase);
@@ -1591,7 +1591,7 @@ public class PatternCommandHandlerTests
         // on or being vectored to an approach.
         var ac = MakeAircraft(altitude: 100, onGround: true);
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, null);
 
         Assert.False(result.Success);
         Assert.Contains("on the ground", result.Message!);
@@ -1606,7 +1606,7 @@ public class PatternCommandHandlerTests
         var ac = MakeAircraft(altitude: 1500, onGround: false);
         ac.Phases!.AssignedRunway = null;
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, null);
 
         Assert.False(result.Success);
         Assert.Contains("no runway assigned", result.Message!, System.StringComparison.OrdinalIgnoreCase);

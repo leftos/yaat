@@ -118,7 +118,7 @@
         { "verb": "CTOC", "aliases": [], "description": "Cancel takeoff clearance" },
         { "verb": "GO", "aliases": [], "description": "Begin takeoff roll" },
         { "verb": "GA", "aliases": [], "description": "Go around [heading]" },
-        { "verb": "CLAND", "aliases": ["cl", "fs"], "description": "Cleared to land [runway] (arms while following)" },
+        { "verb": "CLAND", "aliases": ["cl", "fs"], "description": "Cleared to land [runway] (arms while following; during a low approach, CLAND <divergingRwy> turns onto and lands the other runway)" },
         { "verb": "CLANDF", "aliases": [], "description": "Force landing (RPO-only): clears + forces touchdown, no go-around" },
         { "verb": "LAHSO", "aliases": [], "description": "Land and hold short of runway" },
         { "verb": "CLC", "aliases": ["ctlc"], "description": "Cancel landing clearance" },

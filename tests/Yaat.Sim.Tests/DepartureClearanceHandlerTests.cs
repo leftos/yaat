@@ -947,7 +947,7 @@ public class DepartureClearanceHandlerTests
         ac.Altitude = 1500;
 
         // Issue CLAND — should clear for the pattern runway (28R), not the takeoff runway (33)
-        var clandResult = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+        var clandResult = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, null);
         Assert.True(clandResult.Success);
         Assert.Equal("28R", ac.Phases.ClearedRunwayId);
         Assert.Contains("Runway 28R", clandResult.Message);

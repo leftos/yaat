@@ -95,7 +95,7 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
         var runway = MakeOak28R();
         var ac = MakeOnRightBase(runway);
 
-        var cland = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac);
+        var cland = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, null);
         Assert.True(cland.Success, cland.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
 

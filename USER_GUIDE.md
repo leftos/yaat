@@ -1018,6 +1018,7 @@ YAAT has a comprehensive command system for controlling aircraft. Commands are t
 | `TAXI 28R G D` | Taxi **along** runway 28R, then off onto taxiways G, D (a runway named mid-path is taxied along its centerline) |
 | `CLAND` | Cleared to land |
 | `CLAND 28R` | Cleared to land on runway 28R (a following aircraft is cleared even before it has its own runway) |
+| `CLAND 33` (during a low approach) | Low approach, then land a diverging runway. During a low approach (`LA`), clearing a light aircraft to a different, non-intersecting runway flies the low pass and turns onto that runway to land (e.g. `LA` then `CLAND 33` for a low approach 28R, land 33). The pilot reads back "change to runway 33, cleared to land". Declined when the runways are too close/divergent or the turn can't be made. |
 | `CLANDF` | Force landing — clears the aircraft and forces it down regardless of energy state, overriding the automatic go-around, or cancelling an in-progress go-around and re-establishing the aircraft on final (RPO-only; cancel with `GA` or `CLC`) |
 | `CWT` | Caution wake turbulence |
 | `REPORT BASE` | Have the pilot report turning base (repeats each circuit; also `REPORT 5 FINAL`, `REPORT SUNOL`; cancel with `REPORT OFF`) |

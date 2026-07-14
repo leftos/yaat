@@ -754,6 +754,20 @@ Which command handler builds which phase (parsing/dispatch live in
 
 ## Footguns & pitfalls
 
+- **Low approach → land a diverging runway (`CLAND <B>` during `LA`, #292) does NOT reuse `TryEnterPattern`.**
+  `TryEnterPattern` rebuilds the whole `PhaseList`, which would wipe the in-progress low pass. Instead
+  `PatternCommandHandler.TryRetargetLowApproachToRunway` keeps the running `LowApproachPhase` (put into
+  *retarget mode* via `EnableRetargetToDifferentRunway`), reassigns `AssignedRunway` to B only after the low
+  approach has cached A's threshold/heading (so the low pass still flies runway A), and *appends*
+  `PatternEntryPhase(B) → FinalApproachPhase(B) → LandingPhase(B)`. In retarget mode the `LowApproachPhase`
+  completes at the last feasible turn point — a **gate** a short distance (`RetargetFinalGateNm`) out on B's
+  final — or the low-pass floor, whichever comes first. The gate is deliberately *short* (0.5 nm): for a
+  diverging pair that shares a corner (KOAK 28R/33) the aircraft on A's final is always well left of B's final
+  (cross-track ≥ 0.5 nm even at A's threshold), so B is only ever reachable as a tight, curved, short-final
+  intercept — never a 1 nm straight-in. A short gate lets the aircraft fly the low approach down A and turn late
+  and low. `EvaluateLowApproachRetargetFeasibility` gates it (piston/helicopter only, divergence 15–90°, no
+  intersection, not past B's final, turn completable at the 3°/s execution rate) and runs **before any state
+  mutation** so a reject leaves the low approach intact.
 - **`JFAC`/`JLOC` is lateral-only — `FinalApproachPhase` must not descend until `CAPP`.** `DispatchJfac` sets
   `ApproachClearance.LateralInterceptOnly = true` and keeps the assigned altitude/speed. `FinalApproachPhase` checks
   that flag (`OnStart` skips the approach decel; `OnTick` holds the assigned altitude and skips the glideslope /

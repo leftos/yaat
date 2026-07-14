@@ -1902,11 +1902,13 @@ public static class CommandParser
             {
                 cautionWakeTurbulence = true;
             }
-            else if (runwayId is null && IsRunwayDesignator(token))
+            else if (runwayId is null && IsRunwayArg(token))
             {
-                // Normalize to the zero-padded canonical ("8R" -> "08R") so an unpadded
-                // FAA-form token never enters sim state and the runway-match comparisons
-                // downstream (CLAND established/armed checks) line up with RunwayInfo.Designator.
+                // CLAND's only non-flag argument is a runway (no altitude/heading to disambiguate),
+                // so accept a bare-2-digit runway like "33" too — CLAND 33 for a low-approach runway
+                // change (#292), not just L/C/R-suffixed forms. Normalize to the zero-padded canonical
+                // ("8R" -> "08R") so an unpadded FAA-form token never enters sim state and the runway
+                // comparisons downstream line up with RunwayInfo.Designator.
                 runwayId = RunwayIdentifier.NormalizeDesignator(token.ToUpperInvariant());
             }
             else

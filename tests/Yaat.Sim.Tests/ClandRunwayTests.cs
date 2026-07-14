@@ -69,7 +69,7 @@ public class ClandRunwayTests
     {
         var ac = MakeFollower();
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
@@ -81,7 +81,7 @@ public class ClandRunwayTests
     {
         var ac = MakeFollower();
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
@@ -98,7 +98,7 @@ public class ClandRunwayTests
         var ac = MakeFollower();
         ac.Approach.FollowingCallsign = null;
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "28R" }, ac, null);
 
         Assert.False(result.Success);
         Assert.Contains("no approach", result.Message!, System.StringComparison.OrdinalIgnoreCase);
@@ -115,7 +115,7 @@ public class ClandRunwayTests
         // clears it with the FAA form "8R". These name the same runway end and must match.
         var ac = MakeEstablished("8R");
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "8R" }, ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "8R" }, ac, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(ClearanceType.ClearedToLand, ac.Phases!.LandingClearance);
@@ -129,7 +129,7 @@ public class ClandRunwayTests
         // normalization fix must not collapse opposite ends (i.e. must not use Id.Contains).
         var ac = MakeEstablished("8R");
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "26L" }, ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "26L" }, ac, null);
 
         Assert.False(result.Success);
         Assert.Contains("established for runway", result.Message!, System.StringComparison.OrdinalIgnoreCase);
@@ -143,7 +143,7 @@ public class ClandRunwayTests
         // (against the joined runway's normalized Designator) succeeds.
         var ac = MakeFollower();
 
-        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "8R" }, ac);
+        var result = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand { RunwayId = "8R" }, ac, null);
 
         Assert.True(result.Success, result.Message);
         Assert.Equal("08R", ac.Phases!.ClearedRunwayId);

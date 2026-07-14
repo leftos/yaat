@@ -908,7 +908,7 @@ public static class CommandDispatcher
 
             // --- Tower commands (also dispatched via TryApplyTowerCommand in the phase path) ---
             case ClearedToLandCommand ctl:
-                return PatternCommandHandler.TryClearedToLand(ctl, aircraft);
+                return PatternCommandHandler.TryClearedToLand(ctl, aircraft, ctx.GroundLayout);
             case ForceLandingCommand flc:
                 return PatternCommandHandler.TryForceLanding(flc, aircraft, ctx);
             case LandAndHoldShortCommand lahso:
@@ -1686,7 +1686,7 @@ public static class CommandDispatcher
             }
 
             case ClearedToLandCommand ctl:
-                return PatternCommandHandler.TryClearedToLand(ctl, aircraft);
+                return PatternCommandHandler.TryClearedToLand(ctl, aircraft, ctx.GroundLayout);
 
             case ForceLandingCommand flc:
                 return PatternCommandHandler.TryForceLanding(flc, aircraft, ctx);

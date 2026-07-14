@@ -501,6 +501,18 @@ public sealed class LowApproachPhaseDto : PhaseDto
     public required double ThresholdLat { get; init; }
     public required double ThresholdLon { get; init; }
     public required bool ClimbingOut { get; init; }
+
+    /// <summary>Low approach is the lead-in to a landing on a diverging runway (#292); turn onto that
+    /// runway's final at the gate below instead of the straight climb-out. Absent on pre-#292 snapshots
+    /// (defaults false).</summary>
+    public bool RetargetToDifferentRunway { get; init; }
+
+    /// <summary>Gate point on the diverging runway's final (last feasible turn point) — see
+    /// <see cref="RetargetToDifferentRunway"/>. Zero on pre-#292 snapshots.</summary>
+    public double RetargetGateLat { get; init; }
+    public double RetargetGateLon { get; init; }
+    public double RetargetRunwayHeadingBDeg { get; init; }
+    public double RetargetGateNm { get; init; }
 }
 
 public sealed class RunwayHoldingPhaseDto : PhaseDto

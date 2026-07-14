@@ -9,7 +9,8 @@ namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// Tests for GitHub issue #100: CAPP issued on an aircraft with no resolvable approach
-/// should fail cleanly, not destroy phases. CLAND with a runway arg should be rejected.
+/// should fail cleanly, not destroy phases. CLAND with a runway arg must parse cleanly (not be
+/// treated as an "unsupported command").
 ///
 /// Recording: S2-OAK-5 (1) — JSX170 on final rwy 30, CAPP issued at t=727s.
 /// </summary>
@@ -77,13 +78,15 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Cland30_RejectedWithClearError()
+    public void Cland30_ParsesAsRunway30_NotUnsupported()
     {
-        // CLAND 30 should be rejected at parse time, not treated as UnsupportedCommand
+        // CLAND with a bare 2-digit runway parses cleanly as "cleared to land runway 30" (never an
+        // "unsupported command"). Runway acceptance widened to bare 2-digit forms so the low-approach
+        // runway change (CLAND <divergingRunway>, #292) works for runways like 33/30 without an L/C/R.
         var parseResult = CommandParser.ParseCompound("CLAND 30", aircraftRoute: null);
-        Assert.False(parseResult.IsSuccess, "CLAND 30 should fail to parse");
-        Assert.NotNull(parseResult.Reason);
-        Assert.DoesNotContain("not yet supported", parseResult.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(parseResult.IsSuccess, parseResult.Reason);
+        var cland = Assert.IsType<ClearedToLandCommand>(Assert.Single(Assert.Single(parseResult.Value!.Blocks).Commands));
+        Assert.Equal("30", cland.RunwayId);
     }
 
     [Fact]
