@@ -26,7 +26,7 @@ public class SmartStatusTests
             LandingClearance = "",
             AssignedRunway = "28R",
         };
-        Assert.Equal("No landing clnc · final 28R", Text(v));
+        Assert.Equal("No landing clnc · Final 28R", Text(v));
         Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
@@ -66,7 +66,7 @@ public class SmartStatusTests
             LandingClearance = "",
             AssignedRunway = "28R",
         };
-        Assert.Equal("Landing — no clnc! · landing 28R", Text(v));
+        Assert.Equal("Landing — no clnc! · Landing 28R", Text(v));
         Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
@@ -79,7 +79,7 @@ public class SmartStatusTests
             LandingClearance = "",
             AssignedRunway = "28R",
         };
-        Assert.Equal("Landing — no clnc! · landing 28R", Text(v));
+        Assert.Equal("Landing — no clnc! · Landing 28R", Text(v));
         Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 
@@ -861,7 +861,7 @@ public class SmartStatusTests
             HandoffPeer = "conn1",
             HandoffPeerSectorCode = "NR",
         };
-        Assert.Equal("HO → NR · taxiing", Text(v));
+        Assert.Equal("HO → NR · Taxiing", Text(v));
         Assert.Equal(AircraftStatusSeverity.Warning, Severity(v));
     }
 
@@ -875,7 +875,7 @@ public class SmartStatusTests
             HandoffPeer = "conn1",
             AssignedRunway = "28R",
         };
-        Assert.Equal("No landing clnc · final 28R", Text(v));
+        Assert.Equal("No landing clnc · Final 28R", Text(v));
         Assert.Equal(AircraftStatusSeverity.Critical, Severity(v));
     }
 

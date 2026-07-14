@@ -84,7 +84,7 @@ public class AircraftViewFilterTests
         // Warnings prepend to (not replace) the normal status, so both the warning word and the
         // underlying activity stay searchable via the Aircraft List filter's SmartStatus match.
         var ac = Model();
-        ac.SmartStatus = "No landing clnc · final 28R";
+        ac.SmartStatus = "No landing clnc · Final 28R";
         Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "landing"));
         Assert.True(MainViewModel.IsAircraftVisible(ac, showOnlyActive: false, filter: "final"));
     }

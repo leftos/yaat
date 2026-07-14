@@ -51,7 +51,7 @@ public static class AircraftStatusDescriber
         if (alert is not null)
         {
             var (alertText, alertSeverity) = alert.Value;
-            var combined = string.IsNullOrEmpty(normalText) ? alertText : $"{alertText} · {normalText}";
+            var combined = string.IsNullOrEmpty(normalText) ? alertText : $"{alertText} · {CapitalizeFirst(normalText)}";
             return (combined, alertSeverity);
         }
 
@@ -60,9 +60,9 @@ public static class AircraftStatusDescriber
 
     /// <summary>
     /// The phase-driven (or no-phase) status text describing what the aircraft is doing, before any
-    /// alert is considered. Not capitalized here: <see cref="Describe"/> capitalizes it for the
-    /// no-alert case, but leaves it lowercase when an alert is prepended so the composite reads as
-    /// one sentence (e.g. "No landing clnc · final 28R").
+    /// alert is considered. Not capitalized here: <see cref="Describe"/> capitalizes the first letter
+    /// in both cases — when the status stands alone and when an alert is prepended — so each part of
+    /// the composite reads as its own sentence (e.g. "No landing clnc · Final 28R").
     /// </summary>
     private static (string Text, AircraftStatusSeverity Severity) ComputeNormalStatus(AircraftStatusView i)
     {
