@@ -1,47 +1,54 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Services;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.ViewModels;
 
+/// <summary>
+/// A request for the view to prompt the user for a bookmark name. <see cref="OnSave"/> commits the
+/// typed name; <see cref="OnCancel"/> runs when the prompt is dismissed without saving (for a new
+/// bookmark that means "create it unnamed", for a rename it is a no-op).
+/// </summary>
+public sealed record BookmarkNamePrompt(string? InitialName, Action<string?> OnSave, Action OnCancel);
+
 public partial class MainViewModel
 {
     private const int MaxBookmarks = 500;
-    private int _bookmarkCounter;
 
     /// <summary>
-    /// User-authored timeline bookmarks, kept sorted by <see cref="TimelineBookmarkVm.TimeSeconds"/>.
-    /// Held in memory during a session and embedded into the recording archive on save (see
-    /// <see cref="SnapshotBookmarks"/> / <see cref="SetBookmarks"/>). Never touched by the 5 s
-    /// Finding/Command marker poll, so it survives those rebuilds.
+    /// Client mirror of the room's shared timeline bookmarks (<see cref="ServerConnection.BookmarksChanged"/>
+    /// and the <c>RoomStateDto.Bookmarks</c> join seed), kept sorted by
+    /// <see cref="TimelineBookmarkVm.TimeSeconds"/>. Server-authoritative: add/rename/delete go out as hub
+    /// RPCs and the collection is only ever rebuilt from a broadcast, so no local echo guard is needed.
     /// </summary>
     public ObservableCollection<TimelineBookmarkVm> Bookmarks { get; } = [];
 
     public bool HasBookmarks => Bookmarks.Count > 0;
 
     /// <summary>
-    /// Raised when the view should prompt the user for a bookmark name (on deliberate Add, or
-    /// Rename). The argument is the bookmark to name; the view writes back to its
-    /// <see cref="TimelineBookmarkVm.Name"/>. Quick-add does not raise this.
+    /// Raised when the view should prompt the user for a bookmark name (on deliberate Add, or Rename).
+    /// Quick-add does not raise this.
     /// </summary>
-    public event Action<TimelineBookmarkVm>? BookmarkNamePromptRequested;
+    public event Action<BookmarkNamePrompt>? BookmarkNamePromptRequested;
 
     [RelayCommand]
     private void AddBookmark()
     {
-        var bookmark = CreateBookmark(ScenarioElapsedSeconds, name: null);
-        if (bookmark is not null)
-        {
-            BookmarkNamePromptRequested?.Invoke(bookmark);
-        }
+        var timeSeconds = ScenarioElapsedSeconds;
+        BookmarkNamePromptRequested?.Invoke(
+            new BookmarkNamePrompt(
+                InitialName: null,
+                OnSave: name => _ = SendAddBookmarkAsync(timeSeconds, name),
+                OnCancel: () => _ = SendAddBookmarkAsync(timeSeconds, null)
+            )
+        );
     }
 
     [RelayCommand]
-    private void QuickAddBookmark()
-    {
-        CreateBookmark(ScenarioElapsedSeconds, name: null);
-    }
+    private Task QuickAddBookmark() => SendAddBookmarkAsync(ScenarioElapsedSeconds, null);
 
     [RelayCommand]
     private async Task NextBookmark()
@@ -68,25 +75,26 @@ public partial class MainViewModel
     /// <summary>Snapshot the current bookmarks for embedding into a recording archive on save.</summary>
     public IReadOnlyList<TimelineBookmark> SnapshotBookmarks()
     {
-        return [.. Bookmarks.Select(b => new TimelineBookmark(b.Id, b.TimeSeconds, b.Name))];
+        return [.. Bookmarks.Select(b => new TimelineBookmark(b.Id, b.TimeSeconds, b.Name, b.CreatorInitials))];
     }
 
-    /// <summary>Replace the bookmark list from a loaded recording. Sorts and applies the cap.</summary>
-    public void SetBookmarks(IReadOnlyList<TimelineBookmark> bookmarks)
+    private void OnBookmarksChanged(BookmarksChangedDto dto) => Dispatcher.UIThread.Post(() => ApplyBookmarks(dto.Bookmarks));
+
+    /// <summary>Replace the bookmark list from a server broadcast or the join-time room-state seed.</summary>
+    public void ApplyBookmarks(List<TimelineBookmarkDto>? bookmarks)
     {
-        ClearBookmarks();
-        foreach (var b in bookmarks)
+        Bookmarks.Clear();
+        if (bookmarks is not null)
         {
-            if (Bookmarks.Count >= MaxBookmarks)
+            foreach (var b in bookmarks.OrderBy(b => b.TimeSeconds).Take(MaxBookmarks))
             {
-                break;
+                Bookmarks.Add(NewBookmarkVm(b.Id, b.TimeSeconds, b.Name, b.CreatorInitials));
             }
-            InsertSorted(NewBookmarkVm(b.Id, b.TimeSeconds, b.Name));
         }
-        _bookmarkCounter += bookmarks.Count;
+        OnPropertyChanged(nameof(HasBookmarks));
     }
 
-    /// <summary>Clear all bookmarks at a session boundary (scenario load/unload, recording load).</summary>
+    /// <summary>Clear all bookmarks locally at a session boundary (scenario load/unload, room join).</summary>
     public void ClearBookmarks()
     {
         if (Bookmarks.Count == 0)
@@ -97,51 +105,87 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(HasBookmarks));
     }
 
-    private TimelineBookmarkVm? CreateBookmark(double timeSeconds, string? name)
+    private async Task SendAddBookmarkAsync(double timeSeconds, string? name)
     {
-        if (Bookmarks.Count >= MaxBookmarks)
+        if (!IsConnected)
         {
-            StatusText = $"Bookmark limit reached ({MaxBookmarks})";
-            return null;
+            return;
         }
 
-        var id = string.Create(CultureInfo.InvariantCulture, $"bm-{timeSeconds:0.000}-{_bookmarkCounter++}");
-        var bookmark = NewBookmarkVm(id, timeSeconds, name);
-        InsertSorted(bookmark);
-        StatusText = $"Bookmark added at {FormatTime(timeSeconds)}";
-        return bookmark;
+        try
+        {
+            var result = await _connection.AddBookmarkAsync(timeSeconds, name, _preferences.UserInitials);
+            StatusText = result.Success ? $"Bookmark added at {FormatTime(timeSeconds)}" : (result.Message ?? "Add bookmark failed");
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Add bookmark failed");
+            StatusText = $"Add bookmark error: {ex.Message}";
+        }
     }
 
-    private TimelineBookmarkVm NewBookmarkVm(string id, double timeSeconds, string? name)
+    private async Task SendRenameBookmarkAsync(string id, string? name)
+    {
+        if (!IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await _connection.RenameBookmarkAsync(id, name);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Rename bookmark failed");
+            StatusText = $"Rename bookmark error: {ex.Message}";
+        }
+    }
+
+    private async Task SendDeleteBookmarkAsync(string id)
+    {
+        if (!IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _connection.DeleteBookmarkAsync(id);
+            if (result.Success)
+            {
+                StatusText = "Bookmark deleted";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Delete bookmark failed");
+            StatusText = $"Delete bookmark error: {ex.Message}";
+        }
+    }
+
+    private TimelineBookmarkVm NewBookmarkVm(string id, double timeSeconds, string? name, string? creatorInitials)
     {
         return new TimelineBookmarkVm
         {
             Id = id,
             TimeSeconds = timeSeconds,
             Name = name,
-            RenameRequested = bm => BookmarkNamePromptRequested?.Invoke(bm),
-            DeleteRequested = RemoveBookmark,
+            CreatorInitials = creatorInitials,
+            RenameRequested = RequestRenameBookmark,
+            DeleteRequested = bm => _ = SendDeleteBookmarkAsync(bm.Id),
             JumpRequested = bm => RewindToSeconds(bm.TimeSeconds),
         };
     }
 
-    private void RemoveBookmark(TimelineBookmarkVm bookmark)
+    private void RequestRenameBookmark(TimelineBookmarkVm bookmark)
     {
-        if (Bookmarks.Remove(bookmark))
-        {
-            OnPropertyChanged(nameof(HasBookmarks));
-            StatusText = "Bookmark deleted";
-        }
-    }
-
-    private void InsertSorted(TimelineBookmarkVm bookmark)
-    {
-        int index = 0;
-        while (index < Bookmarks.Count && Bookmarks[index].TimeSeconds <= bookmark.TimeSeconds)
-        {
-            index++;
-        }
-        Bookmarks.Insert(index, bookmark);
-        OnPropertyChanged(nameof(HasBookmarks));
+        BookmarkNamePromptRequested?.Invoke(
+            new BookmarkNamePrompt(
+                InitialName: bookmark.Name,
+                OnSave: name => _ = SendRenameBookmarkAsync(bookmark.Id, name),
+                OnCancel: static () => { }
+            )
+        );
     }
 }

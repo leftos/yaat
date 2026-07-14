@@ -331,6 +331,7 @@
                     </Button>
                     <Popup x:Name="BookmarkNamePopup"
                            IsLightDismissEnabled="True"
+                           Closed="OnBookmarkNamePopupClosed"
                            PlacementTarget="{Binding #AddBookmarkButton}"
                            Placement="Bottom">
                         <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="6" CornerRadius="2">

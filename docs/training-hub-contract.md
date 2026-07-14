@@ -111,6 +111,9 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `ExportRecordingAsync()` | `ExportRecording` | `ExportRecording()` `:961` (stream) |
 | `LoadRecordingAsync(bytes)` | `LoadRecording` | `LoadRecording(stream)` `:1015` |
 | `MigrateRecordingAsync(json)` | `MigrateRecording` | `MigrateRecording(json)` `:990` |
+| `AddBookmarkAsync(timeSeconds, name, initials)` | `AddBookmark` | `AddBookmark(...)` — adds a shared timeline bookmark, broadcasts `BookmarksChanged` |
+| `RenameBookmarkAsync(id, name)` | `RenameBookmark` | `RenameBookmark(id, name)` — any RPO may rename any bookmark |
+| `DeleteBookmarkAsync(id)` | `DeleteBookmark` | `DeleteBookmark(id)` — any RPO may delete any bookmark |
 | `GetSessionServerLogAsync()` | `GetSessionServerLog` | `GetSessionServerLog()` (room-scoped, anonymized text) |
 | `GetAirportGroundLayoutAsync(id)` | `GetAirportGroundLayout` | `GetAirportGroundLayout(id)` |
 | `GetFacilityVideoMapsAsync(…)` | `GetFacilityVideoMaps` | `GetFacilityVideoMaps(...)` `:1098` |
@@ -173,6 +176,8 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `WeatherChanged` | `WeatherChangedDto` | `WeatherChanged` |
 | `ArrivalGeneratorsChanged` | `ArrivalGeneratorsChangedDto` | `ArrivalGeneratorsChanged` |
 | `HeldDeparturesChanged` | `HeldDeparturesChangedDto` (carries `RundownDto`) | `HeldDeparturesChanged` |
+| `TimersChanged` | `TimersChangedDto` | `TimersChanged` |
+| `BookmarksChanged` | `BookmarksChangedDto` (full shared-bookmark list) | `BookmarksChanged` — also seeded on join via `RoomStateDto.Bookmarks` |
 | `PositionDisplayChanged` | `PositionDisplayConfigDto` | `PositionDisplayChanged` |
 | `ScenarioLoaded` | `ScenarioLoadedDto` | `ScenarioLoaded` (+ `StripsConfigChanged`) |
 | `ScenarioUnloaded` | *(none)* | `ScenarioUnloaded` (+ `StripsConfigChanged(null)`) |

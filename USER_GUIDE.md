@@ -1230,11 +1230,13 @@ Mark highlight moments on the timeline so you can scrub back to them later (a go
 
 - **🔖** — add a bookmark at the current position and type an optional name. Leave the name blank to keep the timestamp default ("Bookmark 14:32"). The default keybind **Ctrl+B** drops an unnamed bookmark instantly (configurable under **Settings > Quick Bookmark Key**).
 - **◀🔖 / 🔖▶** — jump to the previous / next bookmark.
-- **Bookmarks ▾** — a list of all bookmarks (time + name); click one to jump, or use the ✎ / ✕ buttons to rename or delete.
+- **Bookmarks ▾** — a list of all bookmarks (time, name, and the initials of whoever placed it); click one to jump, or use the ✎ / ✕ buttons to rename or delete.
 
 Bookmarks also appear as gold ticks on the rail above the slider — click a tick to seek, or right-click it to Rename/Delete. Bookmarks work in both live and playback modes.
 
-Bookmarks are saved into the recording when you **Save Recording** or **Save Bug Report Bundle**, and reappear when you load that recording — so your highlight marks travel with the file for debriefs. They are kept in memory during a live session; if you close without saving a recording, they are not retained. (After **Take Control** exits playback, existing bookmarks are kept; any beyond the current live time sit at the right edge of the bar.)
+**Bookmarks are shared across the room.** They sync through the server, so every RPO connected to the same room sees the same bookmarks on their timeline, tagged with the initials of whoever added each one. Anyone in the room can rename or delete any bookmark, and a bookmark placed by one RPO shows up on everyone's timeline immediately. A newly joining RPO is seeded with the existing bookmarks.
+
+Bookmarks are saved into the recording when you **Save Recording** or **Save Bug Report Bundle**, and reappear when you load that recording — so your highlight marks travel with the file for debriefs. Loading a recording shows its bookmarks to everyone in the room, not just whoever loaded it. Rewinding the timeline never drops a bookmark. (After **Take Control** exits playback, existing bookmarks are kept; any beyond the current live time sit at the right edge of the bar.)
 
 ### Save / Load Recordings
 

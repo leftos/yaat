@@ -45,6 +45,18 @@ public sealed class SimScenarioState
     /// <summary>Monotonic id source for <see cref="ActiveTimers"/> (deterministic, replay-safe).</summary>
     public int NextTimerId { get; set; }
 
+    /// <summary>
+    /// User-authored timeline bookmarks, shared across every RPO connected to the room. Deliberately
+    /// NOT captured in <c>ScenarioSnapshotDto</c>: bookmarks are timeline-global metadata, so rewinding
+    /// the room to an earlier time must never drop a bookmark placed later. Persisted to recordings via
+    /// the archive's separate <c>bookmarks.json</c> entry, and seeded from it on recording load.
+    /// </summary>
+    public List<TimelineBookmark> Bookmarks { get; } = [];
+
+    /// <summary>Monotonic id source for <see cref="Bookmarks"/>. Not snapshotted (bookmarks aren't part
+    /// of deterministic replay), so ids are opaque handles rather than replay-stable.</summary>
+    public int NextBookmarkId { get; set; }
+
     // Settings affecting command dispatch
     public bool AutoClearedToLand { get; set; }
     public bool AutoCrossRunway { get; set; }

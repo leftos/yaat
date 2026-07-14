@@ -754,7 +754,7 @@ public class RecordingArchiveTests
         var recording = CreateTestRecording(snapshotCount: 2);
         var bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
-        var bookmarks = new List<TimelineBookmark> { new("bm-12.000-0", 12.0, "Go-around"), new("bm-305.500-1", 305.5, null) };
+        var bookmarks = new List<TimelineBookmark> { new("bm-12.000-0", 12.0, "Go-around", "JD"), new("bm-305.500-1", 305.5, null, null) };
         var withBookmarks = RecordingArchive.WriteBookmarks(bytes, bookmarks);
 
         using var ms = new MemoryStream(withBookmarks);
@@ -765,8 +765,10 @@ public class RecordingArchiveTests
         Assert.Equal("bm-12.000-0", read[0].Id);
         Assert.Equal(12.0, read[0].TimeSeconds);
         Assert.Equal("Go-around", read[0].Name);
+        Assert.Equal("JD", read[0].CreatorInitials);
         Assert.Equal(305.5, read[1].TimeSeconds);
         Assert.Null(read[1].Name);
+        Assert.Null(read[1].CreatorInitials);
     }
 
     [Fact]
@@ -787,7 +789,7 @@ public class RecordingArchiveTests
         var recording = CreateTestRecording(snapshotCount: 3);
         var bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
-        var withBookmarks = RecordingArchive.WriteBookmarks(bytes, [new("bm-0.000-0", 0.0, "Start")]);
+        var withBookmarks = RecordingArchive.WriteBookmarks(bytes, [new("bm-0.000-0", 0.0, "Start", null)]);
 
         using var ms = new MemoryStream(withBookmarks);
         using var archive = RecordingArchive.Open(ms);
@@ -806,8 +808,8 @@ public class RecordingArchiveTests
         var recording = CreateTestRecording(snapshotCount: 1);
         var bytes = RecordingArchiveWriter.WriteToBytes(recording);
 
-        var first = RecordingArchive.WriteBookmarks(bytes, [new("bm-1.000-0", 1.0, "First")]);
-        var second = RecordingArchive.WriteBookmarks(first, [new("bm-2.000-0", 2.0, "Second")]);
+        var first = RecordingArchive.WriteBookmarks(bytes, [new("bm-1.000-0", 1.0, "First", null)]);
+        var second = RecordingArchive.WriteBookmarks(first, [new("bm-2.000-0", 2.0, "Second", null)]);
 
         using var ms = new MemoryStream(second);
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read);

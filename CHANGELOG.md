@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- **Timeline bookmarks now sync across the room** — every RPO sees the same bookmarks, each tagged with who placed it, and anyone can rename or delete them.
+
 ### Fixed
 - `RTIS` rejects a callsign that isn't traffic on frequency, instead of reading back "traffic in sight" for a typo or leftover command text.
 

@@ -2327,7 +2327,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    private TimelineBookmarkVm? _bookmarkBeingNamed;
+    private BookmarkNamePrompt? _bookmarkPrompt;
 
     private async void OnTimelineBookmarkPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -2358,9 +2358,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
     }
 
-    private void OnBookmarkNamePromptRequested(TimelineBookmarkVm bookmark)
+    private void OnBookmarkNamePromptRequested(BookmarkNamePrompt prompt)
     {
-        _bookmarkBeingNamed = bookmark;
+        _bookmarkPrompt = prompt;
         var popup = this.FindControl<Popup>("BookmarkNamePopup");
         var textBox = this.FindControl<TextBox>("BookmarkNameText");
         if (popup is null || textBox is null)
@@ -2368,7 +2368,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        textBox.Text = bookmark.Name ?? string.Empty;
+        textBox.Text = prompt.InitialName ?? string.Empty;
         popup.IsOpen = true;
         textBox.Focus();
         textBox.SelectAll();
@@ -2383,7 +2383,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
         else if (e.Key == Key.Escape)
         {
-            CloseBookmarkNamePopup();
+            CancelBookmarkName();
             e.Handled = true;
         }
     }
@@ -2395,28 +2395,46 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
     private void OnBookmarkNameCancel(object? sender, RoutedEventArgs e)
     {
-        CloseBookmarkNamePopup();
+        CancelBookmarkName();
+    }
+
+    // Light-dismiss (clicking away) closes the popup without Save/Cancel; treat it as a cancel so an
+    // Add prompt still drops the (unnamed) bookmark, matching the pre-sync "Add always creates" behavior.
+    private void OnBookmarkNamePopupClosed(object? sender, EventArgs e)
+    {
+        var prompt = _bookmarkPrompt;
+        _bookmarkPrompt = null;
+        prompt?.OnCancel();
     }
 
     private void CommitBookmarkName()
     {
+        var prompt = _bookmarkPrompt;
+        _bookmarkPrompt = null;
         var textBox = this.FindControl<TextBox>("BookmarkNameText");
-        if (_bookmarkBeingNamed is not null && textBox is not null)
+        HideBookmarkNamePopup();
+        if (prompt is not null)
         {
-            var text = textBox.Text?.Trim();
-            _bookmarkBeingNamed.Name = string.IsNullOrEmpty(text) ? null : text;
+            var text = textBox?.Text?.Trim();
+            prompt.OnSave(string.IsNullOrEmpty(text) ? null : text);
         }
-        CloseBookmarkNamePopup();
     }
 
-    private void CloseBookmarkNamePopup()
+    private void CancelBookmarkName()
+    {
+        var prompt = _bookmarkPrompt;
+        _bookmarkPrompt = null;
+        HideBookmarkNamePopup();
+        prompt?.OnCancel();
+    }
+
+    private void HideBookmarkNamePopup()
     {
         var popup = this.FindControl<Popup>("BookmarkNamePopup");
         if (popup is not null)
         {
             popup.IsOpen = false;
         }
-        _bookmarkBeingNamed = null;
     }
 
     private async void OnSessionReportClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

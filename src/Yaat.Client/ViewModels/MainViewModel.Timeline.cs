@@ -540,12 +540,13 @@ public partial class MainViewModel
                 return;
             }
 
-            var bookmarks = TryReadBookmarks(recordingBytes);
             var terminalLog = await _connection.GetTerminalLogAsync();
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                ApplyRecordingResult(result, bookmarks);
+                // Bookmarks are seeded server-side from the recording's bookmarks.json and arrive via the
+                // BookmarksChanged broadcast (so every RPO in the room sees them), not read locally here.
+                ApplyRecordingResult(result);
                 RepopulateTerminalFromRecording(terminalLog);
                 StatusText = $"Recording loaded: {result.ScenarioName}";
                 AddSystemEntry($"Recording loaded: {result.ScenarioName}");
@@ -558,27 +559,7 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>
-    /// Reads timeline bookmarks embedded in a loaded recording's <c>bookmarks.json</c> entry.
-    /// Returns empty for legacy non-zip recordings (.br/.json) or archives without the entry;
-    /// the server already validated the bytes, so a parse failure here only means "no bookmarks".
-    /// </summary>
-    private IReadOnlyList<TimelineBookmark> TryReadBookmarks(byte[] recordingBytes)
-    {
-        try
-        {
-            using var ms = new MemoryStream(recordingBytes);
-            using var archive = RecordingArchive.Open(ms);
-            return archive.ReadBookmarks();
-        }
-        catch (Exception ex)
-        {
-            _log.LogDebug(ex, "No timeline bookmarks read from recording (legacy format or none present)");
-            return [];
-        }
-    }
-
-    internal void ApplyRecordingResult(RewindResultDto result, IReadOnlyList<TimelineBookmark> bookmarks)
+    internal void ApplyRecordingResult(RewindResultDto result)
     {
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.ScenarioName;
@@ -623,7 +604,6 @@ public partial class MainViewModel
             }
         }
 
-        SetBookmarks(bookmarks);
         ShowTimelineBar = true;
     }
 

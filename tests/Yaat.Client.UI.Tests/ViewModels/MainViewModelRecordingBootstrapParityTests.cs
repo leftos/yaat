@@ -71,8 +71,7 @@ public class MainViewModelRecordingBootstrapParityTests
                 ScenarioId: ScenarioId,
                 ScenarioName: ScenarioName,
                 PrimaryAirportId: AirportId
-            ),
-            []
+            )
         );
 
         // Scalar identity must propagate identically on both paths.

@@ -745,6 +745,9 @@ public partial class MainViewModel
         // Seed active timers so a joining/reconnecting client shows the existing timers panel.
         ApplyTimers(state.Timers);
 
+        // Seed shared timeline bookmarks so a joining/reconnecting client shows the existing bookmarks.
+        ApplyBookmarks(state.Bookmarks);
+
         _ = RefreshCrcLobbyAsync();
         _ = RefreshRpoLobbyAsync();
         _ = FetchAssignmentsAsync();

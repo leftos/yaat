@@ -39,6 +39,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<ArrivalGeneratorsChangedDto>? ArrivalGeneratorsChanged;
     public event Action<HeldDeparturesChangedDto>? HeldDeparturesChanged;
     public event Action<TimersChangedDto>? TimersChanged;
+    public event Action<BookmarksChangedDto>? BookmarksChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
     public event Action? ScenarioUnloaded;
@@ -162,6 +163,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<ArrivalGeneratorsChangedDto>("ArrivalGeneratorsChanged", dto => ArrivalGeneratorsChanged?.Invoke(dto));
         _connection.On<HeldDeparturesChangedDto>("HeldDeparturesChanged", dto => HeldDeparturesChanged?.Invoke(dto));
         _connection.On<TimersChangedDto>("TimersChanged", dto => TimersChanged?.Invoke(dto));
+        _connection.On<BookmarksChangedDto>("BookmarksChanged", dto => BookmarksChanged?.Invoke(dto));
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
 
@@ -422,6 +424,26 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     {
         EnsureConnected();
         await _connection!.InvokeAsync("SendChat", initials, message);
+    }
+
+    // --- Timeline bookmarks (shared room state) ---
+
+    public async Task<CommandResultDto> AddBookmarkAsync(double timeSeconds, string? name, string initials)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("AddBookmark", timeSeconds, name, initials);
+    }
+
+    public async Task<CommandResultDto> RenameBookmarkAsync(string id, string? name)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("RenameBookmark", id, name);
+    }
+
+    public async Task<CommandResultDto> DeleteBookmarkAsync(string id)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("DeleteBookmark", id);
     }
 
     public async Task<CommandResultDto> AmendFlightPlanAsync(string callsign, FlightPlanAmendmentDto dto)
@@ -1051,6 +1073,7 @@ public record RoomStateDto(
     FlightStripsConfigDto? FlightStripsConfig = null,
     RundownDto? Rundown = null,
     List<TimerDto>? Timers = null,
+    List<TimelineBookmarkDto>? Bookmarks = null,
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0,
     // Student position type (APP/CTR/GND/TWR) for seeding user-local position-based defaults on join.
@@ -1113,6 +1136,13 @@ public record TimerDto(int Id, string? Callsign, string? Message, int RemainingS
 
 /// <summary>Pushed whenever the active TIMER set changes (set/cancel/expire) or a second ticks down.</summary>
 public record TimersChangedDto(List<TimerDto> Timers);
+
+/// <summary>One shared timeline bookmark. <see cref="CreatorInitials"/> identifies the RPO who placed
+/// it (null when unknown, e.g. a legacy recording).</summary>
+public record TimelineBookmarkDto(string Id, double TimeSeconds, string? Name, string? CreatorInitials);
+
+/// <summary>Pushed whenever the room's shared bookmark set changes (add/rename/delete or recording load).</summary>
+public record BookmarksChangedDto(List<TimelineBookmarkDto> Bookmarks);
 
 public record SessionSettingsDto(
     string? AutoDeleteOverride,

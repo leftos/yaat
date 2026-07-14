@@ -21,6 +21,9 @@ public partial class TimelineBookmarkVm : ObservableObject
     public required string Id { get; init; }
     public required double TimeSeconds { get; init; }
 
+    /// <summary>Initials of the RPO who created this bookmark; null when unknown (e.g. a legacy recording).</summary>
+    public string? CreatorInitials { get; init; }
+
     public required Action<TimelineBookmarkVm> RenameRequested { private get; init; }
     public required Action<TimelineBookmarkVm> DeleteRequested { private get; init; }
     public required Func<TimelineBookmarkVm, Task> JumpRequested { private get; init; }
@@ -35,9 +38,12 @@ public partial class TimelineBookmarkVm : ObservableObject
 
     public string DisplayName => string.IsNullOrWhiteSpace(Name) ? $"Bookmark {TimeText}" : Name!;
 
-    public string ListLabel => string.IsNullOrWhiteSpace(Name) ? TimeText : $"{TimeText}  {Name}";
+    private string CreatorSuffix => string.IsNullOrWhiteSpace(CreatorInitials) ? string.Empty : $"  · {CreatorInitials}";
 
-    public string ToolTipText => $"{TimeText} — {DisplayName}";
+    public string ListLabel => (string.IsNullOrWhiteSpace(Name) ? TimeText : $"{TimeText}  {Name}") + CreatorSuffix;
+
+    public string ToolTipText =>
+        string.IsNullOrWhiteSpace(CreatorInitials) ? $"{TimeText} — {DisplayName}" : $"{TimeText} — {DisplayName} (by {CreatorInitials})";
 
     public double MarkerHeight => 8;
     public double MarkerWidth => 3;
