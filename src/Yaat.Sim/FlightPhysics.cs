@@ -1205,7 +1205,58 @@ public static class FlightPhysics
             }
 
             // Apply the block's commands (a triggered WAIT holds the payload until its countdown elapses).
-            ApplyOrCountdownWait(aircraft, block, deltaSeconds);
+            if (!ApplyOrCountdownWait(aircraft, block, deltaSeconds))
+            {
+                // The current block is a WAIT still counting down. Latch the triggers of the following
+                // `;`-sequenced blocks now (without applying them) so a ReachFix trigger survives the
+                // aircraft flying past the fix during the countdown — otherwise the trailing block orphans
+                // when the queue finally advances to it. Mirrors the holdApplies latching in
+                // ApplyReadyConditionalBlocks, which only covers the lookahead (current-block-applied) path.
+                LatchFollowingTriggers(aircraft, queue, queue.CurrentBlockIndex + 1, aircraftLookup);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Latches (but does not apply) the triggers of the contiguous run of conditional blocks starting at
+    /// <paramref name="startIndex"/>. Used while a current-block WAIT counts down so a trailing block's
+    /// <see cref="BlockTriggerType.ReachFix"/> trigger stays met even after the aircraft flies past the fix.
+    /// Stops at the first unapplied untriggered block so ordinary `;` sequencing is preserved.
+    /// </summary>
+    private static void LatchFollowingTriggers(
+        AircraftState aircraft,
+        CommandQueue queue,
+        int startIndex,
+        Func<string, AircraftState?>? aircraftLookup
+    )
+    {
+        for (int i = startIndex; i < queue.Blocks.Count; i++)
+        {
+            var block = queue.Blocks[i];
+            if (block.IsApplied)
+            {
+                continue;
+            }
+
+            if (block.Trigger is null)
+            {
+                break;
+            }
+
+            if (!block.TriggerMet)
+            {
+                block.TriggerMet = IsTriggerMet(aircraft, block, aircraftLookup);
+                if (!block.TriggerMet)
+                {
+                    TrackFrdMiss(aircraft, block);
+                    continue;
+                }
+
+                if (block.Trigger.Type is BlockTriggerType.OnHandoff)
+                {
+                    aircraft.Track.HandoffAccepted = false;
+                }
+            }
         }
     }
 
