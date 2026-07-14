@@ -12,6 +12,7 @@
 - `RTIS` rejects a callsign that isn't traffic on frequency, instead of reading back "traffic in sight" for a typo or leftover command text.
 - A manually placed STARS ghost track (an unsupported data block typed on the scope, e.g. `1 DA`) no longer appears on the ASDE-X, SAAB SAID, or Tower Cab surface displays, and terminating control of one now removes it cleanly instead of leaving a lingering phantom target that trips conflict alerts.
 - `P270` (plan a 270 at the next pattern turn) now turns the aircraft the long way round — away from the runway and back onto final — to open spacing.
+- Aircraft cleared for takeoff while still taxiing now fly the SID's initial departure heading instead of turning straight toward the first fix.
 
 ## v0.9.8-beta [2026/07/12]
 
