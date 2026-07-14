@@ -66,6 +66,11 @@ command into a compound for `DispatchCompound`, but that path is not how a user-
 3. **All-transparent fast path** — `IsAllTransparent` (`:271`) → `ApplyTransparentCompound` (`:297`). If every command in the compound is
    phase-transparent (per `CommandDescriber.IsPhaseTransparent`) and has no condition, apply each directly and return. **This fires whether or not a
    phase is active** — see the footgun about queue-wiping below.
+3b. **Standalone pattern-modifier reroute** — a single-command, no-condition `EXT`/`SA`/`MNA` (`IsImmediatePhaseModifierBlock`) on an aircraft with
+   **no active phase** is applied directly via `ApplyTransparentCompound` too. These classify as `Immediate` → dimension `None`, so without this the
+   queue-wipe fast path (step 7) would destroy a queued pattern entry the moment their dispatcher arm makes dry-run succeed. Applying directly pre-arms
+   the queued entry (`AircraftPattern.PendingEntryModifier`, consumed by `TryEnterPattern` when it builds the circuit) without touching the queue. With
+   an active phase the phase gate (step 4) already returns before the wipe, so this reroute is scoped to the no-phase case only.
 4. **Phase gate** — if `aircraft.Phases?.CurrentPhase` exists, route through `DispatchWithPhase` (`:1172`). See [the phase gate](#the-phase-gate).
 5. **Dry-run validation** — `DryRunValidate` (`:812`) runs the first block on a clone. If it fails, return the error; **real state is unchanged**.
 6. **Post-validation phase clear** — only now (after dry-run passes) does the deferred `ClearsPhase` actually clear the `PhaseList`

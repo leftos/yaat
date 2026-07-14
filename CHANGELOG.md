@@ -10,6 +10,7 @@
 - **Timeline bookmarks now sync across the room** — every RPO sees the same bookmarks, each tagged with who placed it, and anyone can rename or delete them.
 
 ### Fixed
+- `EXT` (extend leg), `SA` (short approach), and `MNA` (normal approach) can now be issued while a pattern entry is still queued behind another command — e.g. after `DCT VPCOL; ERD 28R`, a separate `EXT DOWNWIND` is honored and the downwind comes out already extended when the aircraft enters the pattern, instead of being rejected with "requires an active runway assignment". The queued entry is no longer wiped by the follow-up command.
 - `RTIS` rejects a callsign that isn't traffic on frequency, instead of reading back "traffic in sight" for a typo or leftover command text.
 - A manually placed STARS ghost track (an unsupported data block typed on the scope, e.g. `1 DA`) no longer appears on the ASDE-X, SAAB SAID, or Tower Cab surface displays, and terminating control of one now removes it cleanly instead of leaving a lingering phantom target that trips conflict alerts.
 - `P270` (plan a 270 at the next pattern turn) now turns the aircraft the long way round — away from the runway and back onto final — to open spacing.

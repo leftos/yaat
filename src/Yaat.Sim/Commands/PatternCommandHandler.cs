@@ -758,6 +758,10 @@ internal static class PatternCommandHandler
 
         aircraft.Phases = phases;
 
+        // Consume any EXT/SA/MNA pre-arm issued before this entry built its circuit
+        // (e.g. EXT DOWNWIND while ERD 28R sat queued behind DCT VPCOL).
+        ApplyPendingEntryModifier(aircraft, circuitPhases);
+
         // EF capped the straight-in join at the aircraft's along-track (it can't be
         // sent outbound), but the aircraft is too high to descend over the remaining
         // cut-in + final path. Surface a controller-facing warning so the RPO can
@@ -1276,9 +1280,16 @@ internal static class PatternCommandHandler
                 pendingDownwind.IsExtended = true;
                 Log.LogDebug("[ExtendPattern] {Callsign}: pre-armed IsExtended on pending DownwindPhase", aircraft.Callsign);
                 return CommandDispatcher.Ok("Extend downwind");
-            default:
-                return new CommandResult(false, $"No upcoming {leg.ToString().ToLowerInvariant()} leg to extend");
         }
+
+        // No pending leg in an installed circuit — pre-arm a still-queued pattern entry
+        // (e.g. EXT DOWNWIND while ERD 28R sits queued behind DCT VPCOL).
+        if (TryArmPendingEntryModifier(aircraft, new PendingEntryModifier(PendingEntryModifierKind.ExtendLeg, leg)) is { } queued)
+        {
+            return queued;
+        }
+
+        return new CommandResult(false, $"No upcoming {leg.ToString().ToLowerInvariant()} leg to extend");
     }
 
     /// <summary>
@@ -1503,6 +1514,16 @@ internal static class PatternCommandHandler
             return CommandDispatcher.Ok("Make short approach");
         }
 
+        // No live/pending downwind or base — pre-arm a still-queued pattern entry
+        // (e.g. SA while ERD 28R sits queued behind DCT VPCOL).
+        if (
+            TryArmPendingEntryModifier(aircraft, new PendingEntryModifier(PendingEntryModifierKind.ShortApproach, PatternEntryLeg.Downwind)) is
+            { } queued
+        )
+        {
+            return queued;
+        }
+
         return new CommandResult(false, "Make short approach requires downwind or base leg in the pattern");
     }
 
@@ -1550,6 +1571,16 @@ internal static class PatternCommandHandler
             return CommandDispatcher.Ok("Make normal approach");
         }
 
+        // No live/pending pattern leg — pre-arm a still-queued pattern entry so the built
+        // downwind comes out normal (and any prior EXT/SA pre-arm is superseded).
+        if (
+            TryArmPendingEntryModifier(aircraft, new PendingEntryModifier(PendingEntryModifierKind.NormalApproach, PatternEntryLeg.Downwind)) is
+            { } queued
+        )
+        {
+            return queued;
+        }
+
         return new CommandResult(false, "Make normal approach requires downwind or base leg in the pattern");
     }
 
@@ -1582,6 +1613,174 @@ internal static class PatternCommandHandler
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Layer-2 pre-arm for a modifier (EXT leg / SA / MNA) whose target pattern leg does not exist
+    /// yet because the pattern-entry command that would build it is still queued (unfired) — e.g.
+    /// EXT DOWNWIND while <c>ERD 28R</c> sits behind <c>DCT VPCOL</c>. Scans the command queue for an
+    /// unfired entry whose circuit will contain the target leg and stashes the modifier on the
+    /// aircraft for <see cref="TryEnterPattern"/> to consume. Returns Ok when armed, or null so the
+    /// caller falls back to its rejection (nothing queued to attach to).
+    /// </summary>
+    private static CommandResult? TryArmPendingEntryModifier(AircraftState aircraft, PendingEntryModifier modifier)
+    {
+        foreach (var block in aircraft.Queue.Blocks)
+        {
+            if (block.IsApplied)
+            {
+                continue;
+            }
+
+            foreach (var parsed in BlockParsedCommands(block, aircraft))
+            {
+                // An entry at leg E builds the legs E..Final, so the target is reachable when it is
+                // at or after the entry leg.
+                if (PatternEntryLegOf(parsed) is { } entryLeg && LegOrder(modifier.TargetLeg) >= LegOrder(entryLeg))
+                {
+                    aircraft.Pattern.PendingEntryModifier = modifier;
+                    Log.LogDebug(
+                        "[PatternModifier] {Callsign}: pre-armed {Kind} {Leg} against queued {Entry}",
+                        aircraft.Callsign,
+                        modifier.Kind,
+                        modifier.TargetLeg,
+                        parsed.GetType().Name
+                    );
+                    return CommandDispatcher.Ok(PendingModifierMessage(modifier));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The parsed commands that produced a queued block. Prefers the live
+    /// <see cref="CommandBlock.ParsedCommands"/>; after a snapshot restore that list is null, so
+    /// recover the commands by re-parsing the serialized <see cref="CommandBlock.SourceCommandText"/>
+    /// (the same recovery SimulationEngine uses for restored track blocks).
+    /// </summary>
+    private static IReadOnlyList<ParsedCommand> BlockParsedCommands(CommandBlock block, AircraftState aircraft)
+    {
+        if (block.ParsedCommands is { } live)
+        {
+            return live;
+        }
+
+        if (string.IsNullOrEmpty(block.SourceCommandText))
+        {
+            return [];
+        }
+
+        var reparsed = CommandParser.ParseCompound(block.SourceCommandText, aircraft.FlightPlan.Route);
+        if (!reparsed.IsSuccess || reparsed.Value is null)
+        {
+            return [];
+        }
+
+        return reparsed.Value.Blocks.SelectMany(b => b.Commands).ToList();
+    }
+
+    /// <summary>The entry leg a pattern-entry command flies onto, or null if the command is not a pattern entry.</summary>
+    private static PatternEntryLeg? PatternEntryLegOf(ParsedCommand command) =>
+        command switch
+        {
+            EnterLeftDownwindCommand or EnterRightDownwindCommand => PatternEntryLeg.Downwind,
+            EnterLeftCrosswindCommand or EnterRightCrosswindCommand => PatternEntryLeg.Crosswind,
+            EnterLeftBaseCommand or EnterRightBaseCommand => PatternEntryLeg.Base,
+            EnterFinalCommand => PatternEntryLeg.Final,
+            _ => null,
+        };
+
+    private static string PendingModifierMessage(PendingEntryModifier modifier) =>
+        modifier.Kind switch
+        {
+            PendingEntryModifierKind.ExtendLeg => $"Extend {modifier.TargetLeg.ToString().ToLowerInvariant()}",
+            PendingEntryModifierKind.ShortApproach => "Make short approach",
+            PendingEntryModifierKind.NormalApproach => "Make normal approach",
+            _ => "Roger",
+        };
+
+    /// <summary>
+    /// Applies a pending EXT/SA/MNA pre-arm (set while the entry was still queued) onto the circuit
+    /// this entry just built, then clears it (single-shot). Mirrors the live SA/MNA/EXT arming, but
+    /// targets the fresh circuit's phases rather than an already-installed pattern.
+    /// </summary>
+    private static void ApplyPendingEntryModifier(AircraftState aircraft, IReadOnlyList<Phase> circuit)
+    {
+        if (aircraft.Pattern.PendingEntryModifier is not { } modifier)
+        {
+            return;
+        }
+
+        aircraft.Pattern.PendingEntryModifier = null;
+
+        switch (modifier.Kind)
+        {
+            case PendingEntryModifierKind.ExtendLeg:
+                ExtendCircuitLeg(circuit, modifier.TargetLeg);
+                break;
+            case PendingEntryModifierKind.ShortApproach:
+            {
+                var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+                if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } downwind)
+                {
+                    downwind.ShortApproachArmed = true;
+                }
+                if (circuit.OfType<BasePhase>().FirstOrDefault() is { } baseLeg)
+                {
+                    baseLeg.FinalDistanceNm = CategoryPerformance.MinShortApproachFinalNm(category);
+                }
+                break;
+            }
+            case PendingEntryModifierKind.NormalApproach:
+                if (circuit.OfType<CrosswindPhase>().FirstOrDefault() is { IsExtended: true } crosswind)
+                {
+                    crosswind.IsExtended = false;
+                }
+                if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } downwindNormal)
+                {
+                    downwindNormal.ShortApproachArmed = false;
+                    downwindNormal.IsExtended = false;
+                }
+                if (circuit.OfType<BasePhase>().FirstOrDefault() is { } baseNormal)
+                {
+                    baseNormal.FinalDistanceNm = null;
+                }
+                break;
+        }
+
+        Log.LogDebug(
+            "[PatternModifier] {Callsign}: consumed pending {Kind} {Leg} onto new circuit",
+            aircraft.Callsign,
+            modifier.Kind,
+            modifier.TargetLeg
+        );
+    }
+
+    private static void ExtendCircuitLeg(IReadOnlyList<Phase> circuit, PatternEntryLeg leg)
+    {
+        switch (leg)
+        {
+            case PatternEntryLeg.Upwind:
+                if (circuit.OfType<UpwindPhase>().FirstOrDefault() is { } upwind)
+                {
+                    upwind.IsExtended = true;
+                }
+                break;
+            case PatternEntryLeg.Crosswind:
+                if (circuit.OfType<CrosswindPhase>().FirstOrDefault() is { } crosswind)
+                {
+                    crosswind.IsExtended = true;
+                }
+                break;
+            case PatternEntryLeg.Downwind:
+                if (circuit.OfType<DownwindPhase>().FirstOrDefault() is { } downwind)
+                {
+                    downwind.IsExtended = true;
+                }
+                break;
+        }
     }
 
     internal static CommandResult TryCancel270(AircraftState aircraft)

@@ -3,6 +3,22 @@ using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
 
+/// <summary>Which modifier a queued EXT/SA/MNA pre-arm applies to a pattern entry once it builds.</summary>
+public enum PendingEntryModifierKind
+{
+    ExtendLeg,
+    ShortApproach,
+    NormalApproach,
+}
+
+/// <summary>
+/// A pattern modifier (EXT leg / SA / MNA) issued before its target pattern-entry command
+/// (ERD/ELD/ERC/ELC/…) has built its circuit. <see cref="TargetLeg"/> is the leg the modifier
+/// applies to (the extended leg for ExtendLeg; Downwind for Short/NormalApproach) and gates which
+/// queued entries it can attach to.
+/// </summary>
+public sealed record PendingEntryModifier(PendingEntryModifierKind Kind, PatternEntryLeg TargetLeg);
+
 /// <summary>
 /// Per-aircraft pattern overrides. Null fields fall back to category defaults
 /// (downwind offset, pattern altitude). Set by CM/DM during pattern mode and
@@ -33,6 +49,15 @@ public class AircraftPattern
     /// </summary>
     public bool ExtendNextUpwind { get; set; }
 
+    /// <summary>
+    /// Pending EXT/SA/MNA pre-arm for a pattern entry (ERD/ELD/…) that is queued but has not built
+    /// its circuit yet — e.g. EXT DOWNWIND issued while ERD 28R sits queued behind DCT VPCOL.
+    /// Consumed by <see cref="Yaat.Sim.Commands.PatternCommandHandler"/> when TryEnterPattern builds
+    /// the circuit: the matching newly-built leg gets the modifier and this flag is cleared. Single-shot.
+    /// Null = no pending modifier.
+    /// </summary>
+    public PendingEntryModifier? PendingEntryModifier { get; set; }
+
     public AircraftPatternDto ToSnapshot() =>
         new()
         {
@@ -40,6 +65,8 @@ public class AircraftPattern
             AltitudeOverrideFt = AltitudeOverrideFt,
             TrafficDirection = TrafficDirection.HasValue ? (byte)TrafficDirection.Value : null,
             ExtendNextUpwind = ExtendNextUpwind ? true : null,
+            PendingEntryModifierKind = PendingEntryModifier is not null ? (byte)PendingEntryModifier.Kind : null,
+            PendingEntryModifierLeg = PendingEntryModifier is not null ? (byte)PendingEntryModifier.TargetLeg : null,
         };
 
     public static AircraftPattern FromSnapshot(AircraftPatternDto dto) =>
@@ -49,5 +76,9 @@ public class AircraftPattern
             AltitudeOverrideFt = dto.AltitudeOverrideFt,
             TrafficDirection = dto.TrafficDirection.HasValue ? (PatternDirection)dto.TrafficDirection.Value : null,
             ExtendNextUpwind = dto.ExtendNextUpwind ?? false,
+            PendingEntryModifier =
+                dto.PendingEntryModifierKind is { } kind && dto.PendingEntryModifierLeg is { } leg
+                    ? new PendingEntryModifier((PendingEntryModifierKind)kind, (PatternEntryLeg)leg)
+                    : null,
         };
 }

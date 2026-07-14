@@ -94,6 +94,17 @@ public static class CommandDispatcher
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
 
+        // A standalone pattern modifier (EXT / SA / MNA) on an aircraft with no active phase must
+        // apply directly, without the None-dimension ClearConflictingBlocks fast path — which would
+        // otherwise wipe a queued pattern entry (e.g. an ERD sitting behind DCT VPCOL) the moment
+        // the modifier's dispatcher arm makes dry-run succeed. ApplyCommand pre-arms the queued
+        // entry so the modifier fires when it builds its circuit. With an active phase the phase-gate
+        // path below already applies these in place without a queue wipe.
+        if (aircraft.Phases?.CurrentPhase is null && compound.Blocks is [{ } soloBlock] && IsImmediatePhaseModifierBlock(soloBlock))
+        {
+            return ApplyTransparentCompound(compound, aircraft, ctx);
+        }
+
         // CAPP on an aircraft already established on a JFAC/JLOC lateral join authorizes the
         // glideslope descent in place — it does not tear the join down and rebuild it (which
         // would emit a spurious "… cancelled by CAPP" warning). The aircraft is already tracking
@@ -935,6 +946,16 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 270);
             case MakeRight270Command:
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270);
+
+            // Pattern modifiers (also dispatched via TryApplyTowerCommand in the phase path).
+            // Present here so they can arm a pending pattern entry when no phase is active yet —
+            // e.g. EXT DOWNWIND / SA / MNA issued while ERD sits queued behind DCT VPCOL.
+            case ExtendPatternCommand ext:
+                return PatternCommandHandler.TryExtendPattern(aircraft, ext.Leg, ctx.GroundLayout);
+            case MakeShortApproachCommand:
+                return PatternCommandHandler.TryMakeShortApproach(aircraft);
+            case MakeNormalApproachCommand:
+                return PatternCommandHandler.TryMakeNormalApproach(aircraft);
 
             case FollowCommand follow:
                 return TryAirborneFollow(aircraft, follow, ctx);

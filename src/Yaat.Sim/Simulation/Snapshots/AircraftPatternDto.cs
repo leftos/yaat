@@ -17,4 +17,14 @@ public sealed class AircraftPatternDto
     /// (treated as false on load).
     /// </summary>
     public bool? ExtendNextUpwind { get; init; }
+
+    /// <summary>
+    /// Pending pattern-entry modifier (EXT leg / SA / MNA) for a queued-but-unbuilt entry.
+    /// Kind (0=ExtendLeg, 1=ShortApproach, 2=NormalApproach) and target leg travel together;
+    /// both null/absent in old snapshots (treated as no pending modifier on load).
+    /// </summary>
+    public byte? PendingEntryModifierKind { get; init; }
+
+    /// <summary>Target pattern leg for the pending modifier (matches PatternEntryLeg). See <see cref="PendingEntryModifierKind"/>.</summary>
+    public byte? PendingEntryModifierLeg { get; init; }
 }
