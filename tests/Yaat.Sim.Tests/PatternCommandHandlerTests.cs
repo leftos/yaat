@@ -915,7 +915,9 @@ public class PatternCommandHandlerTests
         var result = PatternCommandHandler.TryPlan270(ac);
 
         Assert.True(result.Success);
-        Assert.Contains("Plan left 270", result.Message!);
+        // The 270 is flown OPPOSITE the pattern direction (long way round), so left traffic
+        // plans a right 270 — that is what rolls the aircraft out on the next leg's course.
+        Assert.Contains("Plan right 270", result.Message!);
         // Current phase is still DownwindPhase (not advanced)
         Assert.IsType<DownwindPhase>(ac.Phases.CurrentPhase);
         // Next phase should be MakeTurnPhase(270), then BasePhase
@@ -926,7 +928,7 @@ public class PatternCommandHandlerTests
     }
 
     [Fact]
-    public void TryPlan270_RightTraffic_UsesRightDirection()
+    public void TryPlan270_RightTraffic_UsesLeftDirection()
     {
         var ac = MakeAircraft();
         var wp = PatternGeometry.Compute(DefaultRunway(), AircraftCategory.Jet, PatternDirection.Right, null, null, null);
@@ -940,8 +942,38 @@ public class PatternCommandHandlerTests
         var result = PatternCommandHandler.TryPlan270(ac);
 
         Assert.True(result.Success);
+        // Right traffic → left 270 (opposite the pattern), the long way round to final.
         var turnPhase = (MakeTurnPhase)ac.Phases.Phases[ac.Phases.CurrentIndex + 1];
-        Assert.Equal(TurnDirection.Right, turnPhase.Direction);
+        Assert.Equal(TurnDirection.Left, turnPhase.Direction);
+    }
+
+    [Theory]
+    [InlineData(PatternDirection.Right, TurnDirection.Left)]
+    [InlineData(PatternDirection.Left, TurnDirection.Right)]
+    public void TryPlan270_PlansOppositeDirection_SoTurnRollsOutOnFinal(PatternDirection traffic, TurnDirection expectedTurn)
+    {
+        var runway = DefaultRunway();
+        var wp = PatternGeometry.Compute(runway, AircraftCategory.Jet, traffic, null, null, null);
+        var ac = MakeAircraft();
+        // Established on the base leg — the heading MakeTurn will capture as its start.
+        ac.TrueHeading = wp.BaseHeading;
+        ac.Phases = new PhaseList { AssignedRunway = runway, TrafficDirection = traffic };
+        ac.Phases.Add(new BasePhase { Waypoints = wp });
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac));
+
+        var result = PatternCommandHandler.TryPlan270(ac);
+        Assert.True(result.Success, result.Message);
+
+        var turn = (MakeTurnPhase)ac.Phases.Phases[ac.Phases.CurrentIndex + 1];
+        Assert.Equal(expectedTurn, turn.Direction);
+
+        // The label alone was never enough — the old tests asserted the direction and still shipped
+        // the bug. Start the planned turn from the base heading and confirm it rolls out on FINAL,
+        // not the reciprocal: a 270 in the pattern's own direction ends 180° off.
+        turn.OnStart(CommandDispatcher.BuildMinimalContext(ac));
+        double exit = turn.ComputeExitHeading().Degrees;
+        double delta = ((exit - wp.FinalHeading.Degrees + 540) % 360) - 180;
+        Assert.True(Math.Abs(delta) < 1.0, $"270 must roll out on final {wp.FinalHeading.Degrees:F0}°, got exit {exit:F0}°");
     }
 
     [Fact]

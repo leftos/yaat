@@ -893,7 +893,7 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 
 **Runway changes void the landing clearance.** A landing clearance names a runway (7110.65 §3-10-5), so any pattern entry (`EF` / `ERB` / `ELB` / `ELD` / `ERD` / `ELC` / `ERC`) whose runway argument names a *different* runway than the standing clearance cancels it — reissue `CLAND`/`TG`/`SG`/`LA`/`COPT` for the new runway. Re-entering the pattern for the same runway keeps the clearance. The instrument sidestep (`EF` to a closely-spaced parallel while established on `FinalApproach`) is exempt: there the approach clearance itself authorizes the landing on the parallel (7110.65 §4-8-7, AIM §5-4-19).
 
-`P270` plans a 270° turn at the next pattern turn point without executing immediately. The turn direction is automatically determined from the traffic pattern direction (left 270 for left traffic, right 270 for right traffic). Use `NO270` to cancel.
+`P270` plans a 270° turn at the next pattern turn point without executing immediately — the "long way round" spacing turn. The turn is flown **opposite** the traffic pattern direction (right 270 for left traffic, left 270 for right traffic) so the aircraft turns away from the runway, sweeps ~270°, and rolls out on the same course a normal 90° pattern turn would have reached — adding spacing without cutting across final. Use `NO270` to cancel.
 
 `PS` sets the pattern downwind offset distance. The crosswind extension and base extension scale proportionally. The override persists across pattern circuits.
 

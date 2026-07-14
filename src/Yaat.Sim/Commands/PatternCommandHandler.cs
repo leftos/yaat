@@ -1631,7 +1631,11 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "270 already planned for next turn");
         }
 
-        var turnDir = patternDir == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
+        // A 270 for spacing is flown the LONG way round — opposite the pattern's normal turn — so
+        // the aircraft turns away from the runway, sweeps ~270°, and rolls out on the same course a
+        // normal 90° pattern turn would have reached. Turning the pattern's own way instead ends
+        // 180° off (on the next leg's reciprocal), which is the wrong-way bug this fixes.
+        var turnDir = patternDir == PatternDirection.Left ? TurnDirection.Right : TurnDirection.Left;
         var turnPhase = new MakeTurnPhase { Direction = turnDir, TargetDegrees = 270 };
         aircraft.Phases.InsertAfterCurrent(turnPhase);
 

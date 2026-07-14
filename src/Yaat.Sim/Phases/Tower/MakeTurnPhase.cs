@@ -142,7 +142,13 @@ public sealed class MakeTurnPhase : Phase
         ctx.Targets.PreferredTurnDirection = Direction;
     }
 
-    private TrueHeading ComputeExitHeading()
+    /// <summary>
+    /// Heading the aircraft rolls out on once the turn completes: the start heading for a 360, and
+    /// 90° <em>opposite</em> the turn sense for a 270 (a 270 leaves the aircraft 90° short of a full
+    /// circle). Callers that plan a 270 to reach a specific course must therefore turn the opposite
+    /// way from the naive one — see <c>PatternCommandHandler.TryPlan270</c>.
+    /// </summary>
+    public TrueHeading ComputeExitHeading()
     {
         if (Math.Abs(TargetDegrees - 360) < 1)
         {

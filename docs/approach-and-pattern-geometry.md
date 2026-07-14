@@ -190,6 +190,25 @@ The descent target depends on `FinalDistanceNm` (set by ELB/ERB or by short-appr
 - **Without** (wrong-side / midfield-crossing entry, `BasePhase.cs:107`): the aircraft is already at TPA and the
   final distance is unknown up front, so it falls back to the halfway-between-pattern-and-threshold heuristic.
 
+### Spacing turns — `MakeTurnPhase` (`L270`/`R270`/`L360`/`R360`/`P270`)
+
+`MakeTurnPhase` (`src/Yaat.Sim/Phases/Tower/MakeTurnPhase.cs`) is a generic, pattern-*un*aware executor: it turns
+`TargetDegrees` in a fixed `Direction`, then hands off to whatever phase was queued next. It has no idea it's in a
+pattern — it just counts cumulative `|Δheading|` until it's turned enough, holding a `PreferredTurnDirection` bias so
+`FlightPhysics` never snaps to the short way (`ResolveDirection` obeys the bias unconditionally). `ComputeExitHeading`
+is the only geometry it knows: a 360 rolls out on the start heading; a **270 rolls out 90° *opposite* the turn sense**
+(`start ± 90`).
+
+That exit rule is the footgun behind `P270`. `P270` ("plan a 270 for spacing at the next pattern turn") wants the
+aircraft to reach the *same* course a normal 90° pattern turn would — but the long way, to burn time behind traffic.
+Because a normal pattern turn is 90° *in* the pattern direction, and a 270 rolls out 90° *opposite* its own sense, the
+planned 270 must be flown **opposite** the traffic-pattern direction (right traffic → left 270; left traffic → right
+270). Turning the pattern's own way instead rolls out 180° off, on the next leg's reciprocal — the aircraft turns
+straight toward final (the short way) and points back down the downwind. `TryPlan270`
+(`PatternCommandHandler.cs`) derives the direction; assert on the *exit heading* (`== FinalHeading`), not just the
+`Direction` label — the label-only test is exactly what let the wrong-way bug ship. The manual `L270`/`R270` verbs take
+the direction the controller typed and are not subject to this derivation.
+
 ## Pattern entry & re-entry
 
 ### Entry classification — `PatternEntryPhase.ClassifyDownwindEntry`
