@@ -124,12 +124,16 @@ public partial class SignatureHelpState : ObservableObject
         {
             parts.Add(new SignaturePart(" ", false, false));
             var param = signature.Parameters[i];
+            // A trailing repeatable parameter (e.g. CROSS's runway list) renders with an ellipsis.
+            var name = param.Repeatable ? $"{param.Name}…" : param.Name;
             // Literals render as plain text, variables in [brackets], optional variables in [name?]
             var text =
-                param.IsLiteral ? param.Name
-                : param.IsOptional ? $"[{param.Name}?]"
-                : $"[{param.Name}]";
-            var isActive = i == activeParamIndex;
+                param.IsLiteral ? name
+                : param.IsOptional ? $"[{name}?]"
+                : $"[{name}]";
+            // A trailing repeatable parameter stays highlighted once the cursor reaches or passes it.
+            bool isTrailingRepeatable = param.Repeatable && i == signature.Parameters.Count - 1;
+            var isActive = i == activeParamIndex || (isTrailingRepeatable && activeParamIndex >= i);
             parts.Add(new SignaturePart(text, !param.IsLiteral, isActive));
         }
 
@@ -138,12 +142,24 @@ public partial class SignatureHelpState : ObservableObject
 
     private static string GetParamDescription(CommandSignature signature, int paramIndex)
     {
-        if (paramIndex < 0 || paramIndex >= signature.Parameters.Count)
+        if (paramIndex < 0 || signature.Parameters.Count == 0)
         {
             return signature.UsageHint ?? "";
         }
 
-        var param = signature.Parameters[paramIndex];
+        var idx = paramIndex;
+        if (idx >= signature.Parameters.Count)
+        {
+            // Past the declared params, but a trailing repeatable one keeps describing itself.
+            int last = signature.Parameters.Count - 1;
+            if (!signature.Parameters[last].Repeatable)
+            {
+                return signature.UsageHint ?? "";
+            }
+            idx = last;
+        }
+
+        var param = signature.Parameters[idx];
         if (param.IsLiteral)
         {
             return signature.UsageHint ?? "";

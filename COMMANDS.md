@@ -347,7 +347,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Taxi | `TAXI S T U` | — | — |
 | Hold position | `HOLD` | `HP` | — |
 | Resume taxi | `RES` | `RESUME` | `RES CROSS 28R 28L HS 20` |
-| Cross runway/HS | `CROSS 28L` | `CROSS` (bare) | `CROSS; HOLD` |
+| Cross runway/HS | `CROSS 28R 28L` | `CROSS` (bare) | `CROSS 28R HS 20` |
 | Clear the runway | `CLRWY` | `CLEARRWY` | — |
 | Hold short | `HS B` | — | — |
 | Assign runway | `RWY 30` | — | — |
@@ -652,6 +652,8 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `RES CROSS 28R 28L HS 20` | Combine both modifiers in one command. CROSS and HS are independent and can appear in either order. |
 | `CROSS` | Bare — clear the next uncleared hold-short on the route, runway or taxiway, whether the aircraft is already holding short or still taxiing toward it. Clears exactly one hold-short; the aircraft still stops at any subsequent ones. |
 | `CROSS 28L` | Cross runway 28L (clears hold-short). Also crosses a runway that was the **destination** of the previous taxi (e.g. `TAXI B 28L` then `CROSS 28L`), whether the aircraft is holding short there or still taxiing toward it — it taxis across to the far side and holds in position. (Use `CTO`/`LUAW` instead to depart from it.) |
+| `CROSS 28R 28L` | Clear/pre-clear **multiple** runway crossings in one command — for taxi routes that cross closely-spaced parallels (e.g. B across 28R/10L then 28L/10R at OAK). Satisfies the crossing the aircraft is holding short of and pre-clears the rest so it flows through without stopping. Strict and atomic like `RES CROSS`: every listed runway must be an upcoming crossing on the route and none may be the destination runway (use `CTO`/`LUAW` for that) — otherwise the whole command is rejected and nothing is applied. The destination-runway far-side crossing only works with the single-runway form. |
+| `CROSS 28R HS 20` | Cross runway 28R and add a hold-short further on the route in one command. Runways before `HS` are crossings; targets after `HS` are hold-shorts (taxiway or runway) — the same grammar as `RES … CROSS … HS …`, applied through the shared crossing/hold-short engine. |
 | `CROSS B` | Cross taxiway B (clears hold-short) |
 | `TAXI G CROSS 28R` | Taxi via G, cross 28R, and hold just past it. With no taxiway named past the crossing, the crossed runway sets the direction — the aircraft heads toward and across it (even when G also crosses another runway behind), then holds clear on the far side. |
 | `CROSS; HOLD` | Bare CROSS plus chained HOLD: cross the runway and halt right after clearing the far-side hold bars (HOLD fires only when CrossingRunwayPhase completes). |

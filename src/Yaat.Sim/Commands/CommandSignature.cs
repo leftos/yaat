@@ -1,6 +1,6 @@
 namespace Yaat.Sim.Commands;
 
-public record CommandParameter(string Name, string TypeHint, bool IsOptional, bool IsLiteral = false);
+public record CommandParameter(string Name, string TypeHint, bool IsOptional, bool IsLiteral = false, bool Repeatable = false);
 
 public record CommandSignature(
     CanonicalCommandType Type,

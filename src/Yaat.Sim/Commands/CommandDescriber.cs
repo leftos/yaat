@@ -520,7 +520,7 @@ public static class CommandDescriber
             TaxiCommand taxi => FormatTaxiCanonical(taxi),
             HoldPositionCommand => "HOLD",
             ResumeCommand resume => FormatResumeCanonical(resume),
-            CrossRunwayCommand cross => cross.RunwayId is null ? "CROSS" : $"CROSS {cross.RunwayId}",
+            CrossRunwayCommand cross => FormatCrossCanonical(cross),
             HoldShortCommand hs => $"HS {hs.Target}",
             FollowCommand follow => $"{(follow.Force ? "FOLLOWF" : "FOLLOW")} {follow.TargetCallsign}",
             FollowGroundCommand follow => $"FOLLOWG {follow.TargetCallsign}",
@@ -927,9 +927,7 @@ public static class CommandDescriber
             TaxiCommand taxi => FormatTaxiNatural(taxi),
             HoldPositionCommand => "Hold position",
             ResumeCommand resume => FormatResumeNatural(resume),
-            CrossRunwayCommand cross => cross.RunwayId is null
-                ? "Cross next hold-short"
-                : $"Cross runway {RunwayIdentifier.ToDisplayDesignator(cross.RunwayId)}",
+            CrossRunwayCommand cross => FormatCrossNatural(cross),
             HoldShortCommand hs => $"Hold short of {hs.Target}",
             FollowCommand follow => $"Follow {follow.TargetCallsign}",
             FollowGroundCommand follow => $"Follow {follow.TargetCallsign} (ground)",
@@ -1866,6 +1864,43 @@ public static class CommandDescriber
             qualifiers.Add($"hold short of {string.Join(", ", resume.HoldShorts)}");
         }
         return $"Resume taxi ({string.Join("; ", qualifiers)})";
+    }
+
+    private static string FormatCrossCanonical(CrossRunwayCommand cross)
+    {
+        if (cross.RunwayIds.Count == 0 && cross.HoldShorts.Count == 0)
+        {
+            return "CROSS";
+        }
+        var parts = new List<string> { "CROSS" };
+        parts.AddRange(cross.RunwayIds);
+        if (cross.HoldShorts.Count > 0)
+        {
+            parts.Add("HS");
+            parts.AddRange(cross.HoldShorts);
+        }
+        return string.Join(" ", parts);
+    }
+
+    private static string FormatCrossNatural(CrossRunwayCommand cross)
+    {
+        if (cross.RunwayIds.Count == 0 && cross.HoldShorts.Count == 0)
+        {
+            return "Cross next hold-short";
+        }
+        if (cross.RunwayIds.Count == 0)
+        {
+            return $"Hold short of {string.Join(" and ", cross.HoldShorts)}";
+        }
+
+        var noun = cross.RunwayIds.Count == 1 ? "runway" : "runways";
+        var runways = string.Join(" and ", cross.RunwayIds.Select(RunwayIdentifier.ToDisplayDesignator));
+        var clause = $"Cross {noun} {runways}";
+        if (cross.HoldShorts.Count > 0)
+        {
+            clause += $", hold short of {string.Join(" and ", cross.HoldShorts)}";
+        }
+        return clause;
     }
 
     private static string FormatTaxiCanonical(TaxiCommand taxi)

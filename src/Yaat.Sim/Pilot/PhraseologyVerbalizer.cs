@@ -173,6 +173,14 @@ public static class PhraseologyVerbalizer
             return RenderResume((ResumeCommand)cmd, fmt);
         }
 
+        // CROSS with multiple runways or an HS modifier composes "cross runway … and …" /
+        // "hold short of …" clauses the single-{rwy} rule template can't express. A single-runway,
+        // no-HS CROSS falls through to the rule-driven path so its readback and STT stay unchanged.
+        if (cmd is CrossRunwayCommand { RunwayIds.Count: > 1 } or CrossRunwayCommand { HoldShorts.Count: > 0 })
+        {
+            return RenderCross((CrossRunwayCommand)cmd, fmt);
+        }
+
         var canonicalType = CommandDescriber.ToCanonicalType(cmd);
         if (!RulesByType.TryGetValue(canonicalType, out var rules))
         {
@@ -281,7 +289,9 @@ public static class PhraseologyVerbalizer
             MakeRightTrafficCommand p when p.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
 
             // Ground
-            CrossRunwayCommand c when c.RunwayId is { } r => Map("rwy", fmt.Runway(r)),
+            // Multi-runway / HS-modified CROSS is direct-rendered in VerbalizeCore; only the
+            // single-runway, no-HS form reaches the rule template here.
+            CrossRunwayCommand { RunwayIds.Count: 1, HoldShorts.Count: 0 } c => Map("rwy", fmt.Runway(c.RunwayIds[0])),
             HoldShortCommand h => Map("holdshort", fmt.Runway(h.Target)),
             AssignRunwayCommand a => Map("rwy", fmt.Runway(a.RunwayId)),
             TaxiCommand taxi => TaxiArgs(taxi, fmt),
@@ -439,6 +449,34 @@ public static class PhraseologyVerbalizer
         {
             body.Append(
                 $", hold short of {string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? $"runway {fmt.Runway(h)}" : fmt.Taxiway(h)))}"
+            );
+        }
+
+        return body.ToString();
+    }
+
+    /// <summary>
+    /// Renders a multi-runway (or HS-modified) CROSS readback, composing the same
+    /// "cross runway … and …" / "hold short of …" clauses as <see cref="RenderResume"/>
+    /// (7110.65 §3-7-2). A single-runway, no-HS CROSS never reaches here.
+    /// </summary>
+    private static string RenderCross(CrossRunwayCommand cross, CaptureFormatter fmt)
+    {
+        var body = new StringBuilder();
+
+        if (cross.RunwayIds is { Count: > 0 } runways)
+        {
+            body.Append($"cross runway {string.Join(" and ", runways.Select(fmt.Runway))}");
+        }
+
+        if (cross.HoldShorts is { Count: > 0 } holdShorts)
+        {
+            if (body.Length > 0)
+            {
+                body.Append(", ");
+            }
+            body.Append(
+                $"hold short of {string.Join(" and ", holdShorts.Select(h => CommandParser.IsRunwayArg(h) ? $"runway {fmt.Runway(h)}" : fmt.Taxiway(h)))}"
             );
         }
 

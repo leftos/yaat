@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- `CROSS` accepts multiple runways and hold-shorts in one command — `CROSS 28R 28L` clears both crossings, and `CROSS 28R HS 20` also holds short.
+
 ### Changed
 - **Timeline bookmarks now sync across the room** — every RPO sees the same bookmarks, each tagged with who placed it, and anyone can rename or delete them.
 

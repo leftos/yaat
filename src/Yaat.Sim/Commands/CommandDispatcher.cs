@@ -1844,15 +1844,15 @@ public static class CommandDispatcher
                 when currentPhase
                     is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort or HoldShortReason.RunwayCrossing } holdShort:
             {
-                var preClear = GroundCommandHandler.TryPreClearRouteCrossings(aircraft, hsResume.CrossRunways);
-                if (!preClear.Success)
+                var applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
+                    aircraft,
+                    groundLayout,
+                    hsResume.CrossRunways,
+                    hsResume.HoldShorts
+                );
+                if (!applied.Success)
                 {
-                    return preClear;
-                }
-                var addHs = GroundCommandHandler.TryAddExplicitHoldShorts(aircraft, groundLayout, hsResume.HoldShorts);
-                if (!addHs.Success)
-                {
-                    return addHs;
+                    return applied;
                 }
                 holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
                 return Ok(CommandDescriber.DescribeNatural(hsResume));
@@ -1878,15 +1878,15 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryHoldPosition(aircraft);
             case ResumeCommand groundResume when currentPhase is not HoldingShortPhase:
             {
-                var preClear = GroundCommandHandler.TryPreClearRouteCrossings(aircraft, groundResume.CrossRunways);
-                if (!preClear.Success)
+                var applied = GroundCommandHandler.TryApplyRouteCrossingsAndHoldShorts(
+                    aircraft,
+                    groundLayout,
+                    groundResume.CrossRunways,
+                    groundResume.HoldShorts
+                );
+                if (!applied.Success)
                 {
-                    return preClear;
-                }
-                var addHs = GroundCommandHandler.TryAddExplicitHoldShorts(aircraft, groundLayout, groundResume.HoldShorts);
-                if (!addHs.Success)
-                {
-                    return addHs;
+                    return applied;
                 }
                 var resumeResult = GroundCommandHandler.TryResumeTaxi(aircraft);
                 if (!resumeResult.Success)
@@ -1896,7 +1896,7 @@ public static class CommandDispatcher
                 return Ok(CommandDescriber.DescribeNatural(groundResume));
             }
             case CrossRunwayCommand cross:
-                return GroundCommandHandler.TryCrossRunway(aircraft, cross);
+                return GroundCommandHandler.TryCrossRunway(aircraft, cross, groundLayout);
             case HoldShortCommand hs:
                 return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout);
             case AssignRunwayCommand assignRwy:

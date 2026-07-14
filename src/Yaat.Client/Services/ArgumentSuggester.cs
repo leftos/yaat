@@ -86,18 +86,26 @@ internal static class ArgumentSuggester
 
         foreach (var overload in def.Overloads)
         {
-            if (paramIndex >= overload.Parameters.Length)
+            int effectiveIndex = paramIndex;
+            if (effectiveIndex >= overload.Parameters.Length)
             {
-                continue;
+                // A trailing repeatable parameter (e.g. CROSS's runway list) keeps offering its
+                // own suggestions past its declared index, so clamp onto it instead of skipping.
+                int lastIndex = overload.Parameters.Length - 1;
+                if (lastIndex < 0 || !overload.Parameters[lastIndex].Repeatable)
+                {
+                    continue;
+                }
+                effectiveIndex = lastIndex;
             }
 
             // Check that any earlier literal params match what the user actually typed
-            if (!OverloadMatchesPrecedingArgs(overload, parsed.Tokens, parsed.VerbIndex, paramIndex))
+            if (!OverloadMatchesPrecedingArgs(overload, parsed.Tokens, parsed.VerbIndex, effectiveIndex))
             {
                 continue;
             }
 
-            var param = overload.Parameters[paramIndex];
+            var param = overload.Parameters[effectiveIndex];
             if (param.IsLiteral)
             {
                 hasLiterals = true;
@@ -124,15 +132,13 @@ internal static class ArgumentSuggester
             }
         }
 
-        // When past all overload parameters, suggest compound modifiers if available
+        // Suggest compound modifiers once every overload's fixed (non-repeatable) parameters are
+        // satisfied. A trailing repeatable parameter is optional-to-repeat, so it does not block a
+        // modifier — CROSS 28R can offer both another runway and the HS modifier.
         bool hasModifiers = false;
-        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && !hasPatternLeg && def.CompoundModifiers is { Length: > 0 })
+        if (def.CompoundModifiers is { Length: > 0 } && def.Overloads.All(o => paramIndex >= FixedParamCount(o)))
         {
-            bool allOverloadsExhausted = def.Overloads.All(o => paramIndex >= o.Parameters.Length);
-            if (allOverloadsExhausted)
-            {
-                hasModifiers = true;
-            }
+            hasModifiers = true;
         }
 
         if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && !hasPatternLeg && !hasModifiers)
@@ -184,6 +190,21 @@ internal static class ArgumentSuggester
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// The count of fixed (non-repeatable) parameters in an overload. A single trailing repeatable
+    /// parameter is optional-to-repeat, so it isn't counted — a compound modifier may legally follow
+    /// the fixed parameters without any repeats.
+    /// </summary>
+    private static int FixedParamCount(CommandOverload overload)
+    {
+        int count = overload.Parameters.Length;
+        if (count > 0 && overload.Parameters[count - 1].Repeatable)
+        {
+            count--;
+        }
+        return count;
     }
 
     private static bool OverloadMatchesPrecedingArgs(CommandOverload overload, string[] words, int verbIndex, int paramIndex)

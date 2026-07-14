@@ -1383,15 +1383,111 @@ internal static class GroundCommandHandler
         HoldShortAnnotator.ComputeHoldShortPositions(layout, route, aircraftLengthFt);
     }
 
-    internal static CommandResult TryCrossRunway(AircraftState aircraft, CrossRunwayCommand cross)
+    /// <summary>
+    /// Applies a combined set of runway-crossing clearances and hold-short targets to the
+    /// aircraft's taxi route — the shared core behind both RES and CROSS. Crossings are
+    /// validated and pre-cleared first (atomic via <see cref="TryPreClearRouteCrossings"/>),
+    /// then hold-shorts are added/re-armed (atomic via <see cref="TryAddExplicitHoldShorts"/>).
+    /// Returns the first failure without applying later steps; empty lists are a no-op success.
+    /// </summary>
+    internal static CommandResult TryApplyRouteCrossingsAndHoldShorts(
+        AircraftState aircraft,
+        AirportGroundLayout? layout,
+        IReadOnlyList<string> crossRunways,
+        IReadOnlyList<string> holdShorts
+    )
     {
-        if (cross.RunwayId is null)
+        var preClear = TryPreClearRouteCrossings(aircraft, crossRunways);
+        if (!preClear.Success)
+        {
+            return preClear;
+        }
+
+        return TryAddExplicitHoldShorts(aircraft, layout, holdShorts);
+    }
+
+    internal static CommandResult TryCrossRunway(AircraftState aircraft, CrossRunwayCommand cross, AirportGroundLayout? layout)
+    {
+        // Bare CROSS: clear the next uncleared hold-short on the route.
+        if (cross.RunwayIds.Count == 0 && cross.HoldShorts.Count == 0)
         {
             return TryCrossNextHoldShort(aircraft);
         }
 
-        var target = cross.RunwayId;
+        // A single runway with no hold-short modifier keeps its dedicated path, which can also
+        // cross a *destination* runway to the far side (TryExtendRouteAcrossDestinationRunway)
+        // and drives the CROSS; HOLD chaining. Multi-runway / HS forms use the shared engine.
+        if (cross.RunwayIds.Count == 1 && cross.HoldShorts.Count == 0)
+        {
+            return TryCrossSingleRunway(aircraft, cross.RunwayIds[0]);
+        }
 
+        return TryCrossMultiple(aircraft, cross, layout);
+    }
+
+    /// <summary>
+    /// Multi-runway (and/or HS-modified) CROSS. If the aircraft is holding short of one of the
+    /// listed runways, that clearance is satisfied immediately (it starts crossing); the rest are
+    /// pre-cleared on the upcoming route and any hold-shorts are armed, reusing the same atomic
+    /// engine as RES (<see cref="TryApplyRouteCrossingsAndHoldShorts"/>).
+    /// </summary>
+    private static CommandResult TryCrossMultiple(AircraftState aircraft, CrossRunwayCommand cross, AirportGroundLayout? layout)
+    {
+        var holdPhase = aircraft.Phases?.CurrentPhase as HoldingShortPhase;
+        string? currentHoldMatch = null;
+        if (holdPhase is not null)
+        {
+            foreach (var rwy in cross.RunwayIds)
+            {
+                if (HoldShortAnnotator.TargetMatches(holdPhase.HoldShort.TargetName, rwy))
+                {
+                    currentHoldMatch = rwy;
+                    break;
+                }
+            }
+        }
+
+        // Can't cross a destination runway you're holding short of mid-route (use LUAW/CTO).
+        if (
+            currentHoldMatch is not null
+            && holdPhase!.HoldShort.Reason == HoldShortReason.DestinationRunway
+            && aircraft.Ground.AssignedTaxiRoute is not { IsComplete: true }
+        )
+        {
+            return new CommandResult(
+                false,
+                $"Cannot cross destination runway {RunwayIdentifier.ToDisplayDesignator(holdPhase.HoldShort.TargetName ?? "")}; use LUAW or CTO"
+            );
+        }
+
+        // The current-hold runway is satisfied via the phase, so only the remaining listed
+        // runways are pre-cleared as upcoming crossings.
+        var upcoming = currentHoldMatch is null
+            ? cross.RunwayIds
+            : cross.RunwayIds.Where(r => !string.Equals(r, currentHoldMatch, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        var applied = TryApplyRouteCrossingsAndHoldShorts(aircraft, layout, upcoming, cross.HoldShorts);
+        if (!applied.Success)
+        {
+            return applied;
+        }
+
+        if (currentHoldMatch is not null)
+        {
+            var continuation = TryPrepareCompletedRouteCrossing(aircraft, holdPhase!);
+            if (!continuation.Success)
+            {
+                return continuation;
+            }
+
+            holdPhase!.SatisfyClearance(ClearanceType.RunwayCrossing);
+        }
+
+        return CommandDispatcher.Ok(CommandDescriber.DescribeNatural(cross));
+    }
+
+    private static CommandResult TryCrossSingleRunway(AircraftState aircraft, string target)
+    {
         // Currently holding short AT the requested target: satisfy the clearance now.
         // Target match works for both runway designators (e.g. CROSS 28R against
         // "28R/10L") and taxiway/intersection names (e.g. CROSS B against "B").

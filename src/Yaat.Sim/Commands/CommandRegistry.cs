@@ -83,7 +83,8 @@ public static class CommandRegistry
                 continue;
             }
 
-            parts.Add(param.IsOptional ? $"[<{param.Name}>]" : $"<{param.Name}>");
+            var name = param.Repeatable ? $"{param.Name}..." : param.Name;
+            parts.Add(param.IsOptional ? $"[<{name}>]" : $"<{name}>");
         }
 
         return string.Join(' ', parts);
@@ -700,7 +701,8 @@ public static class CommandRegistry
                 "Ground",
                 false,
                 ["CROSS"],
-                [O(null, [], "Cross next hold-short"), O(null, [R("runway", "runway designator")], "Cross runway")]
+                [O(null, [], "Cross next hold-short"), O(null, [Rep("runway", "runway designator")], "Cross runway(s)")],
+                [Mod("HS", "taxiway/runway", true)]
             ),
             Cmd(HoldShort, "Hold Short", "Ground", false, ["HS"], [O(null, [R("taxiway", "taxiway/runway")], "Hold short of taxiway or runway")]),
             Cmd(
@@ -1903,6 +1905,11 @@ public static class CommandRegistry
     private static CommandParameter Opt(string name, string typeHint)
     {
         return new CommandParameter(name, typeHint, true);
+    }
+
+    private static CommandParameter Rep(string name, string typeHint)
+    {
+        return new CommandParameter(name, typeHint, false, Repeatable: true);
     }
 
     private static CommandOverload O(string? variantLabel, CommandParameter[] parameters, string? usageHint)

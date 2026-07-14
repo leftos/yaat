@@ -539,24 +539,62 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
-    /// Parses CROSS [runway]. Bare CROSS (no argument) produces
-    /// <c>CrossRunwayCommand(null)</c>, which clears the next uncleared
-    /// hold-short on the route. CROSS &lt;runway&gt; targets a specific runway.
+    /// Parses CROSS [&lt;rwy&gt; [&lt;rwy&gt;...]] [HS &lt;target&gt; [&lt;target&gt;...]].
+    /// The verb starts in "cross" mode, so leading tokens are crossing runways; an
+    /// <c>HS</c> keyword switches to hold-short targets. Bare CROSS (no argument)
+    /// produces <c>CrossRunwayCommand([], [])</c>, which clears the next uncleared
+    /// hold-short on the route. Mirrors <see cref="ParseResume"/>'s mode loop.
     /// </summary>
     internal static PR ParseCross(string? arg)
     {
         if (arg is null)
         {
-            return PR.Ok(new CrossRunwayCommand(null));
+            return PR.Ok(new CrossRunwayCommand([], []));
         }
 
-        var runway = arg.Trim().ToUpperInvariant();
-        if (runway.Length == 0)
+        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
         {
-            return PR.Ok(new CrossRunwayCommand(null));
+            return PR.Ok(new CrossRunwayCommand([], []));
         }
 
-        return PR.Ok(new CrossRunwayCommand(runway));
+        var crossRunways = new List<string>();
+        var holdShorts = new List<string>();
+        var mode = ParseMode.Cross;
+
+        foreach (var raw in tokens)
+        {
+            if (raw.Equals("HS", StringComparison.OrdinalIgnoreCase))
+            {
+                mode = ParseMode.HoldShort;
+                continue;
+            }
+            if (raw.Equals("CROSS", StringComparison.OrdinalIgnoreCase))
+            {
+                mode = ParseMode.Cross;
+                continue;
+            }
+
+            switch (mode)
+            {
+                case ParseMode.Cross:
+                    crossRunways.Add(raw.ToUpperInvariant());
+                    break;
+                case ParseMode.HoldShort:
+                    holdShorts.Add(raw.ToUpperInvariant());
+                    break;
+                default:
+                    return PR.Fail($"CROSS: unexpected argument '{raw}'");
+            }
+        }
+
+        // A keyword with no targets following is an actionable error.
+        if (mode == ParseMode.HoldShort && holdShorts.Count == 0)
+        {
+            return PR.Fail("CROSS HS requires at least one target");
+        }
+
+        return PR.Ok(new CrossRunwayCommand(crossRunways, holdShorts));
     }
 
     /// <summary>

@@ -341,6 +341,23 @@ public class SignatureHelpStateTests
     }
 
     [Fact]
+    public void BuildParts_RepeatableParam_RendersEllipsis_AndStaysActivePastItsIndex()
+    {
+        // CROSS's runway list: a single trailing repeatable parameter.
+        var sig = MakeSig("Cross Runway", [new CommandParameter("runway", "runway designator", false, Repeatable: true)]);
+
+        // Cursor on the first runway.
+        var parts0 = SignatureHelpState.BuildParts(sig, 0);
+        Assert.Equal("[runway…]", parts0[2].Text);
+        Assert.True(parts0[2].IsActive);
+
+        // Cursor moved onto a second runway — the repeatable param stays highlighted.
+        var parts1 = SignatureHelpState.BuildParts(sig, 1);
+        Assert.Equal("[runway…]", parts1[2].Text);
+        Assert.True(parts1[2].IsActive);
+    }
+
+    [Fact]
     public void BuildParts_RequiredAndOptionalParams_RenderDifferently()
     {
         var sig = new CommandSignature(
