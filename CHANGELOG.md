@@ -4,6 +4,7 @@
 
 ### Fixed
 - The Ground View taxi-route line for an aircraft taxiing to a runway now stops at the hold-short bar instead of running past it down the whole taxiway.
+- Track, coordination, strip, and TDLS commands can be chained with `;` / `,` like flight commands — e.g. `HO 3G; ACCEPT` hands off then accepts an inbound handoff on one line.
 
 ## v0.9.9-beta [2026/07/14]
 
