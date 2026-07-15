@@ -418,6 +418,17 @@ public partial class GroundViewModel : ObservableObject
         ShownAirportChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Test-only hook: install a domain layout directly. Used when a test already holds an
+    /// <see cref="AirportGroundLayout"/> (e.g. parsed from a real airport GeoJSON) and does not
+    /// need the DTO round-trip. Route resolution reads only <c>_domainLayout</c>.
+    /// </summary>
+    internal void SetDomainLayoutForTesting(AirportGroundLayout layout)
+    {
+        _domainLayout = layout;
+        ShownAirportChanged?.Invoke();
+    }
+
     public async Task LoadLayoutAsync(string airportId)
     {
         try
@@ -1241,7 +1252,7 @@ public partial class GroundViewModel : ObservableObject
         return null;
     }
 
-    private TaxiRoute? ResolveRemainingRoute(AircraftModel ac)
+    internal TaxiRoute? ResolveRemainingRoute(AircraftModel ac)
     {
         if (_domainLayout is null)
         {
@@ -1270,7 +1281,18 @@ public partial class GroundViewModel : ObservableObject
             }
         }
 
-        return TaxiPathfinder.ResolveExplicitPath(_domainLayout, nodeId.Value, routeTaxiways, out _, new ExplicitPathOptions(), CategoryFor(ac));
+        // Source the destination runway from the aircraft's assigned runway so the reconstruction
+        // truncates at the runway hold-short instead of walking the last taxiway to its full extent.
+        // The DTO taxiway string omits the held-short runway; AssignedRunway carries it, and is set
+        // by the taxi clearance only when the route ends at a runway (empty for taxi-to-parking).
+        return TaxiPathfinder.ResolveExplicitPath(
+            _domainLayout,
+            nodeId.Value,
+            routeTaxiways,
+            out _,
+            new ExplicitPathOptions { DestinationRunway = string.IsNullOrEmpty(ac.AssignedRunway) ? null : ac.AssignedRunway },
+            CategoryFor(ac)
+        );
     }
 
     private static List<string> ParseRouteTaxiways(string taxiRoute)

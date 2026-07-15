@@ -88,14 +88,16 @@ Follow               -> ShowAllTaxiRoutes && HasActiveTaxiRoute
 - `AircraftModel.CurrentTaxiway` — the taxiway the aircraft is on now.
 - `AircraftModel.HasActiveTaxiRoute` — whether an incomplete route exists.
 - `AircraftModel.Position` — live lat/lon.
+- `AircraftModel.AssignedRunway` — the runway the taxi route holds short of (departures). The formatted `TaxiRoute` string lists only taxiways taxied *along*, never the held-short runway, so this is the only channel for it.
 
-Whenever a route must be drawn, `GroundViewModel.ResolveRemainingRoute(ac)` **reconstructs the geometry locally**: it parses the taxiway-name string, finds the aircraft's nearest ground node, trims the sequence to start at `CurrentTaxiway`, and re-runs `TaxiPathfinder.ResolveExplicitPath` against the client's cached `AirportGroundLayout` (`_domainLayout`).
+Whenever a route must be drawn, `GroundViewModel.ResolveRemainingRoute(ac)` **reconstructs the geometry locally**: it parses the taxiway-name string, finds the aircraft's nearest ground node, trims the sequence to start at `CurrentTaxiway`, and re-runs `TaxiPathfinder.ResolveExplicitPath` against the client's cached `AirportGroundLayout` (`_domainLayout`). It passes `AssignedRunway` (when set) as `ExplicitPathOptions.DestinationRunway` so the reconstruction **truncates at the runway hold-short** — the same hint the server used to build the route. Without it the resolver has no runway terminus and walks the last taxiway to its full physical extent, drawing past the hold-short bar (the `TAXI D C B 28R` "highlights all of B past 28R" bug).
 
 **This reconstruction depends on the following DTO fields being broadcast live.** All are in the server's `TrainingDtoFingerprint` (`yaat-server` `AircraftChangeTracker.cs`), so any change to them fires an `AircraftUpdated` that the client refreshes on:
 
 - `Lat` / `Lon` — change every tick as the aircraft moves; this alone re-trims the drawn route to the aircraft's advancing position.
 - `TaxiRoute` (the formatted string) — changes on re-clearance and drops to `""` when the route completes (which is also how "show all" stops drawing a finished aircraft).
 - `CurrentTaxiway` — changes as the aircraft crosses junctions.
+- `AssignedRunway` — changes on re-clearance; drives the hold-short truncation above.
 
 Consequences to respect when changing this area:
 

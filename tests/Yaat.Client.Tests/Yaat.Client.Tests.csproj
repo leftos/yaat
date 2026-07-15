@@ -34,5 +34,8 @@
          parallelizeTestCollections:false plus the YAAT_APPDATA_DIR redirect in
          ModuleInit.cs to stay off the developer's real preferences.json. -->
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Shared real-airport GeoJSON (parsed via GeoJsonParser) for taxi-route overlay
+         reconstruction tests. Linked from Yaat.Sim.Tests so there is a single source of truth. -->
+    <None Include="..\Yaat.Sim.Tests\TestData\oak.geojson" Link="TestData\oak.geojson" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
