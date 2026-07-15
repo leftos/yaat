@@ -94,13 +94,17 @@ public static class CommandDispatcher
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
 
-        // A standalone pattern modifier (EXT / SA / MNA) on an aircraft with no active phase must
-        // apply directly, without the None-dimension ClearConflictingBlocks fast path — which would
-        // otherwise wipe a queued pattern entry (e.g. an ERD sitting behind DCT VPCOL) the moment
-        // the modifier's dispatcher arm makes dry-run succeed. ApplyCommand pre-arms the queued
-        // entry so the modifier fires when it builds its circuit. With an active phase the phase-gate
-        // path below already applies these in place without a queue wipe.
-        if (aircraft.Phases?.CurrentPhase is null && compound.Blocks is [{ } soloBlock] && IsImmediatePhaseModifierBlock(soloBlock))
+        // Pattern modifiers (EXT / SA / MNA) on an aircraft with no active phase must apply directly,
+        // without the All/None-dimension ClearConflictingBlocks fast path — which would otherwise wipe
+        // a queued pattern entry (e.g. an ERD sitting behind DCT VPCOL) the moment the modifiers'
+        // dispatcher arms make dry-run succeed. ApplyCommand pre-arms the queued entry so each modifier
+        // fires when it builds its circuit. This covers both a lone modifier and a compound of only
+        // modifiers (e.g. "EXT DOWNWIND; SA"): a multi-block modifier compound skips the single-block
+        // form, dry-run validates only its first block, and the fast-path wipe then destroys the queued
+        // entry — so the command fails ("no upcoming downwind leg to extend") having already silently
+        // dropped it. The last-armed modifier wins (single PendingEntryModifier slot). With an active
+        // phase the phase-gate path below already applies these in place without a queue wipe.
+        if (aircraft.Phases?.CurrentPhase is null && compound.Blocks.Count > 0 && compound.Blocks.All(IsImmediatePhaseModifierBlock))
         {
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
@@ -1038,6 +1042,15 @@ public static class CommandDispatcher
             AutoCrossRunway = false,
             TerminalEmitter = null,
         };
+
+        // Model the real dispatch path's pre-application queue clear on the clone so a block whose
+        // application reads the queue (a pattern modifier scanning for a queued entry) is validated
+        // against the same post-clear queue it will actually see. Without this, a modifier-led compound
+        // (e.g. "EXT DOWNWIND; CLAND") passes dry-run against the intact clone queue but fails on the
+        // real aircraft after ClearConflictingBlocks wipes the queued entry — a silent-wipe-then-fail.
+        // A conditional first block already returned above, so the real path always clears here
+        // (non-conditional-incoming); mirror its dims and preserve flag.
+        ClearConflictingBlocks(clone, CommandDescriber.GetCompoundDimensions(compound), ctx, ctx.PreserveConditionals, out _);
 
         var firstBlock = compound.Blocks[0];
         foreach (var cmd in firstBlock.Commands)
