@@ -6,6 +6,7 @@
 - Chaining pattern modifiers (e.g. `EXT DOWNWIND; SA`) before a queued pattern entry fires now pre-arms them and keeps the queued entry instead of dropping it.
 - The Ground View taxi-route line for an aircraft taxiing to a runway now stops at the hold-short bar instead of running past it down the whole taxiway.
 - Track, coordination, strip, and TDLS commands can be chained with `;` / `,` like flight commands — e.g. `HO 3G; ACCEPT` hands off then accepts an inbound handoff on one line.
+- In solo training, a pilot repeating an unanswered request no longer shows its callsign twice in the radio transcript.
 
 ## v0.9.9-beta [2026/07/14]
 

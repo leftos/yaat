@@ -7,15 +7,17 @@ namespace Yaat.Sim.Tests.Pilot;
 
 public sealed class PilotTransmissionQueueTests
 {
+    // The bracket-strip + TTS-normalize behavior is exercised via the surviving string overload,
+    // QueueSoloPilotReadback (the transmission string overload was removed with #297 once the
+    // follow-up path started carrying both forms independently).
     [Fact]
-    public void QueueSoloPilotTransmission_SeparatesTerminalTextFromSpeechText()
+    public void QueueSoloPilotReadback_SeparatesTerminalTextFromSpeechText()
     {
         var aircraft = NewAircraft("N123AB");
 
-        PilotResponder.QueueSoloPilotTransmission(
+        PilotResponder.QueueSoloPilotReadback(
             aircraft,
             "[N123AB] tower, november one two three alpha bravo ten-mile final runway two eight right, with information Alpha.",
-            PilotTransmissionKind.Proactive,
             PilotResponder.SourceResponse
         );
 
@@ -27,18 +29,17 @@ public sealed class PilotTransmissionQueueTests
         // TTS form: bracket stripped and word-joined hyphens de-hyphenated for the speech engine.
         Assert.Equal("tower, november one two three alpha bravo ten mile final runway two eight right, with information Alpha.", tx.SpeechText);
         Assert.Equal(PilotResponder.SourceResponse, tx.SourceKind);
-        Assert.Equal(PilotTransmissionKind.Proactive, tx.Kind);
+        Assert.Equal(PilotTransmissionKind.SayReadback, tx.Kind);
     }
 
     [Fact]
-    public void QueueSoloPilotTransmission_NormalizesHyphenatedTtsTokens()
+    public void QueueSoloPilotReadback_NormalizesHyphenatedTtsTokens()
     {
         var aircraft = NewAircraft("N9SX");
 
-        PilotResponder.QueueSoloPilotTransmission(
+        PilotResponder.QueueSoloPilotReadback(
             aircraft,
             "[N9SX] tower, november nine sierra x-ray ten-mile final, cleared touch-and-go runway two eight right.",
-            PilotTransmissionKind.Readback,
             PilotResponder.SourceResponse
         );
 
@@ -76,17 +77,11 @@ public sealed class PilotTransmissionQueueTests
         var readback = NewAircraft("N100AA");
         world.AddAircraft(proactive);
         world.AddAircraft(readback);
-        PilotResponder.QueueSoloPilotTransmission(
-            proactive,
-            "tower, november two zero zero bravo bravo ready to taxi.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
-        );
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(proactive, "tower, november two zero zero bravo bravo ready to taxi.", PilotTransmissionKind.Proactive);
+        QueueSetupTransmission(
             readback,
             "[N100AA] descend and maintain five thousand, november one zero zero alpha alpha.",
-            PilotTransmissionKind.Readback,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Readback
         );
         world.ExpectPilotReadback("N100AA", elapsedSeconds: 10);
 
@@ -103,12 +98,7 @@ public sealed class PilotTransmissionQueueTests
         var world = new SimulationWorld();
         var quiet = NewAircraft("N200BB");
         world.AddAircraft(quiet);
-        PilotResponder.QueueSoloPilotTransmission(
-            quiet,
-            "tower, november two zero zero bravo bravo ready to taxi.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
-        );
+        QueueSetupTransmission(quiet, "tower, november two zero zero bravo bravo ready to taxi.", PilotTransmissionKind.Proactive);
 
         // Controller spoke to N100AA at t=10 but the readback never lands (e.g. aircraft
         // deleted between dispatch and drain). Without a timeout the gate would silence
@@ -131,11 +121,10 @@ public sealed class PilotTransmissionQueueTests
         var second = NewAircraft("N200BB");
         world.AddAircraft(first);
         world.AddAircraft(second);
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(
             first,
             "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Proactive
         );
 
         // First pilot transmits at t=2.
@@ -145,11 +134,10 @@ public sealed class PilotTransmissionQueueTests
 
         // Second pilot queues a proactive call at t=5 — should be held back because
         // the controller hasn't responded to the first call yet.
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(
             second,
             "tower, november two zero zero bravo bravo holding short runway two eight right, ready for departure.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Proactive
         );
 
         // First pilot's airtime is ~3.5s, so drain at t=10 is past airtime but
@@ -172,20 +160,18 @@ public sealed class PilotTransmissionQueueTests
         var second = NewAircraft("N200BB");
         world.AddAircraft(first);
         world.AddAircraft(second);
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(
             first,
             "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Proactive
         );
 
         world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
 
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(
             second,
             "tower, november two zero zero bravo bravo holding short runway two eight right, ready for departure.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Proactive
         );
 
         Assert.Empty(world.DrainReadyPilotTransmissions(elapsedSeconds: 6));
@@ -204,22 +190,16 @@ public sealed class PilotTransmissionQueueTests
         var world = new SimulationWorld();
         var pilot = NewAircraft("N100AA");
         world.AddAircraft(pilot);
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(
             pilot,
             "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Proactive
         );
 
         world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
 
         // Same pilot follow-up — should not be held back by the gate (it's the awaiting pilot).
-        PilotResponder.QueueSoloPilotTransmission(
-            pilot,
-            "tower, november one zero zero alpha alpha, did you hear that.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
-        );
+        QueueSetupTransmission(pilot, "tower, november one zero zero alpha alpha, did you hear that.", PilotTransmissionKind.Proactive);
 
         var drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
         var tx = Assert.Single(drain);
@@ -234,22 +214,20 @@ public sealed class PilotTransmissionQueueTests
         var second = NewAircraft("N200BB");
         world.AddAircraft(first);
         world.AddAircraft(second);
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(
             first,
             "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Proactive
         );
 
         world.DrainReadyPilotTransmissions(elapsedSeconds: 2);
 
         // A different aircraft's readback should not be blocked by the controller-response
         // gate — readbacks are responses to controller-issued commands, not new requests.
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(
             second,
             "[N200BB] descend and maintain five thousand, november two zero zero bravo bravo.",
-            PilotTransmissionKind.Readback,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Readback
         );
 
         var drain = world.DrainReadyPilotTransmissions(elapsedSeconds: 7);
@@ -268,20 +246,18 @@ public sealed class PilotTransmissionQueueTests
         engine.World.AddAircraft(second);
 
         // First pilot calls up.
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(
             first,
             "tower, november one zero zero alpha alpha ten-mile final runway two eight right.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Proactive
         );
         engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 2);
 
         // Second pilot queues a proactive — held back by the gate.
-        PilotResponder.QueueSoloPilotTransmission(
+        QueueSetupTransmission(
             second,
             "tower, november two zero zero bravo bravo holding short runway two eight right, ready for departure.",
-            PilotTransmissionKind.Proactive,
-            PilotResponder.SourceResponse
+            PilotTransmissionKind.Proactive
         );
         Assert.Empty(engine.World.DrainReadyPilotTransmissions(elapsedSeconds: 6));
 
@@ -395,6 +371,18 @@ public sealed class PilotTransmissionQueueTests
         Assert.False(result.Success);
         Assert.Empty(aircraft.PendingPilotTransmissions);
     }
+
+    // Queues a drain/gate-test transmission. Reproduces the pre-#297 string-overload behavior
+    // (bracket-stripped terminal + normalized TTS) so word-count-derived airtime stays identical
+    // to when these tests were written. Text content is not asserted by these tests — only
+    // callsign, kind, and drain ordering.
+    private static void QueueSetupTransmission(AircraftState aircraft, string text, PilotTransmissionKind kind) =>
+        PilotResponder.QueueSoloPilotTransmission(
+            aircraft,
+            new PilotSpeechText(text, PilotResponder.PrepareForTts(aircraft, text)),
+            kind,
+            PilotResponder.SourceResponse
+        );
 
     private static AircraftState NewAircraft(string callsign) => new() { Callsign = callsign, AircraftType = "C172" };
 

@@ -155,7 +155,7 @@ public static class PilotProactive
             aircraft,
             PilotPendingRequestKind.Approach,
             scenario.ElapsedSeconds,
-            line.Tts,
+            line,
             PilotRequestContext.Runway(runwayId, facilityCallName)
         );
     }

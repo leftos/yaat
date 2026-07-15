@@ -220,6 +220,11 @@ public sealed class PilotPendingRequestDto
     public required double LastRequestedAtSeconds { get; init; }
     public required double NextFollowUpDueSeconds { get; init; }
     public required string LastPilotLine { get; init; }
+
+    // Added for #297: the spoken (TTS) form of the last pilot line. Optional — pre-#297 snapshots
+    // lack it and deserialize as null; FromSnapshot falls back to LastPilotLine. Clean default, so
+    // no SnapshotSchemaMigrator step / SchemaVersion bump is required.
+    public string? LastPilotLineTts { get; init; }
     public string? RunwayId { get; init; }
     public string? FacilityCallName { get; init; }
     public string? AirspaceClass { get; init; }

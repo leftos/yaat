@@ -43,7 +43,12 @@ public sealed class PilotPendingRequest
     public required double FirstRequestedAtSeconds { get; init; }
     public double LastRequestedAtSeconds { get; set; }
     public double NextFollowUpDueSeconds { get; set; }
+
+    /// <summary>Terminal (SAY-column, callsign-free) form of the last pilot line, re-queued on follow-up.</summary>
     public required string LastPilotLine { get; set; }
+
+    /// <summary>Spoken (TTS, callsign spelled) form of the last pilot line, re-queued on follow-up.</summary>
+    public required string LastPilotLineTts { get; set; }
     public string? RunwayId { get; init; }
     public string? FacilityCallName { get; init; }
     public string? AirspaceClass { get; init; }
@@ -61,6 +66,7 @@ public sealed class PilotPendingRequest
             LastRequestedAtSeconds = LastRequestedAtSeconds,
             NextFollowUpDueSeconds = NextFollowUpDueSeconds,
             LastPilotLine = LastPilotLine,
+            LastPilotLineTts = LastPilotLineTts,
             RunwayId = RunwayId,
             FacilityCallName = FacilityCallName,
             AirspaceClass = AirspaceClass,
@@ -77,6 +83,9 @@ public sealed class PilotPendingRequest
             LastRequestedAtSeconds = dto.LastRequestedAtSeconds,
             NextFollowUpDueSeconds = dto.NextFollowUpDueSeconds,
             LastPilotLine = dto.LastPilotLine,
+            // Pre-#297 snapshots stored only one string (the spoken form) in LastPilotLine and lack
+            // LastPilotLineTts; fall back to it so restored follow-ups reproduce the recorded behavior.
+            LastPilotLineTts = dto.LastPilotLineTts ?? dto.LastPilotLine,
             RunwayId = dto.RunwayId,
             FacilityCallName = dto.FacilityCallName,
             AirspaceClass = dto.AirspaceClass,

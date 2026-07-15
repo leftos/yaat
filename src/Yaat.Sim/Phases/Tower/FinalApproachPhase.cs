@@ -499,7 +499,7 @@ public sealed class FinalApproachPhase : Phase
                 ctx.Aircraft,
                 PilotPendingRequestKind.Landing,
                 ctx.ScenarioElapsedSeconds,
-                line.Tts,
+                line,
                 PilotRequestContext.Runway(rwyId, facilityCallName)
             );
             ctx.Aircraft.HasMadeInitialContact = true;

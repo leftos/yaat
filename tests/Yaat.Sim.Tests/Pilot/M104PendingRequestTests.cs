@@ -15,13 +15,7 @@ public sealed class M104PendingRequestTests
     {
         var ac = NewAircraft();
 
-        PilotRequestTracker.RecordRequest(
-            ac,
-            PilotPendingRequestKind.Taxi,
-            nowSeconds: 10,
-            "[N123AB] ground, ready to taxi.",
-            PilotRequestContext.None
-        );
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
 
         Assert.NotNull(ac.PendingPilotRequest);
         Assert.Equal(PilotPendingRequestKind.Taxi, ac.PendingPilotRequest.Kind);
@@ -36,13 +30,7 @@ public sealed class M104PendingRequestTests
     {
         var ac = NewAircraft();
         var scenario = NewScenario(elapsedSeconds: 129);
-        PilotRequestTracker.RecordRequest(
-            ac,
-            PilotPendingRequestKind.Taxi,
-            nowSeconds: 10,
-            "[N123AB] ground, ready to taxi.",
-            PilotRequestContext.None
-        );
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
 
         PilotProactive.TickPendingRequests(ac, scenario);
         Assert.Empty(ac.PendingPilotTransmissions);
@@ -51,7 +39,7 @@ public sealed class M104PendingRequestTests
         PilotProactive.TickPendingRequests(ac, scenario);
 
         var transmission = Assert.Single(ac.PendingPilotTransmissions);
-        // Re-queued follow-up: terminal form strips the bracketed callsign prefix (SAY column carries it).
+        // Re-queued follow-up: terminal (SAY) form is the callsign-free stored form (SAY column carries the callsign).
         Assert.Equal("ground, ready to taxi.", transmission.Text);
         Assert.Equal(130, ac.PendingPilotRequest!.LastRequestedAtSeconds);
         Assert.Equal(250, ac.PendingPilotRequest.NextFollowUpDueSeconds);
@@ -64,13 +52,7 @@ public sealed class M104PendingRequestTests
     {
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(elapsedSeconds: 20) };
         var ac = NewAircraft();
-        PilotRequestTracker.RecordRequest(
-            ac,
-            PilotPendingRequestKind.Taxi,
-            nowSeconds: 10,
-            "[N123AB] ground, ready to taxi.",
-            PilotRequestContext.None
-        );
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
         engine.World.AddAircraft(ac);
 
         var result = engine.SendCommand(ac.Callsign, command);
@@ -86,13 +68,7 @@ public sealed class M104PendingRequestTests
     public void SendCommand_TaxiClosesPendingTaxiRequest()
     {
         var ac = NewAircraft();
-        PilotRequestTracker.RecordRequest(
-            ac,
-            PilotPendingRequestKind.Taxi,
-            nowSeconds: 10,
-            "[N123AB] ground, ready to taxi.",
-            PilotRequestContext.None
-        );
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
         var compound = new CompoundCommand([new ParsedBlock(null, [new TaxiCommand(["A"], [], DestinationRunway: "28R")])]);
 
         PilotRequestTracker.ApplyControllerResponse(ac, compound, nowSeconds: 20);
@@ -129,6 +105,13 @@ public sealed class M104PendingRequestTests
         Assert.Equal(PilotPendingRequestKind.Taxi, ac.PendingPilotRequest.Kind);
         Assert.Equal(125, ac.PendingPilotRequest.NextFollowUpDueSeconds);
     }
+
+    // Terminal (SAY, callsign-free) + spoken (TTS, callsign spelled) forms of a ready-to-taxi call,
+    // mirroring what the six proactive builders produce.
+    private static readonly PilotSpeechText ReadyToTaxiLine = new(
+        "ground, ready to taxi.",
+        "ground, november one two three alpha bravo, ready to taxi."
+    );
 
     private static AircraftState NewAircraft() =>
         new()

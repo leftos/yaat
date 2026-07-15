@@ -76,7 +76,8 @@ public class SnapshotRoundTripTests
                 FirstRequestedAtSeconds = 20,
                 LastRequestedAtSeconds = 40,
                 NextFollowUpDueSeconds = 340,
-                LastPilotLine = "[AAL100] approach, american one hundred ten miles to land runway two eight right.",
+                LastPilotLine = "approach, ten miles to land runway two eight right.",
+                LastPilotLineTts = "approach, american one hundred ten miles to land runway two eight right.",
                 RunwayId = "28R",
                 FacilityCallName = "approach",
             },
@@ -123,6 +124,8 @@ public class SnapshotRoundTripTests
         Assert.Equal(PilotPendingRequestKind.Approach, restored.PendingPilotRequest.Kind);
         Assert.Equal(PilotPendingRequestResponseState.Standby, restored.PendingPilotRequest.ResponseState);
         Assert.Equal(340, restored.PendingPilotRequest.NextFollowUpDueSeconds);
+        Assert.Equal("approach, ten miles to land runway two eight right.", restored.PendingPilotRequest.LastPilotLine);
+        Assert.Equal("approach, american one hundred ten miles to land runway two eight right.", restored.PendingPilotRequest.LastPilotLineTts);
         Assert.Equal("28R", restored.PendingPilotRequest.RunwayId);
         Assert.Equal(ac.Targets.TargetTrueHeading?.Degrees, restored.Targets.TargetTrueHeading?.Degrees);
     }

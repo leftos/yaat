@@ -93,7 +93,7 @@ public sealed class LinedUpAndWaitingPhase : Phase
                 ctx.Aircraft,
                 PilotPendingRequestKind.Takeoff,
                 ctx.ScenarioElapsedSeconds,
-                line.Tts,
+                line,
                 PilotRequestContext.Runway(rwy.Designator, facilityCallName)
             );
             ctx.Aircraft.HasAnnouncedLinedUpReady = true;

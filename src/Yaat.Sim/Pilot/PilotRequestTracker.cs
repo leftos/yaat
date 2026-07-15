@@ -11,7 +11,7 @@ public static class PilotRequestTracker
         AircraftState aircraft,
         PilotPendingRequestKind kind,
         double nowSeconds,
-        string pilotLine,
+        PilotSpeechText line,
         PilotRequestContext context
     )
     {
@@ -27,7 +27,8 @@ public static class PilotRequestTracker
             FirstRequestedAtSeconds = firstRequestedAt,
             LastRequestedAtSeconds = nowSeconds,
             NextFollowUpDueSeconds = nowSeconds + NormalFollowUpDelaySeconds,
-            LastPilotLine = pilotLine,
+            LastPilotLine = line.Terminal,
+            LastPilotLineTts = line.Tts,
             RunwayId = context.RunwayId,
             FacilityCallName = context.FacilityCallName,
             AirspaceClass = context.AirspaceClass?.ToString(),
@@ -92,7 +93,15 @@ public static class PilotRequestTracker
             return false;
         }
 
-        PilotResponder.QueueSoloPilotTransmission(aircraft, pending.LastPilotLine, PilotTransmissionKind.Proactive, PilotResponder.SourceResponse);
+        // Re-queue both forms independently — the terminal (SAY) form is callsign-free (the SAY
+        // column carries the callsign) and the spoken form spells it. RpoTerminal is null for every
+        // proactive builder that records a request (only traffic/follow calls produce it).
+        PilotResponder.QueueSoloPilotTransmission(
+            aircraft,
+            new PilotSpeechText(pending.LastPilotLine, pending.LastPilotLineTts),
+            PilotTransmissionKind.Proactive,
+            PilotResponder.SourceResponse
+        );
         pending.ResponseState = PilotPendingRequestResponseState.None;
         pending.LastRequestedAtSeconds = nowSeconds;
         pending.NextFollowUpDueSeconds = nowSeconds + NormalFollowUpDelaySeconds;

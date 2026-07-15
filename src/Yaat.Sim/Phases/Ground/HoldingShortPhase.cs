@@ -93,7 +93,7 @@ public sealed class HoldingShortPhase : Phase
                 ctx.Aircraft,
                 PilotPendingRequestKind.Takeoff,
                 ctx.ScenarioElapsedSeconds,
-                line.Tts,
+                line,
                 PilotRequestContext.Runway(runwayId, facilityCallName)
             );
             _hasAnnouncedReady = true;

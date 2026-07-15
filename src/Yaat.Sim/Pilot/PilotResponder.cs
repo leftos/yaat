@@ -46,21 +46,10 @@ public static class PilotResponder
     public static readonly IReadOnlyCollection<string> SoloPositionsTowerApproach = ["TWR", "APP"];
 
     /// <summary>
-    /// Queues a solo-training pilot line for delayed radio transcript and typed pilot-audio
-    /// broadcast. Immediate controller responses stay on the Response channel; this queue
-    /// represents what the pilot says when the frequency is available.
-    /// </summary>
-    public static void QueueSoloPilotTransmission(AircraftState aircraft, string text, PilotTransmissionKind kind, string sourceKind)
-    {
-        // String-form lines (stored follow-ups, legacy callers): the terminal SAY message strips the
-        // bracketed callsign prefix (the SAY column carries the callsign); TTS additionally normalizes.
-        var terminal = StripBracketedPrefix(aircraft, text);
-        aircraft.PendingPilotTransmissions.Add(new PilotTransmission(aircraft.Callsign, terminal, NormalizeForTts(terminal), sourceKind, kind));
-    }
-
-    /// <summary>
     /// Queues a solo-training pilot line whose terminal (compact, callsign in the SAY column) and
-    /// spoken (phonetic) forms were built independently from the canonical command.
+    /// spoken (phonetic) forms were built independently from the canonical command. Immediate
+    /// controller responses stay on the Response channel; this queue represents what the pilot says
+    /// when the frequency is available.
     /// </summary>
     public static void QueueSoloPilotTransmission(AircraftState aircraft, PilotSpeechText text, PilotTransmissionKind kind, string sourceKind)
     {

@@ -96,9 +96,12 @@ The full mode → channel matrix (and how `RpoTerminal` is resolved per branch) 
 lists are `PilotResponder.SoloPositionsTower` (`["TWR"]`) and `SoloPositionsTowerApproach`
 (`["TWR","APP"]`).
 
-String overloads remain only for stored follow-up lines re-queued by `PilotRequestTracker`
-(`LastPilotLine` is snapshot-serialized as a plain string) and notification-style SAY readbacks
-("looking for the field"); they strip the bracketed callsign prefix for the terminal form.
+Stored follow-up lines re-queued by `PilotRequestTracker` keep **both** forms on the pending
+request — `PilotPendingRequest.LastPilotLine` (terminal) and `LastPilotLineTts` (spoken), both
+snapshot-serialized — and re-queue through the `PilotSpeechText` overload, so a reminder reads
+identically to the original call (issue #297). The one remaining string overload is
+`QueueSoloPilotReadback`, used for notification-style SAY readbacks ("looking for the field");
+it strips the bracketed callsign prefix for the terminal form and normalizes the TTS form.
 
 ## Position reports vs intent declarations
 
@@ -139,9 +142,9 @@ public record CommandResult(bool Success, string? Message = null, CanonicalComma
 
 `AircraftState.PendingPilotRequest` (snapshot-serialized — schema v5) tracks one open pilot request per aircraft. `PilotRequestTracker`:
 
-- `RecordRequest(kind, nowSeconds, lastPilotLine, context)` — fired by the originating site (e.g. `AtParkingPhase`'s ready-to-taxi, `FinalApproachPhase`'s arrival check-in, `AirspaceBoundaryHoldPhase`'s self-hold).
+- `RecordRequest(kind, nowSeconds, line, context)` — fired by the originating site (e.g. `AtParkingPhase`'s ready-to-taxi, `FinalApproachPhase`'s arrival check-in, `AirspaceBoundaryHoldPhase`'s self-hold). Takes the builder's `PilotSpeechText` and stores both forms (`LastPilotLine` / `LastPilotLineTts`).
 - `ApplyControllerResponse(compound, nowSeconds)` — runs after every successful dispatch (live + replay). Maps command type to `Satisfied` / `Denied` / `Superseded` / `Standby` per request kind.
-- `TryQueueFollowUp(nowSeconds)` — called from `PilotProactive.TickPendingRequests` each tick. Re-queues `LastPilotLine` after 120 s normally, 90 s after `STBY`/`ROGER` (`AcknowledgePilotContactCommand`). The shorter STBY/ROGER delay reflects that a bare acknowledgment isn't substantive direction — a pilot expecting a clearance won't sit silent for several minutes after only "roger".
+- `TryQueueFollowUp(nowSeconds)` — called from `PilotProactive.TickPendingRequests` each tick. Re-queues both stored forms (`LastPilotLine` + `LastPilotLineTts`) via the `PilotSpeechText` overload after 120 s normally, 90 s after `STBY`/`ROGER` (`AcknowledgePilotContactCommand`). The shorter STBY/ROGER delay reflects that a bare acknowledgment isn't substantive direction — a pilot expecting a clearance won't sit silent for several minutes after only "roger".
 
 Five request kinds: `Taxi`, `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`. Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `ExpectApproachCommand` → Standby for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff).
 
