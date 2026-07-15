@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A compound of only pattern modifiers (e.g. `EXT DOWNWIND; SA`) issued while a pattern entry is still queued behind another command no longer silently wipes the queued entry — it now pre-arms each modifier and preserves the entry, matching the single-modifier behavior. Previously the multi-modifier compound dropped the queued entry and failed with "no upcoming downwind leg to extend".
+
 ## v0.9.9-beta [2026/07/14]
 
 ### Highlights

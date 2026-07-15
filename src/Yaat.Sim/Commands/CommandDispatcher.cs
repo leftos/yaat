@@ -94,13 +94,17 @@ public static class CommandDispatcher
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }
 
-        // A standalone pattern modifier (EXT / SA / MNA) on an aircraft with no active phase must
-        // apply directly, without the None-dimension ClearConflictingBlocks fast path — which would
-        // otherwise wipe a queued pattern entry (e.g. an ERD sitting behind DCT VPCOL) the moment
-        // the modifier's dispatcher arm makes dry-run succeed. ApplyCommand pre-arms the queued
-        // entry so the modifier fires when it builds its circuit. With an active phase the phase-gate
-        // path below already applies these in place without a queue wipe.
-        if (aircraft.Phases?.CurrentPhase is null && compound.Blocks is [{ } soloBlock] && IsImmediatePhaseModifierBlock(soloBlock))
+        // Standalone pattern modifiers (EXT / SA / MNA) on an aircraft with no active phase must
+        // apply directly, without the All/None-dimension ClearConflictingBlocks fast path — which
+        // would otherwise wipe a queued pattern entry (e.g. an ERD sitting behind DCT VPCOL) the
+        // moment the modifiers' dispatcher arms make dry-run succeed. ApplyCommand pre-arms the
+        // queued entry so each modifier fires when it builds its circuit. This covers both a lone
+        // modifier and a compound of only modifiers (e.g. "EXT DOWNWIND; SA"): a multi-block
+        // modifier compound skips the single-block guard, dry-run validates only its first block,
+        // and the fast-path wipe then destroys the queued entry — so the command fails ("no
+        // upcoming downwind leg to extend") while having already silently dropped the entry. With
+        // an active phase the phase-gate path below already applies these in place without a wipe.
+        if (aircraft.Phases?.CurrentPhase is null && compound.Blocks.Count > 0 && compound.Blocks.All(IsImmediatePhaseModifierBlock))
         {
             return ApplyTransparentCompound(compound, aircraft, ctx);
         }

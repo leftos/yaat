@@ -200,6 +200,53 @@ public class QueuedPatternModifierTests(ITestOutputHelper output)
         Assert.True(downwind.IsExtended);
     }
 
+    /// <summary>
+    /// Regression: a compound of two bare pattern modifiers (e.g. <c>EXT DOWNWIND; SA</c>) issued
+    /// while an ERD sits queued must be accepted and must NOT wipe the queued ERD. Before the fix
+    /// the multi-block compound skipped the single-block reroute, dry-run validated only its first
+    /// block (which now succeeds via the a1cbf22 ApplyCommand arm), and the All-dimension
+    /// queue-clear fast path then silently dropped the queued ERD — so the command failed ("no
+    /// upcoming downwind leg to extend") having already destroyed the entry. The last-armed
+    /// modifier wins (single <c>PendingEntryModifier</c> slot), matching what issuing the two
+    /// modifiers as separate single-block commands already does.
+    /// </summary>
+    [Fact]
+    public void MultiBlockModifier_BehindQueuedErd_IsAcceptedAndPreservesEntry()
+    {
+        var engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+
+        SpawnAirborneOverOak(engine, "TST007");
+
+        Assert.True(engine.SendCommand("TST007", "DCT VPCOL; ERD 28R").Success);
+
+        var ac = engine.FindAircraft("TST007");
+        Assert.NotNull(ac);
+        Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued ERD before
+
+        var mod = engine.SendCommand("TST007", "EXT DOWNWIND; SA");
+        output.WriteLine($"EXT DOWNWIND; SA: success={mod.Success} — {mod.Message}");
+        Assert.True(mod.Success, $"A compound of only pattern modifiers behind a queued ERD should be accepted: {mod.Message}");
+
+        ac = engine.FindAircraft("TST007");
+        Assert.NotNull(ac);
+        Assert.Null(ac.Phases?.CurrentPhase); // still en route — modifiers did not force a phase
+        Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied); // queued ERD NOT wiped
+
+        // Fire the entry: the pre-armed modifier is consumed as the circuit builds.
+        Assert.True(engine.SendCommand("TST007", "ERD 28R").Success);
+
+        ac = engine.FindAircraft("TST007");
+        Assert.NotNull(ac);
+        Assert.NotNull(ac.Phases);
+        var downwind = ac.Phases.Phases.OfType<DownwindPhase>().FirstOrDefault();
+        Assert.NotNull(downwind);
+        Assert.True(downwind.ShortApproachArmed, "The last-armed modifier (SA) must arm the downwind the entry builds");
+    }
+
     private static void SpawnAirborneOverOak(SimulationEngine engine, string callsign)
     {
         // A few miles east of OAK 28R on the right downwind side, slow VFR piston.
