@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.10-beta [2026/07/15]
+
+### Highlights
+- **Chain track, handoff, and strip commands on one line** — e.g. `HO 3G; ACCEPT` hands off one aircraft and accepts an inbound handoff in a single entry, the same way flight commands already chain.
+- **Chained pattern modifiers before a queued entry now stick** — e.g. `EXT DOWNWIND; SA` is honored instead of dropped, so the leg comes out extended and short when the aircraft enters the pattern.
+- **Ground View taxi routes stop at the hold-short** — the taxi-route line for an aircraft taxiing to a runway ends at the hold-short bar instead of running down the whole taxiway.
+- **Solo training transcript no longer doubles a callsign** — a pilot repeating an unanswered request shows its callsign once.
 
 ### Fixed
 - Chaining pattern modifiers (e.g. `EXT DOWNWIND; SA`) before a queued pattern entry fires now pre-arms them and keeps the queued entry instead of dropping it.
