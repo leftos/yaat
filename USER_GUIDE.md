@@ -1488,17 +1488,209 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 
 ![Settings window, Identity tab](docs/user-guide/img/settings-window.png)
 
-Open **Settings** to configure:
+Open **Settings** (via **Tools > Settings**) to configure YAAT. Options are grouped into nine tabs — **Identity, Scenarios, Display, Colors, Commands, Macros, Audio, Speech,** and **Advanced**. Nothing is saved until you press **Save** (bottom-right); **Cancel** discards every change made since the window opened. Two context buttons appear in the bottom-left: **Reset to Defaults** (Commands tab only) restores the built-in verb aliases, and **Clear All Macros** (Macros tab only) deletes every macro.
 
-- **Identity** — your operating initials (required). Your VATSIM CID, name, and controller rating come from **VATSIM sign-in** when you connect (see below) — they are no longer entered by hand. Initials are suggested from your name and stay editable. Your [ARTCC](#glossary) is filled in automatically from your VATSIM/VATUSA profile (US controllers from VATUSA, everyone else from their VATSIM subdivision) and re-resolves on its own if you transfer facilities — there is no ARTCC field to edit.
-- **Scenarios** — Solo Training Mode, auto-accept handoff settings, auto-delete aircraft override, simulation shortcuts (auto-clear to land, auto-cross runways), validate DCT fixes against route
-- **Commands** — Alias editor for customizing command verbs. Use **Reset to Defaults** to restore built-in aliases.
-- **Macros** — Define reusable command shortcuts (see [Macros](#macros))
-- **Audio** — Input device (microphone for push-to-talk speech recognition) and output device (used for pilot text-to-speech and the SAY/warning notification chime)
-- **Speech** — STT and TTS settings, including optional solo pilot voice, the Piper voice-pack install/remove controls, and **opt-in speech-sample capture** for sharing problem cases with the devs (see [Speech recognition debugging](#speech-recognition-debugging))
-- **Display** — Font sizes for aircraft list, radar datablock, radar tag flyouts, ground datablock, ground labels, **terminal** (output + command input), and the **interface** (tabs, buttons, lists, and the Controllers / METAR panels) — each independently configurable, range 8–24. Plus **Strips Zoom** and **vTDLS Zoom** page-zoom percents (50–200%) that scale the whole Strips / vTDLS panel uniformly (Strips also has on-panel zoom buttons; the value is remembered across restarts). Also: a **Scroll / zoom sensitivity** slider (10–100%, default 100%) that slows mouse-wheel and trackpad scrolling when zooming the Radar and Ground views (and stepping the STARS DCB spinners) — lower it to tame a too-fast Mac trackpad; command signature help placement; **EuroScope-style interactive tags** toggle (see [Radar View > EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags)); **No landing clearance warning** toggle (flashes a red `NoLndgClnc` line on the radar datablock for aircraft on final without a landing clearance); ground display options (start with datablocks hidden, show taxi route on hover, show all taxiing routes); per-window always-on-top toggles. **On macOS**, a **Graphics > Renderer** selector (Automatic / Metal / OpenGL / Software) — keep it on **Automatic** (Metal) for best performance on Apple Silicon and switch to **OpenGL** only if you see visual glitches; changes take effect after you restart YAAT
-- **Colors** — Radar display colors (assignment tint, unassigned tint, selected aircraft color) and ground view colors
-- **Advanced** — Aircraft select keybind, focus command input keybind, take control keybind, always-on-top keybind, and server admin mode
+The tables below list every setting on each tab, what it does, and its default. Font sizes, colors, the scroll-sensitivity slider, and the TPA cone update live in the open views while the window is open, so you can preview them before saving.
+
+#### Identity
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Initials (2 letters)** | Your operating initials, shown in the terminal panel so other RPOs can see who issued each command. Suggested from your name at sign-in and auto-uppercased; stays editable. | *(from your name)* |
+| **ARTCC** | Read-only. Filled in automatically from your VATSIM/VATUSA profile (US controllers from VATUSA, everyone else from their VATSIM subdivision) and re-resolves on its own if you transfer facilities. | *(auto)* |
+
+Your VATSIM CID, name, and controller rating also come from **VATSIM sign-in** when you connect — they are not entered by hand. See [Signing in with VATSIM](#signing-in-with-vatsim).
+
+#### Scenarios
+
+These are your **default** preferences, applied when *you* load a scenario. To change the active setting for an already-running session (which affects every RPO in it), use the session-settings (⚙) flyout on the command bar instead.
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Solo training mode** | Aircraft make their own pilot transmissions, and typed natural-language ATC commands can be mapped to YAAT commands after normal parsing fails. See [Solo Training](#solo-training). | Off |
+| **Pilot go-around probability (default)** | Per-approach chance (0–100%) that AI aircraft in solo training spontaneously go around on final. Seeds new scenarios that have no saved override; also settable per-scenario. | 0% |
+| **Auto-accept handoffs to unattended positions** | Handoffs to unattended positions are accepted automatically. See [Auto-Accept](#auto-accept). | On |
+| **Delay (seconds)** *(when auto-accept on)* | Handoffs are auto-accepted after this delay. 0 = immediate. | 5 |
+| **Command run delay — Min / Max (seconds)** | Commands take effect after a random delay in this range, simulating pilot reaction / FMC setup time. Set both equal for a fixed delay; set Max to 0 to disable. See [Command Run Delay](#command-run-delay). | 0 / 0 |
+| **Default Auto-Delete** | Your default rule for removing aircraft after landing/parking: Use Scenario Setting, Never, On Landing, or On Parking. See [Auto-Delete](#auto-delete). | Use Scenario Setting |
+| **Validate DCT fixes against programmed route** | Rejects a `DCT` to a fix not in the aircraft's route or expected approach. Use `DCTF` to override; requires `EAPP` to program approach fixes. | Off |
+
+**Simulation Shortcuts** (sub-group) — see [Simulation Shortcuts](#simulation-shortcuts) for the full detail:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Auto-clear aircraft to land** (GND / TWR / APP / CTR) | Aircraft on final are cleared to land automatically without a `CLAND`, per position type. | On / Off / On / On |
+| **Aircraft cross runways automatically** | Taxiing aircraft cross runways without a `CROSS`. Hold-short commands and destination-runway hold-shorts still apply. | Off |
+| **Auto pull-up to hold short of parallel runway after landing** | After exiting the landing runway, aircraft automatically taxi up to the parallel runway's hold-short without a `TAXI`. | On |
+| **Show sim-initiated pilot transmissions as pilot speech (RPO mode)** | Renders auto-generated pilot reports (traffic in sight, holding short, going around, etc.) as green pilot speech in the spelled-out spoken form instead of orange Warning text. | Off |
+| **Audible alert on pilot transmissions** | Plays a short ding when a sim-initiated pilot transmission appears. Independent of the visual setting; does not fire on `AS`-prefix `SAY` commands you typed. | Off |
+
+#### Display
+
+**Font Sizes** — each is an independent point size, range 8–24 unless noted. The Aircraft List also responds to Ctrl+Plus / Ctrl+Minus / Ctrl+0 while focused.
+
+| Setting | What it sizes | Default |
+|---------|--------------|---------|
+| **Aircraft List** | The aircraft-list rows. | 12 |
+| **Radar Datablock** | STARS/ERAM datablocks on the Radar view. | 12 |
+| **Radar Tag Flyouts** | The pop-out field editors on radar tags. | 12 |
+| **Ground Datablock** | Datablocks on the Ground view. | 12 |
+| **Ground Labels (taxi/runway/node)** | Taxiway, runway, and node labels on the Ground view. | 13 |
+| **Terminal (output + input)** | The terminal panel and command-input box. | 12 |
+| **Interface (tabs, buttons, lists)** | Tabs, buttons, lists, and the Controllers / METAR panels. | 12 |
+| **Strips Zoom %** | Page-zoom for the whole Flight Strips panel (50–200%). Also adjustable with the panel's on-screen zoom buttons. | 80% |
+| **vTDLS Zoom %** | Page-zoom for the whole vTDLS panel (50–200%). | 100% |
+
+**Graphics** *(macOS only)*:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Renderer** | Automatic / Metal / OpenGL / Software. Metal is recommended on Apple Silicon; switch to OpenGL only for visual glitches, Software as a last resort. Takes effect after you restart YAAT. | Automatic |
+
+**Command Input**:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Signature Help Placement** | Whether the command signature-help tooltip appears **Above** or **Below** the command input. | Above |
+| **Auto-expand highlighted suggestion on Enter** | When a suggestion is highlighted, Enter inserts it before sending (like Tab then Enter). When off, Enter sends the typed text as-is. | On |
+
+**Radar Display**:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **EuroScope-style interactive tags** | Replaces the STARS/ERAM datablock with a EuroScope pseudopilot-style tag whose fields are clickable. See [EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags). | Off |
+| **Flash 'NoLndgClnc' on datablock when approaching final without landing clearance** | Flashes a red `NoLndgClnc` line on the radar datablock once the aircraft reaches the no-landing-clearance warning point, until clearance is granted. | On |
+
+**Student Scope Sync** — mirror how the student sees each track in STARS. See [Mirroring the Student's STARS Scope](#mirroring-the-students-stars-scope).
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Sync datablock colors to the student's STARS scope** | Colors each datablock the way the student sees it (white = owned by student, green = owned by another controller, yellow = pointed out, cyan = highlighted). | On |
+| **Mark limited datablocks with (LDB) / (PDB)** | Appends `(LDB)` when the student sees only a limited (unassociated) block, and `(PDB)` for a partial block owned by another controller, while you keep the full datablock. | On |
+| **Collapse datablocks to match the student's LDB/PDB/FDB** | Instead of the marker, render the reduced datablock the student actually sees. | Off |
+| **Sync leader-line direction to the student's scope** | Orients each datablock's leader line the way the student set it in STARS. Datablocks you've dragged keep their position. | Off |
+
+**Ground Display**:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Start with all datablocks hidden** | Ground-view datablocks start hidden; reveal individually with right-click > Show datablock or middle-click. | Off |
+| **Show taxi route when hovering an aircraft** | Hovering an aircraft temporarily draws its taxi route. | On |
+| **Show all taxiing aircraft's routes** | Draws every taxiing aircraft's route by default. Opt an aircraft out with right-click > Taxi route > Always hide. | Off |
+
+**Overlays**:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Tint datablock altitude by MVA** (GND / TWR / APP / CTR) | Draws an airborne IFR aircraft's datablock altitude red below its charted Minimum Vectoring Altitude and amber within 100 ft. Defaults seed each scenario by the student's position type; toggle live with the MVA button on the Radar DCB. | Off / Off / On / On |
+| **Show speech bubbles for SAY and pilot transmissions** | `SAY`-family verbs and RPO pilot transmissions briefly overlay the aircraft with a transient bubble on the Radar and Ground views. See [Speech Bubbles](#speech-bubbles). | Off |
+| **Keep bubbles on screen until clicked to dismiss** *(when bubbles on)* | Bubbles ignore the duration timer and stay until you click them. | Off |
+| **Duration multiplier** *(when not stay-until-clicked)* | Scales how long a bubble stays up (0.25–4.00); base length is derived from the message length. | 1.00 |
+| **Also show WARN messages as speech bubbles (amber)** | Warning-channel messages overlay the aircraft as an amber bubble, distinct from green pilot/SAY bubbles. | Off |
+| **Always show ground aircraft bubbles on the Radar view** | Show ground aircraft bubbles on the Radar view even when a Ground view for that airport is open and focused. | Off |
+| **Instructor TPA cone half-angle (°)** | Width of the instructor J-Ring/Cone overlay's cone (1–30°); raise it to make the wedge easier to read. Never shown on the student's CRC. | 2° |
+| **Scroll / zoom sensitivity** | Scales mouse-wheel / trackpad scroll speed when zooming the Radar and Ground views and stepping the STARS DCB spinners (10–100%). Lower it to tame a too-fast Mac trackpad. | 100% |
+
+**Windows — Always on Top**: pin pop-out windows above all others (also toggleable with the [Always on Top keybind](#advanced) while a window is focused). Individual toggles for **Main Window, Ground View, Radar View, Aircraft List, Terminal, Flight Strips,** and **Favorites** — all **Off** by default.
+
+#### Colors
+
+Every color is a picker; **Reset All Colors to Defaults** (bottom of the tab) restores all of them at once. Saved color changes apply to the live views immediately.
+
+**Ground View**:
+
+| Setting | Default |
+|---------|---------|
+| **Background Color** | `#0E0E1A` |
+| **Taxiway Color** | `#787882` |
+| **Taxiway Label Color** | `#A0A0AA` |
+| **RAMP Edge Color** | `#50505A` |
+| **Hold Short Color** | `#DCC83C` |
+| **Runway Fill Color** | `#3C3C3C` |
+| **Runway Outline Color** | `#646464` |
+| **Aircraft Color** | `#FFFFFF` |
+| **Datablock Text Color** | `#00E600` |
+| **Brightness** | 100% — scales the opacity of infrastructure (taxiways, runways, nodes) while keeping aircraft at full visibility. |
+
+**Layer Brightness** — independent opacity for each ground layer (Satellite and Video Map come from vNAS tower-cab data):
+
+| Setting | Default |
+|---------|---------|
+| **Satellite Image** | 50% |
+| **Video Map Overlay** | 70% |
+| **YAAT Layout** | 100% |
+
+**Radar View**:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Tint my assigned aircraft** + **Tint Color** | Colors targets and datablocks of aircraft assigned to you. | Off / `#00FF00` (green) |
+| **Tint unassigned aircraft** + **Tint Color** | Colors aircraft not assigned to you. | Off / `#888888` (gray) |
+| **Selected Aircraft Color** | Symbol and datablock color for the currently selected aircraft. | `#FFFFFF` (white) |
+
+**Terminal Channels** — foreground color per terminal channel:
+
+| Channel | Default | Channel | Default |
+|---------|---------|---------|---------|
+| **Command** | `#FFFFFF` | **Warning** | `#FFA500` |
+| **Response** | `#D3D3D3` | **Error** | `#FF0000` |
+| **System** | `#808080` | **Chat** | `#00FFFF` |
+| **SAY (controller)** | `#32CD32` | **vTDLS (PDC)** | `#FFB000` |
+| **Pilot Speech** | `#32CD32` | **Flight strips** | `#C586C0` |
+
+#### Commands tab (verb aliases)
+
+An editable grid mapping each command to the verb(s) you type for it, so you can rename or add aliases. Columns: **Command** (read-only), **Verb(s)** (editable, comma-separated aliases), and **Example** (read-only). A **Try it out** box below the grid runs whatever you type through macro expansion and the command parser live, showing the canonical result in green or an error in red. **Reset to Defaults** (bottom-left) restores the built-in aliases.
+
+#### Macros tab
+
+Define reusable `!NAME` command shortcuts — an editable grid of **Name / Expansion / Preview** plus **Add Macro**, **Import…**, **Export Selected**, **Export All**, and per-row delete. **Clear All Macros** (bottom-left) removes every macro. See the full [Macros](#macros) section for syntax and worked examples.
+
+#### Audio
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Input device** | Microphone YAAT records from for push-to-talk speech recognition. Leave on **(System default)** to follow whichever mic Windows is set to. | (System default) |
+| **Output device** | Used for pilot text-to-speech playback and the SAY/warning notification chime. | (System default) |
+
+#### Speech
+
+Two collapsible sections, each toggled by its header checkbox. Speech recognition and language-model inference are powered by LM-Kit.NET (Community Edition); airline telephony data is derived from OpenFlights (ODbL 1.0).
+
+**Speech-to-text (STT)** — enable (default **Off**) to expand:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Auto-focus command input after PTT** | Focuses the command input after a PTT transcript so you can press Enter to send without mousing. | On |
+| **Whisper Model** | Speech-to-text model picker with **Download now** / **Delete cached** and a size/cached indicator. Pre-downloading avoids the first-PTT stall. | Whisper Large Turbo v3 |
+| **LLM Model** | Command-interpretation model picker (download/delete), or **Browse…** for a custom GGUF. | Qwen 3.5 4B |
+| **Acceleration** | GPU backend summary; on supported Windows GPUs, install/uninstall the optional NVIDIA CUDA 13 runtime. **LLM GPU layers** offloads N layers (−1 = auto, 0 = CPU only). | GPU layers: −1 (auto) |
+| **PTT key** | Hold-to-record key; click to capture a new one. Microphone is set on the Audio tab. | Right Ctrl |
+| **Save my push-to-talk samples locally for review** + **Max retained audio** | Opt-in local capture of PTT audio + pipeline trace for troubleshooting; nothing is uploaded automatically. Retention 10–500 MB (oldest drop when full). Buttons: **Open samples folder**, **Delete all saved samples**. See [Speech recognition debugging](#speech-recognition-debugging). | Off / 50 MB |
+
+**Text-to-speech (TTS)** — enable (default **Off**) to expand:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Solo pilot voice — Volume** | Speaks typed solo-training pilot transmissions with the local Piper voice pack. | 80% |
+| **Radio effect** | Applies a radio-style filter to the pilot voice. | On |
+| **Piper voice pack** | Download / delete the local voice pack (shared across app upgrades). | — |
+
+#### Advanced
+
+**Keybinds** — click a button, then press the key or combo to rebind:
+
+| Keybind | What it does | Default |
+|---------|--------------|---------|
+| **Aircraft Select Key** | In the command input, selects the aircraft matching the typed callsign without sending a command. | Numpad + |
+| **Focus Command Input Key** | From anywhere in the app, moves focus to the command input. | ~ (tilde) |
+| **Take Control Key** | Assigns the selected aircraft to yourself (RPO take control). | Ctrl+T |
+| **Always on Top Key** | Toggles always-on-top for the focused pop-out window. | Ctrl+Shift+T |
+| **Quick Bookmark Key** | Drops an unnamed bookmark on the timeline at the current position. | Ctrl+B |
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| **Server Admin Mode** + **Admin Password** | Lets you see all scenarios running on the server, filter the aircraft list by scenario, and manage aircraft across all scenarios. Requires the server admin password. | Off |
 
 #### Signing in with VATSIM
 
