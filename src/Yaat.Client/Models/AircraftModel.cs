@@ -739,6 +739,12 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private string? _scratchpad2;
 
+    // Destination the student's STARS scope shows in the primary-scratchpad slot when no real SP1
+    // is set. Server-resolved and already gated by the student area's display adaptation; the
+    // datablock renders it identically to a real SP1, which is what CRC does.
+    [ObservableProperty]
+    private string? _autoScratchpad1;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TempAltDisplay))]
     private int? _temporaryAltitude;
@@ -950,6 +956,7 @@ public partial class AircraftModel : ObservableObject
             PointoutToTcpCode = dto.PointoutToTcpCode,
             Scratchpad1 = dto.Scratchpad1,
             Scratchpad2 = dto.Scratchpad2,
+            AutoScratchpad1 = dto.AutoScratchpad1,
             TemporaryAltitude = dto.TemporaryAltitude,
             IsAnnotated = dto.IsAnnotated,
             ActiveApproachId = dto.ActiveApproachId,
@@ -1051,6 +1058,7 @@ public partial class AircraftModel : ObservableObject
         PointoutToTcpCode = dto.PointoutToTcpCode;
         Scratchpad1 = dto.Scratchpad1;
         Scratchpad2 = dto.Scratchpad2;
+        AutoScratchpad1 = dto.AutoScratchpad1;
         TemporaryAltitude = dto.TemporaryAltitude;
         IsAnnotated = dto.IsAnnotated;
         ActiveApproachId = dto.ActiveApproachId;

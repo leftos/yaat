@@ -1222,16 +1222,25 @@ public static class ArtccConfigResolver
     /// Finds the position that owns a TCP code, then returns its STARS area's
     /// <c>UnderlyingAirports</c> list.
     /// </summary>
-    public static List<string> ResolveAirportsForTcpCode(this ArtccConfigRoot config, FacilityConfig starsFacility, string tcpCode)
+    public static List<string> ResolveAirportsForTcpCode(this ArtccConfigRoot config, FacilityConfig starsFacility, string tcpCode) =>
+        config.ResolveStarsAreaForTcpCode(starsFacility, tcpCode)?.UnderlyingAirports ?? [];
+
+    /// <summary>
+    /// Finds the position that owns a TCP code and returns the STARS area that position is
+    /// assigned to. A position maps to exactly one area, so callers needing more than the
+    /// underlying-airport list — the display gates, the tower list — resolve through here.
+    /// Returns null when the TCP code is malformed or resolves to no configured area.
+    /// </summary>
+    public static StarsAreaConfig? ResolveStarsAreaForTcpCode(this ArtccConfigRoot config, FacilityConfig starsFacility, string tcpCode)
     {
         if (tcpCode.Length < 2 || starsFacility.StarsConfiguration is null)
         {
-            return [];
+            return null;
         }
 
         if (!int.TryParse(tcpCode[..^1], out var subset))
         {
-            return [];
+            return null;
         }
 
         var sectorId = tcpCode[^1..];
@@ -1248,24 +1257,24 @@ public static class ArtccConfigResolver
 
         if (tcpId is null)
         {
-            return [];
+            return null;
         }
 
         var position = config.FindPositionByTcpIdInTree(tcpId);
         if (position?.StarsConfiguration is null || string.IsNullOrEmpty(position.StarsConfiguration.AreaId))
         {
-            return [];
+            return null;
         }
 
         foreach (var area in starsFacility.StarsConfiguration.Areas)
         {
             if (area.Id == position.StarsConfiguration.AreaId)
             {
-                return area.UnderlyingAirports;
+                return area;
             }
         }
 
-        return [];
+        return null;
     }
 
     // --- Consolidation ---

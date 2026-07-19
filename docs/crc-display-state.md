@@ -190,6 +190,49 @@ CRC STARS per-track keyboard/slew amends are handled in `CrcClientState.Stars.cs
 - **Keyboard `<HND OFF>` arrives with `TrackId = null`.** A bare keyboard handoff-accept carries `Type=Handoff, Param=<callsign>, TrackId=null` (CRC auto-fills the nearest inbound handoff's callsign); clicking the datablock instead sends `Implied` with the trackId. When `type==Handoff && trackId==null && param non-empty`, resolve the aircraft by the trailing FLID token (`ResolveKeyboardFlid`), then `CrcHandoffCommand` routes it (single token = accept inbound / recall outbound via `CrcHandoffAcceptOrRecall`; two tokens = initiate). Resolving only by the clicked `trackId` regressed the keyboard path to `TRACK NOT FOUND`.
 - **TRK RPOS Forms 1 & 3 un-park in place.** (Form 2's parked-datablock split is under **DTO mapping**, above.) Forms 1/3 emit `RPOSMOVE {from} {to}`; because YAAT has one surveillance source per callsign, a parked datablock can only re-bind to its *own* track (AID must match — enforced `from==to` in the hub→handler); cross-flight rebind is rejected `ILL TRK`. `RPOSLOC`/`RPOSMOVE` are server-internal canonicals (CRC-handler only, never user-typed), routed through `DispatchCrc` + a `RecordingManager` Reposition kind. Snapshot schema went V13→V14 (`DataBlock` nullable, defaults `Bound`).
 
+## Automatic primary scratchpad
+
+STARS shows the **destination airport** in the primary-scratchpad slot when no controller-entered SP1 is present, so a
+controller can see where a track is going without anyone typing a scratchpad. In real CRC this is a *render-time*
+fallback (`DisplayElementTracks.GetScratchpads`) — it never crosses the wire. YAAT's instructor radar has no CRC
+renderer, so the server projects the same value into `AircraftStateDto.AutoScratchpad1` for its own client only.
+
+Rules, ported from the decompile (`AutoScratchpadResolver`, first-match wins):
+
+| Condition | Result |
+|---|---|
+| `Scratchpad1` non-empty | null — the real scratchpad renders instead |
+| `WasScratchpad1Cleared` | null — an explicit clear must stick |
+| primary arrival && `area.ShowDestinationPrimaryArrivals` | destination |
+| satellite arrival && `area.ShowDestinationSatelliteArrivals` | destination |
+| departure && `area.ShowDestinationDepartures` | destination |
+| otherwise (incl. overflights) | null |
+
+Classification (`TrackManager.UpdateFlightType`): departure/destination resolve to **FAA ids** first
+(`NavigationDatabase.TryResolveFaaId`), then a track is a *departure* when its departure airport is in
+`StarsConfig.InternalAirports`, an *arrival* when its destination is, and a *primary arrival* when the destination
+equals **`area.TowerListConfigurations[0].AirportId`** — **not** `UnderlyingAirports`, which is unrelated here and
+genuinely differs in real config (ZOA NCT area D: tower list `OAK`, underlying `SFO`). Areas with no tower list have no
+primary airport, so every facility arrival there is a satellite arrival. A flight both departing and arriving inside the
+facility hits the arrival branches first. Neither endpoint internal ⇒ overflight ⇒ no fallback.
+
+**The fallback is not truncated.** STARS applies the 3-character (4 with `Allow4CharacterScratchpad`) limit only to
+controller-entered text — `GetScratchpads` calls `Substring` on the `track.Scratchpad1` branch alone and assigns
+`destination` verbatim in all three fallback branches. Clipping it would render a `CYVR` departure as `CYV`, which
+reads like an adapted 3-letter code.
+
+Three things to preserve:
+
+- **Never persist it to `ac.Stars.Scratchpad1`.** That field ships to CRC on `StarsTrackDto`, so CRC would treat the
+  synthetic destination as a controller entry — bypassing its own per-area gating and breaking the SP1 clear/undo
+  toggle for the student. The projection is display-only and YAAT-wire-only; `ToStarsTrack` is deliberately untouched.
+- **The CRC wire needs no change.** CRC already receives `Scratchpad1`, `WasScratchpad1Cleared`, and
+  `FlightPlanDto.Destination`, and computes this fallback itself.
+- **`ScratchpadRuleEngine.Apply` honors the cleared flag too** — it runs at every track-acquisition event, so without
+  that guard an accepted handoff would silently re-populate a scratchpad the controller had just cleared.
+
+Tests: `AutoScratchpadResolverTests` (branch matrix against the real ZOA snapshot), `RadarDatablockLayoutTests`.
+
 ## Scenario unload — resetting per-room CRC state
 
 `TrainingRoom` is reused across scenarios, so its per-room CRC session state leaks into the next scenario unless `ScenarioLifecycleService.ExecuteUnloadScenario` resets **and re-broadcasts** it (both the hub-unload path and load-over-existing go through here). CRC topics are additive, so a server-side `Reset()` alone leaves stale items on screen — the broadcast is the load-bearing half.

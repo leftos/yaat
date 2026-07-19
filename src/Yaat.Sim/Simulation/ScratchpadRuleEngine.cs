@@ -17,7 +17,9 @@ public static class ScratchpadRuleEngine
 
     /// <summary>
     /// Evaluates primary and secondary scratchpad rules against the aircraft.
-    /// Only sets scratchpad if no value is already assigned.
+    /// Only sets a scratchpad that holds no value and that a controller has not explicitly
+    /// cleared — this runs again at every track-acquisition event, so re-populating a cleared
+    /// scratchpad would silently undo the controller's action on the next handoff.
     /// </summary>
     public static void Apply(AircraftState ac, StarsConfig? starsConfig)
     {
@@ -26,7 +28,7 @@ public static class ScratchpadRuleEngine
             return;
         }
 
-        if (string.IsNullOrEmpty(ac.Stars.Scratchpad1))
+        if (string.IsNullOrEmpty(ac.Stars.Scratchpad1) && !ac.Stars.WasScratchpad1Cleared)
         {
             foreach (var rule in starsConfig.PrimaryScratchpadRules)
             {

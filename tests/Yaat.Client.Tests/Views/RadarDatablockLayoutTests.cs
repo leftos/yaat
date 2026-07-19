@@ -622,6 +622,101 @@ public class RadarDatablockLayoutTests
         Assert.Equal("", RadarDatablockLayout.StudentLevelMarker(null));
     }
 
+    // --- Automatic primary scratchpad (destination fallback, GitHub issue #303) ---
+
+    [Fact]
+    public void AutoScratchpad1_RendersLikeRealScratchpad_WhenSp1Empty()
+    {
+        var ac = CreateModel();
+        ac.OwnerSectorCode = "2S";
+        ac.AutoScratchpad1 = "OAK";
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            paint,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            callsignMarker: ""
+        );
+
+        Assert.Equal("2S .OAK", layout.Line3);
+    }
+
+    [Fact]
+    public void RealScratchpad1_WinsOverAutoScratchpad1()
+    {
+        var ac = CreateModel();
+        ac.OwnerSectorCode = "2S";
+        ac.Scratchpad1 = "ABC";
+        ac.AutoScratchpad1 = "OAK";
+        using var paint = CreatePaint();
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            paint,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            callsignMarker: ""
+        );
+
+        Assert.Equal("2S .ABC", layout.Line3);
+    }
+
+    [Fact]
+    public void NoScratchpads_OmitsTokenEntirely()
+    {
+        var ac = CreateModel();
+        ac.OwnerSectorCode = "2S";
+
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            blockX: 100,
+            blockY: 100,
+            CreatePaint(),
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null,
+            callsignMarker: ""
+        );
+
+        Assert.Equal("2S", layout.Line3);
+        Assert.DoesNotContain(".", layout.Line3, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AutoScratchpad1_AppearsOnCollapsedPdb()
+    {
+        var ac = CreateModel();
+        ac.StudentDatablockLevel = StarsDatablockLevel.Partial;
+        ac.Altitude = 3500;
+        ac.GroundSpeed = 120;
+        ac.AutoScratchpad1 = "SFO";
+
+        var lines = RadarDatablockLayout.BuildCollapsedLines(ac);
+
+        Assert.Equal(["035 12", "SFO"], lines);
+    }
+
+    [Fact]
+    public void EffectiveScratchpad1_PrefersRealThenAuto()
+    {
+        var ac = CreateModel();
+        Assert.Null(RadarDatablockLayout.EffectiveScratchpad1(ac));
+
+        ac.AutoScratchpad1 = "OAK";
+        Assert.Equal("OAK", RadarDatablockLayout.EffectiveScratchpad1(ac));
+
+        ac.Scratchpad1 = "ABC";
+        Assert.Equal("ABC", RadarDatablockLayout.EffectiveScratchpad1(ac));
+    }
+
     // --- Pending outgoing point-out indicator (e.g. 3E*) on the owner/scratchpad line ---
 
     [Fact]

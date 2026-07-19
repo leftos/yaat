@@ -851,6 +851,14 @@ SimulationEngine.cs            # Scenario load, tick orchestration, replay (Repl
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math (SpeedCeiling) for the generator stream — simulated approach-controller speed equalization; SimulationEngine.ApplyArrivalSpacing drives it
+ScratchpadRuleEngine.cs        # Applies the facility's vNAS scratchpad rules (airport/route/altitude match → Template) to SP1/SP2
+                               # at track-acquisition events. Only fills an empty field that was not explicitly cleared.
+                               # Also owns MaxScratchpadLength (3, or 4 with Allow4CharacterScratchpad).
+AutoScratchpadResolver.cs      # Pure: the STARS destination fallback shown in the SP1 slot when no real scratchpad is set,
+                               # gated by the area's ShowDestination* adaptation; classifies departure/arrival/primary-arrival
+                               # (primary = area.TowerListConfigurations[0]). Mirrors CRC GetScratchpads + UpdateFlightType.
+                               # Display-only — DtoConverter fills AircraftStateDto.AutoScratchpad1; never persisted to AircraftState.
+                               # Not truncated to the scratchpad limit — STARS clips only controller-entered text.
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; ArtccConfigJson optional bundle; StudentPositionState (from snapshot 0) for Sim-side replay restore; TerminalLog (broadcast terminal stream) for terminal-scrub repopulation
 RecordedAction.cs              # Polymorphic recorded actions: Command, Chat, AmendFlightPlan, RequestNewBeaconCode, WeatherChange, SettingChange, AircraftSpawn
                                # RecordedCommand bakes ReactionDelaySeconds + SpawnJitterSeconds (nullable) for replay determinism

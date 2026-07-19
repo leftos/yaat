@@ -107,13 +107,22 @@ for the assembly-load warm-up and [e2e-tdd-issue-debugging.md](e2e-tdd-issue-deb
 CONUS airports have both an FAA id (`OAK`) and an ICAO id (`KOAK`); scenario files and vNAS data use them interchangeably. Two
 static helpers normalize:
 
-- `NormalizeAirport(code)` (`NavigationDatabase.cs:1800`) — uppercases, trims, and strips a leading `K` **only when the length is
+- `NormalizeAirport(code)` (`NavigationDatabase.cs:2059`) — uppercases, trims, and strips a leading `K` **only when the length is
   exactly 4** (`KOAK` → `OAK`; a 3-letter `OAK` is unchanged). Note this means a non-CONUS 4-letter ICAO that happens to start
   with K is also stripped — acceptable for the CONUS-focused dataset.
-- `AirportIdsMatch(a, b)` (`:1842`) — true when both normalize equal; empty/null never matches.
-- `TryResolveAirport(input, out canonicalId)` (`:1818`) — looks the trimmed-uppercased input up in `_airportCanonical`, which maps
+- `AirportIdsMatch(a, b)` (`:2101`) — true when both normalize equal; empty/null never matches.
+- `TryResolveAirport(input, out canonicalId)` (`:2077`) — looks the trimmed-uppercased input up in `_airportCanonical`, which maps
   every recognized FAA and ICAO id to the airport's canonical form (ICAO when published, FAA fallback otherwise). Returns `false`
   for unknown airports — callers should reject rather than store an unrecognized code.
+- `TryResolveFaaId(input, out faaId)` (`:2111`) — the inverse of the above: resolves any recognized form to the **published FAA
+  id** via `_airportFaaIds`. Unlike the `NormalizeAirport` K-strip this is correct for non-CONUS fields (`PANC` → `ANC`,
+  `PHNL` → `HNL`, `TJSJ` → `SJU`). Airports with no published FAA id (most foreign fields) are deliberately **absent** from the
+  map, so the call returns `false` and callers fall back to the identifier as filed — matching CRC's display behavior. Use this
+  wherever an FAA id is being *displayed*, e.g. `AutoScratchpadResolver` filling the STARS scratchpad slot.
+
+  > `NavigationDatabase.ForTesting` seeds `_airportFaaIds` from the recognized-airport keys via `NormalizeAirport`. Tests built
+  > on `ForTesting` therefore get the K-strip approximation, not published FAA ids; tests that need the real mapping must use
+  > `TestVnasData`.
 
 Beyond the canonical map, several lookups **reimplement** a 3↔4-letter K-prefix fallback inline: `GetAirportElevation`
 (`:470`), `GetAirportName` (`:498`), `HasRunwayAtLeast` (`:596`). The pattern is: try the key as given, then for a

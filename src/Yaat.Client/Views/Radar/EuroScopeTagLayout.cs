@@ -123,7 +123,8 @@ public static class EuroScopeTagLayout
 
         // Line 4: runway + scratchpads (only if at least one is set, to keep block compact)
         bool hasRwy = !string.IsNullOrEmpty(ac.AssignedRunway);
-        bool hasSp1 = !string.IsNullOrEmpty(ac.Scratchpad1);
+        var effectiveSp1 = RadarDatablockLayout.EffectiveScratchpad1(ac);
+        bool hasSp1 = !string.IsNullOrEmpty(effectiveSp1);
         bool hasSp2 = !string.IsNullOrEmpty(ac.Scratchpad2);
         bool hasHandoff = !string.IsNullOrEmpty(ac.HandoffDisplay);
 
@@ -150,7 +151,7 @@ public static class EuroScopeTagLayout
             }
             if (hasSp1)
             {
-                x = AddField(fields, TagFieldId.Scratchpad1, $".{ac.Scratchpad1}", x, y4Top, y4Bot, paint);
+                x = AddField(fields, TagFieldId.Scratchpad1, $".{effectiveSp1}", x, y4Top, y4Bot, paint);
             }
             if (hasSp2)
             {

@@ -42,6 +42,12 @@ public sealed class NavigationDatabase
     // can validate user-typed airport codes and normalize storage.
     private readonly Dictionary<string, string> _airportCanonical = new(StringComparer.OrdinalIgnoreCase);
 
+    // Maps every recognized airport identifier (FAA "OAK" or ICAO "KOAK") to the published
+    // FAA identifier. Airports with no FAA id (most non-US fields) are deliberately absent so
+    // TryResolveFaaId reports failure and callers can fall back to the raw identifier — the same
+    // behavior CRC's display path uses. Built from navData.Airports during BuildIndex.
+    private readonly Dictionary<string, string> _airportFaaIds = new(StringComparer.OrdinalIgnoreCase);
+
     // CIFP per-airport caches (parsed on first access from the CIFP file)
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _sidCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpStarProcedure>> _starCache = new(StringComparer.OrdinalIgnoreCase);
@@ -252,6 +258,15 @@ public sealed class NavigationDatabase
                     db._airportCanonical[input] = canonical;
                 }
             }
+        }
+
+        // Derive FAA ids from every airport recognized above. Tests seed identifiers in whichever
+        // form they use, so the K-strip approximation is the best available here — the real index
+        // built from navData carries published FAA ids. Without this, TryResolveFaaId would report
+        // failure for every airport in every test that uses ForTesting.
+        foreach (var key in db._airportCanonical.Keys)
+        {
+            db._airportFaaIds.TryAdd(key, NormalizeAirport(key));
         }
 
         if (fixes is not null)
@@ -1499,6 +1514,15 @@ public sealed class NavigationDatabase
                 {
                     _airportCanonical.TryAdd(airport.IcaoId, canonical);
                 }
+
+                if (!string.IsNullOrEmpty(airport.FaaId))
+                {
+                    _airportFaaIds.TryAdd(airport.FaaId, airport.FaaId);
+                    if (!string.IsNullOrEmpty(airport.IcaoId))
+                    {
+                        _airportFaaIds.TryAdd(airport.IcaoId, airport.FaaId);
+                    }
+                }
             }
         }
 
@@ -2090,6 +2114,34 @@ public sealed class NavigationDatabase
         }
 
         canonicalId = string.Empty;
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves an airport identifier in any common form (FAA "OAK", ICAO "KOAK") to the published
+    /// FAA identifier, which is the form STARS displays. Unlike the <c>K</c>-stripping in
+    /// <see cref="NormalizeAirport"/>, this resolves non-CONUS airports correctly ("PANC" to "ANC").
+    /// Returns false when the input is unknown or the airport publishes no FAA id — callers should
+    /// then fall back to the identifier as filed rather than substituting the ICAO form.
+    /// </summary>
+    /// <param name="input">Airport identifier as filed.</param>
+    /// <param name="faaId">On success, the published FAA id. Empty string on failure.</param>
+    public bool TryResolveFaaId(string? input, out string faaId)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            faaId = string.Empty;
+            return false;
+        }
+
+        string key = input.Trim().ToUpperInvariant();
+        if (_airportFaaIds.TryGetValue(key, out var resolved))
+        {
+            faaId = resolved;
+            return true;
+        }
+
+        faaId = string.Empty;
         return false;
     }
 

@@ -270,16 +270,25 @@ internal readonly struct RadarDatablockLayout
     private static bool IsModeCIntruder(AircraftModel ac) => string.IsNullOrEmpty(ac.Owner) && !ac.HasFlightPlan;
 
     /// <summary>
+    /// The value STARS shows in the primary-scratchpad slot: the controller-entered scratchpad when
+    /// one is set, otherwise the server-resolved destination fallback (already gated by the student
+    /// area's display adaptation). CRC renders the two identically, so the instructor sees what the
+    /// student sees. Null or empty when the slot should stay empty.
+    /// </summary>
+    internal static string? EffectiveScratchpad1(AircraftModel ac) => !string.IsNullOrEmpty(ac.Scratchpad1) ? ac.Scratchpad1 : ac.AutoScratchpad1;
+
+    /// <summary>
     /// Builds the owner/handoff/scratchpad line. <paramref name="showHandoff"/> controls whether the
     /// flashing handoff token is included — pass the current 500 ms flash phase for drawing, or
     /// <c>true</c> to measure the stable (widest) line so the rect doesn't pulse with the flash.
     /// </summary>
     internal static string? BuildOwnerScratchpadLine(AircraftModel ac, bool showHandoff)
     {
+        var effectiveSp1 = EffectiveScratchpad1(ac);
         bool hasAssigned = !string.IsNullOrEmpty(ac.AssignedTo);
         bool hasOwner = !string.IsNullOrEmpty(ac.OwnerDisplay);
         bool hasHandoff = !string.IsNullOrEmpty(ac.HandoffDisplay);
-        bool hasSp1 = !string.IsNullOrEmpty(ac.Scratchpad1);
+        bool hasSp1 = !string.IsNullOrEmpty(effectiveSp1);
         bool hasSp2 = !string.IsNullOrEmpty(ac.Scratchpad2);
         bool hasOutgoingPointout = !string.IsNullOrEmpty(ac.PointoutToTcpCode);
 
@@ -310,7 +319,7 @@ internal readonly struct RadarDatablockLayout
 
         if (hasSp1)
         {
-            parts.Add($".{ac.Scratchpad1}");
+            parts.Add($".{effectiveSp1}");
         }
 
         if (hasSp2)
@@ -431,7 +440,8 @@ internal readonly struct RadarDatablockLayout
             string gsTens = ((int)ac.GroundSpeed / 10).ToString("D2");
             string handoff = !string.IsNullOrEmpty(ac.HandoffDisplay) ? $"{ac.HandoffDisplay} " : "";
             string line1 = $"{altHundreds} {handoff}{gsTens}";
-            return !string.IsNullOrEmpty(ac.Scratchpad1) ? [line1, ac.Scratchpad1!] : [line1];
+            var effectiveSp1 = EffectiveScratchpad1(ac);
+            return !string.IsNullOrEmpty(effectiveSp1) ? [line1, effectiveSp1] : [line1];
         }
 
         string beacon = ac.BeaconCode > 0 ? ac.BeaconCode.ToString("0000") : "";

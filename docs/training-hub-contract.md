@@ -302,6 +302,14 @@ would force `ArtccConfigService` + the ARTCC id into `CaptureTrainingDto` for ze
 *only* because the derived field's dynamic inputs are themselves fingerprinted — the general rule (step 4) still holds
 for any field whose inputs are not.
 
+**Same exception — `AutoScratchpad1`.** The STARS destination fallback (`DtoConverter.ResolveAutoScratchpad1FromService`
+→ `AutoScratchpadResolver`) follows the identical pattern and is likewise absent from `TrainingDtoFingerprint`. Its
+dynamic inputs are `Scratchpad1`, `WasScratchpad1Cleared`, `Departure`, and `Destination`; the STARS facility config and
+the student area's `ShowDestination*` adaptation are fixed for the room's lifetime. `Departure`/`Destination`/
+`Scratchpad1` were already fingerprinted — **`WasScratchpad1Cleared` was added to `TrainingDtoFingerprint` specifically
+to complete that input set**, because clearing SP1 suppresses the fallback and would otherwise not rebroadcast. If you
+extend the resolver to depend on a new input, fingerprint that input too.
+
 ## Pitfalls
 
 - **Server type name ≠ client type name for the same wire object.** `AircraftStateDto` (server) and `AircraftDto`

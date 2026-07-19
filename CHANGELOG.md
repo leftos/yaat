@@ -7,6 +7,7 @@
 - The conflict field carries live separation: `CA 2.4/800` means 2.4 nm horizontally, 800 ft vertically.
 - Conflicts involving an untracked, uncorrelated target show `MCI` instead of `CA`, matching the STARS distinction.
 - Conflict alerts cover VFR and untracked traffic; enable them in **Settings > Display > Radar Display**.
+- The radar datablock shows the destination airport in the primary scratchpad slot when no scratchpad is set, matching the student's STARS scope.
 
 ### Fixed
 - Handoffs and point-outs to a subsector now go to the position that combined its parent sector.
@@ -18,6 +19,7 @@
 - **Load Live Weather** now fetches real-world METARs for your ARTCC's airports instead of reporting "No airports found for ARTCC".
 - **Load Live Weather** no longer stays greyed out when navigation data finishes loading after you join a room.
 - The status bar now reports when navigation data finishes loading, or why it failed.
+- Clearing a primary scratchpad sticks — facility scratchpad rules no longer refill it when the track is re-acquired.
 
 ## v0.9.10-beta [2026/07/15]
 

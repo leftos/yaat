@@ -122,4 +122,86 @@ public class NavigationDatabaseAirportResolutionTests
         Assert.False(ok);
         Assert.Equal(string.Empty, canonical);
     }
+
+    [Theory]
+    [InlineData("KOAK", "OAK")]
+    [InlineData("OAK", "OAK")]
+    [InlineData("koak", "OAK")]
+    [InlineData("  KSFO  ", "SFO")]
+    public void TryResolveFaaId_ConusForms_ReturnFaaId(string input, string expected)
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        bool ok = navDb.TryResolveFaaId(input, out var faaId);
+
+        Assert.True(ok);
+        Assert.Equal(expected, faaId);
+    }
+
+    [Theory]
+    [InlineData("PANC", "ANC")]
+    [InlineData("PHNL", "HNL")]
+    [InlineData("TJSJ", "SJU")]
+    public void TryResolveFaaId_NonConus_ResolvesWhereKStripFails(string icao, string expectedFaa)
+    {
+        // The repo-wide NormalizeAirport K-strip only handles CONUS "K" prefixes and would
+        // return these unchanged. Resolving through the published FAA id is the difference
+        // between displaying "ANC" and displaying "PANC" in the STARS scratchpad slot.
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        bool ok = navDb.TryResolveFaaId(icao, out var faaId);
+
+        Assert.True(ok);
+        Assert.Equal(expectedFaa, faaId);
+        Assert.Equal(icao, NavigationDatabase.NormalizeAirport(icao));
+    }
+
+    [Theory]
+    [InlineData("ZZZZ")]
+    [InlineData("")]
+    [InlineData("BERKS")]
+    public void TryResolveFaaId_UnknownOrEmpty_ReturnsFalse(string input)
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        bool ok = navDb.TryResolveFaaId(input, out var faaId);
+
+        Assert.False(ok);
+        Assert.Equal(string.Empty, faaId);
+    }
+
+    [Fact]
+    public void TryResolveFaaId_ForeignAirportWithNoFaaId_ReturnsFalse()
+    {
+        // Heathrow publishes no FAA id. Reporting failure (rather than substituting the ICAO
+        // form) is what lets the display path fall back to the identifier as filed.
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        // Guard: only meaningful if NavData actually carries the airport.
+        if (!navDb.TryResolveAirport("EGLL", out _))
+        {
+            return;
+        }
+
+        bool ok = navDb.TryResolveFaaId("EGLL", out var faaId);
+
+        Assert.False(ok);
+        Assert.Equal(string.Empty, faaId);
+    }
 }

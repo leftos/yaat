@@ -964,7 +964,12 @@ public record AircraftDto(
     // Latched true when the pilot has been told to squawk VFR (SQVFR/SQV); the radar view then suppresses
     // the assigned-vs-reported beacon-code mismatch flash until a new beacon code is assigned. RPO-display
     // only. Kept name-for-name in sync with the server's AircraftStateDto.
-    bool CommandedSquawkVfr = false
+    bool CommandedSquawkVfr = false,
+    // Destination airport STARS shows in the primary-scratchpad slot when no controller-entered
+    // scratchpad is present, already gated server-side by the student area's display adaptation.
+    // The datablock renders it exactly like a real SP1, mirroring what the student sees in CRC.
+    // Null when suppressed. Kept name-for-name in sync with the server's AircraftStateDto.
+    string? AutoScratchpad1 = null
 );
 
 public record LoadScenarioResultDto(
