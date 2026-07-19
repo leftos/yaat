@@ -233,8 +233,21 @@ Once the user approves:
     - First push yaat-server's pending commits (no tag — yaat-server isn't release-tagged):
       `git -C ../yaat-server push origin main`
       Run even if you think there's nothing pending — it's idempotent. If a worktree, use the real yaat-server path. If the push is rejected because the CI submodule-bump landed on remote, rebase (`git -C ../yaat-server pull --rebase origin main`) and re-push.
-    - Then push yaat's release commit and tag:
-      `git push origin main --tags`
+    - Then push yaat's release commit and the release tag **by name**:
+      `git push origin main v{version}`
+
+      **Never use `--tags` here.** This repo has two tag namespaces with separate
+      release workflows — `v*` (the client, `release.yml`) and `crc-config-v*`
+      (the standalone tool, `yaat-crc-config.yml`). `--tags` pushes every local
+      tag, so any stale unpushed tag fires its workflow and publishes a release
+      built from whatever old commit it points at. Because GitHub ranks "Latest"
+      by publish time, that stale release also steals the Latest badge and the
+      `/releases/latest` API from the real client release.
+
+      Before pushing, confirm no unexpected local tags are pending:
+      `comm -23 <(git tag | sort) <(git ls-remote --tags origin | sed 's/.*refs.tags.//;s/\^{}//' | sort -u)`
+      This should print nothing but the release tag you just created. If it lists
+      others, delete or investigate them before pushing — do not push them along.
 
     Order matters: yaat-server first means yaat-server's own work is live before yaat's release CI fires. Pushing yaat second triggers yaat-server's `submodule-updated` CI dispatch (which bumps `extern/yaat` on yaat-server), so yaat-server's main already has the cycle's work when the bump arrives.
 11. **If the user chose a deploy option ("deploy now" or "wait for rooms to clear"):** run `pwsh deploy-to-droplet.ps1 -NoLogs` and tee output to `.tmp/deploy-droplet.log`. Always pass `-NoLogs` — without it the script tails server logs indefinitely and blocks the agent until timeout. The script calls `POST /admin/prepare-restart` first (needs `ADMIN_PASSWORD` in yaat `.env`, matching the droplet) so active training sessions survive the deploy. Use `-SkipSessionSave` only for emergency deploys. Wait for the `Deployment complete!` banner before declaring the release done.
