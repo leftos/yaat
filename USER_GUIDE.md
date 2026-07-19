@@ -491,7 +491,7 @@ The MVA is the radar-vectoring floor from 7110.65 §5-6-1; it is a controller-ju
 
 ##### Conflict alerts
 
-When two aircraft come close enough to trigger the terminal conflict-alert logic, the Radar View flags both of them: a red field flashes on each datablock, and a **3 nm ring** is drawn around each target. Turn it off in **Settings > Display > Radar Display**; it is on by default.
+When two aircraft come close enough to trigger the terminal conflict-alert logic, the Radar View flags both of them: a red field flashes on each datablock, and a **3 nm ring** is drawn around each target. Turn it on in **Settings > Display > Radar Display**; it is off by default.
 
 The alert fires when two airborne Mode C aircraft are within **3 nm and 1000 ft** of each other, either right now or as projected 5 seconds ahead. It applies to **VFR and untracked traffic** too — useful for spotting conflicting VFR traffic you want to point out — and is suppressed for pairs that are diverging and for aircraft established in an approach corridor.
 
@@ -1575,7 +1575,7 @@ These are your **default** preferences, applied when *you* load a scenario. To c
 |---------|--------------|---------|
 | **EuroScope-style interactive tags** | Replaces the STARS/ERAM datablock with a EuroScope pseudopilot-style tag whose fields are clickable. See [EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags). | Off |
 | **Flash 'NoLndgClnc' on datablock when approaching final without landing clearance** | Flashes a red `NoLndgClnc` line on the radar datablock once the aircraft reaches the no-landing-clearance warning point, until clearance is granted. | On |
-| **Show conflict alerts (CA) on the radar** | Flashes a red `CA` / `MCI` field carrying live separation on both datablocks of a conflicting pair, and rings each target at 3 nm. See [Conflict alerts](#conflict-alerts). | On |
+| **Show conflict alerts (CA) on the radar** | Flashes a red `CA` / `MCI` field carrying live separation on both datablocks of a conflicting pair, and rings each target at 3 nm. See [Conflict alerts](#conflict-alerts). | Off |
 
 **Student Scope Sync** — mirror how the student sees each track in STARS. See [Mirroring the Student's STARS Scope](#mirroring-the-students-stars-scope).
 

@@ -342,7 +342,7 @@
                         <StackPanel Spacing="4">
                             <CheckBox Content="Show conflict alerts (CA) on the radar"
                                       IsChecked="{Binding ShowConflictAlerts}" />
-                            <TextBlock Text="When two Mode C aircraft come within 3 nm and 1000 ft (or are predicted to within 5 seconds), a red 'CA' field flashes on both datablocks showing current horizontal separation in nautical miles and vertical separation in feet, and a 3 nm ring is drawn around each target. Applies to VFR and untracked traffic too. Default on."
+                            <TextBlock Text="When two Mode C aircraft come within 3 nm and 1000 ft (or are predicted to within 5 seconds), a red 'CA' field flashes on both datablocks showing current horizontal separation in nautical miles and vertical separation in feet, and a 3 nm ring is drawn around each target. Applies to VFR and untracked traffic too. Default off."
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11"

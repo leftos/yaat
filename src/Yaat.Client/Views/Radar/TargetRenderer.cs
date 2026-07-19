@@ -220,11 +220,11 @@ public sealed class TargetRenderer : IDisposable
     public bool FlashNoLandingClearance { get; set; } = true;
 
     /// <summary>
-    /// When true, render a flashing red "CA" datablock field and a 3 nm ring around both members of
-    /// each active conflict pair (see <see cref="AircraftModel.ConflictPeerCallsign"/>). Default true;
-    /// driven by the <c>ShowConflictAlerts</c> user preference.
+    /// When true, render a flashing red "CA"/"MCI" datablock field and a 3 nm ring around both members
+    /// of each active conflict pair (see <see cref="AircraftModel.ConflictPeerCallsign"/>). Default
+    /// false (opt-in); driven by the <c>ShowConflictAlerts</c> user preference.
     /// </summary>
-    public bool ShowConflictAlerts { get; set; } = true;
+    public bool ShowConflictAlerts { get; set; }
 
     /// <summary>
     /// Callsign → model index for the aircraft in the current render pass, used to resolve a

@@ -1439,7 +1439,7 @@ public sealed class UserPreferences
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
-            ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", true),
+            ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", false),
             SyncStudentDatablockColors = GetFieldOr(obj, "syncStudentDatablockColors", true),
             MarkStudentLimitedDatablocks = GetFieldOr(obj, "markStudentLimitedDatablocks", true),
             CollapseStudentDatablocks = GetFieldOr(obj, "collapseStudentDatablocks", false),
@@ -1705,7 +1705,7 @@ public sealed class UserPreferences
         public bool ValidateDctFixes { get; set; }
         public bool EuroScopeMode { get; set; }
         public bool FlashNoLandingClearance { get; set; } = true;
-        public bool ShowConflictAlerts { get; set; } = true;
+        public bool ShowConflictAlerts { get; set; }
         public bool ShowSpeechBubbles { get; set; }
         public double SpeechBubbleDurationMultiplier { get; set; } = 1.0;
         public bool ShowWarningSpeechBubbles { get; set; }
