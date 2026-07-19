@@ -6,6 +6,7 @@
 - Handoffs and point-outs to a subsector now go to the position that combined its parent sector.
 - A full `CONS` now transfers tracks owned by the combined sector's subsectors, not just the sector itself.
 - `CONS` refuses a combination that would form a loop, such as combining 1F into 1G then 1G into 1F.
+- Ghosting a departure (`GHOST`) no longer hides the aircraft from the CRC Tower Cab, ASDE-X, SAID, and ground displays until it climbs through 100 ft.
 
 ## v0.9.10-beta [2026/07/15]
 
