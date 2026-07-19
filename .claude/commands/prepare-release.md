@@ -119,6 +119,35 @@ Apply the agreed updates in the yaat repo. If `USER_GUIDE.md` screenshots need r
 
 Doc updates ride along in the release commit; the staging list in Step 9 picks them up.
 
+## Step 6d: Scan for open issues this release fixes
+
+GitHub auto-closes issues whose commits carry `Closes #N` (yaat) or
+`Closes https://github.com/leftos/yaat/issues/N` (yaat-server). That only
+catches issues someone remembered to cite. Feature work driven by a Discord
+thread routinely ships without ever naming the issue, leaving a fixed request
+open — the reporter never learns it landed.
+
+Match open issues against what actually shipped, not against commit metadata:
+
+1. `gh issue list --repo leftos/yaat --state open --limit 60 --json number,title,createdAt`
+2. For each open issue, ask whether any bullet in this release's changelog
+   section satisfies it. Recently-created issues are the likeliest hits — a
+   request filed days before the release is often exactly what the cycle built.
+3. **Read the issue body before proposing closure.** Titles mislead. An issue
+   titled "show scratchpad in radar view" may already be half-satisfied, with
+   the real ask buried in a follow-up comment ("manual primaries already show;
+   automatic ones don't"). Confirm the shipped behavior covers the *actual*
+   ask, including any narrowing in the thread.
+4. Partial fixes are not fixes. If a cycle pinned a dependency but the issue
+   asked to pin *and* later drop the pin, it stays open — say so explicitly.
+
+Present matches as a table (issue → ask → implementing commit) and ask before
+closing. These are public issues with a watching reporter, so closing posts
+outward; never close without confirmation. When closing, comment with the
+version, the implementing commit SHA, and a short description of the shipped
+behavior in user terms — the reporter should be able to tell whether their
+case is handled without reading the diff.
+
 ## Step 7: Determine deployment scope (client-only vs server-affecting)
 
 The droplet deploy in Step 9 rebuilds and restarts `yaat-server`, costing ~10 minutes of downtime for anyone in a live training session. That downtime is only *necessary* when this release actually changes something the server runs. If every change since the previous release is confined to the desktop client, the running server already matches the release and the deploy can be skipped. This step decides which case we're in and feeds the recommendation into Step 9's push/deploy prompt.
