@@ -280,6 +280,12 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.FlashNoLandingClearance = value;
     }
 
+    public bool ShowConflictAlerts
+    {
+        get => _targetRenderer.ShowConflictAlerts;
+        set => _targetRenderer.ShowConflictAlerts = value;
+    }
+
     public bool ShowSpeechBubbles
     {
         get => _targetRenderer.ShowSpeechBubbles;

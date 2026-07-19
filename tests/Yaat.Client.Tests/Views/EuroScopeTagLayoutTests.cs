@@ -2,6 +2,7 @@ using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Radar;
+using Yaat.Sim;
 
 namespace Yaat.Client.Tests.Views;
 
@@ -19,6 +20,7 @@ public class EuroScopeTagLayoutTests
             AircraftType = "B738",
             FiledAircraftType = "B738",
             FlightRules = "IFR",
+            Position = new LatLon(37.0, -122.0),
             Altitude = 23000,
             CwtCode = "D",
         };
@@ -36,7 +38,16 @@ public class EuroScopeTagLayoutTests
         ac.TransponderMode = "C";
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.ModeC);
     }
@@ -48,7 +59,16 @@ public class EuroScopeTagLayoutTests
         ac.TransponderMode = "Standby";
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         var modeC = Assert.Single(result.Fields, f => f.Field == TagFieldId.ModeC);
         Assert.Equal("ModeC", modeC.Text);
@@ -62,10 +82,28 @@ public class EuroScopeTagLayoutTests
         float lineH = paint.TextSize + 2;
 
         ac.TransponderMode = "C";
-        var charlie = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var charlie = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         ac.TransponderMode = "Standby";
-        var standby = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var standby = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         float delta = standby.Bounds.Height - charlie.Bounds.Height;
         Assert.Equal(lineH, delta, precision: 3);
@@ -79,7 +117,16 @@ public class EuroScopeTagLayoutTests
         using var paint = CreatePaint();
         float lineH = paint.TextSize + 2;
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         // Line 3 (current alt) is always present. With no rwy/sp/handoff, line 4 is empty,
         // so ModeC should sit at line 4's slot (one row below line 3).
@@ -97,7 +144,16 @@ public class EuroScopeTagLayoutTests
         using var paint = CreatePaint();
         float lineH = paint.TextSize + 2;
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         var rwy = Assert.Single(result.Fields, f => f.Field == TagFieldId.AssignedRunway);
         var modeC = Assert.Single(result.Fields, f => f.Field == TagFieldId.ModeC);
@@ -111,7 +167,16 @@ public class EuroScopeTagLayoutTests
         ac.NoLandingClearanceWarningActive = false;
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: true);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: true,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.NoLandingClearance);
     }
@@ -123,7 +188,16 @@ public class EuroScopeTagLayoutTests
         ac.NoLandingClearanceWarningActive = true;
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.NoLandingClearance);
     }
@@ -138,7 +212,16 @@ public class EuroScopeTagLayoutTests
 
         for (int i = 0; i < 5; i++)
         {
-            var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: true);
+            var result = EuroScopeTagLayout.Layout(
+                ac,
+                originX: 100,
+                originY: 100,
+                paint,
+                localUserInitials: null,
+                showNoLandingClearance: true,
+                showConflictAlerts: false,
+                conflictPeer: null
+            );
             Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.NoLandingClearance);
             Thread.Sleep(120);
         }
@@ -155,7 +238,16 @@ public class EuroScopeTagLayoutTests
         bool seenOff = false;
         for (int i = 0; i < 12 && (!seenOn || !seenOff); i++)
         {
-            var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: true);
+            var result = EuroScopeTagLayout.Layout(
+                ac,
+                originX: 100,
+                originY: 100,
+                paint,
+                localUserInitials: null,
+                showNoLandingClearance: true,
+                showConflictAlerts: false,
+                conflictPeer: null
+            );
             if (result.Fields.Any(f => f.Field == TagFieldId.NoLandingClearance))
             {
                 seenOn = true;
@@ -178,13 +270,31 @@ public class EuroScopeTagLayoutTests
         using var paint = CreatePaint();
 
         ac.NoLandingClearanceWarningActive = false;
-        var baseline = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: true);
+        var baseline = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: true,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         ac.NoLandingClearanceWarningActive = true;
         var warningHeights = new HashSet<float>();
         for (int i = 0; i < 10; i++)
         {
-            var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: true);
+            var result = EuroScopeTagLayout.Layout(
+                ac,
+                originX: 100,
+                originY: 100,
+                paint,
+                localUserInitials: null,
+                showNoLandingClearance: true,
+                showConflictAlerts: false,
+                conflictPeer: null
+            );
             warningHeights.Add(result.Bounds.Height);
             Thread.Sleep(120);
         }
@@ -192,6 +302,101 @@ public class EuroScopeTagLayoutTests
         Assert.Single(warningHeights);
         float delta = warningHeights.First() - baseline.Bounds.Height;
         Assert.Equal(paint.TextSize + 2, delta, precision: 3);
+    }
+
+    /// <summary>Conflict peer 2.0 nm east of <see cref="CreateModel"/> and 800 ft below it.</summary>
+    private static AircraftModel CreateConflictPeer()
+    {
+        return new AircraftModel
+        {
+            Callsign = "SWA1234",
+            AircraftType = "B737",
+            FiledAircraftType = "B737",
+            FlightRules = "IFR",
+            Position = new LatLon(37.0, -122.0 + (2.5044 / 60.0)),
+            Altitude = 22200,
+            Owner = "CD",
+        };
+    }
+
+    [Fact]
+    public void ConflictAlert_BoundsReserveSpaceEvenDuringOffPhase()
+    {
+        var ac = CreateModel();
+        var peer = CreateConflictPeer();
+        using var paint = CreatePaint();
+
+        var baseline = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: true,
+            conflictPeer: peer
+        );
+
+        ac.ConflictPeerCallsign = "SWA1234";
+        var conflictHeights = new HashSet<float>();
+        var conflictWidths = new HashSet<float>();
+        for (int i = 0; i < 10; i++)
+        {
+            var result = EuroScopeTagLayout.Layout(
+                ac,
+                originX: 100,
+                originY: 100,
+                paint,
+                localUserInitials: null,
+                showNoLandingClearance: false,
+                showConflictAlerts: true,
+                conflictPeer: peer
+            );
+            conflictHeights.Add(result.Bounds.Height);
+            conflictWidths.Add(result.Bounds.Width);
+            Thread.Sleep(120);
+        }
+
+        Assert.Single(conflictHeights);
+        Assert.Single(conflictWidths);
+        float delta = conflictHeights.First() - baseline.Bounds.Height;
+        Assert.Equal(paint.TextSize + 2, delta, precision: 3);
+    }
+
+    [Fact]
+    public void ConflictAlert_FieldCarriesSeparationValues()
+    {
+        var ac = CreateModel();
+        ac.ConflictPeerCallsign = "SWA1234";
+        ac.Owner = "AB";
+        using var paint = CreatePaint();
+
+        // Sample across a full flash cycle so the on-phase is guaranteed to be observed.
+        TagFieldRect? conflictField = null;
+        for (int i = 0; i < 12 && conflictField is null; i++)
+        {
+            var result = EuroScopeTagLayout.Layout(
+                ac,
+                originX: 100,
+                originY: 100,
+                paint,
+                localUserInitials: null,
+                showNoLandingClearance: false,
+                showConflictAlerts: true,
+                conflictPeer: CreateConflictPeer()
+            );
+            foreach (var f in result.Fields)
+            {
+                if (f.Field == TagFieldId.ConflictAlert)
+                {
+                    conflictField = f;
+                }
+            }
+            Thread.Sleep(120);
+        }
+
+        Assert.NotNull(conflictField);
+        Assert.Equal("CA 2.0/800", conflictField.Value.Text);
     }
 
     [Fact]
@@ -207,7 +412,16 @@ public class EuroScopeTagLayoutTests
         ac.CwtCode = "L";
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         var typeCwt = Assert.Single(result.Fields, f => f.Field == TagFieldId.TypeCwt);
         Assert.Contains("C182", typeCwt.Text);
@@ -219,7 +433,16 @@ public class EuroScopeTagLayoutTests
         var ac = CreateModel();
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Note);
     }
@@ -231,10 +454,28 @@ public class EuroScopeTagLayoutTests
         using var paint = CreatePaint();
         float lineH = paint.TextSize + 2;
 
-        var baseline = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var baseline = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         ac.Note = "Watch wake";
-        var withNote = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var withNote = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         var note = Assert.Single(withNote.Fields, f => f.Field == TagFieldId.Note);
         Assert.Equal("Watch wake", note.Text);
@@ -253,7 +494,16 @@ public class EuroScopeTagLayoutTests
         ac.AssignedBeaconCode = 301;
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         var squawk = Assert.Single(result.Fields, f => f.Field == TagFieldId.Squawk);
         Assert.Equal("1200 0301", squawk.Text);
@@ -267,7 +517,16 @@ public class EuroScopeTagLayoutTests
         ac.AssignedBeaconCode = 301;
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Squawk);
     }
@@ -280,7 +539,16 @@ public class EuroScopeTagLayoutTests
         ac.AssignedBeaconCode = 0;
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Squawk);
     }
@@ -296,7 +564,16 @@ public class EuroScopeTagLayoutTests
         ac.AssignedBeaconCode = 301;
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Squawk);
     }
@@ -309,7 +586,16 @@ public class EuroScopeTagLayoutTests
         ac.AssignedBeaconCode = 301;
         using var paint = CreatePaint();
 
-        var result = EuroScopeTagLayout.Layout(ac, originX: 100, originY: 100, paint, localUserInitials: null, showNoLandingClearance: false);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            originX: 100,
+            originY: 100,
+            paint,
+            localUserInitials: null,
+            showNoLandingClearance: false,
+            showConflictAlerts: false,
+            conflictPeer: null
+        );
 
         Assert.DoesNotContain(result.Fields, f => f.Field == TagFieldId.Squawk);
     }

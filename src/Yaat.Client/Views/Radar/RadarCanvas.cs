@@ -411,6 +411,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public bool ShowConflictAlerts
+    {
+        get => _renderer.ShowConflictAlerts;
+        set
+        {
+            _renderer.ShowConflictAlerts = value;
+            MarkDirty();
+        }
+    }
+
     public bool ShowSpeechBubbles
     {
         get => _renderer.ShowSpeechBubbles;
@@ -1509,7 +1519,31 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // slot/width stably (and includes the assigned-to + pointout tokens), so the hit-test rect always
         // matches the drawn block — no hand-mirrored line-string re-derivation.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
-        return RadarDatablockLayout.Compute(ac, 0, 0, _hitTestPaint, FlashNoLandingClearance, marker).Rect;
+        return RadarDatablockLayout
+            .Compute(ac, 0, 0, _hitTestPaint, FlashNoLandingClearance, ShowConflictAlerts, ResolveConflictPeer(ac), marker)
+            .Rect;
+    }
+
+    /// <summary>
+    /// Resolves the other member of an aircraft's conflict pair from the bound aircraft collection, so
+    /// the hit-test rect includes the same separation-bearing CA field width the draw path measures.
+    /// </summary>
+    private AircraftModel? ResolveConflictPeer(AircraftModel ac)
+    {
+        if (!ShowConflictAlerts || string.IsNullOrEmpty(ac.ConflictPeerCallsign) || Aircraft is null)
+        {
+            return null;
+        }
+
+        foreach (var candidate in Aircraft)
+        {
+            if (string.Equals(candidate.Callsign, ac.ConflictPeerCallsign, StringComparison.Ordinal))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>The deconfliction-resolved offset for a callsign, or null when deconfliction is off or absent.</summary>

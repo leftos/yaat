@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+- Conflict alerts show on the Radar View — both datablocks flash a red `CA` field and each target gets a 3 nm ring.
+- The conflict field carries live separation: `CA 2.4/800` means 2.4 nm horizontally, 800 ft vertically.
+- Conflicts involving an untracked, uncorrelated target show `MCI` instead of `CA`, matching the STARS distinction.
+- Conflict alerts cover VFR and untracked traffic; toggle them in **Settings > Display > Radar Display**.
+
 ### Fixed
 - Handoffs and point-outs to a subsector now go to the position that combined its parent sector.
 - A full `CONS` now transfers tracks owned by the combined sector's subsectors, not just the sector itself.

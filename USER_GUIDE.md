@@ -487,7 +487,22 @@ Pin reference fixes/NAVAIDs or arbitrary points on the radar (matching CRC STARS
 
 The MVA is the radar-vectoring floor from 7110.65 §5-6-1; it is a controller-judgment aid, not a navigation source.
 
-**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**. A beacon-code mismatch (see below) adds a line right under the altitude line. When an instructor [note](#assigning-a-note-to-an-aircraft) is set, an extra amber line is appended at the bottom of the block.
+**Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**. A beacon-code mismatch (see below) adds a line right under the altitude line. An aircraft in a [conflict alert](#conflict-alerts) gets a flashing red `CA` (or `MCI`) field. When an instructor [note](#assigning-a-note-to-an-aircraft) is set, an extra amber line is appended at the bottom of the block.
+
+##### Conflict alerts
+
+When two aircraft come close enough to trigger the terminal conflict-alert logic, the Radar View flags both of them: a red field flashes on each datablock, and a **3 nm ring** is drawn around each target. Turn it off in **Settings > Display > Radar Display**; it is on by default.
+
+The alert fires when two airborne Mode C aircraft are within **3 nm and 1000 ft** of each other, either right now or as projected 5 seconds ahead. It applies to **VFR and untracked traffic** too — useful for spotting conflicting VFR traffic you want to point out — and is suppressed for pairs that are diverging and for aircraft established in an approach corridor.
+
+The field carries the live separation: `CA 2.4/800` means 2.4 nm horizontally and 800 ft vertically. Vertical is shown to the nearest 100 ft, matching Mode C reporting. Two labels are used, following the distinction real STARS makes:
+
+- **`CA`** — conflict alert, between tracked aircraft.
+- **`MCI`** — Mode C intruder, when either aircraft is untracked *and* has no flight plan to correlate it to.
+
+Read the ring as *"the other aircraft's symbol inside your ring means the 3 nm threshold is broken."* The two rings begin to overlap well before that (from 6 nm apart), so their overlap alone is not the alert condition. The ring is the detector's trigger distance, not the separation minimum that applies to your airspace — those vary (3, 5, or 2.5 nm depending on sensor mode and position).
+
+Once an alert starts it holds until the pair reaches **3.3 nm or 1100 ft** apart, so a still-flashing alert can display numbers slightly above the trigger values. That hysteresis is deliberate — it stops the alert strobing on and off at the threshold. The separation readout is a YAAT instructor aid; a real STARS scope shows the `CA`/`MCI` flash with no numbers.
 
 ##### Squawk (beacon-code) mismatch
 
@@ -1560,6 +1575,7 @@ These are your **default** preferences, applied when *you* load a scenario. To c
 |---------|--------------|---------|
 | **EuroScope-style interactive tags** | Replaces the STARS/ERAM datablock with a EuroScope pseudopilot-style tag whose fields are clickable. See [EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags). | Off |
 | **Flash 'NoLndgClnc' on datablock when approaching final without landing clearance** | Flashes a red `NoLndgClnc` line on the radar datablock once the aircraft reaches the no-landing-clearance warning point, until clearance is granted. | On |
+| **Show conflict alerts (CA) on the radar** | Flashes a red `CA` / `MCI` field carrying live separation on both datablocks of a conflicting pair, and rings each target at 3 nm. See [Conflict alerts](#conflict-alerts). | On |
 
 **Student Scope Sync** — mirror how the student sees each track in STARS. See [Mirroring the Student's STARS Scope](#mirroring-the-students-stars-scope).
 

@@ -40,6 +40,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<HeldDeparturesChangedDto>? HeldDeparturesChanged;
     public event Action<TimersChangedDto>? TimersChanged;
     public event Action<BookmarksChangedDto>? BookmarksChanged;
+    public event Action<ConflictAlertsChangedDto>? ConflictAlertsChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
     public event Action? ScenarioUnloaded;
@@ -164,6 +165,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<HeldDeparturesChangedDto>("HeldDeparturesChanged", dto => HeldDeparturesChanged?.Invoke(dto));
         _connection.On<TimersChangedDto>("TimersChanged", dto => TimersChanged?.Invoke(dto));
         _connection.On<BookmarksChangedDto>("BookmarksChanged", dto => BookmarksChanged?.Invoke(dto));
+        _connection.On<ConflictAlertsChangedDto>("ConflictAlertsChanged", dto => ConflictAlertsChanged?.Invoke(dto));
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
 
@@ -1074,6 +1076,7 @@ public record RoomStateDto(
     RundownDto? Rundown = null,
     List<TimerDto>? Timers = null,
     List<TimelineBookmarkDto>? Bookmarks = null,
+    List<ConflictAlertDto>? ConflictAlerts = null,
     int CommandRunDelayMinSeconds = 0,
     int CommandRunDelayMaxSeconds = 0,
     // Student position type (APP/CTR/GND/TWR) for seeding user-local position-based defaults on join.
@@ -1143,6 +1146,16 @@ public record TimelineBookmarkDto(string Id, double TimeSeconds, string? Name, s
 
 /// <summary>Pushed whenever the room's shared bookmark set changes (add/rename/delete or recording load).</summary>
 public record BookmarksChangedDto(List<TimelineBookmarkDto> Bookmarks);
+
+/// <summary>
+/// One active terminal (STARS) conflict-alert pair. <see cref="Id"/> is the detector's stable pair key.
+/// Separation values are not carried here — the radar derives them from the pair's live positions each
+/// frame, because this broadcast only fires when the pair set changes.
+/// </summary>
+public record ConflictAlertDto(string Id, string CallsignA, string CallsignB);
+
+/// <summary>The full set of active conflict alerts, pushed whenever a pair opens or clears.</summary>
+public record ConflictAlertsChangedDto(List<ConflictAlertDto> Conflicts);
 
 public record SessionSettingsDto(
     string? AutoDeleteOverride,

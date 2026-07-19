@@ -224,6 +224,9 @@ public partial class MainViewModel
             {
                 var model = AircraftModel.FromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(model);
+                // ConflictPeerCallsign rides its own broadcast, not AircraftDto, so a conflict that
+                // opened before this aircraft's first update has to be applied here.
+                SeedConflictPeer(model);
                 Aircraft.Add(model);
                 EvaluateCfrAlerts(model, wasOnGround: model.IsOnGround);
                 model.UpdateCfrBadge(DateTime.UtcNow);
@@ -388,6 +391,9 @@ public partial class MainViewModel
             {
                 var model = AircraftModel.FromDto(dto, ComputeDistance);
                 ApplyAutoClearedToLand(model);
+                // ConflictPeerCallsign rides its own broadcast, not AircraftDto, so a conflict that
+                // opened before this aircraft's first update has to be applied here.
+                SeedConflictPeer(model);
                 Aircraft.Add(model);
                 if (model.IsDelayed)
                 {

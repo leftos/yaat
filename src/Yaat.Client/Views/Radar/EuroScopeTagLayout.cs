@@ -28,6 +28,7 @@ public enum TagFieldId
     Handoff,
     ModeC,
     NoLandingClearance,
+    ConflictAlert,
     Note,
 }
 
@@ -58,7 +59,9 @@ public static class EuroScopeTagLayout
         float originY,
         SKPaint paint,
         string? localUserInitials,
-        bool showNoLandingClearance
+        bool showNoLandingClearance,
+        bool showConflictAlerts,
+        AircraftModel? conflictPeer
     )
     {
         var fields = new List<TagFieldRect>(12);
@@ -214,6 +217,27 @@ public static class EuroScopeTagLayout
             {
                 x = originX;
                 AddField(fields, TagFieldId.NoLandingClearance, RadarDatablockLayout.NoLandingClearanceText, x, yTop, yBot, paint);
+            }
+            lastLineYTop = yTop;
+        }
+
+        // Conflict alert — same 500 ms flash cadence, carrying the live separation readout.
+        bool conflictActive = showConflictAlerts && !string.IsNullOrEmpty(ac.ConflictPeerCallsign);
+        if (conflictActive)
+        {
+            float yTop = lastLineYTop + lineH;
+            float yBot = yTop + paint.TextSize;
+            // Measure the stable text (built regardless of flash phase) so the reserved width tracks
+            // the separation values without pulsing between phases.
+            string conflictText = RadarDatablockLayout.BuildConflictLine(ac, conflictPeer);
+            maxWidth = MathF.Max(maxWidth, paint.MeasureText(conflictText));
+            lineCount++;
+
+            bool flashOn = Environment.TickCount64 / 500 % 2 == 0;
+            if (flashOn)
+            {
+                x = originX;
+                AddField(fields, TagFieldId.ConflictAlert, conflictText, x, yTop, yBot, paint);
             }
             lastLineYTop = yTop;
         }

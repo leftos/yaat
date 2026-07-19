@@ -83,6 +83,18 @@ A track must pass all four gates to be considered (`ConflictAlertDetector.cs:116
   `room.ActiveSim.ConflictAlerts.Conflicts`: new pairs become `ActiveConflict` rows and are broadcast via
   `BroadcastConflictAlertsAsync`; pairs that drop out are removed and broadcast as cleared. It seeds
   `ExistingConflictIds` from the live conflict-set keys, which is how the hysteresis state survives across ticks.
+- **Two consumers, two shapes.** CRC gets new/cleared *diffs* on the `StarsShortTermConflicts` topic (above). The YAAT
+  client's own radar view gets the **full set** on the `/hubs/training` `ConflictAlertsChanged` broadcast, built by
+  `TrainingBroadcastService.BuildConflictAlerts` and pushed by `TickProcessor.BroadcastConflictAlertsIfChanged` — which
+  guards on a signature of the sorted pair ids, because the detector re-runs every sim-second and would otherwise push an
+  identical payload per tick. `TrainingHub`'s `RoomStateDto` seeds the same list so a client joining mid-conflict sees it
+  immediately. `TrainingRoom.LastBroadcastConflictSignature` starts at `""` (not null) so a conflict-free room doesn't
+  push a pointless empty payload on its first tick. Client-side rendering: see
+  [radar-rendering.md](radar-rendering.md) § Conflict alerts.
+- **Only terminal CA reaches the YAAT radar.** `EramConflictDetector`'s separate set (`ESTCA_` ids, 4-minute lookahead,
+  5 nm minima) is *not* wired to `ConflictAlertsChanged`. This matters: the client draws a fixed 3 nm ring, which would
+  be actively misleading for an en-route pair. Anything that later routes ERAM pairs into that field must revisit the
+  ring radius.
 
 ### Approach-corridor suppression volumes — `BuildCorridors`
 

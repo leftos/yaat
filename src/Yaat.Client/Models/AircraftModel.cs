@@ -266,6 +266,22 @@ public partial class AircraftModel : ObservableObject
     private bool _noLandingClearanceWarningActive;
 
     /// <summary>
+    /// Callsign of the other aircraft in an active conflict-alert pair, or <c>null</c> when this
+    /// aircraft is not in conflict. Drives the flashing "CA" datablock field and the 3 nm conflict
+    /// ring on the radar.
+    /// <para>
+    /// Unlike every other property here this is <b>not</b> carried on <c>AircraftDto</c> — conflict
+    /// alerts are room-level pair state delivered by the separate <c>ConflictAlertsChanged</c>
+    /// broadcast, and projected onto both members of each pair by
+    /// <c>MainViewModel.ApplyConflictAlerts</c>. It must therefore never be assigned in
+    /// <see cref="FromDto"/> or <see cref="UpdateFromDto"/>, or the next per-aircraft update would
+    /// clobber it between conflict broadcasts.
+    /// </para>
+    /// </summary>
+    [ObservableProperty]
+    private string? _conflictPeerCallsign;
+
+    /// <summary>
     /// True when a queued <c>ONHS DEL</c> block is armed on this aircraft (or the
     /// per-aircraft <c>PendingAutoDelete</c> flag has been raised). Drives a small
     /// marker in the radar / tower-cab datablock so controllers can see at a glance

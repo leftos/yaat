@@ -150,7 +150,8 @@ Two layout families, selected by the `EuroScopeMode` preference:
 4. Owner + flashing handoff + scratchpads (`.sp1 +sp2`) + `[assignedTo]`.
 5. `ModeC` (rendered struck-through) when the transponder is in Standby.
 6. `NoLndgClnc` warning (red, flashing).
-7. Instructor note (`Line6`, amber) at the bottom of the block.
+7. Conflict alert (`ConflictLine`, red, flashing) — `CA 2.4/800` / `MCI 2.4/800`. See **Conflict alerts** below.
+8. Instructor note (`Line6`, amber) at the bottom of the block.
 
 **EuroScope — `EuroScopeTagLayout.Layout`** (`EuroScopeTagLayout.cs:52`). Four lines plus optional squawk-mismatch / ModeC / NoLndgClnc:
 1. Owner initials (or `--`) + callsign.
@@ -159,7 +160,7 @@ Two layout families, selected by the `EuroScopeMode` preference:
 4. `Rrwy` + scratchpads + flashing handoff (only when at least one is set).
 5. Beacon-code mismatch — a `TagFieldId.Squawk` field (`1200 0301`, reported solid + assigned dim-pulsing), only when
    the codes differ. Clicking it opens the `SquawkFlyout` via the existing dispatch.
-6/7. `ModeC` (struck-through) and `NoLndgClnc` as needed.
+6/7/8. `ModeC` (struck-through), `NoLndgClnc`, and the conflict alert (`TagFieldId.ConflictAlert`) as needed.
 
 The EuroScope layout returns a `EuroScopeTagResult` carrying the tag `Bounds` plus a list of `TagFieldRect`
 (`field id, rect, text`) — one per clickable field (`EuroScopeTagLayout.cs:31-35`). Empty assigned fields still emit their
@@ -167,12 +168,48 @@ identifier (`ASP`, `AHDG`, `(---)`) so the click target stays stable when nothin
 
 ### Flash slots
 
-The handoff indicator (both layouts) and the `NoLndgClnc` warning blink on a 500 ms cycle:
+The handoff indicator (both layouts), the `NoLndgClnc` warning, and the conflict alert blink on a 500 ms cycle:
 `Environment.TickCount64 / 500 % 2 == 0` (`RadarDatablockLayout.cs:66,119`; `EuroScopeTagLayout.cs:148,187`). The
 `NoLndgClnc` slot **reserves its width and a line slot even when the flash is off-phase**, so the datablock height and the
 hit-rect width don't pulse with the flash (`RadarDatablockLayout.cs:73-90`; `EuroScopeTagLayout.cs:181-185`). The handoff
 indicator does **not** reserve when off — the STARS hit-test path compensates by always sizing line 3 as if the handoff
 were present (`RadarCanvas.cs:1333-1334`, `BuildOwnerScratchpadLine` always includes the handoff for width).
+
+The conflict field reserves the same way, but note **what** it measures: the reserved width comes from the *stable* text
+(`BuildConflictLine` called unconditionally while the conflict is active), not from the currently-drawn string. The field
+carries live separation values that change as the pair moves, so measuring the drawn string would collapse the rect to
+zero on every off-phase. Both layouts also expose the reservation as an explicit flag — `ReserveWarningSlot` /
+`ReserveConflictSlot` on the STARS layout — because the draw path has to advance its row past a reserved-but-blank
+`NoLndgClnc` slot to place the conflict field, and `Line5.Length > 0` can't distinguish "inactive" from "off-phase".
+
+### Conflict alerts
+
+`ConflictLine` (STARS) / `TagFieldId.ConflictAlert` (EuroScope) render when
+`AircraftModel.ConflictPeerCallsign` is set and the `ShowConflictAlerts` preference is on.
+`TargetRenderer.DrawConflictRing` additionally strokes a geo-anchored 3 nm ring around the target, built the same way as
+`DrawTpaJRing` (73 projected vertices, not a pixel-scaled circle) so the radius stays true at any zoom.
+
+Two things about this field are unlike every other datablock field:
+
+- **`ConflictPeerCallsign` does not come from `AircraftDto`.** Conflict alerts are room-level *pair* state delivered by
+  the separate `ConflictAlertsChanged` broadcast and projected onto both members by
+  `MainViewModel.ApplyConflictAlerts`. It must never be assigned in `AircraftModel.FromDto`/`UpdateFromDto`, or the next
+  per-aircraft update would clobber it between conflict broadcasts. `MainViewModel.SeedConflictPeer` covers the reverse
+  race (broadcast arrives before the aircraft's first update).
+- **Separation is computed per frame, not carried on the wire.** The broadcast is signature-guarded and only fires when
+  the pair set changes, so DTO-carried values would freeze at the moment the conflict opened. `BuildConflictLine`
+  derives them from the pair's live positions instead, which is why both layouts need the peer `AircraftModel` passed in
+  — resolved by `TargetRenderer.ResolveConflictPeer` (per-pass callsign index) on the draw path and
+  `RadarCanvas.ResolveConflictPeer` (scan of the bound collection) on the hit-test path.
+
+`BuildConflictLine` quantizes each altitude to hundreds **before** differencing rather than differencing and rounding —
+otherwise the field can read `200` while the two truncated altitude readouts above it are `100` apart. The label follows
+the P/CG split that 7110.65 §5-14-6 treats as distinct alert types: `MCI` when either member is untracked *and*
+uncorrelated, `CA` otherwise. It classifies the **pair**, so both datablocks always agree.
+
+The 3 nm radius is the detector's lateral trigger (`ConflictAlertDetector.HorizontalNm`), **not** a separation minimum —
+those vary (3 / 5 / 2.5 nm under §5-5-4). Keep the two in step if the detector threshold ever changes. Two 3 nm rings
+overlap from 6 nm apart, so the overlap is not the alert condition; the peer's *symbol* inside the ring is.
 
 ### Beacon-code mismatch (squawk mismatch)
 

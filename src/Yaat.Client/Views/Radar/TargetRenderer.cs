@@ -42,6 +42,16 @@ public sealed class TargetRenderer : IDisposable
     private const int TpaJRing = 1;
     private const int TpaCone = 2;
 
+    // Conflict alert: red, matching the NoLndgClnc warning line, and deliberately distinct from the
+    // blue TPA overlay so an automatic alert never reads as an instructor-placed graphic.
+    private static readonly SKColor ConflictAlertColor = new(255, 60, 60);
+
+    /// <summary>
+    /// Conflict ring radius in nautical miles — the terminal CA detector's lateral trigger
+    /// (<c>ConflictAlertDetector.HorizontalNm</c>), not a separation minimum. Keep the two in step.
+    /// </summary>
+    private const double ConflictRingRadiusNm = 3.0;
+
     // Bubble pill colors — subtle teal-tinted background with a SAY-green border so the
     // bubble reads as a pilot-transmission overlay without competing with the datablock.
     private static readonly SKColor SpeechBubbleFillColor = new(20, 60, 50, 220);
@@ -109,6 +119,14 @@ public sealed class TargetRenderer : IDisposable
     private readonly SKPaint _tpaPaint = new()
     {
         Color = TpaColor,
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _conflictRingPaint = new()
+    {
+        Color = ConflictAlertColor,
         StrokeWidth = 1,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -200,6 +218,34 @@ public sealed class TargetRenderer : IDisposable
     /// driven by the <c>FlashNoLandingClearance</c> user preference.
     /// </summary>
     public bool FlashNoLandingClearance { get; set; } = true;
+
+    /// <summary>
+    /// When true, render a flashing red "CA" datablock field and a 3 nm ring around both members of
+    /// each active conflict pair (see <see cref="AircraftModel.ConflictPeerCallsign"/>). Default true;
+    /// driven by the <c>ShowConflictAlerts</c> user preference.
+    /// </summary>
+    public bool ShowConflictAlerts { get; set; } = true;
+
+    /// <summary>
+    /// Callsign → model index for the aircraft in the current render pass, used to resolve a
+    /// conflicting aircraft's peer for the separation readout. Populated only while
+    /// <see cref="ShowConflictAlerts"/> is on.
+    /// </summary>
+    private readonly Dictionary<string, AircraftModel> _callsignIndex = [];
+
+    /// <summary>
+    /// Resolves the other member of <paramref name="ac"/>'s conflict pair from the current render
+    /// pass, or null when it isn't on the scope.
+    /// </summary>
+    private AircraftModel? ResolveConflictPeer(AircraftModel ac)
+    {
+        if (!ShowConflictAlerts || string.IsNullOrEmpty(ac.ConflictPeerCallsign))
+        {
+            return null;
+        }
+
+        return _callsignIndex.GetValueOrDefault(ac.ConflictPeerCallsign);
+    }
 
     /// <summary>Datablock text size in pixels. Updated from UserPreferences via RadarView.SyncAssignmentTint.</summary>
     public float DatablockTextSize
@@ -299,6 +345,17 @@ public sealed class TargetRenderer : IDisposable
 
         _lastEuroScopeTags.Clear();
         _lastBubbleRects.Clear();
+
+        // Index this pass's aircraft by callsign so a conflicting aircraft can resolve its peer for
+        // the live separation readout. Rebuilt per pass — the list is a fresh snapshot each frame.
+        _callsignIndex.Clear();
+        if (ShowConflictAlerts)
+        {
+            foreach (var ac in aircraft)
+            {
+                _callsignIndex[ac.Callsign] = ac;
+            }
+        }
 
         // Two-pass render: aircraft with an active speech bubble are deferred to pass 2 so
         // their symbol, datablock, and bubble all paint on top of neighboring aircraft.
@@ -411,6 +468,11 @@ public sealed class TargetRenderer : IDisposable
             DrawTpaGraphic(canvas, vp, sx, sy, ac);
         }
 
+        if (ShowConflictAlerts && !string.IsNullOrEmpty(ac.ConflictPeerCallsign))
+        {
+            DrawConflictRing(canvas, vp, ac);
+        }
+
         DrawPositionSymbol(canvas, sx, sy, symbolColor);
         var blockRect = DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, deconflictOffsets, isMinified, isSelected);
 
@@ -474,6 +536,41 @@ public sealed class TargetRenderer : IDisposable
 
         _ptlPaint.Color = SKColors.White;
         canvas.DrawLine(sx, sy, ex, ey, _ptlPaint);
+    }
+
+    /// <summary>
+    /// Draws the 3 nm conflict ring around a target in an active conflict pair. Both members carry
+    /// <see cref="AircraftModel.ConflictPeerCallsign"/>, so both get a ring: a conflict is a property of
+    /// the pair and 7110.65 §2-1-6 makes safety-alert recognition a per-aircraft duty regardless of who
+    /// owns the track. Read it as "the peer's symbol inside your ring is the threshold violation" — the
+    /// rings themselves overlap from 6 nm apart, so their overlap is not the alert condition.
+    /// <para>
+    /// The radius is the detector's lateral trigger, <b>not</b> an applicable separation minimum (those
+    /// vary — 3 / 5 / 2.5 nm under §5-5-4 depending on sensor mode and position). It answers "why did
+    /// this fire", so it must track the detector rather than the airspace.
+    /// </para>
+    /// Geo-anchored like the TPA ring — vertices are projected, not pixel-scaled — so the radius stays a
+    /// true 3 nm at any zoom.
+    /// </summary>
+    private void DrawConflictRing(SKCanvas canvas, MapViewport vp, AircraftModel ac)
+    {
+        using var path = new SKPath();
+        for (int deg = 0; deg <= 360; deg += 5)
+        {
+            var (lat, lon) = GeoMath.ProjectPoint(ac.Position, new TrueHeading(deg), ConflictRingRadiusNm);
+            var (px, py) = vp.LatLonToScreen(lat, lon);
+            if (deg == 0)
+            {
+                path.MoveTo(px, py);
+            }
+            else
+            {
+                path.LineTo(px, py);
+            }
+        }
+
+        path.Close();
+        canvas.DrawPath(path, _conflictRingPaint);
     }
 
     /// <summary>
@@ -689,7 +786,9 @@ public sealed class TargetRenderer : IDisposable
 
         // Full STARS block, optionally annotated with the student's (LDB)/(PDB) marker.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
-        var rectAtOrigin = RadarDatablockLayout.Compute(ac, 0, 0, _dataBlockPaint, FlashNoLandingClearance, marker).Rect;
+        var rectAtOrigin = RadarDatablockLayout
+            .Compute(ac, 0, 0, _dataBlockPaint, FlashNoLandingClearance, ShowConflictAlerts, ResolveConflictPeer(ac), marker)
+            .Rect;
         var offset = RadarDatablockLayout.ResolveBlockOffset(
             ac,
             SyncStudentLeaderDirection,
@@ -701,7 +800,16 @@ public sealed class TargetRenderer : IDisposable
         float blockX = cx + offset.X;
         float blockY = cy + offset.Y;
 
-        var layout = RadarDatablockLayout.Compute(ac, blockX, blockY, _dataBlockPaint, FlashNoLandingClearance, marker);
+        var layout = RadarDatablockLayout.Compute(
+            ac,
+            blockX,
+            blockY,
+            _dataBlockPaint,
+            FlashNoLandingClearance,
+            ShowConflictAlerts,
+            ResolveConflictPeer(ac),
+            marker
+        );
 
         if (isSelected)
         {
@@ -741,11 +849,25 @@ public sealed class TargetRenderer : IDisposable
             row++;
         }
 
-        if (layout.Line5.Length > 0)
+        if (layout.ReserveWarningSlot)
+        {
+            // Reserved slot: advance the row even while the warning flashes blank, so the conflict
+            // field below doesn't jump up during the off-phase.
+            if (layout.Line5.Length > 0)
+            {
+                var prev = _dataBlockPaint.Color;
+                _dataBlockPaint.Color = SKColors.Red;
+                canvas.DrawText(layout.Line5, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
+                _dataBlockPaint.Color = prev;
+            }
+            row++;
+        }
+
+        if (layout.ReserveConflictSlot && layout.ConflictLine.Length > 0)
         {
             var prev = _dataBlockPaint.Color;
-            _dataBlockPaint.Color = SKColors.Red;
-            canvas.DrawText(layout.Line5, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
+            _dataBlockPaint.Color = ConflictAlertColor;
+            canvas.DrawText(layout.ConflictLine, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
             _dataBlockPaint.Color = prev;
         }
 
@@ -832,7 +954,16 @@ public sealed class TargetRenderer : IDisposable
         bool isSelected
     )
     {
-        var result = EuroScopeTagLayout.Layout(ac, blockX, blockY, _dataBlockPaint, LocalUserInitials, FlashNoLandingClearance);
+        var result = EuroScopeTagLayout.Layout(
+            ac,
+            blockX,
+            blockY,
+            _dataBlockPaint,
+            LocalUserInitials,
+            FlashNoLandingClearance,
+            ShowConflictAlerts,
+            ResolveConflictPeer(ac)
+        );
         _lastEuroScopeTags[ac.Callsign] = result;
         var mvaTint = ResolveMvaAltitudeTint(ac);
 
@@ -851,6 +982,15 @@ public sealed class TargetRenderer : IDisposable
             {
                 var prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = SKColors.Red;
+                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
+                _dataBlockPaint.Color = prev;
+                continue;
+            }
+
+            if (f.Field == TagFieldId.ConflictAlert)
+            {
+                var prev = _dataBlockPaint.Color;
+                _dataBlockPaint.Color = ConflictAlertColor;
                 canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
                 continue;

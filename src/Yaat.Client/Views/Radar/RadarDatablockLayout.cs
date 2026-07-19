@@ -12,6 +12,8 @@ internal readonly struct RadarDatablockLayout
 {
     private const float Pad = 3f;
     internal const string NoLandingClearanceText = "NoLndgClnc";
+    internal const string ConflictAlertText = "CA";
+    internal const string ModeCIntruderText = "MCI";
 
     /// <summary>Default datablock placement: up and to the right of the symbol.</summary>
     internal static readonly SKPoint DefaultOffset = new(28, -28);
@@ -42,6 +44,13 @@ internal readonly struct RadarDatablockLayout
     /// <summary>Instructor note line (amber), drawn at the bottom of the block. Empty when no note.</summary>
     public readonly string Line6;
 
+    /// <summary>
+    /// Conflict-alert field (<c>"CA"</c>), drawn red and flashing on the 500 ms cycle while this
+    /// aircraft is a member of an active conflict pair. Empty during the off-phase of the flash and
+    /// whenever no conflict is active — but the reserved width/line slot does not blink with it.
+    /// </summary>
+    public readonly string ConflictLine;
+
     /// <summary>Total drawn lines, including any reserved warning slot and the note line.</summary>
     public readonly int LineCount;
 
@@ -51,6 +60,19 @@ internal readonly struct RadarDatablockLayout
     /// path must advance its row by this flag rather than by <see cref="Line3"/>'s current emptiness.
     /// </summary>
     public readonly bool ReserveOwnerSlot;
+
+    /// <summary>
+    /// True when the no-landing-clearance warning (<see cref="Line5"/>) occupies a reserved slot. Like
+    /// <see cref="ReserveOwnerSlot"/>, the draw path must advance its row by this flag rather than by
+    /// <see cref="Line5"/>'s emptiness — the line flashes blank but keeps its slot.
+    /// </summary>
+    public readonly bool ReserveWarningSlot;
+
+    /// <summary>
+    /// True when the conflict alert (<see cref="ConflictLine"/>) occupies a reserved slot. Same
+    /// flash-blank-but-keep-the-slot contract as <see cref="ReserveWarningSlot"/>.
+    /// </summary>
+    public readonly bool ReserveConflictSlot;
 
     private RadarDatablockLayout(
         SKRect rect,
@@ -64,8 +86,11 @@ internal readonly struct RadarDatablockLayout
         string line5,
         string squawkLine,
         string line6,
+        string conflictLine,
         int lineCount,
-        bool reserveOwnerSlot
+        bool reserveOwnerSlot,
+        bool reserveWarningSlot,
+        bool reserveConflictSlot
     )
     {
         Rect = rect;
@@ -79,8 +104,11 @@ internal readonly struct RadarDatablockLayout
         Line5 = line5;
         SquawkLine = squawkLine;
         Line6 = line6;
+        ConflictLine = conflictLine;
         LineCount = lineCount;
         ReserveOwnerSlot = reserveOwnerSlot;
+        ReserveWarningSlot = reserveWarningSlot;
+        ReserveConflictSlot = reserveConflictSlot;
     }
 
     public static RadarDatablockLayout Compute(
@@ -89,6 +117,8 @@ internal readonly struct RadarDatablockLayout
         float blockY,
         SKPaint paint,
         bool showNoLandingClearance,
+        bool showConflictAlerts,
+        AircraftModel? conflictPeer,
         string callsignMarker
     )
     {
@@ -125,6 +155,14 @@ internal readonly struct RadarDatablockLayout
         // Instructor note — always-on amber line at the bottom of the block when set.
         string line6 = ac.HasNote ? ac.Note : "";
 
+        // Conflict alert flashes in sync with the handoff / no-landing-clearance indicators. The text
+        // is built unconditionally while active and measured below, so the reserved width tracks the
+        // live separation values without pulsing between flash phases.
+        bool conflictActive = showConflictAlerts && !string.IsNullOrEmpty(ac.ConflictPeerCallsign);
+        string conflictStable = conflictActive ? BuildConflictLine(ac, conflictPeer) : "";
+        bool conflictFlashOn = conflictActive && (Environment.TickCount64 / 500 % 2 == 0);
+        string conflictLine = conflictFlashOn ? conflictStable : "";
+
         float w1 = paint.MeasureText(line1);
         float w2 = paint.MeasureText(line2);
         float wSquawk = squawkLine.Length > 0 ? paint.MeasureText(squawkLine) : 0f;
@@ -133,7 +171,9 @@ internal readonly struct RadarDatablockLayout
         // Reserve width for the warning line whenever it's active so the rect width doesn't pulse.
         float w5 = noLndgClncActive ? paint.MeasureText(NoLandingClearanceText) : 0f;
         float w6 = line6.Length > 0 ? paint.MeasureText(line6) : 0f;
-        float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), MathF.Max(MathF.Max(w5, w6), wSquawk));
+        // Reserve width for the conflict field whenever it's active so the rect doesn't pulse.
+        float wConflict = conflictActive ? paint.MeasureText(conflictStable) : 0f;
+        float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), MathF.Max(MathF.Max(w5, w6), MathF.Max(wSquawk, wConflict)));
 
         int lineCount = 2;
         if (squawkLine.Length > 0)
@@ -157,6 +197,11 @@ internal readonly struct RadarDatablockLayout
         {
             lineCount++;
         }
+        // Reserve a line slot whenever the conflict is active so the rect height doesn't pulse.
+        if (conflictActive)
+        {
+            lineCount++;
+        }
 
         float lineH = paint.TextSize + 2;
         var rect = new SKRect(blockX - Pad, blockY - paint.TextSize - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
@@ -173,10 +218,56 @@ internal readonly struct RadarDatablockLayout
             line5,
             squawkLine,
             line6,
+            conflictLine,
             lineCount,
-            reserveOwnerSlot
+            reserveOwnerSlot,
+            noLndgClncActive,
+            conflictActive
         );
     }
+
+    /// <summary>
+    /// Builds the conflict-alert field: <c>"{CA|MCI} {horizontal}/{vertical}"</c> — horizontal separation
+    /// in nautical miles to one decimal, vertical in feet to the nearest 100.
+    /// <para>
+    /// The leading token follows the P/CG distinction that 7110.65 §5-14-6 treats as two alert types:
+    /// <b>CA</b> between tracked targets, <b>MCI</b> when either member is an untracked, uncorrelated
+    /// Mode C target. It is a property of the pair, so both members show the same token.
+    /// </para>
+    /// <para>
+    /// Vertical is computed by quantizing each altitude to hundreds <i>first</i> and then differencing,
+    /// rather than differencing and then rounding. Mode C reports in 100 ft increments, and the altitude
+    /// field on line 2 truncates the same way — differencing the raw values would let this field read
+    /// 200 while the two altitude readouts directly above it showed 100 apart.
+    /// </para>
+    /// <para>
+    /// Separation is derived from the pair's live positions on every layout pass rather than carried on
+    /// the conflict broadcast, which is signature-guarded and only fires when the pair set changes —
+    /// broadcast values would freeze at the moment the conflict opened.
+    /// </para>
+    /// Falls back to the bare <see cref="ConflictAlertText"/> when the peer isn't resolvable (it left
+    /// the scope, or the broadcast arrived before the peer's first position update) — the alert must
+    /// still show rather than vanish, even when it can't be quantified or classified.
+    /// </summary>
+    internal static string BuildConflictLine(AircraftModel ac, AircraftModel? peer)
+    {
+        if (peer is null)
+        {
+            return ConflictAlertText;
+        }
+
+        string label = IsModeCIntruder(ac) || IsModeCIntruder(peer) ? ModeCIntruderText : ConflictAlertText;
+        double horizontalNm = GeoMath.DistanceNm(ac.Position, peer.Position);
+        int verticalFt = Math.Abs(((int)ac.Altitude / 100) - ((int)peer.Altitude / 100)) * 100;
+        return $"{label} {horizontalNm:F1}/{verticalFt:D3}";
+    }
+
+    /// <summary>
+    /// True when an aircraft is an untracked, uncorrelated Mode C target — nobody owns the track and
+    /// there is no flight plan to correlate it to. Per the P/CG, a conflict involving such a target is a
+    /// Mode C Intruder alert rather than a conflict alert.
+    /// </summary>
+    private static bool IsModeCIntruder(AircraftModel ac) => string.IsNullOrEmpty(ac.Owner) && !ac.HasFlightPlan;
 
     /// <summary>
     /// Builds the owner/handoff/scratchpad line. <paramref name="showHandoff"/> controls whether the

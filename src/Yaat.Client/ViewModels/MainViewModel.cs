@@ -1367,6 +1367,7 @@ public partial class MainViewModel : ObservableObject
         _connection.HeldDeparturesChanged += OnHeldDeparturesChanged;
         _connection.TimersChanged += OnTimersChanged;
         _connection.BookmarksChanged += OnBookmarksChanged;
+        _connection.ConflictAlertsChanged += OnConflictAlertsChanged;
         _connection.PositionDisplayChanged += OnPositionDisplayChanged;
         _connection.ScenarioLoaded += OnScenarioLoaded;
         _connection.ScenarioUnloaded += OnScenarioUnloaded;

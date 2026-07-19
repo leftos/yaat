@@ -151,6 +151,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _flashNoLandingClearance;
 
     [ObservableProperty]
+    private bool _showConflictAlerts;
+
+    [ObservableProperty]
     private bool _showSpeechBubbles;
 
     [ObservableProperty]
@@ -622,6 +625,7 @@ public partial class SettingsViewModel : ObservableObject
         _validateDctFixes = _preferences.ValidateDctFixes;
         _euroScopeMode = _preferences.EuroScopeMode;
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
+        _showConflictAlerts = _preferences.ShowConflictAlerts;
         _showSpeechBubbles = _preferences.ShowSpeechBubbles;
         _mvaHintDefaultApp = _preferences.MvaHintDefaultApp;
         _mvaHintDefaultCtr = _preferences.MvaHintDefaultCtr;
@@ -759,6 +763,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled);
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
+        _preferences.SetShowConflictAlerts(ShowConflictAlerts);
         _preferences.SetShowSpeechBubbles(ShowSpeechBubbles);
         _preferences.SetMvaHintDefaults(MvaHintDefaultApp, MvaHintDefaultCtr, MvaHintDefaultGnd, MvaHintDefaultTwr);
         _preferences.SetSpeechBubbleDurationMultiplier(SpeechBubbleDurationMultiplier);
@@ -1587,6 +1592,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnGroundHideDataBlocksByDefaultChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnFlashNoLandingClearanceChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnShowConflictAlertsChanged(bool value) => VisualSettingsChanged?.Invoke();
 
     partial void OnShowSpeechBubblesChanged(bool value) => VisualSettingsChanged?.Invoke();
 
