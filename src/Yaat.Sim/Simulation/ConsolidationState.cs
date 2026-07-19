@@ -11,12 +11,57 @@ public sealed class ConsolidationState
 
     public record ManualOverride(string ReceivingTcpId, bool IsBasic);
 
-    public void Consolidate(Tcp receiving, Tcp sending, bool basic)
+    /// <summary>
+    /// Records a manual override consolidating <paramref name="sending"/> into
+    /// <paramref name="receiving"/>, replacing any existing override for the sender.
+    /// Returns false without mutating anything when the override would consolidate a
+    /// TCP into itself or close a loop (1F → 1G → 1X → 1F). A circular combine has no
+    /// operational meaning, and owner resolution bails out on one — which would read as
+    /// "no attended owner" and silently disable auto-accept suppression for a sector a
+    /// live controller is working. Rejecting here keeps every writer safe, since this is
+    /// the only path that adds an override.
+    /// </summary>
+    public bool Consolidate(Tcp receiving, Tcp sending, bool basic)
     {
         lock (_lock)
         {
+            if (WouldCreateCycle(receiving.Id, sending.Id))
+            {
+                return false;
+            }
+
             _overrides[sending.Id] = new ManualOverride(receiving.Id, basic);
+            return true;
         }
+    }
+
+    /// <summary>
+    /// Walks the override chain up from the prospective receiver. Reaching the sender
+    /// means the new edge would close a loop. The sender's own (about to be replaced)
+    /// entry is never consulted, so re-pointing an already-consolidated TCP elsewhere is
+    /// not mistaken for a cycle. Caller must hold the lock.
+    /// </summary>
+    private bool WouldCreateCycle(string receivingId, string sendingId)
+    {
+        var current = receivingId;
+        var visited = new HashSet<string>();
+        while (visited.Add(current))
+        {
+            if (current == sendingId)
+            {
+                return true;
+            }
+
+            if (!_overrides.TryGetValue(current, out var ov))
+            {
+                return false;
+            }
+
+            current = ov.ReceivingTcpId;
+        }
+
+        // Already-cyclic chain (only reachable via Restore) — refuse to extend it.
+        return true;
     }
 
     public void Deconsolidate(Tcp tcp)

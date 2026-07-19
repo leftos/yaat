@@ -71,9 +71,15 @@ injected by the server as `tcp => PositionRegistry.IsPositionAttended(tcp, roomI
 
 Two graph walks do the work:
 
-- **`FindAttendedAncestor`** (`ConsolidationEngine.cs:198`) — walk **UP** the `ParentTcpId` chain from a TCP until an attended TCP
-  is found; that attended TCP is the owner. Cycle-guarded with a visited set.
-- **`CollectConsolidatedDescendants`** (`ConsolidationEngine.cs:225`) — walk **DOWN** the children index (`childrenOf`, keyed by
+- **`ResolveOwner`** — walk **UP** from a TCP until an attended TCP is found; that attended TCP is the owner. Each hop checks, in
+  order: a **manual override** on the current TCP (hop to its receiving TCP and re-evaluate), **attendance** (that TCP is the
+  owner), then the natural **`ParentTcpId`** link. Overrides are consulted at *every* hop, not just on the starting TCP, so a
+  descendant of an overridden non-leaf follows the override into the receiver rather than resolving to its natural attended
+  ancestor — which is what keeps `Owner` in agreement with the `Children` lists the second pass builds (see below). Chained
+  overrides (`1F → 1G`, `1G → 1X`) resolve through to the final receiver. When `autoConsolidate` is off the natural-parent hop is
+  skipped entirely, so only explicit overrides move ownership. Cycle-guarded with a visited set, which also bounds override chains
+  that loop back on themselves.
+- **`CollectConsolidatedDescendants`** — walk **DOWN** the children index (`childrenOf`, keyed by
   parent id) from an attended TCP, stopping at any child that is itself attended (it owns its own subtree). Optionally skips ids in
   an `excludeIds` set (used for manual overrides — see below).
 
@@ -82,15 +88,14 @@ Two graph walks do the work:
 These conventions are baked into the item shape and must be preserved:
 
 - **`Owner == null` does NOT mean "unowned."** It means *this TCP is the root / owns itself (attended).* `Owner != null` means the
-  TCP is consolidated under that owner. When `FindAttendedAncestor` returns the TCP itself, the engine normalizes `Owner` to `null`
-  (`ConsolidationEngine.cs:77`).
+  TCP is consolidated under that owner. When `ResolveOwner` returns the TCP itself, the engine normalizes `Owner` to `null`.
 - **Self is excluded from the `Children` list.** CRC injects the controller's own TCP (`OurTcp`) into the consolidated set
-  automatically, so the engine filters `c.Id != tcp.Id` (`ConsolidationEngine.cs:85`) to avoid a duplicate.
+  automatically, so the engine filters `c.Id != tcp.Id` (`ConsolidationEngine.cs:86`) to avoid a duplicate.
 - **When `autoConsolidate` is off**, every TCP gets `Owner = null` and `Children = []` — each position owns only itself
-  (`ConsolidationEngine.cs:64`). Manual overrides still apply on top.
+  (`ConsolidationEngine.cs:65`). Manual overrides still apply on top.
 
-`GetConsolidationOwner` (`ConsolidationEngine.cs:146`) is the single-TCP version used by handoff redirection and auto-accept
-suppression: manual override first, then (auto on) `FindAttendedAncestor`, else (auto off) the TCP itself iff attended.
+`GetConsolidationOwner` is the single-TCP version used by handoff redirection and auto-accept suppression. It builds the `byId`
+index and defers to the same `ResolveOwner` walk the item build uses, so the two can never disagree.
 
 ## Manual consolidation overrides
 
@@ -98,7 +103,11 @@ suppression: manual override first, then (auto on) `FindAttendedAncestor`, else 
 `SimulationEngine` (`SimulationEngine.cs:55`). It keys `_overrides` by the **sending** TCP id; each entry is
 `ManualOverride(string ReceivingTcpId, bool IsBasic)`. A given sending TCP can be consolidated into exactly one receiver.
 
-- `Consolidate(receiving, sending, basic)` writes `_overrides[sending.Id] = new(receiving.Id, basic)`.
+- `Consolidate(receiving, sending, basic)` writes `_overrides[sending.Id] = new(receiving.Id, basic)`. It **returns false and writes
+  nothing** when the pair would consolidate a TCP into itself or close a loop (`1F → 1G → 1X → 1F`), walking the override chain up
+  from the prospective receiver to check. This is the only path that *adds* an override, so rejecting here keeps every writer safe —
+  see the cycle footgun below for why a loop is dangerous rather than merely meaningless. Callers must surface the rejection
+  (`RoomEngine.HandleConsolidate` errors, `CrcMultiFuncConsolidate` returns `INVALID ENTRY`, `ReplayConsolidate` skips).
 - `Deconsolidate(tcp)` removes the override keyed by that TCP (the sender).
 - `RemoveOverridesInvolving(tcpId)` removes the override *keyed by* the TCP **and** every override whose `ReceivingTcpId` equals it
   (sender OR receiver) — called on position deactivation/disconnect (`ConsolidationState.cs:49`).
@@ -114,32 +123,42 @@ command boundary — `con.Full` becomes `!con.Full` passed as `basic` (`RoomEngi
 
 Manual overrides require a second pass because moving a TCP under a *different* receiver affects both ends of the relationship:
 
-1. **First pass** (`ConsolidationEngine.cs:49`): for each TCP, if it has a manual override pointing at a receiving TCP, its owner
-   becomes that receiving TCP — or, if the receiving TCP is itself not attended, the receiving TCP's *attended ancestor*
-   (`ConsolidationEngine.cs:56`). Overridden senders are collected into `manuallyOverriddenIds` and **excluded** from every
-   auto-computed `Children` walk (passed as `excludeIds` to `CollectConsolidatedDescendants`, `ConsolidationEngine.cs:84`) so a
-   sender isn't double-counted under both its natural ancestor and its override receiver.
-2. **Second pass** (`ConsolidationEngine.cs:94`): for each override, find the receiving TCP's result, resolve its *actual owner*
+1. **First pass**: every TCP's owner comes from the same `ResolveOwner` walk, so a TCP with its own override resolves to that
+   override's receiver (or onward to whoever owns the receiver), and a TCP *without* one still follows an override found on an
+   ancestor. Overridden senders are additionally collected into `manuallyOverriddenIds` and **excluded** from every auto-computed
+   `Children` walk (passed as `excludeIds` to `CollectConsolidatedDescendants`) so a sender isn't double-counted under both its
+   natural ancestor and its override receiver.
+2. **Second pass**: for each override, find the receiving TCP's result, resolve its *actual owner*
    (`receivingResult.Owner ?? receivingResult.Tcp` — the override re-attaches to the attended owner of the receiver, **not
-   necessarily the receiver itself**, `ConsolidationEngine.cs:114`), and append the sending TCP plus its non-attended descendants
-   to that owner's `Children`.
+   necessarily the receiver itself**), and append the sending TCP plus its non-attended descendants to that owner's `Children`.
+
+The two passes must stay in agreement: pass 2 pulls an overridden non-leaf's unattended descendants into the receiver's
+`Children`, so pass 1's ancestor-override hop is what makes those same descendants report the receiver as their `Owner`. Removing
+either half reintroduces a scope whose `Owner` and `Children` contradict each other (issue #299).
 
 ## Full consolidation: track transfer & handoff redirection
 
 When a `CONS …+` (Full) command fires, `RoomEngine.HandleConsolidate` (`RoomEngine.cs:1278`) records the override and then calls
 `TransferTracksForConsolidation(sendingTcp, receivingTcpCode)` (`RoomEngine.cs:1344`). That method walks the world snapshot and:
 
-- **Transfers tracks**: any aircraft whose `Track.Owner` matches the sending TCP **by `(Subset, SectorId)` value** has its `Owner`
-  reassigned to the receiving owner (`RoomEngine.cs:1360`).
-- **Redirects in-flight handoffs**: any aircraft whose `Track.HandoffPeer` matches the sending TCP gets `HandoffRedirectedBy` set to
-  the original peer and `HandoffPeer` reassigned to the receiving owner (`RoomEngine.cs:1367`).
+It first resolves the **block of TCPs moving with the sender** via
+`ConsolidationEngine.GetConsolidatedDescendants(allTcps, sendingTcp, isAttended, overrides)` — the sender plus every descendant that
+is neither independently attended nor carrying its own override. Combining a sector takes its whole slice of airspace, subsectors
+included, so a track owned by an unattended subsector transfers too. Matching the sender alone would strand those tracks on a
+position that no longer works that airspace. Both walks then match **by `(Subset, SectorId)` value** against that set:
+
+- **Transfers tracks**: any aircraft whose `Track.Owner` matches a moving TCP has its `Owner` reassigned to the receiving owner.
+- **Redirects in-flight handoffs**: any aircraft whose `Track.HandoffPeer` matches a moving TCP gets `HandoffRedirectedBy` set to
+  the original peer and `HandoffPeer` reassigned to the receiving owner.
+
+If the ARTCC/facility can't be resolved the block degrades to the sender alone, preserving the old single-TCP behaviour.
 
 Basic consolidation does neither — it only records the override and rebroadcasts the topic.
 
 ### Handoff redirection at issue time
 
 Independently of full-consolidation transfer, when a controller issues a handoff to a TCP that is currently consolidated under
-someone else, `TrackCommandHandler.HandleHandoff` redirects it. `TryConsolidationRedirect` (`TrackCommandHandler.cs:520`):
+someone else, `TrackCommandHandler.HandleHandoff` redirects it. `TryConsolidationRedirect` (`TrackCommandHandler.cs:675`):
 
 1. If the target TCP is already attended → no redirect.
 2. Otherwise resolve `GetConsolidationOwner(... ConsolidationState)`; if the owner differs from the target, the handoff peer
@@ -278,7 +297,7 @@ Per-track shared state and pointouts do **not** have their own topic — they ri
 
 - **`Owner == null` is "owns itself," not "unowned."** Every consumer of `ConsolidationItem.Owner` must treat `null` as
   *attended root.* The second override pass relies on this when it does `receivingResult.Owner ?? receivingResult.Tcp`
-  (`ConsolidationEngine.cs:114`). Treating `null` as "no owner" inverts the hierarchy.
+  (`ConsolidationEngine.cs:115`). Treating `null` as "no owner" inverts the hierarchy.
 - **Self-exclusion from `Children` is deliberate.** The engine filters out the TCP itself because CRC injects `OurTcp`
   automatically. Re-adding self produces a duplicate in the consolidated set on the scope.
 - **`Tcp.Equals`/`GetHashCode` are by `Id` only** (`Tcp.cs:7`). Two `Tcp` records with the same `Id` but different `ParentTcpId`
@@ -291,6 +310,15 @@ Per-track shared state and pointouts do **not** have their own topic — they ri
 - **Overrides leak unless cleaned up on deactivation/disconnect.** `CleanUpConsolidationOverrides`
   (`CrcClientState.Session.cs:305`) must call `RemoveOverridesInvolving(tcp.Id)` (sender OR receiver) when a position deactivates.
   Skip it and a stale override survives for the rest of the room session, silently reshaping the hierarchy.
+- **A circular override is a safety hazard, not just nonsense.** `ResolveOwner` bails out to `null` when its visited set trips, and
+  `null` means *"no attended owner"* to `TryConsolidationRedirect` (no redirect) and `PositionRegistry.IsTcpControlledByCrc`
+  (**auto-accept suppression off**). A loop would therefore make the server auto-accept a handoff into a sector a live CRC
+  controller is working — the machine taking a handoff out from under a human. `ConsolidationState.Consolidate` rejects the edge
+  that would close the loop; don't add an override-writing path that bypasses it.
+- **Ownership resolution walks descendants, so anything acting on a combine must too.** `GetConsolidationOwner` folds an overridden
+  non-leaf's subsectors into the receiver. Any code that reacts to a `CONS` by matching only the *sending* TCP will silently miss
+  those subsectors and disagree with the resolver — that's issue #299's defect, and `TransferTracksForConsolidation` had the same
+  bug one layer down. Use `GetConsolidatedDescendants` for the moving block.
 - **The override store is keyed by the *sending* TCP.** `Deconsolidate(tcp)` removes the entry where that TCP is the sender. To
   remove an override where the TCP is the *receiver*, you need `RemoveOverridesInvolving` — `Deconsolidate` alone won't do it.
 - **Center→TRACON handoff codes carry a STARS-facility prefix (`Q2B`).** A handoff code like `Q2B` from an ERAM (Center) position is

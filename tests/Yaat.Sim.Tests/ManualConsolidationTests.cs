@@ -14,6 +14,7 @@ namespace Yaat.Sim.Tests;
 ///   │   └── 1S (parent → 1F)
 ///   │       └── 1H (parent → 1S)
 ///   1G (root, separate chain)
+///   1X (root, separate chain — used for chained-override cases)
 /// </summary>
 public class ManualConsolidationTests
 {
@@ -22,14 +23,16 @@ public class ManualConsolidationTests
     private const string IdS = "tcp-1S";
     private const string IdH = "tcp-1H";
     private const string IdG = "tcp-1G";
+    private const string IdX = "tcp-1X";
 
     private static readonly Tcp Tcp1T = new(1, "T", IdT, null);
     private static readonly Tcp Tcp1F = new(1, "F", IdF, IdT);
     private static readonly Tcp Tcp1S = new(1, "S", IdS, IdF);
     private static readonly Tcp Tcp1H = new(1, "H", IdH, IdS);
     private static readonly Tcp Tcp1G = new(1, "G", IdG, null);
+    private static readonly Tcp Tcp1X = new(1, "X", IdX, null);
 
-    private static readonly List<Tcp> AllTcps = [Tcp1T, Tcp1F, Tcp1S, Tcp1H, Tcp1G];
+    private static readonly List<Tcp> AllTcps = [Tcp1T, Tcp1F, Tcp1S, Tcp1H, Tcp1G, Tcp1X];
 
     private static ConsolidationItem FindItem(List<ConsolidationItem> items, string tcpId)
     {
@@ -111,6 +114,113 @@ public class ManualConsolidationTests
         // Mutating snapshot doesn't affect state
         snap.Clear();
         Assert.NotNull(state.GetOverride(IdF));
+    }
+
+    // ── The block that moves with a consolidated TCP ───────────
+
+    [Fact]
+    public void GetConsolidatedDescendants_IncludesUnattendedSubsectors()
+    {
+        var state = new ConsolidationState();
+
+        // Only 1T and 1G attended, so 1S and 1H below 1F are unattended.
+        var attended = new HashSet<string> { IdT, IdG };
+        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+
+        state.Consolidate(Tcp1G, Tcp1F, basic: false);
+
+        // Combining 1F takes its whole block — the sender plus its subsectors.
+        var moved = ConsolidationEngine.GetConsolidatedDescendants(AllTcps, Tcp1F, isAttended, state).Select(t => t.Id).ToHashSet();
+        Assert.Contains(IdF, moved);
+        Assert.Contains(IdS, moved);
+        Assert.Contains(IdH, moved);
+        Assert.DoesNotContain(IdT, moved);
+    }
+
+    [Fact]
+    public void GetConsolidatedDescendants_StopsAtAttendedSubsector()
+    {
+        var state = new ConsolidationState();
+
+        // 1S is independently attended, so it keeps its own subtree (1S and 1H).
+        var attended = new HashSet<string> { IdT, IdG, IdS };
+        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+
+        state.Consolidate(Tcp1G, Tcp1F, basic: false);
+
+        var moved = ConsolidationEngine.GetConsolidatedDescendants(AllTcps, Tcp1F, isAttended, state).Select(t => t.Id).ToHashSet();
+        Assert.Contains(IdF, moved);
+        Assert.DoesNotContain(IdS, moved);
+        Assert.DoesNotContain(IdH, moved);
+    }
+
+    [Fact]
+    public void GetConsolidatedDescendants_SkipsDescendantWithItsOwnOverride()
+    {
+        var state = new ConsolidationState();
+
+        var attended = new HashSet<string> { IdT, IdG };
+        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+
+        state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G
+        state.Consolidate(Tcp1T, Tcp1S, basic: false); // 1S → 1T, separately
+
+        // 1S follows its own override, taking 1H with it — neither moves with 1F.
+        var moved = ConsolidationEngine.GetConsolidatedDescendants(AllTcps, Tcp1F, isAttended, state).Select(t => t.Id).ToHashSet();
+        Assert.Contains(IdF, moved);
+        Assert.DoesNotContain(IdS, moved);
+        Assert.DoesNotContain(IdH, moved);
+    }
+
+    // ── Circular consolidation is rejected ─────────────────────
+
+    [Fact]
+    public void ConsolidateState_DirectCycle_Rejected()
+    {
+        var state = new ConsolidationState();
+
+        Assert.True(state.Consolidate(Tcp1G, Tcp1F, basic: false)); // 1F → 1G
+
+        // 1G → 1F would close a loop; the store must refuse it.
+        Assert.False(state.Consolidate(Tcp1F, Tcp1G, basic: false));
+        Assert.Null(state.GetOverride(IdG));
+
+        // The accepted override is untouched.
+        Assert.Equal(IdG, state.GetOverride(IdF)!.ReceivingTcpId);
+    }
+
+    [Fact]
+    public void ConsolidateState_IndirectCycle_Rejected()
+    {
+        var state = new ConsolidationState();
+
+        Assert.True(state.Consolidate(Tcp1G, Tcp1F, basic: false)); // 1F → 1G
+        Assert.True(state.Consolidate(Tcp1X, Tcp1G, basic: false)); // 1G → 1X
+
+        // 1X → 1F closes the 1F → 1G → 1X → 1F loop.
+        Assert.False(state.Consolidate(Tcp1F, Tcp1X, basic: false));
+        Assert.Null(state.GetOverride(IdX));
+    }
+
+    [Fact]
+    public void ConsolidateState_SelfConsolidation_Rejected()
+    {
+        var state = new ConsolidationState();
+
+        Assert.False(state.Consolidate(Tcp1F, Tcp1F, basic: false));
+        Assert.Null(state.GetOverride(IdF));
+    }
+
+    [Fact]
+    public void ConsolidateState_ReplacingOwnOverride_NotTreatedAsCycle()
+    {
+        var state = new ConsolidationState();
+
+        Assert.True(state.Consolidate(Tcp1G, Tcp1F, basic: false)); // 1F → 1G
+
+        // Re-pointing 1F at 1X must not trip the guard on 1F's own stale entry.
+        Assert.True(state.Consolidate(Tcp1X, Tcp1F, basic: false));
+        Assert.Equal(IdX, state.GetOverride(IdF)!.ReceivingTcpId);
     }
 
     // ── Basic consolidation: handoff redirect, tracks stay ─────
@@ -401,5 +511,74 @@ public class ManualConsolidationTests
         Assert.DoesNotContain(IdF, tChildren);
         Assert.DoesNotContain(IdS, tChildren);
         Assert.DoesNotContain(IdH, tChildren);
+    }
+
+    // ── Ownership agrees with the children list ────────────────
+
+    [Fact]
+    public void ManualOverride_DescendantOfOverriddenNonLeaf_OwnerFollowsIntoReceiver()
+    {
+        var state = new ConsolidationState();
+
+        // Only 1T and 1G attended; consolidate the *non-leaf* 1F (which has
+        // unattended descendants 1S and 1H) under 1G.
+        var attended = new HashSet<string> { IdT, IdG };
+        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+
+        state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G (non-leaf sender)
+
+        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+
+        // GetConsolidationItems already lists 1S and 1H under 1G's children
+        // (asserted by ManualConsolidation_DescendantsOfSendingTcpFollowOverride).
+        var gChildren = ChildIds(FindItem(items, IdG));
+        Assert.Contains(IdS, gChildren);
+        Assert.Contains(IdH, gChildren);
+
+        // Ownership resolution must AGREE with that: a descendant of the overridden
+        // non-leaf resolves to the override receiver (1G), not its natural attended
+        // ancestor (1T). Both the per-item Owner and the single-TCP resolver are
+        // checked because handoff redirect / auto-accept use the latter.
+        Assert.Equal(IdG, FindItem(items, IdS).Owner!.Id);
+        Assert.Equal(IdG, FindItem(items, IdH).Owner!.Id);
+
+        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended, state);
+        Assert.Equal(IdG, sOwner!.Id);
+        var hOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1H, isAttended, state);
+        Assert.Equal(IdG, hOwner!.Id);
+    }
+
+    [Fact]
+    public void ManualOverride_ChainedOverrides_ResolveThroughToFinalReceiver()
+    {
+        var state = new ConsolidationState();
+
+        // Only 1X attended. 1F folds into 1G, and 1G in turn folds into 1X.
+        var attended = new HashSet<string> { IdX };
+        Func<Tcp, bool> isAttended = tcp => attended.Contains(tcp.Id);
+
+        state.Consolidate(Tcp1G, Tcp1F, basic: false); // 1F → 1G
+        state.Consolidate(Tcp1X, Tcp1G, basic: false); // 1G → 1X
+
+        // The chain resolves through the unattended intermediate receiver.
+        var fOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1F, isAttended, state);
+        Assert.Equal(IdX, fOwner!.Id);
+
+        // Descendants of 1F follow the whole chain too.
+        var sOwner = ConsolidationEngine.GetConsolidationOwner(AllTcps, true, Tcp1S, isAttended, state);
+        Assert.Equal(IdX, sOwner!.Id);
+
+        var items = ConsolidationEngine.GetConsolidationItems(AllTcps, true, isAttended, state);
+        Assert.Equal(IdX, FindItem(items, IdF).Owner!.Id);
+        Assert.Equal(IdX, FindItem(items, IdS).Owner!.Id);
+        Assert.Equal(IdX, FindItem(items, IdH).Owner!.Id);
+
+        // ...and the children list lands on the same position; self excluded.
+        var xChildren = ChildIds(FindItem(items, IdX));
+        Assert.DoesNotContain(IdX, xChildren);
+        Assert.Contains(IdG, xChildren);
+        Assert.Contains(IdF, xChildren);
+        Assert.Contains(IdS, xChildren);
+        Assert.Contains(IdH, xChildren);
     }
 }

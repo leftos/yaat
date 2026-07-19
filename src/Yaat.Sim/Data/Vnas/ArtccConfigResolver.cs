@@ -1305,6 +1305,27 @@ public static class ArtccConfigResolver
     }
 
     /// <summary>
+    /// Returns <paramref name="tcp"/> plus the descendants whose airspace currently folds
+    /// into it (skipping independently attended TCPs and ones with their own override).
+    /// </summary>
+    public static List<Tcp> GetConsolidatedDescendants(
+        this ArtccConfigRoot config,
+        string facilityId,
+        Tcp tcp,
+        Func<Tcp, bool> isAttended,
+        ConsolidationState? manualOverrides
+    )
+    {
+        var allTcps = config.GetFacilityTcps(facilityId);
+        if (allTcps.Count == 0)
+        {
+            return [];
+        }
+
+        return ConsolidationEngine.GetConsolidatedDescendants(allTcps, tcp, isAttended, manualOverrides);
+    }
+
+    /// <summary>
     /// Returns the TCPs that would consolidate under <paramref name="tcp"/> if
     /// it were the only attended position in the facility.
     /// </summary>
