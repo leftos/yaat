@@ -217,6 +217,12 @@ The METAR *string* broadcast to clients (`WeatherChangedDto.Metars`) is reconstr
 
 ## Live weather (client)
 
+`ArtccAirportResolver.GetAirportIdsAsync(artccId)` supplies `airportIds` first, from the vNAS data-api ARTCC config (disk-cached, 6h TTL).
+`ExtractUnderlyingAirports` **recurses the `facility` / `childFacilities` tree**, collecting
+`starsConfiguration.areas[].underlyingAirports[]` from every STARS facility and deduplicating — a STARS config belongs to a facility
+(each TRACON has its own), never to the document root. IDs are FAA-style (`OAK`); `BuildLiveWeatherAsync` prefixes three-letter IDs
+with `K` before querying (`LiveWeatherService.cs:33`). An empty list short-circuits the command with "No airports found for ARTCC".
+
 `LiveWeatherService.BuildLiveWeatherAsync(artccId, airportIds)` (`LiveWeatherService.cs:24`) fetches from `aviationweather.gov` and
 assembles one `WeatherProfile`:
 
@@ -260,6 +266,7 @@ The behaviors above already have regression coverage — find the right harness 
 | `tests/Yaat.Sim.Tests/WindPhysicsTests.cs` | end-to-end crab + groundspeed-vector behavior under wind. |
 | `tests/Yaat.Sim.Tests/MagneticDeclinationTests.cs` | WMM declination values, true↔magnetic round-trips. |
 | `tests/Yaat.Client.Tests/LiveWeatherServiceTests.cs`, `LiveWeatherRealDataTests.cs` | live fetch assembly, FD→magnetic conversion, surface-wind layer. |
+| `tests/Yaat.Client.Tests/ArtccAirportResolverTests.cs` | underlying-airport extraction from the real ZOA data-api config (facility-tree recursion, dedup). |
 
 ## Footguns
 

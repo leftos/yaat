@@ -96,42 +96,63 @@ public sealed class ArtccAirportResolver
         return json;
     }
 
-    private static List<string> ExtractUnderlyingAirports(string json)
+    /// <summary>
+    /// Collects every underlying airport ID in an ARTCC config, from every STARS facility in it.
+    /// </summary>
+    /// <remarks>
+    /// A STARS config belongs to a facility, not to the ARTCC document — each TRACON carries its own
+    /// under <c>facility.childFacilities[].starsConfiguration.areas[].underlyingAirports[]</c>, nested
+    /// arbitrarily deep. Airports repeat heavily across areas and facilities, so results are deduplicated.
+    /// IDs are FAA-style (<c>OAK</c>) for domestic airports; <see cref="LiveWeatherService"/> prefixes
+    /// three-letter IDs with K before querying aviationweather.gov.
+    /// </remarks>
+    public static List<string> ExtractUnderlyingAirports(string json)
     {
         var airports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        // Navigate: starsConfiguration.areas[].underlyingAirports[]
-        if (!root.TryGetProperty("starsConfiguration", out var starsCfg))
+        if (doc.RootElement.TryGetProperty("facility", out var facility))
         {
-            return [];
+            CollectUnderlyingAirports(facility, airports);
         }
 
-        if (!starsCfg.TryGetProperty("areas", out var areas) || areas.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
+        return [.. airports.Order()];
+    }
 
-        foreach (var area in areas.EnumerateArray())
+    private static void CollectUnderlyingAirports(JsonElement facility, HashSet<string> airports)
+    {
+        if (
+            facility.TryGetProperty("starsConfiguration", out var starsCfg)
+            && starsCfg.ValueKind == JsonValueKind.Object
+            && starsCfg.TryGetProperty("areas", out var areas)
+            && areas.ValueKind == JsonValueKind.Array
+        )
         {
-            if (!area.TryGetProperty("underlyingAirports", out var uaArr) || uaArr.ValueKind != JsonValueKind.Array)
+            foreach (var area in areas.EnumerateArray())
             {
-                continue;
-            }
-
-            foreach (var ap in uaArr.EnumerateArray())
-            {
-                var id = ap.GetString();
-                if (!string.IsNullOrWhiteSpace(id))
+                if (!area.TryGetProperty("underlyingAirports", out var uaArr) || uaArr.ValueKind != JsonValueKind.Array)
                 {
-                    airports.Add(id);
+                    continue;
+                }
+
+                foreach (var ap in uaArr.EnumerateArray())
+                {
+                    var id = ap.GetString();
+                    if (!string.IsNullOrWhiteSpace(id))
+                    {
+                        airports.Add(id);
+                    }
                 }
             }
         }
 
-        return [.. airports.Order()];
+        if (facility.TryGetProperty("childFacilities", out var children) && children.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var child in children.EnumerateArray())
+            {
+                CollectUnderlyingAirports(child, airports);
+            }
+        }
     }
 
     private static string? SearchFacilityForTowerCabVideoMapId(JsonElement facility, string airportId)

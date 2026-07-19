@@ -15,6 +15,9 @@
 - Ghosting a departure (`GHOST`) no longer hides the aircraft from the CRC Tower Cab, ASDE-X, SAID, and ground displays until it climbs through 100 ft.
 - CRC Tower Cab shows aircraft up to each tower's configured visibility ceiling instead of a fixed 4000 ft above the field.
 - A CRC Tower Cab no longer receives traffic from other airports in the ARTCC, and altitudes read against its own field.
+- **Load Live Weather** now fetches real-world METARs for your ARTCC's airports instead of reporting "No airports found for ARTCC".
+- **Load Live Weather** no longer stays greyed out when navigation data finishes loading after you join a room.
+- The status bar now reports when navigation data finishes loading, or why it failed.
 
 ## v0.9.10-beta [2026/07/15]
 

@@ -37,5 +37,9 @@
     <!-- Shared real-airport GeoJSON (parsed via GeoJsonParser) for taxi-route overlay
          reconstruction tests. Linked from Yaat.Sim.Tests so there is a single source of truth. -->
     <None Include="..\Yaat.Sim.Tests\TestData\oak.geojson" Link="TestData\oak.geojson" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Real vNAS data-api ARTCC config. ArtccAirportResolver parses this exact shape to find
+         the underlying airports live weather is fetched for; a synthetic stub would not have
+         caught the facility-tree nesting that broke it. -->
+    <None Include="..\..\docs\vnas-artcc-config-examples\zoa.json" Link="TestData\zoa.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

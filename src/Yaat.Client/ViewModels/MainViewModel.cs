@@ -1398,6 +1398,7 @@ public partial class MainViewModel : ObservableObject
             if (vnasData.NavData is null || cifpService.CifpFilePath is null)
             {
                 _log.LogError("NavData or CIFP data unavailable — navigation database not initialized");
+                StatusText = "Navigation data unavailable — live weather and fix lookups are disabled";
                 return;
             }
 
@@ -1408,16 +1409,29 @@ public partial class MainViewModel : ObservableObject
             );
             var navDb = NavigationDatabase.Instance;
 
-            _commandInput.NavDbReady = true;
+            MarkNavDbReady();
             Radar.SetElevationLookup(navDb.GetAirportElevation);
             Ground.SetElevationLookup(navDb.GetAirportElevation);
             Radar.SetNavDbReady();
             _log.LogInformation("Navdata loaded: {Count} fixes, CIFP initialized", navDb.Count);
+            StatusText = "Navigation data loaded";
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Navdata initialization failed");
+            StatusText = $"Navigation data failed to load ({ex.Message}) — live weather is disabled";
         }
+    }
+
+    /// <summary>
+    /// Marks the navigation database as loaded. Nav data initializes asynchronously after startup,
+    /// so commands gated on it must be re-queried here — by the time this runs the user may already
+    /// have connected and joined a room, spending every other CanExecute trigger.
+    /// </summary>
+    public void MarkNavDbReady()
+    {
+        _commandInput.NavDbReady = true;
+        LoadLiveWeatherCommand.NotifyCanExecuteChanged();
     }
 
     private async Task CheckForUpdateAsync()

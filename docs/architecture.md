@@ -233,7 +233,7 @@ Services/
   TowerCabImageService.cs       # Downloads/caches tower cab JPEG backgrounds with EXIF geo-referencing
   TowerCabMapParser.cs          # Parses tower cab GeoJSON video maps into filled polygons + colored lines
   LiveWeatherService.cs         # Fetches live METARs + FD winds from aviationweather.gov → WeatherProfile
-  ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached)
+  ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached); recurses the facility tree for every STARS config
   FdRegionMapping.cs            # Static ARTCC → FD region code mapping
   UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. macros, favorite command scope/panel-grid/spacer metadata, favorite video maps per ARTCC/airport/scenario, and the macOS renderer-backend override read by Program.BuildAvaloniaApp)
   MenuGroup.cs                  # Enum of context menu groups (Heading, Altitude, Speed, Tower, etc.)

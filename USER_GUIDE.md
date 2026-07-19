@@ -883,9 +883,11 @@ The **METAR** tab in the main window lists the METAR string for each airport in 
 
 For loaded weather profiles and timelines, the METARs are **reconstructed from the live simulated conditions** and re-issued like real observations: a routine METAR each hour at **:53Z**, plus an off-cycle **SPECI** whenever the wind, visibility, ceiling, or precipitation changes significantly (a basic subset of the real FAA SPECI criteria). The reported observation reflects the conditions at the moment it was issued and then holds steady until the next one — a realistic reporting lag. **Live weather** (Load Live Weather) keeps its real-world METARs unchanged.
 
+**The METAR and altimeter shown in CRC do not reflect the weather YAAT is simulating.** CRC displays real-world VATSIM weather, and there is no protocol path for a trainer to tell CRC what it is simulating (this is equally true of ATCTrainer). The METAR tab in YAAT is the authoritative view of simulated conditions. Until you load a weather profile or live weather, YAAT simulates calm wind and 29.92 — so brief students to ignore the CRC METAR and use the altimeter YAAT reports.
+
 ### Loading Live Weather
 
-**Scenario > Load Live Weather** fetches real-world METARs and winds aloft from aviationweather.gov. Requires a room, an ARTCC ID, and navdata.
+**Scenario > Load Live Weather** fetches real-world METARs and winds aloft from aviationweather.gov. Requires a room, an ARTCC ID, and navdata. Navdata loads in the background at startup — the menu item stays disabled until it finishes, and the status bar reports when it is ready. The airports fetched are the underlying airports of every STARS facility in your ARTCC's vNAS configuration; the status bar reports the outcome of each fetch.
 
 Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data at standard levels (3000–39000 ft) and a surface layer averaged from METARs. Wind directions are converted from true to magnetic heading automatically.
 
