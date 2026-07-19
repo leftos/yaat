@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.11-beta [2026/07/19]
+
+### Highlights
+- **Conflict alerts on the Radar View** — both datablocks flash a red `CA` field with live separation (`CA 2.4/800`) and each target gets a 3 nm ring. Enable them in **Settings > Display > Radar Display**.
+- **The radar datablock shows the destination airport** in the primary scratchpad slot when no scratchpad is set, matching the student's STARS scope.
+- **Load Live Weather** now fetches real-world METARs for your ARTCC's airports instead of reporting "No airports found for ARTCC".
+- **CRC Tower Cab shows only traffic near its own field**, up to that tower's configured visibility ceiling instead of a fixed 4000 ft.
 
 ### Added
 - Conflict alerts show on the Radar View — both datablocks flash a red `CA` field and each target gets a 3 nm ring.
