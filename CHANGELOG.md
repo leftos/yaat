@@ -8,6 +8,7 @@
 - `CONS` refuses a combination that would form a loop, such as combining 1F into 1G then 1G into 1F.
 - Ghosting a departure (`GHOST`) no longer hides the aircraft from the CRC Tower Cab, ASDE-X, SAID, and ground displays until it climbs through 100 ft.
 - CRC Tower Cab shows aircraft up to each tower's configured visibility ceiling instead of a fixed 4000 ft above the field.
+- A CRC Tower Cab no longer receives traffic from other airports in the ARTCC, and altitudes read against its own field.
 
 ## v0.9.10-beta [2026/07/15]
 
