@@ -51,7 +51,7 @@
          downloaded on demand via CudaBackendInstaller (Settings → Speech → Acceleration) and
          installed under %LOCALAPPDATA%/yaat/backends/cuda13/. LM-Kit auto-falls-back to Vulkan
          (included in the base package) on machines without it. -->
-    <PackageReference Include="LM-Kit.NET" Version="2026.4.2" />
+    <PackageReference Include="LM-Kit.NET" Version="2026.7.3" />
     <PackageReference Include="MessageBox.Avalonia" Version="3.3.1.1" />
     <PackageReference Include="MetadataExtractor" Version="2.9.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
@@ -65,14 +65,12 @@
          window has focus. We consume KeyPressed/KeyReleased events in passthrough mode — we
          never suppress, so other apps still see the key. -->
     <PackageReference Include="SharpHook" Version="7.0.0" />
-    <!-- Transitive via LM-Kit.NET 2026.4.2 -> Microsoft.Data.Sqlite 10.0.5 -> SQLitePCLRaw.bundle_e_sqlite3 2.1.11;
-         pin the native SQLite binary to patched 3.50.3 (GHSA-2m69-gcr7-jv3q). The managed core/provider stay at
-         2.1.11; the SQLite C API the provider P/Invokes is forward-compatible with the newer native lib. -->
+    <!-- Transitive via LM-Kit.NET 2026.7.3 -> Microsoft.Data.Sqlite 10.0.10 -> SQLitePCLRaw.bundle_e_sqlite3 2.1.11;
+         pin the native SQLite binary to patched 3.50.3 (GHSA-2m69-gcr7-jv3q). Still required after the LM-Kit bump:
+         Microsoft.Data.Sqlite 10.0.10 resolves the same bundle_e_sqlite3 2.1.11 (-> lib.e_sqlite3 2.1.11) as 10.0.5.
+         The managed core/provider stay at 2.1.11; the SQLite C API the provider P/Invokes is forward-compatible with
+         the newer native lib. -->
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
-    <!-- Transitive via LM-Kit.NET 2026.4.2 -> AngleSharp 1.4.0; pin to patched 1.5.0
-         (GHSA-pgww-w46g-26qg, mXSS via annotation-xml HTML integration point). LM-Kit 2026.7.x
-         already depends on 1.5.2, so this pin can be dropped when the engine is bumped. -->
-    <PackageReference Include="AngleSharp" Version="1.5.0" />
     <!-- Transitive via Avalonia.FreeDesktop 11.3.13 (>= 0.21.2); pin to patched 0.21.3 (GHSA-xrw6-gwf8-vvr9). -->
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
