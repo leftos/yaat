@@ -85,9 +85,6 @@ public class SplitBlockTrackCommandTests : IDisposable
 
         // ...so HasTrackCommand MUST stay true, or ProcessTriggeredTrackBlocks skips the block and the
         // handoff silently never fires (and the track command falls into the no-dispatcher-arm default).
-        Assert.True(
-            survivor.HasTrackCommand,
-            "split conditional block retained a track command in ParsedCommands but lost HasTrackCommand"
-        );
+        Assert.True(survivor.HasTrackCommand, "split conditional block retained a track command in ParsedCommands but lost HasTrackCommand");
     }
 }
