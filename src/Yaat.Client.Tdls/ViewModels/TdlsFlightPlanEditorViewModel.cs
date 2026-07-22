@@ -30,6 +30,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     private static readonly ILogger Log = SimLog.CreateLogger("TdlsFlightPlanEditorViewModel");
 
     private readonly TdlsConfigDto _config;
+    private readonly string? _opConfigId;
     private bool _suppressDefaults;
 
     public string Callsign { get; }
@@ -156,15 +157,19 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         TdlsConfigDto config,
         ClearanceDto? seed,
         TdlsFlightPlanInfoDto? flightPlan,
-        bool isReadOnly
+        bool isReadOnly,
+        string? opConfigId
     )
     {
         Callsign = callsign;
         _config = config;
+        _opConfigId = opConfigId;
         FlightPlan = flightPlan;
         IsReadOnly = isReadOnly;
 
-        foreach (var sid in config.Sids)
+        // Resolved, never config.Sids: a facility that enabled operational configurations ships an
+        // empty facility-level SID array and keeps every SID inside the active config.
+        foreach (var sid in config.ResolveSids(opConfigId))
         {
             Sids.Add(sid);
         }
@@ -207,11 +212,14 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         _suppressDefaults = true;
         try
         {
-            var (filedSidId, filedTransitionId) = MatchSidFromFiledRoute(config, flightPlan?.Route);
+            var (filedSidId, filedTransitionId) = MatchSidFromFiledRoute(config, flightPlan?.Route, opConfigId);
 
-            _selectedSid = ResolveSid(seed?.Sid ?? filedSidId ?? config.DefaultSidId);
+            _selectedSid = ResolveSid(seed?.Sid ?? filedSidId ?? config.ResolveDefaultSidId(opConfigId));
             RebuildTransitions(_selectedSid);
-            _selectedTransition = ResolveTransition(_selectedSid, seed?.Transition ?? filedTransitionId ?? config.DefaultTransitionId);
+            _selectedTransition = ResolveTransition(
+                _selectedSid,
+                seed?.Transition ?? filedTransitionId ?? config.ResolveDefaultTransitionId(opConfigId)
+            );
 
             // Field setters drop through to the matching SelectedXxxItem via
             // ResolveItem against the per-field ObservableCollection.
@@ -310,7 +318,10 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     /// values. Returns (null, null) when no match is found — the caller falls through to the
     /// facility's <c>DefaultSidId</c>.
     /// </summary>
-    internal static (string? SidId, string? TransitionId) MatchSidFromFiledRoute(TdlsConfigDto config, string? route)
+    internal static (string? SidId, string? TransitionId) MatchSidFromFiledRoute(TdlsConfigDto config, string? route) =>
+        MatchSidFromFiledRoute(config, route, opConfigId: null);
+
+    internal static (string? SidId, string? TransitionId) MatchSidFromFiledRoute(TdlsConfigDto config, string? route, string? opConfigId)
     {
         if (string.IsNullOrWhiteSpace(route))
         {
@@ -332,7 +343,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             : tokens.Length > 1 ? tokens[1]
             : null;
 
-        var sid = config.Sids.FirstOrDefault(s => string.Equals(s.Name, sidToken, StringComparison.OrdinalIgnoreCase));
+        var sid = config.ResolveSids(opConfigId).FirstOrDefault(s => string.Equals(s.Name, sidToken, StringComparison.OrdinalIgnoreCase));
         if (sid is null)
         {
             return (null, null);
@@ -346,7 +357,7 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
     }
 
     private TdlsSidDto? ResolveSid(string? sidId) =>
-        sidId is null ? null : _config.Sids.FirstOrDefault(s => string.Equals(s.Id, sidId, StringComparison.Ordinal));
+        sidId is null ? null : _config.ResolveSids(_opConfigId).FirstOrDefault(s => string.Equals(s.Id, sidId, StringComparison.Ordinal));
 
     private static TdlsSidTransitionDto? ResolveTransition(TdlsSidDto? sid, string? transitionId) =>
         transitionId is null

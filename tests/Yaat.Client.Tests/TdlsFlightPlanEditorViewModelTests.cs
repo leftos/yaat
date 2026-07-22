@@ -127,7 +127,14 @@ public class TdlsFlightPlanEditorViewModelTests
         // facility's depFreqs list holds "125.050". Exact-ordinal matching left the
         // dropdown blank, and with MandatoryDepFreq set the clearance could never
         // be completed. The default must resolve to the list's equivalent entry.
-        var editor = new TdlsFlightPlanEditorViewModel("UAL1742", BuildIadLikeConfig("125.05"), seed: null, flightPlan: null, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "UAL1742",
+            BuildIadLikeConfig("125.05"),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        );
 
         Assert.Equal("125.050", editor.SelectedDepFreq?.Value);
         Assert.True(editor.IsSendEnabled);
@@ -140,7 +147,14 @@ public class TdlsFlightPlanEditorViewModelTests
         // Normalization must not turn into guessing: a default that resolves to
         // nothing leaves the field unset (upstream's "MANDATORY FIELD NOT SET"),
         // rather than auto-picking the first list entry.
-        var editor = new TdlsFlightPlanEditorViewModel("UAL1742", BuildIadLikeConfig("118.375"), seed: null, flightPlan: null, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "UAL1742",
+            BuildIadLikeConfig("118.375"),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false,
+            opConfigId: null
+        );
 
         Assert.Null(editor.SelectedDepFreq);
         Assert.False(editor.IsSendEnabled);
@@ -159,7 +173,8 @@ public class TdlsFlightPlanEditorViewModelTests
             BuildIadLikeConfig(defaultDepFreq: null),
             seed: null,
             flightPlan: null,
-            isReadOnly: false
+            isReadOnly: false,
+            opConfigId: null
         );
         Assert.False(editor.IsSendEnabled);
 
@@ -175,7 +190,7 @@ public class TdlsFlightPlanEditorViewModelTests
     [Fact]
     public void Constructor_AppliesTransitionDefaults_WhenNoSeed()
     {
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null, isReadOnly: false, opConfigId: null);
 
         // The constructor seeds SelectedSid + SelectedTransition from the
         // facility defaults. Transition defaults apply during construction so
@@ -197,7 +212,7 @@ public class TdlsFlightPlanEditorViewModelTests
         // Send button greyed out. After the SelectedItem refactor, an item picked
         // by ApplyTransitionDefaults registers as set immediately.
         var cfg = BuildConfig(mandatorySid: true, mandatoryExpect: true, mandatoryDepFreq: true);
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false, opConfigId: null);
 
         Assert.NotNull(editor.SelectedDepFreq);
         Assert.Equal("120.9", editor.SelectedDepFreq?.Value);
@@ -209,7 +224,7 @@ public class TdlsFlightPlanEditorViewModelTests
     public void IsSendEnabled_False_WhenMandatoryFieldMissing()
     {
         var cfg = BuildConfig(mandatoryExpect: true);
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: null, isReadOnly: false, opConfigId: null);
 
         // Wipe Expect — that's mandatory in this config; Send must lock.
         editor.Expect = null;
@@ -236,7 +251,7 @@ public class TdlsFlightPlanEditorViewModelTests
             DepFreq: "121.4"
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null, isReadOnly: false, opConfigId: null);
 
         Assert.Equal("20 MIN", editor.Expect);
         Assert.Equal("7000", editor.InitialAlt);
@@ -263,7 +278,7 @@ public class TdlsFlightPlanEditorViewModelTests
             DepFreq: "121.4"
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null, isReadOnly: true);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null, isReadOnly: true, opConfigId: null);
 
         Assert.True(editor.IsReadOnly);
         Assert.False(editor.IsEditable);
@@ -293,7 +308,7 @@ public class TdlsFlightPlanEditorViewModelTests
             DepFreq: null
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null, isReadOnly: true);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed, flightPlan: null, isReadOnly: true, opConfigId: null);
 
         Assert.Null(editor.Expect);
         Assert.Null(editor.InitialAlt);
@@ -319,7 +334,7 @@ public class TdlsFlightPlanEditorViewModelTests
             CruiseAltitude: 35000
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp, isReadOnly: false, opConfigId: null);
 
         Assert.Equal("OAKLAND4", editor.SelectedSid?.Id);
         Assert.Equal("ALTAM", editor.SelectedTransition?.Id);
@@ -342,7 +357,7 @@ public class TdlsFlightPlanEditorViewModelTests
             CruiseAltitude: 35000
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel("SWA1905", cfg, seed: null, flightPlan: fp, isReadOnly: false, opConfigId: null);
 
         Assert.Equal("OAKLAND4", editor.SelectedSid?.Id);
         Assert.Equal("ALTAM", editor.SelectedTransition?.Id);
@@ -364,7 +379,7 @@ public class TdlsFlightPlanEditorViewModelTests
             CruiseAltitude: 0
         );
 
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: fp, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", cfg, seed: null, flightPlan: fp, isReadOnly: false, opConfigId: null);
 
         // Falls back to the facility's DefaultSidId (and its default transition).
         Assert.Equal("OAKLAND4", editor.SelectedSid?.Id);
@@ -374,7 +389,7 @@ public class TdlsFlightPlanEditorViewModelTests
     [Fact]
     public void ToClearanceDto_RoundTripsCurrentEditorState()
     {
-        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null, isReadOnly: false);
+        var editor = new TdlsFlightPlanEditorViewModel("N42416", BuildConfig(), seed: null, flightPlan: null, isReadOnly: false, opConfigId: null);
 
         var clearance = editor.ToClearanceDto();
 

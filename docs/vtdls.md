@@ -13,7 +13,8 @@ before changing anything under:
 - `tools/Yaat.VTdls.Web/` (browser app served at `/vtdls/`)
 
 For the upstream manual, see [`docs/vtdls/vtdls.md`](vtdls/vtdls.md)
-(verbatim copy of [tdls.virtualnas.net/docs](https://tdls.virtualnas.net/docs/)).
+(mirrored from [docs.virtualnas.net/vtdls](https://docs.virtualnas.net/vtdls/)
+by `tools/refresh-crc-docs.py`).
 For the user-facing command surface, see
 [`COMMANDS.md`](../COMMANDS.md) (TDLSQ / TDLSS / TDLSW / TDLSDUMP entries).
 
@@ -274,6 +275,32 @@ recompute, not only when `CanSend` flips: with two mandatory fields
 blank, filling one leaves `CanSend` false, so an `[ObservableProperty]`
 notification keyed on it would never fire and the footer would keep
 naming the field the controller just filled.
+
+### Operational configurations
+
+A facility with `dclOpConfigsEnabled` keeps **no** SIDs at facility level — every SID moves into
+an ops config, each carrying its own per-transition defaults so an east/west split issues
+different departure frequencies, maintain altitudes or local info. SFO, OAK and BOS all ship an
+empty facility-level `sids` array today.
+
+Read the SID list through `TdlsConfig.ResolveSids(opConfigId)` (Sim) or
+`TdlsConfigDto.ResolveSids` (client), never off `Sids` — the raw field is empty at exactly the
+facilities controllers use most. `ResolveDefaultSidId` / `ResolveDefaultTransitionId` follow the
+same rule; whether a config sets them is per-facility (SFO both, BOS SID only, OAK neither).
+
+The active config is **shared room state**, not a per-controller preference: it decides what a
+PDC contains, so `TdlsState.ActiveOpConfigIds` holds it server-side, `TdlsStateDto.ActiveOpConfigs`
+broadcasts it, and it is snapshotted so a replay rebuilds the clearance that was actually sent.
+`SetTdlsOpConfig` on the hub is the only writer; the client never applies a selection locally,
+which is what makes upstream's Save-not-select semantics fall out naturally.
+
+> ⚠️ **SID ids are not stable across configs.** The same SID name carries a different id in each
+> config at OAK and BOS (SFO happens to reuse one), and the clearance sends the id. So changing
+> the active config **closes any open editor** (`VTdlsViewModel.ApplyActiveOpConfig`) rather than
+> leaving `SelectedSid` holding an id that no longer resolves.
+
+Upstream renders the Ops Config menu in the footer only "when enabled" — `AreOpConfigsEnabled`
+gates the button, which opens a Save/Cancel picker mirroring `docs/vtdls/img/opsconfig.png`.
 
 `TdlsFlightPlanEditorViewModel.ResolveItem` maps an FE-supplied string
 (a transition default, or a field on a sent clearance being reviewed)

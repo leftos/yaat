@@ -124,6 +124,12 @@ public sealed class BrowserTdlsTransport : ITdlsTransport, IAsyncDisposable
 
     public Task RequestFullTdlsStateAsync() => RequireConnection().InvokeAsync("RequestFullTdlsState");
 
+    public async Task<bool> SetTdlsOpConfigAsync(string facilityId, string opConfigId)
+    {
+        var result = await RequireConnection().InvokeAsync<CommandResultDto>("SetTdlsOpConfig", facilityId, opConfigId);
+        return result.Success;
+    }
+
     /// <summary>
     /// Looks up the room currently associated with a CID. Returns null when no
     /// room is active — pair with <see cref="RoomAvailableForCid"/> to wait

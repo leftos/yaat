@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -267,6 +269,89 @@ public partial class VTdlsView : UserControl
         flyout.Items.Add(darkModeItem);
 
         flyout.ShowAt(FacilityButton);
+    }
+
+    /// <summary>
+    /// Opens the DCL Operational Configuration picker. Upstream commits on Save, not on
+    /// selection, so the dropdown here is local until Save fires the server call — and the
+    /// active config only changes once the resulting broadcast arrives.
+    /// </summary>
+    private void OnOpsConfigButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not VTdlsViewModel vm)
+        {
+            return;
+        }
+
+        var mono = this.TryFindResource("MonoFont", out var monoResource) && monoResource is FontFamily family ? family : FontFamily.Default;
+
+        var picker = new ComboBox
+        {
+            ItemsSource = vm.OpConfigs.ToList(),
+            DisplayMemberBinding = new Binding(nameof(TdlsOpConfigDto.Name)),
+            SelectedItem = vm.OpConfigs.FirstOrDefault(c => string.Equals(c.Id, vm.ActiveOpConfigId, StringComparison.Ordinal)),
+            MinWidth = 140,
+            FontFamily = mono,
+            FontSize = 11,
+        };
+
+        var flyout = new Flyout { Placement = PlacementMode.Top };
+        var save = new Button
+        {
+            Content = "Save",
+            FontSize = 11,
+            Padding = new Thickness(14, 3),
+        };
+        var cancel = new Button
+        {
+            Content = "Cancel",
+            FontSize = 11,
+            Padding = new Thickness(14, 3),
+        };
+
+        save.Click += async (_, _) =>
+        {
+            flyout.Hide();
+            if (picker.SelectedItem is TdlsOpConfigDto chosen)
+            {
+                await vm.SaveOpConfigAsync(chosen.Id);
+            }
+        };
+        cancel.Click += (_, _) => flyout.Hide();
+
+        flyout.Content = new StackPanel
+        {
+            Spacing = 10,
+            Margin = new Thickness(12),
+            Children =
+            {
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    Spacing = 10,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = "DCL\nOperational\nConfiguration",
+                            FontFamily = mono,
+                            FontSize = 11,
+                            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                        },
+                        picker,
+                    },
+                },
+                new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                    Spacing = 24,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                    Children = { cancel, save },
+                },
+            },
+        };
+
+        flyout.ShowAt(OpsConfigButton);
     }
 
     private async void OnDumpClick(object? sender, RoutedEventArgs e)

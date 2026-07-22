@@ -87,7 +87,13 @@ public record TdlsFlightPlanInfoDto(
 
 public record TdlsDumpedEntryDto(string FacilityId, string Callsign);
 
-public record TdlsStateDto(TdlsItemDto[] Items, TdlsDumpedEntryDto[] Dumped);
+public record TdlsActiveOpConfigDto(string FacilityId, string OpConfigId);
+
+public record TdlsStateDto(TdlsItemDto[] Items, TdlsDumpedEntryDto[] Dumped)
+{
+    /// <summary>Active ops config per facility. Additive — a server that predates ops configs sends none.</summary>
+    public TdlsActiveOpConfigDto[] ActiveOpConfigs { get; init; } = [];
+}
 
 public record TdlsItemRemovedDto(string ItemId, string FacilityId, string Callsign, bool Dumped);
 
@@ -134,7 +140,42 @@ public record TdlsConfigDto(
     TdlsClearanceValueDto[] LocalInfos,
     string? DefaultSidId,
     string? DefaultTransitionId
-);
+)
+{
+    /// <summary>True when the facility splits its SIDs across <see cref="OpConfigs"/> — the footer Ops Config menu renders only then.</summary>
+    public bool DclOpConfigsEnabled { get; init; }
+
+    /// <summary>Operational configurations. When enabled, <see cref="Sids"/> is empty and the SID list comes from the active config.</summary>
+    public TdlsOpConfigDto[] OpConfigs { get; init; } = [];
+
+    /// <summary>The config in force when this bootstrap was fetched; live changes arrive via <see cref="TdlsStateDto.ActiveOpConfigs"/>.</summary>
+    public string? ActiveOpConfigId { get; init; }
+
+    /// <summary>Resolves the ops config the id names, falling back to the first. Null when ops configs are off or none exist.</summary>
+    public TdlsOpConfigDto? ResolveOpConfig(string? opConfigId)
+    {
+        if (!DclOpConfigsEnabled || (OpConfigs.Length == 0))
+        {
+            return null;
+        }
+        return OpConfigs.FirstOrDefault(c => string.Equals(c.Id, opConfigId, StringComparison.Ordinal)) ?? OpConfigs[0];
+    }
+
+    /// <summary>
+    /// The SID list actually in force. Every caller must go through this — reading <see cref="Sids"/>
+    /// directly yields an empty list at any facility that enabled ops configs (SFO, OAK, BOS).
+    /// </summary>
+    public IReadOnlyList<TdlsSidDto> ResolveSids(string? opConfigId) => ResolveOpConfig(opConfigId)?.Sids ?? Sids;
+
+    /// <summary>Default SID id in force — the ops config's when enabled, otherwise the facility's.</summary>
+    public string? ResolveDefaultSidId(string? opConfigId) => DclOpConfigsEnabled ? ResolveOpConfig(opConfigId)?.DefaultSidId : DefaultSidId;
+
+    /// <summary>Default transition id in force — the ops config's when enabled, otherwise the facility's.</summary>
+    public string? ResolveDefaultTransitionId(string? opConfigId) =>
+        DclOpConfigsEnabled ? ResolveOpConfig(opConfigId)?.DefaultTransitionId : DefaultTransitionId;
+}
+
+public record TdlsOpConfigDto(string Id, string Name, TdlsSidDto[] Sids, string? DefaultSidId, string? DefaultTransitionId);
 
 public record TdlsSidDto(string Id, string Name, TdlsSidTransitionDto[] Transitions);
 

@@ -129,7 +129,91 @@ public class VTdlsViewInteractionTests
         Assert.Equal("MANDATORY FIELD NOT SET — Departure frequency", view.FooterStatusText);
     }
 
+    [AvaloniaFact]
+    public void OpsConfig_SwitchingActiveConfig_ReplacesTheSidListAndClosesTheEditor()
+    {
+        // OAK's shape: the facility-level SID list is empty and each config carries its own
+        // SIDs, with a different id for the same SID name — so an open editor's SelectedSid
+        // would point at an id that no longer exists after a switch.
+        var (vm, transport) = MakeVm();
+        vm.Config = OpsConfigFacility();
+        vm.OpConfigs.Clear();
+        foreach (var c in vm.Config.OpConfigs)
+        {
+            vm.OpConfigs.Add(c);
+        }
+        vm.FacilityId = "OAK";
+        vm.ActiveOpConfigId = "cfg-west";
+        transport.PushState(
+            new TdlsStateDto([Item("id1", "UAL1742", facilityId: "OAK")], []) { ActiveOpConfigs = [new TdlsActiveOpConfigDto("OAK", "cfg-west")] }
+        );
+        Dispatcher.UIThread.RunJobs();
+        BootView(vm);
+
+        Assert.True(vm.AreOpConfigsEnabled);
+        Assert.Equal("OAKW", vm.ActiveOpConfigName);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("sid-west", vm.Editor!.Sids.Single().Id);
+
+        // The server broadcasting a different active config drops the editor rather than
+        // leaving it holding a SID id that no longer resolves.
+        transport.PushState(
+            new TdlsStateDto([Item("id1", "UAL1742", facilityId: "OAK")], []) { ActiveOpConfigs = [new TdlsActiveOpConfigDto("OAK", "cfg-east")] }
+        );
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("cfg-east", vm.ActiveOpConfigId);
+        Assert.Equal("OAKE", vm.ActiveOpConfigName);
+        Assert.Null(vm.Editor);
+
+        // Reopening builds from the new config's SID list.
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("sid-east", vm.Editor!.Sids.Single().Id);
+    }
+
+    [AvaloniaFact]
+    public async Task OpsConfig_SaveGoesToTheServer_AndIsHiddenWhereConfigsAreDisabled()
+    {
+        var (vm, transport) = MakeVm();
+        vm.Config = OpsConfigFacility();
+        vm.FacilityId = "OAK";
+        BootView(vm);
+
+        Assert.True(await vm.SaveOpConfigAsync("cfg-east"));
+        Assert.Equal(("OAK", "cfg-east"), transport.LastOpConfigRequest);
+
+        // A facility without ops configs hides the footer menu entirely.
+        vm.Config = ConfigWithMandatoryDepFreq();
+        Assert.False(vm.AreOpConfigsEnabled);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
+
+    /// <summary>Facility shaped like OAK: ops configs on, facility-level SID list empty, a distinct SID id per config.</summary>
+    private static TdlsConfigDto OpsConfigFacility()
+    {
+        static TdlsSidDto Sid(string id) =>
+            new(id, "HUSSH2", [new TdlsSidTransitionDto($"{id}-t", "- - - -", null, null, null, null, null, null, null, null)]);
+
+        return ConfigWithMandatoryDepFreq() with
+        {
+            FacilityId = "OAK",
+            Sids = [],
+            MandatorySid = false,
+            MandatoryDepFreq = false,
+            MandatoryExpect = false,
+            DclOpConfigsEnabled = true,
+            OpConfigs =
+            [
+                new TdlsOpConfigDto("cfg-west", "OAKW", [Sid("sid-west")], null, null),
+                new TdlsOpConfigDto("cfg-east", "OAKE", [Sid("sid-east")], null, null),
+            ],
+            ActiveOpConfigId = "cfg-west",
+        };
+    }
 
     /// <summary>Facility whose transition supplies no departure frequency, so the editor opens one mandatory field short.</summary>
     private static TdlsConfigDto ConfigWithMandatoryDepFreq() =>
@@ -176,12 +260,12 @@ public class VTdlsViewInteractionTests
             DefaultTransitionId: "OTTTO"
         );
 
-    private static TdlsItemDto Item(string id, string callsign, TdlsFlightPlanInfoDto? fp = null) =>
+    private static TdlsItemDto Item(string id, string callsign, TdlsFlightPlanInfoDto? fp = null, string facilityId = "") =>
         new(
             id,
             callsign,
             Cid: null,
-            FacilityId: "",
+            FacilityId: facilityId,
             TdlsStatus.Pending,
             Sequence: 0,
             CreatedUtc: default,
@@ -236,5 +320,14 @@ public class VTdlsViewInteractionTests
         public Task<TdlsConfigDto?> GetTdlsConfigForFacilityAsync(string facilityId) => Task.FromResult<TdlsConfigDto?>(null);
 
         public Task RequestFullTdlsStateAsync() => Task.CompletedTask;
+
+        /// <summary>Records the requested config and echoes it back as the server would, so the VM's close-editor path is exercised.</summary>
+        public Task<bool> SetTdlsOpConfigAsync(string facilityId, string opConfigId)
+        {
+            LastOpConfigRequest = (facilityId, opConfigId);
+            return Task.FromResult(true);
+        }
+
+        public (string FacilityId, string OpConfigId)? LastOpConfigRequest { get; private set; }
     }
 }

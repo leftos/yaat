@@ -38,4 +38,11 @@ public interface ITdlsTransport
 
     /// <summary>Asks the server to push the current full TDLS state via <see cref="TdlsStateChanged"/>. Idempotent.</summary>
     Task RequestFullTdlsStateAsync();
+
+    /// <summary>
+    /// Selects a facility's active operational configuration. Shared room state, so the server
+    /// echoes the change back to every vTDLS window through <see cref="TdlsStateChanged"/> rather
+    /// than the caller applying it locally.
+    /// </summary>
+    Task<bool> SetTdlsOpConfigAsync(string facilityId, string opConfigId);
 }

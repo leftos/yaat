@@ -62,6 +62,48 @@ public partial class VTdlsViewModel : ObservableObject
     private TdlsFlightPlanEditorViewModel? _editor;
 
     /// <summary>
+    /// Active operational configuration for this window's facility. Server-owned: the footer menu
+    /// asks the server to change it and this only updates when the resulting broadcast arrives, so
+    /// every vTDLS window in the room stays on the same config.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActiveOpConfigName))]
+    private string? _activeOpConfigId;
+
+    /// <summary>Ops configs offered by the current facility; empty when the facility doesn't use them.</summary>
+    public ObservableCollection<TdlsOpConfigDto> OpConfigs { get; } = [];
+
+    /// <summary>True when the footer should render the Ops Config menu — upstream shows it only "when enabled".</summary>
+    public bool AreOpConfigsEnabled => Config?.DclOpConfigsEnabled == true;
+
+    /// <summary>Name of the active config, for the footer button ("Ops Config: OAKW").</summary>
+    public string ActiveOpConfigName =>
+        OpConfigs.FirstOrDefault(c => string.Equals(c.Id, ActiveOpConfigId, StringComparison.Ordinal))?.Name
+        ?? OpConfigs.FirstOrDefault()?.Name
+        ?? "";
+
+    /// <summary>
+    /// Commits an ops config selection. Nothing changes locally until the server broadcasts back —
+    /// mirroring upstream, where the menu's Save is what takes effect.
+    /// </summary>
+    public async Task<bool> SaveOpConfigAsync(string opConfigId)
+    {
+        if (string.IsNullOrEmpty(FacilityId))
+        {
+            return false;
+        }
+        try
+        {
+            return await _transport.SetTdlsOpConfigAsync(FacilityId, opConfigId);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set TDLS ops config {OpConfig} at {Facility}", opConfigId, FacilityId);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Footer status line, mirroring upstream's "CLEARANCE TYPE: PDC" / "MANDATORY FIELD
     /// NOT SET" message (docs/vtdls/vtdls.md §Footer). Derived rather than pushed so it
     /// tracks the editor's dropdowns on the spot; the view binds it directly.
@@ -144,7 +186,8 @@ public partial class VTdlsViewModel : ObservableObject
                     Config,
                     seed: null,
                     flightPlan: newValue.FlightPlan,
-                    isReadOnly: false
+                    isReadOnly: false,
+                    opConfigId: ActiveOpConfigId
                 )
                 {
                     OnSendRequested = OnEditorSendRequested,
@@ -157,7 +200,8 @@ public partial class VTdlsViewModel : ObservableObject
                     Config,
                     seed: newValue.SentPayload,
                     flightPlan: newValue.FlightPlan,
-                    isReadOnly: true
+                    isReadOnly: true,
+                    opConfigId: ActiveOpConfigId
                 );
             }
             else
@@ -274,6 +318,15 @@ public partial class VTdlsViewModel : ObservableObject
             FacilityId = facilityId;
             FacilityName = cfg?.FacilityName ?? facilityId;
             Config = cfg;
+
+            OpConfigs.Clear();
+            foreach (var opConfig in cfg?.OpConfigs ?? [])
+            {
+                OpConfigs.Add(opConfig);
+            }
+            ActiveOpConfigId = cfg?.ActiveOpConfigId;
+            OnPropertyChanged(nameof(AreOpConfigsEnabled));
+            OnPropertyChanged(nameof(ActiveOpConfigName));
             // Clear list contents but keep the dictionary so re-applies of the
             // full state still produce stable VM identities for items we
             // already saw.
@@ -346,7 +399,31 @@ public partial class VTdlsViewModel : ObservableObject
             {
                 ApplyItem(dto);
             }
+
+            ApplyActiveOpConfig(state);
         });
+
+    /// <summary>
+    /// Adopts the server's active ops config for this window's facility. The selection is shared
+    /// room state, so it can change because someone else saved it — an open editor is dropped
+    /// either way, since its SelectedSid holds an id that may not exist in the new config.
+    /// </summary>
+    private void ApplyActiveOpConfig(TdlsStateDto state)
+    {
+        if (string.IsNullOrEmpty(FacilityId))
+        {
+            return;
+        }
+
+        var incoming = state.ActiveOpConfigs.FirstOrDefault(a => string.Equals(a.FacilityId, FacilityId, StringComparison.Ordinal))?.OpConfigId;
+        if ((incoming is null) || string.Equals(incoming, ActiveOpConfigId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        ActiveOpConfigId = incoming;
+        SelectedItem = null;
+    }
 
     private bool MatchesActiveFacility(string facilityId) =>
         string.IsNullOrEmpty(FacilityId) || string.Equals(facilityId, FacilityId, StringComparison.Ordinal);

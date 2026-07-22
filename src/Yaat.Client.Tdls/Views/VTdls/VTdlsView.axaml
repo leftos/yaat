@@ -298,7 +298,7 @@
                                FontFamily="{StaticResource MonoFont}" FontSize="11"
                                Foreground="{DynamicResource VTdlsEditorTextFg}"
                                VerticalAlignment="Center"/>
-                    <ComboBox Grid.Row="3" Grid.Column="1"
+                    <ComboBox PlaceholderText="- - - -" Grid.Row="3" Grid.Column="1"
                               ItemsSource="{Binding Expects}"
                               SelectedItem="{Binding SelectedExpect}"
                               DisplayMemberBinding="{Binding Value}"
@@ -316,7 +316,7 @@
                      MAINTAIN FLxxx". No inline labels — controllers learn
                      the field positions, like upstream. -->
                 <Grid ColumnDefinitions="1*,1*,2*,6*,1*" Margin="0,0,0,8">
-                    <ComboBox Grid.Column="0" Margin="0,0,4,0"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="0" Margin="0,0,4,0"
                               ItemsSource="{Binding Sids}"
                               SelectedItem="{Binding SelectedSid, Mode=TwoWay}"
                               DisplayMemberBinding="{Binding Name}"
@@ -324,7 +324,7 @@
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="SID"/>
-                    <ComboBox Grid.Column="1" Margin="0,0,4,0"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="1" Margin="0,0,4,0"
                               ItemsSource="{Binding Transitions}"
                               SelectedItem="{Binding SelectedTransition, Mode=TwoWay}"
                               DisplayMemberBinding="{Binding Name}"
@@ -332,7 +332,7 @@
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Transition"/>
-                    <ComboBox Grid.Column="2" Margin="0,0,4,0"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="2" Margin="0,0,4,0"
                               ItemsSource="{Binding Climbouts}"
                               SelectedItem="{Binding SelectedClimbout}"
                               DisplayMemberBinding="{Binding Value}"
@@ -340,7 +340,7 @@
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Climb out"/>
-                    <ComboBox Grid.Column="3" Margin="0,0,4,0"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="3" Margin="0,0,4,0"
                               ItemsSource="{Binding Climbvias}"
                               SelectedItem="{Binding SelectedClimbvia}"
                               DisplayMemberBinding="{Binding Value}"
@@ -348,7 +348,7 @@
                               HorizontalAlignment="Stretch"
                               FontFamily="{StaticResource MonoFont}" FontSize="11"
                               ToolTip.Tip="Climb via"/>
-                    <ComboBox Grid.Column="4"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="4"
                               ItemsSource="{Binding InitialAlts}"
                               SelectedItem="{Binding SelectedInitialAlt}"
                               DisplayMemberBinding="{Binding Value}"
@@ -362,7 +362,7 @@
                      gap, then "DEP FREQ" label + dropdown right-aligned (~12%).
                      DEP FREQ is the ONE inline label upstream renders. -->
                 <Grid ColumnDefinitions="3*,7*,Auto,Auto" Margin="0,0,0,8">
-                    <ComboBox Grid.Column="0"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="0"
                               ItemsSource="{Binding ContactInfos}"
                               SelectedItem="{Binding SelectedContactInfo}"
                               DisplayMemberBinding="{Binding Value}"
@@ -376,7 +376,7 @@
                                VerticalAlignment="Center"
                                FontFamily="{StaticResource MonoFont}" FontSize="11"
                                Foreground="{DynamicResource VTdlsEditorTextFg}"/>
-                    <ComboBox Grid.Column="3" MinWidth="100"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="3" MinWidth="100"
                               ItemsSource="{Binding DepFreqs}"
                               SelectedItem="{Binding SelectedDepFreq}"
                               DisplayMemberBinding="{Binding Value}"
@@ -387,7 +387,7 @@
 
                 <!-- Dropdown row 7: Local info (~25% wide, left-aligned). -->
                 <Grid ColumnDefinitions="3*,10*" Margin="0,0,0,8">
-                    <ComboBox Grid.Column="0"
+                    <ComboBox PlaceholderText="- - - -" Grid.Column="0"
                               ItemsSource="{Binding LocalInfos}"
                               SelectedItem="{Binding SelectedLocalInfo}"
                               DisplayMemberBinding="{Binding Value}"
@@ -436,8 +436,8 @@
             </StackPanel>
         </Border>
 
-        <!-- ── Footer: clearance-type status (left) + decorative status info + Zulu clock (right) ── -->
-        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" Background="{DynamicResource VTdlsFooterBg}">
+        <!-- ── Footer: clearance-type status (left) + Ops Config menu + decorative status info + Zulu clock (right) ── -->
+        <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto" Background="{DynamicResource VTdlsFooterBg}">
             <TextBlock Grid.Column="0"
                        x:Name="FooterStatus"
                        Classes="footer-status"
@@ -447,14 +447,32 @@
                        FontSize="11"
                        VerticalAlignment="Center"
                        Margin="8,0"/>
-            <TextBlock Grid.Column="1"
+            <!-- Ops Config menu — upstream renders it in the footer only "when enabled",
+                 as a teal "Ops Config: <name>" button that opens a small Save/Cancel
+                 dialog (docs/vtdls/img/opsconfig.png). -->
+            <Button Grid.Column="1"
+                    x:Name="OpsConfigButton"
+                    IsVisible="{Binding AreOpConfigsEnabled}"
+                    Content="{Binding ActiveOpConfigName, StringFormat='Ops Config: \{0\}'}"
+                    Margin="0,1,12,1"
+                    Padding="8,0"
+                    Background="#1ec5c5"
+                    Foreground="Black"
+                    BorderBrush="Black"
+                    BorderThickness="1"
+                    FontFamily="{StaticResource MonoFont}"
+                    FontSize="11"
+                    FontWeight="Bold"
+                    ToolTip.Tip="Change the active DCL operational configuration for this facility"
+                    Click="OnOpsConfigButtonClick"/>
+            <TextBlock Grid.Column="2"
                        Text="PDC ADR SUPR: ALWAYS    CAF: ON    PDC AUTO: OFF    CPDLC AUTO: OFF"
                        FontFamily="{StaticResource MonoFont}"
                        FontSize="11"
                        VerticalAlignment="Center"
                        Margin="0,0,12,0"
                        Foreground="{DynamicResource VTdlsFooterFg}"/>
-            <TextBlock Grid.Column="2"
+            <TextBlock Grid.Column="3"
                        x:Name="FooterZuluClock"
                        FontFamily="{StaticResource MonoFont}"
                        FontSize="11"

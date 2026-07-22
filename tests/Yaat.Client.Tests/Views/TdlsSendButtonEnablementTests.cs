@@ -73,7 +73,8 @@ public class TdlsSendButtonEnablementTests
             BuildConfigMissingMandatoryDepFreq(),
             seed: null,
             flightPlan: null,
-            isReadOnly: false
+            isReadOnly: false,
+            opConfigId: null
         );
         Assert.False(editor.IsSendEnabled);
 

@@ -111,49 +111,50 @@ only meaningful **relative to the config that was active when it was chosen**.
 
 ## Task 2 — Active config as room state (yaat-server)
 
-- [ ] `TdlsState`: per-facility active ops config id + a resolver that returns the effective
+- [x] `TdlsState`: per-facility active ops config id + a resolver that returns the effective
       SID list (active config's `Sids` when `DclOpConfigsEnabled`, else facility `Sids`).
       Default selection when none chosen: first config.
-- [ ] Canonical command to set it, routed through the existing TDLS handler alongside
-      `TDLSS`/`TDLSC`/`TDLSW` (see `docs/vtdls.md` command table). Reject an unknown id and an
-      attempt to set one where ops configs are disabled.
-- [ ] Broadcast the active id with TDLS state so every client converges; extend
+- [x] ~~Canonical command~~ — shipped as the `SetTdlsOpConfig` **hub method** instead, following
+      the bookmarks precedent: the setting is facility-scoped, not aircraft-scoped, so the
+      callsign-prefixed command model didn't fit. Rejects an unknown id, an inaccessible
+      facility, and a facility without ops configs.
+- [x] Broadcast the active id with TDLS state so every client converges; extend
       `BuildTdlsConfigDto` in `ArtccConfigService` to project `OpConfigs` +
       `DclOpConfigsEnabled`.
-- [ ] **Snapshot + rewind**: add the active id to the TDLS snapshot *and* to both rewind
+- [x] **Snapshot + rewind**: add the active id to the TDLS snapshot *and* to both rewind
       paths. Per `bookmarks_server_sync_288`, `RewindAsync` carries over only a whitelist —
       a field missing from it is silently dropped.
-- [ ] `docs/training-hub-contract.md` for any new hub surface.
+- [x] `docs/training-hub-contract.md` — `SetTdlsOpConfig` added to the hub method table.
 
 ## Task 3 — Client: footer Ops Config menu + editor wiring
 
-- [ ] `TdlsDtos.cs`: mirror `OpConfigs` / `DclOpConfigsEnabled` / active id.
-- [ ] `VTdlsViewModel`: expose the ops config list, the active one, and a save command;
+- [x] `TdlsDtos.cs`: mirror `OpConfigs` / `DclOpConfigsEnabled` / active id.
+- [x] `VTdlsViewModel`: expose the ops config list, the active one, and a save command;
       surface an `AreOpConfigsEnabled` flag so the footer menu only renders when upstream
       would show it ("When enabled, the footer also contains the Ops Config menu").
-- [ ] `TdlsFlightPlanEditorViewModel` must take its SID list from the **effective** list, not
+- [x] `TdlsFlightPlanEditorViewModel` must take its SID list from the **effective** list, not
       `config.Sids`.
-- [ ] Close the open editor when the active config changes (decision above).
-- [ ] `VTdlsView.axaml`: Ops Config menu in the footer next to the status line, with the
+- [x] Close the open editor when the active config changes (decision above).
+- [x] `VTdlsView.axaml`: Ops Config menu in the footer next to the status line, with the
       Save step upstream requires — a selection alone must not take effect.
 
 ## Task 4 — `- - - -` placeholder
 
-- [ ] Set `PlaceholderText="- - - -"` on all nine editor dropdowns in `VTdlsView.axaml`
+- [x] Set `PlaceholderText="- - - -"` on all nine editor dropdowns in `VTdlsView.axaml`
       (SID, Transition, and the seven value fields).
-- [ ] Verify it also covers the "none are available" case — an empty `ItemsSource` must show
+- [x] Verify it also covers the "none are available" case — an empty `ItemsSource` must show
       the dashes rather than a blank box.
-- [ ] Headless test in `VTdlsViewInteractionTests` asserting the rendered placeholder for an
+- [x] Headless test in `VTdlsViewInteractionTests` asserting the rendered placeholder for an
       unset mandatory field and for an empty list.
 
 ## Task 5 — Docs, changelog, review
 
-- [ ] `docs/vtdls.md`: ops-config resolution, the id-instability footgun, close-editor-on-switch.
-- [ ] `USER_GUIDE.md` vTDLS section: the footer menu and what changing it does.
-- [ ] `COMMANDS.md` if a user-facing canonical command is added.
-- [ ] `docs/architecture.md` if files are added.
-- [ ] CHANGELOG under `## Unreleased`.
-- [ ] No aviation review needed — this is FE configuration plumbing, not aviation behaviour
+- [x] `docs/vtdls.md`: ops-config resolution, the id-instability footgun, close-editor-on-switch.
+- [x] `USER_GUIDE.md` vTDLS section: the footer menu and what changing it does.
+- [x] `COMMANDS.md` — n/a, no canonical command added (the setting ships as a hub method).
+- [x] `docs/architecture.md` — n/a, no new source files; the one new test file sits in an already-listed folder.
+- [x] CHANGELOG under `## Unreleased`.
+- [x] No aviation review needed — this is FE configuration plumbing, not aviation behaviour
       (per `feedback_skip_aviation_review_narrow_tweaks`).
 
 ## Out of scope

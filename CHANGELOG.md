@@ -2,7 +2,12 @@
 
 ## Unreleased
 
+### Added
+- vTDLS supports operational configurations: pick the active one from the **Ops Config** menu in the footer, and SIDs plus their defaults follow it.
+
 ### Fixed
+- vTDLS shows SIDs again at facilities that moved them into operational configurations, including SFO, OAK and BOS, where the dropdown was empty.
+- vTDLS dropdowns show `- - - -` when nothing is selected or the facility offers no values, instead of a blank box.
 - A stationary aircraft's hold/give-way badges, remarks, and route and altitude assignments now update on the instructor's display immediately, not only once it moves.
 - The vTDLS **Send** button re-enables as soon as you fill in the last missing mandatory field.
 - vTDLS clearance fields now pre-fill from the SID transition's defaults even when the facility's dropdown list formats the value differently (`119.2` vs `119.200`).
