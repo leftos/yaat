@@ -1,16 +1,18 @@
 # Changelog
 
-## Unreleased
+## v0.9.13-beta [2026/07/22]
+
+### Highlights
+- **Open a Strips tab for any facility you scan strips to** — at KOAK that's NorCal (NCT) and Oakland Bay (O90) — and read, move, create, and delete strips there instead of scanning into a bay you couldn't open.
+- **vTDLS consolidated parent page** — working a parent TRACON top-down, one page now merges every child facility's DCL and PDC lists (NCT over OAK/SFO/SJC/SMF/RNO), each row prefixed with its facility.
+- **Typed strip commands now name the bay's facility** (e.g. `STRIP OAK/Ground 1/2`), so tabs opened for other facilities can address their own bays; clicking and dragging fills the facility in for you.
 
 ### Added
-- **Strips tabs for the facilities you scan strips to.** A facility your own config links a bay from is now openable as its own Strips tab — at KOAK that's NorCal (NCT) and Oakland Bay (O90), so a strip scanned there can finally be read instead of disappearing into a write-only drop-zone. **View → Strips → New Strips Tab…** lists them, and the tab shows all of that facility's bays.
+- **Strips tabs for the facilities you scan strips to.** A facility your own config links a bay from is now openable as its own Strips tab — at KOAK that's NorCal (NCT) and Oakland Bay (O90), so a strip scanned there can finally be read instead of disappearing into a write-only drop-zone. **View → Strips → New Strips Tab…** lists them, and the tab shows all of that facility's bays, where you can move, create, and delete strips.
 - **vTDLS consolidated parent page.** Working a parent TRACON top-down, the parent itself is now offered as a `(consolidated)` entry — one page merging every child facility's DCL and PDC lists (NCT over OAK/SFO/SJC/SMF/RNO). Each row is prefixed with its facility, and selecting an item switches the editor to that airport's SIDs, mandatory fields, and Ops Config.
 
 ### Changed
 - **Strip commands name the bay's facility**: the bay token is now `facility/bay[/rack[/index]]` (e.g. `STRIP OAK/Ground 1/2/1`, `HSC NCT/NC4/1 note`). Bay names are only unique within a facility, so a tab opened for another facility could not otherwise address its own bays. Clicking and dragging in the Strips tab emits the right facility for you; only typed commands change.
-
-### Fixed
-- Strips tabs opened for a facility other than your own can now move, create, and delete strips in that facility's bays. Previously every command in such a tab was rejected as an unknown bay.
 
 ## v0.9.12-beta [2026/07/22]
 
