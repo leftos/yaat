@@ -125,6 +125,7 @@ ZBW → ALB/BDL/BOS/PVD.
 | `TDLSS`    | Send the queued PDC. Takes nine `|`-separated fields: `Expect|Sid|Transition|Climbout|Climbvia|InitialAlt|ContactInfo|DepFreq|LocalInfo`. Empty between separators = `null`. |
 | `TDLSW`    | Manually force the Sent PDC to WILCO (normally auto-fires ~3 s after Send). |
 | `TDLSDUMP` | Remove the PDC from TDLS. Terminal — the (facility, callsign) pair is locked out for the rest of the session; clearance must be given by voice. |
+| `TDLSOPS` | **Global** (no callsign): `TDLSOPS <facility> <config>` selects the facility's active operational configuration, by name or id. |
 
 The full canonical syntax is enforced by `CommandRegistry` entries with
 group `"vTDLS"` and asserted by completeness tests.
@@ -290,9 +291,16 @@ same rule; whether a config sets them is per-facility (SFO both, BOS SID only, O
 
 The active config is **shared room state**, not a per-controller preference: it decides what a
 PDC contains, so `TdlsState.ActiveOpConfigIds` holds it server-side, `TdlsStateDto.ActiveOpConfigs`
-broadcasts it, and it is snapshotted so a replay rebuilds the clearance that was actually sent.
-`SetTdlsOpConfig` on the hub is the only writer; the client never applies a selection locally,
-which is what makes upstream's Save-not-select semantics fall out naturally.
+broadcasts it, and it is snapshotted so a replay from a snapshot rebuilds the clearance that was
+actually sent.
+
+The only writer is the global `TDLSOPS` command, routed like `TIMER`/`PAUSE` through
+`RoomEngine.HandleTdlsOpsConfigCmd`. Deliberately a **command, not a hub RPC**: `RoomEngine`
+records every successful command into the action log, and a replay from t=0 re-applies it — an RPC
+(as bookmarks use) is invisible to that log, so a mid-session configuration change would silently
+fail to reproduce and the replay would rebuild clearances from the wrong config. The client never
+applies a selection locally, which is what makes upstream's Save-not-select semantics fall out
+naturally.
 
 > ⚠️ **SID ids are not stable across configs.** The same SID name carries a different id in each
 > config at OAK and BOS (SFO happens to reuse one), and the clearance sends the id. So changing

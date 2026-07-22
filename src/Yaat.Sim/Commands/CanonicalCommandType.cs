@@ -263,6 +263,7 @@ public enum CanonicalCommandType
     TdlsSend,
     TdlsWilco,
     TdlsDump,
+    TdlsOpsConfig,
 
     // Turn rate
     SetTurnRate,

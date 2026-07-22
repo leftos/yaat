@@ -270,7 +270,8 @@
         { "verb": "TDLSQ", "aliases": [], "description": "Queue PDC (auto-fired on flight-plan filing)" },
         { "verb": "TDLSS", "aliases": [], "description": "Send PDC (9 |-separated fields)" },
         { "verb": "TDLSW", "aliases": [], "description": "Force PDC Wilco (auto-fires ~3s)" },
-        { "verb": "TDLSDUMP", "aliases": ["tdlsd"], "description": "Remove PDC; voice clearance required" }
+        { "verb": "TDLSDUMP", "aliases": ["tdlsd"], "description": "Remove PDC; voice clearance required" },
+        { "verb": "TDLSOPS", "args": "<facility> <config>", "description": "Set a facility's active ops config (global)" }
       ],
       "notes": []
     },

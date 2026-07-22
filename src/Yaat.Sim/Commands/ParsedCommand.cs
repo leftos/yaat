@@ -798,6 +798,14 @@ public record TdlsQueueCommand : ParsedCommand;
 
 public record TdlsSendCommand(IReadOnlyList<string> Fields) : ParsedCommand;
 
+/// <summary>
+/// Selects a TDLS facility's active operational configuration. Global (no callsign) — the
+/// configuration is facility-scoped, not aircraft-scoped. <see cref="Config"/> matches an ops
+/// config id first, then falls back to a case-insensitive name match so a controller can type
+/// "OAKE" rather than a ULID; names may contain spaces, so it holds the rest of the line.
+/// </summary>
+public record TdlsOpsConfigCommand(string FacilityId, string Config) : ParsedCommand;
+
 public record TdlsWilcoCommand : ParsedCommand;
 
 public record TdlsDumpCommand : ParsedCommand;

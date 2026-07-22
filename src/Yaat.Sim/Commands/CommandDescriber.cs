@@ -208,6 +208,7 @@ public static class CommandDescriber
             BlankDeleteCommand => CanonicalCommandType.BlankDelete,
             TdlsQueueCommand => CanonicalCommandType.TdlsQueue,
             TdlsSendCommand => CanonicalCommandType.TdlsSend,
+            TdlsOpsConfigCommand => CanonicalCommandType.TdlsOpsConfig,
             TdlsWilcoCommand => CanonicalCommandType.TdlsWilco,
             TdlsDumpCommand => CanonicalCommandType.TdlsDump,
             Scratchpad1Command => CanonicalCommandType.Scratchpad1,
@@ -611,6 +612,7 @@ public static class CommandDescriber
             BlankDeleteCommand cmd => FormatTokenizedCanonical("BLANKD", cmd.Tokens),
             TdlsQueueCommand => "TDLSQ",
             TdlsSendCommand cmd => $"TDLSS {string.Join('|', cmd.Fields)}",
+            TdlsOpsConfigCommand cmd => $"TDLSOPS {cmd.FacilityId} {cmd.Config}",
             TdlsWilcoCommand => "TDLSW",
             TdlsDumpCommand => "TDLSDUMP",
             // Track operations
@@ -1065,6 +1067,7 @@ public static class CommandDescriber
             BlankDeleteCommand => "Delete blank strip",
             TdlsQueueCommand => "Queue TDLS clearance",
             TdlsSendCommand => "Send TDLS clearance",
+            TdlsOpsConfigCommand cmd => $"Set {cmd.FacilityId} ops config to {cmd.Config}",
             TdlsWilcoCommand => "TDLS wilco",
             TdlsDumpCommand => "Dump TDLS state",
             // Sim control

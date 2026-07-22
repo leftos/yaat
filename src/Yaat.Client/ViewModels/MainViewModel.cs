@@ -2189,6 +2189,14 @@ public partial class MainViewModel : ObservableObject
 
     private async Task HandleGlobalCommand(ParsedInput parsed)
     {
+        if (parsed.Type == CanonicalCommandType.TdlsOpsConfig)
+        {
+            var canonical = $"TDLSOPS {parsed.Argument}".TrimEnd();
+            await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+            AddHistory("", canonical);
+            CommandText = "";
+            return;
+        }
         if (parsed.Type == CanonicalCommandType.Pause)
         {
             await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
@@ -2452,7 +2460,8 @@ public partial class MainViewModel : ObservableObject
                 or CanonicalCommandType.CoordinationAutoAck
                 or CanonicalCommandType.TaxiAll
                 or CanonicalCommandType.GhostTrack
-                or CanonicalCommandType.Timer;
+                or CanonicalCommandType.Timer
+                or CanonicalCommandType.TdlsOpsConfig;
     }
 
     /// <summary>

@@ -177,13 +177,16 @@ public class VTdlsViewInteractionTests
     [AvaloniaFact]
     public async Task OpsConfig_SaveGoesToTheServer_AndIsHiddenWhereConfigsAreDisabled()
     {
-        var (vm, transport) = MakeVm();
+        var (vm, _) = MakeVm();
         vm.Config = OpsConfigFacility();
         vm.FacilityId = "OAK";
         BootView(vm);
 
+        SentCommands.Clear();
         Assert.True(await vm.SaveOpConfigAsync("cfg-east"));
-        Assert.Equal(("OAK", "cfg-east"), transport.LastOpConfigRequest);
+        // Global command (empty callsign) rather than an RPC — that is what gets it into the
+        // action log so a replay reproduces the configuration change.
+        Assert.Equal([("", "TDLSOPS OAK cfg-east")], SentCommands);
 
         // A facility without ops configs hides the footer menu entirely.
         vm.Config = ConfigWithMandatoryDepFreq();
@@ -279,8 +282,17 @@ public class VTdlsViewInteractionTests
     private static (VTdlsViewModel Vm, FakeTdlsTransport Transport) MakeVm()
     {
         var transport = new FakeTdlsTransport();
-        var vm = new VTdlsViewModel(transport, (_, _, _) => Task.CompletedTask, getUserInitials: null);
+        var vm = new VTdlsViewModel(transport, (callsign, command, _) => RecordCommand(callsign, command), getUserInitials: null);
         return (vm, transport);
+    }
+
+    /// <summary>Canonical commands the view-model emitted, so tests can assert the wire text rather than an RPC call.</summary>
+    private static readonly List<(string Callsign, string Command)> SentCommands = [];
+
+    private static Task RecordCommand(string callsign, string command)
+    {
+        SentCommands.Add((callsign, command));
+        return Task.CompletedTask;
     }
 
     private static VTdlsView BootView(VTdlsViewModel vm)
@@ -320,14 +332,5 @@ public class VTdlsViewInteractionTests
         public Task<TdlsConfigDto?> GetTdlsConfigForFacilityAsync(string facilityId) => Task.FromResult<TdlsConfigDto?>(null);
 
         public Task RequestFullTdlsStateAsync() => Task.CompletedTask;
-
-        /// <summary>Records the requested config and echoes it back as the server would, so the VM's close-editor path is exercised.</summary>
-        public Task<bool> SetTdlsOpConfigAsync(string facilityId, string opConfigId)
-        {
-            LastOpConfigRequest = (facilityId, opConfigId);
-            return Task.FromResult(true);
-        }
-
-        public (string FacilityId, string OpConfigId)? LastOpConfigRequest { get; private set; }
     }
 }

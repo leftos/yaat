@@ -1223,6 +1223,20 @@ public static class CommandRegistry
                 [O(null, [], "Queue a Pending PDC for the aircraft's filed departure facility (auto-gen also emits this internally)")]
             ),
             Cmd(
+                TdlsOpsConfig,
+                "Set ops config",
+                "vTDLS",
+                false,
+                ["TDLSOPS"],
+                [
+                    O(
+                        null,
+                        [R("facility", "TDLS facility id"), R("config", "ops config name or id")],
+                        "Select a facility's active operational configuration"
+                    ),
+                ]
+            ),
+            Cmd(
                 TdlsSend,
                 "Send PDC",
                 "vTDLS",

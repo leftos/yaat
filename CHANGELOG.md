@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Added
-- vTDLS supports operational configurations: pick the active one from the **Ops Config** menu in the footer, and SIDs plus their defaults follow it.
+- vTDLS supports operational configurations: pick the active one from the **Ops Config** menu in the footer, or type `TDLSOPS <facility> <config>`, and SIDs plus their defaults follow it.
 
 ### Fixed
 - vTDLS shows SIDs again at facilities that moved them into operational configurations, including SFO, OAK and BOS, where the dropdown was empty.

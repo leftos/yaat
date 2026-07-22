@@ -131,7 +131,6 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetAccessibleTdlsFacilitiesAsync()` | `GetAccessibleTdlsFacilities` | `GetAccessibleTdlsFacilities()` |
 | `GetTdlsConfigForFacilityAsync(id)` | `GetTdlsConfigForFacility` | `GetTdlsConfigForFacility(id)` |
 | `RequestFullTdlsStateAsync()` | `RequestFullTdlsState` | `RequestFullTdlsState()` |
-| `SetTdlsOpConfigAsync(facilityId, opConfigId)` | `SetTdlsOpConfig` | `SetTdlsOpConfig(facilityId, opConfigId)` — selects the facility's active operational configuration (shared room state), broadcasts `TdlsStateChanged` |
 | `AdminAuthenticateAsync(password)` | `AdminAuthenticate` | `AdminAuthenticate(password)` `:1114` |
 | `AdminGetRoomsAsync()` | **`AdminGetScenarios`** | `AdminGetScenarios()` `:1125` |
 | `AdminSetRoomFilterAsync(roomId)` | **`AdminSetScenarioFilter`** | `AdminSetScenarioFilter(roomId)` `:1135` |

@@ -886,13 +886,15 @@ public static class CommandParser
             SeparatorMove when arg is not null => ParseSeparatorMove(arg),
             BlankCreate => PR.Ok(new BlankCreateCommand(SplitWhitespace(arg ?? ""))),
             BlankDelete when arg is not null => ParseBlankDelete(arg),
-            // vTDLS — all four are callsign-prefixed verbs.
+            // vTDLS — the first four are callsign-prefixed verbs.
             // TDLSQ / TDLSW / TDLSDUMP take no args; TDLSS carries nine positional fields
             // separated by '|' (empty between two '|' means null for that field).
+            // TDLSOPS is global — it targets a facility, not an aircraft.
             TdlsQueue when arg is null => PR.Ok(new TdlsQueueCommand()),
             TdlsSend when arg is not null => ParseTdlsSend(arg),
             TdlsWilco when arg is null => PR.Ok(new TdlsWilcoCommand()),
             TdlsDump when arg is null => PR.Ok(new TdlsDumpCommand()),
+            TdlsOpsConfig => ParseTdlsOpsConfig(arg ?? ""),
             Scratchpad1 when arg is null => PR.Ok(new Scratchpad1Command("")),
             Scratchpad1 => PR.Ok(new Scratchpad1Command(arg!.Trim().ToUpperInvariant())),
             Scratchpad2 when arg is null => PR.Ok(new Scratchpad2Command("")),
@@ -3345,6 +3347,32 @@ public static class CommandParser
         }
 
         return PR.Ok(new StripScanCommand(tokens));
+    }
+
+    // ── vTDLS ops config (facility + config id-or-name) ───────────
+
+    /// <summary>
+    /// <c>TDLSOPS &lt;facility&gt; &lt;config&gt;</c>. The config token runs to end of line because
+    /// Facility Engineers name configurations freely and some contain spaces (BOS ships "Logan Sid").
+    /// Resolution to an id happens server-side, where the facility's config list is known.
+    /// </summary>
+    private static PR ParseTdlsOpsConfig(string arg)
+    {
+        var trimmed = arg.Trim();
+        var split = trimmed.IndexOf(' ');
+        if (split <= 0)
+        {
+            return PR.Fail("TDLSOPS requires a facility and a configuration, e.g. TDLSOPS OAK OAKE");
+        }
+
+        var facility = trimmed[..split].Trim().ToUpperInvariant();
+        var config = trimmed[(split + 1)..].Trim();
+        if (config.Length == 0)
+        {
+            return PR.Fail("TDLSOPS requires a configuration name or id");
+        }
+
+        return PR.Ok(new TdlsOpsConfigCommand(facility, config));
     }
 
     // ── vTDLS send (nine positional fields separated by '|') ──────

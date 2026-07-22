@@ -13,6 +13,42 @@ public sealed class TdlsCommandParserTests
     }
 
     [Fact]
+    public void TDLSOPS_ParsesFacilityAndConfig()
+    {
+        var cmd = Assert.IsType<TdlsOpsConfigCommand>(Parse("TDLSOPS OAK OAKE"));
+        Assert.Equal("OAK", cmd.FacilityId);
+        Assert.Equal("OAKE", cmd.Config);
+    }
+
+    [Fact]
+    public void TDLSOPS_KeepsSpacesInTheConfigName()
+    {
+        // Facility Engineers name configurations freely — BOS ships "Logan Sid" — so the config
+        // token has to run to end of line rather than stopping at the first space.
+        var cmd = Assert.IsType<TdlsOpsConfigCommand>(Parse("TDLSOPS BOS Logan Sid"));
+        Assert.Equal("BOS", cmd.FacilityId);
+        Assert.Equal("Logan Sid", cmd.Config);
+    }
+
+    [Fact]
+    public void TDLSOPS_UppercasesTheFacilityButNotTheConfig()
+    {
+        // The facility is an identifier; the config may be matched by name, and names are
+        // displayed verbatim in the footer, so its casing is preserved for the error message.
+        var cmd = Assert.IsType<TdlsOpsConfigCommand>(Parse("tdlsops oak Logan Sid"));
+        Assert.Equal("OAK", cmd.FacilityId);
+        Assert.Equal("Logan Sid", cmd.Config);
+    }
+
+    [Theory]
+    [InlineData("TDLSOPS")]
+    [InlineData("TDLSOPS OAK")]
+    public void TDLSOPS_RequiresBothArguments(string input)
+    {
+        Assert.False(CommandParser.Parse(input).IsSuccess);
+    }
+
+    [Fact]
     public void TDLSQ_NoArgs_ParsesAsQueueCommand()
     {
         Assert.IsType<TdlsQueueCommand>(Parse("TDLSQ"));

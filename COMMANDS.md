@@ -539,6 +539,7 @@ configured facility, so controllers normally only see Send / Wilco / Dump.
 | Send PDC | `TDLSS Expect\|Sid\|Transition\|Climbout\|Climbvia\|InitialAlt\|ContactInfo\|DepFreq\|LocalInfo` | — | Nine `\|`-separated fields, empty between separators = null. Mandatory fields gated by facility config. |
 | Force PDC Wilco | `TDLSW` | — | Manually marks Sent → Wilco. Auto-fires ~3 s after Send. |
 | Dump PDC | `TDLSDUMP` | `TDLSD` | Removes the PDC; (facility, callsign) locks out further auto-queueing this session. Clearance must now be issued by voice. |
+| Set ops config | `TDLSOPS <facility> <config>` | — | Global (no callsign). Selects the facility's active operational configuration by name or id; names may contain spaces. Only for facilities that use ops configs. |
 
 ### ASDE-X Display State
 
@@ -1330,6 +1331,14 @@ manual `TDLSW`.
 **Dump:** `TDLSDUMP` (alias `TDLSD`) removes the PDC and locks out the
 (facility, callsign) pair for the rest of the session. The pilot loses the
 TDLS-silent flag, so a subsequent `CL` voice clearance behaves normally.
+
+**Operational configurations:** some facilities split their SIDs across named
+configurations, so an east/west runway split issues different departure
+frequencies, maintain altitudes, or local info. `TDLSOPS OAK OAKE` selects one
+for the whole room — it is a global command, not aircraft-scoped. The
+configuration may be given by name (`OAKE`, or `Logan Sid` — names can contain
+spaces and match case-insensitively) or by its id, which is what the vTDLS
+footer menu sends. Facilities without ops configs reject the command.
 
 Items time out at 2 hours after queue; the TTL sweep happens in
 `TickProcessor.ProcessTdlsExpiry`. Snapshots preserve Pending/Sent items

@@ -372,14 +372,6 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("RequestFullTdlsState");
     }
 
-    /// <summary>Selects a facility's active TDLS operational configuration. The server broadcasts the change back to every vTDLS window.</summary>
-    public async Task<bool> SetTdlsOpConfigAsync(string facilityId, string opConfigId)
-    {
-        EnsureConnected();
-        var result = await _connection!.InvokeAsync<CommandResultDto>("SetTdlsOpConfig", facilityId, opConfigId);
-        return result.Success;
-    }
-
     // --- Weather ---
 
     public async Task<CommandResultDto> LoadWeatherAsync(string weatherJson, bool reconstructMetars)

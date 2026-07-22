@@ -83,8 +83,10 @@ public partial class VTdlsViewModel : ObservableObject
         ?? "";
 
     /// <summary>
-    /// Commits an ops config selection. Nothing changes locally until the server broadcasts back —
-    /// mirroring upstream, where the menu's Save is what takes effect.
+    /// Commits an ops config selection as a global <c>TDLSOPS</c> command. Nothing changes locally
+    /// until the server broadcasts back — mirroring upstream, where the menu's Save is what takes
+    /// effect. Going through a command rather than an RPC also puts the change in the action log,
+    /// so a replay rebuilds clearances from the configuration that was actually active.
     /// </summary>
     public async Task<bool> SaveOpConfigAsync(string opConfigId)
     {
@@ -94,7 +96,8 @@ public partial class VTdlsViewModel : ObservableObject
         }
         try
         {
-            return await _transport.SetTdlsOpConfigAsync(FacilityId, opConfigId);
+            await _sendCommand("", $"TDLSOPS {FacilityId} {opConfigId}", _getUserInitials?.Invoke() ?? "");
+            return true;
         }
         catch (Exception ex)
         {
