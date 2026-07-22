@@ -40,7 +40,11 @@ public partial class TimelineBookmarkVm : ObservableObject
 
     private string CreatorSuffix => string.IsNullOrWhiteSpace(CreatorInitials) ? string.Empty : $"  · {CreatorInitials}";
 
-    public string ListLabel => (string.IsNullOrWhiteSpace(Name) ? TimeText : $"{TimeText}  {Name}") + CreatorSuffix;
+    /// <summary>
+    /// Dropdown row text. Leads with <see cref="Id"/> so the id the <c>BM REN</c>/<c>BM DEL</c>/
+    /// <c>BM GO</c> commands take is readable without running <c>BM LIST</c>.
+    /// </summary>
+    public string ListLabel => (string.IsNullOrWhiteSpace(Name) ? $"{Id}  {TimeText}" : $"{Id}  {TimeText}  {Name}") + CreatorSuffix;
 
     public string ToolTipText =>
         string.IsNullOrWhiteSpace(CreatorInitials) ? $"{TimeText} — {DisplayName}" : $"{TimeText} — {DisplayName} (by {CreatorInitials})";

@@ -444,11 +444,12 @@ public static class CommandSchemeParser
     private static string? ParseCommandList(string remaining, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        // SAY and TIMER consume their entire remainder as literal text — don't split on comma
+        // SAY, TIMER and BM consume their entire remainder as literal text — don't split on comma
         var trimmedRemaining = remaining.TrimStart();
         if (
             StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Say)
             || StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Timer)
+            || StartsWithSchemeAlias(trimmedRemaining, scheme, CanonicalCommandType.Bookmark)
         )
         {
             var parsed = Parse(remaining.Trim(), scheme, out failure);
@@ -558,6 +559,7 @@ public static class CommandSchemeParser
         CanonicalCommandType.ClearedForTakeoff,
         CanonicalCommandType.Say,
         CanonicalCommandType.Timer,
+        CanonicalCommandType.Bookmark,
         CanonicalCommandType.CreateFlightPlan,
         CanonicalCommandType.CreateVfrFlightPlan,
         CanonicalCommandType.CreateAbbreviatedFlightPlan,
@@ -842,6 +844,8 @@ public static class CommandSchemeParser
                     || token.Equals("SAYF", StringComparison.OrdinalIgnoreCase)
                     || token.Equals("TIMER", StringComparison.OrdinalIgnoreCase)
                     || token.Equals("TMR", StringComparison.OrdinalIgnoreCase)
+                    || token.Equals("BM", StringComparison.OrdinalIgnoreCase)
+                    || token.Equals("BOOKMARK", StringComparison.OrdinalIgnoreCase)
                 )
             )
             {

@@ -1255,6 +1255,8 @@ Mark highlight moments on the timeline so you can scrub back to them later (a go
 
 Bookmarks also appear as gold ticks on the rail above the slider — click a tick to seek, or right-click it to Rename/Delete. Bookmarks work in both live and playback modes.
 
+Everything the buttons do is also available from the command box via the **`BM`** verb — `BM Go-around 28R` to place a named bookmark, `BM LIST` to print the list with ids, `BM REN 3 Conflict`, `BM DEL 3` (or `BM DEL ALL`), and `BM GO 3` / `BM NEXT` / `BM PREV` to seek. See [COMMANDS.md](COMMANDS.md#bookmarks-bm) for the full syntax.
+
 **Bookmarks are shared across the room.** They sync through the server, so every RPO connected to the same room sees the same bookmarks on their timeline, tagged with the initials of whoever added each one. Anyone in the room can rename or delete any bookmark, and a bookmark placed by one RPO shows up on everyone's timeline immediately. A newly joining RPO is seeded with the existing bookmarks.
 
 Bookmarks are saved into the recording when you **Save Recording** or **Save Bug Report Bundle**, and reappear when you load that recording — so your highlight marks travel with the file for debriefs. Loading a recording shows its bookmarks to everyone in the room, not just whoever loaded it. Rewinding the timeline never drops a bookmark. (After **Take Control** exits playback, existing bookmarks are kept; any beyond the current live time sit at the right edge of the bar.)

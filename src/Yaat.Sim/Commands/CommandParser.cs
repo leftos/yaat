@@ -2,6 +2,7 @@ using System.Globalization;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation;
 using static Yaat.Sim.Commands.CanonicalCommandType;
 using PR = Yaat.Sim.Commands.ParseResult<Yaat.Sim.Commands.ParsedCommand>;
 
@@ -388,9 +389,13 @@ public static class CommandParser
 
     private static List<ParsedCommand>? ParseCommandList(string input, string? aircraftRoute, TextWriter? debugLog = null)
     {
-        // SAY and TIMER consume their entire remainder as literal text — don't split on comma
+        // SAY, TIMER and BM consume their entire remainder as literal text — don't split on comma
         var trimmedInput = input.TrimStart();
-        if (StartsWithRegisteredAlias(trimmedInput, Say) || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.Timer))
+        if (
+            StartsWithRegisteredAlias(trimmedInput, Say)
+            || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.Timer)
+            || StartsWithRegisteredAlias(trimmedInput, CanonicalCommandType.Bookmark)
+        )
         {
             var cmd = Parse(input.Trim(), aircraftRoute);
             if (!cmd.IsSuccess)
@@ -721,6 +726,7 @@ public static class CommandParser
             Wait => ParseWaitSeconds(arg),
             WaitDistance => ParseWaitDistance(arg),
             CanonicalCommandType.Timer => ParseTimer(arg),
+            CanonicalCommandType.Bookmark => ParseBookmark(arg),
             SpawnNow when arg is null => PR.Ok(new SpawnNowCommand()),
             SpawnDelay => ParseInt(arg, s => new SpawnDelayCommand(s)),
             HoldForRelease when arg is { Length: > 0 } => PR.Ok(new HoldForReleaseCommand(arg.Trim().ToUpperInvariant())),
@@ -2778,6 +2784,62 @@ public static class CommandParser
         var message = rest.Length > 0 ? rest : null;
         return PR.Ok(new TimerCommand(seconds, message, IsCancel: false, CancelId: null, CancelAll: false));
     }
+
+    /// <summary>
+    /// Parses the BM argument. A bare remainder is the new bookmark's name, so the sub-verbs
+    /// (<c>ADD</c>, <c>LIST</c>, <c>REN</c>, <c>DEL</c>, <c>GO</c>, <c>NEXT</c>, <c>PREV</c>) shadow
+    /// any name starting with one of those words — <c>BM ADD &lt;name&gt;</c> is the escape hatch.
+    /// </summary>
+    private static PR ParseBookmark(string? arg)
+    {
+        var trimmed = (arg ?? "").Trim();
+        if (trimmed.Length == 0)
+        {
+            return PR.Ok(new BookmarkCommand(BookmarkAction.Add, null, null));
+        }
+
+        var firstSpace = trimmed.IndexOf(' ');
+        var verb = (firstSpace < 0 ? trimmed : trimmed[..firstSpace]).ToUpperInvariant();
+        var rest = firstSpace < 0 ? "" : trimmed[(firstSpace + 1)..].Trim();
+
+        return verb switch
+        {
+            "ADD" => PR.Ok(new BookmarkCommand(BookmarkAction.Add, null, NullIfEmpty(rest))),
+            "LIST" => PR.Ok(new BookmarkCommand(BookmarkAction.List, null, null)),
+            "NEXT" => PR.Ok(new BookmarkCommand(BookmarkAction.Next, null, null)),
+            "PREV" => PR.Ok(new BookmarkCommand(BookmarkAction.Prev, null, null)),
+            "DEL" or "DELETE" => ParseBookmarkDelete(rest),
+            "REN" or "RENAME" => ParseBookmarkRename(rest),
+            "GO" or "GOTO" => TimelineBookmark.TryNormalizeId(rest, out var goId)
+                ? PR.Ok(new BookmarkCommand(BookmarkAction.Goto, goId, null))
+                : PR.Fail("BM GO requires a bookmark id"),
+            _ => PR.Ok(new BookmarkCommand(BookmarkAction.Add, null, trimmed)),
+        };
+    }
+
+    private static PR ParseBookmarkDelete(string rest)
+    {
+        if (rest.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            return PR.Ok(new BookmarkCommand(BookmarkAction.DeleteAll, null, null));
+        }
+
+        return TimelineBookmark.TryNormalizeId(rest, out var id)
+            ? PR.Ok(new BookmarkCommand(BookmarkAction.Delete, id, null))
+            : PR.Fail("BM DEL requires a bookmark id or ALL");
+    }
+
+    private static PR ParseBookmarkRename(string rest)
+    {
+        var space = rest.IndexOf(' ');
+        var idToken = space < 0 ? rest : rest[..space];
+        var name = space < 0 ? "" : rest[(space + 1)..].Trim();
+        return TimelineBookmark.TryNormalizeId(idToken, out var id)
+            ? PR.Ok(new BookmarkCommand(BookmarkAction.Rename, id, NullIfEmpty(name)))
+            : PR.Fail("BM REN requires a bookmark id");
+    }
+
+    private static string? NullIfEmpty(string value) => value.Length > 0 ? value : null;
 
     /// <summary>Parses a <c>mm:ss</c> or bare-seconds duration token into total seconds (&gt; 0).</summary>
     internal static bool TryParseDuration(string token, out int seconds)

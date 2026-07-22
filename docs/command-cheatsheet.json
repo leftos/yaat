@@ -347,6 +347,7 @@
         { "verb": "WAIT", "aliases": ["delay"], "description": "Wait seconds before next cmd" },
         { "verb": "WAITD", "aliases": [], "description": "Wait until distance (nm) from fix" },
         { "verb": "TIMER", "aliases": ["tmr"], "description": "Countdown reminder; SAYs text (or \"timer expired\") on expiry. Global or callsign-prefixed; TIMER CANCEL <id|ALL>" },
+        { "verb": "BM", "aliases": ["bookmark"], "description": "Bookmark the timeline now (BM <name>); LIST / REN <id> <name> / DEL <id|ALL> / GO <id> / NEXT / PREV", "global": true },
         { "verb": "ADD", "aliases": [], "description": "Add aircraft: airborne (rules wt eng brg dist alt), @fix, runway, on-final, @parking, or arrival on STAR (wpt.star.rwy [alt] [SPspd] [LVL]). eng=P/T/J/H (H=helicopter)", "global": true },
         { "verb": "SPAWN", "aliases": [], "description": "Spawn now" },
         { "verb": "SPAWNDELAY", "aliases": [], "description": "Set spawn delay (seconds)" },

@@ -48,7 +48,7 @@ Resolves the connection's `RoomEngine`, opens a room scope, and delegates to `Ro
 
 (`yaat-server: src/Yaat.Server/Simulation/RoomEngine.cs`)
 
-This is where commands fan out to one of four paths. **Heading/altitude/speed/nav commands take the `HandleStandardCmd` path**; track and coordination commands bypass `CommandDispatcher` entirely.
+This is a long `else if (simpleParsed is XCommand)` chain ending in a `HandleStandardCmd` fallback. **Heading/altitude/speed/nav commands take the `HandleStandardCmd` path**; every branch above it bypasses `CommandDispatcher` entirely and mutates room or aircraft state directly.
 
 ```
 SendCommandAsync(callsign, command, initials)
@@ -62,14 +62,23 @@ SendCommandAsync(callsign, command, initials)
   ├─ CoordinationCommandHandler.IsCoordinationCommand
   │                                       → HandleCoordinationCmd  (RD, RDH, RDR, RDACK, RDAUTO)
   ├─ Strip-mutation commands              → HandleStripCmd         (STRIP, AN, HSC/HSA/HSD, …)
+  ├─ Room/session-state commands          → per-command inline handlers
+  │                                          PAUSE, UNPAUSE, SIMRATE, DELETE, SPAWN, SPAWNDELAY,
+  │                                          HFR, HFROFF, REL, CFR, TIMER, BM, CON/DECON, TAXIALL,
+  │                                          SQAWKALL, ACCEPTALL, DA/VP, RMK, NOTE, DEST, …
   └─ otherwise                            → HandleStandardCmd
                                               ↓
                                           CommandDispatcher.DispatchCompound
 ```
 
+Adding a new room-state verb means adding a branch to this chain — check the exclusion list on the
+`Record(...)` call below before you do, since a few of these verbs deliberately stay out of the action log.
+
 Track commands take a separate path (see **Track command bypass** below): the **live** server switch (`TrackCommandHandler.HandleTrackCommand`) and the **replay** switch (`TrackEngine.Dispatch`) are two parallel dispatch tables that share only the `TrackEngine.Handle*` leaf logic — not a single adapter.
 
 After validation, every command is recorded for replay: `Record(new RecordedCommand(scenario.ElapsedSeconds, callsign, command, initials, connectionId) { ReactionDelaySeconds = … })` — the pilot-reaction delay, if any, is baked in so replays reproduce it exactly (see [Deferred dispatch](#deferred-dispatch--wait-behind-and-the-command-run-delay)). **Including rejected ones** — replay needs a faithful history, not a clean one.
+
+A short exclusion list on that call keeps a few verbs out of the action log: `PAUSE`/`UNPAUSE`/`SIMRATE` (transport state, not simulation state), `CFR` (a wall-clock alert window), and `BM` (bookmarks are timeline-global metadata that the rewind paths carry over verbatim, so replaying an add would duplicate every bookmark on each rewind).
 
 ### 5. CommandDispatcher.DispatchCompound
 

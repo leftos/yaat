@@ -57,6 +57,7 @@ Complete reference for all YAAT commands. For a quick introduction to issuing co
   - [Delayed Aircraft Commands](#delayed-aircraft-commands)
   - [Hold for Release (HFR / REL)](#hold-for-release-hfr--rel)
   - [Timer (TIMER / TMR)](#timer-timer--tmr)
+  - [Bookmarks (BM)](#bookmarks-bm)
   - [Add Aircraft (ADD)](#add-aircraft-add)
   - [Global Commands](#global-commands)
   - [Auto-Delete on Hold-Short](#auto-delete-on-hold-short)
@@ -609,6 +610,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Wait (seconds) | `WAIT 30` | — | — |
 | Wait (distance) | `WAITD 4` | — | — |
 | Timer | `TIMER 5:00 text` | `TMR` | Countdown reminder; on expiry posts a green SAY (`text`, or `timer expired`). Global, or prefix a callsign. `TIMER CANCEL <id\|ALL>` cancels |
+| Bookmark | `BM Go-around 28R` | `BOOKMARK` | Marks the current timeline position (global). `BM LIST`, `BM REN <id> <name>`, `BM DEL <id\|ALL>`, `BM GO <id>`, `BM NEXT`, `BM PREV` |
 | Add aircraft | `ADD IFR H J ...` | — | — |
 | Force heading | `FHN 270` | — | — |
 | Force altitude | `CMN 240` | — | — |
@@ -1456,6 +1458,35 @@ Duration accepts `mm:ss` (`5:00`, `1:30`) or bare seconds (`90`). The message is
 contain commas. The **timers panel** on the command bar shows each running timer's live countdown
 (`mm:ss`), its label, and a one-click cancel (`✕`); the panel button's caption is the soonest timer's
 remaining time. `TMR` is an alias for `TIMER`.
+
+### Bookmarks (BM)
+
+Marks a moment on the session timeline — a go-around, a conflict, a teaching point — so you can scrub
+back to it later. Bookmarks are shared room state: every RPO sees the same set, tagged with the
+initials of whoever placed each one, and they are saved into recordings. `BOOKMARK` is an alias for
+`BM`. All forms are global — no aircraft selection needed.
+
+| Command | Effect |
+|---------|--------|
+| `BM` | Add an unnamed bookmark at the current position (the same thing **Ctrl+B** does). |
+| `BM <name>` | Add a bookmark named `<name>` — the rest of the line is free text and may contain commas. |
+| `BM ADD <name>` | Same, but forces `<name>` to be taken literally even if it starts with a sub-verb. |
+| `BM LIST` | Print every bookmark (id, time, name, creator) to **your** terminal only. |
+| `BM REN <id> <name>` | Rename a bookmark. Omit `<name>` to clear it back to unnamed. |
+| `BM DEL <id>` | Delete one bookmark. |
+| `BM DEL ALL` | Delete every bookmark. |
+| `BM GO <id>` | Seek the timeline to that bookmark. |
+| `BM NEXT` / `BM PREV` | Seek to the next / previous bookmark. |
+
+Ids are server-minted and stable (`bm-3`). Type them bare (`BM DEL 3`) or in full (`BM DEL bm-3`);
+both work. They are shown in the **Bookmarks ▾** list and by `BM LIST`.
+
+`ADD`, `LIST`, `REN`/`RENAME`, `DEL`/`DELETE`, `GO`/`GOTO`, `NEXT` and `PREV` are reserved as the
+first word, so `BM LIST` lists rather than creating a bookmark called "LIST". Use `BM ADD LIST` when
+you really want that name.
+
+`BM LIST`, `BM GO`, `BM NEXT` and `BM PREV` act on your own client — the listing goes to your
+terminal only, and seeking moves your timeline. Adds, renames and deletes are shared with the room.
 
 ### Add Aircraft (ADD)
 

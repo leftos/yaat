@@ -2366,6 +2366,47 @@ public partial class MainViewModel : ObservableObject
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
         }
+        if (parsed.Type == CanonicalCommandType.Bookmark)
+        {
+            await HandleBookmarkGlobalCommand(parsed.Argument);
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+        }
+    }
+
+    /// <summary>
+    /// Splits the <c>BM</c> verb between the client-side query/seek actions and the server-side
+    /// mutations. Re-parses the canonical argument through <see cref="CommandParser"/> so the two
+    /// halves agree on the grammar instead of the client re-deriving it.
+    /// </summary>
+    public async Task HandleBookmarkGlobalCommand(string? argument)
+    {
+        var canonical = string.IsNullOrWhiteSpace(argument) ? "BM" : $"BM {argument}";
+        var parseResult = CommandParser.Parse(canonical);
+        if (!parseResult.IsSuccess || parseResult.Value is not BookmarkCommand bookmark)
+        {
+            StatusText = parseResult.Reason ?? "Invalid BM command";
+            return;
+        }
+
+        if (await TryHandleBookmarkLocallyAsync(bookmark))
+        {
+            AddHistory("", canonical);
+            return;
+        }
+
+        try
+        {
+            var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+            AddHistory("", canonical);
+            StatusText = CommandStatusResolver.Resolve(result, "BM");
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "BM failed");
+            StatusText = $"BM error: {ex.Message}";
+        }
     }
 
     private async Task<bool> TryHandleRpoCommand(string commandText, AircraftModel? target, string originalInput)
@@ -2461,7 +2502,8 @@ public partial class MainViewModel : ObservableObject
                 or CanonicalCommandType.TaxiAll
                 or CanonicalCommandType.GhostTrack
                 or CanonicalCommandType.Timer
-                or CanonicalCommandType.TdlsOpsConfig;
+                or CanonicalCommandType.TdlsOpsConfig
+                or CanonicalCommandType.Bookmark;
     }
 
     /// <summary>

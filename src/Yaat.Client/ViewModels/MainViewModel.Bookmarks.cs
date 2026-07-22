@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.ViewModels;
@@ -50,25 +51,91 @@ public partial class MainViewModel
     [RelayCommand]
     private Task QuickAddBookmark() => SendAddBookmarkAsync(ScenarioElapsedSeconds, null);
 
+    /// <summary>Deadband around the current position so a step never re-selects the bookmark we sit on.</summary>
+    private const double BookmarkStepEpsilonSeconds = 0.5;
+
     [RelayCommand]
-    private async Task NextBookmark()
+    private Task NextBookmark() => SeekNextBookmarkAsync();
+
+    [RelayCommand]
+    private Task PrevBookmark() => SeekPrevBookmarkAsync();
+
+    /// <summary>The first bookmark after the current position, or null when there is none.</summary>
+    public TimelineBookmarkVm? FindNextBookmark() =>
+        Bookmarks.FirstOrDefault(b => b.TimeSeconds > ScenarioElapsedSeconds + BookmarkStepEpsilonSeconds);
+
+    /// <summary>The last bookmark before the current position, or null when there is none.</summary>
+    public TimelineBookmarkVm? FindPrevBookmark() =>
+        Bookmarks.LastOrDefault(b => b.TimeSeconds < ScenarioElapsedSeconds - BookmarkStepEpsilonSeconds);
+
+    /// <summary>Seeks to the first bookmark after the current position; no-op when there is none.</summary>
+    public async Task SeekNextBookmarkAsync()
     {
-        const double epsilon = 0.5;
-        var next = Bookmarks.FirstOrDefault(b => b.TimeSeconds > ScenarioElapsedSeconds + epsilon);
-        if (next is not null)
+        if (FindNextBookmark() is { } next)
         {
             await RewindToSeconds(next.TimeSeconds);
         }
     }
 
-    [RelayCommand]
-    private async Task PrevBookmark()
+    /// <summary>Seeks to the last bookmark before the current position; no-op when there is none.</summary>
+    public async Task SeekPrevBookmarkAsync()
     {
-        const double epsilon = 0.5;
-        var prev = Bookmarks.LastOrDefault(b => b.TimeSeconds < ScenarioElapsedSeconds - epsilon);
-        if (prev is not null)
+        if (FindPrevBookmark() is { } prev)
         {
             await RewindToSeconds(prev.TimeSeconds);
+        }
+    }
+
+    /// <summary>
+    /// Handles the client-side half of the <c>BM</c> verb — the read-only <c>LIST</c> query and the
+    /// <c>GO</c>/<c>NEXT</c>/<c>PREV</c> seeks, which need <see cref="RewindToSeconds"/> and so have no
+    /// server-side form. Returns false for the mutating actions, which the caller forwards to the server.
+    /// </summary>
+    private async Task<bool> TryHandleBookmarkLocallyAsync(BookmarkCommand bookmark)
+    {
+        switch (bookmark.Action)
+        {
+            case BookmarkAction.List:
+                ListBookmarks();
+                return true;
+            case BookmarkAction.Next:
+                await SeekNextBookmarkAsync();
+                return true;
+            case BookmarkAction.Prev:
+                await SeekPrevBookmarkAsync();
+                return true;
+            case BookmarkAction.Goto:
+                var target = Bookmarks.FirstOrDefault(b => b.Id == bookmark.Id);
+                if (target is null)
+                {
+                    StatusText = $"No bookmark {bookmark.Id}";
+                    return true;
+                }
+
+                await RewindToSeconds(target.TimeSeconds);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Prints the bookmark list into this client's terminal only. It is a query over the local mirror,
+    /// so broadcasting it would put one RPO's lookup on everyone else's terminal.
+    /// </summary>
+    private void ListBookmarks()
+    {
+        if (Bookmarks.Count == 0)
+        {
+            AddSystemEntry("No bookmarks");
+            return;
+        }
+
+        foreach (var b in Bookmarks)
+        {
+            var name = string.IsNullOrWhiteSpace(b.Name) ? "(unnamed)" : b.Name;
+            var creator = string.IsNullOrWhiteSpace(b.CreatorInitials) ? "" : $" — {b.CreatorInitials}";
+            AddSystemEntry($"{b.Id}  {b.TimeText}  {name}{creator}");
         }
     }
 

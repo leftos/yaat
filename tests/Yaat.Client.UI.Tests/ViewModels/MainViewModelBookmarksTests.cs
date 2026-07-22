@@ -117,6 +117,102 @@ public class MainViewModelBookmarksTests
     }
 
     [AvaloniaFact]
+    public async Task BmList_PrintsEachBookmarkLocallyWithItsId()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplyBookmarks([Bm("bm-1", 10, null), Bm("bm-2", 20, "Conflict", "JD")]);
+        vm.TerminalEntries.Clear();
+
+        await vm.HandleBookmarkGlobalCommand("LIST");
+
+        Assert.Equal(2, vm.TerminalEntries.Count);
+        Assert.Contains("bm-1", vm.TerminalEntries[0].Message);
+        Assert.Contains("(unnamed)", vm.TerminalEntries[0].Message);
+        Assert.Contains("bm-2", vm.TerminalEntries[1].Message);
+        Assert.Contains("Conflict", vm.TerminalEntries[1].Message);
+        Assert.Contains("JD", vm.TerminalEntries[1].Message);
+    }
+
+    [AvaloniaFact]
+    public async Task BmList_WithNoBookmarks_SaysSo()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.TerminalEntries.Clear();
+
+        await vm.HandleBookmarkGlobalCommand("LIST");
+
+        Assert.Equal("No bookmarks", Assert.Single(vm.TerminalEntries).Message);
+    }
+
+    [AvaloniaFact]
+    public async Task BmGoto_UnknownId_ReportsItWithoutSeeking()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplyBookmarks([Bm("bm-1", 10, null)]);
+
+        await vm.HandleBookmarkGlobalCommand("GO 9");
+
+        Assert.Equal("No bookmark bm-9", vm.StatusText);
+    }
+
+    [AvaloniaFact]
+    public async Task BmMalformed_ReportsTheParseFailure()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+
+        await vm.HandleBookmarkGlobalCommand("DEL xyz");
+
+        Assert.Contains("BM DEL requires a bookmark id or ALL", vm.StatusText);
+    }
+
+    [AvaloniaFact]
+    public async Task BmNext_WithNothingAhead_IsANoOp()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplyBookmarks([Bm("bm-1", 10, null)]);
+        vm.ScenarioElapsedSeconds = 30;
+        vm.StatusText = "unchanged";
+
+        await vm.HandleBookmarkGlobalCommand("NEXT");
+
+        Assert.Equal("unchanged", vm.StatusText);
+    }
+
+    [AvaloniaFact]
+    public void FindNextAndPrev_SkipTheBookmarkUnderTheCursor()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplyBookmarks([Bm("bm-1", 10, null), Bm("bm-2", 20, null), Bm("bm-3", 30, null)]);
+        vm.ScenarioElapsedSeconds = 20;
+
+        // The 0.5s deadband keeps the bookmark we are parked on out of both directions.
+        Assert.Equal("bm-3", vm.FindNextBookmark()?.Id);
+        Assert.Equal("bm-1", vm.FindPrevBookmark()?.Id);
+    }
+
+    [AvaloniaFact]
+    public void FindNextAndPrev_AtTheEnds_ReturnNull()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplyBookmarks([Bm("bm-1", 10, null)]);
+
+        vm.ScenarioElapsedSeconds = 0;
+        Assert.Null(vm.FindPrevBookmark());
+
+        vm.ScenarioElapsedSeconds = 100;
+        Assert.Null(vm.FindNextBookmark());
+    }
+
+    [AvaloniaFact]
+    public void ListLabel_LeadsWithTheId()
+    {
+        var vm = new MainViewModel(new FakeFilePickerService());
+        vm.ApplyBookmarks([Bm("bm-4", 5, "Conflict")]);
+
+        Assert.StartsWith("bm-4", Assert.Single(vm.Bookmarks).ListLabel);
+    }
+
+    [AvaloniaFact]
     public void ItemRenameCommand_RaisesNamePromptWithCurrentName()
     {
         var vm = new MainViewModel(new FakeFilePickerService());

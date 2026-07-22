@@ -30,6 +30,7 @@ public enum CanonicalCommandType
     Wait,
     WaitDistance,
     Timer,
+    Bookmark,
     LineUpAndWait,
     ClearedForTakeoff,
     CancelTakeoffClearance,

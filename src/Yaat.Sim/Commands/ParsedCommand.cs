@@ -543,6 +543,26 @@ public record WaitDistanceCommand(double DistanceNm) : ParsedCommand;
 /// </summary>
 public record TimerCommand(double? Seconds, string? Message, bool IsCancel, int? CancelId, bool CancelAll) : ParsedCommand;
 
+/// <summary>Which timeline-bookmark operation a <see cref="BookmarkCommand"/> carries.</summary>
+public enum BookmarkAction
+{
+    Add,
+    List,
+    Rename,
+    Delete,
+    DeleteAll,
+    Goto,
+    Next,
+    Prev,
+}
+
+/// <summary>
+/// A timeline-bookmark operation typed into the command terminal. Add/Rename carry
+/// <see cref="Name"/> (null means "unnamed"); Rename/Delete/Goto carry a normalized
+/// <see cref="Id"/> (<c>bm-3</c> form). The remaining actions carry neither.
+/// </summary>
+public record BookmarkCommand(BookmarkAction Action, string? Id, string? Name) : ParsedCommand;
+
 public record CompoundCommand(List<ParsedBlock> Blocks)
 {
     /// <summary>

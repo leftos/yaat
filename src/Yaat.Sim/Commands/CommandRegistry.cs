@@ -825,6 +825,23 @@ public static class CommandRegistry
                 ]
             ),
             Cmd(
+                CanonicalCommandType.Bookmark,
+                "Bookmark",
+                "Sim Control",
+                false,
+                ["BM", "BOOKMARK"],
+                [
+                    O(null, [Opt("name", "free text; omit for unnamed")], "Add a timeline bookmark at the current position"),
+                    O("Add", [L("ADD"), Opt("name", "free text, even a reserved word")], "Add a bookmark with a literal name"),
+                    O("List", [L("LIST")], "List every bookmark with its id"),
+                    O("Rename", [L("REN"), R("id", "bookmark id"), Opt("name", "free text; omit to clear")], "Rename a bookmark"),
+                    O("Delete", [L("DEL"), R("id", "bookmark id or ALL")], "Delete a bookmark"),
+                    O("Goto", [L("GO"), R("id", "bookmark id")], "Seek the timeline to a bookmark"),
+                    O("Next", [L("NEXT")], "Seek to the next bookmark"),
+                    O("Prev", [L("PREV")], "Seek to the previous bookmark"),
+                ]
+            ),
+            Cmd(
                 Add,
                 "Add Aircraft",
                 "Sim Control",

@@ -4,6 +4,8 @@
 
 ### Added
 - vTDLS supports operational configurations: pick the active one from the **Ops Config** menu in the footer, or type `TDLSOPS <facility> <config>`, and SIDs plus their defaults follow it.
+- Timeline bookmarks can be managed from the command box with the new **`BM`** verb — place, list, rename, delete, and jump between them.
+- The **Bookmarks ▾** list shows each bookmark's id, so you can name one in a `BM` command.
 
 ### Fixed
 - vTDLS shows SIDs again at facilities that moved them into operational configurations, including SFO, OAK and BOS, where the dropdown was empty.

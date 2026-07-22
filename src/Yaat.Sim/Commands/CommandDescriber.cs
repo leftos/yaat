@@ -160,6 +160,7 @@ public static class CommandDescriber
             WaitCommand => CanonicalCommandType.Wait,
             WaitDistanceCommand => CanonicalCommandType.WaitDistance,
             TimerCommand => CanonicalCommandType.Timer,
+            BookmarkCommand => CanonicalCommandType.Bookmark,
             DeleteQueuedCommand => CanonicalCommandType.DeleteQueuedCommands,
             ShowQueuedCommand => CanonicalCommandType.ShowQueuedCommands,
             ChangeDestinationCommand => CanonicalCommandType.ChangeDestination,
@@ -656,6 +657,7 @@ public static class CommandDescriber
             CancelIfrCommand => "CIFR",
             TaxiAutoCommand cmd => FormatTaxiAutoCanonical(cmd),
             TimerCommand cmd => FormatTimerCanonical(cmd),
+            BookmarkCommand cmd => FormatBookmarkCanonical(cmd),
             // Sim control
             PauseCommand => "PAUSE",
             UnpauseCommand => "UNPAUSE",
@@ -695,6 +697,20 @@ public static class CommandDescriber
 
         return $"GHOST {cmd.Callsign} {cmd.RunwayId}";
     }
+
+    private static string FormatBookmarkCanonical(BookmarkCommand bookmark) =>
+        bookmark.Action switch
+        {
+            BookmarkAction.Add => string.IsNullOrWhiteSpace(bookmark.Name) ? "BM" : $"BM ADD {bookmark.Name}",
+            BookmarkAction.List => "BM LIST",
+            BookmarkAction.Rename => string.IsNullOrWhiteSpace(bookmark.Name) ? $"BM REN {bookmark.Id}" : $"BM REN {bookmark.Id} {bookmark.Name}",
+            BookmarkAction.Delete => $"BM DEL {bookmark.Id}",
+            BookmarkAction.DeleteAll => "BM DEL ALL",
+            BookmarkAction.Goto => $"BM GO {bookmark.Id}",
+            BookmarkAction.Next => "BM NEXT",
+            BookmarkAction.Prev => "BM PREV",
+            _ => throw new InvalidOperationException($"Unhandled BookmarkAction: {bookmark.Action}"),
+        };
 
     private static string FormatTimerCanonical(TimerCommand timer)
     {
@@ -922,6 +938,7 @@ public static class CommandDescriber
             WaitCommand cmd => $"Wait {cmd.Seconds} seconds",
             WaitDistanceCommand cmd => $"Wait {cmd.DistanceNm} nm",
             TimerCommand timer => DescribeTimerNatural(timer),
+            BookmarkCommand bookmark => DescribeBookmarkNatural(bookmark),
             AirTaxiCommand atxi => atxi.Destination is not null ? $"Air taxi to {atxi.Destination}" : "Air taxi",
             LandCommand land => land.IsTaxiway ? $"Land on taxiway {land.SpotName}" : $"Land at {land.SpotName}",
             ClearedTakeoffPresentCommand ctopp => DescribeCtoppNatural(ctopp),
@@ -1145,6 +1162,22 @@ public static class CommandDescriber
         var duration = $"{seconds / 60}:{seconds % 60:D2}";
         return string.IsNullOrWhiteSpace(timer.Message) ? $"Timer {duration}" : $"Timer {duration}: {timer.Message}";
     }
+
+    private static string DescribeBookmarkNatural(BookmarkCommand bookmark) =>
+        bookmark.Action switch
+        {
+            BookmarkAction.Add => string.IsNullOrWhiteSpace(bookmark.Name) ? "Add bookmark" : $"Add bookmark \"{bookmark.Name}\"",
+            BookmarkAction.List => "List bookmarks",
+            BookmarkAction.Rename => string.IsNullOrWhiteSpace(bookmark.Name)
+                ? $"Clear the name of bookmark {bookmark.Id}"
+                : $"Rename bookmark {bookmark.Id} to \"{bookmark.Name}\"",
+            BookmarkAction.Delete => $"Delete bookmark {bookmark.Id}",
+            BookmarkAction.DeleteAll => "Delete all bookmarks",
+            BookmarkAction.Goto => $"Go to bookmark {bookmark.Id}",
+            BookmarkAction.Next => "Go to next bookmark",
+            BookmarkAction.Prev => "Go to previous bookmark",
+            _ => throw new InvalidOperationException($"Unhandled BookmarkAction: {bookmark.Action}"),
+        };
 
     private static string DescribeHalfStripCreateNatural(HalfStripCreateCommand cmd)
     {
