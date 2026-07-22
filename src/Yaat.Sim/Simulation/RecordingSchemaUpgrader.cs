@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Simulation;
@@ -35,6 +36,9 @@ public readonly record struct RecordingUpgradeResult(bool Changed, byte[] Output
 public static class RecordingSchemaUpgrader
 {
     private const string InnerRecordingEntry = "recording.yaat-recording.zip";
+    private const string ActionsEntry = "actions.json.br";
+    private const string ArtccConfigEntry = "artcc-config.json.br";
+    private const string ScenarioEntry = "scenario.json.br";
     private static readonly string[] LegacyInlineEntries =
     [
         "recording.yaat-recording.br",
@@ -65,13 +69,102 @@ public static class RecordingSchemaUpgrader
             return RecordingUpgradeResult.NeedsResim(input);
         }
 
-        if (!MigrateSnapshots(recording.Snapshots!))
+        var changed = MigrateSnapshots(recording.Snapshots!);
+        changed |= QualifyStripBays(
+            recording.Actions,
+            ResolveBays(recording.ArtccConfigJson, recording.StudentPositionState?.Position?.Callsign, recording.ScenarioJson)
+        );
+        if (!changed)
         {
             return RecordingUpgradeResult.Unchanged(input);
         }
 
         var bytes = JsonSerializer.SerializeToUtf8Bytes(recording, RecordingJsonOptions.Default);
         return RecordingUpgradeResult.Migrated(RecordingCompression.Compress(bytes));
+    }
+
+    // --- strip-bay qualification: recorded canonicals predating the required
+    //     FACILITY/BAY bay token are rewritten in place. Idempotent, so no schema
+    //     gate is needed and re-running the upgrade is a no-op. ---
+
+    private static IReadOnlyList<AccessibleBay> ResolveBays(string? artccConfigJson, string? positionCallsign, string? scenarioJson)
+    {
+        if (string.IsNullOrEmpty(artccConfigJson))
+        {
+            return [];
+        }
+
+        var config = JsonSerializer.Deserialize<ArtccConfigRoot>(artccConfigJson, RecordingJsonOptions.Default);
+        if (config is null)
+        {
+            return [];
+        }
+
+        var callsign = positionCallsign ?? ResolveStudentCallsignFromScenario(config, scenarioJson);
+        if (string.IsNullOrEmpty(callsign))
+        {
+            return [];
+        }
+
+        // The display set (own facility + linked external bays) is exactly what the
+        // recorded session could address, so it never invents a facility the
+        // original controller had no access to.
+        return config.GetAllAccessibleStripBays(callsign);
+    }
+
+    /// <summary>
+    /// Fallback student-position lookup for recordings whose snapshots carry a null
+    /// <c>StudentPosition</c> (the server had not resolved one at capture time). The
+    /// scenario JSON always names the position by id, which the ARTCC config resolves
+    /// to the callsign the bay lookup needs.
+    /// </summary>
+    private static string? ResolveStudentCallsignFromScenario(ArtccConfigRoot config, string? scenarioJson)
+    {
+        if (string.IsNullOrEmpty(scenarioJson))
+        {
+            return null;
+        }
+
+        using var doc = JsonDocument.Parse(scenarioJson);
+        if (!doc.RootElement.TryGetProperty("studentPositionId", out var idElement) || idElement.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var positionId = idElement.GetString();
+        if (string.IsNullOrEmpty(positionId))
+        {
+            return null;
+        }
+
+        var (_, _, _, position) = config.FindPosition(positionId);
+        return position?.Callsign;
+    }
+
+    private static bool QualifyStripBays(List<RecordedAction> actions, IReadOnlyList<AccessibleBay> bays)
+    {
+        if (bays.Count == 0)
+        {
+            return false;
+        }
+
+        var changed = false;
+        for (var i = 0; i < actions.Count; i++)
+        {
+            if (actions[i] is not RecordedCommand command)
+            {
+                continue;
+            }
+            var qualified = StripBayCanonicalQualifier.QualifyCompound(command.Command, bays);
+            if (string.Equals(qualified, command.Command, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            actions[i] = command with { Command = qualified };
+            changed = true;
+        }
+
+        return changed;
     }
 
     // --- zip containers ---
@@ -134,6 +227,8 @@ public static class RecordingSchemaUpgrader
         using var source = new MemoryStream(archiveBytes, writable: false);
         using var sourceZip = new ZipArchive(source, ZipArchiveMode.Read);
 
+        var bays = ResolveArchiveBays(sourceZip);
+
         bool changed = false;
         using var output = new MemoryStream();
         using (var destZip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
@@ -146,6 +241,11 @@ public static class RecordingSchemaUpgrader
                     content = MigrateSnapshotEntry(content, out var entryChanged);
                     changed |= entryChanged;
                 }
+                else if (entry.FullName == ActionsEntry)
+                {
+                    content = MigrateActionsEntry(content, bays, out var entryChanged);
+                    changed |= entryChanged;
+                }
 
                 var dest = destZip.CreateEntry(entry.FullName, CompressionLevel.NoCompression);
                 using var ds = dest.Open();
@@ -154,6 +254,53 @@ public static class RecordingSchemaUpgrader
         }
 
         return changed ? (true, output.ToArray()) : (false, archiveBytes);
+    }
+
+    /// <summary>
+    /// The accessible bays of the recorded session's student position, read from the
+    /// archive's own <c>artcc-config.json.br</c> plus the student position in the
+    /// first snapshot's scenario block (the scenario JSON does not carry it — the
+    /// server resolves it at load). Empty when either is absent, which leaves the
+    /// action log untouched.
+    /// </summary>
+    private static IReadOnlyList<AccessibleBay> ResolveArchiveBays(ZipArchive zip)
+    {
+        var configEntry = zip.GetEntry(ArtccConfigEntry);
+        if (configEntry is null)
+        {
+            return [];
+        }
+
+        var snapshotEntry = zip.Entries.Where(e => IsSnapshotEntry(e.FullName)).OrderBy(e => e.FullName, StringComparer.Ordinal).FirstOrDefault();
+        if (snapshotEntry is null)
+        {
+            return [];
+        }
+
+        var snapshotJson = DecompressBrotli(ReadEntryBytes(snapshotEntry));
+        var snapshot = JsonSerializer.Deserialize<StateSnapshotDto>(snapshotJson, RecordingJsonOptions.Default);
+        var positionCallsign = snapshot?.Scenario.StudentPosition?.Callsign;
+        var scenarioEntry = zip.GetEntry(ScenarioEntry);
+        var scenarioJson = scenarioEntry is null ? null : DecompressBrotli(ReadEntryBytes(scenarioEntry));
+
+        return ResolveBays(DecompressBrotli(ReadEntryBytes(configEntry)), positionCallsign, scenarioJson);
+    }
+
+    private static byte[] MigrateActionsEntry(byte[] brotliContent, IReadOnlyList<AccessibleBay> bays, out bool changed)
+    {
+        if (bays.Count == 0)
+        {
+            changed = false;
+            return brotliContent;
+        }
+
+        var json = DecompressBrotli(brotliContent);
+        var actions =
+            JsonSerializer.Deserialize<List<RecordedAction>>(json, RecordingJsonOptions.Default)
+            ?? throw new InvalidOperationException("Failed to deserialize actions entry.");
+
+        changed = QualifyStripBays(actions, bays);
+        return changed ? RecordingCompression.Compress(JsonSerializer.SerializeToUtf8Bytes(actions, RecordingJsonOptions.Default)) : brotliContent;
     }
 
     private static byte[] MigrateSnapshotEntry(byte[] brotliContent, out bool changed)

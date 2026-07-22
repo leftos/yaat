@@ -755,11 +755,13 @@ public record StripDeleteCommand(string? StripId = null) : ParsedCommand;
 // <c>StripId</c>: same id-form support as <see cref="StripDeleteCommand"/>.
 public record StripOffsetCommand(string? StripId = null) : ParsedCommand;
 
-public record HalfStripCreateCommand(string BayName, int? Rack, IReadOnlyList<string> Lines) : ParsedCommand;
+// Bay references are facility-qualified on the wire (FACILITY/BAY[/rack]) because bay
+// names are only unique within a facility — see CommandParser.TryParseBaySpec.
+public record HalfStripCreateCommand(string FacilityId, string BayName, int? Rack, IReadOnlyList<string> Lines) : ParsedCommand;
 
-public record HalfStripAmendCommand(string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
+public record HalfStripAmendCommand(string? FacilityId, string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
 
-public record HalfStripDeleteCommand(string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
+public record HalfStripDeleteCommand(string? FacilityId, string? BayName, int? Rack, IReadOnlyList<string> Tokens) : ParsedCommand;
 
 // HSE: edit a half-strip's full FieldValues array by stripId. Drives the
 // inline 3×2 cell grid so per-cell commits can target a specific strip
@@ -775,9 +777,9 @@ public record HalfStripEditCommand(string StripId, IReadOnlyList<string> Lines) 
 // handler resolves greedily — matching STRIP's pattern.
 public record HalfStripMoveCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 
-public record HalfStripOffsetCommand(string? BayName, int? Rack, string? LookupKey) : ParsedCommand;
+public record HalfStripOffsetCommand(string? FacilityId, string? BayName, int? Rack, string? LookupKey) : ParsedCommand;
 
-public record HalfStripSlideCommand(string? BayName, int? Rack, string? LookupKey) : ParsedCommand;
+public record HalfStripSlideCommand(string? FacilityId, string? BayName, int? Rack, string? LookupKey) : ParsedCommand;
 
 // Separator style: matches StripItemType values HandwrittenSeparator=2, WhiteSeparator=3, RedSeparator=4, GreenSeparator=5.
 public enum SeparatorStyle
@@ -796,10 +798,10 @@ public record SeparatorCreateCommand(SeparatorStyle Style, IReadOnlyList<string>
 // if no label matches and the token is numeric, fall back to rack/index position.
 public record SeparatorDeleteCommand(IReadOnlyList<string> Tokens) : ParsedCommand;
 
-// SEPM <stripId> <bay>/<rack>/<index>: relocate a separator to a new
+// SEPM <stripId> <facility>/<bay>/<rack>/<index>: relocate a separator to a new
 // rack slot without changing its label or style. Identifies by stripId
 // so a drag-drop survives concurrent moves on other clients.
-public record SeparatorMoveCommand(string StripId, string DestBayName, int DestRack, int DestIndex) : ParsedCommand;
+public record SeparatorMoveCommand(string StripId, string DestFacilityId, string DestBayName, int DestRack, int DestIndex) : ParsedCommand;
 
 // SEPE <bay> <rack> <oldLabelOrIndex> <new label...>: atomic label edit. Bay +
 // rack + (label-or-1-based-index) locate the existing separator; remaining

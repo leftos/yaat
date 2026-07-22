@@ -512,11 +512,11 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Annotate strip box | `AN 3 RV` | `ANNOTATE`, `BOX` | Optional id-form: `AN STRIP_<id> 3 RV` targets a specific strip (e.g. a scanned copy) |
-| Push strip to bay | `STRIP Ground/1/1` | — | Slash-compound `bay[/rack[/index]]`, 1-based. Optional id-form: `STRIP STRIP_<id> Ground/1/1` |
-| Scan strip to external bay | `SCAN NCT/1` | — | Copies strip to external bay; original stays put |
+| Push strip to bay | `STRIP OAK/Ground 1/1/1` | — | Slash-compound `facility/bay[/rack[/index]]`, 1-based. Optional id-form: `STRIP STRIP_<id> OAK/Ground 1/1/1` |
+| Scan strip to external bay | `SCAN NCT/NCT/1` | — | Copies strip to external bay; original stays put |
 | Delete strip | `STRIPD` | — | Optional id-form: `STRIPD STRIP_<id>` (required to remove a scanned copy) |
 | Toggle strip offset | `STRIPO` | — | Optional id-form: `STRIPO STRIP_<id>` |
-| Create half-strip | `HSC Ground/1 Hello\World` | `HALFSTRIPCREATE` | — |
+| Create half-strip | `HSC OAK/Ground 1/1 Hello\World` | `HALFSTRIPCREATE` | — |
 | Amend half-strip | `HSA Hello\Updated\Body` | `HALFSTRIPAMEND` | Also accepts `HSA HSTRIP_<id> ...` (UI default — disambiguates duplicate first-line text) |
 | Delete half-strip | `HSD Hello` | `HALFSTRIPDEL` | Also accepts `HSD HSTRIP_<id>` (UI default) |
 | Scratchpad 1 | `SP1 OAK` / `SP1` (clear) | — | Max 3 chars (4 if the facility enables 4-char scratchpads); longer entries are rejected with `FORMAT`. |
@@ -1269,27 +1269,29 @@ Scratchpads support **undo/toggle**: entering the same value again restores the 
 - **Global** (no aircraft selected) — the user types every line of the half-strip.
 - **Aircraft-scoped** (an aircraft is selected) — the callsign is automatically used as line 1 and as the lookup key for amend/delete.
 
-Lines are separated by a literal backslash `\` and capped at 6 lines total. The bay name is matched case- and whitespace-insensitively, so `Ground 1` can be referenced as `Ground1`. An optional rack is appended with `/` as a 1-based integer, e.g. `Ground1/2` targets the second rack of `Ground 1`. Without a rack, the half-strip lands on the first rack. Every vStrips wire format uses this same `bay[/rack[/index]]` slash-compound form — STRIP, HSC, HSM, SEP, SEPE, SEPD, BLANK, and BLANKD are all 1-based on the wire.
+Lines are separated by a literal backslash `\` and capped at 6 lines total.
 
-`HSA` and `HSD` do **not** require a bay name. They search every accessible strip bay for a half-strip whose first line matches the lookup key (case-insensitive). If exactly one half-strip matches, it is amended or deleted; if more than one matches across bays, the command fails and lists the bay/rack pairs so the user can disambiguate by adding the bay explicitly.
+**Every bay reference names its facility.** The wire form is `facility/bay[/rack[/index]]` — `OAK/Ground 1/2` is rack 2 of OAK's "Ground 1" bay. The facility segment is **required**, because bay names are only unique within a facility (SFO, SJC and PAO all own a bay called "Ground") and a strips tab opened for another facility has to be able to address that facility's bays. Bay names are matched case- and whitespace-insensitively, so `OAK/Ground 1` can be typed `OAK/Ground1`. Rack and index are 1-based; without a rack the strip lands on the first one. STRIP, SCAN, HSC, HSM, HSO, HSS, SEP, SEPE, SEPD, SEPM, BLANK, and BLANKD all take this same form.
 
-**Bay vs. key disambiguation rule (HSA / HSD only):** the parser treats the first whitespace-separated token as a bay specifier *if and only if* it contains no `\` AND there is at least one more token after it. Otherwise the entire argument is the body. Examples:
+`HSA` and `HSD` do **not** require a bay. They search every accessible strip bay for a half-strip whose first line matches the lookup key (case-insensitive). If exactly one half-strip matches, it is amended or deleted; if more than one matches across bays, the command fails and lists the bay/rack pairs so the user can disambiguate by adding the bay explicitly.
+
+**Bay vs. key disambiguation rule (HSA / HSD only):** the parser treats the first whitespace-separated token as a bay specifier *if and only if* it contains a `/` and no `\`. Otherwise the entire argument is the body. (A bay spec always carries the `facility/bay` slash, which is what makes this unambiguous.) Examples:
 
 | Input | Bay? | Body |
 |-------|------|------|
 | `HSA key\new1\new2` | — | `key\new1\new2` (auto-search) |
-| `HSA Ground key\new1` | `Ground` | `key\new1` |
-| `HSA Ground/2 key\new1` | `Ground` rack `2` | `key\new1` |
-| `HSA key` | — | `key` (single token) |
+| `HSA OAK/Ground 1 key\new1` | `OAK` / `Ground 1` | `key\new1` |
+| `HSA OAK/Ground 1/2 key\new1` | `OAK` / `Ground 1` rack `2` | `key\new1` |
+| `HSA key` | — | `key` (no `/`, so not a bay) |
 | `HSA HSTRIP_<id> new1\new2` | — | `HSTRIP_<id>\new1\new2` (id-form lookup) |
 
-Because of this rule, a single-token global delete like `HSD Ground` is interpreted as "delete the half-strip with first line `Ground`" (auto-search), not as "delete the aircraft-scoped half-strip in bay `Ground`". Aircraft-scoped delete with no bay is just `HSD`.
+Because of this rule, a single-token global delete like `HSD Ground` is interpreted as "delete the half-strip with first line `Ground`" (auto-search); the bay-scoped form is `HSD OAK/Ground 1 <key>`. Aircraft-scoped delete with no bay is just `HSD`.
 
 **Strip-id form (UI default):** if the first token starts with `HSTRIP_` it is always treated as a strip id (lookup matches by `Id`, not by first-line text), never as a bay name. The strips UI and the CRC → canonical translator always emit this shape so two half-strips with the same first-line text remain individually addressable. Empty half-strips with no first-line text also work: `HSD HSTRIP_<id>`, `HSA HSTRIP_<id> line1\line2`, `HSO HSTRIP_<id>`, `HSS HSTRIP_<id>`. Mirrors the `SEP_<id>` and `BLANK_<id>` id-prefix handling on `SEPD` / `SEPE` / `SEPM` / `BLANKD`. Half-strip and separator ids are 8-char hex (e.g. `HSTRIP_aece26a3`); legacy 32-char GUID ids in older recordings keep working.
 
-**Full-strip id form (UI default for STRIPD / STRIPO / AN / STRIP):** the four full-strip verbs accept an optional leading full-strip id token to address a specific strip. A full-strip id is `STRIP_<id>` (a departure or a scanned copy `STRIP_{callsign}_{shortGuid}` sharing its callsign with the original) or `ARRIVAL_{callsign}` (an arrival strip — the only way to move or delete one, since its id is not a bare callsign). `STRIPD STRIP_<id>` / `STRIPD ARRIVAL_<id>` deletes a specific strip; `STRIPO …` toggles offset; `AN STRIP_<id> 3 RV` annotates; `STRIP STRIP_<id> Local/2/3` moves. Terminal users keep the bare callsign-keyed shorthand. Bare `STRIP {bay}` moves an existing strip only — if no `STRIP_{callsign}` strip exists it errors rather than creating a blank one.
+**Full-strip id form (UI default for STRIPD / STRIPO / AN / STRIP):** the four full-strip verbs accept an optional leading full-strip id token to address a specific strip. A full-strip id is `STRIP_<id>` (a departure or a scanned copy `STRIP_{callsign}_{shortGuid}` sharing its callsign with the original) or `ARRIVAL_{callsign}` (an arrival strip — the only way to move or delete one, since its id is not a bare callsign). `STRIPD STRIP_<id>` / `STRIPD ARRIVAL_<id>` deletes a specific strip; `STRIPO …` toggles offset; `AN STRIP_<id> 3 RV` annotates; `STRIP STRIP_<id> OAK/Local 1/2/3` moves. Terminal users keep the bare callsign-keyed shorthand. Bare `STRIP {facility}/{bay}` moves an existing strip only — if no `STRIP_{callsign}` strip exists it errors rather than creating a blank one.
 
-**`AN` and `STRIPO` require the strip to be in a bay.** Both are rejected while the strip is still in the printer ("…is still in the printer — move it to a bay first"): annotation boxes are edited in a bay and offset slides a strip within a rack, neither of which applies to an unfiled printer strip (matches vStrips, whose printer view only offers *Move to Bay*). Use `STRIP <bay>` to file it first, or `STRIPD` to discard it — both still operate on printer strips.
+**`AN` and `STRIPO` require the strip to be in a bay.** Both are rejected while the strip is still in the printer ("…is still in the printer — move it to a bay first"): annotation boxes are edited in a bay and offset slides a strip within a rack, neither of which applies to an unfiled printer strip (matches vStrips, whose printer view only offers *Move to Bay*). Use `STRIP <facility>/<bay>` to file it first, or `STRIPD` to discard it — both still operate on printer strips.
 
 | `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |
 | `CRUISE 240` / `QZ 240` | Set cruise altitude |

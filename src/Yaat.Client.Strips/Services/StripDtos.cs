@@ -49,7 +49,10 @@ public record FlightStripsStateDto(
     string? ItemMovedOrCreatedBySessionId
 );
 
-public record StripBayConfigDto(string Id, string Name, int NumberOfRacks, bool IsExternal = false);
+// FacilityId is the bay's owning facility — for an IsExternal bay that is a
+// different facility than the window's. Every canonical strip command addresses
+// a bay as FACILITY/BAY, so the UI needs it on every bay it can act against.
+public record StripBayConfigDto(string Id, string Name, int NumberOfRacks, string FacilityId, bool IsExternal = false);
 
 public record FlightStripsConfigDto(
     string FacilityId,

@@ -220,20 +220,61 @@ The fix lives on the bay-resolver side, not the track-owner side.
 Use:
 
 ```csharp
-ArtccConfigService.GetAccessibleStripBay(string artccId, string positionCallsign, string bayName)
+ArtccConfigService.GetAccessibleStripBay(string artccId, string positionCallsign, string facilityId, string bayName)
 ```
 
 This walks the facility tree looking for a facility that contains a
 position whose callsign matches (e.g. "OAK_TWR" lives inside the OAK
-ATCT facility). That facility's `stripBays` plus its linked
-`externalBays` are the bays visible from that position. Matching is
-case- and whitespace-insensitive so commands can refer to `Ground 1`
-as `Ground1`. See `GetAllAccessibleStripBays` for the bare list,
-and `GetStripBay(artccId, facilityId, bayName)` for the legacy
-facility-id lookup used by `HandleStripMoveAsync` for non-tower callers.
+ATCT facility), then resolves `facilityId`/`bayName` against the
+**command-targetable** bay set. Matching is case- and
+whitespace-insensitive so commands can refer to `Ground 1` as `Ground1`,
+but the facility segment is a **hard filter**: `NCT/Ground 1` does not
+fall back to OAK's "Ground 1".
 
-Whitespace-insensitive matching applies to both APIs; the in-facility
-exact match is tried first, then a normalized fallback.
+### Three bay sets, deliberately different
+
+| Resolver | Contents | Used for |
+|---|---|---|
+| `GetAllAccessibleStripBays(position)` | Own facility's bays + bays linked via `externalBays` | The **display** set for the position's own strips window (`BuildFlightStripsConfigDto`) |
+| `GetAllCommandTargetableStripBays(position)` | Every bay of every facility in `GetAccessibleStripFacilities` | The **authorization** set for strip commands |
+| `GetAccessibleStripFacilities(position)` | Own facility + descendants + facilities linked via `externalBays` | Which facilities open as strips tabs |
+
+The command set is the broader one because a strips tab opened for
+another accessible facility must be able to act on **all** of that
+facility's bays, not just the ones the own facility happens to link.
+Without that, an NCT student opening the SFO tab could not move a single
+strip (SFO's "Ground" isn't in NCT's own+linked set), and an OAK student
+opening the NCT tab could act on `NCT` and `NC4` but not `NC1`.
+
+`GetStripBay(artccId, facilityId, bayName)` remains the raw
+single-facility lookup; `FindFirstOwnBayWithNamePrefix` (spawn
+auto-routing) is deliberately own-facility-only.
+
+## Multi-facility strips tabs
+
+`GetAccessibleStripFacilities` decides what **View → Strips → New Strips
+Tab…**, the in-panel facility switcher, and the browser `/vstrips/` app
+offer — they all read the one `GetAccessibleFacilities` hub RPC.
+
+Three sources feed it:
+
+1. The position's own facility (flagged `IsStudentFacility`).
+2. Every **descendant** facility with strip bays — top-down consolidation,
+   a TRACON working its child towers.
+3. Every facility the own facility **links a bay from** via
+   `externalBays`. In ZOA, OAK ATCT links two NCT bays (`NCT`, `NC4`) and
+   two O90 bays for scanning strips outward, so both TRACONs open as their
+   own tabs. One hop only — the linked facility's own external links are
+   not followed.
+
+Opening a linked facility's tab shows **all** of that facility's bays
+(`BuildFlightStripsConfigDtoForFacility`), not just the linked ones: the
+tab is that facility's workspace, and the link is only what makes it
+reachable. Inside the tab those bays render as normal own bays
+(`IsExternal = false`) and are selectable, which is what makes strips
+scanned there readable at all — in the *owning* window an external bay
+stays a push-only drop-zone (`SelectBayAsync` refuses it), because its
+contents live on the other facility's page.
 
 ## Commands
 
@@ -256,6 +297,21 @@ Defined in `src/Yaat.Sim/Commands/`:
 | `SeparatorDelete` | `SEPD` | — | `SeparatorDeleteCommand(BayName, LabelOrPosition)` |
 | `BlankCreate` | `BLANK` | — | `BlankCreateCommand(BayName, Rack, Index)` |
 | `BlankDelete` | `BLANKD` | — | `BlankDeleteCommand(BayName)` |
+
+Every bay reference on the wire is facility-qualified —
+`facility/bay[/rack[/index]]`, e.g. `STRIP OAK/Ground 1/2/1`. The facility
+segment is required (see [`COMMANDS.md`](../COMMANDS.md) §Half-Strips for
+the user-facing rules); `StripMutations.ResolveStripDest` peels it off the
+first token before the greedy multi-word bay match, which is why the peel
+works on the raw string rather than the token list — `O90/BAY Sutro/1/1`
+tokenizes as `["O90/BAY", "Sutro/1/1"]`, so the qualifier and the first
+word of the bay share a token.
+
+Recordings made before the qualifier was required are migrated in place by
+`RecordingSchemaUpgrader` via `StripBayCanonicalQualifier`, which resolves
+each recorded bay name against the recording's own embedded ARTCC config
+and student position. The rewrite is idempotent, so no schema-version gate
+is needed and re-running the upgrade is a no-op.
 
 Strip commands never interact with flight physics. Live and CRC-sourced strip
 commands are classified by `TrackEngine.IsStripCommand`, which is checked in

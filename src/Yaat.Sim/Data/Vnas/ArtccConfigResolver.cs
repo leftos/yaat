@@ -954,12 +954,53 @@ public static class ArtccConfigResolver
     }
 
     /// <summary>
+    /// Every strip bay a command issued from the given position may target: the
+    /// union of all bays owned by every facility in
+    /// <see cref="GetAccessibleStripFacilities"/>, in that same order (own
+    /// facility first, then linked, then descendants). Broader than
+    /// <see cref="GetAllAccessibleStripBays"/>, which is the *display* set for
+    /// the position's own strips window — this is the *authorization* set, so a
+    /// strips tab opened for another accessible facility can act on all of that
+    /// facility's bays, not just the ones the own facility happens to link.
+    /// <see cref="AccessibleBay.IsExternal"/> means "not the position's own
+    /// facility", matching the display set's meaning.
+    /// </summary>
+    public static IReadOnlyList<AccessibleBay> GetAllCommandTargetableStripBays(this ArtccConfigRoot config, string positionCallsign)
+    {
+        var ownFacility = config.FindFacilityForPositionCallsign(positionCallsign);
+        if (ownFacility is null)
+        {
+            return [];
+        }
+
+        var result = new List<AccessibleBay>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var accessible in config.GetAccessibleStripFacilities(positionCallsign))
+        {
+            var facility = config.FindFacility(accessible.FacilityId);
+            if (facility is null)
+            {
+                continue;
+            }
+            foreach (var bay in facility.FlightStripsConfiguration?.StripBays ?? [])
+            {
+                if (seen.Add(bay.Id))
+                {
+                    result.Add(new AccessibleBay(facility, bay, IsExternal: facility.Id != ownFacility.Id));
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Looks up an accessible strip bay by user-typed name (case- and
     /// whitespace-insensitive).
     /// </summary>
-    public static AccessibleBay? GetAccessibleStripBay(this ArtccConfigRoot config, string positionCallsign, string bayName)
+    public static AccessibleBay? GetAccessibleStripBay(this ArtccConfigRoot config, string positionCallsign, string facilityId, string bayName)
     {
-        var bays = config.GetAllAccessibleStripBays(positionCallsign);
+        var bays = config.GetAllCommandTargetableStripBays(positionCallsign);
         if (bays.Count == 0)
         {
             return null;
@@ -967,7 +1008,10 @@ public static class ArtccConfigResolver
 
         foreach (var entry in bays)
         {
-            if (entry.Bay.Name.Equals(bayName, StringComparison.OrdinalIgnoreCase))
+            if (
+                entry.Owner.Id.Equals(facilityId, StringComparison.OrdinalIgnoreCase)
+                && entry.Bay.Name.Equals(bayName, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 return entry;
             }
@@ -976,7 +1020,10 @@ public static class ArtccConfigResolver
         var normalized = StripWhitespace(bayName);
         foreach (var entry in bays)
         {
-            if (StripWhitespace(entry.Bay.Name).Equals(normalized, StringComparison.OrdinalIgnoreCase))
+            if (
+                entry.Owner.Id.Equals(facilityId, StringComparison.OrdinalIgnoreCase)
+                && StripWhitespace(entry.Bay.Name).Equals(normalized, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 return entry;
             }
@@ -1019,11 +1066,14 @@ public static class ArtccConfigResolver
     }
 
     /// <summary>
-    /// Reverse lookup: finds an accessible strip bay by its opaque id (ULID).
+    /// Reverse lookup: finds a strip bay a command from this position may target,
+    /// by its opaque id (ULID). Searches the command-targetable set so a bay in
+    /// another accessible facility resolves — callers need the owning facility to
+    /// build the facility-qualified bay token.
     /// </summary>
     public static AccessibleBay? GetAccessibleStripBayById(this ArtccConfigRoot config, string positionCallsign, string bayId)
     {
-        var bays = config.GetAllAccessibleStripBays(positionCallsign);
+        var bays = config.GetAllCommandTargetableStripBays(positionCallsign);
         foreach (var entry in bays)
         {
             if (entry.Bay.Id == bayId)
@@ -1037,10 +1087,15 @@ public static class ArtccConfigResolver
 
     /// <summary>
     /// Lists every facility the controller at <paramref name="positionCallsign"/>
-    /// can open a strips view for: the position's own facility plus any
-    /// descendant facility with flight-strips configuration.
+    /// can open a strips view for: the position's own facility, any descendant
+    /// facility with flight-strips configuration, and any facility the own
+    /// facility links a bay from (<see cref="FlightStripsConfig.ExternalBays"/>).
+    /// The linked hop is what lets an OAK tower open NorCal's bays — OAK's
+    /// config links NCT bays for scanning, so NCT's strips are viewable rather
+    /// than write-only. One hop only: the linked facility's own external links
+    /// are not followed.
     /// </summary>
-    public static IReadOnlyList<AccessibleFacility> GetAccessibleFacilities(this ArtccConfigRoot config, string positionCallsign)
+    public static IReadOnlyList<AccessibleFacility> GetAccessibleStripFacilities(this ArtccConfigRoot config, string positionCallsign)
     {
         var ownFacility = config.FindFacilityForPositionCallsign(positionCallsign);
         if (ownFacility is null)
@@ -1049,20 +1104,42 @@ public static class ArtccConfigResolver
         }
 
         var result = new List<AccessibleFacility>();
-        CollectStripFacilities(ownFacility, studentFacilityId: ownFacility.Id, result);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        CollectStripFacilities(ownFacility, studentFacilityId: ownFacility.Id, result, seen);
+
+        foreach (var ext in ownFacility.FlightStripsConfiguration?.ExternalBays ?? [])
+        {
+            if (seen.Contains(ext.FacilityId))
+            {
+                continue;
+            }
+            var linked = config.FindFacility(ext.FacilityId);
+            if (linked?.FlightStripsConfiguration is null || linked.FlightStripsConfiguration.StripBays.Count == 0)
+            {
+                continue;
+            }
+            seen.Add(linked.Id);
+            result.Add(new AccessibleFacility(linked.Id, linked.Name, IsStudentFacility: false));
+        }
+
         return result;
     }
 
-    private static void CollectStripFacilities(FacilityConfig facility, string studentFacilityId, List<AccessibleFacility> result)
+    private static void CollectStripFacilities(
+        FacilityConfig facility,
+        string studentFacilityId,
+        List<AccessibleFacility> result,
+        HashSet<string> seen
+    )
     {
-        if (facility.FlightStripsConfiguration is not null && facility.FlightStripsConfiguration.StripBays.Count > 0)
+        if (facility.FlightStripsConfiguration is not null && facility.FlightStripsConfiguration.StripBays.Count > 0 && seen.Add(facility.Id))
         {
             result.Add(new AccessibleFacility(facility.Id, facility.Name, IsStudentFacility: facility.Id == studentFacilityId));
         }
 
         foreach (var child in facility.ChildFacilities)
         {
-            CollectStripFacilities(child, studentFacilityId, result);
+            CollectStripFacilities(child, studentFacilityId, result, seen);
         }
     }
 

@@ -2015,7 +2015,7 @@ public partial class VStripsView : UserControl
         }
         var label = strip.FieldValues.Length > 0 ? strip.FieldValues[0] : null;
         var del = VStripsCanonicalBuilder.BuildSeparatorDeleteById(strip.Id);
-        var create = VStripsCanonicalBuilder.BuildSeparatorCreate(nextStyle, vm.SelectedBay.Name, rack, index, label);
+        var create = VStripsCanonicalBuilder.BuildSeparatorCreate(nextStyle, vm.SelectedBay.FacilityId, vm.SelectedBay.Name, rack, index, label);
         // Use the public dispatch through a create-call bounded by the
         // separator lock check we just did; reuse EditSeparatorLabelAsync's
         // _sendCommand path by going through the canonical builders directly.

@@ -798,7 +798,9 @@ ArtccConfig.cs                 # ARTCC config models (ArtccConfigRoot, FacilityC
 ArtccConfigResolver.cs         # Pure-function resolvers as extension methods on ArtccConfigRoot:
                                # ResolvePosition / ResolveTcpCode / ResolveEramCode / ResolveEramToStarsHandoffCode (Q2B-style ERAM→STARS prefix) / FindPositionByCallsign / FindTcpByCode /
                                # ExpandTcpShorthand / GetCoordinationChannels / GetAllAsdexAirports / GetAllTowerCabAirports /
-                               # GetAllAccessibleStripBays / GetAccessibleFacilities / GetConsolidationItems / GetConsolidationOwner /
+                               # GetAllAccessibleStripBays (display set) / GetAllCommandTargetableStripBays (authorization set) / GetAccessibleStripBay(position, facilityId, bayName) /
+                               # GetAccessibleStripFacilities (own + descendants + externalBays-linked) /
+                               # GetConsolidationItems / GetConsolidationOwner /
                                # GetSidInitialAltitudeFt (departure TDLS initial-altitude cap) / etc.
                                # Server's ArtccConfigService delegates to these; replay applier uses them via TrackResolver.
 ArtccAccessRecords.cs          # AccessibleBay, AccessibleFacility, AsdexAirportInfo, TowerCabAirportInfo records used by the resolvers.
@@ -878,7 +880,9 @@ RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loadi
 TimelineBookmark.cs            # TimelineBookmark + RecordingBookmarks records (the bookmarks.json payload)
 RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated layouts/source GeoJSON + bundled ArtccConfig
 RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, AirportGeoJsonIds, HasArtccConfig, metadata
-RecordingSchemaUpgrader.cs     # Surgical in-place snapshot schema upgrade (via SnapshotSchemaMigrator, never re-sim); handles .br/v4-zip/bug-bundle; drives yaat-server's Yaat.RecordingUpgrader CLI
+RecordingSchemaUpgrader.cs     # Surgical in-place snapshot schema upgrade (via SnapshotSchemaMigrator, never re-sim); handles .br/v4-zip/bug-bundle; drives yaat-server's Yaat.RecordingUpgrader CLI.
+                               # Also rewrites recorded strip canonicals to the required FACILITY/BAY bay token (StripBayCanonicalQualifier), resolving against the recording's own ArtccConfig + student position.
+StripBayCanonicalQualifier.cs  # Idempotent bay-token qualifier for recorded canonicals: adds the owning facility to STRIP/SCAN/HSC/HSM/SEP/SEPM/BLANK/... dest-specs; leaves id-form and bayless verbs alone.
 RecordingJsonOptions.cs        # Shared JsonSerializerOptions for recording serialization
 
 # Simulation/Replay/

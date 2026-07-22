@@ -617,7 +617,9 @@ Strip state is owned by the server and broadcast to every client in the room —
 
 #### Opening the tab
 
-The Strips tab appears next to Aircraft List / Ground View / Radar View as soon as the server tells the client which strip bays the student position can access. There is one **student entry** for the position you connected as, plus optional extra entries for any other facility your position can see (commonly an ATCT and its parent TRACON).
+The Strips tab appears next to Aircraft List / Ground View / Radar View as soon as the server tells the client which strip bays the student position can access. There is one **student entry** for the position you connected as, plus optional extra entries for any other facility your position can see.
+
+A facility is openable when it is your own, a facility below you in the tree (a TRACON working its child towers top-down), **or** a facility your own config links a bay from. That last case is the common one at a tower: KOAK's strips config links NorCal (NCT) and Oakland Bay (O90) bays for scanning strips outward, so both TRACONs can be opened as their own tabs — otherwise a strip you scanned to NorCal would be write-only. A facility's tab shows **all** of its bays, not just the linked ones.
 
 - **View → Strips → New Strips Tab…** opens a picker of accessible facilities and adds a new tab. Useful when you control a tower position and want both the local and TRACON bays visible at once.
 - **View → Strips → Pop Out Strips (X)** detaches the tab into its own window. The student entry can be popped out and re-docked but not closed. Non-student entries also get a **Close Strips (X)** action.
@@ -747,13 +749,15 @@ Every strip mutation is also available as a [command](COMMANDS.md#strip--data-op
 | `STRIP {bay}[/{rack}[/{index}]]` | Push the selected aircraft's full strip to a bay |
 | `STRIPD` / `STRIPO` | Delete / toggle offset on the selected aircraft's strip |
 | `AN {box} [text]` | Write or clear annotation box (1–9 = boxes 10–18) |
-| `HSC {bay}[/{rack}] line\line\…` | Create a half-strip (max 6 lines) |
-| `HSA [bay[/rack]] key\new1\…` | Amend by lookup key (auto-search across bays without bay arg) |
-| `HSD [bay] key` | Delete by lookup key |
+| `HSC {facility}/{bay}[/{rack}] line\line\…` | Create a half-strip (max 6 lines) |
+| `HSA [facility/bay[/rack]] key\new1\…` | Amend by lookup key (auto-search across bays without a bay arg) |
+| `HSD [facility/bay] key` | Delete by lookup key |
 | `HSM` / `HSO` / `HSS` | Move / toggle offset / slide |
-| `SEP H\|W\|R\|G bay[/rack[/index]] [label]` | Create separator |
-| `SEPE bay/rack/index new-label` / `SEPD bay[/rack] label-or-position` | Edit / delete separator |
-| `BLANK [bay[/rack[/index]]]` / `BLANKD bay[/rack]` | Create / delete blank |
+| `SEP H\|W\|R\|G facility/bay[/rack[/index]] [label]` | Create separator |
+| `SEPE facility/bay/rack/index new-label` / `SEPD facility/bay[/rack] label-or-position` | Edit / delete separator |
+| `BLANK [facility/bay[/rack[/index]]]` / `BLANKD facility/bay[/rack]` | Create / delete blank |
+
+**Bay names always carry their facility** — `OAK/Ground 1/2` is rack 2 of Oakland tower's "Ground 1". Bay names are only unique within a facility (SFO, SJC and PAO each own a bay called "Ground"), and with several facilities' tabs open the command has to say which one it means. Names stay case- and space-insensitive, so `OAK/Ground1` works too. Clicking and dragging in the Strips tab always emits the right facility for you; only typed commands need it.
 
 Half-strip verbs run in two modes: with no aircraft selected, every line you type goes on the strip; with an aircraft selected, the callsign becomes line 1 and the lookup key automatically. See the [Half-Strips section in COMMANDS.md](COMMANDS.md#half-strips) for the full disambiguation rules.
 

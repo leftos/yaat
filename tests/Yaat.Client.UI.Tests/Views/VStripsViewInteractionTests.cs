@@ -246,9 +246,9 @@ public class VStripsViewInteractionTests
         // PushAllInRackAsync uses null index (append-to-tail), so the wire
         // drops the trailing /index. Each STRIP dispatch is keyed by the
         // strip id (UI default) so duplicate-callsign edges stay distinct.
-        Assert.Equal("STRIP S1 LOCAL/1", captured[0].Command);
-        Assert.Equal("STRIP S2 LOCAL/1", captured[1].Command);
-        Assert.Equal("STRIP S3 LOCAL/1", captured[2].Command);
+        Assert.Equal("STRIP S1 FAC1/LOCAL/1", captured[0].Command);
+        Assert.Equal("STRIP S2 FAC1/LOCAL/1", captured[1].Command);
+        Assert.Equal("STRIP S3 FAC1/LOCAL/1", captured[2].Command);
         Assert.All(captured, c => Assert.Equal("", c.Callsign));
     }
 
@@ -319,7 +319,7 @@ public class VStripsViewInteractionTests
     [AvaloniaFact]
     public async Task StripContextMenu_ScanToBay_EmitsScanCanonical()
     {
-        // Clicking "Scan to NCT" emits "SCAN NCT/1" — the bay-only short form,
+        // Clicking "Scan to NCT" emits "SCAN NCT/NCT/1" — the bay-only short form,
         // append-to-tail of rack 1 (CRC bottom-up first-available). The
         // dispatched callsign matches the strip's AircraftId (full-strip
         // aircraft-scoped behavior).
@@ -350,7 +350,7 @@ public class VStripsViewInteractionTests
 
         var emitted = Assert.Single(captured);
         Assert.Equal("S1", emitted.Callsign);
-        Assert.Equal("SCAN NCT/1", emitted.Command);
+        Assert.Equal("SCAN NCT/NCT/1", emitted.Command);
     }
 
     [AvaloniaFact]
@@ -490,7 +490,7 @@ public class VStripsViewInteractionTests
             new FlightStripsConfigDto(
                 FacilityId: "FAC1",
                 FacilityName: "Fresno ATCT",
-                Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
+                Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC1"), new StripBayConfigDto("bay-loc", "LOCAL", 2, "FAC1")],
                 SeparatorsLocked: true,
                 UnderlyingAirports: []
             )
@@ -594,7 +594,7 @@ public class VStripsViewInteractionTests
 
         var bay = vm.Bays.Single(b => b.BayId == "bay-gnd");
         await vm.CreateHalfStripAsync(bay, 0, []);
-        Assert.Equal("HSC GROUND/1", captured[^1].Command);
+        Assert.Equal("HSC FAC1/GROUND/1", captured[^1].Command);
 
         // Simulate the server round-trip: incremental item first (creates the
         // VM and marks it for focus), then full-state placement (materializes
@@ -935,7 +935,7 @@ public class VStripsViewInteractionTests
         new(
             FacilityId: "FAC1",
             FacilityName: "Fresno ATCT",
-            Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
+            Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC1"), new StripBayConfigDto("bay-loc", "LOCAL", 2, "FAC1")],
             SeparatorsLocked: false,
             UnderlyingAirports: []
         );
@@ -952,9 +952,9 @@ public class VStripsViewInteractionTests
             FacilityName: "Fresno ATCT",
             Bays:
             [
-                new StripBayConfigDto("bay-gnd", "GROUND", 2),
-                new StripBayConfigDto("bay-loc", "LOCAL", 2),
-                new StripBayConfigDto("bay-ext", "NCT", 5, IsExternal: true),
+                new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC1"),
+                new StripBayConfigDto("bay-loc", "LOCAL", 2, "FAC1"),
+                new StripBayConfigDto("bay-ext", "NCT", 5, "NCT", IsExternal: true),
             ],
             SeparatorsLocked: false,
             UnderlyingAirports: []

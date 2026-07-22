@@ -599,16 +599,16 @@ public static class CommandDescriber
             StripDeleteCommand => "STRIPD",
             StripOffsetCommand => "STRIPO",
             HalfStripCreateCommand cmd => FormatHalfStripCreateCanonical(cmd),
-            HalfStripAmendCommand cmd => FormatHalfStripMutateCanonical("HSA", cmd.BayName, cmd.Rack, cmd.Tokens),
-            HalfStripDeleteCommand cmd => FormatHalfStripMutateCanonical("HSD", cmd.BayName, cmd.Rack, cmd.Tokens),
+            HalfStripAmendCommand cmd => FormatHalfStripMutateCanonical("HSA", cmd.FacilityId, cmd.BayName, cmd.Rack, cmd.Tokens),
+            HalfStripDeleteCommand cmd => FormatHalfStripMutateCanonical("HSD", cmd.FacilityId, cmd.BayName, cmd.Rack, cmd.Tokens),
             HalfStripMoveCommand cmd => FormatTokenizedCanonical("HSM", cmd.Tokens),
-            HalfStripOffsetCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSO", cmd.BayName, cmd.Rack, cmd.LookupKey),
-            HalfStripSlideCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSS", cmd.BayName, cmd.Rack, cmd.LookupKey),
+            HalfStripOffsetCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSO", cmd.FacilityId, cmd.BayName, cmd.Rack, cmd.LookupKey),
+            HalfStripSlideCommand cmd => FormatHalfStripOffsetOrSlideCanonical("HSS", cmd.FacilityId, cmd.BayName, cmd.Rack, cmd.LookupKey),
             HalfStripEditCommand cmd => FormatHalfStripEditCanonical(cmd),
             SeparatorCreateCommand cmd => FormatSeparatorCreateCanonical(cmd),
             SeparatorDeleteCommand cmd => FormatTokenizedCanonical("SEPD", cmd.Tokens),
             SeparatorEditCommand cmd => FormatTokenizedCanonical("SEPE", cmd.Tokens),
-            SeparatorMoveCommand cmd => $"SEPM {cmd.StripId} {cmd.DestBayName}/{cmd.DestRack + 1}/{cmd.DestIndex + 1}",
+            SeparatorMoveCommand cmd => $"SEPM {cmd.StripId} {cmd.DestFacilityId}/{cmd.DestBayName}/{cmd.DestRack + 1}/{cmd.DestIndex + 1}",
             BlankCreateCommand cmd => FormatTokenizedCanonical("BLANK", cmd.Tokens),
             BlankDeleteCommand cmd => FormatTokenizedCanonical("BLANKD", cmd.Tokens),
             TdlsQueueCommand => "TDLSQ",
@@ -770,14 +770,9 @@ public static class CommandDescriber
     /// <summary>Formats a TPA J-Ring radius / Cone length in nm without a trailing ".0" (e.g. 3, 3.5).</summary>
     private static string FormatTpaSize(double? size) => (size ?? 0.0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
-    private static string FormatHalfStripOffsetOrSlideCanonical(string verb, string? bayName, int? rack, string? lookupKey)
+    private static string FormatHalfStripOffsetOrSlideCanonical(string verb, string? facilityId, string? bayName, int? rack, string? lookupKey)
     {
-        string? baySpec = null;
-        if (bayName is not null)
-        {
-            baySpec = rack is int r ? $"{bayName}/{r}" : bayName;
-        }
-
+        var baySpec = FormatBaySpec(facilityId, bayName, rack);
         return (baySpec, lookupKey) switch
         {
             (null, null) => verb,
@@ -804,7 +799,7 @@ public static class CommandDescriber
 
     private static string FormatHalfStripCreateCanonical(HalfStripCreateCommand cmd)
     {
-        var baySpec = cmd.Rack is int r ? $"{cmd.BayName}/{r}" : cmd.BayName;
+        var baySpec = FormatBaySpec(cmd.FacilityId, cmd.BayName, cmd.Rack)!;
         var lines = cmd.Lines ?? [];
         if (lines.Count == 0)
         {
@@ -814,20 +809,29 @@ public static class CommandDescriber
         return $"HSC {baySpec} {string.Join('\\', lines)}";
     }
 
+    /// <summary>
+    /// Renders a bay reference back onto the wire as <c>FACILITY/BAY[/rack]</c>.
+    /// Rack is stored 0-based and emitted 1-based, matching the parser.
+    /// Returns null when the command carried no bay scope.
+    /// </summary>
+    private static string? FormatBaySpec(string? facilityId, string? bayName, int? rack)
+    {
+        if (facilityId is null || bayName is null)
+        {
+            return null;
+        }
+        return rack is int r ? $"{facilityId}/{bayName}/{r + 1}" : $"{facilityId}/{bayName}";
+    }
+
     private static string FormatHalfStripEditCanonical(HalfStripEditCommand cmd)
     {
         var lines = cmd.Lines ?? [];
         return lines.Count == 0 ? $"HSE {cmd.StripId}" : $"HSE {cmd.StripId} {string.Join('\\', lines)}";
     }
 
-    private static string FormatHalfStripMutateCanonical(string verb, string? bayName, int? rack, IReadOnlyList<string>? tokens)
+    private static string FormatHalfStripMutateCanonical(string verb, string? facilityId, string? bayName, int? rack, IReadOnlyList<string>? tokens)
     {
-        string? baySpec = null;
-        if (bayName is not null)
-        {
-            baySpec = rack is int r ? $"{bayName}/{r}" : bayName;
-        }
-
+        var baySpec = FormatBaySpec(facilityId, bayName, rack);
         var body = (tokens is not null && tokens.Count > 0) ? string.Join('\\', tokens) : null;
         return (baySpec, body) switch
         {
@@ -1179,9 +1183,16 @@ public static class CommandDescriber
             _ => throw new InvalidOperationException($"Unhandled BookmarkAction: {bookmark.Action}"),
         };
 
+    /// <summary>
+    /// Human-readable bay location, e.g. "OAK Ground 1 rack 2". Rack is stored
+    /// 0-based and displayed 1-based, matching what the controller typed.
+    /// </summary>
+    private static string DescribeBayLocation(string facilityId, string bayName, int? rack) =>
+        rack is int r ? $"{facilityId} {bayName} rack {r + 1}" : $"{facilityId} {bayName}";
+
     private static string DescribeHalfStripCreateNatural(HalfStripCreateCommand cmd)
     {
-        var location = cmd.Rack is int r ? $"{cmd.BayName} rack {r}" : cmd.BayName;
+        var location = DescribeBayLocation(cmd.FacilityId, cmd.BayName, cmd.Rack);
         var lines = cmd.Lines ?? [];
         if (lines.Count == 0)
         {
@@ -1191,22 +1202,19 @@ public static class CommandDescriber
         return $"Create half-strip in {location}: {lines[0]}";
     }
 
+    private static string DescribeHalfStripBayScope(string? facilityId, string? bayName, int? rack) =>
+        (facilityId is null || bayName is null) ? "" : $" in {DescribeBayLocation(facilityId, bayName, rack)}";
+
     private static string DescribeHalfStripAmendNatural(HalfStripAmendCommand cmd)
     {
-        var scope =
-            cmd.BayName is null ? ""
-            : cmd.Rack is int r ? $" in {cmd.BayName} rack {r}"
-            : $" in {cmd.BayName}";
+        var scope = DescribeHalfStripBayScope(cmd.FacilityId, cmd.BayName, cmd.Rack);
         var tokens = cmd.Tokens ?? [];
         return tokens.Count > 0 ? $"Amend half-strip{scope}: {tokens[0]}" : $"Amend half-strip{scope}";
     }
 
     private static string DescribeHalfStripDeleteNatural(HalfStripDeleteCommand cmd)
     {
-        var scope =
-            cmd.BayName is null ? ""
-            : cmd.Rack is int r ? $" in {cmd.BayName} rack {r}"
-            : $" in {cmd.BayName}";
+        var scope = DescribeHalfStripBayScope(cmd.FacilityId, cmd.BayName, cmd.Rack);
         var tokens = cmd.Tokens ?? [];
         return tokens.Count > 0 ? $"Delete half-strip{scope}: {tokens[0]}" : $"Delete half-strip{scope}";
     }

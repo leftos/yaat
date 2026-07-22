@@ -15,15 +15,22 @@ public partial class StripBayViewModel : ObservableObject
     public string BayId { get; }
     public string Name { get; }
     public int NumberOfRacks { get; }
+
+    /// <summary>
+    /// The bay's owning facility. Every canonical strip command addresses a bay
+    /// as <c>FACILITY/BAY</c>, so this rides on the view-model rather than being
+    /// re-derived from the window's facility (which differs for external bays).
+    /// </summary>
+    public string FacilityId { get; }
+
     public ObservableCollection<StripRackViewModel> Racks { get; } = [];
 
     /// <summary>
     /// True when this bay belongs to a different facility exposed via an
     /// external-bay link. External bays render as header drop-zones (for
-    /// push-by-drag-drop + the right-click Push-to menu) but are not
-    /// viewable — <see cref="VStripsViewModel.SelectBayAsync"/> refuses to
-    /// select them so the main rack area never binds to their (unknown, lives
-    /// on the other facility's window) contents.
+    /// push-by-drag-drop + the right-click Push-to menu) but are not viewable
+    /// here — <see cref="VStripsViewModel.SelectBayAsync"/> refuses to select
+    /// them. Their contents are seen by opening that facility's own strips tab.
     /// </summary>
     public bool IsExternal { get; }
 
@@ -46,6 +53,7 @@ public partial class StripBayViewModel : ObservableObject
         BayId = config.Id;
         Name = config.Name;
         NumberOfRacks = config.NumberOfRacks;
+        FacilityId = config.FacilityId;
         IsExternal = config.IsExternal;
         for (var i = 0; i < NumberOfRacks; i++)
         {

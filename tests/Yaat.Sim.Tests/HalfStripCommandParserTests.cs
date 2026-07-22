@@ -10,8 +10,9 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsc_SingleLine_NoRack()
     {
-        var result = CommandParser.Parse("HSC GROUND line1");
+        var result = CommandParser.Parse("HSC OAK/GROUND line1");
         var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
+        Assert.Equal("OAK", cmd.FacilityId);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Null(cmd.Rack);
         Assert.Equal(["line1"], cmd.Lines);
@@ -21,8 +22,9 @@ public class HalfStripCommandParserTests
     public void Hsc_MultipleLines_WithRack()
     {
         // Wire rack is 1-based; parser converts to 0-based internal index.
-        var result = CommandParser.Parse(@"HSC GROUND/2 a\b\c");
+        var result = CommandParser.Parse(@"HSC OAK/GROUND/2 a\b\c");
         var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
+        Assert.Equal("OAK", cmd.FacilityId);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(1, cmd.Rack);
         Assert.Equal(["a", "b", "c"], cmd.Lines);
@@ -31,7 +33,7 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsc_LinesContainingSpaces_PreservesSpaces()
     {
-        var result = CommandParser.Parse(@"HSC LCL VFR pattern\Touch and go");
+        var result = CommandParser.Parse(@"HSC OAK/LCL VFR pattern\Touch and go");
         var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
         Assert.Equal(["VFR pattern", "Touch and go"], cmd.Lines);
     }
@@ -39,7 +41,7 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsc_TooManyLines_Fails()
     {
-        var result = CommandParser.Parse(@"HSC GROUND a\b\c\d\e\f\g");
+        var result = CommandParser.Parse(@"HSC OAK/GROUND a\b\c\d\e\f\g");
         Assert.Null(result.Value);
         Assert.Contains("at most 6 lines", result.Reason);
     }
@@ -47,7 +49,7 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsc_SixLines_AtCap()
     {
-        var result = CommandParser.Parse(@"HSC GROUND a\b\c\d\e\f");
+        var result = CommandParser.Parse(@"HSC OAK/GROUND a\b\c\d\e\f");
         var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
         Assert.Equal(6, cmd.Lines.Count);
     }
@@ -56,7 +58,7 @@ public class HalfStripCommandParserTests
     public void Hsc_BayOnly_EmptyLines()
     {
         // Aircraft-scoped form: server fills in callsign as line 1.
-        var result = CommandParser.Parse("HSC GROUND");
+        var result = CommandParser.Parse("HSC OAK/GROUND");
         var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Empty(cmd.Lines);
@@ -72,7 +74,7 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsc_NegativeRack_Fails()
     {
-        var result = CommandParser.Parse("HSC GROUND/-1 line1");
+        var result = CommandParser.Parse("HSC OAK/GROUND/-1 line1");
         Assert.Null(result.Value);
         Assert.Contains("invalid rack", result.Reason);
     }
@@ -80,7 +82,7 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsc_HalfstripcreateAlias_Works()
     {
-        var result = CommandParser.Parse("HALFSTRIPCREATE GROUND line1");
+        var result = CommandParser.Parse("HALFSTRIPCREATE OAK/GROUND line1");
         Assert.IsType<HalfStripCreateCommand>(result.Value);
     }
 
@@ -89,7 +91,7 @@ public class HalfStripCommandParserTests
     {
         // "Ground 1/2" → bay "GROUND 1", rack 1 (0-based). The trailing rack
         // suffix on the second token marks the bay-spec boundary.
-        var result = CommandParser.Parse("HSC Ground 1/2");
+        var result = CommandParser.Parse("HSC OAK/Ground 1/2");
         var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
         Assert.Equal("GROUND 1", cmd.BayName);
         Assert.Equal(1, cmd.Rack);
@@ -99,7 +101,7 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsc_MultiWordBayName_WithRack_AndLines()
     {
-        var result = CommandParser.Parse(@"HSC Ground 1/2 a\b\c");
+        var result = CommandParser.Parse(@"HSC OAK/Ground 1/2 a\b\c");
         var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
         Assert.Equal("GROUND 1", cmd.BayName);
         Assert.Equal(1, cmd.Rack);
@@ -111,7 +113,7 @@ public class HalfStripCommandParserTests
     {
         // Without a `/digits` rack-suffix the historical single-token-bay rule
         // still applies — "VFR pattern" stays as line content, not bay name.
-        var result = CommandParser.Parse(@"HSC LCL VFR pattern\Touch and go");
+        var result = CommandParser.Parse(@"HSC OAK/LCL VFR pattern\Touch and go");
         var cmd = Assert.IsType<HalfStripCreateCommand>(result.Value);
         Assert.Equal("LCL", cmd.BayName);
         Assert.Equal(["VFR pattern", "Touch and go"], cmd.Lines);
@@ -141,7 +143,7 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsa_SingleToken_TreatedAsKey_NotBay()
     {
-        // Per disambiguation rule (single whitespace-token, no follow-up → not a bay)
+        // Per disambiguation rule (no '/' in the head → not a bay spec)
         var result = CommandParser.Parse("HSA key");
         var cmd = Assert.IsType<HalfStripAmendCommand>(result.Value);
         Assert.Null(cmd.BayName);
@@ -153,8 +155,9 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsa_ExplicitBay_KeyAndPayload()
     {
-        var result = CommandParser.Parse(@"HSA GROUND key\new1\new2");
+        var result = CommandParser.Parse(@"HSA OAK/GROUND key\new1\new2");
         var cmd = Assert.IsType<HalfStripAmendCommand>(result.Value);
+        Assert.Equal("OAK", cmd.FacilityId);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Null(cmd.Rack);
         Assert.Equal(["key", "new1", "new2"], cmd.Tokens);
@@ -164,7 +167,7 @@ public class HalfStripCommandParserTests
     public void Hsa_ExplicitBayWithRack()
     {
         // Wire rack 2 → 0-based internal rack 1.
-        var result = CommandParser.Parse(@"HSA GROUND/2 key\new1");
+        var result = CommandParser.Parse(@"HSA OAK/GROUND/2 key\new1");
         var cmd = Assert.IsType<HalfStripAmendCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(1, cmd.Rack);
@@ -174,8 +177,8 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsa_ExplicitBay_TwoTokens_NoBackslash()
     {
-        // GROUND has no backslash and there's a follow-up token → GROUND is the bay
-        var result = CommandParser.Parse("HSA GROUND key");
+        // The head carries a '/' and no '\' → it is a facility-qualified bay spec
+        var result = CommandParser.Parse("HSA OAK/GROUND key");
         var cmd = Assert.IsType<HalfStripAmendCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(["key"], cmd.Tokens);
@@ -222,7 +225,7 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsd_ExplicitBay_WithKey()
     {
-        var result = CommandParser.Parse("HSD GROUND key");
+        var result = CommandParser.Parse("HSD OAK/GROUND key");
         var cmd = Assert.IsType<HalfStripDeleteCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(["key"], cmd.Tokens);
@@ -232,7 +235,7 @@ public class HalfStripCommandParserTests
     public void Hsd_ExplicitBayWithRack_WithKey()
     {
         // Wire rack 2 → 0-based internal rack 1.
-        var result = CommandParser.Parse("HSD GROUND/2 key");
+        var result = CommandParser.Parse("HSD OAK/GROUND/2 key");
         var cmd = Assert.IsType<HalfStripDeleteCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(1, cmd.Rack);
@@ -263,9 +266,8 @@ public class HalfStripCommandParserTests
     [Fact]
     public void Hsd_StripIdForm_TreatsAsLookupKey_NotBay()
     {
-        // Two whitespace-separated tokens would normally trigger the
-        // bay-disambiguation rule (first token = bay). The HSTRIP_ prefix
-        // must override that: it's always a strip id, never a bay name.
+        // The HSTRIP_ prefix always wins over the bay-spec peel: a strip id is
+        // never a bay name, even if one ever contained a '/'.
         var result = CommandParser.Parse("HSD HSTRIP_abc123 unused");
         Assert.Null(result.Value);
         Assert.Contains("at most one", result.Reason);

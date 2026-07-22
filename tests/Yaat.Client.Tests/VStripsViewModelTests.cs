@@ -37,7 +37,7 @@ public class VStripsViewModelTests
         new(
             FacilityId: "FAC1",
             FacilityName: "Fresno ATCT",
-            Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2), new StripBayConfigDto("bay-loc", "LOCAL", 2)],
+            Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC1"), new StripBayConfigDto("bay-loc", "LOCAL", 2, "FAC1")],
             SeparatorsLocked: false,
             UnderlyingAirports: []
         );
@@ -267,7 +267,7 @@ public class VStripsViewModelTests
         // (which share a callsign with the original) addressable.
         Assert.Equal("", entry.Callsign);
         // Wire is slash-compound 1-based: rack 1 → "2", index 2 → "3".
-        Assert.Equal("STRIP S1 LOCAL/2/3", entry.Command);
+        Assert.Equal("STRIP S1 FAC1/LOCAL/2/3", entry.Command);
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public class VStripsViewModelTests
 
         var entry = Assert.Single(captured);
         Assert.Equal("", entry.Callsign);
-        Assert.Equal("STRIP STRIP_UAL100 GROUND/1", entry.Command);
+        Assert.Equal("STRIP STRIP_UAL100 FAC1/GROUND/1", entry.Command);
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public class VStripsViewModelTests
 
         var entry = Assert.Single(captured);
         Assert.Equal("", entry.Callsign);
-        Assert.Equal("STRIP ARRIVAL_DAL200 GROUND/1", entry.Command);
+        Assert.Equal("STRIP ARRIVAL_DAL200 FAC1/GROUND/1", entry.Command);
     }
 
     [Fact]
@@ -397,7 +397,7 @@ public class VStripsViewModelTests
         await vm.MoveStripAsync(vm.ItemsByIdForTests["S2"], vm.Bays.Single(b => b.BayId == "bay-gnd"), rack: 0, index: 2);
 
         var entry = Assert.Single(captured);
-        Assert.Equal("STRIP S2 GROUND/1/3", entry.Command);
+        Assert.Equal("STRIP S2 FAC1/GROUND/1/3", entry.Command);
     }
 
     [Fact]
@@ -454,7 +454,7 @@ public class VStripsViewModelTests
 
         var entry = Assert.Single(captured);
         // Wire drops the trailing /index token; UI prefixes the strip id.
-        Assert.Equal("STRIP S1 GROUND/1", entry.Command);
+        Assert.Equal("STRIP S1 FAC1/GROUND/1", entry.Command);
     }
 
     [Fact]
@@ -471,7 +471,7 @@ public class VStripsViewModelTests
         // HSM addresses the half-strip by id (not first-line text) so two
         // half-strips with duplicate first-line cells stay distinguishable.
         // 1-based wire: rack 0 → "1", index 0 → "1".
-        Assert.Equal("HSM H1 LOCAL/1/1", entry.Command);
+        Assert.Equal("HSM H1 FAC1/LOCAL/1/1", entry.Command);
     }
 
     [Fact]
@@ -558,9 +558,9 @@ public class VStripsViewModelTests
             FacilityName: "OAK ATCT",
             Bays:
             [
-                new StripBayConfigDto("bay-gnd", "GROUND", 2, IsExternal: false),
-                new StripBayConfigDto("bay-loc", "LOCAL", 2, IsExternal: false),
-                new StripBayConfigDto("bay-nct", "NCT", 3, IsExternal: true),
+                new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC_OWN", IsExternal: false),
+                new StripBayConfigDto("bay-loc", "LOCAL", 2, "FAC_OWN", IsExternal: false),
+                new StripBayConfigDto("bay-nct", "NCT", 3, "NCT", IsExternal: true),
             ],
             SeparatorsLocked: false,
             UnderlyingAirports: []
@@ -630,7 +630,7 @@ public class VStripsViewModelTests
             new FlightStripsConfigDto(
                 FacilityId: "FAC_OWN",
                 FacilityName: "None",
-                Bays: [new StripBayConfigDto("bay-ext", "EXT", 1, IsExternal: true)],
+                Bays: [new StripBayConfigDto("bay-ext", "EXT", 1, "FAC_EXT", IsExternal: true)],
                 SeparatorsLocked: false,
                 UnderlyingAirports: []
             )
@@ -709,7 +709,7 @@ public class VStripsViewModelTests
         new(
             FacilityId: "FAC1",
             FacilityName: facilityName,
-            Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2)],
+            Bays: [new StripBayConfigDto("bay-gnd", "GROUND", 2, "FAC1")],
             SeparatorsLocked: false,
             UnderlyingAirports: airports
         );

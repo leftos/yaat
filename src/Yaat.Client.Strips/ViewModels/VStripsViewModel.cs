@@ -867,19 +867,21 @@ public partial class VStripsViewModel : ObservableObject
         {
             StripItemType.DepartureStrip or StripItemType.ArrivalStrip => VStripsCanonicalBuilder.BuildStripMoveById(
                 strip.Id,
+                destBay.FacilityId,
                 destBay.Name,
                 rack,
                 index
             ),
             StripItemType.HalfStripLeft or StripItemType.HalfStripRight => VStripsCanonicalBuilder.BuildHalfStripMove(
                 strip.Id,
+                destBay.FacilityId,
                 destBay.Name,
                 rack,
                 indexOrZero
             ),
             StripItemType.HandwrittenSeparator or StripItemType.WhiteSeparator or StripItemType.RedSeparator or StripItemType.GreenSeparator =>
-                VStripsCanonicalBuilder.BuildSeparatorMove(strip.Id, destBay.Name, rack, indexOrZero),
-            StripItemType.BlankStrip => VStripsCanonicalBuilder.BuildBlankCreate(destBay.Name, rack, indexOrZero),
+                VStripsCanonicalBuilder.BuildSeparatorMove(strip.Id, destBay.FacilityId, destBay.Name, rack, indexOrZero),
+            StripItemType.BlankStrip => VStripsCanonicalBuilder.BuildBlankCreate(destBay.FacilityId, destBay.Name, rack, indexOrZero),
             _ => null,
         };
 
@@ -931,7 +933,7 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
 
-        var canonical = VStripsCanonicalBuilder.BuildStripScan(destBay.Name, rack, index);
+        var canonical = VStripsCanonicalBuilder.BuildStripScan(destBay.FacilityId, destBay.Name, rack, index);
         var callsign = strip.AircraftId ?? "";
         await _sendCommand(callsign, canonical, _getUserInitials?.Invoke() ?? "");
     }
@@ -1063,7 +1065,7 @@ public partial class VStripsViewModel : ObservableObject
         // which runs on the dispatcher before this await resumes, so a flag set afterward
         // would be missed by that reconcile.
         _pendingFocusOnNewHalfStrip = true;
-        var canonical = VStripsCanonicalBuilder.BuildHalfStripCreate(bay.Name, rack, lines);
+        var canonical = VStripsCanonicalBuilder.BuildHalfStripCreate(bay.FacilityId, bay.Name, rack, lines);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
@@ -1074,14 +1076,14 @@ public partial class VStripsViewModel : ObservableObject
             return;
         }
         _pendingFocusOnNewSeparator = true;
-        var canonical = VStripsCanonicalBuilder.BuildSeparatorCreate(style, bay.Name, rack, index, label);
+        var canonical = VStripsCanonicalBuilder.BuildSeparatorCreate(style, bay.FacilityId, bay.Name, rack, index, label);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 
     public async Task CreateBlankAsync(StripBayViewModel? bay, int? rack, int? index)
     {
         _pendingFocusOnNewBlankField = true;
-        var canonical = VStripsCanonicalBuilder.BuildBlankCreate(bay?.Name, rack, index);
+        var canonical = VStripsCanonicalBuilder.BuildBlankCreate(bay?.FacilityId, bay?.Name, rack, index);
         await _sendCommand("", canonical, _getUserInitials?.Invoke() ?? "");
     }
 

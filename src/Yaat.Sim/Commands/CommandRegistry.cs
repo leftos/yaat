@@ -1104,9 +1104,9 @@ public static class CommandRegistry
                 false,
                 ["STRIP"],
                 [
-                    O(null, [R("dest", "bay")], "Move flight strip to top of bay's first rack"),
-                    O(null, [R("dest", "bay/rack")], "Move flight strip to first-available slot in rack"),
-                    O(null, [R("dest", "bay/rack/index")], "Move flight strip to specific 1-based position"),
+                    O(null, [R("dest", "facility/bay")], "Move flight strip to top of bay's first rack"),
+                    O(null, [R("dest", "facility/bay/rack")], "Move flight strip to first-available slot in rack"),
+                    O(null, [R("dest", "facility/bay/rack/index")], "Move flight strip to specific 1-based position"),
                 ]
             ),
             Cmd(
@@ -1116,9 +1116,9 @@ public static class CommandRegistry
                 false,
                 ["SCAN"],
                 [
-                    O(null, [R("dest", "external-bay")], "Copy flight strip to external bay's first rack (originator keeps its strip)"),
-                    O(null, [R("dest", "external-bay/rack")], "Copy flight strip to first-available slot in external-bay's rack"),
-                    O(null, [R("dest", "external-bay/rack/index")], "Copy flight strip to specific 1-based position in external bay"),
+                    O(null, [R("dest", "facility/external-bay")], "Copy flight strip to external bay's first rack (originator keeps its strip)"),
+                    O(null, [R("dest", "facility/external-bay/rack")], "Copy flight strip to first-available slot in external-bay's rack"),
+                    O(null, [R("dest", "facility/external-bay/rack/index")], "Copy flight strip to specific 1-based position in external bay"),
                 ]
             ),
             Cmd(StripDelete, "Delete Flight Strip", "Strip Operations", false, ["STRIPD"], [O(null, [], "Delete the aircraft's flight strip")]),
@@ -1137,15 +1137,15 @@ public static class CommandRegistry
                 false,
                 ["HSM", "HALFSTRIPMOVE"],
                 [
-                    O("Aircraft-scoped", [R("dest", "dest-bay[/rack[/index]]")], "Move half-strip matching callsign to destination"),
+                    O("Aircraft-scoped", [R("dest", "facility/dest-bay[/rack[/index]]")], "Move half-strip matching callsign to destination"),
                     O(
                         "Global key",
-                        [R("key", "first line of half-strip"), R("dest", "dest-bay[/rack[/index]]")],
+                        [R("key", "first line of half-strip"), R("dest", "facility/dest-bay[/rack[/index]]")],
                         "Move half-strip by key to destination"
                     ),
                     O(
                         "Explicit source",
-                        [R("src", "src-bay[/rack]"), R("key", "first line"), R("dest", "dest-bay[/rack[/index]]")],
+                        [R("src", "facility/src-bay[/rack]"), R("key", "first line"), R("dest", "facility/dest-bay[/rack[/index]]")],
                         "Move with source bay disambiguation"
                     ),
                 ]
@@ -1159,7 +1159,7 @@ public static class CommandRegistry
                 [
                     O("Aircraft-scoped", [], "Toggle offset on half-strip whose first line is the callsign"),
                     O("Global", [R("key", "first line of half-strip")], "Toggle offset on half-strip by key"),
-                    O("Explicit bay", [R("bay", "bay[/rack]"), R("key", "first line")], "Toggle with bay disambiguation"),
+                    O("Explicit bay", [R("bay", "facility/bay[/rack]"), R("key", "first line")], "Toggle with bay disambiguation"),
                 ]
             ),
             Cmd(
@@ -1171,7 +1171,7 @@ public static class CommandRegistry
                 [
                     O("Aircraft-scoped", [], "Slide half-strip whose first line is the callsign (toggles left/right)"),
                     O("Global", [R("key", "first line of half-strip")], "Slide half-strip by key"),
-                    O("Explicit bay", [R("bay", "bay[/rack]"), R("key", "first line")], "Slide with bay disambiguation"),
+                    O("Explicit bay", [R("bay", "facility/bay[/rack]"), R("key", "first line")], "Slide with bay disambiguation"),
                 ]
             ),
             Cmd(
@@ -1181,11 +1181,11 @@ public static class CommandRegistry
                 false,
                 ["SEP", "SEPARATOR"],
                 [
-                    O(null, [R("style", "H|W|R|G"), R("dest", "bay")], "Create separator at bay's first rack, top"),
-                    O(null, [R("style", "H|W|R|G"), R("dest", "bay/rack")], "Create separator at top of rack"),
+                    O(null, [R("style", "H|W|R|G"), R("dest", "facility/bay")], "Create separator at bay's first rack, top"),
+                    O(null, [R("style", "H|W|R|G"), R("dest", "facility/bay/rack")], "Create separator at top of rack"),
                     O(
                         null,
-                        [R("style", "H|W|R|G"), R("dest", "bay/rack/index"), R("label", "optional label")],
+                        [R("style", "H|W|R|G"), R("dest", "facility/bay/rack/index"), R("label", "optional label")],
                         "Create separator at 1-based slot with optional label"
                     ),
                 ]
@@ -1197,8 +1197,8 @@ public static class CommandRegistry
                 false,
                 ["SEPD", "SEPARATORDEL"],
                 [
-                    O("By label", [R("dest", "bay/rack"), R("label", "separator label")], "Delete separator by label (preferred)"),
-                    O("By position", [R("dest", "bay/rack"), R("index", "1-based slot")], "Delete separator at position (fallback)"),
+                    O("By label", [R("dest", "facility/bay/rack"), R("label", "separator label")], "Delete separator by label (preferred)"),
+                    O("By position", [R("dest", "facility/bay/rack"), R("index", "1-based slot")], "Delete separator at position (fallback)"),
                 ]
             ),
             Cmd(
@@ -1208,7 +1208,11 @@ public static class CommandRegistry
                 false,
                 ["SEPE"],
                 [
-                    O("By position", [R("dest", "bay/rack/index"), R("label", "new label text")], "Atomic separator label edit at the given slot"),
+                    O(
+                        "By position",
+                        [R("dest", "facility/bay/rack/index"), R("label", "new label text")],
+                        "Atomic separator label edit at the given slot"
+                    ),
                     O(
                         "By id",
                         [R("stripId", "separator id"), R("label", "new label text")],
@@ -1225,7 +1229,7 @@ public static class CommandRegistry
                 [
                     O(
                         null,
-                        [R("stripId", "separator id"), R("dest", "bay/rack/index")],
+                        [R("stripId", "separator id"), R("dest", "facility/bay/rack/index")],
                         "Relocate a separator to a new rack slot (preserves label and style)"
                     ),
                 ]
@@ -1291,9 +1295,9 @@ public static class CommandRegistry
                 ["BLANK", "BLANKSTRIP"],
                 [
                     O(null, [], "Create blank in the printer queue"),
-                    O(null, [R("dest", "bay")], "Create blank at bay's first rack, top"),
-                    O(null, [R("dest", "bay/rack")], "Create blank at top of rack"),
-                    O(null, [R("dest", "bay/rack/index")], "Create blank at 1-based slot"),
+                    O(null, [R("dest", "facility/bay")], "Create blank at bay's first rack, top"),
+                    O(null, [R("dest", "facility/bay/rack")], "Create blank at top of rack"),
+                    O(null, [R("dest", "facility/bay/rack/index")], "Create blank at 1-based slot"),
                 ]
             ),
             Cmd(
@@ -1303,8 +1307,8 @@ public static class CommandRegistry
                 false,
                 ["BLANKD", "BLANKSTRIPDEL"],
                 [
-                    O(null, [R("dest", "bay")], "Delete any one blank from the bay (blanks are fungible)"),
-                    O(null, [R("dest", "bay/rack")], "Delete any one blank from the specific rack"),
+                    O(null, [R("dest", "facility/bay")], "Delete any one blank from the bay (blanks are fungible)"),
+                    O(null, [R("dest", "facility/bay/rack")], "Delete any one blank from the specific rack"),
                 ]
             ),
             Cmd(
@@ -1316,7 +1320,7 @@ public static class CommandRegistry
                 [
                     O(
                         null,
-                        [R("bay", "bay[/rack]"), R("lines", @"line1\line2\... (up to 6)")],
+                        [R("bay", "facility/bay[/rack]"), R("lines", @"line1\line2\... (up to 6)")],
                         "Create half-strip in bay (callsign becomes line 1 if aircraft selected)"
                     ),
                 ]
@@ -1329,7 +1333,7 @@ public static class CommandRegistry
                 ["HSA", "HALFSTRIPAMEND"],
                 [
                     O("Auto-search", [R("body", @"key\new1\new2\...")], "Amend half-strip by first-line key (auto-search across bays)"),
-                    O("Explicit bay", [R("bay", "bay[/rack]"), R("body", @"key\new1\new2\...")], "Amend with explicit bay disambiguation"),
+                    O("Explicit bay", [R("bay", "facility/bay[/rack]"), R("body", @"key\new1\new2\...")], "Amend with explicit bay disambiguation"),
                     O("Aircraft-scoped", [], "With aircraft selected: lookup by callsign, replace lines 2-6"),
                 ]
             ),
@@ -1341,7 +1345,11 @@ public static class CommandRegistry
                 ["HSD", "HALFSTRIPDEL"],
                 [
                     O("Auto-search", [R("key", "first line of half-strip")], "Delete half-strip by first-line key (auto-search across bays)"),
-                    O("Explicit bay", [R("bay", "bay[/rack]"), R("key", "first line of half-strip")], "Delete with explicit bay disambiguation"),
+                    O(
+                        "Explicit bay",
+                        [R("bay", "facility/bay[/rack]"), R("key", "first line of half-strip")],
+                        "Delete with explicit bay disambiguation"
+                    ),
                     O("Aircraft-scoped", [], "With aircraft selected: delete half-strip whose first line is the callsign"),
                 ]
             ),

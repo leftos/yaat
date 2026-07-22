@@ -15,8 +15,8 @@ public class VStripsCanonicalBuilderTests
     public void BuildStripMove_FormatsPositionArgs_OneBasedSlashWire()
     {
         // 0-based rack/index on the inside, emitted as 1-based slash-compound on the wire.
-        Assert.Equal("STRIP Ground/1/1", VStripsCanonicalBuilder.BuildStripMove("Ground", 0, 0));
-        Assert.Equal("STRIP Local/2/4", VStripsCanonicalBuilder.BuildStripMove("Local", 1, 3));
+        Assert.Equal("STRIP OAK/Ground/1/1", VStripsCanonicalBuilder.BuildStripMove("OAK", "Ground", 0, 0));
+        Assert.Equal("STRIP OAK/Local/2/4", VStripsCanonicalBuilder.BuildStripMove("OAK", "Local", 1, 3));
     }
 
     [Fact]
@@ -25,8 +25,8 @@ public class VStripsCanonicalBuilderTests
         // Null index = "append to tail of rack" per CRC bottom-up FIFO; the
         // wire drops the trailing slash+index so the server sees the shorter
         // bay/rack dest-spec and treats it as an append target.
-        Assert.Equal("STRIP Ground/1", VStripsCanonicalBuilder.BuildStripMove("Ground", 0, null));
-        Assert.Equal("STRIP Local/2", VStripsCanonicalBuilder.BuildStripMove("Local", 1, null));
+        Assert.Equal("STRIP OAK/Ground/1", VStripsCanonicalBuilder.BuildStripMove("OAK", "Ground", 0, null));
+        Assert.Equal("STRIP OAK/Local/2", VStripsCanonicalBuilder.BuildStripMove("OAK", "Local", 1, null));
     }
 
     [Fact]
@@ -54,8 +54,8 @@ public class VStripsCanonicalBuilderTests
     [Fact]
     public void BuildStripMoveById_PrefixesIdBeforeDestSpec()
     {
-        Assert.Equal("STRIP STRIP_UAL100 Local/2/3", VStripsCanonicalBuilder.BuildStripMoveById("STRIP_UAL100", "Local", 1, 2));
-        Assert.Equal("STRIP STRIP_UAL100 Local/1", VStripsCanonicalBuilder.BuildStripMoveById("STRIP_UAL100", "Local", 0, null));
+        Assert.Equal("STRIP STRIP_UAL100 OAK/Local/2/3", VStripsCanonicalBuilder.BuildStripMoveById("STRIP_UAL100", "OAK", "Local", 1, 2));
+        Assert.Equal("STRIP STRIP_UAL100 OAK/Local/1", VStripsCanonicalBuilder.BuildStripMoveById("STRIP_UAL100", "OAK", "Local", 0, null));
     }
 
     [Fact]
@@ -71,8 +71,8 @@ public class VStripsCanonicalBuilderTests
     {
         // SCAN copies a full strip into an external facility's bay; format
         // mirrors STRIP's slash-compound dest-spec, 1-based on the wire.
-        Assert.Equal("SCAN NCT/1/1", VStripsCanonicalBuilder.BuildStripScan("NCT", 0, 0));
-        Assert.Equal("SCAN TRACON-Coord/2/4", VStripsCanonicalBuilder.BuildStripScan("TRACON-Coord", 1, 3));
+        Assert.Equal("SCAN NCT/NCT/1/1", VStripsCanonicalBuilder.BuildStripScan("NCT", "NCT", 0, 0));
+        Assert.Equal("SCAN NCT/TRACON-Coord/2/4", VStripsCanonicalBuilder.BuildStripScan("NCT", "TRACON-Coord", 1, 3));
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public class VStripsCanonicalBuilderTests
     {
         // Append-to-tail uses the bay/rack short form so the server reads
         // it as "first-available bottom slot" — same shorthand as STRIP.
-        Assert.Equal("SCAN NCT/1", VStripsCanonicalBuilder.BuildStripScan("NCT", 0, null));
-        Assert.Equal("SCAN TRACON-Coord/2", VStripsCanonicalBuilder.BuildStripScan("TRACON-Coord", 1, null));
+        Assert.Equal("SCAN NCT/NCT/1", VStripsCanonicalBuilder.BuildStripScan("NCT", "NCT", 0, null));
+        Assert.Equal("SCAN NCT/TRACON-Coord/2", VStripsCanonicalBuilder.BuildStripScan("NCT", "TRACON-Coord", 1, null));
     }
 
     [Fact]
@@ -118,14 +118,14 @@ public class VStripsCanonicalBuilderTests
     public void BuildHalfStripCreate_WithLines_UsesBackslashSeparator()
     {
         // 0-based rack 1 → wire rack 2 (1-based).
-        Assert.Equal("HSC Ground/2 NORDO\\KOAK\\28L", VStripsCanonicalBuilder.BuildHalfStripCreate("Ground", 1, ["NORDO", "KOAK", "28L"]));
+        Assert.Equal("HSC OAK/Ground/2 NORDO\\KOAK\\28L", VStripsCanonicalBuilder.BuildHalfStripCreate("OAK", "Ground", 1, ["NORDO", "KOAK", "28L"]));
     }
 
     [Fact]
     public void BuildHalfStripCreate_NoLines_OmitsPayload()
     {
         // 0-based rack 0 → wire rack 1.
-        Assert.Equal("HSC Local/1", VStripsCanonicalBuilder.BuildHalfStripCreate("Local", 0, []));
+        Assert.Equal("HSC OAK/Local/1", VStripsCanonicalBuilder.BuildHalfStripCreate("OAK", "Local", 0, []));
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class VStripsCanonicalBuilderTests
     public void BuildHalfStripMove_UsesStripIdAndSlashDest()
     {
         // 0-based rack 1 / index 2 → wire rack 2 / index 3.
-        Assert.Equal("HSM HSTRIP_abc123 Local/2/3", VStripsCanonicalBuilder.BuildHalfStripMove("HSTRIP_abc123", "Local", 1, 2));
+        Assert.Equal("HSM HSTRIP_abc123 OAK/Local/2/3", VStripsCanonicalBuilder.BuildHalfStripMove("HSTRIP_abc123", "OAK", "Local", 1, 2));
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class VStripsCanonicalBuilderTests
         // CRC bay names contain literal spaces ("Local 1"). The canonical must
         // round-trip through whitespace tokenization on the server (handler
         // resolves multi-word bays via StripMutations.ResolveStripDest).
-        Assert.Equal("HSM HSTRIP_abc123 Local 1/1/2", VStripsCanonicalBuilder.BuildHalfStripMove("HSTRIP_abc123", "Local 1", 0, 1));
+        Assert.Equal("HSM HSTRIP_abc123 OAK/Local 1/1/2", VStripsCanonicalBuilder.BuildHalfStripMove("HSTRIP_abc123", "OAK", "Local 1", 0, 1));
     }
 
     [Fact]
@@ -168,14 +168,14 @@ public class VStripsCanonicalBuilderTests
     public void BuildSeparatorCreate_MapsStyleToChar_SlashCompoundWire(SeparatorStyle style, char styleChar)
     {
         // 0-based rack 0 / index 3 → wire rack 1 / index 4, slash-compound.
-        Assert.Equal($"SEP {styleChar} Ground/1/4 HOLD", VStripsCanonicalBuilder.BuildSeparatorCreate(style, "Ground", 0, 3, "HOLD"));
+        Assert.Equal($"SEP {styleChar} OAK/Ground/1/4 HOLD", VStripsCanonicalBuilder.BuildSeparatorCreate(style, "OAK", "Ground", 0, 3, "HOLD"));
     }
 
     [Fact]
     public void BuildSeparatorCreate_NoLabel_OmitsTail()
     {
-        Assert.Equal("SEP W Local/2/1", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.White, "Local", 1, 0, null));
-        Assert.Equal("SEP W Local/2/1", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.White, "Local", 1, 0, "   "));
+        Assert.Equal("SEP W OAK/Local/2/1", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.White, "OAK", "Local", 1, 0, null));
+        Assert.Equal("SEP W OAK/Local/2/1", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.White, "OAK", "Local", 1, 0, "   "));
     }
 
     [Fact]
@@ -183,8 +183,8 @@ public class VStripsCanonicalBuilderTests
     {
         // Null index → wire omits /index so the server appends at the rack
         // tail (visual top). Used by the empty-rack add-menu.
-        Assert.Equal("SEP H Ground/1", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.Handwritten, "Ground", 0, null, null));
-        Assert.Equal("SEP W Local/2 HOLD", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.White, "Local", 1, null, "HOLD"));
+        Assert.Equal("SEP H OAK/Ground/1", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.Handwritten, "OAK", "Ground", 0, null, null));
+        Assert.Equal("SEP W OAK/Local/2 HOLD", VStripsCanonicalBuilder.BuildSeparatorCreate(SeparatorStyle.White, "OAK", "Local", 1, null, "HOLD"));
     }
 
     [Fact]
@@ -192,51 +192,51 @@ public class VStripsCanonicalBuilderTests
     {
         // When a label is supplied, the index argument is ignored; bay/rack is
         // slash-compound with 1-based rack.
-        Assert.Equal("SEPD Ground/3 HOLD", VStripsCanonicalBuilder.BuildSeparatorDelete("Ground", 2, "HOLD", 5));
+        Assert.Equal("SEPD OAK/Ground/3 HOLD", VStripsCanonicalBuilder.BuildSeparatorDelete("OAK", "Ground", 2, "HOLD", 5));
     }
 
     [Fact]
     public void BuildSeparatorDelete_NoLabel_UsesIndex_SlashCompoundWire()
     {
         // 0-based rack 1 / index 3 → wire rack 2 (slash-compound) + index 4.
-        Assert.Equal("SEPD Local/2 4", VStripsCanonicalBuilder.BuildSeparatorDelete("Local", 1, null, 3));
-        Assert.Equal("SEPD Local/2 1", VStripsCanonicalBuilder.BuildSeparatorDelete("Local", 1, "", null));
+        Assert.Equal("SEPD OAK/Local/2 4", VStripsCanonicalBuilder.BuildSeparatorDelete("OAK", "Local", 1, null, 3));
+        Assert.Equal("SEPD OAK/Local/2 1", VStripsCanonicalBuilder.BuildSeparatorDelete("OAK", "Local", 1, "", null));
     }
 
     [Fact]
     public void BuildSeparatorEdit_EmitsAtomicSepeSlashCompoundWire()
     {
         // Atomic SEPE: dest-spec is slash-compound, newLabel is remaining tokens.
-        Assert.Equal("SEPE Ground/2/3 LONG LINE", VStripsCanonicalBuilder.BuildSeparatorEdit("Ground", 1, 2, "LONG LINE"));
-        Assert.Equal("SEPE Local/1/1 HOLD", VStripsCanonicalBuilder.BuildSeparatorEdit("Local", 0, 0, "  HOLD  "));
+        Assert.Equal("SEPE OAK/Ground/2/3 LONG LINE", VStripsCanonicalBuilder.BuildSeparatorEdit("OAK", "Ground", 1, 2, "LONG LINE"));
+        Assert.Equal("SEPE OAK/Local/1/1 HOLD", VStripsCanonicalBuilder.BuildSeparatorEdit("OAK", "Local", 0, 0, "  HOLD  "));
     }
 
     [Fact]
     public void BuildBlankCreate_NullBay_EmitsBareVerb()
     {
-        Assert.Equal("BLANK", VStripsCanonicalBuilder.BuildBlankCreate(null, null, null));
+        Assert.Equal("BLANK", VStripsCanonicalBuilder.BuildBlankCreate(null, null, null, null));
     }
 
     [Fact]
     public void BuildBlankCreate_WithBay_EmitsFullPosition_SlashCompoundWire()
     {
         // 0-based rack 1 / index 2 → wire rack 2 / index 3, slash-compound.
-        Assert.Equal("BLANK Ground/2/3", VStripsCanonicalBuilder.BuildBlankCreate("Ground", 1, 2));
+        Assert.Equal("BLANK OAK/Ground/2/3", VStripsCanonicalBuilder.BuildBlankCreate("OAK", "Ground", 1, 2));
         // Null rack defaults to 0 → "Ground/1"; null index omits the slash-
         // index so the server appends at the rack tail (visual top).
-        Assert.Equal("BLANK Ground/1", VStripsCanonicalBuilder.BuildBlankCreate("Ground", null, null));
+        Assert.Equal("BLANK OAK/Ground/1", VStripsCanonicalBuilder.BuildBlankCreate("OAK", "Ground", null, null));
     }
 
     [Fact]
     public void BuildBlankDelete_WithRack_EmitsRack_SlashCompoundWire()
     {
         // 0-based rack 1 → wire bay/2.
-        Assert.Equal("BLANKD Ground/2", VStripsCanonicalBuilder.BuildBlankDelete("Ground", 1));
+        Assert.Equal("BLANKD OAK/Ground/2", VStripsCanonicalBuilder.BuildBlankDelete("OAK", "Ground", 1));
     }
 
     [Fact]
     public void BuildBlankDelete_WithoutRack_EmitsBayOnly()
     {
-        Assert.Equal("BLANKD Ground", VStripsCanonicalBuilder.BuildBlankDelete("Ground", null));
+        Assert.Equal("BLANKD OAK/Ground", VStripsCanonicalBuilder.BuildBlankDelete("OAK", "Ground", null));
     }
 }

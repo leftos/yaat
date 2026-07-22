@@ -3104,34 +3104,58 @@ public static class CommandParser
     private const int HalfStripMaxLines = 6;
 
     /// <summary>
-    /// Parses a bay-with-optional-rack token of the form <c>bay[/rack]</c>. The
-    /// rack token is <b>1-based</b> on the wire (users type "rack 1") and
-    /// converted to the 0-based internal index returned in <paramref name="rack"/>.
-    /// A missing slash leaves <paramref name="rack"/> null. Used for HSC bay/rack
-    /// and the optional source-bay peel in HSA/HSD/HSM/HSO/HSS.
+    /// A parsed bay reference: the owning facility, the bay name, and an optional
+    /// rack. <see cref="Rack"/> is the 0-based internal index (the wire is 1-based).
     /// </summary>
-    private static bool TryParseBaySpec(string token, out string bayName, out int? rack, out string? error)
+    private readonly record struct BaySpec(string FacilityId, string BayName, int? Rack);
+
+    /// <summary>
+    /// Parses a facility-qualified bay-spec of the form <c>facility/bay[/rack]</c>.
+    /// The facility segment is <b>required</b> — bay names are only unique within a
+    /// facility, and a strips window opened for a non-student facility would
+    /// otherwise be unable to address its own bays (SFO, SJC and PAO all own a bay
+    /// named "Ground"). The bay segment may contain spaces ("OAK/Ground 1/2"). Rack
+    /// is <b>1-based</b> on the wire and returned as a 0-based index; omitting it
+    /// leaves <see cref="BaySpec.Rack"/> null.
+    /// </summary>
+    private static bool TryParseBaySpec(string spec, out BaySpec bay, out string? error)
     {
-        bayName = "";
-        rack = null;
+        bay = default;
         error = null;
 
-        var slashIdx = token.IndexOf('/');
-        if (slashIdx < 0)
+        var segments = spec.Split('/');
+        if (segments.Length < 2)
         {
-            bayName = token.ToUpperInvariant();
-            return true;
+            error = $"bay '{spec.Trim()}' must name its facility — use FACILITY/BAY[/rack] (e.g. OAK/Ground 1/2)";
+            return false;
         }
-
-        bayName = token[..slashIdx].ToUpperInvariant();
-        var rackPart = token[(slashIdx + 1)..];
-        if (!int.TryParse(rackPart, out var rackWire) || rackWire < 1)
+        if (segments.Length > 3)
         {
-            error = $"invalid rack index '{rackPart}' (expected 1-based positive integer)";
+            error = $"invalid bay spec '{spec.Trim()}' (expected FACILITY/BAY[/rack])";
             return false;
         }
 
-        rack = rackWire - 1;
+        var facilityId = segments[0].Trim().ToUpperInvariant();
+        var bayName = segments[1].Trim().ToUpperInvariant();
+        if (facilityId.Length == 0 || bayName.Length == 0)
+        {
+            error = $"invalid bay spec '{spec.Trim()}' (expected FACILITY/BAY[/rack])";
+            return false;
+        }
+
+        if (segments.Length == 2)
+        {
+            bay = new BaySpec(facilityId, bayName, null);
+            return true;
+        }
+
+        if (!int.TryParse(segments[2], out var rackWire) || rackWire < 1)
+        {
+            error = $"invalid rack index '{segments[2]}' (expected 1-based positive integer)";
+            return false;
+        }
+
+        bay = new BaySpec(facilityId, bayName, rackWire - 1);
         return true;
     }
 
@@ -3189,7 +3213,7 @@ public static class CommandParser
             return PR.Fail("HS requires a bay name");
         }
 
-        if (!TryParseMultiWordBaySpec(headPart, out var bayName, out var rack, out var bayError))
+        if (!TryParseBaySpec(headPart, out var bay, out var bayError))
         {
             return PR.Fail(bayError!);
         }
@@ -3206,7 +3230,7 @@ public static class CommandParser
             return PR.Fail($"HS supports at most {HalfStripMaxLines} lines (got {lines.Length})");
         }
 
-        return PR.Ok(new HalfStripCreateCommand(bayName, rack, lines));
+        return PR.Ok(new HalfStripCreateCommand(bay.FacilityId, bay.BayName, bay.Rack, lines));
     }
 
     /// <summary>
@@ -3261,7 +3285,9 @@ public static class CommandParser
     /// </summary>
     private static bool LooksLikeRackSuffix(string token)
     {
-        var slashIdx = token.IndexOf('/');
+        // Last slash, not first: the facility qualifier adds a leading segment, so
+        // "OAK/Local1/2" must still read as a rack suffix while "OAK/Local" must not.
+        var slashIdx = token.LastIndexOf('/');
         if (slashIdx < 0)
         {
             return false;
@@ -3282,46 +3308,28 @@ public static class CommandParser
     }
 
     /// <summary>
-    /// Parses a possibly multi-word bay-spec of the form
-    /// <c>word [word2 ...] [/rack]</c>. Mirrors <see cref="TryParseBaySpec"/>
-    /// but tolerates inner whitespace so HSC can accept "Ground 1/2" alongside
-    /// "Ground1/2". Bay name is upper-cased; rack is 1-based on the wire and
-    /// returned as a 0-based internal index.
+    /// True when the leading whitespace token of <paramref name="trimmed"/> is a
+    /// bay specifier rather than half-strip content: bay specs are always
+    /// facility-qualified (they contain a <c>/</c>) and never carry the <c>\</c>
+    /// line separator. Replaces the old "no backslash AND another token follows"
+    /// heuristic, which could not tell <c>HSD Ground</c> (delete the half-strip
+    /// whose first line is "Ground") from a bay-scoped delete.
     /// </summary>
-    private static bool TryParseMultiWordBaySpec(string spec, out string bayName, out int? rack, out string? error)
+    private static bool HeadIsBaySpec(string trimmed, int spaceIdx)
     {
-        bayName = "";
-        rack = null;
-        error = null;
-
-        var slashIdx = spec.IndexOf('/');
-        if (slashIdx < 0)
-        {
-            bayName = spec.ToUpperInvariant();
-            return true;
-        }
-
-        bayName = spec[..slashIdx].Trim().ToUpperInvariant();
-        var rackPart = spec[(slashIdx + 1)..];
-        if (!int.TryParse(rackPart, out var rackWire) || rackWire < 1)
-        {
-            error = $"invalid rack index '{rackPart}' (expected 1-based positive integer)";
-            return false;
-        }
-
-        rack = rackWire - 1;
-        return true;
+        var head = spaceIdx > 0 ? trimmed.AsSpan(0, spaceIdx) : trimmed.AsSpan();
+        return head.Contains('/') && !head.Contains('\\');
     }
 
     /// <summary>
-    /// Parses HSA/HSD arguments with the bay/key disambiguation rule:
-    /// the first whitespace-separated token is treated as a bay specifier if and only if
-    /// (a) it contains no backslash AND (b) there is at least one more token after it.
-    /// Otherwise the entire trimmed arg is treated as the body (bay = null).
+    /// Parses HSA/HSD arguments. The first whitespace token is a bay scope when
+    /// <see cref="HeadIsBaySpec"/> accepts it; otherwise the entire trimmed arg is
+    /// the body (bay = null) and the lookup runs room-wide.
     /// </summary>
     private static PR ParseHalfStripMutate(string arg, bool isDelete)
     {
         var trimmed = arg.Trim();
+        string? facilityId = null;
         string? bayName = null;
         int? rack = null;
 
@@ -3347,17 +3355,18 @@ public static class CommandParser
                 var rest = trimmed[(spaceIdx + 1)..].TrimStart();
                 tokens = rest.Length == 0 ? [head] : [head, .. rest.Split('\\', StringSplitOptions.TrimEntries)];
             }
-            else if (spaceIdx > 0 && !trimmed.AsSpan(0, spaceIdx).Contains('\\'))
+            else if (HeadIsBaySpec(trimmed, spaceIdx))
             {
-                var head = trimmed[..spaceIdx];
-                var rest = trimmed[(spaceIdx + 1)..].TrimStart();
-                if (!TryParseBaySpec(head, out var parsedBay, out var parsedRack, out var bayError))
+                var head = spaceIdx > 0 ? trimmed[..spaceIdx] : trimmed;
+                var rest = spaceIdx > 0 ? trimmed[(spaceIdx + 1)..].TrimStart() : "";
+                if (!TryParseBaySpec(head, out var parsedBay, out var bayError))
                 {
                     return PR.Fail(bayError!);
                 }
 
-                bayName = parsedBay;
-                rack = parsedRack;
+                facilityId = parsedBay.FacilityId;
+                bayName = parsedBay.BayName;
+                rack = parsedBay.Rack;
                 tokens = rest.Length == 0 ? [] : rest.Split('\\', StringSplitOptions.TrimEntries);
             }
             else
@@ -3373,7 +3382,7 @@ public static class CommandParser
                 return PR.Fail($"HSD takes at most one lookup key (got {tokens.Length} tokens)");
             }
 
-            return PR.Ok(new HalfStripDeleteCommand(bayName, rack, tokens));
+            return PR.Ok(new HalfStripDeleteCommand(facilityId, bayName, rack, tokens));
         }
 
         // Amend: up to 1 key + 6 new lines = 7 tokens.
@@ -3382,7 +3391,7 @@ public static class CommandParser
             return PR.Fail($"HSA supports at most {HalfStripMaxLines + 1} tokens (1 key + {HalfStripMaxLines} lines)");
         }
 
-        return PR.Ok(new HalfStripAmendCommand(bayName, rack, tokens));
+        return PR.Ok(new HalfStripAmendCommand(facilityId, bayName, rack, tokens));
     }
 
     // ── Full-strip move (extended; wire verb stays "STRIP") ───────
@@ -3479,6 +3488,7 @@ public static class CommandParser
     {
         var verb = isSlide ? "HSS" : "HSO";
         var trimmed = arg.Trim();
+        string? facilityId = null;
         string? bayName = null;
         int? rack = null;
         string? lookupKey = null;
@@ -3493,22 +3503,25 @@ public static class CommandParser
             }
             else if (parts.Count == 2)
             {
-                if (!TryParseBaySpec(parts[0], out var parsedBay, out var parsedRack, out var bayError))
+                if (!TryParseBaySpec(parts[0], out var parsedBay, out var bayError))
                 {
                     return PR.Fail(bayError!);
                 }
 
-                bayName = parsedBay;
-                rack = parsedRack;
+                facilityId = parsedBay.FacilityId;
+                bayName = parsedBay.BayName;
+                rack = parsedBay.Rack;
                 lookupKey = parts[1];
             }
             else
             {
-                return PR.Fail($"{verb} accepts at most [bay[/rack]] [key]");
+                return PR.Fail($"{verb} accepts at most [facility/bay[/rack]] [key]");
             }
         }
 
-        return isSlide ? PR.Ok(new HalfStripSlideCommand(bayName, rack, lookupKey)) : PR.Ok(new HalfStripOffsetCommand(bayName, rack, lookupKey));
+        return isSlide
+            ? PR.Ok(new HalfStripSlideCommand(facilityId, bayName, rack, lookupKey))
+            : PR.Ok(new HalfStripOffsetCommand(facilityId, bayName, rack, lookupKey));
     }
 
     // ── Separators ────────────────────────────────────────────────
@@ -3574,15 +3587,15 @@ public static class CommandParser
         {
             return PR.Fail("SEPM requires a strip id");
         }
-        if (!TryParseStripDest(destSpec, out var bayName, out var rack, out var index, out var error))
+        if (!TryParseStripDest(destSpec, out var facilityId, out var bayName, out var rack, out var index, out var error))
         {
             return PR.Fail(error!);
         }
         if (rack is not int rackVal || index is not int indexVal)
         {
-            return PR.Fail("SEPM destination requires bay/rack/index (1-based)");
+            return PR.Fail("SEPM destination requires facility/bay/rack/index (rack and index 1-based)");
         }
-        return PR.Ok(new SeparatorMoveCommand(stripId, bayName, rackVal, indexVal));
+        return PR.Ok(new SeparatorMoveCommand(stripId, facilityId, bayName, rackVal, indexVal));
     }
 
     private static PR ParseSeparatorEdit(string arg)
@@ -3639,54 +3652,57 @@ public static class CommandParser
 
     /// <summary>
     /// Parses the slash-compound destination spec used by every vStrips verb
-    /// (STRIP, HSC, HSM, SEP, SEPE, SEPD, BLANK, BLANKD): <c>bay[/rack[/index]]</c>.
-    /// Bay is upper-cased. Rack and index are <b>1-based</b> on the wire and
-    /// converted to the 0-based internal representation returned in
+    /// (STRIP, HSC, HSM, SEP, SEPE, SEPD, BLANK, BLANKD):
+    /// <c>facility/bay[/rack[/index]]</c>. The facility segment is required —
+    /// bay names are only unique within a facility. Facility and bay are
+    /// upper-cased. Rack and index are <b>1-based</b> on the wire and converted
+    /// to the 0-based internal representation returned in
     /// <paramref name="rack"/> / <paramref name="index"/>. Tokens &lt; 1 are
     /// rejected so off-by-one bugs surface loudly.
     /// </summary>
-    public static bool TryParseStripDest(string token, out string bayName, out int? rack, out int? index, out string? error)
+    public static bool TryParseStripDest(string token, out string facilityId, out string bayName, out int? rack, out int? index, out string? error)
     {
+        facilityId = "";
         bayName = "";
         rack = null;
         index = null;
         error = null;
 
         var parts = token.Split('/');
-        if (parts.Length == 0 || parts[0].Length == 0)
+        if (parts.Length > 4)
         {
-            error = "destination bay name required";
+            error = "destination accepts at most facility/bay[/rack[/index]]";
+            return false;
+        }
+        if (parts.Length < 2 || parts[0].Length == 0 || parts[1].Length == 0)
+        {
+            error = $"destination '{token}' must name its facility — use FACILITY/BAY[/rack[/index]]";
             return false;
         }
 
-        bayName = parts[0].ToUpperInvariant();
+        facilityId = parts[0].ToUpperInvariant();
+        bayName = parts[1].ToUpperInvariant();
 
-        if (parts.Length >= 2)
+        if (parts.Length >= 3)
         {
-            if (!int.TryParse(parts[1], out var r) || r < 1)
+            if (!int.TryParse(parts[2], out var r) || r < 1)
             {
-                error = $"invalid destination rack '{parts[1]}' (expected 1-based positive integer)";
+                error = $"invalid destination rack '{parts[2]}' (expected 1-based positive integer)";
                 return false;
             }
 
             rack = r - 1;
         }
 
-        if (parts.Length >= 3)
+        if (parts.Length >= 4)
         {
-            if (!int.TryParse(parts[2], out var i) || i < 1)
+            if (!int.TryParse(parts[3], out var i) || i < 1)
             {
-                error = $"invalid destination index '{parts[2]}' (expected 1-based positive integer)";
+                error = $"invalid destination index '{parts[3]}' (expected 1-based positive integer)";
                 return false;
             }
 
             index = i - 1;
-        }
-
-        if (parts.Length > 3)
-        {
-            error = "destination accepts at most bay[/rack[/index]]";
-            return false;
         }
 
         return true;

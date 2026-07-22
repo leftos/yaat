@@ -306,8 +306,45 @@ public class StripCommandParserTests
     {
         // Parser passes raw tokens to the handler; STRIP_<id> peel happens
         // server-side so the parser stays bay-agnostic.
-        var result = CommandParser.Parse("STRIP STRIP_UAL100_a1b2c3d4 Local 1");
+        var result = CommandParser.Parse("STRIP STRIP_UAL100_a1b2c3d4 OAK/Local 1");
         var cmd = Assert.IsType<StripMoveCommand>(result.Value);
-        Assert.Equal(["STRIP_UAL100_a1b2c3d4", "Local", "1"], cmd.Tokens);
+        Assert.Equal(["STRIP_UAL100_a1b2c3d4", "OAK/Local", "1"], cmd.Tokens);
+    }
+
+    // ── Facility-qualified dest-spec (TryParseStripDest) ──────────
+
+    [Theory]
+    [InlineData("OAK/GROUND", "OAK", "GROUND", null, null)]
+    [InlineData("OAK/GROUND/2", "OAK", "GROUND", 1, null)]
+    [InlineData("OAK/GROUND/2/3", "OAK", "GROUND", 1, 2)]
+    // Facility and bay are upper-cased; a bay named like a facility still parses.
+    [InlineData("nct/nct/1/1", "NCT", "NCT", 0, 0)]
+    public void TryParseStripDest_SplitsFacilityBayRackIndex(string spec, string facility, string bay, int? rack, int? index)
+    {
+        Assert.True(CommandParser.TryParseStripDest(spec, out var parsedFacility, out var parsedBay, out var parsedRack, out var parsedIndex, out _));
+        Assert.Equal(facility, parsedFacility);
+        Assert.Equal(bay, parsedBay);
+        Assert.Equal(rack, parsedRack);
+        Assert.Equal(index, parsedIndex);
+    }
+
+    [Fact]
+    public void TryParseStripDest_UnqualifiedBay_IsRejectedWithGuidance()
+    {
+        // Bay names are only unique within a facility, so the segment is required
+        // rather than inferred — the error names the shape the user should type.
+        Assert.False(CommandParser.TryParseStripDest("GROUND", out _, out _, out _, out _, out var error));
+        Assert.Contains("FACILITY/BAY", error);
+    }
+
+    [Theory]
+    [InlineData("OAK/GROUND/2/3/4")]
+    [InlineData("OAK//2")]
+    [InlineData("/GROUND/2")]
+    [InlineData("OAK/GROUND/0")]
+    [InlineData("OAK/GROUND/1/0")]
+    public void TryParseStripDest_RejectsMalformedSpecs(string spec)
+    {
+        Assert.False(CommandParser.TryParseStripDest(spec, out _, out _, out _, out _, out _));
     }
 }

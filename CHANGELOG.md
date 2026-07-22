@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Strips tabs for the facilities you scan strips to.** A facility your own config links a bay from is now openable as its own Strips tab — at KOAK that's NorCal (NCT) and Oakland Bay (O90), so a strip scanned there can finally be read instead of disappearing into a write-only drop-zone. **View → Strips → New Strips Tab…** lists them, and the tab shows all of that facility's bays.
+
+### Changed
+- **Strip commands name the bay's facility**: the bay token is now `facility/bay[/rack[/index]]` (e.g. `STRIP OAK/Ground 1/2/1`, `HSC NCT/NC4/1 note`). Bay names are only unique within a facility, so a tab opened for another facility could not otherwise address its own bays. Clicking and dragging in the Strips tab emits the right facility for you; only typed commands change.
+
+### Fixed
+- Strips tabs opened for a facility other than your own can now move, create, and delete strips in that facility's bays. Previously every command in such a tab was rejected as an unknown bay.
+
 ## v0.9.12-beta [2026/07/22]
 
 ### Highlights

@@ -109,8 +109,9 @@ public class StripCommandVocabularyTests
     public void Hso_BayAndKey()
     {
         // Wire rack 2 → 0-based internal rack 1.
-        var result = CommandParser.Parse("HSO Ground/2 KEY1");
+        var result = CommandParser.Parse("HSO OAK/Ground/2 KEY1");
         var cmd = Assert.IsType<HalfStripOffsetCommand>(result.Value);
+        Assert.Equal("OAK", cmd.FacilityId);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal(1, cmd.Rack);
         Assert.Equal("KEY1", cmd.LookupKey);
@@ -146,8 +147,9 @@ public class StripCommandVocabularyTests
     [Fact]
     public void Hss_BayAndKey()
     {
-        var result = CommandParser.Parse("HSS Ground KEY1");
+        var result = CommandParser.Parse("HSS OAK/Ground KEY1");
         var cmd = Assert.IsType<HalfStripSlideCommand>(result.Value);
+        Assert.Equal("OAK", cmd.FacilityId);
         Assert.Equal("GROUND", cmd.BayName);
         Assert.Equal("KEY1", cmd.LookupKey);
     }
@@ -364,21 +366,21 @@ public class StripCommandVocabularyTests
     public void Canonical_Hsm_MultiWordDestBay_PreservesSpaces()
     {
         // The wire form for a multi-word destination is exactly what the UI
-        // emits via VStripsCanonicalBuilder.BuildHalfStripMove("KEY","Local 1",0,1).
-        var cmd = new HalfStripMoveCommand(["KEY1", "Local", "1/1/2"]);
-        Assert.Equal("HSM KEY1 Local 1/1/2", CommandDescriber.DescribeCommand(cmd));
+        // emits via VStripsCanonicalBuilder.BuildHalfStripMove("KEY","OAK","Local 1",0,1).
+        var cmd = new HalfStripMoveCommand(["KEY1", "OAK/Local", "1/1/2"]);
+        Assert.Equal("HSM KEY1 OAK/Local 1/1/2", CommandDescriber.DescribeCommand(cmd));
     }
 
     [Fact]
     public void Canonical_Hso_AircraftScoped()
     {
-        Assert.Equal("HSO", CommandDescriber.DescribeCommand(new HalfStripOffsetCommand(null, null, null)));
+        Assert.Equal("HSO", CommandDescriber.DescribeCommand(new HalfStripOffsetCommand(null, null, null, null)));
     }
 
     [Fact]
     public void Canonical_Hss_KeyOnly()
     {
-        Assert.Equal("HSS KEY1", CommandDescriber.DescribeCommand(new HalfStripSlideCommand(null, null, "KEY1")));
+        Assert.Equal("HSS KEY1", CommandDescriber.DescribeCommand(new HalfStripSlideCommand(null, null, null, "KEY1")));
     }
 
     [Fact]
