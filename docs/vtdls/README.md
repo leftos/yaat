@@ -150,10 +150,20 @@ lib (`data/Facilities/Tdls/OpConfig.cs`) and in decompiled **CRC 2.17.4**:
 "dclOpConfigsEnabled": true,
 "opConfigs": [
   { "id": "01KVS8TH…", "name": "OAKW", "sids": [ /* full TdlsSid list, as facility-level sids */ ] }
-  // defaultSidId / defaultTransitionId exist on the model but are omitted when null,
-  // which they are for every config sampled across ZBW/ZDC/ZOA.
+  // defaultSidId / defaultTransitionId are omitted when null, and whether they're set is
+  // per-facility — see the table below. Consumers must tolerate null on either.
 ]
 ```
+
+| Facility | ops configs | per-config `defaultSidId` | per-config `defaultTransitionId` |
+|---|---|---|---|
+| SFO | 7 | all set | all set |
+| BOS | 2 | all set | none set |
+| OAK | 3 | none set | none set |
+
+Facility-level `defaultSidId` is only meaningful when ops configs are **disabled** (set at BDL,
+PVD, ALB, ADW, SMF; null at IAD, DCA, BWI, RDU, SJC, RNO). No facility sampled sets a
+facility-level `defaultTransitionId`.
 
 CRC carries the model but has **no** selection logic — it never renders TDLS. The active
 config is purely a vTDLS concern.

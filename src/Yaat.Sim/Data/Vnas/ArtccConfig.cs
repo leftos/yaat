@@ -868,6 +868,22 @@ public class ExternalStripBayConfig
 
 public class TdlsConfig
 {
+    /// <summary>
+    /// True when the facility splits its SIDs across <see cref="OpConfigs"/> instead of listing
+    /// them in <see cref="Sids"/>. When set, <see cref="Sids"/> is empty on the wire — read the
+    /// SID list through <see cref="ResolveSids"/>, never off <see cref="Sids"/> directly.
+    /// </summary>
+    [JsonPropertyName("dclOpConfigsEnabled")]
+    public bool DclOpConfigsEnabled { get; set; }
+
+    /// <summary>
+    /// Operational configurations, each carrying its own SID list and per-transition defaults so
+    /// an east/west split can issue different departure frequencies, maintain altitudes or local
+    /// info. Empty unless <see cref="DclOpConfigsEnabled"/>.
+    /// </summary>
+    [JsonPropertyName("opConfigs")]
+    public List<TdlsOpConfig> OpConfigs { get; set; } = [];
+
     [JsonPropertyName("mandatorySid")]
     public bool MandatorySid { get; set; } = true;
 
@@ -915,6 +931,59 @@ public class TdlsConfig
 
     [JsonPropertyName("localInfos")]
     public List<TdlsClearanceValueConfig> LocalInfos { get; set; } = [];
+
+    [JsonPropertyName("defaultSidId")]
+    public string? DefaultSidId { get; set; }
+
+    [JsonPropertyName("defaultTransitionId")]
+    public string? DefaultTransitionId { get; set; }
+
+    /// <summary>
+    /// Resolves the ops config the given id names, falling back to the first one. Returns null
+    /// when ops configs are disabled or none are defined.
+    /// </summary>
+    public TdlsOpConfig? ResolveOpConfig(string? opConfigId)
+    {
+        if (!DclOpConfigsEnabled || (OpConfigs.Count == 0))
+        {
+            return null;
+        }
+        return OpConfigs.FirstOrDefault(c => string.Equals(c.Id, opConfigId, StringComparison.Ordinal)) ?? OpConfigs[0];
+    }
+
+    /// <summary>
+    /// The SID list actually in force: the named ops config's when they're enabled, otherwise the
+    /// facility-level list. Every caller that needs SIDs must go through this — reading
+    /// <see cref="Sids"/> directly yields an empty list at SFO, OAK and BOS.
+    /// </summary>
+    public List<TdlsSidConfig> ResolveSids(string? opConfigId) => ResolveOpConfig(opConfigId)?.Sids ?? Sids;
+
+    /// <summary>Default SID id in force — the ops config's when enabled, otherwise the facility's.</summary>
+    public string? ResolveDefaultSidId(string? opConfigId) => DclOpConfigsEnabled ? ResolveOpConfig(opConfigId)?.DefaultSidId : DefaultSidId;
+
+    /// <summary>Default transition id in force — the ops config's when enabled, otherwise the facility's.</summary>
+    public string? ResolveDefaultTransitionId(string? opConfigId) =>
+        DclOpConfigsEnabled ? ResolveOpConfig(opConfigId)?.DefaultTransitionId : DefaultTransitionId;
+}
+
+/// <summary>
+/// One operational configuration: a named SID list with its own per-transition defaults.
+/// The Facility Engineer seeds the first one from the pre-existing SIDs under the name "Master".
+///
+/// SID ids are <b>not</b> stable across configs — the same SID name carries a different id in each
+/// config at OAK and BOS (SFO happens to reuse one). An id is only meaningful relative to the
+/// config that was active when it was chosen.
+/// </summary>
+public class TdlsOpConfig
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("sids")]
+    public List<TdlsSidConfig> Sids { get; set; } = [];
 
     [JsonPropertyName("defaultSidId")]
     public string? DefaultSidId { get; set; }
