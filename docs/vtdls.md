@@ -263,6 +263,27 @@ field can't be issued — same enforcement upstream's vTDLS does. The
 footer status "MANDATORY FIELD NOT SET — Expect, Initial Alt" mirrors
 upstream's matching error.
 
+`TdlsFlightPlanEditorViewModel.ResolveItem` maps an FE-supplied string
+(a transition default, or a field on a sent clearance being reviewed)
+onto the dropdown entry that offers it. It cannot match on exact string
+equality alone: vNAS facility data routinely stores a transition
+default in a different numeric form than the value list it points at —
+KIAD defaults every transition's departure frequency to `125.05`
+against a `depFreqs` list holding `125.050`, and KRNO does the same
+with `119.2` / `119.200`. The match order is exact ordinal, then
+trimmed/case-insensitive, then numeric equivalence; non-numeric values
+(the `- - - -` placeholder, `3000FT`) never reach the numeric pass. A
+value that resolves to nothing leaves the field unset — the editor
+never guesses an entry the controller didn't pick.
+
+`CanSend` carries `[NotifyCanExecuteChangedFor(nameof(SendCommand))]`,
+which is load-bearing rather than decorative. Avalonia's `Button` ANDs
+a cached `CanExecute` verdict into `IsEnabledCore` and refreshes it only
+when the command raises `CanExecuteChanged`, so without it the Send
+button latches disabled the moment it binds to an incomplete clearance
+and never recovers — even though `IsSendEnabled` and the footer status
+both report the clearance as valid.
+
 ### Reviewing a sent PDC (read-only)
 
 Selecting an item in the **PDC** list (Sent / Wilco) re-opens the

@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
+using Yaat.Sim;
 
 namespace Yaat.Client.ViewModels;
 
@@ -24,6 +27,8 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class TdlsFlightPlanEditorViewModel : ObservableObject
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("TdlsFlightPlanEditorViewModel");
+
     private readonly TdlsConfigDto _config;
     private bool _suppressDefaults;
 
@@ -129,9 +134,15 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         set => SelectedDepFreq = ResolveItem(DepFreqs, value);
     }
 
+    // NotifyCanExecuteChangedFor is load-bearing, not decoration: Avalonia's Button ANDs a
+    // cached CanExecute verdict into IsEnabledCore and only refreshes it when the command
+    // raises CanExecuteChanged. Without this the Send button latches disabled the moment it
+    // binds to an incomplete clearance and never comes back, even though IsSendEnabled and
+    // the footer status both report the clearance as valid.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSendEnabled))]
     [NotifyPropertyChangedFor(nameof(MissingMandatoryFieldNames))]
+    [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     private bool _canSend;
 
     /// <summary>True when every mandatory field is set and the editor is editable. Bound to the Send button's IsEnabled; also gates the F12 send shortcut.</summary>
@@ -342,8 +353,60 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
             ? sid?.Transitions.FirstOrDefault()
             : sid?.Transitions.FirstOrDefault(t => string.Equals(t.Id, transitionId, StringComparison.Ordinal));
 
-    private static TdlsClearanceValueDto? ResolveItem(IEnumerable<TdlsClearanceValueDto> items, string? wantedValue) =>
-        wantedValue is null ? null : items.FirstOrDefault(i => string.Equals(i.Value, wantedValue, StringComparison.Ordinal));
+    /// <summary>
+    /// Resolves an FE-supplied value string to the dropdown entry that offers it. This is the
+    /// single funnel for both transition defaults and seed round-trips, so every field gets the
+    /// same treatment.
+    ///
+    /// Matching cannot be exact-only: vNAS facility data routinely stores a transition default
+    /// in a different numeric form than the value list it points at. KIAD defaults every
+    /// transition's departure frequency to "125.05" against a list holding "125.050", and KRNO
+    /// does the same with "119.2" / "119.200". With the field mandatory, an unresolved default
+    /// left the dropdown blank and the clearance uncompletable.
+    ///
+    /// Order: exact ordinal (wins if both forms are listed), then trimmed/case-insensitive,
+    /// then numeric equivalence. Non-numeric values like the "- - - -" placeholder or "3000FT"
+    /// never reach the numeric pass, so nothing is matched by coincidence.
+    /// </summary>
+    private static TdlsClearanceValueDto? ResolveItem(IEnumerable<TdlsClearanceValueDto> items, string? wantedValue)
+    {
+        if (string.IsNullOrWhiteSpace(wantedValue))
+        {
+            return null;
+        }
+
+        var candidates = items as IReadOnlyList<TdlsClearanceValueDto> ?? items.ToList();
+
+        var exact = candidates.FirstOrDefault(i => string.Equals(i.Value, wantedValue, StringComparison.Ordinal));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        var wantedTrimmed = wantedValue.Trim();
+        var loose = candidates.FirstOrDefault(i => string.Equals(i.Value?.Trim(), wantedTrimmed, StringComparison.OrdinalIgnoreCase));
+        if (loose is not null)
+        {
+            return loose;
+        }
+
+        var numeric = decimal.TryParse(wantedTrimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out var wantedNumber)
+            ? candidates.FirstOrDefault(i =>
+                decimal.TryParse(i.Value?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var candidate) && (candidate == wantedNumber)
+            )
+            : null;
+
+        if (numeric is null)
+        {
+            Log.LogDebug(
+                "TDLS value '{Value}' has no match in [{Options}] — leaving the field unset",
+                wantedValue,
+                string.Join(", ", candidates.Select(i => i.Value))
+            );
+        }
+
+        return numeric;
+    }
 
     private void RebuildTransitions(TdlsSidDto? sid)
     {

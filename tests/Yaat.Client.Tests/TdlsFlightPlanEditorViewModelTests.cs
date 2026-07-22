@@ -63,6 +63,115 @@ public class TdlsFlightPlanEditorViewModelTests
             DefaultTransitionId: "ALTAM"
         );
 
+    /// <summary>
+    /// Mirrors the real KIAD facility shape from GitHub issue #306: a single mandatory
+    /// departure frequency whose value list stores three decimal places while the
+    /// transition default the Facility Engineer typed carries two. KRNO in the committed
+    /// ZOA snapshot has the same shape ("119.2" against a "119.200" list entry).
+    /// <paramref name="defaultDepFreq"/> is the transition's default; pass null to model a
+    /// facility that defines no default at all for a mandatory field.
+    /// </summary>
+    private static TdlsConfigDto BuildIadLikeConfig(string? defaultDepFreq) =>
+        new(
+            FacilityId: "IAD",
+            FacilityName: "Washington Dulles ATCT",
+            MandatorySid: true,
+            MandatoryClimbout: false,
+            MandatoryClimbvia: false,
+            MandatoryInitialAlt: true,
+            MandatoryDepFreq: true,
+            MandatoryExpect: true,
+            MandatoryContactInfo: false,
+            MandatoryLocalInfo: false,
+            Sids:
+            [
+                new TdlsSidDto(
+                    "RNLDI4",
+                    "RNLDI4",
+                    [
+                        new TdlsSidTransitionDto(
+                            "OTTTO",
+                            "OTTTO",
+                            FirstRoutePoint: "OTTTO",
+                            DefaultExpect: "10 MIN AFT DP",
+                            DefaultClimbout: null,
+                            DefaultClimbvia: null,
+                            DefaultInitialAlt: "3000FT",
+                            DefaultDepFreq: defaultDepFreq,
+                            DefaultContactInfo: "CTC ATC AT W SIDE OF RAMP",
+                            DefaultLocalInfo: null
+                        ),
+                    ]
+                ),
+            ],
+            Climbouts: [],
+            Climbvias: [],
+            InitialAlts: [new TdlsClearanceValueDto("3000FT", "3000FT")],
+            DepFreqs:
+            [
+                new TdlsClearanceValueDto("125050", "125.050"),
+                new TdlsClearanceValueDto("126650", "126.650"),
+                new TdlsClearanceValueDto("none", "- - - -"),
+            ],
+            Expects: [new TdlsClearanceValueDto("10MIN", "10 MIN AFT DP")],
+            ContactInfos: [new TdlsClearanceValueDto("west", "CTC ATC AT W SIDE OF RAMP")],
+            LocalInfos: [],
+            DefaultSidId: "RNLDI4",
+            DefaultTransitionId: "OTTTO"
+        );
+
+    [Fact]
+    public void Constructor_ResolvesTransitionDefault_WhenListUsesDifferentNumericForm()
+    {
+        // Issue #306: every KIAD transition defaults DepFreq to "125.05" while the
+        // facility's depFreqs list holds "125.050". Exact-ordinal matching left the
+        // dropdown blank, and with MandatoryDepFreq set the clearance could never
+        // be completed. The default must resolve to the list's equivalent entry.
+        var editor = new TdlsFlightPlanEditorViewModel("UAL1742", BuildIadLikeConfig("125.05"), seed: null, flightPlan: null, isReadOnly: false);
+
+        Assert.Equal("125.050", editor.SelectedDepFreq?.Value);
+        Assert.True(editor.IsSendEnabled);
+        Assert.Equal("", editor.MissingMandatoryFieldNames);
+    }
+
+    [Fact]
+    public void Constructor_LeavesFieldBlank_WhenDefaultMatchesNoListEntry()
+    {
+        // Normalization must not turn into guessing: a default that resolves to
+        // nothing leaves the field unset (upstream's "MANDATORY FIELD NOT SET"),
+        // rather than auto-picking the first list entry.
+        var editor = new TdlsFlightPlanEditorViewModel("UAL1742", BuildIadLikeConfig("118.375"), seed: null, flightPlan: null, isReadOnly: false);
+
+        Assert.Null(editor.SelectedDepFreq);
+        Assert.False(editor.IsSendEnabled);
+        Assert.Contains("Departure frequency", editor.MissingMandatoryFieldNames);
+    }
+
+    [Fact]
+    public void FillingLastMandatoryField_RaisesSendCommandCanExecuteChanged()
+    {
+        // Issue #306, second half: the Send button binds both Command and IsEnabled.
+        // Avalonia's Button caches the command's CanExecute verdict and only refreshes
+        // it from CanExecuteChanged, so without that notification the button latched
+        // disabled and picking a frequency never brought it back.
+        var editor = new TdlsFlightPlanEditorViewModel(
+            "UAL1742",
+            BuildIadLikeConfig(defaultDepFreq: null),
+            seed: null,
+            flightPlan: null,
+            isReadOnly: false
+        );
+        Assert.False(editor.IsSendEnabled);
+
+        var notifications = 0;
+        editor.SendCommand.CanExecuteChanged += (_, _) => notifications++;
+
+        editor.SelectedDepFreq = editor.DepFreqs[0];
+
+        Assert.True(editor.IsSendEnabled);
+        Assert.True(notifications > 0, "SendCommand.CanExecuteChanged never fired — a bound Button stays greyed out.");
+    }
+
     [Fact]
     public void Constructor_AppliesTransitionDefaults_WhenNoSeed()
     {

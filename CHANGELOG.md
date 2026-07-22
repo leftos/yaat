@@ -4,6 +4,8 @@
 
 ### Fixed
 - A stationary aircraft's hold/give-way badges, remarks, and route and altitude assignments now update on the instructor's display immediately, not only once it moves.
+- The vTDLS **Send** button re-enables as soon as you fill in the last missing mandatory field.
+- The vTDLS departure frequency now pre-fills at KIAD and KRNO instead of opening blank.
 
 ## v0.9.11-beta [2026/07/19]
 
