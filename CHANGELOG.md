@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.12-beta [2026/07/22]
+
+### Highlights
+- **vTDLS shows SIDs again at facilities that use operational configurations** — the SID dropdown came up empty wherever a facility had moved its SIDs into ops configs.
+- **Pick the active vTDLS operational configuration** from the **Ops Config** menu in the footer, or with `TDLSOPS <facility> <config>` — SIDs and their defaults follow it.
+- **Manage timeline bookmarks from the command box** with the new **`BM`** verb — place, list, rename, delete, and jump between them.
+- **A parked aircraft's hold and give-way badges, remarks, and route and altitude assignments update right away** on the instructor's display instead of only once it starts moving.
 
 ### Added
 - vTDLS supports operational configurations: pick the active one from the **Ops Config** menu in the footer, or type `TDLSOPS <facility> <config>`, and SIDs plus their defaults follow it.
@@ -8,7 +14,7 @@
 - The **Bookmarks ▾** list shows each bookmark's id, so you can name one in a `BM` command.
 
 ### Fixed
-- vTDLS shows SIDs again at facilities that moved them into operational configurations, including SFO, OAK and BOS, where the dropdown was empty.
+- vTDLS shows SIDs again at facilities that moved them into operational configurations, where the SID dropdown came up empty.
 - vTDLS dropdowns show `- - - -` when nothing is selected or the facility offers no values, instead of a blank box.
 - A stationary aircraft's hold/give-way badges, remarks, and route and altitude assignments now update on the instructor's display immediately, not only once it moves.
 - The vTDLS **Send** button re-enables as soon as you fill in the last missing mandatory field.
