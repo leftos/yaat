@@ -101,7 +101,24 @@ Plain `git push` only. **Never** `--force`, `--force-with-lease`, or `--tags`. S
 
 `origin/main` normally trails local `main` by a lot — the user commits locally across parallel worktrees and pushes occasionally. A push that carries dozens of unrelated commits is **expected**, not a red flag; report the count and move on. Tag pushes belong to `/prepare-release`, not here.
 
-**If a push is rejected** (non-fast-forward — someone else advanced `origin/main`): halt. Do not force, do not auto-rebase `main`. Report the rejection and let the user decide. Anything already pushed stays pushed; say which repos landed.
+**If a push is rejected** (non-fast-forward — something advanced `origin/main` mid-session), classify the incoming commits before doing anything else:
+
+```bash
+# Every file touched by commits we don't have yet, minus the CI submodule pointer.
+git -C <repo> fetch origin
+git -C <repo> rev-list main..origin/main | while read -r c; do
+    git -C <repo> show --pretty="" --name-only "$c"
+done | sort -u | grep -v '^extern/yaat$'
+```
+
+- **Empty output — the incoming commits touch nothing but `extern/yaat`.** This is yaat-server's CI bumping its submodule pointer, which it does on every yaat push; it is not a human editing the same code. Rebase and continue without asking:
+  ```bash
+  git -C <repo> rebase origin/main && git -C <repo> push origin main
+  ```
+  Our commits never touch `extern/yaat` (CI owns that pointer), so the replay cannot conflict. Report it as a one-line note, not a blocker. If the rebase stops anyway, abort it (`git rebase --abort`) and fall through to the halt case.
+- **Anything else in the output** — a real commit landed on `origin/main`. Halt. Do not force, do not rebase. Report the rejection and let the user decide.
+
+Either way: anything already pushed stays pushed; say which repos landed.
 
 ## Phase 5: Close the issue(s)
 
@@ -177,7 +194,7 @@ Name every phase that was skipped and why, so a skipped phase never reads as a f
 
 - **Do not ask for approval at any phase.** Invoking `/ship` is the go-ahead, push and issue-close included. Announcing ≠ gating.
 - **Do not push before Phase 3's gate passes.** A cherry-pick onto a diverged `main` can break the build in ways the worktree's green suite never saw.
-- **Do not `--force` a rejected push, and do not auto-rebase `main` to make it land.** Halt and surface it.
+- **Do not `--force` a rejected push.** Rebase is allowed in exactly one case — the incoming commits touch nothing but `extern/yaat` (CI's submodule bump). Classify first (Phase 4); if anything else landed on `origin/main`, halt and surface it.
 - **Do not push tags.** `--tags` can suppress the Release workflow; tagging is `/prepare-release`'s job.
 - **Do not push yaat-server before yaat.** Its CI submodule bump would point at an unpushed yaat commit.
 - **Do not bump `extern/yaat` by hand** to "help" the submodule along. CI owns that pointer.
@@ -204,6 +221,14 @@ cd X:/dev/yaat && pwsh tools/test-all.ps1 2>&1 | tee .tmp/ship-test-all.log   # 
 # Phase 4 — push, yaat first, no --force / no --tags
 git -C X:/dev/yaat        push origin main
 git -C X:/dev/yaat-server push origin main
+
+# ...rejected? classify the incoming commits. Empty output = CI submodule bump only:
+git -C <repo> fetch origin
+git -C <repo> rev-list main..origin/main | while read -r c; do
+    git -C <repo> show --pretty="" --name-only "$c"
+done | sort -u | grep -v '^extern/yaat$'
+# empty  -> git -C <repo> rebase origin/main && git -C <repo> push origin main   (continue, don't ask)
+# else   -> halt, report, let the user decide
 
 # Phase 5 — issues always live on leftos/yaat
 gh issue view <N>    --repo leftos/yaat --json number,title,state,labels
