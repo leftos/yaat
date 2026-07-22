@@ -1521,7 +1521,7 @@ Table 17 - ERAM commands
 | `QS` (see [link](#qs-command) for full syntax) | [Edits](#qs-command) FDB HSF fourth line data |  |  |
 | `QT <location> <ACID>` | [Starts](#qt-command) a track |  |  |
 | `QU <minutes> <FLID>` | [Displays](#qu-command) a route | Yes |  |
-| `QU <fix> <FLID>` | [Amends](#qu-command) a route direct to a fix | Yes |  |
+| `QU <fix> <FLID>` | [Amends](#qu-command) a route direct to a fix |  |  |
 | `QX <FLID>` | [Drops](#qx-command) a Track | Yes |  |
 | `QZ <altitude> <FLID>` | [Sets](#qz-command) an assigned altitude |  |  |
 | `RF <FLID> <facility>` | Forces a flight plan transfer to the specified facility |  |  |

@@ -4,22 +4,42 @@ Authoritative reference for designing YAAT's vTDLS emulation. Mirrored from the 
 
 ## Source
 
-- **Upstream**: <https://tdls.virtualnas.net/docs/#/>
-- **Fetched**: 2026-05-26
-- **Pages on the upstream site**: just one — `vtdls.md`. The site is a docsify SPA whose `homepage` is configured to `vtdls.md`; there is no `_sidebar.md` and no other content pages. All controller-facing documentation lives in the single file.
+- **Upstream**: <https://docs.virtualnas.net/vtdls/>
+- **Fetched**: 2026-07-22
+- **Platform**: Material for MkDocs (rendered HTML only — no raw-markdown endpoint). vTDLS
+  previously had its own Docsify site at `tdls.virtualnas.net/docs/` serving `vtdls.md`
+  directly, which is why this mirror used to be a verbatim copy; upstream has since folded it
+  into the same site as the CRC and Data Admin manuals.
+- **Pages**: still just one — the whole controller manual is a single page.
+
+## Refresh tool
+
+```bash
+uv run tools/refresh-crc-docs.py --section vtdls
+```
+
+Since the platform migration this mirror is **generated**, not copied, by the shared
+[`tools/refresh-crc-docs.py`](../../tools/refresh-crc-docs.py) that already produces
+`docs/crc/` and `docs/vnas-data-admin/`. It fetches the page, converts the article body back
+to Markdown, downloads the images into `img/`, and rewrites links. Re-run it and bump
+**Fetched** above when upstream changes.
 
 ## Files
 
-| Path | Source URL | Notes |
+| Path | Upstream page | Notes |
 | --- | --- | --- |
-| [`vtdls.md`](vtdls.md) | `https://tdls.virtualnas.net/docs/vtdls.md` | The complete controller manual. Verbatim, except image `src` attributes rewritten from `/docs/img/X.png` to `img/X.png` so the doc renders against the local cache. |
-| [`img/`](img/) | `https://tdls.virtualnas.net/docs/img/*.png` | 11 PNGs referenced inline by the manual. |
+| [`vtdls.md`](vtdls.md) | `/vtdls/` | The complete controller manual. |
+| [`img/`](img/) | `/vtdls/img/**` | 10 PNGs referenced inline by the manual. |
 
 ## What's NOT mirrored
 
-- Docsify shell (`index.html`, theme CSS, `docs-common/` JS plugins) — not content.
-- The TDLS *Facility Engineer* configuration docs live in a different site at <https://data-admin.virtualnas.net/docs/#/facilities?id=tdls-configuration> and are out of scope for the controller-side emulation.
+- The MkDocs shell (theme CSS/JS, search index) — not content.
 - CPDLC — explicitly out of scope on the upstream too ("not currently simulated as VATSIM does not officially support CPDLC").
+
+The TDLS *Facility Engineer* configuration docs are no longer a separate site: they now live
+at `/data-admin/facilities/` and **are** mirrored, under
+[`../vnas-data-admin/facilities.md`](../vnas-data-admin/facilities.md) (see its "TDLS" and
+"Operational Configurations" sections).
 
 ## How this maps to the YAAT plan
 
@@ -97,6 +117,13 @@ The architecture/scope decisions in [`docs/plans/vtdls-emulation.md`](../plans/v
 | SMF      | Atct        | 5    | 7         | 3         | 5           | 4        | 3       | 6            | 2          | expect, depFreq |
 | RNO      | Atct        | 6    | 0         | 2         | 2           | 2        | 2       | 0            | 0          | sid, expect, depFreq |
 
+> ⚠️ **The SID counts above are a 2026-05-26 snapshot and no longer hold.** Since vNAS added
+> [Operational Configurations](#operational-configurations-2026-07-22) on 2026-06-22, SFO and
+> OAK have `dclOpConfigsEnabled: true` and their facility-level `sids` arrays are **empty** —
+> every SID now lives inside an ops config (SFO 7 configs, OAK 3). The value lists
+> (climbouts/depFreqs/expects/…) and the mandatory flags are unchanged. Re-sample before
+> relying on any figure in this table.
+
 **Implications for the plan** (mostly confirming, one adjustment):
 - ✅ Phase 1.0.2 reduces to: extend `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` with a `TdlsConfig` record class + `[JsonPropertyName("tdlsConfiguration")] TdlsConfig? TdlsConfiguration { get; set; }` on `FacilityConfig`. Mirror the four nested record types from `vatsim-vnas/data/Facilities/Tdls*.cs` (`TdlsConfig`, `TdlsSidConfig`, `TdlsSidTransitionConfig`, `TdlsClearanceValueConfig`).
 - ✅ No new download path / no new on-disk cache file. The existing `ArtccConfigResolver`/`ArtccConfigService` already handles caching of the parent ARTCC response, and the TDLS subtree rides along.
@@ -109,6 +136,66 @@ The architecture/scope decisions in [`docs/plans/vtdls-emulation.md`](../plans/v
 - Captured by: `python tools/refresh-artcc-snapshot.py --artcc ZOA --out tests/Yaat.Sim.Tests/TestData/artcc-zoa-snapshot.json`
 - Parser tests: `tests/Yaat.Sim.Tests/Data/ArtccTdlsConfigParseTests.cs`
 
+## Operational Configurations (2026-07-22)
+
+vNAS shipped Ops Configs on **2026-06-22**. A Facility Engineer attaches a distinct SID list —
+and distinct per-transition defaults — to each operational configuration; the controller picks
+the active one from an **Ops Config menu in the footer** and clicks **Save**. The menu renders
+only when the facility has them enabled.
+
+**Wire shape** — `tdlsConfiguration` gained two fields, confirmed identical in the vNAS `data`
+lib (`data/Facilities/Tdls/OpConfig.cs`) and in decompiled **CRC 2.17.4**:
+
+```jsonc
+"dclOpConfigsEnabled": true,
+"opConfigs": [
+  { "id": "01KVS8TH…", "name": "OAKW", "sids": [ /* full TdlsSid list, as facility-level sids */ ] }
+  // defaultSidId / defaultTransitionId exist on the model but are omitted when null,
+  // which they are for every config sampled across ZBW/ZDC/ZOA.
+]
+```
+
+CRC carries the model but has **no** selection logic — it never renders TDLS. The active
+config is purely a vTDLS concern.
+
+**The critical consequence**: when `dclOpConfigsEnabled` is true the facility-level `sids`
+array is **empty**. A reader that only knows about `sids` sees a facility with no SIDs at all.
+
+| ARTCC | Facility | enabled | ops configs | facility `sids` |
+|---|---|---|---|---|
+| ZOA | SFO | true | 7 — `2801`, `2828RT`, `2828SO`, `0101`, `1910`, `1919`, `1010` | 0 |
+| ZOA | OAK | true | 3 — `OAKW`, `OAKE`, `SFOE` | 0 |
+| ZBW | BOS | true | 2 — `Logan Sid`, `FDT` | 0 |
+| ZOA | SJC / SMF / RNO | false | 0 | 7 / 5 / 6 |
+| ZDC | IAD / DCA / BWI / ADW / RDU | false | 0 | 10 / 10 / 7 / 5 / 10 |
+
+**Defaults really do differ per config** — this is the feature's payload:
+
+```
+SFO  TRUKN2.GRTFL   [2801]      localInfo "EXPECT RWY 1R"
+     TRUKN2.GRTFL   [2828RT]    localInfo "EXPECT RWY 28L"
+     TRUKN2.GRTFL   [0101]      localInfo "EXPECT RWY 1L"
+BOS  BLZZR6.- - - - [Logan Sid] contactInfo "CTC $FREQ TO PUSH"
+     BLZZR6.- - - - [FDT]       contactInfo "CTC 121.65 TO PUSH"
+```
+
+> ⚠️ **SID ids are not stable across configs.** For the same SID *name*, the id differs per
+> config at OAK (12 of 12) and BOS (9 of 9); SFO happens to reuse one id across all 7. A SID id
+> is only meaningful relative to the config that was active when it was chosen — which matters
+> because the clearance sends the id.
+
+**Facility-Engineer side** (mirrored at [`../vnas-data-admin/facilities.md`](../vnas-data-admin/facilities.md)):
+enabling ops configs copies the existing SIDs into a config named "Master"; disabling deletes
+every associated SID irreversibly. Each config carries Name, its SIDs/transitions, and an
+optional default SID + transition.
+
+**`- - - -` convention**: upstream states dashed lines "indicate no option is selected, or none
+are available". Across ZBW/ZDC/ZOA **no** value list contains an empty-string entry, while 9
+lists carry an FE-authored literal `- - - -` row and 143 of 511 transitions are *named*
+`- - - -` (the no-transition placeholder).
+
 ## Refresh policy
 
-If upstream changes, refresh by re-fetching `vtdls.md` and the `img/` files with the same paths (any new PNGs in upstream's markdown should be added to `img/` here). Update **Fetched** above. Image-path rewrite is `src="/docs/img/` → `src="img/`.
+See **Refresh tool** above — `uv run tools/refresh-crc-docs.py --section vtdls`, then bump
+**Fetched**. The old manual instructions (re-fetch `vtdls.md` verbatim, rewrite
+`src="/docs/img/` → `src="img/`) no longer apply; the Docsify site they targeted is gone.

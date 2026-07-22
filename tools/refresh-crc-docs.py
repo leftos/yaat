@@ -2,7 +2,7 @@
 # requires-python = ">=3.13"
 # dependencies = ["beautifulsoup4>=4.12", "markdownify>=0.13"]
 # ///
-"""Mirror the vNAS documentation site (CRC controller manual + Data Admin) into the repo.
+"""Mirror the vNAS documentation site (CRC controller manual + vStrips + vTDLS + Data Admin).
 
 The upstream docs moved to a Material for MkDocs site at https://docs.virtualnas.net/.
 That site serves rendered HTML only -- there is no raw-markdown endpoint and the source
@@ -94,6 +94,15 @@ SECTIONS: list[Section] = [
         out_dir=REPO_ROOT / "docs" / "crc",
         pages=[("", "vstrips")],
     ),
+    # vTDLS used to live on its own Docsify site (tdls.virtualnas.net/docs/) and was mirrored
+    # by hand. Upstream moved it onto this Material site, so it is now an ordinary one-page
+    # section like vstrips, and docs/vtdls/ is generated rather than copied verbatim.
+    Section(
+        name="vtdls",
+        base=urljoin(SITE, "vtdls/"),
+        out_dir=REPO_ROOT / "docs" / "vtdls",
+        pages=[("", "vtdls")],
+    ),
     Section(
         name="data-admin",
         base=urljoin(SITE, "data-admin/"),
@@ -144,10 +153,7 @@ def build_plans(sections: list[Section]) -> list[PagePlan]:
 
 def page_index(plans: list[PagePlan]) -> dict[str, Path]:
     """Map normalized upstream URL path -> local markdown path, for cross-link rewriting."""
-    index = {urlsplit(p.url).path.rstrip("/"): p.out_md for p in plans}
-    # vTDLS is already mirrored separately in the repo; wire its cross-links too.
-    index["/vtdls"] = REPO_ROOT / "docs" / "vtdls" / "vtdls.md"
-    return index
+    return {urlsplit(p.url).path.rstrip("/"): p.out_md for p in plans}
 
 
 def fetch(url: str) -> bytes:

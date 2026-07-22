@@ -141,7 +141,6 @@ An ERAM sector contains the following fields:
 
 - **ID:** the numeric ID of the sector
 - **Name:** the name of the sector
-
   > ![✅](https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/2705.svg ":white_check_mark:") Examples: `Kauai 02`, `Concord 37`
 
 > ℹ️ Sectors imported from ERAM adaptation data may not be deleted
@@ -154,7 +153,7 @@ An ERAM sector contains the following fields:
 
 ![Editing a GeoMap](img/facilities/artcc/edit-geomap.png)
 
-*Editing a GeoMap*
+*Editing a GeoMa*
 
 A GeoMap contains the following fields:
 
@@ -392,10 +391,12 @@ Area configurations contain the following fields:
   > ℹ️ The first tower list's airport will be considered the area's primary airport.
 
   Tower lists contain the following fields:
-
   - **Airports:** the ID of the tower list's airport.
 
-    > ⚠️ Airports IDs must also be in the facility's internal airports list.
+  ```
+  !!! warning "Airports IDs must also be in the facility's internal airports list."
+  ```
+
   - **Range**: the range in nautical miles an arrival must be within the airport to be added to the tower list.
 - **Data Block options:** a set of self-explanatory data block options.
 
@@ -447,7 +448,7 @@ The Video Maps table contains the list of video maps to include in the STARS sys
 
 ![Editing a Map Group](img/facilities/tracon/editing-map-group.png)
 
-*Editing a Map Group*
+*Editing a Map Grou*
 
 Map groups contain the following fields:
 
@@ -803,7 +804,7 @@ The Tower Cab Image Generator takes one command line parameter: the airport's FA
 
 The Image Generator also take an optional secondary command line parameter: a URL to an image tile source such that the `x`, `y`, and `z` (zoom) values are inputted as variables inside curly brackets. For example, to use the USGS NAIP source for BOS, input the following command:
 
-> `> TowerCabImageGenerator.exe BOS https://gis.apfo.usda.gov/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer/tile/{z}/{y}/{x}` (Windows)
+> `> TowerCabImageGenerator.exe BOS "https://gis.apfo.usda.gov/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer/tile/{z}/{y}/{x}"` (Windows)
 >
 > `$ ./TowerCabImageGenerator BOS https://gis.apfo.usda.gov/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer/tile/{z}/{y}/{x}` (Linux)
 
@@ -1068,8 +1069,6 @@ ASDE-X will assign the fix ID of the first matching rule. If none of the rules a
 
 ### TDLS Configuration
 
-TDLS is a new system that will be released with vNAS. It allows controllers to more realistically send PDCs to aircraft. More information will be coming soon when TDLS documentation is released.
-
 ![TDLS configuration](img/facilities/atct/tdls.png)
 
 *TDLS configuration*
@@ -1080,6 +1079,9 @@ Enabling TDLS displays a table containing each clearance field. Selecting the "M
 
 Additionally, the following optional field may be set:
 
+- **Enable DCL Operational Configurations**: enables [Operational Configurations](#operational-configurations)
+
+  > 🛑 Disabling DCL Operational Configurations will also remove all associated SIDs. This cannot be undone.
 - **Default SID/Default Transition**: the default SID and transition populated when TDLS is unable to determine an appropriate SID based on an aircraft's flightplan. This will populate the SID and transition fields, as well as any default clearance fields configured for the transition.
 
 #### SID
@@ -1131,6 +1133,24 @@ TDLS contains the following clearance fields:
   > ![✅](https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/2705.svg ":white_check_mark:") Examples: `ADV ATIS`, `CENTRAL DEICING PROC IN EFFECT`
 
 > ⚠️ Note that all fields are limited to 32 characters.
+
+#### Operational Configurations
+
+> ℹ️ When Operational Configurations are enabled for the first time, existing SIDs and their transitions are copied to the "Master" configuration.
+
+Operational Configurations are used by some facilities to associate various SID and transition defaults with different configurations. For example, a facility may choose to have a West Configuration that applies different defaults to a SID than would be applied in an East Configuration (i.e. different departure frequencies and/or different maintain altitudes).
+
+When enabled, Operational Configurations are edited through the [SID](#sid) modal.
+
+![Operational Configurations](img/facilities/atct/tdls-op-configs.png)
+
+*Operational Configurations*
+
+Operational Configurations contain the following fields:
+
+- **Name:** the name of the Operational Configuration.
+- **SIDs and Transitions:** the SIDs and transitions available in the Operational Configuration. Configuring SIDs and their transitions is identical to configuration when Operational Configurations are disabled.
+- **Default SID/Default Transition**: the default SID and transition for the Operational Configuration.
 
 ### Flight Strips Configuration
 

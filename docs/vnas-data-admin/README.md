@@ -9,7 +9,7 @@ loads the same vNAS data-api ARTCC config.
 ## Source
 
 - **Upstream**: <https://docs.virtualnas.net/data-admin/overview/>
-- **Fetched**: 2026-06-12
+- **Fetched**: 2026-07-22
 - **Platform**: Material for MkDocs (see [`../crc/README.md`](../crc/README.md) for why this
   is generated, not verbatim).
 

@@ -325,19 +325,3 @@ Table 9 - Printer menu keyboard shortcuts
 | Cycle to previous strip | `←` |
 | Delete strip | `Delete` |
 | Delete strip | `Backspace` |
-
-## Installing as a Desktop Application
-
-With Google Chrome, it is possible to install vStrips as a desktop application. This allows vStrips to be pinned to the Windows taskbar and launched in a dedicated window without the browser toolbar.
-
-To install as a desktop application from Chrome, click on the three dots on the top right of the toolbar, and select **More tools** then **Create shortcut...**:
-
-![Saving as a desktop application](img/save-app.png)
-
-*Saving as a desktop application*
-
-Finally, check **Open as window** and click **Create** to add the shortcut. vStrips is then installed as a standalone desktop application.
-
-![Creating the shortcut](img/create-app.png)
-
-*Creating the shortcut*

@@ -59,7 +59,7 @@ The ASDE-X Display Map depicts the airport's runways, taxiways, ramp areas, and 
 *or*
 
 1. Left-click the **RANGE** button on the Main DCB menu or the Tools DCB submenu
-2. Type the desired range (6-300)
+2. Type the desired range (3-608)
 3. Press `Enter`
 
 ##### To change the Display Map's orientation:
@@ -468,6 +468,7 @@ The Pref Sets submenu also contains the following buttons:
 - **UNDO**: executes the [undo](#undo-function) function
 - **OP INITS** initiates the [change operator](#to-set-the-current-operator) function
 - **SAVE AS**: initiates the [save Pref Set](#to-save-a-pref-set) function
+- **MODIFY**: initiates the [modify Pref Set](#to-modify-a-pref-set) function
 - **CHG PIN**: initiates the [change PIN](#to-change-a-pin) function
 - **DELETE**: initiates the [delete Pef Set](#to-delete-a-pref-set) function
 
@@ -515,7 +516,7 @@ The Character Size DCB submenu contains the following buttons to control the cha
 - **DCB**: controls the character size of the DCB. Note that the DCB's character size is automatically decreased to fit smaller window sizes.
 - **COAST SUSPEND**: controls the character size of the [Coast/Suspend List](#coastsuspend-list)
 - **TEMP DATA**: controls the character size of [Temporary Map Text](#temporary-map-text)
-- **Preview Area**: controls the character size of the [Preview Area](#preview-area)
+- **PREVIEW AREA**: controls the character size of the [Preview Area](#preview-area)
 
 ##### To change a character size setting:
 
@@ -659,7 +660,7 @@ The Temporary Data DCB submenu contains the following buttons:
 
 *The Stored Global Temporary Data DCB submenu*
 
-The Stored Global Temporary Data DCB submenu contains 88 slots to store global Temporary Data Presets. Active Preset buttons are indicated by yellow labels. To view additional pages of Presets, left-click the **1-22**, **23-44**, **45-66**, etc. buttons.
+The Stored Global Temporary Data DCB submenu contains 88 slots to store global Temporary Data Presets. Active Preset buttons are indicated by yellow labels. To view additional pages of Presets, left-click the **1-22**, **23-44**, **45-88**, etc. buttons.
 
 > ℹ️ For more information on Temporary Data Presets, please see the [Temporary Data](#to-save-a-temporary-data-object-to-a-preset) section of the documentation.
 
@@ -679,7 +680,7 @@ The Data Block Area DCB submenu contains the following buttons:
 - **DEFINE TRAIT AREA**: initiates the [define Data Block Trait Area](#to-define-a-data-block-trait-area) function
 - **DEFINE OFF AREA**: initiates the [define Data Block Off Area](#to-define-a-data-block-off-area) function
 - **MODIFY TRAIT AREA**: initiates the [modify Data Block Trait Area](#to-modify-a-data-block-trait-area) function
-- **DELETE ALL AREA**: initiates the [delete all Data Block Trait Areas](#to-delete-all-data-block-trait-areas) function
+- **DELETE ALL AREAS**: initiates the [delete all Data Block Trait Areas](#to-delete-all-data-block-trait-areas) function
 - **DELETE ONE AREA**: initiates the [delete one Data Block Trait Area](#to-delete-a-single-data-block-trait-area) function
 
 > ℹ️ For more information on Data Block Areas, please see the [Data Block Areas](#data-block-areas) section of the documentation.
@@ -896,6 +897,14 @@ Each operator has a four-digit PIN that is used to save and delete Pref Sets.
 1. Press `F1`
 2. Enter the Pref Set's ID, such as `RI01`
 3. Press `Enter`
+
+##### To modify a Pref Set:
+
+1. Left-click the **MODIFY** button on the Pref Set DCB submenu
+2. Enter the set ID that you wish to modify
+3. Enter a new title for the Pref Set that you wish to modify. The new title can be the same as the old title.
+4. Enter the current operator's PIN
+5. Press `Enter`
 
 ##### To delete a Pref Set:
 
