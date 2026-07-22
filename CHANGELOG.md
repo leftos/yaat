@@ -6,6 +6,8 @@
 - A stationary aircraft's hold/give-way badges, remarks, and route and altitude assignments now update on the instructor's display immediately, not only once it moves.
 - The vTDLS **Send** button re-enables as soon as you fill in the last missing mandatory field.
 - vTDLS clearance fields now pre-fill from the SID transition's defaults even when the facility's dropdown list formats the value differently (`119.2` vs `119.200`).
+- The vTDLS footer status updates as you change a dropdown instead of lagging up to a second behind, and names only the fields still blank.
+- The vTDLS footer status is legible in light mode instead of rendering white on a near-white bar.
 
 ## v0.9.11-beta [2026/07/19]
 

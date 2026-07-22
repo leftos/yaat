@@ -460,7 +460,16 @@ public partial class TdlsFlightPlanEditorViewModel : ObservableObject
         }
     }
 
-    private void RecomputeCanSend() => CanSend = EnumerateMissingMandatoryFields().Count == 0;
+    private void RecomputeCanSend()
+    {
+        CanSend = EnumerateMissingMandatoryFields().Count == 0;
+
+        // The *set* of missing fields changes more often than CanSend does: with two
+        // mandatory fields blank, filling one leaves CanSend false, so ObservableProperty
+        // raises nothing and a listener keyed on CanSend keeps naming the field the
+        // controller just filled. Raise the derived list on every recompute.
+        OnPropertyChanged(nameof(MissingMandatoryFieldNames));
+    }
 
     private List<string> EnumerateMissingMandatoryFields()
     {

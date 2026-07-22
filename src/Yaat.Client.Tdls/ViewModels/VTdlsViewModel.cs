@@ -62,6 +62,50 @@ public partial class VTdlsViewModel : ObservableObject
     private TdlsFlightPlanEditorViewModel? _editor;
 
     /// <summary>
+    /// Footer status line, mirroring upstream's "CLEARANCE TYPE: PDC" / "MANDATORY FIELD
+    /// NOT SET" message (docs/vtdls/vtdls.md §Footer). Derived rather than pushed so it
+    /// tracks the editor's dropdowns on the spot; the view binds it directly.
+    /// </summary>
+    public string FooterStatusText =>
+        Editor switch
+        {
+            null => "CLEARANCE TYPE: PDC",
+            { IsReadOnly: true } => "CLEARANCE TYPE: PDC — SENT (READ ONLY)",
+            { IsSendEnabled: true } => "CLEARANCE TYPE: PDC",
+            var editor => $"MANDATORY FIELD NOT SET — {editor.MissingMandatoryFieldNames}",
+        };
+
+    /// <summary>True while the open editor is missing a mandatory field — drives the footer's warning colour.</summary>
+    public bool IsFooterStatusWarning => Editor is { IsReadOnly: false, IsSendEnabled: false };
+
+    partial void OnEditorChanged(TdlsFlightPlanEditorViewModel? oldValue, TdlsFlightPlanEditorViewModel? newValue)
+    {
+        if (oldValue is not null)
+        {
+            oldValue.PropertyChanged -= OnEditorPropertyChanged;
+        }
+        if (newValue is not null)
+        {
+            newValue.PropertyChanged += OnEditorPropertyChanged;
+        }
+        RaiseFooterStatusChanged();
+    }
+
+    private void OnEditorPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(TdlsFlightPlanEditorViewModel.IsSendEnabled) or nameof(TdlsFlightPlanEditorViewModel.MissingMandatoryFieldNames))
+        {
+            RaiseFooterStatusChanged();
+        }
+    }
+
+    private void RaiseFooterStatusChanged()
+    {
+        OnPropertyChanged(nameof(FooterStatusText));
+        OnPropertyChanged(nameof(IsFooterStatusWarning));
+    }
+
+    /// <summary>
     /// Dark-mode toggle for the vTDLS view. Mirrors the upstream "Dark Mode" item
     /// in the Facility Menu (see docs/vtdls/vtdls.md §Dark Mode). False = the
     /// realistic light-themed look that controllers see in production vTDLS; true

@@ -32,6 +32,12 @@ public partial class VTdlsView : UserControl
     /// <summary>Test hook: the in-view Find controller backing the FindBar overlay.</summary>
     internal FindController FindController => _findController;
 
+    /// <summary>Test hook: the rendered footer status line, read off the live control rather than the view-model.</summary>
+    internal string? FooterStatusText => FooterStatus.Text;
+
+    /// <summary>Test hook: whether the footer status carries the warning class that repaints it.</summary>
+    internal bool FooterStatusIsWarning => FooterStatus.Classes.Contains("warning");
+
     public VTdlsView()
     {
         InitializeComponent();
@@ -220,27 +226,6 @@ public partial class VTdlsView : UserControl
         // the same footer slot.
         var now = DateTime.UtcNow;
         FooterZuluClock.Text = now.ToString(@"HH\:mm\:ss", System.Globalization.CultureInfo.InvariantCulture);
-
-        // Footer status — drives the "MANDATORY FIELD NOT SET" message upstream
-        // shows when the controller has an editor open with missing fields.
-        if (DataContext is VTdlsViewModel { Editor: { } editor })
-        {
-            if (editor.IsReadOnly)
-            {
-                FooterStatus.Text = "CLEARANCE TYPE: PDC — SENT (READ ONLY)";
-                FooterStatus.Foreground = Brushes.White;
-            }
-            else
-            {
-                FooterStatus.Text = editor.IsSendEnabled ? "CLEARANCE TYPE: PDC" : $"MANDATORY FIELD NOT SET — {editor.MissingMandatoryFieldNames}";
-                FooterStatus.Foreground = editor.IsSendEnabled ? Brushes.White : Brushes.OrangeRed;
-            }
-        }
-        else
-        {
-            FooterStatus.Text = "CLEARANCE TYPE: PDC";
-            FooterStatus.Foreground = Brushes.White;
-        }
     }
 
     private async void OnFacilityButtonClick(object? sender, RoutedEventArgs e)

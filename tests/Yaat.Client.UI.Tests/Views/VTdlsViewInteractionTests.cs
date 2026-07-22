@@ -79,7 +79,102 @@ public class VTdlsViewInteractionTests
         Assert.True(vm.DclItems.Single().IsFindMatch);
     }
 
+    [AvaloniaFact]
+    public void FooterStatus_TracksEditorImmediately_WithoutWaitingForTheClockTick()
+    {
+        // The footer used to be repainted only by the 1 Hz Zulu-clock timer, so it lagged
+        // the dropdowns by up to a second. No timer fires inside this test's lifetime —
+        // every assertion below therefore proves the footer is binding-driven.
+        var (vm, transport) = MakeVm();
+        vm.Config = ConfigWithMandatoryDepFreq();
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742")], []));
+        Dispatcher.UIThread.RunJobs();
+        var view = BootView(vm);
+
+        // Nothing selected — the editor is closed, so the footer shows the idle status.
+        Assert.Equal("CLEARANCE TYPE: PDC", view.FooterStatusText);
+        Assert.False(view.FooterStatusIsWarning);
+
+        // Selecting a Pending item opens the editor with the mandatory Dep Freq unset.
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("MANDATORY FIELD NOT SET — Departure frequency", view.FooterStatusText);
+        Assert.True(view.FooterStatusIsWarning);
+
+        // Filling it must flip the footer on the spot, not on the next tick.
+        vm.Editor!.SelectedDepFreq = vm.Editor.DepFreqs[0];
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("CLEARANCE TYPE: PDC", view.FooterStatusText);
+        Assert.False(view.FooterStatusIsWarning);
+    }
+
+    [AvaloniaFact]
+    public void FooterStatus_DropsAFieldFromTheList_AsEachOneIsFilled()
+    {
+        // Two mandatory fields blank: filling one leaves CanSend false, so the guard the
+        // footer binding hangs off cannot be CanSend alone — the list of names has to be
+        // re-raised on every recompute or the footer keeps naming a field already filled.
+        var (vm, transport) = MakeVm();
+        vm.Config = ConfigWithMandatoryDepFreq() with { MandatoryInitialAlt = true };
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742")], []));
+        Dispatcher.UIThread.RunJobs();
+        var view = BootView(vm);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("MANDATORY FIELD NOT SET — Maintain, Departure frequency", view.FooterStatusText);
+
+        vm.Editor!.SelectedInitialAlt = vm.Editor.InitialAlts[0];
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("MANDATORY FIELD NOT SET — Departure frequency", view.FooterStatusText);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
+
+    /// <summary>Facility whose transition supplies no departure frequency, so the editor opens one mandatory field short.</summary>
+    private static TdlsConfigDto ConfigWithMandatoryDepFreq() =>
+        new(
+            FacilityId: "IAD",
+            FacilityName: "Washington Dulles ATCT",
+            MandatorySid: true,
+            MandatoryClimbout: false,
+            MandatoryClimbvia: false,
+            MandatoryInitialAlt: false,
+            MandatoryDepFreq: true,
+            MandatoryExpect: true,
+            MandatoryContactInfo: false,
+            MandatoryLocalInfo: false,
+            Sids:
+            [
+                new TdlsSidDto(
+                    "RNLDI4",
+                    "RNLDI4",
+                    [
+                        new TdlsSidTransitionDto(
+                            "OTTTO",
+                            "OTTTO",
+                            FirstRoutePoint: "OTTTO",
+                            DefaultExpect: "10 MIN AFT DP",
+                            DefaultClimbout: null,
+                            DefaultClimbvia: null,
+                            DefaultInitialAlt: null,
+                            DefaultDepFreq: null,
+                            DefaultContactInfo: null,
+                            DefaultLocalInfo: null
+                        ),
+                    ]
+                ),
+            ],
+            Climbouts: [],
+            Climbvias: [],
+            InitialAlts: [new TdlsClearanceValueDto("3000FT", "3000FT")],
+            DepFreqs: [new TdlsClearanceValueDto("125050", "125.050")],
+            Expects: [new TdlsClearanceValueDto("10MIN", "10 MIN AFT DP")],
+            ContactInfos: [],
+            LocalInfos: [],
+            DefaultSidId: "RNLDI4",
+            DefaultTransitionId: "OTTTO"
+        );
 
     private static TdlsItemDto Item(string id, string callsign, TdlsFlightPlanInfoDto? fp = null) =>
         new(

@@ -64,6 +64,15 @@
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+        <!-- Footer status colour lives in styles rather than as a local Foreground:
+             a local value outranks a style setter in Avalonia, so a .warning class
+             could never repaint an element that set Foreground inline. -->
+        <Style Selector="TextBlock.footer-status">
+            <Setter Property="Foreground" Value="{DynamicResource VTdlsFooterFg}"/>
+        </Style>
+        <Style Selector="TextBlock.footer-status.warning">
+            <Setter Property="Foreground" Value="OrangeRed"/>
+        </Style>
     </UserControl.Styles>
 
     <!-- Page-zoom wrapper: scales the whole vTDLS surface uniformly (web-style
@@ -431,12 +440,13 @@
         <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" Background="{DynamicResource VTdlsFooterBg}">
             <TextBlock Grid.Column="0"
                        x:Name="FooterStatus"
-                       Text="CLEARANCE TYPE: PDC"
+                       Classes="footer-status"
+                       Classes.warning="{Binding IsFooterStatusWarning}"
+                       Text="{Binding FooterStatusText}"
                        FontFamily="{StaticResource MonoFont}"
                        FontSize="11"
                        VerticalAlignment="Center"
-                       Margin="8,0"
-                       Foreground="{DynamicResource VTdlsFooterFg}"/>
+                       Margin="8,0"/>
             <TextBlock Grid.Column="1"
                        Text="PDC ADR SUPR: ALWAYS    CAF: ON    PDC AUTO: OFF    CPDLC AUTO: OFF"
                        FontFamily="{StaticResource MonoFont}"

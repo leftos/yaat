@@ -263,6 +263,18 @@ field can't be issued — same enforcement upstream's vTDLS does. The
 footer status "MANDATORY FIELD NOT SET — Expect, Initial Alt" mirrors
 upstream's matching error.
 
+That footer line is `VTdlsViewModel.FooterStatusText`, derived from the
+open editor and bound directly by the view; the warning colour rides on
+`IsFooterStatusWarning` via a `Classes.warning` binding. Two constraints
+keep it honest. The colour has to come from a style rather than a local
+`Foreground` — a local value outranks a style setter in Avalonia, so an
+inline `Foreground` would make the warning class a no-op. And
+`RecomputeCanSend` re-raises `MissingMandatoryFieldNames` on every
+recompute, not only when `CanSend` flips: with two mandatory fields
+blank, filling one leaves `CanSend` false, so an `[ObservableProperty]`
+notification keyed on it would never fire and the footer would keep
+naming the field the controller just filled.
+
 `TdlsFlightPlanEditorViewModel.ResolveItem` maps an FE-supplied string
 (a transition default, or a field on a sent clearance being reviewed)
 onto the dropdown entry that offers it. It cannot match on exact string
