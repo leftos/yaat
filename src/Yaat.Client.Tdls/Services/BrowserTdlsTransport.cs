@@ -18,7 +18,7 @@ namespace Yaat.Client.Services;
 /// Yaat.Client.Core).
 ///
 /// Wire-protocol method names match the server: GetAccessibleTdlsFacilities,
-/// GetTdlsConfigForFacility, RequestFullTdlsState, FindRoomForMyCid, JoinRoom,
+/// GetTdlsFacilityView, RequestFullTdlsState, FindRoomForMyCid, JoinRoom,
 /// SendCommand. Server-pushed events (TdlsItemChanged, TdlsItemRemoved,
 /// TdlsStateChanged, RoomAvailableForCid) match too.
 /// </summary>
@@ -119,8 +119,8 @@ public sealed class BrowserTdlsTransport : ITdlsTransport, IAsyncDisposable
     public Task<List<AccessibleFacilityDto>> GetAccessibleTdlsFacilitiesAsync() =>
         RequireConnection().InvokeAsync<List<AccessibleFacilityDto>>("GetAccessibleTdlsFacilities");
 
-    public Task<TdlsConfigDto?> GetTdlsConfigForFacilityAsync(string facilityId) =>
-        RequireConnection().InvokeAsync<TdlsConfigDto?>("GetTdlsConfigForFacility", facilityId);
+    public Task<TdlsFacilityViewDto?> GetTdlsFacilityViewAsync(string facilityId) =>
+        RequireConnection().InvokeAsync<TdlsFacilityViewDto?>("GetTdlsFacilityView", facilityId);
 
     public Task RequestFullTdlsStateAsync() => RequireConnection().InvokeAsync("RequestFullTdlsState");
 

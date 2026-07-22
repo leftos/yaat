@@ -1395,6 +1395,19 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         submenu.ItemsSource = items;
     }
 
+    /// <summary>
+    /// Menu label for a facility entry: the position's own facility is marked
+    /// "(own)", and a consolidated vTDLS parent is marked so the merged page is
+    /// distinguishable from the child facilities listed alongside it.
+    /// </summary>
+    private static string FacilityMenuHeader(Services.AccessibleFacilityDto facility) =>
+        facility switch
+        {
+            { IsStudentFacility: true } => $"{facility.FacilityName} (own)",
+            { IsConsolidated: true } => $"{facility.FacilityName} (consolidated)",
+            _ => facility.FacilityName,
+        };
+
     private void OnNewStripsTabSubmenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (sender is not MenuItem submenu || DataContext is not MainViewModel vm)
@@ -1421,8 +1434,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             {
                 continue;
             }
-            var header = facility.IsStudentFacility ? $"{facility.FacilityName} (own)" : facility.FacilityName;
-            var item = new MenuItem { Header = header, Tag = facility };
+            var item = new MenuItem { Header = FacilityMenuHeader(facility), Tag = facility };
             item.Click += async (_, _) =>
             {
                 if (item.Tag is Services.AccessibleFacilityDto f)
@@ -1641,8 +1653,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             {
                 continue;
             }
-            var header = facility.IsStudentFacility ? $"{facility.FacilityName} (own)" : facility.FacilityName;
-            var item = new MenuItem { Header = header, Tag = facility };
+            var item = new MenuItem { Header = FacilityMenuHeader(facility), Tag = facility };
             item.Click += async (_, _) =>
             {
                 if (item.Tag is Services.AccessibleFacilityDto f)

@@ -104,7 +104,7 @@ Logging/
 
 Services/
   StripDtos.cs                  # StripItemType / StripItemDto / StripBayContentsDto / FlightStripsStateDto / StripBayConfigDto / FlightStripsConfigDto — wire-format records for the strip surface.
-  StripsTransportDtos.cs        # AccessibleFacilityDto (return of GetAccessibleFacilities) + CommandResultDto (return of every strip command) + StripsWeatherDto (narrow WeatherChanged projection — raw METARs) + StripMetarEntry (parsed station + raw, for the METAR bar). Live here because the IStripsTransport surface returns/feeds them.
+  StripsTransportDtos.cs        # AccessibleFacilityDto (return of GetAccessibleFacilities / GetAccessibleTdlsFacilities; IsConsolidated marks a vTDLS parent page) + CommandResultDto (return of every strip command) + StripsWeatherDto (narrow WeatherChanged projection — raw METARs) + StripMetarEntry (parsed station + raw, for the METAR bar). Live here because the IStripsTransport surface returns/feeds them.
   IStripsTransport.cs           # Narrow contract VStripsViewModel depends on. IsConnected + transport-state events + StripsConfigChanged + FlightStripsStateChanged + StripItemsChanged + MetarsChanged (raw METARs for the current-METAR bar) + Get/RequestStrips RPC trio. ServerConnection (Core) and BrowserStripsTransport (here) both implement it.
   BrowserStripsTransport.cs     # WASM-side IStripsTransport. Owns its own HubConnection, wires JsonHubProtocol against YaatStripsHubJsonContext only, exposes auto-join helpers (FindRoomForMyCidAsync, JoinRoomAsync, SendCommandAsync, ConnectAsync, RoomAvailableForCid event) needed by tools/Yaat.VStrips.Web/MainView. Browser-only DTO subsets (BrowserRoomInfoDto, BrowserJoinRoomResultDto, BrowserScenarioLoadedDto) downscope the wire format so the WASM bundle ships only the fields the strip view reads.
   YaatStripsHubJsonContext.cs   # Source-generated JsonSerializerContext for the strip DTO subset. Inserted into the JsonHubProtocol resolver chain by both ServerConnection (alongside YaatHubJsonContext) and BrowserStripsTransport (alone).
@@ -142,8 +142,8 @@ Sibling of Yaat.Client.Strips for the vTDLS (Pre-Departure Clearance) view. Same
 
 ```
 Services/
-  TdlsDtos.cs                   # Client-side JSON mirrors of the server vTDLS DTOs: TdlsStatus enum, TdlsItemDto, TdlsItemRemovedDto, TdlsStateDto, ClearanceDto, TdlsConfigDto + nested SID/transition/value records. Property names match the server one-for-one so System.Text.Json round-trips without converters.
-  ITdlsTransport.cs             # Narrow contract VTdlsViewModel depends on. IsConnected + transport-state events + TdlsItemChanged/Removed/StateChanged broadcasts + GetAccessibleTdlsFacilities/GetTdlsConfigForFacility/RequestFullTdlsState RPC trio. ServerConnection (Core) and BrowserTdlsTransport (here) both implement it.
+  TdlsDtos.cs                   # Client-side JSON mirrors of the server vTDLS DTOs: TdlsStatus enum, TdlsItemDto, TdlsItemRemovedDto, TdlsStateDto, ClearanceDto, TdlsConfigDto + nested SID/transition/value records, TdlsFacilityViewDto (one config per member facility — a consolidated parent carries its children's). Property names match the server one-for-one so System.Text.Json round-trips without converters.
+  ITdlsTransport.cs             # Narrow contract VTdlsViewModel depends on. IsConnected + transport-state events + TdlsItemChanged/Removed/StateChanged broadcasts + GetAccessibleTdlsFacilities/GetTdlsFacilityView/RequestFullTdlsState RPC trio. ServerConnection (Core) and BrowserTdlsTransport (here) both implement it.
   BrowserTdlsTransport.cs       # WASM-side ITdlsTransport. Owns its own HubConnection, wires JsonHubProtocol against YaatTdlsHubJsonContext only, exposes auto-join helpers (FindRoomForMyCidAsync, JoinRoomAsync, SendCommandAsync, ConnectAsync, RoomAvailableForCid event) needed by tools/Yaat.VTdls.Web/MainView. Browser-only DTO subsets (BrowserTdlsRoomInfoDto, BrowserTdlsJoinRoomResultDto) downscope the wire format.
   YaatTdlsHubJsonContext.cs     # Source-generated JsonSerializerContext for the TDLS DTO subset. Inserted into the JsonHubProtocol resolver chain by both ServerConnection (alongside YaatHubJsonContext + YaatStripsHubJsonContext) and BrowserTdlsTransport (alone).
 
@@ -799,11 +799,11 @@ ArtccConfigResolver.cs         # Pure-function resolvers as extension methods on
                                # ResolvePosition / ResolveTcpCode / ResolveEramCode / ResolveEramToStarsHandoffCode (Q2B-style ERAM→STARS prefix) / FindPositionByCallsign / FindTcpByCode /
                                # ExpandTcpShorthand / GetCoordinationChannels / GetAllAsdexAirports / GetAllTowerCabAirports /
                                # GetAllAccessibleStripBays (display set) / GetAllCommandTargetableStripBays (authorization set) / GetAccessibleStripBay(position, facilityId, bayName) /
-                               # GetAccessibleStripFacilities (own + descendants + externalBays-linked) /
+                               # GetAccessibleStripFacilities (own + descendants + externalBays-linked) / GetAccessibleTdlsFacilities (own + descendants, with MemberFacilityIds for the consolidated parent page) /
                                # GetConsolidationItems / GetConsolidationOwner /
                                # GetSidInitialAltitudeFt (departure TDLS initial-altitude cap) / etc.
                                # Server's ArtccConfigService delegates to these; replay applier uses them via TrackResolver.
-ArtccAccessRecords.cs          # AccessibleBay, AccessibleFacility, AsdexAirportInfo, TowerCabAirportInfo records used by the resolvers.
+ArtccAccessRecords.cs          # AccessibleBay, AccessibleFacility, AccessibleTdlsFacility (+ MemberFacilityIds), AsdexAirportInfo, TowerCabAirportInfo records used by the resolvers.
 BeaconCodePool.cs              # Discrete-code allocator. AssignNextCode(isVfr) draws from the ARTCC config's banks
                                # (Ifr→Any for IFR, Vfr→Any for VFR), falling back to sequential 0001-7777 octal when no
                                # matching bank exists or a bank is exhausted; returns 0 only when all 4096 are in use.

@@ -33,8 +33,12 @@ public interface ITdlsTransport
     /// <summary>Lists every TDLS-configured facility the room's student position can see.</summary>
     Task<List<AccessibleFacilityDto>> GetAccessibleTdlsFacilitiesAsync();
 
-    /// <summary>Returns the bootstrap config (SIDs / transitions / dropdowns / mandatory flags) for one facility.</summary>
-    Task<TdlsConfigDto?> GetTdlsConfigForFacilityAsync(string facilityId);
+    /// <summary>
+    /// Returns the bootstrap for one facility page: a config (SIDs / transitions /
+    /// dropdowns / mandatory flags) per member facility. A leaf yields one member;
+    /// a consolidated parent yields one per child TDLS facility.
+    /// </summary>
+    Task<TdlsFacilityViewDto?> GetTdlsFacilityViewAsync(string facilityId);
 
     /// <summary>Asks the server to push the current full TDLS state via <see cref="TdlsStateChanged"/>. Idempotent.</summary>
     Task RequestFullTdlsStateAsync();

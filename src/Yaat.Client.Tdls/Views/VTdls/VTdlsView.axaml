@@ -161,7 +161,13 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="vm:TdlsItemViewModel">
                                 <Grid>
-                                    <TextBlock Text="{Binding AircraftId}" MinWidth="80"/>
+                                    <!-- The facility prefix only renders on a consolidated parent page,
+                                         where items from several airports share one list. -->
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding FacilityId}" Opacity="0.65"
+                                                   IsVisible="{Binding $parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConsolidated}"/>
+                                        <TextBlock Text="{Binding AircraftId}" MinWidth="80"/>
+                                    </StackPanel>
                                     <!-- In-view Find (Ctrl+F) highlight: thin cyan outline for a
                                          match, thicker outline + fill for the current match. -->
                                     <Border IsVisible="{Binding IsFindMatch}" IsHitTestVisible="False"
@@ -200,7 +206,11 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="vm:TdlsItemViewModel">
                                 <Grid>
-                                    <TextBlock Text="{Binding AircraftId}"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding FacilityId}" Opacity="0.65"
+                                                   IsVisible="{Binding $parent[UserControl].((vm:VTdlsViewModel)DataContext).IsConsolidated}"/>
+                                        <TextBlock Text="{Binding AircraftId}"/>
+                                    </StackPanel>
                                     <!-- In-view Find (Ctrl+F) highlight: thin cyan outline for a
                                          match, thicker outline + fill for the current match. -->
                                     <Border IsVisible="{Binding IsFindMatch}" IsHitTestVisible="False"

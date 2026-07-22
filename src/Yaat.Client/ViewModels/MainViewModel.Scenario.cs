@@ -541,7 +541,9 @@ public partial class MainViewModel
     /// Picks the best vTDLS facility to default to for the scenario. Prefers the
     /// facility whose id matches the scenario's primary airport (vNAS convention:
     /// OAK facility serves KOAK; SFO facility serves KSFO; etc.). Falls back to
-    /// the first accessible TDLS facility, then null when none are available.
+    /// the first accessible leaf facility — never a consolidated parent, whose
+    /// merged page is an explicit choice rather than a sensible default — then to
+    /// the first entry of any kind, then null when none are available.
     /// </summary>
     private static string? ResolvePreferredTdlsFacility(IReadOnlyList<Services.AccessibleFacilityDto> facilities, string? primaryAirportId)
     {
@@ -562,7 +564,8 @@ public partial class MainViewModel
             }
         }
 
-        return facilities[0].FacilityId;
+        var leaf = facilities.FirstOrDefault(f => !f.IsConsolidated);
+        return (leaf ?? facilities[0]).FacilityId;
     }
 
     private void OnScenarioUnloaded()

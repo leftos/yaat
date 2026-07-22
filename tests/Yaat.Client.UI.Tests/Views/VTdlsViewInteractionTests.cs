@@ -86,8 +86,8 @@ public class VTdlsViewInteractionTests
         // the dropdowns by up to a second. No timer fires inside this test's lifetime —
         // every assertion below therefore proves the footer is binding-driven.
         var (vm, transport) = MakeVm();
-        vm.Config = ConfigWithMandatoryDepFreq();
-        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742")], []));
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
         var view = BootView(vm);
 
@@ -115,8 +115,8 @@ public class VTdlsViewInteractionTests
         // footer binding hangs off cannot be CanSend alone — the list of names has to be
         // re-raised on every recompute or the footer keeps naming a field already filled.
         var (vm, transport) = MakeVm();
-        vm.Config = ConfigWithMandatoryDepFreq() with { MandatoryInitialAlt = true };
-        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742")], []));
+        SeedFacility(vm, ConfigWithMandatoryDepFreq() with { MandatoryInitialAlt = true });
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "IAD")], []));
         Dispatcher.UIThread.RunJobs();
         var view = BootView(vm);
 
@@ -136,14 +136,7 @@ public class VTdlsViewInteractionTests
         // SIDs, with a different id for the same SID name — so an open editor's SelectedSid
         // would point at an id that no longer exists after a switch.
         var (vm, transport) = MakeVm();
-        vm.Config = OpsConfigFacility();
-        vm.OpConfigs.Clear();
-        foreach (var c in vm.Config.OpConfigs)
-        {
-            vm.OpConfigs.Add(c);
-        }
-        vm.FacilityId = "OAK";
-        vm.ActiveOpConfigId = "cfg-west";
+        SeedFacility(vm, OpsConfigFacility() with { ActiveOpConfigId = "cfg-west" });
         transport.PushState(
             new TdlsStateDto([Item("id1", "UAL1742", facilityId: "OAK")], []) { ActiveOpConfigs = [new TdlsActiveOpConfigDto("OAK", "cfg-west")] }
         );
@@ -178,8 +171,7 @@ public class VTdlsViewInteractionTests
     public async Task OpsConfig_SaveGoesToTheServer_AndIsHiddenWhereConfigsAreDisabled()
     {
         var (vm, _) = MakeVm();
-        vm.Config = OpsConfigFacility();
-        vm.FacilityId = "OAK";
+        SeedFacility(vm, OpsConfigFacility());
         BootView(vm);
 
         SentCommands.Clear();
@@ -189,11 +181,106 @@ public class VTdlsViewInteractionTests
         Assert.Equal([("", "TDLSOPS OAK cfg-east")], SentCommands);
 
         // A facility without ops configs hides the footer menu entirely.
-        vm.Config = ConfigWithMandatoryDepFreq();
+        SeedFacility(vm, ConfigWithMandatoryDepFreq());
         Assert.False(vm.AreOpConfigsEnabled);
     }
 
+    // ── Consolidated parent page (upstream's NCT-over-its-children view) ──
+
+    [AvaloniaFact]
+    public void Consolidated_ShowsEveryMemberFacilitysItems_AndNoOthers()
+    {
+        var (vm, transport) = MakeVm();
+        SeedConsolidated(vm);
+
+        transport.PushState(
+            new TdlsStateDto(
+                [
+                    Item("id1", "UAL1742", facilityId: "OAK"),
+                    Item("id2", "SWA200", facilityId: "SFO"),
+                    // A facility outside the consolidated set must not leak onto the page.
+                    Item("id3", "AAL9", facilityId: "SMF"),
+                ],
+                []
+            )
+        );
+        Dispatcher.UIThread.RunJobs();
+        BootView(vm);
+
+        Assert.True(vm.IsConsolidated);
+        Assert.Equal(["UAL1742", "SWA200"], vm.DclItems.Select(i => i.AircraftId));
+    }
+
+    [AvaloniaFact]
+    public void Consolidated_EditorAndOpsConfig_FollowTheSelectedItemsOwnFacility()
+    {
+        var (vm, transport) = MakeVm();
+        SeedConsolidated(vm);
+        transport.PushState(
+            new TdlsStateDto([Item("id1", "UAL1742", facilityId: "OAK"), Item("id2", "SWA200", facilityId: "SFO")], [])
+            {
+                ActiveOpConfigs = [new TdlsActiveOpConfigDto("OAK", "cfg-east")],
+            }
+        );
+        Dispatcher.UIThread.RunJobs();
+        BootView(vm);
+
+        // Nothing selected: no single facility speaks for the page.
+        Assert.Null(vm.Config);
+        Assert.False(vm.AreOpConfigsEnabled);
+
+        // Selecting an OAK item brings OAK's ops-config-driven SID list into force.
+        vm.SelectedItem = vm.DclItems.Single(i => i.AircraftId == "UAL1742");
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("OAK", vm.Config!.FacilityId);
+        Assert.True(vm.AreOpConfigsEnabled);
+        Assert.Equal("OAKE", vm.ActiveOpConfigName);
+        Assert.Equal("sid-east", vm.Editor!.Sids.Single().Id);
+
+        // Moving to the SFO item swaps the whole configuration under the editor.
+        vm.SelectedItem = vm.DclItems.Single(i => i.AircraftId == "SWA200");
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("SFO", vm.Config!.FacilityId);
+        Assert.False(vm.AreOpConfigsEnabled);
+    }
+
+    [AvaloniaFact]
+    public async Task Consolidated_OpsConfigSave_TargetsTheMemberFacility_NotTheParent()
+    {
+        var (vm, transport) = MakeVm();
+        SeedConsolidated(vm);
+        transport.PushState(new TdlsStateDto([Item("id1", "UAL1742", facilityId: "OAK")], []));
+        Dispatcher.UIThread.RunJobs();
+        BootView(vm);
+
+        vm.SelectedItem = vm.DclItems.Single();
+        Dispatcher.UIThread.RunJobs();
+
+        SentCommands.Clear();
+        Assert.True(await vm.SaveOpConfigAsync("cfg-east"));
+        // NCT owns no TDLS configuration at all — naming the page would be rejected.
+        Assert.Equal([("", "TDLSOPS OAK cfg-east")], SentCommands);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Puts the VM on a consolidated NCT page over two members: OAK (ops configs
+    /// enabled, per-config SID ids) and SFO (plain, no ops configs).
+    /// </summary>
+    private static void SeedConsolidated(VTdlsViewModel vm) =>
+        vm.ApplyFacilityView(
+            "NCT",
+            new TdlsFacilityViewDto(
+                "NCT",
+                "Northern California TRACON",
+                [OpsConfigFacility(), ConfigWithMandatoryDepFreq() with { FacilityId = "SFO", FacilityName = "San Francisco Intl ATCT" }]
+            )
+        );
+
+    /// <summary>Puts the VM on a single-facility page backed by <paramref name="config"/>.</summary>
+    private static void SeedFacility(VTdlsViewModel vm, TdlsConfigDto config) =>
+        vm.ApplyFacilityView(config.FacilityId, new TdlsFacilityViewDto(config.FacilityId, config.FacilityName, [config]));
 
     /// <summary>Facility shaped like OAK: ops configs on, facility-level SID list empty, a distinct SID id per config.</summary>
     private static TdlsConfigDto OpsConfigFacility()
@@ -329,7 +416,7 @@ public class VTdlsViewInteractionTests
 
         public Task<List<AccessibleFacilityDto>> GetAccessibleTdlsFacilitiesAsync() => Task.FromResult(new List<AccessibleFacilityDto>());
 
-        public Task<TdlsConfigDto?> GetTdlsConfigForFacilityAsync(string facilityId) => Task.FromResult<TdlsConfigDto?>(null);
+        public Task<TdlsFacilityViewDto?> GetTdlsFacilityViewAsync(string facilityId) => Task.FromResult<TdlsFacilityViewDto?>(null);
 
         public Task RequestFullTdlsStateAsync() => Task.CompletedTask;
     }

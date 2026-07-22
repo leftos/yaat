@@ -28,3 +28,13 @@ public sealed record AccessibleBay(FacilityConfig Owner, StripBayConfig Bay, boo
 /// client can pre-select it on scenario load.
 /// </summary>
 public sealed record AccessibleFacility(string FacilityId, string FacilityName, bool IsStudentFacility);
+
+/// <summary>
+/// A facility the controller at a given position can open a vTDLS window for.
+/// <see cref="MemberFacilityIds"/> lists the TDLS facilities whose DCL/PDC
+/// items that window shows: for a leaf it is just the facility itself, and for
+/// a parent worked top-down it is every descendant TDLS facility — upstream's
+/// consolidated page (docs/vtdls/vtdls.md §Switching Facilities), which is how
+/// NCT surfaces the SFO/OAK/SJC/SMF/RNO lists on one page.
+/// </summary>
+public sealed record AccessibleTdlsFacility(string FacilityId, string FacilityName, bool IsStudentFacility, IReadOnlyList<string> MemberFacilityIds);

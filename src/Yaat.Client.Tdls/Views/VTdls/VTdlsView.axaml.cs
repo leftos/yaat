@@ -244,7 +244,10 @@ public partial class VTdlsView : UserControl
         var flyout = new MenuFlyout();
         foreach (var facility in vm.AccessibleFacilities)
         {
-            var item = new MenuItem { Header = $"{facility.FacilityId} — {facility.FacilityName}" };
+            // A consolidated parent (upstream's merged page over its child TDLS
+            // facilities) is marked so it reads apart from the children beside it.
+            var suffix = facility.IsConsolidated ? " (consolidated)" : "";
+            var item = new MenuItem { Header = $"{facility.FacilityId} — {facility.FacilityName}{suffix}" };
             var capturedId = facility.FacilityId;
             item.Click += async (_, _) => await vm.SwitchFacilityAsync(capturedId);
             flyout.Items.Add(item);

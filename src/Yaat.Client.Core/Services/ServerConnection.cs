@@ -358,11 +358,11 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<List<AccessibleFacilityDto>>("GetAccessibleTdlsFacilities");
     }
 
-    /// <summary>Returns the TDLS bootstrap config (SIDs, transitions, dropdowns, mandatory flags) for a facility.</summary>
-    public async Task<TdlsConfigDto?> GetTdlsConfigForFacilityAsync(string facilityId)
+    /// <summary>Returns the vTDLS bootstrap for a facility page — one config (SIDs, transitions, dropdowns, mandatory flags) per member facility.</summary>
+    public async Task<TdlsFacilityViewDto?> GetTdlsFacilityViewAsync(string facilityId)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<TdlsConfigDto?>("GetTdlsConfigForFacility", facilityId);
+        return await _connection!.InvokeAsync<TdlsFacilityViewDto?>("GetTdlsFacilityView", facilityId);
     }
 
     /// <summary>Asks the server to push the room's current full TDLS state via <see cref="TdlsStateChanged"/>. Used on initial subscribe and after facility switches.</summary>

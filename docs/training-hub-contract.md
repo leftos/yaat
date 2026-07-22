@@ -129,7 +129,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetAccessibleFacilitiesAsync()` | `GetAccessibleFacilities` | `GetAccessibleFacilities()` `:1411` |
 | `GetFlightStripsConfigForFacilityAsync(id)` | `GetFlightStripsConfigForFacility` | `GetFlightStripsConfigForFacility(id)` `:1435` |
 | `GetAccessibleTdlsFacilitiesAsync()` | `GetAccessibleTdlsFacilities` | `GetAccessibleTdlsFacilities()` |
-| `GetTdlsConfigForFacilityAsync(id)` | `GetTdlsConfigForFacility` | `GetTdlsConfigForFacility(id)` |
+| `GetTdlsFacilityViewAsync(id)` | `GetTdlsFacilityView` | `GetTdlsFacilityView(id)` — one `TdlsConfigDto` per member facility; a consolidated parent returns its children's |
 | `RequestFullTdlsStateAsync()` | `RequestFullTdlsState` | `RequestFullTdlsState()` |
 | `AdminAuthenticateAsync(password)` | `AdminAuthenticate` | `AdminAuthenticate(password)` `:1114` |
 | `AdminGetRoomsAsync()` | **`AdminGetScenarios`** | `AdminGetScenarios()` `:1125` |

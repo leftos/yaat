@@ -5,13 +5,16 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Coverage for the strips facility/bay resolvers against the committed ZOA
-/// config snapshot, which carries the exact shape the feature exists for: OAK
-/// ATCT links NCT and O90 bays via <c>externalBays</c>. Skips silently when the
-/// snapshot isn't present (mirrors TestVnasData).
+/// Coverage for the two facility-set resolvers against the committed ZOA config
+/// snapshot, which carries the exact shapes both features exist for: OAK ATCT
+/// links NCT and O90 bays via <c>externalBays</c>, and NCT consolidates five
+/// child TDLS facilities while owning no TDLS configuration of its own.
+/// Skips silently when the snapshot isn't present (mirrors TestVnasData).
 /// </summary>
 public class AccessibleFacilityResolverTests
 {
+    // ── Strips: own + descendants + facilities linked via externalBays ──
+
     [Fact]
     public void StripFacilities_TowerSeesTheFacilitiesItLinksBaysFrom()
     {
@@ -91,5 +94,69 @@ public class AccessibleFacilityResolverTests
         Assert.NotNull(config.GetAccessibleStripBay("OAK_TWR", "NCT", "NC1"));
         // "Ground 1" is OAK's bay; asking for it under NCT must not fall through.
         Assert.Null(config.GetAccessibleStripBay("OAK_TWR", "NCT", "Ground 1"));
+    }
+
+    // ── vTDLS: own + descendants, keyed on TDLS config, parents consolidate ──
+
+    [Fact]
+    public void TdlsFacilities_ParentConsolidatesItsChildren()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } config)
+        {
+            return;
+        }
+
+        var facilities = config.GetAccessibleTdlsFacilities("NCT_APP");
+
+        var nct = facilities.Single(f => f.FacilityId == "NCT");
+        // NCT owns no tdlsConfiguration — it is listed purely as the consolidated
+        // page over the five child facilities that do (upstream's parent view).
+        Assert.Equal(["SFO", "OAK", "SJC", "SMF", "RNO"], nct.MemberFacilityIds);
+        Assert.True(nct.IsStudentFacility);
+    }
+
+    [Fact]
+    public void TdlsFacilities_LeafCarriesOnlyItself()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } config)
+        {
+            return;
+        }
+
+        var facilities = config.GetAccessibleTdlsFacilities("NCT_APP");
+
+        Assert.Equal(["OAK"], facilities.Single(f => f.FacilityId == "OAK").MemberFacilityIds);
+    }
+
+    [Fact]
+    public void TdlsFacilities_TowerSeesOnlyItself_NotItsParent()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } config)
+        {
+            return;
+        }
+
+        // Upstream-faithful: the consolidated page is a top-down-consolidation
+        // affordance, so working OAK does not reach up to NCT (unlike strips,
+        // which follow the external-bay links).
+        var facilities = config.GetAccessibleTdlsFacilities("OAK_TWR");
+
+        var only = Assert.Single(facilities);
+        Assert.Equal("OAK", only.FacilityId);
+        Assert.Equal(["OAK"], only.MemberFacilityIds);
+    }
+
+    [Fact]
+    public void TdlsFacilities_ExcludeFacilitiesWithNoTdlsAnywhereBeneath()
+    {
+        if (TestArtccConfig.LoadZoa() is not { } config)
+        {
+            return;
+        }
+
+        var facilities = config.GetAccessibleTdlsFacilities("NCT_APP");
+
+        // MRY has strip bays but no TDLS config and no children — nothing to show.
+        Assert.DoesNotContain(facilities, f => f.FacilityId == "MRY");
     }
 }

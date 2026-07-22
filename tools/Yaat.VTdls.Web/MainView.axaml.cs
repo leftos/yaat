@@ -234,11 +234,12 @@ public partial class MainView : UserControl
             Log.LogInformation("Joined {RoomId} as {Initials}; scenario={Scenario}", roomId, initials, state.ScenarioName ?? "(none)");
             SetStatus($"Joined {roomId} ({state.ScenarioName ?? "no scenario"}) — fetching TDLS state...");
 
-            // Pull accessible facilities + auto-select the first facility's
-            // config so the editor dropdowns have data. RequestFullTdlsState
-            // is fired automatically by SwitchFacilityAsync.
+            // Pull accessible facilities + auto-select a facility so the editor
+            // dropdowns have data. RequestFullTdlsState is fired automatically by
+            // SwitchFacilityAsync. A consolidated parent is never the default —
+            // its merged page is an explicit choice, same as on the desktop.
             await vm.RefreshAccessibleFacilitiesAsync();
-            var firstFacility = vm.AccessibleFacilities.FirstOrDefault();
+            var firstFacility = vm.AccessibleFacilities.FirstOrDefault(f => !f.IsConsolidated) ?? vm.AccessibleFacilities.FirstOrDefault();
             if (firstFacility is not null)
             {
                 await vm.SwitchFacilityAsync(firstFacility.FacilityId);

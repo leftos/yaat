@@ -216,12 +216,43 @@ accessible set.
 Per-facility geometry is keyed on `"VTdlsView:{facilityId}"`, so
 multiple popped-out windows each remember their own size/position.
 
-Per upstream: working a parent facility (e.g. NCT in ZOA) where the
-child TDLS facilities (OAK/SFO/SJC/SMF/RNO) are not staffed top-down
-gives you a consolidated view aggregating all of them. The current
-YAAT implementation surfaces each child facility as its own tab —
-selecting the parent in the facility menu is not yet wired up. Track
-this in the plan.
+Per upstream, working a parent facility top-down (e.g. NCT in ZOA over
+OAK/SFO/SJC/SMF/RNO) also lets you select **the parent itself** for a
+consolidated page showing every child facility's DCL/PDC lists at once.
+NCT carries no `tdlsConfiguration` of its own in the vNAS data — it is
+listed purely because descendants have one.
+
+`ArtccConfigResolver.GetAccessibleTdlsFacilities` builds that list: every
+facility in {own ∪ descendants} that has a TDLS configuration **or** a
+descendant with one, each carrying `MemberFacilityIds` (itself when it has
+a config, plus every descendant that does). A leaf yields a single member,
+so today's per-facility behaviour falls out of the same rule. The set is
+keyed on TDLS configuration rather than strip bays, which also fixes a
+latent gap: a TDLS facility with no strip bays used to be invisible here.
+
+Deliberately **not** reached upward: working OAK does not offer NCT. The
+consolidated page is a top-down-consolidation affordance, matching
+upstream. (Strips *do* reach sideways/upward, via `externalBays` — see
+[`flight-strips.md`](flight-strips.md) §Multi-facility strips tabs.)
+
+`GetTdlsFacilityView(facilityId)` returns one `TdlsConfigDto` per member.
+The client holds them in `VTdlsViewModel._memberConfigs`, and
+`MatchesActiveFacility` becomes membership in that set — which is the whole
+consolidation mechanism, since every item path already filters through it.
+`Config` (and therefore the editor, the mandatory-field gating, the SID
+list and the Ops Config footer) resolves from the **selected item's own**
+facility, falling back to the sole member on a leaf page. `TDLSOPS`
+likewise targets that member facility, never the parent page id — NCT owns
+no configuration to set. On a consolidated page each row is prefixed with
+its facility id so two airports' callsigns don't blur together; with
+nothing selected there is no facility in force, so `Config` is null and the
+Ops Config button hides.
+
+Upstream additionally offers a "Filter staffed underlying facilities"
+toggle that hides children someone else is working. **YAAT does not
+implement it** — in a training room the student's own facility is the
+staffed one, so filtering it out would hide exactly the lists the
+instructor opened the page to watch. Every member facility is always shown.
 
 ## Web app at `/vtdls/`
 

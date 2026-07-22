@@ -6,8 +6,8 @@ namespace Yaat.Client.Services;
 /// vTDLS-side companion to <c>YaatHubJsonContext</c>. Registers every DTO that
 /// crosses the SignalR boundary on behalf of the vTDLS view: the broadcast
 /// payloads (<see cref="TdlsItemDto"/>, <see cref="TdlsStateDto"/>,
-/// <see cref="TdlsItemRemovedDto"/>), the per-facility config returned by
-/// <c>GetTdlsConfigForFacility</c>, the facility-list return type for
+/// <see cref="TdlsItemRemovedDto"/>), the per-facility page bootstrap returned
+/// by <c>GetTdlsFacilityView</c>, the facility-list return type for
 /// <c>GetAccessibleTdlsFacilities</c>, and the <see cref="CommandResultDto"/>
 /// every TDLS command resolves to.
 ///
@@ -21,6 +21,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(TdlsStateDto))]
 [JsonSerializable(typeof(TdlsItemRemovedDto))]
 [JsonSerializable(typeof(TdlsDumpedEntryDto))]
+[JsonSerializable(typeof(TdlsFacilityViewDto))]
 [JsonSerializable(typeof(TdlsConfigDto))]
 [JsonSerializable(typeof(TdlsSidDto))]
 [JsonSerializable(typeof(TdlsSidTransitionDto))]

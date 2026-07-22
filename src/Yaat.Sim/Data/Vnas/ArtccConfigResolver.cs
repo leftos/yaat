@@ -1143,6 +1143,56 @@ public static class ArtccConfigResolver
         }
     }
 
+    /// <summary>
+    /// Lists every facility the controller at <paramref name="positionCallsign"/>
+    /// can open a vTDLS view for: the position's own facility and its descendants,
+    /// keeping any that has a TDLS configuration of its own *or* a descendant that
+    /// does. The latter is upstream's consolidated parent page — working NCT
+    /// top-down, NCT itself is selectable and shows the DCL/PDC lists of
+    /// SFO/OAK/SJC/SMF/RNO together. Keyed on TDLS configuration, not strip bays,
+    /// so a TDLS facility without a strip bay is still listed.
+    /// </summary>
+    public static IReadOnlyList<AccessibleTdlsFacility> GetAccessibleTdlsFacilities(this ArtccConfigRoot config, string positionCallsign)
+    {
+        var ownFacility = config.FindFacilityForPositionCallsign(positionCallsign);
+        if (ownFacility is null)
+        {
+            return [];
+        }
+
+        var result = new List<AccessibleTdlsFacility>();
+        CollectTdlsFacilities(ownFacility, studentFacilityId: ownFacility.Id, result);
+        return result;
+    }
+
+    private static void CollectTdlsFacilities(FacilityConfig facility, string studentFacilityId, List<AccessibleTdlsFacility> result)
+    {
+        var members = new List<string>();
+        CollectTdlsMemberIds(facility, members);
+        if (members.Count > 0)
+        {
+            result.Add(new AccessibleTdlsFacility(facility.Id, facility.Name, IsStudentFacility: facility.Id == studentFacilityId, members));
+        }
+
+        foreach (var child in facility.ChildFacilities)
+        {
+            CollectTdlsFacilities(child, studentFacilityId, result);
+        }
+    }
+
+    private static void CollectTdlsMemberIds(FacilityConfig facility, List<string> members)
+    {
+        if (facility.TdlsConfiguration is not null)
+        {
+            members.Add(facility.Id);
+        }
+
+        foreach (var child in facility.ChildFacilities)
+        {
+            CollectTdlsMemberIds(child, members);
+        }
+    }
+
     private static string StripWhitespace(string s)
     {
         var sb = new System.Text.StringBuilder(s.Length);

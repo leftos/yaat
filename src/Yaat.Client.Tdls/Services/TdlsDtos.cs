@@ -3,7 +3,7 @@ namespace Yaat.Client.Services;
 // Client-side mirrors of the server vTDLS DTOs. These match the JSON shapes
 // SignalR delivers for "TdlsItemChanged", "TdlsItemRemoved", and
 // "TdlsStateChanged" broadcasts, plus the bootstrap config returned by the
-// GetAccessibleTdlsFacilities / GetTdlsConfigForFacility RPCs.
+// GetAccessibleTdlsFacilities / GetTdlsFacilityView RPCs.
 //
 // Naming rule mirrors StripDtos.cs: keep the property names identical to the
 // server DTOs — System.Text.Json is case-insensitive by default so this
@@ -117,7 +117,7 @@ public record ClearanceDto(
 // ── TdlsConfigDto + nested ─────────────────────────────────────────────
 // Per-facility bootstrap. Drives the flight-plan editor's SID/transition
 // pickers, default field values, and mandatory-field gating. Shipped once
-// per facility via GetTdlsConfigForFacility.
+// per member facility inside the TdlsFacilityViewDto returned by GetTdlsFacilityView.
 
 public record TdlsConfigDto(
     string FacilityId,
@@ -176,6 +176,14 @@ public record TdlsConfigDto(
 }
 
 public record TdlsOpConfigDto(string Id, string Name, TdlsSidDto[] Sids, string? DefaultSidId, string? DefaultTransitionId);
+
+// ── TdlsFacilityViewDto ────────────────────────────────────────────────
+// What one vTDLS page shows. A leaf facility carries a single member config
+// (itself); a consolidated parent carries one per child TDLS facility, because
+// each item on that page is edited and sent against its own facility's SIDs,
+// mandatory fields and ops config.
+
+public record TdlsFacilityViewDto(string FacilityId, string FacilityName, IReadOnlyList<TdlsConfigDto> MemberConfigs);
 
 public record TdlsSidDto(string Id, string Name, TdlsSidTransitionDto[] Transitions);
 

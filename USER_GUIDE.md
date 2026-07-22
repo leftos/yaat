@@ -793,6 +793,7 @@ Click a callsign in the **PDC** list to re-open the editor on the clearance that
 #### Multi-facility tabs
 
 - **View → vTDLS → New vTDLS Tab…** opens a picker of accessible TDLS facilities and adds a new tab. Useful when working a parent TRACON whose child ATCTs are unstaffed top-down (e.g. NCT with OAK/SFO/SJC/SMF/RNO).
+- Working such a parent, the parent itself is offered as a **(consolidated)** entry — one page merging every child facility's DCL and PDC lists, so you can watch all five airports at once. Each row is prefixed with its facility id. Selecting an item switches the editor to *that* airport's SIDs, mandatory fields and Ops Config, so a consolidated page issues clearances exactly as the per-airport page would. Unlike upstream vTDLS, YAAT never hides a child facility because it is staffed — in a training room that would hide the very lists you opened the page to watch.
 - **View → vTDLS → Pop Out vTDLS (X)** detaches a tab into its own window. The student entry can be popped out but not closed. Non-student entries get a **Close vTDLS (X)** action.
 - Each tab is titled `vTDLS (FacilityName)` so multiple tabs/windows are distinguishable.
 

@@ -52,8 +52,34 @@ public partial class VTdlsViewModel : ObservableObject
     [ObservableProperty]
     private string? _facilityName;
 
-    [ObservableProperty]
-    private TdlsConfigDto? _config;
+    /// <summary>
+    /// The TDLS facilities this page shows, keyed by facility id. A leaf facility
+    /// holds one entry (itself); a consolidated parent holds one per child TDLS
+    /// facility, and the DCL/PDC lists are the union of their items. Each item is
+    /// still edited and sent against its <em>own</em> facility's configuration —
+    /// SIDs, mandatory fields and ops configs differ per airport.
+    /// </summary>
+    private readonly Dictionary<string, TdlsConfigDto> _memberConfigs = new(StringComparer.Ordinal);
+
+    /// <summary>True when this page aggregates more than one TDLS facility (upstream's consolidated parent view).</summary>
+    public bool IsConsolidated => _memberConfigs.Count > 1;
+
+    /// <summary>
+    /// The configuration in force for the current selection: the selected item's
+    /// own facility, falling back to the sole member on a single-facility page.
+    /// Null on a consolidated page with nothing selected — there is no single
+    /// facility to speak for.
+    /// </summary>
+    public TdlsConfigDto? Config => ResolveConfig(SelectedItem?.FacilityId);
+
+    private TdlsConfigDto? ResolveConfig(string? facilityId)
+    {
+        if (!string.IsNullOrEmpty(facilityId) && _memberConfigs.TryGetValue(facilityId, out var owned))
+        {
+            return owned;
+        }
+        return _memberConfigs.Count == 1 ? _memberConfigs.Values.First() : null;
+    }
 
     [ObservableProperty]
     private TdlsItemViewModel? _selectedItem;
@@ -62,16 +88,15 @@ public partial class VTdlsViewModel : ObservableObject
     private TdlsFlightPlanEditorViewModel? _editor;
 
     /// <summary>
-    /// Active operational configuration for this window's facility. Server-owned: the footer menu
-    /// asks the server to change it and this only updates when the resulting broadcast arrives, so
-    /// every vTDLS window in the room stays on the same config.
+    /// Active operational configuration for the facility in force (<see cref="Config"/>).
+    /// Server-owned: the footer menu asks the server to change it and this only updates when
+    /// the resulting broadcast arrives, so every vTDLS window in the room stays on the same
+    /// config.
     /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ActiveOpConfigName))]
-    private string? _activeOpConfigId;
+    public string? ActiveOpConfigId => Config?.ActiveOpConfigId;
 
-    /// <summary>Ops configs offered by the current facility; empty when the facility doesn't use them.</summary>
-    public ObservableCollection<TdlsOpConfigDto> OpConfigs { get; } = [];
+    /// <summary>Ops configs offered by the facility in force; empty when it doesn't use them.</summary>
+    public IReadOnlyList<TdlsOpConfigDto> OpConfigs => Config?.OpConfigs ?? [];
 
     /// <summary>True when the footer should render the Ops Config menu — upstream shows it only "when enabled".</summary>
     public bool AreOpConfigsEnabled => Config?.DclOpConfigsEnabled == true;
@@ -87,21 +112,26 @@ public partial class VTdlsViewModel : ObservableObject
     /// until the server broadcasts back — mirroring upstream, where the menu's Save is what takes
     /// effect. Going through a command rather than an RPC also puts the change in the action log,
     /// so a replay rebuilds clearances from the configuration that was actually active.
+    ///
+    /// <para>Targets the facility in force, never this page's id: on a consolidated parent the
+    /// page id (NCT) owns no TDLS configuration at all, so the command has to name the child
+    /// whose item is selected.</para>
     /// </summary>
     public async Task<bool> SaveOpConfigAsync(string opConfigId)
     {
-        if (string.IsNullOrEmpty(FacilityId))
+        var targetFacility = Config?.FacilityId;
+        if (string.IsNullOrEmpty(targetFacility))
         {
             return false;
         }
         try
         {
-            await _sendCommand("", $"TDLSOPS {FacilityId} {opConfigId}", _getUserInitials?.Invoke() ?? "");
+            await _sendCommand("", $"TDLSOPS {targetFacility} {opConfigId}", _getUserInitials?.Invoke() ?? "");
             return true;
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Failed to set TDLS ops config {OpConfig} at {Facility}", opConfigId, FacilityId);
+            _log.LogWarning(ex, "Failed to set TDLS ops config {OpConfig} at {Facility}", opConfigId, targetFacility);
             return false;
         }
     }
@@ -175,47 +205,67 @@ public partial class VTdlsViewModel : ObservableObject
         {
             oldValue.IsSelected = false;
         }
-        if (newValue is not null)
+
+        // Config and everything derived from it follow the selection: on a
+        // consolidated page each item belongs to a different facility.
+        RaiseConfigDerivedChanged();
+
+        if (newValue is null)
         {
-            newValue.IsSelected = true;
-            // Pending items (DCL) open the editable compose editor. Sent/Wilco
-            // items (PDC) open the same editor seeded from the issued clearance
-            // but read-only — the controller reviews what was sent; no edits or
-            // resend, only Dump (handled separately).
-            if (newValue.Status == TdlsStatus.Pending && Config is not null)
+            Editor = null;
+            return;
+        }
+
+        newValue.IsSelected = true;
+        var config = Config;
+        // Pending items (DCL) open the editable compose editor. Sent/Wilco
+        // items (PDC) open the same editor seeded from the issued clearance
+        // but read-only — the controller reviews what was sent; no edits or
+        // resend, only Dump (handled separately).
+        if (newValue.Status == TdlsStatus.Pending && config is not null)
+        {
+            Editor = new TdlsFlightPlanEditorViewModel(
+                newValue.AircraftId,
+                config,
+                seed: null,
+                flightPlan: newValue.FlightPlan,
+                isReadOnly: false,
+                opConfigId: ActiveOpConfigId
+            )
             {
-                Editor = new TdlsFlightPlanEditorViewModel(
-                    newValue.AircraftId,
-                    Config,
-                    seed: null,
-                    flightPlan: newValue.FlightPlan,
-                    isReadOnly: false,
-                    opConfigId: ActiveOpConfigId
-                )
-                {
-                    OnSendRequested = OnEditorSendRequested,
-                };
-            }
-            else if (newValue.SentPayload is not null && Config is not null)
-            {
-                Editor = new TdlsFlightPlanEditorViewModel(
-                    newValue.AircraftId,
-                    Config,
-                    seed: newValue.SentPayload,
-                    flightPlan: newValue.FlightPlan,
-                    isReadOnly: true,
-                    opConfigId: ActiveOpConfigId
-                );
-            }
-            else
-            {
-                Editor = null;
-            }
+                OnSendRequested = OnEditorSendRequested,
+            };
+        }
+        else if (newValue.SentPayload is not null && config is not null)
+        {
+            Editor = new TdlsFlightPlanEditorViewModel(
+                newValue.AircraftId,
+                config,
+                seed: newValue.SentPayload,
+                flightPlan: newValue.FlightPlan,
+                isReadOnly: true,
+                opConfigId: ActiveOpConfigId
+            );
         }
         else
         {
             Editor = null;
         }
+    }
+
+    /// <summary>
+    /// Re-raises every property derived from <see cref="Config"/>. Called whenever the
+    /// selection moves (which can change the facility in force) or the member configs
+    /// are replaced.
+    /// </summary>
+    private void RaiseConfigDerivedChanged()
+    {
+        OnPropertyChanged(nameof(Config));
+        OnPropertyChanged(nameof(IsConsolidated));
+        OnPropertyChanged(nameof(OpConfigs));
+        OnPropertyChanged(nameof(ActiveOpConfigId));
+        OnPropertyChanged(nameof(AreOpConfigsEnabled));
+        OnPropertyChanged(nameof(ActiveOpConfigName));
     }
 
     public VTdlsViewModel(ITdlsTransport transport, Func<string, string, string, Task> sendCommand, Func<string>? getUserInitials)
@@ -294,50 +344,29 @@ public partial class VTdlsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Switches the VM to a different facility — pulls its config, clears the
-    /// current item collections, and requests a fresh full-state broadcast so
-    /// the new facility's items render. Idempotent for the same facility id.
+    /// Switches the VM to a different facility page — pulls its member configs,
+    /// clears the current item collections, and requests a fresh full-state
+    /// broadcast so the new page's items render. Idempotent for the same id.
     /// </summary>
     public async Task SwitchFacilityAsync(string facilityId)
     {
-        if (string.Equals(FacilityId, facilityId, StringComparison.Ordinal) && Config is not null)
+        if (string.Equals(FacilityId, facilityId, StringComparison.Ordinal) && _memberConfigs.Count > 0)
         {
             return;
         }
 
-        TdlsConfigDto? cfg;
+        TdlsFacilityViewDto? view;
         try
         {
-            cfg = await _transport.GetTdlsConfigForFacilityAsync(facilityId);
+            view = await _transport.GetTdlsFacilityViewAsync(facilityId);
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Failed to fetch TDLS config for {Facility}", facilityId);
+            _log.LogWarning(ex, "Failed to fetch TDLS facility view for {Facility}", facilityId);
             return;
         }
 
-        Dispatcher.UIThread.Post(() =>
-        {
-            FacilityId = facilityId;
-            FacilityName = cfg?.FacilityName ?? facilityId;
-            Config = cfg;
-
-            OpConfigs.Clear();
-            foreach (var opConfig in cfg?.OpConfigs ?? [])
-            {
-                OpConfigs.Add(opConfig);
-            }
-            ActiveOpConfigId = cfg?.ActiveOpConfigId;
-            OnPropertyChanged(nameof(AreOpConfigsEnabled));
-            OnPropertyChanged(nameof(ActiveOpConfigName));
-            // Clear list contents but keep the dictionary so re-applies of the
-            // full state still produce stable VM identities for items we
-            // already saw.
-            DclItems.Clear();
-            PdcItems.Clear();
-            SelectedItem = null;
-            Editor = null;
-        });
+        Dispatcher.UIThread.Post(() => ApplyFacilityView(facilityId, view));
 
         try
         {
@@ -347,6 +376,32 @@ public partial class VTdlsViewModel : ObservableObject
         {
             _log.LogWarning(ex, "RequestFullTdlsState failed after switch to {Facility}", facilityId);
         }
+    }
+
+    /// <summary>
+    /// Applies a fetched facility page to this VM: adopts the member configs and
+    /// resets the lists. Synchronous public seam (mirroring
+    /// <c>VStripsViewModel.ApplyBayConfig</c>) — <see cref="SwitchFacilityAsync"/>
+    /// marshals to the UI thread, tests call it directly. Must run on the UI thread.
+    /// </summary>
+    public void ApplyFacilityView(string facilityId, TdlsFacilityViewDto? view)
+    {
+        FacilityId = facilityId;
+        FacilityName = view?.FacilityName ?? facilityId;
+
+        _memberConfigs.Clear();
+        foreach (var config in view?.MemberConfigs ?? [])
+        {
+            _memberConfigs[config.FacilityId] = config;
+        }
+
+        // Clear list contents but keep the dictionary so re-applies of the full
+        // state still produce stable VM identities for items we already saw.
+        DclItems.Clear();
+        PdcItems.Clear();
+        SelectedItem = null;
+        Editor = null;
+        RaiseConfigDerivedChanged();
     }
 
     private void OnTdlsItemChanged(TdlsItemDto dto) =>
@@ -407,29 +462,41 @@ public partial class VTdlsViewModel : ObservableObject
         });
 
     /// <summary>
-    /// Adopts the server's active ops config for this window's facility. The selection is shared
-    /// room state, so it can change because someone else saved it — an open editor is dropped
-    /// either way, since its SelectedSid holds an id that may not exist in the new config.
+    /// Adopts the server's active ops config for every member facility of this page. The
+    /// selection is shared room state, so it can change because someone else saved it — an
+    /// open editor is dropped when the facility in force changed, since its SelectedSid holds
+    /// an id that may not exist in the new config.
     /// </summary>
     private void ApplyActiveOpConfig(TdlsStateDto state)
     {
-        if (string.IsNullOrEmpty(FacilityId))
+        var affectsCurrent = false;
+        foreach (var incoming in state.ActiveOpConfigs)
         {
-            return;
+            if (!_memberConfigs.TryGetValue(incoming.FacilityId, out var config))
+            {
+                continue;
+            }
+            if (string.Equals(config.ActiveOpConfigId, incoming.OpConfigId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            _memberConfigs[incoming.FacilityId] = config with { ActiveOpConfigId = incoming.OpConfigId };
+            affectsCurrent |= string.Equals(incoming.FacilityId, Config?.FacilityId, StringComparison.Ordinal);
         }
 
-        var incoming = state.ActiveOpConfigs.FirstOrDefault(a => string.Equals(a.FacilityId, FacilityId, StringComparison.Ordinal))?.OpConfigId;
-        if ((incoming is null) || string.Equals(incoming, ActiveOpConfigId, StringComparison.Ordinal))
+        if (affectsCurrent)
         {
-            return;
+            SelectedItem = null;
         }
-
-        ActiveOpConfigId = incoming;
-        SelectedItem = null;
+        RaiseConfigDerivedChanged();
     }
 
-    private bool MatchesActiveFacility(string facilityId) =>
-        string.IsNullOrEmpty(FacilityId) || string.Equals(facilityId, FacilityId, StringComparison.Ordinal);
+    /// <summary>
+    /// Whether an item belongs on this page. On a leaf that is an exact facility match;
+    /// on a consolidated parent it is membership in the child set — which is the whole
+    /// consolidation mechanism, since every item path already filters through here.
+    /// </summary>
+    private bool MatchesActiveFacility(string facilityId) => _memberConfigs.Count == 0 || _memberConfigs.ContainsKey(facilityId);
 
     private void ApplyItem(TdlsItemDto dto)
     {

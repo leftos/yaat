@@ -8,7 +8,9 @@ namespace Yaat.Client.Services;
 // Naming rule mirrors StripDtos.cs: keep property names identical to the
 // server DTOs so System.Text.Json round-trips without custom converters.
 
-public record AccessibleFacilityDto(string FacilityId, string FacilityName, bool IsStudentFacility);
+// IsConsolidated marks a vTDLS parent page that aggregates its child TDLS
+// facilities' DCL/PDC lists; always false for strips, which have no such view.
+public record AccessibleFacilityDto(string FacilityId, string FacilityName, bool IsStudentFacility, bool IsConsolidated = false);
 
 public record CommandResultDto(bool Success, string? Message, double ServerElapsedSeconds = 0);
 
