@@ -50,6 +50,18 @@ public readonly record struct GeneratorSpawnRecord(
     double RequiredGapNm
 );
 
+/// <summary>
+/// Result of <see cref="SimulationEngine.TickConflictAlerts"/>: the terminal Conflict Alert pairs that
+/// opened (<see cref="New"/>) and closed (<see cref="Cleared"/> ids) this tick, for the host to broadcast.
+/// </summary>
+public readonly record struct ConflictAlertChanges(List<ActiveConflict> New, List<string> Cleared);
+
+/// <summary>
+/// Result of <see cref="SimulationEngine.TickEramConflictAlerts"/>: the ERAM STCA pairs that opened
+/// (<see cref="New"/>) and closed (<see cref="Cleared"/> ids) this tick, for the host to broadcast.
+/// </summary>
+public readonly record struct EramConflictAlertChanges(List<EramActiveConflict> New, List<string> Cleared);
+
 public sealed class SimulationEngine
 {
     private const int PhysicsSubTickRate = 4;
@@ -1024,6 +1036,162 @@ public sealed class SimulationEngine
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Per-second terminal Conflict Alert (STARS CA) pass: runs <see cref="ConflictAlertDetector"/> against
+    /// the current world, updates the engine-owned <see cref="ConflictAlerts"/> set, and returns the pairs
+    /// that opened and closed this tick for the host to broadcast. <paramref name="internalAirports"/>
+    /// supplies the approach-corridor suppression volumes (from the host's STARS config). Server-only: only
+    /// a broadcasting host consumes the diff, so <see cref="TickPostPhysics"/> does not call this.
+    /// </summary>
+    public ConflictAlertChanges TickConflictAlerts(IReadOnlyList<string> internalAirports)
+    {
+        var snapshot = World.GetSnapshot();
+        var conflicts = ConflictAlerts.Conflicts;
+        var existingIds = new HashSet<string>(conflicts.Keys);
+        var corridors = ConflictAlertDetector.BuildCorridors(internalAirports, NavigationDatabase.Instance);
+        var context = new ConflictAlertContext(ExistingConflictIds: existingIds, ApproachCorridors: corridors);
+
+        var detected = ConflictAlertDetector.Detect(snapshot, context);
+        var detectedIds = new HashSet<string>(detected.Select(c => c.Id));
+
+        var newConflicts = new List<ActiveConflict>();
+        foreach (var pair in detected)
+        {
+            if (!conflicts.ContainsKey(pair.Id))
+            {
+                var conflict = new ActiveConflict
+                {
+                    Id = pair.Id,
+                    CallsignA = pair.CallsignA,
+                    CallsignB = pair.CallsignB,
+                };
+                conflicts[pair.Id] = conflict;
+                newConflicts.Add(conflict);
+
+                _logger.LogWarning(
+                    "Conflict alert detected: {CallsignA} <-> {CallsignB} at t={T}s",
+                    pair.CallsignA,
+                    pair.CallsignB,
+                    Scenario?.ElapsedSeconds ?? 0
+                );
+            }
+        }
+
+        var clearedIds = new List<string>();
+        foreach (var id in existingIds)
+        {
+            if (!detectedIds.Contains(id))
+            {
+                var cleared = conflicts[id];
+                conflicts.Remove(id);
+                clearedIds.Add(id);
+
+                _logger.LogInformation(
+                    "Conflict alert cleared: {CallsignA} <-> {CallsignB} at t={T}s",
+                    cleared.CallsignA,
+                    cleared.CallsignB,
+                    Scenario?.ElapsedSeconds ?? 0
+                );
+            }
+        }
+
+        return new ConflictAlertChanges(newConflicts, clearedIds);
+    }
+
+    /// <summary>
+    /// Per-second ERAM Short-Term Conflict Alert pass (docs/crc/eram.md §377-383) — the en-route sibling of
+    /// <see cref="TickConflictAlerts"/>. Runs <see cref="EramConflictDetector"/>, refreshes each pair's
+    /// owning ERAM facilities and Mode-C-intruder classification, updates the engine-owned
+    /// <see cref="EramConflicts"/> set, and returns the pairs that opened and closed this tick for the host
+    /// to broadcast. Server-only, like <see cref="TickConflictAlerts"/>.
+    /// </summary>
+    public EramConflictAlertChanges TickEramConflictAlerts()
+    {
+        var snapshot = World.GetSnapshot();
+        var conflicts = EramConflicts.Conflicts;
+        var existingIds = new HashSet<string>(conflicts.Keys);
+
+        var detected = EramConflictDetector.Detect(snapshot, existingIds);
+        var detectedIds = new HashSet<string>(detected.Select(c => c.Id));
+
+        var ownerFacility = new Dictionary<string, string?>(snapshot.Count);
+        var isTracked = new Dictionary<string, bool>(snapshot.Count);
+        var isCorrelated = new Dictionary<string, bool>(snapshot.Count);
+        foreach (var ac in snapshot)
+        {
+            ownerFacility[ac.Callsign] = ac.Track.Owner is { OwnerType: TrackOwnerType.Eram, FacilityId: { } facility } ? facility : null;
+            isTracked[ac.Callsign] = ac.Track.Owner is not null;
+            isCorrelated[ac.Callsign] = ac.FlightPlan.HasFlightPlan;
+        }
+
+        var newConflicts = new List<EramActiveConflict>();
+        foreach (var pair in detected)
+        {
+            ownerFacility.TryGetValue(pair.CallsignA, out var facilityA);
+            ownerFacility.TryGetValue(pair.CallsignB, out var facilityB);
+            isTracked.TryGetValue(pair.CallsignA, out var trackedA);
+            isTracked.TryGetValue(pair.CallsignB, out var trackedB);
+            isCorrelated.TryGetValue(pair.CallsignA, out var correlatedA);
+            isCorrelated.TryGetValue(pair.CallsignB, out var correlatedB);
+
+            // A conflict alert protects a controlled aircraft (7110.65 §2-1-6, §5-13-1), and the §377 facility
+            // gate needs a target owned in some ERAM facility — so two untracked returns are not an alert.
+            if (!trackedA && !trackedB)
+            {
+                detectedIds.Remove(pair.Id);
+                continue;
+            }
+
+            // The Mode-C intruder (CDB, "TFC"+beacon — an uncorrelated presentation, eram.md §844-852) is a
+            // target that is BOTH untracked AND uncorrelated (no flight plan). A correlated-but-unowned target
+            // (a filed flight plan that no controller has tracked yet) is NOT an intruder — it flashes an
+            // ordinary data block as a normal conflict alert. At most one side is untracked here.
+            var intruder =
+                (!trackedA && !correlatedA) ? pair.CallsignA
+                : (!trackedB && !correlatedB) ? pair.CallsignB
+                : null;
+
+            if (conflicts.TryGetValue(pair.Id, out var existing))
+            {
+                existing.OwnerFacilityA = facilityA;
+                existing.OwnerFacilityB = facilityB;
+                existing.IntruderCallsign = intruder;
+                continue;
+            }
+
+            var conflict = new EramActiveConflict
+            {
+                Id = pair.Id,
+                CallsignA = pair.CallsignA,
+                CallsignB = pair.CallsignB,
+                OwnerFacilityA = facilityA,
+                OwnerFacilityB = facilityB,
+                IntruderCallsign = intruder,
+            };
+            conflicts[pair.Id] = conflict;
+            newConflicts.Add(conflict);
+
+            _logger.LogWarning(
+                "ERAM STCA detected: {CallsignA} <-> {CallsignB} at t={T}s",
+                pair.CallsignA,
+                pair.CallsignB,
+                Scenario?.ElapsedSeconds ?? 0
+            );
+        }
+
+        var clearedIds = new List<string>();
+        foreach (var id in existingIds)
+        {
+            if (!detectedIds.Contains(id))
+            {
+                conflicts.Remove(id);
+                clearedIds.Add(id);
+            }
+        }
+
+        return new EramConflictAlertChanges(newConflicts, clearedIds);
     }
 
     /// <summary>
