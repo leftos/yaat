@@ -813,6 +813,220 @@ public sealed class SimulationEngine
     }
 
     /// <summary>
+    /// Per-second visual-acquisition update for aircraft on a visual approach (ApproachId starts with
+    /// <c>VIS</c>): field-in-sight acquisition/loss and FOLLOW traffic-in-sight acquisition/loss, using the
+    /// active <see cref="SimulationWorld.Weather"/> (cloud layers + visibility) and the nav DB. Sets
+    /// <c>Approach.HasReported*InSight</c> and enqueues the pilot/RPO transmissions + notifications the host
+    /// drains after post-physics. The SINGLE owner of this orchestration — both the standalone
+    /// <see cref="TickPostPhysics"/> AND the live server (<c>TickProcessor.ProcessPostPhysics</c>) call it,
+    /// so the visual-acquisition behavior runs identically in both hosts.
+    /// </summary>
+    public void TickVisualDetection()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        var snapshot = World.GetSnapshot();
+        var weather = World.Weather;
+
+        foreach (var ac in snapshot)
+        {
+            // Only check aircraft on a visual approach (ApproachId starts with VIS)
+            if (ac.Phases?.ActiveApproach is not { } approach || !approach.ApproachId.StartsWith("VIS", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            string airport = approach.AirportCode;
+            double? aptElevation = NavigationDatabase.Instance.GetAirportElevation(airport);
+            if (aptElevation is null)
+            {
+                continue;
+            }
+
+            var aptPos = NavigationDatabase.Instance.GetFixPosition(airport);
+            if (aptPos is null)
+            {
+                continue;
+            }
+
+            // Get cloud layers / visibility from METAR
+            IReadOnlyList<MetarParser.CloudLayer>? layers = null;
+            double? visibilitySm = null;
+            int? primaryCeilingForLogs = null;
+            if (weather is not null)
+            {
+                var metarData = weather.GetWeatherForAirport(airport);
+                layers = metarData?.Layers;
+                visibilitySm = metarData?.VisibilityStatuteMiles;
+                primaryCeilingForLogs = metarData?.CeilingFeetAgl;
+            }
+
+            // Field in sight check (with runway direction awareness)
+            // Bank angle affects initial acquisition only — once acquired, pilot can track through turns.
+            var runway = ac.Phases.AssignedRunway;
+            double airportSizeCapNm = VisualAcquisition.AirportSizeCapNm(airport);
+
+            if (!ac.Approach.HasReportedFieldInSight)
+            {
+                // Initial acquisition: use actual bank angle
+                var acquireResult = runway is not null
+                    ? VisualDetection.TryAcquireAirportForRunway(
+                        ac,
+                        aptPos.Value.Lat,
+                        aptPos.Value.Lon,
+                        aptElevation.Value,
+                        layers,
+                        visibilitySm,
+                        runway.TrueHeading,
+                        ac.BankAngle,
+                        airportSizeCapNm
+                    )
+                    : VisualDetection.TryAcquireAirport(
+                        ac,
+                        aptPos.Value.Lat,
+                        aptPos.Value.Lon,
+                        aptElevation.Value,
+                        layers,
+                        visibilitySm,
+                        ac.BankAngle,
+                        airportSizeCapNm
+                    );
+
+                if (acquireResult.Acquired)
+                {
+                    ac.Approach.HasReportedFieldInSight = true;
+                    ac.PendingNotifications.Add($"{ac.Callsign} has the field in sight");
+                    _logger.LogInformation(
+                        "Field acquisition: {Callsign} acquired {Airport} at t={T}s (alt={Alt}ft, vis={Vis}sm, ceil={Ceil}ft AGL)",
+                        ac.Callsign,
+                        airport,
+                        scenario.ElapsedSeconds,
+                        ac.Altitude,
+                        visibilitySm,
+                        primaryCeilingForLogs
+                    );
+                }
+                else
+                {
+                    _logger.LogDebug(
+                        "Field acquisition attempt failed: {Callsign} cannot see {Airport} at t={T}s (alt={Alt}ft, vis={Vis}sm, ceil={Ceil}ft AGL, bank={Bank}°)",
+                        ac.Callsign,
+                        airport,
+                        scenario.ElapsedSeconds,
+                        ac.Altitude,
+                        visibilitySm,
+                        primaryCeilingForLogs,
+                        ac.BankAngle
+                    );
+                }
+            }
+            else
+            {
+                // Maintained contact: weather-only check. Geometric checks
+                // (BehindOwnship/OutOfRange/OppositeSideOfRunway) produce false
+                // "lost sight of the field" reports as the aircraft crosses the
+                // threshold and the airport reference point falls behind the nose.
+                // Once acquired, only Class A or a BKN/OVC layer above the
+                // aircraft can realistically obscure the airport polygon.
+                var maintainResult = VisualDetection.TryMaintainAirportContact(ac, aptElevation.Value, layers);
+
+                if (!maintainResult.Acquired)
+                {
+                    ac.Approach.HasReportedFieldInSight = false;
+                    PilotResponder.RouteRpoTransmission(
+                        ac,
+                        scenario.SoloTrainingMode,
+                        scenario.RpoShowPilotSpeech,
+                        PilotResponder.BuildLostSightOfField(ac)
+                    );
+                    _logger.LogWarning(
+                        "Field loss: {Callsign} lost sight of {Airport} at t={T}s (alt={Alt}ft, vis={Vis}sm, ceil={Ceil}ft AGL)",
+                        ac.Callsign,
+                        airport,
+                        scenario.ElapsedSeconds,
+                        ac.Altitude,
+                        visibilitySm,
+                        primaryCeilingForLogs
+                    );
+                }
+            }
+
+            // Traffic in sight check (for FOLLOW variant)
+            if (ac.Approach.FollowingCallsign is { } followCs)
+            {
+                var target = snapshot.FirstOrDefault(t => t.Callsign.Equals(followCs, StringComparison.OrdinalIgnoreCase));
+                if (target is not null)
+                {
+                    if (!ac.Approach.HasReportedTrafficInSight)
+                    {
+                        // Initial acquisition: use actual bank angle
+                        var acquireTrafficResult = VisualDetection.TryAcquireTraffic(
+                            ac,
+                            target,
+                            layers,
+                            aptElevation.Value,
+                            visibilitySm,
+                            ac.BankAngle
+                        );
+                        if (acquireTrafficResult.Acquired)
+                        {
+                            ac.Approach.HasReportedTrafficInSight = true;
+                            PilotResponder.RouteRpoTransmission(
+                                ac,
+                                scenario.SoloTrainingMode,
+                                scenario.RpoShowPilotSpeech,
+                                PilotResponder.BuildTrafficInSight(ac, followCs)
+                            );
+                            _logger.LogInformation(
+                                "Traffic acquisition: {Callsign} acquired {Target} at t={T}s (dist={Dist}nm, vis={Vis}sm)",
+                                ac.Callsign,
+                                followCs,
+                                scenario.ElapsedSeconds,
+                                GeoMath.DistanceNm(ac.Position, target.Position),
+                                visibilitySm
+                            );
+                        }
+                    }
+                    else
+                    {
+                        // Maintained contact: ignore bank (pass 0)
+                        var maintainTrafficResult = VisualDetection.TryAcquireTraffic(ac, target, layers, aptElevation.Value, visibilitySm, 0.0);
+                        if (!maintainTrafficResult.Acquired)
+                        {
+                            ac.Approach.HasReportedTrafficInSight = false;
+                            PilotResponder.RouteRpoTransmission(
+                                ac,
+                                scenario.SoloTrainingMode,
+                                scenario.RpoShowPilotSpeech,
+                                PilotResponder.BuildLostSightOfTraffic(ac, followCs).Tts,
+                                $"{ac.Callsign} has lost sight of the traffic"
+                            );
+                            _logger.LogWarning(
+                                "Traffic loss: {Callsign} lost sight of {Target} at t={T}s",
+                                ac.Callsign,
+                                followCs,
+                                scenario.ElapsedSeconds
+                            );
+                        }
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug(
+                        "Traffic acquisition attempt: {Callsign} following {Target}, but target not found at t={T}s",
+                        ac.Callsign,
+                        followCs,
+                        scenario.ElapsedSeconds
+                    );
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Post-physics: drains warnings, notifications, and approach scores from the world.
     /// The server reads these before calling this method to broadcast them.
     /// </summary>
@@ -820,6 +1034,7 @@ public sealed class SimulationEngine
     {
         TickPilotProactive();
         TickTransponderIdents();
+        TickVisualDetection();
 
         var warnings = World.DrainAllWarnings();
         foreach (var (callsign, warning) in warnings)
