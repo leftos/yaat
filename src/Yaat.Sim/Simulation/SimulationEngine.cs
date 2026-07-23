@@ -762,6 +762,10 @@ public sealed class SimulationEngine
     /// </summary>
     public void TickPostPhysics()
     {
+        // Refresh the per-hold-short departure-queue ordinals from the settled positions of this
+        // sim-second, before the broadcast reads them for the datablock "#N" and Info-column status.
+        RunwayDepartureQueue.UpdatePositions(World.GetSnapshot());
+
         // Airborne-spawn check-ins fire here, before the notification drain, so they emit
         // the same tick they're produced. PilotProactive.TickAirborneCheckIn is idempotent —
         // it sets HasMadeInitialContact on success and no-ops on subsequent ticks.

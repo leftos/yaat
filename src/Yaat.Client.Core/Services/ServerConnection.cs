@@ -969,7 +969,11 @@ public record AircraftDto(
     // scratchpad is present, already gated server-side by the student area's display adaptation.
     // The datablock renders it exactly like a real SP1, mirroring what the student sees in CRC.
     // Null when suppressed. Kept name-for-name in sync with the server's AircraftStateDto.
-    string? AutoScratchpad1 = null
+    string? AutoScratchpad1 = null,
+    // 1-based position in the departure line at this aircraft's runway hold-short node, or 0 when not in
+    // a countable line. Drives the "#N" ground-datablock callsign suffix. Kept name-for-name in sync with
+    // the server's AircraftStateDto.
+    int RunwayQueuePosition = 0
 );
 
 public record LoadScenarioResultDto(

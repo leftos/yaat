@@ -69,6 +69,43 @@ public class GroundDataBlockLayoutTests
     }
 
     [Fact]
+    public void Line1_AppendsQueueOrdinal_WhenInDepartureLine()
+    {
+        var ac = CreateModel();
+        ac.RunwayQueuePosition = 2;
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("UAL238 #2", layout.Line1);
+    }
+
+    [Fact]
+    public void Line1_NoQueueOrdinal_WhenNotInLine()
+    {
+        var ac = CreateModel();
+        ac.RunwayQueuePosition = 0;
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("UAL238", layout.Line1);
+    }
+
+    [Fact]
+    public void Line1_QueueOrdinalFollowsAutoDeleteMarker()
+    {
+        var ac = CreateModel();
+        ac.AutoDeletePending = true;
+        ac.RunwayQueuePosition = 3;
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("UAL238* #3", layout.Line1);
+    }
+
+    [Fact]
     public void NoSqStby_WhenTransponderModeIsCharlie_OnGround()
     {
         var ac = CreateModel();

@@ -126,6 +126,14 @@ public static class AircraftStatusDescriber
         public string NavigationRouteDisplay { get; init; } = "";
         public bool IsDelayed { get; init; }
 
+        /// <summary>
+        /// 1-based position in the departure line at this aircraft's runway hold-short node, or 0 when
+        /// not in a countable line. Appended as "(#N)" to the taxi and holding-short-of-runway status so
+        /// a trailing departure reads "#2 in line" instead of a bare "taxi to RWY". Computed by
+        /// <see cref="RunwayDepartureQueue"/>.
+        /// </summary>
+        public int RunwayQueuePosition { get; init; }
+
         public static AircraftStatusView FromState(AircraftState ac, AircraftStatusContext ctx)
         {
             var navNames = BuildNavigationRoute(ac.Targets);
@@ -165,6 +173,7 @@ public static class AircraftStatusDescriber
                 NavigationRouteCount = navNames.Count,
                 NavigationRouteDisplay = string.Join(" ", navNames),
                 IsDelayed = ctx.IsDelayed,
+                RunwayQueuePosition = ac.Ground.RunwayQueuePosition,
             };
         }
     }
@@ -312,8 +321,14 @@ public static class AircraftStatusDescriber
         {
             baseText = $"{baseText} via {i.TaxiRoute}";
         }
-        return baseText;
+        return AppendQueuePosition(baseText, i.RunwayQueuePosition);
     }
+
+    /// <summary>
+    /// Appends the departure-line ordinal ("(#2)") when the aircraft is in a countable line, so a
+    /// trailing departure reads its position instead of a bare "taxi to RWY". No-op at position 0.
+    /// </summary>
+    private static string AppendQueuePosition(string text, int position) => position > 0 ? $"{text} (#{position})" : text;
 
     private static string FormatInitialClimbStatus(AircraftStatusView i)
     {
@@ -402,7 +417,8 @@ public static class AircraftStatusDescriber
             var twy = i.CurrentTaxiway;
             if (isRunway)
             {
-                return string.IsNullOrEmpty(twy) ? $"holding short {target}" : $"holding short {target} @ {twy}";
+                var runwayHold = string.IsNullOrEmpty(twy) ? $"holding short {target}" : $"holding short {target} @ {twy}";
+                return AppendQueuePosition(runwayHold, i.RunwayQueuePosition);
             }
             return string.IsNullOrEmpty(twy) ? $"holding short of {target}" : $"holding short of {target} on {twy}";
         }

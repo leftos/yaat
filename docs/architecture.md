@@ -450,6 +450,10 @@ AircraftStatusDescriber.cs     # Pure AircraftState→text projection for the Ai
                                # Describe(AircraftState) / Describe(AircraftStatusView); server computes once
                                # per broadcast → AircraftDto.SmartStatus (client just displays it), TickRecorder
                                # calls it too. One implementation so all surfaces agree.
+RunwayDepartureQueue.cs        # Static per-hold-short departure-queue ranker. UpdatePositions(world) runs
+                               # each sim-second in SimulationEngine.TickPostPhysics, writing 1-based
+                               # AircraftGroundOps.RunwayQueuePosition per aircraft (0 = not in line).
+                               # Drives the ground-datablock "#N" callsign suffix + Info-column "(#N)".
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit overrides.

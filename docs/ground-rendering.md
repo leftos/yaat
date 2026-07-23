@@ -35,6 +35,10 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
 
 The route overlays sit **between infrastructure and aircraft** so routes never occlude the aircraft symbols. `DrawHoverRoute` is drawn **last of the overlays** so the transient hover highlight paints on top of any persistent shown route.
 
+## Datablock composition
+
+`DataBlockLayout.Compute(AircraftModel, …)` is the **single source of truth** for both the draw pass (`DrawOneDataBlock`) and the click hit-test (`GroundCanvas.FindDataBlockAtPoint`), so a new line or callsign suffix grows the click rect automatically. Line 1 is the callsign, plus a trailing `*` when pre-armed for auto-delete (`AutoDeletePending`) and a ` #N` departure-queue suffix when `AircraftModel.RunwayQueuePosition > 0`. That ordinal is **server-computed** (`RunwayDepartureQueue` in Yaat.Sim, wired through `AircraftStateDto.RunwayQueuePosition`); the client only displays it — no client-side ranking, mirroring the `SmartStatus` and taxi-route-reconstruction contracts.
+
 ## Route overlays
 
 All five overlays flow VM → `GroundCanvas` `StyledProperty` → `RenderSnapshot` → `GroundRenderer`, and all funnel through one primitive, `GroundRenderer.DrawRoute(canvas, vp, layout, TaxiRoute?, SKPaint)`, which walks `TaxiRoute.Segments` (straight `GroundEdge`s and `GroundArc` fillets) and projects each node via `MapViewport.LatLonToScreen`.

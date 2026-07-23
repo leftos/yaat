@@ -98,6 +98,38 @@ public class SmartStatusTests
     }
 
     [Fact]
+    public void Taxiing_WithQueuePosition_AppendsOrdinal()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Taxiing",
+            AssignedRunway = "28R",
+            RunwayQueuePosition = 2,
+        };
+        Assert.Equal("Taxi to RWY 28R (#2)", Text(v));
+        Assert.Equal(AircraftStatusSeverity.Normal, Severity(v));
+    }
+
+    [Fact]
+    public void Taxiing_NoQueuePosition_HasNoOrdinal()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Taxiing",
+            AssignedRunway = "28R",
+            RunwayQueuePosition = 0,
+        };
+        Assert.Equal("Taxi to RWY 28R", Text(v));
+    }
+
+    [Fact]
+    public void HoldingShortOfRunway_WithQueuePosition_AppendsOrdinal()
+    {
+        var v = new AircraftStatusView { CurrentPhase = "Holding Short 28R", RunwayQueuePosition = 1 };
+        Assert.Equal("Holding short 28R (#1)", Text(v));
+    }
+
+    [Fact]
     public void HandoffPeer_Warning()
     {
         var v = new AircraftStatusView

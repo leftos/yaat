@@ -18,6 +18,9 @@ public sealed class AircraftGroundOpsDto
 
     /// <summary>True when the auto-yield is a same-edge in-trail follow ("Following") rather than a converging give-way ("Yielding to").</summary>
     public bool AutoYieldIsFollowing { get; init; }
+
+    /// <summary>1-based position in the departure line at this aircraft's destination-runway hold-short node, or 0 when not in a countable line.</summary>
+    public int RunwayQueuePosition { get; init; }
     public double? PushbackTrueHeadingDeg { get; init; }
     public required bool HasAnnouncedReady { get; init; }
     public bool InitialCallupDecisionProcessed { get; init; }

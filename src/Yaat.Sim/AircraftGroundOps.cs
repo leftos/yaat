@@ -135,6 +135,16 @@ public class AircraftGroundOps
     public bool AutoYieldIsFollowing { get; set; }
 
     /// <summary>
+    /// Display-only 1-based position in the physical departure line at this aircraft's destination-runway
+    /// hold-short node, or 0 when it is not in a countable line. Re-derived every sim-second by
+    /// <see cref="Simulation.SimulationEngine"/> from full world context (aircraft holding short of, or
+    /// taxiing up to within a short distance of, the same runway hold-short node), then read back as
+    /// own-state — the same computed-with-world / read-as-own pattern as <see cref="AutoYieldTarget"/>.
+    /// Drives the "#N" ground-datablock suffix and the "(#N)" Info-column status; never gates anything.
+    /// </summary>
+    public int RunwayQueuePosition { get; set; }
+
+    /// <summary>
     /// When set, FlightPhysics uses this heading for ground position updates
     /// instead of the aircraft's TrueHeading. Used by pushback (aircraft nose stays
     /// forward while tug pushes it backward along this direction).
@@ -232,6 +242,7 @@ public class AircraftGroundOps
             SpeedLimit = SpeedLimit,
             AutoYieldTarget = AutoYieldTarget,
             AutoYieldIsFollowing = AutoYieldIsFollowing,
+            RunwayQueuePosition = RunwayQueuePosition,
             PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
             HasAnnouncedReady = HasAnnouncedReady,
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
@@ -264,6 +275,7 @@ public class AircraftGroundOps
             SpeedLimit = dto.SpeedLimit,
             AutoYieldTarget = dto.AutoYieldTarget,
             AutoYieldIsFollowing = dto.AutoYieldIsFollowing,
+            RunwayQueuePosition = dto.RunwayQueuePosition,
             PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
             HasAnnouncedReady = dto.HasAnnouncedReady,
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,

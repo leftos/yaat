@@ -66,6 +66,13 @@ internal readonly struct DataBlockLayout
 
         // Suffix '*' marks aircraft pre-armed for auto-delete on hold-short (ONHS DEL).
         string line1 = ac.AutoDeletePending ? $"{ac.Callsign}*" : ac.Callsign;
+        // Departure-queue ordinal: "#2" behind the callsign identifies which aircraft is which when a
+        // clump of departures is stacked at a runway hold short and the view is zoomed out. 0 = not in
+        // a countable line (lone aircraft or not near a runway), so no suffix.
+        if (ac.RunwayQueuePosition > 0)
+        {
+            line1 = $"{line1} #{ac.RunwayQueuePosition}";
+        }
         // ASDE-style surface fix (exit fix or destination per the airport's facility config), resolved
         // server-side and already normalized — used verbatim, no K-strip. Falls back to the destination
         // when no rule/config applies, so it is blank only for a VFR cold-call with no destination.

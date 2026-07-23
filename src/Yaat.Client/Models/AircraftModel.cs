@@ -686,6 +686,14 @@ public partial class AircraftModel : ObservableObject
     private bool _autoYieldIsFollowing;
 
     /// <summary>
+    /// 1-based position in the departure line at this aircraft's runway hold-short node, or 0 when not
+    /// in a countable line. Computed server-side by <see cref="Yaat.Sim.RunwayDepartureQueue"/>; drives
+    /// the "#N" ground-datablock callsign suffix.
+    /// </summary>
+    [ObservableProperty]
+    private int _runwayQueuePosition;
+
+    /// <summary>
     /// True when the aircraft is under any active hold directive (HoldPosition or
     /// GiveWay). Driven by <see cref="HoldKind"/>. Auto-yield (slowing) is NOT a hold.
     /// </summary>
@@ -946,6 +954,7 @@ public partial class AircraftModel : ObservableObject
             HoldYieldTarget = dto.HoldYieldTarget,
             AutoYieldTarget = dto.AutoYieldTarget,
             AutoYieldIsFollowing = dto.AutoYieldIsFollowing,
+            RunwayQueuePosition = dto.RunwayQueuePosition,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
             Owner = dto.Owner,
@@ -1048,6 +1057,7 @@ public partial class AircraftModel : ObservableObject
         HoldYieldTarget = dto.HoldYieldTarget;
         AutoYieldTarget = dto.AutoYieldTarget;
         AutoYieldIsFollowing = dto.AutoYieldIsFollowing;
+        RunwayQueuePosition = dto.RunwayQueuePosition;
         ParkingSpot = dto.ParkingSpot;
         CurrentTaxiway = dto.CurrentTaxiway;
         Owner = dto.Owner;
