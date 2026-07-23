@@ -1195,6 +1195,120 @@ public sealed class SimulationEngine
     }
 
     /// <summary>
+    /// Per-second auto-delete pass: decides which aircraft to remove (per-aircraft <c>ONHS DEL</c> opt-in,
+    /// stuck-after-landing at a layout-less airport, a generated overflight past its exit radius, or the
+    /// scenario's <c>OnLanding</c>/<c>Parked</c> mode), removes them from the world, and returns the removed
+    /// states so the host can fan out its delete broadcasts (each state carries the last position for a
+    /// surface-track coast/drop). Server-only: only a broadcasting host consumes the result, so
+    /// <see cref="TickPostPhysics"/> does not call this. The narrower <see cref="SweepPendingAutoDeletes"/>
+    /// stays for standalone tests that only exercise the <c>PendingAutoDelete</c> path.
+    /// </summary>
+    public IReadOnlyList<AircraftState> TickAutoDelete()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return [];
+        }
+
+        var mode = scenario.EffectiveAutoDeleteMode;
+        bool modeDisabled =
+            string.IsNullOrEmpty(mode)
+            || mode.Equals("None", StringComparison.OrdinalIgnoreCase)
+            || mode.Equals("Never", StringComparison.OrdinalIgnoreCase);
+
+        var toDelete = new List<AircraftState>();
+        foreach (var ac in World.GetSnapshot())
+        {
+            // Per-aircraft opt-in raised by a queued ONHS DEL (or any queued DeleteCommand) whose trigger
+            // has fired. This bypasses AutoDeleteExempt — the controller explicitly asked for the delete.
+            bool perAircraftDelete = ac.Ground.PendingAutoDelete;
+
+            if (!perAircraftDelete && ac.Ground.AutoDeleteExempt)
+            {
+                continue;
+            }
+
+            // Delete aircraft holding after exit at airports with no ground layout — they can't taxi.
+            // Check the world-level layout (airport has data?) not the per-aircraft cache (may be null).
+            // Respect "Never" mode — if the user explicitly disabled auto-delete, don't force it.
+            bool stuckAfterLanding = (ac.Phases?.CurrentPhase is HoldingAfterExitPhase) && (World.GroundLayout is null) && !modeDisabled;
+
+            // Only auto-delete arrivals: aircraft whose destination matches this airport. Departures
+            // repositioning between parking spots should never be auto-deleted.
+            bool isArrival = NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Destination, scenario.PrimaryAirportId);
+
+            // A generated overflight never lands, so the destination-matching modes above can never reach it.
+            // It leaves the scenario by flying past its exit radius instead — unless a controller has taken
+            // the track, in which case it stays until they drop it rather than vanishing under them.
+            bool departedOverflight = !modeDisabled && HasLeftOverflightCorridor(ac, scenario.PrimaryAirportId) && ac.Track.Owner is null;
+
+            bool shouldDelete =
+                perAircraftDelete
+                || stuckAfterLanding
+                || departedOverflight
+                || (
+                    !modeDisabled
+                    && mode switch
+                    {
+                        "OnLanding" => ac.IsOnGround
+                            && (ac.Phases?.CurrentPhase is HoldingAfterExitPhase || (ac.Phases?.CurrentPhase is AtParkingPhase && isArrival)),
+                        "Parked" => ac.Phases?.CurrentPhase is AtParkingPhase && isArrival,
+                        _ => false,
+                    }
+                );
+
+            if (shouldDelete)
+            {
+                _logger.LogDebug(
+                    "AutoDelete: {Callsign} marked for deletion (phase={Phase})",
+                    ac.Callsign,
+                    ac.Phases?.CurrentPhase?.GetType().Name ?? "none"
+                );
+                toDelete.Add(ac);
+            }
+        }
+
+        if (toDelete.Count > 0)
+        {
+            _logger.LogDebug("AutoDelete: {Count} aircraft pending deletion at t={T}s", toDelete.Count, scenario.ElapsedSeconds);
+        }
+
+        foreach (var ac in toDelete)
+        {
+            World.RemoveAircraft(ac.Callsign);
+            _logger.LogInformation(
+                "Auto-deleted {Callsign} (mode={Mode}) in scenario '{Name}' at t={T}s",
+                ac.Callsign,
+                mode,
+                scenario.ScenarioName,
+                scenario.ElapsedSeconds
+            );
+        }
+
+        return toDelete;
+    }
+
+    /// <summary>
+    /// True once a generated overflight is farther from the primary airport than its exit radius. The radius
+    /// is validated to exceed the generator's spawn corridor, so a transit always starts inside it and can
+    /// only cross the threshold on the way out.
+    /// </summary>
+    private static bool HasLeftOverflightCorridor(AircraftState aircraft, string? primaryAirportId)
+    {
+        if (!aircraft.IsGeneratedOverflight || aircraft.OverflightExitDistanceNm is not { } exitDistanceNm)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrEmpty(primaryAirportId) || NavigationDatabase.Instance.GetFixPosition(primaryAirportId) is not { } airport)
+        {
+            return false;
+        }
+
+        return GeoMath.DistanceNm(aircraft.Position.Lat, aircraft.Position.Lon, airport.Lat, airport.Lon) > exitDistanceNm;
+    }
+
+    /// <summary>
     /// Per-second solo-training evaluation: builds the evaluation context from the active scenario, runs
     /// the solo-training evaluator against the current world, and returns the resulting events for the host
     /// to broadcast. Empty when not in solo mode. Server-only: the standalone/replay host has no controller
