@@ -60,7 +60,7 @@ tests. Categorized from the current `ProcessPostPhysics` step list:
 |---|---|---|
 | `ClearExpiredIdents` | pure sim timing (transponder ident expiry), no Yaat.Sim call | **DONE** — logic moved to `AircraftTransponder.TickIdent` (owns the `IdentDurationSeconds=18` const) + `SimulationEngine.TickTransponderIdents`; `TickPostPhysics` and the server's `ProcessPostPhysics` both call it. Server's private `ClearExpiredIdents` deleted. Guarded by `TransponderIdentServerParityTests` (mutation-verified). |
 | `ProcessConflictAlerts` / `EramConflictAlerts` | sim detect (`ConflictAlertDetector`/`EramConflictDetector`) + server broadcast; needs STARS config | **DONE** — `SimulationEngine.TickConflictAlerts(internalAirports)` + `TickEramConflictAlerts()` run the detector, update the engine-owned `ConflictAlerts`/`EramConflicts` sets, and **return** the opened/closed diffs (`ConflictAlertChanges`/`EramConflictAlertChanges`); the server passes STARS `InternalAirports` in and broadcasts the diff. Server-only invocation. Guarded by existing live-path `ConflictAlertTrainingBroadcastTests` + `EramShortTermConflictTests` (both mutation-verified RED) and new `ConflictAlertTickTests`. |
-| `AsdexAlerts` | ASDE-X safety-logic detect + broadcast; **config + alert set on server `room.AsdexState`** (CRC-driven) | **PENDING / reassess** — unlike CA/ERAM, the active-alert set and `SafetyLogicConfig` live on the server's `TrainingRoom.AsdexState` (fed by the CRC ASDE-X subscription), not the engine. Moving it cleanly would relocate `AsdexState` into the engine (structural) or pass server state in/out. It's closer to the "genuinely CRC display" bucket; decide whether to extract just the `AsdexSafetyLogicDetector.Detect` orchestration or leave it server-side. |
+| `AsdexAlerts` | ASDE-X safety-logic detect + broadcast; **config + alert set on server `room.AsdexState`** (CRC-driven) | **STAYS SERVER-SIDE (decided)** — not a two-brains duplication: the detector (`AsdexSafetyLogicDetector.Detect`) already lives in `Yaat.Sim/Asdex/` and is called once from the server. The remaining server code adapts CRC DTOs (`AsdexSafetyLogicConfig`, the server `AsdexRunwayConfig`, `FieldElevationResolver`) into the sim detector's input types and manages the room-held active-alert set — all genuine `Yaat.Server`/CRC display concerns. Moving it would drag CRC DTOs into the shared sim library (architecturally backwards), so it correctly stays. |
 | `ProcessVisualDetection` | sim logic looped in the server | **DONE** — moved to `SimulationEngine.TickVisualDetection` (reads `World.Weather`, the sim's active-weather field, in place of the server's synced `room.Weather` mirror — behavior-preserving); `TickPostPhysics` and the server's `ProcessPostPhysics` both call it. Server's private `ProcessVisualDetection` deleted. Guarded by `VisualDetectionServerParityTests` (mutation-verified); existing CVA E2E tests exercise the engine path via `TickOneSecond`. |
 | `ProcessSoloTrainingEvaluation` | `ActiveSim.SoloTrainingEvaluator.Evaluate` + broadcast | **DONE** — `SimulationEngine.TickSoloTrainingEvaluation` builds the eval context from the scenario, runs the evaluator, and **returns** the events (return-value seam); the server only broadcasts them. Server-only invocation (standalone/replay has no controller to notify). Guarded by `SoloTrainingServerParityTests` (mutation-verified) + `SoloTrainingEvaluationTickTests`. |
 | `ProcessAutoDelete` | mode-based delete decision + broadcast | **DONE** — `SimulationEngine.TickAutoDelete` owns the full delete decision (per-aircraft `ONHS DEL`, stuck-after-landing, departed-overflight, `OnLanding`/`Parked` mode), removes the aircraft, and **returns** the removed states; the server fans out its 3-layer delete broadcast (`AircraftDeleted` + CRC disconnect + terminal). `HasLeftOverflightCorridor` moved into the engine; the dead `BroadcastDeletesAsync` fallback dropped (the returned state is always non-null). `SweepPendingAutoDeletes` kept for standalone `PendingAutoDelete`-only tests. Guarded by existing live-path `OverflightAutoDeleteTests` (mutation-verified) + new `AutoDeleteTickTests`. |
@@ -68,6 +68,24 @@ tests. Categorized from the current `ProcessPostPhysics` step list:
 
 The end state: `ProcessPostPhysics` shrinks to "call `sim` post-physics, then broadcast the results +
 run CRC/strip/TDLS/ownership concerns."
+
+### Phase 2 — COMPLETE
+
+All extractable per-tick sim orchestration now lives in the engine; the server's `ProcessPostPhysics`
+steps that carried sim logic call engine methods and only broadcast. Migrated (each its own commit, own
+tests, mutation-verified against the live `RoomEngine.AdvanceOneSecond` path):
+
+- **Both-hosts void methods** (called by `TickPostPhysics` *and* the server): `TickTransponderIdents`
+  (ident expiry), `TickVisualDetection` (visual-approach field/traffic in-sight) — alongside Phase 1's
+  `TickPilotProactive`.
+- **Return-value, server-only methods** (engine computes + returns; only a broadcasting host calls them):
+  `TickConflictAlerts` (terminal CA), `TickEramConflictAlerts` (ERAM STCA), `TickSoloTrainingEvaluation`,
+  `TickAutoDelete`.
+- **`AsdexAlerts` stays server-side** (decided) — the detector is already in `Yaat.Sim`; the rest is CRC
+  DTO glue that must not move into the sim library.
+
+Everything else in the step list (`Broadcast*`, autotrack, coordination timers, tower lists, strips,
+TDLS, surface coast, approach scores) is genuine comms/CRC/display and remains server-side.
 
 ## Verification
 
