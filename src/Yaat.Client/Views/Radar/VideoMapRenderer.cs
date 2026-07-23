@@ -28,11 +28,22 @@ public sealed class VideoMapRenderer : IDisposable
         IsAntialias = true,
     };
 
+    // Rendered CRC-style (no AA, device-pixel width) by RadarLineStyle.Apply each frame; the tuple
+    // carries each paint's base width in DIPs.
+    private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
+
+    public VideoMapRenderer()
+    {
+        _strokePaints = [(_mapPaintA, 1f), (_mapPaintB, 1f)];
+    }
+
     public float BrightnessA { get; set; } = 1.0f;
     public float BrightnessB { get; set; } = 0.6f;
 
     public void Render(SKCanvas canvas, MapViewport vp, IReadOnlyList<VideoMapData> maps, IReadOnlyDictionary<string, string> brightnessLookup)
     {
+        RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
+
         foreach (var map in maps)
         {
             var category = brightnessLookup.GetValueOrDefault(map.MapId, "A");

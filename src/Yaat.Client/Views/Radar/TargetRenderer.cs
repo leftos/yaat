@@ -310,6 +310,23 @@ public sealed class TargetRenderer : IDisposable
 
     private const float SymbolSize = 5f;
 
+    // Scope stroke paints rendered CRC-style (no AA, device-pixel width) by RadarLineStyle.Apply each
+    // frame; the tuple carries each paint's base width in DIPs.
+    private readonly (SKPaint Paint, float BaseWidth)[] _strokePaints;
+
+    public TargetRenderer()
+    {
+        _strokePaints =
+        [
+            (_symbolPaint, 1.5f),
+            (_leaderPaint, 2f),
+            (_selectedBorderPaint, 1f),
+            (_ptlPaint, 1f),
+            (_tpaPaint, 1f),
+            (_conflictRingPaint, 1f),
+        ];
+    }
+
     public void Render(
         SKCanvas canvas,
         MapViewport vp,
@@ -326,6 +343,8 @@ public sealed class TargetRenderer : IDisposable
         int historyCount = 0
     )
     {
+        RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
+
         // Draw history trails first (behind position symbols)
         if (historyCount > 0)
         {

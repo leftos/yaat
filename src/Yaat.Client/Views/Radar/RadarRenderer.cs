@@ -116,6 +116,10 @@ public sealed class RadarRenderer : IDisposable
     private readonly SKPaint[] _pathLeaderPaints;
     private readonly SKPaint[] _pathTailPaints;
 
+    // Scope stroke paints rendered CRC-style (no AA, device-pixel width) by RadarLineStyle.Apply each
+    // frame; the tuple carries each paint's base width in DIPs.
+    private readonly List<(SKPaint Paint, float BaseWidth)> _strokePaints = [];
+
     public RadarRenderer()
     {
         var colors = new[]
@@ -177,7 +181,20 @@ public sealed class RadarRenderer : IDisposable
                 IsAntialias = true,
                 PathEffect = SKPathEffect.CreateDash([10, 5], 0),
             };
+
+            _strokePaints.Add((_pathLinePaints[i], 2f));
+            _strokePaints.Add((_pathWaypointPaints[i], 2f));
+            _strokePaints.Add((_pathLeaderPaints[i], 1f));
+            _strokePaints.Add((_pathTailPaints[i], 2f));
         }
+
+        _strokePaints.Add((_rangeRingPaint, 1f));
+        _strokePaints.Add((_fixPaint, 1f));
+        _strokePaints.Add((_programmedFixPaint, 2f));
+        _strokePaints.Add((_pinnedMarkerPaint, 2f));
+        _strokePaints.Add((_routeLinePaint, 2f));
+        _strokePaints.Add((_rubberBandPaint, 1f));
+        _strokePaints.Add((_routeWaypointPaint, 2f));
     }
 
     public float BrightnessA
@@ -348,6 +365,7 @@ public sealed class RadarRenderer : IDisposable
         (string Text, SKPoint Pos)? mvaHover = null
     )
     {
+        RadarLineStyle.Apply(_strokePaints, RadarLineStyle.GetScale(canvas));
         canvas.Clear(BackgroundColor);
 
         // Video maps

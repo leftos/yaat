@@ -9,7 +9,8 @@
 - Data block clicks and drags land on the block at any data block font size, on both the radar and Ground View.
 
 ### Changed
-- Refreshed the UI toolkit — controls, dialogs, and menus may look slightly different; radar and Ground View rendering is unchanged.
+- Radar scope lines — video maps, range rings, leader lines, and markers — now render crisp and hard-edged to match CRC's STARS display.
+- Refreshed the UI toolkit — controls, dialogs, and menus may look slightly different; Ground View rendering is unchanged.
 
 ## v0.9.13-beta [2026/07/22]
 
