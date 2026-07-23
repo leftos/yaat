@@ -484,10 +484,15 @@ public sealed class RunwayExitPhase : Phase
 
         _exitRoute = new TaxiRoute { Segments = segments, HoldShortPoints = [] };
 
-        // Max speed = coast speed so the aircraft maintains rollout speed during
-        // the approach segment. The navigator's braking constraints handle
-        // deceleration into the turn at the branch node.
-        double maxSpeed = _coastSpeed;
+        // Cap the exit maneuver at normal taxiway speed, not the runway-rollout coast speed: once the
+        // aircraft turns off onto the exit taxiway it is taxiing, so it should not accelerate past taxi
+        // speed toward coast on the straight to the hold-short and then brake hard — the
+        // slow-turn-then-surge profile. The turn itself is governed by the junction arc's
+        // MaxSafeSpeedKts (a rapid exit is taken at its design speed). Mirror TaxiingPhase's expedite
+        // bump so an EXP exit still taxis briskly to the hold-short.
+        double taxiCeiling =
+            CategoryPerformance.TaxiSpeed(ctx.Category) * (ctx.Aircraft.Ground.IsExpeditingExit ? CategoryPerformance.TaxiExpediteMultiplier : 1.0);
+        double maxSpeed = Math.Min(_coastSpeed, taxiCeiling);
 
         _navigator = new GroundNavigator();
         _navigator.MaxSpeedKts = maxSpeed;
@@ -499,6 +504,14 @@ public sealed class RunwayExitPhase : Phase
         }
 
         _navigator.SetupSegment(_exitRoute, ctx, _ => true);
+
+        // TickRolling holds the runway heading through the persistent ControlTargets
+        // (TargetTrueHeading + TurnRateOverride). From here the navigator owns steering and
+        // writes TrueHeading directly — drop the heading hold, or FlightPhysics keeps turning
+        // the aircraft back toward the runway heading every substep, fighting the navigator's
+        // exit turn to a standstill (a pure-pursuit "orbit" at full ground-turn rate).
+        ctx.Targets.TargetTrueHeading = null;
+        ctx.Targets.TurnRateOverride = null;
 
         _state = ExitState.FollowingExitPath;
         ctx.Aircraft.Ground.CurrentTaxiway = _exitTaxiway;

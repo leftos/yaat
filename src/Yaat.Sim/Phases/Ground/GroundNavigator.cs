@@ -100,9 +100,11 @@ public sealed class GroundNavigator
     /// <summary>
     /// Pure-pursuit look-ahead distance cap in feet on straight segments.
     /// Keeps the look-ahead from anticipating the next turn too aggressively
-    /// on long straights.
+    /// on long straights. Public because the fillet generator sizes its
+    /// minimum navigable straight (<see cref="Data.Airport.Fillet.FilletConstants.MinSharedArmClearGapFt"/>)
+    /// from it: a straight shorter than the look-ahead is an orbit trap.
     /// </summary>
-    private const double LookAheadCapFt = 50.0;
+    public const double LookAheadCapFt = 50.0;
 
     /// <summary>
     /// Cross-track offset (feet) above which the aircraft is "not established"

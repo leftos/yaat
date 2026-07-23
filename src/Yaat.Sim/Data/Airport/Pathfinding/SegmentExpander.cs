@@ -2066,6 +2066,21 @@ public static class SegmentExpander
                 // (IsRunwayJunction, e.g. "H - RWY...") DO continue the taxiway across a runway and
                 // are not treated as junction arcs.
                 bool isJunctionArc = edge is GroundArc { IsMembershipTaxiwayJunctionArc: true };
+                if (!isJunctionArc && (edge is GroundArc { TaxiwayNames.Length: >= 2 } runwayJunctionArc))
+                {
+                    // A runway-junction membership arc continues the walked taxiway across the runway
+                    // only when it stays roughly on-direction. An arc that sweeps >90° between its
+                    // entry and exit tangents is the corner ONTO the crossing runway (or a reverse
+                    // corner off it), not a continuation — when the exit corner and reverse corner
+                    // share one fused tangent node, both arcs depart tangent to the taxiway and the
+                    // reverse one can be the cheapest step, dead-ending the greedy walk mid-crossing.
+                    // Demote such arcs below single-name edges; they stay usable when nothing else
+                    // continues the taxiway.
+                    double departure = runwayJunctionArc.TangentBearingAt(headNode, headNode, nextNode);
+                    double arrivalTangent = runwayJunctionArc.TangentBearingAt(nextNode, headNode, nextNode);
+                    isJunctionArc = GeoMath.AbsBearingDifference(departure, arrivalTangent) > 90.0;
+                }
+
                 double biasDist = firstStep ? GeoMath.DistanceNm(nextNode.Position, biasToward!.Value) : 0.0;
                 bool sameTier = bestIsJunctionArc == isJunctionArc;
                 bool tieBetter = firstStep ? (biasDist < bestBiasDist) : (cost < bestCost);

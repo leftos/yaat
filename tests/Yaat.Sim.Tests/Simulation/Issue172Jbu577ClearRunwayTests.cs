@@ -52,12 +52,25 @@ public class Issue172Jbu577ClearRunwayTests(ITestOutputHelper output)
         var layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
 
-        // Replay to JBU577 holding short of B with its tail over the runway (W2 state established by ~t=505).
+        // Replay to JBU577 holding short of B with its tail over the runway. Recorded commands
+        // replay only up to t=513 (TAXI B M1 Y @B5 at t=514 would extend the route past B); past
+        // the window the sim ticks physics-only (bounded) until the tail-over hold establishes —
+        // exit/taxi geometry changes legitimately shift the crossing past the recording's cutoff.
+        const int WindowEnd = 513;
+        const int PhysicsOnlyEnd = WindowEnd + 60;
         engine.Replay(recording, 0);
         AircraftState? jbu = null;
-        for (int t = 1; t <= 513; t++)
+        for (int t = 1; t <= PhysicsOnlyEnd; t++)
         {
-            engine.ReplayOneSecond();
+            if (t <= WindowEnd)
+            {
+                engine.ReplayOneSecond();
+            }
+            else
+            {
+                engine.TickOneSecond();
+            }
+
             jbu = engine.FindAircraft("JBU577");
             bool tailOver =
                 jbu?.Phases?.CurrentPhase is HoldingShortPhase hp && hp.HoldShort.TailOverRunwayNodeId is not null && jbu.IndicatedAirspeed < 0.5;

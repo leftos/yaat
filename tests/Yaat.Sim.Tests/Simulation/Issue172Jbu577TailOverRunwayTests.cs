@@ -93,11 +93,26 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
 
         engine.Replay(recording, 0);
 
+        // Recorded commands replay only up to t=513 (TAXI B M1 Y @B5 at t=514 would extend the
+        // route past B). Beyond the window, tick physics only (bounded) so the crossing completes
+        // and the hold-short-of-B state can be observed — exit/taxi geometry changes legitimately
+        // shift the crossing a few seconds past the recording's cutoff.
+        const int WindowEnd = 513;
+        const int PhysicsOnlyEnd = WindowEnd + 60;
+
         int? tailOverNode = null;
         bool occupiedWhileHolding = false;
-        for (int t = 1; t <= 513; t++)
+        for (int t = 1; t <= PhysicsOnlyEnd; t++)
         {
-            engine.ReplayOneSecond();
+            if (t <= WindowEnd)
+            {
+                engine.ReplayOneSecond();
+            }
+            else
+            {
+                engine.TickOneSecond();
+            }
+
             var ac = engine.FindAircraft("JBU577");
             if (ac is null || t < 444)
             {
@@ -113,6 +128,12 @@ public class Issue172Jbu577TailOverRunwayTests(ITestOutputHelper output)
                 {
                     occupiedWhileHolding = true;
                 }
+            }
+
+            if (occupiedWhileHolding && notes.Any(n => n.Contains("not clear of RWY", StringComparison.OrdinalIgnoreCase)))
+            {
+                output.WriteLine($"t={t}: tail-over state + occupancy + note all observed — ending physics-only extension");
+                break;
             }
         }
 

@@ -21,9 +21,13 @@ namespace Yaat.Sim.Tests.Simulation;
 /// arrives, nose at the line with the tail over the runway bars, NO 180° reversal, NO backward drive.
 /// (Representing the "runway not clear" state and warning the controller are work items W2/W3.)
 ///
-/// Replay window: the route is extended by <c>TAXI B M1 Y @B5</c> at t=514, so the crossing + hold-short
-/// behavior is asserted up to t=513 via faithful <see cref="SimulationEngine.ReplayOneSecond"/> (which
-/// applies the recorded CROSS at t=447 — <see cref="SimulationEngine.TickOneSecond"/> would drop it).
+/// Replay window: the route is extended by <c>TAXI B M1 Y @B5</c> at t=514, so recorded commands are
+/// replayed only up to t=513 via faithful <see cref="SimulationEngine.ReplayOneSecond"/> (which applies
+/// the recorded CROSS at t=447 — <see cref="SimulationEngine.TickOneSecond"/> would drop it). Past the
+/// window the sim keeps ticking physics-only (<see cref="SimulationEngine.TickOneSecond"/>, no further
+/// recorded commands) until the aircraft settles holding short: exit/taxi geometry changes (e.g. the
+/// widened high-speed-exit fillets) legitimately shift the crossing a few seconds past the recording's
+/// cutoff, and the invariants under test are about HOW it crosses and stops, not when.
 /// Recording: issue172-sfo-taxiing-recording (ZOA/SFO).
 /// </summary>
 public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
@@ -65,9 +69,11 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
 
         engine.Replay(recording, 0);
 
-        // Stop before TAXI B M1 Y @B5 (t=514) extends the route — assert only the
-        // TAXI G B HS B crossing + hold-short-of-B behavior.
+        // Stop replaying before TAXI B M1 Y @B5 (t=514) extends the route — assert only the
+        // TAXI G B HS B crossing + hold-short-of-B behavior. Beyond the window, tick physics
+        // only (bounded) so the crossing completes and the aircraft settles at B's hold line.
         const int WindowEnd = 513;
+        const int PhysicsOnlyEnd = WindowEnd + 60;
 
         bool sawCrossing = false;
         bool sawHoldShort = false;
@@ -83,11 +89,18 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
         string lastPhase = "(none)";
         double lastHeading = double.NaN;
 
-        for (int t = 1; t <= WindowEnd; t++)
+        for (int t = 1; t <= PhysicsOnlyEnd; t++)
         {
             try
             {
-                engine.ReplayOneSecond();
+                if (t <= WindowEnd)
+                {
+                    engine.ReplayOneSecond();
+                }
+                else
+                {
+                    engine.TickOneSecond();
+                }
             }
             catch (InvalidOperationException ex)
             {
@@ -143,6 +156,11 @@ public class Issue172Jbu577TaxiSpinTests(ITestOutputHelper output)
             if (phase == "HoldingShortPhase")
             {
                 sawHoldShort = true;
+                if ((t > WindowEnd) && (ac.IndicatedAirspeed < 0.1))
+                {
+                    output.WriteLine($"t={t}: settled holding short of B — ending physics-only extension");
+                    break;
+                }
             }
 
             output.WriteLine($"t={t, 3} ias={ac.IndicatedAirspeed, 5:F1} pos=({pos.Lat:F6},{pos.Lon:F6}) hdg={hdg, 5:F1} phase={phase}");

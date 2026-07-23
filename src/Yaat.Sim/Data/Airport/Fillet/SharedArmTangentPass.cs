@@ -141,10 +141,17 @@ internal static class SharedArmTangentPass
         return merges;
     }
 
-    /// <summary>Scale endpoint cut sets on the same physical arm between adjacent junctions.</summary>
+    /// <summary>
+    /// Reconcile the tangent-cut sets of adjacent junctions on a shared physical arm so the straight
+    /// left between them is navigable. Two pairing sources feed <see cref="ReconcileArmPair"/>: arms
+    /// that terminate at the neighbor junction (a taxiway that ends there), and arms whose walks pass
+    /// <em>through</em> the neighbor — a shared through-chain such as a runway centerline crossing
+    /// several taxiway junctions, paired via cuts landing on the same original edge. Without the
+    /// second source, through-chain junctions cut toward each other blindly and can leave an
+    /// orbit-trap sliver between their tangent nodes.
+    /// </summary>
     public static IReadOnlyList<TangentMergeOp> ApplyCrossJunction(
         IReadOnlyList<JunctionPlan> junctionPlans,
-        IReadOnlyList<ArmCutResolver.JunctionCutResult> results,
         Dictionary<CutId, ResolvedArmCut> allCuts,
         List<PlanWarning> warnings
     )
@@ -153,9 +160,8 @@ internal static class SharedArmTangentPass
         var planById = junctionPlans.ToDictionary(p => p.JunctionNodeId);
         var processed = new HashSet<(int, int, string)>();
 
-        for (int i = 0; i < junctionPlans.Count; i++)
+        foreach (var jp1 in junctionPlans)
         {
-            var jp1 = junctionPlans[i];
             foreach (var arm1 in jp1.Arms.Where(a => a.Terminus == TaxiwayArmTerminus.OtherIntersection))
             {
                 if (!planById.TryGetValue(arm1.TerminalNode.Id, out var jp2))
@@ -169,70 +175,183 @@ internal static class SharedArmTangentPass
                     continue;
                 }
 
-                int lo = Math.Min(jp1.JunctionNodeId, jp2.JunctionNodeId);
-                int hi = Math.Max(jp1.JunctionNodeId, jp2.JunctionNodeId);
-                var key = (lo, hi, arm1.TaxiwayName);
-                if (!processed.Add(key))
+                ReconcileArmPair(jp1, arm1, jp2, arm2, processed, allCuts, warnings, merges);
+            }
+        }
+
+        foreach (var edgeArms in GroupArmsByLocatedCutEdge(planById, allCuts))
+        {
+            for (int i = 0; i < edgeArms.Count; i++)
+            {
+                for (int j = i + 1; j < edgeArms.Count; j++)
                 {
-                    continue;
-                }
-
-                var cuts1 = allCuts.Values.Where(c => (c.JunctionNodeId == jp1.JunctionNodeId) && (c.ArmId == arm1.Id)).ToList();
-                var cuts2 = allCuts.Values.Where(c => (c.JunctionNodeId == jp2.JunctionNodeId) && (c.ArmId == arm2.Id)).ToList();
-                if ((cuts1.Count == 0) && (cuts2.Count == 0))
-                {
-                    continue;
-                }
-
-                double d1 = cuts1.Count > 0 ? cuts1.Max(c => c.DistanceAlongArmFt) : 0;
-                double d2 = cuts2.Count > 0 ? cuts2.Max(c => c.DistanceAlongArmFt) : 0;
-                double sharedLengthFt = GeoMath.DistanceNm(jp1.JunctionNode.Position, jp2.JunctionNode.Position) * GeoMath.FeetPerNm;
-                if (sharedLengthFt < 1.0)
-                {
-                    sharedLengthFt = Math.Min(arm1.LengthFt, arm2.LengthFt);
-                }
-
-                if ((d1 + d2) <= (sharedLengthFt - 1.0))
-                {
-                    continue;
-                }
-
-                double scale = (sharedLengthFt - 1.0) / (d1 + d2);
-                ScaleCutSet(jp1, arm1, cuts1, scale, allCuts);
-                ScaleCutSet(jp2, arm2, cuts2, scale, allCuts);
-
-                warnings.Add(
-                    new PlanWarning(
-                        jp1.JunctionNodeId,
-                        null,
-                        PlanWarning.SharedArmScaled,
-                        $"Scaled shared arm {arm1.TaxiwayName} between J{jp1.JunctionNodeId}/J{jp2.JunctionNodeId} by {scale:F3}"
-                    )
-                );
-
-                var far1 = allCuts
-                    .Values.Where(c => (c.JunctionNodeId == jp1.JunctionNodeId) && (c.ArmId == arm1.Id))
-                    .OrderByDescending(c => c.DistanceAlongArmFt)
-                    .FirstOrDefault();
-                var far2 = allCuts
-                    .Values.Where(c => (c.JunctionNodeId == jp2.JunctionNodeId) && (c.ArmId == arm2.Id))
-                    .OrderByDescending(c => c.DistanceAlongArmFt)
-                    .FirstOrDefault();
-                if ((far1 is not null) && (far2 is not null))
-                {
-                    double gapFt = GeoMath.DistanceNm(far1.Position, far2.Position) * GeoMath.FeetPerNm;
-                    if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
+                    var (jpA, armA) = edgeArms[i];
+                    var (jpB, armB) = edgeArms[j];
+                    if (jpA.JunctionNodeId == jpB.JunctionNodeId)
                     {
-                        // Pick the lower integer value as the survivor (mirrors the old Math.Min behavior).
-                        var survivor = far1.CutId.Value <= far2.CutId.Value ? far1.CutId : far2.CutId;
-                        var child = far1.CutId.Value <= far2.CutId.Value ? far2.CutId : far1.CutId;
-                        merges.Add(new TangentMergeOp(survivor, child));
+                        continue;
                     }
+
+                    ReconcileArmPair(jpA, armA, jpB, armB, processed, allCuts, warnings, merges);
                 }
             }
         }
 
         return merges;
+    }
+
+    /// <summary>
+    /// Group the (junction, arm) pairs whose cuts land on each original runway-centerline edge. Two
+    /// different junctions appearing in one group share that edge's corridor — their cut sets face
+    /// each other even though neither arm terminates at the other junction (the walk passes through
+    /// it). This PAIRING source is restricted to runway centerlines: only the high-speed-exit
+    /// widening pushes cuts far enough to collide on a through-chain, and pairing every
+    /// taxiway-to-taxiway through-chain would perturb geometry airport-wide for no observed defect.
+    /// (The <see cref="FilletConstants.MinSharedArmClearGapFt"/> reconcile rule itself is NOT
+    /// runway-specific — terminating-arm pairs from the first pairing source, taxiway junctions
+    /// included, get the same navigable-gap treatment.)
+    /// </summary>
+    private static IEnumerable<List<(JunctionPlan Plan, TaxiwayArm Arm)>> GroupArmsByLocatedCutEdge(
+        Dictionary<int, JunctionPlan> planById,
+        Dictionary<CutId, ResolvedArmCut> allCuts
+    )
+    {
+        var byEdge = new Dictionary<GroundEdge, List<(JunctionPlan Plan, TaxiwayArm Arm)>>();
+        foreach (var cut in allCuts.Values)
+        {
+            if (!planById.TryGetValue(cut.JunctionNodeId, out var jp))
+            {
+                continue;
+            }
+
+            var arm = jp.Arms.FirstOrDefault(a => a.Id == cut.ArmId);
+            if (arm is null)
+            {
+                continue;
+            }
+
+            var loc = TaxiwayWalk.LocateDistanceFt(arm.Walk, jp.JunctionNode, cut.DistanceAlongArmFt);
+            if (!loc.Edge.IsRunwayCenterline)
+            {
+                continue;
+            }
+            if (!byEdge.TryGetValue(loc.Edge, out var list))
+            {
+                list = [];
+                byEdge[loc.Edge] = list;
+            }
+
+            if (!list.Any(e => (e.Plan.JunctionNodeId == jp.JunctionNodeId) && (e.Arm.Id == arm.Id)))
+            {
+                list.Add((jp, arm));
+            }
+        }
+
+        return byEdge.Values.Where(l => l.Count >= 2);
+    }
+
+    /// <summary>
+    /// Reconcile one junction pair's opposing cut sets on their shared arm. Cut lists are fetched
+    /// fresh from <paramref name="allCuts"/> (an arm may already have been scaled against another
+    /// neighbor). Outcomes: a clear gap of at least
+    /// <see cref="FilletConstants.MinSharedArmClearGapFt"/> is left alone; a dead-zone sliver gap is
+    /// widened by scaling both sets down; overlapping or near-abutting sets are scaled to abut and
+    /// their far cuts merged into one shared tangent node.
+    /// </summary>
+    private static void ReconcileArmPair(
+        JunctionPlan jp1,
+        TaxiwayArm arm1,
+        JunctionPlan jp2,
+        TaxiwayArm arm2,
+        HashSet<(int, int, string)> processed,
+        Dictionary<CutId, ResolvedArmCut> allCuts,
+        List<PlanWarning> warnings,
+        List<TangentMergeOp> merges
+    )
+    {
+        int lo = Math.Min(jp1.JunctionNodeId, jp2.JunctionNodeId);
+        int hi = Math.Max(jp1.JunctionNodeId, jp2.JunctionNodeId);
+        var key = (lo, hi, arm1.TaxiwayName);
+        if (!processed.Add(key))
+        {
+            return;
+        }
+
+        var cuts1 = allCuts.Values.Where(c => (c.JunctionNodeId == jp1.JunctionNodeId) && (c.ArmId == arm1.Id)).ToList();
+        var cuts2 = allCuts.Values.Where(c => (c.JunctionNodeId == jp2.JunctionNodeId) && (c.ArmId == arm2.Id)).ToList();
+        if ((cuts1.Count == 0) && (cuts2.Count == 0))
+        {
+            return;
+        }
+
+        double d1 = cuts1.Count > 0 ? cuts1.Max(c => c.DistanceAlongArmFt) : 0;
+        double d2 = cuts2.Count > 0 ? cuts2.Max(c => c.DistanceAlongArmFt) : 0;
+        double sharedLengthFt = GeoMath.DistanceNm(jp1.JunctionNode.Position, jp2.JunctionNode.Position) * GeoMath.FeetPerNm;
+        if (sharedLengthFt < 1.0)
+        {
+            sharedLengthFt = Math.Min(arm1.LengthFt, arm2.LengthFt);
+        }
+
+        double clearGapFt = sharedLengthFt - (d1 + d2);
+        if (clearGapFt >= FilletConstants.MinSharedArmClearGapFt)
+        {
+            return;
+        }
+
+        if ((clearGapFt > FilletConstants.CoincidentNodeThresholdFt) && (sharedLengthFt > FilletConstants.MinSharedArmClearGapFt))
+        {
+            // Dead zone: the cut sets don't collide, but the straight left between them is shorter
+            // than the navigator's look-ahead cap — an orbit-trap sliver the pure-pursuit follower
+            // cannot converge on. Scale both sets down so a navigable straight remains. (Sets within
+            // the coincident threshold fall through to the abut-and-merge path below, which fuses
+            // them into one shared tangent node.)
+            double shrink = (sharedLengthFt - FilletConstants.MinSharedArmClearGapFt) / (d1 + d2);
+            ScaleCutSet(jp1, arm1, cuts1, shrink, allCuts);
+            ScaleCutSet(jp2, arm2, cuts2, shrink, allCuts);
+            warnings.Add(
+                new PlanWarning(
+                    jp1.JunctionNodeId,
+                    null,
+                    PlanWarning.SharedArmScaled,
+                    $"Scaled shared arm {arm1.TaxiwayName} between J{jp1.JunctionNodeId}/J{jp2.JunctionNodeId} by {shrink:F3} "
+                        + $"to keep a {FilletConstants.MinSharedArmClearGapFt:F0} ft navigable straight"
+                )
+            );
+            return;
+        }
+
+        double scale = (sharedLengthFt - 1.0) / (d1 + d2);
+        ScaleCutSet(jp1, arm1, cuts1, scale, allCuts);
+        ScaleCutSet(jp2, arm2, cuts2, scale, allCuts);
+
+        warnings.Add(
+            new PlanWarning(
+                jp1.JunctionNodeId,
+                null,
+                PlanWarning.SharedArmScaled,
+                $"Scaled shared arm {arm1.TaxiwayName} between J{jp1.JunctionNodeId}/J{jp2.JunctionNodeId} by {scale:F3}"
+            )
+        );
+
+        var far1 = allCuts
+            .Values.Where(c => (c.JunctionNodeId == jp1.JunctionNodeId) && (c.ArmId == arm1.Id))
+            .OrderByDescending(c => c.DistanceAlongArmFt)
+            .FirstOrDefault();
+        var far2 = allCuts
+            .Values.Where(c => (c.JunctionNodeId == jp2.JunctionNodeId) && (c.ArmId == arm2.Id))
+            .OrderByDescending(c => c.DistanceAlongArmFt)
+            .FirstOrDefault();
+        if ((far1 is not null) && (far2 is not null))
+        {
+            double gapFt = GeoMath.DistanceNm(far1.Position, far2.Position) * GeoMath.FeetPerNm;
+            if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
+            {
+                // Pick the lower integer value as the survivor (mirrors the old Math.Min behavior).
+                var survivor = far1.CutId.Value <= far2.CutId.Value ? far1.CutId : far2.CutId;
+                var child = far1.CutId.Value <= far2.CutId.Value ? far2.CutId : far1.CutId;
+                merges.Add(new TangentMergeOp(survivor, child));
+            }
+        }
     }
 
     private static void ScaleCutSet(

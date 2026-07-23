@@ -52,8 +52,19 @@ public class Issue172Ual2164TerminusTests(ITestOutputHelper output)
         var gbJunction = layout.FindIntersectionNode("G", "B");
         Assert.NotNull(gbJunction);
 
-        // Replay to just before TAXI G B (t=2141), then issue it with the current pathfinder.
-        engine.Replay(recording, 2140);
+        // Pin the recorded G exit right after LandingPhase becomes current (t=2085): with the
+        // widened rapid-exit fillets, SFO's H is now a ~30 kt high-speed exit that legitimately
+        // wins the default choice off 19L — but this test's subject is the TAXI G B terminus
+        // rule, which needs the recording's on-G premise. Then replay to just before TAXI G B
+        // (t=2141) and issue it with the current pathfinder.
+        engine.Replay(recording, 2090);
+        var pin = engine.SendCommand("UAL2164", "ER G");
+        Assert.True(pin.Success, pin.Message);
+        for (int t = 2091; t <= 2140; t++)
+        {
+            engine.ReplayOneSecond();
+        }
+
         var aircraft = engine.FindAircraft("UAL2164");
         Assert.NotNull(aircraft);
         Assert.Equal("G", aircraft.Ground.CurrentTaxiway);

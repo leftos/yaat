@@ -317,7 +317,8 @@ public sealed class GroundArc : IGroundEdge
         new(Nodes[0].Position.Lat, Nodes[0].Position.Lon, P1Lat, P1Lon, P2Lat, P2Lon, Nodes[1].Position.Lat, Nodes[1].Position.Lon);
 
     /// <summary>Lateral acceleration ceiling for taxi turns (m/s²) ≈ 0.13 g — a tire-scrub / passenger-comfort
-    /// limit, the same basis ICAO Annex 14 uses for rapid-exit taxiway design speeds.</summary>
+    /// limit, matching the ~0.12–0.13 g implied by ICAO Annex 14's rapid-exit taxiway radius/speed pairs
+    /// (and FAA AC 150/5300-13B).</summary>
     private const double TaxiLateralAccelMps2 = 0.13 * 9.80665;
     private const double MetersPerFoot = 0.3048;
     private const double KnotsToMetersPerSecond = 0.514444;
@@ -1381,7 +1382,9 @@ public sealed class AirportGroundLayout
             var result = FindAdjacentHoldShort(current, runwayDesignator, runwayHeading, preference, excludeHoldShortNodes, forbiddenTaxiways);
             if (result is not null)
             {
-                double? exitAngle = ComputeExitAngle(result.Value.Node, result.Value.Taxiway, runwayHeading);
+                double? exitAngle =
+                    ComputePathExitAngle(result.Value.Path, runwayHeading)
+                    ?? ComputeExitAngle(result.Value.Node, result.Value.Taxiway, runwayHeading);
                 Log.LogDebug(
                     "[ExitCL] Found exit: twy={Twy} HS=#{HsId} angle={Angle:F0}° path=[{Path}]",
                     result.Value.Taxiway,
@@ -1535,7 +1538,7 @@ public sealed class AirportGroundLayout
                 // distance alone, causing the caller to filter the result and miss
                 // the valid forward exit entirely.
                 double anglePenalty = 0;
-                double? exitAngle = ComputeExitAngle(current, branchTwy, runwayHeading);
+                double? exitAngle = ComputePathExitAngle(path, runwayHeading) ?? ComputeExitAngle(current, branchTwy, runwayHeading);
                 if ((exitAngle is not null) && (exitAngle.Value > 100) && (preference?.Taxiway is null))
                 {
                     anglePenalty = 10.0;
@@ -1968,6 +1971,28 @@ public sealed class AirportGroundLayout
                             edge.TaxiwayName,
                             departureBearing,
                             bearingDiff
+                        );
+                        continue;
+                    }
+
+                    // A reverse-corner arc can be tangent to the centerline at its entry (so the
+                    // departure check passes) yet sweep around to point backward — when the exit
+                    // corner and the reverse corner share one fused tangent node, both arcs depart
+                    // along the runway. Check the arrival tangent too: an arc that leaves the
+                    // aircraft pointing >95° off the runway heading is a doubled-back turn, not an
+                    // exit. The hold-short beyond it stays reachable through the preserved straight
+                    // edges (seeded in the second pass) and scores as the back-exit it is.
+                    double arrivalBearing = arc.TangentBearingAt(neighbor, clusterNode, neighbor);
+                    double arrivalDiff = runwayHeading.AbsAngleTo(new TrueHeading(arrivalBearing));
+                    if (arrivalDiff > 95)
+                    {
+                        Log.LogDebug(
+                            "[ExitBFS]   skip arc #{From}->{To} via {Twy}: arrival {Arr:F1} diff={Diff:F1} > 95",
+                            clusterNode.Id,
+                            neighbor.Id,
+                            edge.TaxiwayName,
+                            arrivalBearing,
+                            arrivalDiff
                         );
                         continue;
                     }
@@ -2535,6 +2560,34 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// Exit angle from the actual traversal direction: the bearing of the path's final hop into the
+    /// hold-short vs the runway heading (arc-aware — uses the arc's arrival tangent when the final
+    /// hop is a <see cref="GroundArc"/>). Unlike <see cref="ComputeExitAngle"/>, which inspects edge
+    /// orientations at the hold-short node and takes the smallest angle, this reflects the direction
+    /// the aircraft is actually traveling when it reaches the hold-short — a hold-short reached by
+    /// doubling back through a reverse corner scores as the back-exit it is (~140°), not as the
+    /// shallow angle of the taxiway's other direction. Null when the path has fewer than two nodes.
+    /// </summary>
+    public static double? ComputePathExitAngle(IReadOnlyList<GroundNode> path, TrueHeading runwayHeading)
+    {
+        if (path.Count < 2)
+        {
+            return null;
+        }
+
+        var from = path[^2];
+        var to = path[^1];
+        // Prefer the arc when both a preserved straight shortcut and a corner arc join the same node
+        // pair — the arc's arrival tangent is the real traversal direction; the chord would understate
+        // a reverse corner's sweep.
+        var edge =
+            from.Edges.FirstOrDefault(e => (e is GroundArc) && (e.OtherNode(from).Id == to.Id))
+            ?? from.Edges.FirstOrDefault(e => e.OtherNode(from).Id == to.Id);
+        double bearing = edge is GroundArc arc ? arc.TangentBearingAt(to, from, to) : GeoMath.BearingTo(from.Position, to.Position);
+        return runwayHeading.AbsAngleTo(new TrueHeading(bearing));
+    }
+
+    /// <summary>
     /// Compute the angle between the runway heading and the exit taxiway at the given node.
     /// Returns the absolute angle in degrees (0 = aligned with runway, 90 = perpendicular).
     /// Returns null if no taxiway edge heading can be determined.
@@ -2694,7 +2747,8 @@ public sealed class AirportGroundLayout
                         continue;
                     }
 
-                    double? angle = ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
+                    double? angle =
+                        ComputePathExitAngle(result.Value.Path, rwyHeading) ?? ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
                     bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
                     exits.Add((result.Value.Node.Id, side, isHighSpeed));
                 }

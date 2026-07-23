@@ -195,6 +195,91 @@ public class FilletCornerSpanGuardTests
     }
 
     /// <summary>
+    /// Guards against orbit-trap sliver straights on runway centerlines: two adjacent junctions
+    /// cutting toward each other on a shared through-chain must either fuse their far cuts into one
+    /// node or leave a straight of at least <see cref="FilletConstants.MinSharedArmClearGapFt"/>
+    /// (the navigator's pure-pursuit look-ahead cap) between them — enforced by
+    /// <c>SharedArmTangentPass.ApplyCrossJunction</c>'s same-edge pairing. A shorter straight is
+    /// un-navigable: the look-ahead point jumps past the whole segment before the aircraft can
+    /// converge on it (observed at OAK: a 9 ft sliver between the widened J-exit cut and the
+    /// adjacent P junction's cut that a taxiing aircraft circled indefinitely).
+    /// </summary>
+    [Theory]
+    [InlineData("sfo")]
+    [InlineData("oak")]
+    [InlineData("fll")]
+    [InlineData("iah")]
+    public void RunwayCenterline_NoSliverStraightsBetweenDifferentJunctionsCuts(string shortId)
+    {
+        TestVnasData.EnsureInitialized();
+
+        string path = Path.Combine("TestData", $"{shortId}.geojson");
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        var pre = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, FilletMode.None);
+        var layout = LayoutCloner.DeepClone(pre);
+        new FilletArcGenerator().Apply(layout);
+
+        var violations = new List<string>();
+        int tangentCutNodesParsed = layout.Nodes.Values.Count(n => TangentCutJunction(n) is not null);
+        foreach (var edge in layout.Edges)
+        {
+            if (!edge.IsRunwayCenterline)
+            {
+                continue;
+            }
+
+            string? junctionA = TangentCutJunction(edge.Nodes[0]);
+            string? junctionB = TangentCutJunction(edge.Nodes[1]);
+            if ((junctionA is null) || (junctionB is null) || (junctionA == junctionB))
+            {
+                continue;
+            }
+
+            double distFt = edge.DistanceNm * GeoMath.FeetPerNm;
+            if ((distFt >= ZeroDistanceEdgeThresholdFt) && (distFt < FilletConstants.MinSharedArmClearGapFt - 1.0))
+            {
+                violations.Add(
+                    $"#{edge.Nodes[0].Id} (J{junctionA}) <-> #{edge.Nodes[1].Id} (J{junctionB}) {distFt:F1}ft twy={edge.TaxiwayName}"
+                        + $" @ {edge.Nodes[0].Position.Lat:F6},{edge.Nodes[0].Position.Lon:F6}"
+                );
+            }
+        }
+
+        foreach (var v in violations.Take(20))
+        {
+            _output.WriteLine(v);
+        }
+
+        // Vacuity check: the guard parses junction identity from the "tangent-cut@J<id>/<twy>"
+        // Origin diagnostic. If that format ever changes, every node parses to null and this test
+        // passes without guarding anything — fail loudly instead.
+        Assert.True(
+            tangentCutNodesParsed > 0,
+            "no node Origin parsed as a tangent cut — the 'tangent-cut@J<id>/<twy>' Origin format changed; update TangentCutJunction"
+        );
+
+        Assert.Empty(violations);
+    }
+
+    /// <summary>Junction id from a "tangent-cut@J&lt;id&gt;/&lt;taxiway&gt;" origin, or null for other nodes.</summary>
+    private static string? TangentCutJunction(GroundNode node)
+    {
+        const string prefix = "tangent-cut@J";
+        string origin = node.Origin ?? "";
+        if (!origin.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        int slash = origin.IndexOf('/', prefix.Length);
+        return slash < 0 ? origin[prefix.Length..] : origin[prefix.Length..slash];
+    }
+
+    /// <summary>
     /// The final graph has no two coincident intersection nodes — guaranteed entirely at
     /// construction/plan time, with no post-execute node merge. Same-junction cross-arm and
     /// cross-junction coincident tangent cuts are merged in the plan

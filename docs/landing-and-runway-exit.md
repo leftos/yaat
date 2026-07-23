@@ -101,6 +101,11 @@ RunwayExitPhase does not walk centerline nodes. It:
 
 When an exit is found, it builds a **virtual segment**: a synthetic route segment from the aircraft's current position to the branch node. This segment exists only to give GroundNavigator an inbound bearing for turn anticipation. The full route becomes `[virtual → branch → ... → hold-short]`.
 
+Two contracts of the handoff to the navigator (`StartExitNavigation`):
+
+- **The exit route's speed ceiling is `min(coastSpeed, TaxiSpeed × expedite multiplier)`**, not coast speed. The turn itself is governed by the junction arc's `MaxSafeSpeedKts` and back-propagated braking; the taxi-speed ceiling is what prevents the old slow-turn-then-surge profile (accelerate back toward 40 kt coast on the exit straight, then brake hard for the hold-short). Once off the runway the aircraft is taxiing — it only ever decelerates from the turn-off speed to the hold-short.
+- **The analog-rolling heading hold is cleared** (`Targets.TargetTrueHeading` / `TurnRateOverride` → null). `TickRolling` steers via the persistent `ControlTargets`; the navigator steers by writing `TrueHeading` directly. Leaving the hold in place makes FlightPhysics turn the aircraft back toward the runway heading every substep, fighting the navigator's exit turn to a standstill (a false pure-pursuit "orbit").
+
 ### Why the virtual segment matters
 
 GroundNavigator computes turn arcs based on the angle between consecutive segments. Without the virtual segment, the navigator has no inbound context — it doesn't know the aircraft was approaching from the runway. The virtual segment provides this context naturally, and a longer segment (more distance before the branch) produces better turn anticipation. This is why LandingPhase should hand off early, not at the branch point.

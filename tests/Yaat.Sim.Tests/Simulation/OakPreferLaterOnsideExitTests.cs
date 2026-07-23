@@ -163,12 +163,15 @@ public class OakPreferLaterOnsideExitTests(ITestOutputHelper output)
         Assert.NotEqual(HoldShortGLeft, finalResolvedHs);
 
         // Strong assertion: the final exit should be on the right (preferred) side.
-        // Allowed targets: H_right (509), J_right (374), or any other right-side
-        // hold-short ahead of G. Not G_left (514) and not G_right (508, occupied).
+        // Allowed targets: any right-side hold-short at G or beyond — along 28R that is
+        // G_right (508), H_right (509), E (510), P_right (511), or J_right (374). Never
+        // G_left (514): falling back to the off-side is the bug this test guards.
         var rightSideHoldShorts = new HashSet<int>
         {
             HoldShortGRight,
             HoldShortHRight,
+            510, /* E */
+            511, /* P_right */
             374, /* J_right */
         };
         Assert.Contains(finalResolvedHs!.Value, rightSideHoldShorts);

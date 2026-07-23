@@ -38,7 +38,7 @@ internal static class FilletPlanBuilder
             }
         }
 
-        merges.AddRange(SharedArmTangentPass.ApplyCrossJunction(junctions, results, cuts, warnings));
+        merges.AddRange(SharedArmTangentPass.ApplyCrossJunction(junctions, cuts, warnings));
 
         // Global coincident-cut coalesce runs last so it sees the scaled positions from
         // ApplyCrossJunction. It absorbs every remaining cut-vs-cut coincidence — most importantly
