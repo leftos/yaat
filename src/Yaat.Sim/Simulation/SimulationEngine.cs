@@ -794,12 +794,32 @@ public sealed class SimulationEngine
     }
 
     /// <summary>
+    /// Per-second transponder maintenance: advances each aircraft's IDENT timer so the ident flash
+    /// auto-clears after <see cref="AircraftTransponder.IdentDurationSeconds"/>. The SINGLE owner of this
+    /// logic — both the standalone <see cref="TickPostPhysics"/> AND the live server
+    /// (<c>TickProcessor.ProcessPostPhysics</c>) call it, so ident expiry runs identically in both hosts.
+    /// </summary>
+    public void TickTransponderIdents()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        foreach (var ac in World.GetSnapshot())
+        {
+            ac.Transponder.TickIdent(scenario.ElapsedSeconds);
+        }
+    }
+
+    /// <summary>
     /// Post-physics: drains warnings, notifications, and approach scores from the world.
     /// The server reads these before calling this method to broadcast them.
     /// </summary>
     public void TickPostPhysics()
     {
         TickPilotProactive();
+        TickTransponderIdents();
 
         var warnings = World.DrainAllWarnings();
         foreach (var (callsign, warning) in warnings)

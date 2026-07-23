@@ -8,6 +8,13 @@ namespace Yaat.Sim;
 /// </summary>
 public class AircraftTransponder
 {
+    /// <summary>
+    /// IDENT auto-clears this many seconds after it begins. The pilot's ident command sets
+    /// <see cref="IsIdenting"/>; the first tick that observes it stamps <see cref="IdentStartedAt"/>,
+    /// and the flash clears once this duration has elapsed.
+    /// </summary>
+    public const double IdentDurationSeconds = 18;
+
     public string Mode { get; set; } = "C";
     public uint AssignedCode { get; set; }
     public uint Code { get; set; }
@@ -30,6 +37,29 @@ public class AircraftTransponder
     {
         AssignedCode = code;
         CommandedSquawkVfr = false;
+    }
+
+    /// <summary>
+    /// Advances the IDENT timer one sim-second. Stamps <see cref="IdentStartedAt"/> on the first tick the
+    /// ident is observed, then clears the ident once <see cref="IdentDurationSeconds"/> has elapsed. No-op
+    /// when not identing. <paramref name="nowSeconds"/> is the scenario's current <c>ElapsedSeconds</c>.
+    /// </summary>
+    public void TickIdent(double nowSeconds)
+    {
+        if (!IsIdenting)
+        {
+            return;
+        }
+
+        if (!IdentStartedAt.HasValue)
+        {
+            IdentStartedAt = nowSeconds;
+        }
+        else if ((nowSeconds - IdentStartedAt.Value) >= IdentDurationSeconds)
+        {
+            IsIdenting = false;
+            IdentStartedAt = null;
+        }
     }
 
     public AircraftTransponderDto ToSnapshot() =>

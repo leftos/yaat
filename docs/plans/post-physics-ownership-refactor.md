@@ -58,7 +58,7 @@ tests. Categorized from the current `ProcessPostPhysics` step list:
 
 | Server step | Nature | Action |
 |---|---|---|
-| `ClearExpiredIdents` | pure sim timing (transponder ident expiry), no Yaat.Sim call | move into SimulationEngine post-physics |
+| `ClearExpiredIdents` | pure sim timing (transponder ident expiry), no Yaat.Sim call | **DONE** — logic moved to `AircraftTransponder.TickIdent` (owns the `IdentDurationSeconds=18` const) + `SimulationEngine.TickTransponderIdents`; `TickPostPhysics` and the server's `ProcessPostPhysics` both call it. Server's private `ClearExpiredIdents` deleted. Guarded by `TransponderIdentServerParityTests` (mutation-verified). |
 | `ProcessConflictAlerts` / `EramConflictAlerts` / `AsdexAlerts` | sim detect (`ConflictAlertDetector`) + server broadcast; needs STARS/ARTCC config | move the per-tick orchestration into the engine, server consumes results to broadcast |
 | `ProcessVisualDetection` | sim logic looped in the server | move loop into engine |
 | `ProcessSoloTrainingEvaluation` | `ActiveSim.SoloTrainingEvaluator.Evaluate` + broadcast | move orchestration in, server broadcasts notices |
