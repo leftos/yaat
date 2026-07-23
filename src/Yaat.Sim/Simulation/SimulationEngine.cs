@@ -1027,6 +1027,37 @@ public sealed class SimulationEngine
     }
 
     /// <summary>
+    /// Per-second solo-training evaluation: builds the evaluation context from the active scenario, runs
+    /// the solo-training evaluator against the current world, and returns the resulting events for the host
+    /// to broadcast. Empty when not in solo mode. Server-only: the standalone/replay host has no controller
+    /// to notify, so <see cref="TickPostPhysics"/> does not call this — the engine owns the evaluation
+    /// orchestration and returns the results, and the host decides how to surface them.
+    /// </summary>
+    public IReadOnlyList<SoloTrainingEvent> TickSoloTrainingEvaluation()
+    {
+        if (Scenario is not { SoloTrainingMode: true } scenario)
+        {
+            return [];
+        }
+
+        return SoloTrainingEvaluator.Evaluate(
+            World.GetSnapshot(),
+            scenario.ElapsedSeconds,
+            AirspaceDatabase.Default,
+            new SoloTrainingServiceContext(
+                new InitialContactEligibilityContext(
+                    scenario.StudentPosition,
+                    scenario.StudentPositionType,
+                    scenario.ArtccId,
+                    scenario.PrimaryAirportId,
+                    scenario.InitialContactTransfers
+                ),
+                scenario.WakeDirectives
+            )
+        );
+    }
+
+    /// <summary>
     /// Post-physics: drains warnings, notifications, and approach scores from the world.
     /// The server reads these before calling this method to broadcast them.
     /// </summary>
