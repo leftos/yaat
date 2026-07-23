@@ -60,9 +60,20 @@ public class RunwayDepartureQueueE2ETests(ITestOutputHelper output)
             return;
         }
 
+        // Drive the exact per-second sequence the LIVE SERVER uses — TickPrePhysics + physics sub-ticks,
+        // and NOT SimulationEngine.TickPostPhysics, which only the standalone TickOneSecond / replay paths
+        // call (the server runs its own post-physics via TickProcessor.ProcessPostPhysics). Calling
+        // TickOneSecond here would mask a queue pass wired into TickPostPhysics — it would pass in-test yet
+        // do nothing live. Keep this driving the sub-steps. See RoomEngine.AdvanceOneSecond.
+        const int physicsSubTicks = 4; // = SimulationEngine.PhysicsSubTickRate
         for (int t = 1; t <= 240; t++)
         {
-            engine.TickOneSecond();
+            engine.Scenario!.ElapsedSeconds += 1;
+            engine.TickPrePhysics();
+            for (int sub = 0; sub < physicsSubTicks; sub++)
+            {
+                engine.TickPhysics(1.0 / physicsSubTicks);
+            }
 
             var lead = HoldingShortAt(ac1, ac2, node1.Value);
             var trailer = lead is null ? null : TaxiingNear(lead == ac1 ? ac2 : ac1, layout, node1.Value);

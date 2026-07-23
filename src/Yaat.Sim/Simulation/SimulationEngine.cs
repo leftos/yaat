@@ -711,6 +711,13 @@ public sealed class SimulationEngine
             World.GroundLayout = _groundData.GetLayout(scenario.PrimaryAirportId);
         }
 
+        // Refresh the per-hold-short departure-queue ordinals over the live world. This runs in
+        // TickPrePhysics because it is the one per-second hook BOTH the standalone TickOneSecond path AND
+        // the live server share (TickProcessor.ProcessPrePhysicsCore → sim.TickPrePhysics); the server
+        // runs its own post-physics and never calls SimulationEngine.TickPostPhysics. The broadcast later
+        // this tick reads RunwayQueuePosition for the datablock "#N" and the Info-column status.
+        RunwayDepartureQueue.UpdatePositions(World.GetSnapshot());
+
         return new TickPrePhysicsResult(spawned, generatorSpawns);
     }
 
@@ -762,10 +769,6 @@ public sealed class SimulationEngine
     /// </summary>
     public void TickPostPhysics()
     {
-        // Refresh the per-hold-short departure-queue ordinals from the settled positions of this
-        // sim-second, before the broadcast reads them for the datablock "#N" and Info-column status.
-        RunwayDepartureQueue.UpdatePositions(World.GetSnapshot());
-
         // Airborne-spawn check-ins fire here, before the notification drain, so they emit
         // the same tick they're produced. PilotProactive.TickAirborneCheckIn is idempotent —
         // it sets HasMadeInitialContact on success and no-ops on subsequent ticks.

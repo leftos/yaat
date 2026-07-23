@@ -12,9 +12,11 @@ namespace Yaat.Sim;
 /// lined up / is rolling has left the line (its position drops to 0 and the aircraft behind it moves up).
 /// A line of one aircraft is left at 0 — a number only disambiguates an actual clump.
 ///
-/// Runs once per sim-second from <see cref="Simulation.SimulationEngine"/>'s post-physics pass over the full
-/// world snapshot — the same computed-with-world / read-as-own pattern as <see cref="GroundConflictDetector"/>.
-/// Display only: never gates movement, clearances, or physics.
+/// Runs once per sim-second from <see cref="Simulation.SimulationEngine.TickPrePhysics"/> over the full world
+/// snapshot — the same computed-with-world / read-as-own pattern as <see cref="GroundConflictDetector"/>.
+/// (TickPrePhysics, not post-physics, because it is the one per-second hook the live server shares with the
+/// standalone tick path — the server runs its own post-physics.) Display only: never gates movement,
+/// clearances, or physics.
 /// </summary>
 public static class RunwayDepartureQueue
 {
