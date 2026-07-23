@@ -10,6 +10,7 @@
 - After the turnoff, aircraft decelerate smoothly to the hold-short instead of accelerating back toward rollout speed on the exit straight and then braking hard at the line.
 - An aircraft that picks its exit mid-rollout (its committed exit occupied or no longer valid) turns off cleanly instead of fighting to hold the runway heading through the turn.
 - Data block clicks and drags land on the block at any data block font size, on both the radar and Ground View.
+- In solo training, IFR arrivals now proactively request an approach and pilots follow up on unanswered requests.
 
 ### Changed
 - Radar scope lines — video maps, range rings, leader lines, and markers — now render crisp and hard-edged to match CRC's STARS display.

@@ -764,32 +764,42 @@ public sealed class SimulationEngine
     }
 
     /// <summary>
+    /// Per-second post-physics pilot-proactive behaviors: solo check-in, arrival approach request,
+    /// airspace-boundary respect, pending-request follow-ups, and — in all modes — deferred REPORT
+    /// triggers. The SINGLE owner of this orchestration: both the standalone <see cref="TickPostPhysics"/>
+    /// AND the live server (<c>TickProcessor.ProcessPostPhysics</c>) call it, so a behavior added here runs
+    /// in both hosts. Airborne check-in fires before the caller's notification drain so it emits the same
+    /// tick it is produced; TickReportTriggers runs in solo and RPO mode, so it sits outside the solo gate.
+    /// </summary>
+    public void TickPilotProactive()
+    {
+        if (Scenario is not { } scenario)
+        {
+            return;
+        }
+
+        bool solo = scenario.SoloTrainingMode;
+        foreach (var ac in World.GetSnapshot())
+        {
+            if (solo)
+            {
+                Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
+                Pilot.PilotProactive.TickArrivalApproachRequest(ac, scenario, LookupAirportPosition);
+                Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
+                Pilot.PilotProactive.TickPendingRequests(ac, scenario);
+            }
+
+            Pilot.PilotProactive.TickReportTriggers(ac, scenario);
+        }
+    }
+
+    /// <summary>
     /// Post-physics: drains warnings, notifications, and approach scores from the world.
     /// The server reads these before calling this method to broadcast them.
     /// </summary>
     public void TickPostPhysics()
     {
-        // Airborne-spawn check-ins fire here, before the notification drain, so they emit
-        // the same tick they're produced. PilotProactive.TickAirborneCheckIn is idempotent —
-        // it sets HasMadeInitialContact on success and no-ops on subsequent ticks.
-        // TickReportTriggers (deferred REPORT n-mile-final / at-fix) runs in both solo and RPO
-        // mode, so it sits outside the solo-only gate.
-        if (Scenario is { } scenario)
-        {
-            bool solo = scenario.SoloTrainingMode;
-            foreach (var ac in World.GetSnapshot())
-            {
-                if (solo)
-                {
-                    Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
-                    Pilot.PilotProactive.TickArrivalApproachRequest(ac, scenario, LookupAirportPosition);
-                    Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
-                    Pilot.PilotProactive.TickPendingRequests(ac, scenario);
-                }
-
-                Pilot.PilotProactive.TickReportTriggers(ac, scenario);
-            }
-        }
+        TickPilotProactive();
 
         var warnings = World.DrainAllWarnings();
         foreach (var (callsign, warning) in warnings)
