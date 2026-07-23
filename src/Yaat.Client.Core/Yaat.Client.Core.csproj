@@ -4,8 +4,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Yaat.Client</RootNamespace>
-    <!-- MC3101: Avalonia XAML compiler can't resolve reflection binding types -->
-    <NoWarn>MC3101</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,17 +13,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.13" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.13" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.13" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.13" />
-    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <PackageReference Include="Avalonia" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.0" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
     <!-- DPAPI for encrypting the cached VATSIM session tokens at rest (Windows; no-op fallback elsewhere). -->
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.9" />
-    <!-- Transitive via Avalonia.FreeDesktop 11.3.13 (>= 0.21.2); pin to patched 0.21.3 (GHSA-xrw6-gwf8-vvr9). -->
-    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
 

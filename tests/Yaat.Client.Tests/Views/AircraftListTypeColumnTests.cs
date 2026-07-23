@@ -1,6 +1,5 @@
 using System.Linq;
 using Avalonia.Controls;
-using Avalonia.Data;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Models;
@@ -17,14 +16,27 @@ public class AircraftListTypeColumnTests
     [AvaloniaFact]
     public void TypeColumn_BindsToActualAircraftType_NotFiled()
     {
+        // Actual and filed deliberately differ, so resolving the column's binding proves which
+        // property it reads. Asserted through the resolved value rather than the binding's path or
+        // concrete type — those are implementation details that change with the binding mode.
+        var ac = new AircraftModel
+        {
+            Callsign = "N2BP",
+            AircraftType = "SR22",
+            FiledAircraftType = "C172",
+        };
+
         var view = new DataGridView();
         var grid = view.GetDataGrid();
         Assert.NotNull(grid);
 
         var typeCol = grid!.Columns.OfType<DataGridTextColumn>().Single(c => (c.Header as string) == "Type");
+        Assert.NotNull(typeCol.Binding);
 
-        var binding = Assert.IsType<Binding>(typeCol.Binding);
-        Assert.Equal(nameof(AircraftModel.AircraftType), binding.Path);
+        var probe = new TextBlock { DataContext = ac };
+        probe.Bind(TextBlock.TextProperty, typeCol.Binding!);
+
+        Assert.Equal("SR22", probe.Text);
     }
 
     [AvaloniaFact]
@@ -44,12 +56,12 @@ public class AircraftListTypeColumnTests
         Assert.NotNull(grid);
 
         var typeCol = grid!.Columns.OfType<DataGridTextColumn>().Single(c => (c.Header as string) == "Type");
-        var binding = Assert.IsType<Binding>(typeCol.Binding);
+        Assert.NotNull(typeCol.Binding);
 
         // Resolve the binding against the model directly via a lightweight TextBlock
         // probe. Avoids DataGrid virtualization entirely.
         var probe = new TextBlock { DataContext = ac };
-        probe.Bind(TextBlock.TextProperty, binding);
+        probe.Bind(TextBlock.TextProperty, typeCol.Binding!);
 
         Assert.Equal("SR22", probe.Text);
     }

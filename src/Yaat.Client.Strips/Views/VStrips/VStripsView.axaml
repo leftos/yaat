@@ -70,7 +70,7 @@
                 <ItemsControl IsVisible="{Binding IsMetarExpanded}"
                               ItemsSource="{Binding Metars}">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="svc:StripMetarEntry">
+                        <DataTemplate DataType="svc:StripMetarEntry" x:DataType="svc:StripMetarEntry">
                             <SelectableTextBlock Text="{Binding Raw}"
                                                  Margin="0,1"
                                                  FontFamily="{StaticResource MonoFont}" FontSize="12"
@@ -149,7 +149,7 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="vm:StripBayViewModel">
+                    <DataTemplate DataType="vm:StripBayViewModel" x:DataType="vm:StripBayViewModel">
                         <!-- External bays render as thinner outlined buttons (matches CRC
                              docs/crc/img/header.png: BOS vs CD/GC/LC). Own bays render with
                              a solid fill to signal viewability. -->
@@ -252,7 +252,7 @@
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="vm:StripRackViewModel">
+                            <DataTemplate DataType="vm:StripRackViewModel" x:DataType="vm:StripRackViewModel">
                                 <!-- Rack is a fixed-width column that fits a single
                                      full strip (535 px) plus its padding. Matches CRC
                                      racks which don't stretch — extra bays scroll
@@ -302,7 +302,7 @@
                                                 </ItemsPanelTemplate>
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="vm:StripItemViewModel">
+                                                <DataTemplate DataType="vm:StripItemViewModel" x:DataType="vm:StripItemViewModel">
                                                     <vstrips:FlightStripControl Tag="{Binding}"/>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
@@ -356,7 +356,7 @@
                                     HorizontalAlignment="Center" Spacing="8" Margin="0,4">
                             <TextBox x:Name="RequestStripInput"
                                      Width="220"
-                                     Watermark="AAL123"
+                                     PlaceholderText="AAL123"
                                      FontFamily="{StaticResource MonoFont}"
                                      FontSize="13"/>
                             <Button Content="Request Strip"
@@ -385,7 +385,7 @@
                                 <ContentControl Grid.Column="1" Content="{Binding Printer.VisibleArrivalStrip}"
                                                 HorizontalAlignment="Center">
                                     <ContentControl.ContentTemplate>
-                                        <DataTemplate DataType="vm:StripItemViewModel">
+                                        <DataTemplate DataType="vm:StripItemViewModel" x:DataType="vm:StripItemViewModel">
                                             <vstrips:FlightStripControl Tag="{Binding}"/>
                                         </DataTemplate>
                                     </ContentControl.ContentTemplate>
@@ -429,7 +429,7 @@
                                                 Content="{Binding Printer.VisibleDepartureStrip}"
                                                 HorizontalAlignment="Center">
                                     <ContentControl.ContentTemplate>
-                                        <DataTemplate DataType="vm:StripItemViewModel">
+                                        <DataTemplate DataType="vm:StripItemViewModel" x:DataType="vm:StripItemViewModel">
                                             <vstrips:FlightStripControl Tag="{Binding}"/>
                                         </DataTemplate>
                                     </ContentControl.ContentTemplate>

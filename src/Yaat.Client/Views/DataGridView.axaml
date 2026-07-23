@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yaat.Client.ViewModels"
+             xmlns:models="using:Yaat.Client.Models"
              x:Class="Yaat.Client.Views.DataGridView"
              x:DataType="vm:MainViewModel">
 
@@ -11,7 +12,7 @@
     <DockPanel>
     <TextBox x:Name="SearchBox"
              DockPanel.Dock="Top"
-             Watermark="Search aircraft (callsign, type, squawk, dep, dest...)"
+             PlaceholderText="Search aircraft (callsign, type, squawk, dep, dest...)"
              Text="{Binding AircraftFilterText, Mode=TwoWay}"
              Margin="4,4,4,2"
              FontSize="12" />
@@ -26,7 +27,7 @@
               SelectionMode="Single"
               RowDetailsVisibilityMode="VisibleWhenSelected">
         <DataGrid.RowDetailsTemplate>
-            <DataTemplate>
+            <DataTemplate x:DataType="models:AircraftModel">
                 <Border Padding="12,6"
                         Background="#0AFFFFFF"
                         BorderBrush="#1AFFFFFF"
@@ -114,10 +115,10 @@
             </DataTemplate>
         </DataGrid.RowDetailsTemplate>
         <DataGrid.Columns>
-            <DataGridTextColumn Header="Callsign" Binding="{Binding Callsign}" Width="Auto" />
-            <DataGridTemplateColumn Header="Info" Width="Auto" SortMemberPath="SmartStatus">
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Callsign" Binding="{Binding Callsign}" Width="Auto" />
+            <DataGridTemplateColumn x:DataType="models:AircraftModel" Header="Info" Width="Auto" SortMemberPath="SmartStatus">
                 <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="models:AircraftModel">
                         <StackPanel Orientation="Horizontal" Margin="4,0" Spacing="4" VerticalAlignment="Center">
                             <Border IsVisible="{Binding HasCfrBadge}" BorderBrush="{Binding CfrBadgeExpired, Converter={x:Static vm:CfrBadgeBrushConverter.Instance}}" BorderThickness="1" CornerRadius="3" Padding="4,1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding CfrBadge}" Foreground="{Binding CfrBadgeExpired, Converter={x:Static vm:CfrBadgeBrushConverter.Instance}}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
@@ -127,49 +128,49 @@
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTextColumn Header="RPO" Binding="{Binding AssignedTo}" Width="Auto" />
-            <DataGridTextColumn Header="Status" Binding="{Binding StatusDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="Owner" Binding="{Binding OwnerDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="HO" Binding="{Binding HandoffDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="SP1" Binding="{Binding Scratchpad1}" Width="Auto" />
-            <DataGridTextColumn Header="SP2" Binding="{Binding Scratchpad2}" Width="Auto" />
-            <DataGridTextColumn Header="TA" Binding="{Binding TempAltDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="Phase" Binding="{Binding CurrentPhase}" Width="Auto" />
-            <DataGridTextColumn Header="Clnc" Binding="{Binding ClearanceShorthand}" Width="Auto" />
-            <DataGridTextColumn Header="Rwy" Binding="{Binding AssignedRunway, Converter={x:Static vm:RunwayDisplayConverter.Instance}}" Width="Auto" />
-            <DataGridTextColumn Header="Apch" Binding="{Binding ActiveApproachId}" Width="Auto" />
-            <DataGridTextColumn Header="EApch" Binding="{Binding ExpectedApproachDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="Type" Binding="{Binding AircraftType}" Width="Auto" />
-            <DataGridTextColumn Header="Name" Binding="{Binding AircraftTypeName}" Width="Auto" />
-            <DataGridTextColumn Header="Rules" Binding="{Binding FlightRules}" Width="Auto" />
-            <DataGridTextColumn Header="Dep" Binding="{Binding Departure}" Width="Auto" />
-            <DataGridTextColumn Header="Dest" Binding="{Binding Destination}" Width="Auto" />
-            <DataGridTextColumn Header="Fix" Binding="{Binding AsdexFix}" Width="Auto" />
-            <DataGridTextColumn Header="Route" Binding="{Binding Route}" Width="Auto" />
-            <DataGridTextColumn Header="P.Alt" Binding="{Binding CruiseAltitudeDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="Remarks" Binding="{Binding Remarks}" Width="Auto" />
-            <DataGridTextColumn Header="Squawk" Binding="{Binding BeaconCode, StringFormat=\{0:D4\}}" Width="Auto" />
-            <DataGridTextColumn Header="Hdg" Binding="{Binding HeadingDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="Alt" Binding="{Binding Altitude, StringFormat=\{0:F0\}}" Width="Auto" />
-            <DataGridTextColumn Header="IAS" Binding="{Binding IndicatedAirspeed, StringFormat=\{0:F0\}}" Width="Auto" />
-            <DataGridTextColumn Header="Mach" Binding="{Binding MachDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="GS" Binding="{Binding GroundSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
-            <DataGridTextColumn Header="Wind" Binding="{Binding Wind}" Width="Auto" />
-            <DataGridTextColumn Header="VS" Binding="{Binding VerticalSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
-            <DataGridTextColumn Header="AHdg" Binding="{Binding AssignedHeadingDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="AAlt" Binding="{Binding AssignedAltitude, StringFormat=\{0:F0\}}" Width="Auto" />
-            <DataGridTextColumn Header="ASpd" Binding="{Binding AssignedSpeedDisplay}" Width="Auto" />
-            <DataGridTemplateColumn Width="Auto" SortMemberPath="DistanceFromFix">
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="RPO" Binding="{Binding AssignedTo}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Status" Binding="{Binding StatusDisplay}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Owner" Binding="{Binding OwnerDisplay}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="HO" Binding="{Binding HandoffDisplay}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="SP1" Binding="{Binding Scratchpad1}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="SP2" Binding="{Binding Scratchpad2}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="TA" Binding="{Binding TempAltDisplay}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Phase" Binding="{Binding CurrentPhase}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Clnc" Binding="{Binding ClearanceShorthand}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Rwy" Binding="{Binding AssignedRunway, Converter={x:Static vm:RunwayDisplayConverter.Instance}}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Apch" Binding="{Binding ActiveApproachId}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="EApch" Binding="{Binding ExpectedApproachDisplay}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Type" Binding="{Binding AircraftType}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Name" Binding="{Binding AircraftTypeName}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Rules" Binding="{Binding FlightRules}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Dep" Binding="{Binding Departure}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Dest" Binding="{Binding Destination}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Fix" Binding="{Binding AsdexFix}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Route" Binding="{Binding Route}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="P.Alt" Binding="{Binding CruiseAltitudeDisplay}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Remarks" Binding="{Binding Remarks}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Squawk" Binding="{Binding BeaconCode, StringFormat=\{0:D4\}}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Hdg" Binding="{Binding HeadingDisplay}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Alt" Binding="{Binding Altitude, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="IAS" Binding="{Binding IndicatedAirspeed, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Mach" Binding="{Binding MachDisplay}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="GS" Binding="{Binding GroundSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Wind" Binding="{Binding Wind}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="VS" Binding="{Binding VerticalSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="AHdg" Binding="{Binding AssignedHeadingDisplay}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="AAlt" Binding="{Binding AssignedAltitude, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="ASpd" Binding="{Binding AssignedSpeedDisplay}" Width="Auto" />
+            <DataGridTemplateColumn x:DataType="models:AircraftModel" Width="Auto" SortMemberPath="DistanceFromFix">
                 <DataGridTemplateColumn.Header>
-                    <TextBlock Text="{Binding DataContext.DistanceReferenceFix, RelativeSource={RelativeSource AncestorType=Window}, StringFormat='Dist ({0})', FallbackValue='Dist'}" x:Name="DistanceHeader" />
+                    <TextBlock Text="{Binding $parent[Window].((vm:MainViewModel)DataContext).DistanceReferenceFix, StringFormat='Dist ({0})', FallbackValue='Dist'}" x:Name="DistanceHeader" />
                 </DataGridTemplateColumn.Header>
                 <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="models:AircraftModel">
                         <TextBlock Text="{Binding DistanceFromFix, StringFormat='\{0:F1\}'}" Margin="4,0" VerticalAlignment="Center" />
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTextColumn Header="Pending Cmds" Binding="{Binding PendingCommands}" Width="Auto" />
+            <DataGridTextColumn x:DataType="models:AircraftModel" Header="Pending Cmds" Binding="{Binding PendingCommands}" Width="Auto" />
         </DataGrid.Columns>
     </DataGrid>
     </DockPanel>

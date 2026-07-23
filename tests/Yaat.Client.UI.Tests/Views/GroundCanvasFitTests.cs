@@ -121,12 +121,18 @@ public class GroundCanvasFitTests
         // End-to-end: GroundViewModel with empty UserPreferences, set scenario
         // id, then push layout. The bound canvas must auto-fit and the
         // resulting viewport push-back must persist saved settings.
+        //
+        // Uses a scenario id no other test writes: UserPreferences persists to a single
+        // preferences.json shared by the whole assembly, so reusing an id that a sibling test
+        // saves settings for makes this assertion depend on test execution order.
+        const string scenarioId = "scenario-fresh-autofit";
+
         var prefs = new UserPreferences();
         var vm = new GroundViewModel(new ServerConnection(), (_, _, _) => Task.CompletedTask, preferences: prefs);
 
         var (canvas, window) = BindCanvasToViewModel(vm);
 
-        vm.SetScenarioId("scenario-1");
+        vm.SetScenarioId(scenarioId);
         Assert.False(vm.HasSavedView);
 
         vm.Layout = SfoLayout();
@@ -135,7 +141,7 @@ public class GroundCanvasFitTests
         AssertCentroidFit(canvas);
         Assert.True(vm.HasSavedView, "auto-fit push-back should flip HasSavedView true via SaveSettings");
 
-        var saved = prefs.GetGroundSettings("scenario-1");
+        var saved = prefs.GetGroundSettings(scenarioId);
         Assert.NotNull(saved);
         Assert.InRange(saved!.CenterLat, MinLat, MaxLat);
     }
@@ -205,7 +211,7 @@ public class GroundCanvasFitTests
 
     private static void AttachAndSize(GroundCanvas canvas, double width, double height)
     {
-        if (canvas.GetVisualRoot() is null)
+        if (canvas.GetPresentationSource() is null)
         {
             var window = new Window
             {
@@ -218,7 +224,7 @@ public class GroundCanvasFitTests
             return;
         }
 
-        if (canvas.GetVisualRoot() is Window w)
+        if (canvas.GetPresentationSource()?.RootVisual is Window w)
         {
             w.Width = width;
             w.Height = height;

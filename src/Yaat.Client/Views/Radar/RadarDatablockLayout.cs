@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Yaat.Client.Models;
+using Yaat.Client.Views.Map;
 using Yaat.Sim;
 
 namespace Yaat.Client.Views.Radar;
@@ -115,7 +116,7 @@ internal readonly struct RadarDatablockLayout
         AircraftModel ac,
         float blockX,
         float blockY,
-        SKPaint paint,
+        TextStyle style,
         bool showNoLandingClearance,
         bool showConflictAlerts,
         AircraftModel? conflictPeer,
@@ -163,16 +164,16 @@ internal readonly struct RadarDatablockLayout
         bool conflictFlashOn = conflictActive && (Environment.TickCount64 / 500 % 2 == 0);
         string conflictLine = conflictFlashOn ? conflictStable : "";
 
-        float w1 = paint.MeasureText(line1);
-        float w2 = paint.MeasureText(line2);
-        float wSquawk = squawkLine.Length > 0 ? paint.MeasureText(squawkLine) : 0f;
-        float w3 = reserveOwnerSlot ? paint.MeasureText(line3Stable) : 0f;
-        float w4 = line4.Length > 0 ? paint.MeasureText(line4) : 0f;
+        float w1 = style.Measure(line1);
+        float w2 = style.Measure(line2);
+        float wSquawk = squawkLine.Length > 0 ? style.Measure(squawkLine) : 0f;
+        float w3 = reserveOwnerSlot ? style.Measure(line3Stable) : 0f;
+        float w4 = line4.Length > 0 ? style.Measure(line4) : 0f;
         // Reserve width for the warning line whenever it's active so the rect width doesn't pulse.
-        float w5 = noLndgClncActive ? paint.MeasureText(NoLandingClearanceText) : 0f;
-        float w6 = line6.Length > 0 ? paint.MeasureText(line6) : 0f;
+        float w5 = noLndgClncActive ? style.Measure(NoLandingClearanceText) : 0f;
+        float w6 = line6.Length > 0 ? style.Measure(line6) : 0f;
         // Reserve width for the conflict field whenever it's active so the rect doesn't pulse.
-        float wConflict = conflictActive ? paint.MeasureText(conflictStable) : 0f;
+        float wConflict = conflictActive ? style.Measure(conflictStable) : 0f;
         float textW = MathF.Max(MathF.Max(MathF.Max(w1, w2), MathF.Max(w3, w4)), MathF.Max(MathF.Max(w5, w6), MathF.Max(wSquawk, wConflict)));
 
         int lineCount = 2;
@@ -203,8 +204,8 @@ internal readonly struct RadarDatablockLayout
             lineCount++;
         }
 
-        float lineH = paint.TextSize + 2;
-        var rect = new SKRect(blockX - Pad, blockY - paint.TextSize - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
+        float lineH = style.LineHeight;
+        var rect = new SKRect(blockX - Pad, blockY - style.Size - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
 
         return new RadarDatablockLayout(
             rect,
@@ -449,16 +450,16 @@ internal readonly struct RadarDatablockLayout
     }
 
     /// <summary>Bounding rect of a reduced (minified/collapsed) block whose text origin is (blockX, blockY).</summary>
-    public static SKRect ReducedRect(IReadOnlyList<string> lines, SKPaint paint, float blockX, float blockY)
+    public static SKRect ReducedRect(IReadOnlyList<string> lines, TextStyle style, float blockX, float blockY)
     {
-        float lineH = paint.TextSize + 2;
+        float lineH = style.LineHeight;
         float maxW = 0f;
         for (int i = 0; i < lines.Count; i++)
         {
-            maxW = MathF.Max(maxW, paint.MeasureText(lines[i]));
+            maxW = MathF.Max(maxW, style.Measure(lines[i]));
         }
 
-        return new SKRect(blockX - Pad, blockY - paint.TextSize - Pad, blockX + maxW + Pad, blockY + ((lines.Count - 1) * lineH) + Pad);
+        return new SKRect(blockX - Pad, blockY - style.Size - Pad, blockX + maxW + Pad, blockY + ((lines.Count - 1) * lineH) + Pad);
     }
 
     /// <summary>

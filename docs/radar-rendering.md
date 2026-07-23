@@ -274,7 +274,7 @@ The full-datablock rectangle has **one source of truth**: `RadarDatablockLayout.
   `EuroScopeTagLayout.Layout` (EuroScope) and paints from the result (`TargetRenderer.cs:356-506`).
 - **Hit-test path** — `RadarCanvas.ComputeDataBlockPlacement` (`ComputeDataBlockRect` is a thin `.Rect` wrapper) routes the
   full block through `ComputeStableRectAtOrigin` → `ComputeStableFullRectAtOrigin`, which now just calls
-  `RadarDatablockLayout.Compute(ac, 0, 0, _hitTestPaint, …).Rect` (no hand-mirrored line-string re-derivation). It returns
+  `RadarDatablockLayout.Compute(ac, 0, 0, HitTestStyle, …).Rect` (no hand-mirrored line-string re-derivation). It returns
   `(Offset, Rect)`: the rect feeds hit-testing, and the offset feeds drag-start so a leader-placed block whose position
   hasn't been dragged doesn't jump on the first drag.
 
@@ -513,9 +513,14 @@ This is distinct from the **automatic ATPA cone**: `StarsTrackDto.TpaType` (Key 
   `MapCanvasBase` doc-comments. Mutable interaction state (`_minifiedCallsigns`, `_highlightedCallsigns`,
   `_dataBlockOffsets`, the filtered aircraft list) is defensively copied into the snapshot for exactly this reason — don't
   reach past the snapshot.
-- **Datablock geometry is computed twice and there is no parity test.** The draw path (`RadarDatablockLayout.Compute` /
-  `EuroScopeTagLayout.Layout`) and the hit-test path (`RadarCanvas.ComputeDataBlockRect`, which re-measures with its own
-  `_hitTestPaint`) must stay consistent. Edit one without the other and clicks miss the rect.
+- **Datablock geometry is computed twice.** The draw path (`RadarDatablockLayout.Compute` /
+  `EuroScopeTagLayout.Layout`) and the hit-test path (`RadarCanvas.ComputeStableRectAtOrigin`, which re-measures with its
+  own `HitTestStyle`) must stay consistent. Edit one without the other and clicks miss the rect.
+  `DatablockHitTestParityTests` (Yaat.Client.UI.Tests) now pins this: it asserts the two rects match at the default font
+  size and at 9 / 14 / 18 px. It was written after finding that `RadarCanvas.DatablockTextSize` resized only the
+  renderer's font and left the hit-test font pinned at 12 px, so every non-default `RadarDatablockFontSize` measured
+  clicks against different metrics than the drawn glyphs. **Both canvases' size setters must push the new size into their
+  hit-test font** (`RadarCanvas`/`GroundCanvas`), or the parity tests fail.
 - **Flash slots reserve space; handoff does not.** The `NoLndgClnc` warning reserves its width and line slot even when the
   500 ms flash is off-phase so the block doesn't pulse. The handoff indicator does not reserve — the STARS hit-test path
   compensates by always sizing line 3 as if the handoff were present. Forget either compensation and the click target
@@ -540,12 +545,25 @@ This is distinct from the **automatic ATPA cone**: `StarsTrackDto.TpaType` (Key 
 - **Don't re-attempt SSAA / TAA / MSAA on the Radar or Ground views.** 2×/3× supersampling was implemented (offscreen GPU
   `SKSurface` at N× device resolution, downscaled) and **reverted** — the downscale softens the crisp edges and text more
   than the original jaggies bother. Every paint already sets `IsAntialias = true` (per-primitive analytic coverage) and text
-  uses `SubpixelText`, which is the ceiling for crisp 2D vector content; supersampling only trades sharpness for smoothness.
+  uses subpixel glyph positioning, which is the ceiling for crisp 2D vector content; supersampling only trades sharpness for smoothness.
   The only real lever for "crisp and not jagged" is higher pixel density (OS scaling > 100% or a higher-DPI monitor) — a
-  spatial-resolution limit, not an AA-technique one.
-- **Use legacy `SKFilterQuality`, not `SKSamplingOptions`.** Avalonia 11.3.13 depends on **SkiaSharp 2.88.9**, which predates
-  `SKSamplingOptions`/`SKFilterMode`/`SKMipmapMode` (added in SkiaSharp 3.0.0, which also `[Obsolete]`d `SKFilterQuality`), so
-  reaching for the newer API is a `CS0246` build error. Use `new SKPaint { FilterQuality = SKFilterQuality.High }` +
-  `canvas.DrawImage(image, srcRect, destRect, paint)` (e.g. `GroundRenderer`'s tower-cab blit). You can't pin SkiaSharp 3.x
-  under Avalonia 11.3 (breaking major) — it needs an Avalonia upgrade. Offscreen GPU rendering uses the Skia lease
-  (`ISkiaSharpApiLeaseFeature` → `GrContext`, `SKSurface.Create`).
+  spatial-resolution limit, not an AA-technique one. (`SKFont.Subpixel` is the SkiaSharp 3 spelling of the old
+  `SKPaint.SubpixelText`.)
+- **Text needs an `SKFont`, not just an `SKPaint`.** SkiaSharp 3 moved every text member off `SKPaint` (`TextSize`,
+  `Typeface`, `SubpixelText`, `MeasureText`, `TextAlign`, `GetFontMetrics`) onto `SKFont`. The two travel together as
+  `Views/Map/TextStyle.cs` — a non-owning `(SKFont, SKPaint)` pair with `Size`, `LineHeight` (`Size + 2`), and
+  `Measure(text)`. Every layout helper takes a `TextStyle` so the draw and hit-test paths cannot drift to different
+  metrics. Build fonts via `PlatformHelper.MonospaceFont(size)` / `MonospaceFontBold(size)`; the caller owns and disposes
+  them. Draw with the 6-argument overload
+  `canvas.DrawText(text, x, y, SKTextAlign.Left, style.Font, style.Paint)` — the 5-argument form (no `SKTextAlign`) is
+  `[Obsolete]`. Alignment is now a per-draw argument, not paint state, so anything that used to set
+  `SKPaint.TextAlign` must carry the alignment itself (see `GroundRenderer`'s `LabelCandidate.Align`).
+- **`SKPaint.IsAntialias` does not control text antialiasing.** With an explicit `SKFont`, glyph AA comes from
+  `SKFont.Edging` (default `Antialias`, which is what the radar/ground text uses). Don't "fix" text AA by touching
+  `IsAntialias`, and don't reach for `SKFontEdging.SubpixelAntialias` — that's LCD subpixel AA (the old `LcdRenderText`,
+  never used here) and it visibly changes text rendering.
+- **Image sampling uses `SKSamplingOptions`.** `SKFilterQuality` is gone. The tower-cab blit uses
+  `new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)` passed to
+  `canvas.DrawImage(image, x, y, sampling, paint)`; one-shot downscales use `new SKSamplingOptions(SKCubicResampler.Mitchell)`
+  (`TowerCabImageService`). Offscreen GPU rendering still goes through the Skia lease
+  (`ISkiaSharpApiLeaseFeature` → `GrContext`, `SKSurface.Create`), which is unchanged in Avalonia 12.

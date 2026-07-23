@@ -168,7 +168,7 @@ public partial class DataGridView
     {
         var textBox = new TextBox
         {
-            Watermark = "Custom (e.g. 90, 2m15s, 1h)",
+            PlaceholderText = "Custom (e.g. 90, 2m15s, 1h)",
             FontSize = 12,
             MinWidth = 180,
         };

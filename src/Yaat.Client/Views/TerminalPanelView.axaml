@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yaat.Client.ViewModels"
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
-             x:Class="Yaat.Client.Views.TerminalPanelView">
+             x:Class="Yaat.Client.Views.TerminalPanelView"
+        x:DataType="vm:MainViewModel">
 
     <DockPanel>
 
@@ -19,7 +20,7 @@
                        Foreground="{DynamicResource SubtleTextBrush}" />
             <TextBox Grid.Column="1"
                      Text="{Binding TerminalSearchText, Mode=TwoWay}"
-                     Watermark="Filter..."
+                     PlaceholderText="Filter..."
                      FontSize="11"
                      Padding="4,1"
                      MinHeight="0"

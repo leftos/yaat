@@ -70,7 +70,7 @@
                                                  Text="{Binding Runway, Mode=TwoWay}"
                                                  FilterMode="ContainsOrdinal"
                                                  MinimumPrefixLength="0"
-                                                 Watermark="e.g. 28R" Margin="0,2" />
+                                                 PlaceholderText="e.g. 28R" Margin="0,2" />
                             </Grid>
 
                             <TextBlock Text="Spawn rate" FontWeight="Bold" />
@@ -91,7 +91,7 @@
                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="Start offset (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
                                 <TextBox  Grid.Row="4" Grid.Column="1" Text="{Binding StartTimeOffset}" Margin="0,2" />
                                 <TextBlock Grid.Row="5" Grid.Column="0" Text="Max time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                                <TextBox  Grid.Row="5" Grid.Column="1" Text="{Binding MaxTime}" Watermark="whole session" Margin="0,2" />
+                                <TextBox  Grid.Row="5" Grid.Column="1" Text="{Binding MaxTime}" PlaceholderText="whole session" Margin="0,2" />
                             </Grid>
                             <CheckBox Content="Randomize interval (±25%)" IsChecked="{Binding RandomizeInterval}" Margin="8,0,0,0" />
 
@@ -181,16 +181,16 @@
                                 <TextBlock Grid.Row="5" Grid.Column="0" Text="Max altitude (ft)" VerticalAlignment="Center" Margin="0,2,8,2" />
                                 <TextBox  Grid.Row="5" Grid.Column="1" Text="{Binding AltitudeMax}" Margin="0,2" />
                                 <TextBlock Grid.Row="6" Grid.Column="0" Text="Direct to" VerticalAlignment="Center" Margin="0,2,8,2" />
-                                <TextBox  Grid.Row="6" Grid.Column="1" Text="{Binding DirectTo}" Watermark="the field — or a fix / FRD" Margin="0,2" />
+                                <TextBox  Grid.Row="6" Grid.Column="1" Text="{Binding DirectTo}" PlaceholderText="the field — or a fix / FRD" Margin="0,2" />
                             </Grid>
                             <TextBlock Text="Spawns are re-rolled until clear of Class B/C and standard separation from existing traffic." TextWrapping="Wrap" Foreground="#9aa6b2" Margin="8,0,0,0" />
 
                             <TextBlock Text="Descent" FontWeight="Bold" />
                             <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto" Margin="8,0,0,0">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Initial V/S (fpm)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding InitialVsFpm}" Watermark="0 = level" Margin="0,2" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding InitialVsFpm}" PlaceholderText="0 = level" Margin="0,2" />
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Descend to (ft)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding DescendToAltitude}" Watermark="pattern altitude" Margin="0,2" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding DescendToAltitude}" PlaceholderText="pattern altitude" Margin="0,2" />
                             </Grid>
                             <TextBlock Text="Leave V/S at 0 to have them arrive level, for the controller to step down." TextWrapping="Wrap" Foreground="#9aa6b2" Margin="8,0,0,0" />
 
@@ -206,7 +206,7 @@
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Start offset (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
                                 <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding StartTimeOffset}" Margin="0,2" />
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Max time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding MaxTime}" Watermark="whole session" Margin="0,2" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding MaxTime}" PlaceholderText="whole session" Margin="0,2" />
                             </Grid>
                             <CheckBox Content="Randomize interval (±25%)" IsChecked="{Binding RandomizeInterval}" Margin="8,0,0,0" />
 
@@ -295,7 +295,7 @@
                                 <TextBlock Grid.Row="5" Grid.Column="0" Text="Max dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
                                 <TextBox  Grid.Row="5" Grid.Column="1" Text="{Binding MaxDistance}" Margin="0,2" />
                                 <TextBlock Grid.Row="6" Grid.Column="0" Text="Exit dist (nm)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                                <TextBox  Grid.Row="6" Grid.Column="1" Text="{Binding ExitDistance}" Watermark="max dist + 5" Margin="0,2" />
+                                <TextBox  Grid.Row="6" Grid.Column="1" Text="{Binding ExitDistance}" PlaceholderText="max dist + 5" Margin="0,2" />
                                 <TextBlock Grid.Row="7" Grid.Column="0" Text="Min altitude (ft)" VerticalAlignment="Center" Margin="0,2,8,2" />
                                 <TextBox  Grid.Row="7" Grid.Column="1" Text="{Binding AltitudeMin}" Margin="0,2" />
                                 <TextBlock Grid.Row="8" Grid.Column="0" Text="Max altitude (ft)" VerticalAlignment="Center" Margin="0,2,8,2" />
@@ -320,7 +320,7 @@
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Start offset (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
                                 <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding StartTimeOffset}" Margin="0,2" />
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Max time (s)" VerticalAlignment="Center" Margin="0,2,8,2" />
-                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding MaxTime}" Watermark="whole session" Margin="0,2" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding MaxTime}" PlaceholderText="whole session" Margin="0,2" />
                             </Grid>
                             <CheckBox Content="Randomize interval (±25%)" IsChecked="{Binding RandomizeInterval}" Margin="8,0,0,0" />
 

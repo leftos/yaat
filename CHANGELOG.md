@@ -6,6 +6,10 @@
 - Rapid-exit (high-speed) turnoffs are taken at their real design speed — a jet now carries ~30 kt through a shallow exit like KOAK runway 30's W4/W5 instead of slowing to ~15 kt for the turn. The junction fillets at ≤45° runway exits widen to a true rapid-exit radius (~600 ft where the surrounding geometry allows).
 - After the turnoff, aircraft decelerate smoothly to the hold-short instead of accelerating back toward rollout speed on the exit straight and then braking hard at the line.
 - An aircraft that picks its exit mid-rollout (its committed exit occupied or no longer valid) turns off cleanly instead of fighting to hold the runway heading through the turn.
+- Data block clicks and drags land on the block at any data block font size, on both the radar and Ground View.
+
+### Changed
+- Refreshed the UI toolkit — controls, dialogs, and menus may look slightly different; radar and Ground View rendering is unchanged.
 
 ## v0.9.13-beta [2026/07/22]
 

@@ -159,7 +159,7 @@
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
-                            <DataTemplate DataType="vm:TdlsItemViewModel">
+                            <DataTemplate DataType="vm:TdlsItemViewModel" x:DataType="vm:TdlsItemViewModel">
                                 <Grid>
                                     <!-- The facility prefix only renders on a consolidated parent page,
                                          where items from several airports share one list. -->
@@ -204,7 +204,7 @@
                              FontFamily="{StaticResource MonoFont}"
                              FontSize="12">
                         <ListBox.ItemTemplate>
-                            <DataTemplate DataType="vm:TdlsItemViewModel">
+                            <DataTemplate DataType="vm:TdlsItemViewModel" x:DataType="vm:TdlsItemViewModel">
                                 <Grid>
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <TextBlock Text="{Binding FacilityId}" Opacity="0.65"

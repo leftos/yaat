@@ -642,6 +642,13 @@ public partial class VStripsView : UserControl
     private FlightStripControl? _pressedStripView;
     private bool _dragInitiated;
 
+    /// <summary>
+    /// The press that may become a drag. Retained because the drag is promoted later, from
+    /// PointerMoved, but <see cref="DragDrop.DoDragDropAsync"/> requires the originating
+    /// <see cref="PointerPressedEventArgs"/> to identify the pointer that started the gesture.
+    /// </summary>
+    private PointerPressedEventArgs? _pressArgs;
+
     private async void OnStripPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         var props = e.GetCurrentPoint(this).Properties;
@@ -710,13 +717,14 @@ public partial class VStripsView : UserControl
         // click should reach the underlying TextBox (if any) and focus it.
         _pressPos = e.GetPosition(this);
         _pressedStripView = stripView;
+        _pressArgs = e;
         _dragInitiated = false;
         _draggingStrip = strip;
     }
 
     private async void OnStripPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_pressedStripView is null || _dragInitiated || _draggingStrip is not { } strip)
+        if (_pressedStripView is null || _dragInitiated || _draggingStrip is not { } strip || _pressArgs is not { } pressArgs)
         {
             return;
         }
@@ -726,6 +734,7 @@ public partial class VStripsView : UserControl
             // Button released without our PointerReleased firing (rare, e.g.
             // capture lost to another window). Treat as click-end: clear state.
             _pressedStripView = null;
+            _pressArgs = null;
             _draggingStrip = null;
             return;
         }
@@ -786,7 +795,7 @@ public partial class VStripsView : UserControl
         try
         {
             ShowDragGhost(strip, e);
-            effect = await DragDrop.DoDragDropAsync(e, dataTransfer, DragDropEffects.Move);
+            effect = await DragDrop.DoDragDropAsync(pressArgs, dataTransfer, DragDropEffects.Move);
         }
         finally
         {
@@ -794,6 +803,7 @@ public partial class VStripsView : UserControl
             _draggingStrip = null;
             _draggingFromRack = null;
             _draggingFromIndex = -1;
+            _pressArgs = null;
         }
         Log.LogInformation("Strip drag end: strip={StripId} effect={Effect}", strip.Id, effect);
     }

@@ -910,7 +910,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 return;
             }
 
-            var input = new TextBox { Watermark = "Fix or FRD..." };
+            var input = new TextBox { PlaceholderText = "Fix or FRD..." };
             var listBox = new ListBox
             {
                 MaxHeight = 160,

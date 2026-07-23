@@ -4,17 +4,19 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <!-- xUnit v3 test projects are executables (required by Avalonia.Headless.XUnit 12.x). -->
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.13" />
-    <PackageReference Include="MartinCostello.Logging.XUnit" Version="0.7.1" />
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.1.0" />
+    <PackageReference Include="MartinCostello.Logging.XUnit.v3" Version="0.7.1" />
   </ItemGroup>
 
   <ItemGroup>

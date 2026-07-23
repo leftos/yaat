@@ -1,6 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Yaat.Client.ViewModels"
+        xmlns:views="using:Yaat.Client.Views"
+        xmlns:svc="using:Yaat.Client.Services"
         x:Class="Yaat.Client.Views.SessionReportWindow"
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Session Report"
@@ -86,7 +88,7 @@
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="views:ScoreBucketRow">
                                 <Border Margin="0,0,10,0"
                                         Padding="12"
                                         CornerRadius="6"
@@ -133,10 +135,10 @@
                                       CanUserResizeColumns="True"
                                       CanUserSortColumns="True">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90" IsReadOnly="True" />
-                                    <DataGridTextColumn Header="Issue" Binding="{Binding Title}" Width="*" IsReadOnly="True" />
-                                    <DataGridTextColumn Header="Traffic" Binding="{Binding CallsignsText}" Width="120" IsReadOnly="True" />
-                                    <DataGridTextColumn Header="Exposure" Binding="{Binding ExposureText}" Width="90" IsReadOnly="True" />
+                                    <DataGridTextColumn x:DataType="views:EventRow" Header="Severity" Binding="{Binding Severity}" Width="90" IsReadOnly="True" />
+                                    <DataGridTextColumn x:DataType="views:EventRow" Header="Issue" Binding="{Binding Title}" Width="*" IsReadOnly="True" />
+                                    <DataGridTextColumn x:DataType="views:EventRow" Header="Traffic" Binding="{Binding CallsignsText}" Width="120" IsReadOnly="True" />
+                                    <DataGridTextColumn x:DataType="views:EventRow" Header="Exposure" Binding="{Binding ExposureText}" Width="90" IsReadOnly="True" />
                                 </DataGrid.Columns>
                             </DataGrid>
                         </DockPanel>
@@ -152,14 +154,14 @@
                           CanUserResizeColumns="True"
                           CanUserSortColumns="True">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Time" Binding="{Binding StartedText}" Width="80" IsReadOnly="True" />
-                        <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90" IsReadOnly="True" />
-                        <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="110" IsReadOnly="True" />
-                        <DataGridTextColumn Header="Traffic" Binding="{Binding CallsignsText}" Width="130" IsReadOnly="True" />
-                        <DataGridTextColumn Header="Required" Binding="{Binding RequiredText}" Width="130" IsReadOnly="True" />
-                        <DataGridTextColumn Header="Actual" Binding="{Binding ActualText}" Width="130" IsReadOnly="True" />
-                        <DataGridTextColumn Header="Rule" Binding="{Binding RuleReference}" Width="150" IsReadOnly="True" />
-                        <DataGridTextColumn Header="Coaching" Binding="{Binding Description}" Width="*" IsReadOnly="True" />
+                        <DataGridTextColumn x:DataType="views:EventRow" Header="Time" Binding="{Binding StartedText}" Width="80" IsReadOnly="True" />
+                        <DataGridTextColumn x:DataType="views:EventRow" Header="Severity" Binding="{Binding Severity}" Width="90" IsReadOnly="True" />
+                        <DataGridTextColumn x:DataType="views:EventRow" Header="Category" Binding="{Binding Category}" Width="110" IsReadOnly="True" />
+                        <DataGridTextColumn x:DataType="views:EventRow" Header="Traffic" Binding="{Binding CallsignsText}" Width="130" IsReadOnly="True" />
+                        <DataGridTextColumn x:DataType="views:EventRow" Header="Required" Binding="{Binding RequiredText}" Width="130" IsReadOnly="True" />
+                        <DataGridTextColumn x:DataType="views:EventRow" Header="Actual" Binding="{Binding ActualText}" Width="130" IsReadOnly="True" />
+                        <DataGridTextColumn x:DataType="views:EventRow" Header="Rule" Binding="{Binding RuleReference}" Width="150" IsReadOnly="True" />
+                        <DataGridTextColumn x:DataType="views:EventRow" Header="Coaching" Binding="{Binding Description}" Width="*" IsReadOnly="True" />
                     </DataGrid.Columns>
                 </DataGrid>
             </TabItem>
@@ -175,15 +177,15 @@
                               CanUserSortColumns="True"
                               SelectionMode="Single">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Callsign" Binding="{Binding Callsign}" Width="100" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Type" Binding="{Binding AircraftType}" Width="70" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Op" Binding="{Binding OperationText}" Width="90" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Route" Binding="{Binding RouteText}" Width="110" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Spawned" Binding="{Binding SpawnedText}" Width="90" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Completed" Binding="{Binding CompletedText}" Width="90" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" Width="160" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Findings" Binding="{Binding FindingsText}" Width="110" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Coaching" Binding="{Binding CoachingNote}" Width="*" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="views:AircraftDebriefRow" Header="Callsign" Binding="{Binding Callsign}" Width="100" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="views:AircraftDebriefRow" Header="Type" Binding="{Binding AircraftType}" Width="70" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="views:AircraftDebriefRow" Header="Op" Binding="{Binding OperationText}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="views:AircraftDebriefRow" Header="Route" Binding="{Binding RouteText}" Width="110" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="views:AircraftDebriefRow" Header="Spawned" Binding="{Binding SpawnedText}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="views:AircraftDebriefRow" Header="Completed" Binding="{Binding CompletedText}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="views:AircraftDebriefRow" Header="Status" Binding="{Binding StatusText}" Width="160" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="views:AircraftDebriefRow" Header="Findings" Binding="{Binding FindingsText}" Width="110" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="views:AircraftDebriefRow" Header="Coaching" Binding="{Binding CoachingNote}" Width="*" IsReadOnly="True" />
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -211,16 +213,16 @@
                               CanUserResizeColumns="True"
                               CanUserSortColumns="True">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Grade" Binding="{Binding Grade}" Width="60" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Callsign" Binding="{Binding Callsign}" Width="90" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Type" Binding="{Binding AircraftType}" Width="70" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Approach" Binding="{Binding ApproachId}" Width="90" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Rwy" Binding="{Binding RunwayId, Converter={x:Static vm:RunwayDisplayConverter.Instance}}" Width="60" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Angle" Binding="{Binding InterceptAngleDeg, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Dist" Binding="{Binding InterceptDistanceNm, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
-                            <DataGridTextColumn Header="GS Dev" Binding="{Binding GlideSlopeDeviationFt, StringFormat={}{0:+0;-0;0}}" Width="90" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Speed" Binding="{Binding SpeedAtInterceptKts, StringFormat={}{0:F0}}" Width="80" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Sep" Binding="{Binding SeparationNm, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="Grade" Binding="{Binding Grade}" Width="60" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="Callsign" Binding="{Binding Callsign}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="Type" Binding="{Binding AircraftType}" Width="70" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="Approach" Binding="{Binding ApproachId}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="Rwy" Binding="{Binding RunwayId, Converter={x:Static vm:RunwayDisplayConverter.Instance}}" Width="60" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="Angle" Binding="{Binding InterceptAngleDeg, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="Dist" Binding="{Binding InterceptDistanceNm, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="GS Dev" Binding="{Binding GlideSlopeDeviationFt, StringFormat={}{0:+0;-0;0}}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="Speed" Binding="{Binding SpeedAtInterceptKts, StringFormat={}{0:F0}}" Width="80" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:ApproachScoreDto" Header="Sep" Binding="{Binding SeparationNm, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -232,11 +234,11 @@
                               CanUserSortColumns="False"
                               MaxHeight="150">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Runway" Binding="{Binding RunwayId, Converter={x:Static vm:RunwayDisplayConverter.Instance}}" Width="100" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Landings" Binding="{Binding LandingCount}" Width="90" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Rate/hr" Binding="{Binding ArrivalRatePerHour, StringFormat={}{0:F1}}" Width="90" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Avg Spacing" Binding="{Binding AverageTimeBetweenLandingsSec, StringFormat={}{0:F0}}" Width="120" IsReadOnly="True" />
-                            <DataGridTextColumn Header="Min Sep" Binding="{Binding MinSeparationNm, StringFormat={}{0:F1}}" Width="100" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:RunwayStatsDto" Header="Runway" Binding="{Binding RunwayId, Converter={x:Static vm:RunwayDisplayConverter.Instance}}" Width="100" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:RunwayStatsDto" Header="Landings" Binding="{Binding LandingCount}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:RunwayStatsDto" Header="Rate/hr" Binding="{Binding ArrivalRatePerHour, StringFormat={}{0:F1}}" Width="90" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:RunwayStatsDto" Header="Avg Spacing" Binding="{Binding AverageTimeBetweenLandingsSec, StringFormat={}{0:F0}}" Width="120" IsReadOnly="True" />
+                            <DataGridTextColumn x:DataType="svc:RunwayStatsDto" Header="Min Sep" Binding="{Binding MinSeparationNm, StringFormat={}{0:F1}}" Width="100" IsReadOnly="True" />
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

@@ -37,7 +37,7 @@ internal static class TextEntryPopup
         var textBox = new TextBox
         {
             Text = initialText,
-            Watermark = watermark,
+            PlaceholderText = watermark,
             Width = 160,
             VerticalAlignment = VerticalAlignment.Center,
         };

@@ -37,14 +37,9 @@ public sealed class RadarRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _fixLabelPaint = new()
-    {
-        Color = SKColors.White,
-        TextSize = 14,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-    };
+    private readonly SKPaint _fixLabelPaint = new() { Color = SKColors.White, IsAntialias = true };
+
+    private readonly SKFont _fixLabelFont = PlatformHelper.MonospaceFont(14);
 
     private static readonly SKColor ProgrammedFixColor = new(0, 220, 200);
 
@@ -56,14 +51,9 @@ public sealed class RadarRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _programmedFixLabelPaint = new()
-    {
-        Color = ProgrammedFixColor,
-        TextSize = 14,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-    };
+    private readonly SKPaint _programmedFixLabelPaint = new() { Color = ProgrammedFixColor, IsAntialias = true };
+
+    private readonly SKFont _programmedFixLabelFont = PlatformHelper.MonospaceFont(14);
 
     // Instructor scope-marker pins — yellow, distinct from grey nav fixes and teal programmed fixes.
     private static readonly SKColor PinnedMarkerColor = new(255, 220, 0);
@@ -76,14 +66,9 @@ public sealed class RadarRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _pinnedMarkerLabelPaint = new()
-    {
-        Color = PinnedMarkerColor,
-        TextSize = 14,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-    };
+    private readonly SKPaint _pinnedMarkerLabelPaint = new() { Color = PinnedMarkerColor, IsAntialias = true };
+
+    private readonly SKFont _pinnedMarkerLabelFont = PlatformHelper.MonospaceFont(14);
 
     private static readonly SKColor RouteDrawColor = new(255, 200, 0);
 
@@ -112,25 +97,18 @@ public sealed class RadarRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _routeLabelPaint = new()
-    {
-        Color = RouteDrawColor,
-        TextSize = 13,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-    };
+    private readonly SKPaint _routeLabelPaint = new() { Color = RouteDrawColor, IsAntialias = true };
 
-    private readonly SKPaint _routeConditionLabelPaint = new()
-    {
-        Color = new SKColor(255, 200, 0, 180),
-        TextSize = 11,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-    };
+    private readonly SKFont _routeLabelFont = PlatformHelper.MonospaceFont(13);
 
-    // Pre-allocated paints for shown nav routes (one set per palette color)
+    private readonly SKPaint _routeConditionLabelPaint = new() { Color = new SKColor(255, 200, 0, 180), IsAntialias = true };
+
+    private readonly SKFont _routeConditionLabelFont = PlatformHelper.MonospaceFont(11);
+
+    // Pre-allocated paints for shown nav routes (one set per palette color). The fonts are
+    // color-independent, so a single font backs every color's label / restriction paint.
+    private readonly SKFont _pathLabelFont = PlatformHelper.MonospaceFont(12);
+    private readonly SKFont _pathRestrictionFont = PlatformHelper.MonospaceFont(10);
     private readonly SKPaint[] _pathLinePaints;
     private readonly SKPaint[] _pathWaypointPaints;
     private readonly SKPaint[] _pathLabelPaints;
@@ -175,24 +153,10 @@ public sealed class RadarRenderer : IDisposable
                 Style = SKPaintStyle.Stroke,
                 IsAntialias = true,
             };
-            _pathLabelPaints[i] = new SKPaint
-            {
-                Color = colors[i],
-                TextSize = 12,
-                IsAntialias = true,
-                SubpixelText = true,
-                Typeface = PlatformHelper.MonospaceTypeface,
-            };
-            _pathRestrictionPaints[i] = new SKPaint
-            {
-                // Crossing altitude/speed labels — same route color, slightly smaller than the fix
-                // name so they read as secondary detail hanging off the fix.
-                Color = colors[i],
-                TextSize = 10,
-                IsAntialias = true,
-                SubpixelText = true,
-                Typeface = PlatformHelper.MonospaceTypeface,
-            };
+            _pathLabelPaints[i] = new SKPaint { Color = colors[i], IsAntialias = true };
+            // Crossing altitude/speed labels — same route color, slightly smaller than the fix
+            // name so they read as secondary detail hanging off the fix.
+            _pathRestrictionPaints[i] = new SKPaint { Color = colors[i], IsAntialias = true };
             _pathLeaderPaints[i] = new SKPaint
             {
                 Color = colors[i].WithAlpha(150),
@@ -474,24 +438,19 @@ public sealed class RadarRenderer : IDisposable
 
     private static void DrawMvaHoverLabel(SKCanvas canvas, string text, SKPoint cursor)
     {
-        using var textPaint = new SKPaint
-        {
-            Color = SKColors.White,
-            TextSize = 13,
-            Typeface = PlatformHelper.MonospaceTypeface,
-            IsAntialias = true,
-        };
+        using var textPaint = new SKPaint { Color = SKColors.White, IsAntialias = true };
+        using var textFont = PlatformHelper.MonospaceFont(13);
         using var bgPaint = new SKPaint { Color = new SKColor(0, 0, 0, 200), IsAntialias = true };
 
         const float padX = 5f;
         const float padY = 3f;
         const float gap = 14f;
-        float width = textPaint.MeasureText(text);
+        float width = textFont.MeasureText(text);
         float x = cursor.X + gap;
-        float baseline = cursor.Y + gap + textPaint.TextSize;
-        var background = new SKRect(x - padX, baseline - textPaint.TextSize - padY, x + width + padX, baseline + padY);
+        float baseline = cursor.Y + gap + textFont.Size;
+        var background = new SKRect(x - padX, baseline - textFont.Size - padY, x + width + padX, baseline + padY);
         canvas.DrawRoundRect(background, 3, 3, bgPaint);
-        canvas.DrawText(text, x, baseline, textPaint);
+        canvas.DrawText(text, x, baseline, SKTextAlign.Left, textFont, textPaint);
     }
 
     private void DrawShownPaths(SKCanvas canvas, MapViewport vp, IReadOnlyList<ShownPathEntry> entries)
@@ -546,7 +505,7 @@ public sealed class RadarRenderer : IDisposable
                 canvas.DrawLine(wx + diamondSize, wy, wx, wy + diamondSize, wpPaint);
                 canvas.DrawLine(wx, wy + diamondSize, wx - diamondSize, wy, wpPaint);
                 canvas.DrawLine(wx - diamondSize, wy, wx, wy - diamondSize, wpPaint);
-                canvas.DrawText(wp.ResolvedName, wx + 8, wy - 4, labelPaint);
+                canvas.DrawText(wp.ResolvedName, wx + 8, wy - 4, SKTextAlign.Left, _pathLabelFont, labelPaint);
 
                 // Crossing restriction lines stacked under the fix name (e.g. "≥6000  250" or a
                 // window "≤17000" / "≥11000").
@@ -555,7 +514,7 @@ public sealed class RadarRenderer : IDisposable
                     float ly = wy + 8;
                     foreach (var line in lines)
                     {
-                        canvas.DrawText(line, wx + 8, ly, restrictionPaint);
+                        canvas.DrawText(line, wx + 8, ly, SKTextAlign.Left, _pathRestrictionFont, restrictionPaint);
                         ly += 11;
                     }
                 }
@@ -607,7 +566,7 @@ public sealed class RadarRenderer : IDisposable
                 float ty = ly - 4;
                 foreach (var line in labels)
                 {
-                    canvas.DrawText(line, lx + 8, ty, _pathRestrictionPaints[paintIdx]);
+                    canvas.DrawText(line, lx + 8, ty, SKTextAlign.Left, _pathRestrictionFont, _pathRestrictionPaints[paintIdx]);
                     ty += 11;
                 }
             }
@@ -666,16 +625,15 @@ public sealed class RadarRenderer : IDisposable
         using var paint = new SKPaint
         {
             Color = new SKColor(0x00, 0xC8, 0x00), // STARS green
-            TextSize = 14,
-            Typeface = PlatformHelper.MonospaceTypeface,
             IsAntialias = true,
         };
+        using var font = PlatformHelper.MonospaceFont(14);
 
         float y = 20;
         const float lineHeight = 18;
         foreach (var station in stations)
         {
-            canvas.DrawText(station.ToDisplayString(), 10, y, paint);
+            canvas.DrawText(station.ToDisplayString(), 10, y, SKTextAlign.Left, font, paint);
             y += lineHeight;
         }
     }
@@ -741,7 +699,8 @@ public sealed class RadarRenderer : IDisposable
             if (isProgrammed || fix.Name == hoveredFixName)
             {
                 var labelPaint = isProgrammed ? _programmedFixLabelPaint : _fixLabelPaint;
-                canvas.DrawText(fix.Name, sx + 6, sy - 2, labelPaint);
+                var labelFont = isProgrammed ? _programmedFixLabelFont : _fixLabelFont;
+                canvas.DrawText(fix.Name, sx + 6, sy - 2, SKTextAlign.Left, labelFont, labelPaint);
             }
         }
     }
@@ -769,7 +728,7 @@ public sealed class RadarRenderer : IDisposable
             path.Close();
             canvas.DrawPath(path, _pinnedMarkerPaint);
 
-            canvas.DrawText(marker.Name, sx + size + 2, sy - 2, _pinnedMarkerLabelPaint);
+            canvas.DrawText(marker.Name, sx + size + 2, sy - 2, SKTextAlign.Left, _pinnedMarkerLabelFont, _pinnedMarkerLabelPaint);
         }
     }
 
@@ -811,7 +770,7 @@ public sealed class RadarRenderer : IDisposable
 
             if (rubberBandLabel is not null)
             {
-                canvas.DrawText(rubberBandLabel, cx + 8, cy - 4, _routeLabelPaint);
+                canvas.DrawText(rubberBandLabel, cx + 8, cy - 4, SKTextAlign.Left, _routeLabelFont, _routeLabelPaint);
             }
         }
 
@@ -829,7 +788,7 @@ public sealed class RadarRenderer : IDisposable
             path.Close();
             canvas.DrawPath(path, _routeWaypointPaint);
 
-            canvas.DrawText(wp.ResolvedName, sx + 8, sy - 2, _routeLabelPaint);
+            canvas.DrawText(wp.ResolvedName, sx + 8, sy - 2, SKTextAlign.Left, _routeLabelFont, _routeLabelPaint);
 
             // Show condition summary below the fix name
             if (waypointConditions is not null && waypointConditions.TryGetValue(i, out var cond))
@@ -837,7 +796,7 @@ public sealed class RadarRenderer : IDisposable
                 var summary = cond.ToSummary();
                 if (summary.Length > 0)
                 {
-                    canvas.DrawText(summary, sx + 8, sy + 11, _routeConditionLabelPaint);
+                    canvas.DrawText(summary, sx + 8, sy + 11, SKTextAlign.Left, _routeConditionLabelFont, _routeConditionLabelPaint);
                 }
             }
         }
@@ -857,7 +816,7 @@ public sealed class RadarRenderer : IDisposable
 
         if (label is not null)
         {
-            canvas.DrawText(label, cx + 8, cy - 4, _routeLabelPaint);
+            canvas.DrawText(label, cx + 8, cy - 4, SKTextAlign.Left, _routeLabelFont, _routeLabelPaint);
         }
     }
 
@@ -868,15 +827,22 @@ public sealed class RadarRenderer : IDisposable
         _rangeRingPaint.Dispose();
         _fixPaint.Dispose();
         _fixLabelPaint.Dispose();
+        _fixLabelFont.Dispose();
         _programmedFixPaint.Dispose();
         _programmedFixLabelPaint.Dispose();
+        _programmedFixLabelFont.Dispose();
         _pinnedMarkerPaint.Dispose();
         _pinnedMarkerLabelPaint.Dispose();
+        _pinnedMarkerLabelFont.Dispose();
         _routeLinePaint.Dispose();
         _rubberBandPaint.Dispose();
         _routeWaypointPaint.Dispose();
         _routeLabelPaint.Dispose();
+        _routeLabelFont.Dispose();
         _routeConditionLabelPaint.Dispose();
+        _routeConditionLabelFont.Dispose();
+        _pathLabelFont.Dispose();
+        _pathRestrictionFont.Dispose();
 
         for (int i = 0; i < _pathLinePaints.Length; i++)
         {

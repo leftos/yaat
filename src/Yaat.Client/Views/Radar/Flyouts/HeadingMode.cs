@@ -59,14 +59,9 @@ public static class HeadingPreviewRenderer
 
     public static void Render(SKCanvas canvas, MapViewport vp, AircraftModel ac, HeadingModeState state)
     {
-        using var textPaint = new SKPaint
-        {
-            Color = PreviewColor,
-            TextSize = 12,
-            IsAntialias = true,
-            SubpixelText = true,
-            Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
-        };
+        using var textPaint = new SKPaint { Color = PreviewColor, IsAntialias = true };
+        using var textFont = Services.PlatformHelper.MonospaceFontBold(12);
+        var textStyle = new TextStyle(textFont, textPaint);
         double cursorBearingTrue = GeoMath.BearingTo(ac.Position.Lat, ac.Position.Lon, state.CursorPos.Lat, state.CursorPos.Lon);
         double cursorBearingMag = MagneticDeclination.TrueToMagnetic(cursorBearingTrue, ac.Position);
         int snappedHdgMag = SnapHeadingTo5(cursorBearingMag);
@@ -136,7 +131,7 @@ public static class HeadingPreviewRenderer
         string label =
             ac.GroundSpeed > 1 ? $"{hdgStr}M  {cursorDistNm:0.0}nm  {FormatEta(cursorDistNm, ac.GroundSpeed)}" : $"{hdgStr}M  {cursorDistNm:0.0}nm";
 
-        DrawLabel(canvas, label, curSx + 12, curSy - 8, textPaint);
+        DrawLabel(canvas, label, curSx + 12, curSy - 8, textStyle);
     }
 
     /// <summary>
@@ -172,10 +167,10 @@ public static class HeadingPreviewRenderer
         return $"{totalSec / 60:D1}:{totalSec % 60:D2}";
     }
 
-    private static void DrawLabel(SKCanvas canvas, string text, float x, float y, SKPaint textPaint)
+    private static void DrawLabel(SKCanvas canvas, string text, float x, float y, TextStyle style)
     {
-        float w = textPaint.MeasureText(text);
-        float h = textPaint.TextSize;
+        float w = style.Measure(text);
+        float h = style.Size;
         var bgRect = new SKRect(x - 3, y - h - 1, x + w + 3, y + 3);
         using var bgPaint = new SKPaint
         {
@@ -184,6 +179,6 @@ public static class HeadingPreviewRenderer
             IsAntialias = true,
         };
         canvas.DrawRect(bgRect, bgPaint);
-        canvas.DrawText(text, x, y, textPaint);
+        canvas.DrawText(text, x, y, SKTextAlign.Left, style.Font, style.Paint);
     }
 }

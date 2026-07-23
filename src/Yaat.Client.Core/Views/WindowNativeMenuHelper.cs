@@ -45,7 +45,7 @@ public sealed class WindowNativeMenuHelper
             return;
         }
 
-        _alwaysOnTopItem = new NativeMenuItem("Always on Top") { ToggleType = NativeMenuItemToggleType.CheckBox, IsChecked = _window.Topmost };
+        _alwaysOnTopItem = new NativeMenuItem("Always on Top") { ToggleType = MenuItemToggleType.CheckBox, IsChecked = _window.Topmost };
         _alwaysOnTopItem.Click += OnAlwaysOnTopClicked;
 
         var windowSubmenu = new NativeMenu();

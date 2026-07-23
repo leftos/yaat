@@ -71,7 +71,7 @@
                                     <!-- Rename TextBox (visible only when Rename selected) -->
                                     <TextBox Text="{Binding RenamedName}"
                                              IsVisible="{Binding IsRenaming}"
-                                             Watermark="New name"
+                                             PlaceholderText="New name"
                                              Width="180"
                                              VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding RenameError}"

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Headless;
 using Velopack;
@@ -31,14 +32,14 @@ public static class Program
         Console.Error.WriteLine("This build was produced without it; the tool cannot run.");
         return 2;
 #else
-        if (!TryParseArgs(args, out var sceneFilter, out var outDir, out var error))
+        if (!TryParseArgs(args, out var sceneFilter, out var outDir, out var renderScaling, out var error))
         {
             Console.Error.WriteLine(error);
             PrintUsage();
             return 2;
         }
 
-        var exitCode = MainAsync(sceneFilter, outDir).GetAwaiter().GetResult();
+        var exitCode = MainAsync(sceneFilter, outDir, renderScaling).GetAwaiter().GetResult();
 
         // Force-terminate. The Avalonia headless dispatcher and ASP.NET Core
         // hosted services leave non-background threads alive after Main
@@ -51,7 +52,7 @@ public static class Program
     }
 
 #if HAS_YAAT_SERVER
-    private static async Task<int> MainAsync(string? sceneFilter, string outDir)
+    private static async Task<int> MainAsync(string? sceneFilter, string outDir, double renderScaling)
     {
         await using var server = new InProcessServer();
         Console.WriteLine("Starting in-process yaat-server ...");
@@ -61,7 +62,7 @@ public static class Program
         using var session = HeadlessUnitTestSession.StartNew(typeof(Program));
         var ctx = new CaptureContext { ServerUrl = server.Url };
 
-        return await session.Dispatch(() => Runner.RunAsync(outDir, sceneFilter, SceneCatalog.All, ctx), CancellationToken.None);
+        return await session.Dispatch(() => Runner.RunAsync(outDir, sceneFilter, SceneCatalog.All, ctx, renderScaling), CancellationToken.None);
     }
 #endif
 
@@ -76,19 +77,37 @@ public static class Program
             VelopackApp.Build().Run();
         }
 
-        return AppBuilder.Configure<App>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).UseSkia().WithInterFont();
+        return AppBuilder
+            .Configure<App>()
+            .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
+            .UseSkia()
+            .UseHarfBuzz()
+            .WithInterFont();
     }
 
-    private static bool TryParseArgs(string[] args, out string? sceneFilter, out string outDir, out string error)
+    private static bool TryParseArgs(string[] args, out string? sceneFilter, out string outDir, out double renderScaling, out string error)
     {
         sceneFilter = null;
         outDir = Path.Combine(Environment.CurrentDirectory, "docs", "user-guide", "img");
+        renderScaling = 1.0;
         error = string.Empty;
 
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
             {
+                case "--scale":
+                    if (i + 1 >= args.Length)
+                    {
+                        error = "--scale requires a value";
+                        return false;
+                    }
+                    if (!double.TryParse(args[++i], NumberStyles.Float, CultureInfo.InvariantCulture, out renderScaling) || renderScaling <= 0)
+                    {
+                        error = $"--scale must be a positive number, got '{args[i]}'";
+                        return false;
+                    }
+                    break;
                 case "--scene":
                     if (i + 1 >= args.Length)
                     {
@@ -124,10 +143,11 @@ public static class Program
         Console.Error.WriteLine("Yaat.GuideCapture — regenerate User Guide screenshots.");
         Console.Error.WriteLine();
         Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  dotnet run --project tools/Yaat.GuideCapture [-- --scene <name>] [--out <dir>]");
+        Console.Error.WriteLine("  dotnet run --project tools/Yaat.GuideCapture [-- --scene <name>] [--out <dir>] [--scale <n>]");
         Console.Error.WriteLine();
         Console.Error.WriteLine("Options:");
         Console.Error.WriteLine("  --scene <name>   Capture only the named scene (default: all).");
+        Console.Error.WriteLine("  --scale <n>      Render scaling / DPI factor, e.g. 2 for 2x-density images (default: 1).");
         Console.Error.WriteLine("  --out <dir>      Output directory (default: docs/user-guide/img/).");
     }
 }

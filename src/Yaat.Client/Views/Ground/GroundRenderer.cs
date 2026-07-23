@@ -59,7 +59,7 @@ internal readonly struct DataBlockLayout
         LineCount = lineCount;
     }
 
-    public static DataBlockLayout Compute(AircraftModel ac, float screenX, float screenY, SKPoint offset, SKPaint textPaint, bool isAirborne)
+    public static DataBlockLayout Compute(AircraftModel ac, float screenX, float screenY, SKPoint offset, TextStyle style, bool isAirborne)
     {
         float blockX = screenX + offset.X;
         float blockY = screenY + offset.Y;
@@ -85,13 +85,13 @@ internal readonly struct DataBlockLayout
         // Instructor note — always-on amber line at the bottom of the block when set.
         string line5 = ac.HasNote ? ac.Note : "";
 
-        float w1 = textPaint.MeasureText(line1);
-        float w2 = textPaint.MeasureText(line2);
-        float w3 = line3.Length > 0 ? textPaint.MeasureText(line3) : 0;
-        float w4 = line4.Length > 0 ? textPaint.MeasureText(line4) : 0;
-        float w5 = line5.Length > 0 ? textPaint.MeasureText(line5) : 0;
+        float w1 = style.Measure(line1);
+        float w2 = style.Measure(line2);
+        float w3 = line3.Length > 0 ? style.Measure(line3) : 0;
+        float w4 = line4.Length > 0 ? style.Measure(line4) : 0;
+        float w5 = line5.Length > 0 ? style.Measure(line5) : 0;
         float textW = MathF.Max(MathF.Max(w1, w2), MathF.Max(MathF.Max(w3, w4), w5));
-        float lineH = textPaint.TextSize + 2;
+        float lineH = style.LineHeight;
         int lineCount = 2;
         if (line3.Length > 0)
         {
@@ -106,7 +106,7 @@ internal readonly struct DataBlockLayout
             lineCount++;
         }
 
-        var rect = new SKRect(blockX - Pad, blockY - textPaint.TextSize - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
+        var rect = new SKRect(blockX - Pad, blockY - style.Size - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
 
         return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, line3, line4, line5, lineCount);
     }
@@ -165,7 +165,15 @@ public sealed class GroundRenderer : IDisposable
         ParkingSpot,
     }
 
-    private record struct LabelCandidate(string[] Lines, float X, float Y, LabelPriority Priority, SKPaint Paint, SKColor? ColorOverride);
+    private record struct LabelCandidate(
+        string[] Lines,
+        float X,
+        float Y,
+        LabelPriority Priority,
+        TextStyle Style,
+        SKTextAlign Align,
+        SKColor? ColorOverride
+    );
 
     private readonly SKPaint _runwayFillPaint = new()
     {
@@ -182,15 +190,9 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _runwayLabelPaint = new()
-    {
-        Color = new SKColor(180, 180, 180),
-        TextSize = 15,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-        TextAlign = SKTextAlign.Center,
-    };
+    private readonly SKPaint _runwayLabelPaint = new() { Color = new SKColor(180, 180, 180), IsAntialias = true };
+
+    private readonly SKFont _runwayLabelFont = PlatformHelper.MonospaceFont(15);
 
     private readonly SKPaint _runwayPaint = new()
     {
@@ -234,14 +236,9 @@ public sealed class GroundRenderer : IDisposable
         StrokeCap = SKStrokeCap.Round,
     };
 
-    private readonly SKPaint _taxiLabelPaint = new()
-    {
-        Color = SKColor.Parse(GroundColorScheme.DefaultTaxiLabel).WithAlpha(200),
-        TextSize = 13,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-    };
+    private readonly SKPaint _taxiLabelPaint = new() { Color = SKColor.Parse(GroundColorScheme.DefaultTaxiLabel).WithAlpha(200), IsAntialias = true };
+
+    private readonly SKFont _taxiLabelFont = PlatformHelper.MonospaceFont(13);
 
     private readonly SKPaint _hoverRoutePaint = new()
     {
@@ -271,14 +268,9 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _nodeLabelPaint = new()
-    {
-        Color = new SKColor(200, 200, 200),
-        TextSize = 12,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-    };
+    private readonly SKPaint _nodeLabelPaint = new() { Color = new SKColor(200, 200, 200), IsAntialias = true };
+
+    private readonly SKFont _nodeLabelFont = PlatformHelper.MonospaceFont(12);
 
     private readonly SKPaint _aircraftPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
 
@@ -289,13 +281,12 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _dataBlockTextPaint = new()
-    {
-        TextSize = 12,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypefaceBold,
-    };
+    private readonly SKPaint _dataBlockTextPaint = new() { IsAntialias = true };
+
+    private readonly SKFont _dataBlockTextFont = PlatformHelper.MonospaceFontBold(12);
+
+    /// <summary>Font + paint pair for ground datablock text. Mirrored by GroundCanvas's hit-test pair.</summary>
+    private TextStyle DataBlockStyle => new(_dataBlockTextFont, _dataBlockTextPaint);
 
     // Bubble pill paints — mirror the radar palette so SAY overlays read the same on both views.
     private static readonly SKColor SpeechBubbleFillColor = new(20, 60, 50, 220);
@@ -335,25 +326,20 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _bubbleTextPaint = new()
-    {
-        TextSize = 12,
-        Color = SKColors.White,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypefaceBold,
-    };
+    private readonly SKPaint _bubbleTextPaint = new() { Color = SKColors.White, IsAntialias = true };
+
+    private readonly SKFont _bubbleTextFont = PlatformHelper.MonospaceFontBold(12);
 
     /// <summary>
     /// Datablock text size in pixels. Updated from UserPreferences.GroundDatablockFontSize.
     /// </summary>
     public float DatablockTextSize
     {
-        get => _dataBlockTextPaint.TextSize;
+        get => _dataBlockTextFont.Size;
         set
         {
-            _dataBlockTextPaint.TextSize = value;
-            _bubbleTextPaint.TextSize = value;
+            _dataBlockTextFont.Size = value;
+            _bubbleTextFont.Size = value;
         }
     }
 
@@ -379,14 +365,14 @@ public sealed class GroundRenderer : IDisposable
     /// </summary>
     public float LabelTextSize
     {
-        get => _taxiLabelPaint.TextSize;
+        get => _taxiLabelFont.Size;
         set
         {
-            _taxiLabelPaint.TextSize = value;
-            _runwayLabelPaint.TextSize = value + 2;
-            _nodeLabelPaint.TextSize = value - 1;
-            _debugLabelPaint.TextSize = value + 1;
-            _debugEdgeLabelPaint.TextSize = value;
+            _taxiLabelFont.Size = value;
+            _runwayLabelFont.Size = value + 2;
+            _nodeLabelFont.Size = value - 1;
+            _debugLabelFont.Size = value + 1;
+            _debugEdgeLabelFont.Size = value;
         }
     }
 
@@ -418,15 +404,9 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _waypointTextPaint = new()
-    {
-        Color = SKColors.Black,
-        TextSize = 10,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypefaceBold,
-        TextAlign = SKTextAlign.Center,
-    };
+    private readonly SKPaint _waypointTextPaint = new() { Color = SKColors.Black, IsAntialias = true };
+
+    private readonly SKFont _waypointTextFont = PlatformHelper.MonospaceFontBold(10);
 
     private readonly SKPaint _hoverPaint = new()
     {
@@ -438,23 +418,13 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _bgPaint = new() { Color = SKColor.Parse(GroundColorScheme.DefaultBackground), Style = SKPaintStyle.Fill };
 
-    private readonly SKPaint _debugLabelPaint = new()
-    {
-        Color = new SKColor(255, 100, 255, 200),
-        TextSize = 14,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-    };
+    private readonly SKPaint _debugLabelPaint = new() { Color = new SKColor(255, 100, 255, 200), IsAntialias = true };
 
-    private readonly SKPaint _debugEdgeLabelPaint = new()
-    {
-        Color = new SKColor(100, 255, 100, 180),
-        TextSize = 13,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = PlatformHelper.MonospaceTypeface,
-    };
+    private readonly SKFont _debugLabelFont = PlatformHelper.MonospaceFont(14);
+
+    private readonly SKPaint _debugEdgeLabelPaint = new() { Color = new SKColor(100, 255, 100, 180), IsAntialias = true };
+
+    private readonly SKFont _debugEdgeLabelFont = PlatformHelper.MonospaceFont(13);
 
     private readonly SKPaint[] _shownTaxiRoutePaints;
 
@@ -679,16 +649,17 @@ public sealed class GroundRenderer : IDisposable
         var matrix = ComputeBitmapTransform(srcRect, new SKPoint(tlX, tlY), new SKPoint(trX, trY), new SKPoint(brX, brY), new SKPoint(blX, blY));
 
         byte alpha = (byte)Math.Clamp(brightness * 255 / 100, 0, 255);
-        // FilterQuality.Medium = bilinear + mipmaps in SkiaSharp 2.88. Mipmaps let Skia build
-        // a downscale chain on the GPU once and reuse it; without them, sampling an 8K×8K
-        // tower-cab image at typical airport zoom walked the full source per output pixel
-        // and ate ~30% GPU. Combined with the immutable SKImage on TowerCabImage, the GPU
-        // texture and its mip chain stay cached across redraws.
-        using var paint = new SKPaint { Color = new SKColor(255, 255, 255, alpha), FilterQuality = SKFilterQuality.Medium };
+        // Linear filtering with a linear mipmap chain. Mipmaps let Skia build a downscale chain on
+        // the GPU once and reuse it; without them, sampling an 8K×8K tower-cab image at typical
+        // airport zoom walked the full source per output pixel and ate ~30% GPU. Combined with the
+        // immutable SKImage on TowerCabImage, the GPU texture and its mip chain stay cached across
+        // redraws.
+        using var paint = new SKPaint { Color = new SKColor(255, 255, 255, alpha) };
+        var sampling = new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear);
 
         canvas.Save();
-        canvas.Concat(ref matrix);
-        canvas.DrawImage(image.Image, 0, 0, paint);
+        canvas.Concat(in matrix);
+        canvas.DrawImage(image.Image, 0, 0, sampling, paint);
         canvas.Restore();
     }
 
@@ -800,15 +771,10 @@ public sealed class GroundRenderer : IDisposable
 
     private static void DrawWeatherOverlay(SKCanvas canvas, WeatherDisplayInfo info)
     {
-        using var paint = new SKPaint
-        {
-            Color = new SKColor(0xCC, 0xCC, 0xCC), // light gray
-            TextSize = 14,
-            Typeface = PlatformHelper.MonospaceTypeface,
-            IsAntialias = true,
-        };
+        using var paint = new SKPaint { Color = new SKColor(0xCC, 0xCC, 0xCC), IsAntialias = true }; // light gray
+        using var font = PlatformHelper.MonospaceFont(14);
 
-        canvas.DrawText(info.ToDisplayString(), 10, 20, paint);
+        canvas.DrawText(info.ToDisplayString(), 10, 20, SKTextAlign.Left, font, paint);
     }
 
     private void DrawDebugOverlay(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
@@ -829,7 +795,7 @@ public sealed class GroundRenderer : IDisposable
             var mx = (from.X + to.X) / 2f;
             var my = (from.Y + to.Y) / 2f;
             string debugLabel = $"{edge.TaxiwayName} {edge.FromNodeId}-{edge.ToNodeId}";
-            canvas.DrawText(debugLabel, mx + 2, my + 4, _debugEdgeLabelPaint);
+            canvas.DrawText(debugLabel, mx + 2, my + 4, SKTextAlign.Left, _debugEdgeLabelFont, _debugEdgeLabelPaint);
         }
 
         if (layout.Arcs is not null)
@@ -845,7 +811,7 @@ public sealed class GroundRenderer : IDisposable
                 var my = (from.Y + to.Y) / 2f;
                 string arcName = arc.TaxiwayNames.Length == 1 ? arc.TaxiwayNames[0] : string.Join(" · ", arc.TaxiwayNames);
                 string debugLabel = $"⌒{arcName} {arc.FromNodeId}-{arc.ToNodeId}";
-                canvas.DrawText(debugLabel, mx + 2, my + 4, _debugEdgeLabelPaint);
+                canvas.DrawText(debugLabel, mx + 2, my + 4, SKTextAlign.Left, _debugEdgeLabelFont, _debugEdgeLabelPaint);
             }
         }
 
@@ -853,7 +819,7 @@ public sealed class GroundRenderer : IDisposable
         {
             var (sx, sy) = nodeScreenPos[node.Id];
             string debugLabel = node.Name is not null ? $"{node.Id} {node.Name} ({node.Type})" : $"{node.Id} ({node.Type})";
-            canvas.DrawText(debugLabel, sx + 5, sy - 3, _debugLabelPaint);
+            canvas.DrawText(debugLabel, sx + 5, sy - 3, SKTextAlign.Left, _debugLabelFont, _debugLabelPaint);
         }
     }
 
@@ -922,7 +888,17 @@ public sealed class GroundRenderer : IDisposable
             if (showLabels)
             {
                 string label = RunwayIdentifier.ToDisplayDesignator(rwy.Name.Replace(" - ", "/"));
-                _labelCandidates.Add(new LabelCandidate([label], mx, my + 4, LabelPriority.Runway, _runwayLabelPaint, null));
+                _labelCandidates.Add(
+                    new LabelCandidate(
+                        [label],
+                        mx,
+                        my + 4,
+                        LabelPriority.Runway,
+                        new TextStyle(_runwayLabelFont, _runwayLabelPaint),
+                        SKTextAlign.Center,
+                        null
+                    )
+                );
             }
 
             if (drawThresholdMarkers)
@@ -948,7 +924,8 @@ public sealed class GroundRenderer : IDisposable
                                 cx1 + 10,
                                 cy1 - 12,
                                 LabelPriority.Hovered,
-                                _nodeLabelPaint,
+                                new TextStyle(_nodeLabelFont, _nodeLabelPaint),
+                                SKTextAlign.Left,
                                 new SKColor(255, 255, 255)
                             )
                         );
@@ -961,7 +938,8 @@ public sealed class GroundRenderer : IDisposable
                                 cx2 + 10,
                                 cy2 - 12,
                                 LabelPriority.Hovered,
-                                _nodeLabelPaint,
+                                new TextStyle(_nodeLabelFont, _nodeLabelPaint),
+                                SKTextAlign.Left,
                                 new SKColor(255, 255, 255)
                             )
                         );
@@ -1062,7 +1040,17 @@ public sealed class GroundRenderer : IDisposable
                 }
 
                 positions.Add((mx, my));
-                _labelCandidates.Add(new LabelCandidate([edge.TaxiwayName], mx + 3, my - 3, LabelPriority.Taxiway, _taxiLabelPaint, null));
+                _labelCandidates.Add(
+                    new LabelCandidate(
+                        [edge.TaxiwayName],
+                        mx + 3,
+                        my - 3,
+                        LabelPriority.Taxiway,
+                        new TextStyle(_taxiLabelFont, _taxiLabelPaint),
+                        SKTextAlign.Left,
+                        null
+                    )
+                );
             }
         }
 
@@ -1213,7 +1201,7 @@ public sealed class GroundRenderer : IDisposable
             }
 
             canvas.DrawCircle(pos.X, pos.Y, 8f, _waypointMarkerPaint);
-            canvas.DrawText($"{i + 1}", pos.X, pos.Y + _waypointTextPaint.TextSize / 3f, _waypointTextPaint);
+            canvas.DrawText($"{i + 1}", pos.X, pos.Y + _waypointTextFont.Size / 3f, SKTextAlign.Center, _waypointTextFont, _waypointTextPaint);
         }
     }
 
@@ -1336,7 +1324,15 @@ public sealed class GroundRenderer : IDisposable
                         string hsLabel = $"HS {RunwayIdentifier.ToDisplayDesignator(node.RunwayId)}";
                         string[] lines = twyNames.Count > 0 ? [hsLabel, string.Join("/", twyNames)] : [hsLabel];
                         _labelCandidates.Add(
-                            new LabelCandidate(lines, sx + 12, sy - 14, LabelPriority.Hovered, _nodeLabelPaint, new SKColor(255, 255, 255))
+                            new LabelCandidate(
+                                lines,
+                                sx + 12,
+                                sy - 14,
+                                LabelPriority.Hovered,
+                                new TextStyle(_nodeLabelFont, _nodeLabelPaint),
+                                SKTextAlign.Left,
+                                new SKColor(255, 255, 255)
+                            )
                         );
                     }
                     else if (showHoldShort == GroundFilterMode.LabelsAndIcons)
@@ -1347,7 +1343,8 @@ public sealed class GroundRenderer : IDisposable
                                 sx + 5,
                                 sy - 3,
                                 LabelPriority.HoldShort,
-                                _nodeLabelPaint,
+                                new TextStyle(_nodeLabelFont, _nodeLabelPaint),
+                                SKTextAlign.Left,
                                 null
                             )
                         );
@@ -1380,7 +1377,7 @@ public sealed class GroundRenderer : IDisposable
                     if (node.Type == "Helipad")
                     {
                         _nodeLabelPaint.Color = NodeHelipad;
-                        canvas.DrawText("H", sx - 3, sy + 3, _nodeLabelPaint);
+                        canvas.DrawText("H", sx - 3, sy + 3, SKTextAlign.Left, _nodeLabelFont, _nodeLabelPaint);
                     }
                 }
 
@@ -1393,12 +1390,30 @@ public sealed class GroundRenderer : IDisposable
                         // read straight off the map how to route or warp to it.
                         var lines = BuildHoverLines(CommandTokenFor(node.Type, node.Name), node.Id, nodeEdgeNames);
                         _labelCandidates.Add(
-                            new LabelCandidate(lines, sx + 12, sy - 14, LabelPriority.Hovered, _nodeLabelPaint, new SKColor(255, 255, 255))
+                            new LabelCandidate(
+                                lines,
+                                sx + 12,
+                                sy - 14,
+                                LabelPriority.Hovered,
+                                new TextStyle(_nodeLabelFont, _nodeLabelPaint),
+                                SKTextAlign.Left,
+                                new SKColor(255, 255, 255)
+                            )
                         );
                     }
                     else if (mode == GroundFilterMode.LabelsAndIcons)
                     {
-                        _labelCandidates.Add(new LabelCandidate([node.Name], sx + 5, sy - 3, LabelPriority.ParkingSpot, _nodeLabelPaint, null));
+                        _labelCandidates.Add(
+                            new LabelCandidate(
+                                [node.Name],
+                                sx + 5,
+                                sy - 3,
+                                LabelPriority.ParkingSpot,
+                                new TextStyle(_nodeLabelFont, _nodeLabelPaint),
+                                SKTextAlign.Left,
+                                null
+                            )
+                        );
                     }
                 }
             }
@@ -1416,7 +1431,8 @@ public sealed class GroundRenderer : IDisposable
                             sx + 12,
                             sy - 14,
                             LabelPriority.Hovered,
-                            _nodeLabelPaint,
+                            new TextStyle(_nodeLabelFont, _nodeLabelPaint),
+                            SKTextAlign.Left,
                             new SKColor(255, 255, 255)
                         )
                     );
@@ -1973,7 +1989,7 @@ public sealed class GroundRenderer : IDisposable
             offset = resolvedOffset;
         }
 
-        var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _dataBlockTextPaint, isAirborne);
+        var layout = DataBlockLayout.Compute(ac, sx, sy, offset, DataBlockStyle, isAirborne);
 
         bool isHighlighted = highlightedCallsigns is not null && highlightedCallsigns.Contains(ac.Callsign);
         var dbColor =
@@ -1994,25 +2010,46 @@ public sealed class GroundRenderer : IDisposable
         _dataBlockLeaderPaint.Color = dbColor;
         canvas.DrawLine(sx, sy, leaderEnd.X, leaderEnd.Y, _dataBlockLeaderPaint);
 
-        canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, _dataBlockTextPaint);
-        canvas.DrawText(layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, _dataBlockTextPaint);
+        canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, SKTextAlign.Left, _dataBlockTextFont, _dataBlockTextPaint);
+        canvas.DrawText(layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, SKTextAlign.Left, _dataBlockTextFont, _dataBlockTextPaint);
         int row = 2;
         if (layout.Line3.Length > 0)
         {
-            canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + layout.LineHeight * row, _dataBlockTextPaint);
+            canvas.DrawText(
+                layout.Line3,
+                layout.TextX,
+                layout.TextY + layout.LineHeight * row,
+                SKTextAlign.Left,
+                _dataBlockTextFont,
+                _dataBlockTextPaint
+            );
             row++;
         }
 
         if (layout.Line4.Length > 0)
         {
-            canvas.DrawText(layout.Line4, layout.TextX, layout.TextY + layout.LineHeight * row, _dataBlockTextPaint);
+            canvas.DrawText(
+                layout.Line4,
+                layout.TextX,
+                layout.TextY + layout.LineHeight * row,
+                SKTextAlign.Left,
+                _dataBlockTextFont,
+                _dataBlockTextPaint
+            );
         }
 
         // Instructor note: always the bottom line of the block, drawn in amber.
         if (layout.Line5.Length > 0)
         {
             _dataBlockTextPaint.Color = NoteColor;
-            canvas.DrawText(layout.Line5, layout.TextX, layout.TextY + layout.LineHeight * (layout.LineCount - 1), _dataBlockTextPaint);
+            canvas.DrawText(
+                layout.Line5,
+                layout.TextX,
+                layout.TextY + layout.LineHeight * (layout.LineCount - 1),
+                SKTextAlign.Left,
+                _dataBlockTextFont,
+                _dataBlockTextPaint
+            );
             _dataBlockTextPaint.Color = dbColor;
         }
 
@@ -2042,11 +2079,11 @@ public sealed class GroundRenderer : IDisposable
             return null;
         }
 
-        float lineH = _bubbleTextPaint.TextSize + 2;
+        float lineH = _bubbleTextFont.Size + 2;
         float maxLineWidth = 0;
         foreach (var line in lines)
         {
-            float w = _bubbleTextPaint.MeasureText(line);
+            float w = _bubbleTextFont.MeasureText(line);
             if (w > maxLineWidth)
             {
                 maxLineWidth = w;
@@ -2067,10 +2104,10 @@ public sealed class GroundRenderer : IDisposable
         canvas.DrawRoundRect(rect, 3f, 3f, borderPaint);
 
         float textX = left + pad;
-        float baseline = top + pad + _bubbleTextPaint.TextSize;
+        float baseline = top + pad + _bubbleTextFont.Size;
         for (int i = 0; i < lines.Count; i++)
         {
-            canvas.DrawText(lines[i], textX, baseline + i * lineH, _bubbleTextPaint);
+            canvas.DrawText(lines[i], textX, baseline + i * lineH, SKTextAlign.Left, _bubbleTextFont, _bubbleTextPaint);
         }
 
         return rect;
@@ -2192,22 +2229,22 @@ public sealed class GroundRenderer : IDisposable
                 continue;
             }
 
-            var paint = label.Paint;
-            float textHeight = paint.TextSize;
-            float lineSpacing = textHeight + 2;
+            var style = label.Style;
+            float textHeight = style.Size;
+            float lineSpacing = style.LineHeight;
             int lineCount = label.Lines.Length;
 
             float maxWidth = 0;
             foreach (var line in label.Lines)
             {
-                float w = paint.MeasureText(line);
+                float w = style.Measure(line);
                 if (w > maxWidth)
                 {
                     maxWidth = w;
                 }
             }
 
-            float left = paint.TextAlign == SKTextAlign.Center ? label.X - maxWidth / 2f - 2 : label.X - 2;
+            float left = label.Align == SKTextAlign.Center ? label.X - maxWidth / 2f - 2 : label.X - 2;
             float totalHeight = textHeight + (lineCount - 1) * lineSpacing;
             var rect = new SKRect(left, label.Y - textHeight - 1, left + maxWidth + 4, label.Y + (totalHeight - textHeight) + 1);
 
@@ -2232,13 +2269,13 @@ public sealed class GroundRenderer : IDisposable
 
             if (label.ColorOverride is { } color)
             {
-                paint.Color = color;
+                style.Paint.Color = color;
             }
 
             float y = label.Y;
             foreach (var line in label.Lines)
             {
-                canvas.DrawText(line, label.X, y, paint);
+                canvas.DrawText(line, label.X, y, label.Align, style.Font, style.Paint);
                 y += lineSpacing;
             }
         }
@@ -2254,32 +2291,40 @@ public sealed class GroundRenderer : IDisposable
         _runwayFillPaint.Dispose();
         _runwayOutlinePaint.Dispose();
         _runwayLabelPaint.Dispose();
+        _runwayLabelFont.Dispose();
         _runwayPaint.Dispose();
         _taxiwayPaint.Dispose();
         _rampEdgePaint.Dispose();
         _taxiLabelPaint.Dispose();
+        _taxiLabelFont.Dispose();
         _hoverRoutePaint.Dispose();
         _previewRoutePaint.Dispose();
         _drawnRoutePaint.Dispose();
         _drawHoverPreviewPaint.Dispose();
         _waypointMarkerPaint.Dispose();
         _waypointTextPaint.Dispose();
+        _waypointTextFont.Dispose();
         _nodePaint.Dispose();
         _holdShortBarPaint.Dispose();
         _nodeLabelPaint.Dispose();
+        _nodeLabelFont.Dispose();
         _aircraftPaint.Dispose();
         _hoverPaint.Dispose();
         _dataBlockLeaderPaint.Dispose();
         _dataBlockTextPaint.Dispose();
+        _dataBlockTextFont.Dispose();
         _dataBlockBgPaint.Dispose();
         _labelBgPaint.Dispose();
         _bgPaint.Dispose();
         _debugLabelPaint.Dispose();
+        _debugLabelFont.Dispose();
         _debugEdgeLabelPaint.Dispose();
+        _debugEdgeLabelFont.Dispose();
         _bubbleFillPaint.Dispose();
         _bubbleBorderPaint.Dispose();
         _bubbleFillPaintWarning.Dispose();
         _bubbleBorderPaintWarning.Dispose();
         _bubbleTextPaint.Dispose();
+        _bubbleTextFont.Dispose();
     }
 }

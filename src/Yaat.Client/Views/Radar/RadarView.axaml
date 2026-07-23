@@ -420,7 +420,7 @@
         <!-- Radar canvas + overlay popups -->
         <Grid>
             <radar:RadarCanvas x:Name="Canvas"
-                               Aircraft="{Binding $parent[Window].DataContext.Aircraft}"
+                               Aircraft="{Binding $parent[Window].((vm:MainViewModel)DataContext).Aircraft}"
                                SelectedAircraft="{Binding SelectedAircraft}"
                                VideoMaps="{Binding ActiveVideoMaps}"
                                ShowRangeRings="{Binding ShowRangeRings}"
@@ -438,7 +438,7 @@
                                IsPlacingRangeRing="{Binding IsPlacingRangeRing}"
                                IsAdjustingRangeRingSize="{Binding IsAdjustingRangeRingSize, Mode=TwoWay}"
                                ShowTopDown="{Binding ShowTopDown}"
-                               GroundShownAirportId="{Binding $parent[Window].DataContext.GroundShownAirportId}"
+                               GroundShownAirportId="{Binding $parent[Window].((vm:MainViewModel)DataContext).GroundShownAirportId}"
                                PtlLengthMinutes="{Binding PtlLengthMinutes}"
                                PtlOwn="{Binding PtlOwn}"
                                PtlAll="{Binding PtlAll}"
@@ -459,7 +459,7 @@
                    Placement="Bottom">
                 <Border Background="#0D1A0D" BorderBrush="#1A3A1A" BorderThickness="1" Padding="6">
                     <StackPanel Spacing="4" Width="240">
-                        <TextBox x:Name="MapSearchInput" Watermark="Search by name or #..." Text="{Binding MapSearchText}" FontSize="11" FontFamily="{StaticResource MonoFont}" Foreground="#00B800" Background="#0D1A0D" KeyDown="OnMapSearchKeyDown" />
+                        <TextBox x:Name="MapSearchInput" PlaceholderText="Search by name or #..." Text="{Binding MapSearchText}" FontSize="11" FontFamily="{StaticResource MonoFont}" Foreground="#00B800" Background="#0D1A0D" KeyDown="OnMapSearchKeyDown" />
                         <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding MapToggles}">
                                 <ItemsControl.ItemTemplate>
@@ -525,13 +525,13 @@
                     <StackPanel Spacing="6" Width="280">
                         <TextBlock x:Name="WarpPopupHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
                         <TextBlock Text="Fix or FRD" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WarpPopupFrd" Watermark="e.g. SFO or SFO180010" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
+                        <TextBox x:Name="WarpPopupFrd" PlaceholderText="e.g. SFO or SFO180010" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
                         <TextBlock Text="Heading" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WarpPopupHeading" Watermark="0-360" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
+                        <TextBox x:Name="WarpPopupHeading" PlaceholderText="0-360" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
                         <TextBlock Text="Altitude (feet)" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WarpPopupAltitude" Watermark="e.g. 5000" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
+                        <TextBox x:Name="WarpPopupAltitude" PlaceholderText="e.g. 5000" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
                         <TextBlock Text="Speed (knots IAS)" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WarpPopupSpeed" Watermark="e.g. 250" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
+                        <TextBox x:Name="WarpPopupSpeed" PlaceholderText="e.g. 250" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
                         <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
                             <Button Content="OK" Click="OnWarpPopupSubmit" Padding="8,2" FontSize="11" />
                             <Button Content="Cancel" Click="OnWarpPopupCancel" Padding="8,2" FontSize="11" />
@@ -549,10 +549,10 @@
                     <StackPanel Spacing="6" Width="280">
                         <TextBlock x:Name="WaypointConditionHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
                         <TextBlock Text="Crossing altitude" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WaypointConditionAltitude" Watermark="e.g. 100, A100, B100" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWaypointConditionKeyDown" />
+                        <TextBox x:Name="WaypointConditionAltitude" PlaceholderText="e.g. 100, A100, B100" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWaypointConditionKeyDown" />
                         <TextBlock Text="A=at or above, B=at or below, plain=exact. Hundreds of feet." FontSize="10" Foreground="#777" TextWrapping="Wrap" />
                         <TextBlock Text="Commands (executed as AT condition)" FontSize="11" Foreground="#999" Margin="0,4,0,0" />
-                        <TextBox x:Name="WaypointConditionCommands" Watermark="e.g. SPD 250, FH 270" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWaypointConditionKeyDown" />
+                        <TextBox x:Name="WaypointConditionCommands" PlaceholderText="e.g. SPD 250, FH 270" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWaypointConditionKeyDown" />
                         <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
                             <Button Content="OK" Click="OnWaypointConditionSubmit" Padding="8,2" FontSize="11" />
                             <Button Content="Clear" Click="OnWaypointConditionClear" Padding="8,2" FontSize="11" />
@@ -585,7 +585,7 @@
                     <StackPanel Width="200" Spacing="4">
                         <TextBox x:Name="FilteredListText"
                                  FontSize="12" FontFamily="{StaticResource MonoFont}"
-                                 Watermark="Fix name..."
+                                 PlaceholderText="Fix name..."
                                  KeyDown="OnFilteredListKeyDown" />
                         <ListBox x:Name="FilteredListItems"
                                  MaxHeight="250"

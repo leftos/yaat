@@ -34,6 +34,33 @@ public static class PlatformHelper
     /// </summary>
     public static SKTypeface MonospaceTypefaceBold { get; } = ResolveTypeface(SKFontStyleWeight.Bold);
 
+    /// <summary>
+    /// A monospace <see cref="SKFont"/> at <paramref name="size"/> px, matching the radar/ground
+    /// rendering convention: subpixel glyph positioning on, antialiasing left at Skia's default
+    /// (<see cref="SKFontEdging.Antialias"/>).
+    /// <para>
+    /// Callers own the returned font and must dispose it. Fonts are mutable, so each caller gets its
+    /// own instance rather than a cached one — the datablock font in particular is resized at runtime
+    /// from the user's font-size preference.
+    /// </para>
+    /// </summary>
+    public static SKFont MonospaceFont(float size) =>
+        new()
+        {
+            Size = size,
+            Subpixel = true,
+            Typeface = MonospaceTypeface,
+        };
+
+    /// <summary>Bold counterpart of <see cref="MonospaceFont"/>. Caller owns and disposes the result.</summary>
+    public static SKFont MonospaceFontBold(float size) =>
+        new()
+        {
+            Size = size,
+            Subpixel = true,
+            Typeface = MonospaceTypefaceBold,
+        };
+
     private static SKTypeface ResolveTypeface(SKFontStyleWeight weight)
     {
         string[] families = ["Consolas", "Menlo", "DejaVu Sans Mono", "monospace"];

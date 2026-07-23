@@ -126,7 +126,7 @@ t,lat,lon,hdg,gs,phase,twy
 
 ## Dependencies
 
-- **SkiaSharp 2.88.9** — frame rendering
+- **SkiaSharp 3.119.4** (transitive via Avalonia 12) — frame rendering
 - **Yaat.Sim** — `GeoJsonParser`, `FaaAircraftDatabase`, `GeoMath`, `NavigationDatabase`
 - **ffmpeg** (optional) — GIF/MP4 encoding. If not available, individual frames are saved to `.tmp/frames/`
 

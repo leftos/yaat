@@ -27,7 +27,7 @@
             <TextBox x:Name="QueryBox"
                      Width="180"
                      Text="{Binding Query, Mode=TwoWay}"
-                     Watermark="callsign, field…"
+                     PlaceholderText="callsign, field…"
                      FontSize="12"
                      Padding="4,1"
                      KeyDown="OnQueryBoxKeyDown"/>

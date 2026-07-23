@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Yaat.Client;
 
@@ -7,7 +8,13 @@ namespace Yaat.GuideCapture.Capture;
 
 internal static class Runner
 {
-    public static async Task<int> RunAsync(string outDir, string? sceneFilter, IReadOnlyList<Scene> allScenes, CaptureContext ctx)
+    public static async Task<int> RunAsync(
+        string outDir,
+        string? sceneFilter,
+        IReadOnlyList<Scene> allScenes,
+        CaptureContext ctx,
+        double renderScaling
+    )
     {
         Directory.CreateDirectory(outDir);
 
@@ -31,7 +38,7 @@ internal static class Runner
         {
             try
             {
-                await CaptureOneAsync(scene, ctx, outDir);
+                await CaptureOneAsync(scene, ctx, outDir, renderScaling);
             }
             catch (Exception ex)
             {
@@ -46,7 +53,7 @@ internal static class Runner
         return failed == 0 ? 0 : 1;
     }
 
-    private static async Task CaptureOneAsync(Scene scene, CaptureContext ctx, string outDir)
+    private static async Task CaptureOneAsync(Scene scene, CaptureContext ctx, string outDir, double renderScaling)
     {
         Console.WriteLine($"Capturing {scene.Name} ({scene.Width}x{scene.Height}) ...");
 
@@ -71,6 +78,14 @@ internal static class Runner
             {
                 window.Height = scene.Height;
             }
+            // Render scaling must be applied before the first layout pass so the captured frame is
+            // rasterized at N x device pixels. Avalonia 12 exposes this on headless windows; at 1.0
+            // it is a no-op, so the default output stays byte-comparable with previous runs.
+            if (renderScaling != 1.0)
+            {
+                window.SetRenderScaling(renderScaling);
+            }
+
             window.Show();
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
@@ -87,7 +102,7 @@ internal static class Runner
                 ?? throw new InvalidOperationException("CaptureRenderedFrame returned null. UseHeadlessDrawing must be false.");
 
             var path = Path.Combine(outDir, $"{scene.Name}.png");
-            bitmap.Save(path);
+            bitmap.Save(path, PngBitmapEncoderOptions.Default);
             Console.WriteLine($"  -> {path}");
         }
         finally

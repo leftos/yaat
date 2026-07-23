@@ -806,20 +806,20 @@ public partial class FavoritesBarView : UserControl
 
         var labelBox = new TextBox
         {
-            Watermark = "Label (e.g. FH 270)",
+            PlaceholderText = "Label (e.g. FH 270)",
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),
         };
         var commandBox = new TextBox
         {
             Text = prefillCommand,
-            Watermark = "Command text (e.g. FH 270, CM 014)",
+            PlaceholderText = "Command text (e.g. FH 270, CM 014)",
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),
         };
         var groundCommandBox = new TextBox
         {
-            Watermark = "Ground command override (optional)",
+            PlaceholderText = "Ground command override (optional)",
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),
         };
@@ -994,19 +994,19 @@ public partial class FavoritesBarView : UserControl
 
         var labelBox = new TextBox
         {
-            Watermark = "Label (leave blank for spacer)",
+            PlaceholderText = "Label (leave blank for spacer)",
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),
         };
         var commandBox = new TextBox
         {
-            Watermark = "Command text",
+            PlaceholderText = "Command text",
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),
         };
         var groundCommandBox = new TextBox
         {
-            Watermark = "Ground command override (optional)",
+            PlaceholderText = "Ground command override (optional)",
             Width = 200,
             Margin = new Thickness(0, 0, 0, 4),
         };

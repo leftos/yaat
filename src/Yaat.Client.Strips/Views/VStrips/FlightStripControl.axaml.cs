@@ -77,7 +77,7 @@ public partial class FlightStripControl : UserControl
         {
             return;
         }
-        if (this.GetVisualRoot() is null)
+        if (this.GetPresentationSource() is null)
         {
             return;
         }

@@ -2,6 +2,7 @@ using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Ground;
+using Yaat.Client.Views.Map;
 
 namespace Yaat.Client.Tests.Views;
 
@@ -26,9 +27,9 @@ public class GroundDataBlockLayoutTests
         };
     }
 
-    private static SKPaint CreatePaint()
+    private static TextStyle CreateStyle()
     {
-        return new SKPaint { TextSize = 12 };
+        return new TextStyle(new SKFont { Size = 12 }, new SKPaint());
     }
 
     [Fact]
@@ -36,9 +37,9 @@ public class GroundDataBlockLayoutTests
     {
         var ac = CreateModel();
         ac.CwtCode = "E";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
-        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         Assert.Equal("E/B738 SFO", layout.Line2);
     }
@@ -47,9 +48,9 @@ public class GroundDataBlockLayoutTests
     public void Line2_OmitsCwt_WhenCwtCodeEmpty()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
-        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         Assert.Equal("B738 SFO", layout.Line2);
     }
@@ -60,9 +61,9 @@ public class GroundDataBlockLayoutTests
         var ac = CreateModel();
         ac.CwtCode = "E";
         ac.AsdexFix = "";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
-        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         Assert.Equal("E/B738", layout.Line2);
     }
@@ -72,9 +73,9 @@ public class GroundDataBlockLayoutTests
     {
         var ac = CreateModel();
         ac.TransponderMode = "C";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
-        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         Assert.Equal("", layout.Line4);
     }
@@ -84,9 +85,9 @@ public class GroundDataBlockLayoutTests
     {
         var ac = CreateModel();
         ac.TransponderMode = "Standby";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
-        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         Assert.Equal("SqStby", layout.Line4);
     }
@@ -97,9 +98,9 @@ public class GroundDataBlockLayoutTests
         var ac = CreateModel();
         ac.Altitude = 1500;
         ac.TransponderMode = "Standby";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
-        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: true);
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: true);
 
         Assert.NotEqual("", layout.Line3); // altitude line is present when airborne
         Assert.Equal("SqStby", layout.Line4);
@@ -109,13 +110,13 @@ public class GroundDataBlockLayoutTests
     public void RectGrowsByExactlyLineHeight_WhenStandby_OnGround()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         ac.TransponderMode = "C";
-        var charlie = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var charlie = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         ac.TransponderMode = "Standby";
-        var standby = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var standby = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         float delta = standby.Rect.Bottom - charlie.Rect.Bottom;
         Assert.Equal(charlie.LineHeight, delta, precision: 3);
@@ -125,9 +126,9 @@ public class GroundDataBlockLayoutTests
     public void Note_BlankWhenNoNote()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
-        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         Assert.Equal("", layout.Line5);
     }
@@ -136,12 +137,12 @@ public class GroundDataBlockLayoutTests
     public void Note_RendersAsLine5_AndGrowsRectByOneLine()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
-        var baseline = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var baseline = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         ac.Note = "Trainee struggling";
-        var withNote = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), paint, isAirborne: false);
+        var withNote = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
         Assert.Equal("Trainee struggling", withNote.Line5);
         Assert.Equal(baseline.LineCount + 1, withNote.LineCount);
@@ -160,11 +161,11 @@ public class GroundDataBlockLayoutTests
     {
         var ac = CreateModel();
         ac.CwtCode = "E";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var offset = new SKPoint(30, -25);
-        var atOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, paint, isAirborne: false).Rect;
-        var positioned = DataBlockLayout.Compute(ac, 100, 200, offset, paint, isAirborne: false).Rect;
+        var atOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, style, isAirborne: false).Rect;
+        var positioned = DataBlockLayout.Compute(ac, 100, 200, offset, style, isAirborne: false).Rect;
 
         Assert.Equal(atOrigin.Left + 100 + offset.X, positioned.Left, precision: 3);
         Assert.Equal(atOrigin.Top + 200 + offset.Y, positioned.Top, precision: 3);

@@ -59,7 +59,7 @@
                              AirportCenterLat="{Binding AirportCenterLat}"
                              AirportCenterLon="{Binding AirportCenterLon}"
                              AirportElevation="{Binding AirportElevation}"
-                             Aircraft="{Binding $parent[Window].DataContext.Aircraft}"
+                             Aircraft="{Binding $parent[Window].((vm:MainViewModel)DataContext).Aircraft}"
                              WeatherInfo="{Binding WeatherInfo}"
                              ShowRunwayLabels="{Binding ShowRunwayLabels}"
                              ShowTaxiwayLabels="{Binding ShowTaxiwayLabels}"

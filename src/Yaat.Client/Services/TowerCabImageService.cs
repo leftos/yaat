@@ -159,7 +159,9 @@ public sealed class TowerCabImageService : IDisposable
                 int newW = (int)Math.Round(decoded.Width * scale);
                 int newH = (int)Math.Round(decoded.Height * scale);
                 var info = new SKImageInfo(newW, newH, decoded.ColorType, decoded.AlphaType);
-                working = decoded.Resize(info, SKFilterQuality.High);
+                // Mitchell cubic: the quality-appropriate kernel for a one-shot downscale of a
+                // photographic tower-cab background, where this runs once per image at load.
+                working = decoded.Resize(info, new SKSamplingOptions(SKCubicResampler.Mitchell));
                 if (working is null)
                 {
                     _log.LogWarning("Failed to downscale tower cab image {AirportId}", airportId);

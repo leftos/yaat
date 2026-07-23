@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:Yaat.Client.Views"
         x:Class="Yaat.Client.Views.LoadScenarioWindow"
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Load Scenario"
@@ -60,7 +61,7 @@
                     <ListBox x:Name="ArtccScenarioList"
                              SelectionMode="Single">
                         <ListBox.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="views:ArtccScenarioItem">
                                 <TextBlock Text="{Binding Name}" />
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -82,7 +83,7 @@
                             <TextBox Grid.Column="0"
                                      x:Name="FolderPathBox"
                                      IsReadOnly="True"
-                                     Watermark="Select a folder…" />
+                                     PlaceholderText="Select a folder…" />
                             <Button Grid.Column="1"
                                     Content="Browse…"
                                     x:Name="BrowseButton"
@@ -110,7 +111,7 @@
                     <ListBox x:Name="LocalScenarioList"
                              SelectionMode="Single">
                         <ListBox.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="views:LocalScenarioItem">
                                 <TextBlock Text="{Binding Name}" />
                             </DataTemplate>
                         </ListBox.ItemTemplate>

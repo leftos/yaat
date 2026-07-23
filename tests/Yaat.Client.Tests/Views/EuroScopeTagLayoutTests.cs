@@ -1,6 +1,7 @@
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 
@@ -26,9 +27,9 @@ public class EuroScopeTagLayoutTests
         };
     }
 
-    private static SKPaint CreatePaint()
+    private static TextStyle CreateStyle()
     {
-        return new SKPaint { TextSize = 12 };
+        return new TextStyle(new SKFont { Size = 12 }, new SKPaint());
     }
 
     [Fact]
@@ -36,13 +37,13 @@ public class EuroScopeTagLayoutTests
     {
         var ac = CreateModel();
         ac.TransponderMode = "C";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -57,13 +58,13 @@ public class EuroScopeTagLayoutTests
     {
         var ac = CreateModel();
         ac.TransponderMode = "Standby";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -78,15 +79,15 @@ public class EuroScopeTagLayoutTests
     public void BoundsGrowByExactlyLineHeight_WhenStandby_NoLine4Fields()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
-        float lineH = paint.TextSize + 2;
+        var style = CreateStyle();
+        float lineH = style.LineHeight;
 
         ac.TransponderMode = "C";
         var charlie = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -98,7 +99,7 @@ public class EuroScopeTagLayoutTests
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -114,14 +115,14 @@ public class EuroScopeTagLayoutTests
     {
         var ac = CreateModel();
         ac.TransponderMode = "Standby";
-        using var paint = CreatePaint();
-        float lineH = paint.TextSize + 2;
+        var style = CreateStyle();
+        float lineH = style.LineHeight;
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -141,14 +142,14 @@ public class EuroScopeTagLayoutTests
         var ac = CreateModel();
         ac.TransponderMode = "Standby";
         ac.AssignedRunway = "28R";
-        using var paint = CreatePaint();
-        float lineH = paint.TextSize + 2;
+        var style = CreateStyle();
+        float lineH = style.LineHeight;
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -165,13 +166,13 @@ public class EuroScopeTagLayoutTests
     {
         var ac = CreateModel();
         ac.NoLandingClearanceWarningActive = false;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: true,
             showConflictAlerts: false,
@@ -186,13 +187,13 @@ public class EuroScopeTagLayoutTests
     {
         var ac = CreateModel();
         ac.NoLandingClearanceWarningActive = true;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -208,7 +209,7 @@ public class EuroScopeTagLayoutTests
         var ac = CreateModel();
         ac.NoLandingClearanceWarningActive = true;
         ac.IsAutoClearedToLand = true;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         for (int i = 0; i < 5; i++)
         {
@@ -216,7 +217,7 @@ public class EuroScopeTagLayoutTests
                 ac,
                 originX: 100,
                 originY: 100,
-                paint,
+                style,
                 localUserInitials: null,
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
@@ -232,7 +233,7 @@ public class EuroScopeTagLayoutTests
     {
         var ac = CreateModel();
         ac.NoLandingClearanceWarningActive = true;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         bool seenOn = false;
         bool seenOff = false;
@@ -242,7 +243,7 @@ public class EuroScopeTagLayoutTests
                 ac,
                 originX: 100,
                 originY: 100,
-                paint,
+                style,
                 localUserInitials: null,
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
@@ -267,14 +268,14 @@ public class EuroScopeTagLayoutTests
     public void NoLandingClearance_BoundsReserveSpaceEvenDuringOffPhase()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         ac.NoLandingClearanceWarningActive = false;
         var baseline = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: true,
             showConflictAlerts: false,
@@ -289,7 +290,7 @@ public class EuroScopeTagLayoutTests
                 ac,
                 originX: 100,
                 originY: 100,
-                paint,
+                style,
                 localUserInitials: null,
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
@@ -301,7 +302,7 @@ public class EuroScopeTagLayoutTests
 
         Assert.Single(warningHeights);
         float delta = warningHeights.First() - baseline.Bounds.Height;
-        Assert.Equal(paint.TextSize + 2, delta, precision: 3);
+        Assert.Equal(style.LineHeight, delta, precision: 3);
     }
 
     /// <summary>Conflict peer 2.0 nm east of <see cref="CreateModel"/> and 800 ft below it.</summary>
@@ -324,13 +325,13 @@ public class EuroScopeTagLayoutTests
     {
         var ac = CreateModel();
         var peer = CreateConflictPeer();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var baseline = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: true,
@@ -346,7 +347,7 @@ public class EuroScopeTagLayoutTests
                 ac,
                 originX: 100,
                 originY: 100,
-                paint,
+                style,
                 localUserInitials: null,
                 showNoLandingClearance: false,
                 showConflictAlerts: true,
@@ -360,7 +361,7 @@ public class EuroScopeTagLayoutTests
         Assert.Single(conflictHeights);
         Assert.Single(conflictWidths);
         float delta = conflictHeights.First() - baseline.Bounds.Height;
-        Assert.Equal(paint.TextSize + 2, delta, precision: 3);
+        Assert.Equal(style.LineHeight, delta, precision: 3);
     }
 
     [Fact]
@@ -369,7 +370,7 @@ public class EuroScopeTagLayoutTests
         var ac = CreateModel();
         ac.ConflictPeerCallsign = "SWA1234";
         ac.Owner = "AB";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         // Sample across a full flash cycle so the on-phase is guaranteed to be observed.
         TagFieldRect? conflictField = null;
@@ -379,7 +380,7 @@ public class EuroScopeTagLayoutTests
                 ac,
                 originX: 100,
                 originY: 100,
-                paint,
+                style,
                 localUserInitials: null,
                 showNoLandingClearance: false,
                 showConflictAlerts: true,
@@ -410,13 +411,13 @@ public class EuroScopeTagLayoutTests
         ac.AircraftType = "C182";
         ac.FiledAircraftType = "";
         ac.CwtCode = "L";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -431,13 +432,13 @@ public class EuroScopeTagLayoutTests
     public void NoteField_AbsentWhenNoNote()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -451,14 +452,14 @@ public class EuroScopeTagLayoutTests
     public void NoteField_AppearsAtBottom_AndGrowsBounds_WhenSet()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
-        float lineH = paint.TextSize + 2;
+        var style = CreateStyle();
+        float lineH = style.LineHeight;
 
         var baseline = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -470,7 +471,7 @@ public class EuroScopeTagLayoutTests
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -492,13 +493,13 @@ public class EuroScopeTagLayoutTests
         ac.TransponderMode = "C";
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -515,13 +516,13 @@ public class EuroScopeTagLayoutTests
         var ac = CreateModel();
         ac.BeaconCode = 301;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -537,13 +538,13 @@ public class EuroScopeTagLayoutTests
         var ac = CreateModel();
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 0;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -562,13 +563,13 @@ public class EuroScopeTagLayoutTests
         ac.TransponderMode = mode;
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,
@@ -584,13 +585,13 @@ public class EuroScopeTagLayoutTests
         var ac = CreateModel();
         ac.BeaconCode = 7700;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var result = EuroScopeTagLayout.Layout(
             ac,
             originX: 100,
             originY: 100,
-            paint,
+            style,
             localUserInitials: null,
             showNoLandingClearance: false,
             showConflictAlerts: false,

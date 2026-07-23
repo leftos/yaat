@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Yaat.Client.Models;
+using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
@@ -57,7 +58,7 @@ public static class EuroScopeTagLayout
         AircraftModel ac,
         float originX,
         float originY,
-        SKPaint paint,
+        TextStyle style,
         string? localUserInitials,
         bool showNoLandingClearance,
         bool showConflictAlerts,
@@ -65,20 +66,20 @@ public static class EuroScopeTagLayout
     )
     {
         var fields = new List<TagFieldRect>(12);
-        float lineH = paint.TextSize + 2;
+        float lineH = style.LineHeight;
 
         float maxWidth = 0;
         int lineCount = 0;
 
         // Line 1: owner marker + callsign
-        float y1Top = originY - paint.TextSize;
+        float y1Top = originY - style.Size;
         float y1Bot = originY;
         float x = originX;
 
         string owner = OwnerMarker(ac);
-        x = AddField(fields, TagFieldId.Owner, owner, x, y1Top, y1Bot, paint);
+        x = AddField(fields, TagFieldId.Owner, owner, x, y1Top, y1Bot, style);
         string callsign = ac.AutoDeletePending ? $"{ac.Callsign}*" : ac.Callsign;
-        x = AddField(fields, TagFieldId.Callsign, callsign, x, y1Top, y1Bot, paint);
+        x = AddField(fields, TagFieldId.Callsign, callsign, x, y1Top, y1Bot, style);
         maxWidth = MathF.Max(maxWidth, x - originX);
         lineCount = 1;
 
@@ -89,11 +90,11 @@ public static class EuroScopeTagLayout
         string typeCwt = FormatTypeCwt(ac);
         if (typeCwt.Length > 0)
         {
-            x = AddField(fields, TagFieldId.TypeCwt, typeCwt, x, y2Top, y2Bot, paint);
+            x = AddField(fields, TagFieldId.TypeCwt, typeCwt, x, y2Top, y2Bot, style);
         }
         if (!string.IsNullOrEmpty(ac.Destination))
         {
-            x = AddField(fields, TagFieldId.Destination, ac.Destination, x, y2Top, y2Bot, paint);
+            x = AddField(fields, TagFieldId.Destination, ac.Destination, x, y2Top, y2Bot, style);
         }
         if (x > originX)
         {
@@ -107,16 +108,16 @@ public static class EuroScopeTagLayout
         x = originX;
 
         string curAlt = ((int)ac.Altitude / 100).ToString("D3");
-        x = AddField(fields, TagFieldId.CurrentAltitude, curAlt, x, y3Top, y3Bot, paint);
+        x = AddField(fields, TagFieldId.CurrentAltitude, curAlt, x, y3Top, y3Bot, style);
 
         string asgnAlt = FormatAssignedAltitude(ac);
-        x = AddField(fields, TagFieldId.AssignedAltitude, asgnAlt, x, y3Top, y3Bot, paint);
+        x = AddField(fields, TagFieldId.AssignedAltitude, asgnAlt, x, y3Top, y3Bot, style);
 
         string asp = FormatAssignedSpeed(ac);
-        x = AddField(fields, TagFieldId.AssignedSpeed, asp, x, y3Top, y3Bot, paint);
+        x = AddField(fields, TagFieldId.AssignedSpeed, asp, x, y3Top, y3Bot, style);
 
         string ahdg = FormatAssignedHeading(ac);
-        x = AddField(fields, TagFieldId.AssignedHeading, ahdg, x, y3Top, y3Bot, paint);
+        x = AddField(fields, TagFieldId.AssignedHeading, ahdg, x, y3Top, y3Bot, style);
 
         maxWidth = MathF.Max(maxWidth, x - originX);
         lineCount = 3;
@@ -146,16 +147,16 @@ public static class EuroScopeTagLayout
                     x,
                     y4Top,
                     y4Bot,
-                    paint
+                    style
                 );
             }
             if (hasSp1)
             {
-                x = AddField(fields, TagFieldId.Scratchpad1, $".{effectiveSp1}", x, y4Top, y4Bot, paint);
+                x = AddField(fields, TagFieldId.Scratchpad1, $".{effectiveSp1}", x, y4Top, y4Bot, style);
             }
             if (hasSp2)
             {
-                x = AddField(fields, TagFieldId.Scratchpad2, $"+{ac.Scratchpad2}", x, y4Top, y4Bot, paint);
+                x = AddField(fields, TagFieldId.Scratchpad2, $"+{ac.Scratchpad2}", x, y4Top, y4Bot, style);
             }
             if (hasHandoff)
             {
@@ -163,7 +164,7 @@ public static class EuroScopeTagLayout
                 bool show = Environment.TickCount64 / 500 % 2 == 0;
                 if (show)
                 {
-                    x = AddField(fields, TagFieldId.Handoff, $">{ac.HandoffDisplay}", x, y4Top, y4Bot, paint);
+                    x = AddField(fields, TagFieldId.Handoff, $">{ac.HandoffDisplay}", x, y4Top, y4Bot, style);
                 }
             }
             maxWidth = MathF.Max(maxWidth, x - originX);
@@ -177,9 +178,9 @@ public static class EuroScopeTagLayout
         if (RadarDatablockLayout.TryGetSquawkMismatch(ac, out string reportedCode, out string assignedCode))
         {
             float yTop = lastLineYTop + lineH;
-            float yBot = yTop + paint.TextSize;
+            float yBot = yTop + style.Size;
             x = originX;
-            x = AddField(fields, TagFieldId.Squawk, $"{reportedCode} {assignedCode}", x, yTop, yBot, paint);
+            x = AddField(fields, TagFieldId.Squawk, $"{reportedCode} {assignedCode}", x, yTop, yBot, style);
             maxWidth = MathF.Max(maxWidth, x - originX);
             lineCount++;
             lastLineYTop = yTop;
@@ -190,9 +191,9 @@ public static class EuroScopeTagLayout
         if (ac.TransponderMode == "Standby")
         {
             float yTop = lastLineYTop + lineH;
-            float yBot = yTop + paint.TextSize;
+            float yBot = yTop + style.Size;
             x = originX;
-            x = AddField(fields, TagFieldId.ModeC, "ModeC", x, yTop, yBot, paint);
+            x = AddField(fields, TagFieldId.ModeC, "ModeC", x, yTop, yBot, style);
             maxWidth = MathF.Max(maxWidth, x - originX);
             lineCount++;
             lastLineYTop = yTop;
@@ -206,10 +207,10 @@ public static class EuroScopeTagLayout
         if (noLndgClncActive)
         {
             float yTop = lastLineYTop + lineH;
-            float yBot = yTop + paint.TextSize;
+            float yBot = yTop + style.Size;
             // Reserve the line slot in the bounds even when the flash is off-phase so the
             // tag height doesn't pulse.
-            float reservedWidth = paint.MeasureText(RadarDatablockLayout.NoLandingClearanceText);
+            float reservedWidth = style.Measure(RadarDatablockLayout.NoLandingClearanceText);
             maxWidth = MathF.Max(maxWidth, reservedWidth);
             lineCount++;
 
@@ -217,7 +218,7 @@ public static class EuroScopeTagLayout
             if (flashOn)
             {
                 x = originX;
-                AddField(fields, TagFieldId.NoLandingClearance, RadarDatablockLayout.NoLandingClearanceText, x, yTop, yBot, paint);
+                AddField(fields, TagFieldId.NoLandingClearance, RadarDatablockLayout.NoLandingClearanceText, x, yTop, yBot, style);
             }
             lastLineYTop = yTop;
         }
@@ -227,18 +228,18 @@ public static class EuroScopeTagLayout
         if (conflictActive)
         {
             float yTop = lastLineYTop + lineH;
-            float yBot = yTop + paint.TextSize;
+            float yBot = yTop + style.Size;
             // Measure the stable text (built regardless of flash phase) so the reserved width tracks
             // the separation values without pulsing between phases.
             string conflictText = RadarDatablockLayout.BuildConflictLine(ac, conflictPeer);
-            maxWidth = MathF.Max(maxWidth, paint.MeasureText(conflictText));
+            maxWidth = MathF.Max(maxWidth, style.Measure(conflictText));
             lineCount++;
 
             bool flashOn = Environment.TickCount64 / 500 % 2 == 0;
             if (flashOn)
             {
                 x = originX;
-                AddField(fields, TagFieldId.ConflictAlert, conflictText, x, yTop, yBot, paint);
+                AddField(fields, TagFieldId.ConflictAlert, conflictText, x, yTop, yBot, style);
             }
             lastLineYTop = yTop;
         }
@@ -247,9 +248,9 @@ public static class EuroScopeTagLayout
         if (ac.HasNote)
         {
             float yTop = lastLineYTop + lineH;
-            float yBot = yTop + paint.TextSize;
+            float yBot = yTop + style.Size;
             x = originX;
-            x = AddField(fields, TagFieldId.Note, ac.Note, x, yTop, yBot, paint);
+            x = AddField(fields, TagFieldId.Note, ac.Note, x, yTop, yBot, style);
             maxWidth = MathF.Max(maxWidth, x - originX);
             lineCount++;
             lastLineYTop = yTop;
@@ -257,7 +258,7 @@ public static class EuroScopeTagLayout
 
         var bounds = new SKRect(
             originX - Padding,
-            originY - paint.TextSize - Padding,
+            originY - style.Size - Padding,
             originX + maxWidth + Padding,
             originY + (lineCount - 1) * lineH + Padding
         );
@@ -265,13 +266,13 @@ public static class EuroScopeTagLayout
         return new EuroScopeTagResult(bounds, fields);
     }
 
-    private static float AddField(List<TagFieldRect> fields, TagFieldId id, string text, float x, float top, float bottom, SKPaint paint)
+    private static float AddField(List<TagFieldRect> fields, TagFieldId id, string text, float x, float top, float bottom, TextStyle style)
     {
         if (string.IsNullOrEmpty(text))
         {
             return x;
         }
-        float width = paint.MeasureText(text);
+        float width = style.Measure(text);
         var rect = new SKRect(x, top, x + width, bottom);
         fields.Add(new TagFieldRect(id, rect, text));
         return x + width + FieldGap;

@@ -1,8 +1,10 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Yaat.Client.ViewModels"
         xmlns:ground="using:Yaat.Client.Views.Ground"
         xmlns:views="using:Yaat.Client.Views"
         x:Class="Yaat.Client.Views.Ground.GroundViewWindow"
+        x:DataType="vm:MainViewModel"
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Ground View">
 

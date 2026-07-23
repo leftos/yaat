@@ -7,6 +7,7 @@
         xmlns:radar="using:Yaat.Client.Views.Radar"
         xmlns:vstrips="using:Yaat.Client.Views.VStrips"
         x:Class="Yaat.Client.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="YAAT">
 
@@ -205,7 +206,7 @@
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="vm:TimelineBookmarkVm">
+                            <DataTemplate DataType="vm:TimelineBookmarkVm" x:DataType="vm:TimelineBookmarkVm">
                                 <Border Width="{Binding MarkerWidth}"
                                         Height="{Binding MarkerHeight}"
                                         Background="{Binding FillBrush}"
@@ -234,7 +235,7 @@
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="vm:TimelineMarkerVm">
+                            <DataTemplate DataType="vm:TimelineMarkerVm" x:DataType="vm:TimelineMarkerVm">
                                 <Border Width="{Binding MarkerWidth}"
                                         Height="{Binding MarkerHeight}"
                                         Background="{Binding FillBrush}"
@@ -292,7 +293,7 @@
                                                  Background="Transparent"
                                                  IsVisible="{Binding HasBookmarks}">
                                             <ListBox.ItemTemplate>
-                                                <DataTemplate DataType="vm:TimelineBookmarkVm">
+                                                <DataTemplate DataType="vm:TimelineBookmarkVm" x:DataType="vm:TimelineBookmarkVm">
                                                     <Grid ColumnDefinitions="*,Auto,Auto">
                                                         <Button Grid.Column="0"
                                                                 Content="{Binding ListLabel}"

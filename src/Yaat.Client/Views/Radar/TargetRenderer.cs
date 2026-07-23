@@ -79,13 +79,12 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _dataBlockPaint = new()
-    {
-        TextSize = 12,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
-    };
+    private readonly SKPaint _dataBlockPaint = new() { IsAntialias = true };
+
+    private readonly SKFont _dataBlockFont = Services.PlatformHelper.MonospaceFontBold(12);
+
+    /// <summary>Font + paint pair for datablock text. Shared with the hit-test path via the layout helpers.</summary>
+    private TextStyle DataBlockStyle => new(_dataBlockFont, _dataBlockPaint);
 
     private readonly SKPaint _historyPaint = new()
     {
@@ -132,14 +131,9 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _tpaTextPaint = new()
-    {
-        TextSize = 11,
-        Color = TpaColor,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
-    };
+    private readonly SKPaint _tpaTextPaint = new() { Color = TpaColor, IsAntialias = true };
+
+    private readonly SKFont _tpaTextFont = Services.PlatformHelper.MonospaceFontBold(11);
 
     private readonly SKPaint _tpaLabelBackingPaint = new()
     {
@@ -178,14 +172,9 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _bubbleTextPaint = new()
-    {
-        TextSize = 12,
-        Color = SpeechBubbleTextColor,
-        IsAntialias = true,
-        SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
-    };
+    private readonly SKPaint _bubbleTextPaint = new() { Color = SpeechBubbleTextColor, IsAntialias = true };
+
+    private readonly SKFont _bubbleTextFont = Services.PlatformHelper.MonospaceFontBold(12);
 
     /// <summary>
     /// Half-angle (degrees) of the instructor TPA Cone overlay. CRC draws the manual TPA cone as a
@@ -250,11 +239,11 @@ public sealed class TargetRenderer : IDisposable
     /// <summary>Datablock text size in pixels. Updated from UserPreferences via RadarView.SyncAssignmentTint.</summary>
     public float DatablockTextSize
     {
-        get => _dataBlockPaint.TextSize;
+        get => _dataBlockFont.Size;
         set
         {
-            _dataBlockPaint.TextSize = value;
-            _bubbleTextPaint.TextSize = value;
+            _dataBlockFont.Size = value;
+            _bubbleTextFont.Size = value;
         }
     }
 
@@ -644,14 +633,14 @@ public sealed class TargetRenderer : IDisposable
     private void DrawTpaSizeLabel(SKCanvas canvas, float centerX, float centerY, double sizeNm)
     {
         var text = sizeNm.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
-        var width = _tpaTextPaint.MeasureText(text);
-        var height = _tpaTextPaint.TextSize;
+        var width = _tpaTextFont.MeasureText(text);
+        var height = _tpaTextFont.Size;
         var baselineX = centerX - (width / 2f);
         var baselineY = centerY + (height / 2f);
 
         // Black backing rect keeps the value legible over targets / video maps (mirrors CRC's RenderQuad).
         canvas.DrawRect(baselineX - 2f, baselineY - height - 1f, width + 4f, height + 4f, _tpaLabelBackingPaint);
-        canvas.DrawText(text, baselineX, baselineY, _tpaTextPaint);
+        canvas.DrawText(text, baselineX, baselineY, SKTextAlign.Left, _tpaTextFont, _tpaTextPaint);
     }
 
     private static bool ShouldShowPtl(AircraftModel ac, bool ptlOwn, bool ptlAll)
@@ -702,7 +691,7 @@ public sealed class TargetRenderer : IDisposable
     {
         if (altTint is not { } tint || line.Length == 0)
         {
-            canvas.DrawText(line, x, baseline, _dataBlockPaint);
+            canvas.DrawText(line, x, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
             return;
         }
 
@@ -710,12 +699,12 @@ public sealed class TargetRenderer : IDisposable
         string altToken = space < 0 ? line : line[..space];
         var prev = _dataBlockPaint.Color;
         _dataBlockPaint.Color = tint;
-        canvas.DrawText(altToken, x, baseline, _dataBlockPaint);
+        canvas.DrawText(altToken, x, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
         _dataBlockPaint.Color = prev;
         if (space >= 0)
         {
-            float altWidth = _dataBlockPaint.MeasureText(altToken);
-            canvas.DrawText(line[space..], x + altWidth, baseline, _dataBlockPaint);
+            float altWidth = _dataBlockFont.MeasureText(altToken);
+            canvas.DrawText(line[space..], x + altWidth, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
         }
     }
 
@@ -729,16 +718,16 @@ public sealed class TargetRenderer : IDisposable
         int space = line.IndexOf(' ');
         string reported = space < 0 ? line : line[..space];
         _dataBlockPaint.Color = color;
-        canvas.DrawText(reported, x, baseline, _dataBlockPaint);
+        canvas.DrawText(reported, x, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
         if (space < 0)
         {
             return;
         }
 
-        float reportedWidth = _dataBlockPaint.MeasureText(reported);
+        float reportedWidth = _dataBlockFont.MeasureText(reported);
         bool blinkOff = Environment.TickCount64 / 500 % 2 != 0;
         _dataBlockPaint.Color = blinkOff ? DimColor(color, 0.25f) : color;
-        canvas.DrawText(line[space..], x + reportedWidth, baseline, _dataBlockPaint);
+        canvas.DrawText(line[space..], x + reportedWidth, baseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
         _dataBlockPaint.Color = color;
     }
 
@@ -787,7 +776,7 @@ public sealed class TargetRenderer : IDisposable
         // Full STARS block, optionally annotated with the student's (LDB)/(PDB) marker.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, _dataBlockPaint, FlashNoLandingClearance, ShowConflictAlerts, ResolveConflictPeer(ac), marker)
+            .Compute(ac, 0, 0, DataBlockStyle, FlashNoLandingClearance, ShowConflictAlerts, ResolveConflictPeer(ac), marker)
             .Rect;
         var offset = RadarDatablockLayout.ResolveBlockOffset(
             ac,
@@ -804,7 +793,7 @@ public sealed class TargetRenderer : IDisposable
             ac,
             blockX,
             blockY,
-            _dataBlockPaint,
+            DataBlockStyle,
             FlashNoLandingClearance,
             ShowConflictAlerts,
             ResolveConflictPeer(ac),
@@ -820,7 +809,7 @@ public sealed class TargetRenderer : IDisposable
         _leaderPaint.Color = color;
         canvas.DrawLine(cx, cy, leaderEndStars.X, leaderEndStars.Y, _leaderPaint);
 
-        canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, _dataBlockPaint);
+        canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
         DrawAltitudeLine(canvas, layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, ResolveMvaAltitudeTint(ac));
 
         int row = 2;
@@ -836,7 +825,14 @@ public sealed class TargetRenderer : IDisposable
             // unconditionally — otherwise ModeC and the warning line would jump up during the off-phase.
             if (layout.Line3.Length > 0)
             {
-                canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
+                canvas.DrawText(
+                    layout.Line3,
+                    layout.TextX,
+                    layout.TextY + row * layout.LineHeight,
+                    SKTextAlign.Left,
+                    _dataBlockFont,
+                    _dataBlockPaint
+                );
             }
             row++;
         }
@@ -844,8 +840,8 @@ public sealed class TargetRenderer : IDisposable
         if (layout.Line4.Length > 0)
         {
             float modeCBaseline = layout.TextY + row * layout.LineHeight;
-            canvas.DrawText(layout.Line4, layout.TextX, modeCBaseline, _dataBlockPaint);
-            DrawStrikethrough(canvas, layout.TextX, modeCBaseline, layout.Line4, _dataBlockPaint, color);
+            canvas.DrawText(layout.Line4, layout.TextX, modeCBaseline, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
+            DrawStrikethrough(canvas, layout.TextX, modeCBaseline, layout.Line4, DataBlockStyle, color);
             row++;
         }
 
@@ -857,7 +853,14 @@ public sealed class TargetRenderer : IDisposable
             {
                 var prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = SKColors.Red;
-                canvas.DrawText(layout.Line5, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
+                canvas.DrawText(
+                    layout.Line5,
+                    layout.TextX,
+                    layout.TextY + row * layout.LineHeight,
+                    SKTextAlign.Left,
+                    _dataBlockFont,
+                    _dataBlockPaint
+                );
                 _dataBlockPaint.Color = prev;
             }
             row++;
@@ -867,7 +870,14 @@ public sealed class TargetRenderer : IDisposable
         {
             var prev = _dataBlockPaint.Color;
             _dataBlockPaint.Color = ConflictAlertColor;
-            canvas.DrawText(layout.ConflictLine, layout.TextX, layout.TextY + row * layout.LineHeight, _dataBlockPaint);
+            canvas.DrawText(
+                layout.ConflictLine,
+                layout.TextX,
+                layout.TextY + row * layout.LineHeight,
+                SKTextAlign.Left,
+                _dataBlockFont,
+                _dataBlockPaint
+            );
             _dataBlockPaint.Color = prev;
         }
 
@@ -876,7 +886,14 @@ public sealed class TargetRenderer : IDisposable
         {
             var prev = _dataBlockPaint.Color;
             _dataBlockPaint.Color = NoteColor;
-            canvas.DrawText(layout.Line6, layout.TextX, layout.TextY + (layout.LineCount - 1) * layout.LineHeight, _dataBlockPaint);
+            canvas.DrawText(
+                layout.Line6,
+                layout.TextX,
+                layout.TextY + (layout.LineCount - 1) * layout.LineHeight,
+                SKTextAlign.Left,
+                _dataBlockFont,
+                _dataBlockPaint
+            );
             _dataBlockPaint.Color = prev;
         }
 
@@ -896,7 +913,7 @@ public sealed class TargetRenderer : IDisposable
         SKPoint? deconflictOffset
     )
     {
-        var rectAtOrigin = RadarDatablockLayout.ReducedRect(lines, _dataBlockPaint, 0, 0);
+        var rectAtOrigin = RadarDatablockLayout.ReducedRect(lines, DataBlockStyle, 0, 0);
         var offset = RadarDatablockLayout.ResolveBlockOffset(
             ac,
             SyncStudentLeaderDirection,
@@ -907,7 +924,7 @@ public sealed class TargetRenderer : IDisposable
         );
         float blockX = cx + offset.X;
         float blockY = cy + offset.Y;
-        var rect = RadarDatablockLayout.ReducedRect(lines, _dataBlockPaint, blockX, blockY);
+        var rect = RadarDatablockLayout.ReducedRect(lines, DataBlockStyle, blockX, blockY);
 
         if (isSelected)
         {
@@ -918,28 +935,28 @@ public sealed class TargetRenderer : IDisposable
         _leaderPaint.Color = color;
         canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
 
-        float lineH = _dataBlockPaint.TextSize + 2;
+        float lineH = DataBlockStyle.LineHeight;
         for (int i = 0; i < lines.Count; i++)
         {
-            canvas.DrawText(lines[i], blockX, blockY + (i * lineH), _dataBlockPaint);
+            canvas.DrawText(lines[i], blockX, blockY + (i * lineH), SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
         }
 
         return rect;
     }
 
-    private void DrawStrikethrough(SKCanvas canvas, float textX, float textBaseline, string text, SKPaint textPaint, SKColor color)
+    private void DrawStrikethrough(SKCanvas canvas, float textX, float textBaseline, string text, TextStyle style, SKColor color)
     {
-        textPaint.GetFontMetrics(out var metrics);
+        var metrics = style.Font.Metrics;
         // StrikeoutPosition is negative (above baseline). Some fonts report null/0 — fall back to one-third of cap height.
         float strikeOffset = metrics.StrikeoutPosition.GetValueOrDefault();
         if (strikeOffset == 0)
         {
-            strikeOffset = -textPaint.TextSize / 3f;
+            strikeOffset = -style.Size / 3f;
         }
         float strikeY = textBaseline + strikeOffset;
         _strikethroughPaint.Color = color;
         _strikethroughPaint.StrokeWidth = MathF.Max(1f, metrics.StrikeoutThickness.GetValueOrDefault());
-        float w = textPaint.MeasureText(text);
+        float w = style.Measure(text);
         canvas.DrawLine(textX, strikeY, textX + w, strikeY, _strikethroughPaint);
     }
 
@@ -958,7 +975,7 @@ public sealed class TargetRenderer : IDisposable
             ac,
             blockX,
             blockY,
-            _dataBlockPaint,
+            DataBlockStyle,
             LocalUserInitials,
             FlashNoLandingClearance,
             ShowConflictAlerts,
@@ -982,7 +999,7 @@ public sealed class TargetRenderer : IDisposable
             {
                 var prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = SKColors.Red;
-                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
+                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
                 continue;
             }
@@ -991,7 +1008,7 @@ public sealed class TargetRenderer : IDisposable
             {
                 var prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = ConflictAlertColor;
-                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
+                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
                 continue;
             }
@@ -1000,7 +1017,7 @@ public sealed class TargetRenderer : IDisposable
             {
                 var prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = NoteColor;
-                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
+                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
                 continue;
             }
@@ -1009,7 +1026,7 @@ public sealed class TargetRenderer : IDisposable
             {
                 var prev = _dataBlockPaint.Color;
                 _dataBlockPaint.Color = altTint;
-                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
+                canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
                 _dataBlockPaint.Color = prev;
                 continue;
             }
@@ -1021,10 +1038,10 @@ public sealed class TargetRenderer : IDisposable
             }
 
             // Anchor at baseline (= rect.Bottom) so the text aligns with how STARS draws elsewhere.
-            canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, _dataBlockPaint);
+            canvas.DrawText(f.Text, f.Rect.Left, f.Rect.Bottom, SKTextAlign.Left, _dataBlockFont, _dataBlockPaint);
             if (f.Field == TagFieldId.ModeC)
             {
-                DrawStrikethrough(canvas, f.Rect.Left, f.Rect.Bottom, f.Text, _dataBlockPaint, color);
+                DrawStrikethrough(canvas, f.Rect.Left, f.Rect.Bottom, f.Text, DataBlockStyle, color);
             }
         }
 
@@ -1051,11 +1068,11 @@ public sealed class TargetRenderer : IDisposable
             return null;
         }
 
-        float lineH = _bubbleTextPaint.TextSize + 2;
+        float lineH = _bubbleTextFont.Size + 2;
         float maxLineWidth = 0;
         foreach (var line in lines)
         {
-            float w = _bubbleTextPaint.MeasureText(line);
+            float w = _bubbleTextFont.MeasureText(line);
             if (w > maxLineWidth)
             {
                 maxLineWidth = w;
@@ -1076,10 +1093,10 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawRoundRect(rect, 3f, 3f, borderPaint);
 
         float textX = left + pad;
-        float baseline = top + pad + _bubbleTextPaint.TextSize;
+        float baseline = top + pad + _bubbleTextFont.Size;
         for (int i = 0; i < lines.Count; i++)
         {
-            canvas.DrawText(lines[i], textX, baseline + i * lineH, _bubbleTextPaint);
+            canvas.DrawText(lines[i], textX, baseline + i * lineH, SKTextAlign.Left, _bubbleTextFont, _bubbleTextPaint);
         }
 
         return rect;
@@ -1195,6 +1212,7 @@ public sealed class TargetRenderer : IDisposable
         _symbolPaint.Dispose();
         _leaderPaint.Dispose();
         _dataBlockPaint.Dispose();
+        _dataBlockFont.Dispose();
         _historyPaint.Dispose();
         _selectedBorderPaint.Dispose();
         _ptlPaint.Dispose();
@@ -1204,8 +1222,10 @@ public sealed class TargetRenderer : IDisposable
         _bubbleFillPaintWarning.Dispose();
         _bubbleBorderPaintWarning.Dispose();
         _bubbleTextPaint.Dispose();
+        _bubbleTextFont.Dispose();
         _tpaPaint.Dispose();
         _tpaTextPaint.Dispose();
+        _tpaTextFont.Dispose();
         _tpaLabelBackingPaint.Dispose();
     }
 }

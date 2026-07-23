@@ -147,7 +147,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     // frames to seed the next pass for stability.
     private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = new();
     private readonly Dictionary<string, SKPoint> _deconflictScratch = new();
-    private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = Services.PlatformHelper.MonospaceTypefaceBold };
+    private readonly SKPaint _hitTestPaint = new();
+    private readonly SKFont _hitTestFont = Services.PlatformHelper.MonospaceFontBold(12);
+
+    /// <summary>
+    /// Measuring pair for the hit-test path. Must stay metric-identical to the renderer's datablock
+    /// style — <c>RadarDatablockLayoutTests</c> asserts the two produce the same rect.
+    /// </summary>
+    private TextStyle HitTestStyle => new(_hitTestFont, _hitTestPaint);
     private bool _initialFitDone;
     private bool _suppressRangeFit;
     private bool _suppressCenterSync;
@@ -521,6 +528,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set
         {
             _renderer.DatablockTextSize = value;
+            // The hit-test font must track the draw font or the click rect is measured at a different
+            // size than the glyphs were drawn at, and datablock clicks/drags miss at any non-default
+            // font size.
+            _hitTestFont.Size = value;
             MarkDirty();
         }
     }
@@ -1496,7 +1507,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// across the 500 ms flash cadence. Shared by hit-testing and the deconfliction input assembly so
     /// both agree on the block geometry.
     /// </summary>
-    private SKRect ComputeStableRectAtOrigin(AircraftModel ac)
+    internal SKRect ComputeStableRectAtOrigin(AircraftModel ac)
     {
         bool isMinified = _minifiedCallsigns.Contains(ac.Callsign);
         bool collapse =
@@ -1507,7 +1518,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         if (isMinified || collapse)
         {
             IReadOnlyList<string> lines = isMinified ? [RadarDatablockLayout.BuildMinifiedLine(ac)] : RadarDatablockLayout.BuildCollapsedLines(ac);
-            return RadarDatablockLayout.ReducedRect(lines, _hitTestPaint, 0, 0);
+            return RadarDatablockLayout.ReducedRect(lines, HitTestStyle, 0, 0);
         }
 
         return ComputeStableFullRectAtOrigin(ac);
@@ -1520,7 +1531,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // matches the drawn block — no hand-mirrored line-string re-derivation.
         string marker = MarkStudentLimitedDatablocks ? RadarDatablockLayout.StudentLevelMarker(ac.StudentDatablockLevel) : "";
         return RadarDatablockLayout
-            .Compute(ac, 0, 0, _hitTestPaint, FlashNoLandingClearance, ShowConflictAlerts, ResolveConflictPeer(ac), marker)
+            .Compute(ac, 0, 0, HitTestStyle, FlashNoLandingClearance, ShowConflictAlerts, ResolveConflictPeer(ac), marker)
             .Rect;
     }
 
@@ -1961,5 +1972,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         _renderer.Dispose();
         _hitTestPaint.Dispose();
+        _hitTestFont.Dispose();
     }
 }

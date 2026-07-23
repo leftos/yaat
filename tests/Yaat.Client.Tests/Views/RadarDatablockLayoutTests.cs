@@ -1,6 +1,7 @@
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Models;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar;
 using Yaat.Sim;
 
@@ -27,9 +28,9 @@ public class RadarDatablockLayoutTests
         };
     }
 
-    private static SKPaint CreatePaint()
+    private static TextStyle CreateStyle()
     {
-        return new SKPaint { TextSize = 12 };
+        return new TextStyle(new SKFont { Size = 12 }, new SKPaint());
     }
 
     [Fact]
@@ -37,13 +38,13 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.TransponderMode = "C";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -58,13 +59,13 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.TransponderMode = "Standby";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -78,14 +79,14 @@ public class RadarDatablockLayoutTests
     public void RectGrowsByExactlyLineHeight_WhenStandby()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         ac.TransponderMode = "C";
         var charlie = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -97,7 +98,7 @@ public class RadarDatablockLayoutTests
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -113,14 +114,14 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.AssignedTo = "AB";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         ac.TransponderMode = "C";
         var withLine3Only = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -132,7 +133,7 @@ public class RadarDatablockLayoutTests
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -160,13 +161,13 @@ public class RadarDatablockLayoutTests
         ac.AircraftType = "C182";
         ac.FiledAircraftType = "";
         ac.CwtCode = "L";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -183,13 +184,13 @@ public class RadarDatablockLayoutTests
         ac.AircraftType = "C182";
         ac.FiledAircraftType = "PA28";
         ac.CwtCode = "L";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -205,13 +206,13 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.NoLandingClearanceWarningActive = false;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: true,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -226,13 +227,13 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.NoLandingClearanceWarningActive = true;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -248,7 +249,7 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         ac.NoLandingClearanceWarningActive = true;
         ac.IsAutoClearedToLand = true;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         // Flash output is gated 50/50 on the wall-clock tick — sample multiple cycles so we
         // catch the on-phase too.
@@ -258,7 +259,7 @@ public class RadarDatablockLayoutTests
                 ac,
                 blockX: 100,
                 blockY: 100,
-                paint,
+                style,
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
                 conflictPeer: null,
@@ -276,7 +277,7 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.NoLandingClearanceWarningActive = true;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         bool seenOn = false;
         bool seenOff = false;
@@ -288,7 +289,7 @@ public class RadarDatablockLayoutTests
                 ac,
                 blockX: 100,
                 blockY: 100,
-                paint,
+                style,
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
                 conflictPeer: null,
@@ -313,14 +314,14 @@ public class RadarDatablockLayoutTests
     public void NoLndgClnc_RectReservesSpaceEvenDuringOffPhase()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         ac.NoLandingClearanceWarningActive = false;
         var baseline = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: true,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -335,7 +336,7 @@ public class RadarDatablockLayoutTests
                 ac,
                 blockX: 100,
                 blockY: 100,
-                paint,
+                style,
                 showNoLandingClearance: true,
                 showConflictAlerts: false,
                 conflictPeer: null,
@@ -376,7 +377,7 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         ac.ConflictPeerCallsign = "SWA1234";
         var peer = CreateConflictPeer();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         bool seenOn = false;
         bool seenOff = false;
@@ -387,7 +388,7 @@ public class RadarDatablockLayoutTests
                 ac,
                 blockX: 100,
                 blockY: 100,
-                paint,
+                style,
                 showNoLandingClearance: false,
                 showConflictAlerts: true,
                 conflictPeer: peer,
@@ -505,13 +506,13 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         var peer = CreateConflictPeer();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var baseline = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: true,
             conflictPeer: peer,
@@ -527,7 +528,7 @@ public class RadarDatablockLayoutTests
                 ac,
                 blockX: 100,
                 blockY: 100,
-                paint,
+                style,
                 showNoLandingClearance: false,
                 showConflictAlerts: true,
                 conflictPeer: peer,
@@ -552,13 +553,13 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.ConflictPeerCallsign = "SWA1234";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: CreateConflictPeer(),
@@ -630,13 +631,13 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         ac.OwnerSectorCode = "2S";
         ac.AutoScratchpad1 = "OAK";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -653,13 +654,13 @@ public class RadarDatablockLayoutTests
         ac.OwnerSectorCode = "2S";
         ac.Scratchpad1 = "ABC";
         ac.AutoScratchpad1 = "OAK";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -679,7 +680,7 @@ public class RadarDatablockLayoutTests
             ac,
             blockX: 100,
             blockY: 100,
-            CreatePaint(),
+            CreateStyle(),
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -727,13 +728,13 @@ public class RadarDatablockLayoutTests
         ac.Scratchpad1 = "ABC";
         ac.Scratchpad2 = "XY";
         ac.PointoutToTcpCode = "3E";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -748,13 +749,13 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.OwnerSectorCode = "2S";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -768,13 +769,13 @@ public class RadarDatablockLayoutTests
     public void Note_BlankWhenNoNote()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -788,13 +789,13 @@ public class RadarDatablockLayoutTests
     public void Note_RendersAsLine6_AndGrowsRectByOneLine()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var baseline = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -806,7 +807,7 @@ public class RadarDatablockLayoutTests
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -825,9 +826,9 @@ public class RadarDatablockLayoutTests
     public void ResolveBlockOffset_ManualBeatsDeconflict()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, paint, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
             .Rect;
         var manual = new SKPoint(5, 5);
 
@@ -848,9 +849,9 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.StudentLeaderDirection = 8; // North, non-default
-        using var paint = CreatePaint();
+        var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, paint, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
             .Rect;
         var deconflict = new SKPoint(99, 99);
 
@@ -863,9 +864,9 @@ public class RadarDatablockLayoutTests
     public void ResolveBlockOffset_DeconflictBeatsDefault()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, paint, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
             .Rect;
         var deconflict = new SKPoint(99, 99);
 
@@ -879,9 +880,9 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.StudentLeaderDirection = 8; // North
-        using var paint = CreatePaint();
+        var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, paint, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
             .Rect;
 
         var leaderResult = RadarDatablockLayout.ResolveBlockOffset(
@@ -900,9 +901,9 @@ public class RadarDatablockLayoutTests
     public void ResolveBlockOffset_NullDeconflict_NoLeader_ReturnsDefault()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
         var rectAtOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, paint, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
             .Rect;
 
         var result = RadarDatablockLayout.ResolveBlockOffset(ac, syncLeader: false, hasManual: false, default, rectAtOrigin, deconflictOffset: null);
@@ -919,13 +920,13 @@ public class RadarDatablockLayoutTests
     public void Compute_RectIsTranslationInvariant()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var atOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, paint, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
             .Rect;
         var atOffset = RadarDatablockLayout
-            .Compute(ac, 137, -52, paint, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(ac, 137, -52, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
             .Rect;
 
         Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
@@ -941,14 +942,14 @@ public class RadarDatablockLayoutTests
     {
         var ac = CreateModel();
         ac.HandoffPeerSectorCode = "3E"; // handoff with no owner: the token flashes blank, slot must persist
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         // ReserveOwnerSlot is computed from the stable (handoff-always) line, so it is flash-independent.
         var layout = RadarDatablockLayout.Compute(
             ac,
             0,
             0,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -966,13 +967,13 @@ public class RadarDatablockLayoutTests
         ac.OwnerSectorCode = "2S";
         ac.HandoffPeerSectorCode = "APPROACH"; // long enough that line 3 drives the block width
         ac.Scratchpad1 = "RESET";
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var first = RadarDatablockLayout.Compute(
             ac,
             0,
             0,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -986,7 +987,7 @@ public class RadarDatablockLayoutTests
                 ac,
                 0,
                 0,
-                paint,
+                style,
                 showNoLandingClearance: false,
                 showConflictAlerts: false,
                 conflictPeer: null,
@@ -1006,13 +1007,13 @@ public class RadarDatablockLayoutTests
         ac.TransponderMode = "C";
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1029,13 +1030,13 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         ac.BeaconCode = 301;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1052,13 +1053,13 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 0;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1077,13 +1078,13 @@ public class RadarDatablockLayoutTests
         ac.TransponderMode = mode;
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1103,13 +1104,13 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         ac.BeaconCode = reported;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1127,13 +1128,13 @@ public class RadarDatablockLayoutTests
         ac.FlightRules = "VFR";
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 4321;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1153,13 +1154,13 @@ public class RadarDatablockLayoutTests
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
         ac.CommandedSquawkVfr = true;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1179,13 +1180,13 @@ public class RadarDatablockLayoutTests
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
         ac.CommandedSquawkVfr = false;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var layout = RadarDatablockLayout.Compute(
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1199,7 +1200,7 @@ public class RadarDatablockLayoutTests
     public void SquawkMismatch_RectGrowsByExactlyLineHeight()
     {
         var ac = CreateModel();
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         ac.BeaconCode = 301;
         ac.AssignedBeaconCode = 301;
@@ -1207,7 +1208,7 @@ public class RadarDatablockLayoutTests
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1219,7 +1220,7 @@ public class RadarDatablockLayoutTests
             ac,
             blockX: 100,
             blockY: 100,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1237,13 +1238,13 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var atOrigin = RadarDatablockLayout
-            .Compute(ac, 0, 0, paint, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(ac, 0, 0, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
             .Rect;
         var atOffset = RadarDatablockLayout
-            .Compute(ac, 137, -52, paint, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
+            .Compute(ac, 137, -52, style, showNoLandingClearance: false, showConflictAlerts: false, conflictPeer: null, callsignMarker: "")
             .Rect;
 
         Assert.Equal(atOrigin.Left + 137, atOffset.Left, precision: 3);
@@ -1260,13 +1261,13 @@ public class RadarDatablockLayoutTests
         var ac = CreateModel();
         ac.BeaconCode = 1200;
         ac.AssignedBeaconCode = 301;
-        using var paint = CreatePaint();
+        var style = CreateStyle();
 
         var first = RadarDatablockLayout.Compute(
             ac,
             0,
             0,
-            paint,
+            style,
             showNoLandingClearance: false,
             showConflictAlerts: false,
             conflictPeer: null,
@@ -1279,7 +1280,7 @@ public class RadarDatablockLayoutTests
                 ac,
                 0,
                 0,
-                paint,
+                style,
                 showNoLandingClearance: false,
                 showConflictAlerts: false,
                 conflictPeer: null,

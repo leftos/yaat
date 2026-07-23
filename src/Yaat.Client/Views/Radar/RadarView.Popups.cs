@@ -25,7 +25,7 @@ public partial class RadarView
         }
 
         textBox.Text = "";
-        textBox.Watermark = watermark;
+        textBox.PlaceholderText = watermark;
         popup.IsOpen = true;
         textBox.Focus();
     }

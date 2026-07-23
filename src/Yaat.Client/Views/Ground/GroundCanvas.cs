@@ -167,7 +167,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     // frames to seed the next pass for stability.
     private readonly Dictionary<string, SKPoint> _resolvedDeconflictOffsets = new();
     private readonly Dictionary<string, SKPoint> _deconflictScratch = new();
-    private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = PlatformHelper.MonospaceTypefaceBold };
+    private readonly SKPaint _hitTestPaint = new();
+    private readonly SKFont _hitTestFont = PlatformHelper.MonospaceFontBold(12);
+
+    /// <summary>
+    /// Measuring pair for the hit-test path. Must stay metric-identical to the renderer's ground
+    /// datablock style, or clicks miss the block.
+    /// </summary>
+    private TextStyle HitTestStyle => new(_hitTestFont, _hitTestPaint);
 
     public float DatablockTextSize
     {
@@ -175,6 +182,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set
         {
             _renderer.DatablockTextSize = value;
+            // Keep the hit-test font in step with the draw font, or datablock clicks/drags miss
+            // whenever the user picks a non-default ground datablock size.
+            _hitTestFont.Size = value;
             MarkDirty();
         }
     }
@@ -1225,7 +1235,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             // Match the draw path's airborne flag (GroundRenderer.DrawOneDataBlock) so an airborne
             // aircraft's altitude line is included in the hit rect — otherwise its block is one line
             // shorter than drawn and clicks near the bottom miss.
-            var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _hitTestPaint, isAirborne: !ac.IsOnGround);
+            var layout = DataBlockLayout.Compute(ac, sx, sy, offset, HitTestStyle, isAirborne: !ac.IsOnGround);
             if (layout.Rect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 best = ac;
@@ -1278,7 +1288,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         {
             var (sx, sy) = Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
             bool hasManual = _dataBlockOffsets.TryGetValue(ac.Callsign, out var manualOffset);
-            var rectAtOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, _hitTestPaint, isAirborne: !ac.IsOnGround).Rect;
+            var rectAtOrigin = DataBlockLayout.Compute(ac, 0, 0, SKPoint.Empty, HitTestStyle, isAirborne: !ac.IsOnGround).Rect;
             items.Add(
                 new DatablockDeconfliction.Item
                 {
@@ -1517,5 +1527,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         _renderer.Dispose();
         _hitTestPaint.Dispose();
+        _hitTestFont.Dispose();
     }
 }

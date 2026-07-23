@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yaat.Client.ViewModels"
              xmlns:svc="using:Yaat.Client.Services"
-             x:Class="Yaat.Client.Views.CommandInputView">
+             x:Class="Yaat.Client.Views.CommandInputView"
+        x:DataType="vm:MainViewModel">
 
     <Grid Margin="0,8,0,0"
           ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
@@ -30,7 +31,7 @@
         <Panel Grid.Column="1">
             <TextBox Text="{Binding CommandText}"
                      CaretIndex="{Binding CommandCaretIndex, Mode=TwoWay}"
-                     Watermark="Enter command (FH 270, CM 240...)"
+                     PlaceholderText="Enter command (FH 270, CM 240...)"
                      FontSize="{Binding TerminalFontSize}"
                      x:Name="CommandInput">
                 <TextBox.ContextFlyout>
@@ -81,7 +82,7 @@
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="svc:SignaturePart">
+                                    <DataTemplate DataType="svc:SignaturePart" x:DataType="svc:SignaturePart">
                                         <TextBlock Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="13" Classes.sigActive="{Binding IsActive}" Classes.sigParam="{Binding IsParameter}">
                                             <TextBlock.Styles>
                                                 <Style Selector="TextBlock">
