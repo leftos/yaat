@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.14-beta [2026/07/23]
+
+### Highlights
+- **See each departure's place in the runway queue** — a departure holding for a runway now shows the runway and its number in line (`UAL123 28R #1`) on the Ground View datablock and in the Info column.
+- **Landing aircraft take high-speed exits at realistic speed** — jets carry ~30 kt through a shallow rapid-exit turnoff instead of crawling to ~15 kt, then slow smoothly to the hold-short.
+- **Crisper radar scope** — video maps, range rings, leader lines, and markers render hard-edged to match CRC's STARS display.
+- **Solo training arrivals ask for their approach** — IFR arrivals proactively request an approach and follow up if you don't answer.
 
 ### Added
 - Departures queued for a runway show the runway and their place in line on the ground datablock callsign (`UAL123 28R #1`) and in the Info column.
