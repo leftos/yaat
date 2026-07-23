@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Added
-- Departures stacked at a runway hold short show their place in line as a `#N` on the ground datablock callsign and in the Info column.
+- Departures queued for a runway show the runway and their place in line on the ground datablock callsign (`UAL123 28R #1`) and in the Info column.
 
 ### Fixed
 - Rapid-exit (high-speed) turnoffs are taken at their real design speed — a jet now carries ~30 kt through a shallow exit like KOAK runway 30's W4/W5 instead of slowing to ~15 kt for the turn. The junction fillets at ≤45° runway exits widen to a true rapid-exit radius (~600 ft where the surrounding geometry allows).

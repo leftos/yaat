@@ -145,6 +145,14 @@ public class AircraftGroundOps
     public int RunwayQueuePosition { get; set; }
 
     /// <summary>
+    /// Display designator of the runway this aircraft is queued for (e.g. "28R"), set alongside
+    /// <see cref="RunwayQueuePosition"/> by <see cref="RunwayDepartureQueue"/> — empty when not in a line.
+    /// Lets the ground datablock show the runway with the ordinal ("28R #3") so the RPO sees which runway a
+    /// clumped departure is waiting on. Display only.
+    /// </summary>
+    public string RunwayQueueRunway { get; set; } = "";
+
+    /// <summary>
     /// When set, FlightPhysics uses this heading for ground position updates
     /// instead of the aircraft's TrueHeading. Used by pushback (aircraft nose stays
     /// forward while tug pushes it backward along this direction).
@@ -243,6 +251,7 @@ public class AircraftGroundOps
             AutoYieldTarget = AutoYieldTarget,
             AutoYieldIsFollowing = AutoYieldIsFollowing,
             RunwayQueuePosition = RunwayQueuePosition,
+            RunwayQueueRunway = RunwayQueueRunway,
             PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
             HasAnnouncedReady = HasAnnouncedReady,
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
@@ -276,6 +285,7 @@ public class AircraftGroundOps
             AutoYieldTarget = dto.AutoYieldTarget,
             AutoYieldIsFollowing = dto.AutoYieldIsFollowing,
             RunwayQueuePosition = dto.RunwayQueuePosition,
+            RunwayQueueRunway = dto.RunwayQueueRunway,
             PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
             HasAnnouncedReady = dto.HasAnnouncedReady,
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,

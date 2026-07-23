@@ -6,11 +6,12 @@ namespace Yaat.Sim;
 
 /// <summary>
 /// Computes each departing aircraft's 1-based position in the physical line at its destination-runway
-/// hold-short node, writing it to <see cref="AircraftGroundOps.RunwayQueuePosition"/>. A "line" is keyed
-/// by hold-short node, so two intersections feeding the same runway are two independent queues. Membership
-/// is holding-short-of-the-runway plus still-taxiing-within-<see cref="ProximityNm"/>; an aircraft that has
-/// lined up / is rolling has left the line (its position drops to 0 and the aircraft behind it moves up).
-/// A line of one aircraft is left at 0 — a number only disambiguates an actual clump.
+/// hold-short node, writing it (and the runway designator) to <see cref="AircraftGroundOps.RunwayQueuePosition"/>
+/// / <see cref="AircraftGroundOps.RunwayQueueRunway"/>. A "line" is keyed by hold-short node, so two
+/// intersections feeding the same runway are two independent queues. Membership is holding-short-of-the-runway
+/// plus still-taxiing-within-<see cref="ProximityNm"/>; an aircraft that has lined up / is rolling has left
+/// the line (its position drops to 0 and the aircraft behind it moves up). Even a lone aircraft first in line
+/// gets #1 — the ordinal tells the RPO who is next up, not only that a clump exists.
 ///
 /// Runs once per sim-second from <see cref="Simulation.SimulationEngine.TickPrePhysics"/> over the full world
 /// snapshot — the same computed-with-world / read-as-own pattern as <see cref="GroundConflictDetector"/>.
@@ -24,16 +25,18 @@ public static class RunwayDepartureQueue
 
     /// <summary>
     /// Max distance (nm) from its destination-runway hold-short node for a still-taxiing departure to count
-    /// as "in line". Aircraft farther out are approaching but not yet clumped at the runway, so they get no
-    /// number. Holding-short aircraft are at the node and always count regardless of this gate.
+    /// as "in line". Kept tight (~600 ft) so only aircraft physically bunched at the hold short are numbered —
+    /// an RPO cares about the few aircraft next up, not everyone taxiing toward the runway. Holding-short
+    /// aircraft are at the node and always count regardless of this gate.
     /// </summary>
-    public const double ProximityNm = 0.5;
+    public const double ProximityNm = 0.1;
 
     public static void UpdatePositions(IReadOnlyList<AircraftState> aircraft)
     {
         foreach (var ac in aircraft)
         {
             ac.Ground.RunwayQueuePosition = 0;
+            ac.Ground.RunwayQueueRunway = "";
         }
 
         var lines = new Dictionary<(string Airport, int NodeId), List<Member>>();
@@ -55,19 +58,16 @@ public static class RunwayDepartureQueue
 
         foreach (var (_, members) in lines)
         {
-            if (members.Count < 2)
-            {
-                continue;
-            }
-
             members.Sort(CompareMembers);
             for (int i = 0; i < members.Count; i++)
             {
                 members[i].Aircraft.Ground.RunwayQueuePosition = i + 1;
+                members[i].Aircraft.Ground.RunwayQueueRunway = members[i].Runway;
                 Log.LogTrace(
-                    "[RunwayQueue] {Callsign}: #{Position} in line at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
+                    "[RunwayQueue] {Callsign}: #{Position} for {Runway} at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
                     members[i].Aircraft.Callsign,
                     i + 1,
+                    members[i].Runway,
                     members[i].NodeId,
                     members[i].AirportId,
                     members[i].Tier,
@@ -86,6 +86,7 @@ public static class RunwayDepartureQueue
         AircraftState Aircraft,
         string AirportId,
         int NodeId,
+        string Runway,
         int Tier,
         double DistanceNm,
         double StationarySeconds
@@ -107,7 +108,16 @@ public static class RunwayDepartureQueue
             {
                 return null;
             }
-            return new Member(ac, layout.AirportId, holdShort.NodeId, Tier: 0, GeoMath.DistanceNm(ac.Position, pos), ac.Ground.StationarySeconds);
+            var runway = RunwayIdentifier.ToDisplayDesignator(holdShort.TargetName ?? "");
+            return new Member(
+                ac,
+                layout.AirportId,
+                holdShort.NodeId,
+                runway,
+                Tier: 0,
+                GeoMath.DistanceNm(ac.Position, pos),
+                ac.Ground.StationarySeconds
+            );
         }
 
         // Tier 1 — still taxiing (or idling in position) toward the destination runway, within the
@@ -125,7 +135,8 @@ public static class RunwayDepartureQueue
             {
                 return null;
             }
-            return new Member(ac, layout.AirportId, destination.NodeId, Tier: 1, distanceNm, ac.Ground.StationarySeconds);
+            var runway = RunwayIdentifier.ToDisplayDesignator(destination.TargetName ?? "");
+            return new Member(ac, layout.AirportId, destination.NodeId, runway, Tier: 1, distanceNm, ac.Ground.StationarySeconds);
         }
 
         return null;

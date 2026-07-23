@@ -21,6 +21,9 @@ public sealed class AircraftGroundOpsDto
 
     /// <summary>1-based position in the departure line at this aircraft's destination-runway hold-short node, or 0 when not in a countable line.</summary>
     public int RunwayQueuePosition { get; init; }
+
+    /// <summary>Display designator of the runway this aircraft is queued for (e.g. "28R"), empty when not in a line.</summary>
+    public string RunwayQueueRunway { get; init; } = "";
     public double? PushbackTrueHeadingDeg { get; init; }
     public required bool HasAnnouncedReady { get; init; }
     public bool InitialCallupDecisionProcessed { get; init; }

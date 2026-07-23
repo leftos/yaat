@@ -973,7 +973,10 @@ public record AircraftDto(
     // 1-based position in the departure line at this aircraft's runway hold-short node, or 0 when not in
     // a countable line. Drives the "#N" ground-datablock callsign suffix. Kept name-for-name in sync with
     // the server's AircraftStateDto.
-    int RunwayQueuePosition = 0
+    int RunwayQueuePosition = 0,
+    // Display designator of the runway this aircraft is queued for (e.g. "28R"), empty when not in a line.
+    // Shown next to the ordinal on the ground datablock ("28R #3"). Kept in sync with the server's DTO.
+    string RunwayQueueRunway = ""
 );
 
 public record LoadScenarioResultDto(

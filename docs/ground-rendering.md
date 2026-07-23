@@ -37,7 +37,7 @@ The route overlays sit **between infrastructure and aircraft** so routes never o
 
 ## Datablock composition
 
-`DataBlockLayout.Compute(AircraftModel, …)` is the **single source of truth** for both the draw pass (`DrawOneDataBlock`) and the click hit-test (`GroundCanvas.FindDataBlockAtPoint`), so a new line or callsign suffix grows the click rect automatically. Line 1 is the callsign, plus a trailing `*` when pre-armed for auto-delete (`AutoDeletePending`) and a ` #N` departure-queue suffix when `AircraftModel.RunwayQueuePosition > 0`. That ordinal is **server-computed** (`RunwayDepartureQueue` in Yaat.Sim, wired through `AircraftStateDto.RunwayQueuePosition`); the client only displays it — no client-side ranking, mirroring the `SmartStatus` and taxi-route-reconstruction contracts.
+`DataBlockLayout.Compute(AircraftModel, …)` is the **single source of truth** for both the draw pass (`DrawOneDataBlock`) and the click hit-test (`GroundCanvas.FindDataBlockAtPoint`), so a new line or callsign suffix grows the click rect automatically. Line 1 is the callsign, plus a trailing `*` when pre-armed for auto-delete (`AutoDeletePending`) and a ` {runway} #N` departure-queue suffix (e.g. `28R #2`) when `AircraftModel.RunwayQueuePosition > 0` — the runway comes from `AircraftModel.RunwayQueueRunway` and is omitted defensively if blank. Both are **server-computed** (`RunwayDepartureQueue` in Yaat.Sim, wired through `AircraftStateDto.RunwayQueuePosition` / `RunwayQueueRunway`); the client only displays them — no client-side ranking, mirroring the `SmartStatus` and taxi-route-reconstruction contracts.
 
 ## Route overlays
 

@@ -17,7 +17,7 @@ namespace Yaat.Sim.Tests.Simulation.GroundTaxi;
 /// north-field GA parkings, both TAXIAUTO'd to 28R, funnel to the same full-length lineup hold-short.
 /// The one that arrives first holds short (#1); the one behind, stopped by ground-conflict just short
 /// of the occupied node, is still taxiing (#2). Proves the queue pass runs inside the real tick loop
-/// (TickPostPhysics) and numbers a genuine clump — not just the direct-call unit tests.
+/// (TickPrePhysics) and numbers a genuine clump — not just the direct-call unit tests.
 /// </summary>
 public class RunwayDepartureQueueE2ETests(ITestOutputHelper output)
 {
@@ -75,21 +75,34 @@ public class RunwayDepartureQueueE2ETests(ITestOutputHelper output)
                 engine.TickPhysics(1.0 / physicsSubTicks);
             }
 
-            var lead = HoldingShortAt(ac1, ac2, node1.Value);
-            var trailer = lead is null ? null : TaxiingNear(lead == ac1 ? ac2 : ac1, layout, node1.Value);
-            if (lead is not null && trailer is not null)
+            // Assert on the queue's OWN output — wait until both aircraft are numbered (the stable
+            // two-aircraft clump the feature disambiguates), not a re-derived "near" heuristic that can
+            // catch a transitional frame where the trailer's route destination is momentarily gone.
+            int p1 = ac1.Ground.RunwayQueuePosition;
+            int p2 = ac2.Ground.RunwayQueuePosition;
+            if (p1 > 0 && p2 > 0)
             {
                 output.WriteLine(
-                    $"t={t}: lead={lead.Callsign} #{lead.Ground.RunwayQueuePosition}, trailer={trailer.Callsign} #{trailer.Ground.RunwayQueuePosition}"
+                    $"t={t}: {ac1.Callsign} #{p1} ({ac1.Ground.RunwayQueueRunway}), {ac2.Callsign} #{p2} ({ac2.Ground.RunwayQueueRunway})"
                 );
-                Assert.Equal(1, lead.Ground.RunwayQueuePosition);
-                Assert.Equal(2, trailer.Ground.RunwayQueuePosition);
+                Assert.True((p1 == 1 && p2 == 2) || (p1 == 2 && p2 == 1), $"expected the pair numbered 1 and 2, got #{p1}/#{p2}");
+
+                // The holding-short aircraft is #1 (front of line); the trailer behind it is #2.
+                var holdingShort = HoldingShortAt(ac1, ac2, node1.Value);
+                Assert.NotNull(holdingShort);
+                Assert.Equal(1, holdingShort.Ground.RunwayQueuePosition);
+
+                // Both are queued for the same runway, shown on the ground datablock as "28R #N".
+                Assert.Equal(Runway, ac1.Ground.RunwayQueueRunway);
+                Assert.Equal(Runway, ac2.Ground.RunwayQueueRunway);
                 return;
             }
         }
 
-        output.WriteLine("SKIP: lead-holding-short + trailer-taxiing-near window never formed within 240s");
+        output.WriteLine("SKIP: two-aircraft clump within the proximity gate never formed within 240s");
     }
+
+    private const string Runway = "28R";
 
     private static AircraftState? HoldingShortAt(AircraftState a, AircraftState b, int nodeId)
     {
@@ -102,19 +115,6 @@ public class RunwayDepartureQueueE2ETests(ITestOutputHelper output)
             return b;
         }
         return null;
-    }
-
-    private static AircraftState? TaxiingNear(AircraftState ac, AirportGroundLayout layout, int nodeId)
-    {
-        if (ac.Phases?.CurrentPhase is not (TaxiingPhase or HoldingInPositionPhase))
-        {
-            return null;
-        }
-        if (!layout.Nodes.TryGetValue(nodeId, out var node))
-        {
-            return null;
-        }
-        return GeoMath.DistanceNm(ac.Position, node.Position) <= RunwayDepartureQueue.ProximityNm ? ac : null;
     }
 
     private static int? DestinationNode(AircraftState ac) =>

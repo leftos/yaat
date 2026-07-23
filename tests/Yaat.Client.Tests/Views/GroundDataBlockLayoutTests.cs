@@ -69,15 +69,29 @@ public class GroundDataBlockLayoutTests
     }
 
     [Fact]
-    public void Line1_AppendsQueueOrdinal_WhenInDepartureLine()
+    public void Line1_AppendsRunwayAndOrdinal_WhenInDepartureLine()
     {
         var ac = CreateModel();
         ac.RunwayQueuePosition = 2;
+        ac.RunwayQueueRunway = "28R";
         var style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
-        Assert.Equal("UAL238 #2", layout.Line1);
+        Assert.Equal("UAL238 28R #2", layout.Line1);
+    }
+
+    [Fact]
+    public void Line1_OrdinalWithoutRunway_WhenRunwayBlank()
+    {
+        var ac = CreateModel();
+        ac.RunwayQueuePosition = 1;
+        ac.RunwayQueueRunway = "";
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("UAL238 #1", layout.Line1);
     }
 
     [Fact]
@@ -98,11 +112,12 @@ public class GroundDataBlockLayoutTests
         var ac = CreateModel();
         ac.AutoDeletePending = true;
         ac.RunwayQueuePosition = 3;
+        ac.RunwayQueueRunway = "30";
         var style = CreateStyle();
 
         var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
 
-        Assert.Equal("UAL238* #3", layout.Line1);
+        Assert.Equal("UAL238* 30 #3", layout.Line1);
     }
 
     [Fact]

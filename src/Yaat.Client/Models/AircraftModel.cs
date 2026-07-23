@@ -694,6 +694,13 @@ public partial class AircraftModel : ObservableObject
     private int _runwayQueuePosition;
 
     /// <summary>
+    /// Display designator of the runway this aircraft is queued for (e.g. "28R"), empty when not in a line.
+    /// Shown next to the ordinal on the ground datablock ("28R #3").
+    /// </summary>
+    [ObservableProperty]
+    private string _runwayQueueRunway = "";
+
+    /// <summary>
     /// True when the aircraft is under any active hold directive (HoldPosition or
     /// GiveWay). Driven by <see cref="HoldKind"/>. Auto-yield (slowing) is NOT a hold.
     /// </summary>
@@ -955,6 +962,7 @@ public partial class AircraftModel : ObservableObject
             AutoYieldTarget = dto.AutoYieldTarget,
             AutoYieldIsFollowing = dto.AutoYieldIsFollowing,
             RunwayQueuePosition = dto.RunwayQueuePosition,
+            RunwayQueueRunway = dto.RunwayQueueRunway,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
             Owner = dto.Owner,
@@ -1058,6 +1066,7 @@ public partial class AircraftModel : ObservableObject
         AutoYieldTarget = dto.AutoYieldTarget;
         AutoYieldIsFollowing = dto.AutoYieldIsFollowing;
         RunwayQueuePosition = dto.RunwayQueuePosition;
+        RunwayQueueRunway = dto.RunwayQueueRunway;
         ParkingSpot = dto.ParkingSpot;
         CurrentTaxiway = dto.CurrentTaxiway;
         Owner = dto.Owner;

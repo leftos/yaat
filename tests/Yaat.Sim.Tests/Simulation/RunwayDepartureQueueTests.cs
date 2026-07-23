@@ -99,12 +99,14 @@ public class RunwayDepartureQueueTests
         }
 
         var lead = HoldingShort("LEAD", nodes[0]);
-        var trailer = TaxiingToward("TRAIL", nodes[0], 0.3);
+        var trailer = TaxiingToward("TRAIL", nodes[0], 0.05);
 
         RunwayDepartureQueue.UpdatePositions([lead, trailer]);
 
         Assert.Equal(1, lead.Ground.RunwayQueuePosition);
         Assert.Equal(2, trailer.Ground.RunwayQueuePosition);
+        Assert.Equal(Runway, lead.Ground.RunwayQueueRunway);
+        Assert.Equal(Runway, trailer.Ground.RunwayQueueRunway);
     }
 
     [Fact]
@@ -117,18 +119,19 @@ public class RunwayDepartureQueueTests
         }
 
         var lead = HoldingShort("LEAD", nodes[0]);
-        var near = TaxiingToward("NEAR", nodes[0], 0.3);
-        var far = TaxiingToward("FAR", nodes[0], 1.0);
+        var near = TaxiingToward("NEAR", nodes[0], 0.05);
+        var far = TaxiingToward("FAR", nodes[0], 0.3);
 
         RunwayDepartureQueue.UpdatePositions([lead, near, far]);
 
         Assert.Equal(1, lead.Ground.RunwayQueuePosition);
         Assert.Equal(2, near.Ground.RunwayQueuePosition);
         Assert.Equal(0, far.Ground.RunwayQueuePosition);
+        Assert.Equal("", far.Ground.RunwayQueueRunway);
     }
 
     [Fact]
-    public void LoneAircraftInLine_GetsNoNumber()
+    public void LoneAircraftInLine_GetsNumberOneWithRunway()
     {
         var nodes = HoldShortNodes();
         if (nodes.Count == 0)
@@ -140,7 +143,8 @@ public class RunwayDepartureQueueTests
 
         RunwayDepartureQueue.UpdatePositions([solo]);
 
-        Assert.Equal(0, solo.Ground.RunwayQueuePosition);
+        Assert.Equal(1, solo.Ground.RunwayQueuePosition);
+        Assert.Equal(Runway, solo.Ground.RunwayQueueRunway);
     }
 
     [Fact]
@@ -153,9 +157,9 @@ public class RunwayDepartureQueueTests
         }
 
         var leadA = HoldingShort("LEADA", nodes[0]);
-        var trailA = TaxiingToward("TRAILA", nodes[0], 0.2);
+        var trailA = TaxiingToward("TRAILA", nodes[0], 0.05);
         var leadB = HoldingShort("LEADB", nodes[1]);
-        var trailB = TaxiingToward("TRAILB", nodes[1], 0.2);
+        var trailB = TaxiingToward("TRAILB", nodes[1], 0.05);
 
         RunwayDepartureQueue.UpdatePositions([leadA, trailA, leadB, trailB]);
 
@@ -175,8 +179,8 @@ public class RunwayDepartureQueueTests
         }
 
         var linedUp = LinedUp("LUAW", nodes[0]);
-        var near = TaxiingToward("NEAR", nodes[0], 0.2);
-        var far = TaxiingToward("FAR", nodes[0], 0.35);
+        var near = TaxiingToward("NEAR", nodes[0], 0.05);
+        var far = TaxiingToward("FAR", nodes[0], 0.08);
 
         RunwayDepartureQueue.UpdatePositions([linedUp, near, far]);
 
