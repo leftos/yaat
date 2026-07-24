@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.15-beta [2026/07/23]
 
 ### Fixed
 - Clicking, dragging, or creating strips in the Strips tab works again instead of failing with "Unknown strip bay" — these actions now fill the bay's facility.
