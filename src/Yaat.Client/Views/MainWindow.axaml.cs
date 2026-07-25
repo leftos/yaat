@@ -611,22 +611,28 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         return column.DisplayIndex.ToString();
     }
 
-    private static IComparer GetColumnSortComparer(DataGridColumn column)
+    internal static IComparer GetColumnSortComparer(DataGridColumn column)
     {
         if (column.Header is string header && header == "Status")
         {
             return StatusSortComparer.Instance;
         }
 
-        // Extract the binding property name for property-based sorting
-        string? propertyName = null;
-        if (!string.IsNullOrEmpty(column.SortMemberPath))
+        // Resolve the property to sort by. SortMemberPath wins; otherwise pull the path out of the
+        // column's binding. Avalonia 12 compiles the DataGridTextColumn bindings (they carry
+        // x:DataType), so at runtime bound.Binding is a CompiledBinding, not a reflection Binding —
+        // the old "is Binding" check alone missed every text column and the sort fell through to
+        // Comparer<object>.Default, which throws "At least one object must implement IComparable" on
+        // the raw AircraftModel rows and corrupts the view mid-rebuild.
+        string? propertyName = column.SortMemberPath;
+        if (string.IsNullOrEmpty(propertyName) && column is DataGridBoundColumn bound)
         {
-            propertyName = column.SortMemberPath;
-        }
-        else if (column is DataGridBoundColumn bound && bound.Binding is Binding binding && !string.IsNullOrEmpty(binding.Path))
-        {
-            propertyName = binding.Path;
+            propertyName = bound.Binding switch
+            {
+                Binding reflection => reflection.Path,
+                CompiledBinding compiled => compiled.Path?.ToString()?.TrimStart('.'),
+                _ => null,
+            };
         }
 
         if (!string.IsNullOrEmpty(propertyName))
@@ -634,7 +640,8 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return new PropertySortComparer(propertyName);
         }
 
-        return Comparer<object>.Default;
+        // No resolvable property: leave order unchanged. Never Comparer<object>.Default here.
+        return NoOpSortComparer.Instance;
     }
 
     private void RestoreGridLayout(DataGrid dataGrid, UserPreferences prefs)

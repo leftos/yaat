@@ -1232,3 +1232,17 @@ public sealed class GroupStableSortComparer : IComparer
         return _inner.Compare(x, y);
     }
 }
+
+/// <summary>
+/// Sort comparer that never reorders (every pair compares equal). Used as the fallback for a
+/// DataGrid column with no resolvable sort property, so the sort can never fall back to
+/// <c>Comparer&lt;object&gt;.Default</c> — which throws "At least one object must implement
+/// IComparable" on the raw <see cref="AircraftModel"/> rows, aborting the view rebuild mid-sort and
+/// silently dropping rows from the aircraft list.
+/// </summary>
+public sealed class NoOpSortComparer : IComparer
+{
+    public static readonly NoOpSortComparer Instance = new();
+
+    public int Compare(object? x, object? y) => 0;
+}

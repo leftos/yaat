@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Sorting the aircraft list by a column header works again, and deleting an aircraft no longer removes unrelated rows from the list.
+
 ## v0.9.15-beta [2026/07/23]
 
 ### Fixed

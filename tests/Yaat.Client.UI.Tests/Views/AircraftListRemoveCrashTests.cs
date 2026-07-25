@@ -197,4 +197,54 @@ public class AircraftListRemoveCrashTests
         Assert.DoesNotContain("AAA1", VisibleCallsigns(vm));
         Assert.Equal("BBB1", vm.SelectedAircraft?.Callsign);
     }
+
+    // The reported bug (Avalonia 12 regression): the aircraft-list DataGridTextColumns carry
+    // x:DataType, so their bindings compile to CompiledBinding. GetColumnSortComparer only knew how
+    // to read a reflection Binding, so every text column fell through to Comparer<object>.Default,
+    // which throws "At least one object must implement IComparable" on the raw AircraftModel rows.
+    // Clicking such a header threw inside DataGridCollectionView.SortList mid-PrepareLocalArray,
+    // truncating the view; the poisoned SortDescription then re-threw on every later Refresh
+    // (spawn/delete), dropping unrelated rows from the list while they stayed on Radar/Ground/CRC
+    // (which read the raw source). This wires the *production* comparer for the real compiled-binding
+    // Callsign column, sorts, and deletes — the whole chain must stay consistent.
+    [AvaloniaFact]
+    public void SortingCompiledBoundColumn_ThenDeleting_KeepsListConsistent()
+    {
+        var (window, vm, grid) = HostGrid([MakeAircraft("N436MS"), MakeAircraft("N172SP"), MakeAircraft("N346G"), MakeAircraft("N569SX")]);
+
+        // Build the sort comparer exactly as SetupDataGrid does, from the real (compiled-binding)
+        // Callsign column, then apply it — under the regression this throws inside SortList.
+        var callsignColumn = grid.Columns.First(c => c.Header as string == "Callsign");
+        var comparer = new GroupStableSortComparer(MainWindow.GetColumnSortComparer(callsignColumn));
+        vm.AircraftView.SortDescriptions.Add(DataGridSortDescription.FromComparer(comparer));
+        vm.AircraftView.Refresh();
+        Dispatcher.UIThread.RunJobs();
+
+        // All four aircraft remain, sorted ascending by callsign — no rows dropped, no exception.
+        Assert.Equal(["N172SP", "N346G", "N436MS", "N569SX"], VisibleCallsigns(vm));
+
+        // Deleting one under the active sort drops only that row — the reported symptom.
+        vm.OnAircraftDeleted("N346G");
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["N172SP", "N436MS", "N569SX"], VisibleCallsigns(vm));
+        Assert.Equal(3, vm.Aircraft.Count);
+    }
+
+    // A column that resolves to no sort property (e.g. an action/template column) must sort as a
+    // stable no-op, never throwing on the non-IComparable AircraftModel rows.
+    [AvaloniaFact]
+    public void SortingUnsortableColumn_IsNoOp_AndDoesNotThrow()
+    {
+        var (_, vm, _) = HostGrid([MakeAircraft("N1"), MakeAircraft("N2"), MakeAircraft("N3")]);
+
+        var comparer = new GroupStableSortComparer(MainWindow.GetColumnSortComparer(new DataGridTemplateColumn()));
+        vm.AircraftView.SortDescriptions.Add(DataGridSortDescription.FromComparer(comparer));
+        vm.AircraftView.Refresh();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["N1", "N2", "N3"], VisibleCallsigns(vm));
+    }
 }

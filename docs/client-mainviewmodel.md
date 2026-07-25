@@ -322,6 +322,15 @@ When `_isMainWindowClosing` is set, `OnClosing` also disposes the global key hoo
   (`AircraftView.MoveCurrentToPosition(-1)`) before `Aircraft.Remove`, wraps it in a logged try/catch that rebuilds the
   view as a last resort, and preserves a selection on a different aircraft (GitHub #237). Don't call `Aircraft.Remove`
   directly.
+- **Aircraft-list column sorting must never hand `DataGridCollectionView` a throwing comparer.** `SetupDataGrid`
+  wires each column's `CustomSortComparer` from `GetColumnSortComparer` (`MainWindow.axaml.cs`), which resolves the
+  sort property from `SortMemberPath` or the column's binding, then wraps it in `GroupStableSortComparer`. The
+  `DataGridTextColumn`s carry `x:DataType`, so their bindings **compile** — `bound.Binding` is a `CompiledBinding`, not a
+  reflection `Binding` (this changed with the Avalonia 12 upgrade). Read the path from `CompiledBinding.Path`, not only
+  `Binding.Path`, and let the no-property fallback return `NoOpSortComparer.Instance` — never `Comparer<object>.Default`,
+  which throws `ArgumentException: At least one object must implement IComparable` on the raw `AircraftModel` rows,
+  aborting `PrepareLocalArray` mid-sort so the view is left truncated (rows silently vanish from the list while staying on
+  Radar/Ground/CRC). `PropertySortComparer` is already null-safe, so an unresolved property degrades to a no-op, not a crash.
 - **Three scenario-activation paths, one router.** `ApplyScenarioResult` (loader), `OnScenarioLoaded` (broadcast),
   and `ApplyRoomState` (join/reconnect) all go through `ApplyScenarioBootstrap`. Wiring a new scenario-derived field
   into only the loader path silently breaks it for joiners and restart-restore rejoins. Add it to the
