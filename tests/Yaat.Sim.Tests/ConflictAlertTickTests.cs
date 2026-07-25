@@ -68,6 +68,34 @@ public class ConflictAlertTickTests
         Assert.Empty(second.Cleared);
     }
 
+    /// <summary>
+    /// The standalone/replay tick must re-evaluate conflicts, not just carry whatever the snapshot restored.
+    /// <c>RestoreFromSnapshot</c> repopulates <see cref="SimulationEngine.ConflictAlerts"/>, so in the
+    /// <c>Replay → RestoreFromSnapshot → ReplayOneSecond</c> pattern a restored conflict that never gets
+    /// re-evaluated is pinned for the rest of the replay — simultaneously stale and frozen.
+    /// </summary>
+    [Fact]
+    public void TickOneSecond_ReEvaluatesConflicts_SoARestoredPairDoesNotStayPinned()
+    {
+        var a = ModeCAircraft("N123AB", new LatLon(37.80, -122.00));
+        var b = ModeCAircraft("N456CD", new LatLon(37.81, -122.00));
+        var engine = EngineWith(a, b);
+
+        // Open a conflict — this is the state a snapshot restore hands back.
+        var opened = engine.TickConflictAlerts([]);
+        var pair = Assert.Single(opened.New);
+        Assert.True(engine.ConflictAlerts.Conflicts.ContainsKey(pair.Id));
+
+        // Separate them well beyond the threshold, then advance the sim the way replay does.
+        b.Position = new LatLon(38.50, -122.00);
+        engine.TickOneSecond();
+
+        Assert.False(
+            engine.ConflictAlerts.Conflicts.ContainsKey(pair.Id),
+            "the standalone tick never re-ran detection, so the conflict stayed pinned after the pair separated"
+        );
+    }
+
     [Fact]
     public void TickConflictAlerts_PairSeparates_ReturnsCleared()
     {

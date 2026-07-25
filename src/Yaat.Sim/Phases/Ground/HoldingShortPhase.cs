@@ -17,7 +17,7 @@ public sealed class HoldingShortPhase : Phase
 {
     private static readonly ILogger Log = SimLog.CreateLogger("HoldingShortPhase");
 
-    private readonly HoldShortPoint _holdShort;
+    private HoldShortPoint _holdShort;
     private bool _hasAnnouncedReady;
 
     public HoldingShortPhase(HoldShortPoint holdShort)
@@ -26,6 +26,20 @@ public sealed class HoldingShortPhase : Phase
     }
 
     public HoldShortPoint HoldShort => _holdShort;
+
+    /// <summary>
+    /// Re-points this phase at the taxi route's own <see cref="HoldShortPoint"/> after a snapshot restore.
+    ///
+    /// Live, the phase is constructed with the route's instance, so the two share one object — clearing the hold-short
+    /// through the phase updates the route, and the phase can see route-only fields such as
+    /// <see cref="HoldShortPoint.TailOverRunwayNodeId"/>. The phase snapshot carries only the node id, runway and
+    /// reason, so restoring rebuilds a detached copy and both of those properties are lost. Called by
+    /// <see cref="AircraftState.FromSnapshot"/> once the route is available.
+    /// </summary>
+    internal void RebindHoldShort(HoldShortPoint holdShort)
+    {
+        _holdShort = holdShort;
+    }
 
     public override string Name =>
         _holdShort.TargetName is not null ? $"Holding Short {RunwayIdentifier.ToDisplayDesignator(_holdShort.TargetName)}" : "Holding Short";

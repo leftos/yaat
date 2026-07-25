@@ -1349,6 +1349,14 @@ public sealed class SimulationEngine
         TickTransponderIdents();
         TickVisualDetection();
 
+        // Re-evaluate the engine-owned conflict sets. Their returned diffs exist for a broadcasting host to fan out
+        // to CRC, so only the server consumes them — but the detection itself has to run on this path too. Without it
+        // a conflict that RestoreFromSnapshot repopulated is never re-examined, so it is pinned for the rest of a
+        // replay: simultaneously stale and unable to clear. Standalone and replay hosts carry no STARS configuration,
+        // hence no internal airports.
+        TickConflictAlerts([]);
+        TickEramConflictAlerts();
+
         var warnings = World.DrainAllWarnings();
         foreach (var (callsign, warning) in warnings)
         {

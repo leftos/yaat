@@ -36,30 +36,30 @@ against source; the rest carry the auditor's evidence and are marked with their 
 19 product defects plus 4 test-suite integrity findings, across 7 audited areas. Five are high
 severity; none are currently caught by the suite.
 
-**Fixed so far** (TDD — failing test committed first, then the fix): findings **1**, **2**, and **20**.
+**Fixed so far** (TDD — failing test first, then the fix): findings **1**, **2**, **3**, **4**, **5**, **7**, **8**, **14**, **19**, and **20**.
 Everything else is reported only, awaiting triage.
 
 | # | Finding | Area | Sev |
 |---|---|---|---|
 | 1 | ✅ **FIXED** — Rejected `DCT` wipes the command queue **and** all deferred dispatches | commands | high |
 | 2 | ✅ **FIXED** — Post-touchdown `GA` gate is unreachable — aircraft levitates at 30 kt | phases | high |
-| 3 | Straight taxi legs held at cornering speed (250 ft gate inert) | ground | high |
-| 4 | Snapshot restore mid-runway-exit silently completes the phase | ground | high |
-| 5 | All test layouts use 150 ft default runway width; production uses navdata | tests | high |
+| 3 | ✅ **FIXED** — Straight taxi legs held at cornering speed (250 ft gate inert) | ground | high |
+| 4 | ✅ **FIXED** — Snapshot restore mid-runway-exit silently completes the phase | ground | high |
+| 5 | ✅ **FIXED** — All test layouts use 150 ft default runway width; production uses navdata | tests | high |
 | 6 | Every pop-out toggle leaks a canvas, renderer, and 10 Hz timer | client | med-high |
-| 7 | `WAIT`/`BEHIND` deferral re-inflates its own prefix on restore | commands | med-high |
-| 8 | `CLRWY` permanently rejected after restore — aircraft strands on runway | ground | med |
+| 7 | ✅ **FIXED** — `WAIT`/`BEHIND` deferral re-inflates its own prefix on restore | commands | med-high |
+| 8 | ✅ **FIXED** — `CLRWY` permanently rejected after restore — aircraft strands on runway | ground | med |
 | 9 | `MidfieldCrossing`/`TeardropReentry` destroy the pattern circuit on `SPD`/`CM` | phases | med |
 | 10 | `InterceptCoursePhase` ignores `LateralInterceptOnly` — decelerates ~70 kt | phases | med |
 | 11 | `ProcedureTurnPhase` leaks a permanent 200 kt `SpeedCeiling` | phases | med |
 | 12 | Ghost fields absent from `StarsTrackFingerprint` — re-ghost never reaches CRC | crc | med |
 | 13 | `BrightnessLookup` shared by reference into the render snapshot, mutated live | client | med |
-| 14 | Split conditional block loses `IsApplied`/`TriggerMet` — zombie queue | commands | med |
+| 14 | ✅ **FIXED** — Split conditional block loses `IsApplied`/`TriggerMet` — zombie queue | commands | med |
 | 15 | `EL`/`ER`/`EXIT` during `RunwayExitPhase` acknowledged but ignored | ground | med |
 | 16 | `DesiredDecelRate` leaks out of `LandingPhase` on `GA` from rollout | phases | low |
 | 17 | Documented `ONH` alias is dead as a condition prefix | commands | low |
 | 18 | `DrainAllPilotSpeech` never called by the engine (replay-only) | sim | low |
-| 19 | Restored conflict sets frozen for the rest of a hybrid replay | sim | low |
+| 19 | ✅ **FIXED** — Restored conflict sets frozen for the rest of a hybrid replay | sim | low |
 | 20 | ✅ **FIXED** — `SMF.geojson` is uppercase — its test has never run on CI | tests | med |
 | 21 | Replay assertions that cannot fail on the bug they were written for | tests | med |
 | 22 | Orphaned recordings — regression coverage that no longer runs | tests | med |
@@ -349,7 +349,21 @@ set (~30 native objects in `GroundRenderer` alone).
 **Why tests miss it.** `MainWindowLifecycleTests.GroundAndRadarPopOut_EachCreatesItsOwnWindow`
 asserts a window is *created*, never that the prior canvas is torn down. Nothing toggles twice.
 
-### 7. A pending `WAIT n <cmd>` restarts its full countdown after any snapshot restore; `BEHIND` can be dropped entirely
+### 7. A pending `WAIT n <cmd>` restarts its full countdown after any snapshot restore; `BEHIND` can be dropped entirely — ✅ FIXED
+
+> **Fix applied.** Extracted `CommandDispatcher.StripDeferralGateBlocks` and pointed all three sites at it —
+> `TryDeferLeadingWait`, `TryDeferGiveWay`, and `DeferredDispatch.FromSnapshot`. Restore re-parses the
+> stored text with the gate still attached, so it now strips that gate exactly the way the dispatch path
+> does. One implementation is the point: the bug existed because the producers and the restorer had
+> separate logic.
+>
+> Reaction delays are deliberately exempt — they store the whole command as their payload and carry no
+> gate, so stripping would eat a real command. `RestoredReactionDelay_KeepsItsWholePayload` pins that,
+> and it stayed green throughout while the two gated tests were red, which is what proved the fix had to
+> be conditional rather than blanket.
+>
+> Mutation-verified: disabling the strip turns both gated tests red and leaves the reaction-delay test green.
+
 
 - **File**: `src/Yaat.Sim/CommandQueue.cs:394` (`DeferredDispatch.FromSnapshot`); live path
   `src/Yaat.Sim/Commands/CommandDispatcher.cs:1313`, `:1334-1338`
@@ -375,7 +389,17 @@ the taxi clearance entirely.
 **only** `restored.IsScenarioScripted` — never comparing `restored.Payload` to the original. No test
 ticks a restored deferral to expiry.
 
-### 8. `CLRWY` is permanently rejected after a snapshot restore, stranding an aircraft on the runway
+### 8. `CLRWY` is permanently rejected after a snapshot restore, stranding an aircraft on the runway — ✅ FIXED
+
+> **Fix applied.** `AircraftState.FromSnapshot` now re-links every restored `HoldingShortPhase` to the taxi
+> route's own `HoldShortPoint` via `GetHoldShortAt`, restoring the shared-instance relationship the live path
+> has. That fixes both halves: the phase regains `TailOverRunwayNodeId` (so `CLRWY` is available again), and
+> its writes — clearing the hold-short — reach the route the rest of the sim reads.
+>
+> Chosen over simply persisting the missing fields on the DTO, which would have fixed the rejection but left
+> the phase holding a detached copy whose writes go nowhere. Re-linking addresses the root cause this whole
+> cluster shares: restore paths *rebuilding* objects instead of *re-resolving* them.
+
 
 - **File**: `src/Yaat.Sim/Phases/Ground/HoldingShortPhase.cs:209-223`, `:177`;
   `src/Yaat.Sim/Commands/GroundCommandHandler.cs:2147`; DTO `PhaseSnapshotDto.cs:298-316`
@@ -515,7 +539,11 @@ in place. `BrightnessLookup` is the only one that is both shared and mutated.
 headless with `parallelizeTestCollections: false` — there is no compositor render thread, so the two
 threads never coexist under test.
 
-### 14. A partially-superseded conditional block is rebuilt without its trigger state — zombie queue or double-fire
+### 14. A partially-superseded conditional block is rebuilt without its trigger state — zombie queue or double-fire — ✅ FIXED
+
+> **Fix applied.** `SplitBlockNonConflicting` now copies `IsApplied`, `TriggerMet`, `TriggerCrossingObserved`,
+> `TriggerMissed`, and `TriggerClosestApproach` alongside the wait counters and track guard it already carried.
+
 
 - **File**: `src/Yaat.Sim/Commands/CommandDispatcher.cs:2540-2548` (`SplitBlockNonConflicting`)
 - **Severity**: medium — **Confidence**: medium (zombie outcome deterministic; re-fire is timing-dependent)
@@ -611,7 +639,17 @@ drain clears it. So under `TickOneSecond`/`ReplayOneSecond`, `PendingPilotSpeech
 session, and any `Assert.Contains(x, ac.PendingPilotSpeech)` passes for a message from *any earlier
 tick*.
 
-### 19. Restored conflict sets are frozen for the rest of a hybrid replay **[verified]**
+### 19. Restored conflict sets are frozen for the rest of a hybrid replay **[verified]** — ✅ FIXED
+
+> **Fix applied** (approach chosen by the user). `TickPostPhysics` now calls `TickConflictAlerts([])` and
+> `TickEramConflictAlerts()`, discarding the returned diffs, so the standalone/replay path re-evaluates
+> conflicts instead of carrying whatever the snapshot restored.
+>
+> This narrows the "return-value seam is server-only" rule to what it was actually about — broadcast
+> entanglement. Discarding the diff broadcasts nothing, and the server never calls `TickPostPhysics`, so there
+> is no double-run. The risk was that replay-driven tests would start observing real conflicts; the full suite
+> passed unchanged.
+
 
 - **File**: `src/Yaat.Sim/Simulation/SimulationEngine.cs:438`, `:531-558`, `:1048`, `:1110`
 - **Severity**: low today, but a **latent test-integrity hazard**

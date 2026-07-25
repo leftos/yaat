@@ -7,6 +7,9 @@
 - `GA` is refused once an aircraft slows below the go-around speed gate after touchdown, instead of lifting it off the runway.
 - Aircraft accelerate along a long straight taxiway leg between two corners instead of crawling its whole length at cornering speed.
 - Rewinding or replaying while an aircraft is turning off the runway keeps it following the exit instead of abandoning it mid-turn.
+- Rewinding or replaying keeps a pending `WAIT` counting down from where it was, and no longer drops a pending `BEHIND` clearance.
+- `CLRWY` stays available after a rewind or replay for an aircraft holding short with its tail still over a runway.
+- A speed change that supersedes part of a conditional clearance no longer strands the rest of that clearance in the queue.
 
 ## v0.9.16-beta [2026/07/24]
 

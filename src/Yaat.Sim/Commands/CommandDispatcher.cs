@@ -1301,23 +1301,10 @@ public static class CommandDispatcher
 
         // Build payload: sibling commands from the same block (minus WAIT) + subsequent blocks.
         // "WAIT 10, FH 270" → payload is [FH 270]; "WAIT 10; FH 270" → payload is [FH 270].
-        var payloadBlocks = new List<ParsedBlock>();
-
-        // Sibling commands in the first block (everything except the WAIT)
-        var siblings = firstBlock.Commands.Where(c => c != waitCmd && c != waitDistCmd).ToList();
-        if (siblings.Count > 0)
-        {
-            payloadBlocks.Add(new ParsedBlock(firstBlock.Condition, siblings));
-        }
-
-        // Subsequent blocks
-        for (int i = 1; i < compound.Blocks.Count; i++)
-        {
-            payloadBlocks.Add(compound.Blocks[i]);
-        }
+        var payloadBlocks = StripDeferralGateBlocks(compound);
 
         // Bare WAIT with no payload — standalone wait, let queue handle it
-        if (payloadBlocks.Count == 0)
+        if (payloadBlocks is null)
         {
             return null;
         }
@@ -1374,6 +1361,56 @@ public static class CommandDispatcher
     /// target callsign is hard-rejected so typos don't silently fire the deferred
     /// payload via the "target gone → MET" shortcut in IsGiveWayMet.
     /// </summary>
+    /// <summary>
+    /// Builds the payload blocks a deferred dispatch runs when its gate fires, by stripping that gate off
+    /// <paramref name="compound"/>: a <c>WAIT</c>/<c>WAITD</c> command out of the first block's commands, or a
+    /// give-way condition off the first block. Returns null when there is no gate to strip, or when stripping leaves
+    /// nothing to run (a bare <c>WAIT</c>).
+    ///
+    /// Shared by the two dispatch paths that create deferrals and by <see cref="DeferredDispatch.FromSnapshot"/>,
+    /// which re-parses the stored source text — gate still attached — and has to strip it exactly the same way. One
+    /// implementation is the point: while these were separate, a restored <c>WAIT</c> re-deferred itself and restarted
+    /// its full countdown, and a restored <c>BEHIND</c> could be rejected outright and drop its clearance.
+    /// </summary>
+    internal static List<ParsedBlock>? StripDeferralGateBlocks(CompoundCommand compound)
+    {
+        if (compound.Blocks.Count == 0)
+        {
+            return null;
+        }
+
+        var firstBlock = compound.Blocks[0];
+        var payloadBlocks = new List<ParsedBlock>();
+
+        if (firstBlock.Condition is GiveWayCondition)
+        {
+            payloadBlocks.Add(new ParsedBlock(null, firstBlock.Commands));
+        }
+        else
+        {
+            // Drop the first WAIT/WAITD instance only, mirroring the dispatch path — a second one in the same block
+            // stays part of the payload.
+            ParsedCommand? gate = firstBlock.Commands.FirstOrDefault(c => c is WaitCommand or WaitDistanceCommand);
+            if (gate is null)
+            {
+                return null;
+            }
+
+            var siblings = firstBlock.Commands.Where(c => c != gate).ToList();
+            if (siblings.Count > 0)
+            {
+                payloadBlocks.Add(new ParsedBlock(firstBlock.Condition, siblings));
+            }
+        }
+
+        for (int i = 1; i < compound.Blocks.Count; i++)
+        {
+            payloadBlocks.Add(compound.Blocks[i]);
+        }
+
+        return payloadBlocks.Count > 0 ? payloadBlocks : null;
+    }
+
     private static CommandResult? TryDeferGiveWay(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
         if (compound.Blocks[0].Condition is not GiveWayCondition gw)
@@ -1387,11 +1424,10 @@ public static class CommandDispatcher
         }
 
         // Strip the condition from the first block; keep the commands and subsequent blocks
-        var payloadBlocks = new List<ParsedBlock>();
-        payloadBlocks.Add(new ParsedBlock(null, compound.Blocks[0].Commands));
-        for (int i = 1; i < compound.Blocks.Count; i++)
+        var payloadBlocks = StripDeferralGateBlocks(compound);
+        if (payloadBlocks is null)
         {
-            payloadBlocks.Add(compound.Blocks[i]);
+            return null;
         }
 
         var payload = new CompoundCommand(payloadBlocks) { SourceText = compound.SourceText };
@@ -2561,11 +2597,22 @@ public static class CommandDispatcher
 
         var rebuilt = CreateBlock(keptParsed, block.Trigger, labels, block.SourceCommandText, ctx);
 
-        // Runtime state the surviving commands cannot describe: a partially-elapsed wait, and the guard that
-        // stops an already-dispatched track command from firing twice. Both belong to the block being replaced.
+        // Runtime state the surviving commands cannot describe: a partially-elapsed wait, the guard that stops an
+        // already-dispatched track command from firing twice, and how far the block's trigger has progressed. All of
+        // it belongs to the block being replaced, and CreateBlock returns it defaulted.
+        //
+        // The trigger flags matter most: TriggerMet is a latch because IsTriggerMet goes false again once the aircraft
+        // flies past the fix, so a rebuilt block that forgets it re-arms against a condition that has already
+        // happened — it never completes and pins the queue behind it, or re-applies its commands if the trigger can
+        // still evaluate true.
         rebuilt.WaitRemainingSeconds = block.WaitRemainingSeconds;
         rebuilt.WaitRemainingDistanceNm = block.WaitRemainingDistanceNm;
         rebuilt.TrackApplied = block.TrackApplied;
+        rebuilt.IsApplied = block.IsApplied;
+        rebuilt.TriggerMet = block.TriggerMet;
+        rebuilt.TriggerCrossingObserved = block.TriggerCrossingObserved;
+        rebuilt.TriggerMissed = block.TriggerMissed;
+        rebuilt.TriggerClosestApproach = block.TriggerClosestApproach;
 
         return rebuilt;
     }

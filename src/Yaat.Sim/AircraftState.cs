@@ -385,6 +385,24 @@ public class AircraftState
         ac.WindComponents = (dto.WindN, dto.WindE);
         ControlTargets.RestoreFrom(dto.Targets, ac.Targets);
 
+        // Re-link every restored HoldingShortPhase to the taxi route's own HoldShortPoint. Each side round-trips
+        // independently, so without this the phase holds a detached copy: it loses TailOverRunwayNodeId (which CLRWY
+        // gates on, so the command would be refused for the rest of the session) and its writes — clearing the
+        // hold-short — would no longer reach the route the rest of the sim reads.
+        if (ac.Phases is { } phases && ac.Ground.AssignedTaxiRoute is { } taxiRoute)
+        {
+            foreach (var phase in phases.Phases)
+            {
+                if (
+                    phase is Phases.Ground.HoldingShortPhase holdingShort
+                    && taxiRoute.GetHoldShortAt(holdingShort.HoldShort.NodeId) is { } routeHoldShort
+                )
+                {
+                    holdingShort.RebindHoldShort(routeHoldShort);
+                }
+            }
+        }
+
         if (dto.PositionHistory is not null)
         {
             foreach (var p in dto.PositionHistory)

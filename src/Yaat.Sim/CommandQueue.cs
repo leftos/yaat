@@ -397,25 +397,34 @@ public sealed class DeferredDispatch
             return null;
         }
 
+        // SourceText is the whole original command, gate included ("WAIT 120 RWY 18L TAXI N B"), so the re-parsed
+        // compound must have that gate stripped exactly the way the dispatch path stripped it. Without this the
+        // restored payload re-enters the deferral path when it fires — a WAIT restarts its full countdown, and a
+        // BEHIND whose target has since been deleted is rejected and its clearance discarded. Reaction delays store
+        // the whole command as their payload and carry no gate, so they are left intact.
+        var payload = parseResult.Value!;
+        if (!dto.IsReactionDelay && Commands.CommandDispatcher.StripDeferralGateBlocks(payload) is { } payloadBlocks)
+        {
+            // Mirror the dispatch path's SourceText handling: the give-way payload carries the original text, the
+            // WAIT payload does not.
+            payload = new Commands.CompoundCommand(payloadBlocks) { SourceText = dto.GiveWayTarget is not null ? dto.SourceText : null };
+        }
+
         if (dto.GiveWayTarget is not null)
         {
-            return new DeferredDispatch(parseResult.Value!, dto.GiveWayTarget)
-            {
-                SourceText = dto.SourceText,
-                IsScenarioScripted = dto.IsScenarioScripted,
-            };
+            return new DeferredDispatch(payload, dto.GiveWayTarget) { SourceText = dto.SourceText, IsScenarioScripted = dto.IsScenarioScripted };
         }
 
         if (dto.IsDistanceBased)
         {
-            return new DeferredDispatch(parseResult.Value!, dto.RemainingDistanceNm)
+            return new DeferredDispatch(payload, dto.RemainingDistanceNm)
             {
                 SourceText = dto.SourceText,
                 IsScenarioScripted = dto.IsScenarioScripted,
             };
         }
 
-        return new DeferredDispatch(dto.RemainingSeconds, parseResult.Value!)
+        return new DeferredDispatch(dto.RemainingSeconds, payload)
         {
             SourceText = dto.SourceText,
             IsReactionDelay = dto.IsReactionDelay,
