@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- A rejected `DCT` to an un-programmed fix no longer discards the aircraft's queued conditionals and pending `WAIT`/`BEHIND` commands.
+- `GA` is refused once an aircraft slows below the go-around speed gate after touchdown, instead of lifting it off the runway.
+
 ## v0.9.16-beta [2026/07/24]
 
 ### Added

@@ -69,8 +69,30 @@ internal sealed class TestAirportGroundData : IAirportGroundData
         return airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
     }
 
+    /// <summary>
+    /// Resolves the GeoJSON fixture for <paramref name="shortId"/>, matching the filename without regard to case.
+    /// Windows resolves paths case-insensitively but the Linux CI runner does not, so a fixture committed under a
+    /// different case than the lowercase convention (e.g. <c>SMF.geojson</c>) resolves locally and silently vanishes
+    /// on CI — <see cref="GetLayout"/> returns null and every consuming test takes its skip path instead of running.
+    /// Matching case-insensitively means filename case can never quietly gate coverage.
+    /// </summary>
     private static string GetGeoJsonPath(string shortId)
     {
-        return Path.Combine(TestDataDir, $"{shortId.ToLowerInvariant()}.geojson");
+        string preferred = Path.Combine(TestDataDir, $"{shortId.ToLowerInvariant()}.geojson");
+        if (File.Exists(preferred) || !Directory.Exists(TestDataDir))
+        {
+            return preferred;
+        }
+
+        string wanted = $"{shortId}.geojson";
+        foreach (string candidate in Directory.EnumerateFiles(TestDataDir, "*.geojson"))
+        {
+            if (string.Equals(Path.GetFileName(candidate), wanted, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+
+        return preferred;
     }
 }

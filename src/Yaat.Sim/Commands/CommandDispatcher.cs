@@ -1032,13 +1032,25 @@ public static class CommandDispatcher
         }
 
         var clone = AircraftState.FromSnapshot(aircraft.ToSnapshot(), ctx.GroundLayout);
-        // Dry-run uses a deterministic RNG and disables DCT-fix validation, auto-cross-runway
-        // side effects, and terminal emission. The clone is discarded; emitting SAY broadcasts
-        // here would surface phantom pilot transmissions before the trigger actually fires.
+
+        // ApproachClearance.Procedure is not serialized, so the clone's active approach comes back without it and
+        // GetProgrammedFixes — which reads it — would report a smaller programmed set than the real aircraft. Re-attach
+        // the real procedure so DCT-fix validation below sees the true set and cannot reject a direct-to onto a fix of
+        // the approach the aircraft is already flying.
+        if (clone.Phases?.ActiveApproach is { Procedure: null } cloneApproach)
+        {
+            cloneApproach.Procedure = aircraft.Phases?.ActiveApproach?.Procedure;
+        }
+
+        // Dry-run uses a deterministic RNG and suppresses auto-cross-runway side effects and terminal emission.
+        // The clone is discarded; emitting SAY broadcasts here would surface phantom pilot transmissions before the
+        // trigger actually fires. DCT-fix validation stays ENABLED: the real path clears conflicting queue blocks and
+        // every deferred dispatch before applying the first block, so a rejection that reaches ApplyBlock destroys
+        // unrelated pending work on its way out. Catching it here keeps the contract that a rejected command leaves
+        // state unchanged.
         var dryCtx = ctx with
         {
             Rng = new Random(0),
-            ValidateDctFixes = false,
             AutoCrossRunway = false,
             TerminalEmitter = null,
         };
@@ -1732,6 +1744,16 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryCancelLandingClearance(aircraft);
 
             case GoAroundCommand ga:
+                // Tower commands deliberately run before the phase acceptance gate so a clearance still applies
+                // during phases that would otherwise be cleared by it. That bypass also swallowed the phases which
+                // explicitly REJECT a go-around — the post-touchdown energy gate, a helicopter departure, an
+                // already-rejected landing — leaving those safety gates unreachable in production. Honour an explicit
+                // GA rejection here; every other tower command keeps its bypass.
+                if (currentPhase.CanAcceptCommand(CanonicalCommandType.GoAround) is { IsRejected: true } gaGate)
+                {
+                    return new CommandResult(false, gaGate.Reason ?? "unable to go around from the current phase");
+                }
+
                 return PatternCommandHandler.TryGoAround(ga, aircraft, ctx.GroundLayout);
 
             // Pattern entry commands

@@ -44,8 +44,14 @@ public sealed class ApproachClearance
     /// </summary>
     public bool LateralInterceptOnly { get; set; }
 
-    /// <summary>Resolved CIFP procedure data, if available.</summary>
-    public CifpApproachProcedure? Procedure { get; init; }
+    /// <summary>
+    /// Resolved CIFP procedure data, if available. Deliberately not serialized — it is bulk nav data that would
+    /// bloat every snapshot — so a clearance restored from a snapshot carries a null procedure. Settable so a caller
+    /// holding the live aircraft can re-attach the real procedure to a restored copy before reading
+    /// <see cref="AircraftState.GetProgrammedFixes"/>, which consults it. The instance is immutable nav data, so
+    /// sharing the reference across copies is safe.
+    /// </summary>
+    public CifpApproachProcedure? Procedure { get; set; }
 
     /// <summary>Pre-built missed approach fix sequence from CIFP data. Empty if no MAP data.</summary>
     public IReadOnlyList<ApproachFix> MissedApproachFixes { get; init; } = [];
