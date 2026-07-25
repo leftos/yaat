@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.16-beta [2026/07/24]
 
 ### Added
 - Departures not going full length show their intersection on the ground datablock and Info column (`28R@E #1`).
