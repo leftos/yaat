@@ -5,6 +5,8 @@
 ### Fixed
 - A rejected `DCT` to an un-programmed fix no longer discards the aircraft's queued conditionals and pending `WAIT`/`BEHIND` commands.
 - `GA` is refused once an aircraft slows below the go-around speed gate after touchdown, instead of lifting it off the runway.
+- Aircraft accelerate along a long straight taxiway leg between two corners instead of crawling its whole length at cornering speed.
+- Rewinding or replaying while an aircraft is turning off the runway keeps it following the exit instead of abandoning it mid-turn.
 
 ## v0.9.16-beta [2026/07/24]
 

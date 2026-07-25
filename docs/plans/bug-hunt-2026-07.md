@@ -175,7 +175,18 @@ from the runway at 30 KIAS.
 calls `phase.CanAcceptCommand(...)` **directly**. No dispatcher-level test issues `GA` to a rolling
 aircraft, so the gate passes in isolation while being bypassed in production.
 
-### 3. Any straight taxi leg between two corners is held at cornering speed — the 250 ft gate is inert **[verified]**
+### 3. Any straight taxi leg between two corners is held at cornering speed — the 250 ft gate is inert **[verified]** — ✅ FIXED
+
+> **Fix applied.** `FindBracketingCornerSpeed` now tests `runFt > ShortConnectorMaxLenFt` at the head of
+> its walk loop, before either bracket lookup returns a corner speed. The trailing post-accumulation
+> check became redundant and was removed.
+>
+> Test: `GroundNavigatorTests.LongStraightBetweenSharpCorners_IsNotTreatedAsShortConnector` — same 90°
+> bracketing corners as the existing short-connector test, but a 1500 ft straight between them.
+> Notably it went red by *throwing the pure-pursuit orbit guard*, not by failing its speed assertion:
+> crawling a 1500 ft leg at ~3 kt destabilised the navigator into circling a node. The original 200 ft
+> test still passes, so the legitimate connector slowdown is intact.
+
 
 - **File**: `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs:1128`, `:1173-1177`, `:1194-1198`
 - **Severity**: **high** — live-sim behavior, fires on ordinary filleted geometry, not an edge case
@@ -213,7 +224,20 @@ uses a **200 ft** connector — inside the window, so the missing gate is invisi
 literal to 2000 ft leaves the assertion passing. There is no negative test asserting a long straight
 between two sharp corners *does* accelerate.
 
-### 4. Restoring a snapshot mid-runway-exit silently completes the phase and skips all cleanup **[verified]**
+### 4. Restoring a snapshot mid-runway-exit silently completes the phase and skips all cleanup **[verified]** — ✅ FIXED
+
+> **Fix applied.** `OnTick`'s `FollowingExitPath` branch rebuilds the route via `StartExitNavigation`
+> when it comes back null, mirroring the sibling navigator-owning phases that defer their route build
+> to the first tick after restore. If the rebuild fails (layout gone, or a stored edge no longer
+> exists) it falls back to the centerline search — the same recovery the build-time failure path takes
+> — rather than declaring the exit complete.
+>
+> `RunwayExitPhase.ExitState` became public so the test can construct the restore DTO.
+>
+> Test: `RunwayExitRestoreTests.RestoredMidExit_ContinuesFollowingTheExitPath_InsteadOfReportingComplete`,
+> which derives real OAK hold-short/branch nodes from the layout at runtime rather than hardcoding ids
+> (fillet node ids are geometry-coupled and shift when the fixture is regenerated).
+
 
 - **File**: `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs:530-535` (the silent return), `:756-800` (`FromSnapshot`)
 - **Severity**: **high** — restored/rewound sessions diverge from live; also the phase's only unlogged branch

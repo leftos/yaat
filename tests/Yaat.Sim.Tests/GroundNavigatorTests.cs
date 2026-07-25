@@ -326,6 +326,73 @@ public class GroundNavigatorTests
     }
 
     /// <summary>
+    /// The connector slowdown is gated on <c>ShortConnectorMaxLenFt</c> (250 ft): above it a genuine straight segment
+    /// exists and the normal accelerate-then-brake profile is correct, so "the length window alone never forces a
+    /// slowdown". This is the negative case for <see cref="ShortConnector_HoldsSteadyLowSpeed_NoSurge"/>, whose 200 ft
+    /// connector sits inside the window and therefore cannot detect a missing length gate. Same bracketing 90° corners,
+    /// a 1500 ft straight between them — the aircraft must accelerate rather than crawl the whole leg at corner speed.
+    /// </summary>
+    [Fact]
+    public void LongStraightBetweenSharpCorners_IsNotTreatedAsShortConnector()
+    {
+        const double LongStraightFt = 1500.0;
+
+        var n0 = MakeNode(1, 37.0, -122.0);
+        var (l1, o1) = GeoMath.ProjectPoint(n0.Position, new TrueHeading(180.0), 120.0 / GeoMath.FeetPerNm);
+        var n1 = MakeNode(2, l1, o1);
+        var (l2, o2) = GeoMath.ProjectPoint(n1.Position, new TrueHeading(90.0), LongStraightFt / GeoMath.FeetPerNm);
+        var n2 = MakeNode(3, l2, o2);
+        var (l3, o3) = GeoMath.ProjectPoint(n2.Position, new TrueHeading(180.0), 200.0 / GeoMath.FeetPerNm);
+        var n3 = MakeNode(4, l3, o3);
+
+        var route = new TaxiRoute
+        {
+            Segments = [MakeStraightSegment(n0, n1, "A"), MakeStraightSegment(n1, n2, "F1"), MakeStraightSegment(n2, n3, "B")],
+            HoldShortPoints = [],
+        };
+
+        var (aircraft, ctx) = MakeFixture(n0.Position, acHeadingDeg: 180.0, startSpeedKts: 10.0);
+        var nav = new GroundNavigator { MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category) };
+        nav.SetupSegment(route, ctx, _ => true);
+
+        double peakOnLongStraight = 0.0;
+        int straightTicks = 0;
+        for (int tick = 0; tick < 4000; tick++)
+        {
+            FlightPhysics.Update(aircraft, ctx.DeltaSeconds);
+            bool last = route.CurrentSegmentIndex == route.Segments.Count - 1;
+            var result = nav.Tick(ctx, last, _ => true);
+
+            bool alignedToStraight = new TrueHeading(aircraft.TrueHeading.Degrees).AbsAngleTo(new TrueHeading(90.0)) < 20.0;
+            if (route.CurrentSegmentIndex == 1 && alignedToStraight)
+            {
+                peakOnLongStraight = Math.Max(peakOnLongStraight, aircraft.IndicatedAirspeed);
+                straightTicks++;
+            }
+
+            if (result == NavigatorResult.ArrivedAtNode)
+            {
+                if (last)
+                {
+                    break;
+                }
+
+                route.CurrentSegmentIndex++;
+                nav.SetupSegment(route, ctx, _ => true);
+            }
+        }
+
+        _out.WriteLine($"LongStraight: straightTicks={straightTicks} peakOnLongStraight={peakOnLongStraight:F1}kt");
+
+        Assert.True(straightTicks > 0, "aircraft never traversed the long straight aligned to its centerline");
+        Assert.True(
+            peakOnLongStraight > 10.0,
+            $"a {LongStraightFt:F0} ft straight is past the {250} ft connector window, so the aircraft should accelerate "
+                + $"along it instead of holding corner speed; peaked at only {peakOnLongStraight:F1} kt"
+        );
+    }
+
+    /// <summary>
     /// Aircraft already aligned with the first segment within tolerance —
     /// entry alignment must NOT inject a slow-turn. Verify by asserting the
     /// aircraft starts moving forward immediately (would be deferred at

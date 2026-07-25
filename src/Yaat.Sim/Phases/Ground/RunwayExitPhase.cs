@@ -27,7 +27,7 @@ public sealed class RunwayExitPhase : Phase
     /// It never needs to be looked up in the layout — the navigator only resolves
     /// ToNodeId for target coordinates.
     /// </summary>
-    private enum ExitState
+    public enum ExitState
     {
         RollingOnCenterline,
         FollowingExitPath,
@@ -170,6 +170,23 @@ public sealed class RunwayExitPhase : Phase
 
         if (_state == ExitState.FollowingExitPath)
         {
+            // A snapshot restore brings back the state, the waypoint nodes and the navigator, but the exit route is
+            // built from the live ground layout and is not serialized — so it comes back null. TickFollowingExitPath
+            // reads a null route as "exit complete", which would end the phase without CompleteExit's cleanup.
+            // Rebuild it here, mirroring the sibling navigator-owning phases that defer their route build to the
+            // first tick after restore.
+            if (_exitRoute is null && !StartExitNavigation(ctx))
+            {
+                // Rebuild failed (layout gone, or an edge on the stored path no longer exists). Fall back to the
+                // centerline search rather than silently declaring the exit complete — same recovery the build-time
+                // failure path takes.
+                _state = ExitState.RollingOnCenterline;
+                _holdShortNode = null;
+                _exitTaxiway = null;
+                _exitPath = null;
+                return TickRolling(ctx);
+            }
+
             return TickFollowingExitPath(ctx);
         }
 

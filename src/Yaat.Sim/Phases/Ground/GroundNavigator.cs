@@ -1164,6 +1164,16 @@ public sealed class GroundNavigator
         int i = idx;
         while (true)
         {
+            // The run is already longer than a connector, so whatever brackets it no longer matters: a genuine straight
+            // segment exists and the normal accelerate-then-brake profile is correct. This has to be tested BEFORE the
+            // bracket lookups below, each of which returns a corner speed directly — testing only after extending the
+            // run let a single long segment bracketed by two corners escape the window entirely, pinning the whole leg
+            // at cornering speed.
+            if (runFt > ShortConnectorMaxLenFt)
+            {
+                return null;
+            }
+
             int next = i + dir;
             if (next < 0 || next >= route.Segments.Count)
             {
@@ -1190,12 +1200,8 @@ public sealed class GroundNavigator
                     : CategoryPerformance.CornerSpeedForAngle(ctx.Category, turn);
             }
 
-            // Straight continuation — extend the run and keep walking outward.
+            // Straight continuation — extend the run and keep walking outward. The loop head re-tests the length.
             runFt += neighbor.Edge.DistanceNm * GeoMath.FeetPerNm;
-            if (runFt > ShortConnectorMaxLenFt)
-            {
-                return null;
-            }
             i = next;
         }
     }
