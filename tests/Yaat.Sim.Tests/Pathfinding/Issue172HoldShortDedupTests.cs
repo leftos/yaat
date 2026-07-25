@@ -17,9 +17,9 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// </summary>
 public class Issue172HoldShortDedupTests
 {
-    // SFO node 871 is the 01L/19R hold-short on taxiway G (where arrivals off 19L/19R hold) —
-    // exactly where KLM605/EJA512/N984DC sat when issued "TAXI G B HS B" in the recording.
-    private const int GHoldShortNode = 871;
+    // The start node is SFO's 01L/19R hold-short on taxiway G (where arrivals off 19L/19R hold) — exactly where
+    // KLM605/EJA512/N984DC sat when issued "TAXI G B HS B" in the recording. Resolved by name, never by id: ids are
+    // geometry-coupled and renumber whenever the layout is regenerated or a runway's dimensions change.
 
     private static int CountOccurrences(string haystack, string needle)
     {
@@ -49,11 +49,12 @@ public class Issue172HoldShortDedupTests
             return;
         }
 
-        Assert.True(layout.Nodes.ContainsKey(GHoldShortNode), $"Node {GHoldShortNode} missing from current sfo layout");
+        var gHoldShort = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "01L", "G");
+        Assert.NotNull(gHoldShort);
 
         var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
-            fromNodeId: GHoldShortNode,
+            fromNodeId: gHoldShort.Id,
             taxiwayNames: ["G", "B"],
             out string? failReason,
             new ExplicitPathOptions { AirportId = "SFO", ExplicitHoldShorts = ["B"] },

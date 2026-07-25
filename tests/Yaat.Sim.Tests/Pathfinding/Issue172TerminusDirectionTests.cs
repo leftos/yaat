@@ -20,14 +20,9 @@ namespace Yaat.Sim.Tests.Pathfinding;
 /// </summary>
 public class Issue172TerminusDirectionTests(ITestOutputHelper output)
 {
-    // SFO: node 871 = 01L/19R hold-short on taxiway G (arrival exit); the pure (pre-fillet) G/B
-    // intersection is node 155 (tangent-cut fillet nodes 1400-1403 surround it).
-    private const int GHoldShortNode = 871;
-    private const int GbIntersection = 155;
-
-    // SFO: node 152 = pure F1/B intersection; K crosses 10R/28L at hold-short nodes 850 and 860.
-    private const int F1bIntersection = 152;
-    private static readonly int[] Rwy10RHoldShortsOnK = [850, 860];
+    // Nodes are resolved by name, never by id: ids are geometry-coupled and renumber whenever the layout is
+    // regenerated or a runway's dimensions change. SFO's G carries the 01L/19R hold-short arrivals off 19L/19R
+    // hold at; K crosses 10R.
 
     private static AirportGroundLayout? SfoLayout(ITestOutputHelper output)
     {
@@ -50,9 +45,16 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
             return;
         }
 
+        var gHoldShort = TestLayoutNodes.RunwayHoldShortOnTaxiway(layout, "01L", "G");
+        var gbIntersection = layout.FindIntersectionNode("G", "B");
+        if (gHoldShort is null || gbIntersection is null)
+        {
+            return;
+        }
+
         var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
-            fromNodeId: GHoldShortNode,
+            fromNodeId: gHoldShort.Id,
             taxiwayNames: ["G", "B"],
             out string? failReason,
             new ExplicitPathOptions { AirportId = "SFO" },
@@ -69,7 +71,7 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
         }
 
         // The route stops at the pure G/B intersection and never walks along B.
-        Assert.Equal(GbIntersection, route.Segments[^1].ToNodeId);
+        Assert.Equal(gbIntersection.Id, route.Segments[^1].ToNodeId);
         Assert.DoesNotContain(route.Segments, s => s.TaxiwayName.Equals("B", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -82,9 +84,16 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
             return;
         }
 
+        var f1bIntersection = layout.FindIntersectionNode("F1", "B");
+        var rwy10RHoldShortsOnK = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "10R", "K").Select(n => n.Id).ToHashSet();
+        if (f1bIntersection is null || rwy10RHoldShortsOnK.Count == 0)
+        {
+            return;
+        }
+
         var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
-            fromNodeId: F1bIntersection,
+            fromNodeId: f1bIntersection.Id,
             taxiwayNames: ["B", "K"],
             out string? failReason,
             new ExplicitPathOptions { AirportId = "SFO", ExplicitHoldShorts = ["10R"] },
@@ -99,7 +108,7 @@ public class Issue172TerminusDirectionTests(ITestOutputHelper output)
         // The K walk reaches the 10R/28L hold-short and stops there, rather than heading off the wrong
         // way toward K's far terminus (the original bug walked K away from the hold-short). Asserting the
         // route stops within a node of the hold-short is robust to layout renumbering.
-        int lastHoldShortIdx = route.Segments.FindLastIndex(s => Rwy10RHoldShortsOnK.Contains(s.ToNodeId));
+        int lastHoldShortIdx = route.Segments.FindLastIndex(s => rwy10RHoldShortsOnK.Contains(s.ToNodeId));
         Assert.True(lastHoldShortIdx >= 0, "route never reached a 10R hold-short on K");
         Assert.True(route.Segments.Count - lastHoldShortIdx <= 2, "route walked well past the 10R hold-short the wrong way");
     }

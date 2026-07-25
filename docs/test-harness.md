@@ -197,6 +197,17 @@ airportId)` per process (~500 ms OAK, ~2700 ms SFO) since layouts are immutable 
 `FilletMode.Standard` (the shipping fillet generator), so the ~150 existing call sites build the production graph; pass `FilletMode.None`
 explicitly for raw, unfilleted-graph tests. `GetLayout` returns `null` for an unknown airport — callers skip silently.
 
+`GetLayout` passes the **real airport code** to `GeoJsonParser.Parse`, matching both production call sites, so runway widths come from
+navdata instead of the 150 ft default. It calls `TestVnasData.EnsureInitialized()` first: the layout is cached per `(FilletMode,
+airportId)` per process, so leaving the width dependent on whether some other test class had already loaded nav data would bake one
+arbitrary graph in for the whole run. When nav data is genuinely unavailable (fresh/offline checkout) it falls back to a null code and
+the default width, so the silent-skip convention still holds.
+
+**Runway width is load-bearing on graph shape.** It sizes the on-runway rectangle, which decides which nodes classify as on-runway and
+therefore where hold-short nodes seat, and it renumbers the nodes `RunwayCrossingDetector` creates (SFO's real 200 ft vs the old 150 ft
+default moved its hold-short standoff 250 ft → 280 ft). **Never hardcode a node id in a test** — resolve by name via
+`AirportGroundLayout.FindIntersectionNode` or `Helpers/TestLayoutNodes.cs`.
+
 To add a new airport: fetch its GeoJSON from the vNAS map API (`https://data-api.vnas.vatsim.net/api/training/airports/{FAA}/map`) and
 drop it in `TestData/<lowercase-short-id>.geojson`. See `AirportLayoutDownloader` and `docs/ground/README.md` for the ground stack.
 
@@ -208,8 +219,9 @@ resolution. It returns `null` when the snapshot is absent — same silent-skip c
 runs `RunwayCrossingDetector.DetectRunwayCrossings`, which reads `NavigationDatabase.Instance` — so a non-null `runwayAirportCode` (e.g.
 `"OAK"`) throws `NavigationDatabase not initialized` in a test that hasn't loaded nav data. A test that only needs the graph or fillet
 arcs (taxiway topology, `TurnAngleDeg`) should pass `runwayAirportCode: null` to skip the runway-crossing pass while still producing
-nodes/edges/arcs (`OneWayResolverTests`, `GroundArcRenderFilterTests`, `DtoConverterGroundLayoutTests` all do). Use the harness's
-pre-initialized layout only when you actually need runway crossings.
+nodes/edges/arcs (`OneWayResolverTests`, `GroundArcRenderFilterTests`, `DtoConverterGroundLayoutTests` all do). This applies to tests
+calling `GeoJsonParser.Parse` **directly**; the `TestAirportGroundData` harness always passes the real code (see above), because a graph
+built against a 150 ft placeholder width is not the graph production builds.
 
 ## Debugging aircraft movement — `TickRecorder`
 

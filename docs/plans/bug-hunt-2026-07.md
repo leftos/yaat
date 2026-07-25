@@ -271,7 +271,27 @@ the diverged one.
 so `_state` is `RollingOnCenterline` and the route is rebuilt fresh. No test restores while
 `_state == FollowingExitPath`.
 
-### 5. Every test ground layout is built with a 150 ft default runway width; production uses navdata **[verified]**
+### 5. Every test ground layout is built with a 150 ft default runway width; production uses navdata **[verified]** — ✅ FIXED
+
+> **Fix applied.** `TestAirportGroundData.GetLayout` now passes the real airport code, matching both
+> production call sites, so runway widths come from navdata. It calls `TestVnasData.EnsureInitialized()`
+> unconditionally first — the layout is cached per process, so leaving the width dependent on whether
+> another test class happened to load nav data first would bake one arbitrary graph in for the whole
+> run. Falls back to a null code when nav data is genuinely unavailable, preserving the silent-skip
+> convention on a fresh/offline checkout.
+>
+> **Blast radius was 3 tests, not the ~290 feared** — and all three were stale hardcoded SFO node ids
+> (`871`, `155`, `152`, `850`, `860`), not behavioural regressions. Widening SFO's runway rectangle
+> from 150 ft to its real 200 ft reseats hold-shorts and renumbers the nodes
+> `RunwayCrossingDetector` creates. Fixed by resolving nodes by name via the new
+> `TestLayoutNodes` helper and `FindIntersectionNode`, exactly as the project's own footgun note
+> prescribes. **Every semantic assertion was left identical** — route stops at the G/B intersection,
+> never walks B, reaches the 10R hold-short on K, dedupes hold-shorts — and all still pass, which is
+> what establishes that routing behaviour did not change.
+>
+> Note `docs/test-harness.md` was updated in the same change: it had asserted the harness "builds the
+> production graph" and advised passing `runwayAirportCode: null`, which is what let this survive.
+
 
 - **File**: `tests/Yaat.Sim.Tests/Helpers/TestAirportGroundData.cs:53` vs
   `src/Yaat.Sim/Data/Airport/AirportLayoutDownloader.cs:84` and
