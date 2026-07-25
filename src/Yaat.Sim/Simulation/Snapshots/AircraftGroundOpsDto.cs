@@ -24,6 +24,9 @@ public sealed class AircraftGroundOpsDto
 
     /// <summary>Display designator of the runway this aircraft is queued for (e.g. "28R"), empty when not in a line.</summary>
     public string RunwayQueueRunway { get; init; } = "";
+
+    /// <summary>Taxiway name of the intersection this aircraft is departing from (e.g. "E"), empty for a full-length departure or when not in a line.</summary>
+    public string RunwayQueueIntersection { get; init; } = "";
     public double? PushbackTrueHeadingDeg { get; init; }
     public required bool HasAnnouncedReady { get; init; }
     public bool InitialCallupDecisionProcessed { get; init; }

@@ -123,10 +123,61 @@ public class SmartStatusTests
     }
 
     [Fact]
+    public void Taxiing_ToAnIntersection_NamesTheEntryTaxiway()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Taxiing",
+            AssignedRunway = "28R",
+            RunwayQueuePosition = 2,
+            RunwayQueueIntersection = "E",
+        };
+        Assert.Equal("Taxi to RWY 28R @ E (#2)", Text(v));
+    }
+
+    [Fact]
     public void HoldingShortOfRunway_WithQueuePosition_AppendsOrdinal()
     {
         var v = new AircraftStatusView { CurrentPhase = "Holding Short 28R", RunwayQueuePosition = 1 };
         Assert.Equal("Holding short 28R (#1)", Text(v));
+    }
+
+    [Fact]
+    public void HoldingShortOfRunway_AtAnIntersection_NamesTheEntryTaxiway()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Holding Short 28R",
+            CurrentTaxiway = "E",
+            RunwayQueuePosition = 1,
+            RunwayQueueIntersection = "E",
+        };
+        Assert.Equal("Holding short 28R @ E (#1)", Text(v));
+    }
+
+    [Fact]
+    public void HoldingShortOfRunway_FullLength_OmitsTheTaxiway()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Holding Short 28R",
+            CurrentTaxiway = "B",
+            RunwayQueuePosition = 1,
+            RunwayQueueIntersection = "",
+        };
+        Assert.Equal("Holding short 28R (#1)", Text(v));
+    }
+
+    [Fact]
+    public void HoldingShortToCross_KeepsItsCurrentTaxiway()
+    {
+        var v = new AircraftStatusView
+        {
+            CurrentPhase = "Holding Short 28R",
+            CurrentTaxiway = "B",
+            RunwayQueuePosition = 0,
+        };
+        Assert.Equal("Holding short 28R @ B", Text(v));
     }
 
     [Fact]

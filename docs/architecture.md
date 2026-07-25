@@ -453,9 +453,10 @@ AircraftStatusDescriber.cs     # Pure AircraftState→text projection for the Ai
 RunwayDepartureQueue.cs        # Static per-hold-short departure-queue ranker. UpdatePositions(world) runs
                                # each sim-second in SimulationEngine.TickPrePhysics (the per-second hook the
                                # live server shares — it never calls SimulationEngine.TickPostPhysics),
-                               # writing 1-based AircraftGroundOps.RunwayQueuePosition + RunwayQueueRunway per
-                               # aircraft (0/"" = not in line; even a lone #1 counts). Drives the ground-
-                               # datablock "{runway} #N" suffix (e.g. "28R #2") + Info-column "(#N)".
+                               # writing 1-based AircraftGroundOps.RunwayQueuePosition + RunwayQueueRunway +
+                               # RunwayQueueIntersection per aircraft (0/"" = not in line; even a lone #1
+                               # counts). Drives the ground-datablock "{runway} #N" suffix (e.g. "28R #2",
+                               # "28R@E #2" off an intersection) + Info-column "(#N)".
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → SpeedLimit overrides.
@@ -762,6 +763,7 @@ GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via Spl
 CoordinateIndex.cs             # Spatial index for coordinate-based lookups
 RunwayCrossingDetector.cs      # Detect taxiway/runway crossings; seat hold-short bars at the constant perpendicular standoff (geojson holdShortDistance, else AC 150/5300-13B width heuristic) — see docs/ground/hold-short-placement.md
 RunwayIntersectionCalculator.cs # Runway centerline/projected-path intersections for LAHSO and solo-training runway scoring
+RunwayEntryPoint.cs            # Classify a runway hold short as full-length vs intersection departure for a given end: nearest hold short (along-track on the pavement centerline) is full length, plus an OPPOSITE-side one within OppositeSideBandFt or on the same taxiway (one entrance reachable from both sides); SAME-side extras are always named intersections. Display only, feeds RunwayDepartureQueue
 HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length
 
 # Data/

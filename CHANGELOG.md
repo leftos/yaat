@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Departures not going full length show their intersection on the ground datablock and Info column (`28R@E #1`).
+
 ### Fixed
 - Sorting the aircraft list by a column header works again, and deleting an aircraft no longer removes unrelated rows from the list.
 

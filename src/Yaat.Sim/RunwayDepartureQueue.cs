@@ -6,8 +6,10 @@ namespace Yaat.Sim;
 
 /// <summary>
 /// Computes each departing aircraft's 1-based position in the physical line at its destination-runway
-/// hold-short node, writing it (and the runway designator) to <see cref="AircraftGroundOps.RunwayQueuePosition"/>
-/// / <see cref="AircraftGroundOps.RunwayQueueRunway"/>. A "line" is keyed by hold-short node, so two
+/// hold-short node, writing it (plus the runway designator and, for an intersection departure, the taxiway
+/// it enters from) to <see cref="AircraftGroundOps.RunwayQueuePosition"/> /
+/// <see cref="AircraftGroundOps.RunwayQueueRunway"/> / <see cref="AircraftGroundOps.RunwayQueueIntersection"/>
+/// — see <see cref="Data.Airport.RunwayEntryPoint"/>. A "line" is keyed by hold-short node, so two
 /// intersections feeding the same runway are two independent queues. Membership is holding-short-of-the-runway
 /// plus still-taxiing-within-<see cref="ProximityNm"/>; an aircraft that has lined up / is rolling has left
 /// the line (its position drops to 0 and the aircraft behind it moves up). Even a lone aircraft first in line
@@ -37,6 +39,7 @@ public static class RunwayDepartureQueue
         {
             ac.Ground.RunwayQueuePosition = 0;
             ac.Ground.RunwayQueueRunway = "";
+            ac.Ground.RunwayQueueIntersection = "";
         }
 
         var lines = new Dictionary<(string Airport, int NodeId), List<Member>>();
@@ -59,15 +62,24 @@ public static class RunwayDepartureQueue
         foreach (var (_, members) in lines)
         {
             members.Sort(CompareMembers);
+
+            // One lookup per line, not per aircraft: the entry point is a property of the hold-short node, so
+            // resolving it once also guarantees everyone in the same line shows the same label. The front
+            // aircraft is the one physically at the node, so its taxiway is the authoritative tie-breaker.
+            var front = members[0];
+            string intersection = RunwayEntryPoint.Resolve(front.Layout, front.NodeId, front.Runway, front.Aircraft.Ground.CurrentTaxiway) ?? "";
+
             for (int i = 0; i < members.Count; i++)
             {
                 members[i].Aircraft.Ground.RunwayQueuePosition = i + 1;
                 members[i].Aircraft.Ground.RunwayQueueRunway = members[i].Runway;
+                members[i].Aircraft.Ground.RunwayQueueIntersection = intersection;
                 Log.LogTrace(
-                    "[RunwayQueue] {Callsign}: #{Position} for {Runway} at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
+                    "[RunwayQueue] {Callsign}: #{Position} for {Runway}{Intersection} at node {NodeId} ({Airport}), tier={Tier}, dist={Dist:F2}nm",
                     members[i].Aircraft.Callsign,
                     i + 1,
                     members[i].Runway,
+                    intersection.Length > 0 ? $"@{intersection}" : "",
                     members[i].NodeId,
                     members[i].AirportId,
                     members[i].Tier,
@@ -84,6 +96,7 @@ public static class RunwayDepartureQueue
     /// </summary>
     private readonly record struct Member(
         AircraftState Aircraft,
+        AirportGroundLayout Layout,
         string AirportId,
         int NodeId,
         string Runway,
@@ -111,6 +124,7 @@ public static class RunwayDepartureQueue
             var runway = RunwayIdentifier.ToDisplayDesignator(holdShort.TargetName ?? "");
             return new Member(
                 ac,
+                layout,
                 layout.AirportId,
                 holdShort.NodeId,
                 runway,
@@ -136,7 +150,7 @@ public static class RunwayDepartureQueue
                 return null;
             }
             var runway = RunwayIdentifier.ToDisplayDesignator(destination.TargetName ?? "");
-            return new Member(ac, layout.AirportId, destination.NodeId, runway, Tier: 1, distanceNm, ac.Ground.StationarySeconds);
+            return new Member(ac, layout, layout.AirportId, destination.NodeId, runway, Tier: 1, distanceNm, ac.Ground.StationarySeconds);
         }
 
         return null;

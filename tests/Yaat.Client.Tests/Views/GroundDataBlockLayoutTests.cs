@@ -82,6 +82,20 @@ public class GroundDataBlockLayoutTests
     }
 
     [Fact]
+    public void Line1_AppendsIntersection_WhenNotDepartingFullLength()
+    {
+        var ac = CreateModel();
+        ac.RunwayQueuePosition = 1;
+        ac.RunwayQueueRunway = "28R";
+        ac.RunwayQueueIntersection = "E";
+        var style = CreateStyle();
+
+        var layout = DataBlockLayout.Compute(ac, screenX: 100, screenY: 100, offset: new SKPoint(30, -25), style, isAirborne: false);
+
+        Assert.Equal("UAL238 28R@E #1", layout.Line1);
+    }
+
+    [Fact]
     public void Line1_OrdinalWithoutRunway_WhenRunwayBlank()
     {
         var ac = CreateModel();

@@ -153,6 +153,14 @@ public class AircraftGroundOps
     public string RunwayQueueRunway { get; set; } = "";
 
     /// <summary>
+    /// Taxiway name of the intersection this aircraft is departing from (e.g. "E"), set alongside
+    /// <see cref="RunwayQueueRunway"/> by <see cref="RunwayDepartureQueue"/> — empty for a full-length
+    /// departure and when not in a line. Displayed as "28R@E" so the RPO can tell an intersection departure
+    /// apart from a full-length one at a glance. Display only.
+    /// </summary>
+    public string RunwayQueueIntersection { get; set; } = "";
+
+    /// <summary>
     /// When set, FlightPhysics uses this heading for ground position updates
     /// instead of the aircraft's TrueHeading. Used by pushback (aircraft nose stays
     /// forward while tug pushes it backward along this direction).
@@ -252,6 +260,7 @@ public class AircraftGroundOps
             AutoYieldIsFollowing = AutoYieldIsFollowing,
             RunwayQueuePosition = RunwayQueuePosition,
             RunwayQueueRunway = RunwayQueueRunway,
+            RunwayQueueIntersection = RunwayQueueIntersection,
             PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
             HasAnnouncedReady = HasAnnouncedReady,
             InitialCallupDecisionProcessed = InitialCallupDecisionProcessed,
@@ -286,6 +295,7 @@ public class AircraftGroundOps
             AutoYieldIsFollowing = dto.AutoYieldIsFollowing,
             RunwayQueuePosition = dto.RunwayQueuePosition,
             RunwayQueueRunway = dto.RunwayQueueRunway,
+            RunwayQueueIntersection = dto.RunwayQueueIntersection,
             PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
             HasAnnouncedReady = dto.HasAnnouncedReady,
             InitialCallupDecisionProcessed = dto.InitialCallupDecisionProcessed,

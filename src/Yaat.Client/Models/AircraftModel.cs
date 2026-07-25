@@ -701,6 +701,13 @@ public partial class AircraftModel : ObservableObject
     private string _runwayQueueRunway = "";
 
     /// <summary>
+    /// Taxiway name of the intersection this aircraft is departing from (e.g. "E"), empty for a full-length
+    /// departure or when not in a line. Composed with the runway on the ground datablock ("28R@E #1").
+    /// </summary>
+    [ObservableProperty]
+    private string _runwayQueueIntersection = "";
+
+    /// <summary>
     /// True when the aircraft is under any active hold directive (HoldPosition or
     /// GiveWay). Driven by <see cref="HoldKind"/>. Auto-yield (slowing) is NOT a hold.
     /// </summary>
@@ -963,6 +970,7 @@ public partial class AircraftModel : ObservableObject
             AutoYieldIsFollowing = dto.AutoYieldIsFollowing,
             RunwayQueuePosition = dto.RunwayQueuePosition,
             RunwayQueueRunway = dto.RunwayQueueRunway,
+            RunwayQueueIntersection = dto.RunwayQueueIntersection,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
             Owner = dto.Owner,
@@ -1067,6 +1075,7 @@ public partial class AircraftModel : ObservableObject
         AutoYieldIsFollowing = dto.AutoYieldIsFollowing;
         RunwayQueuePosition = dto.RunwayQueuePosition;
         RunwayQueueRunway = dto.RunwayQueueRunway;
+        RunwayQueueIntersection = dto.RunwayQueueIntersection;
         ParkingSpot = dto.ParkingSpot;
         CurrentTaxiway = dto.CurrentTaxiway;
         Owner = dto.Owner;

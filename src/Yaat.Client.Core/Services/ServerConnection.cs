@@ -976,7 +976,10 @@ public record AircraftDto(
     int RunwayQueuePosition = 0,
     // Display designator of the runway this aircraft is queued for (e.g. "28R"), empty when not in a line.
     // Shown next to the ordinal on the ground datablock ("28R #3"). Kept in sync with the server's DTO.
-    string RunwayQueueRunway = ""
+    string RunwayQueueRunway = "",
+    // Taxiway name of the intersection this aircraft is departing from (e.g. "E"), empty for a full-length
+    // departure or when not in a line. Composed with the runway on the ground datablock ("28R@E #1").
+    string RunwayQueueIntersection = ""
 );
 
 public record LoadScenarioResultDto(

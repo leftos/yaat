@@ -28,6 +28,16 @@ public class RunwayDepartureQueueTests
 
     private List<GroundNode> HoldShortNodes() => _layout is null ? [] : _layout.GetRunwayHoldShortNodes(Runway);
 
+    /// <summary>
+    /// Hold shorts on one named taxiway, picked by their edges rather than by node id (fillet node ids are
+    /// geometry-coupled). KOAK 28R departs west: taxiway B at the east end is full length, E is an
+    /// intersection ~1625 ft down.
+    /// </summary>
+    private List<GroundNode> HoldShortsOn(string taxiway) =>
+        HoldShortNodes()
+            .Where(n => n.Edges.OfType<GroundEdge>().Select(e => e.TaxiwayName).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals([taxiway]))
+            .ToList();
+
     private AircraftState HoldingShort(string callsign, GroundNode node)
     {
         var ac = MakeGroundAircraft(callsign, node.Position);
@@ -167,6 +177,44 @@ public class RunwayDepartureQueueTests
         Assert.Equal(2, trailA.Ground.RunwayQueuePosition);
         Assert.Equal(1, leadB.Ground.RunwayQueuePosition);
         Assert.Equal(2, trailB.Ground.RunwayQueuePosition);
+    }
+
+    [Fact]
+    public void IntersectionDepartureLine_NamesItsEntryTaxiway()
+    {
+        var echo = HoldShortsOn("E");
+        if (echo.Count == 0)
+        {
+            return;
+        }
+
+        var lead = HoldingShort("LEAD", echo[0]);
+        var trailer = TaxiingToward("TRAIL", echo[0], 0.05);
+
+        RunwayDepartureQueue.UpdatePositions([lead, trailer]);
+
+        Assert.Equal(1, lead.Ground.RunwayQueuePosition);
+        Assert.Equal(2, trailer.Ground.RunwayQueuePosition);
+        Assert.Equal("E", lead.Ground.RunwayQueueIntersection);
+        Assert.Equal("E", trailer.Ground.RunwayQueueIntersection);
+    }
+
+    [Fact]
+    public void FullLengthDepartureLine_HasNoEntryTaxiway()
+    {
+        var bravo = HoldShortsOn("B");
+        if (bravo.Count == 0)
+        {
+            return;
+        }
+
+        var lead = HoldingShort("LEAD", bravo[0]);
+
+        RunwayDepartureQueue.UpdatePositions([lead]);
+
+        Assert.Equal(1, lead.Ground.RunwayQueuePosition);
+        Assert.Equal(Runway, lead.Ground.RunwayQueueRunway);
+        Assert.Equal("", lead.Ground.RunwayQueueIntersection);
     }
 
     [Fact]

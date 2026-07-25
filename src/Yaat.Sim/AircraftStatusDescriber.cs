@@ -134,6 +134,13 @@ public static class AircraftStatusDescriber
         /// </summary>
         public int RunwayQueuePosition { get; init; }
 
+        /// <summary>
+        /// Taxiway the aircraft enters the runway from when it is queued for an intersection departure
+        /// (e.g. "E"), empty for a full-length departure or when not in a line. Shown as "@ E" beside the
+        /// runway, matching the ground datablock's "28R@E". Computed by <see cref="RunwayDepartureQueue"/>.
+        /// </summary>
+        public string RunwayQueueIntersection { get; init; } = "";
+
         public static AircraftStatusView FromState(AircraftState ac, AircraftStatusContext ctx)
         {
             var navNames = BuildNavigationRoute(ac.Targets);
@@ -174,6 +181,7 @@ public static class AircraftStatusDescriber
                 NavigationRouteDisplay = string.Join(" ", navNames),
                 IsDelayed = ctx.IsDelayed,
                 RunwayQueuePosition = ac.Ground.RunwayQueuePosition,
+                RunwayQueueIntersection = ac.Ground.RunwayQueueIntersection,
             };
         }
     }
@@ -317,6 +325,10 @@ public static class AircraftStatusDescriber
     private static string FormatTaxiStatus(AircraftStatusView i)
     {
         var baseText = string.IsNullOrEmpty(i.AssignedRunway) ? "taxiing" : $"taxi to RWY {i.AssignedRunway}";
+        if (!string.IsNullOrEmpty(i.AssignedRunway) && !string.IsNullOrEmpty(i.RunwayQueueIntersection))
+        {
+            baseText = $"{baseText} @ {i.RunwayQueueIntersection}";
+        }
         if (!string.IsNullOrEmpty(i.TaxiRoute))
         {
             baseText = $"{baseText} via {i.TaxiRoute}";
@@ -417,7 +429,11 @@ public static class AircraftStatusDescriber
             var twy = i.CurrentTaxiway;
             if (isRunway)
             {
-                var runwayHold = string.IsNullOrEmpty(twy) ? $"holding short {target}" : $"holding short {target} @ {twy}";
+                // A departure in the queue names its entry point the same way the ground datablock does:
+                // the taxiway for an intersection departure, nothing at all for a full-length one. Aircraft
+                // holding short to cross keep the plain "where it is stopped" taxiway.
+                var entry = i.RunwayQueuePosition > 0 ? i.RunwayQueueIntersection : twy;
+                var runwayHold = string.IsNullOrEmpty(entry) ? $"holding short {target}" : $"holding short {target} @ {entry}";
                 return AppendQueuePosition(runwayHold, i.RunwayQueuePosition);
             }
             return string.IsNullOrEmpty(twy) ? $"holding short of {target}" : $"holding short of {target} on {twy}";

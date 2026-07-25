@@ -67,13 +67,15 @@ internal readonly struct DataBlockLayout
         // Suffix '*' marks aircraft pre-armed for auto-delete on hold-short (ONHS DEL).
         string line1 = ac.AutoDeletePending ? $"{ac.Callsign}*" : ac.Callsign;
         // Departure-queue ordinal: "28R #2" behind the callsign shows which runway a departure is waiting
-        // on and its place in line, so a clump stacked at a hold short is legible when zoomed out. 0 = not
-        // in a countable line (not near a runway), so no suffix. The runway is blank only defensively.
+        // on and its place in line, so a clump stacked at a hold short is legible when zoomed out. An
+        // intersection departure names its entry taxiway too ("28R@E #2"); a full-length one does not.
+        // 0 = not in a countable line (not near a runway), so no suffix. The runway is blank only defensively.
         if (ac.RunwayQueuePosition > 0)
         {
-            line1 = string.IsNullOrEmpty(ac.RunwayQueueRunway)
-                ? $"{line1} #{ac.RunwayQueuePosition}"
-                : $"{line1} {ac.RunwayQueueRunway} #{ac.RunwayQueuePosition}";
+            string runway = string.IsNullOrEmpty(ac.RunwayQueueIntersection)
+                ? ac.RunwayQueueRunway
+                : $"{ac.RunwayQueueRunway}@{ac.RunwayQueueIntersection}";
+            line1 = string.IsNullOrEmpty(runway) ? $"{line1} #{ac.RunwayQueuePosition}" : $"{line1} {runway} #{ac.RunwayQueuePosition}";
         }
         // ASDE-style surface fix (exit fix or destination per the airport's facility config), resolved
         // server-side and already normalized — used verbatim, no K-strip. Falls back to the destination
