@@ -36,7 +36,7 @@ against source; the rest carry the auditor's evidence and are marked with their 
 19 product defects plus 4 test-suite integrity findings, across 7 audited areas. Five are high
 severity; none are currently caught by the suite.
 
-**Fixed so far** (TDD — failing test first, then the fix): findings **1**, **2**, **3**, **4**, **5**, **7**, **8**, **14**, **19**, and **20**.
+**Fixed so far** (TDD — failing test first, then the fix): findings **1**–**5**, **7**–**11**, **14**, **16**, **19**, and **20**.
 Everything else is reported only, awaiting triage.
 
 | # | Finding | Area | Sev |
@@ -49,14 +49,14 @@ Everything else is reported only, awaiting triage.
 | 6 | Every pop-out toggle leaks a canvas, renderer, and 10 Hz timer | client | med-high |
 | 7 | ✅ **FIXED** — `WAIT`/`BEHIND` deferral re-inflates its own prefix on restore | commands | med-high |
 | 8 | ✅ **FIXED** — `CLRWY` permanently rejected after restore — aircraft strands on runway | ground | med |
-| 9 | `MidfieldCrossing`/`TeardropReentry` destroy the pattern circuit on `SPD`/`CM` | phases | med |
-| 10 | `InterceptCoursePhase` ignores `LateralInterceptOnly` — decelerates ~70 kt | phases | med |
-| 11 | `ProcedureTurnPhase` leaks a permanent 200 kt `SpeedCeiling` | phases | med |
+| 9 | ✅ **FIXED** — `MidfieldCrossing`/`TeardropReentry` destroy the pattern circuit on `SPD`/`CM` | phases | med |
+| 10 | ✅ **FIXED** — `InterceptCoursePhase` ignores `LateralInterceptOnly` — decelerates ~70 kt | phases | med |
+| 11 | ✅ **FIXED** — `ProcedureTurnPhase` leaks a permanent 200 kt `SpeedCeiling` | phases | med |
 | 12 | Ghost fields absent from `StarsTrackFingerprint` — re-ghost never reaches CRC | crc | med |
 | 13 | `BrightnessLookup` shared by reference into the render snapshot, mutated live | client | med |
 | 14 | ✅ **FIXED** — Split conditional block loses `IsApplied`/`TriggerMet` — zombie queue | commands | med |
 | 15 | `EL`/`ER`/`EXIT` during `RunwayExitPhase` acknowledged but ignored | ground | med |
-| 16 | `DesiredDecelRate` leaks out of `LandingPhase` on `GA` from rollout | phases | low |
+| 16 | ✅ **FIXED** — `DesiredDecelRate` leaks out of `LandingPhase` on `GA` from rollout | phases | low |
 | 17 | Documented `ONH` alias is dead as a condition prefix | commands | low |
 | 18 | `DrainAllPilotSpeech` never called by the engine (replay-only) | sim | low |
 | 19 | ✅ **FIXED** — Restored conflict sets frozen for the rest of a hybrid replay | sim | low |
@@ -423,7 +423,24 @@ phase's reconstructed HoldShort copy."* The two command-path consumers were neve
 `TaxiRoute` does persist `TailOverRunwayNodeId` (`:235`, `:294`), so the data is available, just not
 consulted.
 
-### 9. `MidfieldCrossingPhase` / `TeardropReentryPhase` destroy the whole pattern circuit on a speed or altitude command
+### 9. `MidfieldCrossingPhase` / `TeardropReentryPhase` destroy the whole pattern circuit on a speed or altitude command — ✅ FIXED
+
+> **Fix applied.** Both now apply the `IsAdditiveAirborneAdjustment` guard, matching every pattern leg
+> around them. Verified the fix is not hollow: both set their entry speed in `OnStart` only (as
+> `DownwindPhase` does), so a controller adjustment issued mid-phase actually stands rather than being
+> re-asserted away each tick.
+>
+> **Scope narrowed after aviation review**: speed only, not speed *and* altitude. These are entry
+> maneuvers, not legs, and `PatternEntryPhase` deliberately splits the axes — altitude clears the entry
+> and warns the RPO, because a climb/descend during an entry usually means the aircraft is no longer
+> being sequenced into that pattern. Matching it keeps all three entry phases consistent. It also avoids
+> an accept-then-discard bug on the teardrop, whose waypoint route carries `At` altitude restrictions
+> that `ApplyFixConstraints` rewrites on every sequencing — an accepted `CM`/`DM` would not have been
+> flown.
+>
+> The coverage gap was that `PhaseAcceptanceAuditTests` enumerated pattern phases by hand and omitted
+> both, so the new `PatternInterLegPhases` member data closes it permanently.
+
 
 - **File**: `src/Yaat.Sim/Phases/Pattern/MidfieldCrossingPhase.cs:106`,
   `src/Yaat.Sim/Phases/Pattern/TeardropReentryPhase.cs:118`
@@ -445,7 +462,16 @@ additive.
 (Base/Crosswind/Downwind/Upwind/PatternEntry) and omits both. The ~20 other tests referencing
 `MidfieldCrossingPhase` assert phase-list *construction*, never command acceptance.
 
-### 10. `InterceptCoursePhase` ignores `LateralInterceptOnly` — a JFAC/JLOC join self-decelerates ~70 kt
+### 10. `InterceptCoursePhase` ignores `LateralInterceptOnly` — a JFAC/JLOC join self-decelerates ~70 kt — ✅ FIXED
+
+> **Fix applied.** The speed-anticipation block now also gates on the clearance not being lateral-only.
+>
+> Confirmed against the real recording rather than reasoned about: at t=1150 UAL4525 held **187 kt**
+> before the fix (1.3×FAS for a B738) and **210 kt** after — exactly the STAR crossing restriction its
+> sibling test says should be maintained — with cross-track still 0.00 nm, so the lateral join is
+> unaffected. That 210 kt figure is what makes the fix self-evidently right. The E2E now asserts speed,
+> which is the gap that let this through.
+
 
 - **File**: `src/Yaat.Sim/Phases/Approach/InterceptCoursePhase.cs:124`
 - **Severity**: medium — **Confidence**: high
@@ -464,7 +490,21 @@ early on `LateralInterceptOnly` (`:397`) and `OnTick` skips the decel block, so 
 (`Issue184VectorsStarAppSpeedsTests.Ual4525_JfacWithoutCapp_HoldsAltitude…`) asserts only altitude
 and cross-track. No test asserts speed on a JFAC/JLOC join.
 
-### 11. `ProcedureTurnPhase` leaves a permanent 200 KIAS `SpeedCeiling` on every exit path
+### 11. `ProcedureTurnPhase` leaves a permanent 200 KIAS `SpeedCeiling` on every exit path — ✅ FIXED
+
+> **Fix applied.** Added `OnEnd` releasing the cap — but only when the ceiling still equals the 200 KIAS
+> the phase imposes. `ClampPtSpeed` never overwrites a ceiling already tighter than that, so such a
+> ceiling belongs to the controller and has to survive the phase; releasing unconditionally would have
+> silently dropped a real speed restriction. A guard test covers that case. (A controller ceiling of
+> exactly 200 is indistinguishable from the phase's own and is released with it.)
+>
+> **`LowApproachPhase` was deliberately left alone.** The same fix was written for it and then reverted:
+> aviation review showed its retarget ceiling is load-bearing, not a leftover. On that path the aircraft
+> is *landing* on the new runway, and `PatternEntryPhase.OnStart` unconditionally commands
+> `DownwindSpeed` with no `Kind` branch — so releasing the cap would command a jet from ~140 kt to
+> 200 kt while turning onto a half-mile final. The real defect there is `PatternEntryPhase` ignoring
+> `Kind == Final`; logged as follow-up rather than fixed here.
+
 
 - **File**: `src/Yaat.Sim/Phases/Approach/ProcedureTurnPhase.cs:293-299`
 - **Severity**: medium — silent, with no UI representation (`SpeedCeiling` is not an `Assigned*` field)
@@ -583,7 +623,17 @@ re-resolves. The two rollout phases have diverged.
 **Either way it is a defect:** if refusing late changes is intended, `CanAcceptCommand` should
 *reject* rather than return a success echo.
 
-### 16. `DesiredDecelRate` leaks out of `LandingPhase` when a rollout is broken off with `GA`
+### 16. `DesiredDecelRate` leaks out of `LandingPhase` when a rollout is broken off with `GA` — ✅ FIXED
+
+> **Fix applied.** `GoAroundPhase.OnStart` now clears `DesiredDecelRate` alongside the speed and altitude
+> floors/ceilings it already cleared, satisfying the contract `docs/flight-physics.md` states explicitly.
+>
+> Aviation review added an important correction: the leak runs **both** ways, and the slow direction is
+> worse. `TickRollout` also *lowers* the rate, to 0.5 kt/s, when the planned exit is far enough off that
+> normal braking would reach coast speed too early. A go-around taken at that moment carries 0.5 kt/s
+> onto the circuit, where the aircraft physically cannot bleed from downwind speed to Vref — an unstable
+> approach every circuit, not merely a brisk one.
+
 
 - **File**: `src/Yaat.Sim/Phases/Tower/LandingPhase.cs:772`; `src/Yaat.Sim/Phases/Tower/GoAroundPhase.cs:101-104`
 - **Severity**: low — wrong deceleration rate on the subsequent approach — **Confidence**: medium
@@ -687,6 +737,44 @@ Scope limit (checked): the server's own rewind path is unaffected (`RecordingMan
   Also: `docs/training-hub-contract.md`'s "13 fields" list is stale (code is correct);
   `docs/test-harness.md` mis-describes `TestAirportGroundData` (finding 5); `CommandSchemeCompletenessTests:77`
   lists a stale `H` alias collision; `docs/plans/` has no `MAIN.md` index.
+
+---
+
+## Follow-ups surfaced by aviation review (not fixed here)
+
+Raised while reviewing the phases cluster; each is a real defect but outside the scope of the finding
+that surfaced it.
+
+### F1. `PatternEntryPhase.OnStart` commands pattern speed regardless of entry kind
+
+`PatternEntryPhase.OnStart` writes `TargetSpeed = DownwindSpeed(...)` with no `Kind` branch. For a
+`PatternEntryKind.Final` entry — which the `#292` low-approach runway retarget creates at 0.5 nm from
+the threshold — that commands a jet from approach speed to ~200 kt while turning onto a half-mile final,
+with `FinalApproachPhase` then having ~9 s to bleed 60 kt at 3.5 kt/s (it needs ~17 s). Today the
+`LowApproachPhase` retarget ceiling masks it, which is why finding 11's fix was deliberately not applied
+to that phase. **Fix is to honour `Kind == Final` in `OnStart`**, after which the ceiling is no longer
+load-bearing.
+
+### F2. `DownwindPhase.OnStart` reverts a controller speed assignment one leg later
+
+`DownwindPhase.OnStart` unconditionally rewrites `TargetSpeed` and `TargetAltitude` with no
+`HasExplicitSpeedCommand` guard, so a speed adjustment issued during an entry maneuver is discarded on
+reaching downwind. Per 7110.65 §5-7-4 it is the controller who terminates a speed adjustment
+("RESUME NORMAL SPEED"); the aircraft does not revert on its own at the next leg.
+
+### F3. `SPD` is rejected inside 5 nm for any aircraft inbound to land
+
+`FlightCommandHandler.ApplySpeed` rejects `SPD` whenever `IsInboundToLand` and inside 5 nm — which
+includes a VFR pattern aircraft already cleared to land, making a tower speed instruction to pattern
+traffic impossible. The cited §5-7-1.b.4 is a Chapter 5 (Radar) rule; §3-8-1 (tower pattern spacing)
+does not reference it and its NOTE 2 treats speed as a normal in-pattern spacing tool.
+
+### F4. `DecelRate` is aggressive for clean flight
+
+3.5 kt/s (~0.18 g) is realistic only while configuring — flaps and gear extending on downwind/base.
+Clean and level at idle a transport jet decelerates nearer 0.5–1 kt/s. Harmless today because the value
+is used almost exclusively in approach/pattern contexts, but it would be roughly 4× too fast if ever
+applied to a clean en-route reduction such as `SPD 250` from 290 at altitude.
 
 ---
 

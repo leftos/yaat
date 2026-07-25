@@ -105,6 +105,18 @@ public sealed class MidfieldCrossingPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
+        // Speed adjustments are additive — they retarget without breaking the crossing, which carries the rest of the
+        // circuit in its phase list, so clearing it on a plain SPD tore down Downwind → Base → FinalApproach →
+        // Landing. The crossing speed is set once in OnStart, so an adjustment issued mid-phase stands.
+        //
+        // Altitude (CM/DM) still clears, matching PatternEntryPhase: a climb or descend during an entry maneuver
+        // usually means the aircraft is no longer being sequenced into this pattern, and the RPO has to be told the
+        // entry was cancelled.
+        if (IsSpeedFamilyCommand(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return CommandAcceptance.ClearsPhase;
     }
 

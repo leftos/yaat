@@ -64,6 +64,14 @@ public class Issue184VectorsStarAppSpeedsTests(ITestOutputHelper output)
         Assert.False(aircraft.IsOnGround, "UAL4525 must not have landed on a JFAC clearance alone");
         Assert.True(aircraft.Altitude > 4500, $"UAL4525 must hold ~5000ft (assigned) on a lateral JFAC, but descended to {aircraft.Altitude:F0}ft");
 
+        // A lateral JFAC authorizes the course join only — speed is unchanged until CAPP. The aircraft holds its 210kt
+        // STAR crossing restriction; anticipating the approach speed would put it near 1.3×FAS (~187kt) and, because
+        // FinalApproachPhase's lateral-only branch never re-targets speed, it would sit there awaiting the clearance.
+        Assert.True(
+            aircraft.IndicatedAirspeed > 200,
+            $"UAL4525 must keep its assigned/crossing speed on a lateral JFAC, but slowed to {aircraft.IndicatedAirspeed:F0}kt"
+        );
+
         // Tracking the localizer laterally: cross-track from the I08R centerline stays small.
         var clearance = aircraft.Phases?.ActiveApproach;
         var runway = aircraft.Phases?.AssignedRunway;

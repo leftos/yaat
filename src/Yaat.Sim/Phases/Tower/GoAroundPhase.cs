@@ -102,6 +102,10 @@ public sealed class GoAroundPhase : Phase
         ctx.Targets.SpeedCeiling = null;
         ctx.Targets.AltitudeFloor = null;
         ctx.Targets.AltitudeCeiling = null;
+        // A go-around off the rollout inherits the ground braking rate LandingPhase writes each tick, which only its
+        // handoff path clears. Left set, every deceleration on the re-flown circuit runs at braking rate instead of
+        // the airborne rate.
+        ctx.Targets.DesiredDecelRate = null;
         ctx.Targets.TargetTrueHeading = _runwayTrueHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();

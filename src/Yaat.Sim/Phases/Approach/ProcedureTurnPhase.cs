@@ -298,6 +298,23 @@ public sealed class ProcedureTurnPhase : Phase
         }
     }
 
+    /// <summary>
+    /// Releases the procedure-turn speed cap. <see cref="ControlTargets.SpeedCeiling"/> has no UI representation, and
+    /// neither <c>PhaseList.Clear</c> nor the dispatcher's phase-clear block releases it, so one left behind is a
+    /// silent permanent cap — a jet vectored off the turn would climb away still limited to 200 KIAS.
+    ///
+    /// Only released when it is still the value this phase imposed: <see cref="ClampPtSpeed"/> never overwrites a
+    /// ceiling already tighter than the cap, so that one belongs to the controller and has to survive the phase.
+    /// (A controller ceiling of exactly 200 is indistinguishable from ours and is released with it.)
+    /// </summary>
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        if (ctx.Targets.SpeedCeiling == MaxPtIasKts)
+        {
+            ctx.Targets.SpeedCeiling = null;
+        }
+    }
+
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         // The procedure turn manages only the lateral course reversal. Altitude and

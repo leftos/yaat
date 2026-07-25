@@ -422,12 +422,18 @@ public class PatternPhaseTests
         Assert.False(phase.OnTick(ctx));
     }
 
+    /// <summary>
+    /// A lateral command still cancels the crossing — it re-routes the aircraft, so the rest of the circuit no longer
+    /// applies. A speed or altitude adjustment does not: it is additive, exactly as on the pattern legs either side.
+    /// This phase carries the remainder of the circuit in its phase list, so clearing it on a plain <c>SPD</c> threw
+    /// away Downwind → Base → FinalApproach → Landing and left the aircraft with no phases at all.
+    /// </summary>
     [Fact]
-    public void MidfieldCrossing_AnyCommand_ClearsPhase()
+    public void MidfieldCrossing_LateralCommandClearsPhase_SpeedIsAdditive()
     {
         var phase = new MidfieldCrossingPhase();
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
-        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Speed));
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.Speed));
     }
 
     // -------------------------------------------------------------------------

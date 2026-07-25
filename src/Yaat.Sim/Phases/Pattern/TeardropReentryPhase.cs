@@ -117,6 +117,19 @@ public sealed class TeardropReentryPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
+        // Speed adjustments are additive — they retarget without breaking the re-entry, which carries the rest of the
+        // circuit in its phase list, so clearing it on a plain SPD tore the whole thing down. The entry speed is set
+        // once in OnStart, so an adjustment issued mid-phase stands.
+        //
+        // Altitude (CM/DM) still clears, matching PatternEntryPhase. That is also the honest answer here: this phase
+        // navigates a waypoint route whose legs carry `At` altitude restrictions, and ApplyFixConstraints rewrites
+        // TargetAltitude on every sequencing — so accepting a CM/DM would discard it at the next waypoint rather than
+        // fly it.
+        if (IsSpeedFamilyCommand(cmd))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         return cmd switch
         {
             CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,

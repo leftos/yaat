@@ -121,7 +121,16 @@ public sealed partial class InterceptCoursePhase : Phase
         // localizer. At 250kts the turn radius is large, causing overshoot. Target 1.3× FAS
         // (not FAS itself — that's too slow this far from the threshold). FAS is set later
         // by FinalApproachPhase when the aircraft is closer in.
-        if ((crossTrack < SpeedAnticipationThresholdNm) && !_approachSpeedSet && !ctx.Targets.HasExplicitSpeedCommand)
+        // A lateral-only clearance (JFAC/JLOC) authorizes joining the course and nothing else: the aircraft keeps its
+        // assigned speed and any STAR crossing-speed ceiling until CAPP upgrades it. Anticipating the approach speed
+        // here would slow it ~70 kt below what it was told to fly, and FinalApproachPhase's lateral-only branch never
+        // re-targets speed, so it would then hold that speed indefinitely awaiting the clearance.
+        if (
+            (crossTrack < SpeedAnticipationThresholdNm)
+            && !_approachSpeedSet
+            && !ctx.Targets.HasExplicitSpeedCommand
+            && clearance is not { LateralInterceptOnly: true }
+        )
         {
             double fas = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
             double interceptSpeed = fas * InterceptSpeedFasMultiplier;

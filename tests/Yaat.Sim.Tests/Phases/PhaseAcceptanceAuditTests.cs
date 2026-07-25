@@ -358,4 +358,47 @@ public class PhaseAcceptanceAuditTests
     [InlineData(CanonicalCommandType.DescendMaintain)]
     public void PatternEntryPhase_AltitudeCommands_ClearPhase(CanonicalCommandType cmd) =>
         Assert.Equal(CommandAcceptance.ClearsPhase, NewPatternEntry().CanAcceptCommand(cmd));
+
+    /// <summary>
+    /// The entry maneuvers that sit BETWEEN pattern legs. They were omitted from the leg lists above, which is how
+    /// they came to be the only pattern phases accepting no additive adjustment at all — they carry the rest of the
+    /// circuit in their phase list, so a plain speed adjustment tore down Downwind → Base → FinalApproach → Landing.
+    ///
+    /// They follow <see cref="PatternEntryPhase"/>'s split rather than the legs': speed is additive, altitude is not.
+    /// A climb or descend during an entry maneuver usually means the aircraft is no longer being sequenced into this
+    /// pattern, and the RPO has to be told the entry was cancelled.
+    /// </summary>
+    public static TheoryData<Phase> PatternInterLegPhases() =>
+        new()
+        {
+            new MidfieldCrossingPhase(),
+            new TeardropReentryPhase { Waypoints = new PatternWaypoints() },
+        };
+
+    [Theory]
+    [MemberData(nameof(PatternInterLegPhases))]
+    public void PatternInterLegPhase_SpeedFamilyAllowed(Phase phase)
+    {
+        foreach (
+            var cmd in new[]
+            {
+                CanonicalCommandType.Speed,
+                CanonicalCommandType.Mach,
+                CanonicalCommandType.ReduceToFinalApproachSpeed,
+                CanonicalCommandType.ResumeNormalSpeed,
+                CanonicalCommandType.DeleteSpeedRestrictions,
+            }
+        )
+        {
+            Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(PatternInterLegPhases))]
+    public void PatternInterLegPhase_AltitudeCommands_ClearPhase(Phase phase)
+    {
+        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
+        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
+    }
 }

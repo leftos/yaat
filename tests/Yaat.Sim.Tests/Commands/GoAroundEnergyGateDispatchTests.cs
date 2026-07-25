@@ -80,6 +80,28 @@ public sealed class GoAroundEnergyGateDispatchTests
         Assert.IsNotType<GoAroundPhase>(aircraft.Phases?.CurrentPhase);
     }
 
+    /// <summary>
+    /// <c>docs/flight-physics.md</c> states the contract directly: <c>DesiredDecelRate</c> "must be cleared on phase
+    /// transition or firm braking leaks into the next phase". <c>TickRollout</c> writes a ground braking rate every
+    /// tick and only <c>TickHandoff</c> clears it, so breaking a rollout off with <c>GA</c> carried that rate onto the
+    /// re-flown circuit — every deceleration down to the FAS bleed then ran at braking rate rather than airborne rate.
+    /// </summary>
+    [Fact]
+    public void GoAroundFromRollout_ClearsTheRolloutBrakingRate()
+    {
+        var (aircraft, _) = RollingOut(ias: 80);
+
+        // Precondition: the rollout tick really did write a braking rate, so this cannot pass vacuously.
+        Assert.NotNull(aircraft.Targets.DesiredDecelRate);
+
+        var parsed = CommandParser.ParseCompound("GA");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        var result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
+        Assert.True(result.Success, result.Message);
+
+        Assert.Null(aircraft.Targets.DesiredDecelRate);
+    }
+
     [Fact]
     public void GoAroundAboveEnergyGate_StillWorksThroughTheDispatcher()
     {
