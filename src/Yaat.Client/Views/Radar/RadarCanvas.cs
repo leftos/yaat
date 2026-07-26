@@ -932,7 +932,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         return new RenderSnapshot(
             VideoMaps ?? Array.Empty<VideoMapData>(),
-            _brightnessLookup,
+            // Copied, not shared: SetBrightnessLookup hands us the view-model's live dictionary, which it
+            // rebuilds in place (Clear + N inserts) whenever video maps load. The render thread reads the
+            // previous snapshot's lookup per video map, so sharing it means reading a Dictionary while the
+            // UI thread resizes it — a torn read at best, an exception out of the render loop at worst.
+            new Dictionary<string, string>(_brightnessLookup),
             sorted,
             SelectedAircraft,
             ShowRangeRings,

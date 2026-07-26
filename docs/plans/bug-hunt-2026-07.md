@@ -554,7 +554,18 @@ flag (they do — `Ghost.IsUnsupported`/`IsOverlay` *are* in `TrainingDtoFingerp
 equivalent assertion for the **StarsTrack** flag, so the suite covers the ghost→YAAT-client channel
 and omits ghost→CRC entirely. All 6 ghost test files exercise a *fresh* target, never a second call.
 
-### 13. `RadarViewModel.BrightnessLookup` is shared by reference into the render snapshot and mutated in place
+### 13. `RadarViewModel.BrightnessLookup` is shared by reference into the render snapshot and mutated in place — ✅ FIXED
+
+> **Fix applied.** `CreateRenderSnapshot` now copies it, matching its three sibling fields and the rule
+> `docs/radar-rendering.md` already states: *"all mutable interaction state that the renderer needs is
+> defensively copied into the snapshot."* The copy runs on the UI thread (`MapCanvasBase.Render` builds
+> the snapshot before handing it to the custom draw operation), so it cannot race the rebuild either.
+>
+> Copying at snapshot time rather than at `SetBrightnessLookup` is deliberate: the canvas is handed the
+> view-model's instance once on load, so a copy there would freeze the lookup and never pick up a video
+> map load. **Verified by inspection, not by test** — the race needs a real compositor render thread, and
+> `Yaat.Client.UI.Tests` is headless with `parallelizeTestCollections: false`, so the two threads never
+> coexist under test. `Render(DrawingContext)` is the only entry point and needs a live drawing context.
 
 - **File**: `src/Yaat.Client/Views/Radar/RadarCanvas.cs:935`;
   `src/Yaat.Client/ViewModels/RadarViewModel.cs:293`, `:615-619`
