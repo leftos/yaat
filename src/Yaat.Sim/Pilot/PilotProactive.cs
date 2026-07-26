@@ -266,21 +266,66 @@ public static class PilotProactive
             return;
         }
 
-        var reference = airportLookup(crossing.Volume.Ident) ?? airportLookup(crossing.Volume.IcaoId) ?? crossing.Intersection;
+        var volume = crossing.Volume;
+        var reference = airportLookup(volume.Ident) ?? airportLookup(volume.IcaoId) ?? crossing.Intersection;
+
+        // Already laterally inside the footprint means the entry can only be vertical, and no turn avoids
+        // a shelf that is directly overhead — level off beneath it and stay on course instead.
+        int? levelOffCeiling = volume.ContainsLateral(aircraft.Position) ? ResolveLevelOffCeiling(aircraft, volume) : null;
+        var mode = levelOffCeiling is null ? AirspaceHoldMode.Orbit : AirspaceHoldMode.LevelOff;
+
+        AnnounceUnableAssignedAltitude(aircraft, volume, levelOffCeiling);
+
         var phase = new AirspaceBoundaryHoldPhase
         {
-            AirspaceClass = crossing.Volume.Class,
-            Ident = string.IsNullOrWhiteSpace(crossing.Volume.Ident) ? crossing.Volume.IcaoId : crossing.Volume.Ident,
-            NameText = crossing.Volume.Name,
+            AirspaceClass = volume.Class,
+            Ident = string.IsNullOrWhiteSpace(volume.Ident) ? volume.IcaoId : volume.Ident,
+            NameText = volume.Name,
             ReferencePosition = reference,
-            OrbitDirection = TurnDirection.Right,
-            VolumeLowerFtMsl = crossing.Volume.LowerFtMsl,
-            VolumeUpperFtMsl = crossing.Volume.UpperFtMsl,
+            OrbitDirection = AirspaceAvoidance.AwayFrom(aircraft.TrueTrack, aircraft.Position, crossing.Intersection),
+            VolumeLowerFtMsl = volume.LowerFtMsl,
+            VolumeUpperFtMsl = volume.UpperFtMsl,
+            Mode = mode,
+            VolumeId = volume.Id,
+            LevelOffCeilingFtMsl = levelOffCeiling,
         };
 
         var phases = new PhaseList();
         phases.Add(phase);
         aircraft.Phases = phases;
+    }
+
+    /// <summary>
+    /// A VFR pilot choosing their own altitude says nothing — real pilots don't narrate self-avoidance
+    /// (issue #154). But an altitude the controller assigned is a clearance the pilot cannot legally fly,
+    /// and AIM 5-5-6.a.3 requires them to say so and offer what they can do instead. Fires once per
+    /// assignment: the hold installed straight after this suppresses the boundary tick until the
+    /// controller changes something.
+    /// </summary>
+    private static void AnnounceUnableAssignedAltitude(AircraftState aircraft, AirspaceVolume volume, int? levelOffCeiling)
+    {
+        if (levelOffCeiling is not { } ceiling || aircraft.Targets.AssignedAltitude is not { } assigned || assigned < volume.LowerFtMsl)
+        {
+            return;
+        }
+
+        string airspaceName = volume.Class == AirspaceClass.Bravo ? "bravo" : "charlie";
+        var line = PilotResponder.BuildUnableAirspaceAltitude(aircraft, (int)assigned, ceiling, airspaceName);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Readback, PilotResponder.SourceResponse);
+    }
+
+    /// <summary>
+    /// The altitude the pilot levels at beneath <paramref name="volume"/>, or null when there is no flyable
+    /// airspace under it (a surface area) and the aircraft must turn away instead. The surface reference is
+    /// the volume's primary airport; without it the AGL check falls back to MSL, which is conservative
+    /// everywhere the fixture covers.
+    /// </summary>
+    private static int? ResolveLevelOffCeiling(AircraftState aircraft, AirspaceVolume volume)
+    {
+        var navDb = Data.NavigationDatabase.Instance;
+        double surfaceElevation = navDb?.GetAirportElevation(volume.Ident) ?? navDb?.GetAirportElevation(volume.IcaoId) ?? 0;
+        double magneticCourse = aircraft.TrueTrack.ToMagnetic(MagneticDeclination.GetDeclination(aircraft.Position)).Degrees;
+        return AirspaceAvoidance.LevelOffCeilingFt(volume.LowerFtMsl, magneticCourse, surfaceElevation);
     }
 
     private static bool EntryGateSatisfied(AircraftState aircraft, AirspaceClass airspaceClass) =>

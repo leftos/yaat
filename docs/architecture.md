@@ -712,8 +712,9 @@ Data/InitialContactTransferRule.cs / InitialContactTransferLoader.cs / InitialCo
                                # ARTCC/airport SOP exceptions for pilot initial-contact comm transfer, loaded from Data/ARTCCs/{ARTCC}/InitialContactTransfers/*.json.
 Data/WakeDirectiveRule.cs / WakeDirectiveLoader.cs / WakeDirectiveCatalog.cs
                                # ARTCC static wake waivers and wake-advisory scoring directives, loaded from Data/ARTCCs/{ARTCC}/WakeDirectives/*.json.
-Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry.
+Data/Airspace/AirspaceDatabase.cs # FAA AIS GeoJSON loader/query service: loads all Data/Airspace/*.geojson and *.geojson.br, volume containment, projected Class B/C boundary entry, under-a-Bravo-shelf test for the 91.117(c) speed cap.
 Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspaceClass.cs # Airspace model primitives plus crossing result (point-in-polygon via shared GeoMath.PointInRing + LatLonBounds).
+Data/Airspace/AirspaceAvoidance.cs # VFR self-restriction geometry: level-off altitude beneath a shelf floor (round hundred, 91.159-conforming above 3000 AGL) and the turn-away direction. See airspace-database.md.
 Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
 Data/Mva/MvaDatabase.cs / MvaSector.cs / MvaRelation.cs # FAA AIXM-derived MVA sectors: exterior-minus-holes containment + altitude Classify (Below/At/Above). See minimum-vectoring-altitude.md.
 Data/Mva/FAA_MVA_FUS3.geojson.br # Committed FAA MVA charts (FUS3), all 148 published facilities: 3,268 sectors with MSL floors + facility tags, Brotli-compressed, built by tools/build-mva-data.py --all.
@@ -861,7 +862,8 @@ ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Stude
 SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayFromStartTo — full from-scratch replay;
                                # FastForwardTo — advance from current time; ReplayRange — between two timestamps;
                                # ReplayRangeWithVerification — diff-against-bundled-snapshots; ReplayOneSecond/SubTick — stepping);
-                               # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore
+                               # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore.
+                               # ApplyPostDispatch is the single post-command hook both hosts call (see solo-training-pilot-speech.md)
 SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, ArtccConfig (loaded from bundle on replay)
 ScenarioPacing.cs              # Shared solo-training pacing helpers for parking call-up intervals and arrival generator rates
 ArrivalSpacingManager.cs       # Pure in-trail spacing math (SpeedCeiling) for the generator stream — simulated approach-controller speed equalization; SimulationEngine.ApplyArrivalSpacing drives it

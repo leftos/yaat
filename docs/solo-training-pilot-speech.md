@@ -143,10 +143,16 @@ public record CommandResult(bool Success, string? Message = null, CanonicalComma
 `AircraftState.PendingPilotRequest` (snapshot-serialized — schema v5) tracks one open pilot request per aircraft. `PilotRequestTracker`:
 
 - `RecordRequest(kind, nowSeconds, line, context)` — fired by the originating site (e.g. `AtParkingPhase`'s ready-to-taxi, `FinalApproachPhase`'s arrival check-in, `AirspaceBoundaryHoldPhase`'s self-hold). Takes the builder's `PilotSpeechText` and stores both forms (`LastPilotLine` / `LastPilotLineTts`).
-- `ApplyControllerResponse(compound, nowSeconds)` — runs after every successful dispatch (live + replay). Maps command type to `Satisfied` / `Denied` / `Superseded` / `Standby` per request kind.
-- `TryQueueFollowUp(nowSeconds)` — called from `PilotProactive.TickPendingRequests` each tick. Re-queues both stored forms (`LastPilotLine` + `LastPilotLineTts`) via the `PilotSpeechText` overload after 120 s normally, 90 s after `STBY`/`ROGER` (`AcknowledgePilotContactCommand`). The shorter STBY/ROGER delay reflects that a bare acknowledgment isn't substantive direction — a pilot expecting a clearance won't sit silent for several minutes after only "roger".
+- `ApplyControllerResponse(compound, nowSeconds)` — maps command type to `Satisfied` / `Denied` / `Superseded` / `Standby` per request kind. Reached from `SimulationEngine.ApplyPostDispatch` on the user-issued path, from `ApplyRecordedCommand` on replay, from `RecordingManager.ApplyRecordedCommand` on snapshot reconstruction, and directly from `AutoIssueTakeoffClearance` / `ProcessTimedPresets` for clearances the automated tower or the scenario script issues.
+- `TryQueueFollowUp(nowSeconds)` — called from `PilotProactive.TickPendingRequests` each tick. Re-queues both stored forms (`LastPilotLine` + `LastPilotLineTts`) via the `PilotSpeechText` overload after 120 s normally, 90 s after `STBY`/`ROGER` (`AcknowledgePilotContactCommand`). The shorter STBY/ROGER delay reflects that a bare acknowledgment isn't substantive direction — a pilot expecting a clearance won't sit silent for several minutes after only "roger". `Taxi` and `Takeoff` are surface-only kinds: an airborne aircraft closes them as `Superseded` instead of following up, so no one re-announces "holding short … ready for departure" from 3000 ft.
 
 Five request kinds: `Taxi`, `Takeoff`, `Landing`, `Approach`, `AirspaceEntry`. Each maps controller commands to terminal states (e.g. `ClearedForTakeoffCommand` → Satisfied for Takeoff; `ExpectApproachCommand` → Standby for Approach; `LineUpAndWaitCommand` → Superseded for Takeoff).
+
+## `ApplyPostDispatch` — one hook, two hosts
+
+Everything that happens *after* a user-issued command dispatches lives in `SimulationEngine.ApplyPostDispatch(aircraft, compound, result)`: two-way-comms registration, `SoloTrainingEvaluator.RecordControllerCommand`, `PilotRequestTracker.ApplyControllerResponse`, `SimulationWorld.AcknowledgeControllerResponse`, `QueueSoloUnableIfNeeded` on failure, and the pilot read-back.
+
+**Both hosts must call it** — `SimulationEngine.SendCommand` for the standalone engine, `RoomEngine.HandleStandardCmd` for the live server. The server used to carry its own partial copy of this block; the pending-request resolution and the frequency-gate release were missing from it, so in the real app no pilot request was ever satisfied and departed aircraft re-announced "ready for departure" every 120 s forever (issue #307). A Yaat.Sim test driving `SendCommand` cannot catch that, and neither can a recording replay — `yaat-server/tests/Yaat.Server.Tests/PilotRequestResponseServerParityTests.cs` drives the real `RoomEngine` path instead.
 
 ## Solo pacing rates
 

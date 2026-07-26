@@ -170,15 +170,20 @@ planner owns the route. Both also activate (outside via mode) whenever the route
 `UpdateSpeed(aircraft, cat, deltaSeconds)` (`FlightPhysics.cs:881`) is a layered cascade. The layers run in this exact order; getting the order
 wrong silently lets one layer stomp or lose to another:
 
-1. **Mach hold** — if `TargetMach` set and airborne, write `MachToIas(...)` into `TargetSpeed` (capped 250 below 10k unless waived) (`:887`).
+Layers 1, 2 and 5 all clamp against `RegulatorySpeedLimit(aircraft, below10k, speedLimitWaived)`, resolved once at the top of the method:
+`double.MaxValue` at or above 10,000 ft or when `IsSpeedLimitWaived` (14 CFR 91.117(d)); **200 kt** when
+`AirspaceDatabase.IsUnderClassBShelf` puts the aircraft laterally inside a Class B footprint but below its floor (91.117(c)); otherwise **250 kt**
+(91.117(a)).
+
+1. **Mach hold** — if `TargetMach` set and airborne, write `MachToIas(...)` into `TargetSpeed`, clamped to the regulatory limit (`:887`).
 2. **Floor/ceiling self-target** — if `TargetSpeed` is null and IAS violates a `SpeedFloor`/`SpeedCeiling`, set `TargetSpeed` to the breached
-   bound (`:899`). The 91.117 cap also clamps the *effective* floor/ceiling here below 10k.
+   bound (`:899`). The regulatory limit also clamps the *effective* floor/ceiling here.
 3. **Auto altitude-band schedule** — if `TargetSpeed` is null, airborne, **not** `HasExplicitSpeedCommand`, `ActiveApproach` is null, the current
    phase does **not** have `ManagesSpeed == true`, and the aircraft is climbing/descending toward a target altitude → set `TargetSpeed` to
    `AircraftPerformance.DefaultSpeed(...)`, honoring an active `SpeedCeiling` (`:925`). This is the layer the approach/pattern phases suppress.
 4. **Ground `SpeedLimit` clamp** — `goal = min(goal, Ground.SpeedLimit)` when on the ground (`:961`); this is the ground-conflict cap from
    [tick-loop.md](tick-loop.md)'s `GroundConflictDetector`.
-5. **14 CFR 91.117** — `goal = min(goal, 250)` when airborne below 10,000 ft MSL and not `IsSpeedLimitWaived` (`:966`).
+5. **14 CFR 91.117** — `goal = min(goal, RegulatorySpeedLimit(...))` (`:966`): 250 below 10,000 ft, 200 under a Class B shelf.
 6. **`SpeedCeiling` continuous clamp** — `goal = min(goal, SpeedCeiling)` again, so even a non-procedural `TargetSpeed` (auto schedule,
    pre-ceiling controller assignment) cannot escape the cap (`:975`).
 7. **Snap + integrate** — `|diff| < SpeedSnapKts` (2 kt, `:14`) → snap IAS, **null `TargetSpeed`**. Otherwise accelerate at

@@ -8,6 +8,12 @@
 - **Scenario > Restart Scenario** re-runs the loaded scenario from the start with new traffic, available to every room member.
 
 ### Fixed
+- Solo training: an aircraft cleared for takeoff stops re-announcing "holding short, ready for departure" once airborne.
+- Solo training: your clearances close a pilot's pending request, so they stop repeating it and other pilots stop waiting to speak.
+- Solo training: a VFR aircraft under a Class B or C shelf levels off beneath it and stays on course.
+- Solo training: an aircraft holding clear of airspace turns away from the boundary and can be vectored out of the hold.
+- Solo training: an aircraft says "unable" with an altitude it can hold when you assign one that would enter airspace it isn't cleared into.
+- Aircraft flying beneath a Class B shelf are limited to 200 knots.
 - A rejected `DCT` to an un-programmed fix no longer discards the aircraft's queued conditionals and pending `WAIT`/`BEHIND` commands.
 - `GA` is refused once an aircraft slows below the go-around speed gate after touchdown, instead of lifting it off the runway.
 - Aircraft accelerate along a long straight taxiway leg between two corners instead of crawling its whole length at cornering speed.

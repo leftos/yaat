@@ -29,6 +29,8 @@ public sealed class Issue297FollowUpCallsignLeakTests
                 Destination = "KAPC",
                 FlightRules = "VFR",
             },
+            // Parked: a ready-to-taxi follow-up only fires for an aircraft still on the surface.
+            IsOnGround = true,
         };
         aircraft.Ground.ParkingSpot = "K1";
 

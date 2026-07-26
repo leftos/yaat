@@ -29,6 +29,7 @@ public sealed class M104PendingRequestTests
     public void TickPendingRequests_QueuesFollowUpAtDueTime()
     {
         var ac = NewAircraft();
+        ac.IsOnGround = true;
         var scenario = NewScenario(elapsedSeconds: 129);
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Taxi, nowSeconds: 10, ReadyToTaxiLine, PilotRequestContext.None);
 
@@ -77,6 +78,60 @@ public sealed class M104PendingRequestTests
     }
 
     [Fact]
+    public void ClearedForTakeoff_ClosesPendingTakeoffRequest()
+    {
+        var ac = NewAircraft();
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Takeoff, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ClearedForTakeoffCommand(new DefaultDeparture())])]);
+
+        PilotRequestTracker.ApplyControllerResponse(ac, compound, nowSeconds: 20);
+
+        Assert.Equal(PilotPendingRequestResponseState.Satisfied, ac.PendingPilotRequest!.ResponseState);
+    }
+
+    // Issue #307: whatever left a ground-only request open, an airborne aircraft must never re-announce
+    // it — "holding short runway 28R, ready for departure" from 3000 ft was the reported symptom.
+    [Theory]
+    [InlineData(PilotPendingRequestKind.Taxi)]
+    [InlineData(PilotPendingRequestKind.Takeoff)]
+    public void TryQueueFollowUp_AirborneAircraftClosesGroundOnlyRequest(PilotPendingRequestKind kind)
+    {
+        var ac = NewAircraft();
+        ac.IsOnGround = false;
+        PilotRequestTracker.RecordRequest(ac, kind, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
+
+        Assert.False(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130));
+
+        Assert.Equal(PilotPendingRequestResponseState.Superseded, ac.PendingPilotRequest!.ResponseState);
+        Assert.Empty(ac.PendingPilotTransmissions);
+    }
+
+    [Fact]
+    public void TryQueueFollowUp_OnGroundAircraftStillFollowsUp()
+    {
+        var ac = NewAircraft();
+        ac.IsOnGround = true;
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Takeoff, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
+
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130));
+
+        Assert.Single(ac.PendingPilotTransmissions);
+    }
+
+    // An airborne-only request kind is untouched by the ground-only guard.
+    [Fact]
+    public void TryQueueFollowUp_AirborneApproachRequestStillFollowsUp()
+    {
+        var ac = NewAircraft();
+        ac.IsOnGround = false;
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Approach, nowSeconds: 10, ReadyForDepartureLine, PilotRequestContext.None);
+
+        Assert.True(PilotRequestTracker.TryQueueFollowUp(ac, nowSeconds: 130));
+
+        Assert.Single(ac.PendingPilotTransmissions);
+    }
+
+    [Fact]
     public void AtParking_InitialCallupRecordsTaxiRequest()
     {
         var ac = NewAircraft();
@@ -111,6 +166,11 @@ public sealed class M104PendingRequestTests
     private static readonly PilotSpeechText ReadyToTaxiLine = new(
         "ground, ready to taxi.",
         "ground, november one two three alpha bravo, ready to taxi."
+    );
+
+    private static readonly PilotSpeechText ReadyForDepartureLine = new(
+        "tower, holding short runway 28R, ready for departure.",
+        "tower, november one two three alpha bravo holding short runway two eight right, ready for departure."
     );
 
     private static AircraftState NewAircraft() =>

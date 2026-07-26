@@ -159,23 +159,77 @@ meet Class B/C entry requirements before crossing the boundary. It early-returns
 Then it calls `airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds: 60)`. If a crossing is found and
 `EntryGateSatisfied` is **false** for that volume's class, it installs a fresh single-phase `PhaseList`
 holding an `AirspaceBoundaryHoldPhase` configured from the volume (class, ident/icao, name, reference
-position via `airportLookup`, right-orbit, lower/upper band).
+position via `airportLookup`, volume id, orbit direction, lower/upper band, mode + level-off ceiling).
+
+### Hold modes — turn or level off
+
+The manoeuvre depends on the geometry, not on the airspace class (`AirspaceHoldMode`):
+
+| Mode | Selected when | What it does |
+|---|---|---|
+| `Orbit` | the aircraft is laterally **outside** the volume's footprint — a ring crossing lies ahead | clears the nav route and turns 180° away from the boundary each tick, capped to `AircraftPerformance.HoldingSpeed(...)` |
+| `LevelOff` | the aircraft is already laterally **inside** the footprint — only the climb can enter | sets `ControlTargets.AltitudeCeiling` beneath the floor and leaves course, route and speed alone |
+
+Turning is useless when the shelf is directly overhead, and flying under a Class B shelf is ordinary VFR
+practice (AIM §3-2-3.d.2.c); the reported failure (#308) was a KOAK 28R departure orbiting *inside* the
+2,100 ft SFO Bravo shelf because the hold never capped the climb.
+
+`AirspaceAvoidance` (`src/Yaat.Sim/Data/Airspace/AirspaceAvoidance.cs`) owns both geometry decisions:
+
+- `LevelOffCeilingFt(volumeFloorFtMsl, magneticCourseDeg, surfaceElevationFt)` — the highest **round hundred
+  strictly below** the floor (2,100 → 2,000). The charted floor is inclusive and Mode C is quantized to
+  100 ft with up to 125 ft of legal error (14 CFR 91.217(a)(3)), so floor-minus-one would paint as an
+  airspace bust. Above `HemisphericAltitude.AglFloorFt` (3,000 AGL) the level drops to the highest
+  conforming 14 CFR 91.159 altitude. Returns null when less than `MinimumFlyableAglFt` (1,000 ft, per
+  14 CFR 91.119 over congested areas) remains — a surface area — and the caller falls back to `Orbit`.
+- `AwayFrom(track, position, boundaryPoint)` — the turn that puts the boundary behind the wing. The orbit
+  direction used to be hardcoded right, which drove the aircraft *into* the airspace half the time.
 
 `AirspaceBoundaryHoldPhase` (`src/Yaat.Sim/Phases/AirspaceBoundaryHoldPhase.cs`) overrides
-`ManagesSpeed => true` and on `OnStart` snapshots the pre-hold route/heading/turn/speed, clears the nav
-route, and orbits: `SetHoldingTargets` caps speed to `AircraftPerformance.HoldingSpeed(...)` and turns the
-aircraft 180° in the orbit direction. The hold is **silent** — it does not broadcast a pilot self-report
-(Issue #154). `OnTick` completes (returns `true`) when either `GateSatisfied` is met or
-`HeldVolumeCanStillBeEntered` becomes false (the held shelf is no longer vertically relevant, using a 60 s
-`AirspaceDatabase.ProjectAltitude` band check). On completion `OnEnd` **restores the original route/heading
-only if the controller has not since assigned an explicit magnetic heading and has not added a new
-navigation route** (a non-empty `NavigationRoute` at `OnEnd` means a `DCT`/direct command was issued during
-the hold, which must survive the release), and restores the original speed only if there is no explicit
-speed command. `CanAcceptCommand` returns `Allowed` for every command (the hold never rejects controller
-input). See [phases.md](phases.md) for the phase lifecycle, `ManagesSpeed`
-contagion, and the snapshot contract; see
+`ManagesSpeed` to `true` **only in `Orbit` mode** — an aircraft levelling under a shelf keeps cruise speed,
+so an ATC speed assignment still takes effect. `OnStart` snapshots the pre-hold
+route/heading/turn/speed/target-altitude/ceiling. The hold is **silent** — it does not broadcast a pilot
+self-report (Issue #154) — with one exception: if the controller has **assigned** an altitude at or above
+the volume's floor, `PilotProactive.AnnounceUnableAssignedAltitude` queues
+`PilotResponder.BuildUnableAirspaceAltitude` ("unable 3500, that'd put us in the bravo — we can do 2000").
+AIM §5-5-6.a.3 requires a VFR pilot to advise ATC rather than fly a clearance that would violate the CFRs,
+and 7110.65 §7-9-2 NOTE 1 tells controllers to expect that call. An altitude the *pilot* chose draws
+nothing.
+
+`OnTick` completes (returns `true`) when:
+
+| Mode | Exit conditions |
+|---|---|
+| both | `GateSatisfied` (Bravo clearance / two-way for Charlie) |
+| `Orbit` | the controller assigned a heading or added a nav route (they have taken responsibility — otherwise the orbit overwrites the vector every tick and the aircraft circles forever), or `HeldVolumeCanStillBeEntered` goes false |
+| `LevelOff` | `AltitudeCeiling` no longer matches the phase's own cap (a controller altitude command nulls it), or the aircraft is laterally clear of the footprint now and 60 s ahead |
+
+The `LevelOff` exit deliberately does **not** re-run `FindFirstProjectedEntry`: `ProjectAltitude` honours
+`AltitudeCeiling`, so the cap the phase just imposed is what stops the projection. Asking that question
+would end the hold on the first tick, restore the climb, and re-trigger the hold — a level/climb
+oscillation at tick rate. The ceiling is likewise set **once** in `OnStart` and never re-asserted, so a
+controller altitude command cleanly takes over.
+
+On completion `OnEnd` in `Orbit` mode **restores the original route/heading only if the controller has not
+since assigned an explicit magnetic heading and has not added a new navigation route** (a non-empty
+`NavigationRoute` at `OnEnd` means a `DCT`/direct command was issued during the hold, which must survive
+the release), and restores the original speed only if there is no explicit speed command. In `LevelOff`
+mode it lifts its own ceiling (leaving a controller-issued "maintain VFR at or below" in place) and puts
+back the pre-hold `TargetAltitude` — `FlightPhysics.UpdateAltitude` nulls that field when the aircraft
+captures the capped goal, so without the restore the climb never resumes. `CanAcceptCommand` returns
+`Allowed` for every command (the hold never rejects controller input). See [phases.md](phases.md) for the
+phase lifecycle, `ManagesSpeed` contagion, and the snapshot contract; see
 [plans/pilot-ai-self-training/m10.1.5-vfr-airspace-respect.md](plans/pilot-ai-self-training/m10.1.5-vfr-airspace-respect.md)
 for milestone history.
+
+### Speed under a shelf — 14 CFR 91.117(c)
+
+`AirspaceDatabase.IsUnderClassBShelf(position, altitudeFtMsl)` is true when the aircraft is laterally inside
+a Class B footprint but below its floor. `FlightPhysics.RegulatorySpeedLimit` reads it on every speed update
+and caps indicated airspeed at **200 kt** there instead of the ordinary 250 below 10,000 ft. The lookup
+walks a Bravo-only pre-filtered list, and each volume rejects a far-away point on its bounding box first.
+`AircraftPerformance.IsSpeedLimitWaived` (14 CFR 91.117(d)) exempts aircraft whose minimum safe speed is
+higher.
 
 ### Entry gates
 

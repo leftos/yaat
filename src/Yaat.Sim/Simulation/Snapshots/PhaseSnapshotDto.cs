@@ -557,10 +557,15 @@ public sealed class AirspaceBoundaryHoldPhaseDto : PhaseDto
     public required int OrbitDirection { get; init; }
     public int? VolumeLowerFtMsl { get; init; }
     public int? VolumeUpperFtMsl { get; init; }
+    public int Mode { get; init; }
+    public string? VolumeId { get; init; }
+    public int? LevelOffCeilingFtMsl { get; init; }
     public List<NavigationTargetDto>? OriginalRoute { get; init; }
     public double? OriginalTargetHeadingDeg { get; init; }
     public int? OriginalTurnDirection { get; init; }
     public double? OriginalTargetSpeed { get; init; }
+    public double? OriginalTargetAltitude { get; init; }
+    public double? OriginalAltitudeCeiling { get; init; }
     public required double CumulativeTurn { get; init; }
     public required double LastHeadingDeg { get; init; }
     public required bool Started { get; init; }

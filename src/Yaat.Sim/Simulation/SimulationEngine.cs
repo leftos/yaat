@@ -2032,13 +2032,37 @@ public sealed class SimulationEngine
             result = CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
         }
 
+        ApplyPostDispatch(aircraft, parseResult.Value!, result);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Post-dispatch bookkeeping for a controller-issued command: two-way-comms registration and, in
+    /// solo-training mode, evaluator scoring, pending-request resolution, frequency-gate release, the
+    /// "unable" response on rejection, and the pilot read-back.
+    ///
+    /// Both hosts must call this after dispatching a user-issued command — <see cref="SendCommand"/>
+    /// for the standalone engine and <c>RoomEngine.HandleStandardCmd</c> for the live server. Keeping
+    /// it in one place is what stops the two from drifting: the pending-request resolution and the
+    /// frequency-gate release lived only in <see cref="SendCommand"/> and were therefore dark on the
+    /// live server, so pilots re-announced "ready for departure" every 120 s forever (issue #307).
+    ///
+    /// The read-back hook lives here, on the user-issued path only, so deferred / preset / replay
+    /// dispatches don't re-fire read-backs.
+    /// </summary>
+    public void ApplyPostDispatch(AircraftState aircraft, CompoundCommand compound, CommandResult result)
+    {
+        bool soloTrainingMode = Scenario?.SoloTrainingMode ?? false;
+        double elapsedSeconds = Scenario?.ElapsedSeconds ?? 0;
+
         if (result.Success)
         {
-            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, parseResult.Value!);
+            Pilot.PilotInitialContactEligibility.RegisterControllerContact(aircraft, Scenario, compound);
             if (soloTrainingMode)
             {
-                SoloTrainingEvaluator.RecordControllerCommand(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0, World.GetSnapshot());
-                PilotRequestTracker.ApplyControllerResponse(aircraft, parseResult.Value!, Scenario?.ElapsedSeconds ?? 0);
+                SoloTrainingEvaluator.RecordControllerCommand(aircraft, compound, elapsedSeconds, World.GetSnapshot());
+                PilotRequestTracker.ApplyControllerResponse(aircraft, compound, elapsedSeconds);
                 // The controller has just spoken to this aircraft, so the
                 // awaiting-controller-response gate (if it was set after this pilot's
                 // last proactive call) clears. Commands that produce a readback also
@@ -2051,18 +2075,13 @@ public sealed class SimulationEngine
             QueueSoloUnableIfNeeded(aircraft, result);
         }
 
-        // Emit pilot readback in solo-training mode. Single hook here in SendCommand (the
-        // user-issued live path) means deferred / preset / replay dispatches don't re-fire
-        // readbacks. Transparent (squawk/ident/say) and phase-handled paths all funnel
-        // through DispatchCompound, so this catches everything successful from the student's
-        // perspective.
         if (result.Success && soloTrainingMode)
         {
-            var activityLevel = World.ActiveFrequency.GetActivityLevel(Scenario?.ElapsedSeconds ?? 0);
-            var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(parseResult.Value!, aircraft, PilotPersonality.Varied, activityLevel);
+            var activityLevel = World.ActiveFrequency.GetActivityLevel(elapsedSeconds);
+            var readback = Yaat.Sim.Pilot.PilotResponder.BuildReadback(compound, aircraft, PilotPersonality.Varied, activityLevel);
             if (readback is not null)
             {
-                World.ExpectPilotReadback(aircraft.Callsign, Scenario?.ElapsedSeconds ?? 0);
+                World.ExpectPilotReadback(aircraft.Callsign, elapsedSeconds);
                 Yaat.Sim.Pilot.PilotResponder.QueueSoloPilotTransmission(
                     aircraft,
                     readback,
@@ -2071,8 +2090,6 @@ public sealed class SimulationEngine
                 );
             }
         }
-
-        return result;
     }
 
     /// <summary>
@@ -3924,6 +3941,10 @@ public sealed class SimulationEngine
             IsScenarioScripted: true
         );
         CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
+        // The pilot's "ready for departure" call is answered even though the automated tower issued the
+        // clearance — without this the request stays open and the pilot re-announces it every 120 s from
+        // the air. No frequency-gate release / read-back / evaluator scoring: the student didn't speak.
+        PilotRequestTracker.ApplyControllerResponse(aircraft, parsed.Value!, Scenario!.ElapsedSeconds);
         EmitTerminal("System", aircraft.Callsign, "[HFR] Released — cleared for takeoff");
     }
 
@@ -3993,6 +4014,10 @@ public sealed class SimulationEngine
                 IsScenarioScripted: true
             );
             CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
+            // A scripted clearance still answers whatever the pilot last asked for, so the pending
+            // request closes and stops following up. Scripted commands emit no read-back and are not
+            // scored — the student didn't issue them.
+            PilotRequestTracker.ApplyControllerResponse(aircraft, compound, scenario.ElapsedSeconds);
 
             EmitTerminal("System", preset.Callsign, $"[Preset] {preset.Command}");
         }

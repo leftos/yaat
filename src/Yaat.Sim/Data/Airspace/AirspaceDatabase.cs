@@ -15,13 +15,42 @@ public sealed class AirspaceDatabase
 
     public IReadOnlyList<AirspaceVolume> Volumes { get; }
 
+    private readonly List<AirspaceVolume> _bravoVolumes;
+
     public AirspaceDatabase(IReadOnlyList<AirspaceVolume> volumes)
     {
         Volumes = volumes;
+        _bravoVolumes = volumes.Where(v => v.Class == AirspaceClass.Bravo).ToList();
     }
 
     public IEnumerable<AirspaceVolume> FindContaining(LatLon position, double altitudeFtMsl) =>
         Volumes.Where(v => v.Contains(position, altitudeFtMsl));
+
+    /// <summary>
+    /// The volume with this <see cref="AirspaceVolume.Id"/>, or null when the fixture no longer carries it.
+    /// Phases persist the id rather than the volume so a restored snapshot can re-resolve the polygon it
+    /// is holding clear of.
+    /// </summary>
+    public AirspaceVolume? FindById(string id) =>
+        string.IsNullOrEmpty(id) ? null : Volumes.FirstOrDefault(v => string.Equals(v.Id, id, StringComparison.Ordinal));
+
+    /// <summary>
+    /// True when the aircraft is laterally inside a Class B footprint but below its floor — the airspace
+    /// "underlying" Class B, where 14 CFR 91.117(c) caps indicated airspeed at 200 kt. Iterates a
+    /// pre-filtered Bravo list because <see cref="FlightPhysics"/> asks this on every speed update.
+    /// </summary>
+    public bool IsUnderClassBShelf(LatLon position, double altitudeFtMsl)
+    {
+        foreach (var volume in _bravoVolumes)
+        {
+            if (altitudeFtMsl < volume.LowerFtMsl && volume.ContainsLateral(position))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public AirspaceBoundaryCrossing? FindFirstProjectedEntry(AircraftState aircraft, double lookaheadSeconds)
     {

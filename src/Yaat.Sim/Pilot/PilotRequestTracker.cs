@@ -83,6 +83,15 @@ public static class PilotRequestTracker
             return false;
         }
 
+        // A ready-to-taxi / ready-for-departure call is only meaningful on the surface. Once the
+        // aircraft is airborne the request is moot however it got resolved, so close it rather than
+        // re-announce "holding short runway 28R, ready for departure" from 3000 ft (issue #307).
+        if (pending.Kind is PilotPendingRequestKind.Taxi or PilotPendingRequestKind.Takeoff && !aircraft.IsOnGround)
+        {
+            pending.ResponseState = PilotPendingRequestResponseState.Superseded;
+            return false;
+        }
+
         if (nowSeconds < pending.NextFollowUpDueSeconds)
         {
             return false;

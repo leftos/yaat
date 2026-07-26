@@ -959,35 +959,46 @@ public static class FlightPhysics
         return goal;
     }
 
+    /// <summary>14 CFR 91.117(a): maximum indicated airspeed below 10,000 ft MSL.</summary>
+    private const double SpeedLimitBelow10kKts = 250;
+
+    /// <summary>14 CFR 91.117(c): maximum indicated airspeed in the airspace underlying Class B.</summary>
+    private const double SpeedLimitUnderClassBKts = 200;
+
+    /// <summary>
+    /// The regulatory speed cap at the aircraft's present position, or <see cref="double.MaxValue"/> when
+    /// none applies. 91.117(d) exempts aircraft whose minimum safe speed exceeds the limit.
+    /// </summary>
+    private static double RegulatorySpeedLimit(AircraftState aircraft, bool below10k, bool speedLimitWaived)
+    {
+        if (!below10k || speedLimitWaived)
+        {
+            return double.MaxValue;
+        }
+
+        return Data.Airspace.AirspaceDatabase.Default.IsUnderClassBShelf(aircraft.Position, aircraft.Altitude)
+            ? SpeedLimitUnderClassBKts
+            : SpeedLimitBelow10kKts;
+    }
+
     private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         bool below10k = !aircraft.IsOnGround && aircraft.Altitude < 10_000;
         bool speedLimitWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType);
+        double regulatoryLimit = RegulatorySpeedLimit(aircraft, below10k, speedLimitWaived);
 
         // Mach hold: recompute equivalent IAS each tick so the aircraft maintains constant Mach.
         if (aircraft.Targets.TargetMach is { } targetMach && !aircraft.IsOnGround)
         {
-            double machIas = WindInterpolator.MachToIas(targetMach, aircraft.Altitude);
-            if (below10k && !speedLimitWaived)
-            {
-                machIas = Math.Min(machIas, 250);
-            }
-
+            double machIas = Math.Min(WindInterpolator.MachToIas(targetMach, aircraft.Altitude), regulatoryLimit);
             aircraft.Targets.TargetSpeed = machIas;
         }
 
         // Floor/ceiling enforcement: if IAS violates a floor or ceiling, create a target to correct it.
         if (aircraft.Targets.TargetSpeed is null)
         {
-            double effectiveFloor = aircraft.Targets.SpeedFloor ?? 0;
-            double effectiveCeiling = aircraft.Targets.SpeedCeiling ?? double.MaxValue;
-
-            // 14 CFR 91.117: cap effective floor at 250 below 10,000 ft.
-            if (below10k && !speedLimitWaived)
-            {
-                effectiveFloor = Math.Min(effectiveFloor, 250);
-                effectiveCeiling = Math.Min(effectiveCeiling, 250);
-            }
+            double effectiveFloor = Math.Min(aircraft.Targets.SpeedFloor ?? 0, regulatoryLimit);
+            double effectiveCeiling = Math.Min(aircraft.Targets.SpeedCeiling ?? double.MaxValue, regulatoryLimit);
 
             if (aircraft.Targets.SpeedFloor is not null && aircraft.IndicatedAirspeed < effectiveFloor)
             {
@@ -1044,11 +1055,8 @@ public static class FlightPhysics
             goal = Math.Min(goal, limit);
         }
 
-        // 14 CFR 91.117: max 250 KIAS below 10,000 ft MSL when airborne.
-        if (below10k && !speedLimitWaived)
-        {
-            goal = Math.Min(goal, 250);
-        }
+        // 14 CFR 91.117: 250 KIAS below 10,000 ft MSL, 200 KIAS under a Class B shelf.
+        goal = Math.Min(goal, regulatoryLimit);
 
         // Honor SpeedCeiling continuously, including when a non-procedural source
         // (e.g. auto speed schedule, controller-assigned TargetSpeed before a ceiling

@@ -1174,6 +1174,22 @@ public static class PilotResponder
     /// Pilot transmission when an instructed taxi exit cannot be made (overshoot, wrong-side, etc.).
     /// Pilot phraseology: "negative" for no-can-do, target taxiway for context.
     /// </summary>
+    /// <summary>
+    /// Pilot refusal when an assigned altitude would put a VFR aircraft inside Class B/C it has not been
+    /// cleared into. AIM 5-5-6.a.3 requires the pilot to advise ATC rather than comply, and 7110.65 7-9-2
+    /// NOTE 1 says controllers should expect that call; the counter-offer names the altitude the pilot will
+    /// hold instead. Output:
+    /// <c>"[N123AB] unable 3,500, that'd put us in the bravo — we can do 2,000."</c>
+    /// </summary>
+    public static PilotSpeechText BuildUnableAirspaceAltitude(AircraftState aircraft, int assignedFt, int levelOffFt, string airspaceName)
+    {
+        var spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            $"unable {PhraseologyVerbalizer.CompactAltitude(assignedFt)}, that'd put us in the {airspaceName} — we can do {PhraseologyVerbalizer.CompactAltitude(levelOffFt)}.",
+            $"{spoken}, unable {PhraseologyVerbalizer.AltitudeWords(assignedFt)}, that'd put us in the {airspaceName}; we can do {PhraseologyVerbalizer.AltitudeWords(levelOffFt)}."
+        );
+    }
+
     public static PilotSpeechText BuildUnableToExit(AircraftState aircraft, string taxiway)
     {
         var spoken = SpokenOwnCallsign(aircraft);

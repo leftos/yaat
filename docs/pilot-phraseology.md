@@ -114,7 +114,9 @@ A pure reminder when no approach has been issued is the callsign-only "request a
 Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `RpoTerminal`.
 
 - **Readbacks** — `BuildReadback(compound, aircraft)` (rule-driven, the bulk of readbacks);
-  `BuildUnable` (rejected command, gated by `CommandDefinition.ProducesPilotUnable`).
+  `BuildUnable` (rejected command, gated by `CommandDefinition.ProducesPilotUnable`);
+  `BuildUnableAirspaceAltitude` (an assigned altitude that would enter un-cleared Class B/C — AIM §5-5-6.a.3
+  makes advising ATC the pilot's obligation, and the line names the altitude they *can* hold).
 - **Initial contact / check-in** — `BuildAirborneCheckIn` → `BuildIfrAirborne` / `BuildVfrAirborne`;
   `BuildReadyToTaxi`; `BuildClosedTrafficRequest`; `BuildArrivalApproachRequest`.
 - **Position / pattern reports** — `BuildMidfieldDownwindReminder`, `BuildShortFinalReminder`,
