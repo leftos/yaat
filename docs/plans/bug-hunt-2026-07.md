@@ -796,6 +796,58 @@ not applied to that phase.
 > down. This is the change the aviation review held back in the phases cluster; its stated precondition
 > is now met.
 
+### Aviation review of F1–F3 (second round)
+
+The review **caught a regression I introduced in F1** and corrected two claims I had made.
+
+- **F1 was over-scoped and had to be narrowed.** `OnStart` selected on `Kind` alone with no distance
+  term, but the *default* Final entry point is the glideslope/TPA intercept —
+  `PatternAltitudeAgl / FeetPerNm(3°)`, about **4.7 nm** for a jet — and `EF FINAL <dist>` can place it
+  further. So the fix commanded Vref for the whole straight-in, and nothing walked it back:
+  `ManagesSpeed` suppresses the auto speed schedule, and `FinalApproachPhase.OnStart` only ever *lowers*
+  speed. For an unprofiled jet that is 200 → 140, held from wherever the entry begins — squarely outside
+  the 170/210 kt floors of §5-7-3.c.1.b, and it defeats the staged 1.3·Vref → Vref profile. The `Final`
+  arm is now gated on the entry point being within **2 nm** of the threshold (`CloseInFinalEntryNm`),
+  which is what the #292 retarget builds at 0.5 nm. `Base` was confirmed fine and kept — it is
+  geometrically bounded to `wp.BaseTurnLat/Lon`. The original test was 3 nm from its entry point and so
+  pinned the over-scoped behavior; it now uses a close-in entry and has a distant-entry counterpart.
+- **F2's commit message cited a precedent that only half exists.** `FinalApproachPhase` respects
+  `HasExplicitSpeedCommand` in `OnTick` only — its `OnStart` overrides unconditionally. That is not an
+  oversight to clean up: it is the safety net that commands Vref outright on a close-in base-to-final
+  rollout, and it is what makes an uncancelled pattern speed safe. Now pinned by
+  `FinalApproachOnStart_OverridesAnExplicitSpeed_CloseIn` so a later consistency pass cannot delete it.
+- **F3 shipped as-is**, with 45° confirmed as the smallest tolerance covering every legal intercept
+  (§5-9-2 TBL 5-9-1: 30°, 20° close-in, 45° for helicopters). Two defects were fixed on top: `IsOnFinal`
+  was direction-only, so an aircraft on **upwind** — same heading, flying away — counted as on final; it
+  now also requires the aircraft to be flying toward the threshold. And my edit had split
+  `IsInboundToLand`'s doc comment from its declaration, leaving the constant with two `<summary>` blocks.
+- **My "follow adjustments only ever slow the aircraft" was wrong.** The clamp is against the *leg
+  baseline*, not the assigned speed, and the helper returns a value on every tick while following — so a
+  FOLLOW silently overwrites a controller's assigned speed down to the leg baseline. Leaving spacing
+  unguarded is still correct; the gap is that it happens invisibly. Logged as F5.
+
+### F5. A FOLLOW silently overrides a controller-assigned speed
+
+`AirborneFollowHelper` clamps to `Math.Min(adjusted, legBaseline)`, so once a FOLLOW is active an
+assigned speed is reduced to at most the leg baseline every tick — a C172 assigned 180 kt with a FOLLOW
+drops to ≤90 kt with no controller action and no pilot transmission. Guarding it would break spacing;
+the fix is an advisory per AIM §4-4-12.h ("pilots are expected to advise ATC of the speed that will be
+used") — e.g. *"unable one eighty, slowing for traffic"* through `PilotResponder`.
+
+### F6. No 91.117(b)/(c) 200-kt cap anywhere
+
+The sim enforces only 91.117(a) (250 below 10,000). Now that an assigned speed survives a whole circuit,
+`SPD 250` at TPA is reachable. Fine in a Class C/D surface area (AIM §4-4-12.k lets ATC approve it), but
+not beneath a Class B shelf or in a VFR corridor, where 200 kt binds and the pilot is expected to refuse
+(AIM §4-4-12.i). There is an airspace database (`src/Yaat.Sim/Data/Airspace/`) to key this off.
+
+### F7. `LandingPhase` and `FinalApproachPhase` disagree about Vref
+
+`LandingPhase.BuildPlan` uses `CategoryPerformance.ApproachSpeed(cat)` (Jet 140) while
+`FinalApproachPhase` uses per-type `AircraftPerformance.ApproachSpeed` (B738 144). The 1.3·Vref
+unstabilized-go-around gate is therefore computed on a different Vref than the profile feeding it —
+about 5 kt tighter. Pre-existing, spotted while tracing the pattern-speed chain.
+
 ### F2. `DownwindPhase.OnStart` reverts a controller speed assignment one leg later
 
 `DownwindPhase.OnStart` unconditionally rewrites `TargetSpeed` and `TargetAltitude` with no

@@ -122,12 +122,7 @@ public sealed class PatternEntryPhase : Phase
         // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
-            ctx.Targets.TargetSpeed = Kind switch
-            {
-                PatternEntryKind.Final => AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category),
-                PatternEntryKind.Base => AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category),
-                _ => AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category),
-            };
+            ctx.Targets.TargetSpeed = SelectEntrySpeed(ctx);
         }
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(EntryLat, EntryLon));
@@ -174,6 +169,43 @@ public sealed class PatternEntryPhase : Phase
             _hasAnnouncedInitialCall = true;
             ctx.Aircraft.HasMadeInitialContact = true;
         }
+    }
+
+    /// <summary>
+    /// How close to the threshold a Final entry has to join before the entry itself commands approach
+    /// speed. Beyond it, <see cref="Phases.Tower.FinalApproachPhase"/>'s staged 1.3·Vref → Vref profile
+    /// owns the deceleration, and commanding Vref early would fly the whole run-in slow — well outside
+    /// the 170/210 kt floors of 7110.65 §5-7-3.c.1.b for an arriving turbojet. The default Final entry
+    /// point is the glideslope/TPA intercept (about 4.7 nm for a jet), so only a deliberately close-in
+    /// join qualifies — chiefly the #292 low-approach runway retarget, which builds its entry 0.5 nm out.
+    /// </summary>
+    private const double CloseInFinalEntryNm = 2.0;
+
+    /// <summary>
+    /// The speed of the leg being joined. A Final entry hands straight to FinalApproachPhase and a Base
+    /// entry to BasePhase, both of which immediately command that speed; commanding pattern speed
+    /// regardless of entry kind would accelerate a close-in join with no room to bleed it off again.
+    /// </summary>
+    private double SelectEntrySpeed(PhaseContext ctx)
+    {
+        if (Kind == PatternEntryKind.Base)
+        {
+            return AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+        }
+
+        if (Kind == PatternEntryKind.Final && ctx.Runway is { } runway)
+        {
+            double entryToThresholdNm = GeoMath.DistanceNm(
+                new LatLon(EntryLat, EntryLon),
+                new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude)
+            );
+            if (entryToThresholdNm <= CloseInFinalEntryNm)
+            {
+                return AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            }
+        }
+
+        return AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
     }
 
     public override bool OnTick(PhaseContext ctx)

@@ -1872,17 +1872,11 @@ public static class ApproachCommandHandler
         phase is ApproachNavigationPhase or InterceptCoursePhase or FinalApproachPhase or HoldingPatternPhase or ProcedureTurnPhase;
 
     /// <summary>
-    /// True when the aircraft is inbound to land — being vectored or established on an
-    /// approach, or cleared to land (including in the pattern). This is the trigger for
-    /// the §5-7-1.b.4 5nm-final speed gate (reject new assignments, auto-cancel an
-    /// explicit ATC speed). A departure — which carries an <c>AssignedRunway</c> for its
-    /// departure runway but has no landing/approach clearance — and a go-around (climbing
-    /// out) are deliberately excluded so neither is blocked from a speed assignment.
-    /// </summary>
-    /// <summary>
     /// Widest angle between the aircraft's track and the landing course that still counts as being on
     /// final. A pattern downwind tracks the reciprocal and a base leg tracks across it, so both fall
-    /// well outside; an aircraft joining final from a 30° intercept falls inside.
+    /// well outside. 7110.65 §5-9-2 TBL 5-9-1 caps a legal final-approach-course intercept at 30°
+    /// (20° close in) and 45° for helicopters, so this is the smallest value that still covers every
+    /// intercept a controller is permitted to set up.
     /// </summary>
     private const double OnFinalTrackToleranceDeg = 45.0;
 
@@ -1894,13 +1888,36 @@ public static class ApproachCommandHandler
     /// by itself gated the entire circuit and made a tower speed instruction to pattern traffic
     /// impossible, even though §3-8-1 lists speed among the tower's sequencing tools.
     ///
-    /// Established on an approach counts regardless of track; otherwise the aircraft must be tracking
-    /// the landing course.
+    /// Established on an approach counts regardless of track — that also keeps the over-the-runway
+    /// segment of a low approach gated. Otherwise the aircraft must both be tracking the landing course
+    /// and still be flying toward the threshold, so the upwind leg (same heading, opposite side, flying
+    /// away) is not mistaken for final.
     /// </summary>
-    internal static bool IsOnFinal(AircraftState aircraft, RunwayInfo runway) =>
-        aircraft.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase or LowApproachPhase
-        || aircraft.TrueTrack.AbsAngleTo(runway.TrueHeading) <= OnFinalTrackToleranceDeg;
+    internal static bool IsOnFinal(AircraftState aircraft, RunwayInfo runway)
+    {
+        if (aircraft.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase or LowApproachPhase)
+        {
+            return true;
+        }
 
+        if (aircraft.TrueTrack.AbsAngleTo(runway.TrueHeading) > OnFinalTrackToleranceDeg)
+        {
+            return false;
+        }
+
+        var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
+        double bearingToThreshold = GeoMath.BearingTo(aircraft.Position, threshold);
+        return aircraft.TrueTrack.AbsAngleTo(new TrueHeading(bearingToThreshold)) <= 90.0;
+    }
+
+    /// <summary>
+    /// True when the aircraft is inbound to land — being vectored or established on an
+    /// approach, or cleared to land (including in the pattern). This is the trigger for
+    /// the §5-7-1.b.4 5nm-final speed gate (reject new assignments, auto-cancel an
+    /// explicit ATC speed). A departure — which carries an <c>AssignedRunway</c> for its
+    /// departure runway but has no landing/approach clearance — and a go-around (climbing
+    /// out) are deliberately excluded so neither is blocked from a speed assignment.
+    /// </summary>
     internal static bool IsInboundToLand(AircraftState aircraft)
     {
         var phases = aircraft.Phases;

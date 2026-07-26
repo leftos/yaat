@@ -1,4 +1,5 @@
-﻿using Xunit;
+﻿using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -209,6 +210,54 @@ public class SpeedCommandTests
 
         Assert.False(result.Success);
         Assert.Contains("5nm final", result.Message);
+    }
+
+    /// <summary>
+    /// The safety net for a pattern aircraft carrying a high assigned speed onto final. Unlike
+    /// <c>FinalApproachPhase.OnTick</c>, its <c>OnStart</c> deliberately does NOT respect
+    /// <c>HasExplicitSpeedCommand</c>: on a close-in base-to-final rollout it commands Vref outright, so
+    /// an uncancelled speed assignment cannot follow the aircraft to the runway. Now that a controller
+    /// speed survives the pattern legs (7110.65 §5-7-4) this is load-bearing — do not "fix" it for
+    /// consistency with the leg phases.
+    /// </summary>
+    [Fact]
+    public void FinalApproachOnStart_OverridesAnExplicitSpeed_CloseIn()
+    {
+        TestVnasData.EnsureInitialized();
+
+        var rwy = TestRunwayFactory.Make(heading: 280);
+        // 1.5 nm out on final, still carrying an assigned 250 kt.
+        var pos = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 1.5);
+        var ac = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "B738",
+            Position = new LatLon(pos.Lat, pos.Lon),
+            TrueHeading = new TrueHeading(280),
+            TrueTrack = new TrueHeading(280),
+            Altitude = 500,
+            IndicatedAirspeed = 250,
+        };
+        ac.Targets.TargetSpeed = 250;
+        ac.Targets.HasExplicitSpeedCommand = true;
+        ac.Phases = new PhaseList { AssignedRunway = rwy };
+
+        var phase = new FinalApproachPhase { SkipInterceptCheck = true };
+        phase.OnStart(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 1.0,
+                Runway = rwy,
+                FieldElevation = rwy.ElevationFt,
+                Logger = NullLogger.Instance,
+            }
+        );
+
+        double vref = AircraftPerformance.ApproachSpeed(ac.AircraftType, AircraftCategory.Jet);
+        Assert.Equal(vref, ac.Targets.TargetSpeed);
     }
 
     /// <summary>

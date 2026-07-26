@@ -373,11 +373,10 @@ public class PatternPhaseTests
     }
 
     /// <summary>
-    /// The entry must command the speed of the leg it is joining. A <see cref="PatternEntryKind.Final"/>
-    /// entry hands straight to <see cref="Phases.Tower.FinalApproachPhase"/>, which flies approach speed —
-    /// commanding downwind speed instead accelerates a jet onto short final with no room to bleed it off
-    /// again. The #292 low-approach runway retarget builds exactly this entry, half a mile from the
-    /// threshold.
+    /// A Base entry hands straight to <see cref="BasePhase"/>, and a <em>close-in</em> Final entry to
+    /// <see cref="Phases.Tower.FinalApproachPhase"/> with no room to decelerate — the #292 low-approach
+    /// runway retarget builds one half a mile from the threshold. Both must join at the speed of the leg
+    /// rather than accelerate to pattern speed first.
     /// </summary>
     [Theory]
     [InlineData(PatternEntryKind.Final)]
@@ -386,11 +385,14 @@ public class PatternPhaseTests
     {
         TestVnasData.EnsureInitialized();
 
+        var rwy = DefaultRunway();
         var ac = MakeAircraft(ias: 200);
+        // Entry point 0.5 nm off the threshold — the close-in join the #292 retarget produces.
+        var entry = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 0.5);
         var phase = new PatternEntryPhase
         {
-            EntryLat = 37.05,
-            EntryLon = -122.0,
+            EntryLat = entry.Lat,
+            EntryLon = entry.Lon,
             PatternAltitude = 1100,
             Kind = kind,
         };
@@ -406,6 +408,35 @@ public class PatternPhaseTests
 
         Assert.True(expected < downwind, $"test premise: {kind} speed {expected:F0} should be below downwind speed {downwind:F0}");
         Assert.Equal(expected, ac.Targets.TargetSpeed);
+    }
+
+    /// <summary>
+    /// The default Final entry point is the glideslope/TPA intercept — about 4.7 nm out for a jet, and
+    /// <c>EF FINAL &lt;dist&gt;</c> can place it further. Commanding Vref there would fly the whole
+    /// straight-in slow, below the 170/210 kt floors 7110.65 §5-7-3.c.1.b sets for an arriving turbojet,
+    /// and would defeat FinalApproachPhase's staged 1.3·Vref → Vref profile. A distant Final entry joins
+    /// at pattern speed and lets that phase own the deceleration.
+    /// </summary>
+    [Fact]
+    public void PatternEntry_OnStart_DistantFinalEntry_JoinsAtPatternSpeed()
+    {
+        TestVnasData.EnsureInitialized();
+
+        var rwy = DefaultRunway();
+        var ac = MakeAircraft(ias: 250);
+        var entry = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 4.7);
+        var phase = new PatternEntryPhase
+        {
+            EntryLat = entry.Lat,
+            EntryLon = entry.Lon,
+            PatternAltitude = 1500,
+            Kind = PatternEntryKind.Final,
+        };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        Assert.Equal(AircraftPerformance.DownwindSpeed(ac.AircraftType, AircraftCategory.Jet), ac.Targets.TargetSpeed);
     }
 
     [Fact]
@@ -436,7 +467,7 @@ public class PatternPhaseTests
     /// </summary>
     [Theory]
     [InlineData("upwind")]
-    [InlineData("crosswind")]
+    [InlineData("crosswind")] // correct by omission — CrosswindPhase.OnStart writes no speed; guards against one being added
     [InlineData("downwind")]
     [InlineData("base")]
     [InlineData("entry")]
