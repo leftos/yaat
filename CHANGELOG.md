@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Rewinding or replaying an aircraft that has already turned off the runway keeps it taxiing to the hold-short instead of turning back onto the runway.
+
 ## v0.9.17-beta [2026/07/25]
 
 ### Highlights

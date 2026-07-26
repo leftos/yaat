@@ -54,6 +54,16 @@ public sealed class RunwayExitPhase : Phase
     private const double RetargetMaxHeadingDeviationDeg = 10.0;
 
     /// <summary>
+    /// Length (nm) of the runway-centerline approach leg synthesised as segment 0 when the exit route is rebuilt
+    /// for an aircraft that has already passed the branch node. The live route's segment 0 ran from wherever
+    /// <c>LandingPhase</c> handed off, down the centerline to the branch; a restore cannot know where that was, so
+    /// it reconstructs a leg of this length on the runway heading. Only the leg's <em>bearing</em> shapes the
+    /// resumed turn — <c>GroundNavigator</c> reads it as the corner's incoming tangent — but the length has to stay
+    /// well clear of the short-connector scale so the runway is not mistaken for one.
+    /// </summary>
+    private const double RestoredApproachSegmentNm = 0.25;
+
+    /// <summary>
     /// Sentinel node ID for the virtual approach segment. The segment from the
     /// aircraft's current position to the exit branch point uses this as FromNodeId.
     /// It never needs to be looked up in the layout — the navigator only resolves
@@ -86,6 +96,12 @@ public sealed class RunwayExitPhase : Phase
 
     // Latched once the turn-off is physically under way — see TurnStarted.
     private bool _turnStarted;
+
+    // Segment the exit route was on when the snapshot was taken. The route itself is built from the live ground
+    // layout and is not serialized, so the first tick after a restore rebuilds it — and without this the rebuild
+    // would restart at segment 0, the virtual approach leg to the branch node, which points backward once the
+    // aircraft is past the branch. Zero for a phase that was never restored.
+    private int _restoreSegmentIndex;
 
     // The aircraft's RequestedExit as it stood when the route was handed to the navigator. A late exit
     // change is "the controller issued something new since we committed", which is identity against this —
@@ -223,17 +239,23 @@ public sealed class RunwayExitPhase : Phase
             // built from the live ground layout and is not serialized — so it comes back null. TickFollowingExitPath
             // reads a null route as "exit complete", which would end the phase without CompleteExit's cleanup.
             // Rebuild it here, mirroring the sibling navigator-owning phases that defer their route build to the
-            // first tick after restore.
-            if (_exitRoute is null && !StartExitNavigation(ctx))
+            // first tick after restore. The rebuild resumes on the segment the route was on, so an aircraft already
+            // past the branch node keeps following the exit instead of turning back onto the runway.
+            if (_exitRoute is null)
             {
-                // Rebuild failed (layout gone, or an edge on the stored path no longer exists). Fall back to the
-                // centerline search rather than silently declaring the exit complete — same recovery the build-time
-                // failure path takes.
-                _state = ExitState.RollingOnCenterline;
-                _holdShortNode = null;
-                _exitTaxiway = null;
-                _exitPath = null;
-                return TickRolling(ctx);
+                int resumeIndex = ResumeSegmentIndexAfterRestore(ctx);
+                _restoreSegmentIndex = 0;
+                if (!StartExitNavigation(ctx, resumeIndex))
+                {
+                    // Rebuild failed (layout gone, or an edge on the stored path no longer exists). Fall back to the
+                    // centerline search rather than silently declaring the exit complete — same recovery the
+                    // build-time failure path takes.
+                    _state = ExitState.RollingOnCenterline;
+                    _holdShortNode = null;
+                    _exitTaxiway = null;
+                    _exitPath = null;
+                    return TickRolling(ctx);
+                }
             }
 
             // A late EL/ER/EXIT that arrived while the aircraft is committed but still tracking the
@@ -256,7 +278,7 @@ public sealed class RunwayExitPhase : Phase
         // Exit found — build route with virtual approach segment and hand to navigator
         if (_holdShortNode is not null && _state == ExitState.RollingOnCenterline)
         {
-            if (StartExitNavigation(ctx))
+            if (StartExitNavigation(ctx, resumeSegmentIndex: 0))
             {
                 return TickFollowingExitPath(ctx);
             }
@@ -712,12 +734,40 @@ public sealed class RunwayExitPhase : Phase
     }
 
     /// <summary>
+    /// Segment the exit route rebuilt after a snapshot restore should resume on: the segment the live route was
+    /// on, floored at 1 whenever the aircraft has already rolled past the branch node.
+    ///
+    /// <para>
+    /// The floor covers a snapshot that landed on the tick before <c>GroundNavigator</c> signalled arrival at the
+    /// branch. Past the branch the aircraft is on the exit taxiway by definition, so segment 0 — the virtual
+    /// approach leg down the runway — is behind it either way, and resuming there would aim the navigator back at
+    /// a node it has already crossed.
+    /// </para>
+    /// </summary>
+    private int ResumeSegmentIndexAfterRestore(PhaseContext ctx)
+    {
+        if (_exitPath is null || _exitPath.Count == 0)
+        {
+            return _restoreSegmentIndex;
+        }
+
+        bool pastBranch = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, _exitPath[0].Position, _runwayHeading) > 0;
+        return Math.Max(_restoreSegmentIndex, pastBranch ? 1 : 0);
+    }
+
+    /// <summary>
     /// Build a TaxiRoute from the exit path with a virtual approach segment
     /// from the aircraft's current position to the branch node, and start the
     /// GroundNavigator. The virtual segment gives the navigator inbound bearing
     /// context so it can anticipate the turn at the branch node.
     /// </summary>
-    private bool StartExitNavigation(PhaseContext ctx)
+    /// <param name="ctx">Phase context.</param>
+    /// <param name="resumeSegmentIndex">
+    /// Route segment to resume on. Zero for a first commit or a re-target, both of which start the aircraft on the
+    /// virtual approach leg down the runway. Non-zero only on the tick that rebuilds the route after a snapshot
+    /// restore, where it is the segment the live route was on.
+    /// </param>
+    private bool StartExitNavigation(PhaseContext ctx, int resumeSegmentIndex)
     {
         if (_exitPath is null || _exitPath.Count < 2 || _exitTaxiway is null || ctx.GroundLayout is null)
         {
@@ -732,8 +782,17 @@ public sealed class RunwayExitPhase : Phase
         // Always added — gives the navigator inbound bearing context for turn
         // anticipation at the branch node, whether the aircraft is far away
         // (analog search) or right at the branch (committed exit from LandingPhase).
-        var virtualFromNode = VirtualNode.Create(ctx.Aircraft.Position.Lat, ctx.Aircraft.Position.Lon);
-        double distToBranch = GeoMath.DistanceNm(ctx.Aircraft.Position, branchNode.Position);
+        //
+        // Resuming past it, the aircraft's position is no longer a valid anchor: the leg would run backward, and
+        // GroundNavigator reads its arrival bearing as the corner's incoming tangent, which is what turned a
+        // restored aircraft around and taxied it back onto the runway. Anchor it on the centerline behind the
+        // branch instead, reproducing the geometry the live route had.
+        var approachFrom =
+            resumeSegmentIndex > 0
+                ? GeoMath.ProjectPoint(branchNode.Position, _runwayHeading.ToReciprocal(), RestoredApproachSegmentNm)
+                : ctx.Aircraft.Position;
+        var virtualFromNode = VirtualNode.Create(approachFrom.Lat, approachFrom.Lon);
+        double distToBranch = GeoMath.DistanceNm(approachFrom, branchNode.Position);
         var approachEdge = new GroundEdge
         {
             Nodes = [virtualFromNode, branchNode],
@@ -780,7 +839,14 @@ public sealed class RunwayExitPhase : Phase
 
         segments.Add(VirtualNode.CreateSegment(holdShortNode, virtualTarget, _exitTaxiway));
 
-        _exitRoute = new TaxiRoute { Segments = segments, HoldShortPoints = [] };
+        // Never resume onto the past-the-end index: that reads as "route complete" and would end the phase without
+        // CompleteExit's cleanup. An aircraft that really is at the last node completes on the coming tick anyway.
+        _exitRoute = new TaxiRoute
+        {
+            Segments = segments,
+            HoldShortPoints = [],
+            CurrentSegmentIndex = Math.Min(resumeSegmentIndex, segments.Count - 1),
+        };
 
         // Cap the exit maneuver at normal taxiway speed, not the runway-rollout coast speed: once the
         // aircraft turns off onto the exit taxiway it is taxiing, so it should not accelerate past taxi
@@ -1052,7 +1118,9 @@ public sealed class RunwayExitPhase : Phase
             LastResolvedPreference = (int?)_lastResolvedPreference?.Side,
             LastResolvedPreferenceTaxiway = _lastResolvedPreference?.Taxiway,
             ExitWaypointNodeIds = _exitPath?.Select(n => n.Id).ToList(),
-            ExitWaypointIndex = _exitRoute?.CurrentSegmentIndex ?? 0,
+            // Falls back to the restored index, not 0: a snapshot round-tripped before the first tick after a
+            // restore has no route yet, and writing 0 there would lose the resume point all over again.
+            ExitWaypointIndex = _exitRoute?.CurrentSegmentIndex ?? _restoreSegmentIndex,
             ExitSpeed = _coastSpeed,
             TimeSinceLastLog = _timeSinceLastLog,
             RunwayHeadingDeg = _runwayHeading.Degrees,
@@ -1074,6 +1142,7 @@ public sealed class RunwayExitPhase : Phase
         phase._coastSpeed = dto.ExitSpeed;
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
         phase._turnStarted = dto.TurnStarted;
+        phase._restoreSegmentIndex = Math.Max(dto.ExitWaypointIndex, 0);
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);

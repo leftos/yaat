@@ -60,6 +60,10 @@ Some state is intentionally runtime-only:
 
 If you see `[JsonIgnore]` on a field, also check that there's a separate carrier (like `LayoutAirportId`) that lets restore reattach.
 
+**A rebuilt route needs its cursor, not just its nodes.** Navigator-owning ground phases don't serialize their `TaxiRoute` — it is rebuilt from stored node ids against the live layout on the first tick after restore — so the rebuild has to be told *where along it* the aircraft was. `RunwayExitPhase` is the sharp case: its segment 0 is a virtual approach leg [aircraft position → branch node] down the runway centerline, so rebuilding from segment 0 for an aircraft that has already turned off hands `GroundNavigator` a leg pointing *backward*, and the ~180° entry-alignment slow-turn taxis the reconstruction back onto the runway it just vacated (issue #309). `ExitWaypointIndex` round-trips for exactly this reason, `ResumeSegmentIndexAfterRestore` floors it at the first real segment whenever the aircraft is already past the branch (a snapshot can land on the tick before the navigator advances), and past the branch segment 0 is re-anchored on the centerline *behind* it so its arrival bearing is still the runway heading. See [landing-and-runway-exit.md](landing-and-runway-exit.md).
+
+`GroundNavigator` itself is deliberately non-round-tripping below that: it persists no Bézier/arc progress, so a restore mid-fillet replays that arc from its start and the reconstruction runs a second or two behind on the same path. Bounded and self-limiting — but it means a snapshot comparison should check that drift is not *growing*, not that it is zero.
+
 ## Phase polymorphism
 
 `PhaseDto` is the abstract base; every concrete phase DTO has a `[JsonDerivedType(typeof(XyzPhaseDto), "Xyz")]` registration. See [phases.md](phases.md) for the four steps required to add a new phase to the snapshot system.

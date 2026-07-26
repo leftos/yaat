@@ -124,6 +124,20 @@ On success the phase drops its navigator and route, loads the new exit, and fall
 
 The re-targeted aircraft adds power back, but its ceiling is the exit route's `min(coastSpeed, TaxiSpeed)` (30 kt jet, 20 kt piston), not the full rollout coast speed — `StartExitNavigation` caps the whole route including the virtual runway segment.
 
+### Restoring a committed exit from a snapshot
+
+`_exitRoute` is runtime-only — it is built from the live ground layout, so a restored phase comes back with the state, the path node ids and the navigator but no route. `OnTick` rebuilds it on the first tick, and that rebuild must resume on the segment the live route was on rather than restarting at segment 0.
+
+Segment 0 is the virtual approach leg [aircraft position → branch node]. Rebuilt from segment 0 for an aircraft that has *already passed* the branch, it points backward: `GroundNavigator` reads its ~180° heading delta as a corner to round, commits to the entry-alignment slow-turn, and taxis the reconstruction back onto the runway it just vacated — a ~180° heading divergence from what happened live, in every path that restores from a snapshot (rewind, bug-bundle reconstruction, client playback). That was issue #309.
+
+Three pieces hold the resume together:
+
+- **`ExitWaypointIndex` round-trips** and is threaded into the rebuild. Segment indexing is stable across the rebuild because the route shape is a pure function of `_exitPath`: `[virtual approach, path[0]→path[1], …, hold-short → virtual-past]`, so segment *k* ≥ 1 is always `path[k-1] → path[k]`. `ToSnapshot` falls back to the restored index rather than 0 when no route exists yet, so a round-trip before the first tick doesn't lose the cursor again.
+- **`ResumeSegmentIndexAfterRestore` floors the index at 1 when the aircraft is past the branch** (along-track, on the runway heading). A snapshot can land on the tick before the navigator signals arrival, so the stored index alone still reads 0 while the aircraft is physically on the exit taxiway.
+- **Segment 0 is re-anchored when resuming past it** — on the centerline `RestoredApproachSegmentNm` *behind* the branch instead of at the aircraft. The navigator reads that leg's arrival bearing as the corner's incoming tangent (and its length feeds the adaptive rounding radius and the short-connector check), so it has to still be the runway heading.
+
+The live first-commit and re-target paths are untouched: both pass a resume index of 0 and get exactly the route they always did. `GroundNavigator` is separately non-round-tripping — it stores no arc progress, so a restore mid-fillet replays that arc from its start and the reconstruction trails the live track by a second or two on the same path.
+
 ### Why the virtual segment matters
 
 GroundNavigator computes turn arcs based on the angle between consecutive segments. Without the virtual segment, the navigator has no inbound context — it doesn't know the aircraft was approaching from the runway. The virtual segment provides this context naturally, and a longer segment (more distance before the branch) produces better turn anticipation. This is why LandingPhase should hand off early, not at the branch point.
