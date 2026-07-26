@@ -79,7 +79,7 @@ This applies only to **planned** restarts announced by the server. An unexpected
 
 ![Main window after Ground View and Radar View have been popped out](docs/user-guide/img/main-window-popped-out.png)
 
-Each view can be popped out into its own window via **View > Pop Out Aircraft List / Ground View / Radar View / Controllers / METAR**. When a view is popped out, its tab disappears from the main window and a separate window opens. Close the pop-out window (or uncheck the menu item) to dock it back as a tab.
+Each view can be popped out into its own window via **View > Pop Out Aircraft List / Ground View / Radar View / Controllers / METAR / Terminal**. When a view is popped out, its tab disappears from the main window and a separate window opens. Close the pop-out window (or uncheck the menu item) to dock it back as a tab.
 
 All views can be popped out simultaneously. Pop-out state and window positions are remembered across sessions.
 
@@ -143,7 +143,7 @@ Type a message prefixed with `'`, `/`, or `>` to send a text chat to all RPOs in
 
 #### Resizing and Pop Out
 
-Drag the splitter bar between the aircraft grid and terminal panel to resize them. Click the **Pop Out** button in the terminal header to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Click **Dock** (or close the window) to return it to the main window.
+Drag the splitter bar between the aircraft grid and terminal panel to resize them. Check **View > Pop Out Terminal** to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Uncheck the menu item (or close the window) to return it to the main window.
 
 #### Warnings
 

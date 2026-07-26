@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- The terminal is popped out and docked from **View > Pop Out Terminal**, like every other panel, instead of a button in its own header.
+
 ### Fixed
 - A rejected `DCT` to an un-programmed fix no longer discards the aircraft's queued conditionals and pending `WAIT`/`BEHIND` commands.
 - `GA` is refused once an aircraft slows below the go-around speed gate after touchdown, instead of lifting it off the runway.

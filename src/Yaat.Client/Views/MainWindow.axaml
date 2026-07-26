@@ -64,6 +64,9 @@
                 <MenuItem Header="Pop Out _METAR"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsMetarPoppedOut, Mode=TwoWay}" />
+                <MenuItem Header="Pop Out T_erminal"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding IsTerminalPoppedOut, Mode=TwoWay}" />
                 <MenuItem Header="Open _Favorites Panel..."
                           x:Name="FavoritesPanelMenuItem" />
                 <!-- Strips submenu is populated from code-behind to mirror

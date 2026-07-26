@@ -2694,12 +2694,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
-    private void ToggleTerminalDock()
-    {
-        IsTerminalPoppedOut = !IsTerminalPoppedOut;
-    }
-
     private async Task SendCommandForViewAsync(string callsign, string command, string initials)
     {
         try
