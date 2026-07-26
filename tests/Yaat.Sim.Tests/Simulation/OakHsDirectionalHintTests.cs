@@ -78,14 +78,10 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
         }
 
         engine.Replay(recording, JustBeforeTaxi);
-        var aircraft = engine.FindAircraft(Callsign);
-        if (aircraft is null)
-        {
-            return;
-        }
+        Assert.NotNull(engine.FindAircraft(Callsign));
 
         var result = engine.SendCommand(Callsign, "TAXI D C HS E RWY 28R");
-        aircraft = engine.FindAircraft(Callsign);
+        var aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         var route = aircraft.Ground.AssignedTaxiRoute;
         LogRoute("HS E", result, route);
@@ -121,14 +117,10 @@ public class OakHsDirectionalHintTests(ITestOutputHelper output)
         }
 
         engine.Replay(recording, JustBeforeTaxi);
-        var aircraft = engine.FindAircraft(Callsign);
-        if (aircraft is null)
-        {
-            return;
-        }
+        Assert.NotNull(engine.FindAircraft(Callsign));
 
         var result = engine.SendCommand(Callsign, "TAXI D C E HS E RWY 28R");
-        aircraft = engine.FindAircraft(Callsign);
+        var aircraft = engine.FindAircraft(Callsign);
         Assert.NotNull(aircraft);
         var route = aircraft.Ground.AssignedTaxiRoute;
         LogRoute("path E", result, route);

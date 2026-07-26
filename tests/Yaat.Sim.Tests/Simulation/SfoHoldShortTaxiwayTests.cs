@@ -54,10 +54,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         engine.Replay(recording, 32);
 
         var aircraft = engine.FindAircraft("N346G");
-        if (aircraft is null)
-        {
-            return;
-        }
+        Assert.NotNull(aircraft);
 
         var route = aircraft.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
@@ -122,10 +119,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         engine.Replay(recording, 32);
 
         var aircraft = engine.FindAircraft("N346G");
-        if (aircraft is null)
-        {
-            return;
-        }
+        Assert.NotNull(aircraft);
 
         // Tick until N346G is in HoldingShortPhase for taxiway E
         HoldingShortPhase? holdingPhase = null;
@@ -149,11 +143,8 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
             }
         }
 
-        if (holdingPhase is null || aircraft is null)
-        {
-            output.WriteLine("N346G never reached HoldingShortPhase for E");
-            return;
-        }
+        Assert.NotNull(aircraft);
+        Assert.NotNull(holdingPhase);
 
         // Issue LUAW while holding short of taxiway E
         var result = engine.SendCommand("N346G", "LUAW");
@@ -189,10 +180,7 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         engine.Replay(recording, 34);
 
         var aircraft = engine.FindAircraft("N346G");
-        if (aircraft is null)
-        {
-            return;
-        }
+        Assert.NotNull(aircraft);
 
         // Tick until N346G is in HoldingShortPhase for taxiway E
         HoldingShortPhase? holdingPhase = null;
@@ -216,11 +204,8 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
             }
         }
 
-        if (holdingPhase is null || aircraft is null)
-        {
-            output.WriteLine("N346G never reached HoldingShortPhase for E");
-            return;
-        }
+        Assert.NotNull(aircraft);
+        Assert.NotNull(holdingPhase);
 
         // Verify the hold-short list has ExplicitHoldShort AFTER DestinationRunway
         // (this is the condition that triggers the bug)

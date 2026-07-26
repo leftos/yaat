@@ -204,6 +204,18 @@ public class TowerCabActualAircraftTypeTests(ITestOutputHelper output)
             return;
         }
 
+        // The regression only exists if the bundle still carries the amendment. Without this latch a
+        // trimmed or re-recorded fixture silently downgrades the test to "replay does not crash".
+        var nullTypeAmendments = recording
+            .Actions.OfType<RecordedAmendFlightPlan>()
+            .Where(a => (a.ElapsedSeconds <= 800) && a.Amendment.AircraftType is null)
+            .ToList();
+        Assert.NotEmpty(nullTypeAmendments);
+        foreach (var amendment in nullTypeAmendments)
+        {
+            output.WriteLine($"t={amendment.ElapsedSeconds:F0}s AmendFlightPlan({amendment.Callsign}) with null AircraftType");
+        }
+
         var engine = NewEngine();
         // The null-AircraftType amendment in this bundle fires at t≈796s; replay a bit past it.
         engine.Replay(recording, 800);

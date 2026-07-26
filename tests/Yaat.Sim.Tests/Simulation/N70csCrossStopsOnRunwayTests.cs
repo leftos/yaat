@@ -121,10 +121,7 @@ public class N70csCrossStopsOnRunwayTests(ITestOutputHelper output)
         // recorded CROSS at t=2518) until N70CS settles holding short of 28R.
         engine.Replay(recording, 2430);
         var ac = engine.FindAircraft(Callsign);
-        if (ac is null)
-        {
-            return; // arrival did not reproduce on this machine's data — silent skip
-        }
+        Assert.NotNull(ac); // fixture drift, not a machine difference — the replay is deterministic once the layout loads
 
         bool holdingShort = false;
         for (int t = 1; t <= 120; t++)

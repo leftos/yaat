@@ -57,10 +57,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
         engine.Replay(recording, 200);
 
         var amx = engine.FindAircraft("AMX669");
-        if (amx is null)
-        {
-            return;
-        }
+        Assert.NotNull(amx);
 
         // Tick until holding short or 300s
         for (int t = 1; t <= 300; t++)

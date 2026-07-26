@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -80,7 +81,7 @@ public class Issue172Wja1521CurrentTaxiwayTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("WJA1521");
         Assert.NotNull(aircraft);
 
-        // Precondition: WJA1521 pushed back onto M4 (it sits on M4's node 456, post-pushback, so
+        // Precondition: WJA1521 pushed back onto M4 (it sits on an M4 node, post-pushback, so
         // CurrentTaxiway is not yet latched). The clearance names M4 as the first cleared taxiway.
         var layout = new TestAirportGroundData().GetLayout("SFO");
         Assert.NotNull(layout);
@@ -95,18 +96,31 @@ public class Issue172Wja1521CurrentTaxiwayTests(ITestOutputHelper output)
         Assert.DoesNotContain("unreachable", result.Message, StringComparison.OrdinalIgnoreCase);
 
         // The aircraft must actually taxi the route — not stall or orbit. Tick forward and confirm it
-        // moves a meaningful distance and spends most of the time moving (no spin-in-place).
+        // covers a meaningful distance, never sits still while taxiing, and reaches its spot.
         var start = aircraft.Position;
-        int movingSeconds = 0;
+        int taxiingSeconds = 0;
+        int stalledSeconds = 0;
+        bool arrived = false;
         var prev = start;
         for (int t = 0; t < 120; t++)
         {
             engine.TickOneSecond();
             var ac = engine.FindAircraft("WJA1521");
             Assert.NotNull(ac);
-            if (GeoMath.DistanceNm(prev, ac.Position) * 6076.0 > 1.0)
+
+            // Count stationary ticks only while the aircraft is still taxiing. It reaches spot 2 partway
+            // through the window and parks, so a plain moving/total ratio would score arrival as a stall.
+            if (ac.Phases?.CurrentPhase is TaxiingPhase)
             {
-                movingSeconds++;
+                taxiingSeconds++;
+                if (GeoMath.DistanceNm(prev, ac.Position) * 6076.0 <= 1.0)
+                {
+                    stalledSeconds++;
+                }
+            }
+            else if (taxiingSeconds > 0)
+            {
+                arrived = true;
             }
 
             prev = ac.Position;
@@ -114,7 +128,9 @@ public class Issue172Wja1521CurrentTaxiwayTests(ITestOutputHelper output)
 
         var end = engine.FindAircraft("WJA1521")!.Position;
         double traveledFt = GeoMath.DistanceNm(start, end) * 6076.0;
-        output.WriteLine($"traveled={traveledFt:F0}ft movingSeconds={movingSeconds}/120");
+        output.WriteLine($"traveled={traveledFt:F0}ft taxiing={taxiingSeconds}s stalled={stalledSeconds}s arrived={arrived}");
         Assert.True(traveledFt > 200.0, $"WJA1521 should make progress along the route, only moved {traveledFt:F0}ft (possible spin/stall)");
+        Assert.True(stalledSeconds <= 5, $"WJA1521 sat still for {stalledSeconds}s of {taxiingSeconds}s taxiing (possible spin/stall/deadlock)");
+        Assert.True(arrived, "WJA1521 should reach its destination spot within the window, not still be taxiing");
     }
 }

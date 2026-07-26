@@ -118,12 +118,12 @@ public class N44444SpawnCollisionTests(ITestOutputHelper output)
     /// fires at t=1254, user observed flashing thereafter. Replay to t=1260
     /// (just past spawn) and assert exactly one N44444 in the world.
     ///
-    /// NOTE: AS-prefix FP creation may not reproduce the ghost during
-    /// isolated-room replay (the t=0 AS 3O FP command does not always
-    /// instantiate a ghost AircraftState in the snapshots that ship in the
-    /// bundle). When the ghost path doesn't fire, this test passes vacuously
-    /// even without the fix. It still serves as a regression guardrail
-    /// against future drift in the spawn pipeline.
+    /// AS-prefix FP creation does not reproduce the ghost during isolated-room
+    /// replay (the t=0 AS 3O FP command does not instantiate a ghost
+    /// AircraftState from the snapshots that ship in the bundle), so this test
+    /// cannot exercise the collision itself — Test A does that. What it pins is
+    /// that the spawn still happens exactly once and the surviving entry is the
+    /// spawned aircraft, which is what the collision path must preserve.
     /// </summary>
     [Fact]
     public void Replay_PastScenarioSpawn_HasExactlyOneN44444()
@@ -158,6 +158,10 @@ public class N44444SpawnCollisionTests(ITestOutputHelper output)
             output.WriteLine($"  cid={a.Cid} type='{a.AircraftType}' dest={a.FlightPlan.Destination} pos={a.Position} unsup={a.Ghost.IsUnsupported}");
         }
 
-        Assert.True(matches.Count <= 1, $"Expected at most 1 {Callsign} entry post-spawn, found {matches.Count}");
+        // `<= 1` would also be satisfied by 0 — i.e. by the aircraft never spawning at all, which is the
+        // one outcome that would make the rest of this test meaningless. Require the spawn, and require
+        // that the entry that survived is the spawned aircraft rather than the ghost.
+        Assert.Single(matches);
+        Assert.False(matches[0].Ghost.IsUnsupported, $"the surviving {Callsign} entry must be the spawned aircraft, not the ghost");
     }
 }

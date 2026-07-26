@@ -137,9 +137,10 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Regression: N346G's <c>TargetSpeed</c> must never exceed any reasonable
-    /// C172 pattern speed (DownwindSpeed + MaxSpeedAdjustKts = 110 kt). In the
-    /// original buggy code this field reached 578 kt due to per-tick compounding.
+    /// Regression: neither N346G's <c>TargetSpeed</c> nor its IAS may exceed any
+    /// reasonable C172 pattern speed (DownwindSpeed + MaxSpeedAdjustKts = 110 kt).
+    /// In the original buggy code <c>TargetSpeed</c> reached 578 kt due to per-tick
+    /// compounding.
     /// </summary>
     [Fact]
     public void N346G_TargetSpeedStaysWithinFollowCeiling()
@@ -167,12 +168,26 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
 
             double maxTgt = 0;
             int maxTgtTick = 265;
+            double maxIas = 0;
+            int maxIasTick = 265;
+            int ticksObserved = 0;
 
             for (int t = 266; t <= 470; t++)
             {
                 engine.ReplayOneSecond();
                 var ac = engine.FindAircraft(Follower);
-                if (ac?.Targets.TargetSpeed is { } tgt)
+                if (ac is null)
+                {
+                    continue;
+                }
+
+                ticksObserved++;
+
+                // TargetSpeed is only readable while physics is still converging on it — it snaps to null
+                // once the leg speed is reached (see DownwindPhase's follow-adjustment comment), so in fixed
+                // code it is set on a handful of ticks. IAS is the observable that carried the bug (167 KIAS
+                // on short final) and is present every tick, so the ceiling is checked on both.
+                if (ac.Targets.TargetSpeed is { } tgt)
                 {
                     if (tgt > maxTgt)
                     {
@@ -181,9 +196,24 @@ public class FollowRunawayIasTests(ITestOutputHelper output)
                     }
                     Assert.True(tgt <= HardCeiling, $"t={t}s: {Follower} TargetSpeed {tgt:F1} exceeds hard ceiling {HardCeiling:F1}");
                 }
+
+                if (ac.IndicatedAirspeed > maxIas)
+                {
+                    maxIas = ac.IndicatedAirspeed;
+                    maxIasTick = t;
+                }
+
+                Assert.True(
+                    ac.IndicatedAirspeed <= HardCeiling,
+                    $"t={t}s: {Follower} IAS {ac.IndicatedAirspeed:F1} exceeds hard ceiling {HardCeiling:F1}"
+                );
             }
 
             output.WriteLine($"Max {Follower} TargetSpeed seen: {maxTgt:F1} kt at t={maxTgtTick}s");
+            output.WriteLine($"Max {Follower} IAS seen: {maxIas:F1} kt at t={maxIasTick}s over {ticksObserved} ticks");
+
+            // Latch: replay drift that removes N346G from the window must turn this red, not green.
+            Assert.Equal(205, ticksObserved);
         }
     }
 }

@@ -39,11 +39,11 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// When taxiing via B across 28R, the south-side (exit) 28R hold-short
-    /// node (186) must NOT be added as a RunwayCrossing entry in the route.
-    /// The original bug: N172SP stopped at 186 AFTER being cleared to cross
-    /// 28R, because the annotator added both sides of the crossing as
-    /// independent hold-shorts. Paired exit-side skipping fixes this.
+    /// When taxiing via B across 28R, the far-side (exit) 28R hold-short node
+    /// must NOT be added as a RunwayCrossing entry in the route. The original
+    /// bug: N172SP stopped at that bar AFTER being cleared to cross 28R,
+    /// because the annotator added both sides of the crossing as independent
+    /// hold-shorts. Paired exit-side skipping fixes this.
     ///
     /// Note: this test does NOT require the north-side (entry) HS to be
     /// absent — whether an entry-side RunwayCrossing appears in the route
@@ -52,7 +52,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
     /// it. If the aircraft is a few feet short of the line (more accurate
     /// stop kinematics), the entry-side HS is legitimately added and the
     /// aircraft holds there before crossing. Either outcome is valid. The
-    /// invariant is solely: node 186 (south side) is never a crossing HS.
+    /// invariant is solely: the exit-side bar is never a crossing HS.
     /// </summary>
     [Fact]
     public void RerouteFrom28R_ExitSideHoldShort_NotAddedAsCrossing()
@@ -68,13 +68,19 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
         engine.Replay(recording, 824);
 
         var ac = engine.FindAircraft("N172SP");
-        if (ac is null)
-        {
-            return;
-        }
+        Assert.NotNull(ac);
 
         var route = ac.Ground.AssignedTaxiRoute;
         Assert.NotNull(route);
+
+        var layout = ac.Ground.Layout;
+        Assert.NotNull(layout);
+
+        // Resolve the exit-side bar by geometry, not by id: B meets 28R/10L at a paired hold short, and
+        // the exit side is simply the bar on the far side of the runway from where the aircraft sits.
+        var bars = TestLayoutNodes.RunwayHoldShortsOnTaxiway(layout, "28R", "B");
+        Assert.Equal(2, bars.Count);
+        var exitSideBar = bars.OrderByDescending(n => GeoMath.DistanceNm(ac.Position.Lat, ac.Position.Lon, n.Position.Lat, n.Position.Lon)).First();
 
         output.WriteLine($"Route: {route.ToSummary()}");
         output.WriteLine($"Starting node (first seg FromNodeId): {route.Segments[0].FromNodeId}");
@@ -83,9 +89,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
             output.WriteLine($"  HS: nodeId={hs.NodeId} reason={hs.Reason} target={hs.TargetName}");
         }
 
-        // Node 186 is the south side (exit side) of the B crossing of 28R/10L.
-        // It must never be added as a RunwayCrossing hold-short.
-        const int exitSideNodeId = 186;
-        Assert.DoesNotContain(route.HoldShortPoints, h => (h.NodeId == exitSideNodeId) && (h.Reason == HoldShortReason.RunwayCrossing));
+        output.WriteLine($"Exit-side 28R bar on B: node {exitSideBar.Id}");
+        Assert.DoesNotContain(route.HoldShortPoints, h => (h.NodeId == exitSideBar.Id) && (h.Reason == HoldShortReason.RunwayCrossing));
     }
 }

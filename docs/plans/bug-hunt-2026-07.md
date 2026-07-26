@@ -809,7 +809,26 @@ So `TwoEntrancesOnTheSameSide_OnlyTheNearerIsFullLength` — which pins the "sam
 entrances" half of the `RunwayEntryPoint` full-length rule — **has never executed in CI**. Fix is a
 `git mv`.
 
-### 21. Replay assertions that cannot fail on the bug they were written for
+### 21. Replay assertions that cannot fail on the bug they were written for — ✅ FIXED
+
+> **Fix applied.** Every conditional assertion below either became unconditional or gained a latch,
+> and every silent post-replay `return` became a hard assert. Two of the rewrites were driven by
+> measurement rather than by the original diagnosis:
+>
+> - **`FollowRunawayIasTests`** — the ceiling assertion fired on only **8 of 205 ticks**, because
+>   physics snaps `TargetSpeed` to null once the leg speed is reached (`DownwindPhase.cs:260`). A
+>   "TargetSpeed was set often enough" latch would therefore fail forever. The assertion now also runs
+>   on `IndicatedAirspeed`, which is present every tick and is the observable the bug actually produced
+>   (167 KIAS on short final), plus an `Assert.Equal(205, ticksObserved)` latch.
+> - **`Issue172Wja1521CurrentTaxiwayTests`** — the unasserted `movingSeconds` was 93/120 not because of
+>   a stall but because WJA1521 **arrives at spot 2 at t=92** and parks. A plain moving/total ratio
+>   would have scored arrival as a stall. Stationary ticks are now counted only while the aircraft is
+>   in `TaxiingPhase` (`stalledSeconds <= 5`), plus an explicit assertion that it arrives.
+>
+> Both new assertions were mutation-verified: lowering the ceiling to 70 kt fails at t=266, and
+> widening the movement epsilon reports 92/92 stalled. `OakCross28RHoldShortTests` also stopped pinning
+> geometry-coupled node id `186` — the exit-side bar is now resolved as the 28R/B hold short farthest
+> from the aircraft.
 
 - **Severity**: medium — these read as coverage but are not
 
@@ -855,7 +874,19 @@ entrances" half of the `RunwayEntryPoint` full-length rule — **has never execu
   asserting nothing (or only `Assert.NotNull`). Notably `Issue10OnHoldShortDeleteTests` never issues
   `ONHS DEL` — the command under test.
 
-### 23. Runway-only stub layouts defeat the null-layout guard
+### 23. Runway-only stub layouts defeat the null-layout guard — ✅ FIXED
+
+> **Fix applied.** `TestLayoutCoverageTests` now pins both halves of the gap against committed lists:
+> the set of runway-only fixtures (`FAT`, `HWD`, `MER`, `RNO`, `SJC` — each parses to an **empty** node
+> and edge graph, not merely a taxiway-less one) and the set of airports a recording's manifest declares
+> a layout for but whose fixture cannot support ground movement (`ASE`, `HOU`, `SJC`, each with a
+> recorded reason). The assertions run in both directions, so adding a new stub, adding a recording that
+> lands on one, or filling a gap without updating the list all turn red. Mutation-verified.
+>
+> **Correction to the finding below:** `issue286-cfix-wait-descent` does **not** declare a FAT ground
+> layout — its manifest has `LayoutAirportIds: null`, meaning the recorded session had no ground layout
+> in use at all, so replaying it needs no ground graph. The scenario is FAT-based (S3-FAT-3) but the
+> stub is not reached. The genuinely declared-but-degraded set is `ASE`, `HOU`, `SJC`.
 
 Five geojsons contain **only runway `LineString`s — zero taxiways, parking, or hold-shorts**:
 `mer` (552 B), `sjc` (566 B), `fat` (702 B), `hwd` (1068 B), `rno` (1198 B). Because `GetLayout`
