@@ -316,7 +316,7 @@ async function handleManualSync(request, env, issueNumber) {
     return jsonResponse({ error: "Thread mapping found but data is missing" }, 500);
   }
 
-  const githubToken = await getGitHubToken(env);
+  const githubToken = await getGitHubToken(env, env.GITHUB_REPO, INTERACTION_RETRY_BUDGET_MS);
   const count = await syncThread(env, threadId, mapping, githubToken, INTERACTION_RETRY_BUDGET_MS);
   return jsonResponse({ issue: issueNumber, synced: count });
 }
@@ -430,14 +430,13 @@ async function findThreadForIssue(env, issueNumber) {
   if (threadId) return threadId;
 
   // Fallback: scan all thread mappings (only needed for issues created before reverse mapping)
-  const keys = await env.THREAD_ISSUES.list();
-  for (const key of keys.keys) {
-    if (key.name.startsWith("issue:")) continue;
-    const mapping = await env.THREAD_ISSUES.get(key.name, { type: "json" });
+  for (const name of await listAllKeys(env.THREAD_ISSUES, {})) {
+    if (!/^\d+$/.test(name)) continue;
+    const mapping = await env.THREAD_ISSUES.get(name, { type: "json" });
     if (mapping && mapping.issueNumber === issueNumber) {
       // Backfill reverse mapping
-      await env.THREAD_ISSUES.put(`issue:${issueNumber}`, key.name);
-      return key.name;
+      await env.THREAD_ISSUES.put(`issue:${issueNumber}`, name);
+      return name;
     }
   }
   return null;
@@ -547,7 +546,7 @@ export async function processCommand({ threadId, guildId, commandName, token, ap
       return;
     }
 
-    const githubToken = await getGitHubToken(env);
+    const githubToken = await getGitHubToken(env, env.GITHUB_REPO, INTERACTION_RETRY_BUDGET_MS);
 
     if (commandName === "reopen") {
       const mapping = await env.THREAD_ISSUES.get(threadId, { type: "json" });
@@ -797,7 +796,7 @@ async function processTrackCommand({ commandName, issueNumber, guildId, token, a
       return;
     }
 
-    const githubToken = await getGitHubToken(env);
+    const githubToken = await getGitHubToken(env, env.GITHUB_REPO, INTERACTION_RETRY_BUDGET_MS);
     const issue = await fetchGitHubIssue(
       githubToken,
       env.GITHUB_REPO,
@@ -916,7 +915,7 @@ async function processLinkThreadCommand({ threadId, issueNumber, guildId, token,
       return;
     }
 
-    const githubToken = await getGitHubToken(env);
+    const githubToken = await getGitHubToken(env, env.GITHUB_REPO, INTERACTION_RETRY_BUDGET_MS);
     const issue = await fetchGitHubIssue(
       githubToken,
       env.GITHUB_REPO,
@@ -970,17 +969,33 @@ async function processLinkThreadCommand({ threadId, issueNumber, guildId, token,
 
 // --- Sync logic ---
 
+/** Lists every matching KV key, following the cursor past the 1000-key page limit. */
+async function listAllKeys(kv, options) {
+  const names = [];
+  let cursor;
+  while (true) {
+    const page = await kv.list(cursor ? { ...options, cursor } : options);
+    for (const key of page.keys) {
+      names.push(key.name);
+    }
+    if (page.list_complete || !page.cursor) {
+      return names;
+    }
+    cursor = page.cursor;
+  }
+}
+
 export async function syncAllThreads(env) {
   // Sweep deferred archives first — these are time-sensitive and cheap (1 Discord PATCH + 1 KV
   // delete each), and must not wait behind thread syncs for the subrequest budget. Both sweeps list
-  // their own prefix: a single unscoped list() caps at 1000 keys, and these prefixes sort after the
-  // numeric thread IDs, so they would be the first to fall off a full listing.
-  const pendingArchives = await env.THREAD_ISSUES.list({ prefix: "pending-archive:" });
-  for (const key of pendingArchives.keys) {
-    const threadId = key.name.slice("pending-archive:".length);
+  // their own prefix rather than filtering one big listing: these prefixes sort after the numeric
+  // thread IDs, so they are the first thing a truncated listing would drop.
+  const pendingArchives = await listAllKeys(env.THREAD_ISSUES, { prefix: "pending-archive:" });
+  for (const name of pendingArchives) {
+    const threadId = name.slice("pending-archive:".length);
     try {
       await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, { archived: true });
-      await env.THREAD_ISSUES.delete(key.name);
+      await env.THREAD_ISSUES.delete(name);
     } catch (err) {
       console.error(`Failed to sweep pending archive for ${threadId}:`, err);
     }
@@ -994,23 +1009,22 @@ export async function syncAllThreads(env) {
   let threadsSynced = 0;
   let githubToken = null;
 
-  const keys = await env.THREAD_ISSUES.list();
-  for (const key of keys.keys) {
+  for (const name of await listAllKeys(env.THREAD_ISSUES, {})) {
     // Thread mappings are keyed by the raw Discord snowflake; everything else in this namespace is
     // bookkeeping under a prefix (issue:, pending-archive:, pending-issue:, reopen:, validate-cooldown:).
-    if (!/^\d+$/.test(key.name)) continue;
+    if (!/^\d+$/.test(name)) continue;
 
     try {
-      if (!githubToken) githubToken = await getGitHubToken(env);
-      const mapping = await env.THREAD_ISSUES.get(key.name, { type: "json" });
+      if (!githubToken) githubToken = await getGitHubToken(env, env.GITHUB_REPO, CRON_RETRY_BUDGET_MS);
+      const mapping = await env.THREAD_ISSUES.get(name, { type: "json" });
       if (!mapping) continue;
-      const count = await syncThread(env, key.name, mapping, githubToken, CRON_RETRY_BUDGET_MS);
+      const count = await syncThread(env, name, mapping, githubToken, CRON_RETRY_BUDGET_MS);
       if (count > 0) {
         synced += count;
         threadsSynced++;
       }
     } catch (err) {
-      console.error(`Failed to sync thread ${key.name}:`, err);
+      console.error(`Failed to sync thread ${name}:`, err);
     }
   }
 
@@ -1025,19 +1039,19 @@ export async function syncAllThreads(env) {
  * the 30s ctx.waitUntil() budget the slash command itself runs under.
  */
 async function drainPendingIssues(env) {
-  const queuedKeys = await env.THREAD_ISSUES.list({ prefix: PENDING_ISSUE_PREFIX });
-  if (queuedKeys.keys.length === 0) return;
+  const queuedKeys = await listAllKeys(env.THREAD_ISSUES, { prefix: PENDING_ISSUE_PREFIX });
+  if (queuedKeys.length === 0) return;
 
-  const githubToken = await getGitHubToken(env);
-  for (const key of queuedKeys.keys) {
-    const threadId = key.name.slice(PENDING_ISSUE_PREFIX.length);
+  const githubToken = await getGitHubToken(env, env.GITHUB_REPO, CRON_RETRY_BUDGET_MS);
+  for (const name of queuedKeys) {
+    const threadId = name.slice(PENDING_ISSUE_PREFIX.length);
     try {
-      const queued = await env.THREAD_ISSUES.get(key.name, { type: "json" });
+      const queued = await env.THREAD_ISSUES.get(name, { type: "json" });
       if (!queued) continue;
 
       // The thread may have been linked by hand since (the /track-issue recovery path).
       if (await env.THREAD_ISSUES.get(threadId)) {
-        await env.THREAD_ISSUES.delete(key.name);
+        await env.THREAD_ISSUES.delete(name);
         continue;
       }
 
@@ -1466,7 +1480,7 @@ async function runValidationTrigger({ artcc, channelId, env, appId, interactionT
 
 async function triggerValidationWorkflow(artcc, env) {
   const repo = env.VALIDATION_REPO || env.GITHUB_REPO;
-  const token = await getGitHubToken(env, repo);
+  const token = await getGitHubToken(env, repo, INTERACTION_RETRY_BUDGET_MS);
   const res = await githubFetch(
     `https://api.github.com/repos/${repo}/actions/workflows/discord-scenario-validation.yml/dispatches`,
     {
@@ -1494,7 +1508,7 @@ async function createAppJwt(env) {
   return createJWT(payload, env.GITHUB_APP_PRIVATE_KEY);
 }
 
-async function resolveInstallationId(repo, env, jwt) {
+async function resolveInstallationId(repo, env, jwt, budgetMs) {
   const defaultRepo = env.GITHUB_REPO;
   if (repo === defaultRepo && env.GITHUB_APP_INSTALLATION_ID) {
     return env.GITHUB_APP_INSTALLATION_ID;
@@ -1505,13 +1519,17 @@ async function resolveInstallationId(repo, env, jwt) {
     return env.VALIDATION_APP_INSTALLATION_ID;
   }
 
-  const res = await fetch(`https://api.github.com/repos/${repo}/installation`, {
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      Accept: "application/vnd.github.v3+json",
-      "User-Agent": "yaat-discord-bot",
+  const res = await githubFetch(
+    `https://api.github.com/repos/${repo}/installation`,
+    {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "yaat-discord-bot",
+      },
     },
-  });
+    budgetMs,
+  );
   if (!res.ok) {
     const text = await res.text();
     throw new Error(
@@ -1524,7 +1542,7 @@ async function resolveInstallationId(repo, env, jwt) {
   return String(data.id);
 }
 
-async function getGitHubToken(env, repo = env.GITHUB_REPO) {
+async function getGitHubToken(env, repo, budgetMs) {
   const cached = cachedInstallationTokens.get(repo);
   // Reuse a cached token only while it's comfortably valid (60s safety margin). Installation
   // tokens expire after ~1 hour, and a stale one would 401 every GitHub call.
@@ -1533,9 +1551,11 @@ async function getGitHubToken(env, repo = env.GITHUB_REPO) {
   }
 
   const jwt = await createAppJwt(env);
-  const installationId = await resolveInstallationId(repo, env, jwt);
+  const installationId = await resolveInstallationId(repo, env, jwt, budgetMs);
 
-  const res = await fetch(
+  // Through githubFetch like every other GitHub call: a rate-limited auth endpoint would otherwise
+  // fail the command outright, since nothing works without this token.
+  const res = await githubFetch(
     `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {
       method: "POST",
@@ -1545,10 +1565,10 @@ async function getGitHubToken(env, repo = env.GITHUB_REPO) {
         "User-Agent": "yaat-discord-bot",
       },
     },
+    budgetMs,
   );
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to get GitHub App installation token (${res.status}): ${text}`);
+    throw await githubApiError("Failed to get GitHub App installation token", res);
   }
 
   const data = await res.json();

@@ -35,10 +35,23 @@ const created = () =>
   new Response(JSON.stringify({ number: 7, html_url: ISSUE_URL }), { status: 201 });
 const json = (value) => new Response(JSON.stringify(value), { status: 200 });
 
-/** Drives the fake clock until the pending githubFetch settles. */
+/**
+ * Drives the fake clock until `promise` settles. Timers are only run as the code under test
+ * schedules them — the clock is never advanced past a pending wait — so tests can still assert the
+ * exact interval between two requests.
+ */
 async function settle(promise) {
-  await vi.runAllTimersAsync();
-  return promise;
+  let done = false;
+  const tracked = promise.finally(() => {
+    done = true;
+  });
+  for (let turn = 0; !done; turn++) {
+    if (turn > 1000) throw new Error("promise never settled while draining timers");
+    await vi.runAllTimersAsync();
+    if (done) break;
+    await Promise.resolve();
+  }
+  return tracked;
 }
 
 beforeEach(async () => {
@@ -173,8 +186,8 @@ describe("githubFetch write pacing", () => {
 
 // --- Queued issue creation ---
 
-/** In-memory stand-in for the THREAD_ISSUES KV namespace. */
-function fakeKv() {
+/** In-memory stand-in for the THREAD_ISSUES KV namespace, paginating list() like the real one. */
+function fakeKv(pageSize = 1000) {
   const store = new Map();
   return {
     store,
@@ -190,8 +203,18 @@ function fakeKv() {
       store.delete(key);
     },
     async list(options) {
-      const names = [...store.keys()].filter((name) => !options?.prefix || name.startsWith(options.prefix));
-      return { keys: names.map((name) => ({ name })) };
+      const names = [...store.keys()]
+        .filter((name) => !options?.prefix || name.startsWith(options.prefix))
+        .sort();
+      const start = options?.cursor ? Number(options.cursor) : 0;
+      const page = names.slice(start, start + pageSize);
+      const end = start + page.length;
+      const listComplete = end >= names.length;
+      return {
+        keys: page.map((name) => ({ name })),
+        list_complete: listComplete,
+        cursor: listComplete ? undefined : String(end),
+      };
     },
   };
 }
@@ -221,9 +244,10 @@ function makeEnv(kv, privateKeyPem) {
 }
 
 /** Routes Discord and GitHub calls to canned responses and records every request. */
-function stubWorld({ thread, messages, issueResponses }) {
+function stubWorld({ thread, messages, issueResponses, tokenResponses = [] }) {
   const calls = [];
   const pendingIssues = [...issueResponses];
+  const pendingTokens = [...tokenResponses];
 
   vi.stubGlobal(
     "fetch",
@@ -232,6 +256,8 @@ function stubWorld({ thread, messages, issueResponses }) {
       calls.push({ url, method, body: options.body ? JSON.parse(options.body) : null });
 
       if (url.includes("/app/installations/")) {
+        const canned = pendingTokens.shift();
+        if (canned) return canned();
         return json({ token: "gh-token", expires_at: new Date(Date.now() + 3600000).toISOString() });
       }
       if (url.endsWith("/issues") && method === "POST") {
@@ -352,6 +378,36 @@ describe("queued issue creation", () => {
 
     expect(kv.store.has(`pending-issue:${THREAD_ID}`)).toBe(true);
     expect(kv.store.has(THREAD_ID)).toBe(false);
+  });
+
+  it("drains queued reports that fall on a later KV listing page", async () => {
+    kv = fakeKv(1);
+    env = makeEnv(kv, privateKeyPem);
+    kv.store.set("pending-issue:111", JSON.stringify(QUEUED_RECORD));
+    kv.store.set("pending-issue:222", JSON.stringify(QUEUED_RECORD));
+    stubWorld({ thread: { name: "t" }, messages: [], issueResponses: [created, created] });
+
+    await settle(worker.syncAllThreads(env));
+
+    expect(kv.store.has("pending-issue:111")).toBe(false);
+    expect(kv.store.has("pending-issue:222")).toBe(false);
+    expect(kv.store.has("111")).toBe(true);
+    expect(kv.store.has("222")).toBe(true);
+  });
+
+  it("retries a rate-limited installation-token request instead of failing the command", async () => {
+    kv.store.set(`pending-issue:${THREAD_ID}`, JSON.stringify(QUEUED_RECORD));
+    stubWorld({
+      thread: { name: "t" },
+      messages: [],
+      issueResponses: [created],
+      tokenResponses: [() => new Response(SECONDARY_LIMIT_BODY, { status: 429, headers: { "retry-after": "2" } })],
+    });
+
+    await settle(worker.syncAllThreads(env));
+
+    expect(kv.store.has(`pending-issue:${THREAD_ID}`)).toBe(false);
+    expect(JSON.parse(kv.store.get(THREAD_ID)).issueNumber).toBe(7);
   });
 
   it("drops the record without filing when the thread was linked by hand meanwhile", async () => {

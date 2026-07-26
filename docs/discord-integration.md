@@ -39,7 +39,7 @@ Re-running a slash command in an already-linked thread triggers an immediate com
 - Issue reopened → emoji prefix removed, thread unarchived
 - New issue comments → posted to linked Discord thread (skips comments from Discord→GitHub sync to prevent echo loops)
 
-**KV mappings:** `threadId → {issueNumber, issueUrl, guildId, lastSyncedMessageId}` and reverse `issue:{N} → threadId`. Bookkeeping keys use prefixes (`issue:`, `pending-archive:`, `pending-issue:`, `reopen:`, `validate-cooldown:`); the sync loop treats only bare numeric snowflake keys as threads.
+**KV mappings:** `threadId → {issueNumber, issueUrl, guildId, lastSyncedMessageId}` and reverse `issue:{N} → threadId`. Bookkeeping keys use prefixes (`issue:`, `pending-archive:`, `pending-issue:`, `reopen:`, `validate-cooldown:`); the sync loop treats only bare numeric snowflake keys as threads. All listings go through `listAllKeys`, which follows the cursor past KV's 1000-key page limit, and the cron sweeps list their own prefix — those keys sort after the numeric thread IDs, so they would be the first to fall off a truncated listing.
 
 **GitHub rate limits:** every GitHub REST call goes through `githubFetch`, which paces mutating requests `GITHUB_WRITE_SPACING_MS` apart and retries a rate-limited 403/429 (honoring `Retry-After` / `x-ratelimit-reset`, else GitHub's "wait at least a minute" guidance). Retries stop once the next wait would overrun the caller's budget — `INTERACTION_RETRY_BUDGET_MS` for slash commands and webhooks, because Cloudflare cancels `ctx.waitUntil()` work 30s after the response, vs `CRON_RETRY_BUDGET_MS` for the cron, which has a 15-minute wall-clock budget. A 403 that isn't a rate limit (e.g. a permissions error) is never retried.
 
