@@ -50,27 +50,23 @@ public class ConflictStopAfterBehindE2ETests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Reproduces the bug geometry directly: two C172s placed at the bundle's
-    /// captured positions/headings, then GroundConflictDetector.ApplySpeedLimits
-    /// is run with diagnosticLog wired to test output.
+    /// Asserts the bug against the bundle's geometry: two C172s placed at the captured positions and
+    /// headings (parked N569SX 98 ft off-nose-right of taxiing N152SP), then
+    /// GroundConflictDetector.ApplySpeedLimits is run with diagnosticLog wired to test output.
+    /// The detector must NOT impose SpeedLimit=0 — two C172s have ~36 ft wingspans (18 ft from
+    /// centerline to wingtip), so the lateral clearance at 68° off-nose and 98 ft total is ~91 ft,
+    /// leaving ~55 ft of wingtip-to-wingtip room.
     ///
-    /// The bundle's snapshot at t=590 captures N152SP stuck at ias=0 with
-    /// SpeedLimit=0 ~98 ft from parked N569SX. We can't replay that snapshot
-    /// directly because TaxiRoute.FromSnapshot drops the route when node IDs
-    /// don't survive layout regeneration — so we set up the geometry from
-    /// scratch using the same positions, headings, types, and a 1-segment
-    /// taxi route synthesized from the OAK layout.
-    /// </summary>
-    /// <summary>
-    /// Asserts the bug: with the bundle's geometry (parked C172 N569SX 98 ft
-    /// off-nose-right of taxiing C172 N152SP), GroundConflictDetector should
-    /// NOT impose SpeedLimit=0. Two C172s have ~36 ft wingspans (18 ft from
-    /// centerline to wingtip); the lateral clearance at 68° off-nose and 98 ft
-    /// total is ~91 ft, leaving ~55 ft of wingtip-to-wingtip room.
+    /// Fails before the fix (ApplyClosingLimit treated anything inside the 90° cone + 100 ft as
+    /// "stop"); passes once lateral clearance is computed from aircraft wingspans.
     ///
-    /// Fails today (ApplyClosingLimit treats anything inside the 90° cone +
-    /// 100 ft as "stop"); passes after lateral clearance is computed from
-    /// aircraft wingspans.
+    /// Why this is hand-built rather than replayed: the recorded instant is not reproducible by
+    /// re-simulation. Replaying the session to t=595 does rebuild every taxi route from the recorded
+    /// commands (so snapshot node ids are not the obstacle), but ten minutes of ground movement
+    /// diverges — at t=595 the re-simulated N569SX is still taxiing 432 ft away instead of parked at
+    /// HoldingAfterExit 98 ft off N152SP's nose, and N152SP is rolling at 20 kt with no speed limit.
+    /// A replay-based version of this test therefore passes without exercising the detector at all.
+    /// The bundle remains the provenance for the coordinates below.
     /// </summary>
     [Fact]
     public void TaxiingAircraft_NotStoppedByParkedAircraftWithAdequateWingtipClearance()

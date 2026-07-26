@@ -47,34 +47,6 @@ public class Issue222PushbackParkedNeighborTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Diagnostic_PushbackWindow()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, AfterPush);
-        for (int t = AfterPush; t <= 500; t++)
-        {
-            var ac = engine.FindAircraft(Pusher);
-            var nb = engine.FindAircraft(ParkedNeighbor);
-            if (ac is not null && nb is not null)
-            {
-                double gapFt = GeoMath.DistanceNm(ac.Position, nb.Position) * 6076.12;
-                output.WriteLine(
-                    $"t={t, 4} phase={ac.Phases?.CurrentPhase?.Name, -22} ias={ac.IndicatedAirspeed, 5:F1} "
-                        + $"spdlim={(ac.Ground.SpeedLimit is { } l ? l.ToString("F1") : "-"), 5} "
-                        + $"brk={ac.Ground.ConflictBreakRemainingSeconds:F0} gap={gapFt:F0}ft"
-                );
-            }
-            engine.ReplayOneSecond();
-        }
-    }
-
-    [Fact]
     public void Pushback_CompletesWithoutBreak_PastParkedNeighbor()
     {
         var recording = LoadRecording();

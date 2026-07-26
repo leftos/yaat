@@ -40,34 +40,6 @@ public class Issue172Wja1521CurrentTaxiwayTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Diagnostic_StateAtPushTime()
-    {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        var layout = new TestAirportGroundData().GetLayout("SFO");
-        engine.Replay(recording, 1945);
-        var ac = engine.FindAircraft("WJA1521");
-        if (ac is null)
-        {
-            output.WriteLine("WJA1521 not found");
-            return;
-        }
-
-        output.WriteLine(
-            $"WJA1521 @1945: twy={ac.Ground.CurrentTaxiway} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F0}"
-        );
-        if (layout is not null)
-        {
-            NearestNodeHelper.Log(output, "  WJA1521:", ac, layout);
-        }
-    }
-
-    [Fact]
     public void TaxiM4M2_FromM4_Succeeds()
     {
         var recording = RecordingLoader.Load(RecordingPath);

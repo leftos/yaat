@@ -50,34 +50,6 @@ public class Issue172Sia31BtoB1Tests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Diagnostic_StateBeforeReroute()
-    {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        var layout = new TestAirportGroundData().GetLayout("SFO");
-        engine.Replay(recording, 1230);
-        var ac = engine.FindAircraft("SIA31");
-        if (ac is null)
-        {
-            output.WriteLine("SIA31 not found");
-            return;
-        }
-
-        output.WriteLine(
-            $"SIA31 @1230: twy={ac.Ground.CurrentTaxiway} pos=({ac.Position.Lat:F6},{ac.Position.Lon:F6}) hdg={ac.TrueHeading.Degrees:F0}"
-        );
-        if (layout is not null)
-        {
-            NearestNodeHelper.Log(output, "  SIA31:", ac, layout);
-        }
-    }
-
-    [Fact]
     public void TaxiBB1_FromB5SpotHold_Succeeds()
     {
         var recording = RecordingLoader.Load(RecordingPath);

@@ -65,62 +65,6 @@ public class N342TFollowStraightInDownwindTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Replays through FOLLOW then ticks physics-only, logging N342T and N70CS
-    /// each second so the follow / base-turn / lead-landing sequence is visible.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogFollowAndBaseTurn()
-    {
-        var archive = RecordingLoader.OpenArchive(RecordingPath);
-        if (archive is null)
-        {
-            return;
-        }
-
-        using (archive)
-        {
-            var recording = archive.ToBaseSessionRecording();
-            var engine = BuildEngine();
-            if (engine is null)
-            {
-                return;
-            }
-
-            engine.Replay(recording, 0);
-            var snapshot = archive.ReadSnapshotAt(982);
-            if (snapshot is null)
-            {
-                output.WriteLine("No snapshot near t=982 — skipping");
-                return;
-            }
-            engine.RestoreFromSnapshot(snapshot.State);
-            int t0 = (int)snapshot.ElapsedSeconds;
-            output.WriteLine($"Restored snapshot at t={t0}");
-
-            for (int t = t0 + 1; t <= ReplayStopSeconds; t++)
-            {
-                engine.ReplayOneSecond();
-            }
-
-            for (int t = ReplayStopSeconds + 1; t <= ReplayStopSeconds + 110; t++)
-            {
-                engine.TickOneSecond();
-                var f = engine.FindAircraft(Follower);
-                var l = engine.FindAircraft(Leader);
-                if (f is null)
-                {
-                    break;
-                }
-                string lead = l is null ? "(gone)" : $"{l.Phases?.CurrentPhase?.GetType().Name} onGnd={l.IsOnGround} alt={l.Altitude:F0}";
-                output.WriteLine(
-                    $"t={t} {f.Phases?.CurrentPhase?.GetType().Name} foll={f.Approach.FollowingCallsign ?? "-"} "
-                        + $"ias={f.IndicatedAirspeed:F0} | N70CS: {lead}"
-                );
-            }
-        }
-    }
-
-    /// <summary>
     /// The core assertion: N342T must not turn base (leave Downwind) until N70CS
     /// is on the ground. Pre-fix the follow cancels at min speed (~t=1003) and
     /// N342T turns base while N70CS is still airborne on final; post-fix it holds

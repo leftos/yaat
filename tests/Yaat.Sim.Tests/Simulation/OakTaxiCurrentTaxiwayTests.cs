@@ -44,55 +44,6 @@ public class OakTaxiCurrentTaxiwayTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Diagnostic_PreconditionsAtCommandTime()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        var layout = new TestAirportGroundData().GetLayout("OAK");
-
-        engine.Replay(recording, 1043);
-        var jsx = engine.FindAircraft("JSX170");
-        if (jsx is not null)
-        {
-            output.WriteLine(
-                $"JSX170 @1043: phase={jsx.Phases?.CurrentPhase?.Name} currentTwy={jsx.Ground.CurrentTaxiway} "
-                    + $"onGround={jsx.IsOnGround} pos=({jsx.Position.Lat:F5},{jsx.Position.Lon:F5}) hdg={jsx.TrueHeading:F0}"
-            );
-            if (layout is not null)
-            {
-                NearestNodeHelper.Log(output, "  JSX170:", jsx, layout);
-            }
-        }
-        else
-        {
-            output.WriteLine("JSX170 @1043: NOT FOUND");
-        }
-
-        engine.Replay(recording, 1894);
-        var n157 = engine.FindAircraft("N157LE");
-        if (n157 is not null)
-        {
-            output.WriteLine(
-                $"N157LE @1894: phase={n157.Phases?.CurrentPhase?.Name} currentTwy={n157.Ground.CurrentTaxiway} "
-                    + $"onGround={n157.IsOnGround} pos=({n157.Position.Lat:F5},{n157.Position.Lon:F5}) hdg={n157.TrueHeading:F0}"
-            );
-            if (layout is not null)
-            {
-                NearestNodeHelper.Log(output, "  N157LE:", n157, layout);
-            }
-        }
-        else
-        {
-            output.WriteLine("N157LE @1894: NOT FOUND");
-        }
-    }
-
-    [Fact]
     public void Jsx170_TaxiW_FromW5_Succeeds()
     {
         var recording = LoadRecording();

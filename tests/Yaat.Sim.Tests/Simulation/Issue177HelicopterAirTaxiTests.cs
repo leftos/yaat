@@ -59,46 +59,6 @@ public class Issue177HelicopterAirTaxiTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic — logs the air-taxi trajectory after LAND @RON1 so the frozen-heading /
-    /// no-descent behavior is visible. Not an assertion; safe to keep for future regressions.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogAirTaxiProfile()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        var ron1 = Ron1Position();
-        if (recording is null || engine is null || ron1 is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, 25);
-
-        for (int t = 25; t <= 160; t += 5)
-        {
-            var ac = engine.FindAircraft(Callsign);
-            if (ac is null)
-            {
-                break;
-            }
-
-            double dist = GeoMath.DistanceNm(ac.Position, ron1.Value);
-            output.WriteLine(
-                $"t={t} dist={dist:F3}nm hdg={ac.TrueHeading.Degrees:F1} "
-                    + $"tgtTrueHdg={ac.Targets.TargetTrueHeading?.Degrees.ToString("F1") ?? "null"} "
-                    + $"alt={ac.Altitude:F0} tgtAlt={ac.Targets.TargetAltitude?.ToString("F0") ?? "null"} "
-                    + $"ias={ac.IndicatedAirspeed:F0} phase={ac.Phases?.CurrentPhase?.Name ?? "(none)"}"
-            );
-
-            for (int s = 0; s < 5; s++)
-            {
-                engine.TickOneSecond();
-            }
-        }
-    }
-
-    /// <summary>
     /// E2E: after LAND @RON1, the air-taxi must actually steer to RON1 and descend onto it.
     /// Pre-fix the heli froze on its prior heading and held altitude; it never closed on the pad.
     /// </summary>

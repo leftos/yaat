@@ -62,38 +62,6 @@ public class Issue182MsyRunway20ExitTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Diagnostic_Runway2ArrivalPhaseTimeline()
-    {
-        var recording = RecordingLoader.Load(RecordingPath);
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, SpawnAtSeconds);
-        string? lastPhase = null;
-        for (int t = 1; t <= ObserveSeconds; t++)
-        {
-            engine.ReplayOneSecond();
-            var ac = engine.FindAircraft(Callsign);
-            if (ac is null)
-            {
-                continue;
-            }
-
-            string phase = ac.Phases?.CurrentPhase?.Name ?? "(none)";
-            if (phase != lastPhase)
-            {
-                _output.WriteLine(
-                    $"t={SpawnAtSeconds + t} phase={phase} pos=({ac.Position.Lat:F5},{ac.Position.Lon:F5}) hdg={ac.TrueHeading.Degrees:F0} ias={ac.IndicatedAirspeed:F0}"
-                );
-                lastPhase = phase;
-            }
-        }
-    }
-
-    [Fact]
     public void Runway2Arrival_ExitsRunway_NotStuckOnRunway()
     {
         var recording = RecordingLoader.Load(RecordingPath);

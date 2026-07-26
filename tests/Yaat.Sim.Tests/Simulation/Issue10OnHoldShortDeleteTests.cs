@@ -42,43 +42,6 @@ public class Issue10OnHoldShortDeleteTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic: replay through landing, log phase transitions so the test
-    /// author can sanity-check the timing for the recording.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_LogPhaseTransitionsAroundLanding()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, 440);
-
-        string? lastPhase = null;
-        for (int t = 0; t <= 150; t++)
-        {
-            var ac = engine.FindAircraft(Callsign);
-            if (ac is null)
-            {
-                output.WriteLine($"t={440 + t}: aircraft despawned");
-                return;
-            }
-
-            string phase = ac.Phases?.CurrentPhase?.GetType().Name ?? "(none)";
-            if (phase != lastPhase)
-            {
-                output.WriteLine($"t={440 + t}: phase={phase} gs={ac.GroundSpeed:F0} alt={ac.Altitude:F0}");
-                lastPhase = phase;
-            }
-
-            engine.TickOneSecond();
-        }
-    }
-
-    /// <summary>
     /// Core feature: <c>ONHS DEL</c> issued during landing rollout removes the
     /// aircraft as soon as it stops at the HoldingAfterExit hold-short.
     /// </summary>

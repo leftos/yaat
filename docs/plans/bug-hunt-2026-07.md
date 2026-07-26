@@ -853,7 +853,46 @@ entrances" half of the `RunwayEntryPoint` full-length rule — **has never execu
 - **`Issue172Wja1521CurrentTaxiwayTests:97-118`**: computes and logs `movingSeconds` but never asserts
   it — the anti-spin half of the documented check is missing; only `traveledFt > 200.0` fires.
 
-### 22. Orphaned recordings — regression coverage that no longer runs
+### 22. Orphaned recordings — regression coverage that no longer runs — ✅ FIXED
+
+> **Fix applied** (deletions approved by the maintainer). 24 fixture files totalling **4.4 MB** that no
+> `.cs` file references were removed — the 20 legacy `.br` recordings and 3 legacy `.json` from the
+> abandoned format migration, plus `issue-sfo-28r-el-t-recording.zip` and
+> `issue142-sfo-rwy01r-shallow-recording.zip`. The 12 assertion-free `Diagnostic_*` facts that still
+> replayed a full bundle per CI run were deleted too. (`oak-taxi-recording.br` is *referenced* and was
+> kept; the `*.br` set is not uniformly dead.)
+>
+> **Two corrections to the finding below, both found by measuring rather than re-reading:**
+>
+> - **`conflict-stop-after-behind` was abandoned for a different reason than its doc states.** Snapshot
+>   node ids are *not* the obstacle: replaying the session from t=0 rebuilds every taxi route from the
+>   recorded commands, and that replay runs fine. The real obstacle is that ten minutes of ground
+>   movement **diverges** — at t=595 the re-simulated N569SX is still taxiing 432 ft away instead of
+>   parked 98 ft off N152SP's nose, and N152SP is already rolling at 20 kt with no speed limit. A
+>   replay-based test therefore passes without touching the conflict detector. I wrote that test,
+>   measured it, and **reverted it** rather than land vacuous coverage; the accurate reason is now
+>   recorded in the test class so the next person doesn't repeat the experiment. The bundle is kept as
+>   provenance for the hand-built coordinates.
+> - **`Issue10OnHoldShortDeleteTests` does issue `ONHS DEL`** — twice, with a `sawHoldingAfterExit`
+>   latch and `Assert.Fail` fallbacks. Only its `Diagnostic_*` fact was assertion-free. The claim below
+>   is wrong.
+>
+> The assertion-free count was 15, not 16; 3 of those (`Skw3078FixComparisonCapture`) are already
+> `[Fact(Skip=…)]` and cost nothing, so 12 were deleted.
+>
+> **New finding, surfaced by the deletion: a yaat-server test writes into the yaat repo's source
+> tree.** After deleting the 20 `.br` fixtures, 17 of them **reappeared** — freshly written, with
+> different bytes, at 1–2 s intervals during the test run.
+> `Yaat.Server.Tests/MigrateTestRecordingsTest.MigrateAllRecordings` is self-described one-shot
+> tooling ("Run manually when needed") but is a plain `[Fact]`, so it runs on every `dotnet test`. It
+> resolves the **sibling yaat repo's** `TestData` directory, enumerates `*-recording.json`, re-simulates
+> each into a v2 recording, and `File.WriteAllBytes`es a `.br` next to it. It looked dormant only
+> because `if (File.Exists(brPath)) continue` skipped everything while the outputs existed — deleting
+> them re-armed it. That is also where the dead `.br` corpus came from in the first place.
+>
+> The test file was deleted (yaat-server). `MigrateToV2` itself is **not** dead — `TrainingHub.cs:1178`
+> calls it — so only the test went. All 18 `*-recording.json` sources are genuinely referenced by
+> tests; the `.br` copies were the duplicates.
 
 - **`conflict-stop-after-behind-recording…zip` (1.4 MB) — de-facto orphan, most serious.** `rg` finds
   the filename so it looks consumed, but `LoadRecording()` and `BuildEngine()` are **never called**;

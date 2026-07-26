@@ -77,63 +77,6 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Diagnostic: replay to just after LA is applied (N104NT established on the 28R low approach),
-    /// issue CLAND 33, then tick (physics only — do NOT replay the user's EF 33/CLANDF) and log the
-    /// trajectory so we can see the actual maneuver: where it turns, how low it gets, where it lands.
-    /// </summary>
-    [Fact]
-    public void Diagnostic_Cland33DuringLowApproach()
-    {
-        var setup = RestoreToLowApproach(BuildEngine());
-        if (setup is null)
-        {
-            return;
-        }
-        var (engine, ac) = setup.Value;
-
-        output.WriteLine(
-            $"t=2410 pre-CLAND: phase={ac.Phases?.CurrentPhase?.GetType().Name} rwy={ac.Phases?.AssignedRunway?.Designator} "
-                + $"clnc={ac.Phases?.LandingClearance} alt={ac.Altitude:F0} hdg={ac.TrueHeading.Degrees:F0}"
-        );
-
-        var result = engine.SendCommand("N104NT", "CLAND 33");
-        output.WriteLine($"CLAND 33 -> success={result.Success} msg=\"{result.Message}\"");
-        ac = engine.FindAircraft("N104NT");
-        output.WriteLine(
-            $"post-CLAND: rwy={ac!.Phases?.AssignedRunway?.Designator} clnc={ac.Phases?.LandingClearance} "
-                + $"clearedRwy={ac.Phases?.ClearedRunwayId} destRwy={ac.Procedure.DestinationRunway} "
-                + $"chain=[{string.Join(" -> ", ac.Phases?.Phases.Select(p => p.GetType().Name) ?? [])}]"
-        );
-
-        for (int t = 1; t <= 220; t++)
-        {
-            engine.TickOneSecond();
-            ac = engine.FindAircraft("N104NT");
-            if (ac is null)
-            {
-                output.WriteLine($"t+{t}: despawned");
-                break;
-            }
-
-            double distTo33 = GeoMath.DistanceNm(ac.Position, new LatLon(Rwy33ThrLat, Rwy33ThrLon));
-            if ((t % 5 == 0) || ac.IsOnGround)
-            {
-                output.WriteLine(
-                    $"t+{t, -3} phase={ac.Phases?.CurrentPhase?.GetType().Name, -18} alt={ac.Altitude, 6:F0} "
-                        + $"hdg={ac.TrueHeading.Degrees, 3:F0} gs={ac.GroundSpeed, 3:F0} destRwy={ac.Procedure.DestinationRunway, -3} "
-                        + $"dist33={distTo33:F2}nm onGnd={ac.IsOnGround}"
-                );
-            }
-
-            if (ac.IsOnGround && ac.GroundSpeed < 30)
-            {
-                output.WriteLine($"t+{t}: STOPPED on ground, hdg={ac.TrueHeading.Degrees:F0} dist33={distTo33:F2}nm");
-                break;
-            }
-        }
-    }
-
-    /// <summary>
     /// The supported #292 path: CLAND 33 during the 28R low approach retargets N104NT to runway 33,
     /// re-issues the landing clearance for 33, keeps the datablock showing 33, and lands it on 33.
     /// </summary>

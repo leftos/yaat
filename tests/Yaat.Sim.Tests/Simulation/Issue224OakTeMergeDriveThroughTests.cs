@@ -57,60 +57,6 @@ public class Issue224OakTeMergeDriveThroughTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Diagnostic_MergeWindow()
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        // DebugSink is a process-global static; xUnit runs test classes in parallel, so another
-        // engine replaying the same callsigns can fire this sink from a foreign thread while we
-        // enumerate the captures below. A ConcurrentQueue makes that append safe (its enumerator
-        // is a moment-in-time snapshot) where a plain List throws "Collection was modified".
-        var captured = new ConcurrentQueue<string>();
-        GroundConflictDetector.DebugSink = line =>
-        {
-            if (line.Contains(Lead) && line.Contains(Follower))
-            {
-                captured.Enqueue(line);
-            }
-        };
-
-        try
-        {
-            engine.Replay(recording, WindowStart);
-            for (int t = WindowStart; t <= 605; t++)
-            {
-                captured.Clear();
-                engine.ReplayOneSecond();
-                var lead = engine.FindAircraft(Lead);
-                var follower = engine.FindAircraft(Follower);
-                if (lead is null || follower is null)
-                {
-                    continue;
-                }
-
-                double gapFt = GeoMath.DistanceNm(lead.Position, follower.Position) * FtPerNm;
-                output.WriteLine(
-                    $"t={t, 4} {Lead} gs={lead.IndicatedAirspeed, 5:F1} lim={Fmt(lead.Ground.SpeedLimit)} ayt={lead.Ground.AutoYieldTarget ?? "-"} brk={lead.Ground.ConflictBreakRemainingSeconds:F0} | "
-                        + $"{Follower} gs={follower.IndicatedAirspeed, 5:F1} lim={Fmt(follower.Ground.SpeedLimit)} ayt={follower.Ground.AutoYieldTarget ?? "-"} | gap={gapFt:F0}ft"
-                );
-                foreach (var line in captured)
-                {
-                    output.WriteLine("      " + line);
-                }
-            }
-        }
-        finally
-        {
-            GroundConflictDetector.DebugSink = null;
-        }
-    }
-
-    [Fact]
     public void Follower_DoesNotDriveThroughLead_BeforeBreak()
     {
         var recording = LoadRecording();
