@@ -605,7 +605,18 @@ inside the 10 ft snap window, re-applies `FH 270`, overriding whatever heading w
 **Why tests miss it.** `SplitBlockTrackCommandTests` and `SplitBlockLabelTests` both split a block
 that has **never fired**, so the lost state is invisible.
 
-### 15. `EL`/`ER`/`EXIT <twy>` during an active `RunwayExitPhase` is acknowledged but ignored
+### 15. `EL`/`ER`/`EXIT <twy>` during an active `RunwayExitPhase` is acknowledged but ignored — ✅ FIXED
+
+> **Fix applied**, taking the finding's second option: refuse rather than echo. `TryExitCommand` now
+> returns *"Unable — already exiting at J"* once the phase has handed a route to the navigator
+> (`CommittedExitTaxiway`), and is unchanged while the aircraft is still tracking the centerline.
+> Reproduced first: committed to J, `EXIT B` returned `Success=True, "Exit at B"`.
+>
+> Refusing was chosen over `LandingPhase`-style re-resolution because tearing down a committed route
+> mid-turn hands the pure-pursuit navigator an off-centerline aircraft with no route — the failure mode
+> that surfaces as an orbit exception. A pilot already established in the turn would say unable. Honoring
+> a change that arrives while the route is committed but the aircraft has not yet reached the turn-off
+> would be a genuine improvement on this, and is not attempted here.
 
 - **File**: `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs:171-182`; `GroundCommandHandler.cs:2223`
 - **Severity**: medium — the controller gets a success echo for an instruction never followed; nothing logged

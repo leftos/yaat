@@ -68,6 +68,12 @@ public sealed class RunwayExitPhase : Phase
     public bool IsOnCenterline => _state == ExitState.RollingOnCenterline;
 
     /// <summary>
+    /// The taxiway this phase has committed to turning off at, once it has handed a route to the
+    /// navigator. Null while still searching along the centerline.
+    /// </summary>
+    public string? CommittedExitTaxiway => _state == ExitState.FollowingExitPath ? _exitTaxiway : null;
+
+    /// <summary>
     /// The runway being exited. Captured in <see cref="OnStart"/> from the
     /// aircraft's assigned runway. Used by the client info text to render
     /// "Exiting runway {id} via {taxiway}".

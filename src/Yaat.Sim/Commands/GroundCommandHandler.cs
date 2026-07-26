@@ -2210,6 +2210,16 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Exit requires a pending landing or active runway exit");
         }
 
+        // Once RunwayExitPhase has handed a route to the navigator the turn-off is committed: its
+        // mid-tick preference re-check is unreachable in that state and nothing clears the route, so a
+        // late change was previously acknowledged and then ignored. Refuse it instead — the aircraft is
+        // already established in the turn, which is what the pilot would say. While it is still tracking
+        // the centerline the change is honored as before.
+        if (aircraft.Phases.CurrentPhase is Phases.Ground.RunwayExitPhase { CommittedExitTaxiway: { } committedExit })
+        {
+            return new CommandResult(false, $"Unable — already exiting at {committedExit}");
+        }
+
         // A taxiway-only exit (EXIT D) issued after an explicit side (EL/ER) keeps the
         // standing side, so "ER ; EXIT D" exits right AT D instead of dropping Right and
         // falling back to the inferred side (issue #276). An explicit side on the new
