@@ -38,11 +38,10 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
 
     /// <summary>
     /// Replays the entire 2270-second session with the RPO pilot-speech setting flipped on
-    /// and asserts that at least one aircraft's transmissions landed in PendingPilotSpeech
-    /// across the run. We accumulate across the whole replay (rather than asserting on a
-    /// single tick) because PendingPilotSpeech is drained by the server's TickProcessor in
-    /// production — in the embedded engine there's no draining, but multiple events can
-    /// still pile on a single aircraft.
+    /// and asserts that transmissions were routed to pilot speech across the run. The engine
+    /// drains <c>PendingPilotSpeech</c> every tick, the same contract the server's TickProcessor
+    /// implements, so the per-aircraft buffer is empty between ticks and
+    /// <see cref="SimulationEngine.PilotSpeechEmitted"/> is what accumulates over the session.
     /// </summary>
     [Fact]
     public void RpoMode_PilotSpeechOn_RoutesSimInitiatedTransmissionsToPilotSpeech()
@@ -55,26 +54,17 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
             return;
         }
 
+        // Collect the pilot-speech entries the engine emits as it drains them each tick.
+        var allSpeech = new List<(string Callsign, string Speech)>();
+        engine.PilotSpeechEmitted += (callsign, speech) => allSpeech.Add((callsign, speech));
+
         // Set the toggle BEFORE replay so it's active for every transmission site.
         engine.ReplayWithScenarioOverride(recording, (int)recording.TotalElapsedSeconds, scenario => scenario.RpoShowPilotSpeech = true);
 
-        // Walk every aircraft and collect any pilot-speech entries observed.
-        var allSpeech = new List<(string Callsign, string Speech)>();
-        foreach (var ac in engine.World.GetSnapshot())
-        {
-            foreach (var s in ac.PendingPilotSpeech)
-            {
-                allSpeech.Add((ac.Callsign, s));
-            }
-        }
-
-        // The bundle log shows ~10 sim-initiated transmissions during the session
-        // (traffic-in-sight, field-in-sight, going-around, short-final-no-clearance,
-        // holding-short, clear-of-runway). After full replay with the setting on, at
-        // least some should land in PendingPilotSpeech rather than PendingWarnings.
-        // Most will have been "consumed" by mid-replay drains — but the very last
-        // transmission per aircraft remains visible at end-of-replay.
-        output.WriteLine($"PendingPilotSpeech entries at end of replay: {allSpeech.Count}");
+        // The bundle log shows sim-initiated transmissions during the session (traffic-in-sight,
+        // field-in-sight, going-around, short-final-no-clearance, holding-short, clear-of-runway).
+        // With the setting on they route to pilot speech rather than PendingWarnings.
+        output.WriteLine($"Pilot-speech entries emitted during replay: {allSpeech.Count}");
         foreach (var (cs, s) in allSpeech)
         {
             output.WriteLine($"  {cs}: {s}");
@@ -114,15 +104,14 @@ public class RpoPilotSpeechReplayTests(ITestOutputHelper output)
             return;
         }
 
+        // Count what the engine emits as it drains, not what is left in the buffer — the buffer is
+        // drained every tick, so reading it at the end of the replay can only ever return zero.
+        int emitted = 0;
+        engine.PilotSpeechEmitted += (_, _) => emitted++;
+
         // Default behavior: RpoShowPilotSpeech stays false.
         engine.Replay(recording, (int)recording.TotalElapsedSeconds);
 
-        int pilotSpeechCount = 0;
-        foreach (var ac in engine.World.GetSnapshot())
-        {
-            pilotSpeechCount += ac.PendingPilotSpeech.Count;
-        }
-
-        Assert.Equal(0, pilotSpeechCount);
+        Assert.Equal(0, emitted);
     }
 }

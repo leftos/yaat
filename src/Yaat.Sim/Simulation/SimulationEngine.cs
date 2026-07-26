@@ -152,6 +152,20 @@ public sealed class SimulationEngine
     /// the same commands. Default null = the entry is still drained (so it does not accumulate) but
     /// otherwise discarded. Mirrors <see cref="WarningEmitted"/>.
     /// </summary>
+    /// <summary>
+    /// Fires during the post-physics drain for each <see cref="AircraftState.PendingPilotSpeech"/>
+    /// entry — an RPO-mode pilot transmission produced this tick. Mirrors the server's
+    /// <c>TickProcessor.BroadcastPilotSpeech</c> fan-out so non-server consumers (solo client, tests)
+    /// can observe the same lines. Default null = the entry is still drained (so it does not
+    /// accumulate) but otherwise discarded. Mirrors <see cref="WarningEmitted"/>.
+    /// </summary>
+    public event Action<string, string>? PilotSpeechEmitted;
+
+    private void FirePilotSpeechEmitted(string callsign, string speech)
+    {
+        PilotSpeechEmitted?.Invoke(callsign, speech);
+    }
+
     public event Action<string, ParsedCommand>? StripDispatchRequested;
 
     private void FireStripDispatchRequested(string callsign, ParsedCommand command)
@@ -1379,6 +1393,16 @@ public sealed class SimulationEngine
         foreach (var (callsign, readback) in readbacks)
         {
             EmitTerminal("SayReadback", callsign, readback);
+        }
+
+        // The one buffer this path used to leave un-drained. Phases and handlers that run under replay
+        // produce into it, so without this it grows for the whole session and any assertion against
+        // PendingPilotSpeech matches a line from an arbitrarily earlier tick.
+        var pilotSpeech = World.DrainAllPilotSpeech();
+        foreach (var (callsign, speech) in pilotSpeech)
+        {
+            EmitTerminal("PilotSpeech", callsign, speech);
+            FirePilotSpeechEmitted(callsign, speech);
         }
 
         if (Scenario is { SoloTrainingMode: true } activeScenario)

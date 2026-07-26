@@ -672,7 +672,23 @@ of `ONHO`, and `:250` documents `ONHO <cmd>` as a precondition form.
 `CommandSchemeCompletenessTests` only checks that every `CanonicalCommandType` has *some* alias, not
 that each alias works in every grammatical position it is documented for.
 
-### 18. `DrainAllPilotSpeech` is the only `SimulationWorld` drain the engine never calls **[verified]**
+### 18. `DrainAllPilotSpeech` is the only `SimulationWorld` drain the engine never calls **[verified]** — ✅ FIXED
+
+> **Fix applied.** `TickPostPhysics` now drains it alongside the other five, emitting a
+> `PilotSpeech`-kind terminal entry exactly as `TickProcessor.BroadcastPilotSpeech` does — which is
+> also what `AircraftState.cs:154` already documented ("Drained per tick into the terminal as
+> `PilotSpeech`-kind entries").
+>
+> The engine clears `_terminalEntries` at the end of every tick path ("client doesn't use them yet"),
+> so a terminal emit alone is unobservable in-engine. A `PilotSpeechEmitted` event was added mirroring
+> the existing `WarningEmitted` / `StripDispatchRequested` outlets, which exist for exactly this — so
+> non-server consumers can observe a drained buffer.
+>
+> **`RpoPilotSpeechReplayTests` was written around the bug** — its own doc said "in the embedded engine
+> there's no draining" and it asserted on the leaked buffer. Rewired to the event, it now observes
+> **32** transmissions across the session instead of the handful that happened to survive to the end.
+> Its sibling "setting off" test was asserting `PendingPilotSpeech.Count == 0`, which the fix would have
+> made vacuously true; it now counts emissions.
 
 - **File**: `src/Yaat.Sim/Simulation/SimulationEngine.cs:1346-1389`; `src/Yaat.Sim/SimulationWorld.cs:366`, `:373-380`
 - **Severity**: low — **replay/standalone path only, not production**
