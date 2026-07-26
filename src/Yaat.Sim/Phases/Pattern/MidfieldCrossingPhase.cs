@@ -69,8 +69,11 @@ public sealed class MidfieldCrossingPhase : Phase
         ctx.Targets.TargetAltitude = crossingAlt;
         ctx.Targets.DesiredVerticalRate = null;
 
-        // Downwind speed for the category
-        ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        // Downwind speed for the category. A controller speed assignment outranks it (7110.65 §5-7-4).
+        if (!ctx.Targets.HasExplicitSpeedCommand)
+        {
+            ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        }
 
         Log.LogDebug("[MidfieldCrossing] {Callsign}: started, cat={Cat}, crossingAlt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Category, crossingAlt);
     }

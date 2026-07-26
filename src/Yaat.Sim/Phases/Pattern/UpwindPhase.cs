@@ -83,7 +83,11 @@ public sealed class UpwindPhase : Phase
         ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
 
         // Accelerate toward downwind speed
-        ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
+        if (!ctx.Targets.HasExplicitSpeedCommand)
+        {
+            ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        }
 
         Log.LogDebug(
             "[Upwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",

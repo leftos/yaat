@@ -114,7 +114,11 @@ public sealed class BasePhase : Phase
         ctx.Targets.TargetAltitude = targetAlt;
 
         // Slow to base speed
-        ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+        // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
+        if (!ctx.Targets.HasExplicitSpeedCommand)
+        {
+            ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+        }
 
         Log.LogDebug(
             "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",

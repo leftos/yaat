@@ -16,6 +16,7 @@
 - Changing an aircraft's landing runway during a low approach no longer leaves it capped at approach speed for the rest of the session.
 - A go-around off the landing rollout no longer carries the ground braking rate onto the re-flown pattern.
 - Aircraft joining a pattern directly on base or final slow to that leg's speed instead of speeding up to downwind speed first.
+- A speed you assign to pattern traffic holds through the rest of the circuit instead of reverting to the standard leg speed at the next turn.
 
 ## v0.9.16-beta [2026/07/24]
 

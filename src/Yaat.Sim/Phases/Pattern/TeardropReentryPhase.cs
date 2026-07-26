@@ -103,7 +103,11 @@ public sealed class TeardropReentryPhase : Phase
         }
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.TargetAltitude = tpa;
-        ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
+        if (!ctx.Targets.HasExplicitSpeedCommand)
+        {
+            ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        }
 
         Log.LogDebug(
             "[TeardropReentry] {Callsign}: descending TPA+500→TPA via outbound+45° (cat={Cat}, leadIn={Lead:F2}nm)",

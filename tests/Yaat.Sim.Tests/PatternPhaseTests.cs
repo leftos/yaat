@@ -428,6 +428,52 @@ public class PatternPhaseTests
         Assert.Equal(AircraftPerformance.DownwindSpeed(ac.AircraftType, AircraftCategory.Jet), ac.Targets.TargetSpeed);
     }
 
+    /// <summary>
+    /// A controller speed assignment survives the leg transitions of the pattern. Per 7110.65 §5-7-4 it
+    /// is the controller who terminates a speed adjustment ("RESUME NORMAL SPEED"); the aircraft does not
+    /// revert on its own on reaching the next leg. <see cref="Phases.Tower.FinalApproachPhase"/> already
+    /// respects <c>HasExplicitSpeedCommand</c> — the pattern legs were the outlier.
+    /// </summary>
+    [Theory]
+    [InlineData("upwind")]
+    [InlineData("crosswind")]
+    [InlineData("downwind")]
+    [InlineData("base")]
+    [InlineData("entry")]
+    [InlineData("midfield")]
+    [InlineData("teardrop")]
+    public void PatternLeg_OnStart_KeepsAnExplicitControllerSpeed(string leg)
+    {
+        TestVnasData.EnsureInitialized();
+
+        var wp = DefaultWaypoints();
+        var ac = MakeAircraft(altitude: wp.PatternAltitude);
+        const double AssignedSpeed = 180.0;
+        ac.Targets.TargetSpeed = AssignedSpeed;
+        ac.Targets.HasExplicitSpeedCommand = true;
+
+        Phase phase = leg switch
+        {
+            "upwind" => new UpwindPhase { Waypoints = wp },
+            "crosswind" => new CrosswindPhase { Waypoints = wp },
+            "downwind" => new DownwindPhase { Waypoints = wp },
+            "base" => new BasePhase { Waypoints = wp },
+            "midfield" => new MidfieldCrossingPhase { Waypoints = wp },
+            "teardrop" => new TeardropReentryPhase { Waypoints = wp },
+            _ => new PatternEntryPhase
+            {
+                EntryLat = 37.05,
+                EntryLon = -122.0,
+                PatternAltitude = wp.PatternAltitude,
+                Kind = PatternEntryKind.FortyFive,
+            },
+        };
+
+        phase.OnStart(Ctx(ac));
+
+        Assert.Equal(AssignedSpeed, ac.Targets.TargetSpeed);
+    }
+
     // -------------------------------------------------------------------------
     // MidfieldCrossingPhase
     // -------------------------------------------------------------------------

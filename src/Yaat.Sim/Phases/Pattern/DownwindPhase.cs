@@ -144,8 +144,13 @@ public sealed class DownwindPhase : Phase
                 (ctx.Aircraft.Altitude > Waypoints.PatternAltitude + 100) ? -CategoryPerformance.PatternDescentRate(ctx.Category) : null;
         }
 
-        // Downwind speed (per-type if available)
-        ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        // Downwind speed (per-type if available). A controller speed assignment outranks the leg
+        // baseline — per 7110.65 §5-7-4 only the controller terminates a speed adjustment, so reaching
+        // the next leg must not revert it.
+        if (!ctx.Targets.HasExplicitSpeedCommand)
+        {
+            ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        }
 
         Log.LogDebug(
             "[Downwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
@@ -248,8 +253,12 @@ public sealed class DownwindPhase : Phase
                 Log.LogDebug("[Downwind] {Callsign}: abeam threshold, beginning descent", ctx.Aircraft.Callsign);
                 ApplyPastAbeamDescentTargets(ctx, aircraftAlongTrack);
 
-                // Begin decelerating toward base speed
-                ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+                // Begin decelerating toward base speed, unless the controller assigned a speed
+                // (7110.65 §5-7-4).
+                if (!ctx.Targets.HasExplicitSpeedCommand)
+                {
+                    ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
+                }
             }
         }
 
