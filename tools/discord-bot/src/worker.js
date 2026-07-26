@@ -26,9 +26,34 @@ const TRACKING_FORUMS = {
 // scope so they survive across invocations within an isolate; refreshed before expiry.
 const cachedInstallationTokens = new Map();
 
-// Minimum spacing between mutating GitHub requests. GitHub's secondary-rate-limit guidance is to
-// "wait at least one second between mutating requests"; comment posts are spaced by a bit more.
-const GITHUB_WRITE_SPACING_MS = 1200;
+// Minimum spacing between mutating GitHub requests, enforced inside githubFetch. Bursts of writes
+// (a cron sweep posting comments, /reopen stripping labels) are what trip GitHub's secondary rate
+// limit, and once tripped it blocks every write the installation makes for about a minute.
+export const GITHUB_WRITE_SPACING_MS = 1200;
+
+// Retry budgets for githubFetch. Work started from a fetch handler runs under ctx.waitUntil(),
+// which Cloudflare cancels 30s after the response is sent, so those callers can only ride out
+// short waits. The cron handler has a 15-minute wall-clock budget and can sit out a full
+// content-creation block instead.
+export const INTERACTION_RETRY_BUDGET_MS = 20000;
+export const CRON_RETRY_BUDGET_MS = 150000;
+
+// GitHub's guidance for a secondary rate limit that carries no timing hint: "wait for at least one
+// minute before retrying", then wait an exponentially increasing amount between further retries.
+const SECONDARY_LIMIT_BASE_WAIT_MS = 60000;
+
+// Backstop against a pathological retry loop; the caller's budget is the real bound.
+const MAX_RATE_LIMIT_RETRIES = 6;
+
+// KV key prefix for a report whose issue creation GitHub rate-limited; the cron drains these.
+const PENDING_ISSUE_PREFIX = "pending-issue:";
+
+// A queued report that still can't be created a day later is not going to succeed on its own.
+const PENDING_ISSUE_TTL_SECONDS = 86400;
+
+const QUEUED_ISSUE_NOTICE =
+  "GitHub is rate-limiting content creation right now, so this report is queued — the issue will be " +
+  "created automatically within ~5 minutes. No need to re-run the command.";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -292,7 +317,7 @@ async function handleManualSync(request, env, issueNumber) {
   }
 
   const githubToken = await getGitHubToken(env);
-  const count = await syncThread(env, threadId, mapping, githubToken);
+  const count = await syncThread(env, threadId, mapping, githubToken, INTERACTION_RETRY_BUDGET_MS);
   return jsonResponse({ issue: issueNumber, synced: count });
 }
 
@@ -508,7 +533,7 @@ async function unmarkThreadResolved(botToken, threadId) {
 
 // --- Command processing ---
 
-async function processCommand({ threadId, guildId, commandName, token, appId, env }) {
+export async function processCommand({ threadId, guildId, commandName, token, appId, env }) {
   try {
     if (commandName === "resolve") {
       await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
@@ -537,23 +562,33 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
       await env.THREAD_ISSUES.put(`reopen:${mapping.issueNumber}`, "1", { expirationTtl: 60 });
 
       // Reopen the GitHub issue
-      await updateGitHubIssue(githubToken, env.GITHUB_REPO, mapping.issueNumber, {
-        state: "open",
-      });
+      await updateGitHubIssue(
+        githubToken,
+        env.GITHUB_REPO,
+        mapping.issueNumber,
+        { state: "open" },
+        INTERACTION_RETRY_BUDGET_MS,
+      );
 
       // Remove terminal labels so the issue appears fresh
       const terminalLabels = Object.entries(STATUS_LABELS)
         .filter(([, v]) => v.terminal)
         .map(([k]) => k);
       for (const label of terminalLabels) {
-        await removeGitHubLabel(githubToken, env.GITHUB_REPO, mapping.issueNumber, label);
+        await removeGitHubLabel(
+          githubToken,
+          env.GITHUB_REPO,
+          mapping.issueNumber,
+          label,
+          INTERACTION_RETRY_BUDGET_MS,
+        );
       }
 
       // Unmark the thread as resolved on Discord
       await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
 
       // Sync any new thread messages to the reopened issue
-      const count = await syncThread(env, threadId, mapping, githubToken);
+      const count = await syncThread(env, threadId, mapping, githubToken, INTERACTION_RETRY_BUDGET_MS);
       const syncNote = count > 0 ? ` (synced ${count} new message(s))` : "";
 
       await editOriginalResponse(appId, token, {
@@ -571,7 +606,7 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
         return;
       }
 
-      const count = await syncThread(env, threadId, mapping, githubToken);
+      const count = await syncThread(env, threadId, mapping, githubToken, INTERACTION_RETRY_BUDGET_MS);
       await editOriginalResponse(appId, token, {
         content:
           count > 0
@@ -620,7 +655,13 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
       const conversation = formatConversation(messages, urlMap);
       const body = `> Created from [Discord thread](${threadUrl})\n\n## Conversation\n\n${conversation}`;
 
-      await updateGitHubIssue(githubToken, env.GITHUB_REPO, existing.issueNumber, { body });
+      await updateGitHubIssue(
+        githubToken,
+        env.GITHUB_REPO,
+        existing.issueNumber,
+        { body },
+        INTERACTION_RETRY_BUDGET_MS,
+      );
 
       const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : "0";
       existing.lastSyncedMessageId = lastMessageId;
@@ -633,12 +674,22 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
     }
 
     if (existing) {
-      const count = await syncThread(env, threadId, existing, githubToken);
+      const count = await syncThread(env, threadId, existing, githubToken, INTERACTION_RETRY_BUDGET_MS);
       await editOriginalResponse(appId, token, {
         content:
           count > 0
             ? `Synced ${count} new message(s) to ${existing.issueUrl}`
             : `Already up to date: ${existing.issueUrl}`,
+      });
+      return;
+    }
+
+    // A previous run may have queued this report because GitHub was blocking content creation;
+    // creating it again here would end up with two issues for one thread.
+    const pendingKey = `${PENDING_ISSUE_PREFIX}${threadId}`;
+    if (await env.THREAD_ISSUES.get(pendingKey)) {
+      await editOriginalResponse(appId, token, {
+        content: `This thread already has an issue queued. ${QUEUED_ISSUE_NOTICE}`,
       });
       return;
     }
@@ -668,29 +719,36 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
     const urlMap = await reuploadAttachments(messages, env.ATTACHMENTS);
     const conversation = formatConversation(messages, urlMap);
     const body = `> Created from [Discord thread](${threadUrl})\n\n## Conversation\n\n${conversation}`;
-
-    const issue = await createGitHubIssue(githubToken, env.GITHUB_REPO, {
-      title: thread.name,
+    const queued = {
+      guildId,
+      threadName: thread.name,
       body,
       labels,
-    });
-
-    // Prefix the Discord thread title with the new issue number for quick reference
-    await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, {
-      name: withIssueNumberPrefix(thread.name, issue.number),
-    });
-
-    const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : "0";
-    const mapping = {
-      issueNumber: issue.number,
-      issueUrl: issue.html_url,
-      guildId,
-      lastSyncedMessageId: lastMessageId,
+      lastSyncedMessageId: messages.length > 0 ? messages[messages.length - 1].id : "0",
     };
 
-    // Store both forward (thread→issue) and reverse (issue→thread) mappings
-    await env.THREAD_ISSUES.put(threadId, JSON.stringify(mapping));
-    await env.THREAD_ISSUES.put(`issue:${issue.number}`, threadId);
+    let issue;
+    try {
+      issue = await createGitHubIssue(
+        githubToken,
+        env.GITHUB_REPO,
+        { title: queued.threadName, body: queued.body, labels: queued.labels },
+        INTERACTION_RETRY_BUDGET_MS,
+      );
+    } catch (err) {
+      if (!(err instanceof GitHubApiError) || !err.isRateLimit) throw err;
+
+      // A content-creation block lasts about a minute — longer than the 30s ctx.waitUntil() budget
+      // this command runs under. Hand the prepared issue to the cron, which can wait it out.
+      console.warn(`Queueing issue creation for thread ${threadId}: ${err.message}`);
+      await env.THREAD_ISSUES.put(pendingKey, JSON.stringify(queued), {
+        expirationTtl: PENDING_ISSUE_TTL_SECONDS,
+      });
+      await editOriginalResponse(appId, token, { content: QUEUED_ISSUE_NOTICE });
+      return;
+    }
+
+    await linkIssueToThread(env, threadId, issue, queued);
 
     await editOriginalResponse(appId, token, {
       content: `Created GitHub issue: ${issue.html_url}`,
@@ -701,6 +759,28 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
       content: `Failed to create issue: ${err.message}`,
     });
   }
+}
+
+/**
+ * Records a newly created issue against its Discord thread. KV mappings are written first — and the
+ * pending-issue record cleared with them — so a failure in the cosmetic title patch can never leave
+ * the cron thinking the issue still needs creating.
+ */
+async function linkIssueToThread(env, threadId, issue, { guildId, threadName, lastSyncedMessageId }) {
+  const mapping = {
+    issueNumber: issue.number,
+    issueUrl: issue.html_url,
+    guildId,
+    lastSyncedMessageId,
+  };
+  await env.THREAD_ISSUES.put(threadId, JSON.stringify(mapping));
+  await env.THREAD_ISSUES.put(`issue:${issue.number}`, threadId);
+  await env.THREAD_ISSUES.delete(`${PENDING_ISSUE_PREFIX}${threadId}`);
+
+  // Prefix the Discord thread title with the new issue number for quick reference
+  await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, {
+    name: withIssueNumberPrefix(threadName, issue.number),
+  });
 }
 
 // --- Track command: create Discord thread from existing GitHub issue ---
@@ -718,7 +798,12 @@ async function processTrackCommand({ commandName, issueNumber, guildId, token, a
     }
 
     const githubToken = await getGitHubToken(env);
-    const issue = await fetchGitHubIssue(githubToken, env.GITHUB_REPO, issueNumber);
+    const issue = await fetchGitHubIssue(
+      githubToken,
+      env.GITHUB_REPO,
+      issueNumber,
+      INTERACTION_RETRY_BUDGET_MS,
+    );
 
     const forumChannelId = TRACKING_FORUMS[commandName];
 
@@ -771,7 +856,12 @@ async function processTrackCommand({ commandName, issueNumber, guildId, token, a
     await env.THREAD_ISSUES.put(`issue:${issue.number}`, thread.id);
 
     // Post existing GitHub comments into the thread
-    const comments = await fetchGitHubComments(githubToken, env.GITHUB_REPO, issueNumber);
+    const comments = await fetchGitHubComments(
+      githubToken,
+      env.GITHUB_REPO,
+      issueNumber,
+      INTERACTION_RETRY_BUDGET_MS,
+    );
     for (const comment of comments) {
       const author = comment.user?.login || "Unknown";
       const commentLink = `[comment](${comment.html_url})`;
@@ -827,7 +917,12 @@ async function processLinkThreadCommand({ threadId, issueNumber, guildId, token,
     }
 
     const githubToken = await getGitHubToken(env);
-    const issue = await fetchGitHubIssue(githubToken, env.GITHUB_REPO, issueNumber);
+    const issue = await fetchGitHubIssue(
+      githubToken,
+      env.GITHUB_REPO,
+      issueNumber,
+      INTERACTION_RETRY_BUDGET_MS,
+    );
 
     // Prefix the thread title with the issue number for quick reference.
     const thread = await discordApi(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN);
@@ -852,6 +947,10 @@ async function processLinkThreadCommand({ threadId, issueNumber, guildId, token,
     await env.THREAD_ISSUES.put(threadId, JSON.stringify(mapping));
     await env.THREAD_ISSUES.put(`issue:${issue.number}`, threadId);
 
+    // Linking by hand is the recovery path for a rate-limited /create-issue, so drop any queued
+    // creation for this thread — draining it later would file a duplicate issue.
+    await env.THREAD_ISSUES.delete(`${PENDING_ISSUE_PREFIX}${threadId}`);
+
     // Reflect a closed issue on the thread.
     if (issue.state === "closed") {
       const emoji = issue.state_reason === "not_planned" ? "🚫" : "✅";
@@ -871,14 +970,13 @@ async function processLinkThreadCommand({ threadId, issueNumber, guildId, token,
 
 // --- Sync logic ---
 
-async function syncAllThreads(env) {
-  const keys = await env.THREAD_ISSUES.list();
-
-  // Sweep deferred archives first — these are time-sensitive and cheap (1 Discord PATCH + 1 KV delete each).
-  // KV keys are lexicographically ordered, so pending-archive:* keys sort after numeric thread IDs;
-  // we must not let thread syncs exhaust the subrequest budget before reaching them.
-  const pendingKeys = keys.keys.filter((k) => k.name.startsWith("pending-archive:"));
-  for (const key of pendingKeys) {
+export async function syncAllThreads(env) {
+  // Sweep deferred archives first — these are time-sensitive and cheap (1 Discord PATCH + 1 KV
+  // delete each), and must not wait behind thread syncs for the subrequest budget. Both sweeps list
+  // their own prefix: a single unscoped list() caps at 1000 keys, and these prefixes sort after the
+  // numeric thread IDs, so they would be the first to fall off a full listing.
+  const pendingArchives = await env.THREAD_ISSUES.list({ prefix: "pending-archive:" });
+  for (const key of pendingArchives.keys) {
     const threadId = key.name.slice("pending-archive:".length);
     try {
       await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, { archived: true });
@@ -888,25 +986,28 @@ async function syncAllThreads(env) {
     }
   }
 
+  // Then file any reports GitHub rate-limited, before the thread syncs spend the subrequest budget.
+  await drainPendingIssues(env);
+
   // Sync Discord thread replies → GitHub issue comments.
   let synced = 0;
   let threadsSynced = 0;
   let githubToken = null;
 
+  const keys = await env.THREAD_ISSUES.list();
   for (const key of keys.keys) {
-    if (key.name.startsWith("issue:") || key.name.startsWith("pending-archive:")) continue;
+    // Thread mappings are keyed by the raw Discord snowflake; everything else in this namespace is
+    // bookkeeping under a prefix (issue:, pending-archive:, pending-issue:, reopen:, validate-cooldown:).
+    if (!/^\d+$/.test(key.name)) continue;
 
     try {
       if (!githubToken) githubToken = await getGitHubToken(env);
       const mapping = await env.THREAD_ISSUES.get(key.name, { type: "json" });
       if (!mapping) continue;
-      const count = await syncThread(env, key.name, mapping, githubToken);
+      const count = await syncThread(env, key.name, mapping, githubToken, CRON_RETRY_BUDGET_MS);
       if (count > 0) {
         synced += count;
         threadsSynced++;
-        // Space out mutating GitHub writes so a burst of thread syncs in one cron run doesn't
-        // trip the secondary rate limit (which would otherwise also 403 a concurrent /create-issue).
-        await sleep(GITHUB_WRITE_SPACING_MS);
       }
     } catch (err) {
       console.error(`Failed to sync thread ${key.name}:`, err);
@@ -918,7 +1019,49 @@ async function syncAllThreads(env) {
   }
 }
 
-async function syncThread(env, threadId, mapping, githubToken) {
+/**
+ * Files the issues /create-issue had to queue because GitHub was blocking content creation. This
+ * runs in the cron handler, whose 15-minute wall-clock budget can ride out a full block — unlike
+ * the 30s ctx.waitUntil() budget the slash command itself runs under.
+ */
+async function drainPendingIssues(env) {
+  const queuedKeys = await env.THREAD_ISSUES.list({ prefix: PENDING_ISSUE_PREFIX });
+  if (queuedKeys.keys.length === 0) return;
+
+  const githubToken = await getGitHubToken(env);
+  for (const key of queuedKeys.keys) {
+    const threadId = key.name.slice(PENDING_ISSUE_PREFIX.length);
+    try {
+      const queued = await env.THREAD_ISSUES.get(key.name, { type: "json" });
+      if (!queued) continue;
+
+      // The thread may have been linked by hand since (the /track-issue recovery path).
+      if (await env.THREAD_ISSUES.get(threadId)) {
+        await env.THREAD_ISSUES.delete(key.name);
+        continue;
+      }
+
+      const issue = await createGitHubIssue(
+        githubToken,
+        env.GITHUB_REPO,
+        { title: queued.threadName, body: queued.body, labels: queued.labels },
+        CRON_RETRY_BUDGET_MS,
+      );
+      await linkIssueToThread(env, threadId, issue, queued);
+      await postToDiscordThread(
+        env.DISCORD_BOT_TOKEN,
+        threadId,
+        `Created GitHub issue: ${issue.html_url}`,
+      );
+      console.log(`Filed queued issue #${issue.number} for thread ${threadId}`);
+    } catch (err) {
+      // Leave the record in place — the next cron run retries it until its TTL expires.
+      console.error(`Failed to file queued issue for thread ${threadId}:`, err);
+    }
+  }
+}
+
+async function syncThread(env, threadId, mapping, githubToken, budgetMs) {
   const messages = await discordApi(
     `/channels/${threadId}/messages?after=${mapping.lastSyncedMessageId}&limit=100`,
     env.DISCORD_BOT_TOKEN,
@@ -941,7 +1084,7 @@ async function syncThread(env, threadId, mapping, githubToken) {
   const urlMap = await reuploadAttachments(filteredMessages, env.ATTACHMENTS);
 
   const digest = formatConversation(filteredMessages, urlMap);
-  await createGitHubComment(githubToken, env.GITHUB_REPO, mapping.issueNumber, digest);
+  await createGitHubComment(githubToken, env.GITHUB_REPO, mapping.issueNumber, digest, budgetMs);
 
   // Always update cursor to latest message (including bot messages)
   mapping.lastSyncedMessageId = messages[messages.length - 1].id;
@@ -1056,66 +1199,121 @@ async function discordPatch(path, botToken, body) {
   }
 }
 
+/** A failed GitHub REST call, carrying enough detail for callers to react to a rate limit. */
+export class GitHubApiError extends Error {
+  constructor(message, status, isRateLimit) {
+    super(message);
+    this.name = "GitHubApiError";
+    this.status = status;
+    this.isRateLimit = isRateLimit;
+  }
+}
+
+/** Builds a GitHubApiError from a failed response, consuming its body. */
+async function githubApiError(summary, res) {
+  const text = await res.text();
+  return new GitHubApiError(`${summary} (${res.status}): ${text}`, res.status, isRateLimited(res, text));
+}
+
+/** True when a failed response is a primary or secondary rate limit rather than a real error. */
+function isRateLimited(res, bodyText) {
+  if (res.status === 429) return true;
+  if (res.status !== 403) return false;
+  if (res.headers.get("retry-after")) return true;
+  if (res.headers.get("x-ratelimit-remaining") === "0") return true;
+  return /rate limit|abuse detection/i.test(bodyText);
+}
+
+// Earliest time the next mutating GitHub request may be sent. Module scope, so it paces every write
+// an isolate makes regardless of which handler issues it.
+let nextWriteAllowedAt = 0;
+
+/** Holds a mutating request until its pacing slot comes up, reserving the slot before awaiting. */
+async function awaitWriteSlot() {
+  const now = Date.now();
+  const slot = Math.max(now, nextWriteAllowedAt);
+  nextWriteAllowedAt = slot + GITHUB_WRITE_SPACING_MS;
+  if (slot > now) {
+    await sleep(slot - now);
+  }
+}
+
+/** How long to wait before retrying a 403/429, or null when the response is not a rate limit. */
+async function rateLimitRetryDelayMs(res, attempt) {
+  const retryAfter = Number(res.headers.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return retryAfter * 1000;
+  }
+
+  const reset = Number(res.headers.get("x-ratelimit-reset"));
+  if (res.headers.get("x-ratelimit-remaining") === "0" && Number.isFinite(reset) && reset > 0) {
+    return Math.max(reset * 1000 - Date.now(), 1000);
+  }
+
+  const bodyText = await res.clone().text();
+  if (!isRateLimited(res, bodyText)) {
+    return null;
+  }
+  return SECONDARY_LIMIT_BASE_WAIT_MS * 2 ** attempt;
+}
+
 /**
- * fetch() wrapper for the GitHub REST API that transparently retries on primary and secondary rate
- * limits (HTTP 403/429). Honors Retry-After and x-ratelimit-reset; falls back to exponential backoff
- * for a secondary limit with no timing hint. A 403 that is NOT a rate limit (e.g. a permissions
- * error) is returned unchanged so the caller surfaces the real error.
+ * fetch() wrapper for the GitHub REST API. Paces mutating requests so bursts don't trip GitHub's
+ * secondary rate limit, and retries a 403/429 that is one — honoring Retry-After and
+ * x-ratelimit-reset, else GitHub's documented "wait at least a minute" guidance. Retries stop once
+ * the next wait would run past budgetMs (see INTERACTION_RETRY_BUDGET_MS / CRON_RETRY_BUDGET_MS),
+ * and a 403 that is NOT a rate limit (e.g. a permissions error) is returned unchanged so the caller
+ * surfaces the real error.
  */
-async function githubFetch(url, options, maxRetries = 4) {
-  const maxWaitMs = 15000; // never stall a Worker invocation longer than this on one wait
+export async function githubFetch(url, options, budgetMs) {
+  const deadline = Date.now() + budgetMs;
+  const isWrite = (options.method || "GET") !== "GET";
+
   for (let attempt = 0; ; attempt++) {
+    if (isWrite) {
+      await awaitWriteSlot();
+    }
+
     const res = await fetch(url, options);
-    if ((res.status !== 403 && res.status !== 429) || attempt >= maxRetries) {
+    if (res.status !== 403 && res.status !== 429) {
+      return res;
+    }
+    if (attempt >= MAX_RATE_LIMIT_RETRIES) {
       return res;
     }
 
-    const retryAfter = res.headers.get("retry-after");
-    const remaining = res.headers.get("x-ratelimit-remaining");
-    const reset = res.headers.get("x-ratelimit-reset");
-
-    let waitMs;
-    if (retryAfter) {
-      waitMs = Number(retryAfter) * 1000;
-    } else if (remaining === "0" && reset) {
-      waitMs = Number(reset) * 1000 - Date.now();
-    } else {
-      // No timing hint — only a genuine secondary rate limit is retryable; anything else
-      // (e.g. a permissions 403) is a real error, so return it unchanged.
-      const bodyText = await res.clone().text();
-      if (!/rate limit/i.test(bodyText)) {
-        return res;
-      }
-      waitMs = 1000 * 2 ** attempt; // 1s, 2s, 4s, 8s
+    const waitMs = await rateLimitRetryDelayMs(res, attempt);
+    if (waitMs === null) {
+      return res; // not a rate limit — a real error the caller must see
+    }
+    if (Date.now() + waitMs > deadline) {
+      return res; // longer than this handler can wait; the caller decides what to do
     }
 
-    if (!(waitMs > 0)) {
-      waitMs = 1000;
-    }
-    if (waitMs > maxWaitMs) {
-      return res; // wait exceeds what we can afford in-worker — fail with the real status
-    }
-    console.warn(`GitHub rate limit (${res.status}); retrying in ${waitMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+    console.warn(`GitHub rate limit (${res.status}) on ${url}; retrying in ${waitMs}ms`);
     await sleep(waitMs);
   }
 }
 
-async function fetchGitHubIssue(token, repo, issueNumber) {
-  const res = await githubFetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "User-Agent": "yaat-discord-bot",
-      Accept: "application/vnd.github.v3+json",
+async function fetchGitHubIssue(token, repo, issueNumber, budgetMs) {
+  const res = await githubFetch(
+    `https://api.github.com/repos/${repo}/issues/${issueNumber}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "yaat-discord-bot",
+        Accept: "application/vnd.github.v3+json",
+      },
     },
-  });
+    budgetMs,
+  );
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub issue #${issueNumber} not found (${res.status}): ${text}`);
+    throw await githubApiError(`GitHub issue #${issueNumber} not found`, res);
   }
   return res.json();
 }
 
-async function fetchGitHubComments(token, repo, issueNumber) {
+async function fetchGitHubComments(token, repo, issueNumber, budgetMs) {
   const comments = [];
   let page = 1;
   while (true) {
@@ -1128,6 +1326,7 @@ async function fetchGitHubComments(token, repo, issueNumber) {
           Accept: "application/vnd.github.v3+json",
         },
       },
+      budgetMs,
     );
     if (!res.ok) break;
     const batch = await res.json();
@@ -1139,60 +1338,69 @@ async function fetchGitHubComments(token, repo, issueNumber) {
   return comments;
 }
 
-async function createGitHubIssue(token, repo, { title, body, labels }) {
-  const res = await githubFetch(`https://api.github.com/repos/${repo}/issues`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "yaat-discord-bot",
-      Accept: "application/vnd.github.v3+json",
+export async function createGitHubIssue(token, repo, { title, body, labels }, budgetMs) {
+  const res = await githubFetch(
+    `https://api.github.com/repos/${repo}/issues`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "yaat-discord-bot",
+        Accept: "application/vnd.github.v3+json",
+      },
+      body: JSON.stringify({ title, body, labels }),
     },
-    body: JSON.stringify({ title, body, labels }),
-  });
+    budgetMs,
+  );
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub API failed (${res.status}): ${text}`);
+    throw await githubApiError("GitHub API failed", res);
   }
   return res.json();
 }
 
-async function updateGitHubIssue(token, repo, issueNumber, fields) {
-  const res = await githubFetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "yaat-discord-bot",
-      Accept: "application/vnd.github.v3+json",
+async function updateGitHubIssue(token, repo, issueNumber, fields, budgetMs) {
+  const res = await githubFetch(
+    `https://api.github.com/repos/${repo}/issues/${issueNumber}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "yaat-discord-bot",
+        Accept: "application/vnd.github.v3+json",
+      },
+      body: JSON.stringify(fields),
     },
-    body: JSON.stringify(fields),
-  });
+    budgetMs,
+  );
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub update issue failed (${res.status}): ${text}`);
+    throw await githubApiError("GitHub update issue failed", res);
   }
   return res.json();
 }
 
-async function createGitHubComment(token, repo, issueNumber, body) {
-  const res = await githubFetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "yaat-discord-bot",
-      Accept: "application/vnd.github.v3+json",
+async function createGitHubComment(token, repo, issueNumber, body, budgetMs) {
+  const res = await githubFetch(
+    `https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "yaat-discord-bot",
+        Accept: "application/vnd.github.v3+json",
+      },
+      body: JSON.stringify({ body }),
     },
-    body: JSON.stringify({ body }),
-  });
+    budgetMs,
+  );
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub comment failed (${res.status}): ${text}`);
+    throw await githubApiError("GitHub comment failed", res);
   }
 }
 
-async function removeGitHubLabel(token, repo, issueNumber, label) {
+async function removeGitHubLabel(token, repo, issueNumber, label, budgetMs) {
   const encoded = encodeURIComponent(label);
   const res = await githubFetch(
     `https://api.github.com/repos/${repo}/issues/${issueNumber}/labels/${encoded}`,
@@ -1204,6 +1412,7 @@ async function removeGitHubLabel(token, repo, issueNumber, label) {
         Accept: "application/vnd.github.v3+json",
       },
     },
+    budgetMs,
   );
   // 404 = label wasn't on the issue, that's fine
   if (!res.ok && res.status !== 404) {
@@ -1258,7 +1467,7 @@ async function runValidationTrigger({ artcc, channelId, env, appId, interactionT
 async function triggerValidationWorkflow(artcc, env) {
   const repo = env.VALIDATION_REPO || env.GITHUB_REPO;
   const token = await getGitHubToken(env, repo);
-  const res = await fetch(
+  const res = await githubFetch(
     `https://api.github.com/repos/${repo}/actions/workflows/discord-scenario-validation.yml/dispatches`,
     {
       method: "POST",
@@ -1270,10 +1479,10 @@ async function triggerValidationWorkflow(artcc, env) {
       },
       body: JSON.stringify({ ref: "main", inputs: { artcc } }),
     },
+    INTERACTION_RETRY_BUDGET_MS,
   );
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub workflow dispatch failed (${res.status}): ${text}`);
+    throw await githubApiError("GitHub workflow dispatch failed", res);
   }
 }
 

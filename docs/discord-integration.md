@@ -39,11 +39,17 @@ Re-running a slash command in an already-linked thread triggers an immediate com
 - Issue reopened → emoji prefix removed, thread unarchived
 - New issue comments → posted to linked Discord thread (skips comments from Discord→GitHub sync to prevent echo loops)
 
-**KV mappings:** `threadId → {issueNumber, issueUrl, guildId, lastSyncedMessageId}` and reverse `issue:{N} → threadId`.
+**KV mappings:** `threadId → {issueNumber, issueUrl, guildId, lastSyncedMessageId}` and reverse `issue:{N} → threadId`. Bookkeeping keys use prefixes (`issue:`, `pending-archive:`, `pending-issue:`, `reopen:`, `validate-cooldown:`); the sync loop treats only bare numeric snowflake keys as threads.
+
+**GitHub rate limits:** every GitHub REST call goes through `githubFetch`, which paces mutating requests `GITHUB_WRITE_SPACING_MS` apart and retries a rate-limited 403/429 (honoring `Retry-After` / `x-ratelimit-reset`, else GitHub's "wait at least a minute" guidance). Retries stop once the next wait would overrun the caller's budget — `INTERACTION_RETRY_BUDGET_MS` for slash commands and webhooks, because Cloudflare cancels `ctx.waitUntil()` work 30s after the response, vs `CRON_RETRY_BUDGET_MS` for the cron, which has a 15-minute wall-clock budget. A 403 that isn't a rate limit (e.g. a permissions error) is never retried.
+
+Since a content-creation block outlasts what a slash command can wait out, `/create-issue` and `/create-feature-request` fall back to a queue: the prepared issue is stored as `pending-issue:{threadId}` (24h TTL) and the command replies that it will be filed automatically. The cron drains those records before its thread syncs, then links the thread and posts the issue link into it. Re-running the command while a report is queued reports the queued state instead of filing a duplicate, and `/track-issue` inside the thread clears the record.
 
 **Secrets** (Cloudflare): `DISCORD_PUBLIC_KEY`, `DISCORD_BOT_TOKEN`, `DISCORD_ALLOWED_USER_ID`, `GITHUB_WEBHOOK_SECRET`, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_INSTALLATION_ID`
 
 **Secrets** (GitHub Actions): `DISCORD_BOT_TOKEN` on **yaat** (docs sync webhooks) and **yaat-server** (scenario validation); `DISCORD_CI_WEBHOOK_URL` on **yaat** (Nightly Review Notify — a plain channel-webhook URL, not the bot)
+
+**Tests:** `cd tools/discord-bot && pnpm test` (vitest; also run by CI). Covers `githubFetch` retry/pacing and the queued-issue path.
 
 **Deploy:** `cd tools/discord-bot && pnpm install && pnpm run deploy`. Register commands: `DISCORD_APP_ID=<id> DISCORD_BOT_TOKEN=<token> pnpm run register -- --guild <guild-id>`.
 

@@ -7,9 +7,11 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "register": "node src/register.js",
-    "setup-validation-buttons": "node scripts/ensure-validation-buttons.js"
+    "setup-validation-buttons": "node scripts/ensure-validation-buttons.js",
+    "test": "vitest run"
   },
   "devDependencies": {
+    "vitest": "4.1.10",
     "wrangler": "4.71.0"
   },
   "pnpm": {

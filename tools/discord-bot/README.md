@@ -12,6 +12,8 @@ Cloudflare Worker that bridges Discord forum threads and GitHub issues.
 
 **GitHub → Discord:** When an issue is labeled (in progress, completed, won't fix, not a bug, duplicate), closed, or reopened, a status update is posted back to the Discord thread.
 
+**GitHub rate limits:** all GitHub calls are paced and retried by `githubFetch`. When GitHub blocks content creation outright — its secondary limit lasts about a minute, longer than the 30s Cloudflare allows a slash command's background work — `/create-issue` stores the prepared issue under `pending-issue:{threadId}` and the cron files it on its next run, so a report is never lost. See [`docs/discord-integration.md`](../../docs/discord-integration.md).
+
 **Scenario validation:** In each ARTCC validation channel, a pinned **Run Validation** button (or `/validate`) dispatches `discord-scenario-validation.yml` on **leftos/yaat-server** (`VALIDATION_REPO` in `wrangler.toml`). Weekly cron and on-demand runs post parse reports; the workflow also ensures the pinned button exists.
 
 ## Setup
@@ -89,6 +91,14 @@ DISCORD_APP_ID=<app-id> DISCORD_BOT_TOKEN=<token> npm run register
 4. **Secret:** the same value you used for `GITHUB_WEBHOOK_SECRET`
 5. **Events:** select "Let me select individual events" → check only **Issues**
 6. Save
+
+## Tests
+
+```bash
+cd tools/discord-bot
+pnpm install
+pnpm test        # vitest; CI runs this too
+```
 
 ## Status Labels
 
