@@ -523,7 +523,15 @@ Every *other* `SpeedCeiling` writer in the phase set (`GoAroundPhase:102`, `Touc
 `StopAndGoPhase:92`, `LowApproachPhase:119`) nulls it in `OnStart`. Sibling instance:
 `LowApproachPhase.cs:163` in retarget mode has the same leak.
 
-### 12. Ghost track fields are absent from `StarsTrackFingerprint`, so re-ghosting never reaches CRC
+### 12. Ghost track fields are absent from `StarsTrackFingerprint`, so re-ghosting never reaches CRC — ✅ FIXED
+
+> **Fix applied.** `GhostIsUnsupported`, `GhostLat` and `GhostLon` added to `StarsTrackFingerprint` and
+> captured in `CaptureStarsTrack`. Two tests in `ChangeDetectionTests` pin it — a re-placement to a new
+> spot, and the `IsUnsupported` toggle that zeroes `GroundTrack`/`GroundSpeed` and drops the history
+> trail — closing the ghost→CRC channel the suite had never covered. Both were RED first.
+>
+> Same class as `TrainingDtoFingerprint` (#305): any field a DTO converter reads must be fingerprinted,
+> or the change is computed and silently not broadcast.
 
 - **File**: `yaat-server/src/Yaat.Server/Simulation/AircraftChangeTracker.cs:42-90`, `:648-692`
 - **Severity**: medium — narrow trigger, but the RPO gets a success message while the student's
