@@ -28,6 +28,23 @@ public class OnHandoffConditionTests
         Assert.Equal(expected, result.CanonicalString);
     }
 
+    /// <summary>
+    /// <c>ONH</c> is documented in COMMANDS.md as an alias of <c>ONHO</c> and the server's
+    /// CommandParser accepts it, but the client canonicalizer runs first — so it has to know the alias
+    /// too, in both the compound sniff and the block parser, or the command never leaves the client.
+    /// </summary>
+    [Theory]
+    [InlineData("ONH CAPP", "ONHO CAPP")]
+    [InlineData("ONH CM 360", "ONHO CM 360")]
+    [InlineData("ONH DEL", "ONHO DEL")]
+    [InlineData("ONH AT LIVVY DEL", "ONHO; AT LIVVY DEL")]
+    public void SchemeParser_OnhAlias_CanonicalizesToOnho(string input, string expected)
+    {
+        var result = CommandSchemeParser.ParseCompound(input, Scheme);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result.CanonicalString);
+    }
+
     [Theory]
     [InlineData("ONHO AT LIVVY DEL", "ONHO; AT LIVVY DEL")]
     [InlineData("ONHO AT MIIDY DEL", "ONHO; AT MIIDY DEL")]

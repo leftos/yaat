@@ -43,6 +43,7 @@ public static class CommandSchemeParser
                 || upper.StartsWith("AT ")
                 || upper.StartsWith("ATFN ")
                 || upper.StartsWith("ONHO ")
+                || upper.StartsWith("ONH ")
                 || upper.StartsWith("ONHS ");
 
             // GIVEWAY/BEHIND/GW are compound only if they have 3+ tokens (condition form)
@@ -316,7 +317,10 @@ public static class CommandSchemeParser
             parts.Add($"GIVEWAY {tokens[1].ToUpperInvariant()}");
             remaining = tokens[2];
         }
-        else if (upper.StartsWith("ONHO "))
+        // ONH is the documented short alias of ONHO (COMMANDS.md), and the server's CommandParser
+        // accepts both. ONHS is a different verb and does not match here — the trailing space is
+        // part of the prefix.
+        else if (upper.StartsWith("ONHO ") || upper.StartsWith("ONH "))
         {
             var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 2)
@@ -895,7 +899,7 @@ public static class CommandSchemeParser
         return ExpandMultiCommandHeuristic(tokens);
     }
 
-    private static readonly HashSet<string> ConditionPrefixes = new(StringComparer.OrdinalIgnoreCase)
+    internal static readonly HashSet<string> ConditionPrefixes = new(StringComparer.OrdinalIgnoreCase)
     {
         "ONHO",
         "ONH",
