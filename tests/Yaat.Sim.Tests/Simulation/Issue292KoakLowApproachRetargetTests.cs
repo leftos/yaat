@@ -140,6 +140,47 @@ public class Issue292KoakLowApproachRetargetTests(ITestOutputHelper output)
         Assert.True(headingOff33 < 25, $"Should be aligned with runway 33 (~344°T) but heading was {ac.TrueHeading.Degrees:F0}°");
     }
 
+    /// <summary>
+    /// The retarget used to pin a speed ceiling every tick to stop the low pass accelerating. That
+    /// ceiling outlived the phase — nothing released it — so the aircraft carried an approach-speed cap
+    /// for the rest of the session. It is also redundant now that a <see cref="PatternEntryKind.Final"/>
+    /// entry commands approach speed itself, so the retarget no longer sets one at all.
+    /// </summary>
+    [Fact]
+    public void Cland33Retarget_DoesNotLeaveASpeedCeilingBehind()
+    {
+        var setup = RestoreToLowApproach(BuildEngine());
+        if (setup is null)
+        {
+            return;
+        }
+        var (engine, ac) = setup.Value;
+
+        var result = engine.SendCommand("N104NT", "CLAND 33");
+        Assert.True(result.Success, result.Message);
+
+        bool leftLowApproach = false;
+        for (int t = 1; t <= 260; t++)
+        {
+            engine.TickOneSecond();
+            ac = engine.FindAircraft("N104NT");
+            if (ac is null)
+            {
+                break;
+            }
+
+            if (ac.Phases?.CurrentPhase is not LowApproachPhase)
+            {
+                leftLowApproach = true;
+                output.WriteLine($"t={t} phase={ac.Phases?.CurrentPhase?.Name ?? "null"} ceiling={ac.Targets.SpeedCeiling?.ToString("F1") ?? "-"}");
+                Assert.Null(ac.Targets.SpeedCeiling);
+                break;
+            }
+        }
+
+        Assert.True(leftLowApproach, "N104NT should leave LowApproachPhase for the runway-change turn");
+    }
+
     // --- Geometry guardrail (C) ---
 
     private static AircraftState MakeAirborne(string type, LatLon pos, double headingTrue) =>

@@ -766,6 +766,19 @@ not applied to that phase.
 >
 > RED confirmed before the fix (both `Final` and `Base` returned 161), and a third test pins that
 > downwind-family kinds still command pattern speed.
+>
+> **Second correction: the `#292` path cannot produce the jet scenario at all.**
+> `Cland33_JetOnLowApproach_RejectedAsLightAircraftManeuver` shows the retarget rejects jets outright —
+> the tight ~1 nm final on a diverging runway is unflyable for one. So the low-approach retarget only
+> ever builds a `Final` entry for light aircraft. F1 remains a genuine defect for any `Final` entry;
+> the worked example was wrong on two counts.
+>
+> **Finding 11 is now also complete for `LowApproachPhase`.** With the entry commanding approach speed,
+> the retarget's per-tick `SpeedCeiling` was both redundant and leaking — a test confirmed the cap
+> (77 kt for the recording's BE36) survived into `Pattern Entry` and beyond, with nothing releasing it.
+> The ceiling was removed rather than released in `OnEnd`, since `TargetSpeed` alone holds the low pass
+> down. This is the change the aviation review held back in the phases cluster; its stated precondition
+> is now met.
 
 ### F2. `DownwindPhase.OnStart` reverts a controller speed assignment one leg later
 

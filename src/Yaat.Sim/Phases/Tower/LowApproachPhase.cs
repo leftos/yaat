@@ -155,12 +155,11 @@ public sealed class LowApproachPhase : Phase
             // well-separated pairs where the aircraft can descend all the way before that point.
             if (_retargetToDifferentRunway)
             {
-                // The aircraft is landing on B, not going around — configure and slow to final
-                // approach speed well ahead of the turn (cap it so the low pass can't accelerate),
-                // which also tightens the turn radius for the short-final intercept onto B.
-                double retargetApproachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-                ctx.Targets.TargetSpeed = retargetApproachSpeed;
-                ctx.Targets.SpeedCeiling = retargetApproachSpeed;
+                // The aircraft is landing on B, not going around — configure and slow to final approach
+                // speed well ahead of the turn, which also tightens the turn radius for the short-final
+                // intercept onto B. No speed ceiling: the appended PatternEntryPhase for B is a Final
+                // entry and commands approach speed itself, and a ceiling set here outlives the phase.
+                ctx.Targets.TargetSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
 
                 double alongPastGate = GeoMath.AlongTrackDistanceNm(
                     ctx.Aircraft.Position,
