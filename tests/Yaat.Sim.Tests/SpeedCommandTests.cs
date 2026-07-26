@@ -191,17 +191,17 @@ public class SpeedCommandTests
     }
 
     /// <summary>
-    /// A pattern arrival cleared to land (no arrival-approach phase, but
-    /// LandingClearance set) is still gated inside 5nm — the rule applies to anyone
-    /// inbound to land, not just instrument arrivals.
+    /// An arrival cleared to land with no approach phase is gated when it is actually tracking the
+    /// landing course — §5-7-1.b.4 applies to anyone on final, not just instrument arrivals.
     /// </summary>
     [Fact]
-    public void SpeedCommand_RejectedInside5nm_WhenClearedToLandInPattern()
+    public void SpeedCommand_RejectedInside5nm_WhenClearedToLandAndTrackingTheLandingCourse()
     {
         var ac = CreateAircraft();
+        ac.TrueTrack = new TrueHeading(280);
         ac.Phases = new PhaseList
         {
-            AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon),
+            AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon, heading: 280),
             LandingClearance = ClearanceType.ClearedToLand,
         };
 
@@ -209,6 +209,32 @@ public class SpeedCommandTests
 
         Assert.False(result.Success);
         Assert.Contains("5nm final", result.Message);
+    }
+
+    /// <summary>
+    /// §5-7-1.b.4 reads "inside the final approach fix <em>on final</em> or a point 5 miles from the
+    /// runway" — both clauses describe a position on final. A traffic-pattern downwind sits about a mile
+    /// abeam the runway, so a pure distance test gated the whole circuit and made a tower speed
+    /// instruction to pattern traffic impossible. An aircraft cleared to land but tracking across the
+    /// landing course is not on final.
+    /// </summary>
+    [Theory]
+    [InlineData(100)] // downwind, tracking the reciprocal
+    [InlineData(190)] // base, tracking across the final
+    public void SpeedCommand_AcceptedInside5nm_ForPatternTrafficNotOnFinal(double track)
+    {
+        var ac = CreateAircraft();
+        ac.TrueTrack = new TrueHeading(track);
+        ac.Phases = new PhaseList
+        {
+            AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon, heading: 280),
+            LandingClearance = ClearanceType.ClearedToLand,
+        };
+
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, TestDispatch.Context(Random.Shared));
+
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(180, ac.Targets.TargetSpeed);
     }
 
     /// <summary>Issue #196: a go-around (climbing out) inside 5nm accepts plain SPD.</summary>
@@ -557,9 +583,11 @@ public class SpeedPhysicsTests
         ac.Targets.TargetSpeed = 210;
         ac.Targets.HasExplicitSpeedCommand = true;
         ac.Targets.SpeedFloor = 200;
+        // Tracking the landing course — the gate applies on final, not merely within 5 nm.
+        ac.TrueTrack = new TrueHeading(280);
         ac.Phases = new PhaseList
         {
-            AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon),
+            AssignedRunway = TestRunwayFactory.Make(thresholdLat: ac.Position.Lat, thresholdLon: ac.Position.Lon, heading: 280),
             LandingClearance = ClearanceType.ClearedToLand,
         };
 

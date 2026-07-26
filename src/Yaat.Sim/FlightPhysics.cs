@@ -1689,6 +1689,14 @@ public static class FlightPhysics
             return;
         }
 
+        // Distance alone is not the rule — §5-7-1.b.4 applies on final. Pattern traffic flies its whole
+        // circuit inside 5 nm, so auto-cancelling there stripped an assigned speed the moment it was
+        // issued.
+        if (!Commands.ApproachCommandHandler.IsOnFinal(aircraft, runway))
+        {
+            return;
+        }
+
         // Capture the speed the controller last commanded before releasing the restriction.
         double reference = aircraft.Targets.TargetSpeed ?? aircraft.Targets.SpeedCeiling ?? aircraft.IndicatedAirspeed;
 

@@ -207,7 +207,7 @@ internal static class FlightCommandHandler
             return ApplyTaxiSpeed(cmd, aircraft);
         }
 
-        // Reject speed commands to an aircraft inbound to land inside 5nm per §5-7-1.b.4.
+        // Reject speed commands to an aircraft inbound to land inside 5nm ON FINAL per §5-7-1.b.4.
         // Only arrivals on an approach / cleared to land are gated — a departure (which
         // also carries an AssignedRunway) and a go-around climbing out are not. SPEEDF
         // (cmd.Force) is the controller override for the cases the rule allows
@@ -215,7 +215,7 @@ internal static class FlightCommandHandler
         if (!cmd.Force && !aircraft.IsOnGround && ApproachCommandHandler.IsInboundToLand(aircraft) && aircraft.Phases?.AssignedRunway is { } spdRwy)
         {
             double spdDist = GeoMath.DistanceNm(aircraft.Position, new LatLon(spdRwy.ThresholdLatitude, spdRwy.ThresholdLongitude));
-            if (spdDist <= 5.0)
+            if (spdDist <= 5.0 && ApproachCommandHandler.IsOnFinal(aircraft, spdRwy))
             {
                 return new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.b.4]");
             }

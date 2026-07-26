@@ -1879,6 +1879,28 @@ public static class ApproachCommandHandler
     /// departure runway but has no landing/approach clearance — and a go-around (climbing
     /// out) are deliberately excluded so neither is blocked from a speed assignment.
     /// </summary>
+    /// <summary>
+    /// Widest angle between the aircraft's track and the landing course that still counts as being on
+    /// final. A pattern downwind tracks the reciprocal and a base leg tracks across it, so both fall
+    /// well outside; an aircraft joining final from a 30° intercept falls inside.
+    /// </summary>
+    private const double OnFinalTrackToleranceDeg = 45.0;
+
+    /// <summary>
+    /// True when the aircraft is on final for <paramref name="runway"/>, the position §5-7-1.b.4
+    /// describes: "inside the final approach fix <em>on final</em> or a point 5 miles from the runway,
+    /// whichever is closer to the runway." Both clauses describe a position on final — distance alone is
+    /// not enough. A traffic-pattern downwind sits roughly a mile abeam the runway, so testing distance
+    /// by itself gated the entire circuit and made a tower speed instruction to pattern traffic
+    /// impossible, even though §3-8-1 lists speed among the tower's sequencing tools.
+    ///
+    /// Established on an approach counts regardless of track; otherwise the aircraft must be tracking
+    /// the landing course.
+    /// </summary>
+    internal static bool IsOnFinal(AircraftState aircraft, RunwayInfo runway) =>
+        aircraft.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase or LowApproachPhase
+        || aircraft.TrueTrack.AbsAngleTo(runway.TrueHeading) <= OnFinalTrackToleranceDeg;
+
     internal static bool IsInboundToLand(AircraftState aircraft)
     {
         var phases = aircraft.Phases;
