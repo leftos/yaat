@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.17-beta [2026/07/25]
+
+### Highlights
+- **Scenario > Restart Scenario** re-runs the loaded scenario from the top with new traffic — available to every room member, not just mentors.
+- Speed instructions to traffic-pattern aircraft work again, and a speed you assign holds through the rest of the circuit.
+- Solo training pilots stop repeating requests you have already cleared, so the frequency keeps moving.
+- KOAK's NIMITZ SID flies its published 315° initial turn on every install — ARTCCs can pin procedures the FAA has dropped from the CIFP.
 
 ### Added
 - ARTCCs can pin a procedure the FAA dropped from the CIFP under `Data/ARTCCs/{ARTCC}/Procedures/*.cifp`, keeping it available on every install.
