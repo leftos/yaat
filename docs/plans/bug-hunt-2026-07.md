@@ -700,7 +700,13 @@ downwind→base, base→final, the FAS bleed — runs at 7.5 kt/s instead of the
 no test issues `GA` from `Rollout` and then inspects `Targets.DesiredDecelRate` — and per finding 2,
 that command path is untested at the dispatcher level entirely.
 
-### 17. The documented `ONH` alias is rejected by the client canonicalizer, so it is dead as a condition prefix
+### 17. The documented `ONH` alias is rejected by the client canonicalizer, so it is dead as a condition prefix — ✅ FIXED
+
+> **Fix applied.** `ONH ` added to both places the canonicalizer was missing it — the `isCompound`
+> sniff and the `ParseBlockToCanonical` branch — canonicalizing to `ONHO`. `ConditionPrefixes` already
+> listed it, which is why it looked supported. `ConditionPrefixAliasTests` closes the gap the finding
+> identified: it asserts every keyword in that set parses in condition position, and that the table
+> covers the whole set, so an alias cannot be dead in a position it is documented for again.
 
 - **File**: `src/Yaat.Sim/Commands/CommandSchemeParser.cs:45`, `:319` vs
   `src/Yaat.Sim/Commands/CommandParser.cs:207`
@@ -895,14 +901,24 @@ not beneath a Class B shelf or in a VFR corridor, where 200 kt binds and the pil
 unstabilized-go-around gate is therefore computed on a different Vref than the profile feeding it —
 about 5 kt tighter. Pre-existing, spotted while tracing the pattern-speed chain.
 
-### F2. `DownwindPhase.OnStart` reverts a controller speed assignment one leg later
+### F2. `DownwindPhase.OnStart` reverts a controller speed assignment one leg later — ✅ FIXED
+
+> **Fix applied**, and extended past `DownwindPhase`: every pattern leg's `OnStart` overwrote
+> `TargetSpeed` with its baseline, so the assignment died at whichever leg came next rather than only
+> at downwind. All six baseline writes plus the abeam transition to `BaseSpeed` are now guarded by
+> `HasExplicitSpeedCommand`. See the review section above for the caveats this raised.
 
 `DownwindPhase.OnStart` unconditionally rewrites `TargetSpeed` and `TargetAltitude` with no
 `HasExplicitSpeedCommand` guard, so a speed adjustment issued during an entry maneuver is discarded on
 reaching downwind. Per 7110.65 §5-7-4 it is the controller who terminates a speed adjustment
 ("RESUME NORMAL SPEED"); the aircraft does not revert on its own at the next leg.
 
-### F3. `SPD` is rejected inside 5 nm for any aircraft inbound to land
+### F3. `SPD` is rejected inside 5 nm for any aircraft inbound to land — ✅ FIXED
+
+> **Fix applied.** `ApproachCommandHandler.IsOnFinal` now gates both the `ApplySpeed` rejection and
+> the `FlightPhysics` auto-cancel, so the rule fires on final rather than within a radius. Confirmed
+> against the source text; the note's §3-8-1 NOTE 2 citation is helicopter-specific, but §5-7-1.b.4's
+> own wording carries it.
 
 `FlightCommandHandler.ApplySpeed` rejects `SPD` whenever `IsInboundToLand` and inside 5 nm — which
 includes a VFR pattern aircraft already cleared to land, making a tower speed instruction to pattern
