@@ -18,7 +18,7 @@ public class UserPreferencesWindowProfileTests
         var profile = new SavedWindowProfile
         {
             Name = "WPT-Roundtrip",
-            IsTerminalDocked = false,
+            IsTerminalPoppedOut = true,
             IsDataGridPoppedOut = true,
             IsGroundViewPoppedOut = true,
             IsRadarViewPoppedOut = false,
@@ -63,7 +63,7 @@ public class UserPreferencesWindowProfileTests
 
         Assert.NotNull(reloaded);
         Assert.Equal("WPT-Roundtrip", reloaded.Name);
-        Assert.False(reloaded.IsTerminalDocked);
+        Assert.True(reloaded.IsTerminalPoppedOut);
         Assert.True(reloaded.IsDataGridPoppedOut);
         Assert.True(reloaded.IsGroundViewPoppedOut);
         Assert.False(reloaded.IsRadarViewPoppedOut);

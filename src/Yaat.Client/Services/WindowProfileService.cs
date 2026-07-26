@@ -45,7 +45,7 @@ public sealed class WindowProfileService
         var profile = new SavedWindowProfile
         {
             Name = name.Trim(),
-            IsTerminalDocked = vm.IsTerminalDocked,
+            IsTerminalPoppedOut = vm.IsTerminalPoppedOut,
             IsDataGridPoppedOut = vm.IsDataGridPoppedOut,
             IsGroundViewPoppedOut = vm.IsGroundViewPoppedOut,
             IsRadarViewPoppedOut = vm.IsRadarViewPoppedOut,

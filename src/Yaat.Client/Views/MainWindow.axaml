@@ -414,12 +414,12 @@
         <!-- Bottom: Favorites bar (visible when docked) -->
         <views:FavoritesBarView x:Name="FavoritesBar"
             DockPanel.Dock="Bottom"
-            IsVisible="{Binding IsTerminalDocked}" />
+            IsVisible="{Binding !IsTerminalPoppedOut}" />
 
         <!-- Bottom: Command input (visible when docked) -->
         <views:CommandInputView x:Name="CommandInputView"
             DockPanel.Dock="Bottom"
-            IsVisible="{Binding IsTerminalDocked}" />
+            IsVisible="{Binding !IsTerminalPoppedOut}" />
 
         <!-- Center: TabControl + Terminal with splitter -->
         <Grid x:Name="ContentGrid" Margin="8,4,8,0" RowDefinitions="3*,Auto,*"
@@ -467,7 +467,7 @@
                           IsVisible="{Binding IsTabSplitterVisible}" />
 
             <views:TerminalPanelView Grid.Row="2"
-                IsVisible="{Binding IsTerminalDocked}" />
+                IsVisible="{Binding !IsTerminalPoppedOut}" />
         </Grid>
 
     </DockPanel>

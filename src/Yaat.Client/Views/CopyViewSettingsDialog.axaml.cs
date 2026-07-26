@@ -548,12 +548,12 @@ public partial class CopyViewSettingsDialog : Window
     }
 
     private static string FormatPopouts(SavedWindowProfile p) =>
-        $"Term:{(p.IsTerminalDocked ? "dock" : "float")} AC:{Pop(p.IsDataGridPoppedOut)} Gnd:{Pop(p.IsGroundViewPoppedOut)} Rdr:{Pop(p.IsRadarViewPoppedOut)}";
+        $"Term:{(p.IsTerminalPoppedOut ? "float" : "dock")} AC:{Pop(p.IsDataGridPoppedOut)} Gnd:{Pop(p.IsGroundViewPoppedOut)} Rdr:{Pop(p.IsRadarViewPoppedOut)}";
 
     private static string Pop(bool poppedOut) => poppedOut ? "pop" : "dock";
 
     private static bool PopoutsDiffer(SavedWindowProfile a, SavedWindowProfile b) =>
-        a.IsTerminalDocked != b.IsTerminalDocked
+        a.IsTerminalPoppedOut != b.IsTerminalPoppedOut
         || a.IsDataGridPoppedOut != b.IsDataGridPoppedOut
         || a.IsGroundViewPoppedOut != b.IsGroundViewPoppedOut
         || a.IsRadarViewPoppedOut != b.IsRadarViewPoppedOut;

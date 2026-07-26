@@ -167,7 +167,7 @@ public sealed class UserPreferences
         Save();
     }
 
-    public bool IsTerminalDocked => _data.IsTerminalDocked;
+    public bool IsTerminalPoppedOut => _data.IsTerminalPoppedOut;
     public bool ShowOnlyActiveAircraft => _data.ShowOnlyActiveAircraft;
     public bool ShowTimelineBar => _data.ShowTimelineBar;
     public bool DataGridAlternatingRowColor => _data.DataGridAlternatingRowColor;
@@ -513,8 +513,6 @@ public sealed class UserPreferences
 
     public void SetPoppedOut(string tabName, bool poppedOut)
     {
-        // "Terminal" has inverted semantics: the stored field is IsTerminalDocked (default
-        // true). poppedOut == true means !IsTerminalDocked.
         bool current = tabName switch
         {
             "DataGrid" => _data.IsDataGridPoppedOut,
@@ -524,7 +522,7 @@ public sealed class UserPreferences
             "Metar" => _data.IsMetarPoppedOut,
             "VStrips" => _data.IsVStripsPoppedOut,
             "VTdls" => _data.IsVTdlsPoppedOut,
-            "Terminal" => !_data.IsTerminalDocked,
+            "Terminal" => _data.IsTerminalPoppedOut,
             _ => poppedOut,
         };
         if (current == poppedOut)
@@ -556,7 +554,7 @@ public sealed class UserPreferences
                 _data.IsVTdlsPoppedOut = poppedOut;
                 break;
             case "Terminal":
-                _data.IsTerminalDocked = !poppedOut;
+                _data.IsTerminalPoppedOut = poppedOut;
                 break;
         }
         Save();
@@ -1422,7 +1420,7 @@ public sealed class UserPreferences
             IsVStripsPoppedOut = GetFieldOr(obj, "isVStripsPoppedOut", false),
             IsVTdlsPoppedOut = GetFieldOr(obj, "isVTdlsPoppedOut", false),
             IsVTdlsDarkMode = GetFieldOr(obj, "isVTdlsDarkMode", false),
-            IsTerminalDocked = GetFieldOr(obj, "isTerminalDocked", true),
+            IsTerminalPoppedOut = GetFieldOr(obj, "isTerminalPoppedOut", false),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             GroundSettings = GetFieldOr<Dictionary<string, SavedGroundSettings>>(obj, "groundSettings", []),
             FavoriteVideoMapsByArtcc = GetFieldOr<Dictionary<string, List<string>>>(obj, "favoriteVideoMapsByArtcc", []),
@@ -1686,7 +1684,7 @@ public sealed class UserPreferences
         public bool IsVStripsPoppedOut { get; set; }
         public bool IsVTdlsPoppedOut { get; set; }
         public bool IsVTdlsDarkMode { get; set; }
-        public bool IsTerminalDocked { get; set; } = true;
+        public bool IsTerminalPoppedOut { get; set; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];
         public Dictionary<string, List<string>> FavoriteVideoMapsByArtcc { get; set; } = [];
@@ -1909,8 +1907,8 @@ public sealed class SavedWindowProfile
     /// </summary>
     public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
 
-    /// <summary>True when the Terminal is docked inside the main window at capture time.</summary>
-    public bool IsTerminalDocked { get; set; } = true;
+    /// <summary>True when the Terminal is in its own window rather than docked, at capture time.</summary>
+    public bool IsTerminalPoppedOut { get; set; }
     public bool IsDataGridPoppedOut { get; set; }
     public bool IsGroundViewPoppedOut { get; set; }
     public bool IsRadarViewPoppedOut { get; set; }

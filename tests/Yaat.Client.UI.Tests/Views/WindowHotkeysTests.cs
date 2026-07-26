@@ -75,7 +75,7 @@ public class WindowHotkeysTests
     public void DockedTerminal_FocusRequest_FocusesEmbeddedCommandInput()
     {
         var (main, vm) = BootMainWindow();
-        vm.IsTerminalDocked = true;
+        vm.IsTerminalPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
         vm.FocusCommandInput();
@@ -90,7 +90,7 @@ public class WindowHotkeysTests
     public void PoppedTerminal_FocusRequest_FocusesTerminalWindowCommandInput()
     {
         var (main, vm) = BootMainWindow();
-        vm.IsTerminalDocked = false;
+        vm.IsTerminalPoppedOut = true;
         Dispatcher.UIThread.RunJobs();
 
         Assert.NotNull(main.TerminalWindow);

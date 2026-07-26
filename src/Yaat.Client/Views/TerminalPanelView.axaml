@@ -105,7 +105,7 @@
                               ToolTip.Tip="Show flight-strip commands and feedback. Shift+Click: solo (toggle to restore)." />
             </StackPanel>
             <Button Grid.Column="3"
-                    Content="{Binding IsTerminalDocked,
+                    Content="{Binding IsTerminalPoppedOut,
                         Converter={x:Static vm:DockButtonConverter.Instance}}"
                     Command="{Binding ToggleTerminalDockCommand}"
                     FontSize="11"

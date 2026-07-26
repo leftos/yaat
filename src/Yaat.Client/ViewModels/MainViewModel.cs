@@ -388,7 +388,7 @@ public partial class MainViewModel : ObservableObject
     private bool _showRoomMembersPanel;
 
     [ObservableProperty]
-    private bool _isTerminalDocked = true;
+    private bool _isTerminalPoppedOut;
 
     [ObservableProperty]
     private bool _isDataGridPoppedOut;
@@ -405,9 +405,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isMetarPoppedOut;
 
-    partial void OnIsTerminalDockedChanged(bool value)
+    partial void OnIsTerminalPoppedOutChanged(bool value)
     {
-        _preferences.SetPoppedOut("Terminal", !value);
+        _preferences.SetPoppedOut("Terminal", value);
         OnPropertyChanged(nameof(IsContentGridVisible));
         OnPropertyChanged(nameof(IsTabSplitterVisible));
     }
@@ -523,14 +523,14 @@ public partial class MainViewModel : ObservableObject
     /// when either region is popped out so the splitter doesn't render a
     /// 6 px stripe with nothing above or below it.
     /// </summary>
-    public bool IsTabSplitterVisible => IsAnyTabVisible && IsTerminalDocked;
+    public bool IsTabSplitterVisible => IsAnyTabVisible && !IsTerminalPoppedOut;
 
     /// <summary>
     /// True when the central content grid (tabs + terminal) has anything
     /// to show. When false the main window collapses down to just the
     /// menu bar since every view has been popped out into its own window.
     /// </summary>
-    public bool IsContentGridVisible => IsAnyTabVisible || IsTerminalDocked;
+    public bool IsContentGridVisible => IsAnyTabVisible || !IsTerminalPoppedOut;
 
     private int FindNextVisibleTabIndex(int currentIndex)
     {
@@ -1335,7 +1335,7 @@ public partial class MainViewModel : ObservableObject
         IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;
         IsControllersPoppedOut = _preferences.IsControllersPoppedOut;
         IsMetarPoppedOut = _preferences.IsMetarPoppedOut;
-        IsTerminalDocked = _preferences.IsTerminalDocked;
+        IsTerminalPoppedOut = _preferences.IsTerminalPoppedOut;
         // Student Strips entry pop-out state persists across restarts. Non-student
         // per-facility entries are session-scoped and always start docked.
         StripsEntries[0].IsPoppedOut = _preferences.IsVStripsPoppedOut;
@@ -2697,7 +2697,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ToggleTerminalDock()
     {
-        IsTerminalDocked = !IsTerminalDocked;
+        IsTerminalPoppedOut = !IsTerminalPoppedOut;
     }
 
     private async Task SendCommandForViewAsync(string callsign, string command, string initials)

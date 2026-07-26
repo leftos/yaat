@@ -80,7 +80,7 @@ public class MainWindowLifecycleTests
         vm.IsGroundViewPoppedOut = false;
         vm.IsRadarViewPoppedOut = false;
         vm.StripsEntries[0].IsPoppedOut = false;
-        vm.IsTerminalDocked = true;
+        vm.IsTerminalPoppedOut = false;
         Dispatcher.UIThread.RunJobs();
 
         Assert.True(vm.IsAnyTabVisible);
@@ -103,7 +103,7 @@ public class MainWindowLifecycleTests
         Assert.True(vm.IsContentGridVisible);
 
         // Undocking the terminal collapses the entire content grid — menu bar only.
-        vm.IsTerminalDocked = false;
+        vm.IsTerminalPoppedOut = true;
         Dispatcher.UIThread.RunJobs();
         Assert.False(vm.IsContentGridVisible);
     }

@@ -271,7 +271,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             OpenMetarWindow(vm);
         }
 
-        if (!vm.IsTerminalDocked)
+        if (vm.IsTerminalPoppedOut)
         {
             _terminalWindow = new TerminalWindow(vm.Preferences) { DataContext = vm };
             _terminalWindow.Closing += OnTerminalWindowClosing;
@@ -1077,7 +1077,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         switch (e.PropertyName)
         {
-            case nameof(MainViewModel.IsTerminalDocked):
+            case nameof(MainViewModel.IsTerminalPoppedOut):
                 HandleTerminalPopOut(vm);
                 break;
             case nameof(MainViewModel.IsAnyTabVisible):
@@ -1111,7 +1111,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         UpdateContentGridLayout(vm);
 
-        if (!vm.IsTerminalDocked)
+        if (vm.IsTerminalPoppedOut)
         {
             _terminalWindow = new TerminalWindow(vm.Preferences) { DataContext = vm };
             _terminalWindow.Closing += OnTerminalWindowClosing;
@@ -1147,7 +1147,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         grid.RowDefinitions[0].Height = vm.IsAnyTabVisible ? new GridLength(3, GridUnitType.Star) : new GridLength(0);
-        grid.RowDefinitions[2].Height = vm.IsTerminalDocked ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+        grid.RowDefinitions[2].Height = vm.IsTerminalPoppedOut ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
     }
 
     private void HandleDataGridPopOut(MainViewModel vm)
@@ -1784,7 +1784,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         if (!IsClosingFromShutdown(_isMainWindowClosing) && DataContext is MainViewModel vm)
         {
-            vm.IsTerminalDocked = true;
+            vm.IsTerminalPoppedOut = false;
         }
         _terminalWindow = null;
     }
@@ -1977,7 +1977,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         // MainViewModel + OnViewModelPropertyChanged here will create or
         // destroy the corresponding pop-out windows. New windows read the
         // freshly-staged geometry preferences on construction.
-        vm.IsTerminalDocked = profile.IsTerminalDocked;
+        vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
         vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
         vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
         vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
@@ -2171,7 +2171,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         if (includePopouts)
         {
-            vm.IsTerminalDocked = profile.IsTerminalDocked;
+            vm.IsTerminalPoppedOut = profile.IsTerminalPoppedOut;
             vm.IsDataGridPoppedOut = profile.IsDataGridPoppedOut;
             vm.IsGroundViewPoppedOut = profile.IsGroundViewPoppedOut;
             vm.IsRadarViewPoppedOut = profile.IsRadarViewPoppedOut;
@@ -3104,7 +3104,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        if (vm.IsTerminalDocked)
+        if (!vm.IsTerminalPoppedOut)
         {
             Activate();
             this.FindControl<CommandInputView>("CommandInputView")?.FocusCommandInput();
