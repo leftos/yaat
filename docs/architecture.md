@@ -255,7 +255,7 @@ ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
   MainViewModel.Rooms.cs        # Partial: room lifecycle (create/join/leave), aircraft assignments
   MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update), terminal broadcast handling, and PilotTransmissionBroadcast gate to PilotVoiceService.
-  MainViewModel.Scenario.cs     # Partial: scenario load/unload
+  MainViewModel.Scenario.cs     # Partial: scenario load/unload/restart. Load+Unload are mentor-only (CanLoadScenario/CanUnloadScenario gate on IsNonMentor); Restart is open to any room member. Rejections raise a terminal warning via ReportScenarioActionFailure, not just StatusText.
   MainViewModel.ArrivalGenerators.cs # Partial: live arrival-generator editing (open editor window, push edits to sim, Save As)
   MainViewModel.HoldForRelease.cs # Partial: hold-for-release rundown mirror + REL release commands (HeldDeparturesChanged handler, RoomStateDto.Rundown seed)
   MainViewModel.Timers.cs       # Partial: TIMER countdown mirror + cancel command (TimersChanged handler, RoomStateDto.Timers seed, command-bar timers panel)

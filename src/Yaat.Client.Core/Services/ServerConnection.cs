@@ -488,6 +488,16 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         await _connection!.InvokeAsync("ConfirmUnloadScenario");
     }
 
+    /// <summary>
+    /// Re-runs the loaded scenario from t=0 with freshly generated traffic. Available to every room
+    /// member, unlike load/unload.
+    /// </summary>
+    public async Task<CommandResultDto> RestartScenarioAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("RestartScenario");
+    }
+
     // --- Simulation state ---
 
     public async Task SetAutoAcceptDelayAsync(int seconds)

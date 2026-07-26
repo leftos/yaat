@@ -126,6 +126,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SendCommandCommand))]
     [NotifyCanExecuteChangedFor(nameof(TogglePauseCommand))]
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RestartScenarioCommand))]
+    [NotifyPropertyChangedFor(nameof(CanLoadScenario))]
     [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
@@ -309,6 +311,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(TogglePauseCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RestartScenarioCommand))]
+    [NotifyPropertyChangedFor(nameof(CanLoadScenario))]
     [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
     [NotifyPropertyChangedFor(nameof(IsInRoom))]
@@ -320,6 +324,8 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RestartScenarioCommand))]
+    [NotifyPropertyChangedFor(nameof(CanLoadScenario))]
     private string? _activeScenarioId;
 
     [ObservableProperty]
@@ -334,6 +340,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _showUnloadScenarioConfirmation;
+
+    [ObservableProperty]
+    private bool _showRestartScenarioConfirmation;
 
     [ObservableProperty]
     private string? _pendingUnloadScenarioWarning;
@@ -641,10 +650,10 @@ public partial class MainViewModel : ObservableObject
     public bool IsInRoom => ActiveRoomId is not null;
 
     /// <summary>
-    /// True when a limited RPO is connected but not yet in a room — they see a non-interactive "waiting
+    /// True when a non-mentor is connected but not yet in a room — they see a non-interactive "waiting
     /// for an instructor to add you" prompt instead of the room picker.
     /// </summary>
-    public bool ShowRpoWaiting => IsConnected && IsLimitedRpo && !IsInRoom;
+    public bool ShowRpoWaiting => IsConnected && IsNonMentor && !IsInRoom;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanExecuteInRoom))]
@@ -652,6 +661,13 @@ public partial class MainViewModel : ObservableObject
     private bool _isServerRestarting;
 
     public bool CanExecuteInRoom => IsConnected && IsInRoom && !IsServerRestarting;
+
+    /// <summary>
+    /// Loading a scenario is mentor/instructor-only (server: <c>TrainingHub.LoadScenario</c>). Bound
+    /// directly by the Load Scenario menu items, which open a picker dialog rather than invoking the
+    /// command, so they can't rely on <c>LoadScenarioCommand.CanExecute</c>.
+    /// </summary>
+    public bool CanLoadScenario => CanExecuteInRoom && !IsNonMentor;
 
     /// <summary>Visible state of the top-of-window restart banner.</summary>
     public enum RestartBanner
@@ -1186,14 +1202,21 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<RoomMemberDto> RoomMembers { get; } = [];
 
     /// <summary>
-    /// True when the signed-in controller is a limited RPO (not a mentor/instructor): they can be pulled
-    /// into a room but can't create rooms or load/unload scenarios. Drives which controls are shown.
+    /// True when the signed-in controller is a non-mentor (no VATUSA mentor role and a rating below
+    /// Instructor): they can be pulled into a room but can't create rooms or load/unload scenarios.
+    /// This is a rating-derived permission tier, NOT the RPO position — a mentor can work an RPO
+    /// position with full powers. User-facing text must say "non-mentor", never "RPO".
+    /// Mirrors the server's own check (<c>TrainingHub.CallerIsMentorOrInstructor</c>); the server stays
+    /// authoritative and rejects with a <c>HubException</c> regardless of what the client believes.
     /// </summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RestartScenarioCommand))]
+    [NotifyPropertyChangedFor(nameof(CanLoadScenario))]
     [NotifyPropertyChangedFor(nameof(ShowRpoWaiting))]
-    private bool _isLimitedRpo;
+    private bool _isNonMentor;
 
     [ObservableProperty]
     private SpeechStatus _speechStatus = SpeechStatus.Idle;

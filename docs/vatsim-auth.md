@@ -62,7 +62,7 @@ filled automatically and not prompted for.
 
 - **Mentors/instructors** (`isMentor` from VATUSA, OR rating instructor-or-above I1/I2/I3/SUP/ADM via
   `ScenarioRatingClassifier.IsInstructorOrAbove`) run sessions: create rooms, load/unload scenarios, kick.
-- **Non-mentors connect as limited RPOs.** They wait in the lobby until a mentor pulls them into a room:
+- **Non-mentors get limited access.** They wait in the lobby until a mentor pulls them into a room:
   `PullRpo(connectionId)` records an invite on the room (`TrainingRoom.InvitedCids`) and pushes
   `RoomAvailableForCid`, which the client auto-joins. `JoinRoom` rejects an uninvited non-mentor "main"
   client (`CanJoinRoomCore`); `CreateRoom`, `LoadScenario`, `UnloadScenarioAircraft`/`ConfirmUnloadScenario`,

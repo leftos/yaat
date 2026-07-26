@@ -16,7 +16,7 @@ public partial class MainViewModel
     private string? _pendingScenarioSource;
     private string? _pendingApiScenarioId;
 
-    [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
+    [RelayCommand(CanExecute = nameof(CanLoadScenario))]
     private async Task LoadScenarioAsync()
     {
         if (string.IsNullOrWhiteSpace(ScenarioFilePath) && string.IsNullOrWhiteSpace(_pendingScenarioSource))
@@ -70,7 +70,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "Auto-load scenario error");
-            StatusText = $"Load error: {ex.Message}";
+            ReportScenarioActionFailure("Load", ex.Message);
         }
     }
 
@@ -167,7 +167,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "Scenario load error");
-            StatusText = $"Load error: {ex.Message}";
+            ReportScenarioActionFailure("Load", ex.Message);
         }
     }
 
@@ -230,7 +230,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "Scenario load error");
-            StatusText = $"Load error: {ex.Message}";
+            ReportScenarioActionFailure("Load", ex.Message);
         }
     }
 
@@ -280,7 +280,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "Load scenario by id error");
-            StatusText = $"Load error: {ex.Message}";
+            ReportScenarioActionFailure("Load", ex.Message);
         }
     }
 
@@ -361,11 +361,69 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "UnloadScenario failed");
-            StatusText = $"Unload error: {ex.Message}";
+            ReportScenarioActionFailure("Unload", ex.Message);
         }
     }
 
-    private bool CanUnloadScenario() => CanExecuteInRoom && HasScenario;
+    private bool CanUnloadScenario() => CanExecuteInRoom && HasScenario && !IsNonMentor;
+
+    /// <summary>
+    /// Re-runs the loaded scenario from the top with freshly generated traffic. Open to every room
+    /// member, mentor or not: unlike Unload it cannot strand the room or switch scenarios, so it is not
+    /// one of the mentor-only footgun actions.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRestartScenario))]
+    private void RestartScenario()
+    {
+        if (ActiveScenarioId is null)
+        {
+            StatusText = "No active scenario";
+            return;
+        }
+
+        ShowRestartScenarioConfirmation = true;
+    }
+
+    private bool CanRestartScenario() => CanExecuteInRoom && HasScenario;
+
+    [RelayCommand]
+    private async Task ConfirmRestartScenarioAsync()
+    {
+        ShowRestartScenarioConfirmation = false;
+        try
+        {
+            var result = await _connection.RestartScenarioAsync();
+            if (!result.Success)
+            {
+                ReportScenarioActionFailure("Restart", result.Message ?? "Restart failed");
+                return;
+            }
+
+            StatusText = "Scenario restarted";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "RestartScenario failed");
+            ReportScenarioActionFailure("Restart", ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    private void CancelRestartScenario()
+    {
+        ShowRestartScenarioConfirmation = false;
+    }
+
+    /// <summary>
+    /// Surfaces a rejected scenario action in the terminal as well as the status bar. The status bar
+    /// alone reads as "nothing happened" — it is a line of small gray text at the bottom of the window
+    /// that a controller watching the scope never sees.
+    /// </summary>
+    private void ReportScenarioActionFailure(string action, string message)
+    {
+        StatusText = $"{action} error: {message}";
+        AddWarningEntry($"{action} scenario failed: {message}");
+    }
 
     [RelayCommand]
     private async Task ConfirmUnloadScenarioAsync()
@@ -380,7 +438,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogError(ex, "ConfirmUnloadScenario failed");
-            StatusText = $"Unload error: {ex.Message}";
+            ReportScenarioActionFailure("Unload", ex.Message);
         }
     }
 

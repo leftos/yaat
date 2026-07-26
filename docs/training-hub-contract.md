@@ -90,6 +90,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `GetScenariosAsync()` | `GetScenarios` | `GetScenarios()` — filtered by caller rating |
 | `UnloadScenarioAircraftAsync()` | `UnloadScenarioAircraft` | `UnloadScenarioAircraft()` `:449` |
 | `ConfirmUnloadScenarioAsync()` | `ConfirmUnloadScenario` | `ConfirmUnloadScenario()` `:460` |
+| `RestartScenarioAsync()` | `RestartScenario` | `RestartScenario()` — re-runs the loaded scenario from t=0 with a new RNG seed; **not** mentor-gated (see below) |
 | `SendCommandAsync(callsign, command, initials)` | `SendCommand` | `SendCommand(...)` `:508` |
 | `SendChatAsync(initials, message)` | `SendChat` | `SendChat(...)` `:896` |
 | `AmendFlightPlanAsync(callsign, dto)` | `AmendFlightPlan` | `AmendFlightPlan(...)` `:847` |
@@ -155,6 +156,24 @@ returns null, **return a failure DTO rather than throw** — e.g. `SendCommand` 
 `new CommandResultDto(false, "Not in a room")` (`TrainingHub.cs:513`). Setters that return `void`/`Task` simply
 early-return. Clients must check `Success`, not rely on exceptions. `ResolveEngine` also routes admins through their
 single-room filter (`GetAdminFilter`); an admin with no filter set resolves to null.
+
+### Mentor/instructor gating throws, it doesn't return a failure DTO
+
+Seven methods call `RequireMentorOrInstructor()` (`TrainingHub.cs:97`) — `CreateRoom`, `LoadScenario`,
+`UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `KickMember`, `GetRpoLobbyClients`, `PullRpo`. Unlike the
+"Not in a room" sentinel above, the guard **throws a `HubException`** ("This action requires a mentor or
+instructor.") *before* any room lookup, so the client sees a thrown exception rather than a `Success == false`
+DTO. `HubException` is the one exception type SignalR relays verbatim regardless of `EnableDetailedErrors`.
+
+Callers must therefore catch, and — this is the bug that reached users — must make the rejection *visible*.
+Setting only `StatusText` puts it in small gray text at the bottom of the window, which reads as "nothing
+happened"; the client now also raises a terminal warning (`MainViewModel.ReportScenarioActionFailure`) and
+disables the controls up front via `CanLoadScenario`/`CanUnloadScenario`.
+
+`RestartScenario` is deliberately **not** in that list: it re-runs the same scenario, so unlike unload it can
+neither strand the room nor switch scenarios, and a non-mentor working alone can retry without an instructor.
+Note the gate is a **rating tier**, not the RPO position — a mentor working an RPO position is unaffected. See the
+amendment in [`docs/plans/rpo-limited-access-and-vatusa-artcc.md`](plans/rpo-limited-access-and-vatusa-artcc.md).
 
 ## Server → client broadcast catalog
 

@@ -836,6 +836,14 @@ When a scenario has multiple difficulty levels, YAAT shows a **Scenario Setup** 
 
 Both API and local scenarios appear in the **Scenario > Load Recent Scenario** menu for quick reloading; entries loaded from a local file are marked with a **(Local)** prefix to distinguish them from vNAS catalog scenarios.
 
+### Restarting a Scenario
+
+**Scenario > Restart Scenario** re-runs the loaded scenario from the beginning with freshly generated traffic — useful for retrying a situation you didn't like the outcome of. All aircraft are cleared, the clock returns to zero, and the session's command history, terminal log, and bookmarks are discarded. A confirmation dialog appears first.
+
+Restart is available to **every** room member, mentor or not — unlike loading or unloading, it can't strand the room or swap in a different scenario.
+
+This is not the same as **Jump to start** (⏮) on the timeline, which rewinds the existing recording: that replays the same traffic and leaves you in playback mode until you take control. Restart begins a genuinely new session with different traffic.
+
 ### Unloading a Scenario
 
 **Scenario > Unload Scenario** removes all aircraft from the current scenario. A confirmation dialog appears if multiple clients are connected.
@@ -1729,10 +1737,16 @@ remembered, so subsequent connects don't reopen the browser unless it has expire
 
 Deployed servers admit **mentors and instructors** with full control: you can create rooms and load
 scenarios if you hold a VATUSA mentor role, or if your VATSIM rating is Instructor (I1/I2/I3) or higher.
-Any other signed-in VATSIM controller can connect as an **[RPO](#glossary)** — they wait on a "waiting
-for room assignment" screen until an instructor pulls them into a room from the **YAAT Lobby** (see
-[Room Members](#room-members)), then work the position like any room member, but can't create rooms or
-load/unload scenarios. (The students being trained connect with CRC, which is not rating-gated.)
+
+Any other signed-in VATSIM controller — a **non-mentor** — connects in limited mode: they wait on a
+"waiting for room assignment" screen until an instructor pulls them into a room from the **YAAT Lobby**
+(see [Room Members](#room-members)), then work the position like any room member. The only things they
+can't do are create a room and load or unload a scenario; those menu items are greyed out. They *can*
+restart the loaded scenario (see [Restarting a Scenario](#restarting-a-scenario)).
+
+Note this limit is about your **rating**, not the position you work. Anyone in a room can work an
+[RPO](#glossary) position, mentors included — being an RPO is a job, not a permission level.
+(The students being trained connect with CRC, which is not rating-gated.)
 
 #### Scenario rating access
 

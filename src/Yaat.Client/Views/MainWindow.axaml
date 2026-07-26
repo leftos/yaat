@@ -99,13 +99,20 @@
             <MenuItem Header="_Scenario">
                 <MenuItem Header="_Load Scenario..."
                           x:Name="LoadScenarioMenuItem"
-                          IsEnabled="{Binding IsInRoom}" />
+                          IsEnabled="{Binding CanLoadScenario}"
+                          ToolTip.Tip="Loading a scenario requires a mentor or instructor." />
                 <MenuItem Header="Load _Recent Scenario"
-                          x:Name="RecentScenariosMenuItem">
+                          x:Name="RecentScenariosMenuItem"
+                          IsEnabled="{Binding CanLoadScenario}"
+                          ToolTip.Tip="Loading a scenario requires a mentor or instructor.">
                     <MenuItem Header="(No recent scenarios)" IsEnabled="False" />
                 </MenuItem>
+                <MenuItem Header="_Restart Scenario"
+                          Command="{Binding RestartScenarioCommand}"
+                          ToolTip.Tip="Re-run this scenario from the start with new traffic." />
                 <MenuItem Header="_Unload Scenario"
-                          Command="{Binding UnloadScenarioCommand}" />
+                          Command="{Binding UnloadScenarioCommand}"
+                          ToolTip.Tip="Unloading a scenario requires a mentor or instructor." />
                 <Separator />
                 <MenuItem Header="Load _Weather..."
                           x:Name="LoadWeatherMenuItem"
@@ -500,6 +507,35 @@
                 <Button Content="Cancel"
                         Command="{Binding
                             CancelUnloadScenarioCommand}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+
+    <!-- Scenario restart confirmation overlay -->
+    <Border IsVisible="{Binding ShowRestartScenarioConfirmation}"
+            Background="#CC000000"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="8"
+            Padding="24"
+            MinWidth="350">
+        <StackPanel Spacing="12">
+            <TextBlock Text="Restart Scenario?"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Foreground="White" />
+            <TextBlock Text="This clears all aircraft and starts the scenario over with new traffic. Session progress is lost."
+                       TextWrapping="Wrap"
+                       Foreground="Orange" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8"
+                        HorizontalAlignment="Right">
+                <Button Content="Restart"
+                        Command="{Binding
+                            ConfirmRestartScenarioCommand}" />
+                <Button Content="Cancel"
+                        Command="{Binding
+                            CancelRestartScenarioCommand}" />
             </StackPanel>
         </StackPanel>
     </Border>

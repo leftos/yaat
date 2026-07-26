@@ -33,9 +33,9 @@ public partial class MainViewModel
 
             _identity = identity;
 
-            // Non-mentors connect as limited RPOs: they can be pulled into a room but can't create rooms
+            // Non-mentors get limited access: they can be pulled into a room but can't create rooms
             // or load/unload scenarios (the server enforces this too).
-            IsLimitedRpo = !(identity.IsMentor || Yaat.Sim.Scenarios.ScenarioRatingClassifier.IsInstructorOrAbove(identity.Rating));
+            IsNonMentor = !(identity.IsMentor || Yaat.Sim.Scenarios.ScenarioRatingClassifier.IsInstructorOrAbove(identity.Rating));
 
             // ARTCC is resolved authoritatively from VATUSA (home facility) with a VATSIM-subdivision
             // fallback, so the apps no longer prompt for it. Overwrite any stored value each sign-in.
@@ -71,7 +71,7 @@ public partial class MainViewModel
             IsConnected = true;
             IsConnecting = false;
             AddSystemEntry($"Connected to {url}");
-            if (IsLimitedRpo)
+            if (IsNonMentor)
             {
                 // Non-mentors don't pick rooms — they wait for an instructor to pull them in.
                 StatusText = "Connected — waiting for an instructor to add you to a room";
@@ -269,7 +269,7 @@ public partial class MainViewModel
         }
     }
 
-    private bool CanCreateRoom() => IsConnected && !IsInRoom && !IsLimitedRpo;
+    private bool CanCreateRoom() => IsConnected && !IsInRoom && !IsNonMentor;
 
     [RelayCommand]
     private async Task JoinRoomAsync(string roomId)
@@ -350,7 +350,7 @@ public partial class MainViewModel
         ShowRoomList = true;
     }
 
-    private bool CanShowRooms() => IsConnected && !IsInRoom && !IsLimitedRpo;
+    private bool CanShowRooms() => IsConnected && !IsInRoom && !IsNonMentor;
 
     // --- Room members panel ---
 
@@ -455,8 +455,8 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task RefreshRpoLobbyAsync()
     {
-        // GetRpoLobbyClients is mentor-only; a limited RPO has no lobby to manage.
-        if (IsLimitedRpo)
+        // GetRpoLobbyClients is mentor-only; a non-mentor has no lobby to manage.
+        if (IsNonMentor)
         {
             return;
         }
@@ -587,7 +587,7 @@ public partial class MainViewModel
                 StatusText = "Room no longer active";
                 ClearRoomState();
                 await RefreshRoomListAsync();
-                ShowRoomList = !IsLimitedRpo;
+                ShowRoomList = !IsNonMentor;
                 HideRestartBanner();
             }
         }
@@ -799,7 +799,7 @@ public partial class MainViewModel
             ClearRoomState();
             StatusText = reason;
             await RefreshRoomListAsync();
-            ShowRoomList = !IsLimitedRpo;
+            ShowRoomList = !IsNonMentor;
         });
     }
 
@@ -811,7 +811,7 @@ public partial class MainViewModel
             ClearRoomState();
             StatusText = reason;
             await RefreshRoomListAsync();
-            ShowRoomList = !IsLimitedRpo;
+            ShowRoomList = !IsNonMentor;
         });
     }
 
@@ -837,7 +837,7 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             // The lobby is broadcast to everyone; only a mentor manages it.
-            if (IsLimitedRpo)
+            if (IsNonMentor)
             {
                 return;
             }

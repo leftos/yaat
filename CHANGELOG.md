@@ -5,6 +5,7 @@
 ### Added
 - ARTCCs can pin a procedure the FAA dropped from the CIFP under `Data/ARTCCs/{ARTCC}/Procedures/*.cifp`, keeping it available on every install.
 - `tools/stash-procedure.py` captures such a procedure from whichever AIRAC cycle still carries it.
+- **Scenario > Restart Scenario** re-runs the loaded scenario from the start with new traffic, available to every room member.
 
 ### Fixed
 - A rejected `DCT` to an un-programmed fix no longer discards the aircraft's queued conditionals and pending `WAIT`/`BEHIND` commands.
@@ -27,6 +28,8 @@
 - Re-placing a ghost target moves it on the student's STARS scope instead of leaving it at the first location.
 - Popping the Radar or Ground view in and out no longer leaves a hidden copy of it redrawing in the background.
 - KOAK's NIMITZ SID flies its published 315° initial turn on every install, not just machines holding an older AIRAC cycle.
+- Load and Unload Scenario are greyed out for non-mentors instead of appearing available and then doing nothing.
+- A rejected scenario action now reports the reason in the terminal rather than only in the status bar.
 
 ### Changed
 - The terminal is popped out and docked from **View > Pop Out Terminal**, like every other panel, instead of a button in its own header.

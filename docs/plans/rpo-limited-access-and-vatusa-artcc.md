@@ -8,7 +8,7 @@ VATUSA ARTCC auto-fill (Part C) — **shipped** (yaat-server `c62d544c`, yaat `5
 access (Parts A + B) + the unified Room Members modal — **implemented**, pending commit. Server: connect
 gate relaxed, capability gating (`RequireMentorOrInstructor` on CreateRoom/LoadScenario/Unload*/KickMember),
 `CanJoinRoomCore` invite gate, RPO lobby + `PullRpo` + `RpoLobbyChanged`, `TrainingRoom.InvitedCids`.
-Client: `IsLimitedRpo` gating, waiting overlay, merged Members + Students into one Room Members modal with
+Client: `IsNonMentor` gating, waiting overlay, merged Members + Students into one Room Members modal with
 CRC + YAAT lobbies.
 
 ## Confirmed decisions
@@ -20,6 +20,17 @@ CRC + YAAT lobbies.
    room they have all in-room controls — commands, pause/resume, sim rate, rewind, weather, auto-*
    settings. Mentor/instructor-only: `CreateRoom`, `LoadScenario`, **`KickMember`/room-retire**, and
    **`UnloadScenarioAircraft`** (an RPO must not evict the host or wipe the loaded scenario).
+
+   **Amendment: `RestartScenario` is open to non-mentors.** Restart re-runs the *same* scenario with
+   new traffic, so unlike unload it can neither strand the room nor switch scenarios — a solo student
+   can retry without an instructor present. Restart is therefore gated like rewind (any room member),
+   not like unload.
+
+   **Terminology.** "RPO" throughout this doc is legacy shorthand for *a non-mentor in limited mode*,
+   which is a rating-derived permission tier. It is **not** the RPO position itself — a mentor can and
+   often does work an RPO position with full powers. Use "non-mentor", never "RPO", when you mean the
+   permission tier; the client flag is `IsNonMentor` (renamed from `IsLimitedRpo`, which carried exactly
+   this confusion).
 3. **Mentor pulls from a lobby.** Connected RPOs sit in an RPO lobby (mirroring the CRC lobby). A
    mentor pulls one into their room; the RPO cannot self-join an uninvited room.
 4. **Silent home ARTCC, no override.** Resolve ARTCC from VATUSA's home facility, fall back to the
@@ -79,11 +90,18 @@ CRC + YAAT lobbies.
   list) showing lobby RPOs; clicking pulls. Driven by `GetRpoLobbyClients` + `RpoLobbyChanged`. No
   Student/RPO role distinction — any non-mentor YAAT client pulled in is an RPO with the in-room
   capabilities above. CRC trainees keep their existing separate pull flow.
-- [ ] **RPO UI (desktop).** Client computes `IsLimitedRpo = !(identity.IsMentor ||
+- [x] **RPO UI (desktop).** Client computes `IsNonMentor = !(identity.IsMentor ||
   ScenarioRatingClassifier.IsInstructorOrAbove(identity.Rating))` from the local `VatsimIdentity`
   (server still enforces). When limited: hide Create Room + Load Scenario + room-list join; show a
   "Connected as RPO — waiting for an instructor to add you" state. On `RoomAvailableForCid`, the
   existing `OnRoomAvailableForCid` auto-joins.
+
+  Create Room + room-list join shipped first; **Load/Unload Scenario were missed** — `IsNonMentor`
+  notified only `CreateRoomCommand`/`ShowRoomsCommand`, and `LoadScenarioMenuItem` bound `IsEnabled`
+  straight to `IsInRoom`, bypassing `CanExecute` entirely. Non-mentors hit the server's `HubException`,
+  which surfaced only as small gray status-bar text, and reported the commands "did nothing". Now
+  gated via `CanLoadScenario`/`CanUnloadScenario`, and rejected scenario actions also raise a terminal
+  warning (`ReportScenarioActionFailure`) so a server-side refusal is never silent.
 
 ## Part C — VATUSA ARTCC auto-fill (server + both clients + web)
 
