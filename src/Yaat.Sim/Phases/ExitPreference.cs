@@ -15,6 +15,13 @@ public sealed class ExitPreference
 }
 
 /// <summary>
+/// Whether a late <c>EL</c>/<c>ER</c>/<c>EXIT</c> can still change the exit an aircraft is committed to.
+/// <paramref name="UnableReason"/> is the controller-facing refusal text, non-null exactly when
+/// <paramref name="Allowed"/> is false. Produced by <c>RunwayExitPhase.EvaluateRetarget</c>.
+/// </summary>
+public readonly record struct ExitRetargetVerdict(bool Allowed, string? UnableReason);
+
+/// <summary>
 /// Fully resolved exit: hold-short node, branch point on the centerline,
 /// ordered path of intermediate nodes, taxiway name, and turn-off speed.
 /// Produced by LandingPhase's continuous evaluation; consumed by RunwayExitPhase.

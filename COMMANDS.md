@@ -772,7 +772,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft (overrides published missed approach) |
 | `GA RH` | Go around, fly runway heading explicitly (same behavior as plain `GA`) |
 | `GA RH 50` | Go around, fly runway heading, climb to 5,000 ft (overrides published missed approach) |
-| `EL` / `EXITL` | Exit runway to the left. Requires a pending landing or active runway exit; rejected with feedback otherwise. |
+| `EL` / `EXITL` | Exit runway to the left. Requires a pending landing or active runway exit; rejected with feedback otherwise. Can be re-issued to change the exit until the aircraft starts turning off. |
 | `ER` / `EXITR` | Exit runway to the right. Same precondition as `EL`. |
 | `EXIT A3` | Exit runway at taxiway A3. Same precondition as `EL`. |
 | `EL NODEL` / `ER NODEL` / `EXIT A3 NODEL` | Exit with auto-delete exemption |
@@ -780,6 +780,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `EXP` (standalone) | On a just-landed aircraft (rolling out or exiting), expedites the runway exit — same behavior as the `EXP` modifier above, without changing the assigned side/taxiway. |
 
 A side and a taxiway can be combined: `ER D` exits right at taxiway D, and giving the two as a sequence (`ER ; EXIT D`) does the same — a bare `EXIT <taxiway>` after `EL`/`ER` keeps the standing side. If that taxiway only exists on the other side of the runway, the aircraft still takes it (the taxiway is a hard constraint, the side a soft preference).
+
+**Changing the exit late.** An exit can be reassigned right up until the aircraft starts turning off — on final, during the rollout, and while it is rolling down the centerline toward the exit it has already picked. Once it is turning (or within about four seconds of the turn, which is also the point where it could no longer brake for a different one), the pilot replies *"Unable, already turning off at D"* and keeps the exit it is on. Naming a taxiway that is not ahead gets *"Unable, no B ahead"* rather than a silent substitution, so a late change never quietly sends the aircraft somewhere you did not ask for. A re-assigned aircraft adds power back up to taxi speed to reach the new exit instead of crawling down the runway.
 
 When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a higher rollout speed and only decelerates when kinematically necessary to reach the exit at the correct turn-off speed. High-speed exits (≤45° from runway heading) target ~30 kts; standard 90° exits target ~15 kts. Without an assigned exit, aircraft decelerate uniformly to 20 kts. Adding `EXP` ("without delay") raises the braking limit to a max-effort rate (jet ~7.5 kts/s vs the normal firm 5 kts/s) so the pilot takes the earliest reachable exit and brakes firmly to the hold-short stop — reducing runway occupancy at the cost of a firmer rollout.
 

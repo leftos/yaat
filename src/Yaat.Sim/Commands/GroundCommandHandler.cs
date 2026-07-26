@@ -2159,7 +2159,10 @@ internal static class GroundCommandHandler
             || !groundLayout.Nodes.ContainsKey(runwayNodeId)
         )
         {
-            return new CommandResult(false, "Unable to pull forward — runway-clearance geometry unavailable");
+            // "Unable, <reason>" — CLRWY is a Ground verb, so PilotResponder.BuildUnable strips the leading
+            // "unable" and speaks the rest. "Unable to pull forward, …" would come out as "unable, to pull
+            // forward, …".
+            return new CommandResult(false, "Unable, runway-clearance geometry unavailable");
         }
 
         // Supersede the binding taxiway hold-short and release the hold (resolving the tail-over-runway
@@ -2210,16 +2213,6 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Exit requires a pending landing or active runway exit");
         }
 
-        // Once RunwayExitPhase has handed a route to the navigator the turn-off is committed: its
-        // mid-tick preference re-check is unreachable in that state and nothing clears the route, so a
-        // late change was previously acknowledged and then ignored. Refuse it instead — the aircraft is
-        // already established in the turn, which is what the pilot would say. While it is still tracking
-        // the centerline the change is honored as before.
-        if (aircraft.Phases.CurrentPhase is Phases.Ground.RunwayExitPhase { CommittedExitTaxiway: { } committedExit })
-        {
-            return new CommandResult(false, $"Unable — already exiting at {committedExit}");
-        }
-
         // A taxiway-only exit (EXIT D) issued after an explicit side (EL/ER) keeps the
         // standing side, so "ER ; EXIT D" exits right AT D instead of dropping Right and
         // falling back to the inferred side (issue #276). An explicit side on the new
@@ -2228,6 +2221,20 @@ internal static class GroundCommandHandler
         if ((preference.Side is null) && (preference.Taxiway is not null) && (aircraft.Phases.RequestedExit?.Side is { } standingSide))
         {
             preference = new ExitPreference { Side = standingSide, Taxiway = preference.Taxiway };
+        }
+
+        // Handing a route to the navigator is not the same as turning off: the route's first segment runs
+        // straight down the runway centerline to the branch node, so a committed aircraft can still have the
+        // whole runway to run. The phase owns that distinction — it honors a change made before the turn-off
+        // begins and refuses one made after. Evaluated with the merged preference so "ER ; EXIT D" is probed
+        // as "right at D", not as a bare D.
+        if (aircraft.Phases.CurrentPhase is Phases.Ground.RunwayExitPhase exitPhase)
+        {
+            var verdict = exitPhase.EvaluateRetarget(aircraft, preference);
+            if (!verdict.Allowed)
+            {
+                return new CommandResult(false, verdict.UnableReason!);
+            }
         }
 
         aircraft.Phases.RequestedExit = preference;

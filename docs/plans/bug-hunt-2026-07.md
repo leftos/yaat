@@ -643,16 +643,18 @@ that has **never fired**, so the lost state is invisible.
 
 ### 15. `EL`/`ER`/`EXIT <twy>` during an active `RunwayExitPhase` is acknowledged but ignored — ✅ FIXED
 
-> **Fix applied**, taking the finding's second option: refuse rather than echo. `TryExitCommand` now
-> returns *"Unable — already exiting at J"* once the phase has handed a route to the navigator
-> (`CommittedExitTaxiway`), and is unchanged while the aircraft is still tracking the centerline.
+> **Fix applied** in two passes. The first refused rather than echoed: `TryExitCommand` returned
+> *"Unable — already exiting at J"* as soon as the phase had handed a route to the navigator.
 > Reproduced first: committed to J, `EXIT B` returned `Success=True, "Exit at B"`.
 >
-> Refusing was chosen over `LandingPhase`-style re-resolution because tearing down a committed route
-> mid-turn hands the pure-pursuit navigator an off-centerline aircraft with no route — the failure mode
-> that surfaces as an orbit exception. A pilot already established in the turn would say unable. Honoring
-> a change that arrives while the route is committed but the aircraft has not yet reached the turn-off
-> would be a genuine improvement on this, and is not attempted here.
+> The second pass took the improvement that one parked — honoring a change that arrives while the route
+> is committed but the turn-off has not begun. Handing over the route is not the same as turning: segment 0
+> is a virtual straight down the centerline to the branch node, so the aircraft is still tracking straight
+> and the teardown hands the navigator an on-centerline aircraft, not the off-centerline one that would
+> orbit. `RunwayExitPhase.EvaluateRetarget` is now the shared verdict — the phase re-points itself at the
+> new exit before the turn, and says *"Unable — already turning off at J"* after it. See
+> [`landing-and-runway-exit.md`](../landing-and-runway-exit.md) → *Changing the exit after the route is
+> committed*.
 
 - **File**: `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs:171-182`; `GroundCommandHandler.cs:2223`
 - **Severity**: medium — the controller gets a success echo for an instruction never followed; nothing logged

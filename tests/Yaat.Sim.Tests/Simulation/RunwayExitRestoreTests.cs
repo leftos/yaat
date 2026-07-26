@@ -115,4 +115,49 @@ public sealed class RunwayExitRestoreTests
 
         Assert.False(completed, "a phase restored mid-exit reported the exit complete on its first tick, skipping CompleteExit's cleanup");
     }
+
+    /// <summary>
+    /// The restore path rebuilds the exit route from segment 0, so the navigator's own segment index says
+    /// nothing about whether the aircraft was already turning. <c>TurnStarted</c> has to round-trip, or an
+    /// aircraft restored mid-turn would reopen the window for a late exit change it can no longer honor.
+    /// </summary>
+    [Fact]
+    public void TurnStarted_SurvivesASnapshotRoundTrip()
+    {
+        var layout = new TestAirportGroundData().GetLayout("OAK");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var pair = FindExitPair(layout, "28R");
+        if (pair is null)
+        {
+            return;
+        }
+
+        var (branch, holdShort, taxiway) = pair.Value;
+
+        var dto = new RunwayExitPhaseDto
+        {
+            Status = (int)PhaseStatus.Active,
+            ElapsedSeconds = 4.0,
+            ReachedExitNode = true,
+            ExitNodeId = holdShort.Id,
+            ExitTaxiway = taxiway,
+            RunwayId = "28R",
+            ExitSpeed = 25.0,
+            TimeSinceLastLog = 0.0,
+            RunwayHeadingDeg = 281.0,
+            ExitStateValue = (int)RunwayExitPhase.ExitState.FollowingExitPath,
+            TurnStarted = true,
+            ExitWaypointNodeIds = [branch.Id, holdShort.Id],
+        };
+
+        var restored = RunwayExitPhase.FromSnapshot(dto, layout);
+        Assert.True(restored.TurnStarted);
+
+        var round = Assert.IsType<RunwayExitPhaseDto>(restored.ToSnapshot());
+        Assert.True(round.TurnStarted);
+    }
 }

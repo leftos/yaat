@@ -41,10 +41,8 @@ public sealed class LandingPhase : Phase
 
     private const double CenterlineGainDegPerNm = 150.0;
     private const double MaxCenterlineCorrectionDeg = 10.0;
-    private const double FirmBrakingRateKtsPerSec = 5.0;
     private const double ComfortableBrakingMultiplier = 1.5;
     private const double MinSoftBrakingRateKtsPerSec = 0.5;
-    private const double TurnOffSpeedToleranceKts = 3.0;
 
     // --- Stabilization gate (FSF ALAR Briefing Note 7.1; FAA InFO 11009 endorses FSF criteria) ---
 
@@ -653,7 +651,7 @@ public sealed class LandingPhase : Phase
 
             if ((distToHoldShort > 0) && (ctx.Aircraft.IndicatedAirspeed > 1.0))
             {
-                double lahsoDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, 0, distToHoldShort);
+                double lahsoDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, 0, distToHoldShort);
                 if (lahsoDecel > decelRate)
                 {
                     decelRate = lahsoDecel;
@@ -663,7 +661,7 @@ public sealed class LandingPhase : Phase
             {
                 // Past the hold-short point — enforce immediate stop via a sub-coast target.
                 ctx.Targets.TargetSpeed = 0;
-                ctx.Targets.DesiredDecelRate = FirmBrakingRateKtsPerSec;
+                ctx.Targets.DesiredDecelRate = RolloutBraking.FirmBrakingRateKtsPerSec;
                 if (ctx.Aircraft.IndicatedAirspeed <= 0.5)
                 {
                     StoppedForLahso = true;
@@ -694,7 +692,7 @@ public sealed class LandingPhase : Phase
 
             // Missed-exit conditions: past branch AND (too fast OR standard exit at branch)
             double highSpeedTurnOff = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
-            bool tooFast = ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed + TurnOffSpeedToleranceKts;
+            bool tooFast = ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
             bool standardExitAtBranch = _candidateExit.TurnOffSpeed < highSpeedTurnOff;
 
             if ((distToBranchPoint <= 0) && (tooFast || standardExitAtBranch))
@@ -721,7 +719,7 @@ public sealed class LandingPhase : Phase
 
             if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed))
             {
-                double requiredDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, _candidateExit.TurnOffSpeed, distToBranch);
+                double requiredDecel = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, _candidateExit.TurnOffSpeed, distToBranch);
                 double brakingLimit = BrakingLimit(ctx, plan);
 
                 if (requiredDecel <= brakingLimit)
@@ -744,7 +742,7 @@ public sealed class LandingPhase : Phase
                     // Reserve distance for RunwayExitPhase to brake from coast to
                     // turn-off speed. Aim to reach coast speed at (branch - buffer),
                     // not at the branch itself.
-                    double brakingBufferNm = ComputeBrakingDistance(coastSpeed, _candidateExit.TurnOffSpeed, plan.DefaultDecel);
+                    double brakingBufferNm = RolloutBraking.BrakingDistanceNm(coastSpeed, _candidateExit.TurnOffSpeed, plan.DefaultDecel);
                     double effectiveDist = distToBranch - brakingBufferNm;
 
                     // Gentle decel when the exit is far enough that normal braking
@@ -752,7 +750,7 @@ public sealed class LandingPhase : Phase
                     // aircraft stays fast longer and arrives at coast near the exit.
                     if (effectiveDist > 0)
                     {
-                        double requiredDecelToCoast = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
+                        double requiredDecelToCoast = RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
                         if ((requiredDecelToCoast > 0) && (requiredDecelToCoast < decelRateOverride))
                         {
                             decelRateOverride = Math.Max(requiredDecelToCoast, MinSoftBrakingRateKtsPerSec);
@@ -1134,9 +1132,10 @@ public sealed class LandingPhase : Phase
                     return AirportGroundLayout.CandidateVerdict.Skip;
                 }
 
-                bool alreadySlowEnough = ctx.Aircraft.IndicatedAirspeed <= turnOffSpeed + TurnOffSpeedToleranceKts;
+                bool alreadySlowEnough = ctx.Aircraft.IndicatedAirspeed <= turnOffSpeed + RolloutBraking.TurnOffSpeedToleranceKts;
                 bool comfortablyReachable =
-                    alreadySlowEnough || (ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, turnOffSpeed, distToBranch) <= comfortLimit);
+                    alreadySlowEnough
+                    || (RolloutBraking.RequiredDecelKtsPerSec(ctx.Aircraft.GroundSpeed, turnOffSpeed, distToBranch) <= comfortLimit);
 
                 if (!comfortablyReachable)
                 {
@@ -1187,7 +1186,7 @@ public sealed class LandingPhase : Phase
             return CategoryPerformance.ExpediteExitDecelRate(ctx.Category);
         }
 
-        return _exitResolutionEnabled ? FirmBrakingRateKtsPerSec : plan.DefaultDecel * ComfortableBrakingMultiplier;
+        return _exitResolutionEnabled ? RolloutBraking.FirmBrakingRateKtsPerSec : plan.DefaultDecel * ComfortableBrakingMultiplier;
     }
 
     /// <summary>
@@ -1198,43 +1197,6 @@ public sealed class LandingPhase : Phase
     /// modifier form already re-resolves via the preference-change path.)
     /// </summary>
     internal void ResetExitCandidate() => _candidateExit = null;
-
-    /// <summary>
-    /// Compute required deceleration (kts/sec) to go from current ground speed to target speed
-    /// over the given distance. Uses kinematic equation: v_final² = v_initial² - 2·a·d.
-    /// </summary>
-    private static double ComputeRequiredDecel(double currentGroundSpeedKts, double targetSpeedKts, double distanceNm)
-    {
-        double currentFps = currentGroundSpeedKts * 6076.12 / 3600.0;
-        double targetFps = targetSpeedKts * 6076.12 / 3600.0;
-        double distFt = distanceNm * 6076.12;
-
-        if (distFt <= 0)
-        {
-            return FirmBrakingRateKtsPerSec;
-        }
-
-        double requiredDecelFps2 = (currentFps * currentFps - targetFps * targetFps) / (2.0 * distFt);
-        return requiredDecelFps2 * 3600.0 / 6076.12;
-    }
-
-    /// <summary>
-    /// Compute distance (nm) required to brake from one speed to another at a given decel rate.
-    /// Inverse of ComputeRequiredDecel: d = (v_i² - v_f²) / (2·a).
-    /// </summary>
-    private static double ComputeBrakingDistance(double fromSpeedKts, double toSpeedKts, double decelRateKtsPerSec)
-    {
-        if (decelRateKtsPerSec <= 0)
-        {
-            return 0;
-        }
-
-        double fromFps = fromSpeedKts * 6076.12 / 3600.0;
-        double toFps = toSpeedKts * 6076.12 / 3600.0;
-        double decelFps2 = decelRateKtsPerSec * 6076.12 / 3600.0;
-        double distFt = (fromFps * fromFps - toFps * toFps) / (2.0 * decelFps2);
-        return distFt / 6076.12;
-    }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {

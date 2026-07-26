@@ -459,6 +459,12 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     public required double TimeSinceLastLog { get; init; }
     public required double RunwayHeadingDeg { get; init; } = 0.0;
     public required int ExitStateValue { get; init; } = 0;
+
+    // Latched once the aircraft is committed AND has begun the turn-off, which is what closes the window
+    // for a late EL/ER/EXIT. Not `required`: absent on older snapshots, where false is the safe reading
+    // (the restore path rebuilds the exit route from segment 0 anyway).
+    public bool TurnStarted { get; init; }
+
     public GroundNavigatorDto? Navigator { get; init; }
 }
 

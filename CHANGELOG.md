@@ -30,7 +30,9 @@
 - A speed you assign to pattern traffic holds through the rest of the circuit instead of reverting to the standard leg speed at the next turn.
 - Speed instructions to traffic-pattern aircraft are accepted again; the "inside 5nm final" restriction now applies only to aircraft actually on final.
 - The `ONH` shorthand for `ONHO` works as a condition prefix instead of being rejected before it is sent.
-- Changing an aircraft's runway exit after it has started turning off is refused with a reason, instead of being acknowledged and ignored.
+- Changing an aircraft's runway exit is honored right up until it starts turning off, and refused with a reason after that.
+- Naming a runway exit the aircraft cannot reach is refused with the reason, instead of quietly substituting a different one.
+- Pilot "unable" replies read as clean phraseology instead of starting with stray punctuation.
 - Re-placing a ghost target moves it on the student's STARS scope instead of leaving it at the first location.
 - Popping the Radar or Ground view in and out no longer leaves a hidden copy of it redrawing in the background.
 - KOAK's NIMITZ SID flies its published 315° initial turn on every install, not just machines holding an older AIRAC cycle.

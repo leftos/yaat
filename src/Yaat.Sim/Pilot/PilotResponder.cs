@@ -1122,9 +1122,12 @@ public static class PilotResponder
             return "";
         }
 
+        // The separator sets cover en dash and em dash alongside the ASCII hyphen. Rejection reasons are
+        // authored as controller-facing text where "Unable — reason" is the natural typography, and an
+        // unhandled dash survives the strip to be spoken: "unable, — already turning off at G".
         var cleaned = reason.Trim();
-        cleaned = Regex.Replace(cleaned, @"^\s*unable\b[:,\s-]*", "", RegexOptions.IgnoreCase);
-        cleaned = cleaned.Trim(' ', '.', ',', ';', ':', '-');
+        cleaned = Regex.Replace(cleaned, @"^\s*unable\b[:,\s\-–—]*", "", RegexOptions.IgnoreCase);
+        cleaned = cleaned.Trim(' ', '.', ',', ';', ':', '-', '–', '—');
         if (cleaned.Length == 0)
         {
             return "";

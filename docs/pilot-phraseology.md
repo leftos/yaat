@@ -109,12 +109,28 @@ Note the arrival check-in vs approach-request distinction: an IFR arrival checks
 altitude and lateral state (and ATIS if held) — it does **not** request a runway (ATC assigns it).
 A pure reminder when no approach has been issued is the callsign-only "request approach assignment".
 
+## Authoring a rejection reason
+
+Most `CommandResult(false, …)` messages are **spoken**, not just printed: `CommandRegistry.DefaultProducesPilotUnable`
+opts in every command in the `Ground`, `Tower`, `Pattern`, `Navigation`, `Hold`, `Helicopter` and `Approach`
+categories, and `SimulationEngine.QueueSoloUnableIfNeeded` feeds the message to `BuildUnable`. That builder
+strips the leading "unable" token via `CleanUnableReason` and renders **"unable, {rest}."** — so the reason has
+to stand alone as a clause:
+
+| Authored | Spoken | |
+|---|---|---|
+| `"Unable, no G ahead"` | *unable, no G ahead.* | ✅ |
+| `"Unable to pull forward, no room"` | *unable, to pull forward, no room.* | ❌ the verb phrase is left dangling |
+
+`CleanUnableReason` strips en/em dashes alongside the ASCII hyphen, so `"Unable — reason"` is also safe; it did
+not always, which is how *"unable, — already turning off at G"* reached the frequency. `PilotResponderTests.BuildUnable_StripsTheLeadingTokenAndAnyDashAfterIt` pins it.
+
 ## Builder catalog
 
 Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `RpoTerminal`.
 
 - **Readbacks** — `BuildReadback(compound, aircraft)` (rule-driven, the bulk of readbacks);
-  `BuildUnable` (rejected command, gated by `CommandDefinition.ProducesPilotUnable`);
+  `BuildUnable` (rejected command, gated by `CommandDefinition.ProducesPilotUnable` — see the authoring rule below);
   `BuildUnableAirspaceAltitude` (an assigned altitude that would enter un-cleared Class B/C — AIM §5-5-6.a.3
   makes advising ATC the pilot's obligation, and the line names the altitude they *can* hold).
 - **Initial contact / check-in** — `BuildAirborneCheckIn` → `BuildIfrAirborne` / `BuildVfrAirborne`;

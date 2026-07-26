@@ -1248,6 +1248,27 @@ public class PilotResponderTests
         Assert.Contains("M2", result.Tts);
     }
 
+    /// <summary>
+    /// Rejection reasons are authored as controller-facing text, where "Unable — reason" is natural
+    /// typography. The leading-token strip has to treat en/em dashes like the ASCII hyphen it already
+    /// handles, or the dash survives into the transmission: "unable, — already turning off at G".
+    /// </summary>
+    [Theory]
+    [InlineData("Unable — already turning off at G", "unable, already turning off at G.")]
+    [InlineData("Unable – no G ahead", "unable, no G ahead.")]
+    [InlineData("Unable - runway-clearance geometry unavailable", "unable, runway-clearance geometry unavailable.")]
+    [InlineData("Unable, no left exit ahead", "unable, no left exit ahead.")]
+    [InlineData("Unable: traffic on the runway", "unable, traffic on the runway.")]
+    public void BuildUnable_StripsTheLeadingTokenAndAnyDashAfterIt(string reason, string expectedTerminal)
+    {
+        var ac = MakeAircraft("N123AB");
+        var result = PilotResponder.BuildUnable(ac, reason);
+
+        Assert.Equal(expectedTerminal, result.Terminal);
+        Assert.DoesNotContain("—", result.Tts, StringComparison.Ordinal);
+        Assert.DoesNotContain("–", result.Tts, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void BuildUnableToMaintainSeparation_RpoTerminalNamesLead_TtsDoesNot()
     {

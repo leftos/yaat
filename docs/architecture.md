@@ -594,7 +594,8 @@ Phases/PhaseContext.cs         # Readonly tick context; includes Weather, TowerP
 Phases/PhaseStatus.cs          # Enum: phase lifecycle status
 Phases/CommandAcceptance.cs    # Enum: Allowed, Rejected, ClearsPhase
 Phases/ClearanceRequirement.cs # Clearance requirement definitions
-Phases/ExitPreference.cs       # ExitSide enum, ExitPreference class, ResolvedExitInfo (branch point + path + turn-off speed)
+Phases/ExitPreference.cs       # ExitSide enum, ExitPreference class, ResolvedExitInfo (branch point + path + turn-off speed), ExitRetargetVerdict
+Phases/RolloutBraking.cs       # Braking kinematics + firm-rate/turn-off-tolerance limits shared by LandingPhase and RunwayExitPhase
 Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff/Land/Option/TouchAndGo/StopAndGo, RunwayCrossing
 Phases/RunwayInfo.cs           # Runway geometry
 Phases/GlideSlopeGeometry.cs   # Altitude/descent rate calculations (3° default)
