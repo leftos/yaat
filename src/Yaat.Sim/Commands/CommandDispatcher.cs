@@ -577,18 +577,26 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// Instructor advisory text for a procedure resolved from a cached prior AIRAC cycle because its coded
-    /// legs are absent from the current FAA CIFP — the procedure may be retired, or still charted but missing
-    /// from the CIFP dataset. Returns null when the procedure came from the current cycle.
+    /// Instructor advisory text for a procedure whose coded legs did not come from the current FAA CIFP —
+    /// either recovered from a cached prior AIRAC cycle, or supplied by an ARTCC CIFP fragment. The
+    /// procedure may be retired, or still charted but missing from the CIFP dataset. Returns null when the
+    /// procedure came from the current cycle.
     /// </summary>
-    internal static string? PriorCycleProcedureAdvisory(string kind, string procedureId, string? resolvedFromCycleId)
+    internal static string? ProcedureSourceAdvisory(string kind, string procedureId, ProcedureSource? source)
     {
-        if (resolvedFromCycleId is not { } cycle)
+        if (source is null)
         {
             return null;
         }
 
-        return $"{procedureId} ({kind}) resolved from a prior AIRAC cycle ({cycle}) — its coded data is absent from the current FAA CIFP. Verify against current charts and vector as needed.";
+        return source.Kind switch
+        {
+            ProcedureSourceKind.PriorCycle =>
+                $"{procedureId} ({kind}) resolved from a prior AIRAC cycle ({source.Label}) — its coded data is absent from the current FAA CIFP. Verify against current charts and vector as needed.",
+            ProcedureSourceKind.ArtccCustom =>
+                $"{procedureId} ({kind}) resolved from FAA CIFP data archived by {source.Label} — its coded data is absent from the current FAA CIFP. Verify against current charts and vector as needed.",
+            _ => null,
+        };
     }
 
     private static CommandResult ApplyCommandCore(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)

@@ -47,7 +47,9 @@ public class IssueN513sjNimi6PriorCycleChainTests
             var (noNimiCurrent, noNimiPrior, withNimiOlder, navData) = fx.Value;
 
             // --- Bug repro: no cached cycle has NIMI -> GetSid null -> degrade to runway heading. ---
-            var degradeDb = new NavigationDatabase(navData, noNimiCurrent, supplementaryCifpFilePaths: [noNimiPrior]);
+            // artccsBaseDir "" isolates this from the committed ZOA NIMITZ fragment, which resolves the SID
+            // in production (see CustomProcedureResolutionTests); this test covers the prior-cycle chain alone.
+            var degradeDb = new NavigationDatabase(navData, noNimiCurrent, artccsBaseDir: "", supplementaryCifpFilePaths: [noNimiPrior]);
             using (NavigationDatabase.ScopedOverride(degradeDb))
             {
                 Assert.Null(degradeDb.GetSid("KOAK", "NIMI6"));
@@ -55,16 +57,18 @@ public class IssueN513sjNimi6PriorCycleChainTests
                 Assert.NotNull(degraded);
                 Assert.True(degraded.RvSidHoldRunwayHeading);
                 Assert.Null(degraded.DepartureHeadingMagnetic);
-                Assert.Null(degraded.ResolvedFromCycleId);
+                Assert.Null(degraded.Source);
             }
 
             // --- Fix: the chain walks PAST the newest prior (no NIMI) to the older cycle that has it. ---
-            var fixedDb = new NavigationDatabase(navData, noNimiCurrent, supplementaryCifpFilePaths: [noNimiPrior, withNimiOlder]);
+            var fixedDb = new NavigationDatabase(navData, noNimiCurrent, artccsBaseDir: "", supplementaryCifpFilePaths: [noNimiPrior, withNimiOlder]);
             using (NavigationDatabase.ScopedOverride(fixedDb))
             {
-                var sid = fixedDb.GetSid("KOAK", "NIMI6", out var cycle);
+                var sid = fixedDb.GetSid("KOAK", "NIMI6", out var source);
                 Assert.NotNull(sid);
-                Assert.Equal("2604", cycle); // withNimiOlder is named FAACIFP18-2604
+                Assert.NotNull(source);
+                Assert.Equal(ProcedureSourceKind.PriorCycle, source.Kind);
+                Assert.Equal("2604", source.Label); // withNimiOlder is named FAACIFP18-2604
 
                 var result = DepartureClearanceHandler.ResolveDepartureRoute(new DefaultDeparture(), MakeOakDeparture());
                 Assert.NotNull(result);
@@ -73,10 +77,10 @@ public class IssueN513sjNimi6PriorCycleChainTests
                 Assert.Equal(315.0, result.DepartureHeadingMagnetic!.Value, 1.0);
                 // Runway-heading CA leg precedes the VM: defer the turn until the 400 ft AGL gate.
                 Assert.True(result.RvSidDeferHeadingUntilMinAlt);
-                Assert.Equal("2604", result.ResolvedFromCycleId);
+                Assert.Equal(new ProcedureSource(ProcedureSourceKind.PriorCycle, "2604"), result.Source);
 
                 // The instructor advisory names the SID and the source cycle.
-                var advisory = DepartureClearanceHandler.PriorCycleSidAdvisory(ClearanceType.ClearedForTakeoff, result, MakeOakDeparture());
+                var advisory = DepartureClearanceHandler.ProcedureSourceSidAdvisory(ClearanceType.ClearedForTakeoff, result, MakeOakDeparture());
                 Assert.NotNull(advisory);
                 Assert.Contains("NIMI6", advisory);
                 Assert.Contains("2604", advisory);
@@ -137,7 +141,7 @@ public class IssueN513sjNimi6PriorCycleChainTests
             // Discover a real KOAK STAR id from the full CIFP, then build a "current cycle" that drops it.
             var navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
             string? starId;
-            using (NavigationDatabase.ScopedOverride(new NavigationDatabase(navData, withStar, supplementaryCifpFilePaths: [])))
+            using (NavigationDatabase.ScopedOverride(new NavigationDatabase(navData, withStar, artccsBaseDir: "", supplementaryCifpFilePaths: [])))
             {
                 starId = NavigationDatabase.Instance.GetStars("KOAK").FirstOrDefault()?.ProcedureId;
             }
@@ -152,11 +156,11 @@ public class IssueN513sjNimi6PriorCycleChainTests
             File.WriteAllLines(noStarCurrent, File.ReadAllLines(withStar).Where(l => !l.Contains(token)));
 
             // Primary lacks the STAR; the supplementary cycle still carries it -> resolves with its cycle id.
-            var db = new NavigationDatabase(navData, noStarCurrent, supplementaryCifpFilePaths: [withStar]);
+            var db = new NavigationDatabase(navData, noStarCurrent, artccsBaseDir: "", supplementaryCifpFilePaths: [withStar]);
             Assert.Null(db.GetStars("KOAK").FirstOrDefault(s => s.ProcedureId.Equals(starId, StringComparison.OrdinalIgnoreCase)));
-            var resolved = db.GetStar("KOAK", starId, out var cycle);
+            var resolved = db.GetStar("KOAK", starId, out var starSource);
             Assert.NotNull(resolved);
-            Assert.Equal("2604", cycle);
+            Assert.Equal(new ProcedureSource(ProcedureSourceKind.PriorCycle, "2604"), starSource);
         }
         finally
         {
@@ -196,7 +200,9 @@ public class IssueN513sjNimi6PriorCycleChainTests
 
         var navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
         // Premise: NavData must still recognize NIMI6 (route expansion / RV-SID detection).
-        using var _ = NavigationDatabase.ScopedOverride(new NavigationDatabase(navData, noNimiCurrent, supplementaryCifpFilePaths: []));
+        using var _ = NavigationDatabase.ScopedOverride(
+            new NavigationDatabase(navData, noNimiCurrent, artccsBaseDir: "", supplementaryCifpFilePaths: [])
+        );
         if (NavigationDatabase.Instance.ResolveSidId("NIMI6") is null)
         {
             return null;

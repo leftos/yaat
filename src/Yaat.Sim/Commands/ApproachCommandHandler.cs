@@ -23,17 +23,17 @@ public static class ApproachCommandHandler
     public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft)
     {
         var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
-        return AttachPriorCycleAdvisory(TryClearedApproachCore(cmd, aircraft, resolved), resolved);
+        return AttachProcedureSourceAdvisory(TryClearedApproachCore(cmd, aircraft, resolved), resolved);
     }
 
-    /// <summary>Instructor advisory when the cleared/joined approach resolved from a cached prior CIFP cycle
-    /// (its coded data is absent from the current FAA CIFP).</summary>
-    private static CommandResult AttachPriorCycleAdvisory(CommandResult result, ResolvedApproach resolved)
+    /// <summary>Instructor advisory when the cleared/joined approach's coded data did not come from the
+    /// current FAA CIFP — recovered from a cached prior cycle, or supplied by an ARTCC CIFP fragment.</summary>
+    private static CommandResult AttachProcedureSourceAdvisory(CommandResult result, ResolvedApproach resolved)
     {
-        return result.Success && resolved.ResolvedFromCycleId is { } cycle && resolved.Procedure is { } proc
+        return result.Success && resolved.Source is { } source && resolved.Procedure is { } proc
             ? result with
             {
-                Advisory = CommandDispatcher.PriorCycleProcedureAdvisory("approach", proc.ApproachId, cycle),
+                Advisory = CommandDispatcher.ProcedureSourceAdvisory("approach", proc.ApproachId, source),
             }
             : result;
     }
@@ -262,7 +262,7 @@ public static class ApproachCommandHandler
     public static CommandResult TryJoinApproach(string approachId, string? airportCode, bool force, bool straightIn, AircraftState aircraft)
     {
         var resolved = ResolveApproach(approachId, airportCode, aircraft);
-        return AttachPriorCycleAdvisory(TryJoinApproachCore(approachId, airportCode, force, straightIn, aircraft, resolved), resolved);
+        return AttachProcedureSourceAdvisory(TryJoinApproachCore(approachId, airportCode, force, straightIn, aircraft, resolved), resolved);
     }
 
     private static CommandResult TryJoinApproachCore(
@@ -885,7 +885,7 @@ public static class ApproachCommandHandler
 
     private static ResolvedApproach BuildResolved(NavigationDatabase navDb, string airport, string approachId)
     {
-        var procedure = navDb.GetApproach(airport, approachId, out var resolvedFromCycleId);
+        var procedure = navDb.GetApproach(airport, approachId, out var procedureSource);
         if (procedure?.Runway is null)
         {
             return ResolvedApproach.Fail($"No runway for approach {approachId}");
@@ -899,7 +899,7 @@ public static class ApproachCommandHandler
 
         var approachRunway = runway.IsActiveEnd(procedure.Runway) ? runway : runway.ForApproach(procedure.Runway);
 
-        return new ResolvedApproach(procedure, approachRunway, airport, resolvedFromCycleId);
+        return new ResolvedApproach(procedure, approachRunway, airport, procedureSource);
     }
 
     /// <summary>
@@ -1968,16 +1968,16 @@ public static class ApproachCommandHandler
         public RunwayInfo? Runway { get; }
         public string? Airport { get; }
 
-        /// <summary>Source cycle id when resolved from a retired prior CIFP cycle; null when from the current cycle.</summary>
-        public string? ResolvedFromCycleId { get; }
+        /// <summary>Non-current source that supplied the procedure; null when it came from the current CIFP cycle.</summary>
+        public ProcedureSource? Source { get; }
 
-        public ResolvedApproach(CifpApproachProcedure procedure, RunwayInfo runway, string airport, string? resolvedFromCycleId = null)
+        public ResolvedApproach(CifpApproachProcedure procedure, RunwayInfo runway, string airport, ProcedureSource? source)
         {
             Success = true;
             Procedure = procedure;
             Runway = runway;
             Airport = airport;
-            ResolvedFromCycleId = resolvedFromCycleId;
+            Source = source;
         }
 
         private ResolvedApproach(string error)

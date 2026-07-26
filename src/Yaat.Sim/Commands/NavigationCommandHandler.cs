@@ -316,7 +316,7 @@ internal static class NavigationCommandHandler
         }
 
         // Try CIFP STAR first for constrained navigation targets
-        var cifpResult = TryResolveStarFromCifp(cmd, aircraft, out var starResolvedFromCycleId);
+        var cifpResult = TryResolveStarFromCifp(cmd, aircraft, out var starSource);
         if (cifpResult is not null)
         {
             aircraft.Targets.NavigationRoute.Clear();
@@ -332,7 +332,7 @@ internal static class NavigationCommandHandler
             var cifpFixList = string.Join(" ", cifpResult.Select(t => FixDisplay(t.Name)));
             return CommandDispatcher.Ok($"Join STAR {cmd.StarId}: {cifpFixList}") with
             {
-                Advisory = CommandDispatcher.PriorCycleProcedureAdvisory("STAR", cmd.StarId, starResolvedFromCycleId),
+                Advisory = CommandDispatcher.ProcedureSourceAdvisory("STAR", cmd.StarId, starSource),
             };
         }
 
@@ -416,16 +416,16 @@ internal static class NavigationCommandHandler
     /// Builds ordered leg sequence: enroute transition → common → runway transition.
     /// Returns null if CIFP data is unavailable or STAR cannot be resolved.
     /// </summary>
-    private static List<NavigationTarget>? TryResolveStarFromCifp(JoinStarCommand cmd, AircraftState aircraft, out string? resolvedFromCycleId)
+    private static List<NavigationTarget>? TryResolveStarFromCifp(JoinStarCommand cmd, AircraftState aircraft, out ProcedureSource? source)
     {
-        resolvedFromCycleId = null;
+        source = null;
         if (aircraft.FlightPlan.Destination is null)
         {
             return null;
         }
 
         var navDb = NavigationDatabase.Instance;
-        var star = navDb.GetStar(aircraft.FlightPlan.Destination, cmd.StarId, out resolvedFromCycleId);
+        var star = navDb.GetStar(aircraft.FlightPlan.Destination, cmd.StarId, out source);
         if (star is null)
         {
             return null;

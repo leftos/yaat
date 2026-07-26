@@ -16,7 +16,7 @@ internal sealed record DepartureRouteResult(
     bool RvSidDeferHeadingUntilMinAlt = false,
     bool RvSidHoldRunwayHeading = false,
     List<ProcedureLeg>? ProcedureLegs = null,
-    string? ResolvedFromCycleId = null
+    ProcedureSource? Source = null
 );
 
 internal static class DepartureClearanceHandler
@@ -110,7 +110,7 @@ internal static class DepartureClearanceHandler
             cto.AssignedAltitude
         ) with
         {
-            Advisory = PriorCycleSidAdvisory(ClearanceType.ClearedForTakeoff, routeResult, aircraft),
+            Advisory = ProcedureSourceSidAdvisory(ClearanceType.ClearedForTakeoff, routeResult, aircraft),
         };
     }
 
@@ -213,7 +213,7 @@ internal static class DepartureClearanceHandler
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with
         {
-            Advisory = PriorCycleSidAdvisory(clearanceType, routeResult, aircraft),
+            Advisory = ProcedureSourceSidAdvisory(clearanceType, routeResult, aircraft),
         };
     }
 
@@ -242,7 +242,7 @@ internal static class DepartureClearanceHandler
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with
         {
-            Advisory = PriorCycleSidAdvisory(clearanceType, routeResult, aircraft),
+            Advisory = ProcedureSourceSidAdvisory(clearanceType, routeResult, aircraft),
         };
     }
 
@@ -367,7 +367,7 @@ internal static class DepartureClearanceHandler
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with
         {
-            Advisory = PriorCycleSidAdvisory(clearanceType, routeResult, aircraft),
+            Advisory = ProcedureSourceSidAdvisory(clearanceType, routeResult, aircraft),
         };
     }
 
@@ -568,25 +568,25 @@ internal static class DepartureClearanceHandler
 
         return BuildDepartureMessage(ClearanceType.ClearedForTakeoff, takeoffDesignator, departure, assignedAltitude) with
         {
-            Advisory = PriorCycleSidAdvisory(ClearanceType.ClearedForTakeoff, routeResult, aircraft),
+            Advisory = ProcedureSourceSidAdvisory(ClearanceType.ClearedForTakeoff, routeResult, aircraft),
         };
     }
 
     /// <summary>
-    /// Instructor-facing advisory when the filed SID was resolved from a cached prior AIRAC cycle because its
-    /// coded legs are absent from the current FAA CIFP (the procedure may be retired, or still charted but
-    /// missing from the CIFP dataset). Null when the SID came from the current cycle or the clearance is not a
-    /// takeoff clearance.
+    /// Instructor-facing advisory when the filed SID's coded legs did not come from the current FAA CIFP —
+    /// recovered from a cached prior AIRAC cycle, or supplied by an ARTCC CIFP fragment (the procedure may be
+    /// retired, or still charted but missing from the CIFP dataset). Null when the SID came from the current
+    /// cycle or the clearance is not a takeoff clearance.
     /// </summary>
-    internal static string? PriorCycleSidAdvisory(ClearanceType clearanceType, DepartureRouteResult? routeResult, AircraftState aircraft)
+    internal static string? ProcedureSourceSidAdvisory(ClearanceType clearanceType, DepartureRouteResult? routeResult, AircraftState aircraft)
     {
-        if (clearanceType != ClearanceType.ClearedForTakeoff || routeResult?.ResolvedFromCycleId is not { } cycle)
+        if (clearanceType != ClearanceType.ClearedForTakeoff || routeResult?.Source is not { } source)
         {
             return null;
         }
 
         var sidName = (aircraft.FlightPlan.Route ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "SID";
-        return CommandDispatcher.PriorCycleProcedureAdvisory("SID", sidName, cycle);
+        return CommandDispatcher.ProcedureSourceAdvisory("SID", sidName, source);
     }
 
     internal static CommandResult BuildDepartureMessage(
@@ -904,7 +904,7 @@ internal static class DepartureClearanceHandler
 
         // First route token is the SID name
         var sidName = routeTokens[0];
-        var sid = navDb.GetSid(aircraft.FlightPlan.Departure, sidName, out var resolvedFromCycleId);
+        var sid = navDb.GetSid(aircraft.FlightPlan.Departure, sidName, out var procedureSource);
         if (sid is null)
         {
             return null;
@@ -995,7 +995,7 @@ internal static class DepartureClearanceHandler
                 aircraft.FlightPlan.Departure
             );
             StripNearDepartureTargets(rvTargets, aircraft.FlightPlan.Departure);
-            return new DepartureRouteResult(rvTargets, null, heading, deferHeading, ResolvedFromCycleId: resolvedFromCycleId);
+            return new DepartureRouteResult(rvTargets, null, heading, deferHeading, Source: procedureSource);
         }
 
         // Convert SID legs to NavigationTargets with constraints
@@ -1013,9 +1013,7 @@ internal static class DepartureClearanceHandler
         // plain TF/CF SIDs keep the flat direct-to-fix path unchanged.
         var procedureLegs = ProcedureLegResolver.ExtractActiveDepartureLegs(ProcedureLegResolver.Resolve(orderedLegs));
 
-        return targets.Count > 0
-            ? new DepartureRouteResult(targets, sid.ProcedureId, ProcedureLegs: procedureLegs, ResolvedFromCycleId: resolvedFromCycleId)
-            : null;
+        return targets.Count > 0 ? new DepartureRouteResult(targets, sid.ProcedureId, ProcedureLegs: procedureLegs, Source: procedureSource) : null;
     }
 
     /// <summary>
@@ -1708,6 +1706,6 @@ internal static class DepartureClearanceHandler
         {
             msg += $", climb and maintain {ctopp.AssignedAltitude:N0}";
         }
-        return CommandDispatcher.Ok(msg) with { Advisory = PriorCycleSidAdvisory(ClearanceType.ClearedForTakeoff, routeResult, aircraft) };
+        return CommandDispatcher.Ok(msg) with { Advisory = ProcedureSourceSidAdvisory(ClearanceType.ClearedForTakeoff, routeResult, aircraft) };
     }
 }

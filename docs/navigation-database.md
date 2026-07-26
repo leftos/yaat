@@ -23,6 +23,9 @@ tightly coupled: `RouteExpander` reads SID/STAR/airway data straight out of a `N
 | `src/Yaat.Sim/Data/RouteExpander.cs` | Stateless route-token expander (SID → STAR → dot-airway → bare-airway → plain fix). |
 | `src/Yaat.Sim/Data/FrdResolver.cs` | Fix-Radial-Distance string ↔ lat/lon. |
 | `src/Yaat.Sim/Data/CustomFixLoader.cs` / `CustomFixDefinition.cs` | Loads `Data/ARTCCs/{ARTCC}/CustomFixes/*.json` into custom fixes. |
+| `src/Yaat.Sim/Data/CustomProcedureLoader.cs` | Indexes ARTCC-supplied CIFP fragments (`Data/ARTCCs/{ARTCC}/Procedures/*.cifp`). |
+| `src/Yaat.Sim/Data/ProcedureSource.cs` | Which non-current source supplied a procedure (prior cycle vs ARTCC fragment). |
+| `tools/stash-procedure.py` | Finds a procedure in any reachable AIRAC cycle and writes the fragment. |
 | `src/Yaat.Sim/Data/ApproachGateDatabase.cs` | Precomputed min-intercept distances per (airport, runway), FAA 7110.65 §5-9-1. |
 | `src/Yaat.Sim/Testing/TestVnasData.cs` | Test entry point — populates the singleton with real data (never synthetic). |
 | `tests/Yaat.Sim.Tests/NavDbMutatorCollection.cs` | xUnit collection that serializes tests which swap in a synthetic DB. |
@@ -158,20 +161,61 @@ that should accept a short STAR name (e.g. `JARR`), resolve explicitly via `Navi
 handler (`NavigationCommandHandler`) and `AircraftGenerator` do this. `DVIA` self-resolve scans the *filed route* (already-versioned
 names) with the strict `ResolveStarId`, so it doesn't need the loose form.
 
-### Supplementary CIFP chain for retired procedures
+### Procedure resolution has three tiers
 
 A procedure's coded legs can be absent from the *current* FAA CIFP while a scenario still files it — either the procedure was
-retired, or (like the NIMITZ SID at KOAK) it is still charted but simply missing from the CIFP dataset.
-`GetSid` / `GetStar` / `GetApproach` first search the current-cycle CIFP; on a miss they walk the **supplementary chain**
+retired, or (like the NIMITZ SID at KOAK) it is still charted but simply missing from the CIFP dataset. `GetSid` / `GetStar` /
+`GetApproach` search, in order:
+
+1. **Current FAA cycle** — the normal case; `source` out-param is `null`, no advisory.
+2. **ARTCC-supplied fragment** (`Data/ARTCCs/{ARTCC}/Procedures/*.cifp`) — see below.
+3. **Supplementary chain** of cached prior AIRAC cycles — see below.
+
+Tiers 2 and 3 return a `ProcedureSource(Kind, Label)` via the `out` overload, which drives the instructor advisory
+(`CommandDispatcher.ProcedureSourceAdvisory`). `Label` is the ARTCC id for `ArtccCustom` and the AIRAC cycle id for `PriorCycle`.
+
+### ARTCC-supplied CIFP fragments
+
+The chain in tier 3 is bounded twice over: by **time** (~12 months of cycles) and by **place** (only cycles this machine has
+cached — a fresh server has one). A committed fragment is neither. `CustomProcedureLoader.LoadAll(artccsBaseDir)` indexes
+`Data/ARTCCs/{ARTCC}/Procedures/*.cifp`, and `NavigationDatabase.LoadCustomProcedures` (called from the constructor, after
+`BuildProcedureIndex`) parses each **eagerly** into `_customProcedures`, keyed by normalized airport.
+
+A fragment is verbatim ARINC 424 records copied out of a published cycle — `CifpParser` reads it exactly as it reads a full
+cycle file, so there is no second parser and no schema to drift. Generate one with `tools/stash-procedure.py`; never by hand.
+Full authoring guide: [`src/Yaat.Sim/Data/ARTCCs/README.md`](../src/Yaat.Sim/Data/ARTCCs/README.md#procedures).
+
+Two behaviors worth knowing:
+
+- **Shadow warning.** Loading warns when the current cycle already publishes a fragment's procedure — the fragment can never win
+  (tier 1 precedes it) and should be deleted.
+- **NavData-side registration.** vNAS NavData and CIFP are *separate* stores: NavData holds the flat SID/STAR fix-name bodies that
+  drive `ResolveSidId` → `RouteExpander` → route-string parsing and autocomplete, while CIFP holds the typed flyable legs. A
+  fragment supplies the CIFP side; for a procedure vNAS does **not** carry, `RegisterCustomSidOnNavDataSide` /
+  `RegisterCustomStarOnNavDataSide` also derive a body (`LateralFixes` of the common legs, fix-less heading legs dropped, adjacent
+  duplicates collapsed) plus its real CIFP enroute transitions. This is skipped entirely when `ResolveSidId`/`ResolveStarId`
+  already resolves — **live vNAS data is never shadowed** — and it never synthesizes vNAS-style `[OAK, X]` routing hints.
+
+`ApproachGateDatabase.Initialize(primary, additional)` takes the fragment parse results as its second argument
+(`NavigationDatabase.CustomProcedureFilePaths` → `CifpParser.Parse`), so a pinned approach's FAF still yields a real gate distance
+instead of the 7.0 nm default.
+
+### Supplementary CIFP chain for retired procedures
+
+`GetSid` / `GetStar` / `GetApproach` fall through to the **supplementary chain**
 (`_supplementaryCifpFilePaths`, newest→oldest cached prior cycles) and resolve from the most recent cycle that still carries the
-procedure, logging a warning and returning the source cycle id via the `out string? resolvedFromCycleId` overload (which drives the
+procedure, logging a warning and returning the source cycle id via the `out ProcedureSource? source` overload (which drives the
 instructor advisory). The chain is the cached prior AIRAC cycles within a recency cap (`CifpPathResolver.MaxSupplementaryLookbackCycles`
 = ~1 year), assembled by `CifpDataService` into `SupplementaryCifpFilePaths` — the app caches each cycle it downloads, so this
 auto-accumulates with no shipped data. Resolving newest-prior-only (the old single-path behavior) missed procedures retired more than
 one cycle ago even when older cached cycles still had them. Production wires `cifpService.SupplementaryCifpFilePaths` (`YaatHost.cs`);
 a bare `new NavigationDatabase(navData, cifp, artccsBaseDir: "")` in a test passes an empty chain, so a retired SID returns `null`
-there. (`IssueN513sjNimiRvSidCifpMissTests` exercises the empty-chain degradation; `IssueN513sjNimi6RetiredCycleChainTests`
-exercises the chain walk recovering NIMI5's published 315° heading.)
+there. (`IssueN513sjNimiRvSidCifpMissTests` exercises the empty-chain degradation; `IssueN513sjNimi6PriorCycleChainTests`
+exercises the chain walk recovering NIMI5's published 315° heading; `CustomProcedureResolutionTests` covers the fragment tier.)
+
+> Tests that assert on *unresolvable*-procedure behavior must pass `artccsBaseDir: ""`. The shipped ZOA NIMITZ fragment resolves
+> `NIMI5`/`NIMI6` at KOAK in production, so a test that constructs a `NavigationDatabase` with the default ARTCC dir will no longer
+> see the degradation path. Both NIMI test classes now pass `""` explicitly for this reason.
 
 ### Lazy per-airport CIFP cache
 
@@ -398,7 +442,7 @@ Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
 1. If the lookup is keyed by airport, route the key through `NormalizeAirport` (or use `AirportIdsMatch`) **and** implement the
    3↔4-letter K-prefix fallback — don't assume the caller passed FAA vs ICAO form.
 2. If it's a procedure lookup, go through `ResolveSidId`/`ResolveStarId`/`FindSidInList` so version drift (`CNDEL5`→`CNDEL6`)
-   resolves; consider whether the supplementary-CIFP fallback applies.
+   resolves; consider whether the ARTCC-fragment and supplementary-CIFP fallbacks apply (all three tiers, in order).
 3. Decide `Instance` (throws — required lookup) vs `InstanceOrNull` (best-effort with a fallback).
 4. If tests need to seed the new data, add a parameter to `ForTesting(...)` so tests don't reach for a synthetic stub.
 5. If the lookup parses CIFP per-airport, cache it in a `ConcurrentDictionary` and use `GetOrAdd`, mirroring `GetSids`.
@@ -418,9 +462,15 @@ Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
   fallback. An exact-id lookup that bypasses `ResolveSidId`/`FindSidInList` silently misses the current cycle's procedure. Note
   `StripTrailingDigits` preserves ≥ 2 chars and returns the input unchanged when there are no trailing digits — and
   `ResolveSidId`/`ResolveStarId` return `null` (not the input) for a digit-less id that isn't an exact key.
-- **Retired procedures need the supplementary CIFP.** A SID dropped from the current FAA cycle resolves only via
-  `GetSid → GetSupplementarySids`. Without `supplementaryCifpFilePath` wired (production passes it; a bare `ForTesting`/`new`
-  with no supplementary path does not), the SID returns `null`.
+- **Retired procedures need the supplementary CIFP or an ARTCC fragment.** A SID dropped from the current FAA cycle resolves only
+  via the fragment tier or `GetSid → GetSupplementarySids`. Without `supplementaryCifpFilePath` wired (production passes it; a bare
+  `ForTesting`/`new` with no supplementary path does not) *and* without a committed fragment, the SID returns `null`.
+- **The prior-cycle chain expires; a fragment does not.** The chain is capped at ~12 months and is built from whatever cycles that
+  particular machine cached, so the same scenario can fly differently on two deployments and will eventually stop resolving
+  everywhere. Anything a facility actually depends on belongs in `Data/ARTCCs/{ARTCC}/Procedures/` — stash it with
+  `tools/stash-procedure.py` **while a cycle that still has it is reachable**, not after the window closes.
+- **A test asserting an unresolvable procedure must pass `artccsBaseDir: ""`.** Otherwise it picks up the committed fragments and
+  the procedure resolves after all. This already bit both KOAK NIMITZ test classes.
 - **CIFP speed limits carry a *type*, and continuation records are skipped.** `CifpParser.ParseSpeedRestriction(speedStr, descChar)`
   maps the ARINC 424 §5.261 speed-limit description (col 117) to `CifpSpeedRestrictionType { AtOrBelow, AtOrAbove, Mandatory }`:
   `'-'` → AtOrBelow (max), `'+'` → AtOrAbove (min — only ~4 legs in all US CIFP, e.g. KIAH DOOBI3 HHART 230+), blank → Mandatory.

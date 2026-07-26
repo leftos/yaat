@@ -23,14 +23,34 @@ public static class ApproachGateDatabase
 
     private static bool _initialized;
 
-    public static void Initialize(CifpParseResult cifpData)
+    /// <summary>
+    /// Builds the gate table from the current FAA CIFP cycle plus any <paramref name="additional"/> parse
+    /// results — ARTCC-supplied procedure fragments, whose approaches would otherwise fall back to the
+    /// <see cref="DefaultMinInterceptNm"/> default. <paramref name="cifpData"/> wins on a conflicting FAF.
+    /// Reads <see cref="NavigationDatabase.Instance"/> internally, so initialize the nav DB first.
+    /// </summary>
+    public static void Initialize(CifpParseResult cifpData, IReadOnlyList<CifpParseResult> additional)
     {
         var navDb = NavigationDatabase.Instance;
         var result = new Dictionary<(string Airport, string Runway), double>();
         int computed = 0;
         int skipped = 0;
 
-        foreach (var ((airport, runway), fafFixName) in cifpData.FafFixes)
+        var fafFixes = new Dictionary<(string Airport, string Runway), string>();
+        foreach (var extra in additional)
+        {
+            foreach (var (key, fix) in extra.FafFixes)
+            {
+                fafFixes[key] = fix;
+            }
+        }
+
+        foreach (var (key, fix) in cifpData.FafFixes)
+        {
+            fafFixes[key] = fix;
+        }
+
+        foreach (var ((airport, runway), fafFixName) in fafFixes)
         {
             // Resolve FAF fix position
             (double Lat, double Lon)? fafPos = navDb.GetFixPosition(fafFixName);
@@ -38,6 +58,18 @@ public static class ApproachGateDatabase
             if (fafPos is null && cifpData.TerminalWaypoints.TryGetValue(fafFixName, out var terminalPos))
             {
                 fafPos = terminalPos;
+            }
+
+            if (fafPos is null)
+            {
+                foreach (var extra in additional)
+                {
+                    if (extra.TerminalWaypoints.TryGetValue(fafFixName, out var extraPos))
+                    {
+                        fafPos = extraPos;
+                        break;
+                    }
+                }
             }
 
             if (fafPos is null)

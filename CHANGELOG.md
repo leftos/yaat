@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-### Changed
-- The terminal is popped out and docked from **View > Pop Out Terminal**, like every other panel, instead of a button in its own header.
+### Added
+- ARTCCs can pin a procedure the FAA dropped from the CIFP under `Data/ARTCCs/{ARTCC}/Procedures/*.cifp`, keeping it available on every install.
+- `tools/stash-procedure.py` captures such a procedure from whichever AIRAC cycle still carries it.
 
 ### Fixed
 - A rejected `DCT` to an un-programmed fix no longer discards the aircraft's queued conditionals and pending `WAIT`/`BEHIND` commands.
@@ -25,6 +26,10 @@
 - Changing an aircraft's runway exit after it has started turning off is refused with a reason, instead of being acknowledged and ignored.
 - Re-placing a ghost target moves it on the student's STARS scope instead of leaving it at the first location.
 - Popping the Radar or Ground view in and out no longer leaves a hidden copy of it redrawing in the background.
+- KOAK's NIMITZ SID flies its published 315° initial turn on every install, not just machines holding an older AIRAC cycle.
+
+### Changed
+- The terminal is popped out and docked from **View > Pop Out Terminal**, like every other panel, instead of a button in its own header.
 
 ## v0.9.16-beta [2026/07/24]
 

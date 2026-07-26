@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
@@ -66,6 +67,17 @@ public sealed class NavigationDatabase
     // Supplementary CIFP chain (newest→oldest cached prior cycles, plus any bundle) consulted when a
     // procedure is absent from the current cycle. Empty when no older source is available.
     private readonly IReadOnlyList<string> _supplementaryCifpFilePaths;
+
+    // ARTCC-supplied CIFP fragments, parsed eagerly at construction and keyed by normalized airport.
+    // Consulted after the current cycle and before the supplementary chain, so a pinned procedure resolves
+    // identically on every deployment regardless of which prior cycles that machine happens to have cached.
+    private readonly Dictionary<string, CustomAirportProcedures> _customProcedures = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Paths of the loaded ARTCC procedure fragments. <see cref="ApproachGateDatabase"/> parses these
+    /// alongside the primary CIFP so a pinned approach's FAF still yields a real gate distance.
+    /// </summary>
+    public IReadOnlyList<string> CustomProcedureFilePaths { get; private set; } = [];
 
     private static readonly ILogger Log = SimLog.CreateLogger("NavigationDatabase");
 
@@ -151,6 +163,7 @@ public sealed class NavigationDatabase
         BuildIndex(navData);
         BuildProcedureIndex(navData);
         LoadCifpNavaids(cifpFilePath);
+        LoadCustomProcedures(artccsBaseDir);
         LoadCustomFixes(artccsBaseDir);
         LoadFixPronunciations(artccsBaseDir);
         InitialContactTransfers = LoadInitialContactTransfers(artccsBaseDir);
@@ -995,21 +1008,47 @@ public sealed class NavigationDatabase
     //  CIFP lookups (parsed per-airport on first access)
     // ──────────────────────────────────────────────
 
+    private bool TryGetCustomProcedures(string airportCode, [MaybeNullWhen(false)] out CustomAirportProcedures custom) =>
+        _customProcedures.TryGetValue(NormalizeAirport(airportCode), out custom);
+
+    /// <summary>
+    /// Builds the advisory source for a fragment hit. <paramref name="resolvedId"/> is the *matched*
+    /// procedure's id (e.g. NIMI5), not the requested one (NIMI6) — version drift means they differ, and the
+    /// ARTCC credit is keyed on what was actually loaded.
+    /// </summary>
+    private static ProcedureSource CustomProcedureSource(CustomAirportProcedures custom, string kind, string resolvedId, string airportCode)
+    {
+        string artcc = custom.ArtccByProcedureId.TryGetValue(resolvedId, out var owner) ? owner : "ARTCC";
+        Log.LogInformation(
+            "{Kind} {ProcedureId} at {Airport} resolved from {Artcc} ARTCC-supplied procedure data (absent from current FAA cycle)",
+            kind,
+            resolvedId,
+            airportCode,
+            artcc
+        );
+        return new ProcedureSource(ProcedureSourceKind.ArtccCustom, artcc);
+    }
+
     public CifpSidProcedure? GetSid(string airportCode, string sidId) => GetSid(airportCode, sidId, out _);
 
     /// <summary>
-    /// Resolves a SID, walking the supplementary CIFP chain (newest→oldest cached prior cycles) when the
-    /// procedure is absent from the current cycle. <paramref name="resolvedFromCycleId"/> is set to the
-    /// source cycle label (e.g. <c>"2604"</c>) when the procedure came from a non-current cycle — the
-    /// signal for the retired-procedure advisory — and null when it came from the current cycle.
+    /// Resolves a SID: current FAA cycle → ARTCC-supplied fragment → supplementary CIFP chain (newest→oldest
+    /// cached prior cycles). <paramref name="source"/> identifies the non-current source that supplied the
+    /// procedure — the signal for the instructor advisory — and is null when it came from the current cycle.
     /// </summary>
-    public CifpSidProcedure? GetSid(string airportCode, string sidId, out string? resolvedFromCycleId)
+    public CifpSidProcedure? GetSid(string airportCode, string sidId, out ProcedureSource? source)
     {
-        resolvedFromCycleId = null;
+        source = null;
         var match = FindSidInList(GetSids(airportCode), sidId);
         if (match is not null)
         {
             return match;
+        }
+
+        if (TryGetCustomProcedures(airportCode, out var custom) && FindSidInList(custom.Sids, sidId) is { } customMatch)
+        {
+            source = CustomProcedureSource(custom, "SID", customMatch.ProcedureId, airportCode);
+            return customMatch;
         }
 
         foreach (var path in _supplementaryCifpFilePaths)
@@ -1017,12 +1056,12 @@ public sealed class NavigationDatabase
             match = FindSidInList(GetSupplementarySids(path, NormalizeAirport(airportCode)), sidId);
             if (match is not null)
             {
-                resolvedFromCycleId = SupplementarySourceLabel(path);
+                source = new ProcedureSource(ProcedureSourceKind.PriorCycle, SupplementarySourceLabel(path));
                 Log.LogWarning(
                     "SID {SidId} at {Airport} resolved from supplementary CIFP {Cycle} (absent from current FAA cycle)",
                     sidId,
                     airportCode,
-                    resolvedFromCycleId
+                    source.Label
                 );
                 return match;
             }
@@ -1057,17 +1096,23 @@ public sealed class NavigationDatabase
     public CifpStarProcedure? GetStar(string airportCode, string starId) => GetStar(airportCode, starId, out _);
 
     /// <summary>
-    /// Resolves a STAR, walking the supplementary CIFP chain when the procedure is absent from the current
-    /// cycle. <paramref name="resolvedFromCycleId"/> is set to the source cycle label when resolved from a
-    /// non-current cycle (the retired-procedure advisory signal), null otherwise.
+    /// Resolves a STAR: current FAA cycle → ARTCC-supplied fragment → supplementary CIFP chain.
+    /// <paramref name="source"/> identifies the non-current source that supplied the procedure (the
+    /// instructor-advisory signal), null when it came from the current cycle.
     /// </summary>
-    public CifpStarProcedure? GetStar(string airportCode, string starId, out string? resolvedFromCycleId)
+    public CifpStarProcedure? GetStar(string airportCode, string starId, out ProcedureSource? source)
     {
-        resolvedFromCycleId = null;
+        source = null;
         var match = FindStarInList(GetStars(airportCode), starId);
         if (match is not null)
         {
             return match;
+        }
+
+        if (TryGetCustomProcedures(airportCode, out var custom) && FindStarInList(custom.Stars, starId) is { } customMatch)
+        {
+            source = CustomProcedureSource(custom, "STAR", customMatch.ProcedureId, airportCode);
+            return customMatch;
         }
 
         foreach (var path in _supplementaryCifpFilePaths)
@@ -1075,12 +1120,12 @@ public sealed class NavigationDatabase
             match = FindStarInList(GetSupplementaryStars(path, NormalizeAirport(airportCode)), starId);
             if (match is not null)
             {
-                resolvedFromCycleId = SupplementarySourceLabel(path);
+                source = new ProcedureSource(ProcedureSourceKind.PriorCycle, SupplementarySourceLabel(path));
                 Log.LogWarning(
                     "STAR {StarId} at {Airport} resolved from supplementary CIFP {Cycle} (absent from current FAA cycle)",
                     starId,
                     airportCode,
-                    resolvedFromCycleId
+                    source.Label
                 );
                 return match;
             }
@@ -1216,17 +1261,27 @@ public sealed class NavigationDatabase
     public CifpApproachProcedure? GetApproach(string airportCode, string approachId) => GetApproach(airportCode, approachId, out _);
 
     /// <summary>
-    /// Resolves an approach, walking the supplementary CIFP chain when the procedure is absent from the
-    /// current cycle. <paramref name="resolvedFromCycleId"/> is set to the source cycle label when resolved
-    /// from a non-current cycle (the retired-procedure advisory signal), null otherwise.
+    /// Resolves an approach: current FAA cycle → ARTCC-supplied fragment → supplementary CIFP chain.
+    /// <paramref name="source"/> identifies the non-current source that supplied the procedure (the
+    /// instructor-advisory signal), null when it came from the current cycle.
     /// </summary>
-    public CifpApproachProcedure? GetApproach(string airportCode, string approachId, out string? resolvedFromCycleId)
+    public CifpApproachProcedure? GetApproach(string airportCode, string approachId, out ProcedureSource? source)
     {
-        resolvedFromCycleId = null;
+        source = null;
         var match = GetApproaches(airportCode).FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
         if (match is not null)
         {
             return match;
+        }
+
+        if (TryGetCustomProcedures(airportCode, out var custom))
+        {
+            var customMatch = custom.Approaches.FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
+            if (customMatch is not null)
+            {
+                source = CustomProcedureSource(custom, "Approach", customMatch.ApproachId, airportCode);
+                return customMatch;
+            }
         }
 
         foreach (var path in _supplementaryCifpFilePaths)
@@ -1235,12 +1290,12 @@ public sealed class NavigationDatabase
                 .FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
             if (match is not null)
             {
-                resolvedFromCycleId = SupplementarySourceLabel(path);
+                source = new ProcedureSource(ProcedureSourceKind.PriorCycle, SupplementarySourceLabel(path));
                 Log.LogWarning(
                     "Approach {ApproachId} at {Airport} resolved from supplementary CIFP {Cycle} (absent from current FAA cycle)",
                     approachId,
                     airportCode,
-                    resolvedFromCycleId
+                    source.Label
                 );
                 return match;
             }
@@ -1743,6 +1798,233 @@ public sealed class NavigationDatabase
         }
 
         Log.LogInformation("Procedure index: {Sids} SIDs, {Stars} STARs", _sidBodies.Count, _starBodies.Count);
+    }
+
+    /// <summary>
+    /// ARTCC-supplied procedures for one airport. The supplying ARTCC is tracked per procedure id rather
+    /// than per airport, so two ARTCCs contributing fragments for the same field are each credited
+    /// correctly in the instructor advisory.
+    /// </summary>
+    private sealed class CustomAirportProcedures
+    {
+        public List<CifpSidProcedure> Sids { get; } = [];
+        public List<CifpStarProcedure> Stars { get; } = [];
+        public List<CifpApproachProcedure> Approaches { get; } = [];
+        public Dictionary<string, string> ArtccByProcedureId { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Parses every ARTCC CIFP fragment eagerly (they are small and few) into <see cref="_customProcedures"/>,
+    /// then registers SID/STAR bodies on the NavData side for procedures vNAS does not carry — without that,
+    /// a fully-custom procedure would not even parse out of a filed route string.
+    /// </summary>
+    private void LoadCustomProcedures(string baseDir)
+    {
+        var loadResult = CustomProcedureLoader.LoadAll(baseDir);
+
+        foreach (var warning in loadResult.Warnings)
+        {
+            Log.LogWarning("Custom procedure: {Warning}", warning);
+        }
+
+        foreach (var fragment in loadResult.Fragments)
+        {
+            foreach (var icao in fragment.AirportIcaos)
+            {
+                AddCustomProceduresForAirport(fragment, icao);
+            }
+        }
+
+        CustomProcedureFilePaths = loadResult.Fragments.Select(f => f.FilePath).ToList();
+
+        if (_customProcedures.Count > 0)
+        {
+            Log.LogInformation(
+                "Custom procedures: {Airports} airport(s) from {Files} ARTCC fragment(s)",
+                _customProcedures.Count,
+                loadResult.Fragments.Count
+            );
+        }
+    }
+
+    private void AddCustomProceduresForAirport(CustomProcedureFragment fragment, string icao)
+    {
+        string normalized = NormalizeAirport(icao);
+        if (!_customProcedures.TryGetValue(normalized, out var bucket))
+        {
+            bucket = new CustomAirportProcedures();
+            _customProcedures[normalized] = bucket;
+        }
+
+        foreach (var sid in CifpParser.ParseSids(fragment.FilePath, icao))
+        {
+            if (AcceptCustomProcedure(bucket, sid.ProcedureId, "SID", normalized, fragment))
+            {
+                bucket.Sids.Add(sid);
+                RegisterCustomSidOnNavDataSide(sid);
+            }
+        }
+
+        foreach (var star in CifpParser.ParseStars(fragment.FilePath, icao))
+        {
+            if (AcceptCustomProcedure(bucket, star.ProcedureId, "STAR", normalized, fragment))
+            {
+                bucket.Stars.Add(star);
+                RegisterCustomStarOnNavDataSide(star);
+            }
+        }
+
+        foreach (var approach in CifpParser.ParseApproaches(fragment.FilePath, icao))
+        {
+            if (AcceptCustomProcedure(bucket, approach.ApproachId, "approach", normalized, fragment))
+            {
+                bucket.Approaches.Add(approach);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gate for one parsed custom procedure: rejects a duplicate id already contributed by an
+    /// earlier-sorted ARTCC, and warns when the current FAA cycle publishes the same procedure — that
+    /// fragment is now shadowed (the current cycle always wins) and should be deleted. On acceptance,
+    /// credits the supplying ARTCC for this procedure id.
+    /// </summary>
+    private bool AcceptCustomProcedure(
+        CustomAirportProcedures bucket,
+        string procedureId,
+        string kind,
+        string normalizedAirport,
+        CustomProcedureFragment fragment
+    )
+    {
+        if (bucket.ArtccByProcedureId.TryGetValue(procedureId, out var owner))
+        {
+            Log.LogWarning(
+                "Custom {Kind} {ProcedureId} at {Airport} in {File} duplicates one already loaded from {Owner}; ignoring the later one",
+                kind,
+                procedureId,
+                normalizedAirport,
+                fragment.FilePath,
+                owner
+            );
+            return false;
+        }
+
+        if (CurrentCycleHasProcedure(normalizedAirport, procedureId, kind))
+        {
+            Log.LogWarning(
+                "Custom {Kind} {ProcedureId} at {Airport} ({Artcc}) is shadowed by the current FAA CIFP cycle, which publishes it — the fragment {File} is no longer needed",
+                kind,
+                procedureId,
+                normalizedAirport,
+                fragment.ArtccId,
+                fragment.FilePath
+            );
+        }
+
+        bucket.ArtccByProcedureId[procedureId] = fragment.ArtccId;
+        return true;
+    }
+
+    private bool CurrentCycleHasProcedure(string normalizedAirport, string procedureId, string kind) =>
+        kind switch
+        {
+            "SID" => FindSidInList(GetSids(normalizedAirport), procedureId) is not null,
+            "STAR" => FindStarInList(GetStars(normalizedAirport), procedureId) is not null,
+            _ => GetApproaches(normalizedAirport).Any(a => a.ApproachId.Equals(procedureId, StringComparison.OrdinalIgnoreCase)),
+        };
+
+    /// <summary>
+    /// Registers a custom SID's lateral path into the NavData-side body/transition index so
+    /// <see cref="ResolveSidId"/> and <see cref="RouteExpander"/> recognize the token in a filed route.
+    /// Skipped entirely when vNAS already publishes the procedure — live vNAS data is never shadowed.
+    /// </summary>
+    private void RegisterCustomSidOnNavDataSide(CifpSidProcedure sid)
+    {
+        if (ResolveSidId(sid.ProcedureId) is not null)
+        {
+            return;
+        }
+
+        var body = LateralFixes(sid.CommonLegs);
+        var transitions = new List<(string Name, List<string> Fixes)>();
+        foreach (var (_, transition) in sid.EnrouteTransitions)
+        {
+            var fixes = LateralFixes(transition.Legs);
+            if (fixes.Count > 0)
+            {
+                // vNAS keys a SID transition by its terminal fix (see BuildProcedureIndex).
+                transitions.Add((fixes[^1], fixes));
+            }
+        }
+
+        _sidBodies.TryAdd(sid.ProcedureId, body);
+        _sidTransitions.TryAdd(sid.ProcedureId, transitions);
+        _sidAllFixes.TryAdd(sid.ProcedureId, CombineFixes(body, transitions));
+    }
+
+    /// <summary>STAR counterpart of <see cref="RegisterCustomSidOnNavDataSide"/>; transitions key on the first fix.</summary>
+    private void RegisterCustomStarOnNavDataSide(CifpStarProcedure star)
+    {
+        if (ResolveStarId(star.ProcedureId) is not null)
+        {
+            return;
+        }
+
+        var body = LateralFixes(star.CommonLegs);
+        var transitions = new List<(string Name, List<string> Fixes)>();
+        foreach (var (_, transition) in star.EnrouteTransitions)
+        {
+            var fixes = LateralFixes(transition.Legs);
+            if (fixes.Count > 0)
+            {
+                transitions.Add((fixes[0], fixes));
+            }
+        }
+
+        _starBodies.TryAdd(star.ProcedureId, body);
+        _starTransitions.TryAdd(star.ProcedureId, transitions);
+        _starAllFixes.TryAdd(star.ProcedureId, CombineFixes(body, transitions));
+    }
+
+    /// <summary>
+    /// The named fixes a leg sequence actually flies over, in order, with adjacent duplicates collapsed.
+    /// Heading/course legs (VA/VM/CA/VI/CI/VD/VR and friends) carry no fix and are dropped — an RV-SID
+    /// whose body is only its co-located navaid therefore yields the same shape vNAS itself encodes.
+    /// </summary>
+    private static List<string> LateralFixes(IReadOnlyList<CifpLeg> legs)
+    {
+        var fixes = new List<string>();
+        foreach (var leg in legs)
+        {
+            if (string.IsNullOrWhiteSpace(leg.FixIdentifier))
+            {
+                continue;
+            }
+
+            string name = leg.FixIdentifier.Trim().ToUpperInvariant();
+            if (fixes.Count == 0 || !fixes[^1].Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                fixes.Add(name);
+            }
+        }
+
+        return fixes;
+    }
+
+    private static List<string> CombineFixes(List<string> body, List<(string Name, List<string> Fixes)> transitions)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var all = new List<string>();
+        foreach (var fix in body.Concat(transitions.SelectMany(t => t.Fixes)))
+        {
+            if (seen.Add(fix))
+            {
+                all.Add(fix);
+            }
+        }
+
+        return all;
     }
 
     private void LoadCustomFixes(string baseDir)

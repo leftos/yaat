@@ -16,12 +16,14 @@ ARTCCs/
       zoa-initial-contact-transfers.json
     WakeDirectives/
       oak-wake-directives.json
+    Procedures/
+      koak-nimi.cifp
   ZMA/
     Airports/
       fll.json
 ```
 
-Each loader scans `ARTCCs/*/{Category}/*.json`. Files whose category folder doesn't match the loader are ignored — `Data/ARTCCs/ZOA/CustomFixes/foo.json` is read by `CustomFixLoader`, not by `AirportSidecarLoader`.
+Each loader scans `ARTCCs/*/{Category}/*.json` (`Procedures/` uses `*.cifp`). Files whose category folder doesn't match the loader are ignored — `Data/ARTCCs/ZOA/CustomFixes/foo.json` is read by `CustomFixLoader`, not by `AirportSidecarLoader`.
 
 The categories below describe the JSON schema for each. None are required; an ARTCC folder may contain any subset.
 
@@ -230,6 +232,74 @@ Each waypoint is snapped to the nearest graph node; consecutive waypoints that a
 **Enforcement.** Auto-routing (`TAXIAUTO`, right-click "taxi to…") never travels a one-way the wrong way — except, like avoided taxiways, when a destination is *only* reachable against it, in which case the route resolves with a warning. An explicit `TAXI` clearance that names the wrong-way taxiway is honored but flagged with a "Taxiing X against one-way direction" warning.
 
 One-way taxiway restrictions are **local SOP / facility conventions** — they are not codified in FAA 7110.65. Author them from an ARTCC-approved SOP or LOA, not from a regulation reference.
+
+---
+
+## Procedures
+
+Verbatim ARINC 424 CIFP records pinning a SID, STAR, or approach that the **current** FAA CIFP no longer
+carries. Unlike every other category here, these are not hand-authored JSON — they are unmodified records
+copied out of a published CIFP cycle, so `CifpParser` reads a fragment exactly as it reads a full cycle file.
+
+### When to add one
+
+The FAA occasionally drops a still-charted procedure from the CIFP dataset. KOAK's NIMITZ SID (`NIMI5`) is
+the motivating case: it vanished at cycle 2605 while remaining charted and flown, taking its published 315°
+initial turn with it. YAAT already recovers such a procedure by walking cached prior AIRAC cycles, but that
+only works for **~12 months** (`CifpPathResolver.MaxSupplementaryLookbackCycles`) and only on a machine that
+happens to hold the right cycle — a freshly deployed server has one cycle and recovers nothing.
+
+A committed fragment is permanent and identical on every deployment. Add one when a procedure your facility
+actually uses has fallen out of the current cycle — and do it **while a cycle that still has it is reachable**.
+
+### Generating a fragment
+
+Never assemble one by hand. `tools/stash-procedure.py` finds the newest AIRAC source that still carries the
+procedure and writes the fragment to the right ARTCC folder:
+
+```bash
+python tools/stash-procedure.py NIMI --airport KOAK              # find it and write the fragment
+python tools/stash-procedure.py NIMI --airport KOAK --dry-run    # just report which cycles have it
+python tools/stash-procedure.py BDEGA4 --airport KSFO --kind star --artcc ZOA
+```
+
+A bare name (`NIMI`) matches every version (`NIMI5`, `NIMI6`); an exact id matches only itself. The tool
+searches, newest first: your local CIFP cache (`%LOCALAPPDATA%/yaat/cache/cifp/`), the repo's bundled cycle,
+anything passed via `--search-path`, and — with `--fetch` — the FAA's server (which generally only serves the
+current and next cycle, so past cycles usually 404). The owning ARTCC is inferred from existing
+`Data/ARTCCs/*/` content referencing the airport; pass `--artcc` when that is ambiguous.
+
+`--dry-run` is also how you check whether the FAA has **republished** a procedure: if it now appears in the
+current cycle, the fragment is dead weight and should be deleted (YAAT logs a warning when this happens).
+
+### Precedence
+
+Procedure resolution is **current FAA cycle → ARTCC fragment → cached prior cycles**. The current cycle always
+wins, so a republished procedure automatically takes over — including across a version bump (`NIMI5` → `NIMI7`),
+which matches on the base name. Sitting above the prior-cycle chain is what makes the result deterministic
+regardless of what a given machine has cached.
+
+When a procedure resolves from a fragment, the instructor sees an advisory naming the supplying ARTCC.
+
+### Caveats
+
+- **A pin does not expire — re-verify it against the chart.** The prior-cycle chain is self-limiting (it stops
+  resolving after ~12 months), but a fragment resolves forever. Two things are caught for you: republication in
+  the CIFP (the load-time shadow warning, and `--dry-run`) and a version bump (the current cycle wins on base
+  name). Nothing catches a **chart amendment while the CIFP still omits the procedure** — if NIMITZ's initial
+  turn changes from 315°, the pin keeps flying 315° silently. Whoever commits a fragment owns re-checking it
+  against the published chart, not just watching for republication.
+- **Terminal waypoints travel with the fragment.** `CifpParser` resolves RF arc-center fixes from the *same
+  file*, so a procedure with arc legs needs the airport's `PC` terminal-waypoint records too. The tool emits
+  them automatically.
+- **Do not invent records from a chart.** A fragment must be extracted from a real published CIFP cycle.
+  Hand-written ARINC 424 is unreviewable and will encode subtly wrong altitudes, courses, or path terminators.
+  KOAK's three vector SIDs show why: OAK6, QUAKE2, and NIMI5 all chart as "climb heading X, then…", yet they
+  use three different path terminators (`VD`, `VD`, `CA`), OAK6 and QUAKE2 disagree by 6° on runway 30's
+  course, the coded course is 278.2° where the runway bearing is 278.0°, and the altitude is 409 ft MSL rather
+  than "400". None of that is knowable from the chart.
+- Lines that aren't valid CIFP records (the `#` provenance header, blanks) are ignored by the parser.
+- Restart YAAT to pick up edits.
 
 ---
 

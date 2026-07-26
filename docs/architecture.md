@@ -699,6 +699,8 @@ Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways
 Data/RouteExpander.cs          # Static: expands route strings (SID/STAR/airway/fix tokens) into ordered fix lists
 Data/ProcedureLegResolver.cs   # Static: resolves CIFP legs → typed ProcedureLeg sequence (keeps VA/VI/VM/CA heading legs + CD/VD/FD/FC/CR/VR distance/radial legs the flat resolver drops); extracts the active leading prefix for DepartureProcedurePhase
 Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading from Data/ARTCCs/{ARTCC}/CustomFixes/*.json
+Data/CustomProcedureLoader.cs  # Indexes ARTCC-supplied CIFP fragments (Data/ARTCCs/{ARTCC}/Procedures/*.cifp) — verbatim ARINC 424 records pinning a procedure the current FAA cycle dropped. NavigationDatabase.LoadCustomProcedures parses them eagerly via CifpParser (no second parser) and inserts them as tier 2 of GetSid/GetStar/GetApproach: current cycle -> ARTCC fragment -> cached prior cycles. Also registers a derived NavData-side body for procedures vNAS doesn't carry. Authored by tools/stash-procedure.py.
+Data/ProcedureSource.cs        # ProcedureSourceKind (PriorCycle | ArtccCustom) + label (AIRAC cycle id / ARTCC id); null means the current FAA cycle. Drives CommandDispatcher.ProcedureSourceAdvisory.
 Data/TaxiRouteDefinition.cs    # Per-route value type (path tokens, destination, canonical-command synthesis) carried in the sidecar's taxiRoutes section.
 Data/AirportSidecarDefinition.cs / AirportSidecarLoader.cs / AirportSidecarCatalog.cs  # Unified per-airport ground sidecar from Data/ARTCCs/{ARTCC}/Airports/{airport}.json (avoidTaxiways + taxiRoutes + implicitConnectors + oneWayEdges + blockedTurns sections).
                                # NavigationDatabase.AirportSidecars exposes GetAvoidedTaxiways / GetTaxiRoutes / GetImplicitConnectors / GetOneWayConstraints / GetBlockedTurns. avoidTaxiways read by SearchContext.Compile for auto routes only (two-pass: avoided taxiway used only when destination otherwise unreachable; explicit TAXI unaffected). taxiRoutes validated lazily at menu-build time via TaxiPathfinder.ResolveExplicitPath; surfaced in GroundView's right-click "Preset taxi route" submenu. implicitConnectors authorize a named connector (e.g. SFO LF) in SearchContext.BuildAuthorizedTaxiwaySet only when the cleared sequence places its two 'between' taxiways adjacent, AND let SegmentExpander.Run thread that connector instead of crossing at the taxiways' apex. blockedTurns forbid one intersection corner (the L/F apex) for AUTO + explicit routes and suppress its fillet arc in Ground View.
@@ -715,7 +717,8 @@ Data/Airspace/AirspaceVolume.cs / AirspaceBoundaryCrossing.cs / AirspaceClass.cs
 Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
 Data/Mva/MvaDatabase.cs / MvaSector.cs / MvaRelation.cs # FAA AIXM-derived MVA sectors: exterior-minus-holes containment + altitude Classify (Below/At/Above). See minimum-vectoring-altitude.md.
 Data/Mva/FAA_MVA_FUS3.geojson.br # Committed FAA MVA charts (FUS3), all 148 published facilities: 3,268 sectors with MSL floors + facility tags, Brotli-compressed, built by tools/build-mva-data.py --all.
-Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, Airports, InitialContactTransfers, WakeDirectives — see Data/ARTCCs/README.md).
+Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, Airports, InitialContactTransfers, WakeDirectives, Procedures — see Data/ARTCCs/README.md).
+Data/ARTCCs/ZOA/Procedures/koak-nimi.cifp # Pinned KOAK NIMITZ SID (NIMI5): charted and flown, but dropped from the FAA CIFP at cycle 2605. Carries the published 315 deg initial turn that the ~12-month prior-cycle chain would otherwise lose.
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
 Data/LatLonParser.cs           # ERAM DDMM/DDDMM lat-long strings (//4220N/7110W) → lat/lon (CRR group locations)
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
@@ -1005,6 +1008,18 @@ Fakes/FakeFilePickerService.cs (not yet — MainWindow uses real AvaloniaFilePic
 ```
 
 The OAK clearances scenario `docs/atctrainer-scenario-examples/01H06NVK7VN8BS7MCDXHKJZ7MQ.json` is the canonical fixture for every "scenario loaded" scene.
+
+## stash-procedure.py — CLI tool (`tools/stash-procedure.py`)
+
+Captures a published procedure as an ARTCC CIFP fragment before it ages out of reach. The FAA sometimes drops a still-charted procedure from the CIFP dataset (KOAK NIMITZ); the prior-cycle chain recovers it for only ~12 months and only on a machine that cached the right cycle, so anything a facility depends on has to be pinned into `Data/ARTCCs/{ARTCC}/Procedures/*.cifp`.
+
+```bash
+python tools/stash-procedure.py NIMI --airport KOAK              # find + write the fragment
+python tools/stash-procedure.py NIMI --airport KOAK --dry-run    # report which cycles carry it, write nothing
+python tools/stash-procedure.py BDEGA4 --airport KSFO --kind star --artcc ZOA
+```
+
+Stdlib-only Python. A bare name (`NIMI`) matches every version (`NIMI5`/`NIMI6`) using the same base-name rule as `NavigationDatabase.StripTrailingDigits`; an exact id matches only itself. Searches newest-first across the local CIFP cache (`%LOCALAPPDATA%/yaat/cache/cifp/`), the repo's bundled `TestData/FAACIFP18.gz`, any `--search-path`, and optionally the FAA server (`--fetch`, usually 404s for past cycles). Line selection mirrors `CifpParser`'s own gate exactly, and terminal-waypoint (`PC`) records are emitted alongside legs that reference an arc center. The owning ARTCC is inferred from existing `Data/ARTCCs/*/` content naming the airport; `--artcc` overrides. `--verify` round-trips the result through `Yaat.CifpInspector`.
 
 ## yaat-crc-config — Standalone Rust binary (`tools/yaat-crc-config/`)
 

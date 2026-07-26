@@ -200,7 +200,9 @@ public class IssueN513sjNimiRvSidCifpMissTests
 
     /// <summary>
     /// Builds a NavigationDatabase from the real NavData.dat plus the primary current-cycle CIFP but with
-    /// NO supplementary bundle, mirroring the production wiring that lacks retired-procedure fallback.
+    /// NO supplementary bundle and NO ARTCC data, mirroring a deployment that has neither retired-procedure
+    /// fallback nor a committed fragment. <c>artccsBaseDir: ""</c> is load-bearing: the shipped ZOA NIMITZ
+    /// fragment resolves this SID in production, which would defeat the degradation this class covers.
     /// Returns null if test data is unavailable.
     /// </summary>
     private static NavigationDatabase? BuildCifpMissNavDb()
@@ -213,7 +215,7 @@ public class IssueN513sjNimiRvSidCifpMissTests
         }
 
         var navData = NavDataSet.Parser.ParseFrom(File.ReadAllBytes(navDataPath));
-        var db = new NavigationDatabase(navData, cifpPath, supplementaryCifpFilePaths: null);
+        var db = new NavigationDatabase(navData, cifpPath, artccsBaseDir: "", supplementaryCifpFilePaths: null);
 
         // Guard: NavData must still carry NIMI (the whole premise of the degradation path).
         return db.ResolveSidId("NIMI6") is not null ? db : null;
