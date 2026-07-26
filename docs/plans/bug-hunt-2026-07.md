@@ -325,7 +325,24 @@ suite.
 This does not necessarily mean any shipped behavior is wrong — it means the ground suite, which is
 where this repo's bug history concentrates, validates against geometry production never uses.
 
-### 6. Every Radar/Ground pop-out toggle permanently leaks a canvas, renderer, and 10 Hz timer **[verified]**
+### 6. Every Radar/Ground pop-out toggle permanently leaks a canvas, renderer, and 10 Hz timer **[verified]** — ✅ FIXED
+
+> **Fix applied.** The repaint timer is now a field, started in `OnAttachedToVisualTree` and stopped in
+> `OnDetachedFromVisualTree`. A stopped `DispatcherTimer` is not rooted by the dispatcher, so the
+> abandoned canvas becomes collectible and its finalizer reclaims the renderer's native SkiaSharp
+> objects — the leak was permanent only because the running timer kept it alive.
+>
+> **The constructor's `Start()` was redundant, which is how this hid.** The
+> `DispatcherTimer(interval, priority, handler)` overload starts the timer itself, so simply moving the
+> local into a field left it running before attach — the first version of the fix failed its own test on
+> exactly that. It now uses `new DispatcherTimer(priority) { Interval = … }` plus a `Tick` subscription,
+> which does not auto-start.
+>
+> `MapCanvasTimerLifecycleTests` pins attach → running, detach → stopped, for both canvases.
+>
+> **Still open from this finding:** `RadarCanvas.Dispose()` and `GroundCanvas.Dispose()` remain dead code —
+> nothing in `src/` calls either. That is now a promptness question (native handles wait for finalization)
+> rather than a leak, so it was left alone.
 
 - **File**: `src/Yaat.Client/Views/Map/MapCanvasBase.cs:31-32`, `:161-168`;
   `src/Yaat.Client/Views/MainWindow.axaml.cs:1722-1737`

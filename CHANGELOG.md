@@ -21,6 +21,7 @@
 - The `ONH` shorthand for `ONHO` works as a condition prefix instead of being rejected before it is sent.
 - Changing an aircraft's runway exit after it has started turning off is refused with a reason, instead of being acknowledged and ignored.
 - Re-placing a ghost target moves it on the student's STARS scope instead of leaving it at the first location.
+- Popping the Radar or Ground view in and out no longer leaves a hidden copy of it redrawing in the background.
 
 ## v0.9.16-beta [2026/07/24]
 

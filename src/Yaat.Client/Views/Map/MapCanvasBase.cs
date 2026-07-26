@@ -23,13 +23,40 @@ public abstract class MapCanvasBase : Control
     private Point _lastPanPoint;
     private bool _isPanZoomEnabled = true;
 
+    private readonly DispatcherTimer _invalidateTimer;
+
     protected MapCanvasBase()
     {
         ClipToBounds = true;
         Focusable = true;
 
-        var invalidateTimer = new DispatcherTimer(InvalidateInterval, DispatcherPriority.Render, OnInvalidateTick);
-        invalidateTimer.Start();
+        // Not the (interval, priority, handler) overload — that one starts the timer immediately, which
+        // is what made the original constructor's Start() call redundant. This canvas must not repaint
+        // until it is actually in the visual tree.
+        _invalidateTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = InvalidateInterval };
+        _invalidateTimer.Tick += OnInvalidateTick;
+    }
+
+    /// <summary>Whether the 10 Hz repaint timer is currently running. Test seam.</summary>
+    internal bool IsRepaintTimerRunning => _invalidateTimer.IsEnabled;
+
+    /// <summary>
+    /// The repaint timer runs only while the canvas is in the visual tree. A running
+    /// <see cref="DispatcherTimer"/> is rooted by the dispatcher and its Tick delegate roots this
+    /// canvas, so leaving it running past a detach both wastes render-priority work on a control nobody
+    /// can see and keeps the canvas — and its renderer's native SkiaSharp objects — alive for the
+    /// process lifetime. Pop-out toggles create a fresh canvas each time, so that would compound.
+    /// </summary>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _invalidateTimer.Start();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _invalidateTimer.Stop();
+        base.OnDetachedFromVisualTree(e);
     }
 
     public MapViewport Viewport => _viewport;
