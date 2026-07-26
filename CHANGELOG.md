@@ -14,6 +14,7 @@
 - An aircraft joining the final approach course laterally (`JFAC`/`JLOC`) keeps its assigned speed until you clear it for the approach.
 - The 200-knot procedure-turn limit is released when the aircraft leaves the turn, instead of capping it for the rest of the session.
 - A go-around off the landing rollout no longer carries the ground braking rate onto the re-flown pattern.
+- Aircraft joining a pattern directly on base or final slow to that leg's speed instead of speeding up to downwind speed first.
 
 ## v0.9.16-beta [2026/07/24]
 

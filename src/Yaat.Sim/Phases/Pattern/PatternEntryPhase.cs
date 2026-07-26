@@ -114,8 +114,17 @@ public sealed class PatternEntryPhase : Phase
             ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
 
-        // Decelerate toward pattern speed
-        ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
+        // Decelerate toward the speed of the leg being joined, not to pattern speed regardless of it.
+        // A Final entry hands straight to FinalApproachPhase and a Base entry to BasePhase, both of
+        // which immediately command a lower speed; commanding downwind speed here would accelerate the
+        // aircraft on short final and leave no distance to bleed it off again. The #292 low-approach
+        // runway retarget builds a Final entry half a mile from the threshold.
+        ctx.Targets.TargetSpeed = Kind switch
+        {
+            PatternEntryKind.Final => AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category),
+            PatternEntryKind.Base => AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category),
+            _ => AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category),
+        };
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(EntryLat, EntryLon));
         Log.LogDebug(

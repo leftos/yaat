@@ -745,15 +745,27 @@ Scope limit (checked): the server's own rewind path is unaffected (`RecordingMan
 Raised while reviewing the phases cluster; each is a real defect but outside the scope of the finding
 that surfaced it.
 
-### F1. `PatternEntryPhase.OnStart` commands pattern speed regardless of entry kind
+### F1. `PatternEntryPhase.OnStart` commands pattern speed regardless of entry kind — ✅ FIXED
 
-`PatternEntryPhase.OnStart` writes `TargetSpeed = DownwindSpeed(...)` with no `Kind` branch. For a
+`PatternEntryPhase.OnStart` wrote `TargetSpeed = DownwindSpeed(...)` with no `Kind` branch. For a
 `PatternEntryKind.Final` entry — which the `#292` low-approach runway retarget creates at 0.5 nm from
-the threshold — that commands a jet from approach speed to ~200 kt while turning onto a half-mile final,
-with `FinalApproachPhase` then having ~9 s to bleed 60 kt at 3.5 kt/s (it needs ~17 s). Today the
-`LowApproachPhase` retarget ceiling masks it, which is why finding 11's fix was deliberately not applied
-to that phase. **Fix is to honour `Kind == Final` in `OnStart`**, after which the ceiling is no longer
-load-bearing.
+the threshold — that commands the aircraft *up* to pattern speed while turning onto a half-mile final.
+Today the `LowApproachPhase` retarget ceiling masks it, which is why finding 11's fix was deliberately
+not applied to that phase.
+
+> **Fix applied.** `OnStart` now commands the speed of the leg being joined: `Final` →
+> `ApproachSpeed`, `Base` → `BaseSpeed`, everything else → `DownwindSpeed`. `Base` is included because
+> it is the same defect — a base entry hands straight to `BasePhase`, which immediately commands
+> `BaseSpeed`. Both are alignment with what the successor phase already does, not new behavior.
+>
+> **Measured magnitude, correcting the estimate above:** for a B738 with its loaded profile the entry
+> commanded **161 kt** where final needs **144** and base **152.5** — a 17 kt overspeed onto short
+> final, not the ~60 kt the original note projected. The ~200 kt figure came from the category default
+> (`CategoryPerformance.DownwindSpeed(Jet)`), which only applies to types with no profile. The defect
+> is real at 17 kt; the note overstated it for profiled types.
+>
+> RED confirmed before the fix (both `Final` and `Base` returned 161), and a third test pins that
+> downwind-family kinds still command pattern speed.
 
 ### F2. `DownwindPhase.OnStart` reverts a controller speed assignment one leg later
 

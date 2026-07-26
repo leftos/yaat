@@ -372,6 +372,62 @@ public class PatternPhaseTests
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
     }
 
+    /// <summary>
+    /// The entry must command the speed of the leg it is joining. A <see cref="PatternEntryKind.Final"/>
+    /// entry hands straight to <see cref="Phases.Tower.FinalApproachPhase"/>, which flies approach speed —
+    /// commanding downwind speed instead accelerates a jet onto short final with no room to bleed it off
+    /// again. The #292 low-approach runway retarget builds exactly this entry, half a mile from the
+    /// threshold.
+    /// </summary>
+    [Theory]
+    [InlineData(PatternEntryKind.Final)]
+    [InlineData(PatternEntryKind.Base)]
+    public void PatternEntry_OnStart_TargetsTheSpeedOfTheLegBeingJoined(PatternEntryKind kind)
+    {
+        TestVnasData.EnsureInitialized();
+
+        var ac = MakeAircraft(ias: 200);
+        var phase = new PatternEntryPhase
+        {
+            EntryLat = 37.05,
+            EntryLon = -122.0,
+            PatternAltitude = 1100,
+            Kind = kind,
+        };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        double downwind = AircraftPerformance.DownwindSpeed(ac.AircraftType, AircraftCategory.Jet);
+        double expected =
+            kind == PatternEntryKind.Final
+                ? AircraftPerformance.ApproachSpeed(ac.AircraftType, AircraftCategory.Jet)
+                : AircraftPerformance.BaseSpeed(ac.AircraftType, AircraftCategory.Jet);
+
+        Assert.True(expected < downwind, $"test premise: {kind} speed {expected:F0} should be below downwind speed {downwind:F0}");
+        Assert.Equal(expected, ac.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void PatternEntry_OnStart_DownwindKindsStillTargetPatternSpeed()
+    {
+        TestVnasData.EnsureInitialized();
+
+        var ac = MakeAircraft(ias: 250);
+        var phase = new PatternEntryPhase
+        {
+            EntryLat = 37.05,
+            EntryLon = -122.0,
+            PatternAltitude = 1100,
+            Kind = PatternEntryKind.FortyFive,
+        };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        Assert.Equal(AircraftPerformance.DownwindSpeed(ac.AircraftType, AircraftCategory.Jet), ac.Targets.TargetSpeed);
+    }
+
     // -------------------------------------------------------------------------
     // MidfieldCrossingPhase
     // -------------------------------------------------------------------------
