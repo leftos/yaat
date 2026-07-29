@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- YAAT checks the server's supported client versions before connecting: too old and it stops with the version you need, behind-but-working and it offers a dismissible update prompt. An unreachable or older server never blocks you.
 - The Room Members list names the app behind every connection — YAAT Client, Flight Strips, or vTDLS — with the time it joined, so a member count you don't recognize is explainable.
 - Aliases from your CRC installation work in the command box — `.C172`, `.FbC`, `.PRC` and your ARTCC's shortcuts, with nothing to re-author.
 - Aliases print to the terminal (`.echo`, including multi-line reference cards), pin scope markers (`.ff`/`.marker`/`.markers`/`.nomarkers`), and open URLs (`.openurl`); other CRC verbs report that they aren't supported.

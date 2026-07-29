@@ -173,6 +173,7 @@ Services/
   UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (%LOCALAPPDATA%/yaat/). Stores PilotVoiceEnabled/Volume/RadioFxEnabled, default off.
   CfrAlertMonitor.cs            # Per-aircraft CFR release-window latch; evaluates each window vs real UTC (via CfrAlertEvaluator) and reports early/late/expired violations once. Wall-clock, alert-only (#230)
   UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel).
+  ClientVersionGate.cs          # Reads GET /api/client-requirements before connecting. Below Minimum -> refuse with a message; below Recommended -> dismissible banner. Fails open on any error.
   YaatHubJsonContext.cs         # Source-generated JsonSerializerContext for the broader DTO surface (room state, aircraft, weather, CRC, scenarios). Strip DTOs live in YaatStripsHubJsonContext (Strips); both contexts insert into the same resolver chain.
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost; composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability
   WindowSystemMenuHelper.cs     # Windows-only: injects "Always on Top" into the title-bar system menu via WM_SYSCOMMAND + SetWindowSubclass
@@ -435,7 +436,8 @@ FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan�
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF), PointInRing (even-odd ray-cast)
                                # Each primary function has scalar (double, double, double, double) and LatLon (LatLon, LatLon) overloads
                                # FootOfPerpendicular returns (LatLon Foot, double AlongNm, bool Clamped)
-ClientKind.cs                  # Static constants: Main / VStrips / VTdls identify which YAAT app a SignalR client is running.
+ClientKind.cs                  # Static constants: Main / VStrips / VTdls identify which YAAT app a SignalR client is running. DisplayName() labels one on its own (Room Members badge); DisplaySuffix() appends to a sentence.
+ClientVersions.cs              # Compares client version strings for the server's version gate. Numeric major.minor.patch only — the -beta suffix carries no ordering. Fails open on anything unparseable.
                                # Sent on CreateRoom/JoinRoom; stored in RoomMember.Kind; DisplaySuffix appends e.g.
                                # " (Flight Strips)" / " (vTDLS)" to terminal-broadcast verbs ("joined the room (vTDLS)").
 SimLog.cs                      # Static logger factory for Yaat.Sim; Initialize(ILoggerFactory) at startup

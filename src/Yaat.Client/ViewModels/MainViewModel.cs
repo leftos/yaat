@@ -614,9 +614,22 @@ public partial class MainViewModel : ObservableObject
 
     // Auto-update state
     private readonly UpdateService _updateService = new(channel: null);
+    private readonly ClientVersionGate _versionGate = new();
     private UpdateInfo? _pendingUpdate;
 
+    /// <summary>
+    /// The connected server's "you're behind" message, or null when this build satisfies it. Set
+    /// during connect; distinct from <see cref="IsUpdateAvailable"/>, which means Velopack has an
+    /// installer ready. Both can be true, in which case only the actionable Velopack banner shows.
+    /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowServerUpdateNotice))]
+    private string? _serverUpdateNotice;
+
+    public bool ShowServerUpdateNotice => (ServerUpdateNotice is not null) && !IsUpdateAvailable;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowServerUpdateNotice))]
     private bool _isUpdateAvailable;
 
     [ObservableProperty]
@@ -1406,7 +1419,7 @@ public partial class MainViewModel : ObservableObject
         _ = InitializeNavDataAsync();
         _ = _vnasConfigService.InitializeAsync();
         _ = LoadCrcAliasesAsync();
-        _ = CheckForUpdateAsync();
+        _ = DelayedStartupUpdateCheckAsync();
     }
 
     private async Task InitializeNavDataAsync()
@@ -1458,11 +1471,16 @@ public partial class MainViewModel : ObservableObject
         LoadLiveWeatherCommand.NotifyCanExecuteChanged();
     }
 
-    private async Task CheckForUpdateAsync()
+    private async Task DelayedStartupUpdateCheckAsync()
     {
         // Delay to avoid slowing initial startup
         await Task.Delay(TimeSpan.FromSeconds(5));
+        await CheckForUpdateAsync();
+    }
 
+    [RelayCommand]
+    private async Task CheckForUpdateAsync()
+    {
         try
         {
             var update = await _updateService.CheckForUpdateAsync();
@@ -1479,6 +1497,13 @@ public partial class MainViewModel : ObservableObject
         {
             _log.LogWarning(ex, "Update check failed");
         }
+    }
+
+    /// <summary>Clears the server's "you're behind" banner for this session.</summary>
+    [RelayCommand]
+    private void DismissServerUpdateNotice()
+    {
+        ServerUpdateNotice = null;
     }
 
     [RelayCommand]

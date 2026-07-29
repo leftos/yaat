@@ -214,9 +214,11 @@ function Format-MemberAge {
 function Format-RoomsSummary {
   param($Rooms)
   return ($Rooms | ForEach-Object {
-      $members = if ($_.members -and $_.members.Count -gt 0) {
-        ($_.members | ForEach-Object { "$($_.initials)($($_.kind))" }) -join ","
-      }
+      # A server predating per-member detail omits the field entirely. Rendering that as
+      # "no members" would read as an empty room and invite a deploy over a live session,
+      # so an absent field is reported as unknown rather than zero.
+      $members = if ($null -eq $_.PSObject.Properties['members']) { "membership unknown — server predates per-member detail" }
+      elseif ($_.members.Count -gt 0) { ($_.members | ForEach-Object { "$($_.initials)($($_.kind))" }) -join "," }
       else { "no members" }
       $scenario = if ($_.scenarioName) { $_.scenarioName } else { "(no scenario)" }
       "$($_.roomId) [$members] $scenario $($_.aircraftCount)ac"
@@ -230,7 +232,12 @@ function Write-RoomsMemberDetail {
   param($Rooms)
   foreach ($room in $Rooms) {
     Write-Host "  $($room.roomId):" -ForegroundColor Cyan
-    if (-not $room.members -or $room.members.Count -eq 0) {
+    if ($null -eq $room.PSObject.Properties['members']) {
+      Write-Host "    (membership unknown — this server predates per-member detail; deploy to see it)" -ForegroundColor Yellow
+      continue
+    }
+
+    if ($room.members.Count -eq 0) {
       Write-Host "    (no members — room is held open by its cleanup timer)" -ForegroundColor DarkGray
       continue
     }

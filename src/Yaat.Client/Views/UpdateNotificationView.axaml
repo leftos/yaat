@@ -3,6 +3,35 @@
              xmlns:vm="using:Yaat.Client.ViewModels"
              x:Class="Yaat.Client.Views.UpdateNotificationView"
              x:DataType="vm:MainViewModel">
+  <StackPanel>
+    <!-- Server-requested update: the connected server recommends a newer client than this build.
+         Hidden while the Velopack banner below is up, since that one can actually install. -->
+    <Border Background="#3A3418"
+            BorderBrush="#5C5426"
+            BorderThickness="0,1,0,0"
+            Padding="8,4"
+            IsVisible="{Binding ShowServerUpdateNotice}">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Grid.Column="0"
+                   VerticalAlignment="Center"
+                   FontSize="12"
+                   TextWrapping="Wrap"
+                   Text="{Binding ServerUpdateNotice}" />
+        <Button Grid.Column="1"
+                Content="Check for Update"
+                FontSize="11"
+                Padding="8,2"
+                Margin="4,0"
+                Command="{Binding CheckForUpdateCommand}" />
+        <Button Grid.Column="2"
+                Content="Dismiss"
+                FontSize="11"
+                Padding="8,2"
+                Margin="4,0"
+                Command="{Binding DismissServerUpdateNoticeCommand}" />
+      </Grid>
+    </Border>
+
     <Border Background="#1A3A5C"
             BorderBrush="#2A5A8C"
             BorderThickness="0,1,0,0"
@@ -50,4 +79,5 @@
                     IsVisible="{Binding !IsDownloadingUpdate}" />
         </Grid>
     </Border>
+  </StackPanel>
 </UserControl>

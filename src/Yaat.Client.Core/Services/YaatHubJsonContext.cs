@@ -122,4 +122,5 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(RunwayStatsDto))]
 [JsonSerializable(typeof(SoloTrainingScoreBucketDto))]
 [JsonSerializable(typeof(SoloTrainingEventDto))]
+[JsonSerializable(typeof(ClientRequirementsDto))]
 internal partial class YaatHubJsonContext : JsonSerializerContext;

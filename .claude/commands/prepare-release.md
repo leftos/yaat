@@ -40,6 +40,40 @@ Run `git tag --sort=-v:refname | head -5` to find existing release tags.
 ## Step 3: Ask for new version
 Suggest the next version based on the current one (e.g., `0.1.0-alpha` → `0.2.0-alpha`). Ask the user what the new version should be.
 
+## Step 3a: Decide every version-bearing file
+
+More than one file carries a version number, and they do **not** all move together. Walk this table
+every release and state the verdict for each before continuing — a missed bump here ships a server
+that mis-gates clients, which is worse than a stale changelog because it locks users out.
+
+| File | Value | When to bump |
+|---|---|---|
+| `Directory.Build.props` (**yaat**) | `<Version>` | **Every release.** This is the client installer version and the tag. Never skip. |
+| `src/Yaat.Server/appsettings.json` (**yaat-server**) | `Yaat:ClientVersions:Recommended` | **Every release.** It's the "please update" pointer, so leaving it behind means nobody is ever nudged. Set it to the version being released. |
+| `src/Yaat.Server/appsettings.json` (**yaat-server**) | `Yaat:ClientVersions:Minimum` | **Only when this release breaks older clients.** See the test below. Otherwise leave it exactly as-is. |
+| `src/Yaat.Server/YaatOptions.cs` (**yaat-server**) | `ClientVersionOptions` defaults | Keep in sync with the two appsettings values above — the defaults apply to any deployment that doesn't override them. |
+
+### Does this release need a `Minimum` bump?
+
+Bump `Minimum` to the released version **only if an older client talking to the new server would
+misbehave**, not merely miss a feature. Concretely, yes if this cycle did any of:
+
+- removed, renamed, or retyped a field on a DTO the client deserializes (`RoomStateDto`,
+  `AircraftDto`, `TrainingRoomInfoDto`, the `*ChangedDto` broadcast payloads, …)
+- changed a hub method's name, parameter list, or return type
+- changed the CRC wire format or the `/hubs/training` protocol
+
+Adding a **new optional** field is not breaking — an old client ignores it. Server-only changes,
+client-only changes, sim/physics changes, and doc changes are never breaking.
+
+State the verdict explicitly, e.g. *"`Minimum` stays at 0.9.18-beta — this cycle only added fields"*
+or *"`Minimum` → 0.9.21-beta: `TrainingRoomInfoDto.MemberInitials` was replaced by `Members`"*.
+
+**Caveat to tell the user when you do bump `Minimum`:** the gate is enforced by the *client*, so it
+only protects users running a build that already has the check. Raising `Minimum` cannot rescue
+anyone on a version older than the release that introduced the gate — those clients still fail the
+old way. The bump is still correct; it just starts helping one release later.
+
 ## Step 4: Locate the unreleased CHANGELOG section
 
 Read `CHANGELOG.md`. Find the topmost version heading (a line starting with `## `, ignoring the file title `# Changelog`). Cross-check against `git tag --sort=-creatordate | head -10`:
@@ -231,7 +265,11 @@ Ask the user to review. Apply any requested edits to the highlights or the unrel
 
 Once the user approves:
 
-1. Update `<Version>` in `Directory.Build.props` to the new version.
+1. Apply **every** version bump decided in Step 3a — `<Version>` in `Directory.Build.props`, and in
+   yaat-server both `Yaat:ClientVersions:Recommended` (always) and `Yaat:ClientVersions:Minimum`
+   (only on the breaking-change verdict), keeping `ClientVersionOptions`' defaults in sync. The
+   yaat-server edits are committed and pushed with that repo's own commit in step 10, not with
+   yaat's release commit.
 2. **Promote the CHANGELOG.md heading** in place — `Edit` the heading line to the chosen format (version + optional date, matching sibling sections). Do not touch the body of the section yet.
 3. **Insert the approved highlights** into CHANGELOG.md as a `### Highlights` subsection at the top of the version's section, immediately after the heading and before the first existing subsection (typically `### Added` or `### Fixed`). Use the bullets verbatim as approved in Step 8 — these are what the GitHub release will surface.
 4. Update `docs/architecture.md` if any new files were added (and it wasn't already covered in Step 6).

@@ -220,6 +220,31 @@ payload DTO → the `ServerConnection` C# event it re-raises:
   on the discrete events (pause/unpause, sim-rate change, rewind-complete, end-of-tape). The `double elapsed`
   argument carries `scenario.ElapsedSeconds`.
 
+## Client-version gate (off-hub, before connecting)
+
+`GET /api/client-requirements` → `ClientRequirementsDto(MinimumClientVersion, RecommendedClientVersion)`.
+Served by `ClientRequirementsHandler` from `Yaat:ClientVersions` in yaat-server's `appsettings.json`, and
+registered ahead of the `/api/{**path}` catch-all so it isn't swallowed by the CRC stub.
+
+It is **unauthenticated and deliberately not a hub method**. The clients this exists to warn are the ones a
+hub payload would break, so the answer must be reachable before the SignalR handshake and before VATSIM
+sign-in. `ClientRequirementsDto` is **append-only on both sides** for the same reason: a client that cannot
+deserialize this response has no way to learn why it was refused.
+
+`ClientVersionGate.EvaluateAsync` (client, `Yaat.Client.Core`) runs it at the top of `AttemptConnectAsync`:
+
+- below `MinimumClientVersion` → connection refused with an explicit "update, then reconnect" message
+- below `RecommendedClientVersion` → connects, sets `MainViewModel.ServerUpdateNotice` (dismissible banner)
+- otherwise → no-op
+
+Comparison is `Yaat.Sim.ClientVersions`: numeric `major.minor.patch` only, prerelease/metadata suffix
+ignored. Every failure path **fails open** — unreachable server, malformed body, unparseable version, or a
+server predating the endpoint (whose catch-all returns `[]`) all yield "no objection". A false block leaves
+a user with no way forward, whereas a genuinely incompatible server still fails the connection on its own.
+
+Bumping the gate is release work, not day-to-day work: `Recommended` moves every release, `Minimum` only
+when a cycle breaks older clients. See `.claude/commands/prepare-release.md` Step 3a.
+
 ## Room membership
 
 `RoomMemberDto(Cid, Initials, ArtccId, Kind, JoinedAtUtc, ConnectionId)` is the single member shape across three

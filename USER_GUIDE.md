@@ -1760,6 +1760,15 @@ Two collapsible sections, each toggled by its header checkbox. Speech recognitio
 |---------|--------------|---------|
 | **Server Admin Mode** + **Admin Password** | Lets you see all scenarios running on the server, filter the aircraft list by scenario, and manage aircraft across all scenarios. Requires the server admin password. | Off |
 
+#### Keeping YAAT current with the server
+
+Before signing you in, YAAT asks the server which client versions it accepts. Two things can happen:
+
+- **Your build is too old for that server** — the connection stops before the VATSIM browser opens, and the status line tells you which version the server needs and which you're running. Update and reconnect; nothing else you do in YAAT will get you in.
+- **Your build works but is behind** — you connect normally and get a dismissible banner naming the version the server recommends. **Check for Update** starts the usual update flow; **Dismiss** hides it for the session.
+
+If the server can't be reached or is older than this check, YAAT connects as it always did — the check never blocks you on its own uncertainty.
+
 #### Signing in with VATSIM
 
 When you connect to a server, YAAT signs you in through **VATSIM Connect**: your browser opens to the

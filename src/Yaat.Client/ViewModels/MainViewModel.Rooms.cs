@@ -23,6 +23,21 @@ public partial class MainViewModel
         try
         {
             IsConnecting = true;
+
+            // Ahead of sign-in: a client the server won't accept shouldn't spend an OAuth round
+            // trip to find out, and the answer has to come from plain HTTP because the hub payloads
+            // are exactly what an outdated client fails to read.
+            StatusText = "Checking server requirements...";
+            var verdict = await _versionGate.EvaluateAsync(url, Yaat.Client.Services.BuildInfo.Version, ct);
+            if (verdict.IsBlocked)
+            {
+                IsConnecting = false;
+                StatusText = verdict.Message!;
+                return verdict.Message;
+            }
+
+            ServerUpdateNotice = verdict.IsUpdateRecommended ? verdict.Message : null;
+
             StatusText = "Signing in with VATSIM...";
             var identity = await _auth.EnsureSignedInAsync(url, ct);
             if (identity is null)
