@@ -1476,6 +1476,34 @@ Macros work anywhere in a compound command. Command history records the original
 - **Export All** / **Export Selected** — save macros to a `.yaat-macros.json` file
 - **Import** — load macros from a file, with a selection dialog for conflicts
 
+### CRC Aliases
+
+If you have CRC installed, YAAT reads your existing alias files and runs `.NAME` commands the way CRC does — so `.C172`, `.FbC`, `.PRC`, or your ARTCC's reference shortcuts work without re-authoring anything.
+
+YAAT reads the same two files CRC does, in the same order: your ARTCC's file (`ZOA.txt`, `ZLA.txt`, …) and then `MyAliases.txt`, so a personal alias overrides an ARTCC one of the same name. Other `.txt` files in the folder are ignored, exactly as in CRC. Alias names are case-insensitive, and an alias body can reference other aliases.
+
+#### Supported commands
+
+| Alias expands to | Behavior |
+|------------------|----------|
+| `.echo <text>` | Prints to the terminal. `\n`, `\s`, and `\t` produce line breaks, spaces, and indents, so multi-line reference cards render properly. |
+| `.ff` / `.marker` / `.markers` / `.nomarkers` | Toggles [scope markers](#scope-markers) — the same handler as YAAT's own commands, so FRD markers work too. |
+| `.openurl <url>` | Opens the URL in your browser. |
+
+Anything else — `.am`, `.msg`, `.autotrack`, `.wallop`, or an alias that expands to a plain radio transmission — reports that it isn't supported rather than failing silently. These depend on a live VATSIM network connection or a flight-plan route amendment that YAAT doesn't have.
+
+Aliases that use `$dep`, `$arr`, `$route`, `$fullroute`, or `$urlescape(…)` resolve against the **selected** aircraft; with none selected they resolve to `----`. Positional `$1`, `$2`, … take the words you type after the alias name (`.CH KOAK`).
+
+#### Usage
+
+- `.C172` → prints that type's designator/RECAT/engine summary
+- `.ctrfix` → pins the whole center fix list on the radar; run it again to clear
+- `.REF` → opens your ARTCC's reference site
+- `CRC .FF …` → the `CRC` prefix forces alias resolution, reaching an alias that a YAAT built-in command would otherwise shadow
+- `.reloadaliases` → re-reads the files after you edit them in CRC
+
+YAAT's own dot commands win on a name collision; the load message in the terminal names any alias that got shadowed. Set a custom folder in **Settings > Macros > CRC Aliases** if your CRC install isn't in the default location.
+
 ### Favorite Commands
 
 The favorites bar sits below the command input and provides quick-access buttons for frequently used commands.

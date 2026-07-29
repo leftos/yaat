@@ -174,6 +174,12 @@ public sealed class UserPreferences
     public string? LastScenarioFolder => _data.LastScenarioFolder;
     public string? LastWeatherFolder => _data.LastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
+
+    /// <summary>
+    /// Overrides where CRC alias files are read from. Null auto-detects the installed CRC's
+    /// <c>Aliases</c> folder — see <see cref="CrcAliasStore.ResolveDirectory" />.
+    /// </summary>
+    public string? CrcAliasDirectory => _data.CrcAliasDirectory;
     public bool ValidateDctFixes => _data.ValidateDctFixes;
     public bool EuroScopeMode => _data.EuroScopeMode;
     public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
@@ -790,6 +796,12 @@ public sealed class UserPreferences
     {
         _macros = macros;
         _data.Macros = macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList();
+        Save();
+    }
+
+    public void SetCrcAliasDirectory(string? directory)
+    {
+        _data.CrcAliasDirectory = string.IsNullOrWhiteSpace(directory) ? null : directory.Trim();
         Save();
     }
 
@@ -1434,6 +1446,7 @@ public sealed class UserPreferences
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
+            CrcAliasDirectory = GetFieldOr<string?>(obj, "crcAliasDirectory", null),
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
@@ -1700,6 +1713,7 @@ public sealed class UserPreferences
         public string? LastScenarioFolder { get; set; }
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
+        public string? CrcAliasDirectory { get; set; }
         public bool ValidateDctFixes { get; set; }
         public bool EuroScopeMode { get; set; }
         public bool FlashNoLandingClearance { get; set; } = true;

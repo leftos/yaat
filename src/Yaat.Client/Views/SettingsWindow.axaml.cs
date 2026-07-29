@@ -63,6 +63,12 @@ public partial class SettingsWindow : Window
             exportAllBtn.Click += OnExportAllClick;
         }
 
+        var browseAliasesBtn = this.FindControl<Button>("BrowseCrcAliasDirectoryButton");
+        if (browseAliasesBtn is not null)
+        {
+            browseAliasesBtn.Click += OnBrowseCrcAliasDirectoryClick;
+        }
+
         foreach (
             var btnName in new[] { "AircraftSelectKeyButton", "FocusInputKeyButton", "TakeControlKeyButton", "AlwaysOnTopKeyButton", "PttKeyButton" }
         )
@@ -105,6 +111,20 @@ public partial class SettingsWindow : Window
     private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         Close();
+    }
+
+    private async void OnBrowseCrcAliasDirectoryClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm)
+        {
+            return;
+        }
+
+        var folder = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Select CRC Aliases Folder"));
+        if (folder is not null)
+        {
+            vm.CrcAliasDirectory = folder;
+        }
     }
 
     private async void OnImportMacrosClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

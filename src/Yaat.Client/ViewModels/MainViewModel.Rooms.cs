@@ -41,7 +41,13 @@ public partial class MainViewModel
             // fallback, so the apps no longer prompt for it. Overwrite any stored value each sign-in.
             if (!string.IsNullOrWhiteSpace(identity.Artcc))
             {
+                bool artccChanged = !string.Equals(_preferences.ArtccId, identity.Artcc, StringComparison.OrdinalIgnoreCase);
                 _preferences.SetArtccId(identity.Artcc);
+                if (artccChanged)
+                {
+                    // The ARTCC picks which CRC alias file pairs with the personal one, so reload them.
+                    _ = LoadCrcAliasesAsync();
+                }
             }
 
             if (_preferences.UserInitials.Length != 2)

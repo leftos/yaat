@@ -111,6 +111,8 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 
 Aliases are fully editable in **Settings > Commands**.
 
+Commands beginning with `.` are client-local — they act on your own displays and are never sent to aircraft. These are YAAT's [scope markers](USER_GUIDE.md#scope-markers) (`.ff`, `.marker`, `.markers`, `.nomarkers`) and any [CRC aliases](USER_GUIDE.md#crc-aliases) read from your CRC installation.
+
 ### Altitude Arguments
 
 Altitude arguments (used by CM, DM, LV, and GA) accept three formats:

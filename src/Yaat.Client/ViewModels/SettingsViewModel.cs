@@ -406,6 +406,16 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _groundShowAllTaxiRoutes;
 
+    /// <summary>Blank auto-detects the installed CRC's <c>Aliases</c> folder.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CrcAliasDirectoryHint))]
+    private string _crcAliasDirectory = "";
+
+    /// <summary>Resolved alias folder for the current override, shown under the Settings field.</summary>
+    public string CrcAliasDirectoryHint =>
+        CrcAliasStore.ResolveDirectory(string.IsNullOrWhiteSpace(CrcAliasDirectory) ? null : CrcAliasDirectory)
+        ?? "No CRC installation detected — aliases are unavailable";
+
     [ObservableProperty]
     private bool _isCapturingKey;
 
@@ -733,6 +743,7 @@ public partial class SettingsViewModel : ObservableObject
         _groundHideDataBlocksByDefault = _preferences.GroundHideDataBlocksByDefault;
         _groundShowTaxiRouteOnHover = _preferences.GroundShowTaxiRouteOnHover;
         _groundShowAllTaxiRoutes = _preferences.GroundShowAllTaxiRoutes;
+        _crcAliasDirectory = _preferences.CrcAliasDirectory ?? "";
         LoadMacros();
     }
 
@@ -861,6 +872,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetTdlsZoomPercent(TdlsZoomPercent);
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
         _preferences.SetGroundTaxiRouteDisplay(GroundShowTaxiRouteOnHover, GroundShowAllTaxiRoutes);
+        _preferences.SetCrcAliasDirectory(CrcAliasDirectory);
         SaveMacros();
         Saved = true;
     }

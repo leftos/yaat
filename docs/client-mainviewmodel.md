@@ -36,6 +36,7 @@ The class is split across partial files by concern. The split is purely organiza
 | `MainViewModel.Bookmarks.cs` | Shared timeline bookmarks — server-authoritative, synced across RPOs (GitHub issue #288): `Bookmarks` mirror collection; add / quick-add / rename / delete route through hub RPCs (`ServerConnection.Add/Rename/DeleteBookmarkAsync`); `ApplyBookmarks` reconciles from the `BookmarksChanged` broadcast / `RoomStateDto.Bookmarks` join seed; `BookmarkNamePromptRequested` event (view shows the name popup); `SnapshotBookmarks` for the recording-save `bookmarks.json` stitch. Cleared at session boundaries alongside `Aircraft.Clear()`. Also owns the client half of the `BM` verb (`TryHandleBookmarkLocallyAsync`): `BM LIST` prints to this client's terminal only and `BM GO/NEXT/PREV` drive `RewindToSeconds`, while add/rename/delete fall through to `MainViewModel.HandleBookmarkGlobalCommand` → `SendCommandAsync` → the server. |
 | `MainViewModel.Weather.cs` | Weather load / clear; `OnWeatherChanged`. |
 | `MainViewModel.Strips.cs` / `MainViewModel.Tdls.cs` | Multi-facility strips / vTDLS tabs: open/close per-facility entries, the `Subscribe*Entry` / `Unsubscribe*Entry` collection-changed plumbing, per-entry pop-out persistence. |
+| `MainViewModel.CrcAliases.cs` | CRC alias support: the `CrcAliasStore` instance, `BuiltInDotCommands` (the reserved names YAAT's own dot commands own), `LoadCrcAliasesAsync` (startup + ARTCC change + Settings save), `TryHandleCrcAlias` / `RunCrcAlias`, and `BuildCrcAliasContext` (flight-plan fields for `$dep`/`$arr`/`$route`/`$fullroute`, read off `SelectedAircraft`). Client-only — nothing here reaches the server. |
 | `MainViewModel.Favorites.cs` | Quick-command favorites bar/panel. |
 | `MainViewModel.ArrivalGenerators.cs` | Live arrival-generator editing. |
 | `ScenarioBootstrap.cs` | The `ScenarioBootstrap` record — the common projection the three activation paths feed `ApplyScenarioBootstrap`. |
@@ -190,32 +191,36 @@ persisted in `UserPreferences`); a change raises `TerminalFilterChanged`, which 
 
 ## The command pipeline entry point — `SendCommandAsync`
 
-`SendCommandAsync` (`MainViewModel.cs:1618`) is the client-side resolution chain that runs **before** anything reaches
+`SendCommandAsync` (`MainViewModel.cs:1893`) is the client-side resolution chain that runs **before** anything reaches
 the server. It does the work that `command-pipeline.md` summarizes in one line ("partial callsign resolution"). In
 order:
 
 1. **`** ` override prefix** — strips a leading `** ` and sets `forceOverride`, which re-prepends `** ` onto the
    canonical string before sending (bypasses assignment-ownership checks server-side).
 2. **Chat prefix** — a leading `'`, `/`, or `>` routes the remainder to `SendChatAsync` and returns.
-3. **Global command** — `CommandSchemeParser.Parse` + `IsGlobalCommand`; dispatched via `HandleGlobalCommand` with no
+3. **Dot commands** — a leading `.` (or the `CRC ` force-alias prefix, which is stripped alongside `** `) is
+   handled entirely client-side and returns. `TryHandleScopeMarkerCommand` gets first refusal (`.ff` / `.marker` /
+   `.markers` / `.nomarkers`), then `TryHandleCrcAlias` (`MainViewModel.CrcAliases.cs`); neither claiming it yields
+   "Unknown command or alias". The `CRC ` prefix skips the built-in step so a shadowed alias is still reachable.
+4. **Global command** — `CommandSchemeParser.Parse` + `IsGlobalCommand`; dispatched via `HandleGlobalCommand` with no
    callsign. Exception: the `AS {tcp} {track_command}` *prefix* form is per-aircraft (the standalone `AS {tcp}` is
    global), so it is **not** taken here.
-4. **Single-token select** — if the input is one token with no `,`/`;` and matches a callsign, just select that
+5. **Single-token select** — if the input is one token with no `,`/`;` and matches a callsign, just select that
    aircraft and return (no command sent).
-5. **Macro expand** — `MacroExpander.TryExpand` so callsign-prefix resolution sees real verbs.
-6. **Callsign-prefix resolve** — `CallsignPrefixResolver.Resolve`; `Ambiguous` surfaces a status message and aborts;
+6. **Macro expand** — `MacroExpander.TryExpand` so callsign-prefix resolution sees real verbs.
+7. **Callsign-prefix resolve** — `CallsignPrefixResolver.Resolve`; `Ambiguous` surfaces a status message and aborts;
    `Resolved` sets `target` + strips the prefix from `commandText`. A leading known command verb is never taken as a
    partial callsign (only an exact callsign match overrides), so a bare command whose verb merely appears inside live
    callsigns (`CM` while `CMD2` is up) falls through to the selected aircraft instead of reporting a false ambiguity.
-7. **Argument rewrite** — `CallsignArgumentResolver.TryRewrite` canonicalizes partial callsigns inside arguments
+8. **Argument rewrite** — `CallsignArgumentResolver.TryRewrite` canonicalizes partial callsigns inside arguments
    (`FOLLOW UA` → `FOLLOW UAL123`).
-8. **RPO control commands** — `TryHandleRpoCommand` (`MainViewModel.cs:2097`) intercepts `TAKE` / `GIVE <initials>` /
+9. **RPO control commands** — `TryHandleRpoCommand` (`MainViewModel.cs:2097`) intercepts `TAKE` / `GIVE <initials>` /
    `GIVEUP` (client-local ownership ops, bypass the command pipeline entirely).
-9. **`ParseCompound`** — on failure, falls back to **solo natural-language** dispatch
-   (`TryDispatchSoloNaturalCommandAsync`) when `SessionSoloTrainingMode` is on; otherwise reports the parse error.
-10. **No-target half-strip** — when no aircraft resolved, `HSC`/`HSA`/`HSD` run globally with an empty callsign
+10. **`ParseCompound`** — on failure, falls back to **solo natural-language** dispatch
+    (`TryDispatchSoloNaturalCommandAsync`) when `SessionSoloTrainingMode` is on; otherwise reports the parse error.
+11. **No-target half-strip** — when no aircraft resolved, `HSC`/`HSA`/`HSD` run globally with an empty callsign
     (`IsHalfStripVerb`); otherwise "No aircraft matched."
-11. **Dispatch** — `_connection.SendCommandAsync(callsign, canonical, initials)`. On success,
+12. **Dispatch** — `_connection.SendCommandAsync(callsign, canonical, initials)`. On success,
     `RecordCommandMarker` drops a timeline tick; `AddHistory` records the canonical (callsign stripped via
     `CommandHistoryFormatter`); the input box is cleared; `CommandStatusResolver.Resolve` sets the status text.
 

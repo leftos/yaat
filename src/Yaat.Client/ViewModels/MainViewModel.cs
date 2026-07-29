@@ -1405,6 +1405,7 @@ public partial class MainViewModel : ObservableObject
 
         _ = InitializeNavDataAsync();
         _ = _vnasConfigService.InitializeAsync();
+        _ = LoadCrcAliasesAsync();
         _ = CheckForUpdateAsync();
     }
 
@@ -1851,7 +1852,8 @@ public partial class MainViewModel : ObservableObject
     /// <c>.markers</c> toggle one or more fix/NAVAID (or FRD) markers on this instructor's radar;
     /// <c>.nomarkers</c> clears them all. Never sent to the server.
     /// </summary>
-    private void HandleScopeMarkerCommand(string text)
+    /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
+    private bool TryHandleScopeMarkerCommand(string text)
     {
         var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         var verb = parts[0].ToUpperInvariant();
@@ -1861,14 +1863,14 @@ public partial class MainViewModel : ObservableObject
             case ".NOMARKERS":
                 Radar.ClearMarkers();
                 StatusText = "Scope markers cleared";
-                return;
+                return true;
             case ".FF":
             case ".MARKER":
             case ".MARKERS":
                 if (parts.Length < 2)
                 {
                     StatusText = $"Usage: {parts[0]} <fix> [fix ...]";
-                    return;
+                    return true;
                 }
 
                 var unresolved = new List<string>();
@@ -1881,10 +1883,9 @@ public partial class MainViewModel : ObservableObject
                 }
 
                 StatusText = unresolved.Count > 0 ? $"Scope markers updated; unknown fix: {string.Join(", ", unresolved)}" : "Scope markers updated";
-                return;
+                return true;
             default:
-                StatusText = $"Unknown command: {parts[0]}";
-                return;
+                return false;
         }
     }
 
@@ -1928,11 +1929,30 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // Client-only scope-marker dot commands (CRC .ff / .marker / .markers / .nomarkers).
-        // These never reach the server — they pin reference fixes on this instructor's radar.
-        if (text.StartsWith('.'))
+        // "CRC " forces alias resolution, reaching an alias that a built-in dot command would shadow.
+        bool forceAlias = false;
+        if (text.StartsWith("CRC ", StringComparison.OrdinalIgnoreCase))
         {
-            HandleScopeMarkerCommand(text);
+            forceAlias = true;
+            text = text[4..].TrimStart();
+        }
+
+        // Client-only dot commands. Built-in scope markers (CRC .ff / .marker / .markers / .nomarkers)
+        // win, then CRC aliases read from the user's CRC install. Neither ever reaches the server.
+        if (forceAlias || text.StartsWith('.'))
+        {
+            bool handled = (!forceAlias) && TryHandleScopeMarkerCommand(text);
+            if (!handled)
+            {
+                handled = TryHandleCrcAlias(text);
+            }
+
+            if (!handled)
+            {
+                var verb = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? text;
+                StatusText = $"Unknown command or alias: {verb}";
+            }
+
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
             AddHistory("", text);

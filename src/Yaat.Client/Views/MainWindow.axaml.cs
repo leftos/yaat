@@ -2625,6 +2625,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             vm.ApplyTdlsZoomPercent(vm.Preferences.TdlsZoomPercent);
             vm.RefreshIsSpeechEnabledFromPrefs();
             vm.RefreshWindowTitleFromPrefs();
+            vm.ReloadCrcAliases();
             ApplyKeybinds(vm.Preferences);
             // Visual settings already applied via preview — just ensure final state is consistent
             SyncAllRadarViewTint();
