@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.9.18-beta [2026/07/29]
+
+### Highlights
+- Your CRC aliases work in YAAT's command box — `.C172`, `.FbC`, `.PRC` and your ARTCC's shortcuts run as-is, with nothing to re-author.
+- The Room Members list names the app behind every connection — YAAT Client, Flight Strips, or vTDLS — and fills in the moment you join, so a member count you don't recognize is explainable.
+- A room left with only vStrips or vTDLS browser tabs pauses itself instead of running traffic nobody is working.
+- YAAT checks a server's supported client versions before connecting, so an out-of-date client is told what it needs instead of failing in confusing ways.
 
 ### Added
 - YAAT checks the server's supported client versions before connecting: too old and it stops with the version you need, behind-but-working and it offers a dismissible update prompt. An unreachable or older server never blocks you.
