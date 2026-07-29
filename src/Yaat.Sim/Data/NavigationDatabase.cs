@@ -2231,8 +2231,20 @@ public sealed class NavigationDatabase
     //  CIFP loaders (private, per-airport on first access)
     // ──────────────────────────────────────────────
 
+    /// <summary>
+    /// Whether this database has a CIFP file to read procedures from. False for a
+    /// <see cref="ForTesting" /> instance, which carries only the fixes/runways it was handed — every
+    /// loader below must check this, because the parser would otherwise be asked to read an empty path.
+    /// </summary>
+    private bool HasCifpFile => !string.IsNullOrEmpty(_cifpFilePath) && File.Exists(_cifpFilePath);
+
     private IReadOnlyList<CifpSidProcedure> LoadSids(string normalizedAirport)
     {
+        if (!HasCifpFile)
+        {
+            return [];
+        }
+
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
         return CifpParser.ParseSids(_cifpFilePath, icao);
     }
@@ -2270,12 +2282,22 @@ public sealed class NavigationDatabase
 
     private IReadOnlyList<CifpStarProcedure> LoadStars(string normalizedAirport)
     {
+        if (!HasCifpFile)
+        {
+            return [];
+        }
+
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
         return CifpParser.ParseStars(_cifpFilePath, icao);
     }
 
     private IReadOnlyList<CifpApproachProcedure> LoadApproaches(string normalizedAirport)
     {
+        if (!HasCifpFile)
+        {
+            return [];
+        }
+
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
         return CifpParser.ParseApproaches(_cifpFilePath, icao);
     }
@@ -2300,7 +2322,7 @@ public sealed class NavigationDatabase
 
     private double? LoadAirportMagneticVariation(string normalizedAirport)
     {
-        if (string.IsNullOrEmpty(_cifpFilePath) || !File.Exists(_cifpFilePath))
+        if (!HasCifpFile)
         {
             return null;
         }
