@@ -738,7 +738,7 @@
                                             AircraftCount}" />
                                         <Run Text=" aircraft · " />
                                         <Run Text="{Binding
-                                            MemberInitials.Count}" />
+                                            Members.Count}" />
                                         <Run Text=" member(s)" />
                                     </TextBlock>
                                 </StackPanel>
@@ -803,10 +803,20 @@
                             <Grid
                                 ColumnDefinitions="*,Auto">
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock
-                                        FontWeight="Bold"
-                                        Foreground="White"
-                                        Text="{Binding Initials}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock
+                                            FontWeight="Bold"
+                                            Foreground="White"
+                                            Text="{Binding Initials}" />
+                                        <Border Background="#40FFFFFF"
+                                                CornerRadius="3"
+                                                Padding="5,1"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Foreground="White"
+                                                       FontSize="10"
+                                                       Text="{Binding KindLabel}" />
+                                        </Border>
+                                    </StackPanel>
                                     <TextBlock
                                         Foreground="{DynamicResource SubtleTextBrush}"
                                         FontSize="11">
@@ -814,6 +824,8 @@
                                         <Run Text="{Binding Cid}" />
                                         <Run Text=" · " />
                                         <Run Text="{Binding ArtccId}" />
+                                        <Run Text=" · joined " />
+                                        <Run Text="{Binding JoinedAtText}" />
                                     </TextBlock>
                                 </StackPanel>
                                 <Button Grid.Column="1"

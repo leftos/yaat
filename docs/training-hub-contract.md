@@ -188,7 +188,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `SimulationStateChanged` | `(bool, int, double, bool, double)` | `SimulationStateChanged` |
 | `TerminalBroadcast` | `TerminalBroadcastDto` | `TerminalEntryReceived` |
 | `PilotTransmissionBroadcast` | `PilotTransmissionBroadcastDto` | `PilotTransmissionReceived` |
-| `RoomMemberChanged` | `RoomMemberChangedDto` | `RoomMemberChanged` |
+| `RoomMemberChanged` | `RoomMemberChangedDto` (carries `RoomMemberDto` — see **Room membership** below) | `RoomMemberChanged` — **not** the client's only source of members; `ApplyRoomState` seeds from `RoomStateDto.Members` because this push can beat the join response |
 | `CrcLobbyChanged` | `CrcLobbyChangedDto` | `CrcLobbyChanged` |
 | `RpoLobbyChanged` | `RpoLobbyChangedDto` | `RpoLobbyChanged` (waiting non-mentor RPOs + kicked users pending re-admit) |
 | `CrcRoomMembersChanged` | `CrcRoomMembersChangedDto` | `CrcRoomMembersChanged` |
@@ -219,6 +219,33 @@ payload DTO → the `ServerConnection` C# event it re-raises:
   the timeline label, scrubber position, and the base for the relative +15/−15 skips — stays live. It is also sent
   on the discrete events (pause/unpause, sim-rate change, rewind-complete, end-of-tape). The `double elapsed`
   argument carries `scenario.ElapsedSeconds`.
+
+## Room membership
+
+`RoomMemberDto(Cid, Initials, ArtccId, Kind, JoinedAtUtc, ConnectionId)` is the single member shape across three
+surfaces: `RoomStateDto.Members` (the join seed), `RoomMemberChangedDto.Members` (the push), and
+`TrainingRoomInfoDto.Members` (the room list **and** `GET /admin/status`). All three are built by
+`TrainingRoomManager.BuildMemberDtos` so occupancy never disagrees between them.
+
+**A member is a connection, not a person.** vStrips and vTDLS join over this same hub with
+`ClientKind.VStrips` / `ClientKind.VTdls`, so one controller running the desktop client plus a strips tab is
+**two** members sharing a CID and initials. `ConnectionId` is what distinguishes them; `Kind` is what makes a
+count interpretable. Any surface that renders a member count without the kind will report a forgotten browser
+tab as an occupied room — that was the pre-provenance behavior, and it made `/admin/status` unusable for
+deciding whether a deploy would interrupt anyone.
+
+Two consequences worth knowing before touching this area:
+
+- **The join-time `RoomMemberChanged` push is unreliable for the joiner.** The server broadcasts it to the room
+  group from inside `JoinRoom`, and the caller is already in that group, so it can arrive before the client has
+  applied the `RoomStateDto` result and assigned `ActiveRoomId` — where `OnRoomMemberChanged`'s room guard drops
+  it. `MainViewModel.ApplyRoomState` therefore seeds `RoomMembers` from `RoomStateDto.Members` directly. Do not
+  make the panel depend on the push alone.
+- **Strips/vTDLS-only rooms auto-pause.** `ScenarioLifecycleService.PauseIfUnattended` pauses a room once no
+  member has `ClientKind.Main` and no CRC client is bound (`CrcClientManager.GetClientsForRoom`). It runs from
+  the non-abandoned branch of `HandleClientLeft` and from the CRC disconnect path in `CrcWebSocketHandler`. It
+  never starts the abandoned-room cleanup timer — a browser tab legitimately holds the room open — and never
+  auto-resumes.
 
 ## Three JSON source-gen contexts and the WASM failure mode
 

@@ -3,11 +3,16 @@
 ## Unreleased
 
 ### Added
+- The Room Members list names the app behind every connection — YAAT Client, Flight Strips, or vTDLS — with the time it joined, so a member count you don't recognize is explainable.
 - Aliases from your CRC installation work in the command box — `.C172`, `.FbC`, `.PRC` and your ARTCC's shortcuts, with nothing to re-author.
 - Aliases print to the terminal (`.echo`, including multi-line reference cards), pin scope markers (`.ff`/`.marker`/`.markers`/`.nomarkers`), and open URLs (`.openurl`); other CRC verbs report that they aren't supported.
 - Type `CRC .NAME` to reach an alias a YAAT command shadows, `.reloadaliases` to re-read the files, and set a custom alias folder in **Settings > Macros**.
 
+### Changed
+- A room left with only vStrips or vTDLS browser tabs, and no CRC student, pauses itself — nobody connected can work the traffic. Resume it as you would any paused room.
+
 ### Fixed
+- The Room Members list fills in as soon as you join a room, instead of staying empty until somebody else joined or left.
 - Rewinding or replaying an aircraft that has already turned off the runway keeps it taxiing to the hold-short instead of turning back onto the runway.
 - A new aircraft that reuses an auto-deleted aircraft's callsign appears on CRC scopes immediately.
 - Auto-deleting an assigned aircraft releases its controller assignment instead of leaving a phantom entry in the assignment list.

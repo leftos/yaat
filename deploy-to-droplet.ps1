@@ -31,8 +31,12 @@
 #                     stop waiting. Ignores all build/deploy flags.
 #
 # -StatusOnly  Do NOT deploy. Query the target's /admin/status endpoint once and print the
-#              active rooms (count, members, scenario, aircraft count), then exit. Used by
-#              the prepare-release flow to report room occupancy before asking whether to
+#              active rooms (count, scenario, aircraft count) plus one line per member —
+#              initials, client kind (main/vstrips/vtdls), how long they have been connected,
+#              CID, and connection id — then exit. The per-member detail is what makes a
+#              nonzero count actionable: a lone hours-old vstrips member is a forgotten
+#              browser tab, not a session worth delaying a deploy for. Used by the
+#              prepare-release flow to report room occupancy before asking whether to
 #              deploy. Requires ADMIN_PASSWORD (read from .env.<target>/.env). Exit code 0
 #              on a successful query (whether or not rooms are active), 2 if the query
 #              failed (server unreachable or password unset). Ignores all build/deploy flags.
@@ -191,15 +195,50 @@ function Invoke-PrepareRestartSessions {
   }
 }
 
+# How long a member has been connected, as a compact age string. A vStrips tab someone left
+# open reads as hours; a controller who just joined reads as minutes.
+function Format-MemberAge {
+  param($JoinedAtUtc)
+  if (-not $JoinedAtUtc) { return "?" }
+  $age = (Get-Date).ToUniversalTime() - ([datetime]$JoinedAtUtc).ToUniversalTime()
+  if ($age.TotalMinutes -lt 1) { return "{0}s" -f [int]$age.TotalSeconds }
+  if ($age.TotalHours -lt 1) { return "{0}m" -f [int]$age.TotalMinutes }
+  if ($age.TotalDays -lt 1) { return "{0}h{1:d2}m" -f [int]$age.TotalHours, $age.Minutes }
+  return "{0}d{1:d2}h" -f [int]$age.TotalDays, $age.Hours
+}
+
 # Format the /admin/status rooms array into a one-line human summary. Shared by the
 # single-shot status check and the wait-for-empty poll so both render rooms identically.
+# Members carry their client kind because a room whose only member is a vstrips/vtdls
+# browser tab is not an occupied training session — the bare initials can't say that.
 function Format-RoomsSummary {
   param($Rooms)
   return ($Rooms | ForEach-Object {
-      $members = if ($_.memberInitials -and $_.memberInitials.Count -gt 0) { $_.memberInitials -join "," } else { "no members" }
+      $members = if ($_.members -and $_.members.Count -gt 0) {
+        ($_.members | ForEach-Object { "$($_.initials)($($_.kind))" }) -join ","
+      }
+      else { "no members" }
       $scenario = if ($_.scenarioName) { $_.scenarioName } else { "(no scenario)" }
       "$($_.roomId) [$members] $scenario $($_.aircraftCount)ac"
     }) -join "; "
+}
+
+# Print one indented line per member so a nonzero count is always explainable: who, which app,
+# how long they have been connected, and the connection id that distinguishes two tabs held by
+# the same controller.
+function Write-RoomsMemberDetail {
+  param($Rooms)
+  foreach ($room in $Rooms) {
+    Write-Host "  $($room.roomId):" -ForegroundColor Cyan
+    if (-not $room.members -or $room.members.Count -eq 0) {
+      Write-Host "    (no members — room is held open by its cleanup timer)" -ForegroundColor DarkGray
+      continue
+    }
+
+    foreach ($m in $room.members) {
+      Write-Host ("    {0,-4} {1,-7} joined {2,-7} cid={3,-9} conn={4}" -f $m.initials, $m.kind, (Format-MemberAge $m.joinedAtUtc), $m.cid, $m.connectionId)
+    }
+  }
 }
 
 # Query /admin/status once and print the active rooms without blocking or deploying.
@@ -218,6 +257,7 @@ function Invoke-StatusCheck {
   }
   else {
     Write-Host ("{0} active room(s) on {1}: {2}" -f $count, $serverUrl, (Format-RoomsSummary $status.rooms)) -ForegroundColor Yellow
+    Write-RoomsMemberDetail $status.rooms
   }
 }
 

@@ -1059,7 +1059,7 @@ public record TrainingRoomInfoDto(
     string CreatorInitials,
     string CreatorArtccId,
     string? ScenarioName,
-    List<string> MemberInitials,
+    List<RoomMemberDto> Members,
     bool IsPaused,
     double SimRate,
     double ElapsedSeconds,
@@ -1201,7 +1201,20 @@ public record SessionSettingsDto(
     int CommandRunDelayMaxSeconds = 0
 );
 
-public record RoomMemberDto(string Cid, string Initials, string ArtccId);
+/// <summary>
+/// A room member. One controller can hold several at once — a desktop client plus a vStrips or
+/// vTDLS browser tab each join separately — so <paramref name="ConnectionId" /> is what tells two
+/// of their connections apart, and <paramref name="Kind" /> / <paramref name="JoinedAtUtc" />
+/// explain why a room reports the member count it does.
+/// </summary>
+public record RoomMemberDto(string Cid, string Initials, string ArtccId, string Kind, DateTime JoinedAtUtc, string ConnectionId)
+{
+    /// <summary>Badge text naming the app this member is running, e.g. "Flight Strips".</summary>
+    public string KindLabel => Yaat.Sim.ClientKind.DisplayName(Kind);
+
+    /// <summary>Local clock time this member joined, so a connection nobody remembers opening is obvious.</summary>
+    public string JoinedAtText => JoinedAtUtc.ToLocalTime().ToString("HH:mm");
+}
 
 public record RoomMemberChangedDto(string RoomId, List<RoomMemberDto> Members, string? ScenarioName);
 

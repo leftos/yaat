@@ -1327,7 +1327,7 @@ Assignments are cleared when a member leaves, an aircraft is deleted, or the sce
 
 Open **Room > Members...** for one window that shows everyone in the current training room and everyone available to pull into it. It has four sections:
 
-- **YAAT Members** — YAAT clients in the room: instructors and any RPOs you've pulled in (initials, CID, ARTCC). Click **Kick** to remove.
+- **YAAT Members** — everyone connected to the room over YAAT: instructors, any RPOs you've pulled in, and any [vStrips](#flight-strips) or [vTDLS](#vtdls) browser tabs. Each row shows initials, a badge naming which app that connection is running (**YAAT Client**, **Flight Strips**, **vTDLS**), CID, ARTCC, and the time it joined. Click **Kick** to remove.
 - **CRC Students** — CRC clients bound to the room (display name, position, active status). Click **Kick** to remove (they return to the lobby).
 - **YAAT Lobby** — signed-in controllers connected as RPOs who are waiting for a room (name, CID, rating). Click **Pull** to bring one into your room; they immediately start working the position.
 - **CRC Lobby** — CRC clients not in any room (display name, ARTCC, position). Click **Pull** to bring one into your room.
@@ -1336,6 +1336,8 @@ Open **Room > Members...** for one window that shows everyone in the current tra
 - A CRC client whose CID matches a YAAT client already in a room is bound to that room automatically.
 - If all YAAT clients leave a room, its CRC clients return to the lobby.
 - The window updates in real time as people join, leave, or connect; use **Refresh** to re-fetch on demand.
+- One person can appear more than once. Opening vStrips or vTDLS in a browser joins the room as its own connection, so a controller running the desktop client alongside a strips tab shows as two members with the same initials — the badge is what tells them apart, and the room's member count on the room list counts both.
+- A room whose only remaining members are vStrips/vTDLS tabs, with no CRC student connected, **pauses automatically** — nobody left can work the traffic. It stays paused until someone resumes it, the same as a room everyone has left.
 
 ### Controllers
 

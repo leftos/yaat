@@ -202,6 +202,16 @@ only that room's `World.GetSnapshot()` (`:786`-`789`). There is no global aircra
 error. `UpdatePausedSince` (`:97`) stamps the continuous-pause clock that the retirement sweep reads; `IsAbandoned`
 (`:76`) is true when no clients are connected.
 
+**Members are connections, not people.** `Members` is keyed by SignalR connection id and each `RoomMember` carries
+`Kind` (`ClientKind.Main` / `VStrips` / `VTdls`) and `JoinedAtUtc`. vStrips and vTDLS browser tabs join over the same
+hub, so one controller can hold several members at once — `HasYaatClientMember` is the predicate that asks whether
+any of them can actually work traffic. Between that and `CrcClientManager.GetClientsForRoom`,
+`ScenarioLifecycleService.PauseIfUnattended` pauses a room the moment its last YAAT client and CRC client are gone
+while browser tabs remain: the sim has nobody to serve. It is called from the **non-abandoned** branch of
+`HandleClientLeft` and from `CrcWebSocketHandler`'s disconnect path. It deliberately does not touch `CleanupCts` —
+a tab is a legitimate viewer, so room retirement stays governed by `IsAbandoned` and the paused-retirement sweep —
+and it does not auto-resume.
+
 **Join gate & kick block.** Two per-room CID sets govern who may `JoinRoom`, both consulted by the pure
 `TrainingHub.CanJoinRoomCore(isMentorOrInstructor, kind, kicked, invited, restored, alreadyMember, crcBound)`:
 `InvitedCids` — CIDs a mentor pulled in as RPOs, the allow-list that lets a limited (non-mentor "main") client join;

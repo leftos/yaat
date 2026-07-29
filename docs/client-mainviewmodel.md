@@ -53,7 +53,9 @@ the `Aircraft`, `TerminalEntries`, `CrcLobbyClients`, `CrcRoomMembers`, `RoomMem
 
 This holds for `OnAircraftUpdated`/`Spawned`/`Deleted`, `OnSimulationStateChanged`, `OnTerminalEntry`,
 `OnReconnecting`/`OnReconnected`/`OnConnectionClosed`, `OnServerRestarting`/`ReadyComplete`, `OnRoomAvailableForCid`,
-`OnRoomMemberChanged`, `OnCrcLobbyChanged` (logs first, then posts — `MainViewModel.Rooms.cs:697`),
+`OnRoomMemberChanged` (**not** the only writer of `RoomMembers` — `ApplyRoomState` seeds it from
+`RoomStateDto.Members`, because the server's join-time push can land before `ActiveRoomId` is assigned and get
+dropped by this handler's room guard), `OnCrcLobbyChanged` (logs first, then posts — `MainViewModel.Rooms.cs:697`),
 `OnCrcRoomMembersChanged`, `OnWeatherChanged`, `OnArrivalGeneratorsChanged`, `OnPositionDisplayChanged`,
 `OnAircraftAssignmentsChanged`, `OnScenarioLoaded`/`OnScenarioUnloaded`, `OnSessionSettingsChanged`,
 `OnKickedFromRoom`, `OnRoomRetired`. Omit the `Post` and you get intermittent cross-thread crashes that unit tests

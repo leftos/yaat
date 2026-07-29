@@ -27,4 +27,19 @@ public static class ClientKind
             VTdls => " (vTDLS)",
             _ => "",
         };
+
+    /// <summary>
+    /// Standalone label for the app a client is running, for surfaces that show the kind on its own
+    /// rather than appended to a sentence — the Room Members panel badge. Unlike
+    /// <see cref="DisplaySuffix" /> this always names something, so a member list can state which
+    /// connections are browser tabs rather than leaving the main-client case blank.
+    /// </summary>
+    public static string DisplayName(string kind) =>
+        kind switch
+        {
+            VStrips => "Flight Strips",
+            VTdls => "vTDLS",
+            Main => "YAAT Client",
+            _ => kind,
+        };
 }
