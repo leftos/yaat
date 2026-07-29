@@ -90,7 +90,16 @@ tools/refresh-crc-docs.py         # Mirrors the vNAS docs site (docs.virtualnas.
 tools/parse_airfleets.py          # pdfplumber parser used by refresh-airline-fleets.py; maps fleet variants to ICAO Doc 8643 types.
 tools/mcp/context7-stdio.ps1      # Context7 stdio adapter that reads CONTEXT7_API_KEY from the environment when Codex cannot express the custom header.
 tools/mcp/exa-stdio.ps1           # Exa stdio adapter that reads EXA_API_KEY from the environment when a local authenticated Exa MCP is preferred.
+tools/hooks/whitespace-fix-autostage.sh # prek hook: trailing-whitespace + EOF-newline fixes, auto-staged so the commit proceeds.
+tools/hooks/dotnet-format-wrapper.sh    # prek hook wrapper for `dotnet format style` / `analyzers`.
+tools/hooks/csharpier-wrapper.sh        # prek hook wrapper for `dotnet csharpier format .`.
+tools/hooks/claude-guard-bash.sh   # Claude Code PreToolUse(Bash) guard: denies untee'd/untimed dotnet test|build|run, bare `dotnet format`, dotnet -q/--nologo, and `prek run --all-files`. Matches only in command position (quoted spans and heredoc bodies stripped) so grepping a doc that mentions a guarded command is not blocked. Registered from .claude/settings.json (tracked, so contributors + the CI Claude workflows get it too).
+tools/hooks/claude-guard-read.sh   # Claude Code PreToolUse(Read) guard: denies reading secret-bearing files (.env*, *.pem/key/pfx/p12, credentials, secrets.*, appsettings.Local.json). Narrow by design — `Secrets.cs` and docs about credentials stay readable.
+tools/hooks/claude-guard-cases.jsonl    # Expected allow/deny table for the Bash guard.
+tools/hooks/test-claude-guards.sh       # Runs the table above; wired into prek (`claude-guards`) and triggered only when a guard file changes.
 ```
+
+The sibling yaat-server repo registers the same two guards via its own `.claude/settings.json` → `tools/hooks/claude-guard.sh`, a shim that resolves these scripts through the sibling checkout first and `extern/yaat/` second (the same order `Directory.Build.props` uses for Yaat.Sim) and fails open if neither is present.
 
 See [installer-release.md](installer-release.md) for the Velopack packaging, auto-update, CRC install prompt, and the tag-driven `release.yml` (win+linux) / `release-macos.yml` (Apple Silicon + Intel, one Velopack channel per architecture) pipelines. macOS code signing/notarization (Developer ID certs, entitlements + `Info.plist` template in `build/macos/`, the eight `MACOS_*` secrets) is set up via [macos-code-signing.md](macos-code-signing.md).
 

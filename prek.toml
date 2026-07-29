@@ -67,6 +67,18 @@ files = '^(docs/command-cheatsheet\.(json|html)|tools/build-cheatsheet\.mjs)$'
 pass_filenames = false
 stages = ["pre-commit"]
 
+# The Claude Code PreToolUse guards must deny rule violations without blocking
+# legitimate work (grepping a doc that mentions a guarded command, writing a
+# heredoc that contains one). Triggers only when a guard file changes.
+[[repos.hooks]]
+id = "claude-guards"
+name = "Claude Code guard hooks behave"
+entry = "bash tools/hooks/test-claude-guards.sh"
+language = "system"
+files = '^tools/hooks/(claude-guard-bash\.sh|claude-guard-cases\.jsonl|test-claude-guards\.sh)$'
+pass_filenames = false
+stages = ["pre-commit"]
+
 [[repos.hooks]]
 id = "dotnet-build"
 name = "dotnet build (warnings as errors)"

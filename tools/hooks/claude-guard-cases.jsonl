@@ -1,0 +1,19 @@
+{"expect":"deny","cmd":"dotnet build"}
+{"expect":"deny","cmd":"dotnet test"}
+{"expect":"deny","cmd":"dotnet test 2>&1 | tee .tmp/test.log"}
+{"expect":"deny","cmd":"dotnet run --project src/Yaat.Client"}
+{"expect":"deny","cmd":"prek run --all-files"}
+{"expect":"deny","cmd":"dotnet format"}
+{"expect":"deny","cmd":"dotnet format ."}
+{"expect":"deny","cmd":"cd X:/dev/yaat && dotnet build"}
+{"expect":"allow","cmd":"rg -n 'dotnet build' CLAUDE.md"}
+{"expect":"allow","cmd":"rg -n 'localhost:5000|dotnet build  *#' CLAUDE.md"}
+{"expect":"allow","cmd":"dotnet build -p:TreatWarningsAsErrors=true 2>&1 | tee .tmp/build.log"}
+{"expect":"allow","cmd":"timeout 120 dotnet test 2>&1 | tee .tmp/test.log"}
+{"expect":"allow","cmd":"timeout 30 dotnet test --filter \"Name~X\" 2>&1 | tee .tmp/test.log"}
+{"expect":"allow","cmd":"pwsh tools/test-all.ps1"}
+{"expect":"allow","cmd":"dotnet format style"}
+{"expect":"allow","cmd":"dotnet format analyzers"}
+{"expect":"allow","cmd":"prek run"}
+{"expect":"allow","cmd":"dotnet workload restore"}
+{"expect":"allow","cmd":"cat > f <<'EOF'\ndotnet build\nprek run --all-files\nEOF"}
