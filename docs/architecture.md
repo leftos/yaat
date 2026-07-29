@@ -721,7 +721,7 @@ Data/Mva/MvaDatabase.cs / MvaSector.cs / MvaRelation.cs # FAA AIXM-derived MVA s
 Data/Mva/FAA_MVA_FUS3.geojson.br # Committed FAA MVA charts (FUS3), all 148 published facilities: 3,268 sectors with MSL floors + facility tags, Brotli-compressed, built by tools/build-mva-data.py --all.
 Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, Airports, InitialContactTransfers, WakeDirectives, Procedures — see Data/ARTCCs/README.md).
 Data/ARTCCs/ZOA/Procedures/koak-nimi.cifp # Pinned KOAK NIMITZ SID (NIMI5): charted and flown, but dropped from the FAA CIFP at cycle 2605. Carries the published 315 deg initial turn that the ~12-month prior-cycle chain would otherwise lose.
-Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
+Data/FrdResolver.cs            # Fix-Radial-Distance ↔ lat/lon; IsFrdIdentifier gates FRD-named fixes
 Data/LatLonParser.cs           # ERAM DDMM/DDDMM lat-long strings (//4220N/7110W) → lat/lon (CRR group locations)
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
 Data/VideoMapMetadata.cs       # Video map metadata model

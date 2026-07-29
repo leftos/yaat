@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 
@@ -144,5 +145,95 @@ public class FrdResolverToFrdTests
         var suffix = result["OAK".Length..];
         Assert.Equal(6, suffix.Length);
         Assert.True(int.TryParse(suffix, out _));
+    }
+
+    [Theory]
+    [InlineData("OAK169001", true)]
+    [InlineData("ABI037030", true)]
+    [InlineData("DUMBA090010", true)]
+    [InlineData("OAK", false)]
+    [InlineData("SUNOL", false)]
+    [InlineData("OAK169", false)] // radial-only shape is not treated as an FRD identifier
+    [InlineData("AA409", false)]
+    [InlineData("OAK000010", false)] // radial 000 is not a valid FRD azimuth
+    [InlineData("XYZ999123", false)] // radial 999 is not a valid FRD azimuth
+    [InlineData("A169001", false)] // single-letter anchor
+    [InlineData("TOOLONG169001", false)] // anchor longer than 5 chars
+    [InlineData("OA1169001", false)] // digit inside the anchor
+    [InlineData("", false)]
+    public void IsFrdIdentifier_ClassifiesNames(string name, bool expected)
+    {
+        Assert.Equal(expected, FrdResolver.IsFrdIdentifier(name));
+    }
+
+    // vNAS NavData publishes thousands of adapted fixes whose identifiers are themselves FRD
+    // strings (OAK169001, ABI037030, …). Anchoring on one emits an FRD-of-an-FRD such as
+    // "DCTF OAK169001231001", which no controller or pilot can read back.
+    private static readonly IReadOnlyList<(string Name, double Lat, double Lon)> FrdNamedFixes =
+    [
+        ("OAK", 37.7213, -122.2208),
+        ("OAK169001", 37.7053, -122.2166), // ~1 nm from OAK, on its 169 radial
+    ];
+
+    [Fact]
+    public void ToFrd_NearFrdNamedFix_AnchorsOnRealFixInstead()
+    {
+        // ~3 nm south of the OAK169001 adapted fix — that fix is the nearest, but it must not anchor.
+        var result = FrdResolver.ToFrd(37.6553, -122.2166, FrdNamedFixes);
+
+        Assert.NotNull(result);
+        Assert.Matches(@"^OAK\d{6}$", result);
+    }
+
+    [Fact]
+    public void ToFrd_OnTopOfFrdNamedFix_ReturnsBareIdentifier()
+    {
+        // Within 0.1 nm: the identifier itself is a real, resolvable fix, so naming it is correct.
+        var result = FrdResolver.ToFrd(37.7054, -122.2165, FrdNamedFixes);
+
+        Assert.Equal("OAK169001", result);
+    }
+
+    [Fact]
+    public void ToFrd_RealNavData_NeverAnchorsOnFrdNamedFix()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        // Guards the premise: the real vNAS dataset really does publish these as fixes.
+        Assert.NotNull(navDb.GetFixPosition("OAK169001"));
+
+        var allFixes = navDb.GetFixTuples();
+        var frdNamed = allFixes.Where(f => FrdResolver.IsFrdIdentifier(f.Name)).Take(200).ToList();
+        Assert.NotEmpty(frdNamed);
+
+        // Probe 2 nm north of each adapted fix: far enough that the distance doesn't round to zero
+        // (which would return a bare identifier rather than a constructed FRD), close enough that the
+        // adapted fix or one of its neighbours is still the nearest entry of any kind.
+        int probesWhereFrdFixIsNearest = 0;
+        foreach (var probeAnchor in frdNamed)
+        {
+            double lat = probeAnchor.Lat + (2.0 / 60.0);
+            double lon = probeAnchor.Lon;
+
+            var nearest = allFixes.MinBy(f => GeoMath.DistanceNm(lat, lon, f.Lat, f.Lon));
+            if (!FrdResolver.IsFrdIdentifier(nearest.Name))
+            {
+                continue;
+            }
+
+            probesWhereFrdFixIsNearest++;
+
+            var result = FrdResolver.ToFrd(lat, lon, allFixes);
+            Assert.NotNull(result);
+            var anchor = FrdResolver.ParseFrd(result)?.Fix;
+            Assert.NotNull(anchor);
+            Assert.False(FrdResolver.IsFrdIdentifier(anchor), $"ToFrd anchored on FRD-named fix '{anchor}' (result '{result}')");
+        }
+
+        Assert.True(probesWhereFrdFixIsNearest > 0, "no probe had an FRD-named fix as its nearest entry — the test proves nothing");
     }
 }

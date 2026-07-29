@@ -390,6 +390,14 @@ public partial class RadarViewModel : ObservableObject
         var result = new List<(string, double, double)>(names.Length);
         foreach (var name in names)
         {
+            // vNAS publishes thousands of adapted fixes whose identifiers are themselves FRD strings
+            // (OAK169001). They stay typeable via FixNames, but they aren't chartable waypoints, so
+            // they neither paint on the scope nor anchor a deduced FRD.
+            if (FrdResolver.IsFrdIdentifier(name))
+            {
+                continue;
+            }
+
             var pos = NavigationDatabase.Instance.GetFixPosition(name);
             if (pos.HasValue)
             {

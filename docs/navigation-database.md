@@ -350,9 +350,33 @@ at the **fix (origin)** position via `MagneticDeclination`: `ToFrd` converts the
 rounding), so `ToFrd`→`Resolve` round-trips to the original point. Every FRD string in the app — ATCTrainer scenario `FixOrFrd`
 spawns, custom-fix `frd` definitions, user-typed direct-to, the ERAM QU/RD present-position anchor — is interpreted as magnetic.
 
-`ToFrd(lat, lon, fixes, maxNm = 50.0)` (`:75`) is the reverse: find the nearest fix within the cap (default **50 nm**), compute
+`ToFrd(lat, lon, fixes, maxNm = 50.0)` is the reverse: find the nearest fix within the cap (default **50 nm**), compute
 the magnetic radial, and format `{FIX}{radial:D3}{distance:D3}`. It returns the bare fix name when within 0.1 nm, and **`null`
 when the rounded distance exceeds 999 nm** (can't fit the 3-digit field).
+
+### FRD-named fixes are never FRD anchors
+
+vNAS NavData publishes ~6,900 adapted fixes whose *identifiers are themselves FRD strings* — `OAK169001`, `ABI037030`,
+`OAK163001`. `BuildIndex` loads every one into `_navDb`, so they reach `AllFixNames`, `GetFixTuples()`, and the client's
+`RadarViewModel.Fixes` alongside real waypoints. Left unguarded, `ToFrd` picks one as the nearest fix and emits an
+FRD-of-an-FRD (`DCTF OAK169001231001`) that nothing downstream can render sensibly.
+
+`FrdResolver.IsFrdIdentifier(name)` classifies them: a **2–5 ASCII-letter anchor followed by exactly six digits whose leading
+three form a valid azimuth (001–360)**. The radial-only `{FIX}{radial:3}` shape is deliberately *not* matched — NavData carries
+real 5-character letter+digit identifiers that would be false positives.
+
+Two consumers:
+
+- `ToFrd` runs one pass tracking two candidates: the nearest fix of *any* kind within 0.1 nm (returned as a bare identifier —
+  `OAK169001` is a real, resolvable fix and naming it directly is correct), and separately the nearest **non-FRD-named** fix,
+  which is the only thing allowed to anchor a constructed FRD. `IsFrdIdentifier` is evaluated only when a candidate beats the
+  current best distance, because `ToFrd` runs per render frame over the whole fix list while a route is being drawn.
+- `RadarViewModel.BuildVisibleFixes` skips them, so the Show Fixes overlay and its hover label don't paint 6,900 FRD strings
+  across the scope. `AllFixNames` is **not** filtered — typing `OAK169001` in a DCT still resolves.
+
+This covers every deduction site at once: the map right-click menu (FRD header, Copy FRD, Pin marker, Direct to, Warp), the
+draw-route cursor label and drawn-waypoint names, `PilotSayBuilder` position reports, and yaat-server's ERAM QU/RD
+present-position anchors (`CrcClientState.Eram.cs`).
 
 ### Custom fixes
 
@@ -486,7 +510,12 @@ Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
   pays a parse cost; there's no invalidation on AIRAC change within a run.
 - **FRD parse is ambiguous by construction.** `ParseFrd` distinguishes the three forms purely by length + trailing-digit count
   (6-digit / 3-digit / none) with a `>= 2` fix-name minimum. A short fix name plus trailing digits can be misparsed. `ToFrd` caps
-  at 50 nm by default and returns `null` past 999 nm.
+  at 50 nm by default and returns `null` past 999 nm. Note `ParseFrd` also decomposes a *bare* FRD-named fix — `ParseFrd("OAK169001").Fix`
+  is `"OAK"`, not `"OAK169001"` — so a test that inspects the parsed anchor must probe far enough out that the distance doesn't
+  round to zero, or it will silently assert against the bare-name path instead of a constructed FRD.
+- **The nav DB is full of fixes that are already FRDs.** ~6,900 vNAS-adapted identifiers (`OAK169001`) sit in `_navDb` next to real
+  waypoints. Anything that *deduces* an FRD must go through `ToFrd`, which excludes them via `IsFrdIdentifier`; a new code path that
+  picks a nearest fix itself will reintroduce `OAK169001231001`.
 - **Custom-fix alias conflicts surface in `NavigationDatabase`, not the loader.** `CustomFixLoader` only validates aliases/lat-lon/frd
   presence; the "alias conflicts with existing entry" warning comes from `_navDb.TryAdd` failing in `LoadCustomFixes`. A custom
   fix whose alias collides with a real fix is silently not registered (warning only).

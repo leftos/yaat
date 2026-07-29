@@ -6,6 +6,8 @@
 - Rewinding or replaying an aircraft that has already turned off the runway keeps it taxiing to the hold-short instead of turning back onto the runway.
 - A new aircraft that reuses an auto-deleted aircraft's callsign appears on CRC scopes immediately.
 - Auto-deleting an assigned aircraft releases its controller assignment instead of leaving a phantom entry in the assignment list.
+- Direct to, Warp, and Copy FRD from the radar right-click anchor on a real navaid instead of producing `OAK169001231001`.
+- The Show Fixes overlay no longer paints thousands of nav-data fixes whose names are FRD strings; they remain typeable in commands.
 
 ## v0.9.17-beta [2026/07/25]
 

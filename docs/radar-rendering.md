@@ -125,7 +125,10 @@ performs the fit once the viewport has pixel dimensions (`Viewport.PixelWidth >=
 1. `canvas.Clear(BackgroundColor)` — black.
 2. **Video maps** — `VideoMapRenderer.Render`, A/B brightness category per map (`RadarRenderer.cs:312`).
 3. **Range rings** — concentric circles at the dedicated range-ring center/size, if `showRangeRings` (`:315-321`).
-4. **Fixes** — crosses + labels; programmed fixes get a distinct color and always-on label (`:324-327`, `DrawFixes`).
+4. **Fixes** — crosses + labels; programmed fixes get a distinct color and always-on label (`:324-327`, `DrawFixes`). The source
+   list is `RadarViewModel.BuildVisibleFixes`, which drops vNAS-adapted identifiers that are themselves FRD strings
+   (`OAK169001`) via `FrdResolver.IsFrdIdentifier` — ~6,900 of them would otherwise carpet the scope. They remain typeable
+   through `FixNames`.
 5. **Shown nav routes** — the "show nav route" overlay, drawn behind aircraft (`:330-333`, `DrawShownPaths`).
 6. **Aircraft targets** — `TargetRenderer.Render` (`:336-349`).
 7. **Heading-mode preview** — the live elastic vector when EuroScope heading mode is active; above aircraft, below the
@@ -463,7 +466,9 @@ New pickers must follow this rule (echoes the `feedback_no_global_navdata_picker
 
 Right-clicking empty map space (`OnMapRightClicked`, `:1187`) shows a fix-radial-distance header from
 `FrdResolver.ToFrd(lat, lon, fixes)` with a "Copy FRD" item, and — when an aircraft is selected — a "Fly heading `<deg>`"
-item computed from the bearing to the clicked point (snapped to 5°).
+item computed from the bearing to the clicked point (snapped to 5°). That one FRD string also feeds Pin marker, Direct to,
+Append direct, Hold at, and Warp here, so anything wrong with it propagates to all of them — see
+[navigation-database.md](navigation-database.md) for why `ToFrd` refuses to anchor on an FRD-named fix.
 
 ## DCB and brightness
 

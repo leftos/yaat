@@ -74,53 +74,95 @@ public static class FrdResolver
         return (s, null, null);
     }
 
+    /// <summary>
+    /// True when the identifier is itself an FRD string (e.g. <c>OAK169001</c>) rather than a plain fix
+    /// name. vNAS NavData publishes thousands of these adapted fixes, so they land in the nav database
+    /// alongside real waypoints; anchoring a deduced FRD on one produces an unreadable FRD-of-an-FRD such
+    /// as <c>OAK169001231001</c>. Typed identifiers stay valid — this only gates FRD deduction and the
+    /// scope's fix overlay.
+    /// </summary>
+    /// <remarks>
+    /// Matches the <c>{FIX}{radial:3}{distance:3}</c> shape only: a 2-5 letter anchor plus six digits whose
+    /// leading three form a valid azimuth (001-360). The radial-only <c>{FIX}{radial:3}</c> shape is
+    /// deliberately not matched — real 5-character letter+digit identifiers exist in NavData.
+    /// </remarks>
+    public static bool IsFrdIdentifier(string name)
+    {
+        // 2-5 character anchor + 6 digits.
+        if (name.Length is < 8 or > 11)
+        {
+            return false;
+        }
+
+        for (int i = name.Length - 6; i < name.Length; i++)
+        {
+            if (!char.IsAsciiDigit(name[i]))
+            {
+                return false;
+            }
+        }
+
+        for (int i = 0; i < name.Length - 6; i++)
+        {
+            if (!char.IsAsciiLetter(name[i]))
+            {
+                return false;
+            }
+        }
+
+        int radial = int.Parse(name.AsSpan(name.Length - 6, 3), System.Globalization.CultureInfo.InvariantCulture);
+        return radial is >= 1 and <= 360;
+    }
+
     public static string? ToFrd(double lat, double lon, IReadOnlyList<(string Name, double Lat, double Lon)> fixes, double maxNm = 50.0)
     {
-        string? bestName = null;
-        double bestDist = maxNm;
+        // Sitting on a fix, name it directly — including an FRD-shaped identifier, which is a real,
+        // resolvable fix. Building a *new* FRD on one is what must never happen.
+        string? exactName = null;
+        double exactDist = Math.Min(0.1, maxNm);
+
+        string? anchorName = null;
+        double anchorLat = 0,
+            anchorLon = 0;
+        double anchorDist = maxNm;
 
         foreach (var fix in fixes)
         {
             var dist = GeoMath.DistanceNm(lat, lon, fix.Lat, fix.Lon);
-            if (dist < bestDist)
+            if (dist < exactDist)
             {
-                bestDist = dist;
-                bestName = fix.Name;
+                exactDist = dist;
+                exactName = fix.Name;
+            }
+
+            if (dist < anchorDist && !IsFrdIdentifier(fix.Name))
+            {
+                anchorDist = dist;
+                anchorName = fix.Name;
+                anchorLat = fix.Lat;
+                anchorLon = fix.Lon;
             }
         }
 
-        if (bestName is null)
+        if (exactName is not null)
+        {
+            return exactName;
+        }
+
+        if (anchorName is null)
         {
             return null;
         }
 
-        // Find the fix position again for bearing calculation
-        double fixLat = 0,
-            fixLon = 0;
-        foreach (var fix in fixes)
-        {
-            if (fix.Name == bestName)
-            {
-                fixLat = fix.Lat;
-                fixLon = fix.Lon;
-                break;
-            }
-        }
-
-        if (bestDist < 0.1)
-        {
-            return bestName;
-        }
-
         // FRD radials are magnetic (AIM 4-2-10; 7110.65 4-4-3.a.1.2); convert the true bearing at the fix.
-        double trueBearing = GeoMath.BearingTo(fixLat, fixLon, lat, lon);
-        int radial = (int)Math.Round(MagneticDeclination.TrueToMagnetic(trueBearing, fixLat, fixLon));
+        double trueBearing = GeoMath.BearingTo(anchorLat, anchorLon, lat, lon);
+        int radial = (int)Math.Round(MagneticDeclination.TrueToMagnetic(trueBearing, anchorLat, anchorLon));
         if (radial <= 0)
         {
             radial = 360;
         }
 
-        int distance = (int)Math.Round(bestDist);
+        int distance = (int)Math.Round(anchorDist);
         if (distance > 999)
         {
             return null;
@@ -128,10 +170,10 @@ public static class FrdResolver
 
         if (distance == 0)
         {
-            return bestName;
+            return anchorName;
         }
 
-        return $"{bestName}{radial:D3}{distance:D3}";
+        return $"{anchorName}{radial:D3}{distance:D3}";
     }
 
     private static LatLon ProjectPosition(double latDeg, double lonDeg, double radialDeg, int distanceNm)
