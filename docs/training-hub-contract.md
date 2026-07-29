@@ -252,6 +252,19 @@ surfaces: `RoomStateDto.Members` (the join seed), `RoomMemberChangedDto.Members`
 `TrainingRoomInfoDto.Members` (the room list **and** `GET /admin/status`). All three are built by
 `TrainingRoomManager.BuildMemberDtos` so occupancy never disagrees between them.
 
+**The two repos declare this record separately, on purpose.** Hoisting it into `Yaat.Sim` to
+de-duplicate would drag wire-serialization concerns into the simulation library, break the pattern every
+other training DTO follows, and has nowhere to put the client copy's display-only members (`KindLabel`,
+`JoinedAtText`) — which the server has no business carrying. A cross-repo reflection test is no better:
+`Yaat.Client.Core` pulls Avalonia Desktop, DataGrid, Fonts, and Velopack, so referencing it would put a
+desktop UI stack in the server's test build.
+
+What the duplication actually risks is silent drift — the repos never meet at compile time, so a field
+renamed or retyped on one side costs nothing at build and simply fails to bind at runtime. Both repos
+therefore carry an identical `RoomMembershipWireShapeTests` that pins the constructor signature of
+`RoomMemberDto` and `TrainingRoomInfoDto` as a literal string. Changing either DTO fails both suites; the
+fix is to update the signature **and** the sibling repo, never to edit one expectation until it goes green.
+
 **A member is a connection, not a person.** vStrips and vTDLS join over this same hub with
 `ClientKind.VStrips` / `ClientKind.VTdls`, so one controller running the desktop client plus a strips tab is
 **two** members sharing a CID and initials. `ConnectionId` is what distinguishes them; `Kind` is what makes a

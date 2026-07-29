@@ -238,7 +238,10 @@ function Write-RoomsMemberDetail {
     }
 
     if ($room.members.Count -eq 0) {
-      Write-Host "    (no members — room is held open by its cleanup timer)" -ForegroundColor DarkGray
+      # Only the fact, not the cause: a room abandoned by its last client is on a short cleanup
+      # timer, while one restored across a restart arms no timer and waits for the paused-retirement
+      # sweep. /admin/status cannot tell those apart, so it should not claim either.
+      Write-Host "    (no members — nobody is connected; the server retires the room on its own schedule)" -ForegroundColor DarkGray
       continue
     }
 
