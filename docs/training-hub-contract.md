@@ -203,6 +203,7 @@ payload DTO → the `ServerConnection` C# event it re-raises:
 | `ScenarioLoaded` | `ScenarioLoadedDto` | `ScenarioLoaded` (+ `StripsConfigChanged`) |
 | `ScenarioUnloaded` | *(none)* | `ScenarioUnloaded` (+ `StripsConfigChanged(null)`) |
 | `ScenarioRestarted` | `List<AircraftDto>` — the room's post-restart manifest (live aircraft + re-queued delayed spawns) | `ScenarioRestarted` — handlers **replace** their aircraft list, never merge. The restart tears the world down under `IsBroadcastSuppressed`, so no `AircraftDeleted` is sent for the abandoned run and `AircraftUpdated` only adds or updates; without this payload every aircraft that did not survive stays on the client frozen in place. Group-scoped so every room member re-syncs, not just whoever hit Restart. CRC's equivalent is `RoomEngine.ResyncCrcAfterReload` |
+| `ScenarioRewound` | `List<AircraftDto>` — the post-rewind manifest | `ScenarioRewound` — same additive-stream repair as `ScenarioRestarted`, for `RewindTo` / `RewindFromSnapshot`. Sent **`GroupExcept` the caller**: that client applies the identical manifest from `RewindResultDto.Aircraft` instead, so including it would rebuild its list twice. Unlike a restart the client must **keep** its bookmarks — they are timeline-global and `RewindAsync` carries them across the reload |
 | `AircraftAssignmentsChanged` | `AircraftAssignmentsDto` | `AircraftAssignmentsChanged` |
 | `SessionSettingsChanged` | `SessionSettingsDto` | `SessionSettingsChanged` |
 | `KickedFromRoom` | `string` | `KickedFromRoom` |

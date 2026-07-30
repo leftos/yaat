@@ -339,6 +339,38 @@ public partial class MainViewModel
     /// </summary>
     internal void ApplyScenarioRestart(List<AircraftDto> manifest)
     {
+        ReplaceAircraftFromManifest(manifest);
+
+        // Only a restart drops the tape, so only a restart drops the bookmarks placed against it (the
+        // server clears them too — see RestartScenarioAsync). A rewind keeps both.
+        ClearBookmarks();
+    }
+
+    /// <summary>
+    /// Another room member rewound the timeline. Same additive-stream problem the restart has — the
+    /// reload is broadcast-suppressed, so aircraft that do not exist at the target time are never
+    /// deleted on our side. The client that issued the rewind is excluded from this broadcast; it
+    /// applies the same manifest from the RPC result instead.
+    /// </summary>
+    internal void OnScenarioRewound(List<AircraftDto> manifest)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyScenarioRewind(manifest));
+    }
+
+    /// <summary>
+    /// The rewind counterpart to <see cref="ApplyScenarioRestart"/> — same UI-thread-by-contract split,
+    /// and deliberately no <see cref="ClearBookmarks"/>: bookmarks are timeline-global and survive a
+    /// scrub (<c>RewindAsync</c> carries them across the reload server-side).
+    /// </summary>
+    internal void ApplyScenarioRewind(List<AircraftDto> manifest) => ReplaceAircraftFromManifest(manifest);
+
+    /// <summary>
+    /// Rebuilds the aircraft list from a server manifest, dropping the per-aircraft state that belongs
+    /// to the aircraft being replaced. Shared by the restart and rewind paths, which differ only in
+    /// whether the bookmarks survive.
+    /// </summary>
+    private void ReplaceAircraftFromManifest(List<AircraftDto> manifest)
+    {
         foreach (var ac in Aircraft)
         {
             _cfrMonitor.Remove(ac.Callsign);
@@ -348,10 +380,6 @@ public partial class MainViewModel
         Radar.ClearShownPaths();
         Ground.ClearShownTaxiRoutes();
         Aircraft.Clear();
-
-        // A restart drops the tape, so bookmarks placed against the abandoned run no longer point at
-        // anything (the server clears them too — see RestartScenarioAsync).
-        ClearBookmarks();
 
         int delayed = 0;
         foreach (var dto in manifest)

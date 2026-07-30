@@ -24,6 +24,13 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     /// aircraft. Handlers must replace their aircraft list wholesale rather than merge.
     /// </summary>
     public event Action<List<AircraftDto>>? ScenarioRestarted;
+
+    /// <summary>
+    /// Another room member rewound the timeline. Carries the post-rewind manifest for the same reason
+    /// <see cref="ScenarioRestarted"/> does. Never raised on the client that issued the rewind — it
+    /// applies the identical manifest from the RPC result instead.
+    /// </summary>
+    public event Action<List<AircraftDto>>? ScenarioRewound;
     public event Action<bool, int, double, bool, double>? SimulationStateChanged;
     public event Action<string?>? Reconnected;
     public event Action<Exception?>? Reconnecting;
@@ -144,6 +151,8 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<AircraftDto>("AircraftSpawned", dto => AircraftSpawned?.Invoke(dto));
 
         _connection.On<List<AircraftDto>>("ScenarioRestarted", manifest => ScenarioRestarted?.Invoke(manifest));
+
+        _connection.On<List<AircraftDto>>("ScenarioRewound", manifest => ScenarioRewound?.Invoke(manifest));
 
         _connection.On<bool, int, double, bool, double>(
             "SimulationStateChanged",

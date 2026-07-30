@@ -16,9 +16,12 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 /// aircraft, frozen where the abandoned run left it.
 ///
 /// <c>OnScenarioRestarted</c> is the repair: the server broadcasts its post-restart manifest to the
-/// whole room and the client replaces its list wholesale, the same shape the rewind path uses. These
-/// tests drive <c>ApplyScenarioRestart</c>, the synchronous half, because the handler itself only
-/// marshals onto the UI thread.
+/// whole room and the client replaces its list wholesale. <c>OnScenarioRewound</c> does the same for a
+/// timeline scrub, which has the identical problem for every room member except the one that issued
+/// it. The two differ only in whether the bookmarks survive — covered at the bottom.
+///
+/// These tests drive the synchronous halves (<c>ApplyScenarioRestart</c> / <c>ApplyScenarioRewind</c>)
+/// because the handlers themselves only marshal onto the UI thread.
 /// </summary>
 public class MainViewModelScenarioRestartTests
 {
@@ -103,5 +106,45 @@ public class MainViewModelScenarioRestartTests
 
         Assert.Equal(2, vm.InitialDelayedSpawnCount);
         Assert.Equal(2, vm.PendingDelayedSpawnCount);
+    }
+
+    // --- Rewind shares the aircraft replacement but not the bookmark reset ---
+
+    /// <summary>
+    /// A rewind hits the same additive-stream problem — the reload is broadcast-suppressed, so
+    /// aircraft absent at the target time are never deleted client-side — and gets the same manifest
+    /// treatment. The one thing it must <em>not</em> copy from restart is dropping the bookmarks:
+    /// restart discards the tape (and <c>RestartScenarioAsync</c> drops them server-side too), while
+    /// <c>RewindAsync</c> deliberately carries <c>savedBookmarks</c> across the reload because
+    /// bookmarks are timeline-global. Clearing them here would delete shared room state on every scrub.
+    /// </summary>
+    [AvaloniaFact]
+    public void ScenarioRewound_ReplacesAircraftButKeepsBookmarks()
+    {
+        var vm = NewVm();
+        vm.ApplyScenarioBootstrap(
+            new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active"), MakeAircraft("FDX303", "Active")])
+        );
+        vm.ApplyBookmarks([new TimelineBookmarkDto("bm-1", 120, "Before the go-around", "JD")]);
+        Assert.True(vm.HasBookmarks);
+
+        vm.ApplyScenarioRewind([MakeAircraft("SWA101", "Active")]);
+
+        Assert.Equal(["SWA101"], vm.Aircraft.Select(a => a.Callsign));
+        Assert.True(vm.HasBookmarks, "a rewind keeps the tape, so its bookmarks must survive");
+        Assert.Equal("bm-1", Assert.Single(vm.Bookmarks).Id);
+    }
+
+    [AvaloniaFact]
+    public void ScenarioRestarted_DropsBookmarksWithTheTape()
+    {
+        var vm = NewVm();
+        vm.ApplyScenarioBootstrap(new ScenarioBootstrap("scenario-1", "OAK Ground", "OAK", null, null, [MakeAircraft("SWA101", "Active")]));
+        vm.ApplyBookmarks([new TimelineBookmarkDto("bm-1", 120, "Before the go-around", "JD")]);
+        Assert.True(vm.HasBookmarks);
+
+        vm.ApplyScenarioRestart([MakeAircraft("SWA101", "Active")]);
+
+        Assert.False(vm.HasBookmarks, "a restart discards the tape, so its bookmarks go with it");
     }
 }
