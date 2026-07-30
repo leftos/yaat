@@ -47,6 +47,59 @@ public class CallsignParserTests
         Assert.Equal(expectedConsumed, result.TokensConsumed);
     }
 
+    // --- Unique-extension snap against the active list ---
+    // Whisper sometimes mangles the trailing NATO suffix letter beyond the distance-1 near-miss
+    // envelope ("lima" → "lien", observed on the synthetic eval corpus). The digit run still
+    // parses cleanly, so when exactly one active callsign extends the parsed base by 1-2 trailing
+    // LETTERS, the parser snaps to it. The mangled token is NOT consumed — it stays in the
+    // command text where the rule matcher's no-match advance skips it, which is safer than
+    // risking eating a real command word.
+
+    [Fact]
+    public void TryParseLeading_TruncatedGaSuffix_SnapsToUniqueActiveExtension()
+    {
+        var result = CallsignParser.TryParseLeading("november 9225 lien reduce speed to 230", ["N9225L", "UAL234", "N346G"]);
+        Assert.NotNull(result);
+        Assert.Equal("N9225L", result!.IcaoCallsign);
+        Assert.Equal(2, result.TokensConsumed);
+    }
+
+    [Fact]
+    public void TryParseLeading_TruncatedGaSuffix_TwoLetterExtension()
+    {
+        var result = CallsignParser.TryParseLeading("november 514 turn left heading 270", ["N514RM", "UAL234"]);
+        Assert.NotNull(result);
+        Assert.Equal("N514RM", result!.IcaoCallsign);
+        Assert.Equal(2, result.TokensConsumed);
+    }
+
+    [Fact]
+    public void TryParseLeading_AmbiguousActiveExtensions_KeepsParsedBase()
+    {
+        // Two active callsigns extend N9225 — snapping would be a guess; keep what was heard.
+        var result = CallsignParser.TryParseLeading("november 9225 reduce speed to 230", ["N9225L", "N9225R"]);
+        Assert.NotNull(result);
+        Assert.Equal("N9225", result!.IcaoCallsign);
+    }
+
+    [Fact]
+    public void TryParseLeading_ExactActiveBase_NotSnappedToLongerActive()
+    {
+        // The parsed base IS an active callsign — never snap away from an exact match.
+        var result = CallsignParser.TryParseLeading("november 9225 reduce speed to 230", ["N9225", "N9225L"]);
+        Assert.NotNull(result);
+        Assert.Equal("N9225", result!.IcaoCallsign);
+    }
+
+    [Fact]
+    public void TryParseLeading_DigitExtension_NotSnapped()
+    {
+        // A digit extension means the STT dropped part of the number itself — too risky to guess.
+        var result = CallsignParser.TryParseLeading("november 9225 reduce speed to 230", ["N92251"]);
+        Assert.NotNull(result);
+        Assert.Equal("N9225", result!.IcaoCallsign);
+    }
+
     [Theory]
     // Hybrid form: Whisper normalized the tail ("N9225L") but kept the word "november" the
     // speaker said in front of it. Biased output from seeding the initial_prompt with ICAO forms.

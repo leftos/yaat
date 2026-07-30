@@ -427,9 +427,15 @@ public static class CallsignParser
     }
 
     /// <summary>
-    /// If <paramref name="candidate"/> matches an active callsign exactly (case-insensitive),
-    /// return the active form. Otherwise return the candidate unchanged. Currently exact-match
-    /// only; true fuzzy matching (Levenshtein near-misses) can be added later.
+    /// Resolves a parsed candidate against the active-callsign list. Exact match (case-insensitive)
+    /// wins outright. Otherwise, a <b>unique-extension snap</b>: when exactly one active callsign
+    /// extends the candidate by 1-2 trailing LETTERS, return that active callsign. This recovers
+    /// GA tail numbers whose spoken NATO suffix Whisper mangled beyond
+    /// <see cref="NatoNearMissResolver"/>'s distance-1 envelope ("november 9225 lima" heard as
+    /// "november 9225 lien" parses to N9225; the unique active N9225L is what the controller
+    /// meant). Letter-only extensions keep airline flight numbers out of the snap — a digit
+    /// extension would mean the STT dropped part of the number itself, which is too risky to
+    /// guess. Two or more active extensions → ambiguous → return the candidate unchanged.
     /// </summary>
     private static string FuzzyResolve(string candidate, IReadOnlyCollection<string> activeCallsigns)
     {
@@ -440,7 +446,26 @@ public static class CallsignParser
                 return active;
             }
         }
-        return candidate;
+
+        string? uniqueExtension = null;
+        foreach (var active in activeCallsigns)
+        {
+            if (!active.StartsWith(candidate, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            var extension = active[candidate.Length..];
+            if (extension.Length is < 1 or > 2 || !extension.All(char.IsAsciiLetter))
+            {
+                continue;
+            }
+            if (uniqueExtension is not null)
+            {
+                return candidate;
+            }
+            uniqueExtension = active;
+        }
+        return uniqueExtension ?? candidate;
     }
 
     /// <summary>
