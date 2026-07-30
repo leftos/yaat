@@ -49,12 +49,13 @@ public sealed partial class CudaBackendInstaller : ObservableObject
 
     // Version pinning. The backend and the deps ship as separate packages with independent
     // cadences — LM-Kit's deps haven't had a new release since 2026.1.1 while the backend tracks
-    // the main package version. We pin backend 2026.7.3 (lockstep with the LM-Kit.NET package
-    // reference) + deps 2026.1.1; both are CUDA 13 so the deps' cublas/cudart runtime libs stay
-    // compatible with the newer backend DLLs. When a newer deps release appears we'll bump both
-    // together.
+    // the main package version (keep BackendVersion equal to the LM-Kit.NET PackageReference).
+    // The original probe confirmed backend 2026.4.2 + deps 2026.1.1 work together; the deps
+    // extraction is path-prefix-filtered rather than a hardcoded file list, so a backend bump
+    // that keeps the runtimes/win-x64/native/cuda13/ layout extracts unchanged. When a newer
+    // deps release appears we'll bump both together after re-running the probe.
     public const string BackendPackageId = "LM-Kit.NET.Backend.Cuda13.Windows";
-    public const string BackendVersion = "2026.7.3";
+    public const string BackendVersion = "2026.7.4";
     public const string DepsPart0PackageId = "LM-Kit.NET.Backend.Cuda13.Deps.Windows.Part0";
     public const string DepsPart1PackageId = "LM-Kit.NET.Backend.Cuda13.Deps.Windows.Part1";
     public const string DepsVersion = "2026.1.1";

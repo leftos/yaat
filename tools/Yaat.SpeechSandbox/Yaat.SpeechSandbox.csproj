@@ -23,11 +23,10 @@
        wrappers. These are durable references: the modes are part of SpeechSandbox's diagnostic
        role and must not be removed. -->
   <ItemGroup>
-    <PackageReference Include="LM-Kit.NET" Version="2026.7.3" />
-    <PackageReference Include="LM-Kit.NET.Backend.Cuda13.Windows" Version="2026.7.3" />
+    <PackageReference Include="LM-Kit.NET" Version="2026.7.4" />
+    <PackageReference Include="LM-Kit.NET.Backend.Cuda13.Windows" Version="2026.7.4" />
     <!-- Transitive via LM-Kit.NET -> Microsoft.Data.Sqlite 10.0.10 -> SQLitePCLRaw.bundle_e_sqlite3 2.1.11;
-         pin the native SQLite binary to patched 3.50.3 (GHSA-2m69-gcr7-jv3q). Still required after the LM-Kit
-         bump (bundle unchanged at 2.1.11). See Yaat.Client.csproj. -->
+         pin the native SQLite binary to patched 3.50.3 (GHSA-2m69-gcr7-jv3q). See Yaat.Client.csproj. -->
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
   </ItemGroup>
 

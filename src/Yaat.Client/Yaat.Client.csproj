@@ -48,8 +48,8 @@
          downloaded on demand via CudaBackendInstaller (Settings → Speech → Acceleration) and
          installed under %LOCALAPPDATA%/yaat/backends/cuda13/. LM-Kit auto-falls-back to Vulkan
          (included in the base package) on machines without it. -->
-    <PackageReference Include="LM-Kit.NET" Version="2026.7.3" />
-    <PackageReference Include="MessageBox.Avalonia" Version="12.0.0" />
+    <PackageReference Include="LM-Kit.NET" Version="2026.7.4" />
+    <PackageReference Include="MessageBox.Avalonia" Version="3.3.1.1" />
     <PackageReference Include="MetadataExtractor" Version="2.9.2" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.3" />
     <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.12.40" />
@@ -62,11 +62,9 @@
          window has focus. We consume KeyPressed/KeyReleased events in passthrough mode — we
          never suppress, so other apps still see the key. -->
     <PackageReference Include="SharpHook" Version="7.0.0" />
-    <!-- Transitive via LM-Kit.NET 2026.7.3 -> Microsoft.Data.Sqlite 10.0.10 -> SQLitePCLRaw.bundle_e_sqlite3 2.1.11;
-         pin the native SQLite binary to patched 3.50.3 (GHSA-2m69-gcr7-jv3q). Still required after the LM-Kit bump:
-         Microsoft.Data.Sqlite 10.0.10 resolves the same bundle_e_sqlite3 2.1.11 (-> lib.e_sqlite3 2.1.11) as 10.0.5.
-         The managed core/provider stay at 2.1.11; the SQLite C API the provider P/Invokes is forward-compatible with
-         the newer native lib. -->
+    <!-- Transitive via LM-Kit.NET 2026.7.4 -> Microsoft.Data.Sqlite 10.0.10 -> SQLitePCLRaw.bundle_e_sqlite3 2.1.11;
+         pin the native SQLite binary to patched 3.50.3 (GHSA-2m69-gcr7-jv3q). The managed core/provider stay at
+         2.1.11; the SQLite C API the provider P/Invokes is forward-compatible with the newer native lib. -->
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <!-- Transitive via MessageBox.Avalonia 12.0.0, which declares a 0.12.1-nightly prerelease.
          Pin the stable release so no prerelease reaches a shipped build. -->
