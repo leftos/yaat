@@ -33,7 +33,7 @@ namespace Yaat.SpeechSandbox;
 ///     <c>LocalLlmCommandMapper</c> (after <c>AtcNumberParser.NormalizeDigits</c>) and prints the
 ///     canonical command. Used for "what would the LLM produce here?" investigations during
 ///     rule-engine triage. Loads the model identified by <c>LMKIT_TEST_MODEL</c> env var
-///     (default <c>qwen3.5:4b</c>), NOT the user's saved preference, so the probe is reproducible
+///     (default <c>LmKitModelCatalog.RecommendedLlmId</c>), NOT the user's saved preference, so the probe is reproducible
 ///     across machines.</description></item>
 ///   <item><description><c>--ouroboros &lt;corpus.json&gt; [--out-dir &lt;dir&gt;]</c> — round-trip harness:
 ///     for each canonical command in the corpus, build a pilot readback via
@@ -75,6 +75,8 @@ public static class Program
                     return RunLlmProbeMode(args[1..]).GetAwaiter().GetResult();
                 case "--ouroboros":
                     return OuroborosRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
+                case "--eval":
+                    return EvalRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
             }
         }
 
@@ -314,14 +316,14 @@ public static class Program
     /// <c>SpeechRecognitionService</c> does before handing the text to the LLM mapper.
     /// </summary>
     /// <remarks>
-    /// Loads the model identified by <c>LMKIT_TEST_MODEL</c> (default <c>qwen3.5:4b</c>) via
-    /// <see cref="ProbeLlmRuntimeConfig"/>, NOT the user's saved preference. This keeps the probe
+    /// Loads the model identified by <c>LMKIT_TEST_MODEL</c> (default
+    /// <see cref="LmKitModelCatalog.RecommendedLlmId"/>) via <see cref="ProbeLlmRuntimeConfig"/>, NOT the user's saved preference. This keeps the probe
     /// reproducible across machines and matches the test fixture's model.
     /// </remarks>
     private static async Task<int> RunLlmProbeMode(string[] args)
     {
         var transcript = args.Length > 0 ? args[0] : "okay we'll enter right downwind for runway 28 right at november niner 225 lima";
-        var modelSource = Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL") ?? "qwen3.5:4b";
+        var modelSource = Environment.GetEnvironmentVariable("LMKIT_TEST_MODEL") ?? LmKitModelCatalog.RecommendedLlmId;
 
         var normalized = AtcNumberParser.NormalizeDigits(transcript);
         Console.WriteLine($"Transcript: \"{transcript}\"");

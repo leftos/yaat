@@ -998,10 +998,14 @@ FrameRenderer.cs               # SkiaSharp frame rendering: layout, aircraft sha
 Interactive sandbox for the speech pipeline (STT) and text-to-speech (TTS) experiments. Loads `UserPreferences` from the standard YAAT config location so the sandbox uses the same models/settings as the live app.
 
 ```
-Program.cs                     # Entry: dispatches CLI subcommands (--pipeline, --lmkit-stt, --lmkit-models, --lmkit-gpus, --yaat-catalog, --llm-probe) or launches the GUI
+Program.cs                     # Entry: dispatches CLI subcommands (--pipeline, --lmkit-stt, --lmkit-models, --lmkit-gpus, --yaat-catalog, --llm-probe, --ouroboros, --eval) or launches the GUI
 App.axaml{,.cs}                # Avalonia app shell; Fluent dark theme + h2/subtle styles
 MainWindow.axaml{,.cs}         # TabControl host with two tabs: STT pipeline (existing) + TTS sandbox (M10.0)
 TtsSandboxView.axaml{,.cs}     # TTS tab: sherpa-onnx + Piper LibriTTS-R + tunable radio FX (band-pass/Q/drive/squelch); auto-detects voice pack at .tmp/voices/, plays through PortAudio
+OuroborosRunner.cs             # --ouroboros: synthetic round-trip harness (canonical → readback → Piper TTS → STT pipeline → compare); PASS/FLAKY/FAIL per case + markdown report
+OuroborosCorpus.cs             # Corpus JSON schema for --ouroboros cases
+PiperSynthesizer.cs            # sherpa-onnx Piper synthesis shared by the TTS tab and ouroboros
+EvalRunner.cs                  # --eval: real-audio eval harness; scores the production pipeline against labeled captured WAVs (tests/Yaat.Client.Tests/TestData/speech-corpus/); canonical exact-match + WER, LMKIT_TEST_MODEL override, auto-stubs expected.json from sample-store session.json
 ```
 
 ## Yaat.GuideCapture — CLI tool (`tools/Yaat.GuideCapture/`)

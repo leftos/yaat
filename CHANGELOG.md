@@ -553,7 +553,15 @@
 - Command recall (Up/Down arrow in the command line) now filters to the selected aircraft: pressing Up walks through only the commands you sent to that aircraft, plus global commands like `PAUSE`. With no aircraft selected, recall shows every command as before. Recall is remembered per aircraft across restarts.
 - The terminal has a new **STRP** channel toggle (alongside CMD/RSP/…) that hides flight-strip command echoes and their feedback in one click, so routine strip traffic no longer buries requests and commands. Strip lines get their own color (customizable under Settings → terminal colors), and Shift+Click solos the channel like the others.
 
+### Changed
+- The local AI engine behind speech recognition (LM-Kit) was updated. If you had downloaded the optional CUDA acceleration pack, YAAT falls back to Vulkan until you re-download the pack from Settings → Speech → Acceleration.
+
 ### Fixed
+- Speech recognition's AI fallback now works out of the box. The default fallback model shipped as one that never produced a command under YAAT's command grammar, so any phrase the rule engine didn't recognize silently returned nothing until you manually picked the recommended model in Settings → Speech. The recommended model is now the default.
+- Saying "descend and maintain four thousand" no longer produces a wrong-direction climb command when the speech recognizer fuses "descend and" into the single word "descendant" — it now maps to descend-and-maintain.
+- A spoken heading like "fly heading two seven zero" misheard by the recognizer as "to 7-0" no longer drops the heading from the command. A "to" between "heading" and a two-digit number is now recovered as the spoken digit "two" (270), and dropped as filler before a full three-digit heading.
+- Speech recognition's vocabulary hint had grown past the recognizer's prompt-length cap, which silently dropped the number-format examples and part of the command vocabulary from it. The hint is now ordered so the number and phonetic-alphabet vocabulary always survive the cap.
+- Longer spoken instructions recovered by the AI fallback, such as a taxi route with several taxiways and a hold-short, are no longer discarded by an internal length check.
 - Undoing a terminal channel solo (Shift+Click to restore) while scrolled to the newest line no longer jumps the terminal to the top — it stays pinned to the bottom. This also applies to any terminal filter change made while scrolled to the bottom.
 - Saving Settings no longer resets a customized **vTDLS** terminal color back to its default. The Settings dialog was not loading the saved vTDLS color, so opening Settings and saving overwrote it with the default.
 - Pushing an aircraft back from a gate no longer stalls when another aircraft is parked at the adjacent gate. Ground-conflict avoidance treated the parked neighbor as a hazard and pinned the pushback to a stop, forcing the controller to repeatedly issue `BREAK` to inch it out. A pushback now clears an aircraft parked at an adjacent gate on its own, while still stopping if it would actually back into another aircraft.

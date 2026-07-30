@@ -11,10 +11,10 @@ For the solo-training pilot TTS output pipeline, see
 [`solo-training-pilot-speech.md`](solo-training-pilot-speech.md). The two pipelines
 share nothing beyond the radio metaphor.
 
-For the historical implementation design (decisions, phase breakdown, why
-LLamaSharp+Whisper.net was chosen and later replaced), see
-[`docs/plans/speech-recognition.md`](plans/speech-recognition.md). This
-document describes the **current** pipeline, not the one in that plan.
+The historical implementation plan (LLamaSharp+Whisper.net era) was removed
+with the other outdated plans; the LM-Kit swap rationale lives in the git
+history of `1234ca45` ("swap speech engine to LM-Kit.NET"). This document
+describes the **current** pipeline.
 
 ## Overview
 
@@ -109,23 +109,29 @@ depend on LM-Kit and PortAudio native libraries.
 ## Biasing Prompt
 
 - `src/Yaat.Sim/Speech/WhisperBiasingPrompt.cs` — **static** prompt
-  built once and cached. Three vocabulary sets unioned:
-  1. Full NATO phonetic alphabet (`alpha` … `zulu`).
-  2. Phonetic numbers + ATC variants (`tree`, `fife`, `niner`) plus
-     magnitude words (`hundred`, `thousand`, `flight`, `level`, …).
-  3. Every distinct literal pattern token from
-     `PhraseologyRules.All` — so every word the rule engine knows how
-     to map is primed into Whisper.
+  built once and cached, in truncation-aware block order:
+  1. Every distinct literal pattern token from `PhraseologyRules.All`
+     (alphabetized) — so every word the rule engine knows how to map is
+     primed into Whisper.
+  2. Phonetic numbers + ATC variants (`tree`, `fife`, `niner`), magnitude
+     words (`hundred`, `thousand`, `flight`, `level`, …), and digit-form
+     bias examples (`090`, `270`, `FL350`, …).
+  3. Full NATO phonetic alphabet (`alpha` … `zulu`) in scrambled order.
+- **The prompt exceeds whisper.cpp's 224-token initial-prompt cap**
+  (~284 GPT-2-BPE tokens as of 2026-07). whisper.cpp keeps the LAST
+  ~224 tokens, so block order is load-bearing: the rule-literal head is
+  sacrificial (common English Whisper knows unbiased); the number/digit
+  and NATO blocks sit at the end where they survive. A test pins the
+  ordering (`Default_NumberVocabularyComesAfterRuleLiterals`).
 - The prompt is deliberately **static**. Per-PTT dynamic additions were
   probed and abandoned: `whisper-large-turbo3` recognized N-number tail
-  numbers cleanly without per-callsign biasing, and avoiding per-PTT
-  rebuilds eliminates the 224-token decoder-context truncation risk.
-- Dynamic scenario vocabulary (active callsigns, programmed fixes) is
-  delivered separately via `SpeechContext.WhisperInitialPrompt` and
-  concatenated onto the static prompt by
-  `SpeechRecognitionService` before each PTT transcription. If you need
-  to add new scenario-derived vocab, extend `SpeechContext`, **not**
-  `WhisperBiasingPrompt`.
+  numbers cleanly without per-callsign biasing.
+  `MainViewModel.BuildSpeechContext` sets
+  `SpeechContext.WhisperInitialPrompt` to `WhisperBiasingPrompt.Default`
+  verbatim — no scenario vocabulary is appended. If scenario-derived
+  vocab ever becomes necessary, deliver it via `SpeechContext` (and mind
+  the 224-token tail-keeping behavior), **not** by rebuilding
+  `WhisperBiasingPrompt` per PTT.
 
 ## Digit Normalization & Filler Strip
 
@@ -383,6 +389,8 @@ client. All flags run via
 | `--lmkit-models` | Dump LM-Kit's predefined model catalog (file sizes, licenses, local-availability). |
 | `--lmkit-gpus` | Enumerate detected GPU devices for LM-Kit backend selection. |
 | `--yaat-catalog` | Dump the filtered Whisper + LLM catalogs as they appear in the Settings picker. |
+| `--ouroboros <corpus.json> [--out-dir <dir>] [--trials N]` | Synthetic round-trip harness: canonical → pilot readback → Piper TTS → full STT pipeline → compare. PASS/FLAKY/FAIL verdicts; markdown report + per-case WAVs. |
+| `--eval <corpus-dir> [--out-dir <dir>] [--trials N]` | Real-audio eval harness: scores the full production pipeline (Whisper → callsign extraction → rule → LLM) against labeled captured recordings. Reports canonical exact-match verdicts + STT word-error-rate; honors `LMKIT_TEST_MODEL`. See `EvalRunner.cs` for the corpus layout. |
 
 No flag → Avalonia GUI for interactive probing. The GUI exposes inputs
 for active callsigns, programmed fixes, **available runways** (per-
@@ -409,6 +417,17 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 - **Audio fixtures:** `tests/Yaat.Client.Tests/TestData/audio/probe-*.wav`
   — real captured PTT clips (16 kHz mono PCM). Add new clips under the
   same folder when expanding coverage.
+- **Labeled eval corpus:** `tests/Yaat.Client.Tests/TestData/speech-corpus/`
+  — one directory per case (`audio.wav` + `expected.json` with the
+  ground-truth canonical, spoken transcript, callsign, and scenario
+  context). Scored by the sandbox `--eval` mode. To grow it from real
+  usage: enable speech-sample capture in Settings, copy a captured
+  session folder (`audio.wav` + `session.json`) into the corpus, run
+  `--eval` once (it writes an unreviewed `expected.json` stub from the
+  session), review the labels, and delete the `"unreviewed"` flag.
+  Both real-audio regressions fixed on 2026-07-30 ("descendant
+  maintain" → wrong-direction CM, "heading to 7-0" → dropped FH clause)
+  were found by exactly this loop.
 - Tests that exercise navigation fixes rely on
   `TestVnasData.EnsureInitialized()` to load real `NavData.dat` and
   `FAACIFP18.gz`. Falls through silently if the test data files aren't
@@ -463,10 +482,13 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 
 ## Gotchas & Non-Obvious Behaviour
 
-- **Whisper prompt is static.** Adding scenario-derived vocab must
-  happen via `SpeechContext.WhisperInitialPrompt`, **not** by rebuilding
-  `WhisperBiasingPrompt.Default`. Rebuilding the static prompt per PTT
-  reintroduces the 224-token truncation risk that's currently avoided.
+- **Whisper prompt is static and already over the 224-token cap.**
+  whisper.cpp keeps the LAST ~224 tokens of the initial prompt, so
+  `WhisperBiasingPrompt.Build` orders blocks tail-first by value
+  (rule literals → number/digit vocab → NATO). Anything appended after
+  NATO pushes NATO into the survival window at the expense of the
+  number vocab — don't append; if you must add vocab, grow the
+  sacrificial head or prune rule literals instead.
 - **`GreedyDecoding` is intentional** for command mapping. Don't swap
   in `RandomSampling` — determinism is load-bearing for tests and user
   trust.
@@ -549,8 +571,6 @@ at startup with `WhisperBiasingPrompt.Default` to match production.
 
 ## Related Docs
 
-- [`docs/plans/speech-recognition.md`](plans/speech-recognition.md) —
-  historical implementation plan and design rationale.
 - [`docs/architecture.md`](architecture.md) — full annotated file tree.
 - [`docs/command-aliases/reference.md`](command-aliases/reference.md) —
   canonical verb + alias reference.

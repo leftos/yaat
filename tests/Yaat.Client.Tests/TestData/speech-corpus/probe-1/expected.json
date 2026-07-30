@@ -1,0 +1,7 @@
+{
+  "canonical": "CM 8000, FH 270",
+  "transcript": "united 234 climb and maintain 8000 fly heading 270",
+  "callsign": "UAL234",
+  "activeCallsigns": ["UAL234", "N346G"],
+  "programmedFixes": []
+}

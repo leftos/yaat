@@ -1,0 +1,7 @@
+{
+  "canonical": "DM 4000, SPD 180",
+  "transcript": "november 346 golf descend and maintain 4000 reduce speed to 180 knots",
+  "callsign": "N346G",
+  "activeCallsigns": ["UAL234", "N346G"],
+  "programmedFixes": []
+}
