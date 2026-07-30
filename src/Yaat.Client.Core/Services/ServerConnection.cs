@@ -16,6 +16,14 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<AircraftDto>? AircraftUpdated;
     public event Action<string>? AircraftDeleted;
     public event Action<AircraftDto>? AircraftSpawned;
+
+    /// <summary>
+    /// A room member restarted the scenario. Carries the room's post-restart aircraft manifest — live
+    /// aircraft plus re-queued delayed spawns — because the restart tears the world down with
+    /// broadcasts suppressed, so no <see cref="AircraftDeleted"/> arrives for the abandoned run's
+    /// aircraft. Handlers must replace their aircraft list wholesale rather than merge.
+    /// </summary>
+    public event Action<List<AircraftDto>>? ScenarioRestarted;
     public event Action<bool, int, double, bool, double>? SimulationStateChanged;
     public event Action<string?>? Reconnected;
     public event Action<Exception?>? Reconnecting;
@@ -134,6 +142,8 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<string>("AircraftDeleted", cs => AircraftDeleted?.Invoke(cs));
 
         _connection.On<AircraftDto>("AircraftSpawned", dto => AircraftSpawned?.Invoke(dto));
+
+        _connection.On<List<AircraftDto>>("ScenarioRestarted", manifest => ScenarioRestarted?.Invoke(manifest));
 
         _connection.On<bool, int, double, bool, double>(
             "SimulationStateChanged",

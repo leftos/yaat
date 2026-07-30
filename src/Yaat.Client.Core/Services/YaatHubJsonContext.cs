@@ -42,6 +42,8 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(List<Yaat.Sim.NavRouteShapeDto>))]
 // --- Broadcast payloads (server.On<T>). ---
 [JsonSerializable(typeof(AircraftDto))]
+// ScenarioRestarted's post-restart manifest — a root type here, not just a RewindResultDto member.
+[JsonSerializable(typeof(List<AircraftDto>))]
 [JsonSerializable(typeof(TerminalBroadcastDto))]
 [JsonSerializable(typeof(List<TerminalBroadcastDto>))]
 [JsonSerializable(typeof(PilotTransmissionBroadcastDto))]

@@ -320,6 +320,55 @@ public partial class MainViewModel
         };
     }
 
+    /// <summary>
+    /// A room member restarted the scenario. The reload tears the world down with broadcasts
+    /// suppressed, so no <see cref="OnAircraftDeleted"/> ever arrives for the abandoned run's
+    /// aircraft, and <see cref="OnAircraftUpdated"/> only adds or updates — left alone, every aircraft
+    /// that did not survive the restart stays on the scope frozen where it was. The server therefore
+    /// sends its post-restart manifest and we replace the list wholesale, the same way a rewind does.
+    /// </summary>
+    internal void OnScenarioRestarted(List<AircraftDto> manifest)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplyScenarioRestart(manifest));
+    }
+
+    /// <summary>
+    /// Replaces the aircraft list with <paramref name="manifest"/>. Split out of
+    /// <see cref="OnScenarioRestarted"/> so it runs on the UI thread by contract rather than by
+    /// dispatch, same as <see cref="ApplySessionSettings"/>.
+    /// </summary>
+    internal void ApplyScenarioRestart(List<AircraftDto> manifest)
+    {
+        foreach (var ac in Aircraft)
+        {
+            _cfrMonitor.Remove(ac.Callsign);
+        }
+
+        FlightPlanEditorManager.Close();
+        Radar.ClearShownPaths();
+        Ground.ClearShownTaxiRoutes();
+        Aircraft.Clear();
+
+        // A restart drops the tape, so bookmarks placed against the abandoned run no longer point at
+        // anything (the server clears them too — see RestartScenarioAsync).
+        ClearBookmarks();
+
+        int delayed = 0;
+        foreach (var dto in manifest)
+        {
+            var model = AircraftModel.FromDto(dto, ComputeDistance);
+            ApplyAutoClearedToLand(model);
+            Aircraft.Add(model);
+            if (model.IsDelayed)
+            {
+                delayed++;
+            }
+        }
+
+        InitialDelayedSpawnCount = delayed;
+        PendingDelayedSpawnCount = delayed;
+    }
+
     internal void OnAircraftDeleted(string callsign)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
