@@ -222,14 +222,30 @@ order:
     (`TryDispatchSoloNaturalCommandAsync`) when `SessionSoloTrainingMode` is on; otherwise reports the parse error.
 11. **No-target half-strip** — when no aircraft resolved, `HSC`/`HSA`/`HSD` run globally with an empty callsign
     (`IsHalfStripVerb`); otherwise "No aircraft matched."
-12. **Dispatch** — `_connection.SendCommandAsync(callsign, canonical, initials)`. On success,
+12. **VFR gate** — `VfrCommandGate.Evaluate(target, canonical, VfrCommandsForIfr)` (`Services/VfrCommandGate.cs`).
+    The simulation does not gate commands on flight rules, so this is what refuses a VFR-only command for an IFR
+    aircraft when the controller has not opted in; on rejection it sets `StatusText`, adds a terminal Warning, and
+    returns without touching the wire. When the setting *does* let one through, `NoteVfrBypassIfNeeded` emits a
+    one-per-aircraft advisory so the acceptance is visible. See [command-handlers.md](command-handlers.md).
+13. **Dispatch** — `_connection.SendCommandAsync(callsign, canonical, initials)`. On success,
     `RecordCommandMarker` drops a timeline tick; `AddHistory` records the canonical (callsign stripped via
     `CommandHistoryFormatter`); the input box is cleared; `CommandStatusResolver.Resolve` sets the status text.
 
 The server side picks up from `SendCommand` — see [command-pipeline.md](command-pipeline.md) and
-[command-handlers.md](command-handlers.md). Sub-VMs (Ground/Radar/Strips/TDLS) dispatch through the simpler
-`SendCommandForViewAsync(callsign, command, initials)` (`MainViewModel.cs:2390`), which skips the resolution chain
-because the caller already knows the callsign.
+[command-handlers.md](command-handlers.md). `TryDispatchSoloNaturalCommandAsync` (step 10) runs the same gate and
+dispatch tail for its mapped canonical, and favorites/macros re-enter through `SendCommandAsync` itself.
+
+**Not every client command flows through this chain.** Sub-VMs (Strips/TDLS) dispatch through the simpler
+`SendCommandForViewAsync(callsign, command, initials)`, which skips the resolution chain because the caller already
+knows the callsign — and the **right-click context menus skip both**, calling `Connection.SendCommandAsync` directly
+from local `Cmd(...)` helpers in `RadarView.ContextMenus.cs`, `GroundView.axaml.cs`, and `DataGridView.ContextMenu.cs`.
+Anything that must apply to *every* command a controller issues therefore needs a second enforcement point: for the VFR
+gate that is `AircraftCommandApplicability`, which the menus consult when deciding which items to build.
+
+The **Favorite Commands** submenu is the exception among menus — a favorite carries arbitrary canonical text, so there
+is no item-construction gate to rely on. It routes through `SendGatedCommandForViewAsync(target, callsign, command,
+initials)`, which runs `VfrCommandGate` and then `SendCommandForViewAsync`. Any future menu that sends
+controller-authored text rather than a fixed verb belongs on that path too.
 
 `HandleSpeechServiceCommandReady` (`MainViewModel.cs:1540`) feeds this chain: it prepends the recognized callsign onto
 the canonical command (`"SWA123 FH 270"`) so the `CallsignPrefixResolver` path auto-dispatches on Enter, then raises

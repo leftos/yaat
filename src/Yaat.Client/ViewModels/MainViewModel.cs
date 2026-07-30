@@ -229,6 +229,45 @@ public partial class MainViewModel : ObservableObject
 
     public bool ShowSessionSoloGoAroundProbability => SessionSoloTrainingMode;
 
+    /// <summary>
+    /// How far the VFR-only command set opens up for IFR aircraft. A local preference, not a room
+    /// setting — the simulation accepts every command, so this is what decides whether the context
+    /// menus offer a VFR-only item and whether <see cref="VfrCommandGate"/> lets a typed one through.
+    /// Read live so a change in the Settings window takes effect without reconnecting.
+    /// </summary>
+    public VfrCommandsForIfr VfrCommandsForIfr => _preferences.VfrCommandsForIfr;
+
+    /// <summary>
+    /// Aircraft that have already had a "VFR-only command accepted while IFR" advisory. Working a
+    /// full pattern would otherwise repeat the note on every leg command, so it fires once per
+    /// aircraft.
+    /// </summary>
+    private readonly HashSet<string> _vfrBypassAdvisedCallsigns = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Surfaces the VFR-bypass advisory the first time a VFR-only command is accepted for a given
+    /// IFR aircraft, so the acceptance is visible rather than silent. <paramref name="accepted"/> is
+    /// the server's verdict — a command the sim refused for an unrelated reason (wrong phase, no
+    /// runway) was never accepted, so it must not spend the aircraft's one advisory.
+    /// </summary>
+    private void NoteVfrBypassIfNeeded(VfrGateResult gate, string callsign, bool accepted)
+    {
+        if (!gate.BypassedForIfr || !accepted)
+        {
+            return;
+        }
+
+        // Drop callsigns no longer in the session, so an aircraft that reappears (scenario reload,
+        // rewind, respawn) is advised again and the set can't grow without bound. Done here rather
+        // than at every point the aircraft list is reset — a bypass is rare and the list is small.
+        _vfrBypassAdvisedCallsigns.RemoveWhere(cs => FindAircraft(cs) is null);
+
+        if (_vfrBypassAdvisedCallsigns.Add(callsign))
+        {
+            AddWarningEntry(VfrCommandGate.BuildBypassAdvisory(callsign));
+        }
+    }
+
     [ObservableProperty]
     private bool _sessionRpoShowPilotSpeech;
 
@@ -2143,11 +2182,20 @@ public partial class MainViewModel : ObservableObject
 
         SelectedAircraft = target;
 
+        var gate = VfrCommandGate.Evaluate(target, compound.CanonicalString, VfrCommandsForIfr);
+        if (!gate.Allowed)
+        {
+            StatusText = gate.RejectionMessage!;
+            AddWarningEntry(gate.RejectionMessage!);
+            return;
+        }
+
         try
         {
             var canonical = forceOverride ? $"** {compound.CanonicalString}" : compound.CanonicalString;
             _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalInput);
             var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+            NoteVfrBypassIfNeeded(gate, target.Callsign, result.Success);
 
             if (result.Success)
             {
@@ -2228,6 +2276,14 @@ public partial class MainViewModel : ObservableObject
 
         SelectedAircraft = target;
 
+        var gate = VfrCommandGate.Evaluate(target, mappedCompound.CanonicalString, VfrCommandsForIfr);
+        if (!gate.Allowed)
+        {
+            StatusText = gate.RejectionMessage!;
+            AddWarningEntry(gate.RejectionMessage!);
+            return true;
+        }
+
         try
         {
             var canonical = forceOverride ? $"** {mappedCompound.CanonicalString}" : mappedCompound.CanonicalString;
@@ -2239,6 +2295,7 @@ public partial class MainViewModel : ObservableObject
                 normalization.UsedLlmFallback
             );
             var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+            NoteVfrBypassIfNeeded(gate, target.Callsign, result.Success);
 
             if (result.Success)
             {
@@ -2768,17 +2825,43 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private async Task SendCommandForViewAsync(string callsign, string command, string initials)
+    private Task SendCommandForViewAsync(string callsign, string command, string initials) =>
+        SendCommandForViewCoreAsync(callsign, command, initials);
+
+    /// <summary>Sends a menu command and returns the server's result, or null when the send threw.</summary>
+    private async Task<CommandResultDto?> SendCommandForViewCoreAsync(string callsign, string command, string initials)
     {
         try
         {
-            await _connection.SendCommandAsync(callsign, command, initials);
+            return await _connection.SendCommandAsync(callsign, command, initials);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "View command failed: {Cmd}", command);
             StatusText = $"Command error: {ex.Message}";
+            return null;
         }
+    }
+
+    /// <summary>
+    /// Sends a menu command whose text the controller authored, applying the VFR gate first. Used by
+    /// the Favorite Commands submenu: a favorite carries arbitrary canonical text, so it needs the
+    /// same check as typed input. The rest of the right-click menus build their items from
+    /// <see cref="AircraftCommandApplicability"/>, which already gates them at construction, and go
+    /// through <see cref="SendCommandForViewAsync"/> instead.
+    /// </summary>
+    public async Task SendGatedCommandForViewAsync(AircraftModel? target, string callsign, string command, string initials)
+    {
+        var gate = VfrCommandGate.Evaluate(target, command, VfrCommandsForIfr);
+        if (!gate.Allowed)
+        {
+            StatusText = gate.RejectionMessage!;
+            AddWarningEntry(gate.RejectionMessage!);
+            return;
+        }
+
+        var result = await SendCommandForViewCoreAsync(callsign, command, initials);
+        NoteVfrBypassIfNeeded(gate, callsign, result?.Success == true);
     }
 
     // --- Helpers ---

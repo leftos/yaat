@@ -1,6 +1,7 @@
 using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Tests;
 
@@ -50,14 +51,16 @@ public class AircraftCommandApplicabilityTests
         Assert.False(AircraftCommandApplicability.IsVfr(null));
         Assert.False(AircraftCommandApplicability.CanLineUpAndWait(null));
         Assert.False(AircraftCommandApplicability.CanClearForTakeoff(null));
-        Assert.False(AircraftCommandApplicability.ShowVfrTakeoffModifiers(null));
+        Assert.False(AircraftCommandApplicability.ShowVfrTakeoffModifiers(null, VfrCommandsForIfr.All));
         Assert.False(AircraftCommandApplicability.CanCancelTakeoff(null));
         Assert.False(AircraftCommandApplicability.CanClearToLand(null));
-        Assert.False(AircraftCommandApplicability.CanIssueVfrOption(null));
+        Assert.False(AircraftCommandApplicability.CanIssueVfrOption(null, VfrCommandsForIfr.All));
         Assert.False(AircraftCommandApplicability.CanGoAround(null));
         Assert.False(AircraftCommandApplicability.CanCancelLandingClearance(null));
         Assert.False(AircraftCommandApplicability.CanExitRunway(null));
-        Assert.False(AircraftCommandApplicability.CanEnterPattern(null));
+        Assert.False(AircraftCommandApplicability.CanEnterPattern(null, VfrCommandsForIfr.All));
+        Assert.False(AircraftCommandApplicability.CanEnterFinal(null, VfrCommandsForIfr.All));
+        Assert.False(AircraftCommandApplicability.CanIssuePatternManeuvers(null, VfrCommandsForIfr.All));
         Assert.False(AircraftCommandApplicability.CanDrawTaxiRoute(null));
     }
 
@@ -106,11 +109,15 @@ public class AircraftCommandApplicabilityTests
     }
 
     [Theory]
-    [InlineData("VFR", true)]
-    [InlineData("IFR", false)]
-    public void ShowVfrTakeoffModifiers_VfrOnly(string rules, bool expected)
+    [InlineData("VFR", VfrCommandsForIfr.None, true)]
+    [InlineData("VFR", VfrCommandsForIfr.EnterFinalOnly, true)]
+    [InlineData("VFR", VfrCommandsForIfr.All, true)]
+    [InlineData("IFR", VfrCommandsForIfr.None, false)]
+    [InlineData("IFR", VfrCommandsForIfr.EnterFinalOnly, false)]
+    [InlineData("IFR", VfrCommandsForIfr.All, true)]
+    public void ShowVfrTakeoffModifiers_VfrOrOptedIn(string rules, VfrCommandsForIfr mode, bool expected)
     {
-        Assert.Equal(expected, AircraftCommandApplicability.ShowVfrTakeoffModifiers(Ac("LinedUpAndWaiting", true, rules)));
+        Assert.Equal(expected, AircraftCommandApplicability.ShowVfrTakeoffModifiers(Ac("LinedUpAndWaiting", true, rules), mode));
     }
 
     // --- Departures: Cancel takeoff ---
@@ -152,14 +159,16 @@ public class AircraftCommandApplicabilityTests
     // --- Arrivals: VFR options (touch-and-go / stop-and-go / low approach / option) ---
 
     [Theory]
-    [InlineData("FinalApproach", "VFR", true)]
-    [InlineData("Downwind", "VFR", true)]
-    [InlineData("FinalApproach", "IFR", false)] // VFR-only
-    [InlineData("Downwind", "IFR", false)]
-    [InlineData("Landing", "VFR", false)] // no pending landing phase
-    public void CanIssueVfrOption_RequiresPendingLandingAndVfr(string phase, string rules, bool expected)
+    [InlineData("FinalApproach", "VFR", VfrCommandsForIfr.None, true)]
+    [InlineData("Downwind", "VFR", VfrCommandsForIfr.None, true)]
+    [InlineData("FinalApproach", "IFR", VfrCommandsForIfr.None, false)]
+    [InlineData("FinalApproach", "IFR", VfrCommandsForIfr.EnterFinalOnly, false)] // EF only opens EF, not the option set
+    [InlineData("FinalApproach", "IFR", VfrCommandsForIfr.All, true)]
+    [InlineData("Downwind", "IFR", VfrCommandsForIfr.All, true)]
+    [InlineData("Landing", "VFR", VfrCommandsForIfr.All, false)] // no pending landing phase
+    public void CanIssueVfrOption_RequiresPendingLandingAndRules(string phase, string rules, VfrCommandsForIfr mode, bool expected)
     {
-        Assert.Equal(expected, AircraftCommandApplicability.CanIssueVfrOption(Ac(phase, false, rules)));
+        Assert.Equal(expected, AircraftCommandApplicability.CanIssueVfrOption(Ac(phase, false, rules), mode));
     }
 
     // --- Arrivals: Go around ---
@@ -201,7 +210,7 @@ public class AircraftCommandApplicabilityTests
     public void TransientManeuver_VfrInPattern_KeepsOptionClearances()
     {
         var ac = Ac("TurnL360", false, "VFR", phaseSequence: "TurnL360 > Downwind > Base > FinalApproach > Landing");
-        Assert.True(AircraftCommandApplicability.CanIssueVfrOption(ac));
+        Assert.True(AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfr.None));
     }
 
     // --- Arrivals: Cancel landing clearance (only when a clearance is set) ---
@@ -234,13 +243,54 @@ public class AircraftCommandApplicabilityTests
     [InlineData("HoldingPattern", "VFR", false, true)]
     [InlineData("Downwind", "VFR", false, true)]
     [InlineData("FinalApproach", "VFR", false, true)]
-    [InlineData("", "IFR", false, false)] // IFR cannot enter VFR pattern
+    [InlineData("", "IFR", false, false)] // circuit legs stay closed for IFR under the default mode
     [InlineData("Downwind", "IFR", false, false)]
     [InlineData("Taxiing", "VFR", true, false)] // on ground
     [InlineData("InitialClimb", "VFR", false, false)] // departing
     public void CanEnterPattern_ByPhaseAndRules(string phase, string rules, bool onGround, bool expected)
     {
-        Assert.Equal(expected, AircraftCommandApplicability.CanEnterPattern(Ac(phase, onGround, rules)));
+        Assert.Equal(expected, AircraftCommandApplicability.CanEnterPattern(Ac(phase, onGround, rules), VfrCommandsForIfr.EnterFinalOnly));
+    }
+
+    /// <summary>
+    /// The circuit-leg entries (ELD/ERD/ELB/ERB) only open up for an IFR aircraft under the full
+    /// setting; straight-in final opens under the default one. That split is the point of #317.
+    /// </summary>
+    [Theory]
+    [InlineData(VfrCommandsForIfr.None, false, false)]
+    [InlineData(VfrCommandsForIfr.EnterFinalOnly, false, true)]
+    [InlineData(VfrCommandsForIfr.All, true, true)]
+    public void CanEnterPatternVsFinal_IfrDependsOnMode(VfrCommandsForIfr mode, bool circuitLegs, bool straightIn)
+    {
+        var ac = Ac("", false, "IFR");
+
+        Assert.Equal(circuitLegs, AircraftCommandApplicability.CanEnterPattern(ac, mode));
+        Assert.Equal(straightIn, AircraftCommandApplicability.CanEnterFinal(ac, mode));
+    }
+
+    /// <summary>A VFR aircraft gets both regardless of the setting, and the state gate still applies.</summary>
+    [Theory]
+    [InlineData(VfrCommandsForIfr.None)]
+    [InlineData(VfrCommandsForIfr.EnterFinalOnly)]
+    [InlineData(VfrCommandsForIfr.All)]
+    public void CanEnterPatternVsFinal_VfrAlwaysBoth(VfrCommandsForIfr mode)
+    {
+        Assert.True(AircraftCommandApplicability.CanEnterPattern(Ac("Downwind", false, "VFR"), mode));
+        Assert.True(AircraftCommandApplicability.CanEnterFinal(Ac("Downwind", false, "VFR"), mode));
+
+        // Departing: not a pattern-entry state for either predicate.
+        Assert.False(AircraftCommandApplicability.CanEnterPattern(Ac("InitialClimb", false, "VFR"), mode));
+        Assert.False(AircraftCommandApplicability.CanEnterFinal(Ac("InitialClimb", false, "VFR"), mode));
+    }
+
+    [Theory]
+    [InlineData("VFR", VfrCommandsForIfr.None, true)]
+    [InlineData("IFR", VfrCommandsForIfr.None, false)]
+    [InlineData("IFR", VfrCommandsForIfr.EnterFinalOnly, false)]
+    [InlineData("IFR", VfrCommandsForIfr.All, true)]
+    public void CanIssuePatternManeuvers_VfrOrOptedIn(string rules, VfrCommandsForIfr mode, bool expected)
+    {
+        Assert.Equal(expected, AircraftCommandApplicability.CanIssuePatternManeuvers(Ac("Downwind", false, rules), mode));
     }
 
     // --- Ground routing: draw / preset taxi route ---

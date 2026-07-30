@@ -21,9 +21,12 @@ namespace Yaat.Sim.Tests.Simulation;
 /// N513SJ given <c>CTO 360 020</c> — turn starts at ~250 ft AGL.
 ///
 /// Two-part fix:
-///   1. IFR aircraft must reject VFR-only CTO modifiers (MRC, ML*, OC,
-///      DCT, MLT, MRT, …). Only bare CTO (follow SID), runway heading (RH),
-///      or a numeric heading vector is valid for IFR.
+///   1. The VFR-only CTO modifiers (MRC, ML*, OC, DCT, MLT, MRT, …) are classified
+///      apart from the forms an IFR departure normally receives — bare CTO (follow
+///      SID), runway heading (RH), or a numeric heading vector. Since issue #317 the
+///      classification lives in <see cref="VfrCommandPolicy"/> and the desktop client
+///      enforces it against the controller's "VFR commands for IFR aircraft" setting,
+///      so the dispatcher itself no longer refuses them.
 ///   2. For the IFR cases that remain (bare CTO with RV SID, or
 ///      FlyHeadingDeparture), defer the heading change in
 ///      <c>InitialClimbPhase</c> until the aircraft is ≥ 400 ft above field
@@ -35,6 +38,9 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     private const string RecordingPath = "TestData/n152sp-ifr-cto-vfr-modifier-recording.yaat-bug-report-bundle.zip";
     private const double FieldElevation = 9.0;
     private const double IfrTurnAglFloor = 400.0;
+
+    /// <summary>True heading of OAK 28R, the departure runway in the recording.</summary>
+    private const double RunwayTrueHeading = 292.0;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -58,16 +64,40 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     }
 
     // -------------------------------------------------------------------
-    // Part 1: IFR dispatch must reject VFR-only CTO modifiers
+    // Part 1: the VFR-only CTO modifiers stay classified as VFR-only
     // -------------------------------------------------------------------
 
     /// <summary>
-    /// CTO MRC on an IFR aircraft must be rejected. Pre-fix the command was
-    /// accepted and the aircraft began a 90° right turn at Vr; after the fix
-    /// the dispatcher returns a rejection naming the IFR restriction.
+    /// CTO with a VFR-only modifier (MRC, ML90, OC, MLT, MRT) must classify as VFR-only so the
+    /// client's gate refuses it for an IFR aircraft under the default "enter final only" setting.
+    /// Only the controller opting into "all VFR commands" lets it through.
+    /// </summary>
+    [Theory]
+    [InlineData("CTO MRC 020")]
+    [InlineData("CTO ML90 020")]
+    [InlineData("CTO MLT 020")]
+    [InlineData("CTO MRT 020")]
+    public void CtoVfrModifier_ClassifiedVfrOnly(string command)
+    {
+        var parseResult = CommandParser.ParseCompound(command);
+        Assert.True(parseResult.IsSuccess, $"Parse failed for '{command}': {parseResult.Reason}");
+        var parsed = Assert.Single(Assert.Single(parseResult.Value!.Blocks).Commands);
+
+        output.WriteLine($"{command} -> {parsed.GetType().Name}");
+
+        Assert.True(VfrCommandPolicy.IsVfrOnly(parsed), $"{command} must classify as VFR-only.");
+        Assert.False(VfrCommandPolicy.AllowsForIfr(parsed, VfrCommandsForIfr.None));
+        Assert.False(VfrCommandPolicy.AllowsForIfr(parsed, VfrCommandsForIfr.EnterFinalOnly));
+        Assert.True(VfrCommandPolicy.AllowsForIfr(parsed, VfrCommandsForIfr.All));
+    }
+
+    /// <summary>
+    /// The dispatcher itself no longer refuses a VFR-only CTO modifier on an IFR aircraft — the
+    /// gate is the client's (issue #317). What must still hold is the part-2 deferral: the turn
+    /// waits for 400 ft AGL rather than starting at Vr, which is the actual N152SP bug.
     /// </summary>
     [Fact]
-    public void CtoMrc_RejectsForIfrAircraft()
+    public void CtoMrc_AcceptedForIfrAircraft_GateIsClientSide()
     {
         var recording = LoadRecording();
         var engine = BuildEngine();
@@ -88,42 +118,7 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
 
         output.WriteLine($"CTO MRC 020 result: success={result.Success} message={result.Message}");
 
-        Assert.False(result.Success, "CTO MRC must be rejected for IFR aircraft.");
-        Assert.NotNull(result.Message);
-        Assert.Contains("IFR", result.Message);
-    }
-
-    /// <summary>
-    /// CTO with VFR-only modifiers (ML90, OC, MLT, MRT) must all be rejected
-    /// for IFR. Mirrors the rule that IFR departures accept only bare CTO
-    /// (follow SID), runway heading (RH), or a numeric heading.
-    /// </summary>
-    [Theory]
-    [InlineData("CTO ML90 020")]
-    [InlineData("CTO OC 020")]
-    [InlineData("CTO MLT 020")]
-    [InlineData("CTO MRT 020")]
-    public void CtoVfrModifier_RejectsForIfrAircraft(string command)
-    {
-        var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
-        {
-            return;
-        }
-
-        engine.Replay(recording, 767);
-
-        var n152sp = engine.FindAircraft("N152SP");
-        Assert.NotNull(n152sp);
-
-        var result = engine.SendCommand("N152SP", command);
-
-        output.WriteLine($"{command} result: success={result.Success} message={result.Message}");
-
-        Assert.False(result.Success, $"{command} must be rejected for IFR aircraft.");
-        Assert.NotNull(result.Message);
-        Assert.Contains("IFR", result.Message);
+        Assert.True(result.Success, $"Dispatcher must not gate on flight rules: {result.Message}");
     }
 
     /// <summary>
@@ -371,13 +366,14 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
     // -------------------------------------------------------------------
 
     /// <summary>
-    /// Full replay through the recorded bug moment confirms that the
-    /// originally recorded <c>CTO MRC 020</c> action is now rejected: the
-    /// aircraft remains on the ground at t=820, where pre-fix it was already
-    /// climbing through ~100 ft AGL turning right.
+    /// Full replay through the recorded bug moment. The recorded <c>CTO MRC 020</c> is applied —
+    /// the dispatcher no longer refuses it on flight rules (issue #317) — so this pins the actual
+    /// N152SP defect: at t=820 the aircraft is climbing through well under the 400 ft AGL floor and
+    /// must still be tracking runway heading. Pre-fix it was at ~114 ft on heading 318, already
+    /// three quarters of the way into its 90° right turn.
     /// </summary>
     [Fact]
-    public void N152sp_FullReplayThroughBugMoment_RejectsRecordedCtoMrc()
+    public void N152sp_FullReplayThroughBugMoment_DefersTheRecordedCtoMrcTurn()
     {
         var recording = LoadRecording();
         var engine = BuildEngine();
@@ -392,20 +388,17 @@ public class N152spIfrCtoDeferralTests(ITestOutputHelper output)
         var n152sp = engine.FindAircraft("N152SP");
         Assert.NotNull(n152sp);
 
+        double aglFt = n152sp.Altitude - FieldElevation;
         output.WriteLine(
-            $"t=820: phase={n152sp.Phases?.CurrentPhase?.Name ?? "(none)"} alt={n152sp.Altitude:F0} hdg={n152sp.TrueHeading.Degrees:F1} onGround={n152sp.IsOnGround}"
+            $"t=820: phase={n152sp.Phases?.CurrentPhase?.Name ?? "(none)"} alt={n152sp.Altitude:F0} agl={aglFt:F0} hdg={n152sp.TrueHeading.Degrees:F1} onGround={n152sp.IsOnGround}"
         );
 
-        // Pre-fix snapshot at t=820 had alt=114 hdg=318 — already turning.
-        // Post-fix the CTO MRC was rejected, so the aircraft must remain on
-        // the ground (in some ground phase — TaxiingPhase / HoldingShortPhase /
-        // HoldingInPositionPhase / LinedUpAndWaitingPhase). The original
-        // recorded chain Taxiing → HoldingShort → HoldingInPosition collapses
-        // back to Taxiing once the CTO MRC fails to install LineUp/Takeoff.
-        Assert.True(n152sp.IsOnGround, $"N152SP must remain on the ground after CTO MRC rejection (alt={n152sp.Altitude:F0}).");
+        Assert.True(aglFt < IfrTurnAglFloor, $"Fixture invariant: t=820 must be below the {IfrTurnAglFloor:F0} ft AGL turn floor (agl={aglFt:F0}).");
+
+        double offRunwayHeading = Math.Abs(NormalizeAngleDiff(n152sp.TrueHeading.Degrees - RunwayTrueHeading));
         Assert.True(
-            n152sp.Phases?.CurrentPhase is TaxiingPhase or HoldingShortPhase or HoldingInPositionPhase or LinedUpAndWaitingPhase,
-            $"Expected a ground phase but got {n152sp.Phases?.CurrentPhase?.GetType().Name ?? "(null)"}"
+            offRunwayHeading < 5,
+            $"N152SP must still be on runway heading below {IfrTurnAglFloor:F0} ft AGL. Off by {offRunwayHeading:F1}°."
         );
     }
 

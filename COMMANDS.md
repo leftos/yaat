@@ -443,7 +443,7 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 
 ### Pattern
 
-> **VFR only:** Pattern commands, traffic direction, VFR holds, touch-and-go, stop-and-go, low approach, and cleared-for-option are restricted to VFR aircraft. IFR aircraft must first be given `CIFR` (Cancel IFR) to become VFR. The report commands `RFIS`/`RTIS` are available to both IFR and VFR aircraft. **Visual approaches (`CVA`) are IFR only** — VFR pattern aircraft join the pattern via the pattern-entry commands (`ELD`/`ERD`/`SI` etc.) above.
+> **VFR only:** Pattern commands, traffic direction, VFR holds, touch-and-go, stop-and-go, low approach, and cleared-for-option are aimed at VFR aircraft. How much of that set an IFR aircraft can receive is up to you — see [VFR commands for IFR aircraft](#vfr-commands-for-ifr-aircraft) below. By default only `EF` (enter final) works on an IFR aircraft; for the rest, give `CIFR` (Cancel IFR) first. The report commands `RFIS`/`RTIS` are available to both IFR and VFR aircraft. **Visual approaches (`CVA`) are IFR only** — VFR pattern aircraft join the pattern via the pattern-entry commands (`ELD`/`ERD`/`SI` etc.) above.
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
@@ -474,6 +474,52 @@ The restriction covers only codes YAAT chooses on its own. `SQ {code}` still mak
 | Offset pattern L | `OFL` | `OFFSETL` | `OFL [nm]` |
 | Offset pattern R | `OFR` | `OFFSETR` | `OFR [nm]` |
 | Circle airport | `CA` | `CIRCLE` | — |
+
+#### VFR commands for IFR aircraft
+
+Most arrivals at a busy field are visuals, and moving one to the parallel runway shouldn't take three
+commands. **Settings ▸ Scenarios ▸ VFR commands for IFR aircraft** controls how much of the VFR-only
+set you can give an IFR aircraft without cancelling IFR first:
+
+| Setting | Effect |
+|---------|--------|
+| Never — require CIFR first | Every VFR-only command is refused for an IFR aircraft; `CIFR` first, as before. |
+| Enter final (EF) only *(default)* | `EF` works on an IFR aircraft — move a visual arrival to another runway in one command. Everything else still needs `CIFR`. |
+| All VFR commands | The whole VFR-only set works on an IFR aircraft. |
+
+The setting covers the pattern-entry and pattern-maneuver commands above, `TG` / `SG` / `LA` / `COPT`,
+the VFR holds (`HPP*` / `HFIX*`), `FOLLOW`, the `CM A`/`CM B` altitude restrictions, and the
+pattern-relative `CTO` modifiers (`MRC`/`MLC`, `MRD`/`MLD`, `MR{N}`/`ML{N}`, `MLT`, `MRT`).
+
+Most of that set is legitimate for an IFR aircraft: 7110.65 §7-4-1.a.1 explicitly directs an IFR
+aircraft going around off a visual to "enter the traffic pattern for landing", §3-8-1's sequencing
+phraseology (`EXTEND DOWNWIND`, `MAKE SHORT APPROACH`, `CIRCLE THE AIRPORT`, `MAKE LEFT/RIGHT
+THREE-SIXTY`) carries no flight-rules qualifier, and §4-8-12 treats a touch-and-go / low approach /
+option as an IFR clearance. **All VFR commands** is nonetheless a permissive mode, and three parts of
+it are not realistic for an IFR aircraft:
+
+- **`CM A` / `CM B`** — the real IFR forms are `MAINTAIN VFR CONDITIONS ABOVE/BELOW (altitude)`
+  (§7-1-2, only on pilot request) or VFR-on-top (§7-3-1). An at-or-above/below *band* also lets the
+  aircraft drift vertically, which is incompatible with the IFR separation still owed under §7-4-1.
+- **`CTO MRC`/`MLC`, `MRD`/`MLD`, `MR{N}`/`ML{N}`** — these peel a departing IFR aircraft toward the
+  pattern at liftoff, abandoning its SID or filed route with no amended clearance (§4-3-2, §5-6-2).
+(`CTO OC` and `CTO DCT`/`TLDCT`/`TRDCT` are **not** part of this set — they are ordinary IFR
+clearances per §4-3-2 and §5-6-2 `CLEARED DIRECT`, and an IFR departure receives them regardless of
+this setting.)
+
+One simplification to know about: §4-8-12 requires climb-out instructions (a specific heading or
+route **and** an altitude) before an IFR touch-and-go or low approach begins its final descent. YAAT
+flies the aircraft back into the circuit without them.
+
+**The aircraft stays IFR.** Accepting one of these commands does not cancel the flight plan — the
+datablock, strip, and filed altitude are unchanged. When a pattern entry retargets an IFR aircraft
+to a runway, it is granted a **visual approach clearance** for that runway the way `CVAF` grants
+one (the field-in-sight report is assumed): an IFR aircraft is on an IFR flight plan until it lands
+or cancels (7110.65 §7-4-1), so it is never left flying a final with no clearance, and the
+instrument approach it held — which does not authorize the new runway — is replaced rather than
+silently dropped. The first time it happens for a given aircraft the
+terminal notes it, so an accepted VFR-only command on an IFR target is never silent. It is a local
+preference: it applies to the commands *you* issue, and other controllers in the room keep their own.
 
 ### Track Operations
 
@@ -573,7 +619,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Create VFR flight plan | `VP C172 5500 KOAK DCT KJFK` | — | Altitude absolute (5500 = 5,500 ft). Type accepts equipment suffix (`C172/G`) — split into AircraftType and FaaEquipmentSuffix. Departure/destination accept FAA (`MOD`) or ICAO (`KMOD`) — resolved to canonical ICAO when recognized; an unrecognized identifier (e.g. a non-US airport like `WSSS`) is kept as typed rather than rejected. Single-token route is treated as destination only (`VP C172 5500 MOD`). Auto-assigns a discrete beacon code; pilot keeps squawking their previous code until told `SQ`. |
 | Flight Data (abbreviated FP) | `DA C172 065 4304` | — | CRC F6 key. Optional fields in any order: type (with optional equipment suffix `C172/G`), altitude (hundreds), beacon code, scratchpad (`` `VFF ``), flight rules (`.V`/`.E`). Creates VFR FP by default. Errors with DUP NEW ID if aircraft already has a flight plan. Auto-assigns a discrete beacon code if none was typed; pilot keeps squawking their previous code (e.g. 1200) until told `SQ`. |
 | Set remarks | `REMARKS /V/ STUDENT` | `REM` | Sets flight plan remarks field |
-| Cancel IFR | `CIFR` | — | Changes aircraft from IFR to VFR. Sets flight rules to VFR and clears filed altitude. Required before issuing VFR-only commands (pattern entry, traffic pattern, VFR holds, touch-and-go, etc.) to IFR aircraft. |
+| Cancel IFR | `CIFR` | — | Changes aircraft from IFR to VFR. Sets flight rules to VFR and clears filed altitude. Needed before issuing VFR-only commands (traffic pattern, VFR holds, touch-and-go, etc.) to an IFR aircraft, unless [VFR commands for IFR aircraft](#vfr-commands-for-ifr-aircraft) is set to allow them. |
 
 ### Consolidation
 
@@ -754,10 +800,10 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO H270` | Cleared for takeoff, fly heading 270 (shortest turn) |
 | `CTO RH270` / `RT270` | Cleared for takeoff, turn right heading 270 |
 | `CTO LH270` / `LT270` | Cleared for takeoff, turn left heading 270 |
-| `CTO OC` | Cleared for takeoff, on course (direct to destination) — VFR only |
-| `CTO DCT SUNOL` | Cleared for takeoff, direct to fix SUNOL — VFR only |
-| `CTO TLDCT SUNOL` | Cleared for takeoff, turn left direct to fix SUNOL — VFR only |
-| `CTO TRDCT OAK` | Cleared for takeoff, turn right direct to fix OAK — VFR only |
+| `CTO OC` | Cleared for takeoff, on course (direct to destination) |
+| `CTO DCT SUNOL` | Cleared for takeoff, direct to fix SUNOL |
+| `CTO TLDCT SUNOL` | Cleared for takeoff, turn left direct to fix SUNOL |
+| `CTO TRDCT OAK` | Cleared for takeoff, turn right direct to fix OAK |
 | `CTO MRT` / `CTOMRT` | Cleared for takeoff, make right traffic (closed pattern) — VFR only |
 | `CTO MRT 28R` | Cleared for takeoff, make right traffic runway 28R (cross-runway pattern) — VFR only |
 | `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) — VFR only |
@@ -812,6 +858,10 @@ The named **pattern-exit departures** (`MRC`/`MRD`/`MLC`/`MLD`) instead fly the 
 
 For a **radar-vectors SID** (e.g. NIMI6 off KOAK), the published departure heading is read from CIFP and held after liftoff while you still have the aircraft, then the filed route is picked up after you hand it off. If that published heading can't be resolved from the current FAA CIFP cycle — for example the procedure was renamed and is briefly absent from the cycle's data — the aircraft holds **runway heading** and awaits vectors instead of turning direct to the first enroute fix (FAA 7110.65 5-8-2). When a recently-superseded CIFP cycle is still cached, the published heading is recovered from it.
 
+The "VFR only" modifiers below are subject to [VFR commands for IFR aircraft](#vfr-commands-for-ifr-aircraft):
+an IFR departure gets them only when that setting is **All VFR commands**. Otherwise an IFR departure
+accepts a bare `CTO`, `CTO` with an assigned heading, or `CTO RH`.
+
 | Modifier | Departure type | VFR/IFR |
 |----------|----------------|---------|
 | *(none)* | Default departure — VFR: runway heading; IFR: navigates filed route ([SID](#glossary) expansion) | Both |
@@ -823,10 +873,10 @@ For a **radar-vectors SID** (e.g. NIMI6 off KOAK), the published departure headi
 | `MRC` / `MLC` | Right/left **crosswind departure** — fly upwind, turn crosswind, then depart on the crosswind heading | VFR only |
 | `MRD` / `MLD` | Right/left **downwind departure** — fly upwind, crosswind, downwind, then depart on the downwind heading | VFR only |
 | `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading (single relative turn, not a pattern) | VFR only |
-| `OC` | On course — navigate direct to destination airport | VFR only |
-| `DCT {fix}` | Direct to named fix | VFR only |
-| `TLDCT {fix}` | Turn left direct to named fix | VFR only |
-| `TRDCT {fix}` | Turn right direct to named fix | VFR only |
+| `OC` | On course — navigate direct to destination airport | Both |
+| `DCT {fix}` | Direct to named fix | Both |
+| `TLDCT {fix}` | Turn left direct to named fix | Both |
+| `TRDCT {fix}` | Turn right direct to named fix | Both |
 | `MRT` / `MLT` | Make right/left closed traffic (enter pattern) | VFR only |
 | `MRT {rwy}` / `MLT {rwy}` | Cross-runway closed traffic (pattern for a different runway). Cancels any landing clearance held for the old runway | VFR only |
 | `MRT [rwy] [alt]` / `MLT [rwy] [alt]` | Closed traffic with optional altitude override (e.g., `CTO MLT 28R 15` = left traffic 28R at 1,500 ft) | VFR only |
@@ -920,7 +970,7 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 
 **Mid-pattern runway / direction switches** — `MLT 28L` (or `MRT 28R`) issued while the aircraft is on an active Upwind / Crosswind / Downwind / Base rebuilds the phase chain from the current leg with the new direction and runway. If the aircraft is on the wrong physical side for the new pattern (e.g., on the upwind from a 28R touch-and-go when switched to 28L left traffic), a midfield-crossing leg is inserted automatically so the aircraft crosses to the correct side before joining downwind — equivalent to `ELD 28L` from that position.
 
-`FOLLOW` is a **VFR-only** command (per 7110.65 §7-6-7 "Sequencing"). It requires the pilot to have reported the traffic in sight first (`RTIS` or the forced `RTISF` in RPO mode; structured `RTIS` in solo training) — a pilot cannot follow traffic they haven't visually acquired. The one-shot **`FOLLOWF`** (`FOLF`, RPO-only, rejected in solo training) folds the `RTISF` into the follow, so you can issue it without a separate `RTIS`/`RTISF` first. A **bare `FOLLOWF`** (no callsign) also folds in a still-*pending* `RTIS` — the traffic the controller just called but the pilot hasn't yet visually acquired — so you don't have to re-type the callsign while the pilot is still looking. Once `HasReportedTrafficInSight` is set, `FOLLOW` works from any airborne state — you do not need to put the follower in a pattern first. Behavior depends on where the follower and lead are:
+`FOLLOW` is modelled as a VFR-tower sequencing command (7110.65 §7-6-7, §3-8-1), so an IFR aircraft gets it only when [VFR commands for IFR aircraft](#vfr-commands-for-ifr-aircraft) is set to **All VFR commands** — IFR traffic normally uses `CVA … FOLLOW`, which is the codified form (§7-4-3.c.2: clear for the visual when "the pilot reports the preceding aircraft in sight and is instructed to follow it to the same runway"). Telling an IFR aircraft to follow traffic is itself standard practice; the restriction here is about which YAAT verb models it. It requires the pilot to have reported the traffic in sight first (`RTIS` or the forced `RTISF` in RPO mode; structured `RTIS` in solo training) — a pilot cannot follow traffic they haven't visually acquired. The one-shot **`FOLLOWF`** (`FOLF`, RPO-only, rejected in solo training) folds the `RTISF` into the follow, so you can issue it without a separate `RTIS`/`RTISF` first. A **bare `FOLLOWF`** (no callsign) also folds in a still-*pending* `RTIS` — the traffic the controller just called but the pilot hasn't yet visually acquired — so you don't have to re-type the callsign while the pilot is still looking. Once `HasReportedTrafficInSight` is set, `FOLLOW` works from any airborne state — you do not need to put the follower in a pattern first. Behavior depends on where the follower and lead are:
 
 - **Free pursuit** (lead not yet in a pattern, or follower far from the pattern): the follower flies a trail behind the lead rather than aiming its nose at the lead's instantaneous position (AIM §5-5-12 — the pilot maneuvers as necessary to keep in-trail separation). Steering is relative to the lead's ground track: far behind, it lag-pursues a point at the desired distance behind the lead and curves into trail; once established, it flies parallel to the lead's track with only a gentle cross-track correction; when too close, it slows first and — if it's already at approach speed and slowing alone can't open the gap — makes a shallow widen (a few degrees off the lead's track, AIM §4-3-5) to bleed distance. Speed still tracks the lead with distance-based correction (±20 kts, wider free-flight spacing of 1.5/2.0/3.5 nm by category). Altitude is left at whatever the controller last assigned — real pilots do not dive/climb onto the lead; they maintain visual separation from their current level. (When the lead is nearly stopped, its ground track is unreliable, so the follower simply points at it.)
 - **Pattern auto-join** (lead is in a pattern phase, follower within 3 nm of the lead's downwind abeam point, within 5 nm of the lead, and on the correct side of the runway): the follower's phase list is rebuilt with `PatternEntryPhase → DownwindPhase → BasePhase → FinalApproachPhase → LandingPhase` copying the lead's runway, pattern direction, and altitude. From then on, the existing pattern-tight spacing (1.0/1.5/2.0 nm) and extend-downwind logic take over. While the lead is ahead of the follower in the pattern (on base or final to the same runway), the follower holds its base turn — extending the downwind past its normal base-turn point — until turning base would roll it out at least the category spacing behind the lead, so it sequences in trail instead of cutting inside and overtaking it. The same in-trail leg-hold applies on the **upwind and crosswind** legs: rather than turning ahead of the traffic it is following, the follower extends its current leg to stay behind it. A follower **never turns on its own to break the hold** — past a 4 nm extension it reports "extending … unable to turn" and keeps flying the leg until you turn it or re-sequence it.
@@ -1155,7 +1205,7 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 
 **Taxi speed (ground)** — issued to a **taxiing** aircraft, `SPD {n}` sets its taxi speed to `n` knots — slower or faster than the category default (jet 30 / turboprop 25 / piston 20 / helo 15 kts). The value is clamped to 5 kts at the low end and to the expedite ceiling at the high end (jet 39 / turboprop 33 / piston 26 / helo 20 kts); corner slowdowns, hold-short braking, and conflict/give-way slowdowns still apply on top. It is mutually exclusive with `EXP` (issuing either clears the other) and persists across `HOLD`/`RES`. `SPD 0` (resume normal speed) restores the category default, as does a new `TAXI` clearance. Also fires from a conditional block, e.g. `AT B SPD 10` slows to 10 kts on reaching taxiway B.
 
-**VFR altitude floor/ceiling (`CM A` / `CM B`)** — alongside the hard `CM 240` assignment, `CM A{altitude}` clears the aircraft to maintain VFR at or above the given altitude (floor) and `CM B{altitude}` at or below (ceiling). The altitude accepts shorthand or full notation via `AltitudeResolver` (`CM A025` = `CM A2500` = at or above 2,500 ft). The aircraft is free to drift inside the band; the boundary is what the controller assigns. **VFR aircraft only** — the command is rejected for IFR. A plain `CM {altitude}` (or any other hard altitude assignment) clears any active floor or ceiling.
+**VFR altitude floor/ceiling (`CM A` / `CM B`)** — alongside the hard `CM 240` assignment, `CM A{altitude}` clears the aircraft to maintain VFR at or above the given altitude (floor) and `CM B{altitude}` at or below (ceiling). The altitude accepts shorthand or full notation via `AltitudeResolver` (`CM A025` = `CM A2500` = at or above 2,500 ft). The aircraft is free to drift inside the band; the boundary is what the controller assigns. **VFR aircraft** — an IFR aircraft gets it only when [VFR commands for IFR aircraft](#vfr-commands-for-ifr-aircraft) is set to **All VFR commands**, and it is not realistic there: the codified IFR forms are `MAINTAIN VFR CONDITIONS ABOVE/BELOW (altitude)` (7110.65 §7-1-2, only on pilot request) and VFR-on-top (§7-3-1), and a drift band conflicts with the IFR separation still owed. A plain `CM {altitude}` (or any other hard altitude assignment) clears any active floor or ceiling.
 
 **ATFN (at final)** — `ATFN {distance}` is a compound-block condition that fires when the aircraft is within the specified distance (in NM) of the assigned runway threshold. Use it to set up staged speed reductions on approach: `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.
 

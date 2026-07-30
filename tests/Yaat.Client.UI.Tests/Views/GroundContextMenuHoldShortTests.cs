@@ -6,6 +6,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -57,7 +58,7 @@ public class GroundContextMenuHoldShortTests
         };
 
         var menu = new ContextMenu();
-        GroundView.AddHoldShortCrossingItems(menu, vm, ac, "Holding Short 15/33", "N784ME", "AB");
+        GroundView.AddHoldShortCrossingItems(menu, vm, ac, "Holding Short 15/33", "N784ME", "AB", VfrCommandsForIfr.EnterFinalOnly);
 
         var crossItems = menu
             .Items.OfType<MenuItem>()

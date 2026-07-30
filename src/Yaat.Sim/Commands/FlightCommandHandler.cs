@@ -135,11 +135,6 @@ internal static class FlightCommandHandler
 
     private static CommandResult ApplyVfrAltitudeRestriction(ClimbMaintainCommand cmd, AircraftState aircraft)
     {
-        if (!aircraft.FlightPlan.IsVfr)
-        {
-            return new CommandResult(false, "CM A/B altitude restrictions require VFR aircraft");
-        }
-
         aircraft.Procedure.SidViaMode = false;
         aircraft.Procedure.SidViaCeiling = null;
         aircraft.Procedure.IsExpediting = false;

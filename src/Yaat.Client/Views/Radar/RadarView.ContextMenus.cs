@@ -9,6 +9,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Mva;
@@ -118,7 +119,16 @@ public partial class RadarView
                 "Command…",
                 () =>
                 {
-                    CommandFlyout.Open(_canvas!, callsign, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
+                    // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
+                    var mainVm = FindMainViewModel();
+                    CommandFlyout.Open(
+                        _canvas!,
+                        callsign,
+                        cmd =>
+                            mainVm is not null
+                                ? mainVm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials)
+                                : vm.SendRawCommandAsync(callsign, initials, cmd)
+                    );
                     return Task.CompletedTask;
                 }
             )
@@ -1088,7 +1098,7 @@ public partial class RadarView
                 {
                     menu.Items.Add(CreateMenuItem($"Force landing{rwy}", () => vm.ForceLandingAsync(cs, init)));
                 }
-                if (AircraftCommandApplicability.CanIssueVfrOption(ac))
+                if (AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfrMode()))
                 {
                     menu.Items.Add(CreateMenuItem($"Cleared for the option{rwy}", () => vm.ClearedForOptionAsync(cs, init)));
                     menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(cs, init)));
@@ -1134,8 +1144,9 @@ public partial class RadarView
         // Explicit runway heading — valid for both VFR and IFR (issue #221).
         menu.Items.Add(CreateMenuItem("Fly runway heading", () => vm.ClearedForTakeoffAsync(cs, init, "RH")));
 
-        // On-course, pattern, and closed-traffic modifiers are VFR-only — the server rejects them for IFR.
-        if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac))
+        // On-course, pattern, and closed-traffic modifiers are VFR-only — offered for an IFR
+        // departure only when the controller opted into the full VFR command set.
+        if (AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac, VfrCommandsForIfrMode()))
         {
             menu.Items.Add(CreateMenuItem("Fly on course", () => vm.ClearedForTakeoffAsync(cs, init, "OC")));
             menu.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffAsync(cs, init, "MLT")));
@@ -1216,25 +1227,25 @@ public partial class RadarView
     }
 
     /// <summary>
-    /// Builds the Pattern submenu. Entries are offered to airborne VFR aircraft being
-    /// sequenced in; maneuvers are leg-specific (turn-crosswind only from upwind, etc.).
-    /// Pattern operations are VFR-only. Returns null when nothing applies.
+    /// Builds the Pattern submenu. Entries are offered to airborne aircraft being sequenced in;
+    /// maneuvers are leg-specific (turn-crosswind only from upwind, etc.). Pattern operations are
+    /// VFR-only unless the controller's "VFR commands for IFR aircraft" setting opens them up —
+    /// straight-in final under the default setting, the rest only under the full one. Returns null
+    /// when nothing applies.
     /// </summary>
     internal MenuItem? BuildPatternSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
+        var mode = VfrCommandsForIfrMode();
         var menu = new MenuItem { Header = "Pattern" };
-        if (AircraftCommandApplicability.CanEnterPattern(ac))
-        {
-            AddPatternEntryItems(menu, vm, cs, init, ac);
-        }
-        AddPatternManeuverItems(menu, vm, cs, init, ac);
+        AddPatternEntryItems(menu, vm, cs, init, ac, mode);
+        AddPatternManeuverItems(menu, vm, cs, init, ac, mode);
         return menu.Items.Count > 0 ? menu : null;
     }
 
-    private void AddPatternManeuverItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    private void AddPatternManeuverItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac, VfrCommandsForIfr mode)
     {
-        // Pattern maneuvers are VFR-only and valid only from specific legs of the circuit.
-        if (!AircraftCommandApplicability.IsVfr(ac))
+        // Pattern maneuvers are valid only from specific legs of the circuit.
+        if (!AircraftCommandApplicability.CanIssuePatternManeuvers(ac, mode))
         {
             return;
         }
@@ -1307,17 +1318,31 @@ public partial class RadarView
         }
     }
 
-    private void AddPatternEntryItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    private void AddPatternEntryItems(MenuItem menu, RadarViewModel vm, string cs, string init, AircraftModel? ac, VfrCommandsForIfr mode)
     {
+        bool circuitLegs = AircraftCommandApplicability.CanEnterPattern(ac, mode);
+        bool straightIn = AircraftCommandApplicability.CanEnterFinal(ac, mode);
+        if (!circuitLegs && !straightIn)
+        {
+            return;
+        }
+
         var runwayAirport = ac is not null ? (!string.IsNullOrEmpty(ac.Destination) ? ac.Destination : ac.Departure) : null;
         var runways = !string.IsNullOrEmpty(runwayAirport) ? GetRunwayDesignators(runwayAirport) : [];
         var defaultRunway = !string.IsNullOrEmpty(ac?.AssignedRunway) ? ac.AssignedRunway : null;
 
-        AddPatternEntry(menu, "Enter left downwind", runways, defaultRunway, rwy => vm.EnterLeftDownwindAsync(cs, init, rwy));
-        AddPatternEntry(menu, "Enter right downwind", runways, defaultRunway, rwy => vm.EnterRightDownwindAsync(cs, init, rwy));
-        AddPatternEntry(menu, "Enter left base", runways, defaultRunway, rwy => vm.EnterLeftBaseAsync(cs, init, rwy));
-        AddPatternEntry(menu, "Enter right base", runways, defaultRunway, rwy => vm.EnterRightBaseAsync(cs, init, rwy));
-        AddPatternEntry(menu, "Enter straight-in final", runways, defaultRunway, rwy => vm.EnterFinalAsync(cs, init, rwy));
+        if (circuitLegs)
+        {
+            AddPatternEntry(menu, "Enter left downwind", runways, defaultRunway, rwy => vm.EnterLeftDownwindAsync(cs, init, rwy));
+            AddPatternEntry(menu, "Enter right downwind", runways, defaultRunway, rwy => vm.EnterRightDownwindAsync(cs, init, rwy));
+            AddPatternEntry(menu, "Enter left base", runways, defaultRunway, rwy => vm.EnterLeftBaseAsync(cs, init, rwy));
+            AddPatternEntry(menu, "Enter right base", runways, defaultRunway, rwy => vm.EnterRightBaseAsync(cs, init, rwy));
+        }
+
+        if (straightIn)
+        {
+            AddPatternEntry(menu, "Enter straight-in final", runways, defaultRunway, rwy => vm.EnterFinalAsync(cs, init, rwy));
+        }
     }
 
     private void AddPatternEntry(MenuItem menu, string baseLabel, IReadOnlyList<string> runways, string? defaultRunway, Func<string?, Task> action)

@@ -2,12 +2,15 @@
 
 ## Unreleased
 
-<<<<<<< Updated upstream
 ### Added
 - **Tools > Export ASDE-X / SAID Temp Data...** saves the drawn geometry as one file per facility, ready to commit to the project.
 - **Tools > Reset ASDE-X / SAID Temp Data to Defaults...** discards everything drawn and restores the geometry shipped with the project.
 - ARTCCs can ship surface geometry under `Data/ARTCCs/{ARTCC}/SurfaceTempData/{FACILITY}.json`, generated from runway data by `tools/build-surface-temp-data.py`.
 - SFO ships final-approach centerlines marked at each mile for 28L/28R, 10L/10R, and 19L, one toggleable set per flow.
+- `EF 28L` moves an IFR arrival flying a visual to another runway in one command, with no `CIFR` first.
+- **Settings > Scenarios > VFR commands for IFR aircraft** sets how much of the VFR-only set an IFR aircraft accepts: EF only (default), all, or none.
+- An IFR aircraft keeps its flight plan when it takes a VFR-only command, and the terminal notes the first one per aircraft.
+- The setting is per-controller — other RPOs keep their own — and the right-click menus follow yours.
 
 ### Changed
 - Speech recognition now defaults to a Whisper model fine-tuned on air-traffic-control radio speech, which recognized ATC phraseology clearly better than the previous general-purpose model in side-by-side testing (it correctly hears rapid clearances like "descend and maintain" and three-digit headings that the old model garbled) — and it's faster and a smaller download (~1.5 GB). It appears in Settings → Speech as "Whisper Medium · ATC fine-tune ★ Recommended" and downloads on first use. The previous default (`whisper-large-turbo3`) is removed from the model picker; if your settings still point at it, it keeps working but shows as a custom source until you switch.
@@ -36,6 +39,9 @@
 - A departure re-taxied across one runway to a parallel one holds short of its new departure runway, and a plain `LUAW` lines it up.
 - An aircraft crossing a runway onto the next one's hold line stops short of the markings instead of a half-fuselage past them.
 - An aircraft holding short of a runway and then re-routed across it — for example a departure at the 28L bar on Foxtrot given `TAXI F C HS 10R RWY 28R` at SFO — now holds where it is instead of taxiing over the runway first and stopping at the hold-short line on the far side. Previously it drove across without a crossing clearance, which at SFO meant crossing 28L with another aircraft lined up and waiting on it.
+- A pattern entry that moves an IFR aircraft to a runway grants it a visual approach clearance for that runway.
+- A straight-in final flown without an approach clearance is no longer graded against the instrument-approach intercept rules.
+- `CTO OC` and `CTO DCT`/`TLDCT`/`TRDCT` work on IFR departures.
 
 ## v0.9.18-beta [2026/07/29]
 

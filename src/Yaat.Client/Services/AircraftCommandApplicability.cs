@@ -1,4 +1,5 @@
 using Yaat.Client.Models;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;
 
@@ -9,9 +10,15 @@ namespace Yaat.Client.Services;
 /// they show only commands that make sense for the aircraft, and stay consistent.
 ///
 /// The aircraft phase strings and IFR/VFR rules encoded here were validated against
-/// FAA 7110.65 §3-9/§3-10 and AIM 4-3-23, cross-checked with the server-side command
-/// handlers (PatternCommandHandler / DepartureClearanceHandler / GroundCommandHandler).
-/// The server remains authoritative — these predicates only suppress UI clutter.
+/// FAA 7110.65 §3-9/§3-10 and AIM 4-3-23, cross-checked with the command handlers
+/// (PatternCommandHandler / DepartureClearanceHandler / GroundCommandHandler).
+///
+/// <para>The phase-based predicates only suppress UI clutter — the command handlers still
+/// reject a maneuver that makes no sense from the aircraft's current state. The flight-rules
+/// predicates are different: the simulation does not gate on IFR-vs-VFR at all, so the
+/// <see cref="VfrCommandsForIfr"/> checks here are the enforcement for menu-issued commands
+/// (typed commands go through <see cref="VfrCommandGate"/>). Dropping a mode check here means
+/// the command goes through.</para>
 /// </summary>
 public static class AircraftCommandApplicability
 {
@@ -116,6 +123,15 @@ public static class AircraftCommandApplicability
         return ac is not null && string.Equals(ac.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Whether a VFR-only command may be offered for this aircraft: always for a VFR aircraft,
+    /// and for an IFR aircraft only when the controller opted into the full set.
+    /// </summary>
+    private static bool AllowsVfrOnly(AircraftModel? ac, VfrCommandsForIfr mode)
+    {
+        return ac is not null && (IsVfr(ac) || mode == VfrCommandsForIfr.All);
+    }
+
     // --- Departures ---
 
     /// <summary>Line up and wait — a departure that has reached, or is taxiing to, its runway.</summary>
@@ -150,12 +166,13 @@ public static class AircraftCommandApplicability
 
     /// <summary>
     /// Whether to show the VFR-only takeoff modifiers (closed-traffic / pattern entries
-    /// off the departure). IFR departures get runway-heading / on-course only — the
-    /// server rejects the pattern modifiers for IFR (CheckIfrDepartureCompatibility).
+    /// off the departure). An IFR departure normally gets a bare CTO, an assigned heading,
+    /// or runway heading only; the pattern-relative modifiers appear for it only when the
+    /// controller opted into the full VFR command set.
     /// </summary>
-    public static bool ShowVfrTakeoffModifiers(AircraftModel? ac)
+    public static bool ShowVfrTakeoffModifiers(AircraftModel? ac, VfrCommandsForIfr mode)
     {
-        return IsVfr(ac);
+        return AllowsVfrOnly(ac, mode);
     }
 
     /// <summary>Cancel takeoff clearance — a departure that has been cleared/lined up.</summary>
@@ -185,11 +202,12 @@ public static class AircraftCommandApplicability
 
     /// <summary>
     /// Cleared for the option / touch-and-go / stop-and-go / low approach. Same window as
-    /// "cleared to land" but VFR-only — the server gates these behind RequiresVfr.
+    /// "cleared to land", but these model VFR operations, so an IFR aircraft is only offered
+    /// them when the controller opted into the full VFR command set.
     /// </summary>
-    public static bool CanIssueVfrOption(AircraftModel? ac)
+    public static bool CanIssueVfrOption(AircraftModel? ac, VfrCommandsForIfr mode)
     {
-        return CanClearToLand(ac) && IsVfr(ac);
+        return CanClearToLand(ac) && AllowsVfrOnly(ac, mode);
     }
 
     /// <summary>
@@ -263,18 +281,49 @@ public static class AircraftCommandApplicability
     // --- Pattern ---
 
     /// <summary>
-    /// Enter the traffic pattern (downwind / base / straight-in). Airborne VFR aircraft
-    /// that are inbound (free-flight), holding, or already in a pending-landing phase can
-    /// be sequenced into the pattern. Pattern operations are VFR-only.
+    /// Whether the aircraft is in a state where it could be sequenced into the pattern at all:
+    /// airborne and either inbound (free-flight), holding, or in a pending-landing phase.
+    /// Says nothing about flight rules.
     /// </summary>
-    public static bool CanEnterPattern(AircraftModel? ac)
+    private static bool IsPatternEntryEligible(AircraftModel? ac)
     {
-        if (ac is null || ac.IsOnGround || !IsVfr(ac))
+        if (ac is null || ac.IsOnGround)
         {
             return false;
         }
 
         var phase = ac.CurrentPhase ?? "";
         return string.IsNullOrEmpty(phase) || IsPendingLandingPhase(phase) || IsHoldingPhase(phase);
+    }
+
+    /// <summary>
+    /// Enter the traffic pattern on a circuit leg (left/right downwind, base). These put the
+    /// aircraft on a full VFR circuit, so an IFR aircraft is only offered them when the
+    /// controller opted into the full VFR command set. Straight-in final is separate —
+    /// see <see cref="CanEnterFinal"/>.
+    /// </summary>
+    public static bool CanEnterPattern(AircraftModel? ac, VfrCommandsForIfr mode)
+    {
+        return IsPatternEntryEligible(ac) && AllowsVfrOnly(ac, mode);
+    }
+
+    /// <summary>
+    /// Enter straight-in final (EF). This is the one pattern entry an IFR arrival flying a
+    /// visual routinely needs — moving it to the parallel runway — so it is offered under the
+    /// default setting as well as the full one (issue #317).
+    /// </summary>
+    public static bool CanEnterFinal(AircraftModel? ac, VfrCommandsForIfr mode)
+    {
+        return IsPatternEntryEligible(ac) && (IsVfr(ac) || mode != VfrCommandsForIfr.None);
+    }
+
+    /// <summary>
+    /// In-pattern maneuvers — leg turns, spacing adjustments, orbits, S-turns, offsets. They only
+    /// make sense once the aircraft is flying the circuit, so an IFR aircraft is offered them
+    /// only when the controller opted into the full VFR command set.
+    /// </summary>
+    public static bool CanIssuePatternManeuvers(AircraftModel? ac, VfrCommandsForIfr mode)
+    {
+        return AllowsVfrOnly(ac, mode);
     }
 }

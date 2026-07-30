@@ -123,15 +123,20 @@ public class VfrFollowPhaseTests : IDisposable
     }
 
     [Fact]
-    public void Follow_NotVfr_IsRejected()
+    public void Follow_NotVfr_IsGatedByPolicyNotTheDispatcher()
     {
+        // FOLLOW models a VFR operation, but since issue #317 the restriction is a controller
+        // preference the client enforces — the dispatcher itself accepts it for an IFR aircraft.
         var follower = MakeVfrAircraft("FOLL");
         follower.FlightPlan.FlightRules = "IFR";
 
-        var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), follower, DispatchCtx());
+        var follow = new FollowCommand("LEAD", false);
+        Assert.True(VfrCommandPolicy.IsVfrOnly(follow));
+        Assert.False(VfrCommandPolicy.AllowsForIfr(follow, VfrCommandsForIfr.EnterFinalOnly));
 
-        Assert.False(result.Success);
-        Assert.Contains("VFR", result.Message, StringComparison.OrdinalIgnoreCase);
+        var result = CommandDispatcher.Dispatch(follow, follower, DispatchCtx());
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
     }
 
     [Fact]

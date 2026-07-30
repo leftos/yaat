@@ -585,6 +585,33 @@ public class ApproachScoreTests
         Assert.Equal("OAK", score.AirportCode); // Falls back to runway airport
     }
 
+    /// <summary>
+    /// A final flown with no approach clearance — an <c>EF</c> straight-in, which an IFR arrival on a
+    /// visual can now be given directly (issue #317) — is not a vector to a final approach course, so
+    /// 7110.65 §5-9-1/TBL 5-9-1 do not apply. The score is still recorded, but its legality verdicts
+    /// must come back clean rather than failing the controller for a maneuver §7-4-3 authorizes.
+    /// The aircraft is deliberately placed inside the minimum intercept distance and at a cut angle
+    /// that would fail TBL 5-9-1 had it been vectored to an instrument final.
+    /// </summary>
+    [Fact]
+    public void NoApproachClearance_NotGradedAgainstInstrumentInterceptRules()
+    {
+        var aircraft = MakeEstablishedAircraft(heading: 292, distFromThresholdNm: 2.0);
+        aircraft.Phases = new PhaseList();
+        // No ActiveApproach set — an EF straight-in tears the clearance down.
+
+        var phase = new FinalApproachPhase();
+        var ctx = MakeContext(aircraft);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        var score = aircraft.PendingApproachScores[0];
+        Assert.True(score.InterceptDistanceNm < score.MinInterceptDistanceNm, "Fixture invariant: inside the minimum intercept distance.");
+        Assert.True(score.IsInterceptDistanceLegal, "A final with no approach clearance is not subject to the §5-9-1 distance rule.");
+        Assert.True(score.IsInterceptAngleLegal, "A final with no approach clearance is not subject to the TBL 5-9-1 angle limits.");
+    }
+
     [Fact]
     public void VfrAircraft_NoScoreCreated()
     {

@@ -7,6 +7,12 @@ using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 
+/// <summary>
+/// <c>CIFR</c> semantics, plus the invariant that the dispatcher does <em>not</em> gate commands on
+/// flight rules. Since issue #317 the VFR-only restriction is a controller preference the desktop
+/// client enforces before a command reaches the wire — see <see cref="VfrCommandPolicy"/> and
+/// <c>VfrCommandPolicyTests</c> for the classification itself.
+/// </summary>
 [Collection("NavDbMutator")]
 public class VfrCommandGatingTests : IDisposable
 {
@@ -93,7 +99,7 @@ public class VfrCommandGatingTests : IDisposable
     [InlineData("HPPL")]
     [InlineData("HPPR")]
     [InlineData("HPP")]
-    public void IfrAircraft_VfrCommand_Rejected(string commandText)
+    public void IfrAircraft_VfrCommand_NotGatedByTheDispatcher(string commandText)
     {
         var ac = MakeIfrAircraft();
 
@@ -104,8 +110,34 @@ public class VfrCommandGatingTests : IDisposable
 
         _output.WriteLine($"{commandText}: Success={result.Success} Message={result.Message}");
 
-        Assert.False(result.Success, $"IFR aircraft should reject '{commandText}'");
-        Assert.Contains("CIFR", result.Message!);
+        // The command may still fail for a real reason (no runway, wrong phase); what must not
+        // happen any more is a flight-rules refusal telling the controller to cancel IFR first.
+        if (!result.Success)
+        {
+            Assert.DoesNotContain("CIFR", result.Message!);
+        }
+    }
+
+    /// <summary>
+    /// The commands above are still classified VFR-only — the client refuses them for an IFR
+    /// aircraft unless the controller has opted in. <c>EF</c> is the one the default setting
+    /// (<see cref="VfrCommandsForIfr.EnterFinalOnly"/>) lets through.
+    /// </summary>
+    [Theory]
+    [InlineData("ERD 28R", false)]
+    [InlineData("EF 28R", true)]
+    [InlineData("MLT", false)]
+    [InlineData("TG", false)]
+    public void IfrAircraft_VfrCommand_GatedByPolicyInsteadOfDispatcher(string commandText, bool allowedByDefault)
+    {
+        var parseResult = CommandParser.ParseCompound(commandText);
+        Assert.True(parseResult.IsSuccess, $"Parse failed for '{commandText}': {parseResult.Reason}");
+        var parsed = Assert.Single(Assert.Single(parseResult.Value!.Blocks).Commands);
+
+        Assert.True(VfrCommandPolicy.IsVfrOnly(parsed));
+        Assert.False(VfrCommandPolicy.AllowsForIfr(parsed, VfrCommandsForIfr.None));
+        Assert.Equal(allowedByDefault, VfrCommandPolicy.AllowsForIfr(parsed, VfrCommandsForIfr.EnterFinalOnly));
+        Assert.True(VfrCommandPolicy.AllowsForIfr(parsed, VfrCommandsForIfr.All));
     }
 
     [Theory]
@@ -166,11 +198,6 @@ public class VfrCommandGatingTests : IDisposable
     public void Cifr_ThenPatternEntry_NotBlockedByFlightRules()
     {
         var ac = MakeIfrAircraft();
-
-        // First: pattern entry should be rejected for flight rules
-        var erdResult = Dispatch(ac, new EnterRightDownwindCommand("28R"));
-        Assert.False(erdResult.Success);
-        Assert.Contains("CIFR", erdResult.Message!);
 
         // Cancel IFR
         var cifrResult = Dispatch(ac, new CancelIfrCommand());

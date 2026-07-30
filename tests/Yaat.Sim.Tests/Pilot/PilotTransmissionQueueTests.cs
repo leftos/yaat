@@ -346,17 +346,19 @@ public sealed class PilotTransmissionQueueTests
     {
         var engine = new SimulationEngine(new TestAirportGroundData()) { Scenario = NewScenario(soloTrainingMode: true, elapsedSeconds: 30) };
         var aircraft = NewAircraft("N123AB");
-        aircraft.FlightPlan = new AircraftFlightPlan { FlightRules = "IFR" };
+        aircraft.FlightPlan = new AircraftFlightPlan { FlightRules = "VFR" };
         engine.World.AddAircraft(aircraft);
 
-        var result = engine.SendCommand("N123AB", "CM A025");
+        // CVA on a VFR aircraft is a dispatch failure (not a parse failure) in an "Approach"-category
+        // verb, which is what routes the rejection reason into the pilot's "unable" readback.
+        var result = engine.SendCommand("N123AB", "CVA 28R");
 
         Assert.False(result.Success);
-        Assert.Contains("VFR aircraft", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IFR flight plan", result.Message, StringComparison.OrdinalIgnoreCase);
         var transmission = Assert.Single(aircraft.PendingPilotTransmissions);
         Assert.Equal(PilotTransmissionKind.Readback, transmission.Kind);
         Assert.Contains("unable", transmission.Text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("VFR aircraft", transmission.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IFR flight plan", transmission.Text, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

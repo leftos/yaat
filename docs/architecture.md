@@ -7,7 +7,7 @@
 
 | Task | Key files (in order of relevance) |
 |------|----------------------------------|
-| **Add a new command** | `CommandRegistry.cs` → `CommandScheme.cs` → `CommandSchemeParser.cs` → `CommandDispatcher.cs` → appropriate `*CommandHandler.cs` |
+| **Add a new command** | `CommandRegistry.cs` → `CommandScheme.cs` → `CommandSchemeParser.cs` → `CommandDispatcher.cs` → appropriate `*CommandHandler.cs` (+ `VfrCommandPolicy.cs` if it is a VFR-only verb) |
 | **Add a new phase** | `Phase.cs` (base) → new phase class → `PhaseList.cs` (registration) → `PhaseRunner.cs` (lifecycle) → `PhaseSnapshotDto.cs` (serialization) → `CommandDispatcher.cs` (acceptance) |
 | **Altitude commands** | `AltitudeResolver.cs`, `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateAltitude), `ControlTargets.cs` |
 | **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
@@ -253,7 +253,8 @@ Services/
   MenuGroup.cs                  # Enum of context menu groups (Heading, Altitude, Speed, Tower, etc.)
   ContextMenuProfile.cs         # Record: Primary/Secondary/Hidden menu groups for a phase
   ContextMenuProfileService.cs  # Static: maps phase name + isOnGround → ContextMenuProfile (which radar submenu GROUPS show)
-  AircraftCommandApplicability.cs # Static: single source of truth for whether a tower/ground/landing/pattern command fits an aircraft's state (CanClearForTakeoff/CanClearToLand/CanIssueVfrOption/CanExitRunway/CanDrawTaxiRoute/...); consumed by all three right-click surfaces + phase classifiers used by ContextMenuProfileService
+  AircraftCommandApplicability.cs # Static: single source of truth for whether a tower/ground/landing/pattern command fits an aircraft's state (CanClearForTakeoff/CanClearToLand/CanIssueVfrOption/CanEnterPattern/CanEnterFinal/CanIssuePatternManeuvers/CanExitRunway/CanDrawTaxiRoute/...); consumed by all three right-click surfaces + phase classifiers used by ContextMenuProfileService. The VfrCommandsForIfr-aware predicates are enforcement, not clutter suppression — the sim does not gate on flight rules
+  VfrCommandGate.cs             # Static: checks a canonical command against the controller's VfrCommandsForIfr setting before MainViewModel.SendCommandAsync puts it on the wire; re-parses via CommandParser so no verb list is duplicated (issue #317)
   RelativeTrafficActions.cs     # Static pure gating for selected→right-clicked traffic menu items (RTIS/FOLLOW in radar, GIVEWAY/FOLLOWG on ground): HasRelativeContext, ShouldOfferFollow (airborne + LastReportedTrafficCallsign match), ShouldOfferGroundActions
   BuildInfo.cs                  # Static: version (from AssemblyInformationalVersion) + release-vs-dev detection (VelopackLocator.Current); used by title bar, About window, and startup log line
   DocLinks.cs                   # Static: GitHub URLs for user-facing docs (README/USER_GUIDE/COMMANDS/CHANGELOG/issues), pinned to release tag for installed builds, main for dev
@@ -578,6 +579,9 @@ Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAi
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands
 Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depart/cross fix, JARR STAR resolution,
                                     # JAWY airway intercept, CVIA/DVIA (DVIA SPD fix), JFAC, holding pattern, RFIS/RTIS/SAFAL, list approaches
+Commands/VfrCommandPolicy.cs        # VfrCommandsForIfr enum (None/EnterFinalOnly/All) + classification of VFR-only commands
+                                    # (RequiresVfr pattern set, IsVfrOnlyDeparture CTO modifiers, FOLLOW, CM A/B). The dispatcher
+                                    # does NOT gate on flight rules — the desktop client enforces this against the setting (issue #317)
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
                                     # GetDimension, GetCommandDimension, GetCompoundDimensions for queue clearing
 Commands/TrafficAdvisoryMatcher.cs  # Shared RTIS/SAFAL target matching: clock + VFR relative-octant/pattern-leg/landmark forms, best-candidate-by-weighted-error + Exact/Imprecise grade

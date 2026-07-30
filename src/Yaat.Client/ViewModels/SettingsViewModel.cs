@@ -211,6 +211,9 @@ public partial class SettingsViewModel : ObservableObject
     private bool _autoPullUpToParallel;
 
     [ObservableProperty]
+    private int _selectedVfrCommandsForIfrIndex;
+
+    [ObservableProperty]
     private bool _soloTrainingMode;
 
     [ObservableProperty]
@@ -577,6 +580,11 @@ public partial class SettingsViewModel : ObservableObject
     // maps directly to the enum value. Only shown on macOS (IsMacOs), where the choice has an effect.
     public static IReadOnlyList<string> RendererModeOptions { get; } = ["Automatic (recommended)", "Metal", "OpenGL", "Software"];
 
+    // Order must match the VfrCommandsForIfr enum (None, EnterFinalOnly, All) —
+    // SelectedVfrCommandsForIfrIndex maps directly to the enum value.
+    public static IReadOnlyList<string> VfrCommandsForIfrOptions { get; } =
+    ["Never — require CIFR first", "Enter final (EF) only", "All VFR commands"];
+
     public bool IsMacOs { get; } = OperatingSystem.IsMacOS();
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
@@ -657,6 +665,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoClearedToLandCtr = _preferences.AutoClearedToLandCtr;
         _autoCrossRunway = _preferences.AutoCrossRunway;
         _autoPullUpToParallel = _preferences.AutoPullUpToParallel;
+        _selectedVfrCommandsForIfrIndex = (int)_preferences.VfrCommandsForIfr;
         _soloTrainingMode = _preferences.SoloTrainingMode;
         _soloGoAroundProbabilityPercent = _preferences.SoloGoAroundProbabilityPercent;
         _rpoShowPilotSpeech = _preferences.RpoShowPilotSpeech;
@@ -797,6 +806,7 @@ public partial class SettingsViewModel : ObservableObject
             AutoCrossRunway,
             AutoPullUpToParallel
         );
+        _preferences.SetVfrCommandsForIfr((VfrCommandsForIfr)SelectedVfrCommandsForIfrIndex);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetTakeControlKey(_takeControlKeyName);

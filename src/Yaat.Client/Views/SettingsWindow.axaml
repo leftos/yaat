@@ -212,6 +212,18 @@
                                    Margin="28,0,0,0" />
                     </StackPanel>
                     <StackPanel Spacing="4">
+                        <TextBlock Text="VFR commands for IFR aircraft:"
+                                   Foreground="{DynamicResource SubtleTextBrush}" />
+                        <ComboBox ItemsSource="{Binding VfrCommandsForIfrOptions}"
+                                  SelectedIndex="{Binding SelectedVfrCommandsForIfrIndex}"
+                                  Width="240"
+                                  HorizontalAlignment="Left" />
+                        <TextBlock Text="Which VFR-only commands (pattern entry and maneuvers, touch-and-go, low approach, cleared for the option, FOLLOW, VFR holds, CM A/B, and the pattern CTO modifiers) you can give an IFR aircraft without issuing CIFR first. The aircraft stays IFR either way. Defaults to EF only, so an IFR arrival on a visual can be moved to another runway."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
                         <CheckBox Content="Show sim-initiated pilot transmissions as pilot speech (RPO mode)"
                                   IsChecked="{Binding RpoShowPilotSpeech}" />
                         <TextBlock Text="Renders auto-generated pilot reports (traffic in sight, holding short, going around, midfield/short-final reminders, etc.) as green pilot speech with the spelled-out spoken form. Default off — preserves the orange Warning text."

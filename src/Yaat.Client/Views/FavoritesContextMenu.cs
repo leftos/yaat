@@ -33,7 +33,9 @@ public static class FavoritesContextMenu
 
             var text = entry.CommandText;
             var item = new MenuItem { Header = entry.Label };
-            item.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, text, initials);
+            // A favorite carries arbitrary canonical text, so it goes through the VFR gate the same
+            // way typed input does — the other menu items are gated when they are built.
+            item.Click += async (_, _) => await vm.SendGatedCommandForViewAsync(aircraft, callsign, text, initials);
             menu.Items.Add(item);
         }
 

@@ -300,15 +300,34 @@ public class AirborneFollowTests : IDisposable
     }
 
     [Fact]
-    public void Follow_Airborne_NotVfr_Rejected()
+    public void Follow_ClassifiedVfrOnly()
     {
-        // FOLLOW only applies to VFR aircraft — IFR traffic uses CVA FOLLOW for visual separation.
+        // FOLLOW models a VFR operation — IFR traffic normally uses CVA FOLLOW for visual
+        // separation. Since issue #317 the restriction is the client's to enforce against the
+        // controller's "VFR commands for IFR aircraft" setting, so it lives in the policy.
+        var follow = new FollowCommand("LEAD", false);
+
+        Assert.True(VfrCommandPolicy.IsVfrOnly(follow));
+        Assert.False(VfrCommandPolicy.AllowsForIfr(follow, VfrCommandsForIfr.None));
+        Assert.False(VfrCommandPolicy.AllowsForIfr(follow, VfrCommandsForIfr.EnterFinalOnly));
+        Assert.True(VfrCommandPolicy.AllowsForIfr(follow, VfrCommandsForIfr.All));
+    }
+
+    [Fact]
+    public void Follow_Airborne_NotVfr_DispatcherDoesNotGate()
+    {
         var ac = MakeAircraft();
         ac.FlightPlan.FlightRules = "IFR";
+        ac.Approach.HasReportedTrafficInSight = true;
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new DownwindPhase());
+        var startCtx = CommandDispatcher.BuildMinimalContext(ac);
+        ac.Phases.Start(startCtx);
 
         var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD", false), ac, TestDispatch.Context(Random.Shared));
 
-        Assert.False(result.Success);
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.Equal("LEAD", ac.Approach.FollowingCallsign);
     }
 
     [Fact]

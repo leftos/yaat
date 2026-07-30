@@ -116,7 +116,7 @@ public partial class DataGridView
             {
                 menu.Items.Add(MakeItem($"Force landing{rwy}", () => Cmd("CLANDF")));
             }
-            if (AircraftCommandApplicability.CanIssueVfrOption(ac))
+            if (AircraftCommandApplicability.CanIssueVfrOption(ac, vm.VfrCommandsForIfr))
             {
                 menu.Items.Add(MakeItem($"Touch and go{rwy}", () => Cmd("TG")));
                 menu.Items.Add(MakeItem($"Stop and go{rwy}", () => Cmd("SG")));

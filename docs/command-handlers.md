@@ -154,23 +154,43 @@ it clears the active procedure, clears `NavigationRoute`, sets `TargetTrueHeadin
 | **Flight** | `FlightCommandHandler` | Heading/alt/speed/squawk/turn-rate. Heading verbs call `ClearActiveProcedure` + clear `NavigationRoute` + set `Assigned*` + `PreferredTurnDirection`. CM/DM clear via-mode and set `TargetAltitude`/`AssignedAltitude`. Force* teleport. |
 | **Navigation** | `NavigationCommandHandler` | JRADO/JRADI/DEPART/CROSS multi-fix routing, STAR (`DispatchJarr`) and airway (`DispatchJawy`) resolution into `Targets.NavigationRoute`, climb/descend-via mode. RFIS/RTIS visual-acquisition (need `ctx.Weather`/`ctx.FindAircraft`). `DispatchJfac`/`DispatchHoldingPattern` install a fresh `PhaseList`. |
 | **Approach** | `ApproachCommandHandler` | CAPP/JAPP/PTAC/CVA (JFAC/JLOC are `NavigationCommandHandler.DispatchJfac` — see Navigation row). Deferred clearance → `aircraft.Approach.PendingClearance` (`:112`); immediate → `aircraft.Phases = new PhaseList { AssignedRunway, ActiveApproach }` (`:130`, `:303`, `:391`, `:481`). Procedure-turn engagement (see [phases.md](phases.md)). `ClearArrivalProcedureState` (`:1757`) tears down STAR/pending/expected/route on airport change. |
-| **Pattern** | `PatternCommandHandler` | `TryEnterPattern`, pattern direction/turn/extend/size/offset/S-turn mods, option ops (T&G/S&G/low-approach/option), hold-orbit/hover, CLAND/LAHSO/CLC/GA. Builds/mutates pattern `PhaseList`. **VFR-gated** via `RequiresVfr` (`CommandDispatcher.cs:359`). |
-| **Departure** | `DepartureClearanceHandler` | CTO/LUAW/CTOC state machine. `TryDepartureClearance` (`:90`) branches on current phase: `HoldingShort` / `Taxiing` (stores clearance for later) / `LineUp` / `HoldingInPosition`. Installs `LineUp → [LinedUpAndWaiting] → Takeoff → InitialClimb` tower phases; stores `Phases.DepartureClearance`. **IFR-gated** via `CheckIfrDepartureCompatibility`. |
+| **Pattern** | `PatternCommandHandler` | `TryEnterPattern`, pattern direction/turn/extend/size/offset/S-turn mods, option ops (T&G/S&G/low-approach/option), hold-orbit/hover, CLAND/LAHSO/CLC/GA. Builds/mutates pattern `PhaseList`. Classified **VFR-only** by `VfrCommandPolicy.RequiresVfr`; the client is what gates it. |
+| **Departure** | `DepartureClearanceHandler` | CTO/LUAW/CTOC state machine. `TryDepartureClearance` (`:90`) branches on current phase: `HoldingShort` / `Taxiing` (stores clearance for later) / `LineUp` / `HoldingInPosition`. Installs `LineUp → [LinedUpAndWaiting] → Takeoff → InitialClimb` tower phases; stores `Phases.DepartureClearance`. Pattern-relative modifiers classified **VFR-only** by `VfrCommandPolicy.IsVfrOnlyDeparture`; the client is what gates them. |
 | **Ground** | `GroundCommandHandler` | Taxi/pushback/hold-short/cross/exit/follow/give-way/break/go. The routing methods (`TryTaxi`, `TryTaxiAuto`, `TryPushback`, `TryHoldShort`, `TryFollow`, `TryAirTaxi`, `TryLand`, `TryAddExplicitHoldShorts`, `TryCrossRunway`, `TryApplyRouteCrossingsAndHoldShorts`) take an `AirportGroundLayout? groundLayout`; the rest (`TryAssignRunway`, `TryHoldPosition`, `TryResumeTaxi`, `TryGiveWay`, `TryBreakConflict`, `TryGo`, `TryExitCommand`) don't. `TryApplyRouteCrossingsAndHoldShorts` (pre-clear listed crossings then add/re-arm hold-shorts, atomic) is the shared engine behind both `RES … CROSS … HS …` and multi-runway `CROSS … HS …`; single-runway `CROSS` keeps its own path (immediate-satisfy + destination-runway far-side crossing). On the phase path the layout is `ctx.GroundLayout` (see `TryApplyTowerCommand:1347`); on the `ApplyCommand` path (AirTaxi/Land/CTOPP) it is `aircraft.Ground.Layout`. Installs/mutates ground `PhaseList`. |
 | **Contact** | `ContactCommandHandler` | CT / FCA — pure pilot-speech, **no flight-control mutation**. Resolves a target position to a frequency via `ctx.ArtccConfig`, queues a pilot readback, sets `aircraft.HasLeftStudentFrequency = true`, and stamps `CompletedAtSeconds`/`CompletionReason = HandedOff` on the first CT/FCA. |
 | **Flight plan** | `FlightPlanCommandHandler` | `TryChangeDestination` (APT/DEST) only — canonicalizes the airport via `NavigationDatabase.TryResolveAirport`, rejects unknowns, and clears arrival-procedure state when the destination actually changes. **Dispatched from `RoomEngine` (`RoomEngine.cs:563`), not from `ApplyCommand`.** |
 
-## VFR / IFR gating lives in the dispatcher
+## VFR / IFR gating is classification here, enforcement in the client
 
-Both switch surfaces check two gates at the top before dispatching (`ApplyCommand:435`, `TryApplyTowerCommand:1349`):
+**The dispatcher does not gate on flight rules.** It applies whatever it is given to whatever aircraft
+it is given. Since issue #317 the VFR-only restriction is a controller preference
+(`VfrCommandsForIfr`: `None` / `EnterFinalOnly` / `All`, default `EnterFinalOnly`) that the desktop
+client enforces before a command reaches the wire. What lives in Yaat.Sim is the *classification*:
 
-- `RequiresVfr(command)` (`CommandDispatcher.cs:359`) — the long list of pattern/option/hold verbs. If the command is on the list and the aircraft is
-  IFR, return `VfrRequiredResult` ("Command requires VFR aircraft. Use CIFR to cancel IFR flight plan").
-- `CheckIfrDepartureCompatibility(command, aircraft)` (`:411`) — an IFR aircraft may receive only a bare `CTO` (follow SID), `CTO` with an assigned
-  numeric heading, or present-position hover. Pattern-relative CTO modifiers (MRC, ML*, RH, OC, DCT, MLT/MRT) are VFR-only and rejected so an IFR
-  departure doesn't peel off runway heading at liftoff.
+`src/Yaat.Sim/Commands/VfrCommandPolicy.cs`
 
-> A new pattern-ish verb must be added to `RequiresVfr` or it will silently be accepted for IFR traffic.
+- `RequiresVfr(command)` — the long list of pattern/option/hold verbs (ELD…EF, MLT/MRT, TC/TD/TB, EXT,
+  SA/MNA, the 360/270 orbits, PS, MLS/MRS, OFL/OFR, CA, TG/SG/LA/COPT, HPP\*/HFIX\*).
+- `IsVfrOnlyDeparture(departure)` — the three pattern-relative departure modifiers: a relative turn
+  off runway heading (`MR{N}`/`ML{N}`), a pattern-exit departure (`MRC`/`MLC`, `MRD`/`MLD`), and
+  closed traffic (`MLT`/`MRT`). Given to an IFR departure they abandon its SID or filed route with no
+  amended clearance. Everything else — bare `CTO`, an assigned heading, `CTO RH`, present-position
+  hover, `OC`, and `DCT`/`TLDCT`/`TRDCT` — is a routine IFR clearance and is never gated.
+- `IsVfrOnly(command)` — the union: the above plus `FOLLOW` and `CM A`/`CM B`.
+- `AllowsForIfr(command, mode)` — whether an IFR aircraft may receive it under a given mode.
+
+Client side, two independent surfaces consume that:
+
+- `Yaat.Client/Services/VfrCommandGate.cs` — typed, speech-mapped, and favorite/macro commands, wired
+  into `MainViewModel.SendCommandAsync`. It re-parses the canonical string through `CommandParser` to
+  get typed commands, so no verb list is duplicated.
+- `Yaat.Client/Services/AircraftCommandApplicability.cs` — the right-click menus, which enforce by not
+  offering the item. Menu send paths call `Connection.SendCommandAsync` directly and never reach
+  `SendCommandAsync`, so both surfaces are needed.
+
+> A new pattern-ish verb must be added to `VfrCommandPolicy.RequiresVfr`, or the client will offer and
+> forward it for IFR traffic regardless of the controller's setting. Scenario presets, solo training,
+> and any non-desktop front-end are ungated by design — they behave as `All`.
 
 ## Dimension classification
 
@@ -256,7 +276,8 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
    `PhaseContext`), return `CommandResult`. Keep it clone-safe.
 3. **Classify the dimension** in `CommandDescriber.GetCommandDimension` (and `ClassifyCommand` for the `TrackedCommandType`) so dimension-aware queue
    clearing works.
-4. **Gate VFR/IFR** if applicable: add pattern/option verbs to `RequiresVfr`; add departure-clearance modifiers to `CheckIfrDepartureCompatibility`.
+4. **Classify VFR/IFR** if applicable: add pattern/option verbs to `VfrCommandPolicy.RequiresVfr`; add departure-clearance modifiers to
+   `VfrCommandPolicy.IsVfrOnlyDeparture`. The client gate and the context menus both read from there.
 5. **Wire phase acceptance** — give the relevant phase a `CanAcceptCommand` arm (`Allowed` / `Rejected` / `ClearsPhase`, see [phases.md](phases.md)).
    A pure status verb that must never clear a phase goes in `CommandDescriber.IsPhaseTransparent` (broad list, fast path) and/or the dispatcher-local
    `IsPhaseTransparentCommand` (narrow list, phase gate). Put it on the **broad** list if it may ever ride alongside an interactive verb in a parallel
@@ -292,9 +313,10 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
 - **Handlers write `ControlTargets`, never position — except Force\*.** `ApplyForceHeading`/`ApplyForceAltitude`/`ApplyForceSpeed`/WARP teleport by
   writing `aircraft.TrueHeading`/`Altitude`/`Position` directly. They are sim-control bypasses that skip the phase gate because they wipe
   phase/queue/route inside the handler.
-- **VFR/IFR gating lives in the dispatcher, not the handlers.** `RequiresVfr` rejects pattern/option verbs for IFR aircraft;
-  `CheckIfrDepartureCompatibility` rejects pattern-relative CTO modifiers for IFR departures. A new pattern-ish verb omitted from `RequiresVfr` is
-  silently accepted for IFR traffic.
+- **VFR/IFR gating is classification in Yaat.Sim, enforcement in the client.** The dispatcher applies whatever it is given.
+  `VfrCommandPolicy.RequiresVfr` lists the pattern/option verbs and `IsVfrOnlyDeparture` the pattern-relative CTO modifiers; the desktop client
+  checks them against the controller's `VfrCommandsForIfr` setting. A new pattern-ish verb omitted from `RequiresVfr` reaches IFR traffic
+  regardless of that setting.
 - **Two different "transparent" lists.** `CommandDescriber.IsPhaseTransparent` (`CommandDescriber.cs:1262`) is the **broad** list used by the
   `IsAllTransparent` fast path (squawk, ident, say, RFIS/RTIS, NODEL, CT/FCA, expedite, …). A verb on this list is applied directly by
   `ApplyTransparentCompound`, which **skips `ClearConflictingBlocks` entirely** — so it neither consults phases nor
@@ -330,7 +352,7 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
   runway is valid for `CTO` only as the optional 2nd token after `MLT`/`MRT` (`CTO MRT 28R`). Context-menu convention: show the runway in the
   **label** (`Cleared for takeoff {ToDisplayDesignator(rwy)}`) but send the **bare verb** — appending the runway the way `CROSS` menus do is the
   #229 bug that hit the Ground and aircraft-list menus. New Ground/DataGrid takeoff or line-up items pass `Cmd("CTO")`/`Cmd("LUAW")`, never a runway.
-- **`CTO RH` is allowed for IFR; `CVIA` self-activates the filed SID.** `RunwayHeadingDeparture` is in `CheckIfrDepartureCompatibility`'s allowed
+- **`CTO RH` is allowed for IFR; `CVIA` self-activates the filed SID.** `RunwayHeadingDeparture` is in `VfrCommandPolicy.IsVfrOnlyDeparture`'s allowed
   set — after `CTO RH` the aircraft holds runway heading with no SID loaded (`ActiveSidId` stays null). `CVIA` (`NavigationCommandHandler.DispatchClimbVia`)
   then self-activates the filed SID when `ActiveSidId is null` via `TryActivateFiledSid` + `OverlaySidRestrictions` — a mirror of the arrival-side
   `DVIA`/`TryActivateFiledStar`. Two-step rejoin: `DCT <SID fix>` reloads the lateral remainder, then `CVIA` overlays the published crossing

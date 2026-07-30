@@ -668,7 +668,7 @@ internal static class PatternCommandHandler
             NavigationDatabase.Instance.GetRunways(runway.AirportId)
         );
 
-        var phases = new PhaseList { AssignedRunway = runway };
+        var phases = new PhaseList { AssignedRunway = runway, ActiveApproach = BuildVisualClearanceForIfr(aircraft, runway) };
         NavigationCommandHandler.SyncDestinationRunwayWithActiveStar(aircraft, runway.Designator);
         phases.LandingClearance = standingClearance;
         phases.ClearedRunwayId = voidsLandingClearance ? null : aircraft.Phases.ClearedRunwayId;
@@ -2665,11 +2665,43 @@ internal static class PatternCommandHandler
     }
 
     /// <summary>
+    /// A visual approach clearance for <paramref name="runway"/>, or null for a VFR aircraft (which
+    /// needs no approach clearance at all).
+    ///
+    /// <para>An IFR aircraft is on an IFR flight plan until it lands or cancels (7110.65 §7-4-1), so
+    /// a pattern entry that retargets it to another runway must leave it holding a clearance for that
+    /// runway — the instrument approach it held does not authorize a different one. Pattern entry is
+    /// the controller putting the aircraft on a visual, so the clearance is granted the way
+    /// <c>CVAF</c> grants one: the field-in-sight report of §7-4-3.a is assumed rather than required,
+    /// because the controller has committed to the maneuver by issuing the entry.</para>
+    /// </summary>
+    private static ApproachClearance? BuildVisualClearanceForIfr(AircraftState aircraft, RunwayInfo runway)
+    {
+        if (aircraft.FlightPlan.IsVfr)
+        {
+            return null;
+        }
+
+        aircraft.Approach.HasReportedFieldInSight = true;
+        aircraft.PendingObservations.RemoveAll(o => o is FieldAcquisitionObservation);
+
+        return new ApproachClearance
+        {
+            ApproachId = $"VIS{runway.Designator}",
+            AirportCode = runway.AirportId,
+            RunwayId = runway.Designator,
+            FinalApproachCourse = runway.TrueHeading,
+            Procedure = null,
+        };
+    }
+
+    /// <summary>
     /// Apply a parallel-runway sidestep on an active FinalApproachPhase: retarget the
-    /// running phase to the new runway, transfer any landing clearance, and clear any
-    /// active instrument approach (it doesn't apply to the parallel runway). The
-    /// FinalApproachPhase keeps its established/intercept/glideslope state — the
-    /// aircraft is still flying a 3° slope, just on the parallel centerline.
+    /// running phase to the new runway, transfer any landing clearance, and replace any
+    /// active instrument approach (it doesn't apply to the parallel runway) with a visual
+    /// clearance for the new one. The FinalApproachPhase keeps its established/intercept/
+    /// glideslope state — the aircraft is still flying a 3° slope, just on the parallel
+    /// centerline.
     /// </summary>
     private static CommandResult ApplySidestep(
         AircraftState aircraft,
@@ -2679,7 +2711,7 @@ internal static class PatternCommandHandler
     )
     {
         var phases = aircraft.Phases!;
-        phases.ActiveApproach = null;
+        phases.ActiveApproach = BuildVisualClearanceForIfr(aircraft, newRunway);
         if (phases.ClearedRunwayId is not null)
         {
             phases.ClearedRunwayId = newRunway.Designator;

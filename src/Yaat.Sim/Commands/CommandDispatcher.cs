@@ -493,81 +493,6 @@ public static class CommandDispatcher
         return result;
     }
 
-    private static bool RequiresVfr(ParsedCommand command) =>
-        command
-            is EnterLeftDownwindCommand
-                or EnterRightDownwindCommand
-                or EnterLeftCrosswindCommand
-                or EnterRightCrosswindCommand
-                or EnterLeftBaseCommand
-                or EnterRightBaseCommand
-                or EnterFinalCommand
-                or MakeLeftTrafficCommand
-                or MakeRightTrafficCommand
-                or TurnCrosswindCommand
-                or TurnDownwindCommand
-                or TurnBaseCommand
-                or ExtendPatternCommand
-                or MakeShortApproachCommand
-                or MakeNormalApproachCommand
-                or MakeLeft360Command
-                or MakeRight360Command
-                or MakeLeft270Command
-                or MakeRight270Command
-                or CircleAirportCommand
-                or PatternSizeCommand
-                or MakeLeftSTurnsCommand
-                or MakeRightSTurnsCommand
-                or OffsetLeftPatternCommand
-                or OffsetRightPatternCommand
-                or Plan270Command
-                or Cancel270Command
-                or TouchAndGoCommand
-                or StopAndGoCommand
-                or LowApproachCommand
-                or ClearedForOptionCommand
-                or HoldPresentPosition360Command
-                or HoldPresentPositionHoverCommand
-                or HoldAtFixOrbitCommand
-                or HoldAtFixHoverCommand;
-
-    private static readonly CommandResult VfrRequiredResult = new(false, "Command requires VFR aircraft. Use CIFR to cancel IFR flight plan");
-
-    private static readonly CommandResult IfrCtoVfrModifierResult = new(
-        false,
-        "IFR aircraft can only receive a bare CTO (follow SID), CTO with an assigned heading, or CTO RH (runway heading); pattern/relative modifiers (MRC, ML*, OC, DCT, MLT, MRT, ...) require VFR"
-    );
-
-    /// <summary>
-    /// IFR departure clearances accept only <see cref="DefaultDeparture"/> (follow SID),
-    /// <see cref="FlyHeadingDeparture"/> (assigned numeric heading), or
-    /// <see cref="RunwayHeadingDeparture"/> (CTO RH — hold runway heading and await vectors;
-    /// routinely issued to IFR departures). Pattern-relative modifiers (MRC, ML*, OC, DCT, MLT/MRT)
-    /// are VFR-only and must be rejected so the aircraft doesn't peel off toward the pattern
-    /// immediately at liftoff. Returns null if the command is allowed for this aircraft.
-    /// </summary>
-    private static CommandResult? CheckIfrDepartureCompatibility(ParsedCommand command, AircraftState aircraft)
-    {
-        if (aircraft.FlightPlan.IsVfr)
-        {
-            return null;
-        }
-
-        DepartureInstruction? departure = command switch
-        {
-            ClearedForTakeoffCommand cto => cto.Departure,
-            ClearedTakeoffPresentCommand ctopp => ctopp.Departure,
-            _ => null,
-        };
-
-        if (departure is null or DefaultDeparture or FlyHeadingDeparture or RunwayHeadingDeparture or PresentPositionHoverDeparture)
-        {
-            return null;
-        }
-
-        return IfrCtoVfrModifierResult;
-    }
-
     private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
         var result = ApplyCommandCore(command, aircraft, ctx);
@@ -613,16 +538,6 @@ public static class CommandDispatcher
 
     private static CommandResult ApplyCommandCore(ParsedCommand command, AircraftState aircraft, DispatchContext ctx)
     {
-        if (RequiresVfr(command) && !aircraft.FlightPlan.IsVfr)
-        {
-            return VfrRequiredResult;
-        }
-
-        if (CheckIfrDepartureCompatibility(command, aircraft) is { } ifrReject)
-        {
-            return ifrReject;
-        }
-
         var rng = ctx.Rng;
         var validateDctFixes = ctx.ValidateDctFixes;
 
@@ -1778,10 +1693,6 @@ public static class CommandDispatcher
     {
         var groundLayout = ctx.GroundLayout;
         var autoCrossRunway = ctx.AutoCrossRunway;
-        if (RequiresVfr(command) && !aircraft.FlightPlan.IsVfr)
-        {
-            return VfrRequiredResult;
-        }
 
         // Hold-for-release runway-entry gate: a held departure may not enter the runway (LUAW) or
         // take off (CTO/CTOPP) until released. It stays holding short. Cleared by REL/CTOA.
@@ -1791,11 +1702,6 @@ public static class CommandDispatcher
                 false,
                 $"{aircraft.Callsign} is held for release at {aircraft.FlightPlan.Departure} — REL {aircraft.Callsign} first"
             );
-        }
-
-        if (CheckIfrDepartureCompatibility(command, aircraft) is { } ifrReject)
-        {
-            return ifrReject;
         }
 
         // Cache the SID's published initial-altitude cap so an IFR departure with no commanded
@@ -3049,12 +2955,6 @@ public static class CommandDispatcher
 
     private static CommandResult TryAirborneFollow(AircraftState aircraft, FollowCommand follow, DispatchContext ctx)
     {
-        // FOLLOW is VFR-only — IFR traffic uses CVA FOLLOW for visual separation.
-        if (!aircraft.FlightPlan.IsVfr)
-        {
-            return new CommandResult(false, "FOLLOW only available for VFR aircraft");
-        }
-
         if (aircraft.IsOnGround)
         {
             return new CommandResult(false, "FOLLOW requires the aircraft to be airborne");

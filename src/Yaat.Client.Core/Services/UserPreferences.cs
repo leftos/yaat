@@ -427,6 +427,14 @@ public sealed class UserPreferences
     /// <summary>GPU rendering backend override (macOS only). Defaults to <see cref="RendererMode.Auto"/>.</summary>
     public RendererMode RendererMode => Enum.TryParse<RendererMode>(_data.RendererMode, out var renderer) ? renderer : RendererMode.Auto;
 
+    /// <summary>
+    /// How far the VFR-only command set opens up for IFR aircraft. Defaults to
+    /// <see cref="Sim.Commands.VfrCommandsForIfr.EnterFinalOnly"/> so <c>EF</c> works on an IFR
+    /// arrival flying a visual without cancelling IFR first.
+    /// </summary>
+    public VfrCommandsForIfr VfrCommandsForIfr =>
+        Enum.TryParse<VfrCommandsForIfr>(_data.VfrCommandsForIfr, out var mode) ? mode : VfrCommandsForIfr.EnterFinalOnly;
+
     public int InterfaceFontSize => _data.InterfaceFontSize;
     public int StripsZoomPercent => _data.StripsZoomPercent;
     public int TdlsZoomPercent => _data.TdlsZoomPercent;
@@ -965,6 +973,12 @@ public sealed class UserPreferences
     public void SetRendererMode(RendererMode mode)
     {
         _data.RendererMode = mode.ToString();
+        Save();
+    }
+
+    public void SetVfrCommandsForIfr(VfrCommandsForIfr mode)
+    {
+        _data.VfrCommandsForIfr = mode.ToString();
         Save();
     }
 
@@ -1739,6 +1753,11 @@ public sealed class UserPreferences
         public bool MvaHintDefaultCtr { get; set; } = true;
         public bool AutoCrossRunway { get; set; }
         public bool AutoPullUpToParallel { get; set; } = true;
+
+        // How far the VFR-only command set opens up for IFR aircraft: "None", "EnterFinalOnly",
+        // or "All". Stored as a string (like RendererMode) so enum reordering can't misassign it.
+        // Default lets EF through, which is what an IFR arrival flying a visual needs (issue #317).
+        public string VfrCommandsForIfr { get; set; } = nameof(Sim.Commands.VfrCommandsForIfr.EnterFinalOnly);
         public bool SoloTrainingMode { get; set; }
         public int SoloParkingInitialCallupRatePercent { get; set; } = 100;
         public int SoloArrivalGeneratorRatePercent { get; set; } = 100;

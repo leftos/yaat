@@ -1279,8 +1279,16 @@ public sealed class FinalApproachPhase : Phase
         // FinalApproachPhase's stricter establishment criteria fire later, closer in.
         double captureDistNm = ctx.Aircraft.Phases?.ActiveApproach?.InterceptCaptureDistanceNm ?? distNm;
 
-        // Visual approaches are not subject to 7110.65 §5-9-1 intercept rules
-        bool isVisualApproach = ctx.Aircraft.Phases?.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.Ordinal) == true;
+        // 7110.65 §5-9-1/§5-9-2 govern vectors to the final approach course of an *instrument*
+        // approach, and TBL 5-9-1's angle limits come with them. Three finals are not that: a visual
+        // approach, pattern traffic, and a final flown with no approach clearance at all (an EF
+        // straight-in). §7-4-2/§7-4-3 govern those, and the parallel-intercept limit is §7-4-4, not
+        // TBL 5-9-1 — grading them against the vectoring criteria fails a controller who did the
+        // right thing. The score is still recorded for the report; only the legality verdicts below
+        // are exempt. Mirrors the same reasoning in IsLaterallyEstablishedForGs.
+        var interceptClearance = ctx.Aircraft.Phases?.ActiveApproach;
+        bool notVectoredToFac =
+            interceptClearance is null || _isPatternTraffic || interceptClearance.ApproachId.StartsWith("VIS", StringComparison.Ordinal);
 
         double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(ctx.Runway.AirportId, ctx.Runway.Designator);
 
@@ -1292,14 +1300,14 @@ public sealed class FinalApproachPhase : Phase
 
         // Distance legality is checked at capture time (InterceptCoursePhase.Capture),
         // but recorded on the score for the approach report.
-        bool isDistanceLegal = isVisualApproach || captureDistNm >= minIntercept;
+        bool isDistanceLegal = notVectoredToFac || captureDistNm >= minIntercept;
 
         // TBL 5-9-1: max intercept angle depends on distance to approach gate
         // Approach gate = minIntercept - 2nm (the 2nm padding is from gate to min intercept)
         double approachGate = minIntercept - 2.0;
         double distToGate = captureDistNm - approachGate;
         double maxAngle = distToGate < 2.0 ? 20.0 : 30.0;
-        bool isAngleLegal = isVisualApproach || interceptAngle <= maxAngle;
+        bool isAngleLegal = notVectoredToFac || interceptAngle <= maxAngle;
 
         // Glideslope deviation at establishment
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation);

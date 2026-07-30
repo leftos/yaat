@@ -181,7 +181,8 @@ public partial class DataGridView : UserControl
         menu.Items.Add(new Separator());
 
         var commandItem = new MenuItem { Header = "Command…" };
-        commandItem.Click += (_, _) => CommandFlyout.Open(grid, callsign, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+        // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
+        commandItem.Click += (_, _) => CommandFlyout.Open(grid, callsign, cmd => vm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials));
         menu.Items.Add(commandItem);
 
         var noteItem = new MenuItem { Header = "Note…" };

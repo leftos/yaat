@@ -8,6 +8,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
@@ -408,7 +409,16 @@ public partial class GroundView : UserControl
                 "Command…",
                 () =>
                 {
-                    CommandFlyout.Open(_canvas!, callsign, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
+                    // Free-text: the RPO types arbitrary canonical, so it goes through the VFR gate like typed input.
+                    var mainVm = FindMainViewModel();
+                    CommandFlyout.Open(
+                        _canvas!,
+                        callsign,
+                        cmd =>
+                            mainVm is not null
+                                ? mainVm.SendGatedCommandForViewAsync(ac, callsign, cmd, initials)
+                                : vm.SendRawCommandAsync(callsign, initials, cmd)
+                    );
                     return Task.CompletedTask;
                 }
             )
@@ -478,7 +488,7 @@ public partial class GroundView : UserControl
             // Only meaningful when a runway is already assigned to taxi to.
             if (!string.IsNullOrEmpty(ac.AssignedRunway))
             {
-                AddCtoSubmenu(menu, vm, ac, callsign, initials, ac.AssignedRunway);
+                AddCtoSubmenu(menu, vm, ac, callsign, initials, ac.AssignedRunway, VfrCommandsForIfrMode());
             }
         }
 
@@ -489,7 +499,7 @@ public partial class GroundView : UserControl
 
         if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
         {
-            AddHoldShortCrossingItems(menu, vm, ac, phase, callsign, initials);
+            AddHoldShortCrossingItems(menu, vm, ac, phase, callsign, initials, VfrCommandsForIfrMode());
         }
 
         if (phase == "Holding In Position")
@@ -516,7 +526,7 @@ public partial class GroundView : UserControl
             var rwyId = ac?.AssignedRunway;
             if (!string.IsNullOrEmpty(rwyId))
             {
-                AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId);
+                AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId, VfrCommandsForIfrMode());
             }
 
             menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
@@ -537,7 +547,7 @@ public partial class GroundView : UserControl
                 {
                     menu.Items.Add(CreateMenuItem($"Force landing{rwy}", () => vm.ForceLandingAsync(callsign, initials)));
                 }
-                if (AircraftCommandApplicability.CanIssueVfrOption(ac))
+                if (AircraftCommandApplicability.CanIssueVfrOption(ac, VfrCommandsForIfrMode()))
                 {
                     menu.Items.Add(CreateMenuItem($"Touch and go{rwy}", () => vm.TouchAndGoAsync(callsign, initials)));
                     menu.Items.Add(CreateMenuItem($"Stop and go{rwy}", () => vm.StopAndGoAsync(callsign, initials)));
@@ -1134,7 +1144,8 @@ public partial class GroundView : UserControl
         AircraftModel? ac,
         string phase,
         string callsign,
-        string initials
+        string initials,
+        VfrCommandsForIfr mode
     )
     {
         var rwyId = HoldShortMenuHelper.HeldRunway(phase, ac);
@@ -1149,7 +1160,7 @@ public partial class GroundView : UserControl
             var rwyIdDisplay = RunwayIdentifier.ToDisplayDesignator(rwyId);
             menu.Items.Add(CreateMenuItem($"Cross {rwyIdDisplay}", () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
             menu.Items.Add(CreateMenuItem($"Line up and wait {rwyIdDisplay}", () => vm.LineUpAndWaitAsync(callsign, initials)));
-            AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId);
+            AddCtoSubmenu(menu, vm, ac, callsign, initials, rwyId, mode);
         }
     }
 
@@ -1179,16 +1190,24 @@ public partial class GroundView : UserControl
         menu.Items.Add(parent);
     }
 
-    private static void AddCtoSubmenu(ContextMenu menu, GroundViewModel vm, AircraftModel? ac, string callsign, string initials, string rwyId)
+    private static void AddCtoSubmenu(
+        ContextMenu menu,
+        GroundViewModel vm,
+        AircraftModel? ac,
+        string callsign,
+        string initials,
+        string rwyId,
+        VfrCommandsForIfr mode
+    )
     {
-        bool isVfr = AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac);
+        bool showVfrModifiers = AircraftCommandApplicability.ShowVfrTakeoffModifiers(ac, mode);
 
         var parent = new MenuItem { Header = $"Cleared for takeoff {RunwayIdentifier.ToDisplayDesignator(rwyId)}" };
         parent.Items.Add(CreateMenuItem("Default (SID/on course)", () => vm.ClearedForTakeoffAsync(callsign, initials, null)));
 
-        if (isVfr)
+        if (showVfrModifiers)
         {
-            // VFR: full modifier menu
+            // Full modifier menu
             parent.Items.Add(new Separator());
             parent.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffAsync(callsign, initials, "MLT")));
             parent.Items.Add(CreateMenuItem("Make right traffic", () => vm.ClearedForTakeoffAsync(callsign, initials, "MRT")));
@@ -1202,7 +1221,7 @@ public partial class GroundView : UserControl
         }
         else
         {
-            // IFR: only runway heading (headings via text input)
+            // IFR with the VFR modifiers gated off: only runway heading (headings via text input)
             parent.Items.Add(new Separator());
             parent.Items.Add(CreateMenuItem("Runway heading", () => vm.ClearedForTakeoffAsync(callsign, initials, "RH")));
         }
@@ -1393,6 +1412,13 @@ public partial class GroundView : UserControl
 
         return null;
     }
+
+    /// <summary>
+    /// The controller's "VFR commands for IFR aircraft" setting, which decides whether the menus
+    /// offer VFR-only items for an IFR aircraft. Falls back to the strict mode when the main view
+    /// model is unreachable — better to hide an item than to offer one the controller disabled.
+    /// </summary>
+    private VfrCommandsForIfr VfrCommandsForIfrMode() => FindMainViewModel()?.VfrCommandsForIfr ?? VfrCommandsForIfr.None;
 
     private void OnPreferencesFontSizesChanged()
     {

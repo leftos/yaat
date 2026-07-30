@@ -11,6 +11,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -925,6 +926,13 @@ public partial class RadarView : UserControl
 
         return null;
     }
+
+    /// <summary>
+    /// The controller's "VFR commands for IFR aircraft" setting, which decides whether the menus
+    /// offer VFR-only items for an IFR aircraft. Falls back to the strict mode when the main view
+    /// model is unreachable — better to hide an item than to offer one the controller disabled.
+    /// </summary>
+    private VfrCommandsForIfr VfrCommandsForIfrMode() => FindMainViewModel()?.VfrCommandsForIfr ?? VfrCommandsForIfr.None;
 }
 
 /// <summary>

@@ -6,6 +6,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -34,7 +35,7 @@ public class Issue229TakeoffMenuRunwayTests
     {
         var ac = new AircraftModel { Callsign = "EJA921", CurrentPhase = "Holding Short 28R/10L" };
         var menu = new ContextMenu();
-        GroundView.AddHoldShortCrossingItems(menu, vm, ac, "Holding Short 28R/10L", "EJA921", "GG");
+        GroundView.AddHoldShortCrossingItems(menu, vm, ac, "Holding Short 28R/10L", "EJA921", "GG", VfrCommandsForIfr.EnterFinalOnly);
         return menu;
     }
 
