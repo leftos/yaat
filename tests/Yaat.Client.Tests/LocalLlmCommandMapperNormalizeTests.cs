@@ -20,6 +20,9 @@ public class LocalLlmCommandMapperNormalizeTests
     [InlineData("CAPP ILS28R", "CAPP ILS28R")]
     [InlineData("AT CEPIN CAPP", "AT CEPIN CAPP")]
     [InlineData("SQ 7500", "SQ 7500")]
+    [InlineData("TAXI A B C HS 28R", "TAXI A B C HS 28R")]
+    [InlineData("AT CEPIN TAXI A B C", "AT CEPIN TAXI A B C")]
+    [InlineData("TAXI A B C D HS 28R, GIVEWAY N123AB", "TAXI A B C D HS 28R, GIVEWAY N123AB")]
     public void NormalizeOutput_ValidCanonicalCommands_ReturnsCleaned(string input, string expected)
     {
         Assert.Equal(expected, LocalLlmCommandMapper.NormalizeOutput(input));

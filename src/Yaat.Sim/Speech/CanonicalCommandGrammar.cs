@@ -77,7 +77,7 @@ public static class CanonicalCommandGrammar
         sb.AppendLine("condition ::= (\"AT \" fixname | \"LV \" altnum) \" \"");
         sb.Append("verb ::= ").AppendLine(verbAlternation);
         sb.AppendLine("arg ::= [A-Z0-9.+/-]+");
-        sb.AppendLine("fixname ::= [A-Z]+");
+        sb.AppendLine("fixname ::= [A-Z0-9]+");
         sb.AppendLine("altnum ::= [0-9]+");
         return sb.ToString();
     }

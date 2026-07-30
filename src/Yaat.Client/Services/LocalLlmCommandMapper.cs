@@ -216,6 +216,7 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         sb.AppendLine("- Altitudes in feet (5000), flight levels converted (FL350 -> 35000).");
         sb.AppendLine("- Headings as 3-digit degrees (270, 090).");
         sb.AppendLine("- If the transcript is NOT a recognizable instruction, output nothing.");
+        sb.AppendLine("- Plain 'direct (fix)' is DCT. Use ADCT only when the transcript says 'when able' or 'after (fix)'.");
         sb.AppendLine();
         sb.AppendLine("Canonical commands (spoken phrasings -> canonical):");
         sb.AppendLine();
@@ -334,8 +335,11 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
             return false;
         }
 
-        // Real canonical clauses top out around 4 tokens (e.g. "AT CEPIN CAPP ILS28R"). Anything
-        // longer is almost certainly natural-language explanation bleeding through — reject it.
+        // Cap clause length to reject natural-language explanation bleeding through as args (the
+        // grammar's arg charset admits bare uppercase words, so "CM 5000 AND THEN SOME" is
+        // grammar-legal). The ceiling must clear the longest real clauses — conditioned taxi
+        // routes like "AT CEPIN TAXI A B C D HS 28R" — so it's a prose tripwire, not an arity
+        // check; the dispatcher validates args when the user hits Enter.
         if (tokens.Length > MaxClauseTokens)
         {
             return false;
@@ -361,10 +365,11 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
         return verbIdx < tokens.Length && CommandRegistry.AliasToCanonicType.ContainsKey(tokens[verbIdx]);
     }
 
-    private const int MaxClauseTokens = 5;
+    private const int MaxClauseTokens = 12;
 
     private static bool IsCanonicalToken(string token)
     {
+        var hasAlphanumeric = false;
         foreach (var c in token)
         {
             // Allow uppercase letters, digits, and the small set of punctuation used in real
@@ -373,8 +378,13 @@ public sealed class LocalLlmCommandMapper : ISpeechCommandMapper
             {
                 return false;
             }
+
+            hasAlphanumeric |= char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c);
         }
 
-        return token.Length > 0;
+        // A token that is pure punctuation (e.g. a bare "-") is never a canonical arg — it's a
+        // prose separator like "CM 5000 - this means climb..." bleeding through. Rejecting it
+        // here is what lets MaxClauseTokens stay high enough for long taxi clauses.
+        return hasAlphanumeric;
     }
 }

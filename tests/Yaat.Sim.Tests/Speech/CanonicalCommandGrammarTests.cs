@@ -110,6 +110,16 @@ public class CanonicalCommandGrammarTests
     }
 
     [Fact]
+    public void BuildGbnf_FixnameAcceptsDigits()
+    {
+        var gbnf = CanonicalCommandGrammar.BuildGbnf();
+        // Condition fixes can carry digits (custom fixes, FRD-style names like OAK169001). A
+        // letters-only fixname production would make the LLM unable to emit "AT OAK169001 ..."
+        // even though PhraseologyMapper and the dispatcher both accept such fixes.
+        Assert.Contains("fixname ::= [A-Z0-9]+", gbnf, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Default_IsCachedAcrossAccesses()
     {
         // Lazy<T> contract — the same string instance comes back on repeated access. This isn't

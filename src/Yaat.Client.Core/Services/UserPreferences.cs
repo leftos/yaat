@@ -1842,14 +1842,20 @@ public sealed class UserPreferences
         public Dictionary<string, List<CommandHistoryEntry>> ScenarioCommandHistory { get; set; } = [];
 
         // Speech recognition. With the LM-Kit engine swap, WhisperModelSize and LlmModelPath
-        // hold LM-Kit model sources — curated IDs (e.g. "whisper-large-turbo3", "qwen3.5:4b"),
+        // hold LM-Kit model sources — curated IDs (e.g. "whisper-large-turbo3", "gemma4:e4b"),
         // absolute file paths, or http(s) URIs. The previous values like "base.en" (Whisper.net
         // ggml suffix) and explicit GGUF paths still resolve correctly through the same
         // dispatch logic in WhisperSttEngine.EnsureLoaded / LocalLlmService.EnsureLoaded.
         // LlmGpuLayers: -1 = auto, 0 = CPU only, N = offload N layers.
+        //
+        // The model defaults must stay equal to LmKitModelCatalog.RecommendedWhisperId /
+        // RecommendedLlmId (literals here because Yaat.Client.Core cannot reference the catalog;
+        // SpeechModelDefaultsTests enforces the equality). gemma4:e4b is the model the
+        // grammar-constrained fallback was validated against — qwen3.5:4b emitted
+        // end-of-generation for every input under the canonical-command grammar.
         public bool SpeechEnabled { get; set; }
         public string WhisperModelSize { get; set; } = "whisper-large-turbo3";
-        public string LlmModelPath { get; set; } = "qwen3.5:4b";
+        public string LlmModelPath { get; set; } = "gemma4:e4b";
         public int LlmGpuLayers { get; set; } = -1;
 
         // Opt-in speech-sample capture. When true, every push-to-talk session is persisted as
