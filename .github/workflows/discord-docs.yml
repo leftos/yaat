@@ -10,7 +10,6 @@ on:
       - "GETTING_STARTED.md"
       - "COMMANDS.md"
       - "SOLO_TRAINING.md"
-      - "docs/yaat-vs-atctrainer.md"
   workflow_dispatch:
 
 permissions:
@@ -40,8 +39,6 @@ jobs:
           COMMANDS_CHANNEL: "1491542448575611000"
           SOLOTRAINING_WEBHOOK: ${{ secrets.DISCORD_SOLOTRAINING_WEBHOOK_URL }}
           SOLOTRAINING_CHANNEL: "1502514543702704249"
-          COMPARISON_WEBHOOK: ${{ secrets.DISCORD_COMPARISON_WEBHOOK_URL }}
-          COMPARISON_CHANNEL: "1480989023311757426"
           REPO_URL: "https://github.com/${{ github.repository }}/blob/${{ github.sha }}"
         run: |
           set -euo pipefail
@@ -271,7 +268,6 @@ jobs:
             sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md"
             sync_toc "COMMANDS.md" "$COMMANDS_WEBHOOK" "$COMMANDS_CHANNEL" "YAAT Command Reference" "COMMANDS.md"
             sync_toc "SOLO_TRAINING.md" "$SOLOTRAINING_WEBHOOK" "$SOLOTRAINING_CHANNEL" "YAAT Solo Training Guide" "SOLO_TRAINING.md"
-            sync_toc "docs/yaat-vs-atctrainer.md" "$COMPARISON_WEBHOOK" "$COMPARISON_CHANNEL" "YAAT vs ATCTrainer" "docs/yaat-vs-atctrainer.md"
           else
             CHANGED=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || echo "")
             echo "$CHANGED" | grep -q "INSTALL.md" && sync_full "INSTALL.md" "$INSTALL_WEBHOOK" "$INSTALL_CHANNEL" || true
@@ -280,5 +276,4 @@ jobs:
             echo "$CHANGED" | grep -q "USER_GUIDE.md" && sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md" || true
             echo "$CHANGED" | grep -q "COMMANDS.md" && sync_toc "COMMANDS.md" "$COMMANDS_WEBHOOK" "$COMMANDS_CHANNEL" "YAAT Command Reference" "COMMANDS.md" || true
             echo "$CHANGED" | grep -q "SOLO_TRAINING.md" && sync_toc "SOLO_TRAINING.md" "$SOLOTRAINING_WEBHOOK" "$SOLOTRAINING_CHANNEL" "YAAT Solo Training Guide" "SOLO_TRAINING.md" || true
-            echo "$CHANGED" | grep -q "docs/yaat-vs-atctrainer.md" && sync_toc "docs/yaat-vs-atctrainer.md" "$COMPARISON_WEBHOOK" "$COMPARISON_CHANNEL" "YAAT vs ATCTrainer" "docs/yaat-vs-atctrainer.md" || true
           fi

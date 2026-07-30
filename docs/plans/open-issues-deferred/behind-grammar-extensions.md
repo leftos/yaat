@@ -94,7 +94,6 @@ Evaluator polls `target.Phases.CurrentPhase` each tick. Released when the phase 
 
 - [ ] `USER_GUIDE.md`: document each new condition with examples.
 - [ ] `COMMANDS.md`: extend the Conditional Blocks section.
-- [ ] `docs/yaat-vs-atctrainer.md` if these features diverge from ATCTrainer.
 - [ ] CHANGELOG.md `### Added` for each form (could be three separate commits or one bundled).
 - [ ] Delete this plan after merging all three.
 

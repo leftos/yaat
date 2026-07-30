@@ -298,7 +298,7 @@ especially should be confirmed with the mentor.
    (canonical is the raw arg string).
 
 Cross-repo: run `pwsh tools/test-all.ps1` (W1/W2 touch `Yaat.Sim` shared by yaat-server). Update `COMMANDS.md`,
-`docs/command-cheatsheet.json` + HTML cheatsheet, `USER_GUIDE.md`, `docs/yaat-vs-atctrainer.md`, and
+`docs/command-cheatsheet.json` + HTML cheatsheet, `USER_GUIDE.md`, and
 `docs/architecture.md` for any new command/syntax. `aviation-sim-expert` review for W1b/W2/W5.
 
 ## Open decisions for the implementing agent (confirm with the user / mentor)

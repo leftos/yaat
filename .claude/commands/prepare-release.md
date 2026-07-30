@@ -134,7 +134,6 @@ For each user-visible commit, identify which doc owns the topic and check whethe
 | Commands (added / renamed / aliased / behavior change / removed) | `COMMANDS.md` **and** `docs/command-cheatsheet.json` **and** `docs/command-cheatsheet.html` |
 | Client feature usage (windows, panels, settings, workflows) | `USER_GUIDE.md` and screenshots under `docs/user-guide/` |
 | Solo training mode behavior | `SOLO_TRAINING.md` |
-| YAAT vs ATCTrainer parity / divergence | `docs/yaat-vs-atctrainer.md` |
 | New / renamed / removed projects or top-level files | `docs/architecture.md` |
 | Discord integration | `docs/discord-integration.md` |
 | Scenario format / validation | `docs/scenario-validation.md` |

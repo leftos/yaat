@@ -4,7 +4,7 @@
 
 | Workflow | Repo | Trigger | What it does |
 |----------|------|---------|--------------|
-| `discord-docs.yml` | leftos/yaat | Push to `main` (INSTALL/README/GETTING_STARTED/USER_GUIDE/COMMANDS/SOLO_TRAINING/comparison docs) + manual | Clears + reposts doc content to dedicated channels via bot token; large reference docs post ToC only |
+| `discord-docs.yml` | leftos/yaat | Push to `main` (INSTALL/README/GETTING_STARTED/USER_GUIDE/COMMANDS/SOLO_TRAINING) + manual | Clears + reposts doc content to dedicated channels via bot token; large reference docs post ToC only |
 | `discord-scenario-validation.yml` | **leftos/yaat-server** | Sundays 10:00 UTC cron + `workflow_dispatch` | Validates all ARTCC scenarios via `Yaat.ScenarioValidator`, posts reports to per-ARTCC channels, ensures pinned **Run Validation** buttons |
 | `nightly-review-alert.yml` ("Nightly Review Notify") | leftos/yaat | `workflow_run` after **Nightly Review** completes | Posts every Nightly Review outcome to the CI/alerts channel via `DISCORD_CI_WEBHOOK_URL` (green on success, red on failure/timeout, white on cancel), with a TL;DR of what was reviewed and filed. The TL;DR + cost ride along as the review job's `nightly-review-notify` artifact; a timeout-killed run still posts the bare conclusion. Separate `workflow_run` job so a self-timeout still notifies. |
 

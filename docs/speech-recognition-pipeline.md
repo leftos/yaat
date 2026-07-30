@@ -141,8 +141,14 @@ depend on LM-Kit and PortAudio native libraries.
   lower WER (4.2% vs 8.3%) with canonicals unaffected — re-run the A/B
   when the real corpus grows.
 - The prompt is deliberately **static**. Per-PTT dynamic additions were
-  probed and abandoned: `whisper-large-turbo3` recognized N-number tail
-  numbers cleanly without per-callsign biasing.
+  probed and abandoned under the previous default, which recognized
+  N-number tail numbers cleanly without per-callsign biasing. **That
+  finding has not been re-validated against the ATC fine-tune**, which
+  mangles spoken NATO suffix letters often enough to need
+  `CallsignParser`'s unique-extension snap (see below). Per-callsign
+  biasing is therefore worth re-probing — but measure it, don't assume
+  it: the 224-token tail-keeping behavior means anything appended
+  displaces the number/NATO blocks that currently survive the cap.
   `MainViewModel.BuildSpeechContext` sets
   `SpeechContext.WhisperInitialPrompt` to `WhisperBiasingPrompt.Default`
   verbatim — no scenario vocabulary is appended. If scenario-derived
@@ -283,6 +289,19 @@ depend on LM-Kit and PortAudio native libraries.
   from OpenFlights airlines.dat) and `AircraftTypeNames`. Fuzzy-matches
   against `MapContext.ActiveCallsigns` to recover from near-miss
   transcriptions.
+- **Unique-extension snap** (`FuzzyResolve`): an exact active match wins
+  outright; otherwise, when exactly one active callsign extends the
+  parsed candidate by 1-2 trailing **letters**, that callsign is
+  returned. This recovers GA tails whose NATO suffix Whisper mangled
+  past `NatoNearMissResolver`'s distance-1 envelope — "november 9225
+  lima" heard as "november 9225 lien" parses to `N9225`, and the unique
+  active `N9225L` is what the controller meant. Letter-only extensions
+  keep airline flight numbers out of the snap: a digit extension would
+  mean the number itself was misheard, which is too risky to guess. Two
+  or more candidate extensions are ambiguous and keep the heard base.
+  The mangled trailing token is deliberately **not** consumed — it stays
+  in the command text, where the rule matcher's no-match advance skips
+  it, rather than risking eating a real command word.
 
 ## LLM Fallback Mapper
 

@@ -209,7 +209,7 @@ dedicated live-only `ControllerAiRng` and bake the sampled delay into the `Recor
 - `yaat-server/src/Yaat.Server/Simulation/RoomEngine.cs` — `SetAiLocalControl`.
 - `yaat-server/src/Yaat.Server/Hubs/TrainingHub.cs` — `SetAiLocalControl` RPC.
 - Client: `ServerConnection`, `SettingsViewModel`, `MainViewModel.Scenario.cs` (push-on-load).
-- Docs: `COMMANDS.md` (none added, but note AI-issued verbs), `docs/yaat-vs-atctrainer.md`,
+- Docs: `COMMANDS.md` (none added, but note AI-issued verbs),
   `USER_GUIDE.md` (solo AI Local toggle), `docs/architecture.md` (+ a new `docs/controller-ai.md`
   subsystem doc), `CHANGELOG.md` (user-visible: "Solo training: optional AI Local controller").
 
