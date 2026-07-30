@@ -49,6 +49,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Command History](#command-history)
   - [Settings](#settings)
   - [Window State](#window-state)
+  - [Updating YAAT](#updating-yaat)
 - [Glossary](#glossary)
 
 ---
@@ -1863,6 +1864,17 @@ Use **Export this sample…** on a single session if you only want to share one.
 ### Window State
 
 YAAT remembers window size and position for the main window and all pop-out windows across sessions. Pop-out state (which views are in separate windows vs. tabbed) is also persisted.
+
+### Updating YAAT
+
+Installed builds check for a new release shortly after startup and show a banner across the bottom of the window when one is available — **Update Now** downloads and installs it, then restarts YAAT; **Later** hides the banner until the next launch.
+
+**Help → Check for Updates…** runs the same check on demand and always tells you the result:
+
+- **An update is available** — YAAT offers to download and install it right away. Decline and the banner stays up, so you can update later without checking again.
+- **You're up to date** — confirms the version you're running.
+- **This build doesn't update itself** — you're on a portable build or running from source. YAAT offers to open the [releases page](https://github.com/leftos/yaat/releases) so you can download the latest installer.
+- **The check failed** — usually no network or GitHub being unreachable. The reason is shown, and the full error is in `yaat-client.log`.
 
 ---
 

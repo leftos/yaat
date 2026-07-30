@@ -6,6 +6,41 @@ using Yaat.Client.Logging;
 namespace Yaat.Client.Services;
 
 /// <summary>
+/// How an update check ended. The startup check ignores everything but
+/// <see cref="UpdateAvailable"/>; a user-invoked check reports each case.
+/// </summary>
+public enum UpdateCheckOutcome
+{
+    /// <summary>A newer release is ready to download.</summary>
+    UpdateAvailable,
+
+    /// <summary>This build is the newest release on its channel.</summary>
+    UpToDate,
+
+    /// <summary>Running portable or from source, so Velopack has no install to update.</summary>
+    NotInstalled,
+
+    /// <summary>The check threw — offline, GitHub unreachable, or unreadable release metadata.</summary>
+    Failed,
+}
+
+/// <summary>
+/// Result of an update check. <see cref="Update"/> is non-null only for
+/// <see cref="UpdateCheckOutcome.UpdateAvailable"/>, <see cref="ErrorMessage"/> only for
+/// <see cref="UpdateCheckOutcome.Failed"/>.
+/// </summary>
+public sealed record UpdateCheckResult(UpdateCheckOutcome Outcome, UpdateInfo? Update, string? ErrorMessage)
+{
+    public static UpdateCheckResult Available(UpdateInfo update) => new(UpdateCheckOutcome.UpdateAvailable, update, null);
+
+    public static UpdateCheckResult UpToDate() => new(UpdateCheckOutcome.UpToDate, null, null);
+
+    public static UpdateCheckResult NotInstalled() => new(UpdateCheckOutcome.NotInstalled, null, null);
+
+    public static UpdateCheckResult Failed(string error) => new(UpdateCheckOutcome.Failed, null, error);
+}
+
+/// <summary>
 /// Checks for app updates via GitHub Releases using Velopack.
 /// </summary>
 public sealed class UpdateService
@@ -30,32 +65,30 @@ public sealed class UpdateService
 
     public string? CurrentVersion => _updateManager.IsInstalled ? _updateManager.CurrentVersion?.ToString() : null;
 
-    public async Task<UpdateInfo?> CheckForUpdateAsync()
+    public async Task<UpdateCheckResult> CheckForUpdateAsync()
     {
         if (!_updateManager.IsInstalled)
         {
             Log.LogDebug("App is not installed via Velopack — skipping update check");
-            return null;
+            return UpdateCheckResult.NotInstalled();
         }
 
         try
         {
             var update = await _updateManager.CheckForUpdatesAsync();
-            if (update is not null)
-            {
-                Log.LogInformation("Update available: {Version}", update.TargetFullRelease.Version);
-            }
-            else
+            if (update is null)
             {
                 Log.LogDebug("No updates available");
+                return UpdateCheckResult.UpToDate();
             }
 
-            return update;
+            Log.LogInformation("Update available: {Version}", update.TargetFullRelease.Version);
+            return UpdateCheckResult.Available(update);
         }
         catch (Exception ex)
         {
             Log.LogWarning(ex, "Failed to check for updates");
-            return null;
+            return UpdateCheckResult.Failed(ex.Message);
         }
     }
 

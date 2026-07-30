@@ -683,6 +683,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isDownloadingUpdate;
 
+    /// <summary>True while a check is in flight. Greys out Help → Check for Updates so a second
+    /// click can't stack another result dialog behind the first.</summary>
+    [ObservableProperty]
+    private bool _isCheckingForUpdate;
+
     public string WindowTitle
     {
         get
@@ -1523,25 +1528,41 @@ public partial class MainViewModel : ObservableObject
         await CheckForUpdateAsync();
     }
 
-    [RelayCommand]
-    private async Task CheckForUpdateAsync()
+    /// <summary>
+    /// Runs an update check and arms the update banner when one is found. Returns the outcome so a
+    /// user-invoked check (Help → Check for Updates) can report "up to date", an un-updatable build,
+    /// or a failure; the startup and banner-button paths discard it and stay silent.
+    /// </summary>
+    public async Task<UpdateCheckResult> RunUpdateCheckAsync()
     {
         try
         {
-            var update = await _updateService.CheckForUpdateAsync();
-            if (update is null)
+            IsCheckingForUpdate = true;
+            var result = await _updateService.CheckForUpdateAsync();
+            if (result.Update is not null)
             {
-                return;
+                _pendingUpdate = result.Update;
+                UpdateVersion = result.Update.TargetFullRelease.Version.ToString();
+                IsUpdateAvailable = true;
             }
 
-            _pendingUpdate = update;
-            UpdateVersion = update.TargetFullRelease.Version.ToString();
-            IsUpdateAvailable = true;
+            return result;
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Update check failed");
+            return UpdateCheckResult.Failed(ex.Message);
         }
+        finally
+        {
+            IsCheckingForUpdate = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task CheckForUpdateAsync()
+    {
+        await RunUpdateCheckAsync();
     }
 
     /// <summary>Clears the server's "you're behind" banner for this session.</summary>

@@ -56,6 +56,8 @@ secrets is a one-time task documented in [`macos-code-signing.md`](macos-code-si
 
 `UpdateService` checks GitHub Releases via Velopack's `GithubSource` and surfaces an update notification bar in `MainWindow`. The auto-updater fetches the `RELEASES*`, `*.json`, and `*-full.nupkg` assets by exact filename, so `release.yml` copies those metadata files into the release **without renaming** — only the user-facing installer/portable filenames get the `-{version}-` suffix.
 
+The check runs automatically five seconds after startup and stays silent unless an update exists. **Help → Check for Updates…** runs the same check on demand and reports every outcome in a message box, because a user who asks the question expects an answer: it offers the download when an update is found, confirms the build is current when it isn't, points at the releases page when Velopack has no install to update (portable or run from source), and shows the failure reason otherwise. `UpdateService.CheckForUpdateAsync` returns an `UpdateCheckResult` carrying an `UpdateCheckOutcome` to keep those four cases distinguishable — they used to collapse into a single `null`.
+
 ## CRC install-time configuration
 
 `CrcConfigService` (a C# port of `Setup-CrcEnvironment.ps1`) registers the YAAT server in CRC's `DevEnvironments.json`. It runs during the Velopack install callback via `CrcInstallPrompt`, and skips when CRC is not installed or the entries already exist. It is also reachable later from the Tools > Configure CRC menu.

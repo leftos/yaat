@@ -181,7 +181,7 @@ Services/
   YaatReconnectPolicy.cs        # IRetryPolicy for the SignalR HubConnection: keeps retrying through a full server restart/deploy (up to ~15 min) instead of giving up after ~40s, so a session resumes automatically once the server is back.
   UserPreferences.cs            # JSON to YaatPaths.AppDataRoot/preferences.json (%LOCALAPPDATA%/yaat/). Stores PilotVoiceEnabled/Volume/RadioFxEnabled, default off.
   CfrAlertMonitor.cs            # Per-aircraft CFR release-window latch; evaluates each window vs real UTC (via CfrAlertEvaluator) and reports early/late/expired violations once. Wall-clock, alert-only (#230)
-  UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel).
+  UpdateService.cs              # Velopack auto-updater. Constructor takes channel? — null for Yaat.Client (default platform channel). CheckForUpdateAsync returns an UpdateCheckResult (UpdateAvailable/UpToDate/NotInstalled/Failed) so Help > Check for Updates can report each case; the startup check ignores all but UpdateAvailable.
   ClientVersionGate.cs          # Reads GET /api/client-requirements before connecting. Below Minimum -> refuse with a message; below Recommended -> dismissible banner. Fails open on any error.
   YaatHubJsonContext.cs         # Source-generated JsonSerializerContext for the broader DTO surface (room state, aircraft, weather, CRC, scenarios). Strip DTOs live in YaatStripsHubJsonContext (Strips); both contexts insert into the same resolver chain.
   WindowGeometryHelper.cs       # Save/restore window position+size+topmost; composes WindowSystemMenuHelper + WindowNativeMenuHelper for cross-platform always-on-top discoverability

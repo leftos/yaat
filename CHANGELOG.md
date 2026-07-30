@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Help > Check for Updates...** checks for a new release on demand and reports the outcome, including when you're already on the latest version.
+
 ## v0.10.0-beta [2026/07/30]
 
 ### Highlights

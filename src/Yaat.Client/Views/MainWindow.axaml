@@ -191,6 +191,9 @@
                 <MenuItem Header="Open on Git_Hub"
                           x:Name="HelpOpenRepoMenuItem" />
                 <Separator />
+                <MenuItem Header="Chec_k for Updates..."
+                          x:Name="HelpCheckUpdatesMenuItem"
+                          IsEnabled="{Binding !IsCheckingForUpdate}" />
                 <MenuItem Header="_About YAAT..."
                           x:Name="AboutMenuItem" />
             </MenuItem>

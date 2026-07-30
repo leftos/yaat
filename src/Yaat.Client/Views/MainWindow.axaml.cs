@@ -222,6 +222,12 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             cheatsheetItem.Click += OnCommandCheatsheetClick;
         }
 
+        var checkUpdatesItem = this.FindControl<MenuItem>("HelpCheckUpdatesMenuItem");
+        if (checkUpdatesItem is not null)
+        {
+            checkUpdatesItem.Click += OnCheckForUpdatesClick;
+        }
+
         WireUrlMenuItem("HelpGettingStartedMenuItem", DocLinks.GettingStarted);
         WireUrlMenuItem("HelpUserGuideMenuItem", DocLinks.UserGuide);
         WireUrlMenuItem("HelpCommandsMenuItem", DocLinks.Commands);
@@ -2546,6 +2552,65 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     {
         var about = new AboutWindow();
         await about.ShowDialog(this);
+    }
+
+    /// <summary>
+    /// Help → Check for Updates. Unlike the silent startup check, every outcome gets an answer:
+    /// the update offer, an up-to-date confirmation, a pointer to the releases page for builds
+    /// Velopack can't update, or the failure reason.
+    /// </summary>
+    private async void OnCheckForUpdatesClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var result = await vm.RunUpdateCheckAsync();
+        switch (result.Outcome)
+        {
+            case UpdateCheckOutcome.UpdateAvailable:
+                await OfferUpdateAsync(vm);
+                break;
+
+            case UpdateCheckOutcome.UpToDate:
+                await ShowMessageAsync($"You're running the latest version ({BuildInfo.Version}).");
+                break;
+
+            case UpdateCheckOutcome.NotInstalled:
+                await OfferReleasesPageAsync();
+                break;
+
+            case UpdateCheckOutcome.Failed:
+                await ShowMessageAsync($"Couldn't check for updates: {result.ErrorMessage}");
+                break;
+        }
+    }
+
+    private async Task OfferUpdateAsync(MainViewModel vm)
+    {
+        var accepted = await AskYesNoAsync($"YAAT {vm.UpdateVersion} is available. Download and install it now?");
+        if (accepted)
+        {
+            await vm.UpdateNowCommand.ExecuteAsync(null);
+        }
+    }
+
+    private async Task OfferReleasesPageAsync()
+    {
+        var accepted = await AskYesNoAsync(
+            "This build doesn't update itself — it's portable or running from source. Open the releases page to download the latest version?"
+        );
+        if (accepted)
+        {
+            UrlLauncher.OpenInBrowser(DocLinks.Releases);
+        }
+    }
+
+    private async Task<bool> AskYesNoAsync(string message)
+    {
+        var box = MessageBoxManager.GetMessageBoxStandard("YAAT", message, ButtonEnum.YesNo);
+        return await box.ShowWindowDialogAsync(this) == ButtonResult.Yes;
     }
 
     private void OnCommandCheatsheetClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
