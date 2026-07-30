@@ -36,6 +36,7 @@
 - Saving drawn geometry into a numbered set uses the set number you typed, and CRC confirms with `SET nn SAVED`.
 - Deleting a drawn object removes that object.
 - Geometry drawn for one airport's surface display no longer appears on another's.
+- Surface geometry shipped with the project appears on a CRC display pulled into the room from the CRC Lobby.
 - A departure re-taxied across one runway to a parallel one holds short of its new departure runway, and a plain `LUAW` lines it up.
 - An aircraft crossing a runway onto the next one's hold line stops short of the markings instead of a half-fuselage past them.
 - An aircraft holding short of a runway and then re-routed across it — for example a departure at the 28L bar on Foxtrot given `TAXI F C HS 10R RWY 28R` at SFO — now holds where it is instead of taxiing over the runway first and stopping at the hold-short line on the far side. Previously it drove across without a crossing clearance, which at SFO meant crossing 28L with another aircraft lined up and waiting on it.

@@ -199,6 +199,8 @@ DTOs are field-identical, so one record (`SurfaceTempDataItem`) and one store se
    tombstone here rather than editing the sidecar.
 3. **Room state** — `AsdexState.Surface` / `SaidState.Surface`, seeded lazily from (1)+(2) the first time
    any client subscribes to that facility's temp-data topic (`CrcClientState.SeedSurfaceTempDataIfNeeded`).
+   Both entry points into that seed have to call it: `HandleSubscribe` for a client that already had a room,
+   and `SendInitialDataForSubscriptionsAsync` for one pulled in from the lobby afterwards.
 
 Room edits write through to the overlay but are **not** pushed into other live rooms — another room picks
 them up when it next seeds. That keeps room isolation intact while still making the geometry permanent.
@@ -232,7 +234,9 @@ Wire-format contract, all of which YAAT got wrong before #312 — check these wh
   topic; the live push path has to pass it explicitly.
 
 Tests: `CrcSurfaceTempDataWireTests` (wire shape), `SurfaceTempDataStoreTests` (merge, tombstones, restart
-persistence), `SurfaceTempDataSeedingTests` (room seeding, cross-room, unload), `SurfaceTempDataExportTests`.
+persistence), `SurfaceTempDataSeedingTests` (room seeding, cross-room, lobby pull, unload),
+`CrcTempDataPropagationTests` (fan-out to the other displays, over the real broadcast service),
+`SurfaceTempDataExportTests`.
 
 ## STARS keyboard & slew commands — `CrcClientState.Stars.cs`
 
@@ -310,6 +314,7 @@ This is a different "four" than the *simulation* spawn queues that [scenario-loa
 - **CRC FP amendment sends equipment in two fields.** `CreateOrAmendFlightPlan` Key 2 `Equipment` is an ICAO display string (e.g. `C182/L-DOV/C`); Key 16 `FaaEquipmentSuffix` is the canonical suffix. Use `FlightPlanNormalization.ResolveTypeAndSuffix`: split Key 2 on the first `/` for the type, prefer Key 16 for the suffix. Slash-splitting Key 2 for the suffix yields garbage like `L-DOV/C`.
 - **An FPE amend on a planless target files the plan.** YAAT emits a blank `FlightPlanDto` for radar-only cold-call targets (`DtoConverter.ToFlightPlan`, `HasFlightPlan==false` branch), so CRC's Flight Plan Editor submits an `AmendFlightPlan` (not Create) for them. `SimulationEngine.AmendFlightPlan` therefore promotes a planless target to a filed plan — sets `HasFlightPlan=true` and draws a discrete beacon from `BeaconCodePool` (VFR/IFR bank) when `AssignedCode==0` — so the editor and the "recycle beacon" button surface a code. It is the single owner of "filing establishes the plan + assigns a beacon"; the typed `DA`/`VP`/`NEW` create path reaches it through its own amend. `RequestNewBeaconCode` (recycle) is recorded as `RecordedRequestNewBeaconCode` so it replays on rewind, and `BeaconCodePool` cursors round-trip in `BeaconCodePoolDto`.
 - **CRC clients are born in the lobby with `RoomId=""`.** Position-registry entries are created at `HandleStartSession` (before any room bind), so `TryBindToRoom`/`UnbindFromRoom` must call `SyncRegistryRoomId` → `CrcSessionLifecycle.SetPositionRoom` for the primary and every secondary. Otherwise the auto-accept attendance gate (requires `IsActive` AND `RoomId==roomId` AND `Tcp.Id==tcp.Id`) misses the active student and steals the track.
+- **A lobby client subscribes before it has a room, so the bind path has to redo the subscribe's work.** CRC subscribes once, at session start. When the CID doesn't match any room, every `HandleSubscribe` returns an ack and withholds initial data; `TryBindToRoom` → `SendInitialDataForSubscriptionsAsync` replays it later. Anything `HandleSubscribe` does *besides* `BuildInitialData` has to happen on the replay too — temp-data seeding was missed, so a pulled client got tracks and targets but drew an empty surface (no finals) for the rest of the session. Local dev always takes this path: `/auth/dev` mints CID `0000001` for the training client while CRC negotiates with the real VATSIM CID, so auto-bind can never match and "Pull" is the only way in.
 - **Duplicate-beacon detection must filter to discrete codes.** `ComputeDuplicateBeaconCodes` skips non-discrete (XX00) codes to mirror CRC's `IsDiscrete`; without it, shared codes like 1200 (VFR) and the SPCs render "DB" on STARS / "DUP BCN" on ASDEX. CRC trusts the `IsDuplicateBeaconCode` flag wholesale, so the server is the only place to prevent false positives.
 - **There is no "blue" STARS datablock.** Datablock colors are white = `sColorOwnedDataBlock`, LimeGreen = `sColorUnownedDataBlock`, yellow = `sColorPointOut`, cyan = `sColorHighlightedDataBlock` (from the decompiled CRC — see CLAUDE.md → Reference Docs for the repo path). The blue `FromArgb(30,120,255)` is the target *symbol* color, not a datablock — don't reach for a "blue datablock" state that doesn't exist.
 - **Unsupported (ghost) STARS tracks carry no history trail.** A ghost overlay (`GHOST` command → `ac.Ghost.IsUnsupported` + `Ghost.Latitude/Longitude`) overrides `StarsTrackDto.Location` to the placed lat/lon, but CRC draws the blue history trail (`sColorHistoryTrails`) at each `History[i].Location` *independently* of `Location`. If `DtoConverter.ToStarsTrack` populated `History` from the aircraft's real `PositionHistory`, the trail rendered as a stray blue dot offset from the ghost (the aircraft is typically parked/below-floor, so all samples cluster at one real spot). `ToStarsTrack` therefore emits `History = []` for an unsupported ghost, matching `ToParkedDataBlock` and real STARS (an unsupported data block "is not currently supported by radar data, and never was" — `docs/crc/stars.md`).
