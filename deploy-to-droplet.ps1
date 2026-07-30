@@ -390,7 +390,7 @@ function Invoke-ServerReboot {
   Write-Host ""
   Write-Host "[3/4] Recreating yaat-server container (re-runs on-boot nav data refresh)..." -ForegroundColor Yellow
   # --force-recreate replaces the container from the current image; named volumes
-  # (cache + session-checkpoints) persist. The app's startup vNAS serial-staleness
+  # (cache + session-checkpoints + facility-data) persist. The app's startup vNAS serial-staleness
   # check downloads a new AIRAC cycle if the published serial changed. Commit hashes
   # are baked into the image at build time, so /api/version stays correct.
   Invoke-OnDroplet "cd $serverPath && docker compose --env-file $remoteEnvFile up -d --force-recreate yaat-server" | Tee-Object -Append -FilePath $logFile
@@ -489,7 +489,9 @@ try {
   Write-Host ""
   Write-Host "[5/8] Rebuilding and recreating services..." -ForegroundColor Yellow
   $buildFlags = if ($NoCache) { "--no-cache " } else { "" }
-  # --force-recreate replaces the container; named volumes (cache + session-checkpoints) persist.
+  # --force-recreate replaces the container; named volumes (cache + session-checkpoints +
+  # facility-data, the last holding controller-drawn ASDE-X/SAID geometry) persist. A volume
+  # newly declared in docker-compose.yml is created by `up`, so no extra step on first deploy.
   Invoke-OnDroplet "cd $serverPath && YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose --env-file $remoteEnvFile build $buildFlags&& YAAT_SERVER_COMMIT=$serverFullHash YAAT_CLIENT_COMMIT=$clientFullHash docker compose --env-file $remoteEnvFile up -d --force-recreate" | Tee-Object -Append -FilePath $logFile
 
   Write-Host ""
