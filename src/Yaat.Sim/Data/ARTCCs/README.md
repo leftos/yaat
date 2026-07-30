@@ -457,7 +457,7 @@ Both top-level sections are optional; a facility runs one surface system or the 
 |-------|------|----------|-------------|
 | `id` | string | Yes | Stable identifier, unique within the facility. Controllers delete by this id, so keep it stable across edits. |
 | `type` | string | Yes | `RestrictedArea`, `ClosedArea`, or `Text`. |
-| `area` | number[][] | For areas | Outline as `[[lat, lon], …]`. CRC closes the ring itself, so draw a *line* as an out-and-back point list. |
+| `area` | number[][] | For areas | Outline as `[[lat, lon], …]`. CRC closes the ring itself but **fills** it, so the outline must enclose real area — draw a *line* as a thin quad, never as an out-and-back point list. A zero-area ring tessellates to nothing and throws in the client; the loader drops such rings. |
 | `location` | number[] | For text | `[lat, lon]` anchor. |
 | `line1`, `line2` | string | For text | The label text; `line2` renders below `line1`. |
 | `presetId` | number | No | The SET (1–88) this object belongs to. Objects in a SET render only while that SET is active, so a controller can toggle the whole group off. Omit for an object that always renders. |

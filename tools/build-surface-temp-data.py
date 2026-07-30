@@ -67,6 +67,21 @@ DEFAULT_LENGTH_NM = 7.0
 DEFAULT_TICK_INTERVAL_NM = 1.0
 DEFAULT_TICK_LENGTH_NM = 0.09
 
+# How wide every drawn line is. CRC renders a temp-data area as an outline PLUS a hatched fill, so the
+# width has to satisfy two opposing constraints:
+#
+#   - It cannot be zero. DisplayEngine.ConstructPolygon tessellates the ring, and a zero-area
+#     out-and-back point list yields no triangles: the client throws "vertexCount ('0') must be greater
+#     than or equal to '1'", which then silently breaks all temp-data handling on that display.
+#   - It has to stay under one pixel, or the two long edges separate and the hatch becomes visible —
+#     the overlay then reads as a long band instead of the 1-px line in the reference (issue #312,
+#     Screenshot_134: the parallels' 750 ft separation spans 22 px, so ~34 ft per pixel there, and the
+#     widest ASDE range in use is coarser still).
+#
+# 10 ft is ~0.3 px at those scales and ~0.5 px even at range 5, while sitting orders of magnitude above
+# the degeneracy threshold.
+LINE_WIDTH_NM = 10.0 / FEET_PER_NM
+
 
 def load_geojson(airport: str, source: Path | None) -> dict:
     """Airport map GeoJSON, from an explicit file or the vNAS training API."""
@@ -185,6 +200,20 @@ def project(origin: tuple[float, float], true_bearing: float, distance_nm: float
     return (round(math.degrees(lat2), 6), round(math.degrees(lon2), 6))
 
 
+def sliver(start: tuple[float, float], end: tuple[float, float]) -> list[list[float]]:
+    """`start`→`end` as a thin closed quad, `LINE_WIDTH_NM` across and centred on the segment."""
+    course = bearing(start, end)
+    left = (course - 90.0) % 360.0
+    right = (course + 90.0) % 360.0
+    half = LINE_WIDTH_NM / 2.0
+    return [
+        rounded(project(start, left, half)),
+        rounded(project(end, left, half)),
+        rounded(project(end, right, half)),
+        rounded(project(start, right, half)),
+    ]
+
+
 def build_runway(runway: Runway, args: argparse.Namespace, preset_id: int | None) -> list[dict]:
     """Centerline plus a whole-mile mark across it, as sidecar item dicts."""
     outbound = runway.outbound
@@ -199,8 +228,7 @@ def build_runway(runway: Runway, args: argparse.Namespace, preset_id: int | None
             "id": f"{slug}-final",
             "presetId": preset_id,
             "type": "RestrictedArea",
-            # CRC closes the ring itself, so an out-and-back point list renders as a line.
-            "area": [rounded(runway.threshold), rounded(far), rounded(runway.threshold)],
+            "area": sliver(runway.threshold, far),
         }
     ]
 
@@ -216,7 +244,7 @@ def build_runway(runway: Runway, args: argparse.Namespace, preset_id: int | None
                 "id": f"{slug}-tick-{distance:g}",
                 "presetId": preset_id,
                 "type": "RestrictedArea",
-                "area": [rounded(a), rounded(b), rounded(a)],
+                "area": sliver(a, b),
             }
         )
         distance += args.tick_interval

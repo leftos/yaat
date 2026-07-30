@@ -228,13 +228,38 @@ Wire-format contract, all of which YAAT got wrong before #312 — check these wh
   **-1** = "INVALID SET", **any positive value** = "DATA IN SET nn" (that object is already filed there).
   Saving also stamps `PresetId` onto the referenced object and re-broadcasts it — CRC hides objects whose
   SET is inactive, so without the stamp toggling a SET does nothing.
+- **An area is filled, so its ring must enclose real area.** CRC's `DisplayEngine.ConstructPolygon`
+  tessellates a temp-data ring; a zero-area outline (an out-and-back `A→B→A` list, or collinear points)
+  produces no triangles and throws `vertexCount ('0') must be greater than or equal to '1'` in
+  `WindowElementTempData.BuildArea`. A ring is drawn as an outline *plus* a hatched fill, so a line has to
+  be a quad narrow enough to stay sub-pixel (10 ft, per `LINE_WIDTH_NM`) — at a visible width the hatch
+  shows and the overlay reads as a band rather than a line. That throw is uniquely destructive: `BuildArea` constructs the polygon
+  *before* registering it in `mRestrictedAreas`, and the build loop selects on `!ContainsKey(id)`, so the
+  bad object is retried on every `RefreshTempDataRequested` forever — dropping every later object and SET
+  mid-batch and freezing the DCB. None of it is logged, because CRC builds its hub with no
+  `ConfigureLogging`, so server→client handler exceptions are swallowed. Draw a line as a thin quad;
+  `FacilityTempDataStore` drops degenerate rings and `SurfaceTempDataGeometryTests` guards the committed
+  sidecars.
+- **An area is a `GeoRegion`, not a bare point list.** vNAS types three fields as `GeoRegion`
+  (`vatsim-vnas/common/GeoRegion.cs`) — a `[MessagePackObject]` whose `[Key(0)]` is the point list, so the
+  wire form is `[[[lat,lon],[lat,lon]]]`: one element *containing* the points. Those three are
+  `AsdexTempDataDto.Area` (Key 6), `SaabSaidTempDataDto.Area` (Key 6), and `AsdexRunwayDto.Area` (Key 1).
+  Everything else that looks like a point list is genuinely flat `List<GeoPoint>` — hold-bar `Points`,
+  `AsdexTargetDto.HistoryLocations`, `EramRouteLineDto.Points` — so do not sweep the wrapper across them.
+  Getting this wrong breaks both directions silently: CRC throws mid-decode, and because
+  `ClientSpoke.ReceiveAsdexTempDatas` decodes the whole list in one pass, a single bad area drops every
+  object in the message and the display just stays empty. Inbound, the dispatch try/catch swallows it and
+  the drawn area vanishes. Round-tripping our own DTOs cannot catch it — both sides agree on whatever we
+  write — so `CrcGeoRegionWireShapeTests` asserts the literal bytes and decodes hand-written vNAS-shaped
+  bytes back.
 - **Broadcasts must carry the facility id.** CRC keys subscriptions on the whole `Topic` record, facility
   included (`EntitySubscriptionManager`: `where e.Topic == topic`), so a push addressed to a null facility
   is silently dropped client-side. `BuildInitialData` gets this right for free by echoing the subscribed
   topic; the live push path has to pass it explicitly.
 
-Tests: `CrcSurfaceTempDataWireTests` (wire shape), `SurfaceTempDataStoreTests` (merge, tombstones, restart
-persistence), `SurfaceTempDataSeedingTests` (room seeding, cross-room, lobby pull, unload),
+Tests: `CrcSurfaceTempDataWireTests` (wire shape), `CrcGeoRegionWireShapeTests` (the `GeoRegion` byte
+encoding, both directions), `SurfaceTempDataStoreTests` (merge, tombstones, restart persistence),
+`SurfaceTempDataSeedingTests` (room seeding, cross-room, lobby pull, unload),
 `CrcTempDataPropagationTests` (fan-out to the other displays, over the real broadcast service),
 `SurfaceTempDataExportTests`.
 
@@ -314,7 +339,7 @@ This is a different "four" than the *simulation* spawn queues that [scenario-loa
 - **CRC FP amendment sends equipment in two fields.** `CreateOrAmendFlightPlan` Key 2 `Equipment` is an ICAO display string (e.g. `C182/L-DOV/C`); Key 16 `FaaEquipmentSuffix` is the canonical suffix. Use `FlightPlanNormalization.ResolveTypeAndSuffix`: split Key 2 on the first `/` for the type, prefer Key 16 for the suffix. Slash-splitting Key 2 for the suffix yields garbage like `L-DOV/C`.
 - **An FPE amend on a planless target files the plan.** YAAT emits a blank `FlightPlanDto` for radar-only cold-call targets (`DtoConverter.ToFlightPlan`, `HasFlightPlan==false` branch), so CRC's Flight Plan Editor submits an `AmendFlightPlan` (not Create) for them. `SimulationEngine.AmendFlightPlan` therefore promotes a planless target to a filed plan — sets `HasFlightPlan=true` and draws a discrete beacon from `BeaconCodePool` (VFR/IFR bank) when `AssignedCode==0` — so the editor and the "recycle beacon" button surface a code. It is the single owner of "filing establishes the plan + assigns a beacon"; the typed `DA`/`VP`/`NEW` create path reaches it through its own amend. `RequestNewBeaconCode` (recycle) is recorded as `RecordedRequestNewBeaconCode` so it replays on rewind, and `BeaconCodePool` cursors round-trip in `BeaconCodePoolDto`.
 - **CRC clients are born in the lobby with `RoomId=""`.** Position-registry entries are created at `HandleStartSession` (before any room bind), so `TryBindToRoom`/`UnbindFromRoom` must call `SyncRegistryRoomId` → `CrcSessionLifecycle.SetPositionRoom` for the primary and every secondary. Otherwise the auto-accept attendance gate (requires `IsActive` AND `RoomId==roomId` AND `Tcp.Id==tcp.Id`) misses the active student and steals the track.
-- **A lobby client subscribes before it has a room, so the bind path has to redo the subscribe's work.** CRC subscribes once, at session start. When the CID doesn't match any room, every `HandleSubscribe` returns an ack and withholds initial data; `TryBindToRoom` → `SendInitialDataForSubscriptionsAsync` replays it later. Anything `HandleSubscribe` does *besides* `BuildInitialData` has to happen on the replay too — temp-data seeding was missed, so a pulled client got tracks and targets but drew an empty surface (no finals) for the rest of the session. Local dev always takes this path: `/auth/dev` mints CID `0000001` for the training client while CRC negotiates with the real VATSIM CID, so auto-bind can never match and "Pull" is the only way in.
+- **A lobby client subscribes before it has a room, so the bind path has to redo the subscribe's work.** CRC subscribes once, at session start. When the CID doesn't match any room, every `HandleSubscribe` returns an ack and withholds initial data; `TryBindToRoom` → `SendInitialDataForSubscriptionsAsync` replays it later. Anything `HandleSubscribe` does *besides* `BuildInitialData` has to happen on the replay too — temp-data seeding was missed, so a pulled client got tracks and targets but drew an empty surface (no finals) for the rest of the session. Local dev always takes this path: `/auth/dev` mints CID `0000001` for the training client while CRC negotiates with the real VATSIM CID, so the CID-keyed bind can never match. `DevCrcAutoBind.ResolveSoleRoom` covers that gap in Development only — one room, its members all one CID, one unbound CRC client — from `CrcWebSocketHandler` on connect and from `TrainingHub.CreateRoom` for the reverse ordering. Outside Development, and any time those conditions don't hold, "Pull" in Room Members is the only way in. Widening that gate hands a CRC display someone else's room, so `DevCrcAutoBindTests` covers each refusal reason.
 - **Duplicate-beacon detection must filter to discrete codes.** `ComputeDuplicateBeaconCodes` skips non-discrete (XX00) codes to mirror CRC's `IsDiscrete`; without it, shared codes like 1200 (VFR) and the SPCs render "DB" on STARS / "DUP BCN" on ASDEX. CRC trusts the `IsDuplicateBeaconCode` flag wholesale, so the server is the only place to prevent false positives.
 - **There is no "blue" STARS datablock.** Datablock colors are white = `sColorOwnedDataBlock`, LimeGreen = `sColorUnownedDataBlock`, yellow = `sColorPointOut`, cyan = `sColorHighlightedDataBlock` (from the decompiled CRC — see CLAUDE.md → Reference Docs for the repo path). The blue `FromArgb(30,120,255)` is the target *symbol* color, not a datablock — don't reach for a "blue datablock" state that doesn't exist.
 - **Unsupported (ghost) STARS tracks carry no history trail.** A ghost overlay (`GHOST` command → `ac.Ghost.IsUnsupported` + `Ghost.Latitude/Longitude`) overrides `StarsTrackDto.Location` to the placed lat/lon, but CRC draws the blue history trail (`sColorHistoryTrails`) at each `History[i].Location` *independently* of `Location`. If `DtoConverter.ToStarsTrack` populated `History` from the aircraft's real `PositionHistory`, the trail rendered as a stray blue dot offset from the ghost (the aircraft is typically parked/below-floor, so all samples cluster at one real spot). `ToStarsTrack` therefore emits `History = []` for an unsupported ghost, matching `ToParkedDataBlock` and real STARS (an unsupported data block "is not currently supported by radar data, and never was" — `docs/crc/stars.md`).
