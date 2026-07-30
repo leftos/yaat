@@ -77,6 +77,8 @@ public static class Program
                     return OuroborosRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
                 case "--eval":
                     return EvalRunner.RunAsync(args[1..]).GetAwaiter().GetResult();
+                case "--synth-corpus":
+                    return SynthCorpusGenerator.RunAsync(args[1..]).GetAwaiter().GetResult();
             }
         }
 
@@ -352,7 +354,7 @@ public static class Program
     /// remains useful for evaluating new Whisper model bundles.
     /// </summary>
     /// <remarks>
-    /// Default model list is <c>whisper-base</c>, <c>whisper-medium</c>, <c>whisper-large-turbo3</c>
+    /// Default model list is <c>whisper-base</c>, <c>whisper-medium</c>
     /// — matches the LM-Kit single_turn_chat sample's published model identifiers. The first run
     /// downloads each model into LM-Kit's default cache (~%LOCALAPPDATA%/LM-Kit/Models/), so first
     /// invocations are slow; subsequent runs reuse the cache.
@@ -362,7 +364,7 @@ public static class Program
         if (args.Length < 1)
         {
             Console.Error.WriteLine("Usage: --lmkit-stt <wav-path> [<model-id> ...]");
-            Console.Error.WriteLine("Default model list: whisper-base whisper-medium whisper-large-turbo3");
+            Console.Error.WriteLine("Default model list: whisper-base whisper-medium");
             return 1;
         }
 
@@ -373,7 +375,7 @@ public static class Program
             return 1;
         }
 
-        var modelIds = args.Length > 1 ? args[1..] : ["whisper-base", "whisper-medium", "whisper-large-turbo3"];
+        var modelIds = args.Length > 1 ? args[1..] : ["whisper-base", "whisper-medium"];
 
         // Reflect over SpeechToText once so we know what configuration knobs exist BEFORE we burn
         // download/load time on three models. The whole point of the probe is the biasing question:

@@ -81,7 +81,7 @@ depend on LM-Kit and PortAudio native libraries.
   `LMKit.Speech.SpeechToText`. The Whisper `LM` is lazy-loaded on the
   first `TranscribeAsync` call using the model ID from
   `UserPreferences.WhisperModelSize` (e.g. `whisper-base`,
-  `whisper-large-turbo3`). Subsequent calls reuse the cached `LM` and
+  `whisper-medium`). Subsequent calls reuse the cached `LM` and
   `SpeechToText`; only `SpeechToText.Prompt` is rewritten per-call.
 - Samples are wrapped in an in-memory WAV container via
   `WavHeader.WritePcm16` before being handed to
@@ -99,11 +99,14 @@ depend on LM-Kit and PortAudio native libraries.
   resolve URL in `LmKitModelCatalog.RecommendedWhisperId` — the engine's
   URI path downloads it into LM-Kit's cache on first use, ~1.5 GB).
   Chosen over `whisper-large-turbo3` by the `--eval` corpus A/B
-  (2026-07-30): mean WER 8.3% vs 18.1%, warm STT ~230 ms vs ~370 ms on
-  an RTX 4090, and it natively resolves ATC-cadence mishears
+  (2026-07-30): mean WER 8.3% vs 18.1% on real mic captures (29/30 vs
+  15/30 on the synthetic controller corpus), warm STT ~230 ms vs
+  ~370 ms on an RTX 4090, and it natively resolves ATC-cadence mishears
   ("descendant maintain", "to 7-0") the generic model needed the
-  deterministic recovery passes for. `whisper-large-turbo3` remains in
-  the picker as a general-English fallback.
+  deterministic recovery passes for. `whisper-large-turbo3` is
+  **delisted from the picker** (the old default would invite
+  regressions); a saved preference that still names it keeps loading
+  through the curated-ID path, it just shows as a custom source.
 - **Licensing:** every process funnels through
   `src/Yaat.Client/Services/LmKitLicense.Initialize()` exactly once
   before touching LM-Kit. Lookup order: `LMKIT_LICENSE_KEY` env var →
@@ -397,7 +400,8 @@ client. All flags run via
 | `--lmkit-gpus` | Enumerate detected GPU devices for LM-Kit backend selection. |
 | `--yaat-catalog` | Dump the filtered Whisper + LLM catalogs as they appear in the Settings picker. |
 | `--ouroboros <corpus.json> [--out-dir <dir>] [--trials N]` | Synthetic round-trip harness: canonical → pilot readback → Piper TTS → full STT pipeline → compare. PASS/FLAKY/FAIL verdicts; markdown report + per-case WAVs. |
-| `--eval <corpus-dir> [--out-dir <dir>] [--trials N] [--whisper <src>] [--parakeet <dir>]` | Real-audio eval harness: scores the full production pipeline (Whisper → callsign extraction → rule → LLM) against labeled captured recordings. Reports canonical exact-match verdicts, STT word-error-rate, per-trial STT latency, and per-case transcripts; honors `LMKIT_TEST_MODEL`. `--whisper` A/Bs an alternative Whisper source (curated ID / ggml path / URL); `--parakeet` swaps the STT stage for a sherpa-onnx NeMo transducer export via `SherpaSttEngine`. See `EvalRunner.cs` for the corpus layout. |
+| `--eval <corpus-dir> [--out-dir <dir>] [--trials N] [--whisper <src>] [--parakeet <dir>]` | Real-audio eval harness: scores the full production pipeline (Whisper → callsign extraction → rule → LLM) against labeled captured recordings. Reports canonical exact-match verdicts, STT word-error-rate, per-trial STT latency, and per-case transcripts; real and synthetic cases are tallied separately in the summary; honors `LMKIT_TEST_MODEL`. `--whisper` A/Bs an alternative Whisper source (curated ID / ggml path / URL); `--parakeet` swaps the STT stage for a sherpa-onnx NeMo transducer export via `SherpaSttEngine`. See `EvalRunner.cs` for the corpus layout. |
+| `--synth-corpus <out-dir> [--cases N] [--seed S] [--voice <dir>]` | Generates labeled synthetic **controller-phraseology** eval cases: renders instruction templates with sampled slots, verifies each label through the real text-mapping pipeline before any audio is made, Piper-synthesizes with varied speakers/speeds, and writes `--eval`-ready case dirs marked `"synthetic": true`. Deterministic per seed; generate into `.tmp/`, don't commit the output. |
 
 No flag → Avalonia GUI for interactive probing. The GUI exposes inputs
 for active callsigns, programmed fixes, **available runways** (per-

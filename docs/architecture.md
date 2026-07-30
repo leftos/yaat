@@ -1007,6 +1007,7 @@ OuroborosCorpus.cs             # Corpus JSON schema for --ouroboros cases
 PiperSynthesizer.cs            # sherpa-onnx Piper synthesis shared by the TTS tab and ouroboros
 EvalRunner.cs                  # --eval: real-audio eval harness; scores the production pipeline against labeled captured WAVs (tests/Yaat.Client.Tests/TestData/speech-corpus/); canonical exact-match + WER + STT latency, LMKIT_TEST_MODEL override, --whisper/--parakeet STT A/B flags, auto-stubs expected.json from sample-store session.json
 SherpaSttEngine.cs             # sherpa-onnx OfflineRecognizer (NeMo transducer, e.g. Parakeet-TDT) STT probe engine for --eval --parakeet; sandbox-only prototype
+SynthCorpusGenerator.cs        # --synth-corpus: synthetic controller-phraseology eval cases (template render → gen-time label verification via MapTranscriptAsync → Piper multi-speaker synth → --eval case dirs marked synthetic)
 ```
 
 ## Yaat.GuideCapture — CLI tool (`tools/Yaat.GuideCapture/`)

@@ -16,7 +16,8 @@ internal sealed record EvalExpectation(
     string? Transcript,
     string? Callsign,
     List<string>? ActiveCallsigns,
-    List<string>? ProgrammedFixes
+    List<string>? ProgrammedFixes,
+    bool Synthetic
 );
 
 /// <summary>
@@ -127,6 +128,11 @@ internal static class EvalRunner
             return 2;
         }
 
+        // Real navdata for production parity: the mapping stage validates canonicals through
+        // CommandParser (fix resolution needs NavigationDatabase) and PhoneticFixMatcher's
+        // full-database fallback only works with the DB loaded. Same loader the test suite uses.
+        Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
+
         var prefs = new UserPreferences();
 
         // LMKIT_TEST_MODEL overrides the LLM the same way it does for --llm-probe and the
@@ -178,11 +184,12 @@ internal static class EvalRunner
         details.AppendLine("### Per-case transcripts");
         details.AppendLine();
 
-        int pass = 0,
-            fail = 0,
-            flaky = 0,
-            skipped = 0;
-        var werValues = new List<double>();
+        // Real-mic and synthetic (Piper-generated) cases are tallied separately: synthetic audio
+        // measures the phonetic surface on clean TTS voices, and folding it into one number
+        // would let a large synthetic batch drown out the authoritative real-mic signal.
+        var skipped = 0;
+        var realTally = new Tally();
+        var synthTally = new Tally();
 
         foreach (var caseDir in Directory.EnumerateDirectories(corpusDir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
         {
@@ -254,21 +261,22 @@ internal static class EvalRunner
                 matches == trials ? "PASS"
                 : matches == 0 ? "FAIL"
                 : $"FLAKY {matches}/{trials}";
+            var tally = expectation.Synthetic ? synthTally : realTally;
             if (matches == trials)
             {
-                pass++;
+                tally.Pass++;
             }
             else if (matches == 0)
             {
-                fail++;
+                tally.Fail++;
             }
             else
             {
-                flaky++;
+                tally.Flaky++;
             }
             if (wer is not null)
             {
-                werValues.Add(wer.Value);
+                tally.Wers.Add(wer.Value);
             }
 
             var werText = wer is null ? "—" : wer.Value.ToString("P0", CultureInfo.InvariantCulture);
@@ -293,8 +301,20 @@ internal static class EvalRunner
 
         report.AppendLine();
         report.Append(details);
-        var meanWer = werValues.Count > 0 ? werValues.Average().ToString("P1", CultureInfo.InvariantCulture) : "n/a";
-        var summary = $"{pass} PASS, {flaky} FLAKY, {fail} FAIL, {skipped} skipped — mean best-trial WER {meanWer}";
+        var parts = new List<string>();
+        if (realTally.Total > 0)
+        {
+            parts.Add($"real: {realTally.Describe()}");
+        }
+        if (synthTally.Total > 0)
+        {
+            parts.Add($"synthetic: {synthTally.Describe()}");
+        }
+        if (skipped > 0)
+        {
+            parts.Add($"{skipped} skipped");
+        }
+        var summary = parts.Count > 0 ? string.Join(" — ", parts) : "no cases ran";
         report.AppendLine($"**Summary:** {summary}");
         var reportPath = Path.Combine(outDir, "report.md");
         await File.WriteAllTextAsync(reportPath, report.ToString()).ConfigureAwait(false);
@@ -302,7 +322,24 @@ internal static class EvalRunner
         Console.WriteLine();
         Console.WriteLine(summary);
         Console.WriteLine($"Report: {reportPath}");
-        return fail > 0 ? 1 : 0;
+        return (realTally.Fail + synthTally.Fail) > 0 ? 1 : 0;
+    }
+
+    /// <summary>Per-source (real vs synthetic) verdict and WER accumulator.</summary>
+    private sealed class Tally
+    {
+        public int Pass;
+        public int Fail;
+        public int Flaky;
+        public readonly List<double> Wers = [];
+
+        public int Total => Pass + Fail + Flaky;
+
+        public string Describe()
+        {
+            var meanWer = Wers.Count > 0 ? Wers.Average().ToString("P1", CultureInfo.InvariantCulture) : "n/a";
+            return $"{Pass} PASS, {Flaky} FLAKY, {Fail} FAIL, mean WER {meanWer}";
+        }
     }
 
     /// <summary>
@@ -335,7 +372,8 @@ internal static class EvalRunner
                 root.TryGetProperty("transcript", out var t) ? t.GetString() : null,
                 root.TryGetProperty("callsign", out var cs) ? cs.GetString() : null,
                 ReadStringList(root, "activeCallsigns"),
-                ReadStringList(root, "programmedFixes")
+                ReadStringList(root, "programmedFixes"),
+                Synthetic: root.TryGetProperty("synthetic", out var syn) && syn.ValueKind == JsonValueKind.True
             );
         }
 
