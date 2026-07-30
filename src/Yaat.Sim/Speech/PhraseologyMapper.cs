@@ -6,7 +6,7 @@ namespace Yaat.Sim.Speech;
 /// <summary>
 /// Converts a natural-language ATC phraseology transcript into a canonical command string
 /// for the YAAT command pipeline. This is the rule-based layer of the hybrid NLU described in
-/// <c>docs/plans/speech-recognition.md</c>; if the rules don't match, the LLM fallback in
+/// <c>docs/speech-recognition-pipeline.md</c>; if the rules don't match, the LLM fallback in
 /// <c>Yaat.Client.Services.LocalLlmCommandMapper</c> takes over.
 /// </summary>
 /// <remarks>

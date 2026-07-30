@@ -13,11 +13,21 @@ namespace Yaat.Sim.Speech;
 ///     <b>scrambled</b> order — see <see cref="ScrambledNatoAlphabet"/>.</description></item>
 /// </list>
 ///
-/// The result is cached as a single space-joined string, well under whisper.cpp's 224-token
-/// decoder context cap, and identical across PTT presses. We deliberately do NOT mix in dynamic
-/// per-PTT context (active scenario callsigns, programmed fixes) here — the static vocabulary
-/// is sufficient because avoiding per-PTT recomputation removes the 224-token budget concern
-/// and drops a class of potential prompt truncation bugs.
+/// The result is cached as a single space-joined string, identical across PTT presses. We
+/// deliberately do NOT mix in dynamic per-PTT context (active scenario callsigns, programmed
+/// fixes) here — probe data showed whisper-large-turbo3 recognizing arbitrary tail numbers
+/// cleanly from the NATO + number vocabulary alone.
+///
+/// <para>
+/// <b>The prompt exceeds whisper.cpp's 224-token initial-prompt cap</b> (~284 GPT-2-BPE tokens
+/// as of 2026-07-30 — it grew as PhraseologyRules grew). whisper.cpp keeps the LAST ~224 tokens
+/// and silently drops the head, so ordering is load-bearing: <see cref="Build"/> places the
+/// sorted rule-literal vocabulary FIRST (common English words Whisper recognizes without
+/// biasing — losing the head costs little) and the curated number/digit-bias vocabulary plus
+/// the scrambled NATO alphabet LAST, where they are guaranteed to survive truncation.
+/// <c>WhisperBiasingPromptTests.Default_NumberVocabularyComesAfterRuleLiterals</c> pins the
+/// ordering.
+/// </para>
 ///
 /// <para>
 /// <b>NATO alphabet is scrambled, not sorted.</b> Listing NATO words in alphabetical order
@@ -169,23 +179,30 @@ public static class WhisperBiasingPrompt
     ];
 
     /// <summary>
-    /// Builds the prompt by merging the phonetic number set, every distinct literal token in
-    /// <see cref="PhraseologyRules.All"/>, and the NATO phonetic alphabet. Capture-group
+    /// Builds the prompt from three vocabulary blocks in truncation-aware order. Capture-group
     /// placeholders (<c>{name}</c>) are excluded — they're regex-style holes, not vocabulary
     /// words. Trailing <c>?</c> markers from optional tokens are stripped so we bias for the
-    /// underlying word. The command vocab is alphabetized for determinism; the NATO alphabet
-    /// is appended in a hand-scrambled order (see <see cref="ScrambledNatoAlphabet"/>) so it
-    /// can't be used as a sequential hint by the decoder.
+    /// underlying word.
+    ///
+    /// Block order matters because whisper.cpp keeps only the LAST ~224 tokens of an over-long
+    /// initial prompt (and this prompt is over):
+    /// <list type="number">
+    ///   <item><description>Rule literals, alphabetized for determinism — sacrificial head;
+    ///     mostly common English that Whisper recognizes unbiased.</description></item>
+    ///   <item><description><see cref="PhoneticNumbers"/> in curated (not sorted) order —
+    ///     the niner/tree/fife variants and digit-form bias examples must survive.</description></item>
+    ///   <item><description>The NATO alphabet in a hand-scrambled order (see
+    ///     <see cref="ScrambledNatoAlphabet"/>) so it can't be used as a sequential hint by
+    ///     the decoder.</description></item>
+    /// </list>
     /// </summary>
     public static string Build()
     {
         // StringComparer.OrdinalIgnoreCase de-duplicates "Climb"/"climb"/"CLIMB" into one entry.
-        var vocab = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var word in PhoneticNumbers)
-        {
-            vocab.Add(word);
-        }
+        // Rule literals that also appear in PhoneticNumbers (e.g. "flight", "level") are excluded
+        // here so they land in the surviving tail block instead of the sacrificial head.
+        var phoneticNumberSet = new HashSet<string>(PhoneticNumbers, StringComparer.OrdinalIgnoreCase);
+        var ruleVocab = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var rule in PhraseologyRules.All)
         {
@@ -199,9 +216,9 @@ public static class WhisperBiasingPrompt
 
                 // Strip the optional-marker suffix so "and?" → "and".
                 var literal = token.EndsWith('?') ? token[..^1] : token;
-                if (literal.Length > 0 && !NatoPhoneticAlphabet.WordSet.Contains(literal))
+                if (literal.Length > 0 && !NatoPhoneticAlphabet.WordSet.Contains(literal) && !phoneticNumberSet.Contains(literal))
                 {
-                    vocab.Add(literal);
+                    ruleVocab.Add(literal);
                 }
             }
         }
@@ -209,12 +226,10 @@ public static class WhisperBiasingPrompt
         // Single space-joined string — Whisper's initial_prompt is a free-form text seed, not a
         // structured token list. Whisper tokenizes the prompt itself when it loads; word-level
         // separation by spaces is the standard form (matches whisper.cpp's example prompts and
-        // the form Whisper.net's WithPrompt expected). Sorted command vocab comes first;
-        // scrambled NATO is appended at the end so adjacent words in the prompt never form
-        // an alphabetical sequence.
-        var sb = new StringBuilder(capacity: (vocab.Count + ScrambledNatoAlphabet.Length) * 8);
+        // the form Whisper.net's WithPrompt expected).
+        var sb = new StringBuilder(capacity: (ruleVocab.Count + PhoneticNumbers.Length + ScrambledNatoAlphabet.Length) * 8);
         var first = true;
-        foreach (var word in vocab)
+        foreach (var word in ruleVocab)
         {
             if (!first)
             {
@@ -222,6 +237,10 @@ public static class WhisperBiasingPrompt
             }
             sb.Append(word);
             first = false;
+        }
+        foreach (var word in PhoneticNumbers)
+        {
+            sb.Append(' ').Append(word);
         }
         foreach (var word in ScrambledNatoAlphabet)
         {

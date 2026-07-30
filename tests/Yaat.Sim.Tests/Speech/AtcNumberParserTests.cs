@@ -88,6 +88,15 @@ public class AtcNumberParserTests
     // the digit-merge pass and the EndsWith("ate") fuzzy suffix together.
     [InlineData("runway 2 8 rate", "runway 28R")]
     [InlineData("hold short runway 2 8 rate", "hold short runway 28R")]
+    // Whisper's two/to homophone inside headings: "fly heading two seven zero" heard as
+    // "fly heading to 7-0". Headings are always three digits, so "heading to <2-digit>" means
+    // the "to" was the spoken digit "two" (→ "heading 270"), while "heading to <3-digit>"
+    // means the "to" was filler and is dropped (→ "heading 070").
+    [InlineData("fly heading to 7 0", "fly heading 270")]
+    [InlineData("fly heading to 70", "fly heading 270")]
+    [InlineData("turn left heading to 4 0", "turn left heading 240")]
+    [InlineData("fly heading to 070", "fly heading 070")]
+    [InlineData("climb and maintain 8,000 to fly heading to 7-0.", "climb and maintain 8000 to fly heading 270")]
     public void NormalizeDigits_WithCommandContext(string input, string expected)
     {
         Assert.Equal(expected, AtcNumberParser.NormalizeDigits(input));

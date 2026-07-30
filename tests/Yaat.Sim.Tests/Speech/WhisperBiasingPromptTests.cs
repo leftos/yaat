@@ -59,6 +59,39 @@ public class WhisperBiasingPromptTests
     }
 
     [Fact]
+    public void Default_NumberVocabularyComesAfterRuleLiterals()
+    {
+        // whisper.cpp truncates an over-long initial_prompt by keeping only the LAST ~224
+        // tokens. The prompt has grown past that cap as PhraseologyRules grew (measured at
+        // ~284 GPT-2-BPE tokens on 2026-07-30), so ordering is load-bearing: the curated
+        // number/digit-bias vocabulary ("niner"/"tree"/"fife", "090", "FL350", ...) and the
+        // NATO alphabet must sit at the END of the prompt where they survive truncation.
+        // The head that gets dropped is the sorted rule-literal vocabulary — common English
+        // words Whisper recognizes without biasing. This test pins the ordering property with
+        // representative pairs: every number-vocab word must appear after every sampled rule
+        // literal.
+        var prompt = WhisperBiasingPrompt.Default;
+
+        string[] numberVocab = ["niner", "tree", "fife", "fower", "090", "270", "1000", "FL350"];
+        string[] ruleLiterals = ["approach", "cleared", "climb", "runway", "taxi", "turn"];
+
+        foreach (var number in numberVocab)
+        {
+            var numberIdx = prompt.IndexOf(number, StringComparison.OrdinalIgnoreCase);
+            Assert.True(numberIdx >= 0, $"number-vocab word '{number}' missing from prompt");
+            foreach (var literal in ruleLiterals)
+            {
+                var literalIdx = prompt.IndexOf(literal, StringComparison.OrdinalIgnoreCase);
+                Assert.True(literalIdx >= 0, $"rule literal '{literal}' missing from prompt");
+                Assert.True(
+                    numberIdx > literalIdx,
+                    $"'{number}' (index {numberIdx}) must come after rule literal '{literal}' (index {literalIdx}) so it survives whisper's tail-keeping truncation"
+                );
+            }
+        }
+    }
+
+    [Fact]
     public void Default_StillContainsAtcCommandVocabulary()
     {
         // Regression guard: make sure adding NATO back didn't wipe the command-verb literals

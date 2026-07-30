@@ -146,6 +146,14 @@ public static class AtcNumberParser
         // and non-digit tokens break the run.
         output = MergeSingleDigitRuns(output);
 
+        // Whisper's two/to homophone inside headings: "fly heading two seven zero" is heard as
+        // "fly heading to 7-0", which after digit merging reads "heading to 70". Headings are
+        // always three digits, so the split is unambiguous: "heading to <2-digit>" means the
+        // "to" was the spoken digit "two" and belongs to the value; "heading to <3-digit>"
+        // means the "to" was filler. Runs AFTER MergeSingleDigitRuns so the digit token is
+        // already coalesced, and BEFORE runway collapse (which doesn't look at headings).
+        output = RecoverHeadingTwoMishears(output);
+
         // Collapse split runway designators ("28", "right" → "28R") AFTER number normalization
         // so the canonical runway form is visible to both downstream consumers: the rule engine
         // (which needs "28R" to match {rwy} captures) and the LLM fallback (which sees this
@@ -155,6 +163,44 @@ public static class AtcNumberParser
         output = PhraseologyMapper.CollapseRunwayDesignators(output);
 
         return string.Join(' ', output);
+    }
+
+    private static List<string> RecoverHeadingTwoMishears(List<string> tokens)
+    {
+        var result = new List<string>(tokens.Count);
+        var i = 0;
+        while (i < tokens.Count)
+        {
+            var isHeadingTo =
+                (i + 2 < tokens.Count)
+                && string.Equals(tokens[i], "heading", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(tokens[i + 1], "to", StringComparison.OrdinalIgnoreCase)
+                && tokens[i + 2].All(char.IsDigit);
+            if (isHeadingTo)
+            {
+                var digits = tokens[i + 2];
+                if (digits.Length == 2)
+                {
+                    // "heading to 70" — the "to" was the spoken digit "two": heading 270.
+                    result.Add(tokens[i]);
+                    result.Add("2" + digits);
+                    i += 3;
+                    continue;
+                }
+                if (digits.Length == 3)
+                {
+                    // "heading to 070" — three digits are already a complete heading; drop the filler "to".
+                    result.Add(tokens[i]);
+                    result.Add(digits);
+                    i += 3;
+                    continue;
+                }
+            }
+
+            result.Add(tokens[i]);
+            i++;
+        }
+        return result;
     }
 
     private static List<string> MergeSingleDigitRuns(List<string> tokens)

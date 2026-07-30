@@ -84,6 +84,10 @@ public static class PhraseologyRules
             // never speaks "descent and maintain" — the canonical pilot readback stays
             // "descend and maintain".
             new(["descent", "and?", "maintain", "{alt}"], "DM {alt}", DescendMaintain, SttOnly: true),
+            // "descendant maintain" — STT-only acoustic alias: Whisper fuses "descend and" into
+            // the single word "descendant" (observed on real mic captures, e.g. the probe-2
+            // eval-corpus clip). Same rationale as the "descent" alias above.
+            new(["descendant", "maintain", "{alt}"], "DM {alt}", DescendMaintain, SttOnly: true),
             new(["expedite", "descent", "to?", "{alt}"], "EXP {alt}", Expedite),
             new(["expedite", "descent"], "EXP", Expedite),
             // Neutral "maintain {alt}" — caller may want CM vs DM based on current alt.

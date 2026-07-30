@@ -58,6 +58,9 @@ public class PhraseologyMapperTests
     [InlineData("descend and maintain three thousand", "DM 3000")]
     [InlineData("descend to three thousand", "DM 3000")]
     [InlineData("descend and maintain flight level three five zero", "DM 35000")]
+    [InlineData("descent and maintain three thousand", "DM 3000")]
+    [InlineData("descendant maintain four thousand", "DM 4000")]
+    [InlineData("climb and maintain 8,000 to fly heading to 7-0.", "CM 8000, FH 270")]
     [InlineData("expedite climb to one one thousand", "EXP 11000")]
     [InlineData("expedite descent to five thousand", "EXP 5000")]
     public void Altitude_Rules(string transcript, string expected)
