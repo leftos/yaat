@@ -106,6 +106,7 @@ public class Issue227Coast9ClimbRestrictionTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             assignedAltitude: null,
+            null,
             NullLogger.Instance
         );
         Assert.True(cto.Success, cto.Message);

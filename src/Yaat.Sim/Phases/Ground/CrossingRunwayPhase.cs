@@ -113,6 +113,7 @@ public sealed class CrossingRunwayPhase : Phase
             }
 
             _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
+            ApplyExitHoldShortOffset(ctx);
         }
 
         _timeSinceLastLog += ctx.DeltaSeconds;
@@ -231,7 +232,7 @@ public sealed class CrossingRunwayPhase : Phase
                 approachForOffset = apNode;
             }
 
-            if (!bindingTaxiwayHoldShortAhead && approachForOffset is not null)
+            if (!bindingTaxiwayHoldShortAhead && !ExitIsBindingHoldShort(route) && approachForOffset is not null)
             {
                 var virtualTarget = VirtualNode.OffsetPast(ctx.GroundLayout, targetNode, approachForOffset, halfLengthNm);
                 slice.Add(VirtualNode.CreateSegment(targetNode, virtualTarget, slice[^1].TaxiwayName));
@@ -252,6 +253,7 @@ public sealed class CrossingRunwayPhase : Phase
         _navigator.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
         _navigator.MinSpeedKts = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
         _navigator.SetupSegment(_crossingRoute, ctx, _ => true);
+        ApplyExitHoldShortOffset(ctx);
 
         _initialized = true;
 
@@ -262,6 +264,40 @@ public sealed class CrossingRunwayPhase : Phase
             _navigator.MaxSpeedKts,
             _navigator.MinSpeedKts
         );
+    }
+
+    /// <summary>
+    /// Whether the crossing's own exit node carries a binding (uncleared) hold-short — the parallel-runway case
+    /// where the far side of the runway being crossed <i>is</i> the next runway's hold line (SFO taxiway C: cross
+    /// 10R/28L, hold short 28R). The ½-length tail-clearance overshoot must be suppressed there for the same
+    /// reason it is for a binding taxiway hold-short: hold-short compliance outranks tail clearance, and
+    /// overshooting puts the aircraft inside the holding position markings of a runway it has no clearance to
+    /// enter (AIM 4-3-18.a.6). Tail-over-runway exposure is reported by <see cref="HoldShortPoint.TailOverRunwayNodeId"/>.
+    /// </summary>
+    private bool ExitIsBindingHoldShort(TaxiRoute route) => route.GetHoldShortAt(_targetNodeId) is { IsCleared: false };
+
+    /// <summary>
+    /// Snap the navigator's target to the exit hold-short's nose-at-line position once the crossing is aimed at
+    /// it. <see cref="TaxiingPhase.SetupCurrentSegment"/> does the same on the ordinary arrival path; without it
+    /// the crossing stops at the node itself, which sits on the painted bar rather than a fuselage short of it.
+    /// </summary>
+    private void ApplyExitHoldShortOffset(PhaseContext ctx)
+    {
+        if (_navigator is null || _navigator.TargetNodeId != _targetNodeId)
+        {
+            return;
+        }
+
+        var route = ctx.Aircraft.Ground.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return;
+        }
+
+        if (route.GetHoldShortAt(_targetNodeId) is { IsCleared: false, Latitude: { } lat, Longitude: { } lon })
+        {
+            _navigator.OverrideTargetPosition(lat, lon);
+        }
     }
 
     /// <summary>

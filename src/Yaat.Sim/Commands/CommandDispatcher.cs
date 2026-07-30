@@ -1818,6 +1818,7 @@ public static class CommandDispatcher
                         ClearanceType.ClearedForTakeoff,
                         cto.Departure,
                         cto.AssignedAltitude,
+                        groundLayout,
                         Log
                     );
                 // "Cleared for immediate takeoff" — brisk lineup taxi (+ rolling takeoff via the
@@ -1842,6 +1843,7 @@ public static class CommandDispatcher
                     ClearanceType.LineUpAndWait,
                     new DefaultDeparture(),
                     null,
+                    groundLayout,
                     Log
                 );
                 // "Line up and wait, without delay" — brisk lineup taxi; still stops at the centerline.

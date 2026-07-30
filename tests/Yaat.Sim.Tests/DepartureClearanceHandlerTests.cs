@@ -9,6 +9,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -74,7 +75,15 @@ public class DepartureClearanceHandlerTests
         var rwy = DefaultRunway();
         using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.LineUpAndWait, new DefaultDeparture(), null, Logger);
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holding,
+            ClearanceType.LineUpAndWait,
+            new DefaultDeparture(),
+            null,
+            null,
+            Logger
+        );
 
         Assert.True(result.Success);
         Assert.Contains("Line up and wait", result.Message!);
@@ -97,6 +106,7 @@ public class DepartureClearanceHandlerTests
             holding,
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
+            null,
             null,
             Logger
         );
@@ -125,6 +135,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
+            null,
             Logger
         );
 
@@ -148,7 +159,15 @@ public class DepartureClearanceHandlerTests
         var rwy = DefaultRunway();
         using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.LineUpAndWait, new DefaultDeparture(), null, Logger);
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holding,
+            ClearanceType.LineUpAndWait,
+            new DefaultDeparture(),
+            null,
+            null,
+            Logger
+        );
 
         Assert.True(result.Success);
         Assert.Contains(ac.Phases!.Phases, p => p is LineUpPhase);
@@ -193,6 +212,7 @@ public class DepartureClearanceHandlerTests
             holding,
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
+            null,
             null,
             Logger
         );
@@ -242,6 +262,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
+            null,
             Logger
         );
 
@@ -288,6 +309,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
+            null,
             Logger
         );
 
@@ -335,6 +357,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
+            null,
             Logger
         );
 
@@ -413,6 +436,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             null,
+            null,
             Logger
         );
 
@@ -448,6 +472,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
+            null,
             Logger
         );
 
@@ -463,7 +488,15 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(lineUp);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(ac, lineUp, ClearanceType.LineUpAndWait, new DefaultDeparture(), null, Logger);
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            lineUp,
+            ClearanceType.LineUpAndWait,
+            new DefaultDeparture(),
+            null,
+            null,
+            Logger
+        );
 
         Assert.False(result.Success);
     }
@@ -491,6 +524,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             5000,
+            null,
             Logger
         );
 
@@ -528,6 +562,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
+            null,
             Logger
         );
 
@@ -537,6 +572,60 @@ public class DepartureClearanceHandlerTests
         // Tower phases installed but LUAW NOT pre-satisfied
         var luaw = ac.Phases!.Phases.OfType<LinedUpAndWaitingPhase>().First();
         Assert.False(luaw.Requirements[0].IsSatisfied);
+    }
+
+    [Fact]
+    public void TryDepartureClearance_FromHoldingInPosition_LUAW_StartsLineUpWithLayout()
+    {
+        // Issue #315: LineUpFromPosition started the rebuilt phase list itself with a
+        // layout-less PhaseContext, so LineUpPhase.OnStart faulted on ctx.GroundLayout
+        // while the command still reported success — the aircraft accepted "line up and
+        // wait" and never moved. Reachable from any HoldingInPosition, including WARPG.
+        var layout = new TestAirportGroundData().GetLayout("OAK");
+        var rwy = NavigationDatabase.Instance?.GetRunway("OAK", "30");
+        if (layout is null || rwy is null)
+        {
+            return;
+        }
+
+        var holdShortNode = layout.Nodes.Values.FirstOrDefault(n =>
+            n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } id && id.Contains("30")
+        );
+        Assert.NotNull(holdShortNode);
+
+        var ac = MakeAircraft();
+        ac.Position = holdShortNode.Position;
+        ac.TrueHeading = new TrueHeading(GeoMath.BearingTo(holdShortNode.Position, NearestCenterlinePoint(layout, holdShortNode.Position)));
+        ac.Ground.Layout = layout;
+        ac.Phases!.AssignedRunway = rwy;
+
+        var holdPhase = new HoldingInPositionPhase();
+        ac.Phases.Add(holdPhase);
+        ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, layout));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holdPhase,
+            ClearanceType.LineUpAndWait,
+            new DefaultDeparture(),
+            null,
+            layout,
+            Logger
+        );
+
+        Assert.True(result.Success);
+
+        var lineUp = Assert.IsType<LineUpPhase>(ac.Phases!.CurrentPhase);
+        Assert.NotEqual(LineUpPhase.State.Faulted, lineUp.CurrentState);
+    }
+
+    /// <summary>Closest point on runway 30's centerline to <paramref name="from"/>, for aiming the aircraft at the runway.</summary>
+    private static LatLon NearestCenterlinePoint(AirportGroundLayout layout, LatLon from)
+    {
+        var runway = layout.FindRunway("30");
+        Assert.NotNull(runway);
+        var nearest = runway.Coordinates.MinBy(c => GeoMath.DistanceNm(from, new LatLon(c.Lat, c.Lon)));
+        return new LatLon(nearest.Lat, nearest.Lon);
     }
 
     [Fact]
@@ -554,6 +643,7 @@ public class DepartureClearanceHandlerTests
             holdPhase,
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
+            null,
             null,
             Logger
         );
@@ -578,7 +668,7 @@ public class DepartureClearanceHandlerTests
         using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
         var departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null);
-        var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.ClearedForTakeoff, departure, null, Logger);
+        var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.ClearedForTakeoff, departure, null, null, Logger);
 
         Assert.True(result.Success);
         Assert.Equal(PatternDirection.Left, ac.Phases.TrafficDirection);
@@ -739,6 +829,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null,
+            null,
             Logger
         );
 
@@ -782,6 +873,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Left, "28L", null),
             null,
+            null,
             Logger
         );
 
@@ -806,6 +898,7 @@ public class DepartureClearanceHandlerTests
             holding,
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, null, null),
+            null,
             null,
             Logger
         );
@@ -915,6 +1008,7 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null,
+            null,
             Logger
         );
 
@@ -976,6 +1070,7 @@ public class DepartureClearanceHandlerTests
             initialClimb,
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
+            null,
             null,
             Logger
         );

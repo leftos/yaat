@@ -114,12 +114,19 @@ internal static class DepartureClearanceHandler
         };
     }
 
+    /// <param name="groundLayout">
+    /// The room's layout for the aircraft's airport, falling back to <see cref="AircraftGroundOps.Layout"/> when
+    /// null. Positional rather than defaulted so every call site has to answer for it:
+    /// <see cref="LineUpFromPosition"/> starts <see cref="LineUpPhase"/> itself rather than leaving it to the tick
+    /// loop, and <see cref="LineUpPhase.OnStart"/> faults outright when neither source yields a layout.
+    /// </param>
     internal static CommandResult TryDepartureClearance(
         AircraftState aircraft,
         Phase currentPhase,
         ClearanceType clearanceType,
         DepartureInstruction departure,
         int? assignedAltitude,
+        AirportGroundLayout? groundLayout,
         ILogger logger
     )
     {
@@ -150,7 +157,7 @@ internal static class DepartureClearanceHandler
         // Aircraft holding in position (e.g. after WARPG) — allow LUAW/CTO with assigned runway
         if (currentPhase is HoldingInPositionPhase)
         {
-            return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, logger);
+            return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, groundLayout, logger);
         }
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
@@ -222,6 +229,7 @@ internal static class DepartureClearanceHandler
         ClearanceType clearanceType,
         DepartureInstruction departure,
         int? assignedAltitude,
+        AirportGroundLayout? groundLayout,
         ILogger logger
     )
     {
@@ -230,14 +238,19 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, "No runway assigned — use RWY first");
         }
 
+        // Unlike the hold-short path, this one starts the rebuilt phase list itself instead of leaving
+        // it to the tick loop, so the layout has to be threaded in: LineUpPhase.OnStart faults on a null
+        // ctx.GroundLayout and the aircraft accepts the clearance without ever moving (issue #315).
+        var layout = groundLayout ?? aircraft.Ground.Layout;
+
         // Clear the holding phase and rebuild with tower departure phases
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, layout);
         aircraft.Phases.Clear(ctx);
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.Procedure.DepartureRunway = runway.Designator;
         var routeResult = InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, null, logger);
-        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, layout));
         SyncControllerAssignedAltitude(aircraft, clearanceType, assignedAltitude);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude) with

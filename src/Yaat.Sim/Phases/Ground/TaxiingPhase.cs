@@ -465,12 +465,13 @@ public sealed class TaxiingPhase : Phase
             return phases;
         }
 
+        int? crossingExitNodeId = null;
         if (NeedsRunwayCrossing(holdShort, ctx.GroundLayout))
         {
-            int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout, requireSameRunwayExit: false);
-            if (exitNodeId is not null)
+            crossingExitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout, requireSameRunwayExit: false);
+            if (crossingExitNodeId is { } exitNodeId)
             {
-                phases.Add(new CrossingRunwayPhase(holdShort.NodeId, exitNodeId.Value, holdShort.TargetName));
+                phases.Add(new CrossingRunwayPhase(holdShort.NodeId, exitNodeId, holdShort.TargetName));
 
                 while (!route.IsComplete)
                 {
@@ -481,7 +482,7 @@ public sealed class TaxiingPhase : Phase
                     }
 
                     route.CurrentSegmentIndex++;
-                    if (seg.ToNodeId == exitNodeId.Value)
+                    if (seg.ToNodeId == exitNodeId)
                     {
                         break;
                     }
@@ -493,6 +494,10 @@ public sealed class TaxiingPhase : Phase
         {
             phases.Add(new TaxiingPhase());
         }
+        else if (crossingExitNodeId is { } crossedTo)
+        {
+            phases.AddRange(BuildTerminalPhasesAtCrossingExit(ctx, route, crossedTo));
+        }
         else
         {
             phases.Add(new HoldingInPositionPhase());
@@ -502,11 +507,57 @@ public sealed class TaxiingPhase : Phase
     }
 
     /// <summary>
+    /// Terminal phases for a route that ends where a runway crossing exits.
+    ///
+    /// <para>
+    /// When the exit node carries an uncleared hold-short the aircraft is holding <i>short</i>, not holding in
+    /// position: on parallel-runway geometry the far side of the crossed runway <i>is</i> the next runway's hold
+    /// line, so the crossing slice swallows the destination-runway bar (SFO taxiway C — cross 10R/28L, hold short
+    /// 28R, ~190 ft apart with a single painted bar between them). Emitting <see cref="HoldingShortPhase"/> keeps
+    /// the pilot's "holding short runway 28R" report and routes LUAW/CTO through
+    /// <c>DepartureClearanceHandler.LineUpFromHoldShort</c> rather than the position-based path (issue #315).
+    /// </para>
+    ///
+    /// <para>
+    /// Otherwise the crossing really did end the route, so a departure clearance stored during the taxi has to be
+    /// consumed here the same way <see cref="CompleteRoute"/> consumes it — the crossing paths previously skipped
+    /// that, stranding an aircraft whose route crossed a runway immediately before its departure runway.
+    /// </para>
+    /// </summary>
+    private static List<Phase> BuildTerminalPhasesAtCrossingExit(PhaseContext ctx, TaxiRoute route, int exitNodeId)
+    {
+        if (route.GetHoldShortAt(exitNodeId) is { IsCleared: false } pendingHoldShort)
+        {
+            return [new HoldingShortPhase(pendingHoldShort), new HoldingInPositionPhase()];
+        }
+
+        ApplyDepartureClearanceIfPending(ctx);
+
+        // ApplyDepartureClearanceIfPending inserts the tower phases after the current one; when it did, they own
+        // the rest of the sequence and a trailing terminal phase would strand the aircraft behind them. Ordered
+        // exactly as CompleteRoute does it — clearance first, then the terminal — so a stored clearance is never
+        // dropped by a route that also names a parking destination.
+        var phaseList = ctx.Aircraft.Phases;
+        if (phaseList is not null && phaseList.Phases.Count > phaseList.CurrentIndex + 1)
+        {
+            return [];
+        }
+
+        if (route.DestinationParking is not null)
+        {
+            ctx.Aircraft.Ground.ParkingSpot = route.DestinationParking;
+            return [new AtParkingPhase()];
+        }
+
+        return [new HoldingInPositionPhase()];
+    }
+
+    /// <summary>
     /// Build the phase sequence for a runway crossing whose hold-short was cleared
     /// before arrival (so no <see cref="HoldingShortPhase"/> stop): the
     /// <see cref="CrossingRunwayPhase"/> across the painted line, then the onward
-    /// <see cref="TaxiingPhase"/> (or a terminal phase if the route ends at the far
-    /// side). Advances <see cref="TaxiRoute.CurrentSegmentIndex"/> past the crossing
+    /// <see cref="TaxiingPhase"/> (or <see cref="BuildTerminalPhasesAtCrossingExit"/>
+    /// if the route ends at the far side). Advances <see cref="TaxiRoute.CurrentSegmentIndex"/> past the crossing
     /// slice — identical to the resume flow in <see cref="BuildResumePhases"/>, but
     /// entered straight from a moving <see cref="TaxiingPhase"/>.
     /// </summary>
@@ -536,14 +587,9 @@ public sealed class TaxiingPhase : Phase
         {
             phases.Add(new TaxiingPhase());
         }
-        else if (route.DestinationParking is not null)
-        {
-            ctx.Aircraft.Ground.ParkingSpot = route.DestinationParking;
-            phases.Add(new AtParkingPhase());
-        }
         else
         {
-            phases.Add(new HoldingInPositionPhase());
+            phases.AddRange(BuildTerminalPhasesAtCrossingExit(ctx, route, exitNodeId));
         }
 
         return phases;

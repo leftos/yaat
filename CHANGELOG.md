@@ -32,6 +32,8 @@
 - Saving drawn geometry into a numbered set uses the set number you typed, and CRC confirms with `SET nn SAVED`.
 - Deleting a drawn object removes that object.
 - Geometry drawn for one airport's surface display no longer appears on another's.
+- A departure re-taxied across one runway to a parallel one holds short of its new departure runway, and a plain `LUAW` lines it up.
+- An aircraft crossing a runway onto the next one's hold line stops short of the markings instead of a half-fuselage past them.
 
 ## v0.9.18-beta [2026/07/29]
 
