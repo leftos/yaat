@@ -1850,11 +1850,15 @@ public sealed class UserPreferences
         //
         // The model defaults must stay equal to LmKitModelCatalog.RecommendedWhisperId /
         // RecommendedLlmId (literals here because Yaat.Client.Core cannot reference the catalog;
-        // SpeechModelDefaultsTests enforces the equality). gemma4:e4b is the model the
-        // grammar-constrained fallback was validated against — qwen3.5:4b emitted
-        // end-of-generation for every input under the canonical-command grammar.
+        // SpeechModelDefaultsTests enforces the equality). The Whisper default is jacktol's
+        // ATC-domain medium fine-tune (ggml conversion, loaded via the engine's URI path) —
+        // it beat whisper-large-turbo3 on both accuracy and warm latency in the real-mic eval
+        // corpus. gemma4:e4b is the model the grammar-constrained fallback was validated
+        // against — qwen3.5:4b emitted end-of-generation for every input under the
+        // canonical-command grammar.
         public bool SpeechEnabled { get; set; }
-        public string WhisperModelSize { get; set; } = "whisper-large-turbo3";
+        public string WhisperModelSize { get; set; } =
+            "https://huggingface.co/borisdiakur/whisper-finetuned-for-ATC-ggml/resolve/main/whisper-medium-v3-finetuned-for-ATC-ggml.bin";
         public string LlmModelPath { get; set; } = "gemma4:e4b";
         public int LlmGpuLayers { get; set; } = -1;
 

@@ -31,8 +31,16 @@ public sealed partial class LmKitModelEntry : ObservableObject
     /// <summary>The LM-Kit ModelCard this entry wraps. Never null.</summary>
     public ModelCard Card { get; }
 
-    /// <summary>LM-Kit model identifier (e.g. <c>gemma4:e4b</c>) passed to LoadFromModelID.</summary>
-    public string ModelId => Card.ModelID;
+    private readonly string? _modelIdOverride;
+
+    /// <summary>
+    /// Model source written into preferences when the user picks this entry: an LM-Kit curated
+    /// ID (e.g. <c>gemma4:e4b</c>) for predefined cards, or the explicit override for custom
+    /// URI-backed entries — <see cref="ModelCard"/>s built from a <see cref="Uri"/> have an empty
+    /// <see cref="ModelCard.ModelID"/>, which would otherwise blank the preference on selection
+    /// and break <see cref="LmKitModelCatalog.FindById"/> preselection.
+    /// </summary>
+    public string ModelId => _modelIdOverride ?? Card.ModelID;
 
     /// <summary>Friendly name: the ModelCard's ShortModelName with a recommendation badge appended for the default.</summary>
     public string DisplayName { get; }
@@ -80,9 +88,10 @@ public sealed partial class LmKitModelEntry : ObservableObject
     /// <summary>True when the Delete button should be enabled: model is cached and no download in flight.</summary>
     public bool CanDelete => IsLocallyAvailable && !IsDownloading;
 
-    public LmKitModelEntry(ModelCard card, string displayName, LmKitModelTier tier, string description)
+    public LmKitModelEntry(ModelCard card, string displayName, LmKitModelTier tier, string description, string? modelIdOverride)
     {
         Card = card;
+        _modelIdOverride = modelIdOverride;
         DisplayName = displayName;
         Tier = tier;
         Description = description;
@@ -210,16 +219,27 @@ public sealed partial class LmKitModelEntry : ObservableObject
 ///     size between 500 MB and 16 GB (below 500 MB the model is too small for grammar-constrained
 ///     instruction following, above 16 GB it's impractical for typical dev boxes).</description></item>
 /// </list>
-/// The validated defaults (<c>whisper-large-turbo3</c> for STT, <c>gemma4:e4b</c> for LLM) are
-/// flagged as <see cref="LmKitModelTier.Recommended"/>. The full filtered set stays available;
-/// the UI preselects the recommended entry when no user preference exists.
+/// The validated defaults (the ATC-fine-tuned Whisper medium for STT — a non-predefined URI
+/// entry, see <see cref="RecommendedWhisperId"/> — and <c>gemma4:e4b</c> for LLM) are flagged as
+/// <see cref="LmKitModelTier.Recommended"/>. The full filtered set stays available; the UI
+/// preselects the recommended entry when no user preference exists.
 /// </summary>
 public static class LmKitModelCatalog
 {
     private static readonly ILogger Log = AppLog.CreateLogger(nameof(LmKitModelCatalog));
 
-    /// <summary>Validated default Whisper model ID. Preselected in the picker.</summary>
-    public const string RecommendedWhisperId = "whisper-large-turbo3";
+    /// <summary>
+    /// Validated default Whisper model source. Preselected in the picker. This is NOT an LM-Kit
+    /// curated ID — it's jacktol's ATC-domain Whisper-medium fine-tune (ggml conversion by
+    /// borisdiakur, MIT), loaded via <see cref="WhisperSttEngine"/>'s URI path and cached by
+    /// LM-Kit like any curated model. A/B on the real-mic eval corpus (2026-07-30) measured
+    /// mean WER 8.3% vs 18.1% for <c>whisper-large-turbo3</c>, with faster warm inference
+    /// (~230 ms vs ~370 ms) at a smaller download — and it natively resolves the ATC-cadence
+    /// mishears ("descendant maintain", "to 7-0") the generic model needed deterministic
+    /// recovery passes for.
+    /// </summary>
+    public const string RecommendedWhisperId =
+        "https://huggingface.co/borisdiakur/whisper-finetuned-for-ATC-ggml/resolve/main/whisper-medium-v3-finetuned-for-ATC-ggml.bin";
 
     /// <summary>Validated default LLM model ID. Preselected in the picker.</summary>
     public const string RecommendedLlmId = "gemma4:e4b";
@@ -231,12 +251,38 @@ public static class LmKitModelCatalog
     /// </summary>
     public static ObservableCollection<LmKitModelEntry> BuildWhisperCatalog()
     {
-        return BuildCatalog(
+        var catalog = BuildCatalog(
             predicate: card => card.Capabilities.HasFlag(ModelCapabilities.SpeechToText),
             recommendedId: RecommendedWhisperId,
             descriptionFor: DescribeWhisper,
             sorter: cards => cards.OrderBy(c => c.FileSize)
         );
+
+        // The recommended STT model is not in LM-Kit's predefined catalog — it's an ATC-domain
+        // fine-tune loaded by URI (see RecommendedWhisperId). Build its ModelCard explicitly and
+        // put it first so the picker leads with the recommendation. Guarded separately from
+        // BuildCatalog's try/catch: a failure here (bad URI parse, LM-Kit internals) must not
+        // discard the predefined entries.
+        try
+        {
+            var card = new ModelCard(new Uri(RecommendedWhisperId));
+            catalog.Insert(
+                0,
+                new LmKitModelEntry(
+                    card,
+                    displayName: "Whisper Medium · ATC fine-tune ★ Recommended",
+                    LmKitModelTier.Recommended,
+                    description: "jacktol ATC-domain fine-tune (ggml conversion, MIT) · trained on ATC radio corpora · ~1,463 MB",
+                    modelIdOverride: RecommendedWhisperId
+                )
+            );
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Failed to add the recommended ATC Whisper entry to the catalog");
+        }
+
+        return catalog;
     }
 
     /// <summary>
@@ -297,7 +343,7 @@ public static class LmKitModelCatalog
                 // format readable in the dropdown without looking like a code identifier.
                 var baseName = paramLabel is null ? shortName : $"{shortName} · {paramLabel}";
                 var displayName = isRecommended ? $"{baseName} ★ Recommended" : baseName;
-                result.Add(new LmKitModelEntry(card, displayName, tier, descriptionFor(card)));
+                result.Add(new LmKitModelEntry(card, displayName, tier, descriptionFor(card), modelIdOverride: null));
             }
         }
         catch (Exception ex)

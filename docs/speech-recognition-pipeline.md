@@ -93,10 +93,17 @@ depend on LM-Kit and PortAudio native libraries.
 - Returns `null` on: empty input, missing model ID, LM-Kit load failure,
   empty transcript, or noise-marker output. The orchestrator treats
   `null` as `SpeechSessionOutcome.EmptyTranscript`.
-- **Model selection:** `whisper-base` is adequate for quick dev loops;
-  `whisper-large-turbo3` is the production default (~700 ms for 7 s of
-  audio on an RTX 4090 + CUDA 13). See the LM-Kit engine decision notes
-  for probe results on N-number recognition.
+- **Model selection:** `whisper-base` is adequate for quick dev loops.
+  The production default is **jacktol's ATC-domain Whisper-medium
+  fine-tune** (ggml conversion by borisdiakur, MIT; loaded via the HF
+  resolve URL in `LmKitModelCatalog.RecommendedWhisperId` — the engine's
+  URI path downloads it into LM-Kit's cache on first use, ~1.5 GB).
+  Chosen over `whisper-large-turbo3` by the `--eval` corpus A/B
+  (2026-07-30): mean WER 8.3% vs 18.1%, warm STT ~230 ms vs ~370 ms on
+  an RTX 4090, and it natively resolves ATC-cadence mishears
+  ("descendant maintain", "to 7-0") the generic model needed the
+  deterministic recovery passes for. `whisper-large-turbo3` remains in
+  the picker as a general-English fallback.
 - **Licensing:** every process funnels through
   `src/Yaat.Client/Services/LmKitLicense.Initialize()` exactly once
   before touching LM-Kit. Lookup order: `LMKIT_LICENSE_KEY` env var →
@@ -390,7 +397,7 @@ client. All flags run via
 | `--lmkit-gpus` | Enumerate detected GPU devices for LM-Kit backend selection. |
 | `--yaat-catalog` | Dump the filtered Whisper + LLM catalogs as they appear in the Settings picker. |
 | `--ouroboros <corpus.json> [--out-dir <dir>] [--trials N]` | Synthetic round-trip harness: canonical → pilot readback → Piper TTS → full STT pipeline → compare. PASS/FLAKY/FAIL verdicts; markdown report + per-case WAVs. |
-| `--eval <corpus-dir> [--out-dir <dir>] [--trials N]` | Real-audio eval harness: scores the full production pipeline (Whisper → callsign extraction → rule → LLM) against labeled captured recordings. Reports canonical exact-match verdicts + STT word-error-rate; honors `LMKIT_TEST_MODEL`. See `EvalRunner.cs` for the corpus layout. |
+| `--eval <corpus-dir> [--out-dir <dir>] [--trials N] [--whisper <src>] [--parakeet <dir>]` | Real-audio eval harness: scores the full production pipeline (Whisper → callsign extraction → rule → LLM) against labeled captured recordings. Reports canonical exact-match verdicts, STT word-error-rate, per-trial STT latency, and per-case transcripts; honors `LMKIT_TEST_MODEL`. `--whisper` A/Bs an alternative Whisper source (curated ID / ggml path / URL); `--parakeet` swaps the STT stage for a sherpa-onnx NeMo transducer export via `SherpaSttEngine`. See `EvalRunner.cs` for the corpus layout. |
 
 No flag → Avalonia GUI for interactive probing. The GUI exposes inputs
 for active callsigns, programmed fixes, **available runways** (per-
