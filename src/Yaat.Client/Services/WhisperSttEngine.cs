@@ -19,7 +19,7 @@ namespace Yaat.Client.Services;
 public interface IWhisperRuntimeConfig
 {
     /// <summary>
-    /// LM-Kit Whisper model source: curated ID (<c>whisper-large-turbo3</c>), absolute file path
+    /// LM-Kit Whisper model source: curated ID (<c>whisper-medium</c>), absolute file path
     /// to a ggml/GGUF <c>.bin</c>, or http(s) URI (downloaded on first load).
     /// </summary>
     string ModelSource { get; }
@@ -47,7 +47,7 @@ public sealed class PreferencesWhisperRuntimeConfig : IWhisperRuntimeConfig
 /// The Whisper <see cref="LM"/> is loaded lazily on first <see cref="TranscribeAsync"/> call
 /// using <see cref="IWhisperRuntimeConfig.ModelSource"/> (in production the
 /// <see cref="UserPreferences.WhisperModelSize"/>-backed adapter; e.g.
-/// <c>whisper-base</c>, <c>whisper-large-turbo3</c>). Subsequent calls reuse the same model
+/// <c>whisper-base</c>, <c>whisper-medium</c>). Subsequent calls reuse the same model
 /// handle. The <see cref="SpeechToText"/> instance is also cached because it's a thin wrapper;
 /// only the <see cref="SpeechToText.Prompt"/> property is updated per-call to reflect the current
 /// biasing prompt (active callsigns + ATC vocabulary).
@@ -279,7 +279,7 @@ public sealed class WhisperSttEngine : IDisposable
 
             // Source dispatch matches LocalLlmService: rooted file path → file constructor;
             // http/https URI → URI constructor (auto-downloads); bare string → LoadFromModelID
-            // (LM-Kit's curated catalog like "whisper-base", "whisper-large-turbo3"). Whisper
+            // (LM-Kit's curated catalog like "whisper-base", "whisper-medium"). Whisper
             // models use LM-Kit's auto-default DeviceConfiguration (null) — there's no
             // user-tunable layer count for STT, the engine picks based on available VRAM.
             DeviceConfiguration? deviceConfig = null;

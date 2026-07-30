@@ -423,8 +423,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _speechEnabled;
 
+    // Overwritten from UserPreferences at load; the initializer only covers the window between
+    // construction and load, so point it at the same recommendation the preferences default to.
     [ObservableProperty]
-    private string _whisperModelSize = "whisper-large-turbo3";
+    private string _whisperModelSize = LmKitModelCatalog.RecommendedWhisperId;
 
     [ObservableProperty]
     private string _llmModelPath = "";

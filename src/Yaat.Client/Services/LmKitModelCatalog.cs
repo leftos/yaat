@@ -252,7 +252,14 @@ public static class LmKitModelCatalog
     public static ObservableCollection<LmKitModelEntry> BuildWhisperCatalog()
     {
         var catalog = BuildCatalog(
-            predicate: card => card.Capabilities.HasFlag(ModelCapabilities.SpeechToText),
+            // whisper-large-turbo3 is deliberately delisted: it was the pre-ATC-fine-tune
+            // default, and leaving it in the picker invites users back onto a model the corpus
+            // A/B showed losing on every axis (WER, latency, download size). A saved preference
+            // that still points at it keeps loading — the engine accepts any curated ID — the
+            // picker just shows no selection for it, like any other custom source.
+            predicate: card =>
+                card.Capabilities.HasFlag(ModelCapabilities.SpeechToText)
+                && !string.Equals(card.ModelID, "whisper-large-turbo3", StringComparison.OrdinalIgnoreCase),
             recommendedId: RecommendedWhisperId,
             descriptionFor: DescribeWhisper,
             sorter: cards => cards.OrderBy(c => c.FileSize)

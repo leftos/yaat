@@ -1842,7 +1842,7 @@ public sealed class UserPreferences
         public Dictionary<string, List<CommandHistoryEntry>> ScenarioCommandHistory { get; set; } = [];
 
         // Speech recognition. With the LM-Kit engine swap, WhisperModelSize and LlmModelPath
-        // hold LM-Kit model sources — curated IDs (e.g. "whisper-large-turbo3", "gemma4:e4b"),
+        // hold LM-Kit model sources — curated IDs (e.g. "whisper-medium", "gemma4:e4b"),
         // absolute file paths, or http(s) URIs. The previous values like "base.en" (Whisper.net
         // ggml suffix) and explicit GGUF paths still resolve correctly through the same
         // dispatch logic in WhisperSttEngine.EnsureLoaded / LocalLlmService.EnsureLoaded.
