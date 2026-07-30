@@ -1744,7 +1744,7 @@ Two collapsible sections, each toggled by its header checkbox. Speech recognitio
 | Setting | What it does | Default |
 |---------|--------------|---------|
 | **Auto-focus command input after PTT** | Focuses the command input after a PTT transcript so you can press Enter to send without mousing. | On |
-| **Whisper Model** | Speech-to-text model picker with **Download now** / **Delete cached** and a size/cached indicator. Pre-downloading avoids the first-PTT stall. | Whisper Large Turbo v3 |
+| **Whisper Model** | Speech-to-text model picker with **Download now** / **Delete cached** and a size/cached indicator. Pre-downloading avoids the first-PTT stall. | Whisper Medium · ATC fine-tune |
 | **LLM Model** | Command-interpretation model picker (download/delete), or **Browse…** for a custom GGUF. | Qwen 3.5 4B |
 | **Acceleration** | GPU backend summary; on supported Windows GPUs, install/uninstall the optional NVIDIA CUDA 13 runtime. **LLM GPU layers** offloads N layers (−1 = auto, 0 = CPU only). | GPU layers: −1 (auto) |
 | **PTT key** | Hold-to-record key; click to capture a new one. Microphone is set on the Audio tab. | Right Ctrl |

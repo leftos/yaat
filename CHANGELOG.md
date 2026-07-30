@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.10.0-beta [2026/07/30]
+
+### Highlights
+- Move an IFR arrival flying a visual to another runway in one command — `EF 28L`, with no `CIFR` first. A new **Settings > Scenarios > VFR commands for IFR aircraft** choice sets how much of the VFR-only set IFR aircraft accept.
+- Speech recognition now defaults to a Whisper model fine-tuned on air-traffic-control radio — it hears rapid clearances and three-digit headings the old general-purpose model garbled, and it's a faster, smaller download.
+- Drawings on CRC's ASDE-X and SAAB SAID displays now reach the server and stick, surviving scenario reloads, server restarts, and later rooms. SFO ships marked final-approach centerlines, and **Tools** can export or reset the geometry.
+- Restarting a scenario, rewinding, or loading a recording now updates every RPO in the room — and a restart keeps your session settings and loaded weather.
 
 ### Added
 - **Tools > Export ASDE-X / SAID Temp Data...** saves the drawn geometry as one file per facility, ready to commit to the project.
@@ -11,6 +17,7 @@
 - **Settings > Scenarios > VFR commands for IFR aircraft** sets how much of the VFR-only set an IFR aircraft accepts: EF only (default), all, or none.
 - An IFR aircraft keeps its flight plan when it takes a VFR-only command, and the terminal notes the first one per aircraft.
 - The setting is per-controller — other RPOs keep their own — and the right-click menus follow yours.
+- A pattern entry that moves an IFR aircraft to a runway also clears it for the visual to that runway, and `CTO OC` / `CTO DCT`/`TLDCT`/`TRDCT` work on IFR departures.
 
 ### Changed
 - Speech recognition now defaults to a Whisper model fine-tuned on air-traffic-control radio speech, which recognized ATC phraseology clearly better than the previous general-purpose model in side-by-side testing (it correctly hears rapid clearances like "descend and maintain" and three-digit headings that the old model garbled) — and it's faster and a smaller download (~1.5 GB). It appears in Settings → Speech as "Whisper Medium · ATC fine-tune ★ Recommended" and downloads on first use. The previous default (`whisper-large-turbo3`) is removed from the model picker; if your settings still point at it, it keeps working but shows as a custom source until you switch.
@@ -33,16 +40,10 @@
 - The datablock `*` marker shows for every armed delete, not only `ONHS DEL`.
 - Areas, closed areas, and text drawn on CRC's ASDE-X or SAAB SAID display now reach the server instead of being silently discarded.
 - Drawn surface geometry persists across scenario reloads, server restarts, and later rooms instead of vanishing with the display that drew it.
-- Saving drawn geometry into a numbered set uses the set number you typed, and CRC confirms with `SET nn SAVED`.
-- Deleting a drawn object removes that object.
-- Geometry drawn for one airport's surface display no longer appears on another's.
-- Surface geometry shipped with the project, such as SFO's marked final-approach centerlines, draws on CRC's ASDE-X display.
 - A departure re-taxied across one runway to a parallel one holds short of its new departure runway, and a plain `LUAW` lines it up.
 - An aircraft crossing a runway onto the next one's hold line stops short of the markings instead of a half-fuselage past them.
 - An aircraft holding short of a runway and then re-routed across it — for example a departure at the 28L bar on Foxtrot given `TAXI F C HS 10R RWY 28R` at SFO — now holds where it is instead of taxiing over the runway first and stopping at the hold-short line on the far side. Previously it drove across without a crossing clearance, which at SFO meant crossing 28L with another aircraft lined up and waiting on it.
-- A pattern entry that moves an IFR aircraft to a runway grants it a visual approach clearance for that runway.
 - A straight-in final flown without an approach clearance is no longer graded against the instrument-approach intercept rules.
-- `CTO OC` and `CTO DCT`/`TLDCT`/`TRDCT` work on IFR departures.
 
 ## v0.9.18-beta [2026/07/29]
 
