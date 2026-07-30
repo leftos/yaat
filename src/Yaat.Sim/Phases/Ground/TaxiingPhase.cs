@@ -32,8 +32,14 @@ public sealed class TaxiingPhase : Phase
     // nose-at-spot terminal stop lands cleanly instead of braking abruptly from taxi speed.
     private const double SpotApproachSpeedKts = 4.0;
 
+    // How close to the route's start node the aircraft must still be for a hold-short there to bind.
+    // Well inside the hold-short standoff (>=125 ft from centerline), so honouring it can never place
+    // the aircraft on the runway.
+    private const double StartNodeHoldRadiusFt = 150.0;
+
     private GroundNavigator _nav = new();
     private bool _initialized;
+    private bool _startNodeHoldChecked;
     private double _timeSinceLastLog;
 
     // Set when this phase completes to hand off to a still-moving CrossingRunwayPhase
@@ -103,6 +109,18 @@ public sealed class TaxiingPhase : Phase
                 ctx.Aircraft.IndicatedAirspeed - CategoryPerformance.TaxiDecelRate(ctx.Category) * ctx.DeltaSeconds
             );
             return false;
+        }
+
+        // A hold-short on the route's own start node: the aircraft was re-routed while already parked
+        // at the bar, so it must not move until it is cleared. ArriveAtNode never fires for that node
+        // — it is no segment's ToNodeId — so the stop has to be taken here, before the first segment.
+        if (!_startNodeHoldChecked)
+        {
+            _startNodeHoldChecked = true;
+            if (TryHoldAtRouteStartNode(ctx, route))
+            {
+                return true;
+            }
         }
 
         // Nose-at-spot terminal stop (issue #234): a taxiing aircraft parks with the front of its
@@ -313,7 +331,7 @@ public sealed class TaxiingPhase : Phase
             ctx.Targets.TargetSpeed = 0;
 
             var holdPhase = new HoldingShortPhase(holdShort);
-            var resumePhases = BuildResumePhases(ctx, route, holdShort);
+            var resumePhases = BuildResumePhases(ctx, route, holdShort, advancePastCurrentSegment: true);
 
             var insertList = new List<Phase> { holdPhase };
             insertList.AddRange(resumePhases);
@@ -449,10 +467,65 @@ public sealed class TaxiingPhase : Phase
         return false;
     }
 
-    private static List<Phase> BuildResumePhases(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort)
+    /// <summary>
+    /// Take the hold-short sitting on the route's own start node, if any is still binding. Used when a
+    /// TAXI re-route is issued to an aircraft already stopped at a runway holding position and the new
+    /// route crosses that runway: the bar it is parked on is the one to honour, so it holds in place
+    /// rather than driving over the runway to the bar on the far side (issue #316).
+    /// </summary>
+    private static bool TryHoldAtRouteStartNode(PhaseContext ctx, TaxiRoute route)
+    {
+        if ((route.CurrentSegmentIndex != 0) || (route.Segments.Count == 0) || (ctx.GroundLayout is null))
+        {
+            return false;
+        }
+
+        int startNodeId = route.Segments[0].FromNodeId;
+        var holdShort = route.GetHoldShortAt(startNodeId);
+        if (holdShort is null || holdShort.IsCleared)
+        {
+            return false;
+        }
+
+        // Only binds while the aircraft is still on the bar; anything further along has passed it.
+        if (
+            !ctx.GroundLayout.Nodes.TryGetValue(startNodeId, out var startNode)
+            || ((GeoMath.DistanceNm(ctx.Aircraft.Position, startNode.Position) * GeoMath.FeetPerNm) > StartNodeHoldRadiusFt)
+        )
+        {
+            return false;
+        }
+
+        Log.LogDebug(
+            "[Taxi] {Callsign}: holding short at route start node {NodeId} (target {Target}, reason {Reason})",
+            ctx.Aircraft.Callsign,
+            startNodeId,
+            holdShort.TargetName,
+            holdShort.Reason
+        );
+
+        ctx.Aircraft.IndicatedAirspeed = 0;
+        ctx.Targets.TargetSpeed = 0;
+        ctx.MarkHoldShortNodeOccupied?.Invoke(startNodeId);
+
+        var insertList = new List<Phase> { new HoldingShortPhase(holdShort) };
+        insertList.AddRange(BuildResumePhases(ctx, route, holdShort, advancePastCurrentSegment: false));
+        ctx.Aircraft.Phases?.InsertAfterCurrent(insertList);
+        return true;
+    }
+
+    /// <summary>
+    /// Phases to run once <paramref name="holdShort"/> is released. <paramref name="advancePastCurrentSegment"/>
+    /// is true when the aircraft reached the bar by arriving at the current segment's far end (that segment
+    /// is spent), false when the bar is the route's start node and no segment has been traversed yet.
+    /// </summary>
+    private static List<Phase> BuildResumePhases(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort, bool advancePastCurrentSegment)
     {
         var phases = new List<Phase>();
-        route.CurrentSegmentIndex++;
+        if (advancePastCurrentSegment)
+        {
+            route.CurrentSegmentIndex++;
+        }
 
         if (holdShort.Reason == HoldShortReason.DestinationRunway)
         {

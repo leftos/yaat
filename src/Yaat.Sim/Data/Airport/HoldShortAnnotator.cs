@@ -45,6 +45,66 @@ internal static class HoldShortAnnotator
     private static readonly ILogger Log = SimLog.CreateLogger("HoldShortAnnotator");
 
     /// <summary>
+    /// True when the route leaves <paramref name="startNodeId"/> — a hold-short bar the aircraft is
+    /// parked on — passes over <paramref name="startRwyId"/>, and reaches that runway's paired bar on
+    /// the far side. In other words, the aircraft is standing at the entry side of a crossing it is
+    /// about to make, so that bar is the one a hold-short binds to and the far bar is its exit pair.
+    ///
+    /// Requiring the runway to actually be traversed in between is what separates a real pair from an
+    /// unrelated later crossing of the same runway (an aircraft that just vacated a runway onto a
+    /// single-sided exit bar must not be paired with a bar it reaches minutes later).
+    ///
+    /// The scan deliberately does NOT stop at a taxiway change: when a crossing point doubles as a
+    /// taxiway junction, its two bars carry different taxiway names (SFO 10R/28L — near bar on Foxtrot,
+    /// far bar on Charlie). Stopping there was issue #316, where the far bar became the hold-short and
+    /// the aircraft taxied over an occupied runway to reach it.
+    /// </summary>
+    internal static bool RouteCrossesRunwayAfterStart(
+        AirportGroundLayout layout,
+        IReadOnlyList<TaxiRouteSegment> segments,
+        int startNodeId,
+        RunwayIdentifier startRwyId
+    )
+    {
+        bool traversedRunway = false;
+        foreach (var seg in segments)
+        {
+            if (seg.ToNodeId == startNodeId)
+            {
+                continue;
+            }
+
+            traversedRunway = traversedRunway || SegmentRunsAlongRunway(seg, startRwyId);
+
+            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
+            {
+                continue;
+            }
+
+            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rwyId && rwyId.Equals(startRwyId))
+            {
+                return traversedRunway;
+            }
+
+            traversedRunway = traversedRunway || NodeLiesOnRunway(node, startRwyId);
+        }
+
+        return false;
+    }
+
+    /// <summary>True when this segment runs along <paramref name="runwayId"/>'s centerline.</summary>
+    private static bool SegmentRunsAlongRunway(TaxiRouteSegment segment, RunwayIdentifier runwayId) =>
+        segment.Edge.Edge.IsRunwayCenterline && (segment.Edge.Edge.MatchesRunway(runwayId.End1) || segment.Edge.Edge.MatchesRunway(runwayId.End2));
+
+    /// <summary>
+    /// True when this node sits on <paramref name="runwayId"/>'s centerline. A taxiway that crosses a
+    /// runway is split at the centerline, so the crossing point is a node incident to a runway edge —
+    /// which is how a one-point crossing is recognised, since no route segment runs along the runway.
+    /// </summary>
+    private static bool NodeLiesOnRunway(GroundNode node, RunwayIdentifier runwayId) =>
+        node.Edges.Exists(edge => edge.IsRunwayCenterline && (edge.MatchesRunway(runwayId.End1) || edge.MatchesRunway(runwayId.End2)));
+
+    /// <summary>
     /// Scans the segment list for runway hold-short nodes and inserts implicit
     /// hold-short points at each runway crossing entry. Exit-side nodes are
     /// recognised by entry/exit pairing and skipped.
@@ -73,13 +133,7 @@ internal static class HoldShortAnnotator
         // the B crossing of 28R, reached after taxiing H → C → B), not the
         // pair of the starting HS at all.
         //
-        // Distinguish the two cases by walking forward along segments[0]'s
-        // taxiway looking for a paired HS on the same taxiway. Runway
-        // crossings place HSes on both sides of the runway along one named
-        // taxiway (e.g., B: HS@188 → interior → HS@186, both labeled "B").
-        // If we find a paired HS on the same taxiway, the starting HS is the
-        // entry side of a crossing — pre-seed. If we don't, the aircraft is
-        // leaving the runway and the starting HS is standalone — skip.
+        // RouteCrossesRunwayAfterStart separates the two.
         if (segments.Count > 0)
         {
             int startNodeId = segments[0].FromNodeId;
@@ -89,48 +143,22 @@ internal static class HoldShortAnnotator
                 && startNode.RunwayId is { } startRwyId
             )
             {
-                string startTaxiway = segments[0].TaxiwayName;
-                bool hasPairedExit = false;
-                foreach (var seg in segments)
-                {
-                    if (seg.TaxiwayName != startTaxiway)
-                    {
-                        break;
-                    }
-                    if (seg.ToNodeId == startNodeId)
-                    {
-                        continue;
-                    }
-                    if (
-                        layout.Nodes.TryGetValue(seg.ToNodeId, out var segToNode)
-                        && segToNode.Type == GroundNodeType.RunwayHoldShort
-                        && segToNode.RunwayId is { } segRwyId
-                        && segRwyId.Equals(startRwyId)
-                    )
-                    {
-                        hasPairedExit = true;
-                        break;
-                    }
-                }
-
-                if (hasPairedExit)
+                if (RouteCrossesRunwayAfterStart(layout, segments, startNodeId, startRwyId))
                 {
                     enteredRunways[startRwyId] = startNodeId;
                     seenHsNodes.Add((startRwyId, startNodeId));
                     Log.LogDebug(
-                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — pre-seeded as entry (paired crossing on {Taxiway})",
+                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — pre-seeded as entry (paired crossing ahead)",
                         startNodeId,
-                        startRwyId,
-                        startTaxiway
+                        startRwyId
                     );
                 }
                 else
                 {
                     Log.LogDebug(
-                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — NOT pre-seeding (exit-only, no paired HS on {Taxiway})",
+                        "[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — NOT pre-seeding (exit-only, route never crosses it)",
                         startNodeId,
-                        startRwyId,
-                        startTaxiway
+                        startRwyId
                     );
                 }
             }

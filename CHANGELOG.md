@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+<<<<<<< Updated upstream
 ### Added
 - **Tools > Export ASDE-X / SAID Temp Data...** saves the drawn geometry as one file per facility, ready to commit to the project.
 - **Tools > Reset ASDE-X / SAID Temp Data to Defaults...** discards everything drawn and restores the geometry shipped with the project.
@@ -34,6 +35,7 @@
 - Geometry drawn for one airport's surface display no longer appears on another's.
 - A departure re-taxied across one runway to a parallel one holds short of its new departure runway, and a plain `LUAW` lines it up.
 - An aircraft crossing a runway onto the next one's hold line stops short of the markings instead of a half-fuselage past them.
+- An aircraft holding short of a runway and then re-routed across it — for example a departure at the 28L bar on Foxtrot given `TAXI F C HS 10R RWY 28R` at SFO — now holds where it is instead of taxiing over the runway first and stopping at the hold-short line on the far side. Previously it drove across without a crossing clearance, which at SFO meant crossing 28L with another aircraft lined up and waiting on it.
 
 ## v0.9.18-beta [2026/07/29]
 

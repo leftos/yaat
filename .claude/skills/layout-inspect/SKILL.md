@@ -92,7 +92,7 @@ Most list-valued flags are **repeatable AND accept comma-separated values** — 
 | `--exits 28R` | yes / yes | BFS-discovered exits with angle/side/high-speed classification |
 | `--bfs N T` | no | BFS trace from node N through taxiway T to hold-short |
 | `--walk-trace N T` | no | Detailed walker trace (developer diagnostic) |
-| `--pathfinder N T1 T2 ...` | no (greedy) | Resolve explicit taxi route through taxiway sequence |
+| `--pathfinder N T1 T2 ...` | no (greedy) | Resolve explicit taxi route through taxiway sequence; prints the resolved segments **and** the route's hold-short points (node, target, reason, cleared) |
 | `--pf-dest-rwy R` | no | Destination runway hint for `--pathfinder` |
 | `--pf-hold-shorts HS` | yes / yes | Explicit hold-short targets for `--pathfinder` |
 | `--pf-dest-parking P`, `--pf-dest-spot S`, `--pf-dest-node N` | no | Pathfinder destinations |

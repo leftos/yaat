@@ -62,6 +62,21 @@ GeoJSON shape-point happens to sit nearby, scattering the standoff by up to the 
 out past it. Tightening to the coincident-node threshold forces a node at the exact standoff whenever
 no shape-point is essentially already there, making placement angle-independent.
 
+## Placement is not selection
+
+This file covers where the bars **are**. Which one a *route* binds its `HoldShortPoint` to is a separate
+decision, made by `RouteMaterialiser.AnnotateHoldShorts` — see
+[pathfinder.md](./pathfinder.md#hold-short-handling--truncation). Both bars of a crossing are placed
+correctly and carry the same combined `RunwayId` (`10R/28L`), so a name match alone cannot tell them
+apart; the route must bind the bar on the side the aircraft approaches from.
+
+The shape that breaks a naive pairing: **the crossing point can also be a taxiway junction**, which puts
+the two bars of one crossing on differently-named taxiways. At SFO the F/C junction sits exactly on the
+28L centerline, so 10R/28L's near bar is on `F` and its far bar is on `C`. Any pairing walk that stops at
+a taxiway change misses the pair — that was issue #316, where a departure told to hold short of 10R drove
+over an occupied 28L to reach the Charlie bar. Pair by *"does the route pass over the runway in between"*
+(`HoldShortAnnotator.RouteCrossesRunwayAfterStart`), never by taxiway name.
+
 ## Footguns
 
 - **Node IDs are ephemeral.** They are assigned by mint order and regenerated on every parse; any

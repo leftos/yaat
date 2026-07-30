@@ -109,6 +109,26 @@ Preference multipliers: `FewestTurns` ×5 on turn + transition; `Shortest` zeroe
 
 `RouteMaterialiser.AnnotateHoldShorts` tags every `RunwayHoldShort` node with `RunwayCrossing` (or `ExplicitHoldShort` when the runway is in the command's `HS` list). Multi-runway bars (`28L/28R`) add one point with the full string. **A runway the controller cleared the aircraft to taxi *along*** (named as a path waypoint, collected into `clearedRunways` from `ctx.WaypointSequence`) is exempt — no hold-short is placed at its boundary, so the aircraft taxis straight onto and along it; a *different* runway the route merely crosses still pairs and annotates as before, and the destination runway (handled first) keeps its terminus stop. The materialiser also annotates `HS` targets that name a **taxiway** (not a runway): it scans the resolved segments and adds one `ExplicitHoldShort` at the first node adjacent to that taxiway. The route is then **truncated** by `FindTruncationIndex`, discarding trailing pavement. `IsCleared`/`ClearedByAutoCross` start false (downstream owns them).
 
+**Entry/exit pairing, and the bar the aircraft is already parked on.** For each crossed runway the first
+`RunwayHoldShort` node encountered is the crossing's **entry** side and gets the point; the second
+distinct node for that runway is the **exit** side and is dropped, so the aircraft never stops on the far
+side of a runway it is cleared through. A route can also *begin* on a bar — the common case is an
+aircraft holding short of its departure runway that gets re-routed to a different one. `AnnotateStartCrossing`
+handles that: `segments[0].FromNodeId` is never any segment's `ToNodeId`, so the main loop cannot see it,
+and without this pass the *far* bar becomes the "entry" and the aircraft taxis over the runway to reach
+its own hold-short (issue #316 — SFO `TAXI F C HS 10R RWY 28R` sent a departure across 28L with another
+aircraft lined up on it). Pairing is decided by `HoldShortAnnotator.RouteCrossesRunwayAfterStart`: the
+route must actually pass over the runway between the two bars. It must **not** be decided by taxiway name
+— where a crossing point doubles as a taxiway junction the two bars carry different names (SFO 10R/28L:
+near bar on `F`, far bar on `C`), which is exactly what the old same-taxiway walk missed. That predicate is
+shared with `HoldShortAnnotator.AddImplicitRunwayHoldShorts`, the older twin that annotates appended
+parking extensions and runway-exit routes — keep them on one definition, they have drifted before.
+
+Truncation keys hold-shorts on segment `ToNodeId`s **plus** `segments[0].FromNodeId`, so a start-node bar
+survives. `TaxiingPhase.TryHoldAtRouteStartNode` takes the stop, since `ArriveAtNode` never fires for a
+node the aircraft is already standing on; it binds only while the aircraft is still within
+`StartNodeHoldRadiusFt` of that node.
+
 A taxiway `HS` target is more than a post-hoc annotation — it also **steers** the route. `GroundCommandHandler.AugmentPathWithHoldShortTaxiways` folds each taxiway-named `HS` target into the waypoint sequence before the search (a directional hint), so `TAXI D C HS E RWY 28R` routes `D → C → E` — through E, not detouring around it via un-named taxiways — exactly as if E were named in the path. Runway `HS` targets are never folded (they have no taxiway nodes); they stay in `ExplicitHoldShorts` and match `RunwayHoldShort` nodes only.
 
 #### Hold-shorts issued *after* the route is resolved

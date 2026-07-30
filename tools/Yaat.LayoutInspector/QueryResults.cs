@@ -202,10 +202,13 @@ public sealed record BfsPathResult(
 
 public sealed record PathfinderSegment(string TaxiwayName, int FromNodeId, int ToNodeId);
 
+public sealed record PathfinderHoldShort(int NodeId, string? TargetName, string Reason, bool IsCleared);
+
 public sealed record PathfinderResult(
     int FromNodeId,
     List<string> Taxiways,
     List<string> DiagnosticLog,
     List<PathfinderSegment>? Segments,
+    List<PathfinderHoldShort>? HoldShorts,
     string? FailReason
 );

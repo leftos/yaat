@@ -58,7 +58,7 @@ inspector-template.html     Client-side pan/zoom/tick-overlay; URL-hash persiste
 | `--runway 28R` | Centerline + hold-short nodes |
 | `--exits 28R` | BFS-discovered exits with angle/side/high-speed classification |
 | `--bfs N T` | BFS trace from node N through taxiway T to hold-short |
-| `--pathfinder N T1 T2 ...` | Resolve explicit taxi route with diagnostic trace |
+| `--pathfinder N T1 T2 ...` | Resolve explicit taxi route with diagnostic trace, resolved segments, and the route's `HoldShortPoint`s (node, runway/taxiway target, reason, cleared flag) |
 | `--distance N1 N2` | Straight-line (great-circle) distance + bearing between two nodes (ft + nm + °true) |
 | `--path-distance N1 N2 ...` | Cumulative distance + per-leg bearing along a node sequence; per-leg uses the graph edge (arc-aware) where one exists, else great-circle. Also reports heading range (max−min leg bearing) and total absolute turn — large turn = tracks a curve, near-zero = beeline |
 | `--dump` | Full airport JSON (pipe to file for grepping) |

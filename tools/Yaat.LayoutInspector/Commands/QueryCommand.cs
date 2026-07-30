@@ -214,7 +214,18 @@ public sealed class QueryCommand : ICommand
                 ScanRouteForAnomalies(analyzer, combinedSegments, options.PathfinderTaxiways, explicitWalkCount, diagLog);
             }
 
-            var pfResult = new PathfinderResult(options.PathfinderNodeId.Value, options.PathfinderTaxiways, diagLog, combinedSegments, pfFailReason);
+            var pfHoldShorts = pfRoute
+                ?.HoldShortPoints.Select(hs => new PathfinderHoldShort(hs.NodeId, hs.TargetName, hs.Reason.ToString(), hs.IsCleared))
+                .ToList();
+
+            var pfResult = new PathfinderResult(
+                options.PathfinderNodeId.Value,
+                options.PathfinderTaxiways,
+                diagLog,
+                combinedSegments,
+                pfHoldShorts,
+                pfFailReason
+            );
             formatter.WritePathfinder(pfResult);
         }
 

@@ -43,8 +43,14 @@ public static class RouteMaterialiser
         else if (truncateAt >= 0 && truncateAt < segments.Count - 1)
         {
             segments = segments.Take(truncateAt + 1).ToList();
+
+            // Keep the route's own start node: a hold-short the aircraft is already parked at is never
+            // any segment's ToNodeId, so filtering on ToNodeId alone would silently drop it.
+            int startNodeId = segments.Count > 0 ? segments[0].FromNodeId : -1;
             holdShorts = holdShorts
-                .Where(hs => segments.Any(s => s.ToNodeId == hs.NodeId) || hs.NodeId == runwaySurfaceEntry?.HoldShortNodeId)
+                .Where(hs =>
+                    (hs.NodeId == startNodeId) || segments.Any(s => s.ToNodeId == hs.NodeId) || (hs.NodeId == runwaySurfaceEntry?.HoldShortNodeId)
+                )
                 .ToList();
         }
 
@@ -99,10 +105,9 @@ public static class RouteMaterialiser
         // RunwayHoldShort node for a runway is the entry side (annotate); the second distinct
         // node for that runway is the exit side of the same crossing (skip). The destination
         // runway is exempt — it is the route terminus, always annotated. When the route begins
-        // mid-crossing (e.g. re-routed from a runway hold-short), pre-seed the start node as an
-        // entry so its exit-side pair is skipped.
+        // ON a bar (e.g. re-routed from a runway hold-short), that bar is the entry side.
         var enteredRunways = new Dictionary<RunwayIdentifier, int>();
-        PreSeedStartCrossing(segments, ctx, enteredRunways);
+        AnnotateStartCrossing(segments, ctx, clearedRunways, holdShorts, seen, enteredRunways);
 
         foreach (var seg in segments)
         {
@@ -254,15 +259,23 @@ public static class RouteMaterialiser
         (segment.Edge.Edge.IsRunwayCenterline) && (segment.Edge.Edge.MatchesRunway(runwayId));
 
     /// <summary>
-    /// When the route begins at a runway hold-short and the aircraft is mid-crossing (there is a
-    /// paired hold-short for the same runway further along the starting taxiway), pre-seed the
-    /// start node as an entry so the next encounter of that runway's hold-short is treated as the
-    /// exit side and skipped. A route that begins at a single-sided exit hold-short (just vacated
-    /// the runway, no paired hold-short ahead on the same taxiway) is NOT pre-seeded — its next
-    /// runway hold-short is a genuine new crossing entry. Mirrors HoldShortAnnotator's start-node
-    /// pre-seed.
+    /// When the route begins ON a runway hold-short bar and goes on to cross that runway, annotate
+    /// the start bar as the crossing's entry side and seed it so the far-side bar is dropped as its
+    /// exit pair. The aircraft is already standing at the holding position, so that bar — not the
+    /// one across the runway — is where "hold short of X" applies; binding the far bar instead would
+    /// send the aircraft over the runway to reach its own hold-short (issue #316).
+    ///
+    /// A route that begins at a single-sided exit bar (just vacated the runway and never crosses it
+    /// again) is not a crossing and is left alone: its next hold-short is a genuine new entry.
     /// </summary>
-    private static void PreSeedStartCrossing(List<TaxiRouteSegment> segments, SearchContext ctx, Dictionary<RunwayIdentifier, int> enteredRunways)
+    private static void AnnotateStartCrossing(
+        List<TaxiRouteSegment> segments,
+        SearchContext ctx,
+        List<string> clearedRunways,
+        List<HoldShortPoint> holdShorts,
+        HashSet<int> seen,
+        Dictionary<RunwayIdentifier, int> enteredRunways
+    )
     {
         if (segments.Count == 0)
         {
@@ -274,35 +287,37 @@ public static class RouteMaterialiser
             !ctx.Layout.Nodes.TryGetValue(startNodeId, out var startNode)
             || startNode.Type != GroundNodeType.RunwayHoldShort
             || startNode.RunwayId is not { } startRwyId
+            || !HoldShortAnnotator.RouteCrossesRunwayAfterStart(ctx.Layout, segments, startNodeId, startRwyId)
         )
         {
             return;
         }
 
-        string startTaxiway = segments[0].TaxiwayName;
-        foreach (var seg in segments)
+        // Same precedence as the main loop, which owns both of these cases: the destination runway's
+        // bar is the route terminus, and a runway the aircraft is cleared to taxi ALONG gets no bar.
+        if (ctx.Destination.Kind == DestinationKind.Runway && ctx.Destination.RunwayId is { } destRwy && startRwyId.Contains(destRwy))
         {
-            if (seg.TaxiwayName != startTaxiway)
-            {
-                break;
-            }
-
-            if (seg.ToNodeId == startNodeId)
-            {
-                continue;
-            }
-
-            if (
-                ctx.Layout.Nodes.TryGetValue(seg.ToNodeId, out var segToNode)
-                && segToNode.Type == GroundNodeType.RunwayHoldShort
-                && segToNode.RunwayId is { } segRwyId
-                && segRwyId.Equals(startRwyId)
-            )
-            {
-                enteredRunways[startRwyId] = startNodeId;
-                return;
-            }
+            return;
         }
+
+        if (clearedRunways.Exists(designator => startRwyId.Contains(designator)))
+        {
+            return;
+        }
+
+        seen.Add(startNodeId);
+        enteredRunways[startRwyId] = startNodeId;
+
+        holdShorts.Add(
+            new HoldShortPoint
+            {
+                NodeId = startNodeId,
+                Reason = MatchesExplicitHoldShort(startRwyId, ctx.ExplicitHoldShorts)
+                    ? HoldShortReason.ExplicitHoldShort
+                    : HoldShortReason.RunwayCrossing,
+                TargetName = startRwyId.ToString(),
+            }
+        );
     }
 
     /// <summary>

@@ -787,7 +787,7 @@ CoordinateIndex.cs             # Spatial index for coordinate-based lookups
 RunwayCrossingDetector.cs      # Detect taxiway/runway crossings; seat hold-short bars at the constant perpendicular standoff (geojson holdShortDistance, else AC 150/5300-13B width heuristic) — see docs/ground/hold-short-placement.md
 RunwayIntersectionCalculator.cs # Runway centerline/projected-path intersections for LAHSO and solo-training runway scoring
 RunwayEntryPoint.cs            # Classify a runway hold short as full-length vs intersection departure for a given end: nearest hold short (along-track on the pavement centerline) is full length, plus an OPPOSITE-side one within OppositeSideBandFt or on the same taxiway (one entrance reachable from both sides); SAME-side extras are always named intersections. Display only, feeds RunwayDepartureQueue
-HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length
+HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length. Owns RouteCrossesRunwayAfterStart, the shared "is the route's start bar the entry side of a crossing it makes" predicate — RouteMaterialiser.AnnotateStartCrossing uses the same one so the two annotators cannot drift (see docs/ground/pathfinder.md)
 
 # Data/
 AircraftProfile.cs             # Per-type performance profile record (from AircraftProfiles.json)

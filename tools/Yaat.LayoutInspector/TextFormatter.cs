@@ -276,6 +276,17 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
                 w.WriteLine($"  {seg.TaxiwayName}: {seg.FromNodeId} -> {seg.ToNodeId}");
             }
         }
+
+        if (r.HoldShorts is not null)
+        {
+            w.WriteLine();
+            w.WriteLine($"HOLD-SHORTS: {r.HoldShorts.Count}");
+            foreach (var hs in r.HoldShorts)
+            {
+                string cleared = hs.IsCleared ? " cleared" : "";
+                w.WriteLine($"  #{hs.NodeId} {hs.TargetName ?? "(none)"} ({hs.Reason}){cleared}");
+            }
+        }
     }
 
     private void WriteNodeCompact(NodeInfo n, string indent = "  ")
