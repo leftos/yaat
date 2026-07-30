@@ -220,6 +220,23 @@ public class GroundParserTests
         Assert.Equal(["28R"], taxi.CrossRunways);
     }
 
+    /// <summary>
+    /// The form COMMANDS.md gives scenario authors for pre-clearing crossings the file always expects
+    /// (issue #314's closed 1L/1R at SFO): several runways after <c>CROSS</c>, then an explicit
+    /// <c>RWY</c> for the destination. The <c>RWY</c> keyword is load-bearing — trailing-runway
+    /// detection only inspects the path, and <c>CROSS</c> diverts tokens away from it, so without
+    /// <c>RWY</c> the 28L joins the crossing list instead of becoming the destination.
+    /// </summary>
+    [Fact]
+    public void TaxiWithCross_MultipleRunways_ThenExplicitDestinationRunway()
+    {
+        var cmd = CommandParser.Parse("TAXI T6A A F CROSS 1L 1R RWY 28L");
+        var taxi = Assert.IsType<TaxiCommand>(cmd.Value);
+        Assert.Equal(["T6A", "A", "F"], taxi.Path);
+        Assert.Equal(["1L", "1R"], taxi.CrossRunways);
+        Assert.Equal("28L", taxi.DestinationRunway);
+    }
+
     // --- TAXI with !nodeId tokens ---
 
     [Fact]
