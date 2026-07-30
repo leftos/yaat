@@ -444,6 +444,10 @@ public partial class MainViewModel
         }
 
         SelectedAircraft = (selectionToKeep is not null && Aircraft.Contains(selectionToKeep)) ? selectionToKeep : null;
+
+        // A measurement latched to this aircraft has nothing left to follow; drop it rather than leave a
+        // line frozen at the last known position (CRC drops RBLs on a dropped track the same way).
+        Measure.PruneMissing(FindAircraft);
     }
 
     private void OnAircraftSpawned(AircraftDto dto)

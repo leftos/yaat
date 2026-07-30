@@ -9,6 +9,7 @@ using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -66,6 +67,9 @@ public partial class RadarView : UserControl
         _canvas.EuroScopeFieldClicked += OnEuroScopeFieldClicked;
         _canvas.EuroScopeFieldRightClicked += OnEuroScopeFieldRightClicked;
         _canvas.HeadingModeConfirmed += OnHeadingModeConfirmed;
+        _canvas.MeasurePointPicked += OnMeasurePointPicked;
+        _canvas.MeasureDragCompleted += OnMeasureDragCompleted;
+        _canvas.MeasureCancelled += OnMeasureCancelled;
 
         var filteredText = this.FindControl<TextBox>("FilteredListText");
         if (filteredText is not null)
@@ -105,7 +109,33 @@ public partial class RadarView : UserControl
             _canvas.EuroScopeFieldClicked -= OnEuroScopeFieldClicked;
             _canvas.EuroScopeFieldRightClicked -= OnEuroScopeFieldRightClicked;
             _canvas.HeadingModeConfirmed -= OnHeadingModeConfirmed;
+            _canvas.MeasurePointPicked -= OnMeasurePointPicked;
+            _canvas.MeasureDragCompleted -= OnMeasureDragCompleted;
+            _canvas.MeasureCancelled -= OnMeasureCancelled;
         }
+    }
+
+    // --- Distance measuring tool ---
+
+    private void OnMeasurePointPicked(RblEndpoint endpoint)
+    {
+        if (DataContext is RadarViewModel { Measure: { } measure } vm)
+        {
+            measure.Pick(endpoint, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+        }
+    }
+
+    private void OnMeasureDragCompleted(RblEndpoint from, RblEndpoint to)
+    {
+        if (DataContext is RadarViewModel { Measure: { } measure } vm)
+        {
+            measure.Place(from, to, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits);
+        }
+    }
+
+    private void OnMeasureCancelled()
+    {
+        (DataContext as RadarViewModel)?.Measure?.Cancel();
     }
 
     private void OnEuroScopeFieldClicked(AircraftModel ac, TagFieldId field, Point pos)

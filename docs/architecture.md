@@ -281,13 +281,16 @@ ViewModels/
   MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar/panel, global/scenario/airport scope, ground overrides, blank spacers)
   MainViewModel.Timeline.cs     # Partial: rewind timeline markers — color-coded finding ticks (red Safety, amber Warning, blue Coach) + grey command ticks; periodic refresh, click-to-rewind, hover details, per-aircraft filter from the Session Report Aircraft tab. Also save/load recording (injects/reads the bookmarks.json archive entry).
   MainViewModel.Bookmarks.cs    # Partial: shared server-synced timeline bookmarks (Bookmarks mirror, add/quick-add/rename/delete via hub RPCs, ApplyBookmarks from BookmarksChanged broadcast/RoomStateDto seed, name-prompt event, SnapshotBookmarks for recording save). Also the client half of the BM verb: TryHandleBookmarkLocallyAsync (LIST query + GO/NEXT/PREV seeks); mutations go to the server via the command pipeline.
-  MainViewModel.CrcAliases.cs   # Partial: CRC alias support — CrcAliasStore instance + BuiltInDotCommands (names YAAT's own dot commands reserve), LoadCrcAliasesAsync (startup, ARTCC change, Settings save, .reloadaliases), TryHandleCrcAlias/RunCrcAlias, BuildCrcAliasContext (SelectedAircraft flight plan for $dep/$arr/$route/$fullroute). Client-only; never reaches the server.
+  MainViewModel.CrcAliases.cs   # Partial: CRC alias support — CrcAliasStore instance + BuiltInDotCommands (names YAAT's own dot commands reserve: scope markers, .rbl/.norbl, .reloadaliases), LoadCrcAliasesAsync (startup, ARTCC change, Settings save, .reloadaliases), TryHandleCrcAlias/RunCrcAlias, BuildCrcAliasContext (SelectedAircraft flight plan for $dep/$arr/$route/$fullroute). Client-only; never reaches the server.
   MainViewModel.ConflictAlerts.cs # Partial: terminal conflict-alert pairs (ApplyConflictAlerts from ConflictAlertsChanged broadcast/RoomStateDto seed, projected onto AircraftModel.ConflictPeerCallsign for both members; SeedConflictPeer covers an aircraft appearing after the broadcast). Not carried on AircraftDto — see docs/radar-rendering.md § Conflict alerts.
   TimelineMarkerVm.cs           # Per-marker view-model: timestamp, kind, severity, title, callsign, canonical command (commands only).
   TimelineBookmarkVm.cs         # Per-bookmark view-model (editable Name, gold rail tick, Rename/Delete/Jump commands delegating to MainViewModel callbacks).
   AutoClearedToLandSync.cs      # Subscribes to UserPreferences.AutoClearedToLand changes; pushes the new value to every aircraft (local + room-broadcast) so the toggle takes effect mid-session without a scenario reload.
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
+  GroundViewModel.Measure.cs    # Partial: distance measuring tool on the ground view (feet below a mile)
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
+  RadarViewModel.Measure.cs     # Partial: distance measuring tool on the radar (nautical miles)
+  RangeBearingViewState.cs      # Observable mirror of the one RangeBearingLineStore shared by both map views; owns the tool's behaviour
   SettingsViewModel.cs          # Settings tabs: identity/admin/sim/audio/speech/visuals/keybinds; includes STT/TTS model download flows.
   WeatherPeriodViewModel.cs     # Per-period VM: wind layers, METARs, precipitation, start/transition minutes
   WeatherTimelineEditorViewModel.cs  # Timeline editor VM: period list, BuildJson (v1 if 1 period, v2 if 2+), FromJson
@@ -341,6 +344,9 @@ Views/Map/
   MapCanvasBase.cs              # ICustomDrawOperation base + pan/zoom input handling
   TextStyle.cs                  # Paired (SKFont, SKPaint) for measuring + drawing text; keeps draw and hit-test metrics identical
   DatablockDeconfliction.cs     # Pure opt-in datablock overlap resolver shared by radar + ground (snap / free-form)
+  RangeBearingLines.cs          # Distance measuring tool (CRC STARS *T): endpoints, 15-slot store, label formatting, resolver, hit-test
+  RangeBearingRenderer.cs       # Draws measurement lines + labels; shared by radar + ground renderers
+  RightClickGesture.cs          # Right-button click-vs-drag tracker shared by radar + ground: menu on release-without-drag, pan otherwise
 
 Views/Ground/
   GroundView.axaml.cs           # Ground view control with context menus + layer toggles (SAT/MAP/GND)

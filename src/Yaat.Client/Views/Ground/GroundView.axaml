@@ -55,6 +55,9 @@
                              DrawnRoutePreview="{Binding DrawnRoutePreview}"
                              DrawHoverPreview="{Binding DrawHoverPreview}"
                              IsDrawingRoute="{Binding IsDrawingRoute}"
+                             IsMeasuring="{Binding Measure.IsMeasuring}"
+                             RangeBearingLines="{Binding Measure.Lines}"
+                             MeasureAnchor="{Binding Measure.Anchor}"
                              DrawWaypoints="{Binding DrawWaypoints}"
                              AirportCenterLat="{Binding AirportCenterLat}"
                              AirportCenterLon="{Binding AirportCenterLon}"
@@ -92,6 +95,8 @@
             <Button Classes="gnd-filter" Classes.active="{Binding ShowSatelliteImage}" Content="SAT" Click="OnToggleSatelliteImage" ToolTip.Tip="Toggle satellite background image" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowVideoMapOverlay}" Content="MAP" Click="OnToggleVideoMapOverlay" ToolTip.Tip="Toggle video map overlay" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowYaatLayout}" Content="GND" Click="OnToggleYaatLayout" ToolTip.Tip="Toggle YAAT ground layout" />
+            <Border Width="1" Background="#555" Margin="4,2" />
+            <Button Classes="gnd-filter" Classes.active="{Binding Measure.IsMeasuring}" Content="RBL" Command="{Binding StartMeasureCommand}" ToolTip.Tip="Measure distance and bearing — click two points or aircraft (Alt+drag, or Ctrl+M)" />
             <Border Width="1" Background="#555" Margin="4,2" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowRunwayLabels}" Content="RWY" Click="OnToggleRunwayLabels" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowTaxiwayLabels}" Content="TWY" Click="OnToggleTaxiwayLabels" />

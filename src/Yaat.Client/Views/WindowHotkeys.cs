@@ -85,6 +85,15 @@ internal static class WindowHotkeys
         {
             vm.Radar.ToggleDcbVisibleCommand.Execute(null);
             e.Handled = true;
+            return;
+        }
+
+        // Ctrl+M arms the distance measuring tool. Fixed binding, and deliberately global: the tool is
+        // shared by the radar and ground views, so it arms wherever the instructor clicks next.
+        if (IsFocusInputScope(window) && (e.Key == Key.M) && (e.KeyModifiers == KeyModifiers.Control))
+        {
+            vm.Measure.Arm();
+            e.Handled = true;
         }
     }
 

@@ -135,6 +135,11 @@ performs the fit once the viewport has pixel dimensions (`Viewport.PixelWidth >=
    drawn route (`:352-359`, `Flyouts.HeadingPreviewRenderer.Render`).
 8. **Drawn route overlay** — the in-progress draw-route waypoints + rubber-band line (`:362-369`).
 9. **Weather overlay** — METAR text block, top-left (`:372-375`).
+10. **Range/bearing lines** — the distance measuring tool, drawn *after* `Render` returns, from
+    `RadarCanvas.RenderFromSnapshot` via `RadarRenderer.DrawRangeBearingLines` → the shared
+    `Views/Map/RangeBearingRenderer`. Last so a measurement stays legible over targets and datablocks. The snapshot
+    carries them already resolved (`ResolvedRbl`), because a latched endpoint has to be looked up against the live
+    aircraft list on the UI thread.
 
 Inside step 6, `TargetRenderer` first draws **history trails** behind all symbols (`TargetRenderer.cs:198-202`), then does a
 **two-pass deferred render**: aircraft with an active speech bubble are held back to a second pass so their symbol,
@@ -373,25 +378,31 @@ the wrong rung silently steals clicks from a lower one. The order, top to bottom
 
 1. **Heading-mode click-to-confirm** — when heading mode is active and the button was already released, a left click
    confirms / a right click cancels (`:873-888`).
-2. **Draw-route placement** — left click places a waypoint, middle click sets a condition, right click on a waypoint edits
+2. **Distance measuring** — Alt+left starts a drag measurement; while the tool is armed (`IsMeasuring`) a left click picks
+   an endpoint and a right click cancels. Exclusive, so it sits above route drawing and every aircraft rung.
+3. **Draw-route placement** — left click places a waypoint, middle click sets a condition, right click on a waypoint edits
    it (`:890-931`).
-3. **Middle-click highlight** — toggle the cyan highlight on the hit datablock/aircraft (`:933-948`).
-4. **EuroScope field left-click** — if a `TagFieldId` is hit and `EuroScopeFieldClicked` has a subscriber, fire and return
+4. **Middle-click highlight** — toggle the cyan highlight on the hit datablock/aircraft (`:933-948`).
+5. **EuroScope field left-click** — if a `TagFieldId` is hit and `EuroScopeFieldClicked` has a subscriber, fire and return
    (`:954-964`).
-5. **EuroScope field right-click** — owner-cell handoff/drop; returns `true` to suppress the fallback menu (`:968-980`).
-6. **Datablock** — left click selects (Ctrl = open FP editor) and begins a drag; right click opens the aircraft context
+6. **EuroScope field right-click** — owner-cell handoff/drop; returns `true` to suppress the fallback menu (`:968-980`).
+7. **Datablock** — left click selects (Ctrl = open FP editor) and begins a drag; right click opens the aircraft context
    menu (`:982-1013`).
-7. **Aircraft symbol (right)** — right click on a symbol opens the context menu (`:1015-1023`).
-8. **Range-ring placement (left)** — places the range ring when in placing mode (`:1037-1046`).
-9. **Aircraft symbol (left)** — select / Ctrl-open (`:1048-1062`).
-10. **Bubble dismiss / empty-space** — record a bubble-press for release-side dismiss, else fire `EmptySpaceClicked`
+8. **Aircraft symbol (right)** — right click on a symbol opens the context menu (`:1015-1023`).
+9. **Range-ring placement (left)** — places the range ring when in placing mode (`:1037-1046`).
+10. **Aircraft symbol (left)** — select / Ctrl-open (`:1048-1062`).
+11. **Bubble dismiss / empty-space** — record a bubble-press for release-side dismiss, else fire `EmptySpaceClicked`
     (`:1064-1077`).
-11. **Base pan/zoom** — `base.OnPointerPressed` starts a right-button pan (`:1079`).
+12. **Base pan/zoom** — `base.OnPointerPressed` starts a right-button pan (`:1079`).
 
-Two drag thresholds disambiguate clicks from drags: a `25 px²` right-button threshold (`DragThresholdSq`, `:120`,
-`:1133`) decides quick-right-click (open map menu) vs right-drag (pan), and a `16 px²` datablock-drag threshold
-(`:1090`) decides select vs reposition. The same `16 px²` value (`HeadingModeState.DragThresholdPxSq`) decides
-drag-confirm vs click-confirm in heading mode.
+Two drag thresholds disambiguate clicks from drags: a `25 px²` right-button threshold decides quick-right-click (open
+map menu) vs right-drag (pan), and a `16 px²` datablock-drag threshold (`:1090`) decides select vs reposition. The same
+`16 px²` value (`HeadingModeState.DragThresholdPxSq`) decides drag-confirm vs click-confirm in heading mode.
+
+The right-button click-vs-drag decision lives in `Views/Map/RightClickGesture`, shared with `GroundCanvas`: press
+records the position and lets panning start, movement past the threshold latches the press as a drag, and `Release()`
+returns the press position when a menu is owed or null when the gesture was a pan. Note the map menu is the only radar
+right-click that defers — a right-click on an aircraft or datablock still opens its menu on **press**.
 
 ## EuroScope interactive tag mode
 

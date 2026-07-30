@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -617,6 +618,16 @@ public partial class RadarView
         menu.Items.Add(
             new MenuItem { Header = isPathShown ? "Hide nav route" : "Show nav route", Command = new RelayCommand(() => vm.ToggleShowPath(callsign)) }
         );
+
+        // Latching the measurement to the aircraft, so the line follows it (CRC STARS *T on a track).
+        if (vm.Measure is { } measure)
+        {
+            var header = measure.Anchor is null ? $"Measure from {callsign}" : $"Measure to {callsign}";
+            menu.Items.Add(
+                CreateMenuItem(header, () => measure.Pick(RblEndpoint.OnAircraft(callsign), vm.MeasureTrackLookup, RadarViewModel.MeasureUnits))
+            );
+        }
+
         menu.Items.Add(new Separator());
 
         var ldr = new MenuItem { Header = "Leader direction" };
@@ -1425,6 +1436,8 @@ public partial class RadarView
             menu.Items.Add(new Separator());
         }
 
+        AddMeasureMenuItems(menu, vm, RblEndpoint.AtPoint(new LatLon(lat, lon), frdString ?? ""), screenPos);
+
         // MVA at the clicked point (FAA-charted; only the loaded facility's coverage, null elsewhere).
         var mvaSector = MvaDatabase.Default.FindSector(new LatLon(lat, lon));
         menu.Items.Add(
@@ -1506,6 +1519,33 @@ public partial class RadarView
         var item = new MenuItem { Header = header };
         item.Click += (_, _) => action();
         return item;
+    }
+
+    /// <summary>
+    /// Adds the distance measuring tool's items: start or finish a measurement at
+    /// <paramref name="endpoint" />, remove the one under the cursor, and clear them all.
+    /// </summary>
+    private void AddMeasureMenuItems(ContextMenu menu, RadarViewModel vm, RblEndpoint endpoint, Point screenPos)
+    {
+        if (vm.Measure is not { } measure)
+        {
+            return;
+        }
+
+        var startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
+        menu.Items.Add(CreateMenuItem(startLabel, () => measure.Pick(endpoint, vm.MeasureTrackLookup, RadarViewModel.MeasureUnits)));
+
+        if (_canvas?.MeasurementSlotAt(screenPos) is { } slot)
+        {
+            menu.Items.Add(CreateMenuItem($"Remove measurement {slot}", () => measure.Remove(slot)));
+        }
+
+        if (measure.HasLines)
+        {
+            menu.Items.Add(CreateMenuItem("Clear measurements", measure.Clear));
+        }
+
+        menu.Items.Add(new Separator());
     }
 
     private MenuItem CreateInputMenuItem(string header, string placeholder, Func<string, Task> action)

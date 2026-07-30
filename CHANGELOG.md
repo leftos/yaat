@@ -4,6 +4,13 @@
 
 ### Added
 - **Help > Check for Updates...** checks for a new release on demand and reports the outcome, including when you're already on the latest version.
+- Measure distance and bearing between two points or aircraft on the radar and ground views — Alt+drag, **Ctrl+M**, the **RBL** button, or `.rbl`.
+- A measurement endpoint dropped on an aircraft latches to it, so the reading updates live as the aircraft flies or taxis.
+- Up to 15 measurements show at once and are shared by both views; the radar reads nautical miles, the ground view feet.
+- `.rbl <n>` removes one measurement and `.norbl` removes them all; right-clicking a line offers **Remove measurement**.
+
+### Fixed
+- Ground view right-drag pans from anywhere on the surface, including from on top of an aircraft, datablock, or node.
 
 ## v0.10.0-beta [2026/07/30]
 

@@ -348,15 +348,16 @@ To change the reference fix, **middle-click** the "Dist" column header. A flyout
 
 An interactive airport surface map showing taxiways, runways, and aircraft positions. Useful for tower operations.
 
-- **Pan**: right-click and drag
+- **Pan**: right-click and drag — panning works from anywhere on the surface, including from on top of an aircraft, a datablock, or a node. A right-click that *doesn't* drag opens the context menu instead, so the two gestures no longer compete for the same button
 - **Zoom**: mouse wheel (hold **Ctrl** for fine zoom) — scroll speed is adjustable under **Settings > Display > Scroll / zoom sensitivity**
 - **Rotate**: Shift + mouse wheel (1° per notch)
 - **Select aircraft**: click an aircraft triangle on the map
+- **Measure distance**: hold **Alt** and drag between two points or aircraft — see [Measuring distance and bearing](#measuring-distance-and-bearing)
 
 **Datablock.** Each aircraft's ground datablock shows the callsign, then its CWT wake category and type as `cwt/type` followed by the ASDE-style fix (e.g. `E/B738 SFO`) — a departure's exit fix or the destination airport, chosen per the airport's ASDE-X/SAID facility configuration and falling back to the destination when no fix rule applies, mirroring a real surface display. An unknown type or category just shows whichever part is known. Airborne aircraft add an altitude line, and a hold / squawk-standby / auto-yield status line and any instructor note appear below. When a departure is queued for a runway, the callsign line also gains a **runway + place-in-line** suffix such as `28R #2`, or `28R@E #2` for an intersection departure (see *Departure-queue numbers* below).
 
 **Right-click context menus:**
-- **Anywhere on the ground (with aircraft selected)** — the click snaps to the nearest node, so the menu appears even on an open stretch of runway or taxiway with no node directly under the cursor: up to 4 route options ("Taxi via T U W") computed via K-shortest paths. Routes that cross runways automatically append crossing commands. Also: "Push to {spot}" (parking nodes), "Draw taxi route...", "Custom taxi...", and "Warp here".
+- **Anywhere on the ground** — the click snaps to the nearest node, so the menu appears even on an open stretch of runway or taxiway with no node directly under the cursor. *With an aircraft selected* it carries up to 4 route options ("Taxi via T U W") computed via K-shortest paths — routes that cross runways automatically append crossing commands — plus "Push to {spot}" (parking nodes), "Draw taxi route...", "Custom taxi...", and "Warp here". *With nothing selected* it carries the [measuring](#measuring-distance-and-bearing) items.
 - **On an aircraft** — items vary by phase:
   - *At Parking*: "Push back" (default), "Push back, face {taxiway}" per connected edge, "Push back to..." submenu listing the closest 30 named parking/spot/helipad nodes (sorted by distance)
   - *Pushback / Taxiing / Following*: "Hold position"
@@ -450,6 +451,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 - **Pan**: right-click and drag
 - **Zoom**: mouse wheel (hold **Ctrl** for fine zoom) — scroll speed is adjustable under **Settings > Display > Scroll / zoom sensitivity**
 - **Select aircraft**: click a target on the display
+- **Measure distance**: hold **Alt** and drag between two points or aircraft — see [Measuring distance and bearing](#measuring-distance-and-bearing)
 
 **DCB bar** (top of the radar view):
 - **RNG +/-**: increase/decrease display range
@@ -468,6 +470,7 @@ A simplified [STARS](#glossary)-style radar display showing aircraft targets, vi
 **AUX menu** (press SHIFT in the DCB bar):
 - **HISTORY**: history trail dots — set count (0-10) showing past radar returns at ~5-second intervals; brightness via **HST** in BRITE menu
 - **PTL**: predicted track lines — adjust length (in minutes); **PTL OWN** shows lines for your tracked aircraft, **PTL ALL** shows lines for all aircraft
+- **RBL / CLR RBL**: the [distance measuring tool](#measuring-distance-and-bearing) — arm a range/bearing measurement, or clear all of them
 
 **Right-click context menus:**
 - **On an aircraft**: phase-aware groups (Heading, Altitude, Speed, Navigation, Hold, Approach, Procedures, Tower, Pattern) plus always-visible Track, Data Block, Squawk, Ask pilot to say, Coordination, Display, Sim Control, RPO. Approach offers per-runway visual-approach clearance with a smart default to the aircraft's assigned runway / active or expected approach runway. Procedures offers a Join STAR picker (smart-defaults to a filed STAR detected in the route) and Join radial outbound/inbound (pick fix → enter bearing). Tower runway-aware items (Cleared to land, Touch and go, Cleared for the option, Go around, etc.) show the assigned runway in their label. The Tower and Pattern submenus list only the commands valid for the aircraft's current state — departure clearances (Line up and wait, Cleared for takeoff) for aircraft on the ground, landing/option clearances while on approach or in the pattern, and runway exits after touchdown; the VFR-only items (touch-and-go, stop-and-go, low approach, the option, and pattern maneuvers) are hidden for IFR aircraft, and the submenu is dropped entirely when nothing applies. Speed values adapt to aircraft type — `ApproachSpeed` to altitude-resolved `ClimbSpeed` in 10-kt steps. Pattern submenu includes in-pattern maneuvers (turn crosswind/downwind/base, extend pattern leg, lateral offset left/right for in-pattern spacing, short/normal approach, 360s, 270s, circle airport); 360s, 270s, and VFR holds fly at a slow holding speed and resume normal speed afterward. Display submenu controls per-aircraft scope items (leader direction 1–9 numpad, J-ring radius, cone radius, blank/unblank target, and **Show nav route** — draws the exact lateral path the aircraft is flying, including DME/RF arcs, with any crossing altitude/speed restrictions labeled under each fix whether set by a `CFIX` command or published by the SID/STAR/approach). When the aircraft is flying a procedure the flat route can't express, Show nav route also draws the active geometry: a holding pattern's racetrack, a procedure turn's outbound/45°-barb/180° reversal, and a departure procedure's coded climb legs (each dashed vector labeled with its "climb-to" or crossing restriction — e.g. a DME-arc altitude window). Squawk gains a "Squawk random" one-click. "Ask pilot to say..." submenu issues SAY-class commands (altitude, heading, speed, mach, position, expected approach, custom).
@@ -493,6 +496,44 @@ Pin reference fixes/NAVAIDs or arbitrary points on the radar (matching CRC STARS
 - **Right-click the map** — **Pin marker here** drops a marker at the clicked point (rounded to the nearest [FRD](COMMANDS.md#fix-radial-distance-frd)); **Remove marker** appears when the cursor is near a pin; **Clear pinned markers** removes them all.
 
 The MVA is the radar-vectoring floor from 7110.65 §5-6-1; it is a controller-judgment aid, not a navigation source.
+
+##### Measuring distance and bearing
+
+A range/bearing line (RBL) tool, matching CRC STARS' `*T`. It works the same way in the **Radar View** and the **Ground View**, and the two views share one set of measurements — draw one on the ground and it is there on the radar too, under the same number.
+
+An endpoint can be a **fixed point** on the map or an **aircraft**. An endpoint placed on an aircraft **latches** to it: the line follows the aircraft as it flies or taxis, and the reading updates live. Latching is what makes the tool useful for watching a gap open or close rather than taking a single static measurement.
+
+**Four ways to start a measurement** — all four place the same thing, so use whichever fits what you're doing:
+
+| How | What to do |
+| --- | --- |
+| **Alt + drag** | Hold **Alt** and drag from one point (or aircraft) to another. Fastest for a one-off reading — no mode to enter or leave. An Alt+click without dragging just sets the first endpoint and leaves the tool armed for an ordinary click on the second. |
+| **Button** | **RBL** on the radar's AUX menu (press **SHIFT** in the DCB bar) or on the ground view's toolbar. Then click the two endpoints. |
+| **Right-click menu** | **Measure from here** on the map/node menu, or **Measure from {callsign}** — on the radar under **Display**, on the ground in the aircraft menu. The item reads **Measure to …** once the first endpoint is set. |
+| **Ctrl+M** | Arms the tool wherever you are, then click the two endpoints. |
+
+Once armed, the first click sets the anchor and a dashed line follows your cursor with a live reading; the second click commits it. **Esc** or **right-click** cancels a half-placed measurement without disturbing the ones already down.
+
+**Reading the label**, e.g. `087/4.20/2-1`:
+
+- `087` — magnetic bearing from the first endpoint to the second. Due north reads `360`, never `000`.
+- `4.20` — distance. The radar always reads nautical miles to two decimals; the ground view reads **feet** below a mile (`1,215 ft`) and switches to miles above it, because a 1,200 ft taxiway gap is unreadable as `0.20`.
+- `/2` — minutes for the aircraft to reach the other end. Shown **only** when exactly one endpoint is an aircraft with groundspeed and the other is a fixed point, matching STARS. Aircraft-to-aircraft and point-to-point measurements have no time field.
+- `-1` — the measurement's number, used to remove it.
+
+**Removing measurements:**
+
+- Right-click on or near a line → **Remove measurement N**.
+- Right-click anywhere → **Clear measurements**, or **CLR RBL** on the radar's AUX menu.
+- `.rbl N` removes measurement N; `.norbl` removes them all.
+
+Up to **15** measurements can be down at once, matching STARS. Removing one frees its number for the next measurement. A measurement latched to an aircraft is dropped automatically when that aircraft goes away, rather than being left frozen at its last position.
+
+**Commands** (typed in the command box — local to your displays, never sent to aircraft):
+
+- `.rbl` — arm the tool.
+- `.rbl <n>` — remove measurement *n*.
+- `.norbl` — remove all measurements.
 
 **Datablocks** show three lines: (1) callsign (with `*` suffix for VFR), (2) altitude in hundreds + ground speed in tens + aircraft type/weight category, (3) RPO assignment (in brackets), track owner TCP, a pending outgoing point-out the student sent (the recipient's sector with an asterisk, e.g. `3E*`), handoff indicator, and scratchpads when set. When no primary scratchpad has been entered, the slot falls back to showing the destination airport, exactly as it appears on the student's STARS scope — which tracks get that fallback (arrivals into the facility's primary airport, satellite arrivals, departures) is set by the facility's STARS configuration. Entering `SP1` overrides it, and clearing `SP1` empties the slot rather than restoring the destination. An aircraft approaching final without a landing clearance gets a flashing red `NoLndgClnc` line appended; opt out in **Settings > Display > Radar Display**. A beacon-code mismatch (see below) adds a line right under the altitude line. An aircraft in a [conflict alert](#conflict-alerts) gets a flashing red `CA` (or `MCI`) field. When an instructor [note](#assigning-a-note-to-an-aircraft) is set, an extra amber line is appended at the bottom of the block.
 

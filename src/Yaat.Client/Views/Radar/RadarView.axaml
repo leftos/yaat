@@ -256,7 +256,7 @@
             </Grid>
 
             <!-- ==================== AUX MENU ==================== -->
-            <Grid x:Name="DcbAuxMenu" RowDefinitions="40,40" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeAux}}">
+            <Grid x:Name="DcbAuxMenu" RowDefinitions="40,40" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeAux}}">
 
                 <!-- Col 0: VOL (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Content="VOL" IsEnabled="False" />
@@ -333,8 +333,12 @@
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="16" Content="TSAS" IsEnabled="False" />
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="16" Content="TIME LINE" IsEnabled="False" />
 
-                <!-- Col 17: SHIFT (back to Main) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="17" Grid.RowSpan="2" Content="SHIFT" Command="{Binding CloseDcbSubmenuCommand}" />
+                <!-- Col 17: RBL / CLR RBL (split) — distance measuring tool (STARS *T) -->
+                <Button Classes="dcb-half" Classes.active="{Binding Measure.IsMeasuring}" Grid.Row="0" Grid.Column="17" Content="RBL" Command="{Binding StartMeasureCommand}" />
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="17" Content="CLR RBL" IsEnabled="{Binding Measure.HasLines}" Command="{Binding ClearMeasurementsCommand}" />
+
+                <!-- Col 18: SHIFT (back to Main) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="18" Grid.RowSpan="2" Content="SHIFT" Command="{Binding CloseDcbSubmenuCommand}" />
             </Grid>
 
             <!-- ==================== BRITE MENU (10-col x 2-row, STARS layout) ==================== -->
@@ -444,6 +448,9 @@
                                PtlAll="{Binding PtlAll}"
                                ProgrammedFixNames="{Binding ProgrammedFixNames}"
                                IsDrawingRoute="{Binding IsDrawingRoute}"
+                               IsMeasuring="{Binding Measure.IsMeasuring}"
+                               RangeBearingLines="{Binding Measure.Lines}"
+                               MeasureAnchor="{Binding Measure.Anchor}"
                                DrawnWaypoints="{Binding DrawnWaypoints}"
                                WaypointConditions="{Binding WaypointConditionsSnapshot}"
                                WeatherInfo="{Binding WeatherInfo}"

@@ -55,6 +55,17 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<bool> IsDrawingRouteProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(IsDrawingRoute));
 
+    public static readonly StyledProperty<bool> IsMeasuringProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(IsMeasuring));
+
+    public static readonly StyledProperty<IReadOnlyList<RangeBearingLine>?> RangeBearingLinesProperty = AvaloniaProperty.Register<
+        GroundCanvas,
+        IReadOnlyList<RangeBearingLine>?
+    >(nameof(RangeBearingLines));
+
+    public static readonly StyledProperty<RblEndpoint?> MeasureAnchorProperty = AvaloniaProperty.Register<GroundCanvas, RblEndpoint?>(
+        nameof(MeasureAnchor)
+    );
+
     public static readonly StyledProperty<IReadOnlyList<int>?> DrawWaypointsProperty = AvaloniaProperty.Register<GroundCanvas, IReadOnlyList<int>?>(
         nameof(DrawWaypoints)
     );
@@ -268,6 +279,21 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private Point _bubblePressPos;
     private const double BubbleClickMaxMovementSq = 25.0;
 
+    // Alt+left-drag distance measuring: the anchor picked on press, and where the press landed so a
+    // release can tell a drag from a click.
+    private RblEndpoint? _measureDragAnchor;
+    private Point _measureDragStart;
+    private Point _measurePointerPos;
+    private const double MeasureDragThresholdSq = 25.0;
+
+    // Right-button click-vs-drag tracking. A right press starts a pan immediately and only opens a
+    // context menu on release if the pointer never moved past the threshold, so both gestures share
+    // the button.
+    private readonly RightClickGesture _rightClick = new();
+
+    // Pixel radius for deciding a right-click is pointing at an already-drawn measurement.
+    private const float MeasurePickRadiusPx = 8f;
+
     public GroundLayoutDto? Layout
     {
         get => GetValue(LayoutProperty);
@@ -467,6 +493,27 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(IsDrawingRouteProperty, value);
     }
 
+    /// <summary>True while the distance measuring tool is intercepting clicks to pick endpoints.</summary>
+    public bool IsMeasuring
+    {
+        get => GetValue(IsMeasuringProperty);
+        set => SetValue(IsMeasuringProperty, value);
+    }
+
+    /// <summary>Placed measurements, shared with the radar view.</summary>
+    public IReadOnlyList<RangeBearingLine>? RangeBearingLines
+    {
+        get => GetValue(RangeBearingLinesProperty);
+        set => SetValue(RangeBearingLinesProperty, value);
+    }
+
+    /// <summary>First endpoint of a half-placed measurement, for the rubber-band preview.</summary>
+    public RblEndpoint? MeasureAnchor
+    {
+        get => GetValue(MeasureAnchorProperty);
+        set => SetValue(MeasureAnchorProperty, value);
+    }
+
     public IReadOnlyList<int>? DrawWaypoints
     {
         get => GetValue(DrawWaypointsProperty);
@@ -565,6 +612,15 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     /// <summary>Fired when the hovered node changes during draw mode. Args: nodeId (null if no node).</summary>
     public event Action<int?>? DrawNodeHovered;
+
+    /// <summary>Fired when the measuring tool picks an endpoint — first click anchors, second completes.</summary>
+    public event Action<RblEndpoint>? MeasurePointPicked;
+
+    /// <summary>Fired when an Alt-drag measurement is released, supplying both endpoints at once.</summary>
+    public event Action<RblEndpoint, RblEndpoint>? MeasureDragCompleted;
+
+    /// <summary>Fired when the user cancels a half-placed measurement (Escape or right-click).</summary>
+    public event Action? MeasureCancelled;
 
     /// <summary>
     /// Fired when the aircraft under the cursor changes (null when none). Drives the transient
@@ -674,7 +730,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         bool ShowVideoMapOverlay,
         int VideoMapOverlayBrightness,
         bool ShowYaatLayout,
-        int YaatLayoutBrightness
+        int YaatLayoutBrightness,
+        IReadOnlyList<ResolvedRbl>? RangeBearingLines,
+        ResolvedRbl? PendingRangeBearingLine
     );
 
     protected override object? CreateRenderSnapshot()
@@ -698,6 +756,30 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             foreach (var cs in _hiddenDataBlockCallsigns)
             {
                 hiddenDbs.Add(cs);
+            }
+        }
+
+        List<ResolvedRbl>? measurements = null;
+        ResolvedRbl? pendingMeasurement = null;
+        var placedMeasurements = RangeBearingLines;
+        var measureAnchor = _measureDragAnchor ?? MeasureAnchor;
+        if (placedMeasurements is { Count: > 0 } || measureAnchor is not null)
+        {
+            var lookup = BuildMeasureLookup();
+            if (placedMeasurements is { Count: > 0 })
+            {
+                measurements = RangeBearingLineResolver.Resolve(placedMeasurements, lookup, GroundViewModel.MeasureUnits);
+            }
+
+            if (measureAnchor is not null)
+            {
+                var cursor = Viewport.ScreenToLatLon((float)_measurePointerPos.X, (float)_measurePointerPos.Y);
+                pendingMeasurement = RangeBearingLineResolver.ResolvePending(
+                    measureAnchor,
+                    new LatLon(cursor.Lat, cursor.Lon),
+                    lookup,
+                    GroundViewModel.MeasureUnits
+                );
             }
         }
 
@@ -732,7 +814,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ShowVideoMapOverlay,
             VideoMapOverlayBrightness,
             ShowYaatLayout,
-            YaatLayoutBrightness
+            YaatLayoutBrightness,
+            measurements,
+            pendingMeasurement
         );
     }
 
@@ -777,6 +861,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.ShowYaatLayout,
             s.YaatLayoutBrightness
         );
+
+        // Drawn last so a measurement stays readable over aircraft symbols, datablocks, and the surface.
+        _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine);
     }
 
     private static IReadOnlyList<AircraftModel> SortByZOrder(IReadOnlyList<AircraftModel> aircraft, Dictionary<string, int> zOrder)
@@ -878,8 +965,79 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         base.OnPointerMoved(e);
         var hoverPos = e.GetPosition(this);
+        _measurePointerPos = hoverPos;
         UpdateHoveredNode(hoverPos);
         UpdateHoveredAircraft(hoverPos);
+
+        // Past the threshold this right-button press is a pan, not a click — suppress the menu on release.
+        _rightClick.Move(hoverPos);
+
+        // Keep the half-placed measurement's rubber band glued to the cursor.
+        if (MeasureAnchor is not null || _measureDragAnchor is not null)
+        {
+            MarkDirty();
+        }
+    }
+
+    /// <summary>
+    /// Resolves measurement endpoints against the aircraft this canvas is showing, so a latched endpoint
+    /// tracks its aircraft. Built on the UI thread; the resolved list is immutable.
+    /// </summary>
+    private RblTrackLookup BuildMeasureLookup()
+    {
+        var aircraft = Aircraft;
+        return callsign =>
+        {
+            if (aircraft is null)
+            {
+                return null;
+            }
+
+            foreach (var ac in aircraft)
+            {
+                if (string.Equals(ac.Callsign, callsign, StringComparison.Ordinal))
+                {
+                    return new RblTrack(ac.Position, ac.GroundSpeed);
+                }
+            }
+
+            return null;
+        };
+    }
+
+    /// <summary>
+    /// Turns a clicked point into a measurement endpoint: an aircraft under the cursor becomes a latched
+    /// endpoint that travels with it, anything else becomes a fixed point on the surface.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the taxi-route tools, this deliberately does not snap to the ground graph — measuring the
+    /// gap between a wingtip and a hold bar means picking the exact spot the cursor is over.
+    /// </remarks>
+    public RblEndpoint MeasureEndpointAt(Point pos)
+    {
+        var aircraft = FindAircraftAtPoint(pos) ?? FindDataBlockAtPoint(pos);
+        if (aircraft is not null)
+        {
+            return RblEndpoint.OnAircraft(aircraft.Callsign);
+        }
+
+        var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+        return RblEndpoint.AtPoint(new LatLon(lat, lon), "");
+    }
+
+    /// <summary>
+    /// Slot number of the measurement drawn nearest <paramref name="pos" />, or null when none is within
+    /// picking distance. Used to offer "remove" on the right-click menu.
+    /// </summary>
+    public int? MeasurementSlotAt(Point pos)
+    {
+        if (RangeBearingLines is not { Count: > 0 } lines)
+        {
+            return null;
+        }
+
+        var resolved = RangeBearingLineResolver.Resolve(lines, BuildMeasureLookup(), GroundViewModel.MeasureUnits);
+        return RangeBearingHitTest.NearestSlot(resolved, Viewport, (float)pos.X, (float)pos.Y, MeasurePickRadiusPx);
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
@@ -915,6 +1073,40 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         var pos = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
 
+        // Distance measuring. Alt+left-drag measures without arming the tool first; once armed (toolbar
+        // button, hotkey, context menu, or .rbl) plain left-clicks pick the endpoints. Both are exclusive
+        // modes, so they sit above the datablock, route-drawing, and aircraft rungs.
+        if (props.IsLeftButtonPressed && e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            _measureDragAnchor = MeasureEndpointAt(pos);
+            _measureDragStart = pos;
+            e.Handled = true;
+            return;
+        }
+
+        if (IsMeasuring && props.IsLeftButtonPressed)
+        {
+            MeasurePointPicked?.Invoke(MeasureEndpointAt(pos));
+            e.Handled = true;
+            return;
+        }
+
+        // Right button: record the press and let panning start, but decide nothing yet. Which of the two
+        // gestures this is — a click that opens a menu, or a drag that pans — is only known on release,
+        // once we can see whether the pointer moved. Firing a menu here would mean a right-drag that
+        // happens to start on a datablock, aircraft, or node never pans.
+        if (props.IsRightButtonPressed)
+        {
+            _rightClick.Press(pos);
+
+            if (IsPanZoomEnabled)
+            {
+                base.OnPointerPressed(e);
+            }
+
+            return;
+        }
+
         if (props.IsMiddleButtonPressed)
         {
             var hitAc = FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos);
@@ -941,13 +1133,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         if (dataBlockAc is not null)
         {
             SurfaceDataBlock(dataBlockAc.Callsign);
-
-            if (props.IsRightButtonPressed)
-            {
-                AircraftRightClicked?.Invoke(dataBlockAc.Callsign, pos);
-                e.Handled = true;
-                return;
-            }
 
             if (props.IsLeftButtonPressed)
             {
@@ -982,28 +1167,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                     return;
                 }
             }
-            else if (props.IsRightButtonPressed)
-            {
-                var node = FindNodeAtPoint(pos);
-                if (node is not null)
-                {
-                    DrawNodeFinished?.Invoke(node.Id, pos);
-                    e.Handled = true;
-                    return;
-                }
-            }
 
             base.OnPointerPressed(e);
             return;
-        }
-
-        if (props.IsRightButtonPressed)
-        {
-            if (HandleRightClick(pos))
-            {
-                e.Handled = true;
-                return;
-            }
         }
 
         if (props.IsLeftButtonPressed)
@@ -1054,6 +1220,34 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        // A right press that never became a drag is a click; a drag was a pan and owes no menu.
+        if (e.InitialPressMouseButton == MouseButton.Right && _rightClick.Release() is { } rightClickPos)
+        {
+            HandleRightClick(rightClickPos);
+        }
+
+        if (_measureDragAnchor is { } measureAnchor && e.InitialPressMouseButton == MouseButton.Left)
+        {
+            var measureReleasePos = e.GetPosition(this);
+            _measureDragAnchor = null;
+
+            var mdx = measureReleasePos.X - _measureDragStart.X;
+            var mdy = measureReleasePos.Y - _measureDragStart.Y;
+            if ((mdx * mdx) + (mdy * mdy) > MeasureDragThresholdSq)
+            {
+                MeasureDragCompleted?.Invoke(measureAnchor, MeasureEndpointAt(measureReleasePos));
+            }
+            else
+            {
+                // Alt+click without dragging anchors the measurement and leaves the tool armed, so the
+                // second endpoint can be picked with an ordinary click.
+                MeasurePointPicked?.Invoke(measureAnchor);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         if (_isDraggingDataBlock)
         {
             _isDraggingDataBlock = false;
@@ -1079,8 +1273,41 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>Returns true if a context menu target was hit.</summary>
+    /// <summary>
+    /// Resolves a right-click — one that stayed put rather than becoming a pan — to whatever it landed on.
+    /// The single place every ground right-click menu is decided; called from
+    /// <see cref="OnPointerReleased" />, never on press.
+    /// </summary>
     private bool HandleRightClick(Point screenPos)
     {
+        if (IsMeasuring)
+        {
+            MeasureCancelled?.Invoke();
+            return true;
+        }
+
+        if (IsDrawingRoute)
+        {
+            // Right-click finishes the drawn route at the clicked node; anywhere else it does nothing,
+            // so the gesture stays free for panning while the route is being laid out.
+            var drawNode = FindNodeAtPoint(screenPos);
+            if (drawNode is not null)
+            {
+                DrawNodeFinished?.Invoke(drawNode.Id, screenPos);
+                return true;
+            }
+
+            return false;
+        }
+
+        var dataBlockAc = FindDataBlockAtPoint(screenPos);
+        if (dataBlockAc is not null)
+        {
+            SurfaceDataBlock(dataBlockAc.Callsign);
+            AircraftRightClicked?.Invoke(dataBlockAc.Callsign, screenPos);
+            return true;
+        }
+
         var ac = FindAircraftAtPoint(screenPos);
         if (ac is not null)
         {
@@ -1096,7 +1323,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         // Runway thresholds: mirror the left-click menu so the user gets the
-        // same Taxi/Takeoff options regardless of which mouse button they used.
+        // same Taxi/Takeoff options regardless of which mouse button they used. Needs a selection —
+        // the items it offers are taxi/takeoff clearances for the selected aircraft.
         if (SelectedAircraft is not null)
         {
             var threshold = FindRunwayThresholdAtPoint(screenPos);
@@ -1105,17 +1333,19 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 RunwayThresholdRightClicked?.Invoke(hit.RunwayEnd, screenPos);
                 return true;
             }
+        }
 
-            // Fallback: with an aircraft selected, snap a right-click anywhere to the nearest
-            // ground node so the node menu (taxi route + "Warp here") is always reachable — not
-            // only within the node hit radius. Lets the controller drop a stuck aircraft onto an
-            // open stretch of runway/taxiway that has no graph node under the cursor.
-            var nearest = FindNearestNode(screenPos);
-            if (nearest is not null)
-            {
-                NodeRightClicked?.Invoke(nearest.Id, screenPos);
-                return true;
-            }
+        // Fallback: snap a right-click anywhere to the nearest ground node so the node menu is always
+        // reachable, not only within the node hit radius. With an aircraft selected that menu carries the
+        // taxi-route and "Warp here" items, letting the controller drop a stuck aircraft onto an open
+        // stretch of runway/taxiway that has no graph node under the cursor; with nothing selected it
+        // still carries the measuring-tool items. Safe to run unconditionally now that a right *drag*
+        // pans instead of opening a menu.
+        var nearest = FindNearestNode(screenPos);
+        if (nearest is not null)
+        {
+            NodeRightClicked?.Invoke(nearest.Id, screenPos);
+            return true;
         }
 
         return false;

@@ -103,6 +103,17 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<bool> IsDrawingRouteProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(IsDrawingRoute));
 
+    public static readonly StyledProperty<bool> IsMeasuringProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(IsMeasuring));
+
+    public static readonly StyledProperty<IReadOnlyList<RangeBearingLine>?> RangeBearingLinesProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<RangeBearingLine>?
+    >(nameof(RangeBearingLines));
+
+    public static readonly StyledProperty<RblEndpoint?> MeasureAnchorProperty = AvaloniaProperty.Register<RadarCanvas, RblEndpoint?>(
+        nameof(MeasureAnchor)
+    );
+
     public static readonly StyledProperty<IReadOnlyList<DrawnWaypoint>?> DrawnWaypointsProperty = AvaloniaProperty.Register<
         RadarCanvas,
         IReadOnlyList<DrawnWaypoint>?
@@ -136,7 +147,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     >(nameof(DeconflictMode));
 
     private const float DataBlockPad = 3f;
-    private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
     private static readonly IReadOnlyDictionary<string, SKPoint> EmptyOffsets = new Dictionary<string, SKPoint>();
 
     private readonly RadarRenderer _renderer = new();
@@ -159,9 +169,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private bool _suppressRangeFit;
     private bool _suppressCenterSync;
     private readonly Services.ScrollStepAccumulator _rangeRingSizeScroll = new();
-    private bool _rightButtonDown;
-    private bool _rightDragStarted;
-    private Point _rightPressPos;
+    private readonly RightClickGesture _rightClick = new();
     private Dictionary<string, string> _brightnessLookup = [];
     private bool _isDraggingDataBlock;
     private string? _dragCallsign;
@@ -183,6 +191,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private string? _bubblePressCallsign;
     private Point _bubblePressPos;
     private const double BubbleClickMaxMovementSq = 25.0;
+
+    // Alt+left-drag distance measuring: the anchor picked on press, and where the press landed so a
+    // release can tell a drag from a click.
+    private RblEndpoint? _measureDragAnchor;
+    private Point _measureDragStart;
+    private const double MeasureDragThresholdSq = 25.0;
+
+    // Pixel radius for deciding a right-click is pointing at an already-drawn measurement.
+    private const float MeasurePickRadiusPx = 8f;
 
     public IReadOnlyList<AircraftModel>? Aircraft
     {
@@ -320,6 +337,27 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(IsDrawingRouteProperty);
         set => SetValue(IsDrawingRouteProperty, value);
+    }
+
+    /// <summary>True while the distance measuring tool is intercepting clicks to pick endpoints.</summary>
+    public bool IsMeasuring
+    {
+        get => GetValue(IsMeasuringProperty);
+        set => SetValue(IsMeasuringProperty, value);
+    }
+
+    /// <summary>Placed measurements, shared with the ground view.</summary>
+    public IReadOnlyList<RangeBearingLine>? RangeBearingLines
+    {
+        get => GetValue(RangeBearingLinesProperty);
+        set => SetValue(RangeBearingLinesProperty, value);
+    }
+
+    /// <summary>First endpoint of a half-placed measurement, for the rubber-band preview.</summary>
+    public RblEndpoint? MeasureAnchor
+    {
+        get => GetValue(MeasureAnchorProperty);
+        set => SetValue(MeasureAnchorProperty, value);
     }
 
     public IReadOnlyList<DrawnWaypoint>? DrawnWaypoints
@@ -767,6 +805,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when a range ring is placed via click.</summary>
     public event Action<double, double>? RangeRingPlaced;
 
+    /// <summary>Fired when the measuring tool picks an endpoint — first click anchors, second completes.</summary>
+    public event Action<RblEndpoint>? MeasurePointPicked;
+
+    /// <summary>Fired when an Alt-drag measurement is released, supplying both endpoints at once.</summary>
+    public event Action<RblEndpoint, RblEndpoint>? MeasureDragCompleted;
+
+    /// <summary>Fired when the user cancels a half-placed measurement (Escape or right-click).</summary>
+    public event Action? MeasureCancelled;
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -880,8 +927,68 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<ShownPathEntry>? ShownPaths,
         IReadOnlyList<ShownShapeEntry>? ShownShapes,
         int HistoryCount,
-        (string Text, SKPoint Pos)? MvaHover
+        (string Text, SKPoint Pos)? MvaHover,
+        IReadOnlyList<ResolvedRbl>? RangeBearingLines,
+        ResolvedRbl? PendingRangeBearingLine
     );
+
+    /// <summary>
+    /// Resolves measurement endpoints against the aircraft this canvas is showing, so a latched endpoint
+    /// tracks its aircraft. Built on the UI thread; the resolved list is immutable.
+    /// </summary>
+    private RblTrackLookup BuildMeasureLookup()
+    {
+        var aircraft = Aircraft;
+        return callsign =>
+        {
+            if (aircraft is null)
+            {
+                return null;
+            }
+
+            foreach (var ac in aircraft)
+            {
+                if (string.Equals(ac.Callsign, callsign, StringComparison.Ordinal))
+                {
+                    return new RblTrack(ac.Position, ac.GroundSpeed);
+                }
+            }
+
+            return null;
+        };
+    }
+
+    /// <summary>
+    /// Slot number of the measurement drawn nearest <paramref name="pos" />, or null when none is within
+    /// picking distance. Used to offer "remove" on the right-click menu.
+    /// </summary>
+    public int? MeasurementSlotAt(Point pos)
+    {
+        if (RangeBearingLines is not { Count: > 0 } lines)
+        {
+            return null;
+        }
+
+        var resolved = RangeBearingLineResolver.Resolve(lines, BuildMeasureLookup(), RadarViewModel.MeasureUnits);
+        return RangeBearingHitTest.NearestSlot(resolved, Viewport, (float)pos.X, (float)pos.Y, MeasurePickRadiusPx);
+    }
+
+    /// <summary>
+    /// Turns a clicked point into a measurement endpoint: an aircraft under the cursor becomes a latched
+    /// endpoint that travels with it, anything else becomes a fixed point labelled with its FRD.
+    /// </summary>
+    private RblEndpoint MeasureEndpointAt(Point pos)
+    {
+        var aircraft = FindAircraftAtPoint(pos) ?? FindDataBlockAtPoint(pos);
+        if (aircraft is not null)
+        {
+            return RblEndpoint.OnAircraft(aircraft.Callsign);
+        }
+
+        var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+        var label = (Fixes is not null ? FrdResolver.ToFrd(lat, lon, Fixes) : null) ?? "";
+        return RblEndpoint.AtPoint(new LatLon(lat, lon), label);
+    }
 
     protected override object? CreateRenderSnapshot()
     {
@@ -930,6 +1037,30 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         );
         var deconflictOffsets = RunDeconfliction(sorted);
 
+        List<ResolvedRbl>? measurements = null;
+        ResolvedRbl? pendingMeasurement = null;
+        var placedMeasurements = RangeBearingLines;
+        var measureAnchor = _measureDragAnchor ?? MeasureAnchor;
+        if (placedMeasurements is { Count: > 0 } || measureAnchor is not null)
+        {
+            var lookup = BuildMeasureLookup();
+            if (placedMeasurements is { Count: > 0 })
+            {
+                measurements = RangeBearingLineResolver.Resolve(placedMeasurements, lookup, RadarViewModel.MeasureUnits);
+            }
+
+            if (measureAnchor is not null)
+            {
+                var cursor = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+                pendingMeasurement = RangeBearingLineResolver.ResolvePending(
+                    measureAnchor,
+                    new LatLon(cursor.Lat, cursor.Lon),
+                    lookup,
+                    RadarViewModel.MeasureUnits
+                );
+            }
+        }
+
         return new RenderSnapshot(
             VideoMaps ?? Array.Empty<VideoMapData>(),
             // Copied, not shared: SetBrightnessLookup hands us the view-model's live dictionary, which it
@@ -968,7 +1099,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             ShownPaths,
             ShownShapes,
             HistoryCount,
-            mvaHover
+            mvaHover,
+            measurements,
+            pendingMeasurement
         );
     }
 
@@ -1039,6 +1172,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.HistoryCount,
             s.MvaHover
         );
+
+        // Drawn last so a measurement stays readable over targets, datablocks, and video maps.
+        _renderer.DrawRangeBearingLines(canvas, viewport, s.RangeBearingLines, s.PendingRangeBearingLine);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -1062,6 +1198,34 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             if (props.IsRightButtonPressed)
             {
                 ExitHeadingMode();
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // Distance measuring. Alt+left-drag measures without arming the tool first; once armed (DCB
+        // button, hotkey, context menu, or .rbl) plain left-clicks pick the endpoints. Both are exclusive
+        // modes, so they sit above route drawing and the datablock/aircraft rungs.
+        if (props.IsLeftButtonPressed && e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            _measureDragAnchor = MeasureEndpointAt(pos);
+            _measureDragStart = pos;
+            e.Handled = true;
+            return;
+        }
+
+        if (IsMeasuring)
+        {
+            if (props.IsLeftButtonPressed)
+            {
+                MeasurePointPicked?.Invoke(MeasureEndpointAt(pos));
+                e.Handled = true;
+                return;
+            }
+
+            if (props.IsRightButtonPressed)
+            {
+                MeasureCancelled?.Invoke();
                 e.Handled = true;
                 return;
             }
@@ -1202,9 +1366,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 return;
             }
 
-            _rightButtonDown = true;
-            _rightDragStarted = false;
-            _rightPressPos = pos;
+            _rightClick.Press(pos);
 
             if (IsPanZoomEnabled)
             {
@@ -1315,21 +1477,41 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             MarkDirty();
         }
 
-        if (_rightButtonDown && !_rightDragStarted)
+        // Keep the half-placed measurement's rubber band glued to the cursor.
+        if (MeasureAnchor is not null || _measureDragAnchor is not null)
         {
-            var dx = currentPos.X - _rightPressPos.X;
-            var dy = currentPos.Y - _rightPressPos.Y;
-            if (dx * dx + dy * dy > DragThresholdSq)
-            {
-                _rightDragStarted = true;
-            }
+            MarkDirty();
         }
+
+        _rightClick.Move(currentPos);
 
         base.OnPointerMoved(e);
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        if (_measureDragAnchor is { } measureAnchor && e.InitialPressMouseButton == MouseButton.Left)
+        {
+            var releasePos = e.GetPosition(this);
+            _measureDragAnchor = null;
+
+            var dx = releasePos.X - _measureDragStart.X;
+            var dy = releasePos.Y - _measureDragStart.Y;
+            if ((dx * dx) + (dy * dy) > MeasureDragThresholdSq)
+            {
+                MeasureDragCompleted?.Invoke(measureAnchor, MeasureEndpointAt(releasePos));
+            }
+            else
+            {
+                // Alt+click without dragging anchors the measurement and leaves the tool armed, so the
+                // second endpoint can be picked with an ordinary click.
+                MeasurePointPicked?.Invoke(measureAnchor);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         // Heading mode: if we entered via mouse-down and the user dragged past the threshold,
         // a release confirms the heading (drag-style EuroScope flow). If they released without
         // dragging, transition to click-to-confirm (button up but mode still active).
@@ -1371,17 +1553,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             _bubblePressCallsign = null;
         }
 
-        if (_rightButtonDown && e.InitialPressMouseButton == MouseButton.Right)
+        // Quick right-click (no drag) — show map context menu. A drag was a pan and owes no menu.
+        if (e.InitialPressMouseButton == MouseButton.Right && _rightClick.Release() is { } rightClickPos)
         {
-            _rightButtonDown = false;
-
-            if (!_rightDragStarted)
-            {
-                // Quick right-click (no drag) — show map context menu
-                var pos = e.GetPosition(this);
-                var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
-                MapRightClicked?.Invoke(lat, lon, pos);
-            }
+            var (lat, lon) = Viewport.ScreenToLatLon((float)rightClickPos.X, (float)rightClickPos.Y);
+            MapRightClicked?.Invoke(lat, lon, rightClickPos);
         }
 
         base.OnPointerReleased(e);
@@ -1818,6 +1994,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         if (IsPlacingRangeRing && e.Key == Key.Escape)
         {
             IsPlacingRangeRing = false;
+            e.Handled = true;
+            return;
+        }
+
+        if ((IsMeasuring || _measureDragAnchor is not null) && e.Key == Key.Escape)
+        {
+            _measureDragAnchor = null;
+            MeasureCancelled?.Invoke();
             e.Handled = true;
             return;
         }

@@ -11,6 +11,7 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views;
+using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -62,6 +63,15 @@ public partial class MainViewModel : ObservableObject
 
     public GroundViewModel Ground { get; }
     public RadarViewModel Radar { get; }
+
+    /// <summary>
+    /// The distance measuring tool's placed range/bearing lines. One store shared by the Radar and
+    /// Ground views, so a measurement taken in either shows up in both under the same slot number.
+    /// </summary>
+    private readonly RangeBearingLineStore _rangeBearingStore = new();
+
+    /// <summary>Bindable mirror of <see cref="_rangeBearingStore" />, handed to both map view-models.</summary>
+    public RangeBearingViewState Measure { get; }
 
     // Tab index of the Ground view in the fixed-tab region (see IsTabVisible).
     private const int GroundViewTabIndex = 1;
@@ -1381,6 +1391,10 @@ public partial class MainViewModel : ObservableObject
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);
         Radar.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
+        Measure = new RangeBearingViewState(_rangeBearingStore);
+        Measure.StatusReported += status => StatusText = status;
+        Ground.SetMeasureState(Measure);
+        Radar.SetMeasureState(Measure);
         // Student entry is always the first strips entry. Additional
         // per-facility entries are appended via OpenStripsEntryForFacilityAsync.
         var studentVm = new VStripsViewModel(_connection, SendCommandForViewAsync, () => _preferences.UserInitials)
@@ -1980,6 +1994,43 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Handles the client-only distance measuring dot commands: <c>.rbl</c> arms the tool on both map
+    /// views, <c>.rbl N</c> removes measurement N, and <c>.norbl</c> removes them all. Never sent to the
+    /// server.
+    /// </summary>
+    /// <returns>False when the verb isn't one of these, so the caller can fall through to CRC aliases.</returns>
+    private bool TryHandleMeasureCommand(string text)
+    {
+        var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+        switch (parts[0].ToUpperInvariant())
+        {
+            case ".NORBL":
+                Measure.Clear();
+                return true;
+            case ".RBL":
+                if (parts.Length < 2)
+                {
+                    Measure.Arm();
+                    return true;
+                }
+
+                if (int.TryParse(parts[1], out var slot))
+                {
+                    Measure.Remove(slot);
+                }
+                else
+                {
+                    StatusText = $"Usage: {parts[0]} [measurement number]";
+                }
+
+                return true;
+            default:
+                return false;
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task SendCommandAsync()
     {
@@ -2029,10 +2080,11 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Client-only dot commands. Built-in scope markers (CRC .ff / .marker / .markers / .nomarkers)
-        // win, then CRC aliases read from the user's CRC install. Neither ever reaches the server.
+        // and the measuring tool (.rbl / .norbl) win, then CRC aliases read from the user's CRC install.
+        // Neither ever reaches the server.
         if (forceAlias || text.StartsWith('.'))
         {
-            bool handled = (!forceAlias) && TryHandleScopeMarkerCommand(text);
+            bool handled = (!forceAlias) && (TryHandleScopeMarkerCommand(text) || TryHandleMeasureCommand(text));
             if (!handled)
             {
                 handled = TryHandleCrcAlias(text);

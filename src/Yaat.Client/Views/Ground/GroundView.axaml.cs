@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Radar.Flyouts;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
@@ -60,6 +61,9 @@ public partial class GroundView : UserControl
         _canvas.DrawNodeFinished += OnDrawNodeFinished;
         _canvas.DrawNodeHovered += OnDrawNodeHovered;
         _canvas.HoveredAircraftChanged += OnAircraftHovered;
+        _canvas.MeasurePointPicked += OnMeasurePointPicked;
+        _canvas.MeasureDragCompleted += OnMeasureDragCompleted;
+        _canvas.MeasureCancelled += OnMeasureCancelled;
 
         if (DataContext is GroundViewModel vm && vm.Preferences is not null)
         {
@@ -100,6 +104,9 @@ public partial class GroundView : UserControl
             _canvas.DrawNodeFinished -= OnDrawNodeFinished;
             _canvas.DrawNodeHovered -= OnDrawNodeHovered;
             _canvas.HoveredAircraftChanged -= OnAircraftHovered;
+            _canvas.MeasurePointPicked -= OnMeasurePointPicked;
+            _canvas.MeasureDragCompleted -= OnMeasureDragCompleted;
+            _canvas.MeasureCancelled -= OnMeasureCancelled;
         }
 
         if (DataContext is GroundViewModel vm && vm.Preferences is not null)
@@ -114,9 +121,98 @@ public partial class GroundView : UserControl
         }
     }
 
+    // --- Distance measuring tool ---
+
+    /// <summary>
+    /// Adds the measuring tool's items to a ground context menu: start or finish a measurement at the
+    /// clicked spot, remove the one under the cursor, and clear them all.
+    /// </summary>
+    /// <remarks>
+    /// The endpoint comes from the raw cursor position rather than the snapped node the rest of this menu
+    /// is built around — measuring a wingtip-to-hold-bar gap means using the exact point clicked.
+    /// </remarks>
+    private void AddMeasureMenuItems(ContextMenu menu, GroundViewModel vm, Point screenPos)
+    {
+        if (vm.Measure is not { } measure || _canvas is null)
+        {
+            return;
+        }
+
+        var endpoint = _canvas.MeasureEndpointAt(screenPos);
+        var startLabel = measure.Anchor is null ? "Measure from here" : "Measure to here";
+        menu.Items.Add(
+            CreateMenuItem(
+                startLabel,
+                () =>
+                {
+                    measure.Pick(endpoint, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
+                    return Task.CompletedTask;
+                }
+            )
+        );
+
+        if (_canvas.MeasurementSlotAt(screenPos) is { } slot)
+        {
+            menu.Items.Add(
+                CreateMenuItem(
+                    $"Remove measurement {slot}",
+                    () =>
+                    {
+                        measure.Remove(slot);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+
+        if (measure.HasLines)
+        {
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Clear measurements",
+                    () =>
+                    {
+                        measure.Clear();
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+
+        menu.Items.Add(new Separator());
+    }
+
+    private void OnMeasurePointPicked(RblEndpoint endpoint)
+    {
+        if (DataContext is GroundViewModel { Measure: { } measure } vm)
+        {
+            measure.Pick(endpoint, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
+        }
+    }
+
+    private void OnMeasureDragCompleted(RblEndpoint from, RblEndpoint to)
+    {
+        if (DataContext is GroundViewModel { Measure: { } measure } vm)
+        {
+            measure.Place(from, to, vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
+        }
+    }
+
+    private void OnMeasureCancelled()
+    {
+        (DataContext as GroundViewModel)?.Measure?.Cancel();
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+
+        if (DataContext is GroundViewModel { Measure.IsMeasuring: true } measuringVm && e.Key == Key.Escape)
+        {
+            measuringVm.Measure?.Cancel();
+            e.Handled = true;
+            return;
+        }
 
         if (DataContext is GroundViewModel vm && vm.IsDrawingRoute)
         {
@@ -301,6 +397,9 @@ public partial class GroundView : UserControl
 
         var menu = new ContextMenu();
 
+        // Measuring is available with nothing selected, so these come before the aircraft-only items.
+        AddMeasureMenuItems(menu, vm, screenPos);
+
         if (vm.SelectedAircraft is not null)
         {
             var callsign = vm.SelectedAircraft.Callsign;
@@ -355,6 +454,13 @@ public partial class GroundView : UserControl
 
             menu.Items.Add(new Separator());
             menu.Items.Add(CreateMenuItem("Warp here", () => vm.WarpToNodeAsync(callsign, initials, nodeId)));
+        }
+
+        // With no aircraft selected the menu is just the measuring items, so drop the divider they add to
+        // separate themselves from the aircraft items that would normally follow.
+        while (menu.Items.Count > 0 && menu.Items[^1] is Separator)
+        {
+            menu.Items.RemoveAt(menu.Items.Count - 1);
         }
 
         if (menu.Items.Count > 0)
@@ -433,6 +539,23 @@ public partial class GroundView : UserControl
                 }
             )
         );
+
+        // Latching the measurement to the aircraft, so the line follows it as it taxis.
+        if (vm.Measure is { } measure)
+        {
+            var measureHeader = measure.Anchor is null ? $"Measure from {callsign}" : $"Measure to {callsign}";
+            menu.Items.Add(
+                CreateMenuItem(
+                    measureHeader,
+                    () =>
+                    {
+                        measure.Pick(RblEndpoint.OnAircraft(callsign), vm.MeasureTrackLookup, GroundViewModel.MeasureUnits);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+
         menu.Items.Add(new Separator());
 
         menu.Items.Add(FavoritesContextMenu.Build(FindMainViewModel(), ac, callsign, initials));

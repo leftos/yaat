@@ -32,6 +32,7 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
    - `DrawNodes` (hold-short / parking / spot icons) then `DrawLabels`
 6. **Aircraft symbols** then **datablocks** (always drawn, independent of the layout toggle)
 7. **Hovered-only labels** (a second `DrawLabels` pass for hover-revealed hidden elements)
+8. **Range/bearing lines** — the distance measuring tool, drawn *after* `Render` returns, from `GroundCanvas.RenderFromSnapshot` via `GroundRenderer.DrawRangeBearingLines` → the shared `Views/Map/RangeBearingRenderer`. Unlike the five route overlays these are **not** graph-snapped: a measurement is a plain two-point line between arbitrary lat/lons, so it cannot use `DrawRoute`. The snapshot carries them already resolved (`ResolvedRbl`) because an endpoint latched to an aircraft has to be looked up against the live aircraft list on the UI thread.
 
 The route overlays sit **between infrastructure and aircraft** so routes never occlude the aircraft symbols. `DrawHoverRoute` is drawn **last of the overlays** so the transient hover highlight paints on top of any persistent shown route.
 
@@ -121,7 +122,15 @@ Aircraft hit-testing runs on **click** (`OnPointerPressed`) and on **hover** (`O
 
 ### Events raised by `GroundCanvas`
 
-`NodeRightClicked`, `AircraftRightClicked`, `AircraftLeftClicked`, `AircraftCtrlClicked`, `EmptySpaceClicked`, `RunwayThresholdClicked`, `RunwayThresholdRightClicked`, `DrawNodeClicked`, `DrawNodeFinished`, `DrawNodeHovered`, **`HoveredAircraftChanged`**. `GroundView.axaml.cs` subscribes/unsubscribes them all in `OnLoaded`/`OnUnloaded`.
+`NodeRightClicked`, `AircraftRightClicked`, `AircraftLeftClicked`, `AircraftCtrlClicked`, `EmptySpaceClicked`, `RunwayThresholdClicked`, `RunwayThresholdRightClicked`, `DrawNodeClicked`, `DrawNodeFinished`, `DrawNodeHovered`, **`HoveredAircraftChanged`**, `MeasurePointPicked`, `MeasureDragCompleted`, `MeasureCancelled`. `GroundView.axaml.cs` subscribes/unsubscribes them all in `OnLoaded`/`OnUnloaded`.
+
+The three measuring events sit at the **top** of `OnPointerPressed`, above the datablock and route-drawing rungs: Alt+left starts a drag measurement and, while the tool is armed (`IsMeasuring`), a left click picks an endpoint. `MeasureEndpointAt` deliberately does **not** snap to the ground graph — measuring a wingtip-to-hold-bar gap means using the exact point clicked.
+
+### Right-click vs right-drag
+
+The right button does two jobs — a **click** opens a context menu, a **drag** pans — and they are indistinguishable at press time. `OnPointerPressed` therefore decides nothing: it hands the press to the shared `Views/Map/RightClickGesture`, lets `base.OnPointerPressed` start the pan, and returns. `OnPointerMoved` feeds movement in; past 5 px the press latches as a drag and cannot revert. `OnPointerReleased` asks `RightClickGesture.Release()`, which returns the **press** position when a menu is owed (so a pixel of jitter can't slide the menu off a small node) and null when the gesture was a pan. `RadarCanvas` uses the same helper.
+
+Because of this, **`HandleRightClick` is the single place every ground right-click menu is decided**, and it is only ever called from the release path — never on press. It resolves, in order: cancel a half-placed measurement → finish a drawn route at a node → datablock → aircraft symbol → node → runway threshold (needs a selection) → snap to nearest node. That last fallback is unconditional: with an aircraft selected the menu carries the taxi-route and "Warp here" items, and with nothing selected it still carries the measuring items. Deciding on press instead is what used to make a right-drag starting on a datablock, aircraft, or node fail to pan at all.
 
 ### Context menus
 

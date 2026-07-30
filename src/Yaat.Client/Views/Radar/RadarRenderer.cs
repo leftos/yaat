@@ -18,6 +18,7 @@ public sealed class RadarRenderer : IDisposable
     private static readonly SKColor FixColor = new(100, 100, 100);
     private readonly VideoMapRenderer _videoMapRenderer = new();
     private readonly TargetRenderer _targetRenderer = new();
+    private readonly RangeBearingRenderer _rangeBearingRenderer = new();
 
     private float _rangeRingBrightness = 0.6f;
 
@@ -838,8 +839,18 @@ public sealed class RadarRenderer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Draws the distance measuring tool's range/bearing lines. Called after <see cref="Render" /> so
+    /// measurements stay legible over targets, datablocks, and video maps.
+    /// </summary>
+    public void DrawRangeBearingLines(SKCanvas canvas, MapViewport vp, IReadOnlyList<ResolvedRbl>? lines, ResolvedRbl? pending)
+    {
+        _rangeBearingRenderer.Draw(canvas, vp, lines, pending);
+    }
+
     public void Dispose()
     {
+        _rangeBearingRenderer.Dispose();
         _videoMapRenderer.Dispose();
         _targetRenderer.Dispose();
         _rangeRingPaint.Dispose();

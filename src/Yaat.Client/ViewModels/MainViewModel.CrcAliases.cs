@@ -20,6 +20,8 @@ public partial class MainViewModel
         ".marker",
         ".markers",
         ".nomarkers",
+        ".rbl",
+        ".norbl",
         ".reloadaliases",
     };
 

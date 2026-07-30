@@ -186,6 +186,8 @@ public sealed class GroundRenderer : IDisposable
         SKColor? ColorOverride
     );
 
+    private readonly RangeBearingRenderer _rangeBearingRenderer = new();
+
     private readonly SKPaint _runwayFillPaint = new()
     {
         Color = SKColor.Parse(GroundColorScheme.DefaultRunwayFill),
@@ -2292,8 +2294,19 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Draws the distance measuring tool's range/bearing lines. Called after <see cref="Render" /> so
+    /// measurements stay legible over aircraft symbols, datablocks, and the surface layers.
+    /// </summary>
+    public void DrawRangeBearingLines(SKCanvas canvas, MapViewport vp, IReadOnlyList<ResolvedRbl>? lines, ResolvedRbl? pending)
+    {
+        _rangeBearingRenderer.Draw(canvas, vp, lines, pending);
+    }
+
     public void Dispose()
     {
+        _rangeBearingRenderer.Dispose();
+
         foreach (var paint in _shownTaxiRoutePaints)
         {
             paint.Dispose();
