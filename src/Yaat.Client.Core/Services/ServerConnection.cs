@@ -31,6 +31,14 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     /// applies the identical manifest from the RPC result instead.
     /// </summary>
     public event Action<List<AircraftDto>>? ScenarioRewound;
+
+    /// <summary>
+    /// Another room member loaded a recording. Carries the whole load result rather than a manifest —
+    /// a recording swaps the scenario and puts the room into playback, so the scope needs the new
+    /// scenario identity and tape as well as the aircraft. Never raised on the loading client, which
+    /// applies the identical result from the RPC.
+    /// </summary>
+    public event Action<RewindResultDto>? RecordingLoaded;
     public event Action<bool, int, double, bool, double>? SimulationStateChanged;
     public event Action<string?>? Reconnected;
     public event Action<Exception?>? Reconnecting;
@@ -153,6 +161,8 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<List<AircraftDto>>("ScenarioRestarted", manifest => ScenarioRestarted?.Invoke(manifest));
 
         _connection.On<List<AircraftDto>>("ScenarioRewound", manifest => ScenarioRewound?.Invoke(manifest));
+
+        _connection.On<RewindResultDto>("RecordingLoaded", dto => RecordingLoaded?.Invoke(dto));
 
         _connection.On<bool, int, double, bool, double>(
             "SimulationStateChanged",

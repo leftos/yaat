@@ -629,6 +629,39 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Another room member loaded a recording. Rebuilds from the same result they applied — a
+    /// recording swaps the scenario and enters playback, so unlike a restart or rewind the aircraft
+    /// manifest alone would leave the scope on the previous scenario. The terminal history is fetched
+    /// separately, exactly as the loading client does, so both end up with the recording's tape.
+    /// </summary>
+    private void OnRecordingLoaded(RewindResultDto result)
+    {
+        _ = Task.Run(async () =>
+        {
+            List<TerminalBroadcastDto> terminalLog;
+            try
+            {
+                terminalLog = await _connection.GetTerminalLogAsync();
+            }
+            catch (Exception ex)
+            {
+                // A failed terminal fetch must not cost us the scope rebuild, which is the part that
+                // actually matters — apply the recording with an empty tape and say so.
+                _log.LogWarning(ex, "Failed to fetch the terminal log after another client loaded a recording");
+                terminalLog = [];
+            }
+
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                ApplyRecordingResult(result);
+                RepopulateTerminalFromRecording(terminalLog);
+                StatusText = $"Recording loaded: {result.ScenarioName}";
+                AddSystemEntry($"Recording loaded by another client: {result.ScenarioName}");
+            });
+        });
+    }
+
     internal void ApplyRecordingResult(RewindResultDto result)
     {
         ActiveScenarioId = result.ScenarioId;

@@ -1385,6 +1385,7 @@ public partial class MainViewModel : ObservableObject
         _connection.AircraftSpawned += OnAircraftSpawned;
         _connection.ScenarioRestarted += OnScenarioRestarted;
         _connection.ScenarioRewound += OnScenarioRewound;
+        _connection.RecordingLoaded += OnRecordingLoaded;
 
         _cfrExpiryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _cfrExpiryTimer.Tick += (_, _) => SweepCfrExpiry();

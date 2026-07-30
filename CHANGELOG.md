@@ -13,6 +13,7 @@
 - Restarting a scenario, or loading a different one, keeps the weather you loaded.
 - Restarting a scenario clears the previous run's aircraft from the scope instead of leaving them frozen where they were, for everyone in the room.
 - Rewinding the timeline updates the scope for everyone in the room, not just whoever scrubbed — other RPOs kept showing aircraft the rewind had removed.
+- Loading a recording switches every RPO in the room to it. Previously only the RPO who opened the file saw it; everyone else stayed on the old scenario.
 - `CROSS <rwy>; DEL` removes the aircraft once it is clear of the far side, whether issued at the hold bars or while taxiing toward them.
 - `NODEL` cancels any queued delete — `ONHS DEL`, `CROSS …; DEL`, `AT <fix> DEL` — not just the post-landing hold-short form.
 - The datablock `*` marker shows for every armed delete, not only `ONHS DEL`.
