@@ -60,25 +60,50 @@ internal static class EvalRunner
         public int GpuLayers => -1;
     }
 
+    /// <summary>Whisper config carrying an explicit model source (prefs default or --whisper override).</summary>
+    private sealed class OverrideWhisperRuntimeConfig : IWhisperRuntimeConfig
+    {
+        public OverrideWhisperRuntimeConfig(string modelSource)
+        {
+            ModelSource = modelSource;
+        }
+
+        public string ModelSource { get; }
+    }
+
     public static async Task<int> RunAsync(string[] args)
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Usage: Yaat.SpeechSandbox --eval <corpus-dir> [--out-dir <dir>] [--trials N]");
+            Console.Error.WriteLine(
+                "Usage: Yaat.SpeechSandbox --eval <corpus-dir> [--out-dir <dir>] [--trials N] [--whisper <model-source>] [--parakeet <model-dir>]"
+            );
             Console.Error.WriteLine();
             Console.Error.WriteLine("Scores the production STT pipeline against labeled real-audio cases.");
             Console.Error.WriteLine("Each corpus subdirectory needs audio.wav + expected.json (see EvalRunner docs).");
+            Console.Error.WriteLine("--whisper A/Bs an alternative Whisper model (curated ID, ggml .bin path, or URI).");
+            Console.Error.WriteLine("--parakeet swaps the STT stage for a sherpa-onnx NeMo transducer export (Parakeet-TDT).");
             return 1;
         }
 
         var corpusDir = args[0];
         string? outDirOverride = null;
+        string? whisperOverride = null;
+        string? parakeetDir = null;
         var trials = 1;
         for (var i = 1; i < args.Length; i++)
         {
             if (args[i] == "--out-dir" && i + 1 < args.Length)
             {
                 outDirOverride = args[++i];
+            }
+            else if (args[i] == "--whisper" && i + 1 < args.Length)
+            {
+                whisperOverride = args[++i];
+            }
+            else if (args[i] == "--parakeet" && i + 1 < args.Length)
+            {
+                parakeetDir = args[++i];
             }
             else if (args[i] == "--trials" && i + 1 < args.Length)
             {
@@ -88,6 +113,12 @@ internal static class EvalRunner
                     return 2;
                 }
             }
+        }
+
+        if (whisperOverride is not null && parakeetDir is not null)
+        {
+            Console.Error.WriteLine("FATAL: --whisper and --parakeet are mutually exclusive — pick one STT stage per run.");
+            return 2;
         }
 
         if (!Directory.Exists(corpusDir))
@@ -106,18 +137,29 @@ internal static class EvalRunner
             ? new PreferencesLlmRuntimeConfig(prefs)
             : new OverrideLlmRuntimeConfig(llmOverride);
 
-        Console.WriteLine($"Whisper model: {prefs.WhisperModelSize}");
-        Console.WriteLine($"LLM model:     {llmConfig.ModelPath}{(llmOverride is null ? "" : " (LMKIT_TEST_MODEL override)")}");
+        // STT stage: Whisper (prefs default, or --whisper override) or a sherpa-onnx Parakeet
+        // export (--parakeet). Both are exposed to the trial loop through one delegate so the
+        // scoring path is identical regardless of engine.
+        var whisperSource = whisperOverride ?? prefs.WhisperModelSize;
+        using var whisperStt = parakeetDir is null ? new WhisperSttEngine(new OverrideWhisperRuntimeConfig(whisperSource)) : null;
+        using var sherpaStt = parakeetDir is null ? null : new SherpaSttEngine(parakeetDir);
+        var sttLabel = parakeetDir is null ? whisperSource : $"parakeet (sherpa-onnx, {parakeetDir})";
+        Func<float[], string, CancellationToken, Task<string?>> transcribe = parakeetDir is null
+            ? (samples, prompt, ct) => whisperStt!.TranscribeAsync(samples, prompt, ct)
+            : (samples, _, _) => Task.Run(() => sherpaStt!.Transcribe(samples, AudioCaptureService.SampleRate));
+
+        Console.WriteLine($"STT model: {sttLabel}");
+        Console.WriteLine($"LLM model: {llmConfig.ModelPath}{(llmOverride is null ? "" : " (LMKIT_TEST_MODEL override)")}");
         Console.WriteLine();
 
-        using var stt = new WhisperSttEngine(prefs);
         using var llm = new LocalLlmService(llmConfig);
         var ruleMapper = new PhraseologyCommandMapper();
         var llmMapper = new LocalLlmCommandMapper(llm);
         var callsignResolver = new LocalLlmCallsignResolver(llm);
-        if (!stt.IsConfigured || !llm.IsConfigured)
+        var sttConfigured = parakeetDir is null ? whisperStt!.IsConfigured : sherpaStt!.IsConfigured;
+        if (!sttConfigured || !llm.IsConfigured)
         {
-            Console.Error.WriteLine("FATAL: Whisper or LLM model not configured — set them up in Yaat.Client → Settings → Speech first.");
+            Console.Error.WriteLine("FATAL: STT or LLM model not configured/found — check model source arguments and Settings → Speech.");
             return 2;
         }
 
@@ -128,10 +170,13 @@ internal static class EvalRunner
         report.AppendLine("# Speech pipeline eval report");
         report.AppendLine();
         report.AppendLine($"- Corpus: `{Path.GetFullPath(corpusDir)}`");
-        report.AppendLine($"- Whisper: `{prefs.WhisperModelSize}`  LLM: `{llmConfig.ModelPath}`  Trials per case: {trials}");
+        report.AppendLine($"- STT: `{sttLabel}`  LLM: `{llmConfig.ModelPath}`  Trials per case: {trials}");
         report.AppendLine();
-        report.AppendLine("| Case | Verdict | Canonical (expected) | Canonical (got) | WER | Callsign |");
-        report.AppendLine("|---|---|---|---|---|---|");
+        report.AppendLine("| Case | Verdict | Canonical (expected) | Canonical (got) | WER | Callsign | STT ms/trial |");
+        report.AppendLine("|---|---|---|---|---|---|---|");
+        var details = new StringBuilder();
+        details.AppendLine("### Per-case transcripts");
+        details.AppendLine();
 
         int pass = 0,
             fail = 0,
@@ -165,10 +210,14 @@ internal static class EvalRunner
                 lastCanonical = "<null>",
                 lastCallsign = "<none>";
             double? wer = null;
+            long sttMsTotal = 0;
             var sw = Stopwatch.StartNew();
             for (var trial = 0; trial < trials; trial++)
             {
-                var transcript = await stt.TranscribeAsync(samples, ctx.WhisperInitialPrompt, CancellationToken.None).ConfigureAwait(false);
+                var sttSw = Stopwatch.StartNew();
+                var transcript = await transcribe(samples, ctx.WhisperInitialPrompt, CancellationToken.None).ConfigureAwait(false);
+                sttSw.Stop();
+                sttMsTotal += sttSw.ElapsedMilliseconds;
                 lastTranscript = transcript ?? string.Empty;
                 if (string.IsNullOrWhiteSpace(transcript))
                 {
@@ -223,17 +272,27 @@ internal static class EvalRunner
             }
 
             var werText = wer is null ? "—" : wer.Value.ToString("P0", CultureInfo.InvariantCulture);
+            var sttMsAvg = sttMsTotal / trials;
             Console.WriteLine(
-                $"{verdict, -10} {caseName}: got \"{lastCanonical}\" (callsign {lastCallsign}, WER {werText}, {sw.ElapsedMilliseconds} ms)"
+                $"{verdict, -10} {caseName}: got \"{lastCanonical}\" (callsign {lastCallsign}, WER {werText}, STT avg {sttMsAvg} ms/trial)"
             );
+            Console.WriteLine($"           transcript \"{lastTranscript}\"");
             if (verdict != "PASS")
             {
-                Console.WriteLine($"           expected \"{expectation.Canonical}\"  transcript \"{lastTranscript}\"");
+                Console.WriteLine($"           expected \"{expectation.Canonical}\"");
             }
-            report.AppendLine($"| {caseName} | {verdict} | `{expectation.Canonical}` | `{lastCanonical}` | {werText} | {lastCallsign} |");
+            report.AppendLine(
+                $"| {caseName} | {verdict} | `{expectation.Canonical}` | `{lastCanonical}` | {werText} | {lastCallsign} | {sttMsAvg} |"
+            );
+            details.AppendLine($"#### {caseName}");
+            details.AppendLine($"- Expected transcript: `{expectation.Transcript ?? "(none)"}`");
+            details.AppendLine($"- Last STT transcript: `{lastTranscript}`");
+            details.AppendLine($"- STT avg: {sttMsAvg} ms/trial (total incl. mapping: {sw.ElapsedMilliseconds} ms)");
+            details.AppendLine();
         }
 
         report.AppendLine();
+        report.Append(details);
         var meanWer = werValues.Count > 0 ? werValues.Average().ToString("P1", CultureInfo.InvariantCulture) : "n/a";
         var summary = $"{pass} PASS, {flaky} FLAKY, {fail} FAIL, {skipped} skipped — mean best-trial WER {meanWer}";
         report.AppendLine($"**Summary:** {summary}");

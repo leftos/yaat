@@ -11,13 +11,42 @@ using DeviceConfiguration = LMKit.Model.LM.DeviceConfiguration;
 namespace Yaat.Client.Services;
 
 /// <summary>
+/// Minimal settings surface needed by <see cref="WhisperSttEngine"/> — mirrors
+/// <see cref="ILlmRuntimeConfig"/> so production code passes a <see cref="UserPreferences"/>-backed
+/// adapter while tools (e.g. the speech sandbox's <c>--eval --whisper</c> A/B mode) pass an
+/// explicit model source without touching the user's saved preferences.
+/// </summary>
+public interface IWhisperRuntimeConfig
+{
+    /// <summary>
+    /// LM-Kit Whisper model source: curated ID (<c>whisper-large-turbo3</c>), absolute file path
+    /// to a ggml/GGUF <c>.bin</c>, or http(s) URI (downloaded on first load).
+    /// </summary>
+    string ModelSource { get; }
+}
+
+/// <summary>Adapter exposing a <see cref="UserPreferences"/> through <see cref="IWhisperRuntimeConfig"/>.</summary>
+public sealed class PreferencesWhisperRuntimeConfig : IWhisperRuntimeConfig
+{
+    private readonly UserPreferences _preferences;
+
+    public PreferencesWhisperRuntimeConfig(UserPreferences preferences)
+    {
+        _preferences = preferences;
+    }
+
+    public string ModelSource => _preferences.WhisperModelSize;
+}
+
+/// <summary>
 /// Wraps LM-Kit's <see cref="SpeechToText"/> for push-to-talk transcription. Takes 16 kHz mono
 /// Float32 PCM samples (as emitted by <see cref="AudioCaptureService"/>), wraps them in a minimal
 /// in-memory WAV container via <see cref="WavHeader.WritePcm16"/>, and feeds them to a
 /// <see cref="SpeechToText"/> engine backed by an LM-Kit Whisper model.
 ///
 /// The Whisper <see cref="LM"/> is loaded lazily on first <see cref="TranscribeAsync"/> call
-/// using the model identifier configured in <see cref="UserPreferences.WhisperModelSize"/> (e.g.
+/// using <see cref="IWhisperRuntimeConfig.ModelSource"/> (in production the
+/// <see cref="UserPreferences.WhisperModelSize"/>-backed adapter; e.g.
 /// <c>whisper-base</c>, <c>whisper-large-turbo3</c>). Subsequent calls reuse the same model
 /// handle. The <see cref="SpeechToText"/> instance is also cached because it's a thin wrapper;
 /// only the <see cref="SpeechToText.Prompt"/> property is updated per-call to reflect the current
@@ -33,7 +62,7 @@ public sealed class WhisperSttEngine : IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger<WhisperSttEngine>();
 
-    private readonly UserPreferences _preferences;
+    private readonly IWhisperRuntimeConfig _config;
     private readonly SemaphoreSlim _transcribeLock = new(1, 1);
 
     // Cache the LM (model weights + native handles) and the SpeechToText engine that wraps it.
@@ -44,9 +73,9 @@ public sealed class WhisperSttEngine : IDisposable
     private SpeechToText? _stt;
     private string? _loadedModelSource;
 
-    public WhisperSttEngine(UserPreferences preferences)
+    public WhisperSttEngine(IWhisperRuntimeConfig config)
     {
-        _preferences = preferences;
+        _config = config;
     }
 
     /// <summary>
@@ -55,7 +84,7 @@ public sealed class WhisperSttEngine : IDisposable
     /// time — if it's invalid, the load attempt fails and we return null from
     /// <see cref="TranscribeAsync"/>.
     /// </summary>
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(_preferences.WhisperModelSize);
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(_config.ModelSource);
 
     /// <summary>
     /// Transcribes a block of 16 kHz mono PCM Float32 samples using the configured Whisper model.
@@ -230,7 +259,7 @@ public sealed class WhisperSttEngine : IDisposable
 
     private SpeechToText? EnsureLoaded()
     {
-        var source = _preferences.WhisperModelSize;
+        var source = _config.ModelSource;
         if (string.IsNullOrWhiteSpace(source))
         {
             Log.LogWarning("Whisper model identifier is empty");

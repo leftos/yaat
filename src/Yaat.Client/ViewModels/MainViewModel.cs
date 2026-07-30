@@ -1285,7 +1285,7 @@ public partial class MainViewModel : ObservableObject
         // Speech pipeline wiring. The order here matters: LlmService must exist before
         // LocalLlmCommandMapper, and SpeechRecognitionService needs all of them.
         _audioCapture = new AudioCaptureService(_preferences);
-        _whisperStt = new WhisperSttEngine(_preferences);
+        _whisperStt = new WhisperSttEngine(new PreferencesWhisperRuntimeConfig(_preferences));
         _llmService = new LocalLlmService(new PreferencesLlmRuntimeConfig(_preferences));
         _llmMapper = new LocalLlmCommandMapper(_llmService);
         _llmCallsignResolver = new LocalLlmCallsignResolver(_llmService);

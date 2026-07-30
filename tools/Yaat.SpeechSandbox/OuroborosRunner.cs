@@ -115,7 +115,7 @@ internal static class OuroborosRunner
         Console.WriteLine();
 
         using var piper = new PiperSynthesizer(voiceDir);
-        using var stt = new WhisperSttEngine(prefs);
+        using var stt = new WhisperSttEngine(new PreferencesWhisperRuntimeConfig(prefs));
         using var llm = new LocalLlmService(new PreferencesLlmRuntimeConfig(prefs));
         var ruleMapper = new PhraseologyCommandMapper();
         var llmMapper = new LocalLlmCommandMapper(llm);

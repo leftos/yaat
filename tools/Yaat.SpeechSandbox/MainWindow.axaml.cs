@@ -57,7 +57,7 @@ public partial class MainWindow : Window
         // The sandbox reads but never writes prefs, so it's safe to share the file.
         _preferences = new UserPreferences();
         _llmService = new LocalLlmService(new PreferencesLlmRuntimeConfig(_preferences));
-        _whisperStt = new WhisperSttEngine(_preferences);
+        _whisperStt = new WhisperSttEngine(new PreferencesWhisperRuntimeConfig(_preferences));
         _audioCapture = new AudioCaptureService(_preferences);
 
         var llmCommandPromptBox = this.FindControl<TextBox>("LlmCommandPromptBox")!;

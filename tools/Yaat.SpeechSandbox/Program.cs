@@ -117,7 +117,7 @@ public static class Program
         Console.WriteLine($"LLM model:     {prefs.LlmModelPath}");
         Console.WriteLine();
 
-        using var stt = new WhisperSttEngine(prefs);
+        using var stt = new WhisperSttEngine(new PreferencesWhisperRuntimeConfig(prefs));
         using var llm = new LocalLlmService(new PreferencesLlmRuntimeConfig(prefs));
         var ruleMapper = new PhraseologyCommandMapper();
         var llmMapper = new LocalLlmCommandMapper(llm);
