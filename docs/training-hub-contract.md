@@ -117,6 +117,8 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `RenameBookmarkAsync(id, name)` | `RenameBookmark` | `RenameBookmark(id, name)` — any RPO may rename any bookmark |
 | `DeleteBookmarkAsync(id)` | `DeleteBookmark` | `DeleteBookmark(id)` — any RPO may delete any bookmark |
 | `GetSessionServerLogAsync()` | `GetSessionServerLog` | `GetSessionServerLog()` (room-scoped, anonymized text) |
+| `ExportSurfaceTempDataAsync()` | `ExportSurfaceTempData` | `ExportSurfaceTempData()` — mentor/instructor only; the room's ASDE-X / SAAB SAID drawn geometry as committable ARTCC sidecar JSON, one entry per facility |
+| `ResetSurfaceTempDataAsync()` | `ResetSurfaceTempData` | `ResetSurfaceTempData()` — mentor/instructor only; discards drawn geometry (server-side too) and re-seeds every facility from the committed sidecars, returning the facility count |
 | `GetAirportGroundLayoutAsync(id)` | `GetAirportGroundLayout` | `GetAirportGroundLayout(id)` |
 | `GetFacilityVideoMapsAsync(…)` | `GetFacilityVideoMaps` | `GetFacilityVideoMaps(...)` `:1098` |
 | `GetFacilityVideoMapsForArtccAsync(…)` | `GetFacilityVideoMapsForArtcc` | `GetFacilityVideoMapsForArtcc(...)` `:1103` |

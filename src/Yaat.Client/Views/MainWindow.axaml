@@ -162,6 +162,15 @@
                           Command="{Binding OpenTdlsInBrowserCommand}"
                           ToolTip.Tip="Open the connected server's web vTDLS in your default browser" />
                 <Separator />
+                <MenuItem Header="Export ASDE-X / SAID Temp _Data..."
+                          Command="{Binding ExportSurfaceTempDataCommand}"
+                          IsEnabled="{Binding IsInRoom}"
+                          ToolTip.Tip="Save the drawn restricted areas and text as ARTCC sidecar JSON, one file per facility, for committing to the repo" />
+                <MenuItem Header="Reset ASDE-X / SAID Temp Data to Defaults..."
+                          Command="{Binding ResetSurfaceTempDataCommand}"
+                          IsEnabled="{Binding IsInRoom}"
+                          ToolTip.Tip="Discard everything drawn on the surface displays and go back to the geometry shipped with the project" />
+                <Separator />
                 <MenuItem Header="Configure _CRC Environments"
                           x:Name="ConfigureCrcMenuItem" />
             </MenuItem>
@@ -536,6 +545,35 @@
                 <Button Content="Cancel"
                         Command="{Binding
                             CancelRestartScenarioCommand}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+
+    <!-- Surface temp data reset confirmation overlay -->
+    <Border IsVisible="{Binding ShowResetSurfaceTempDataConfirmation}"
+            Background="#CC000000"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="8"
+            Padding="24"
+            MinWidth="350">
+        <StackPanel Spacing="12">
+            <TextBlock Text="Reset ASDE-X / SAID Temp Data?"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Foreground="White" />
+            <TextBlock Text="Every area, label, and SET drawn on the surface displays is discarded and each facility goes back to the geometry shipped with the project. This affects the server, not just this room, and cannot be undone."
+                       TextWrapping="Wrap"
+                       Foreground="Orange" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8"
+                        HorizontalAlignment="Right">
+                <Button Content="Reset"
+                        Command="{Binding
+                            ConfirmResetSurfaceTempDataCommand}" />
+                <Button Content="Cancel"
+                        Command="{Binding
+                            CancelResetSurfaceTempDataCommand}" />
             </StackPanel>
         </StackPanel>
     </Border>

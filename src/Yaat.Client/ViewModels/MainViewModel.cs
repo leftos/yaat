@@ -351,6 +351,9 @@ public partial class MainViewModel : ObservableObject
     private bool _showScenarioSwitchConfirmation;
 
     [ObservableProperty]
+    private bool _showResetSurfaceTempDataConfirmation;
+
+    [ObservableProperty]
     private bool _showScenarioSetup;
 
     public bool ShowScenarioSetupDifficulty => DifficultyOptions.Count > 0;

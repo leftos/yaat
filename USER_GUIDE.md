@@ -1289,6 +1289,17 @@ Under the **Scenario** menu:
 
 Recordings are self-contained archives that include the scenario definition, RNG seed, weather state, periodic state snapshots, and all user actions with timestamps. They can be shared between users for review or training.
 
+### ASDE-X / SAID drawn geometry
+
+Areas and text a controller draws on CRC's ASDE-X or SAAB SAID surface display — restricted areas, closed areas, labels, and the numbered SETs they can be toggled with — are **kept by the server**. They survive a scenario reload, a server restart, and carry into every later room, so geometry like SFO's 28L/28R final-approach centerlines only has to be drawn once.
+
+Some ARTCCs ship geometry with YAAT itself; a room starts with whatever its facility has. SFO comes with extended centerlines marked at each mile for 28L/28R, 10L/10R, and 19L, each filed into its own set (`28FINAL`, `10FINAL`, `19FINAL`) so you can show just the flow in use. Those lines are the *visual*-approach reference: an aircraft flying the LDA PRM 28L during simultaneous offset operations is on an offset course and will look misaligned against them until the visual segment.
+
+Two mentor/instructor actions under the **Tools** menu manage it:
+
+- **Export ASDE-X / SAID Temp Data...** — pick a folder and YAAT writes one `{FACILITY}.json` per facility, in the format the project ships geometry in. Draw something worth keeping, export it, and send it in so every install gets it.
+- **Reset ASDE-X / SAID Temp Data to Defaults...** — discards everything drawn and puts each facility back on the geometry shipped with the project. This changes the server, not just your room, and cannot be undone — but it is the only way to undo a bad draw or bring back something that was deleted.
+
 ---
 
 ## Multi-User Features

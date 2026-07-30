@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+- **Tools > Export ASDE-X / SAID Temp Data...** saves the drawn geometry as one file per facility, ready to commit to the project.
+- **Tools > Reset ASDE-X / SAID Temp Data to Defaults...** discards everything drawn and restores the geometry shipped with the project.
+- ARTCCs can ship surface geometry under `Data/ARTCCs/{ARTCC}/SurfaceTempData/{FACILITY}.json`, generated from runway data by `tools/build-surface-temp-data.py`.
+- SFO ships final-approach centerlines marked at each mile for 28L/28R, 10L/10R, and 19L, one toggleable set per flow.
+
 ### Fixed
 - Restarting a scenario keeps your session settings — auto cleared-to-land, auto cross-runway, auto pull-up, solo training mode, the delays, and auto-delete.
 - Restarting a scenario, or loading a different one, keeps the weather you loaded.
@@ -10,6 +16,11 @@
 - `CROSS <rwy>; DEL` removes the aircraft once it is clear of the far side, whether issued at the hold bars or while taxiing toward them.
 - `NODEL` cancels any queued delete — `ONHS DEL`, `CROSS …; DEL`, `AT <fix> DEL` — not just the post-landing hold-short form.
 - The datablock `*` marker shows for every armed delete, not only `ONHS DEL`.
+- Areas, closed areas, and text drawn on CRC's ASDE-X or SAAB SAID display now reach the server instead of being silently discarded.
+- Drawn surface geometry persists across scenario reloads, server restarts, and later rooms instead of vanishing with the display that drew it.
+- Saving drawn geometry into a numbered set uses the set number you typed, and CRC confirms with `SET nn SAVED`.
+- Deleting a drawn object removes that object.
+- Geometry drawn for one airport's surface display no longer appears on another's.
 
 ## v0.9.18-beta [2026/07/29]
 

@@ -647,6 +647,27 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         return await _connection!.InvokeAsync<string?>("GetSessionServerLog");
     }
 
+    /// <summary>
+    /// The room's current ASDE-X / SAAB SAID temp data as ARTCC sidecar JSON, one entry per facility,
+    /// for committing under <c>Data/ARTCCs/{ARTCC}/SurfaceTempData/</c>. Mentor/instructor only.
+    /// </summary>
+    public async Task<List<SurfaceTempDataExportDto>> ExportSurfaceTempDataAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<SurfaceTempDataExportDto>>("ExportSurfaceTempData") ?? [];
+    }
+
+    /// <summary>
+    /// Discards controller-drawn ASDE-X / SAAB SAID geometry and puts every facility back on the
+    /// committed defaults, on the server's disk as well as in this room. Returns the facility count.
+    /// Mentor/instructor only.
+    /// </summary>
+    public async Task<int> ResetSurfaceTempDataAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<int>("ResetSurfaceTempData");
+    }
+
     public async Task<RewindResultDto?> LoadRecordingAsync(byte[] recordingBytes, CancellationToken cancellationToken = default)
     {
         EnsureConnected();
@@ -1480,3 +1501,6 @@ public record RewindResultDto(
 public record AssignableMemberDto(string ConnectionId, string Initials);
 
 public record AircraftAssignmentsDto(Dictionary<string, string> Assignments, List<AssignableMemberDto> Members);
+
+/// <summary>One facility's surface temp data rendered as committable ARTCC sidecar JSON.</summary>
+public record SurfaceTempDataExportDto(string FacilityId, string Json);

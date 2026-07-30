@@ -182,6 +182,58 @@ Every site mirrors the ASDE-X stack: `Said*` state on `AircraftStarsState` (sepa
 - **Suspend mirrors ASDE-X; don't hide/clamp.** `DtoConverter.ToSaidTrack` emits `Suspended` when `stars.SaidSuspended` (parallels `ToAsdexTrack`); the aircraft stays on the surface display, only the track status changes, and only `SaidTerminated` removes it. CRC once crashed rendering a `Suspended` SAID track (its "mega font" only supported `FontType.Asdex`); YAAT had a temporary hide+clamp workaround, but **CRC fixed it and the workaround was reverted — do not re-introduce `IsHiddenFromSaid` or status-clamping.**
 - **Disconnect must delete the surface target for *every* coast status, not just `Dropped`.** A coasting surface track has no live return — CRC draws the coast icon from the *track*, and a target left alive orphans an uncorrelated blip that NRE-crashes CRC on click (`GetByCorrelatedAircraftId` returns null). `CrcBroadcastService.BroadcastDisconnectAsync` sends `DeleteSaabSaidTargets`/`DeleteAsdexTargets` for all coast statuses. Regression: `CrcDisconnectSurfaceTargetTests`.
 
+## Surface temp data — the drawn geometry on ASDE-X / SAAB SAID
+
+CRC's surface displays let a controller draw **temp data**: `RestrictedArea` / `ClosedArea` polygons and
+`Text` labels, optionally filed into a numbered **SET** (1–88) that can be toggled on and off as a group.
+vZOA uses this for the SFO 28L/28R extended final-approach centerlines and their per-mile marks, so local control
+can see which parallel an arrival is lined up on. ASDE-X and SAAB SAID keep separate object sets; the wire
+DTOs are field-identical, so one record (`SurfaceTempDataItem`) and one store serve both.
+
+**Three layers, merged in this order** (`FacilityTempDataStore`):
+
+1. **Committed ARTCC sidecar** — `Data/ARTCCs/{ARTCC}/SurfaceTempData/{FACILITY}.json`, shipped with the
+   build. See the [ARTCCs README](../src/Yaat.Sim/Data/ARTCCs/README.md) for the schema.
+2. **Runtime overlay** — `{Yaat:FacilityDataPath}/{ARTCC}/{FACILITY}.json` on the server's disk, written
+   through on every mutation. Overlay entries win by id; deleting a sidecar-seeded object records a
+   tombstone here rather than editing the sidecar.
+3. **Room state** — `AsdexState.Surface` / `SaidState.Surface`, seeded lazily from (1)+(2) the first time
+   any client subscribes to that facility's temp-data topic (`CrcClientState.SeedSurfaceTempDataIfNeeded`).
+
+Room edits write through to the overlay but are **not** pushed into other live rooms — another room picks
+them up when it next seeds. That keeps room isolation intact while still making the geometry permanent.
+A mentor turns a room's live state into committable sidecar JSON via **Tools → Export ASDE-X / SAID
+Temp Data...** in the client (`TrainingHub.ExportSurfaceTempData` → `SurfaceTempDataExporter`), and can
+discard everything drawn via **Tools → Reset ASDE-X / SAID Temp Data to Defaults...**
+(`TrainingHub.ResetSurfaceTempData` → `SurfaceTempDataResetter`). The reset is the only way out of a bad
+draw: the overlay otherwise only accumulates, and deleting a sidecar-seeded object leaves a tombstone that
+suppresses it for every future room. Because CRC is additive, the reset broadcast carries explicit deletes
+for what went away *and* re-sends the restored set — the restored set alone would leave discarded drawings
+on screen.
+
+Wire-format contract, all of which YAAT got wrong before #312 — check these when touching the handlers:
+
+- **CRC sends the facility id as the FIRST SignalR argument**, with the DTO second:
+  `AddAsdexTempData(facilityId, dto)`, `DeleteAsdexTempData(facilityId, tempDataId)`,
+  `SaveAsdexTempDataPreset(facilityId, preset)`, `ToggleAsdexTempDataPreset(facilityId, presetId)`,
+  `UpdateAsdexSafetyLogicConfiguration(facilityId, config)`. Reading slot 0 as the DTO throws inside
+  MessagePack, and the exception is swallowed by the dispatch try/catch — the mutation silently vanishes.
+  `EditAsdexDbFields(dto)` is the exception: one argument, whose *field* 0 is the facility id.
+- **`TempDataType` is on the wire as a string** (`"RestrictedArea"`), not an int. Deserialize the DTO type
+  rather than hand-rolling the reader, so `StringEnumFormatter` handles it.
+- **The preset id is the controller's SET number**, sent by CRC. The server stores what it is given; it must
+  not assign its own. `SaveAsdexTempDataPreset` is `Task<int?>` on the client: **nil** = saved,
+  **-1** = "INVALID SET", **any positive value** = "DATA IN SET nn" (that object is already filed there).
+  Saving also stamps `PresetId` onto the referenced object and re-broadcasts it — CRC hides objects whose
+  SET is inactive, so without the stamp toggling a SET does nothing.
+- **Broadcasts must carry the facility id.** CRC keys subscriptions on the whole `Topic` record, facility
+  included (`EntitySubscriptionManager`: `where e.Topic == topic`), so a push addressed to a null facility
+  is silently dropped client-side. `BuildInitialData` gets this right for free by echoing the subscribed
+  topic; the live push path has to pass it explicitly.
+
+Tests: `CrcSurfaceTempDataWireTests` (wire shape), `SurfaceTempDataStoreTests` (merge, tombstones, restart
+persistence), `SurfaceTempDataSeedingTests` (room seeding, cross-room, unload), `SurfaceTempDataExportTests`.
+
 ## STARS keyboard & slew commands — `CrcClientState.Stars.cs`
 
 CRC STARS per-track keyboard/slew amends are handled in `CrcClientState.Stars.cs`. Most route through the single-owner canonical pipeline via `DispatchCrc(callsign, "<verb>", identity)` → `RecordAndDispatch` (replay-durable, inheriting ownership/undo/broadcasts for free): `SP1`/`SP2`, `PRA n`, `TA n`, `CRUISE n`, `CAINH`, `DROP`. Only two paths mutate state directly and warrant scrutiny: Mode-C inhibit (a display bool) and beacon.
@@ -239,7 +291,8 @@ Tests: `AutoScratchpadResolverTests` (branch matrix against the real ZOA snapsho
 
 - `StripState.Reset()` + `StripBroadcaster.BroadcastFullStateAsync`; `TdlsState.Reset()` + `TdlsBroadcaster.BroadcastFullStateAsync`.
 - `LineNumbers.Reset()` (server-only; the per-callsign delete loop already emits `DeleteStarsLineNumbers`).
-- `AsdexState.Reset()` + `BroadcastAsdexTempDataClearAsync`, and `EramState.ClearScenarioArtifacts()` (route lines) + `BroadcastEramRouteLinesClearAsync` — the per-callsign delete loop only clears *per-aircraft* artifacts, so non-per-aircraft ones (ASDE-X temp markers, ERAM route lines) need these room-wide topic clears.
+- `EramState.ClearScenarioArtifacts()` (route lines) + `BroadcastEramRouteLinesClearAsync` — the per-callsign delete loop only clears *per-aircraft* artifacts, so non-per-aircraft ones need this room-wide topic clear.
+- `AsdexState.Reset()` / `SaidState.Reset()` clear the safety-logic config, active alerts, and coasting surface tracks — but **not** temp data or presets. Those are facility furniture, not scenario state; see "Surface temp data" below.
 - **Preserve** ERAM `SectorConfigurations` (velocity-vector length, CRR color) and `QuickLook` — controller-workstation display *preferences*, not scenario data; wiping them on unload is a regression.
 
 This is a different "four" than the *simulation* spawn queues that [scenario-loading-and-generation.md](scenario-loading-and-generation.md) says unload clears. Tests: `ScenarioUnloadWipesStateTests`.

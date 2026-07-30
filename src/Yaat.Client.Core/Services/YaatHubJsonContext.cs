@@ -59,6 +59,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(PositionDisplayConfigDto))]
 [JsonSerializable(typeof(ScenarioLoadedDto))]
 [JsonSerializable(typeof(AircraftAssignmentsDto))]
+[JsonSerializable(typeof(List<SurfaceTempDataExportDto>))]
 [JsonSerializable(typeof(SessionSettingsDto))]
 [JsonSerializable(typeof(BookmarksChangedDto))]
 [JsonSerializable(typeof(TimelineBookmarkDto))]

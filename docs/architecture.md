@@ -736,7 +736,8 @@ Data/Airspace/AirspaceAvoidance.cs # VFR self-restriction geometry: level-off al
 Data/Airspace/faa-training-primary-class-bc.geojson.br # Checked-in Brotli FAA AIS fixture for B/C airspace at all vNAS training primary airports.
 Data/Mva/MvaDatabase.cs / MvaSector.cs / MvaRelation.cs # FAA AIXM-derived MVA sectors: exterior-minus-holes containment + altitude Classify (Below/At/Above). See minimum-vectoring-altitude.md.
 Data/Mva/FAA_MVA_FUS3.geojson.br # Committed FAA MVA charts (FUS3), all 148 published facilities: 3,268 sectors with MSL floors + facility tags, Brotli-compressed, built by tools/build-mva-data.py --all.
-Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, Airports, InitialContactTransfers, WakeDirectives, Procedures — see Data/ARTCCs/README.md).
+Data/ARTCCs/                   # User-submitted per-ARTCC data root (CustomFixes, FixPronunciations, Airports, InitialContactTransfers, WakeDirectives, Procedures, SurfaceTempData — see Data/ARTCCs/README.md).
+Data/ARTCCs/{ARTCC}/SurfaceTempData/{FACILITY}.json # Committed ASDE-X / SAAB SAID drawn geometry (restricted/closed areas + text, optionally filed into a numbered SET). Read by yaat-server's FacilityTempDataStore, which seeds every room from it and layers runtime controller edits on top. Authored by tools/build-surface-temp-data.py or exported from a live room via the client's Scenario menu.
 Data/ARTCCs/ZOA/Procedures/koak-nimi.cifp # Pinned KOAK NIMITZ SID (NIMI5): charted and flown, but dropped from the FAA CIFP at cycle 2605. Carries the published 315 deg initial turn that the ~12-month prior-cycle chain would otherwise lose.
 Data/FrdResolver.cs            # Fix-Radial-Distance ↔ lat/lon; IsFrdIdentifier gates FRD-named fixes
 Data/LatLonParser.cs           # ERAM DDMM/DDDMM lat-long strings (//4220N/7110W) → lat/lon (CRR group locations)
@@ -1040,6 +1041,19 @@ python tools/stash-procedure.py BDEGA4 --airport KSFO --kind star --artcc ZOA
 ```
 
 Stdlib-only Python. A bare name (`NIMI`) matches every version (`NIMI5`/`NIMI6`) using the same base-name rule as `NavigationDatabase.StripTrailingDigits`; an exact id matches only itself. Searches newest-first across the local CIFP cache (`%LOCALAPPDATA%/yaat/cache/cifp/`), the repo's bundled `TestData/FAACIFP18.gz`, any `--search-path`, and optionally the FAA server (`--fetch`, usually 404s for past cycles). Line selection mirrors `CifpParser`'s own gate exactly, and terminal-waypoint (`PC`) records are emitted alongside legs that reference an arc center. The owning ARTCC is inferred from existing `Data/ARTCCs/*/` content naming the airport; `--artcc` overrides. `--verify` round-trips the result through `Yaat.CifpInspector`.
+
+## build-surface-temp-data.py — CLI tool (`tools/build-surface-temp-data.py`)
+
+Generates the ASDE-X / SAAB SAID final-approach overlay vZOA controllers otherwise hand-draw at SFO: each runway's extended centerline outbound from the landing threshold, with a short mark across it at each whole mile. The mark shape is copied from the reporter's screenshot — centred on the runway's own centerline, crossing it on both sides, and stopping short of the parallel so the two never merge; no text. Writes an ARTCC sidecar at `Data/ARTCCs/{ARTCC}/SurfaceTempData/{FACILITY}.json`, which yaat-server seeds every room from.
+
+```bash
+python tools/build-surface-temp-data.py --artcc ZOA --facility SFO --runways 28L 28R --set 1 --set-name FINALS
+python tools/build-surface-temp-data.py --artcc ZOA --facility SFO --runways 28L 28R --dry-run
+```
+
+Stdlib-only Python. Runway ends come from the vNAS airport map GeoJSON (the same surface map the controller sees) — fetched from the training API, or read from the bundled `TestData/{airport}.geojson` when present. Bearings are TRUE, because the output is lat/lon; the centerline is drawn on the reciprocal of the landing course. CRC closes an area's ring itself, so lines and ticks are emitted as out-and-back point lists. `--append` merges a second flow's group into the same facility file, each group in its own SET; `--length`, `--tick-interval`, and `--tick-length` tune the geometry; `--set` files everything into one CRC SET so a controller can toggle the whole overlay off.
+
+Committing generated output is one way to author a sidecar; the other is drawing it in CRC and using the client's **Tools → Export ASDE-X / SAID Temp Data...**, which emits the same schema from a live room.
 
 ## yaat-crc-config — Standalone Rust binary (`tools/yaat-crc-config/`)
 

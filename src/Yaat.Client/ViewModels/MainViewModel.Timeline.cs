@@ -302,6 +302,76 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Writes the room's ASDE-X / SAAB SAID temp data to a folder as one sidecar JSON per facility, so
+    /// a mentor can commit hand-drawn geometry (restricted areas, final-approach corridors, mile
+    /// markers) into <c>src/Yaat.Sim/Data/ARTCCs/{ARTCC}/SurfaceTempData/</c>. Once committed, every
+    /// room seeds from it instead of relying on the server's runtime overlay.
+    /// </summary>
+    [RelayCommand]
+    private async Task ExportSurfaceTempData()
+    {
+        try
+        {
+            var exports = await _connection.ExportSurfaceTempDataAsync();
+            if (exports.Count == 0)
+            {
+                StatusText = "No ASDE-X/SAID temp data to export";
+                return;
+            }
+
+            var folder = await _filePicker.OpenFolderAsync(new OpenFolderOptions("Export ASDE-X / SAID Temp Data"));
+            if (folder is null)
+            {
+                return;
+            }
+
+            foreach (var export in exports)
+            {
+                var path = Path.Combine(folder, $"{SanitizeFileName(export.FacilityId)}.json");
+                await File.WriteAllTextAsync(path, export.Json);
+            }
+
+            StatusText = $"Exported temp data for {exports.Count} facilit{(exports.Count == 1 ? "y" : "ies")}";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Export surface temp data failed");
+            StatusText = $"Export temp data error: {ex.Message}";
+        }
+    }
+
+    /// <summary>Opens the confirmation for discarding drawn ASDE-X / SAID geometry.</summary>
+    [RelayCommand]
+    private void ResetSurfaceTempData() => ShowResetSurfaceTempDataConfirmation = true;
+
+    [RelayCommand]
+    private void CancelResetSurfaceTempData() => ShowResetSurfaceTempDataConfirmation = false;
+
+    /// <summary>
+    /// Discards every drawn area, label, and SET on the server's surface displays and puts each facility
+    /// back on the geometry shipped with the project. Irreversible — the server keeps drawn geometry
+    /// permanently, so this is the only way to undo a bad draw or restore an object someone deleted.
+    /// </summary>
+    [RelayCommand]
+    private async Task ConfirmResetSurfaceTempData()
+    {
+        ShowResetSurfaceTempDataConfirmation = false;
+        try
+        {
+            var facilities = await _connection.ResetSurfaceTempDataAsync();
+            StatusText =
+                facilities == 0
+                    ? "No ASDE-X/SAID temp data to reset"
+                    : $"Reset temp data to defaults for {facilities} facilit{(facilities == 1 ? "y" : "ies")}";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Reset surface temp data failed");
+            StatusText = $"Reset temp data error: {ex.Message}";
+        }
+    }
+
     private void OnExportRecordingProgress(int currentSeconds, int totalSeconds)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>

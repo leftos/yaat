@@ -18,12 +18,14 @@ ARTCCs/
       oak-wake-directives.json
     Procedures/
       koak-nimi.cifp
+    SurfaceTempData/
+      SFO.json
   ZMA/
     Airports/
       fll.json
 ```
 
-Each loader scans `ARTCCs/*/{Category}/*.json` (`Procedures/` uses `*.cifp`). Files whose category folder doesn't match the loader are ignored — `Data/ARTCCs/ZOA/CustomFixes/foo.json` is read by `CustomFixLoader`, not by `AirportSidecarLoader`.
+Each loader scans `ARTCCs/*/{Category}/*.json` (`Procedures/` uses `*.cifp`; `SurfaceTempData/` is looked up by facility id rather than scanned). Files whose category folder doesn't match the loader are ignored — `Data/ARTCCs/ZOA/CustomFixes/foo.json` is read by `CustomFixLoader`, not by `AirportSidecarLoader`.
 
 The categories below describe the JSON schema for each. None are required; an ARTCC folder may contain any subset.
 
@@ -399,3 +401,117 @@ Each file is a JSON array of directive rules:
 Do not add real facility waivers from memory. Checked-in rules should cite an ARTCC-approved local SOP, LOA, or facility directive.
 
 Restart YAAT to pick up edits to wake directive JSONs.
+
+---
+
+## SurfaceTempData
+
+Geometry drawn on a facility's CRC surface display — the ASDE-X or SAAB SAID "temp data" objects a
+controller creates with the drawing tools: restricted areas, closed areas, and text labels. vZOA uses
+this for the SFO 28L/28R extended final-approach centerlines and their per-mile marks, so local control
+can confirm at a glance which parallel an arrival is lined up on.
+
+**One file per facility, named for the vNAS facility id** (`SFO.json`, `OAK.json`, `NCT.json`) — not
+scanned like the other categories, because the server looks the file up by the facility the CRC client
+subscribed to.
+
+These are the *defaults*: the server seeds every room from them the first time someone opens that
+facility's display. Anything controllers draw afterwards is kept in the server's own writable facility
+store and layered on top; deleting a seeded object records a tombstone there rather than editing this
+file. Committing a change here therefore updates the baseline for rooms that have not overridden it.
+
+To produce a file, draw the geometry in CRC and use **Tools → Export ASDE-X / SAID Temp Data...**
+in the YAAT client, which writes exactly this schema, one file per facility.
+
+```json
+{
+  "asdex": {
+    "items": [
+      {
+        "id": "sfo-28r-final",
+        "presetId": 1,
+        "type": "RestrictedArea",
+        "area": [[37.613517, -122.357130], [37.53, -122.20]]
+      },
+      {
+        "id": "sfo-28r-m05",
+        "presetId": 1,
+        "type": "Text",
+        "location": [37.59, -122.28],
+        "line1": "5"
+      }
+    ],
+    "presets": [
+      { "id": 1, "dataId": "sfo-28r-final", "name": "FINALS", "active": true }
+    ]
+  },
+  "said": {}
+}
+```
+
+Both top-level sections are optional; a facility runs one surface system or the other.
+
+### Item fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Stable identifier, unique within the facility. Controllers delete by this id, so keep it stable across edits. |
+| `type` | string | Yes | `RestrictedArea`, `ClosedArea`, or `Text`. |
+| `area` | number[][] | For areas | Outline as `[[lat, lon], …]`. CRC closes the ring itself, so draw a *line* as an out-and-back point list. |
+| `location` | number[] | For text | `[lat, lon]` anchor. |
+| `line1`, `line2` | string | For text | The label text; `line2` renders below `line1`. |
+| `presetId` | number | No | The SET (1–88) this object belongs to. Objects in a SET render only while that SET is active, so a controller can toggle the whole group off. Omit for an object that always renders. |
+
+### Preset fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | number | Yes | SET number, 1–88. Chosen by the author, exactly as a controller would type it in CRC. |
+| `dataId` | string | Yes | Id of the item this SET holds. |
+| `name` | string | Yes | SET label, 1–7 characters (CRC's limit). |
+| `active` | bool | Yes | Whether the SET starts toggled on. |
+
+Coordinates are decimal degrees, latitude first. Restart the server to pick up edits.
+
+### Worked example — `ZOA/SurfaceTempData/SFO.json`
+
+Three groups, one per flow, each in its own SET so a controller shows only the configuration in use.
+All start active, matching the reference, where every group is on screen at once:
+
+```bash
+python tools/build-surface-temp-data.py --artcc ZOA --facility SFO --runways 28L 28R --set 1 --set-name 28FINAL
+python tools/build-surface-temp-data.py --artcc ZOA --facility SFO --append --runways 10L 10R --set 2 --set-name 10FINAL --length 2.5
+python tools/build-surface-temp-data.py --artcc ZOA --facility SFO --append --runways 19L --set 3 --set-name 19FINAL --length 2.5
+```
+
+Each runway gets its extended final-approach centerline out from the **landing** threshold with a mark
+across it at each mile. 19L is alone — the reference draws no 19R overlay. Notes for anyone changing it:
+
+- **The mark shape is copied from the reporter's screenshot**, measured against its own scale (the 750 ft
+  between the parallels spans 22 px there). Each runway carries its own mark, centred on that runway's
+  centerline and crossing it on both sides, ~547 ft long, leaving ~204 ft of the channel between the two
+  runways unmarked. Reference measures 545–648 ft with a 136–307 ft gap. **The two runways' marks must
+  never join into one bar** — the gap is what lets a controller tell the parallels apart.
+- **No text.** The reference has none: no distance numerals, no runway ids. The marks are self-evident
+  once you know they are a mile apart.
+- **7 nm on the 28s** covers the approach gate, which sits ~1 nm outside the FAF and no closer than 5 nm
+  from the threshold (7110.65 PCG, *approach gate*); vectors to intercept are issued at least 2 nm outside
+  that (§5-9-1.a.1). Everything local control reads happens inside it, and drawing further only adds
+  clutter. The reference is clipped by its inset window at 4.84 nm, so its true length is unknown.
+- **2.5 nm on the 10s and 19L is approximate.** It is scaled off the whole-airport reference rather than
+  measured against a known distance in it, so treat it as ±0.2 nm. Direction, mark shape, and the 1 nm
+  spacing are verified; only the cutoff is an estimate. Rerun the generator with a different `--length`
+  to correct it.
+- **The origin is the displaced threshold.** The airport map's runway LineString endpoints are *pavement*
+  ends — CIFP puts KSFO 28L/28R's landing thresholds ~300 ft downfield, which is what the map's
+  `threshold: "0 - 300"` property records. The generator applies it.
+- **West flow only.** These lines are meaningless — and actively misleading — on 10L/10R or 1L/1R
+  operations, which is why the SET is named for the flow.
+- **This is the *visual* reference, not the SOIA course.** SFO 28L/28R at 750 ft is a §5-9-9.a
+  simultaneous-offset installation. When PRM/SOIA is running, an aircraft correctly flying the LDA PRM
+  28L is on a 2.5–3.0° offset course that only converges onto this drawn centerline in the visual
+  segment. It will look misaligned against the line and it is not — do not "fix" that.
+
+The underlying requirement is 7110.65 §7-4-4.c.1: on parallels less than 2,500 ft apart, an aircraft must
+report the preceding aircraft in sight **on the adjacent extended runway centerline** before visual
+separation is applied. That report is what the overlay exists to support.
