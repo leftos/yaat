@@ -91,6 +91,7 @@ internal static class EvalRunner
         string? outDirOverride = null;
         string? whisperOverride = null;
         string? parakeetDir = null;
+        var promptMode = "default";
         var trials = 1;
         for (var i = 1; i < args.Length; i++)
         {
@@ -105,6 +106,15 @@ internal static class EvalRunner
             else if (args[i] == "--parakeet" && i + 1 < args.Length)
             {
                 parakeetDir = args[++i];
+            }
+            else if (args[i] == "--prompt" && i + 1 < args.Length)
+            {
+                promptMode = args[++i];
+                if (promptMode is not ("default" or "none"))
+                {
+                    Console.Error.WriteLine($"FATAL: --prompt must be 'default' or 'none', got '{promptMode}'");
+                    return 2;
+                }
             }
             else if (args[i] == "--trials" && i + 1 < args.Length)
             {
@@ -150,6 +160,10 @@ internal static class EvalRunner
         using var whisperStt = parakeetDir is null ? new WhisperSttEngine(new OverrideWhisperRuntimeConfig(whisperSource)) : null;
         using var sherpaStt = parakeetDir is null ? null : new SherpaSttEngine(parakeetDir);
         var sttLabel = parakeetDir is null ? whisperSource : $"parakeet (sherpa-onnx, {parakeetDir})";
+        // --prompt none blanks the Whisper biasing prompt for the whole run — the A/B knob for
+        // asking whether the static vocabulary hint still earns its keep on a given model.
+        var biasingPrompt = promptMode == "none" ? string.Empty : WhisperBiasingPrompt.Default;
+        sttLabel += promptMode == "none" ? " (no biasing prompt)" : "";
         Func<float[], string, CancellationToken, Task<string?>> transcribe = parakeetDir is null
             ? (samples, prompt, ct) => whisperStt!.TranscribeAsync(samples, prompt, ct)
             : (samples, _, _) => Task.Run(() => sherpaStt!.Transcribe(samples, AudioCaptureService.SampleRate));
@@ -210,7 +224,7 @@ internal static class EvalRunner
             }
 
             var samples = WavHeader.ReadPcm16(wavPath);
-            var ctx = new SpeechContext(expectation.ActiveCallsigns ?? [], expectation.ProgrammedFixes ?? [], WhisperBiasingPrompt.Default);
+            var ctx = new SpeechContext(expectation.ActiveCallsigns ?? [], expectation.ProgrammedFixes ?? [], biasingPrompt);
 
             var matches = 0;
             string lastTranscript = string.Empty,

@@ -133,6 +133,13 @@ depend on LM-Kit and PortAudio native libraries.
   sacrificial (common English Whisper knows unbiased); the number/digit
   and NATO blocks sit at the end where they survive. A test pins the
   ordering (`Default_NumberVocabularyComesAfterRuleLiterals`).
+- **Re-validated against the ATC-fine-tune default (2026-07-30)** via
+  `--eval --prompt none`: with the prompt, 30/30 synthetic + 2/2 real
+  canonical-exact; without it, 29/30 — the miss hallucinated an extra
+  `DCT LAS` clause, the dangerous failure mode. Keep the prompt. Noted
+  for later: on the (tiny) real corpus the prompt-free transcripts had
+  lower WER (4.2% vs 8.3%) with canonicals unaffected — re-run the A/B
+  when the real corpus grows.
 - The prompt is deliberately **static**. Per-PTT dynamic additions were
   probed and abandoned: `whisper-large-turbo3` recognized N-number tail
   numbers cleanly without per-callsign biasing.
@@ -400,7 +407,7 @@ client. All flags run via
 | `--lmkit-gpus` | Enumerate detected GPU devices for LM-Kit backend selection. |
 | `--yaat-catalog` | Dump the filtered Whisper + LLM catalogs as they appear in the Settings picker. |
 | `--ouroboros <corpus.json> [--out-dir <dir>] [--trials N]` | Synthetic round-trip harness: canonical → pilot readback → Piper TTS → full STT pipeline → compare. PASS/FLAKY/FAIL verdicts; markdown report + per-case WAVs. |
-| `--eval <corpus-dir> [--out-dir <dir>] [--trials N] [--whisper <src>] [--parakeet <dir>]` | Real-audio eval harness: scores the full production pipeline (Whisper → callsign extraction → rule → LLM) against labeled captured recordings. Reports canonical exact-match verdicts, STT word-error-rate, per-trial STT latency, and per-case transcripts; real and synthetic cases are tallied separately in the summary; honors `LMKIT_TEST_MODEL`. `--whisper` A/Bs an alternative Whisper source (curated ID / ggml path / URL); `--parakeet` swaps the STT stage for a sherpa-onnx NeMo transducer export via `SherpaSttEngine`. See `EvalRunner.cs` for the corpus layout. |
+| `--eval <corpus-dir> [--out-dir <dir>] [--trials N] [--whisper <src>] [--parakeet <dir>] [--prompt default\|none]` | Real-audio eval harness: scores the full production pipeline (Whisper → callsign extraction → rule → LLM) against labeled captured recordings. Reports canonical exact-match verdicts, STT word-error-rate, per-trial STT latency, and per-case transcripts; real and synthetic cases are tallied separately in the summary; honors `LMKIT_TEST_MODEL`. `--whisper` A/Bs an alternative Whisper source (curated ID / ggml path / URL); `--parakeet` swaps the STT stage for a sherpa-onnx NeMo transducer export via `SherpaSttEngine`. See `EvalRunner.cs` for the corpus layout. |
 | `--synth-corpus <out-dir> [--cases N] [--seed S] [--voice <dir>]` | Generates labeled synthetic **controller-phraseology** eval cases: renders instruction templates with sampled slots, verifies each label through the real text-mapping pipeline before any audio is made, Piper-synthesizes with varied speakers/speeds, and writes `--eval`-ready case dirs marked `"synthetic": true`. Deterministic per seed; generate into `.tmp/`, don't commit the output. |
 
 No flag → Avalonia GUI for interactive probing. The GUI exposes inputs
