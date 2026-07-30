@@ -246,6 +246,16 @@ public class CommandBlock
     /// </summary>
     public bool TrackApplied { get; set; }
 
+    /// <summary>
+    /// True when this block contains a <see cref="Commands.DeleteCommand"/> — a delete the controller
+    /// chained behind a condition or another command (<c>ONHS DEL</c>, <c>CROSS 28R; DEL</c>,
+    /// <c>AT FIXIE DEL</c>). <c>NODEL</c> strips these blocks, and the server's datablock "*" marker
+    /// keys off them. Serialized because <see cref="ParsedCommands"/> deliberately is not: without the
+    /// flag, a queue restored from a snapshot (session persistence, timeline rewind) would carry an
+    /// invisible, uncancellable delete.
+    /// </summary>
+    public bool HasDeleteCommand { get; init; }
+
     public CommandBlockDto ToSnapshot() =>
         new()
         {
@@ -265,6 +275,7 @@ public class CommandBlock
             Dimensions = (int)Dimensions,
             HasTrackCommand = HasTrackCommand,
             TrackApplied = TrackApplied,
+            HasDeleteCommand = HasDeleteCommand,
         };
 
     public static CommandBlock FromSnapshot(CommandBlockDto dto) =>
@@ -286,6 +297,7 @@ public class CommandBlock
             Dimensions = (CommandDimension)dto.Dimensions,
             HasTrackCommand = dto.HasTrackCommand,
             TrackApplied = dto.TrackApplied,
+            HasDeleteCommand = dto.HasDeleteCommand,
             // ApplyAction is NOT restored here. Non-track commands re-derive it from SourceCommandText;
             // track commands are re-dispatched by SimulationEngine.ProcessTriggeredTrackBlocks, which
             // re-parses SourceCommandText when ParsedCommands is absent after restore.

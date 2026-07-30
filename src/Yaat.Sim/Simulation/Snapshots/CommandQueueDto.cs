@@ -30,6 +30,12 @@ public sealed class CommandBlockDto
     // with no track command — are simply skipped.
     public bool HasTrackCommand { get; init; }
     public bool TrackApplied { get; init; }
+
+    // Flags a queued block that carries a DeleteCommand (ONHS DEL, CROSS 28R; DEL, AT FIXIE DEL) so
+    // NODEL can strip it and the server can show the datablock "*" marker. Serialized because
+    // ParsedCommands is not: a restored queue would otherwise hold an invisible, uncancellable delete.
+    // Defaults false so older snapshots deserialize as blocks with no pending delete.
+    public bool HasDeleteCommand { get; init; }
 }
 
 public sealed class TrackedCommandDto

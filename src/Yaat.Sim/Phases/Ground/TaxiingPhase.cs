@@ -550,22 +550,6 @@ public sealed class TaxiingPhase : Phase
     }
 
     /// <summary>
-    /// Scan the route forward from the current segment for the exit-side hold-short
-    /// of the same runway as <paramref name="entryHoldShort"/> (the far side of the
-    /// crossing). When found, clear that exit-side hold-short and return its node.
-    ///
-    /// <para>
-    /// With <paramref name="requireSameRunwayExit"/> = false, a fallback returns the
-    /// current segment's target node when no matching far-side hold-short exists
-    /// (used by the resume-from-hold flow, where the route may represent a crossing
-    /// with only one annotated hold-short). With it = true, a missing far-side
-    /// hold-short returns null — this distinguishes a genuine forward crossing
-    /// (near-side hold-short with a matching far side ahead) from the far-side
-    /// hold-short of a runway already behind the aircraft (a landing-rollout vacate
-    /// or a crossing it already completed), which must not start a new crossing.
-    /// </para>
-    /// </summary>
-    /// <summary>
     /// Whether crossing <paramref name="holdShort"/> means driving over a runway, so the aircraft needs
     /// a <see cref="CrossingRunwayPhase"/> rather than a plain segment advance. A hold-short sitting on
     /// a runway bar qualifies whether it is an implicit <see cref="HoldShortReason.RunwayCrossing"/> or an
@@ -585,6 +569,82 @@ public sealed class TaxiingPhase : Phase
             && node.Type == GroundNodeType.RunwayHoldShort;
     }
 
+    /// <summary>
+    /// True when the route still has an already-cleared runway crossing ahead of the cursor — i.e. the
+    /// aircraft will drive into a <see cref="CrossingRunwayPhase"/> without stopping first. Read-only:
+    /// it asks the same three questions as the pre-cleared-crossing arm in <see cref="OnTick"/> but
+    /// leaves the route untouched, so <see cref="Commands.CommandDispatcher"/> can use it to decide
+    /// whether a <c>CROSS</c> just armed a crossing that later blocks in the compound should wait for.
+    /// </summary>
+    internal static bool HasPendingClearedRunwayCrossing(TaxiRoute? route, AirportGroundLayout? layout)
+    {
+        if (route is null)
+        {
+            return false;
+        }
+
+        for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
+        {
+            if (route.GetHoldShortAt(route.Segments[i].ToNodeId) is not { IsCleared: true } holdShort)
+            {
+                continue;
+            }
+
+            if (NeedsRunwayCrossing(holdShort, layout) && FindSameRunwayExitNode(route, holdShort, layout) is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Scan the route forward from the current segment for the exit-side hold-short of the same runway
+    /// as <paramref name="entryHoldShort"/> (the far side of the crossing), without touching it.
+    /// Returns null when the route has no such far side ahead — which is how a genuine forward crossing
+    /// is told apart from the far-side hold-short of a runway already behind the aircraft (a
+    /// landing-rollout vacate, or a crossing it just completed).
+    /// </summary>
+    private static int? FindSameRunwayExitNode(TaxiRoute route, HoldShortPoint entryHoldShort, AirportGroundLayout? layout)
+    {
+        if (layout is null || entryHoldShort.TargetName is null)
+        {
+            return null;
+        }
+
+        var entryRwyId = RunwayIdentifier.Parse(entryHoldShort.TargetName);
+
+        for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
+        {
+            int nodeId = route.Segments[i].ToNodeId;
+
+            if (
+                nodeId != entryHoldShort.NodeId
+                && layout.Nodes.TryGetValue(nodeId, out var node)
+                && node.Type == GroundNodeType.RunwayHoldShort
+                && node.RunwayId is { } nodeRwyId
+                && nodeRwyId.Equals(entryRwyId)
+            )
+            {
+                return nodeId;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Resolve the node the aircraft rolls to on the far side of the crossing, and clear that exit-side
+    /// hold-short so it doesn't stop the aircraft again on the way out.
+    ///
+    /// <para>
+    /// With <paramref name="requireSameRunwayExit"/> = false, a fallback returns the current segment's
+    /// target node when no matching far-side hold-short exists (used by the resume-from-hold flow,
+    /// where the route may represent a crossing with only one annotated hold-short). With it = true, a
+    /// missing far-side hold-short returns null — see <see cref="FindSameRunwayExitNode"/>.
+    /// </para>
+    /// </summary>
     private static int? FindRunwayCrossingExitNode(
         TaxiRoute route,
         HoldShortPoint entryHoldShort,
@@ -592,29 +652,14 @@ public sealed class TaxiingPhase : Phase
         bool requireSameRunwayExit
     )
     {
-        var entryRwyId = entryHoldShort.TargetName is not null ? RunwayIdentifier.Parse(entryHoldShort.TargetName) : (RunwayIdentifier?)null;
-
-        for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
+        if (FindSameRunwayExitNode(route, entryHoldShort, layout) is { } exitNodeId)
         {
-            var seg = route.Segments[i];
-
-            if (
-                layout is not null
-                && layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
-                && node.Type == GroundNodeType.RunwayHoldShort
-                && node.RunwayId is { } nodeRwyId
-                && seg.ToNodeId != entryHoldShort.NodeId
-                && entryRwyId is not null
-                && nodeRwyId.Equals(entryRwyId.Value)
-            )
+            if (route.GetHoldShortAt(exitNodeId) is { } exitHs)
             {
-                if (route.GetHoldShortAt(seg.ToNodeId) is { } exitHs)
-                {
-                    exitHs.IsCleared = true;
-                }
-
-                return seg.ToNodeId;
+                exitHs.IsCleared = true;
             }
+
+            return exitNodeId;
         }
 
         if (requireSameRunwayExit)

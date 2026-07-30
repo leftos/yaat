@@ -124,6 +124,11 @@ public static class CommandDispatcher
         // runway hold-short) can inspect it after the phase has been cleared.
         var currentPhaseBeforeDispatch = aircraft.Phases?.CurrentPhase;
 
+        // Same reason, for the taxiing aircraft that CROSS pre-clears ahead of: the route already
+        // carries the clearance by the time the trigger is attached, so we need the before-picture to
+        // tell "this CROSS armed the crossing" from "a crossing was already pending".
+        bool hadPendingCrossingBeforeDispatch = HasPendingRunwayCrossing(aircraft, ctx);
+
         // Phase interaction: check if aircraft has active phases
         bool shouldClearPhases = false;
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
@@ -184,7 +189,14 @@ public static class CommandDispatcher
                         remainingBlocks.Count > 0
                             ? EnqueueBlocks(new CompoundCommand(remainingBlocks) { SourceText = compound.SourceText }, 0, aircraft, ctx)
                             : new List<string>();
-                    AttachAfterRunwayCrossingTriggerForToweredFirstBlock(compound, aircraft, firstRemainingIdx, currentPhaseBeforeDispatch);
+                    AttachAfterRunwayCrossingTriggerForToweredFirstBlock(
+                        compound,
+                        aircraft,
+                        firstRemainingIdx,
+                        currentPhaseBeforeDispatch,
+                        hadPendingCrossingBeforeDispatch,
+                        ctx
+                    );
                     aircraft.Queue.Blocks.AddRange(phasePreserved);
 
                     var combinedMessages = new List<string> { result.Message ?? "" };
@@ -256,7 +268,7 @@ public static class CommandDispatcher
 
         int firstNewBlockIdx = aircraft.Queue.Blocks.Count;
         var messages = EnqueueBlocks(compound, 0, aircraft, ctx);
-        AttachAfterRunwayCrossingTrigger(compound, aircraft, firstNewBlockIdx, currentPhaseBeforeDispatch);
+        AttachAfterRunwayCrossingTrigger(compound, aircraft, firstNewBlockIdx, currentPhaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx);
         aircraft.Queue.Blocks.AddRange(preserved);
 
         // Apply the first NEW block immediately (if no trigger).
@@ -708,7 +720,7 @@ public static class CommandDispatcher
                 return Ok($"{aircraft.Callsign} marked for delete");
             case CancelAutoDeleteCommand:
             {
-                int removed = aircraft.Queue.Blocks.RemoveAll(b => b.Trigger?.Type == BlockTriggerType.EnteringHoldingAfterExit);
+                int removed = RemoveQueuedDeleteBlocks(aircraft);
                 aircraft.Ground.AutoDeleteExempt = true;
                 aircraft.Ground.PendingAutoDelete = false;
                 string msg =
@@ -1012,6 +1024,41 @@ public static class CommandDispatcher
     }
 
     /// <summary>
+    /// Strips every queued block that carries a <see cref="DeleteCommand"/> and returns how many were
+    /// removed. Backs <c>NODEL</c>: a pending delete must die whatever armed it — <c>ONHS DEL</c>,
+    /// <c>CROSS 28R; DEL</c>, <c>AT FIXIE DEL</c>. Leaving one behind is not a cosmetic miss: when it
+    /// eventually fires it raises <see cref="AircraftGroundOps.PendingAutoDelete"/>, which deliberately
+    /// bypasses the <see cref="AircraftGroundOps.AutoDeleteExempt"/> flag NODEL just set, so the
+    /// aircraft would disappear despite the cancel. Blocks removed from before the cursor pull
+    /// <see cref="CommandQueue.CurrentBlockIndex"/> back with them so it keeps pointing at the same
+    /// logical block.
+    /// </summary>
+    private static int RemoveQueuedDeleteBlocks(AircraftState aircraft)
+    {
+        var queue = aircraft.Queue;
+        int removed = 0;
+        int removedBeforeCursor = 0;
+
+        for (int i = queue.Blocks.Count - 1; i >= 0; i--)
+        {
+            if (!queue.Blocks[i].HasDeleteCommand)
+            {
+                continue;
+            }
+
+            queue.Blocks.RemoveAt(i);
+            removed++;
+            if (i < queue.CurrentBlockIndex)
+            {
+                removedBeforeCursor++;
+            }
+        }
+
+        queue.CurrentBlockIndex = Math.Max(0, queue.CurrentBlockIndex - removedBeforeCursor);
+        return removed;
+    }
+
+    /// <summary>
     /// Validates the immediately-applied commands in a compound by running them
     /// on a snapshot clone of the aircraft. Only the first block is dry-run,
     /// and only when it has no condition — every other block is deferred:
@@ -1157,7 +1204,9 @@ public static class CommandDispatcher
         CompoundCommand compound,
         AircraftState aircraft,
         int firstNewBlockIdx,
-        Phase? phaseBeforeDispatch
+        Phase? phaseBeforeDispatch,
+        bool hadPendingCrossingBeforeDispatch,
+        DispatchContext ctx
     )
     {
         if (compound.Blocks.Count <= 1)
@@ -1170,7 +1219,7 @@ public static class CommandDispatcher
             return;
         }
 
-        if (!WillProduceRunwayCrossing(phaseBeforeDispatch))
+        if (!WillProduceRunwayCrossing(aircraft, phaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx))
         {
             return;
         }
@@ -1202,7 +1251,9 @@ public static class CommandDispatcher
         CompoundCommand originalCompound,
         AircraftState aircraft,
         int firstRemainingIdx,
-        Phase? phaseBeforeDispatch
+        Phase? phaseBeforeDispatch,
+        bool hadPendingCrossingBeforeDispatch,
+        DispatchContext ctx
     )
     {
         if (originalCompound.Blocks.Count == 0 || originalCompound.Blocks[0].Commands.Count == 0)
@@ -1215,7 +1266,7 @@ public static class CommandDispatcher
             return;
         }
 
-        if (!WillProduceRunwayCrossing(phaseBeforeDispatch))
+        if (!WillProduceRunwayCrossing(aircraft, phaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx))
         {
             return;
         }
@@ -1233,26 +1284,52 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// True when the aircraft was holding short of a runway (either implicit
-    /// <see cref="HoldShortReason.RunwayCrossing"/> or explicit-but-runway-named
-    /// <see cref="HoldShortReason.ExplicitHoldShort"/>) immediately before
-    /// dispatch. A <c>CROSS</c> against such a hold-short will produce a
-    /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/>.
+    /// True when the just-dispatched <c>CROSS</c> puts a
+    /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/> in the aircraft's future, so the
+    /// blocks chained behind it should wait for that crossing. Two shapes qualify:
+    ///
+    /// <list type="bullet">
+    /// <item>the aircraft was stopped at a runway hold-short (implicit
+    /// <see cref="HoldShortReason.RunwayCrossing"/> or an explicit-but-runway-named
+    /// <see cref="HoldShortReason.ExplicitHoldShort"/>) and the CROSS satisfied it. A
+    /// <see cref="HoldShortReason.DestinationRunway"/> hold counts only once the taxi route has
+    /// completed at it — that is exactly when CROSS undesignates the runway and taxis across to the far
+    /// side instead of rejecting in favour of LUAW/CTO (see <c>GroundCommandHandler.TryCrossSingleRunway</c>);</item>
+    /// <item>the aircraft was still taxiing and the CROSS pre-cleared a runway crossing further along
+    /// the route — <see cref="TaxiingPhase"/> drives straight into a
+    /// <see cref="Yaat.Sim.Phases.Ground.CrossingRunwayPhase"/> when it reaches an already-cleared
+    /// crossing. <paramref name="hadPendingCrossingBeforeDispatch"/> is what makes this arm specific to
+    /// the CROSS just issued: without it, an unrelated crossing already cleared by AutoCross would
+    /// defer the chained blocks of (say) a <c>CROSS B; …</c> across a taxiway.</item>
+    /// </list>
+    ///
+    /// Never guess here. A trigger attached to a crossing that never happens strands the block: an
+    /// unapplied <see cref="BlockTriggerType.AfterRunwayCrossing"/> block waits forever, and so does an
+    /// untriggered one (ground aircraft end in terminal phases, and
+    /// <see cref="FlightPhysics.UpdateCommandQueue"/> skips untriggered blocks while a phase is active).
     /// </summary>
-    private static bool WillProduceRunwayCrossing(Phase? phase)
+    private static bool WillProduceRunwayCrossing(AircraftState aircraft, Phase? phase, bool hadPendingCrossingBeforeDispatch, DispatchContext ctx)
     {
-        if (phase is not HoldingShortPhase hp)
+        if (phase is HoldingShortPhase hp)
         {
-            return false;
+            if (hp.HoldShort.TargetName is not { Length: > 0 } target || !char.IsAsciiDigit(target[0]))
+            {
+                return false;
+            }
+
+            return hp.HoldShort.Reason != HoldShortReason.DestinationRunway || aircraft.Ground.AssignedTaxiRoute is { IsComplete: true };
         }
 
-        if (hp.HoldShort.Reason == HoldShortReason.DestinationRunway)
-        {
-            return false;
-        }
-
-        return hp.HoldShort.TargetName is { Length: > 0 } target && target.Length > 0 && char.IsAsciiDigit(target[0]);
+        return !hadPendingCrossingBeforeDispatch && HasPendingRunwayCrossing(aircraft, ctx);
     }
+
+    /// <summary>
+    /// Whether the aircraft's taxi route still has a cleared runway crossing ahead of its cursor.
+    /// Delegates to <see cref="TaxiingPhase.HasPendingClearedRunwayCrossing"/> so the dispatcher and the
+    /// phase agree on what counts as a crossing.
+    /// </summary>
+    private static bool HasPendingRunwayCrossing(AircraftState aircraft, DispatchContext ctx) =>
+        TaxiingPhase.HasPendingClearedRunwayCrossing(aircraft.Ground.AssignedTaxiRoute, aircraft.Ground.Layout ?? ctx.GroundLayout);
 
     private static bool IsPatternEntryWithRunway(ParsedCommand cmd)
     {
@@ -2561,6 +2638,7 @@ public static class CommandDispatcher
             WaitRemainingDistanceNm = waitDistanceNm,
             SourceCommandText = sourceCommandText,
             HasTrackCommand = hasTrackCommand,
+            HasDeleteCommand = parsedCommands.Exists(c => c is DeleteCommand),
         };
     }
 

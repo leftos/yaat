@@ -593,7 +593,8 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Sim rate | `SIMRATE 2` | — | — |
 | Delete aircraft | `DEL` | `X` | — |
 | Auto-delete on hold-short | `ONHS DEL` | — | Queues a delete that fires when the aircraft reaches HoldingAfterExit after landing. Datablock shows a trailing `*` while armed. |
-| Cancel auto-delete | `NODEL` | — | Strips any queued `ONHS DEL` and re-arms `AutoDeleteExempt` so scenario-level auto-delete also won't touch the aircraft. Distinct from the `NODEL` *modifier* on `CLAND`/`TAXI`/`EL`/`ER`/`EXIT`/`LAND`, which sets the exempt flag at the time those commands are issued. |
+| Auto-delete after a crossing | `CROSS 19R; DEL` | — | Queues a delete that fires once the aircraft is clear of the far side of the runway it just crossed. Same `*` marker. |
+| Cancel auto-delete | `NODEL` | — | Strips every queued delete — `ONHS DEL`, `CROSS …; DEL`, `AT <fix> DEL` — and re-arms `AutoDeleteExempt` so scenario-level auto-delete also won't touch the aircraft. Distinct from the `NODEL` *modifier* on `CLAND`/`TAXI`/`EL`/`ER`/`EXIT`/`LAND`, which sets the exempt flag at the time those commands are issued. |
 | Delete conditional(s) | `DELAT` / `DELAT 2` | `DELCOND`, `DC`, `CXL`, `CLR` | — |
 | Show conditional list | `SHOWAT` | `SHOWCOND` | — |
 | Say | `SAY text` | `SAYF` | — |
@@ -664,6 +665,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `CROSS B` | Cross taxiway B (clears hold-short) |
 | `TAXI G CROSS 28R` | Taxi via G, cross 28R, and hold just past it. With no taxiway named past the crossing, the crossed runway sets the direction — the aircraft heads toward and across it (even when G also crosses another runway behind), then holds clear on the far side. |
 | `CROSS; HOLD` | Bare CROSS plus chained HOLD: cross the runway and halt right after clearing the far-side hold bars (HOLD fires only when CrossingRunwayPhase completes). |
+| `CROSS 19R; DEL` | Cross the runway, then delete the aircraft once it is clear of the far side — the one-command way to clear an arrival off the scope after a parallel crossing, with no taxi route to invent. Works both while the aircraft is holding short and as a pre-clear while it is still taxiing toward the crossing; either way the delete waits for the crossing to finish. The datablock shows the trailing `*` while it is armed, and `NODEL` cancels it. |
 | `CLRWY` / `CLEARRWY` | Pull an aircraft holding short of a taxiway with its tail over a runway forward until it is just clear of the runway (½ a length past the bars), then hold. Only valid in that tail-over-runway hold — it arises when a hold-short of a taxiway sits closer than the aircraft's own length past a runway it just crossed (e.g. `TAXI G B HS B` across 01L/19R at SFO). Resolves the "runway not clear" warning. |
 | `HS B` | Hold short at the next intersection with taxiway B |
 | `HS 28L` | Hold short at the entry side of the next runway 28L crossing. Revokes any clearance that crossing already had — AutoCross, an earlier `CROSS 28L`, or the implicit first-crossing clearance — because the hold-short is the most recent instruction. Rejected once the aircraft has entered 28L (use `HOLD`, or issue a new `TAXI`). A no-op when 28L is the assigned departure runway, since the aircraft already holds short of it. |
@@ -684,6 +686,8 @@ While a pushback is already in progress, a **heading-only** `PUSH FACE C` / `PUS
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts. It also crosses a runway the aircraft taxied **to** (its taxi destination): the runway is undesignated as a departure hold and the aircraft taxis across to the far side and holds in position. To depart from that runway instead, use `CTO` or `LUAW`.
 
 When an aircraft lands and vacates **between two parallel runways** and the parallel runway's hold-short is the next thing along the same exit taxiway with no intersection in between (e.g. SFO 19L exit G → 19R, OAK 28L exit G/H → 28R), it automatically pulls up to hold short of the parallel runway. A bare `CROSS` (or `CROSS 19R`) then takes it across without a prior `TAXI`. This auto-pull-up is on by default and can be disabled in **Settings**; it always waits for an explicit `CROSS` before entering the parallel.
+
+Chain `DEL` onto the crossing — `CROSS 19R; DEL` — to have the aircraft remove itself once it is clear of the far side, so an arrival that only needed to get across the parallel never requires a taxi clearance at all. Anything chained after a `CROSS` waits for the crossing to complete, whether the aircraft is stopped at the hold bars or still taxiing toward them.
 
 `HS` can be issued to a taxiing aircraft to add a hold-short point at the first upcoming intersection with the given taxiway or runway along the remaining route.
 
@@ -1578,13 +1582,16 @@ For busy tower / local scenarios with a steady arrival flow, landing aircraft pi
 | Command | Effect |
 |---------|--------|
 | `ONHS DEL` | Queue auto-delete for this aircraft. Fires when it reaches the hold-short after landing. Bypasses `AutoDeleteExempt` (controller explicitly asked). |
-| `NODEL` | Cancel the queued auto-delete and re-arm `AutoDeleteExempt` so scenario-level auto-delete also leaves the aircraft alone. |
+| `CROSS 19R; DEL` | Queue auto-delete behind a runway crossing — fires once the aircraft is clear of the far side. For arrivals that must cross a parallel before they can leave the scope (see [Ground Operations](#ground-operations)). |
+| `NODEL` | Cancel **any** queued delete — however it was armed — and re-arm `AutoDeleteExempt` so scenario-level auto-delete also leaves the aircraft alone. |
 
 `ONHS DEL` can be issued any time during the approach or rollout (typically during the landing rollout once an exit has been chosen). The pilot still calls "clear of runway" on phase entry before the delete fires.
 
-The radar / Tower Cab datablock shows a trailing `*` on the callsign while the auto-delete is armed, so you can see at a glance which aircraft are pre-marked. The `*` clears either when `NODEL` cancels the request or when the auto-delete itself removes the aircraft a moment later.
+`DEL` can be chained behind any condition or command this way — `ONHS DEL`, `CROSS 19R; DEL`, `AT FIXIE DEL` — and every form behaves the same: the delete sits in the queue, shows the marker, and is cancellable by `NODEL` until it fires.
 
-`NODEL` as a bare verb is distinct from the `NODEL` *modifier* on `CLAND` / `LAND` / `TAXI` / `EL` / `ER` / `EXIT`. The modifier sets `AutoDeleteExempt` at the time those commands are issued; the bare verb does the same plus strips any queued `ONHS DEL` block.
+The radar / Tower Cab datablock shows a trailing `*` on the callsign while a delete is armed, so you can see at a glance which aircraft are pre-marked. The `*` clears either when `NODEL` cancels the request or when the auto-delete itself removes the aircraft a moment later.
+
+`NODEL` as a bare verb is distinct from the `NODEL` *modifier* on `CLAND` / `LAND` / `TAXI` / `EL` / `ER` / `EXIT`. The modifier sets `AutoDeleteExempt` at the time those commands are issued; the bare verb does the same plus strips every queued delete block.
 
 ### Force Override Commands
 

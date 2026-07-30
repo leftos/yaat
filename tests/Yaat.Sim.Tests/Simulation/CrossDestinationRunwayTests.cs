@@ -91,6 +91,92 @@ public sealed class CrossDestinationRunwayTests(ITestOutputHelper output)
         Assert.True(observation.EndedHoldingInPosition, $"{Callsign} should hold in position on the far side after crossing {CrossRunway}");
     }
 
+    /// <summary>
+    /// Issue #311: <c>CROSS &lt;rwy&gt;; DEL</c> at a destination-runway hold. The CROSS undesignates the
+    /// runway and taxis across; the chained delete must wait for that crossing to finish rather than
+    /// firing while the aircraft still sits on the hold bars (or never firing at all).
+    /// </summary>
+    [Fact]
+    public void CrossThenDelete_HoldingShortOfDestinationRunway_DeletesAfterCrossing()
+    {
+        var restored = RestoreAt(10);
+        if (restored is null)
+        {
+            return;
+        }
+
+        using var archive = restored.Value.Archive;
+        var engine = restored.Value.Engine;
+
+        var aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        var holdPhase = Assert.IsType<HoldingShortPhase>(aircraft.Phases?.CurrentPhase);
+        Assert.Equal(HoldShortReason.DestinationRunway, holdPhase.HoldShort.Reason);
+
+        var result = engine.SendCommand(Callsign, $"CROSS {CrossRunway}; DEL");
+        Assert.True(result.Success, $"CROSS {CrossRunway}; DEL should be accepted: {result.Message}");
+        Assert.False(aircraft.Ground.PendingAutoDelete, "DEL must not apply at dispatch time — it is chained behind the crossing");
+
+        Assert.NotNull(TickUntilDeleted(engine, maxSeconds: 60));
+    }
+
+    /// <summary>
+    /// Same, issued while the aircraft is still taxiing toward the destination runway — the CROSS
+    /// extends the route across to the far side, so the delete rides the same crossing.
+    /// </summary>
+    [Fact]
+    public void CrossThenDelete_TaxiingTowardDestinationRunway_DeletesAfterCrossing()
+    {
+        var restored = RestoreAt(0);
+        if (restored is null)
+        {
+            return;
+        }
+
+        using var archive = restored.Value.Archive;
+        var engine = restored.Value.Engine;
+
+        var aircraft = engine.FindAircraft(Callsign);
+        Assert.NotNull(aircraft);
+        Assert.IsType<TaxiingPhase>(aircraft.Phases?.CurrentPhase);
+
+        var result = engine.SendCommand(Callsign, $"CROSS {CrossRunway}; DEL");
+        Assert.True(result.Success, $"CROSS {CrossRunway}; DEL should be accepted: {result.Message}");
+        Assert.False(aircraft.Ground.PendingAutoDelete, "DEL must not apply at dispatch time — it is chained behind the crossing");
+
+        Assert.NotNull(TickUntilDeleted(engine, maxSeconds: 60));
+    }
+
+    /// <summary>
+    /// Ticks looking for the chained auto-delete, asserting the aircraft is never removed before it has
+    /// both entered and left <see cref="CrossingRunwayPhase"/>. Returns the tick it disappeared on, or
+    /// null if it survived the window.
+    /// </summary>
+    private int? TickUntilDeleted(SimulationEngine engine, int maxSeconds)
+    {
+        bool sawCrossing = false;
+        for (int t = 1; t <= maxSeconds; t++)
+        {
+            engine.TickOneSecond();
+
+            // Read the phase before the sweep: the trigger fires during physics, so the aircraft can
+            // leave CrossingRunwayPhase and be queued for delete within the same tick.
+            var beforeSweep = engine.FindAircraft(Callsign);
+            sawCrossing |= beforeSweep?.Phases?.CurrentPhase is CrossingRunwayPhase;
+
+            engine.SweepPendingAutoDeletes();
+
+            if (engine.FindAircraft(Callsign) is null)
+            {
+                Assert.True(sawCrossing, $"{Callsign} was deleted at +{t}s without ever entering CrossingRunwayPhase");
+                output.WriteLine($"auto-deleted at +{t}s after crossing {CrossRunway}");
+                return t;
+            }
+        }
+
+        return null;
+    }
+
     private (SimulationEngine Engine, AirportGroundLayout Layout, RecordingArchive Archive)? RestoreAt(double targetSeconds)
     {
         TestVnasData.EnsureInitialized();
