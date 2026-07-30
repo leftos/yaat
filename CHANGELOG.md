@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Restarting a scenario keeps your session settings — auto cleared-to-land, auto cross-runway, auto pull-up, solo training mode, the delays, and auto-delete.
+- Restarting a scenario, or loading a different one, keeps the weather you loaded.
+
 ## v0.9.18-beta [2026/07/29]
 
 ### Highlights

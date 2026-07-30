@@ -500,6 +500,33 @@ immediate-aircraft set, beacon codes, and generated-type choices, so the replaye
 [server-rooms-and-hub.md](server-rooms-and-hub.md) for the room lifecycle around these calls and
 [snapshots-and-replay.md](snapshots-and-replay.md) for the replay machinery that runs on top of the reload.
 
+### Session settings belong to the room, not the scenario object
+
+Both entry points construct a **brand-new `SimScenarioState`**, so anything a controller changed mid-session dies with the old
+object unless it is carried. `TrainingRoom.SessionSettings` (`yaat-server: …/Simulation/RoomSessionSettings.cs`) is that carrier:
+the auto-* toggles, `ValidateDctFixes`, solo mode and its pacing percentages, the auto-accept and command-run delays, the
+auto-delete override, and the dynamic-METAR intent. Both construction sites end with `room.SessionSettings.ApplyTo(scenario)`.
+
+The division of labour:
+
+- **`SimScenarioState` is the runtime source of truth.** Every gate and every DTO reads the scenario, falling back to the room
+  copy only when no scenario is loaded. Replay (`SimulationEngine.ApplySettingChange`) writes the scenario directly, so during a
+  rewind reconstruction the scenario is ahead of the room copy — which is why the DTOs must not read the room.
+- **`TrainingRoom.SessionSettings` is what outlives the reload.** `SimControlService`'s setters write it first and
+  unconditionally (so a toggle flipped with no scenario loaded still seeds the next load), then the scenario. After a rewind
+  reconstruction `RecordingManager` calls `CaptureFrom(newScenario)` so the room copy follows the rewound values.
+- **Adding a setting means adding it to `RoomSessionSettings` in both `ApplyTo` and `CaptureFrom`.**
+  `RoomSessionSettingsTests` walks the type reflectively and fails if you list it in only one.
+
+Weather is the one piece that does **not** ride on `SimScenarioState`: every reload builds a fresh `SimulationWorld`, so both
+`LoadScenarioAsync` and `RestartScenarioAsync` re-load `TrainingRoom.WeatherSourceJson` through `RoomEngine.LoadWeather` once the
+new engine is in place. Rewind needs no equivalent — its snapshot restore and replayed `RecordedWeatherChange` actions put the
+weather back on their own.
+
+Before this carry-over existed, a **Scenario → Restart** silently reset every one of those settings while the client's settings
+flyout went on showing the controller's choices — arrivals then went around at 200 ft AGL because auto cleared-to-land had
+reverted to `false` (issue #313).
+
 `ExecuteUnloadScenario` (`:345`) is the teardown: it disposes any held recording archive, clears the world and **all four
 queues** plus the handoff queue, broadcasts deletes, and resets the engine's evaluators.
 

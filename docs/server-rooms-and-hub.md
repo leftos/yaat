@@ -202,6 +202,14 @@ only that room's `World.GetSnapshot()` (`:786`-`789`). There is no global aircra
 error. `UpdatePausedSince` (`:97`) stamps the continuous-pause clock that the retirement sweep reads; `IsAbandoned`
 (`:76`) is true when no clients are connected.
 
+**Session settings outlive the scenario.** `SessionSettings` (`RoomSessionSettings`) holds the room's copy of everything
+a controller can toggle mid-session — the auto-* flags, `ValidateDctFixes`, solo mode and pacing, the auto-accept and
+command-run delays, the auto-delete override, the dynamic-METAR intent. A load, restart, or rewind builds a **new**
+`SimScenarioState`, and `ScenarioLifecycleService` seeds it with `room.SessionSettings.ApplyTo(scenario)` at both
+construction sites. The scenario stays the runtime source of truth (every gate and DTO reads it, falling back to the room
+copy only when no scenario is loaded); `SimControlService` writes both. See
+[scenario-loading-and-generation.md](scenario-loading-and-generation.md#session-settings-belong-to-the-room-not-the-scenario-object).
+
 **Members are connections, not people.** `Members` is keyed by SignalR connection id and each `RoomMember` carries
 `Kind` (`ClientKind.Main` / `VStrips` / `VTdls`) and `JoinedAtUtc`. vStrips and vTDLS browser tabs join over the same
 hub, so one controller can hold several members at once — `HasYaatClientMember` is the predicate that asks whether

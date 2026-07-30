@@ -104,6 +104,7 @@ both the wrapper name and the hub method's own semantics** — grep for the stri
 | `SetSoloPacingRatesAsync(…)` | `SetSoloPacingRates` | `SetSoloPacingRates(...)` `:830` |
 | `SetAutoClearedToLandAsync(enabled)` | `SetAutoClearedToLand` | `SetAutoClearedToLand(...)` `:563` |
 | `SetAutoCrossRunwayAsync(enabled)` | `SetAutoCrossRunway` | `SetAutoCrossRunway(...)` `:581` |
+| `SetAutoPullUpToParallelAsync(enabled)` | `SetAutoPullUpToParallel` | `SetAutoPullUpToParallel(...)` |
 | `RewindToAsync(elapsedSeconds)` | **`RewindTo`** | `RewindTo(...)` `:907` |
 | `RewindFromSnapshotAsync(…)` | `RewindFromSnapshot` | `RewindFromSnapshot(...)` `:925` |
 | `TakeControlAsync()` | `TakeControl` | `TakeControl()` `:943` |
@@ -340,11 +341,19 @@ Roughly 13 session-settings fields are duplicated across **four** DTOs and must 
 `LoadScenarioResult` (`TrainingDtos.cs:105`), `RoomStateDto` (`:182`), `ScenarioLoadedDto` (`:213`), and
 `SessionSettingsDto` (`:241`) — with the same set on the client side. The fields:
 `AutoDeleteOverride`, `EffectiveAutoDeleteMode`, `AutoAcceptDelaySeconds`, `AutoClearedToLand`, `AutoCrossRunway`,
-`ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`, `SoloArrivalGeneratorRatePercent`,
-`SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`, `HasSoloArrivalGeneratorSource`,
-`RpoShowPilotSpeech`. The four DTOs feed three different paths — initial join (`RoomStateDto`), scenario load
+`AutoPullUpToParallel`, `ValidateDctFixes`, `SoloTrainingMode`, `SoloParkingInitialCallupRatePercent`,
+`SoloArrivalGeneratorRatePercent`, `SoloGoAroundProbabilityPercent`, `HasSoloParkingInitialCallupSource`,
+`HasSoloArrivalGeneratorSource`, `RpoShowPilotSpeech`, `CommandRunDelayMinSeconds`, `CommandRunDelayMaxSeconds`.
+The four DTOs feed three different paths — initial join (`RoomStateDto`), scenario load
 (`LoadScenarioResult` / `ScenarioLoadedDto`), and live update (`SessionSettingsDto`). Add a setting to fewer than all
 four and it silently drops on whichever path you missed.
+
+There is a **fifth** place a session setting has to be listed: `RoomSessionSettings`
+(`yaat-server: …/Simulation/RoomSessionSettings.cs`), the room-level copy that survives a scenario restart or rewind.
+The hub DTOs above all read the active `SimScenarioState` and fall back to that room copy when no scenario is loaded.
+Miss it and the setting reverts to its default the next time a controller restarts the scenario, while the client's
+settings flyout goes on showing the old value — see
+[scenario-loading-and-generation.md](scenario-loading-and-generation.md#session-settings-belong-to-the-room-not-the-scenario-object).
 
 ## Streaming methods don't use `InvokeAsync`
 

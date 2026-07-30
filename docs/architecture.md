@@ -1078,7 +1078,8 @@ src/Yaat.Server/
     ApiStubHandler.cs          # GET/POST /api/* → [] (CRC startup probes)
 
   Simulation/
-    TrainingRoom.cs            # Room state: Members, World, ActiveScenario, Weather, Engine, GroupName, ConsolidationState, LineNumbers, AircraftAssignments
+    TrainingRoom.cs            # Room state: Members, World, ActiveScenario, Weather, Engine, GroupName, ConsolidationState, LineNumbers, AircraftAssignments, SessionSettings
+    RoomSessionSettings.cs     # Room-level copy of the controller-settable session settings; seeds every freshly built SimScenarioState so they survive a scenario load, restart, or rewind (issue #313)
     TrainingRoomManager.cs     # Room registry + client→room + CID→room mapping + admin tracking
 
 See [session-persistence.md](session-persistence.md) for planned-restart room checkpoints (yaat-server `Simulation/Persistence/`).
