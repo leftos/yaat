@@ -14,6 +14,8 @@
 - `yaat-client.log` keeps the previous three sessions as `.log.1`–`.3`, so reopening YAAT after a freeze preserves the log for bug reports.
 - If the app stops responding for over 15 seconds, it says so and points at the log to attach to a bug report (Windows).
 
+## v0.10.1-beta [2026/07/30]
+
 ### Highlights
 - Measure distance and bearing between two points or aircraft on the radar and ground views — Alt+drag, **Ctrl+M**, the **RBL** button, or `.rbl`.
 - A measurement endpoint dropped on an aircraft latches to it, so the reading updates live as the aircraft flies or taxis.
