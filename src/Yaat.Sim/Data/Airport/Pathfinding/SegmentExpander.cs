@@ -179,6 +179,20 @@ public static class SegmentExpander
                 head = bridgeHead with { VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(bridgeHead.HeadNodeId) };
             }
         }
+        else if (head.HeadNodeId != resolvedWaypoints[0].ResolvedNodeId)
+        {
+            // The node-ref counterpart of the bridge above. ExpandSegment dispatches on the NEXT token,
+            // so without this the first node-ref is never a routing target and the walk jumps straight to
+            // the second — reaching it by whatever path the A* likes rather than the one that was drawn.
+            var (leadEdges, leadHead, leadFailure) = RouteToSpecificNode(head, resolvedWaypoints[0].ResolvedNodeId, ctx);
+            if (leadFailure is not null)
+            {
+                return (null, leadFailure);
+            }
+
+            edges.AddRange(leadEdges!);
+            head = leadHead! with { VisitedNodeIds = ImmutableHashSet<int>.Empty.Add(leadHead!.HeadNodeId) };
+        }
 
         // Walk the waypoint sequence segment by segment, with recursive look-ahead at each
         // taxiway-to-taxiway junction (see ResolveSequence). Look-ahead defeats first-match
@@ -2316,6 +2330,16 @@ public static class SegmentExpander
             );
         }
 
+        // A node-ref sequence from the ground draw tool lists every node along the drawn route, so
+        // consecutive targets are one edge apart. Take that edge directly: the A* below would have to
+        // rediscover it, and when it can't (the drawn turn is inadmissible from here) it silently
+        // substitutes a long way round instead of failing.
+        var (stepEdges, stepHead) = TryStepToAdjacentNode(head, destNode, ctx);
+        if (stepEdges is not null)
+        {
+            return (stepEdges, stepHead, null);
+        }
+
         // Use AutoRouter from current head to the target node.
         var detourCtx = ctx with
         {
@@ -2343,6 +2367,66 @@ public static class SegmentExpander
 
         var newHead = BuildHeadFromRoute(head, route);
         return (route.Segments.Select(s => s.Edge).ToList(), newHead, null);
+    }
+
+    /// <summary>
+    /// Advance the head one graph edge to <paramref name="target"/> when the two nodes are directly
+    /// connected and that step is legal — the same blocked-turn and heading-delta gates the searches
+    /// apply, so an inadmissible drawn turn still falls through to the A*. Parallel edges between the
+    /// pair (the fillet generator emits duplicate corner arcs) are broken by incremental cost.
+    /// Returns <c>(null, null)</c> when no such step exists.
+    /// </summary>
+    private static (List<DirectionalEdge>? Edges, PartialRoute? Head) TryStepToAdjacentNode(PartialRoute head, GroundNode target, SearchContext ctx)
+    {
+        if (!ctx.Layout.Nodes.TryGetValue(head.HeadNodeId, out var headNode) || IsBlockedTurnEdge(ctx, head, target.Id))
+        {
+            return (null, null);
+        }
+
+        IGroundEdge? best = null;
+        GroundNode? bestNext = null;
+        double bestCost = double.MaxValue;
+
+        foreach (var edge in headNode.Edges)
+        {
+            var nextNode = edge.OtherNode(headNode);
+            if ((nextNode.Id != target.Id) || !GeometricAdmissibility.IsAdmissible(head, edge, nextNode, ctx.Category))
+            {
+                continue;
+            }
+
+            double cost = RouteCostFunction.IncrementalCost(head, edge, nextNode, ctx);
+            if (cost < bestCost)
+            {
+                bestCost = cost;
+                best = edge;
+                bestNext = nextNode;
+            }
+        }
+
+        if ((best is null) || (bestNext is null))
+        {
+            return (null, null);
+        }
+
+        double arrival = GeometricAdmissibility.IsNoOpEdge(best)
+            ? head.ArrivalBearing
+            : GeometricAdmissibility.GetArrivalBearing(best, headNode, bestNext);
+
+        var extended = head with
+        {
+            HeadNodeId = bestNext.Id,
+            ArrivalBearing = arrival,
+            LastEdge = best,
+            LastTaxiwayName = RouteCostFunction.ResolveTaxiwayName(best, head.HeadNodeId),
+            Previous = head,
+            Depth = head.Depth + 1,
+            AccumulatedCost = head.AccumulatedCost + bestCost,
+            VisitedNodeIds = head.VisitedNodeIds.Add(bestNext.Id),
+        };
+
+        ctx.DiagnosticLog?.Invoke($"[node-ref] {head.HeadNodeId}->{bestNext.Id} twy={best.TaxiwayName} direct edge (cost={bestCost:F3})");
+        return ([best.Directed(headNode, bestNext)], extended);
     }
 
     // -----------------------------------------------------------------------

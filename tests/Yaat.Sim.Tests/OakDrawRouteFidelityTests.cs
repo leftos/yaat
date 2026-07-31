@@ -1,4 +1,5 @@
 using Xunit;
+using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -20,7 +21,13 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class OakDrawRouteFidelityTests
 {
-    public OakDrawRouteFidelityTests() => TestVnasData.EnsureInitialized();
+    private readonly ITestOutputHelper _output;
+
+    public OakDrawRouteFidelityTests(ITestOutputHelper output)
+    {
+        _output = output;
+        TestVnasData.EnsureInitialized();
+    }
 
     private static AirportGroundLayout? LoadOak()
     {
@@ -110,6 +117,113 @@ public class OakDrawRouteFidelityTests
         );
     }
 
+    /// <summary>
+    /// The aircraft keeps taxiing while the controller draws, so by the time the dense node list is
+    /// dispatched its leading nodes can already be behind the aircraft. The resolver must drop that
+    /// stale prefix and fly the remaining drawn geometry — not reverse onto the passed nodes, which
+    /// no admissible turn can reach and which sends the search looping a whole block to turn around
+    /// (N16390 at OAK: a 48-node drawn route resolved to 544 segments across ten laps).
+    /// </summary>
+    [Fact]
+    public void DenseNodePath_WithDriftedStart_DropsThePassedPrefix()
+    {
+        var layout = LoadOak();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parking = layout.FindParkingByName("8B");
+        var holdShorts = layout.GetRunwayHoldShortNodes("28R");
+        if (parking is null || holdShorts.Count == 0)
+        {
+            return;
+        }
+
+        const AircraftCategory cat = AircraftCategory.Jet;
+        var preview = TaxiPathfinder.FindRoute(layout, holdShorts[0].Id, parking.Id, cat);
+        if (preview is null || preview.Segments.Count < 10)
+        {
+            return;
+        }
+
+        var densePath = DenseNodeIds(preview).Select(id => $"#{id}").ToList();
+
+        // Simulate the drift: the aircraft has already reached the endpoint of segment 3 and is
+        // heading along that segment, so the first four drawn nodes are behind it.
+        const int DriftedSegmentIndex = 3;
+        var drifted = preview.Segments[DriftedSegmentIndex];
+        var driftedNode = layout.Nodes[drifted.ToNodeId];
+        double heading = GeoMath.BearingTo(layout.Nodes[drifted.FromNodeId].Position, driftedNode.Position);
+
+        var ac = MakeGroundAircraft(driftedNode.Position.Lat, driftedNode.Position.Lon, heading);
+        var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(densePath, [], DestinationParking: "8B"), layout);
+        Assert.True(result.Success, result.Message);
+
+        var resolved = ac.Ground.AssignedTaxiRoute;
+        Assert.NotNull(resolved);
+        _output.WriteLine($"drifted to #{driftedNode.Id} hdg={heading:F0}; preview {preview.Segments.Count} segs: {preview.ToSummary()}");
+        _output.WriteLine($"resolved {resolved.Segments.Count} segs: {resolved.ToSummary()}");
+
+        // Faithful to the drawn geometry: the resolved route is exactly the tail of the drawn route
+        // from wherever the aircraft got to — same edges, same order, same stand.
+        var previewPairs = preview.Segments.Select(s => (s.FromNodeId, s.ToNodeId)).ToList();
+        var resolvedPairs = resolved.Segments.Select(s => (s.FromNodeId, s.ToNodeId)).ToList();
+        int tailStart = previewPairs.Count - resolvedPairs.Count;
+        Assert.True(
+            (tailStart >= 0) && previewPairs.Skip(tailStart).SequenceEqual(resolvedPairs),
+            $"drifted start resolved to {resolved.Segments.Count} segments that are not the tail of the "
+                + $"{preview.Segments.Count}-segment drawn route: {resolved.ToSummary()}"
+        );
+        Assert.True(tailStart > 0, "expected the passed prefix to be dropped");
+        Assert.Equal(parking.Id, resolved.Segments[^1].ToNodeId);
+    }
+
+    /// <summary>
+    /// The loud-failure net behind the two fixes above: a dense node path spells out its own geometry,
+    /// so a resolution several times longer than the node list is a failed resolution, not a clearance.
+    /// A sparse hand-typed node path (nodes not one edge apart) legitimately resolves long and is exempt.
+    /// </summary>
+    [Fact]
+    public void DenseNodePath_ImplausiblyLongResolution_IsRejected()
+    {
+        var layout = LoadOak();
+        if (layout is null)
+        {
+            return;
+        }
+
+        var vNodes = layout.GetNodesOnTaxiway("V");
+        if (vNodes.Count < 2)
+        {
+            return;
+        }
+
+        var preview = TaxiPathfinder.FindRoute(layout, vNodes[0].Id, vNodes[^1].Id, AircraftCategory.Jet);
+        if (preview is null || preview.Segments.Count == 0)
+        {
+            return;
+        }
+
+        var denseIds = DenseNodeIds(preview);
+        var dense = new TaxiCommand(denseIds.Select(id => $"#{id}").ToList(), []);
+        Assert.True(GroundCommandHandler.IsPlausibleNodeRefResolution(layout, dense, preview));
+
+        // Same drawn nodes, but a route that wandered twelve times as far — the block-loop signature
+        // (the reported OAK case resolved 48 drawn nodes into 544 segments, about eleven laps).
+        var looped = new TaxiRoute
+        {
+            Segments = [.. Enumerable.Repeat(preview.Segments, 12).SelectMany(segs => segs)],
+            HoldShortPoints = [],
+            Warnings = [],
+        };
+        Assert.False(GroundCommandHandler.IsPlausibleNodeRefResolution(layout, dense, looped));
+
+        // A sparse path — the same endpoints, no intermediate nodes — carries no size expectation.
+        var sparse = new TaxiCommand([$"#{denseIds[0]}", $"#{denseIds[^1]}"], []);
+        Assert.True(GroundCommandHandler.IsPlausibleNodeRefResolution(layout, sparse, looped));
+    }
+
     [Fact]
     public void DenseNodePathToParking_ClaimsStandOnlyWithToken()
     {
@@ -144,7 +258,7 @@ public class OakDrawRouteFidelityTests
         Assert.Equal(parking.Id, preview.Segments[^1].ToNodeId);
 
         // With the @8B token the aircraft claims the stand.
-        var withToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon);
+        var withToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon, 280);
         var resultWith = GroundCommandHandler.TryTaxi(withToken, new TaxiCommand(densePath, [], DestinationParking: "8B"), layout);
         Assert.True(resultWith.Success, resultWith.Message);
         Assert.NotNull(withToken.Ground.AssignedTaxiRoute);
@@ -152,7 +266,7 @@ public class OakDrawRouteFidelityTests
         Assert.Equal(parking.Id, withToken.Ground.AssignedTaxiRoute.Segments[^1].ToNodeId);
 
         // Without the token the same path taxis to the node but does NOT claim the stand.
-        var noToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon);
+        var noToken = MakeGroundAircraft(start.Position.Lat, start.Position.Lon, 280);
         var resultNo = GroundCommandHandler.TryTaxi(noToken, new TaxiCommand(densePath, []), layout);
         Assert.True(resultNo.Success, resultNo.Message);
         Assert.Null(noToken.Ground.AssignedTaxiRoute!.DestinationParking);
@@ -320,7 +434,7 @@ public class OakDrawRouteFidelityTests
                     .BuildReadableTaxiPath(preview, hasNamedTerminus: false)
                     .Split(' ', StringSplitOptions.RemoveEmptyEntries)
                     .ToList();
-                var ac = MakeGroundAircraft(a.Position.Lat, a.Position.Lon);
+                var ac = MakeGroundAircraft(a.Position.Lat, a.Position.Lon, 280);
                 var result = GroundCommandHandler.TryTaxi(ac, new TaxiCommand(path, [], CrossRunways: crossings), layout);
 
                 Assert.True(result.Success, $"{a.Id}->{b.Id} TAXI {string.Join(" ", path)} CROSS {string.Join(",", crossings)}: {result.Message}");
@@ -331,14 +445,14 @@ public class OakDrawRouteFidelityTests
         }
     }
 
-    private static AircraftState MakeGroundAircraft(double lat, double lon)
+    private static AircraftState MakeGroundAircraft(double lat, double lon, double trueHeadingDeg)
     {
         var ac = new AircraftState
         {
             Callsign = "TEST1",
             AircraftType = "B738",
             Position = new LatLon(lat, lon),
-            TrueHeading = new TrueHeading(280),
+            TrueHeading = new TrueHeading(trueHeadingDeg),
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,

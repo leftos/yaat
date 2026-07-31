@@ -11,6 +11,8 @@
 
 ### Fixed
 - Ground view right-drag pans from anywhere on the surface, including from on top of an aircraft, datablock, or node.
+- A taxi route drawn while the aircraft is still moving follows exactly the taxiways you drew, instead of looping around whole blocks.
+- The taxi readback drops `RAMP`, and a runway taxied along reads as the end you're heading toward (`on 28R`) rather than `28R/10L`.
 
 ## v0.10.0-beta [2026/07/30]
 

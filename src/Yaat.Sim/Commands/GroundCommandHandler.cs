@@ -19,6 +19,12 @@ internal static class GroundCommandHandler
     private const double SpotPullForwardMinFt = 40.0;
     private const double SpotPullForwardMaxFt = 100.0;
 
+    // A node-reference path pins one segment per drawn node. Allow generous slack for the start
+    // bridge, the parking/runway extension, and hold-short splits, then treat anything beyond as a
+    // failed resolution rather than a clearance. The reported 48-node route resolved to 544 segments.
+    private const int NodeRefSegmentSlack = 20;
+    private const int NodeRefSegmentFactor = 2;
+
     internal static CommandResult TryTaxi(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, bool autoCrossRunway = false)
     {
         if (!aircraft.IsOnGround)
@@ -82,6 +88,13 @@ internal static class GroundCommandHandler
                 aircraft.Position.Lon
             );
             return new CommandResult(false, "Cannot find position on taxiway graph");
+        }
+
+        // A drawn route's leading nodes go stale while the controller is drawing — see the helper.
+        taxi = TrimPassedNodeRefPrefix(aircraft, startNode, taxi);
+        if ((taxi.Path.Count == 0) && (taxi.DestinationRunway is null) && (taxi.DestinationParking is null) && (taxi.DestinationSpot is null))
+        {
+            return new CommandResult(false, $"{aircraft.Callsign} has already taxied past the whole route");
         }
 
         // Infer the taxiway the aircraft is already on. The controller clears a continuation
@@ -189,6 +202,18 @@ internal static class GroundCommandHandler
             hsDetails,
             route.ToSummary()
         );
+
+        if (!IsPlausibleNodeRefResolution(groundLayout, taxi, route))
+        {
+            Log.LogWarning(
+                "[TryTaxi] {Callsign}: rejecting node-reference route — {SegCount} segments for {NodeCount} drawn nodes: {Summary}",
+                aircraft.Callsign,
+                route.Segments.Count,
+                taxi.Path.Count,
+                route.ToSummary()
+            );
+            return new CommandResult(false, "Cannot resolve the drawn taxi route from the aircraft's current position");
+        }
 
         // Implicit first-crossing clearance: when the aircraft is already holding short of a
         // runway — or is in the middle of landing on / exiting one (it must taxi past that
@@ -472,6 +497,144 @@ internal static class GroundCommandHandler
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Drop the leading node references the aircraft has already taxied past.
+    ///
+    /// <para>The ground draw tool anchors its node list at the aircraft's position when the controller
+    /// <em>starts</em> drawing, so by the time the command is dispatched the aircraft has moved on and
+    /// the first few nodes are behind it. Those nodes are unreachable — a taxiing aircraft cannot
+    /// reverse, and <see cref="Data.Airport.Pathfinding.GeometricAdmissibility"/> hard-rejects the
+    /// ~180° turn — so routing to them makes the search loop a whole block to turn around, once per
+    /// stale node (OAK N16390: a 48-node drawn route resolved to 544 segments across ten laps).</para>
+    ///
+    /// <para>Two exact tests, no geometry: the aircraft is standing on <paramref name="startNode"/>, so
+    /// every drawn node up to and including it is behind; and any drawn node the aircraft has already
+    /// traversed on its <em>current</em> taxi route is behind whether or not the start node is on the
+    /// drawn line. A free-space "is this node behind my nose" test cannot be used — a stopped aircraft's
+    /// heading says nothing about where its next clearance goes, which is exactly why
+    /// <c>GeometricAdmissibility</c> exempts the first edge.</para>
+    ///
+    /// <para>Only the <em>leading contiguous run</em> of <c>#NNNN</c> tokens is scanned, and the scan
+    /// stops at the first node that is still ahead: a named-taxiway clearance is untouched, and a drawn
+    /// route that legitimately loops back past the aircraft later on keeps its tail.</para>
+    /// </summary>
+    private static TaxiCommand TrimPassedNodeRefPrefix(AircraftState aircraft, GroundNode startNode, TaxiCommand taxi)
+    {
+        int leadingRun = 0;
+        while ((leadingRun < taxi.Path.Count) && NodeRefToken.IsNodeReference(taxi.Path[leadingRun]))
+        {
+            leadingRun++;
+        }
+
+        // The aircraft is standing on the start node, so every drawn node up to and including it is
+        // behind. First occurrence only — a drawn route that deliberately loops back through the same
+        // node later must keep that leg.
+        int drop = 0;
+        for (int i = 0; i < leadingRun; i++)
+        {
+            if (NodeRefToken.ParseNodeId(taxi.Path[i]) == startNode.Id)
+            {
+                drop = i + 1;
+                break;
+            }
+        }
+
+        // Then consume any further leading nodes the aircraft has already driven through on its
+        // current route — this is what catches a start node that snapped off the drawn line.
+        var passed = PassedRouteNodeIds(aircraft);
+        while ((drop < leadingRun) && passed.Contains(NodeRefToken.ParseNodeId(taxi.Path[drop])))
+        {
+            drop++;
+        }
+
+        if (drop == 0)
+        {
+            return taxi;
+        }
+
+        Log.LogInformation(
+            "[TryTaxi] {Callsign}: dropped {Count} node reference(s) already taxied past ({Dropped}); path now starts at {Head}",
+            aircraft.Callsign,
+            drop,
+            string.Join(" ", taxi.Path.Take(drop)),
+            drop < taxi.Path.Count ? taxi.Path[drop] : "(empty)"
+        );
+
+        return taxi with
+        {
+            Path = [.. taxi.Path.Skip(drop)],
+            PathTurnHints = taxi.PathTurnHints is null ? null : [.. taxi.PathTurnHints.Skip(drop)],
+        };
+    }
+
+    /// <summary>
+    /// Sanity-check a route resolved from a <em>dense</em> node-reference path — every token a node and
+    /// every consecutive pair one edge apart, which is what the ground draw tool emits. Such a path
+    /// spells out its own geometry, so it must resolve to about one segment per node; a resolution
+    /// several times longer did not follow the drawn line but found some other way there, and issuing
+    /// it sends the aircraft on a tour of the airport (544 segments for 48 drawn nodes, in the case
+    /// this guard was written for). Sparse or hand-typed node paths carry no such size expectation —
+    /// two far-apart nodes legitimately resolve to a long route — so they always pass.
+    /// </summary>
+    internal static bool IsPlausibleNodeRefResolution(AirportGroundLayout groundLayout, TaxiCommand taxi, TaxiRoute route)
+    {
+        if ((taxi.Path.Count < 2) || !taxi.Path.All(NodeRefToken.IsNodeReference))
+        {
+            return true;
+        }
+
+        for (int i = 0; i < taxi.Path.Count - 1; i++)
+        {
+            if (!AreNodesAdjacent(groundLayout, NodeRefToken.ParseNodeId(taxi.Path[i]), NodeRefToken.ParseNodeId(taxi.Path[i + 1])))
+            {
+                return true;
+            }
+        }
+
+        return route.Segments.Count <= (taxi.Path.Count * NodeRefSegmentFactor) + NodeRefSegmentSlack;
+    }
+
+    /// <summary>True when a single graph edge joins the two nodes.</summary>
+    private static bool AreNodesAdjacent(AirportGroundLayout groundLayout, int fromNodeId, int toNodeId)
+    {
+        if (!groundLayout.Nodes.TryGetValue(fromNodeId, out var fromNode))
+        {
+            return false;
+        }
+
+        foreach (var edge in fromNode.Edges)
+        {
+            if (edge.OtherNode(fromNode).Id == toNodeId)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Nodes the aircraft has already driven through on its current taxi route: the route's own start
+    /// node plus the endpoint of every segment before the one being traversed. Empty when the aircraft
+    /// has no route (a fresh clearance can then only be trimmed by the start-node test).
+    /// </summary>
+    private static HashSet<int> PassedRouteNodeIds(AircraftState aircraft)
+    {
+        var passed = new HashSet<int>();
+        if (aircraft.Ground.AssignedTaxiRoute is not { Segments.Count: > 0 } route)
+        {
+            return passed;
+        }
+
+        passed.Add(route.Segments[0].FromNodeId);
+        for (int i = 0; (i < route.CurrentSegmentIndex) && (i < route.Segments.Count); i++)
+        {
+            passed.Add(route.Segments[i].ToNodeId);
+        }
+
+        return passed;
     }
 
     /// <summary>

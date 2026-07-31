@@ -7,7 +7,7 @@ namespace Yaat.Sim.Tests.Pathfinding;
 
 /// <summary>
 /// Unit tests for <see cref="TaxiRoute.FormatTaxiwaySequence"/> — the operator-facing route string
-/// (Aircraft List Info column + DTO TaxiRoute field). Multi-name junction/membership arcs
+/// (Aircraft List Info column + DTO TaxiRoute field) and TaxiRoute.ToSummary. Multi-name junction arcs
 /// (<c>"D - RAMP"</c>) are transitions between taxiways, not legs, so they must never appear.
 /// </summary>
 public class TaxiRouteFormatTests
@@ -67,7 +67,54 @@ public class TaxiRouteFormatTests
             HoldShortPoints = [],
         };
 
-        Assert.Equal("RAMP D C B", route.FormatTaxiwaySequence());
+        // RAMP is dropped: a route into or out of a stand names the stand, not the pavement class.
+        Assert.Equal("D C B", route.FormatTaxiwaySequence());
+    }
+
+    /// <summary>
+    /// A composite arc must resolve to the taxiway being followed, not to its first member — the walk
+    /// stays on the current name whenever the edge belongs to it. Without that stickiness a route
+    /// along E that clips an "A - E" corner reads "E A E".
+    /// </summary>
+    [Fact]
+    public void CompositeArc_KeepsTheTaxiwayBeingFollowed()
+    {
+        var e1 = Node(0, 37.700, -122.200);
+        var e2 = Node(1, 37.701, -122.200);
+        var e3 = Node(2, 37.702, -122.200);
+        var e4 = Node(3, 37.703, -122.200);
+
+        var route = new TaxiRoute
+        {
+            Segments = [Seg(Straight(e1, e2, "E"), e1, e2), Seg(Arc(e2, e3, "A", "E"), e2, e3), Seg(Straight(e3, e4, "E"), e3, e4)],
+            HoldShortPoints = [],
+        };
+
+        Assert.Equal("E", route.FormatTaxiwaySequence());
+        Assert.Equal(["E"], TaxiRouteFormatter.CleanTaxiwaySequence(route));
+    }
+
+    /// <summary>
+    /// A runway taxied ALONG reads as the end the aircraft is travelling toward. A drawn route names
+    /// no runway in its path (every token is a node reference), so there is no cleared designator to
+    /// match and the direction of travel is the only signal — it must not fall back to the internal
+    /// combined id "28R/10L".
+    /// </summary>
+    [Fact]
+    public void RunwayTaxiedAlong_NamesTheEndTravelledToward()
+    {
+        // Westbound down the 28R/10L centerline.
+        var east = Node(0, 37.720, -122.200);
+        var west = Node(1, 37.720, -122.220);
+
+        // The "RWY" prefix is what makes GroundEdge.IsRunwayCenterline true.
+        var centerline = Straight(east, west, "RWY28R/10L");
+
+        var westbound = new TaxiRoute { Segments = [Seg(centerline, east, west)], HoldShortPoints = [] };
+        Assert.Equal("on 28R", westbound.ToSummary());
+
+        var eastbound = new TaxiRoute { Segments = [Seg(centerline, west, east)], HoldShortPoints = [] };
+        Assert.Equal("on 10L", eastbound.ToSummary());
     }
 
     [Fact]

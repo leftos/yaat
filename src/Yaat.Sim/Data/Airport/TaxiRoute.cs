@@ -29,38 +29,25 @@ public sealed class TaxiRoute
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
     /// <summary>
-    /// The cleared taxiways in order for operator-facing display — distinct consecutive segment
-    /// names with junction/membership arcs (<c>"D - RAMP"</c>) excluded. Those arcs are transitions
-    /// between taxiways, not a leg of one, so they must never appear as a named part of the route:
-    /// a route through RAMP, the RAMP↔D corner, then D C B reads <c>"RAMP D C B"</c>, not
-    /// <c>"RAMP D - RAMP D C B"</c>. Drives the Aircraft List Info column and the DTO TaxiRoute field.
+    /// The cleared taxiways in order for operator-facing display. Junction/membership arcs
+    /// (<c>"D - RAMP"</c>) are transitions between taxiways, not a leg of one, so they never appear as
+    /// a named part of the route, and ramp pavement is dropped: a route out of a stand through the
+    /// RAMP↔D corner and on down D, C, B reads <c>"D C B"</c>. Drives the Aircraft List Info column
+    /// and the DTO TaxiRoute field.
     /// </summary>
     public string FormatTaxiwaySequence() => string.Join(" ", TaxiwaySequence([]).Select(t => t.Display));
 
     /// <summary>
-    /// The cleared taxiways in order: distinct consecutive segment names with junction/membership
-    /// arcs (<c>"C - E"</c>) excluded. Shared by <see cref="FormatTaxiwaySequence"/> and
-    /// <see cref="ToSummary"/> so both render the same sequence — an arc is a transition between
-    /// taxiways, not a leg of one, and must never surface as a named token.
+    /// The cleared taxiways in order, from the shared <see cref="TaxiRouteFormatter.TaxiwayLegs"/>
+    /// walk — composite junction labels (<c>"C - E"</c>) decomposed to the taxiway actually being
+    /// followed, ramp edges dropped. A runway taxied along is rewritten to its operator-facing end.
     /// </summary>
     private List<(string Display, bool IsRunway)> TaxiwaySequence(IReadOnlyCollection<string> clearedRunways)
     {
         var taxiways = new List<(string, bool)>();
-        string? lastRaw = null;
-        foreach (var seg in Segments)
+        foreach (var leg in TaxiRouteFormatter.TaxiwayLegs(this))
         {
-            if (seg.Edge.Edge is GroundArc { TaxiwayNames.Length: >= 2 })
-            {
-                continue;
-            }
-
-            if (seg.TaxiwayName == lastRaw)
-            {
-                continue;
-            }
-
-            lastRaw = seg.TaxiwayName;
-            taxiways.Add(seg.Edge.Edge.IsRunwayCenterline ? (RunwayDisplay(seg, clearedRunways), true) : (seg.TaxiwayName, false));
+            taxiways.Add(leg.IsRunway ? (RunwayDisplay(leg.Segment, clearedRunways), true) : (leg.Name, false));
         }
 
         return taxiways;
@@ -70,7 +57,8 @@ public sealed class TaxiRoute
     /// Operator-facing token for a runway taxied ALONG. The segment carries the internal combined
     /// centerline name (<c>"RWY28R/10L"</c>); show the single FAA end the controller cleared (matched
     /// from <paramref name="clearedRunways"/> — the command path) de-padded to <c>"28R"</c>. With no
-    /// command context (snapshot/Aircraft List), fall back to the de-padded combined id (<c>"28R/10L"</c>).
+    /// command context — a snapshot, the Aircraft List, or a drawn route whose path is all node
+    /// references — name the end the aircraft is travelling toward instead.
     /// </summary>
     private static string RunwayDisplay(TaxiRouteSegment seg, IReadOnlyCollection<string> clearedRunways)
     {
@@ -83,7 +71,53 @@ public sealed class TaxiRoute
         }
 
         string name = seg.TaxiwayName;
-        return name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) ? RunwayIdentifier.ToDisplayDesignator(name[3..]) : name;
+        if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+        {
+            return name;
+        }
+
+        var id = RunwayIdentifier.Parse(name[3..]);
+        return RunwayIdentifier.ToDisplayDesignator(EndTravelledToward(seg, id));
+    }
+
+    /// <summary>
+    /// Which end of a runway the aircraft is taxiing toward. Designators are magnetic and the two ends
+    /// are reciprocal, so comparing them against the segment's true bearing is safe — magnetic
+    /// variation never approaches the 90° needed to flip the choice. Falls back to
+    /// <see cref="RunwayIdentifier.End1"/> when a designator carries no leading number.
+    /// </summary>
+    private static string EndTravelledToward(TaxiRouteSegment seg, RunwayIdentifier id)
+    {
+        double travelBearing = GeoMath.BearingTo(seg.Edge.FromNode.Position, seg.Edge.ToNode.Position);
+        double? end1 = DesignatorHeading(id.End1);
+        double? end2 = DesignatorHeading(id.End2);
+        if ((end1 is null) || (end2 is null))
+        {
+            return id.End1;
+        }
+
+        return
+            Math.Abs(GeoMath.SignedBearingDifference(end1.Value, travelBearing))
+            <= Math.Abs(GeoMath.SignedBearingDifference(end2.Value, travelBearing))
+            ? id.End1
+            : id.End2;
+    }
+
+    /// <summary>Approximate magnetic heading a runway designator encodes ("28R" → 280°); null when it has no number.</summary>
+    private static double? DesignatorHeading(string designator)
+    {
+        int digits = 0;
+        foreach (char c in designator)
+        {
+            if (!char.IsAsciiDigit(c))
+            {
+                break;
+            }
+
+            digits = (digits * 10) + (c - '0');
+        }
+
+        return digits is > 0 and <= 36 ? digits * 10.0 : null;
     }
 
     /// <summary>

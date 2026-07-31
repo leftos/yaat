@@ -695,7 +695,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
 | `TAXI D C HS E RWY 28R` | Taxi via D, C, hold short of **taxiway** E, then continue to runway 28R. A taxiway named as a hold-short target also steers the route — it is taxied through (D→C→E), not detoured around — so this is equivalent to `TAXI D C E HS E RWY 28R`. (Runway hold-short targets like `HS 28L` do not add a routing waypoint.) |
 | `TAXI S T U @B12 NODEL` | Taxi via S, T, U to parking B12 (exempt from auto-delete) |
-| `TAXI #42 #18 #95` | Taxi via exact node IDs (used by draw route; see Ground View debug overlay) |
+| `TAXI #42 #18 #95` | Taxi via exact node IDs (used by draw route; see Ground View debug overlay). Consecutive adjacent nodes pin the route to those exact edges. Leading nodes the aircraft has already taxied past are dropped — a route drawn while the aircraft keeps moving starts from where it actually is, not where it was when you began drawing. |
 | `TAXI A #42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |
 | `TAXI >A B <C D` | Taxi via A, B, C, D with turn-direction hints: right onto A, left onto C (the `>`/`<` glyph biases which way the aircraft turns onto that taxiway) |
 | `TAXI 28R G D` | Taxi **along** runway 28R, then taxiways G, D — a runway named as a path segment is taxied along its centerline (e.g. back-taxi). The aircraft taxis straight onto the cleared runway; a *different* runway the route crosses still holds short. |

@@ -10,26 +10,58 @@ namespace Yaat.Sim.Data.Airport;
 public static class TaxiRouteFormatter
 {
     /// <summary>
-    /// The ordered, consecutive-deduped sequence of real taxiway names the route traverses.
-    /// A junction keeps the current taxiway when it continues onto it; otherwise it advances to the
-    /// new one. Runway and ramp names are dropped.
+    /// One entry per name change along the route. <paramref name="Segment"/> is the segment the name
+    /// was first picked on, so a caller can classify the leg (e.g. render a runway as "on 28R").
     /// </summary>
-    public static List<string> CleanTaxiwaySequence(TaxiRoute route)
+    public readonly record struct TaxiwayLeg(string Name, bool IsRunway, TaxiRouteSegment Segment);
+
+    /// <summary>
+    /// The ordered, consecutive-deduped legs the route traverses. Composite junction labels are
+    /// decomposed into their members and the walk <em>stays</em> on the name it is already emitting
+    /// whenever the edge belongs to it — an arc is a transition between taxiways, not a leg of one, so
+    /// it must never surface as its own token. Ramp edges are dropped (a parking / spot destination
+    /// names the ramp far better than the word "RAMP"); runway legs are kept and flagged, since a
+    /// runway taxied along is part of the clearance.
+    ///
+    /// <para>Shared by <see cref="CleanTaxiwaySequence"/> and <see cref="TaxiRoute.ToSummary()"/> so
+    /// the readable command form, the TAXI readback, and the aircraft-list route string cannot drift
+    /// apart.</para>
+    /// </summary>
+    public static List<TaxiwayLeg> TaxiwayLegs(TaxiRoute route)
     {
-        var names = new List<string>();
+        var legs = new List<TaxiwayLeg>();
         foreach (var seg in route.Segments)
         {
-            var members = CleanTaxiwayMembers(seg.Edge.Edge);
+            var members = TaxiwayMembers(seg.Edge.Edge);
             if (members.Count == 0)
             {
                 continue;
             }
 
-            var current = names.Count > 0 ? names[^1] : null;
-            var pick = (current is not null) && members.Contains(current, StringComparer.OrdinalIgnoreCase) ? current : members[0];
+            string? current = legs.Count > 0 ? legs[^1].Name : null;
+            string pick = (current is not null) && members.Contains(current, StringComparer.OrdinalIgnoreCase) ? current : members[0];
             if (!string.Equals(current, pick, StringComparison.OrdinalIgnoreCase))
             {
-                names.Add(pick);
+                legs.Add(new TaxiwayLeg(pick, IsRunwayName(pick), seg));
+            }
+        }
+
+        return legs;
+    }
+
+    /// <summary>
+    /// The ordered, consecutive-deduped sequence of real taxiway names the route traverses — the
+    /// legs of <see cref="TaxiwayLegs"/> with runways removed, for the readable <c>TAXI</c> form.
+    /// </summary>
+    public static List<string> CleanTaxiwaySequence(TaxiRoute route)
+    {
+        var names = new List<string>();
+        foreach (var leg in TaxiwayLegs(route))
+        {
+            string? last = names.Count > 0 ? names[^1] : null;
+            if (!leg.IsRunway && !string.Equals(leg.Name, last, StringComparison.OrdinalIgnoreCase))
+            {
+                names.Add(leg.Name);
             }
         }
 
@@ -56,13 +88,30 @@ public static class TaxiRouteFormatter
         return string.IsNullOrEmpty(path) ? $"#{endNode}" : $"{path} #{endNode}";
     }
 
-    private static List<string> CleanTaxiwayMembers(IGroundEdge edge)
+    /// <summary>True for the internal combined runway-centerline name (<c>"RWY28R/10L"</c>).</summary>
+    internal static bool IsRunwayName(string name) => name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The taxiway names an edge belongs to, ramp dropped and real taxiways ordered ahead of runways.
+    /// The ordering matters for a runway-crossing arc (<c>["H", "RWY01L/19R"]</c>) reached from neither
+    /// of its members: that arc <em>continues</em> H across the runway, so H is the name to show — the
+    /// aircraft is not being cleared to taxi along 01L.
+    /// </summary>
+    private static List<string> TaxiwayMembers(IGroundEdge edge)
     {
         string[] raw = edge is GroundArc arc ? arc.TaxiwayNames : [edge.TaxiwayName];
         var result = new List<string>();
         foreach (var name in raw)
         {
-            if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase) && !IsRunwayName(name))
+            {
+                result.Add(name);
+            }
+        }
+
+        foreach (var name in raw)
+        {
+            if (IsRunwayName(name))
             {
                 result.Add(name);
             }

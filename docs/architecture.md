@@ -598,7 +598,7 @@ Commands/NodeRefToken.cs            # Parses user-typed `#<id>` node-reference t
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
 Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CAPPF/JAPPF/PTACF forced variants/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
 Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution, CancelTakeoff, ClearedTakeoffPresent (CTOPP)
-Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
+Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short). Owns the pre-pathfinder path rewrites: AugmentPathWithHoldShortTaxiways, the current-taxiway prepend, TrimPassedNodeRefPrefix (drops drawn #nodes the aircraft already taxied past), and the post-resolve IsPlausibleNodeRefResolution guard
 Commands/TrackEngine.cs             # Pure domain logic for STARS track ops: Track, Drop, Handoff, Accept, Cancel, PointOut, Acknowledge,
                                     # RejectPointout, RetractPointout, Scratchpad1/2, TempAlt, Cruise, PilotReportedAlt,
                                     # InhibitConflictAlert, LeaderDirection, JRing, Cone. All methods mutate AircraftState directly.
@@ -787,7 +787,7 @@ Fillet/                        # Plan-then-execute fillet pipeline (edge-split c
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching; NormalizeDesignator (zero-pad canonical) + ToDisplayDesignator/ToDisplayString (FAA no-leading-zero display form)
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiRouteAutoCross.cs          # Applies AutoCrossRunway toggle to a route's RunwayCrossing hold-shorts; reused at TAXI-resolution and on mid-session toggle (SimulationWorld.ApplyAutoCrossToActiveTaxiRoutes)
-TaxiRouteFormatter.cs          # Route -> readable TAXI form: CleanTaxiwaySequence (decomposes junction composite labels "W - W6"=GroundArc.TaxiwayNames into single names) + BuildReadableTaxiPath (clean names + terminal #node pin for a mid-taxiway stop). Used by GroundViewModel draw-route Copy + taxiway summaries
+TaxiRouteFormatter.cs          # SINGLE owner of route -> taxiway-name extraction: TaxiwayLegs (decomposes junction composite labels "W - W6"=GroundArc.TaxiwayNames, stays on the name being followed, drops RAMP, flags runway legs) + CleanTaxiwaySequence (legs minus runways, readable TAXI form) + BuildReadableTaxiPath (clean names + terminal #node pin for a mid-taxiway stop). TaxiRoute.ToSummary/FormatTaxiwaySequence call TaxiwayLegs so the readback, Aircraft List column, and draw-route Copy cannot drift apart
 TaxiPathfinder.cs            # Taxi pathfinder (static): ResolveExplicitPath (SegmentExpander), FindRoute/FindRoutes (A* AutoRouter, per-preference), FindFullLengthLineupHoldShort. See Data/Airport/Pathfinding/ + docs/ground/pathfinder.md
 ExplicitPathOptions.cs         # RoutePreference enum + ExplicitPathOptions input bag (pathfinder inputs)
 VirtualNode.cs                 # Factory for virtual ground nodes (negative IDs); CreateEdge, CreateSegment, OffsetBefore/OffsetPast

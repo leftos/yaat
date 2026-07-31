@@ -154,6 +154,47 @@ Because `AnnotateHoldShorts` keeps exactly one `HoldShortPoint` per crossed runw
 
 A departure runway can lie *beyond* one or more runway crossings on the cleared taxiways — e.g. KMIA `RWY 9 TAXI P S HS 12`, where taxiway S crosses runway 12 then hairpins to runway 9's hold-short. The greedy `WalkToNaturalTerminus` (one-step, see Caveats) can dead-end on a hold-area spur one turn short of the lineup bar, where the U-turn back to it fails the admissibility gate, and the route then truncates at the en-route crossing instead of reaching the runway. When the explicit walk + variant extension do **not** reach a hold-short for the destination runway, `SegmentExpander.Run` runs a last-resort flat A* (`AutoRouter`) from the start to the runway, which explores all branches and reaches the lineup hold-short across the crossings. The fallback is **hard-constrained to the cleared taxiways**: every letter-only taxiway the controller did not name is added to `AvoidedTaxiways` with `AvoidMode.HardExclude` (numbered connectors and RAMP stay free), so it cannot detour onto an un-named taxiway — it must cross every runway the cleared taxiways cross (e.g. `RWY 30 TAXI C B W HS 28R` crosses 28R then 28L). It only runs on the failing path, so it never changes a route that already reaches its runway. An explicit `HS <rwy>` on a crossed runway is a hold/authorization marker, not a routing terminus.
 
+### Node-reference paths (`TAXI #1124 #352 …`) — the drawn-route contract
+
+The ground draw tool commits a **dense** node list — every node along the previewed route, one `#id`
+per segment endpoint (`GroundViewModel.BuildDenseNodeRefPath`). Consecutive pairs are therefore one
+edge apart, and that is the contract: the resolver must reproduce the drawn geometry exactly, not
+re-derive a route between the nodes.
+
+Three pieces implement it:
+
+1. **`SegmentExpander.ResolveExplicit` routes to waypoint\[0].** `ExpandSegment` dispatches on the
+   *next* token, so a leading node-ref would otherwise never be a routing target — the walk would jump
+   straight to the second node by whatever path the A\* liked. The node-ref prologue mirrors
+   `BridgeStartToTaxiway`: it routes start → waypoint\[0] before `ResolveSequence` runs.
+2. **`RouteToSpecificNode` takes the direct edge when there is one** (`TryStepToAdjacentNode`). It
+   applies the same `IsBlockedTurnEdge` and `GeometricAdmissibility` gates as the searches — an
+   inadmissible drawn turn still falls through to the `AutoRouter` hop — and breaks parallel edges
+   (fillet duplicate corner arcs) by `IncrementalCost`. A dense route is then O(N) lookups instead of
+   N full-layout A\* runs.
+3. **`GroundCommandHandler.TrimPassedNodeRefPrefix` drops the stale head of the list.** The draw tool
+   anchors at the aircraft's node when the controller *starts* drawing, so by dispatch time the first
+   nodes are usually behind the aircraft. They are unreachable — a taxiing aircraft cannot reverse and
+   `IsAdmissible` hard-rejects the ~180° turn — so routing to them makes each hop loop a whole block to
+   turn around. Two exact tests, no geometry: drop through the first token equal to the resolved start
+   node (the aircraft is standing on it), then drop any further leading token the aircraft has already
+   traversed on its live `AssignedTaxiRoute`. A free-space "behind my nose" test must **not** be used:
+   a stopped aircraft's heading says nothing about where its next clearance goes, which is exactly why
+   `IsAdmissible` exempts the first edge.
+
+**Why the loop happens without (3).** Hop 0 may legally go backwards — `IsAdmissible` returns true
+unconditionally while `LastEdge is null`, and only the soft first-hop heading bias resists. That stamps
+a backward arrival bearing onto the head, after which *every* forward waypoint needs a reversal the
+gate rejects, and `ResolveSequence` resets `VisitedNodeIds` per hop so nothing notices the
+concatenation circling. OAK N16390 resolved a 48-node drawn route into 544 segments across ten laps of
+`C → J → K → F → C` before this was fixed; the same route now resolves to 44 segments.
+
+**Loud failure.** `GroundCommandHandler.IsPlausibleNodeRefResolution` rejects a *dense* node path (all
+tokens nodes, all consecutive pairs edge-adjacent) that resolves to more than `2 × nodes + 20`
+segments. Such a path spells out its own geometry, so a resolution several times longer did not follow
+it. Sparse or hand-typed node paths carry no size expectation and always pass. Nothing else bounds
+route length: `AutoRouter.MaxExpansions` is per hop, and the materialiser has no cycle detection.
+
 ### Look-ahead defeats first-match hairpins (bounded to one level)
 
 At a `T_i → T_{i+1}` transition there are usually multiple junction candidates (parallel crossings). Picking the first/closest can strand the route on the wrong leg of a **V-shaped taxiway** (one LineString, two legs meeting at an apex), forcing a hairpin U-turn after the transition. So `SegmentExpander` scores each junction candidate by the **cost of resolving the remaining sequence from it** — a recursive probe. The recursion is **bounded to one level**: the probe runs with `enableLookahead: false`, which also suppresses the whole-airport detour fallback, so a continuation that *needs* a detour becomes a strong negative signal against the candidate that led there. When there is no meaningful tail (final transition), a geometric anchor heuristic is used instead.
@@ -178,13 +219,13 @@ When two consecutive cleared taxiways have **no direct junction** (zero junction
 
 `SegmentExpander.Run` (`src/Yaat.Sim/Data/Airport/Pathfinding/SegmentExpander.cs:36`) returns exactly one of `(TaxiRoute, null)` or `(null, PathfindingFailure)`.
 
-**1. Waypoint resolution.** `ResolveWaypoints` turns each token into a `WaypointToken`. `#NNNN` tokens become node-refs (`IsNodeRef = true`); everything else is a named taxiway. A token that resolves to a runway — `AirportGroundLayout.TryGetRunwayCenterlineName("28R", …)` returns the canonical centerline edge name `RWY28R/10L` — is **rewritten to that canonical name** and flagged `IsRunway`, so the rest of the name-keyed walk routes *along the runway centerline* exactly as it would along a taxiway (the centerline straight edges are indexed under the `RWY…` name, and runway-taxiway crossings are direct shared nodes). This is how `TAXI 28R G D` taxis along 28R then turns off onto G, D. A turn glyph on a runway token is dropped (travel direction along the runway is fixed by the adjacent waypoints). If a runway and an adjacent taxiway have no direct junction, `TryDetour` fails cleanly ("Taxiway W does not intersect runway 28R") rather than fabricating a connector onto the runway surface — you cannot bridge onto a runway. The search starts with `head = PartialRoute.StartAt(ctx.StartNodeId)` — an immutable linked-list node (`PartialRoute.cs`) carrying head node id, arrival bearing, last edge, accumulated cost, depth, and a `VisitedNodeIds` set.
+**1. Waypoint resolution.** `ResolveWaypoints` turns each token into a `WaypointToken`. `#NNNN` tokens become node-refs (`IsNodeRef = true`) — see **Node-reference paths** above for how they resolve; everything else is a named taxiway. A token that resolves to a runway — `AirportGroundLayout.TryGetRunwayCenterlineName("28R", …)` returns the canonical centerline edge name `RWY28R/10L` — is **rewritten to that canonical name** and flagged `IsRunway`, so the rest of the name-keyed walk routes *along the runway centerline* exactly as it would along a taxiway (the centerline straight edges are indexed under the `RWY…` name, and runway-taxiway crossings are direct shared nodes). This is how `TAXI 28R G D` taxis along 28R then turns off onto G, D. A turn glyph on a runway token is dropped (travel direction along the runway is fixed by the adjacent waypoints). If a runway and an adjacent taxiway have no direct junction, `TryDetour` fails cleanly ("Taxiway W does not intersect runway 28R") rather than fabricating a connector onto the runway surface — you cannot bridge onto a runway. The search starts with `head = PartialRoute.StartAt(ctx.StartNodeId)` — an immutable linked-list node (`PartialRoute.cs`) carrying head node id, arrival bearing, last edge, accumulated cost, depth, and a `VisitedNodeIds` set.
 
 **2. Parking→taxiway bridge** (`BridgeStartToTaxiway`, `:554`). If the start node has no edge on the first named taxiway (e.g. parked on a RAMP-only spot), a bounded BFS (≤ `MaxBridgeHops = 3`) collects every node within reach that carries that taxiway, then picks the best access node. Without it the first per-segment search finds no on-taxiway edge from the start and degrades to a failing detour. **Candidate scoring is A\* `f = g + h`:** the bridge path's own accumulated cost `g` (distance + turn budget + reverse-arc penalty) **plus** `ScoreBridgeCandidate`'s bias-proximity probe `h` (how close the candidate's on-taxiway continuation gets to the next-junction / destination bias). Scoring on `h` alone let a spot whose only link onto the taxiway was a doubling-back ramp cross-connector win purely because its taxiway *entry* sat nearest the bias — the OAK GA9 `TAXI D C B` spin (issue #240), where the aircraft zigzagged through a 19 ft / 3 kt fillet before reaching D. Folding `g` back in keeps the smooth, shorter straight bridge ahead of the zigzag with no magic constant (the reverse-arc/turn cost dwarfs the few-foot bias-proximity edge). With no bias (single-taxiway with no known destination node) the score falls back to nearest-access `g`.
 
 **3. `ResolveSequence` with recursive look-ahead** (`:245`). Walks consecutive token pairs. For each non-final pair it calls `ExpandSegment`; the final token goes to `ExpandLastWaypoint`. After each segment it **resets `VisitedNodeIds` to just the new head node**, so a route may intentionally revisit a taxiway (`A E B B3 A B1`) — cycle prevention is per-segment, not global. `ExpandSegment` dispatches:
    - node-ref → named: `RouteFromNodeRefToTaxiway`
-   - named → node-ref: `RouteToNodeRef` (uses `AutoRouter`)
+   - named / node-ref → node-ref: `RouteToNodeRef` → `RouteToSpecificNode` (direct edge, else `AutoRouter`)
    - named → named: `RouteNamedToNamed` (the common case)
 
 **4. `RouteNamedToNamed`** (`:833`). `FindJunctionCandidates` finds every node on `fromTaxiway` with an edge matching `toTaxiway`. For each candidate, `LocalSearchToJunction` runs a bounded best-first search (A*) **constrained to edges on `fromTaxiway`** (plus the direct junction edge), capped at `MaxLocalExpansions = 500`. Each candidate's score is `cost-to-reach + continuationCost`:

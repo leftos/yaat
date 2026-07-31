@@ -109,6 +109,7 @@ Consequences to respect when changing this area:
 - **The drawn route is a client reconstruction, not a mirror of the server's `TaxiRoute` object.** It is geometrically correct only while the client's cached layout matches the server's. It does not reflect the server's `CurrentSegmentIndex` or hold-short offsets.
 - **Do not rely on any field for live route updates unless it is in `TrainingDtoFingerprint`.** If a future field must drive a mid-taxi redraw, add it to that fingerprint or the client will only see it on join.
 - **Refresh cadence is the aircraft-update batch.** There is no separate timer; if `RefreshShownTaxiRoutes` stops being called from the update handler, drawn routes freeze.
+- **The committed node list is trimmed server-side, so the drawn route and the flown route can differ at the head.** `GroundViewModel.StartDrawRoute` anchors the node list at the aircraft's node when drawing *starts*, and the aircraft keeps taxiing while the controller draws and picks a menu entry. `GroundCommandHandler.TrimPassedNodeRefPrefix` drops the nodes it has already passed (see [ground/pathfinder.md](ground/pathfinder.md#node-reference-paths-taxi-1124-352--the-drawn-route-contract)); do not try to re-anchor client-side as well — the server is the authority and the race cannot be closed from here.
 
 ## Pointer input and hit-testing
 
