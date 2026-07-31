@@ -95,6 +95,8 @@ public partial class MacroRow : ObservableObject
 
 public partial class SettingsViewModel : ObservableObject
 {
+    private static readonly ILogger Log = AppLog.CreateLogger<SettingsViewModel>();
+
     private readonly UserPreferences _preferences;
     private readonly SpeechSampleStore? _speechSampleStore;
 
@@ -520,19 +522,25 @@ public partial class SettingsViewModel : ObservableObject
     /// Each entry is an <see cref="LmKitModelEntry"/> with observable download state so the
     /// per-row Download button + status text stays in sync without extra change-notification plumbing.
     /// </summary>
-    public ObservableCollection<LmKitModelEntry> WhisperLmKitModels { get; } = LmKitModelCatalog.BuildWhisperCatalog();
+    /// <remarks>
+    /// Starts empty and is filled by <see cref="LoadModelCatalogsAsync"/> — never at construction.
+    /// Building the catalog resolves the recommended entry's size from its remote URI, which LM-Kit
+    /// does sync-over-async; doing that on the UI thread deadlocks the app permanently.
+    /// </remarks>
+    public ObservableCollection<LmKitModelEntry> WhisperLmKitModels { get; } = [];
 
     /// <summary>LM-Kit LLM model catalog. Same shape as <see cref="WhisperLmKitModels"/> but filtered for instruction-following models.</summary>
-    public ObservableCollection<LmKitModelEntry> LlmLmKitModels { get; } = LmKitModelCatalog.BuildLlmCatalog();
+    public ObservableCollection<LmKitModelEntry> LlmLmKitModels { get; } = [];
 
     /// <summary>
     /// Snapshot of GPUs LM-Kit can see at the time the Settings window opened. Used by the
     /// Acceleration panel to tell the user whether the heavy <see cref="LmKitModelTier.Best"/>
-    /// models will actually accelerate. Computed once at construction (see <see cref="LmKitGpuDetector.Detect"/>);
-    /// re-detection on every window open feels right but isn't necessary because GPU presence
-    /// rarely changes between application sessions.
+    /// models will actually accelerate. Resolved by <see cref="LoadModelCatalogsAsync"/> rather than
+    /// at construction: <see cref="LmKitGpuDetector.Detect"/> initializes the CUDA / Vulkan loader on
+    /// first call, which is unbounded work that must stay off the UI thread.
     /// </summary>
-    public LmKitGpuSnapshot LmKitGpuSnapshot { get; } = LmKitGpuDetector.Detect();
+    [ObservableProperty]
+    private LmKitGpuSnapshot _lmKitGpuSnapshot = LmKitGpuSnapshot.Pending;
 
     /// <summary>
     /// Runtime-installer for the LM-Kit CUDA 13 backend. The backend is no longer bundled into
@@ -691,11 +699,6 @@ public partial class SettingsViewModel : ObservableObject
         _speechSampleCaptureEnabled = _preferences.SpeechSampleCaptureEnabled;
         _speechSampleCacheMaxMb = _preferences.SpeechSampleCacheMaxMb;
 
-        // Resolve LM-Kit catalog selections from the saved preferences. FindById returns null when
-        // the user has typed a custom file path or URI not in the catalog — we leave the dropdown
-        // unselected in that case rather than silently overriding their choice.
-        _selectedWhisperLmKitModel = LmKitModelCatalog.FindById(WhisperLmKitModels, _whisperModelSize);
-        _selectedLlmLmKitModel = LmKitModelCatalog.FindById(LlmLmKitModels, _llmModelPath);
         _pttKeyName = _preferences.PttKey;
         _pttKeyDisplay = KeyComboToDisplay(_pttKeyName);
         _audioInputDevice = _preferences.AudioInputDevice;
@@ -756,6 +759,53 @@ public partial class SettingsViewModel : ObservableObject
         _groundShowAllTaxiRoutes = _preferences.GroundShowAllTaxiRoutes;
         _crcAliasDirectory = _preferences.CrcAliasDirectory ?? "";
         LoadMacros();
+    }
+
+    /// <summary>
+    /// Populates the LM-Kit model pickers and the GPU acceleration panel. Started by the Settings
+    /// window right after construction and awaited directly by tests.
+    ///
+    /// Every LM-Kit call here runs inside <see cref="Task.Run(Action)"/>, and that placement is the
+    /// whole point rather than an optimization: building the Whisper catalog resolves the recommended
+    /// entry's file size from its HuggingFace URI, and LM-Kit performs that resolve sync-over-async.
+    /// Called on the UI thread it captures the <c>AvaloniaSynchronizationContext</c>, then blocks that
+    /// same thread waiting for a continuation only that thread can run — a permanent freeze of the
+    /// whole app the moment Settings opens. On a thread pool thread there is no captured context, so
+    /// the continuation runs freely.
+    ///
+    /// Never throws: a catalog that fails to build leaves the pickers empty rather than taking the
+    /// window down, which matters because the window fires this without awaiting it.
+    /// </summary>
+    public async Task LoadModelCatalogsAsync()
+    {
+        try
+        {
+            var whisper = await Task.Run(LmKitModelCatalog.BuildWhisperCatalog).ConfigureAwait(true);
+            var llm = await Task.Run(LmKitModelCatalog.BuildLlmCatalog).ConfigureAwait(true);
+            var gpus = await Task.Run(LmKitGpuDetector.Detect).ConfigureAwait(true);
+
+            foreach (var entry in whisper)
+            {
+                WhisperLmKitModels.Add(entry);
+            }
+            foreach (var entry in llm)
+            {
+                LlmLmKitModels.Add(entry);
+            }
+            LmKitGpuSnapshot = gpus;
+
+            // Resolve catalog selections from the saved preferences. FindById returns null when the
+            // user has typed a custom file path or URI not in the catalog — the selection handlers
+            // ignore null, so the dropdown stays unselected rather than silently overriding their
+            // choice. Selecting by id means the handlers write back the id we just matched on, which
+            // at most normalizes its casing to the catalog's.
+            SelectedWhisperLmKitModel = LmKitModelCatalog.FindById(WhisperLmKitModels, WhisperModelSize);
+            SelectedLlmLmKitModel = LmKitModelCatalog.FindById(LlmLmKitModels, LlmModelPath);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Failed to load the LM-Kit model catalogs for the Settings window");
+        }
     }
 
     partial void OnUserInitialsChanged(string value)
@@ -1734,7 +1784,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            AppLog.CreateLogger<SettingsViewModel>().LogWarning(ex, "Failed to open speech-samples folder {Path}", path);
+            Log.LogWarning(ex, "Failed to open speech-samples folder {Path}", path);
         }
     }
 

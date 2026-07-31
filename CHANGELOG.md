@@ -1,6 +1,13 @@
 # Changelog
 
-## v0.10.1-beta [2026/07/30]
+## Unreleased
+
+### Fixed
+- Opening **Settings** no longer freezes the app; the speech model lists and GPU panel fill in a moment after the window opens.
+
+### Changed
+- `yaat-client.log` keeps the previous three sessions as `.log.1`–`.3`, so reopening YAAT after a freeze preserves the log for bug reports.
+- If the app stops responding for over 15 seconds, it says so and points at the log to attach to a bug report (Windows).
 
 ### Highlights
 - Measure distance and bearing between two points or aircraft on the radar and ground views — Alt+drag, **Ctrl+M**, the **RBL** button, or `.rbl`.

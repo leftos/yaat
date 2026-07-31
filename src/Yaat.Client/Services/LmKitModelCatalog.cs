@@ -45,8 +45,13 @@ public sealed partial class LmKitModelEntry : ObservableObject
     /// <summary>Friendly name: the ModelCard's ShortModelName with a recommendation badge appended for the default.</summary>
     public string DisplayName { get; }
 
-    /// <summary>Approximate file size in megabytes. Sourced from <see cref="ModelCard.FileSize"/>.</summary>
-    public int ApproxSizeMb => (int)(Card.FileSize / (1024 * 1024));
+    /// <summary>
+    /// Approximate file size in megabytes, snapshotted from <see cref="ModelCard.FileSize"/> at
+    /// construction. Deliberately a stored value rather than a pass-through: for remote-URI cards
+    /// FileSize resolves over the network sync-over-async, so a live read from a XAML binding would
+    /// run that resolve on the UI thread and deadlock it.
+    /// </summary>
+    public int ApproxSizeMb { get; }
 
     /// <summary>Recommendation tier; drives highlight state and default selection.</summary>
     public LmKitModelTier Tier { get; }
@@ -95,9 +100,15 @@ public sealed partial class LmKitModelEntry : ObservableObject
         DisplayName = displayName;
         Tier = tier;
         Description = description;
-        GpuRecommended = card.FileSize > 2L * 1024 * 1024 * 1024;
+
+        // Resolve the network-capable metadata exactly once, here. Catalog construction runs off the
+        // UI thread (see LmKitModelCatalog callers), so a remote-URI card's size resolve completes on
+        // a thread pool thread where there is no SynchronizationContext to deadlock against.
+        var fileSize = card.FileSize;
+        ApproxSizeMb = (int)(fileSize / (1024 * 1024));
+        GpuRecommended = fileSize > 2L * 1024 * 1024 * 1024;
         _isLocallyAvailable = card.IsLocallyAvailable;
-        _statusMessage = card.IsLocallyAvailable ? "Ready" : $"Not downloaded (~{ApproxSizeMb} MB)";
+        _statusMessage = _isLocallyAvailable ? "Ready" : $"Not downloaded (~{ApproxSizeMb} MB)";
     }
 
     /// <summary>
@@ -427,8 +438,14 @@ public static class LmKitModelCatalog
 /// whether the heavy catalog entries will actually accelerate. Computed lazily on first access
 /// via <see cref="LMKit.Hardware.Gpu.GpuDeviceInfo.Devices"/>.
 /// </summary>
-public sealed record LmKitGpuSnapshot(IReadOnlyList<LmKitGpuDevice> Devices)
+public sealed record LmKitGpuSnapshot(IReadOnlyList<LmKitGpuDevice> Devices, bool IsResolved)
 {
+    /// <summary>
+    /// Placeholder shown while detection runs on a background thread. Distinct from a resolved
+    /// empty result so the panel says "detecting" rather than claiming there is no GPU.
+    /// </summary>
+    public static LmKitGpuSnapshot Pending { get; } = new([], IsResolved: false);
+
     /// <summary>True when LM-Kit detected at least one CUDA / Vulkan / Metal GPU device.</summary>
     public bool HasGpu => Devices.Count > 0;
 
@@ -443,6 +460,10 @@ public sealed record LmKitGpuSnapshot(IReadOnlyList<LmKitGpuDevice> Devices)
     {
         get
         {
+            if (!IsResolved)
+            {
+                return "Detecting GPUs…";
+            }
             if (Devices.Count == 0)
             {
                 return "No compatible GPU detected — models will run on CPU.";
@@ -490,14 +511,14 @@ public static class LmKitGpuDetector
                     )
                 );
             }
-            return new LmKitGpuSnapshot(projected);
+            return new LmKitGpuSnapshot(projected, IsResolved: true);
         }
         catch
         {
             // Driver / loader / initialization failure — fall back to "no GPU detected" so the
             // UI keeps working. We deliberately swallow the exception type because it's library
             // internals (CudaInteropException, dependency load failures) the user can't act on.
-            return new LmKitGpuSnapshot([]);
+            return new LmKitGpuSnapshot([], IsResolved: true);
         }
     }
 }

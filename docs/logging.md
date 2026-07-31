@@ -106,8 +106,12 @@ Two `ILoggerProvider` implementations exist, both in `Yaat.Client.Core` / `Yaat.
 
 `src/Yaat.Client.Core/Logging/FileLoggerProvider.cs`:
 
-- Opens the log with `FileMode.Create` (`FileLoggerProvider.cs:19`) — **truncates the previous session's log on every launch**. No rolling, no
-  retention.
+- **Rolls the previous session aside on every launch**: `yaat-client.log` → `.log.1` → `.log.2` → `.log.3`, oldest dropped
+  (`RotatePreviousLogs`). The live log is then opened with `FileMode.Create`, so the current session always starts clean while the
+  last three sessions survive. This exists so a user who hits a freeze or crash and *then* reopens YAAT to collect their log still has
+  the failing session on disk — before rotation, relaunching destroyed the only record of the failure.
+- Rotation is best-effort: if the files can't be moved (most often a second client instance holding a handle), the failure is written
+  as the first line of the new log rather than thrown, and the log still opens.
 - `FileShare.ReadWrite | FileShare.Delete` so the file is readable (and deletable) while the app holds it open — you can tail it live.
 - `StreamWriter { AutoFlush = true }` (`FileLoggerProvider.cs:20`) and a process-wide `lock (WriteLock)` around each write (`FileLoggerProvider.cs:71`) so
   concurrent log calls don't interleave.
@@ -178,8 +182,8 @@ Some test classes wire a factory directly instead of using the builder (e.g. `At
   is still null it returns a `NullLogger` *permanently*. A `static readonly ILogger Log = AppLog.CreateLogger<T>()` field captured before
   `AppLog.Initialize` runs would log to nothing forever. This is safe in `Yaat.Client` only because those types (Avalonia windows, services) are not
   class-loaded until after `Program.cs` has run `AppLog.Initialize`. Unlike `SimLog`, there is no `DeferredLogger` safety net here.
-- **`FileMode.Create` wipes the prior log every launch** (`FileLoggerProvider.cs:19`). There is no rolling or retention — copy `yaat-client.log`
-  before relaunching if you need the previous session's output.
+- **Only the last three sessions are retained** (`yaat-client.log.1` … `.3`). A user who relaunches four times after a failure has
+  overwritten the interesting log; ask for it early. Note the rotation is per *launch*, not per day or per size.
 - **AsyncLocal resolution depends on `ExecutionContext` flow.** Code that breaks the context (a raw `new Thread`, certain `Task.Run` continuations on
   the server) may fall through to the static factory instead of a scoped one. Usually harmless in production (the static is set), but in a test it can
   mean your scoped `InitializeForTest` factory is bypassed and the line goes to `NullLoggerFactory` instead.

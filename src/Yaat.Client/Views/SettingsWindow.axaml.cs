@@ -31,6 +31,11 @@ public partial class SettingsWindow : Window
         var vm = new SettingsViewModel(preferences, audioCapture, speechSampleStore);
         DataContext = vm;
 
+        // Fire-and-forget by design: the model pickers and GPU panel fill in a moment later so the
+        // window opens immediately. LoadModelCatalogsAsync handles its own failures and never throws,
+        // so there is no unobserved exception to chase here.
+        _ = vm.LoadModelCatalogsAsync();
+
         new WindowGeometryHelper(this, preferences, "Settings", 560, 440).Restore();
 
         var saveBtn = this.FindControl<Button>("SaveButton");

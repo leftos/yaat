@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
@@ -33,7 +34,20 @@ public sealed class UiThreadWatchdog : IDisposable
 
     private const int PollIntervalMs = 500;
     private const int StallWarnThresholdMs = 2000;
+
+    /// <summary>
+    /// How long the UI thread must be wedged before we tell the user. Set far above
+    /// <see cref="StallWarnThresholdMs"/> so ordinary heavy work — scenario loads, model downloads —
+    /// never trips it; at this duration the app is almost certainly deadlocked rather than busy.
+    /// </summary>
+    private const int HardFreezeNotifyThresholdMs = 15_000;
+
     private const long OneMb = 1024 * 1024;
+
+    private const uint MbOk = 0x00000000;
+    private const uint MbIconWarning = 0x00000030;
+    private const uint MbSetForeground = 0x00010000;
+    private const uint MbTopMost = 0x00040000;
 
     private readonly object _gate = new();
     private Thread? _thread;
@@ -44,6 +58,10 @@ public sealed class UiThreadWatchdog : IDisposable
     private bool _heartbeatPending;
     private long _pendingSinceMs;
     private bool _stallReported;
+
+    // Latched for the life of the process: a freeze notice is shown at most once so a flapping UI
+    // cannot nag. Unlike _stallReported this is never cleared on recovery.
+    private bool _freezeNotified;
     private int _gen0AtStall;
     private int _gen1AtStall;
     private int _gen2AtStall;
@@ -93,7 +111,9 @@ public sealed class UiThreadWatchdog : IDisposable
         long now = Environment.TickCount64;
         bool postHeartbeat = false;
         bool reportStall = false;
+        bool notifyFreeze = false;
         long stallMs = 0;
+        long freezeMs = 0;
 
         lock (_gate)
         {
@@ -115,12 +135,24 @@ public sealed class UiThreadWatchdog : IDisposable
                     reportStall = true;
                     stallMs = pendingForMs;
                 }
+
+                if (!_freezeNotified && (pendingForMs >= HardFreezeNotifyThresholdMs))
+                {
+                    _freezeNotified = true;
+                    notifyFreeze = true;
+                    freezeMs = pendingForMs;
+                }
             }
         }
 
         if (reportStall)
         {
             LogStall(stallMs);
+        }
+
+        if (notifyFreeze)
+        {
+            NotifyUserOfFreeze(freezeMs);
         }
 
         if (postHeartbeat)
@@ -201,6 +233,50 @@ public sealed class UiThreadWatchdog : IDisposable
             Log.LogWarning(ex, "UI thread STALLED: unresponsive ~{StallMs} ms (diagnostics capture failed)", stallMs);
         }
     }
+
+    /// <summary>
+    /// Tells the user the app is wedged rather than merely busy, and points at the log to attach to a
+    /// bug report. Deliberately a native message box: a frozen UI thread cannot draw an Avalonia
+    /// dialog, which is exactly the case this covers. Windows-only — the other desktop platforms have
+    /// no equivalent one-call dialog, so there the log line is the whole story.
+    /// </summary>
+    private static void NotifyUserOfFreeze(long stallMs)
+    {
+        Log.LogError("UI thread FROZEN for ~{StallMs} ms — notifying the user. Attach {LogPath} to a bug report.", stallMs, AppLog.LogPath);
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        string message =
+            $"YAAT has stopped responding (frozen for about {stallMs / 1000} seconds)."
+            + "\n\nIt may recover on its own. If it does not, close YAAT and reopen it."
+            + $"\n\nPlease attach this log file to a bug report:\n{AppLog.LogPath}";
+
+        // Runs on its own short-lived thread so the watchdog keeps measuring while the box is up, and
+        // is unparented (hWnd zero) on purpose — parenting it to the frozen window would inherit the
+        // freeze and leave the user with a dialog they cannot dismiss.
+        var notifier = new Thread(() =>
+        {
+            try
+            {
+                MessageBoxW(IntPtr.Zero, message, "YAAT is not responding", MbOk | MbIconWarning | MbSetForeground | MbTopMost);
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning(ex, "Failed to show the UI-freeze notification");
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "UiFreezeNotice",
+        };
+        notifier.Start();
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
 
     public void Dispose()
     {
