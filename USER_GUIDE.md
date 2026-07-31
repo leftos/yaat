@@ -1788,7 +1788,7 @@ Two collapsible sections, each toggled by its header checkbox. Speech recognitio
 | **Auto-focus command input after PTT** | Focuses the command input after a PTT transcript so you can press Enter to send without mousing. | On |
 | **Whisper Model** | Speech-to-text model picker with **Download now** / **Delete cached** and a size/cached indicator. Pre-downloading avoids the first-PTT stall. | Whisper Medium · ATC fine-tune |
 | **LLM Model** | Command-interpretation model picker (download/delete), or **Browse…** for a custom GGUF. | Qwen 3.5 4B |
-| **Acceleration** | GPU backend summary; on supported Windows GPUs, install/uninstall the optional NVIDIA CUDA 13 runtime. **LLM GPU layers** offloads N layers (−1 = auto, 0 = CPU only). | GPU layers: −1 (auto) |
+| **Acceleration** | GPU backend summary (reads *Detecting GPUs…* for a moment after Settings opens); on supported Windows GPUs, install/uninstall the optional NVIDIA CUDA 13 runtime. **LLM GPU layers** offloads N layers (−1 = auto, 0 = CPU only). | GPU layers: −1 (auto) |
 | **PTT key** | Hold-to-record key; click to capture a new one. Microphone is set on the Audio tab. | Right Ctrl |
 | **Save my push-to-talk samples locally for review** + **Max retained audio** | Opt-in local capture of PTT audio + pipeline trace for troubleshooting; nothing is uploaded automatically. Retention 10–500 MB (oldest drop when full). Buttons: **Open samples folder**, **Delete all saved samples**. See [Speech recognition debugging](#speech-recognition-debugging). | Off / 50 MB |
 

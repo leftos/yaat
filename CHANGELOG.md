@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.10.2-beta [2026/07/31]
+
+### Highlights
+- Opening Settings no longer freezes the app.
+- The client log keeps the previous three sessions, so the log survives reopening YAAT after a freeze.
+- YAAT now tells you when it has stopped responding, and points at the log file to attach to a bug report.
 
 ### Fixed
 - Opening **Settings** no longer freezes the app; the speech model lists and GPU panel fill in a moment after the window opens.

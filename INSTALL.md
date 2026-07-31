@@ -349,4 +349,5 @@ Make sure `libfontconfig1` and `libfreetype6` (or your distro's equivalent) are 
   - Windows: `%LOCALAPPDATA%\yaat\yaat-client.log` (paste this path into File Explorer's address bar)
   - Linux: `~/.local/share/yaat/yaat-client.log`
   - macOS: `~/Library/Application Support/yaat/yaat-client.log`
+- Each launch rolls the previous session aside, so `yaat-client.log.1` through `.log.3` hold the three runs before this one. **If YAAT froze or crashed and you reopened it, the log to attach is `yaat-client.log.1`** — `yaat-client.log` is the fresh session you just started.
 - **Server log** (self-hosted only): `yaat-server/src/Yaat.Server/bin/Debug/net10.0/yaat-server.log` (relative to where you cloned it)
