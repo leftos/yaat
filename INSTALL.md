@@ -22,7 +22,7 @@ Open the [Releases page](https://github.com/leftos/yaat/releases/latest) and gra
 
 On macOS, pick the package matching your Mac — click the Apple menu → **About This Mac**: a "Chip" line (M1, M2, …) means Apple Silicon, a "Processor" line means Intel. The installer refuses the wrong one. Both require macOS 14 (Sonoma) or newer.
 
-The **installers** register YAAT with your OS and keep themselves up to date automatically — when a new version ships, YAAT downloads it in the background and applies it the next time you launch.
+The **installers** register YAAT with your OS and keep themselves up to date automatically — when a new version ships, YAAT downloads it in the background and applies it the next time you launch. You can also check whenever you like from **Help → Check for Updates…**, which reports the result either way — see [Updating YAAT](USER_GUIDE.md#updating-yaat).
 
 The **portable** archives unzip to a folder containing the YAAT executable and its native dependencies (SkiaSharp, Avalonia, LM-Kit). They don't install anything, don't auto-update, and are handy for USB sticks or locked-down machines. Unzip the folder anywhere and run the executable inside. On Linux the AppImage already runs without install, so it's both the recommended installer *and* the portable form.
 

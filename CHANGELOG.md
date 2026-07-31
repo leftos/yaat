@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.10.1-beta [2026/07/30]
+
+### Highlights
+- Measure distance and bearing between two points or aircraft on the radar and ground views — Alt+drag, **Ctrl+M**, the **RBL** button, or `.rbl`.
+- A measurement endpoint dropped on an aircraft latches to it, so the reading updates live as the aircraft flies or taxis.
+- **Help > Check for Updates...** checks for a new release on demand and reports the outcome, including when you're already on the latest version.
+- A taxi route drawn while the aircraft is still moving follows exactly the taxiways you drew, instead of looping around whole blocks.
 
 ### Added
 - **Help > Check for Updates...** checks for a new release on demand and reports the outcome, including when you're already on the latest version.
