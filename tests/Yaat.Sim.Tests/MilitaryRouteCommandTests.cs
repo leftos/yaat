@@ -43,6 +43,31 @@ public sealed class MilitaryRouteCommandTests
         return CommandDispatcher.Dispatch(parsed.Value!, aircraft, TestDispatch.Context(Random.Shared));
     }
 
+    /// <summary>
+    /// Runs the installed phase so OnStart/OnTick arm the segment block, marking it Active the way
+    /// the real tick loop does — PhaseList.Clear only calls OnEnd on an Active phase.
+    /// </summary>
+    private static void TickPhase(AircraftState aircraft)
+    {
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        foreach (var phase in aircraft.Phases!.Phases)
+        {
+            phase.Status = PhaseStatus.Active;
+            phase.OnTick(ctx);
+        }
+    }
+
+    /// <summary>
+    /// Sequences past the route's first point so the armed block is a real one. IR-149 publishes
+    /// "As assigned to" for the segment into point A — the entry altitude is ATC's, not the route's
+    /// — so the first segment legitimately arms no block.
+    /// </summary>
+    private static void SequenceToSecondPoint(AircraftState aircraft)
+    {
+        aircraft.Targets.NavigationRoute.RemoveAt(0);
+        TickPhase(aircraft);
+    }
+
     [Fact]
     public void Cmtr_ClearsTheAircraftIntoTheRouteAndLoadsIt()
     {
@@ -215,6 +240,93 @@ public sealed class MilitaryRouteCommandTests
 
         Assert.Contains("IR149", spoken, StringComparison.Ordinal);
         Assert.Contains("I", spoken, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AtOrBelow_StillArmsThePublishedFloor()
+    {
+        // §9-2-6.a offers "MAINTAIN AT OR BELOW (altitude)" as an alternative ceiling, not as a
+        // release from the route's published profile — the floors are the segment's minimum IFR
+        // altitudes. Regression: ReArmBlock once gated on RouteAltitudes alone, which made the
+        // at-or-below branch unreachable and let the aircraft descend below the floor unopposed.
+        var aircraft = AircraftOnIr149();
+        Apply(aircraft, "CMTR IR149 B120");
+        TickPhase(aircraft);
+        SequenceToSecondPoint(aircraft);
+
+        Assert.Equal(MilitaryRouteAltitudeSource.AtOrBelow, aircraft.MilitaryRoute.AltitudeSource);
+        Assert.NotNull(aircraft.Targets.AltitudeFloor);
+        Assert.NotNull(aircraft.Targets.AltitudeCeiling);
+        Assert.True(aircraft.Targets.AltitudeCeiling <= 12000, $"ceiling was {aircraft.Targets.AltitudeCeiling}");
+    }
+
+    [Fact]
+    public void Xmtr_RestoresTheBeaconCodeByEndingThePhase()
+    {
+        // Regression: XMTR used to null aircraft.Phases outright, which skips OnEnd — so a VR
+        // aircraft kept squawking 4000 forever and PreRouteSquawk was lost on the next clearance.
+        var aircraft = AircraftOnIr149();
+        aircraft.Transponder.Code = 1234;
+        Apply(aircraft, "CMTR VR1257");
+        TickPhase(aircraft);
+        Assert.Equal(4000u, aircraft.Transponder.Code);
+
+        Apply(aircraft, "XMTR KLRD");
+
+        Assert.Equal(1234u, aircraft.Transponder.Code);
+        Assert.Null(aircraft.MilitaryRoute.PreRouteSquawk);
+    }
+
+    [Fact]
+    public void ClearedIntoAVfrRoute_DoesNotUseClearancePhraseology()
+    {
+        // §9-2-6 is IFR-only; ATC issues no clearance into a VR. The aircraft can still be placed
+        // on one as traffic, but the readback must not say "cleared into".
+        var aircraft = AircraftOnIr149();
+
+        var result = Apply(aircraft, "CMTR VR1257");
+
+        Assert.True(result.Success, result.Message);
+        Assert.DoesNotContain("cleared into", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(aircraft.PendingWarnings, w => w.Contains("no clearance", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void EstablishedAircraft_FliesInsideTheBlockRatherThanParkingOnABound()
+    {
+        // AIM 3-5-2: MTRs exist for low level tactical training, and on a scope the traffic is
+        // recognisable by Mode C working through the block. Holding on whichever bound the aircraft
+        // happened to reach is the opposite of that.
+        var aircraft = AircraftOnIr149();
+        Apply(aircraft, "CMTR IR149");
+        TickPhase(aircraft);
+        SequenceToSecondPoint(aircraft);
+
+        var floor = aircraft.Targets.AltitudeFloor;
+        var ceiling = aircraft.Targets.AltitudeCeiling;
+        Assert.NotNull(floor);
+        Assert.NotNull(ceiling);
+        Assert.NotNull(aircraft.Targets.TargetAltitude);
+        Assert.InRange(aircraft.Targets.TargetAltitude!.Value, floor!.Value, ceiling!.Value);
+    }
+
+    [Fact]
+    public void MarsaRoute_AcceptsAnAmendmentAndVoidsMarsa()
+    {
+        // §9-2-13.e: "Altitude or course changes issued will automatically void MARSA." The
+        // amendment is accepted rather than refused; MARSA drops and the instructor is told.
+        var aircraft = AircraftOnIr149();
+        Apply(aircraft, "CMTR IR149");
+        TickPhase(aircraft);
+        aircraft.MilitaryRoute.Marsa = true;
+
+        var phase = aircraft.Phases!.Phases.OfType<MilitaryRoutePhase>().Single();
+        Assert.Equal(CommandAcceptanceStatus.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain).Status);
+
+        phase.OnCommandAccepted(CanonicalCommandType.ClimbMaintain, CommandDispatcher.BuildMinimalContext(aircraft));
+
+        Assert.False(aircraft.MilitaryRoute.Marsa);
+        Assert.Contains(aircraft.PendingWarnings, w => w.Contains("MARSA voided", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

@@ -63,12 +63,28 @@ public static class MilitaryRouteCommandHandler
                 EntryPointId = state.EntryPointId,
                 ExitPointId = exitPointId,
                 Marsa = state.Marsa,
+                TerrainFollowing = route.TerrainFollowing,
                 PointNames = pointNames,
             }
         );
 
         // The route takes over steering, exactly as an approach clearance does.
         aircraft.Targets.AssignedMagneticHeading = null;
+
+        // FAA JO 7110.65 §9-2-6 is titled IFR Military Training Routes and every subparagraph is
+        // about IRs: a VR is flown under VFR (AIM 3-5-2.c.2) and ATC does not clear an aircraft into
+        // one, while an SR is not part of the MTR system at all (AP/1B chapter 4 §I). Putting traffic
+        // on either is a legitimate thing to want from a trainer, so the command works — but the
+        // "cleared into" phraseology is exactly what a controller student is being trained on, so it
+        // is suppressed and the instructor is told why.
+        if (route.Type is MilitaryRouteType.Vr or MilitaryRouteType.Sr)
+        {
+            aircraft.PendingWarnings.Add(
+                $"{aircraft.Callsign}: {route.Printed} is a {(route.Type == MilitaryRouteType.Vr ? "VFR" : "slow")} route — "
+                    + "ATC issues no clearance into one; the aircraft is placed on it as traffic"
+            );
+            return CommandDispatcher.Ok($"Proceeding on {route.Printed}");
+        }
 
         if (cmd.AltitudeFt is { } altitude)
         {
@@ -120,7 +136,16 @@ public static class MilitaryRouteCommandHandler
         var designator = state.Designator;
         var exitPoint = state.ExitPointId;
         state.Status = MilitaryRouteStatus.Exited;
-        aircraft.Phases = null;
+
+        // Clear() rather than nulling Phases: AircraftState.Phases is a plain property, so dropping
+        // it skips MilitaryRoutePhase.OnEnd entirely — the VR beacon code would never be restored
+        // and the armed block would stay on the strip after the aircraft had left the route.
+        if (aircraft.Phases is not null)
+        {
+            aircraft.Phases.Clear(CommandDispatcher.BuildMinimalContext(aircraft));
+            aircraft.Phases = null;
+        }
+
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
 
@@ -196,8 +221,12 @@ public static class MilitaryRouteCommandHandler
     /// <summary>
     /// MARSA comes from the route's published procedures, never from a typed command: §9-2-6.c
     /// establishes it by letter of agreement between the scheduling unit and the ATC facility.
-    /// Aerial refueling tracks are MARSA by normal practice.
+    /// <para>
+    /// Aerial refueling tracks are deliberately *not* MARSA merely for being AR tracks. §9-2-13
+    /// NOTE 3 makes MARSA begin only once tanker and receiver have entered the refueling airspace
+    /// and the tanker advises ATC it is accepting MARSA — a declaration on frequency, not a
+    /// property of the track.
+    /// </para>
     /// </summary>
-    private static bool IsMarsa(MilitaryRoute route) =>
-        route.Type == MilitaryRouteType.Ar || route.OriginatingActivity.Contains("MARSA", StringComparison.OrdinalIgnoreCase);
+    private static bool IsMarsa(MilitaryRoute route) => route.OriginatingActivity.Contains("MARSA", StringComparison.OrdinalIgnoreCase);
 }

@@ -585,6 +585,7 @@ public sealed class MilitaryRoutePhaseDto : PhaseDto
     public string? EntryPointId { get; init; }
     public string? ExitPointId { get; init; }
     public bool Marsa { get; init; }
+    public bool TerrainFollowing { get; init; }
     public List<string>? PointNames { get; init; }
     public bool Started { get; init; }
 }

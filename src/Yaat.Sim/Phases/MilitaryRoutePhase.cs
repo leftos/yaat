@@ -42,6 +42,9 @@ public sealed class MilitaryRoutePhase : Phase
     public string? ExitPointId { get; init; }
     public bool Marsa { get; init; }
 
+    /// <summary>True when AP/1B authorises terrain following, which is flown lower in the block.</summary>
+    public bool TerrainFollowing { get; init; }
+
     /// <summary>Ordered synthetic fix names of the cleared span, in the direction of flight.</summary>
     public required IReadOnlyList<string> PointNames { get; init; }
 
@@ -65,6 +68,7 @@ public sealed class MilitaryRoutePhase : Phase
             EntryPointId = EntryPointId,
             ExitPointId = ExitPointId,
             Marsa = Marsa,
+            TerrainFollowing = TerrainFollowing,
             PointNames = [.. PointNames],
             Started = _started,
         };
@@ -79,6 +83,7 @@ public sealed class MilitaryRoutePhase : Phase
             EntryPointId = dto.EntryPointId,
             ExitPointId = dto.ExitPointId,
             Marsa = dto.Marsa,
+            TerrainFollowing = dto.TerrainFollowing,
             PointNames = dto.PointNames ?? [],
             _started = dto.Started,
         };
@@ -159,17 +164,18 @@ public sealed class MilitaryRoutePhase : Phase
             return CommandAcceptance.Allowed;
         }
 
-        if (!IsAdditiveAirborneAdjustment(cmd))
+        if (!IsAdditiveAirborneAdjustment(cmd) && cmd != CanonicalCommandType.ForceAltitude)
         {
             return CommandAcceptance.ClearsPhase;
         }
 
-        // FAA JO 7110.65 §9-2-6.h: a clearance may amend or restrict operations on a route, except
-        // where the route is designated MARSA — there ATC must not amend or restrict in a way that
-        // would compromise the MARSA provisions.
-        return Marsa
-            ? CommandAcceptance.Rejected($"{Designator} is a MARSA route — ATC must not amend or restrict operations on it")
-            : CommandAcceptance.Allowed;
+        // §9-2-6.h constrains *how* ATC may amend a MARSA route ("not in such a manner as to
+        // compromise the MARSA provisions"); it does not forbid amending one, and §9-2-13.f NOTE 2
+        // expressly contemplates post-rendezvous heading and altitude assignments. So the amendment
+        // is accepted and MARSA is voided in OnCommandAccepted per §9-2-13.e, rather than the
+        // keystroke being refused — a controller who watches separation responsibility land back on
+        // them learns the rule; one whose input is rejected learns nothing.
+        return CommandAcceptance.Allowed;
     }
 
     public override void OnCommandAccepted(CanonicalCommandType cmd, PhaseContext ctx)
@@ -182,11 +188,18 @@ public sealed class MilitaryRoutePhase : Phase
             return;
         }
 
-        if (IsAltitudeFamilyCommand(cmd))
+        if (IsAltitudeFamilyCommand(cmd) || cmd == CanonicalCommandType.ForceAltitude)
         {
             // The controller has superseded the published block. Stop re-arming until MTRA restores
             // it, rather than fighting the assignment every segment boundary.
             state.AltitudeSource = MilitaryRouteAltitudeSource.AssignedAltitude;
+        }
+
+        // §9-2-13.e: "Altitude or course changes issued will automatically void MARSA."
+        if (state.Marsa)
+        {
+            state.Marsa = false;
+            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign}: MARSA voided on {Designator} — separation is ATC's again (7110.65 9-2-13.e)");
         }
     }
 
@@ -223,7 +236,12 @@ public sealed class MilitaryRoutePhase : Phase
     private void ReArmBlock(PhaseContext ctx)
     {
         var state = ctx.Aircraft.MilitaryRoute;
-        if (state.AltitudeSource != MilitaryRouteAltitudeSource.RouteAltitudes)
+        // AtOrBelow re-arms too. §9-2-6.a offers "MAINTAIN AT OR BELOW (altitude)" as an
+        // alternative *ceiling*, not as a release from the published profile — the route's floors
+        // are the segment's minimum IFR altitudes and an at-or-below restriction cannot lower them.
+        // Gating on RouteAltitudes alone made ApplyBlock's at-or-below branch unreachable and let
+        // the aircraft descend below the segment floor unopposed.
+        if (state.AltitudeSource is not (MilitaryRouteAltitudeSource.RouteAltitudes or MilitaryRouteAltitudeSource.AtOrBelow))
         {
             return;
         }
@@ -264,10 +282,15 @@ public sealed class MilitaryRoutePhase : Phase
             return;
         }
 
-        double? reference = null;
-        if (block.HasAglBound)
+        double? reference = block.HasAglBound ? ResolveGroundReference(ctx, point) : null;
+        if (block.HasAglBound && reference is null)
         {
-            reference = NavigationDatabase.Instance.FindNearestAirportElevation(point.Position, AglReferenceRangeNm) ?? 0;
+            ctx.Logger.LogWarning(
+                "{Callsign}: no terrain reference near {Route} point {Point}; leaving its AGL bound unenforced",
+                ctx.Aircraft.Callsign,
+                Designator,
+                point.Id
+            );
         }
 
         double? floor = ResolveBound(block.FloorFt, block.FloorReference, reference);
@@ -288,9 +311,13 @@ public sealed class MilitaryRoutePhase : Phase
 
         ctx.Targets.AltitudeFloor = floor;
         ctx.Targets.AltitudeCeiling = ceiling;
-        // No single target: inside the block the aircraft holds altitude, and ResolveAltitudeGoal
-        // corrects it toward whichever bound it is outside of.
-        ctx.Targets.TargetAltitude = null;
+        // Command a target *inside* the block rather than leaving it null. With no target the
+        // aircraft only moves when outside the block, so one entering IR-149 at 8,000 would settle
+        // on the 6,000 ceiling and sit there for the whole route — 6,000 being inside every later
+        // block too. That is the opposite of what a training route is for: AIM 3-5-2 describes low
+        // level tactical training, and on a scope MTR traffic is recognisable precisely by Mode C
+        // working through the block segment by segment. The bounds stay armed as hard limits.
+        ctx.Targets.TargetAltitude = ProfileAltitude(floor, ceiling);
         ctx.Targets.AssignedAltitude = null;
 
         if (state.AppliedFloorFt != floor || state.AppliedCeilingFt != ceiling)
@@ -309,10 +336,83 @@ public sealed class MilitaryRoutePhase : Phase
         state.AppliedCeilingFt = ceiling;
     }
 
-    private static double? ResolveBound(int? value, AltitudeReference? reference, double? groundReferenceFt) =>
-        value is null ? null
-        : reference == AltitudeReference.Agl ? value.Value + (groundReferenceFt ?? 0)
-        : value.Value;
+    /// <summary>
+    /// The MSL bound for a published altitude, or null when an AGL bound cannot be resolved.
+    ///
+    /// An unresolvable AGL bound is deliberately left <em>unenforced</em> rather than defaulted to
+    /// sea level: a "05 AGL" floor armed at 500 ft MSL over the Great Basin sits thousands of feet
+    /// underground, and the aircraft would actively descend toward it. An unarmed floor is a
+    /// visible non-behaviour; an armed subterranean floor is a wrong one.
+    /// </summary>
+    private static double? ResolveBound(int? value, AltitudeReference? reference, double? groundReferenceFt)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (reference != AltitudeReference.Agl)
+        {
+            return value.Value;
+        }
+
+        return groundReferenceFt is { } ground ? value.Value + ground : null;
+    }
+
+    /// <summary>
+    /// Best available stand-in for terrain height at a route point, or null when nothing resolves.
+    ///
+    /// YAAT has no terrain model. The MVA database is the closest thing: a sector's minimum
+    /// vectoring altitude is the highest terrain or obstacle in it plus 1,000 ft (2,000 in
+    /// designated mountainous terrain), so MVA minus that buffer is a defensible upper bound on
+    /// local ground — and erring high is the safe direction for a floor. Nearest-airport elevation
+    /// errs the wrong way, because airports sit in valleys, so it is only the fallback.
+    /// </summary>
+    private static double? ResolveGroundReference(PhaseContext ctx, MilitaryRoutePoint point)
+    {
+        double? fromMva = Data.Mva.MvaDatabase.Default.GetFloorFtMsl(point.Position) is { } mva ? mva - MvaObstacleBufferFt : null;
+        double? fromAirport = NavigationDatabase.Instance.FindNearestAirportElevation(point.Position, AglReferenceRangeNm);
+
+        return (fromMva, fromAirport) switch
+        {
+            ({ } m, { } a) => Math.Max(m, a),
+            ({ } m, null) => m,
+            (null, { } a) => a,
+            _ => null,
+        };
+    }
+
+    /// <summary>Obstacle-clearance buffer folded into a published MVA (14 CFR 91.177 / FAA Order JO 7210.37).</summary>
+    private const double MvaObstacleBufferFt = 1000;
+
+    /// <summary>
+    /// The altitude flown within a published block.
+    ///
+    /// A terrain-following route is flown low in the block; anything else sits a margin above the
+    /// floor. AP/1B publishes no per-segment target — the crew flies the tactical profile — so this
+    /// is YAAT's choice of a representative profile, not published data.
+    /// </summary>
+    private double? ProfileAltitude(double? floor, double? ceiling)
+    {
+        if (floor is not { } low)
+        {
+            return ceiling;
+        }
+
+        if (ceiling is not { } high || high <= low)
+        {
+            return low;
+        }
+
+        double target = TerrainFollowing ? low + (high - low) * TerrainFollowingBlockFraction : low + ProfileMarginFt;
+        return Math.Clamp(target, low, high);
+    }
+
+    /// <summary>Margin above a published floor for a route with no terrain-following authorisation.</summary>
+    private const double ProfileMarginFt = 500;
+
+    /// <summary>Where in the block a terrain-following route is flown.</summary>
+    private const double TerrainFollowingBlockFraction = 0.25;
 
     /// <summary>
     /// AP/1B chapter 3 §V.F: squawk 4000 on a VR unless otherwise assigned. Chapter 2 §V.F leaves an

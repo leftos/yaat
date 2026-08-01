@@ -93,8 +93,11 @@ public static class PilotSayBuilder
             return "Negative, not on a military training route";
         }
 
+        // A clock time, not a duration: §9-2-6.g applies the nonreceipt-of-position-report procedures
+        // of §6-1-2 against the pilot's exit estimate, and that timer keys off a UTC time.
+        // §2-4-17.c.1 gives the format — the four separate digits of hour and minutes in UTC.
         var minutes = EstimateMinutesToExit(aircraft);
-        var estimate = minutes is null ? "unable to estimate" : $"in {minutes} minute{(minutes == 1 ? "" : "s")}";
+        var estimate = minutes is null ? "unable to estimate" : $"at {DateTime.UtcNow.AddMinutes(minutes.Value):HHmm}";
         // The filed cruise altitude is what the pilot wants back after leaving the route.
         var afterExit = aircraft.FlightPlan.Altitude.CruiseFeet is { } cruise ? $", requesting {cruise:N0} after exit" : "";
         return $"Estimating {state.Designator} exit point {state.ExitPointId} {estimate}{afterExit}";

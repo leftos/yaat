@@ -395,6 +395,20 @@ public static class AircraftPerformance
     }
 
     /// <summary>
+    /// Approximate minimum safe airspeed (kt) for 14 CFR 91.117(d), which permits that speed when it
+    /// exceeds any cap in the section — including 91.117(c)'s 200 kt Class B shelf limit.
+    ///
+    /// The profile database publishes no minimum-safe-speed field, so the type's initial approach
+    /// speed stands in: it is the slowest speed the profile asserts the aircraft is flown at in
+    /// clean-ish configuration. Only types flagged <see cref="IsSpeedLimitWaived"/> consult this.
+    /// </summary>
+    public static double MinimumSafeSpeedKts(string aircraftType)
+    {
+        var p = AircraftProfileDatabase.Get(aircraftType);
+        return p?.InitialApproachSpeed ?? 0;
+    }
+
+    /// <summary>
     /// Service ceiling (ft). Returns null if no profile exists.
     /// </summary>
     public static double? Ceiling(string aircraftType)
