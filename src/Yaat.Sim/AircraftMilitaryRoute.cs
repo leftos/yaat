@@ -87,6 +87,48 @@ public class AircraftMilitaryRoute
     public bool IsActive => Designator is not null && Status is MilitaryRouteStatus.ClearedIn or MilitaryRouteStatus.Established;
 
     /// <summary>
+    /// One-line altitude summary for the strip and Aircraft List, pre-rendered here rather than sent
+    /// as two numbers so the change tracker's fingerprint does not churn every tick as an AGL bound
+    /// re-resolves.
+    /// <para>
+    /// It reports the <em>resolved MSL</em> pair the simulation actually enforced, not the published
+    /// notation. That matters because an AGL floor is resolved against the nearest airport's
+    /// elevation — YAAT has no terrain model — so on a route crossing high ground the enforced floor
+    /// can sit well away from true height above ground. Showing the enforced number lets the
+    /// instructor see what the aircraft is really being held to.
+    /// </para>
+    /// </summary>
+    public string AltitudeText
+    {
+        get
+        {
+            if (Designator is null)
+            {
+                return string.Empty;
+            }
+
+            if (AltitudeSource == MilitaryRouteAltitudeSource.AssignedAltitude && AssignedOverrideFt is { } assigned)
+            {
+                return $"MAINTAIN {assigned:N0}";
+            }
+
+            if (AltitudeSource == MilitaryRouteAltitudeSource.AtOrBelow && AssignedOverrideFt is { } restriction)
+            {
+                return $"AT OR BELOW {restriction:N0}";
+            }
+
+            return (AppliedFloorFt, AppliedCeilingFt) switch
+            {
+                ({ } floor, { } ceiling) when Math.Abs(floor - ceiling) < 1 => $"{floor:N0}",
+                ({ } floor, { } ceiling) => $"{floor:N0}–{ceiling:N0}",
+                (null, { } ceiling) => $"AT OR BELOW {ceiling:N0}",
+                ({ } floor, null) => $"AT OR ABOVE {floor:N0}",
+                _ => $"{Designator} ALT",
+            };
+        }
+    }
+
+    /// <summary>
     /// True when the 14 CFR 91.117(a) 250-knot waiver applies. AP/1B chapter 1 §I grants it within the
     /// lateral and vertical confines of an IR or VR route. It deliberately does not extend to SR
     /// routes, which are defined as 250 KIAS or less (AP/1B chapter 4 §V.C).

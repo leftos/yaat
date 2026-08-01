@@ -83,6 +83,7 @@ internal static class ArgumentSuggester
         bool hasApproach = false;
         bool hasCallsign = false;
         bool hasPatternLeg = false;
+        bool hasAirway = false;
 
         foreach (var overload in def.Overloads)
         {
@@ -130,6 +131,10 @@ internal static class ArgumentSuggester
             {
                 hasPatternLeg = true;
             }
+            else if (IsAirwayHint(param.TypeHint))
+            {
+                hasAirway = true;
+            }
         }
 
         // Suggest compound modifiers once every overload's fixed (non-repeatable) parameters are
@@ -141,7 +146,7 @@ internal static class ArgumentSuggester
             hasModifiers = true;
         }
 
-        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && !hasPatternLeg && !hasModifiers)
+        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && !hasPatternLeg && !hasAirway && !hasModifiers)
         {
             return false;
         }
@@ -159,6 +164,11 @@ internal static class ArgumentSuggester
         if (hasApproach)
         {
             AddApproachSuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, targetAircraft, suggestions, maxSuggestions);
+        }
+
+        if (hasAirway)
+        {
+            AddAirwaySuggestions(fullText, parsed.ActiveTokenStart, parsed.ActiveTokenEnd, partial, targetAircraft, suggestions, maxSuggestions);
         }
 
         if (hasFix)
@@ -322,6 +332,12 @@ internal static class ArgumentSuggester
         return typeHint.Contains("runway", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsAirwayHint(string typeHint)
+    {
+        return typeHint.Contains("airway", StringComparison.OrdinalIgnoreCase)
+            || typeHint.Contains("military route", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool IsFixHint(string typeHint)
     {
         return typeHint.Contains("fix name", StringComparison.OrdinalIgnoreCase);
@@ -340,6 +356,76 @@ internal static class ArgumentSuggester
     private static bool IsPatternLegHint(string typeHint)
     {
         return typeHint.Contains("pattern leg", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Airway / military-route values for JAWY and CMTR.
+    ///
+    /// Tier 1 is the routes on the selected aircraft's filed flight plan — the same discipline
+    /// <c>GetFiledAirways</c> uses for the radar context menu, because offering all several thousand
+    /// published airways is useless. Tier 2 opens a prefix scan once two characters are typed.
+    /// </summary>
+    private static void AddAirwaySuggestions(
+        string fullText,
+        int activeTokenStart,
+        int activeTokenEnd,
+        string partial,
+        AircraftModel? targetAircraft,
+        ObservableCollection<SuggestionItem> suggestions,
+        int maxSuggestions
+    )
+    {
+        var navDb = NavigationDatabase.Instance;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var candidates = new List<string>();
+
+        foreach (var token in (targetAircraft?.Route ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var name = token.Split('.')[^1];
+            if (navDb.IsAirway(name) && seen.Add(name))
+            {
+                candidates.Add(name);
+            }
+        }
+
+        if (partial.Length >= 2)
+        {
+            foreach (var id in navDb.AirwayIds)
+            {
+                if (id.StartsWith(partial, StringComparison.OrdinalIgnoreCase) && seen.Add(id))
+                {
+                    candidates.Add(id);
+                }
+            }
+        }
+
+        candidates.Sort(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in candidates)
+        {
+            if (suggestions.Count >= maxSuggestions)
+            {
+                return;
+            }
+
+            if (partial.Length > 0 && !id.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var route = navDb.GetMilitaryRoute(id);
+            var description = route is null ? "Airway" : $"Military training route ({route.Type.ToString().ToUpperInvariant()})";
+            var (insertText, caret) = CommandInputController.BuildTokenReplacement(fullText, activeTokenStart, activeTokenEnd, id);
+            suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = id,
+                    Description = description,
+                    InsertText = insertText,
+                    CaretAfterInsert = caret,
+                }
+            );
+        }
     }
 
     private static void AddPatternLegSuggestions(

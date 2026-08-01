@@ -1039,7 +1039,15 @@ public record AircraftDto(
     string RunwayQueueRunway = "",
     // Taxiway name of the intersection this aircraft is departing from (e.g. "E"), empty for a full-length
     // departure or when not in a line. Composed with the runway on the ground datablock ("28R@E #1").
-    string RunwayQueueIntersection = ""
+    string RunwayQueueIntersection = "",
+    // AP/1B military training route the aircraft is cleared into (e.g. "IR149"), empty when none.
+    // Kept name-for-name in sync with the server's AircraftStateDto.
+    string MilitaryRoute = "",
+    // Pre-rendered altitude summary for the strip / Aircraft List. Reports the resolved MSL pair the
+    // sim enforced, not the published AGL/MSL notation — see the server DTO for why.
+    string MilitaryRouteAltitudeText = "",
+    // True when the route is designated for MARSA operations (FAA JO 7110.65 §9-2-6.c).
+    bool MilitaryRouteMarsa = false
 );
 
 public record LoadScenarioResultDto(
