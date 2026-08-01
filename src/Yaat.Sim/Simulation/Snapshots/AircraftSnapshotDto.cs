@@ -140,6 +140,9 @@ public sealed class AircraftSnapshotDto
     // deserialize to null and FromSnapshot default-constructs a Bound datablock (no reposition).
     public AircraftDataBlockDto? DataBlock { get; init; }
 
+    /// <summary>Military training route clearance. Null on snapshots written before schema v17.</summary>
+    public AircraftMilitaryRouteDto? MilitaryRoute { get; init; }
+
     // Position history
     public List<PositionDto>? PositionHistory { get; init; }
 

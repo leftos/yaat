@@ -131,6 +131,10 @@ public static class CommandDescriber
             JoinFinalApproachCourseCommand => CanonicalCommandType.JoinFinalApproachCourse,
             JoinStarCommand => CanonicalCommandType.JoinStar,
             JoinAirwayCommand => CanonicalCommandType.JoinAirway,
+            ClearedIntoMilitaryRouteCommand => CanonicalCommandType.ClearedIntoMilitaryRoute,
+            MaintainMilitaryRouteAltitudesCommand => CanonicalCommandType.MaintainMilitaryRouteAltitudes,
+            ClearedOutOfMilitaryRouteCommand => CanonicalCommandType.ClearedOutOfMilitaryRoute,
+            SayExitFixEstimateCommand => CanonicalCommandType.SayExitFixEstimate,
             JoinRadialOutboundCommand => CanonicalCommandType.JoinRadialOutbound,
             JoinRadialInboundCommand => CanonicalCommandType.JoinRadialInbound,
             HoldingPatternCommand => CanonicalCommandType.HoldingPattern,
@@ -396,6 +400,10 @@ public static class CommandDescriber
             JoinFinalApproachCourseCommand => TrackedCommandType.Immediate,
             JoinStarCommand => TrackedCommandType.Navigation,
             JoinAirwayCommand => TrackedCommandType.Navigation,
+            ClearedIntoMilitaryRouteCommand => TrackedCommandType.Navigation,
+            MaintainMilitaryRouteAltitudesCommand => TrackedCommandType.Altitude,
+            ClearedOutOfMilitaryRouteCommand => TrackedCommandType.Navigation,
+            SayExitFixEstimateCommand => TrackedCommandType.Immediate,
             JoinRadialOutboundCommand => TrackedCommandType.Navigation,
             JoinRadialInboundCommand => TrackedCommandType.Navigation,
             HoldingPatternCommand => TrackedCommandType.Navigation,
@@ -553,6 +561,10 @@ public static class CommandDescriber
             JoinStarCommand cmd => "JARR "
                 + string.Join(" ", new[] { cmd.StarId, cmd.Transition, cmd.RunwayTransition }.Where(s => !string.IsNullOrEmpty(s))),
             JoinAirwayCommand cmd => $"JAWY {cmd.AirwayId}",
+            ClearedIntoMilitaryRouteCommand cmd => DescribeClearedIntoMilitaryRoute(cmd),
+            MaintainMilitaryRouteAltitudesCommand => "MTRA",
+            ClearedOutOfMilitaryRouteCommand cmd => cmd.Route is null ? $"XMTR {cmd.Destination}" : $"XMTR {cmd.Destination} VIA {cmd.Route}",
+            SayExitFixEstimateCommand => "SAYEXIT",
             JoinRadialOutboundCommand cmd => $"JRADO {cmd.FixName}{cmd.Radial:000}",
             JoinRadialInboundCommand cmd => $"JRADI {cmd.FixName}{cmd.Radial:000}",
             HoldingPatternCommand cmd => FormatHoldCanonical(cmd),
@@ -983,6 +995,12 @@ public static class CommandDescriber
                 : "Join final approach course",
             JoinStarCommand cmd => FormatJarrNatural(cmd),
             JoinAirwayCommand cmd => $"Join airway {cmd.AirwayId}",
+            ClearedIntoMilitaryRouteCommand cmd => DescribeClearedIntoMilitaryRouteNatural(cmd),
+            MaintainMilitaryRouteAltitudesCommand => "Maintain military route altitudes",
+            ClearedOutOfMilitaryRouteCommand cmd => cmd.Route is null
+                ? $"Cleared out of the military route to {cmd.Destination}"
+                : $"Cleared out of the military route to {cmd.Destination} via {cmd.Route}",
+            SayExitFixEstimateCommand => "Verify exit fix estimate and requested altitude after exit",
             JoinRadialOutboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial outbound",
             JoinRadialInboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial inbound",
             HoldingPatternCommand cmd => FormatHoldNatural(cmd),
@@ -2447,5 +2465,28 @@ public static class CommandDescriber
         }
 
         return string.Join(", ", parts);
+    }
+
+    private static string DescribeClearedIntoMilitaryRoute(ClearedIntoMilitaryRouteCommand cmd)
+    {
+        if (cmd.AltitudeFt is not { } altitude)
+        {
+            return $"CMTR {cmd.Designator}";
+        }
+
+        var prefix = cmd.AtOrBelow ? "B" : "";
+        return $"CMTR {cmd.Designator} {prefix}{altitude}";
+    }
+
+    private static string DescribeClearedIntoMilitaryRouteNatural(ClearedIntoMilitaryRouteCommand cmd)
+    {
+        if (cmd.AltitudeFt is not { } altitude)
+        {
+            return $"Cleared into {cmd.Designator}, maintain {cmd.Designator} altitudes";
+        }
+
+        return cmd.AtOrBelow
+            ? $"Cleared into {cmd.Designator}, maintain at or below {altitude:N0}"
+            : $"Cleared into {cmd.Designator}, maintain {altitude:N0}";
     }
 }

@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 16;
+    public const int CurrentSchemaVersion = 17;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -107,6 +107,9 @@ public static class SnapshotSchemaMigrator
         //   the assigned-vs-reported beacon-code mismatch flash after a squawk-VFR instruction. No data
         //   transformation — older snapshots default to false (unlatched), matching the prior behavior
         //   where the flash was never suppressed.
+        // V16→V17: Added AircraftSnapshotDto.MilitaryRoute (AP/1B military training route clearance
+        //   state) and the MilitaryRoute phase DTO. No data transformation — older snapshots default
+        //   to "not on a military route", exactly the pre-feature behavior.
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

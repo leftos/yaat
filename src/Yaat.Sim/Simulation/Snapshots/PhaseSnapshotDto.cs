@@ -257,6 +257,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(MakeTurnPhaseDto), "MakeTurn")]
 [JsonDerivedType(typeof(VfrHoldPhaseDto), "VfrHold")]
 [JsonDerivedType(typeof(AirspaceBoundaryHoldPhaseDto), "AirspaceBoundaryHold")]
+[JsonDerivedType(typeof(MilitaryRoutePhaseDto), "MilitaryRoute")]
 [JsonDerivedType(typeof(STurnPhaseDto), "STurn")]
 [JsonDerivedType(typeof(StopAndGoPhaseDto), "StopAndGo")]
 [JsonDerivedType(typeof(TouchAndGoPhaseDto), "TouchAndGo")]
@@ -575,6 +576,17 @@ public sealed class AirspaceBoundaryHoldPhaseDto : PhaseDto
     public required double CumulativeTurn { get; init; }
     public required double LastHeadingDeg { get; init; }
     public required bool Started { get; init; }
+}
+
+public sealed class MilitaryRoutePhaseDto : PhaseDto
+{
+    public required string Designator { get; init; }
+    public required int Kind { get; init; }
+    public string? EntryPointId { get; init; }
+    public string? ExitPointId { get; init; }
+    public bool Marsa { get; init; }
+    public List<string>? PointNames { get; init; }
+    public bool Started { get; init; }
 }
 
 public sealed class STurnPhaseDto : PhaseDto

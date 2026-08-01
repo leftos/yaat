@@ -1619,6 +1619,48 @@ public static class CommandRegistry
             ),
             Cmd(JoinAirway, "Join Airway", "Approach", false, ["JAWY"], [O(null, [R("airway", "airway ID")], "Intercept and join airway")]),
             Cmd(
+                ClearedIntoMilitaryRoute,
+                "Cleared Into Military Route",
+                "Navigation",
+                false,
+                ["CMTR", "CIR"],
+                [
+                    O(null, [R("route", "military route ID")], "Cleared into route, maintain published route altitudes"),
+                    O(
+                        "Altitude",
+                        [R("route", "military route ID"), R("altitude", "altitude")],
+                        "Cleared into route, maintain altitude (prefix B for at or below)"
+                    ),
+                ]
+            ),
+            Cmd(
+                MaintainMilitaryRouteAltitudes,
+                "Maintain Military Route Altitudes",
+                "Navigation",
+                false,
+                ["MTRA", "MRA"],
+                [O(null, [], "Revert to the route's published altitude blocks")]
+            ),
+            Cmd(
+                ClearedOutOfMilitaryRoute,
+                "Cleared Out Of Military Route",
+                "Navigation",
+                false,
+                ["XMTR", "EMTR"],
+                [
+                    O(null, [R("destination", "clearance limit")], "Cleared out of route to a clearance limit"),
+                    O("Route", [R("destination", "clearance limit"), R("route", "route of flight")], "Cleared out of route via a route of flight"),
+                ]
+            ),
+            Cmd(
+                SayExitFixEstimate,
+                "Say Exit Fix Estimate",
+                "Broadcast",
+                false,
+                ["SAYEXIT", "SAYXF"],
+                [O(null, [], "Verify exit fix estimate and requested altitude after exit")]
+            ),
+            Cmd(
                 JoinRadialOutbound,
                 "Join Radial Outbound",
                 "Approach",

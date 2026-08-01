@@ -327,6 +327,9 @@ public class AircraftState
 
     public AircraftDataBlock DataBlock { get; set; } = new();
 
+    /// <summary>AP/1B military training route clearance state. See <see cref="AircraftMilitaryRoute"/>.</summary>
+    public AircraftMilitaryRoute MilitaryRoute { get; set; } = new();
+
     // Position history for STARS radar trails (recorded every ~5 sim-seconds)
     public List<(double Lat, double Lon)> PositionHistory { get; } = new(10);
 
@@ -377,6 +380,7 @@ public class AircraftState
             Clearance = AircraftClearance.FromSnapshot(dto.Clearance),
             Ghost = AircraftGhostTrack.FromSnapshot(dto.Ghost),
             DataBlock = dto.DataBlock is not null ? AircraftDataBlock.FromSnapshot(dto.DataBlock) : new(),
+            MilitaryRoute = dto.MilitaryRoute is not null ? AircraftMilitaryRoute.FromSnapshot(dto.MilitaryRoute) : new(),
             Queue = CommandQueue.FromSnapshot(dto.Queue),
             Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
             ActiveApproachScore = dto.ActiveApproachScore is not null ? ApproachScore.FromSnapshot(dto.ActiveApproachScore) : null,
@@ -474,6 +478,7 @@ public class AircraftState
             Clearance = Clearance.ToSnapshot(),
             Ghost = Ghost.ToSnapshot(),
             DataBlock = DataBlock.ToSnapshot(),
+            MilitaryRoute = MilitaryRoute.ToSnapshot(),
             PositionHistory = PositionHistory.Count > 0 ? PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon }).ToList() : null,
             ActiveApproachScore = ActiveApproachScore?.ToSnapshot(),
             Targets = Targets.ToSnapshot(),

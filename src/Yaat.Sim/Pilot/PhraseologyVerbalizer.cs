@@ -949,6 +949,55 @@ public static class PhraseologyVerbalizer
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Military training route designator in the form FAA JO 7110.65 §2-5-1.f prescribes: "State the
+    /// letters 'I-R' or 'V-R' followed by the number of the route in group form."
+    /// <para>
+    /// "IR531" → "I-R five thirty one"; "VR52" → "V-R fifty two" — the section's own two examples.
+    /// The prefix is hyphenated so text-to-speech reads the letters rather than a word, and an
+    /// alternate-route letter suffix (AIM 3-5-2.d.1.c, e.g. "IR008A") expands phonetically.
+    /// </para>
+    /// </summary>
+    public static string SpellMilitaryRoute(string designator)
+    {
+        if (string.IsNullOrWhiteSpace(designator))
+        {
+            return "";
+        }
+
+        var text = designator.Trim().Replace("-", string.Empty).ToUpperInvariant();
+        if (text.Length < 3 || !char.IsLetter(text[0]) || !char.IsLetter(text[1]))
+        {
+            return designator;
+        }
+
+        var prefix = $"{char.ToLowerInvariant(text[0])}-{char.ToLowerInvariant(text[1])}";
+        var rest = text[2..];
+        var digits = new string([.. rest.TakeWhile(char.IsDigit)]);
+        var suffix = rest[digits.Length..];
+
+        if (digits.Length == 0 || !int.TryParse(digits, out var number))
+        {
+            return designator;
+        }
+
+        // Group form says "hundred" for a round hundred — §2-5-1.e's own ATS-route example is
+        // "Alfa Seven Hundred". The shared flight-number speller pairs digits instead ("nine zero
+        // zero"), which is right for a callsign but not for a route number, so the hundreds case is
+        // handled here rather than by changing a helper every callsign readback depends on.
+        var groupForm =
+            number >= 100 && number % 100 == 0
+                ? $"{AtcNumberParser.FlightNumberToPairedWords(number / 100)} hundred"
+                : AtcNumberParser.FlightNumberToPairedWords(number);
+        var spoken = $"{prefix} {groupForm}";
+        foreach (var c in suffix)
+        {
+            spoken += " " + NatoPhoneticAlphabet.SpellChar(c);
+        }
+
+        return spoken;
+    }
+
     /// <summary>Taxiway "B6" → "bravo six"; "AA" → "alpha alpha".</summary>
     public static string SpellTaxiway(string tw)
     {
