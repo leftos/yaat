@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.MilitaryRoutes;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Proto;
@@ -36,6 +37,15 @@ public sealed class NavigationDatabase
     private readonly Dictionary<string, List<(string Name, List<string> Fixes)>> _starTransitions = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _airways = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<RunwayInfo>> _runways = new(StringComparer.OrdinalIgnoreCase);
+
+    // AP/1B military training route points, kept out of _navDb on purpose. Both public projections
+    // of _navDb — AllFixNames (autocomplete, the DIST suggester, PhoneticFixMatcher, the scope's fix
+    // overlay, and FRD anchoring via RadarViewModel.BuildVisibleFixes) and GetFixTuples (FRD nearest-
+    // fix search) — would otherwise have to filter roughly 7,000 synthetic names out, and a future
+    // third projection would silently leak them. Holding them separately means a real fix always
+    // wins a name clash by construction, and GetFixPosition consults these only after a miss.
+    private readonly Dictionary<string, (double Lat, double Lon)> _militaryRoutePoints = new(StringComparer.OrdinalIgnoreCase);
+    private MilitaryRouteDatabase _militaryRoutes = new([]);
 
     // Maps every recognized airport identifier (FAA "OAK" or ICAO "KOAK") to the
     // canonical ICAO form (or FAA fallback when no ICAO is published). Built from
@@ -165,6 +175,9 @@ public sealed class NavigationDatabase
         LoadCifpNavaids(cifpFilePath);
         LoadCustomProcedures(artccsBaseDir);
         LoadCustomFixes(artccsBaseDir);
+        // After LoadCustomFixes so a name clash is detected against every real fix, and before
+        // AllFixNames is built at the end of this constructor.
+        LoadMilitaryRoutes(MilitaryRouteDatabase.Default);
         LoadFixPronunciations(artccsBaseDir);
         InitialContactTransfers = LoadInitialContactTransfers(artccsBaseDir);
         WakeDirectives = LoadWakeDirectives(artccsBaseDir);
@@ -221,7 +234,8 @@ public sealed class NavigationDatabase
         IReadOnlyDictionary<string, IReadOnlyList<string>>? sidBodies = null,
         IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? sidTransitions = null,
         IReadOnlyDictionary<string, string>? airports = null,
-        IReadOnlyDictionary<string, (double Lat, double Lon)>? airportPositions = null
+        IReadOnlyDictionary<string, (double Lat, double Lon)>? airportPositions = null,
+        MilitaryRouteDatabase? militaryRoutes = null
     )
     {
         var db = new NavigationDatabase();
@@ -398,6 +412,13 @@ public sealed class NavigationDatabase
             }
         }
 
+        // Injected rather than read from the singleton, so a test class exercising military routes
+        // does not race a parallel class that is mid-construction on the shared default.
+        if (militaryRoutes is not null)
+        {
+            db.LoadMilitaryRoutes(militaryRoutes);
+        }
+
         db.AllFixNames = db.BuildSortedNames();
         return db;
     }
@@ -459,7 +480,47 @@ public sealed class NavigationDatabase
 
     public (double Lat, double Lon)? GetFixPosition(string name)
     {
-        return _navDb.TryGetValue(name, out var pos) ? pos : null;
+        if (_navDb.TryGetValue(name, out var pos))
+        {
+            return pos;
+        }
+
+        // Military route points resolve here but are absent from AllFixNames and GetFixTuples, so
+        // an expanded route flies and draws while ~7,000 synthetic names stay out of autocomplete
+        // and out of FRD anchoring. A real fix of the same name always wins, since _navDb is first.
+        return _militaryRoutePoints.TryGetValue(name, out var militaryPos) ? militaryPos : null;
+    }
+
+    /// <summary>
+    /// Resolves a route token to a position, accepting either a fix name or a fix/radial/distance.
+    /// <para>
+    /// FRD resolution is restricted to the full <c>{FIX}{radial:3}{distance:3}</c> form on purpose.
+    /// <see cref="FrdResolver.ParseFrd"/> also accepts a radial-only <c>{FIX}{radial:3}</c> shape,
+    /// which matches any five-plus-character identifier ending in three digits and would resolve a
+    /// real fix of that shape to its anchor's position instead of its own.
+    /// </para>
+    /// </summary>
+    public (double Lat, double Lon)? ResolveFixOrFrd(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return null;
+        }
+
+        var position = GetFixPosition(token);
+        if (position is not null)
+        {
+            return position;
+        }
+
+        var parsed = FrdResolver.ParseFrd(token);
+        if (parsed is null || parsed.Value.Radial is null || parsed.Value.Distance is null)
+        {
+            return null;
+        }
+
+        var resolved = FrdResolver.Resolve(token, this);
+        return resolved is null ? null : (resolved.Value.Lat, resolved.Value.Lon);
     }
 
     /// <summary>
@@ -929,6 +990,15 @@ public sealed class NavigationDatabase
 
         if (fromIdx < 0 || toIdx < 0)
         {
+            return [];
+        }
+
+        // Military routes are shadowed into the airway index so JAWY and the radar context menu
+        // work unchanged, but AP/1B chapter 1 §V.B.1 makes them one-way and prohibits course
+        // reversals. Refuse to walk one backwards rather than silently returning a reversed leg.
+        if (fromIdx > toIdx && IsMilitaryRoute(airwayId))
+        {
+            Log.LogWarning("Refusing to reverse along military route {Route}: routes are one-way", airwayId);
             return [];
         }
 
@@ -2225,6 +2295,74 @@ public sealed class NavigationDatabase
         var names = _navDb.Keys.ToArray();
         Array.Sort(names, StringComparer.OrdinalIgnoreCase);
         return names;
+    }
+
+    // ──────────────────────────────────────────────
+    //  Military training routes (AP/1B)
+    // ──────────────────────────────────────────────
+
+    /// <summary>The loaded AP/1B military training routes and aerial refueling tracks.</summary>
+    public MilitaryRouteDatabase MilitaryRoutes => _militaryRoutes;
+
+    /// <summary>True when the token names a published military route (<c>IR149</c>, <c>VR1257</c>).</summary>
+    public bool IsMilitaryRoute(string id) => _militaryRoutes.Contains(id);
+
+    /// <summary>The published route, or null. Accepts both <c>IR-149</c> and <c>IR149</c>.</summary>
+    public MilitaryRoute? GetMilitaryRoute(string id) => _militaryRoutes.Get(id);
+
+    /// <summary>
+    /// Registers military route points as resolvable fixes and shadows each route into the airway
+    /// index.
+    /// <para>
+    /// The shadow registration is what lets <c>JAWY</c> and the radar context menu's
+    /// <c>GetFiledAirways</c> accept a military route without either of them learning a second
+    /// concept. It is deliberately *not* how routes are expanded: <see cref="ExpandAirwaySegment"/>
+    /// walks an airway in either direction, which is wrong for a route AP/1B declares one-way, so
+    /// expansion takes its own path and that method refuses to reverse along a military route.
+    /// </para>
+    /// </summary>
+    private void LoadMilitaryRoutes(MilitaryRouteDatabase routes)
+    {
+        _militaryRoutes = routes;
+        if (routes.Count == 0)
+        {
+            return;
+        }
+
+        int clashes = 0;
+        foreach (var route in routes.Routes)
+        {
+            foreach (var point in route.Points)
+            {
+                if (_navDb.ContainsKey(point.Name))
+                {
+                    clashes++;
+                    Log.LogWarning(
+                        "Military route point {Point} on {Route} clashes with an existing fix; the real fix wins",
+                        point.Name,
+                        route.Designator
+                    );
+                    continue;
+                }
+
+                _militaryRoutePoints[point.Name] = (point.Position.Lat, point.Position.Lon);
+            }
+
+            if (_airways.ContainsKey(route.Designator))
+            {
+                Log.LogWarning("Military route {Route} clashes with a published airway; skipping shadow registration", route.Designator);
+                continue;
+            }
+
+            _airways[route.Designator] = [.. route.Points.Select(p => p.Name)];
+        }
+
+        Log.LogInformation(
+            "Military routes: {RouteCount} route(s), {PointCount} point(s), {Clashes} name clash(es)",
+            routes.Count,
+            _militaryRoutePoints.Count,
+            clashes
+        );
     }
 
     // ──────────────────────────────────────────────

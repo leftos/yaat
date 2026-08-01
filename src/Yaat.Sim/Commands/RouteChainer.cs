@@ -1,9 +1,12 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Commands;
 
 public static class RouteChainer
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("RouteChainer");
+
     /// <summary>
     /// If the last resolved fix appears in the aircraft's filed route,
     /// appends all subsequent route fixes. This is how "DCT SUNOL"
@@ -48,11 +51,17 @@ public static class RouteChainer
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(fixName);
-            if (pos is not null)
+            // ResolveFixOrFrd so fix/radial/distance tokens in the filed route chain like any other
+            // fix, matching ArrivalRouteResolver. Unresolvable names are logged rather than dropped
+            // in silence — this path previously discarded them with no trace at all.
+            var pos = navDb.ResolveFixOrFrd(fixName);
+            if (pos is null)
             {
-                resolved.Add(new ResolvedFix(fixName, pos.Value.Lat, pos.Value.Lon));
+                Log.LogWarning("Could not resolve nav fix '{Fix}' while chaining the filed route; skipping", fixName);
+                continue;
             }
+
+            resolved.Add(new ResolvedFix(fixName, pos.Value.Lat, pos.Value.Lon));
         }
     }
 }
