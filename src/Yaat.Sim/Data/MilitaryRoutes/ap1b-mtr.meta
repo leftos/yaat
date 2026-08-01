@@ -1,0 +1,141 @@
+{
+ "routes": 648,
+ "byType": {
+  "IR": 213,
+  "VR": 304,
+  "SR": 131
+ },
+ "points": 7039,
+ "pointsByType": {
+  "IR": 3012,
+  "VR": 2820,
+  "SR": 1207
+ },
+ "altitudeKinds": {
+  "single": 1015,
+  "block": 4939,
+  "asAssigned": 430,
+  "none": 602,
+  "atOrBelow": 32,
+  "unparsed": 21
+ },
+ "unparsedAltitudes": [
+  "",
+  "(2) Overflight of all towns If unavoidable, the requirements of AFR 60-16 will apply. (3) Avoid flight within airports when practical. (4) See and avoid applies (5) Aircrews are responsible with the following routes and agencies: IR-203, 207, Lemoore NAS (DSN 949-1034), 275, 60 IR-300, Mountain Home AFB (DSN 728-2172), VR-201, 202, 1250, 1251, 1252, 1254, 1255, 1259, 949-1034), VR-1352, 1353, Whidbey Island (DSN 820-2877), Austin 1, Gabbs South MOAs, N, Kingsley Field, (DSN 830-6686/6182) (C541-885-6686/6182). (6) Scheduling aircrew times to within 3 minutes to the agencies listed above. (7) Route is designed for by coordinated scheduling. (8) Schedule thru 60 AMW/AOT, being requested. (9) Warning: Vector Vertical to construct navigational charts does not address vertical construction data below 200' AGL. their observations to Scheduling Activity if new developments or cultural changes are of flight on this route. (10)Terrain Following Operations (a) Day/night VFR are authorized IAW command directives within published block altitudes and authorized (b) Segment altitude the highest obstacle within 5 NM of centerline. (c) The entire route (d) The route has been NM lateral limit from course centerline. (11)Altitude Data: (A) to AGL B 119 MSL, (C) to (D) 03 AGL B 107 MSL, (D) to (E) 03 AGL B 90 MSL, (E) to (F) 03 AGL B (G) to (I) 03 AGL B 101 MSL, (I) to (J) 03 AGL B 79 MSL, (J) to (K) 03 AGL B 77 MSL, (K) to (L) B 93 MSL, (N) to (O) 10 AGL B 77 MSL, (O) to (P) 03 AGL B 79 MSL, (P) to (Q) 03 AGL B 85 (R) to (S) 03 AGL B 83 MSL, (S) to (T) 03 AGL B 55 MSL, (T) to (U) 03 AGL B 40 MSL. (12)Points (L)-(M), stay 4-91",
+  "(8) Primary Exit Point for (9) Primary Exit Point for (10)All other points are 4-58",
+  "(All American Drop Zone)",
+  "(All American Drop Zone).",
+  "(Alternate Entry Point)",
+  "(Alternate Entry Point).",
+  "(Alternate Entry/Exit Point)",
+  "(Alternate Entry/Exit)",
+  "(Alternate Exit Point)",
+  "(Alternate Exit Point) 4-15",
+  "(Arrowhead Drop Zone)",
+  "(Entry Point)",
+  "(Entry/Exit Point)",
+  "(Exit Point)",
+  "(Pino Drop Zone) ALTERNATE ROUTING:",
+  "(Pino Drop Zone).",
+  "(Pino Drop Zone). (3) Minimum Altitude Data: northbound 3000' MSL; (AB) to (AC) northbound 1700' MSL; (AC) to (DA) 1000' AGL; (AC) to either side of (DD) 500' AGL. (4) (EA) coincides with (5) When not flying SR-105 will not be below 1500' AGL at (EA). (6) Mission number is Contact Eglin Range Control at (AO) or (AB) for clearance into R-2915/R-2914. (7) NOTE: SR-104 altitude the same as SR-103 and provide 500' separation between northbound/southbound (DH) and (DI) is 1000' AGL or higher. 4-12",
+  "(Sontay Drop Zone)",
+  "(Sontay Drop Zone) ALTERNATE ROUTING:",
+  "(Sontay Drop Zone).",
+  "(Sontay Drop Zone). (4) Minimum altitude: (AB) northbound 1700' MSL; 10 NM prior to (AB) southbound 1700' MSL or above; (AD) to (AE) AGL; if flying two clockwise trips around SR-103, aircraft must be at 1700' MSL prior to (AB). 4-10",
+  "(a) ALL AMERICAN DROP ZONE:",
+  "(a) All American Drop Zone:",
+  "(a) Nazareth community (b) Earth, Springlake, B and C. (c) White Face, Pep, communities between E and F. (d) Patricia community (7) Obstacles: Uncharted strip is paved and parallel to a road. (8) Be vigiliant for sUAS AGL. If you encounter or have to avoid a sUAS please contact originating authority with as much Please attempt to mark the position with Lat/Lon for proper positioning of the event. 4-73",
+  "(a) SUCKCHON DROP ZONE",
+  "(b) BASTOGNE DROP ZONE",
+  "(b) BLACKJACK DROP ZONE",
+  "(b) BLACKJACK DROP ZONE:",
+  "(b) Blackjack Drop Zone:",
+  "(c) ALL AMERICAN DROP ZONE:",
+  "(c) All American Drop Zone:",
+  "(c) CORREGIDOR DROP ZONE 4-38",
+  "(c) HOPE DROP ZONE/TEXARKANA",
+  "(d) Contact Amarillo at I. (6) Noise Sensitive Areas:AVOID (a) Patricia community (b) White face community (c) Pep, Bula, Friendship, between E and F; (d) Earth, Springlake, G and H; (e) Nazareth community (7) Obstacles: Uncharted strip is paved and parallel to a road. (8) Be vigilant for sUAS AGL. If you encounter or have to avoid a sUAS please contact the originating authority as possible. Please attempt to mark the position with Lat/Lon for proper positioning of the event. 4-71",
+  "(d) LOS BANDOS DROP ZONE",
+  "(e) 30 NM North of (f) 5 NM East of I to (g) J to Seymour Johnson (h) 16 NM Southeast (i) Exit fix on assigned (7) Return altitude 15,000' 3000' MSL. (8) Hazards: At Point M, unless cleared by Range Control 358.8. Numerous MTR's terminate in this area. Military aircraft Lake or at the Alligator River bridge awaiting clearance into the Dare Bombing Range. (9) Caution: IR-012 crosses twice at Points I-K, and crosses left to right at Point L. (Deconflict with Seymour Johnson AFB (10)Caution: IR-035 (Points Points H-J. (Deconflict with Shaw AFB DSN 965-1118). (11)Caution: VR-087 coincides (Deconflict with Shaw AFB DSN 965-1118).",
+  "(e) CARENTAN DROP ZONE",
+  "(f) VEGHEL DROP ZONE",
+  "4-6",
+  "BLACKJACK DROP ZONE:",
+  "Cross at FL190 to OR AS ASSIGNED",
+  "Cross at FL190 to or as assigned. descend to",
+  "Cross at FL200 to or as assigned descend direct to",
+  "Cross at FL200 to or as assigned descend direct to cross",
+  "Cross at FL220 to or as assigned descend direct to",
+  "Cross at FL230 to descend direct to",
+  "Cross at FL230 to or as assigned Report crossing",
+  "Cross at FL230 to or as assigned descend on Kimberly VORTAC 160 deg ra- dial to cross",
+  "Cross at FL230 to or as assigned descend on the Yaki- ma VORTAC 108 deg radial to cross YKM 108/28 at 110 MSL then",
+  "Cross at FL290 to or as assigned descend on the New- port VORTAC 166 deg radial to cross",
+  "FL180 to or as assigned. descend to",
+  "FL200 B FL220 to FL220 B FL200 turn left and continue de- scent to cross",
+  "FL200 to FL200 B 50 MSL descend direct to cross",
+  "FL230 to",
+  "FL230 to or as assigned direct to",
+  "FL240 to or as assigned Re-Entry Cross",
+  "Re-Entry: Aircraft scheduled passing (F) turn left and maintain 4000' MSL to N34-46 W117-53 then turn left and continue via",
+  "Re-Entry: Aircraft scheduled passing (F) turn right and maintain 2200' MSL to N32-56 W114-30 then turn right and continue",
+  "SFC B FL180 to (TERMINATE TA/TFR)",
+  "SFC B FL180 to TERMINATE TA/TFR",
+  "at or below FL180 descend direct to cross"
+ ],
+ "frdCoverage": {
+  "IR": 0.9754,
+  "VR": 0.9628,
+  "SR": 0.0099
+ },
+ "routesWithWidths": 630,
+ "routeProblems": {
+  "VR092": [
+   "1 point(s) missing a coordinate"
+  ],
+  "VR222": [
+   "2 point(s) missing a coordinate"
+  ],
+  "VR535": [
+   "1 point(s) missing a coordinate"
+  ],
+  "SR104": [
+   "leg EA-AO is 342 NM (> 250)"
+  ]
+ },
+ "frdOracle": {
+  "checked": 5616,
+  "agreed": 5612,
+  "rate": 0.999288,
+  "unknownNavaid": 49,
+  "medianErrorNm": 0.251,
+  "p95ErrorNm": 0.52,
+  "disagreements": [
+   {
+    "route": "VR1140",
+    "point": "A",
+    "frd": "BFV 094/219",
+    "errorNm": 199.6
+   },
+   {
+    "route": "VR227",
+    "point": "K",
+    "frd": "TRM 154/31",
+    "errorNm": 178.6
+   },
+   {
+    "route": "VR097",
+    "point": "O1",
+    "frd": "DBN 080/137",
+    "errorNm": 90.6
+   },
+   {
+    "route": "VR058",
+    "point": "F",
+    "frd": "HRS 268/61",
+    "errorNm": 29.4
+   }
+  ]
+ },
+ "crossCheck": {}
+}

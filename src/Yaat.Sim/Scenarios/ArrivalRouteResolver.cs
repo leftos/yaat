@@ -38,7 +38,10 @@ internal static class ArrivalRouteResolver
                 continue;
             }
 
-            var pos = navDb.GetFixPosition(fixName);
+            // ResolveFixOrFrd, not GetFixPosition: a filed route routinely names points as
+            // fix/radial/distance — AP/1B files military route entry and exit that way
+            // ("SAT263043 IR149 LRD040028") — and a bare fix lookup drops every one of them.
+            var pos = navDb.ResolveFixOrFrd(fixName);
             if (pos is null)
             {
                 warnings.Add($"{state.Callsign}: Could not resolve nav fix '{fixName}', skipping");

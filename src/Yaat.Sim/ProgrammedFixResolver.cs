@@ -1,5 +1,6 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.MilitaryRoutes;
 
 namespace Yaat.Sim;
 
@@ -94,6 +95,22 @@ public static class ProgrammedFixResolver
             // Skip numeric-only tokens (altitude/speed constraints)
             if (double.TryParse(token.Split('.')[0], out _))
             {
+                continue;
+            }
+
+            // Military training route. Checked before the dot branch below, which treats *any*
+            // dotted token as FIX.AIRWAY without consulting IsAirway and would mangle a dotted
+            // military route token. This mirrors RouteExpander's branch so a filed IR/VR route
+            // highlights its points on the scope instead of being drawn as a single pseudo-fix.
+            if (navDb.IsMilitaryRoute(token))
+            {
+                string? entryAnchor = i > 0 ? tokens[i - 1].Split('.')[0] : null;
+                string? exitAnchor = i + 1 < tokens.Length ? tokens[i + 1].Split('.')[0] : null;
+                foreach (var name in MilitaryRouteExpander.Expand(token, entryAnchor, exitAnchor, navDb))
+                {
+                    fixes.Add(name);
+                }
+
                 continue;
             }
 

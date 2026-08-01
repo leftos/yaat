@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.MilitaryRoutes;
+
 namespace Yaat.Sim.Data;
 
 /// <summary>
@@ -67,7 +69,25 @@ public static class RouteExpander
                 continue;
             }
 
-            // 3. Dot-notation: FIX.AIRWAY (e.g., "PORTE.V25")
+            // 3. Military training route (e.g., "SAT263043 IR149 LRD040028")
+            //
+            // Checked before the airway branches even though routes are shadowed into the airway
+            // index: the bracketing tokens are FRDs rather than names of points on the route, so
+            // ExpandAirwaySegment's name matching would find neither anchor, and its bidirectional
+            // walk is wrong for a one-way route.
+            if (navDb.IsMilitaryRoute(rawName))
+            {
+                string? entryAnchor = result.Count > 0 ? result[^1] : null;
+                string? exitAnchor = FindNextNonNumericToken(tokens, i + 1)?.Split('.')[0];
+                foreach (var fix in MilitaryRouteExpander.Expand(rawName, entryAnchor, exitAnchor, navDb))
+                {
+                    EmitDeduped(result, fix);
+                }
+
+                continue;
+            }
+
+            // 4. Dot-notation: FIX.AIRWAY (e.g., "PORTE.V25")
             if (suffix is not null && navDb.IsAirway(suffix))
             {
                 EmitDeduped(result, rawName);
@@ -84,7 +104,7 @@ public static class RouteExpander
                 continue;
             }
 
-            // 4. Bare airway token
+            // 5. Bare airway token
             if (navDb.IsAirway(rawName))
             {
                 string? fromFix = result.Count > 0 ? result[^1] : null;
@@ -101,7 +121,7 @@ public static class RouteExpander
                 continue;
             }
 
-            // 5. Plain fix — emit as-is (SID/STAR version matching is handled above)
+            // 6. Plain fix — emit as-is (SID/STAR version matching is handled above)
             EmitDeduped(result, rawName);
         }
 
