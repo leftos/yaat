@@ -89,6 +89,10 @@ HOURS_RE = re.compile(r"HOURS OF OPERATION:\s*(.+?)(?=\s*ROUTE DESCRIPTION|$)", 
 # very row.
 TABLE_END_MARKERS = ("TERRAIN", "ROUTE", "Special", "Remarks:", "FSS")
 ROW_TOLERANCE = 2.0
+# Baseline gap that separates two words inside a rotated (chapter 5) text run, and the nominal
+# height of one printed line in the transposed frame.
+ROTATED_WORD_GAP = 2.5
+ROTATED_LINE_HEIGHT = 9.0
 HUNDREDS_OF_FEET = 100
 
 # Validation bands. AP/1B covers North and South America; the widest published route half-width
@@ -253,6 +257,58 @@ def classify_role(altitude_text: str, index: int, total: int) -> str:
     return "point"
 
 
+def page_words(page: pdfplumber.page.Page) -> list[dict]:
+    """Words on a page, with chapter 5's sideways tables rotated back upright.
+
+    The aerial-refueling tables are printed in landscape on a portrait page: their glyphs carry a
+    90-degree text matrix while the running header stays upright, so pdfplumber -- which groups by
+    page x -- assembles them backwards ("thgilF" for "Flight"). Rebuilding words from the rotated
+    chars in a transposed frame makes chapter 5 look structurally identical to chapters 2-4, so the
+    same header-detection and column-banding logic reads both.
+    """
+    upright = page.extract_words(use_text_flow=False, keep_blank_chars=False)
+    rotated_chars = [c for c in page.chars if not c.get("upright")]
+    if len(rotated_chars) < len(page.chars) / 2:
+        return upright
+
+    # A printed line shares an x on the unrotated page; reading order runs along *decreasing* top.
+    lines: dict[float, list[dict]] = {}
+    for char in rotated_chars:
+        lines.setdefault(round(char["x0"], 0), []).append(char)
+
+    words: list[dict] = []
+    for line_x, chars in lines.items():
+        chars.sort(key=lambda c: -c["top"])
+        buffer: list[dict] = []
+        for char in chars:
+            if buffer and buffer[-1]["top"] - char["bottom"] > ROTATED_WORD_GAP:
+                words.append(rotated_word(buffer, line_x))
+                buffer = []
+            buffer.append(char)
+        if buffer:
+            words.append(rotated_word(buffer, line_x))
+
+    return words
+
+
+def rotated_word(chars: list[dict], line_x: float) -> dict:
+    """One word from a rotated run, expressed in the transposed frame.
+
+    `top` becomes the printed line number (the unrotated x) and `x0` the position along the printed
+    line, measured from the page bottom so it increases left-to-right as printed.
+    """
+    text = "".join(c["text"] for c in chars)
+    start = min(c["bottom"] for c in chars)
+    end = max(c["top"] for c in chars)
+    return {
+        "text": text,
+        "top": line_x,
+        "bottom": line_x + ROTATED_LINE_HEIGHT,
+        "x0": -end,
+        "x1": -start,
+    }
+
+
 def cluster_rows(words: list[dict]) -> list[list[dict]]:
     """Group words into visual rows by `top`, tolerant of sub-pixel baseline drift."""
     rows: list[list[dict]] = []
@@ -326,7 +382,7 @@ def extract_page_points(
     originating page's margins, so bands are cached by page parity and reused. Inheriting the
     previous page's bands instead bins every continuation page against the wrong margin.
     """
-    rows = cluster_rows(page.extract_words(use_text_flow=False, keep_blank_chars=False))
+    rows = cluster_rows(page_words(page))
     parity = page.page_number % 2
     located = find_column_bands(rows)
 
@@ -411,7 +467,7 @@ def extract_routes(pdf: pdfplumber.PDF) -> list[MilitaryRoute]:
     band_cache: dict[int, dict[str, tuple[float, float]]] = {}
 
     for index, page in enumerate(pdf.pages):
-        words = page.extract_words(use_text_flow=False, keep_blank_chars=False)
+        words = page_words(page)
         header = find_route_header(words)
 
         if header is not None:
