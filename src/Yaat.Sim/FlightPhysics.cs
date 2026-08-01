@@ -505,7 +505,7 @@ public static class FlightPhysics
             return;
         }
 
-        bool speedLimitWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType);
+        bool speedLimitWaived = IsSpeedLimitWaived(aircraft);
         double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
 
         for (int i = 0; i < route.Count; i++)
@@ -971,20 +971,36 @@ public static class FlightPhysics
     /// </summary>
     private static double RegulatorySpeedLimit(AircraftState aircraft, bool below10k, bool speedLimitWaived)
     {
-        if (!below10k || speedLimitWaived)
+        if (!below10k)
         {
             return double.MaxValue;
         }
 
-        return Data.Airspace.AirspaceDatabase.Default.IsUnderClassBShelf(aircraft.Position, aircraft.Altitude)
-            ? SpeedLimitUnderClassBKts
-            : SpeedLimitBelow10kKts;
+        // The Class B shelf cap survives the waiver. 91.117(c) carries no military training route
+        // exception, and neither the DoD's 91.117(a) exemption (AP/1B chapter 1 §I) nor a fighter's
+        // minimum-safe-speed exemption under 91.117(d) reaches it.
+        bool underShelf = Data.Airspace.AirspaceDatabase.Default.IsUnderClassBShelf(aircraft.Position, aircraft.Altitude);
+        if (speedLimitWaived)
+        {
+            return underShelf ? SpeedLimitUnderClassBKts : double.MaxValue;
+        }
+
+        return underShelf ? SpeedLimitUnderClassBKts : SpeedLimitBelow10kKts;
     }
+
+    /// <summary>
+    /// True when the 250-knot limit below 10,000 ft does not apply: either the type's minimum safe
+    /// speed exceeds it (14 CFR 91.117(d)) or the aircraft is established on a military training
+    /// route, where AP/1B chapter 1 §I grants the DoD a 91.117(a) exemption within the route's
+    /// lateral and vertical confines.
+    /// </summary>
+    private static bool IsSpeedLimitWaived(AircraftState aircraft) =>
+        AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType) || aircraft.MilitaryRoute.SpeedLimitWaived;
 
     private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         bool below10k = !aircraft.IsOnGround && aircraft.Altitude < 10_000;
-        bool speedLimitWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType);
+        bool speedLimitWaived = IsSpeedLimitWaived(aircraft);
         double regulatoryLimit = RegulatorySpeedLimit(aircraft, below10k, speedLimitWaived);
 
         // Mach hold: recompute equivalent IAS each tick so the aircraft maintains constant Mach.

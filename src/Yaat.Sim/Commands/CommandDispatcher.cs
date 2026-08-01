@@ -668,6 +668,11 @@ public static class CommandDispatcher
             case SayPositionCommand:
                 ctx.TerminalEmitter?.Invoke(new TerminalEntry("SayPosition", aircraft.Callsign, PilotSayBuilder.BuildPosition(aircraft)));
                 return Ok("");
+            case SayExitFixEstimateCommand:
+                ctx.TerminalEmitter?.Invoke(
+                    new TerminalEntry("SayExitFixEstimate", aircraft.Callsign, PilotSayBuilder.BuildExitFixEstimate(aircraft))
+                );
+                return Ok("");
             case SayExpectedApproachCommand:
                 ctx.TerminalEmitter?.Invoke(
                     new TerminalEntry("SayExpectedApproach", aircraft.Callsign, PilotSayBuilder.BuildExpectedApproach(aircraft))
@@ -726,6 +731,12 @@ public static class CommandDispatcher
                 return NavigationCommandHandler.DispatchJarr(cmd, aircraft);
             case JoinAirwayCommand cmd:
                 return NavigationCommandHandler.DispatchJawy(cmd, aircraft);
+            case ClearedIntoMilitaryRouteCommand cmd:
+                return MilitaryRouteCommandHandler.DispatchClearedInto(cmd, aircraft);
+            case MaintainMilitaryRouteAltitudesCommand:
+                return MilitaryRouteCommandHandler.DispatchMaintainRouteAltitudes(aircraft);
+            case ClearedOutOfMilitaryRouteCommand cmd:
+                return MilitaryRouteCommandHandler.DispatchClearedOutOf(cmd, aircraft);
             case HoldingPatternCommand cmd:
                 return NavigationCommandHandler.DispatchHoldingPattern(cmd, aircraft);
             case JoinFinalApproachCourseCommand cmd:

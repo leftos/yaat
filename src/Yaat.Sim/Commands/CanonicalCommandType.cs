@@ -187,6 +187,13 @@ public enum CanonicalCommandType
     JoinFinalApproachCourse,
     JoinStar,
     JoinAirway,
+
+    // Military training routes (DoD AP/1B; FAA JO 7110.65 §9-2-6)
+    ClearedIntoMilitaryRoute,
+    MaintainMilitaryRouteAltitudes,
+    ClearedOutOfMilitaryRoute,
+    SayExitFixEstimate,
+
     JoinRadialOutbound,
     JoinRadialInbound,
     HoldingPattern,

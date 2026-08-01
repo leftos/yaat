@@ -898,6 +898,26 @@ public record JoinStarCommand(string StarId, string? Transition, string? RunwayT
 
 public record JoinAirwayCommand(string AirwayId) : ParsedCommand;
 
+/// <summary>
+/// FAA JO 7110.65 §9-2-6.a "CLEARED INTO IR (designator)". <paramref name="AltitudeFt"/> is null
+/// when the clearance is the published-route-altitudes form; <paramref name="AtOrBelow"/> marks the
+/// "MAINTAIN AT OR BELOW (altitude)" variant, which caps the block without lifting its floor.
+/// </summary>
+public record ClearedIntoMilitaryRouteCommand(string Designator, int? AltitudeFt, bool AtOrBelow) : ParsedCommand;
+
+/// <summary>FAA JO 7110.65 §9-2-6.a "MAINTAIN IR (designator) ALTITUDES".</summary>
+public record MaintainMilitaryRouteAltitudesCommand : ParsedCommand;
+
+/// <summary>
+/// FAA JO 7110.65 §9-2-6.b "CLEARED TO (destination) FROM IR (designator/exit fix) VIA (route)".
+/// </summary>
+public record ClearedOutOfMilitaryRouteCommand(string Destination, string? Route) : ParsedCommand;
+
+/// <summary>
+/// FAA JO 7110.65 §9-2-6.e "VERIFY YOUR EXIT FIX ESTIMATE AND REQUESTED ALTITUDE AFTER EXIT".
+/// </summary>
+public record SayExitFixEstimateCommand : ParsedCommand;
+
 public record JoinRadialOutboundCommand(string FixName, double FixLat, double FixLon, int Radial) : ParsedCommand;
 
 public record JoinRadialInboundCommand(string FixName, double FixLat, double FixLon, int Radial) : ParsedCommand;

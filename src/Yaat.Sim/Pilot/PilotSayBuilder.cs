@@ -81,6 +81,46 @@ public static class PilotSayBuilder
             : "Negative, no approach assigned";
     }
 
+    /// <summary>
+    /// Answers FAA JO 7110.65 §9-2-6.e "VERIFY YOUR EXIT FIX ESTIMATE AND REQUESTED ALTITUDE AFTER
+    /// EXIT" — the exit fix, the estimate for it, and the altitude wanted after the route.
+    /// </summary>
+    public static string BuildExitFixEstimate(AircraftState aircraft)
+    {
+        var state = aircraft.MilitaryRoute;
+        if (state.Designator is null || state.ExitPointId is null)
+        {
+            return "Negative, not on a military training route";
+        }
+
+        var minutes = EstimateMinutesToExit(aircraft);
+        var estimate = minutes is null ? "unable to estimate" : $"in {minutes} minute{(minutes == 1 ? "" : "s")}";
+        // The filed cruise altitude is what the pilot wants back after leaving the route.
+        var afterExit = aircraft.FlightPlan.Altitude.CruiseFeet is { } cruise ? $", requesting {cruise:N0} after exit" : "";
+        return $"Estimating {state.Designator} exit point {state.ExitPointId} {estimate}{afterExit}";
+    }
+
+    /// <summary>
+    /// Whole minutes to the last navigation target at present groundspeed, or null when the aircraft
+    /// is not moving or has no route left to fly.
+    /// </summary>
+    private static int? EstimateMinutesToExit(AircraftState aircraft)
+    {
+        var route = aircraft.Targets.NavigationRoute;
+        if (route.Count == 0 || aircraft.GroundSpeed < 1)
+        {
+            return null;
+        }
+
+        double distance = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
+        for (int i = 1; i < route.Count; i++)
+        {
+            distance += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
+        }
+
+        return (int)Math.Round(distance / aircraft.GroundSpeed * 60.0);
+    }
+
     // Sizeable-airport criteria for both the route-far fallback and the parenthetical
     // airport reference. 6,500 ft typically captures Class C/D airports with airline
     // service and the larger regional fields a working controller (or RPO) recognizes
