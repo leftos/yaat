@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- An IFR aircraft that goes around no longer flies a VFR traffic pattern circuit when it was given `MLT`/`MRT` earlier in the session; it climbs runway heading and waits for instructions.
+
 ## v0.10.2-beta [2026/07/31]
 
 ### Highlights

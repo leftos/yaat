@@ -80,9 +80,11 @@ These run inside `PhaseRunner` after the current phase advances. They turn one-s
 - **Post-LAHSO**: When `LandingPhase.StoppedForLahso` is set, append `RunwayHoldingPhase → RunwayExitPhase → HoldingAfterExitPhase`.
 - **Post-landing (no pattern)**: If queue is complete and `TrafficDirection is null`, auto-append `RunwayExitPhase → HoldingAfterExitPhase`.
 - **Pattern re-entry from go-around**: After `GoAroundPhase` with `ReenterPattern=true`, set `TrafficDirection` from the persistent `AircraftPattern.TrafficDirection` (falling back to the transient field, then Left) when a runway is assigned.
-- **Pattern auto-cycle**: If queue is complete AND `TrafficDirection is not null` AND `AssignedRunway is not null`, `PatternBuilder` builds the next circuit and appends the leg phases. Landing clearance is cleared.
+- **Pattern auto-cycle**: If the completed phase was a cycle terminator (`TouchAndGoPhase`, `StopAndGoPhase`, `LowApproachPhase`) or a `GoAroundPhase` with `ReenterPattern=true`, AND the queue is complete AND a direction resolves (persistent `AircraftPattern.TrafficDirection`, else the transient `TrafficDirection`) AND `AssignedRunway is not null`, `PatternBuilder` builds the next circuit and appends the leg phases. Landing clearance is cleared.
 
 Full-stop approaches **do not** auto-cycle. The pattern bit (`TrafficDirection`) is what distinguishes a touch-and-go aircraft from a full-stop arrival.
+
+The terminator-type gate matters independently of the direction: an instrument go-around leaves `ReenterPattern=false`, and the persistent `AircraftPattern.TrafficDirection` survives `FH`/`TR`/`TL` phase clears, so without it a stale `MLT`/`MRT` would crank an IFR missed approach into a VFR circuit. `PatternCommandHandler.WillAppendNextCircuit` (which `EXT` uses to decide whether to pre-arm `ExtendNextUpwind`) mirrors this gate — keep the two in sync.
 
 ## `PhaseContext` — `Phases/PhaseContext.cs`
 

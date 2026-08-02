@@ -10,22 +10,21 @@ using Yaat.Sim.Tests.Helpers;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Nightly-review repro: an IFR go-around must NOT auto-enter the VFR traffic pattern.
+/// Issue #321: an IFR go-around must not auto-enter the VFR traffic pattern. Instrument approach
+/// traffic flies runway heading to 2000 ft AGL and awaits instructions (AIM 5-4-21);
+/// <see cref="GoAroundHelper.ResolvePatternIntent"/> encodes that by returning null for a
+/// non-in-pattern IFR aircraft, so the resulting <see cref="GoAroundPhase"/> has ReenterPattern=false.
 ///
-/// Contract (docs/phases.md and the comment at PhaseRunner.cs:105): "Instrument approach traffic
-/// does NOT auto-enter the pattern — they fly runway heading to 2000 AGL and await instructions."
-/// <see cref="GoAroundHelper.ResolvePatternIntent"/> enforces this by returning null for a non-in-pattern
-/// IFR aircraft, so the resulting <see cref="GoAroundPhase"/> has ReenterPattern=false.
-///
-/// But the persistent <see cref="AircraftPattern.TrafficDirection"/> (set by an earlier MLT/MRT and
-/// deliberately surviving FH/TR/TL phase clears) is read by PhaseRunner's auto-cycle guard WITHOUT
-/// checking ReenterPattern, so a completed IFR go-around is cranked into a full VFR circuit anyway.
+/// PhaseRunner's auto-cycle guard used to fire on any completed go-around without checking
+/// ReenterPattern, so an aircraft still carrying a persistent <see cref="AircraftPattern.TrafficDirection"/>
+/// (stamped by an earlier MLT/MRT, which deliberately survives FH/TR/TL phase clears) was cranked
+/// into a full VFR circuit off an instrument missed approach.
 /// </summary>
-public class NightlyReviewIfrGoAroundAutoCycleTests
+public class Issue321IfrGoAroundAutoCycleTests
 {
     private readonly ITestOutputHelper _output;
 
-    public NightlyReviewIfrGoAroundAutoCycleTests(ITestOutputHelper output)
+    public Issue321IfrGoAroundAutoCycleTests(ITestOutputHelper output)
     {
         _output = output;
         TestVnasData.EnsureInitialized();
@@ -82,10 +81,8 @@ public class NightlyReviewIfrGoAroundAutoCycleTests
         // post-completion routing.
         PhaseRunner.Tick(aircraft, ctx);
 
-        var appendedPatternLegs = aircraft.Phases?.Phases.Where(p =>
-            p is UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase or PatternEntryPhase
-        )
-            .ToList() ?? new List<Phase>();
+        var appendedPatternLegs =
+            aircraft.Phases?.Phases.Where(p => p is UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase or PatternEntryPhase).ToList() ?? [];
 
         foreach (var leg in appendedPatternLegs)
         {
@@ -141,10 +138,7 @@ public class NightlyReviewIfrGoAroundAutoCycleTests
         aircraft.Phases.Start(ctx);
         PhaseRunner.Tick(aircraft, ctx);
 
-        var appendedPatternLegs = aircraft.Phases?.Phases.Where(p =>
-            p is UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase
-        )
-            .ToList() ?? new List<Phase>();
+        var appendedPatternLegs = aircraft.Phases?.Phases.Where(p => p is UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase).ToList() ?? [];
 
         Assert.True(appendedPatternLegs.Count > 0, "A VFR pattern go-around should auto-enter the pattern.");
     }
