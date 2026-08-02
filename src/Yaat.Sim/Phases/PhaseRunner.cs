@@ -38,7 +38,12 @@ public static class PhaseRunner
         {
             bool wasFullStopTerminator = current is LandingPhase or HelicopterLandingPhase;
             bool wasCycleTerminator = current is TouchAndGoPhase or StopAndGoPhase or LowApproachPhase;
-            bool wasGoAround = current is GoAroundPhase;
+            // Only a go-around that re-enters the pattern arms the auto-cycle. An instrument go-around
+            // (ReenterPattern=false) flies runway heading to 2000 AGL and awaits instructions — it must
+            // NOT auto-enter the pattern even if a stale persistent Pattern.TrafficDirection (from an
+            // earlier MLT/MRT that survived a vector) is still set. See ResolvePatternIntent, which
+            // returns null for a non-in-pattern IFR aircraft precisely to prevent this.
+            bool wasPatternGoAround = current is GoAroundPhase { ReenterPattern: true };
 
             // Stamp landing timestamp on approach score
             if (wasFullStopTerminator && aircraft.ActiveApproachScore is { } landingScore && landingScore.LandedAtSeconds is null)
@@ -117,7 +122,7 @@ public static class PhaseRunner
             // pattern. The persistent direction (MLT/MRT) wins so a single-approach
             // ERB/ELB doesn't redefine the pattern direction for subsequent circuits.
             if (
-                (wasCycleTerminator || wasGoAround)
+                (wasCycleTerminator || wasPatternGoAround)
                 && phases.IsComplete
                 && (persistentDir ?? phases.TrafficDirection) is { } dir
                 && phases.AssignedRunway is not null
