@@ -8,6 +8,31 @@ namespace Yaat.Sim.Data.MilitaryRoutes;
 public sealed record MilitaryRouteWidthSpan(string? FromPoint, string? ToPoint, double LeftNm, double RightNm);
 
 /// <summary>
+/// One published direction of an aerial refueling track or anchor.
+///
+/// The two directions of a track are <b>not</b> the same line flown backwards: opposing refueling
+/// tracks are laterally offset so the traffic is separated, and only 33 of the 82 two-direction
+/// entries in AP/1B 2607 are exact reversals. AR4A's southbound ARIP sits 50 NM from its northbound
+/// exit. Each direction therefore carries its own geometry, and the clearance picks the one the
+/// aircraft is actually positioned to fly.
+/// </summary>
+public sealed record MilitaryRouteVariant
+{
+    /// <summary>"North", "South", "East", "West", or empty when only one direction is published.</summary>
+    public required string Direction { get; init; }
+
+    /// <summary>Ordered points in the direction of flight: ARIP, ARCP, check points, exit.</summary>
+    public required IReadOnlyList<MilitaryRoutePoint> Points { get; init; }
+
+    /// <summary>An anchor's orbit corners, in the order printed. Empty for a track.</summary>
+    public IReadOnlyList<MilitaryRoutePoint> Pattern { get; init; } = [];
+
+    public IReadOnlyList<string> EntryPoints { get; init; } = [];
+
+    public IReadOnlyList<string> ExitPoints { get; init; } = [];
+}
+
+/// <summary>
 /// One published military training route or aerial refueling track from DoD AP/1B.
 ///
 /// Routes are strictly <b>one-way</b> and course reversals are prohibited (AP/1B chapter 1 §V.B.1),
@@ -44,6 +69,31 @@ public sealed record MilitaryRoute
 
     /// <summary>Published hours of operation, verbatim (e.g. "Continuous", "0700-2200 LCL").</summary>
     public string Hours { get; init; } = string.Empty;
+
+    /// <summary>Which chapter 5 table this came from; <see cref="MilitaryRouteArKind.None"/> for IR/VR/SR.</summary>
+    public MilitaryRouteArKind ArKind { get; init; } = MilitaryRouteArKind.None;
+
+    /// <summary>
+    /// Every published direction. Empty for IR/VR/SR, whose single direction is <see cref="Points"/>.
+    /// For an AR entry <see cref="Points"/> is the first variant's points, so route expansion and the
+    /// airway shadow registration keep working without either learning about directions.
+    /// </summary>
+    public IReadOnlyList<MilitaryRouteVariant> Variants { get; init; } = [];
+
+    /// <summary>
+    /// Chapter 5 publishes one altitude block for the whole refueling entry rather than chapters
+    /// 2-4's per-segment blocks, so the block lives on the route instead of on each point.
+    /// </summary>
+    public MilitaryRouteAltitude RouteAltitude { get; init; } = MilitaryRouteAltitude.None;
+
+    /// <summary>An anchor's ATC Assigned Airspace polygon, or empty when it publishes none.</summary>
+    public IReadOnlyList<LatLon> AtcAssignedAirspace { get; init; } = [];
+
+    /// <summary>True for an AP/1B chapter 5 aerial refueling track or anchor.</summary>
+    public bool IsAerialRefueling => ArKind != MilitaryRouteArKind.None;
+
+    /// <summary>Every point of every published direction, including anchor orbit corners.</summary>
+    public IEnumerable<MilitaryRoutePoint> AllPoints => Variants.Count == 0 ? Points : Variants.SelectMany(v => v.Points.Concat(v.Pattern));
 
     /// <summary>
     /// True when the route has a segment above 1500 ft AGL. AP/1B chapter 1 §II assigns three-digit

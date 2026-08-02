@@ -1,0 +1,43 @@
+{
+ "routes": 247,
+ "byType": {
+  "track": 156,
+  "anchor": 91
+ },
+ "points": 1625,
+ "patternCorners": 385,
+ "multiDirection": 82,
+ "exactReversals": 33,
+ "withAirspace": 78,
+ "altitudeKinds": {
+  "block": 241,
+  "unparsed": 6
+ },
+ "unparsedAltitudes": [
+  "05000",
+  "06500",
+  "FL180 and above",
+  "FL230 and below con- sisting of a 3000' block"
+ ],
+ "routeProblems": {
+  "AR662V": [
+   "variant 1 publishes no anchor pattern"
+  ]
+ },
+ "frdOracle": {
+  "checked": 1739,
+  "agreed": 1738,
+  "rate": 0.999425,
+  "unknownNavaid": 12,
+  "medianErrorNm": 0.217,
+  "p95ErrorNm": 0.58,
+  "disagreements": [
+   {
+    "route": "AR665",
+    "point": "ARIP",
+    "frd": "BJB 128/46",
+    "errorNm": 10.3
+   }
+  ]
+ }
+}

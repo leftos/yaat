@@ -2332,7 +2332,10 @@ public sealed class NavigationDatabase
         int clashes = 0;
         foreach (var route in routes.Routes)
         {
-            foreach (var point in route.Points)
+            // Every published direction, not just the one Points exposes: a two-direction refueling
+            // track's opposing side is separate geometry with its own point names, and leaving it
+            // unregistered would make half of AR4A unresolvable.
+            foreach (var point in route.AllPoints)
             {
                 if (_navDb.ContainsKey(point.Name))
                 {

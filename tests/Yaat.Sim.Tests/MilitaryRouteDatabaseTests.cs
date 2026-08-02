@@ -16,10 +16,11 @@ public sealed class MilitaryRouteDatabaseTests
     [Fact]
     public void Default_LoadsEveryPublishedRoute()
     {
-        // AP/1B cycle 2607 publishes 213 IR, 304 VR and 131 SR routes. The counts are pinned
-        // because a drift means the extractor's header scan changed behaviour, not that the DoD
-        // reorganised the book -- the build tool gates on the same numbers.
-        Assert.Equal(648, Db.Count);
+        // AP/1B cycle 2607 publishes 213 IR, 304 VR and 131 SR routes, plus 247 chapter 5 refueling
+        // entries covered by AerialRefuelingDatabaseTests. The counts are pinned because a drift
+        // means the extractor's header scan changed behaviour, not that the DoD reorganised the
+        // book -- the build tool gates on the same numbers.
+        Assert.Equal(648 + 247, Db.Count);
         Assert.Equal(213, Db.OfType(MilitaryRouteType.Ir).Count());
         Assert.Equal(304, Db.OfType(MilitaryRouteType.Vr).Count());
         Assert.Equal(131, Db.OfType(MilitaryRouteType.Sr).Count());

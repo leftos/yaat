@@ -64,4 +64,35 @@ public enum MilitaryRoutePointRole
     Exit,
     AlternateEntry,
     AlternateExit,
+
+    /// <summary>Air Refueling Initial Point: where the receiver joins the tanker's track.</summary>
+    Arip,
+
+    /// <summary>Air Refueling Control Point: where the refueling itself begins.</summary>
+    Arcp,
+
+    /// <summary>A published navigation check point between the ARCP and the exit.</summary>
+    CheckPoint,
+
+    /// <summary>An anchor's holding fix, about which the refueling orbit is flown.</summary>
+    AnchorPoint,
+
+    /// <summary>One corner of an anchor's published orbit pattern.</summary>
+    PatternCorner,
+}
+
+/// <summary>
+/// Which AP/1B chapter 5 table an aerial refueling entry came from. Tracks are flown as a line from
+/// the ARIP to the exit; anchors are orbited about an anchor point until the refueling is complete.
+/// </summary>
+public enum MilitaryRouteArKind
+{
+    /// <summary>Not an aerial refueling route (an IR, VR, or SR).</summary>
+    None,
+
+    /// <summary>A refueling track (AP/1B chapter 5, "REFUELING TRACKS").</summary>
+    Track,
+
+    /// <summary>A refueling anchor (AP/1B chapter 5, designators from AR600).</summary>
+    Anchor,
 }

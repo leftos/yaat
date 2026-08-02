@@ -54,6 +54,7 @@ from pathlib import Path
 import pdfplumber
 
 DEFAULT_OUTPUT = Path("src/Yaat.Sim/Data/MilitaryRoutes/ap1b-mtr.json.br")
+DEFAULT_AR_OUTPUT = Path("src/Yaat.Sim/Data/MilitaryRoutes/ap1b-ar.json.br")
 SOURCE_URL = "https://www.daip.jcs.mil/pdf/ap1b.pdf"
 NAVAID_URL = "https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/NAVAIDSystem/FeatureServer/0/query"
 MTR_SEGMENT_URL = (
@@ -67,6 +68,22 @@ FRD_RE = re.compile(r"^(\d{3})/(\d{1,3})$")
 # The degree glyph varies with font embedding; accept any single non-digit separator.
 LATITUDE_RE = re.compile(r"^([NS])\s?(\d{2,3})\D(\d{2}\.\d{1,2})'?$")
 LONGITUDE_RE = re.compile(r"^([EW])\s?(\d{2,3})\D(\d{2}\.\d{1,2})'?$")
+
+# Chapter 5. Track and anchor designators share one number space with no overlap: tracks run
+# AR1-AR5xx and anchors start at AR600.
+AR_DESIGNATOR_RE = re.compile(r"^AR\d+[A-Z]*$")
+AR_DIRECTION_RE = re.compile(r"^\((North|South|East|West)\)$")
+# "ENI VORTAC", "MLD VOR-DME" -- the ident is what the FRD oracle needs, the class is decoration.
+AR_FACILITY_RE = re.compile(r"^([A-Z]{2,4})\s+(VORTAC|VOR-DME|VOR/DME|VORDME|VOR|TACAN|NDB|DME)$")
+AR_TRAILER_MARKERS = ("REMARKS", "ATC")
+# Chapter 5 publishes altitudes as a bare floor/ceiling pair rather than chapters 2-4's "B" block:
+# "FL240/FL310", "16000/FL260", "1000 AGL/8500". Each side is anchored on a word boundary and
+# limited to altitude-shaped tokens so a stray phone number ("DSN 331-3536/3560") cannot match.
+AR_ALTITUDE_LEVEL = r"(SFC|FL\s?\d{3}|\d{1,3},\d{3}|\d{3,5})"
+AR_ALTITUDE_RE = re.compile(rf"\b{AR_ALTITUDE_LEVEL}\s*(AGL|MSL)?\s*/\s*{AR_ALTITUDE_LEVEL}\s*(AGL|MSL)?", re.I)
+# Refueling happens between the surface and the top of the published flight levels; anything
+# outside this is a mis-read cell, not an altitude.
+AR_ALTITUDE_RANGE_FT = (0, 60000)
 
 ALTITUDE_LEVEL = r"(SFC|FL\d{3}|\d+(?:\.\d+)?)"
 ALTITUDE_BLOCK_RE = re.compile(rf"{ALTITUDE_LEVEL}\s*(AGL|MSL)?\s+B\s+{ALTITUDE_LEVEL}\s*(AGL|MSL)", re.I)
@@ -107,6 +124,37 @@ REPEAT_LABEL_TOLERANCE_NM = 0.5
 # means the header scan changed behaviour, not that the DoD reorganised the book.
 EXPECTED_COUNTS = {"IR": 213, "VR": 304, "SR": 131}
 COUNT_TOLERANCE = 0.05
+
+# Chapter 5 column headers, named left to right. Bands are derived from the header words' own x
+# positions rather than fixed offsets, because chapter 5 shares chapters 2-4's mirrored facing-page
+# margins. The two shapes are told apart by PATTERN, which only the anchor table publishes.
+AR_TRACK_COLUMNS = ("number", "arip", "arcp", "checkPoints", "exit", "crPlan", "altitudes", "unit", "artcc")
+AR_ANCHOR_COLUMNS = (
+    "number",
+    "entryPoints",
+    "arip",
+    "anchorPoint",
+    "anchorPattern",
+    "exitPoints",
+    "radar",
+    "altitudes",
+    "unit",
+    "artcc",
+    "hours",
+)
+# (column, point role, synthetic label prefix) in the order the aircraft flies them.
+AR_TRACK_SEQUENCE = (("arip", "arip", "ARIP"), ("arcp", "arcp", "ARCP"), ("checkPoints", "checkPoint", "CP"), ("exit", "exit", "EXIT"))
+AR_ANCHOR_SEQUENCE = (
+    ("entryPoints", "entry", "ENTRY"),
+    ("arip", "arip", "ARIP"),
+    ("anchorPoint", "anchorPoint", "ANCHOR"),
+    ("exitPoints", "exit", "EXIT"),
+)
+AR_EXPECTED_COUNTS = {"track": 156, "anchor": 91}
+AR_MIN_POINTS = 2
+# A published directional variant is the same track flown the other way, so its points must be the
+# primary's in reverse. Anything further apart than this means two variants were conflated.
+AR_REVERSAL_TOLERANCE_NM = 1.0
 
 FRD_ORACLE_TOLERANCE_NM = 8.0
 FRD_ORACLE_GATE = 0.95
@@ -169,6 +217,72 @@ class MilitaryRoute:
     terrain_following: bool = False
     text: str = field(default="", repr=False)
     warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ArPoint:
+    """One cell of a chapter 5 table: an optional navaid fix/radial/distance plus a lat/long."""
+
+    role: str
+    label: str = ""
+    lat: float | None = None
+    lon: float | None = None
+    facility: str | None = None
+    radial: int | None = None
+    distance: int | None = None
+
+    @property
+    def complete(self) -> bool:
+        return self.lat is not None and self.lon is not None
+
+
+@dataclass
+class ArVariant:
+    """One published direction of a track or anchor, with its own geometry.
+
+    The two directions of a track are *not* generally the same line flown backwards: AR4A's
+    southbound ARIP sits 50 NM from its northbound exit, because opposing refueling tracks are
+    laterally offset so the traffic is separated. Each direction therefore carries its own points.
+    """
+
+    direction: str | None
+    points: list[ArPoint] = field(default_factory=list)
+    pattern: list[ArPoint] = field(default_factory=list)
+
+
+@dataclass
+class ArRoute:
+    """An AP/1B chapter 5 aerial refueling track or anchor."""
+
+    designator: str
+    kind: str
+    page: int
+    variants: list[ArVariant] = field(default_factory=list)
+    altitude_raw: str = ""
+    altitude: AltitudeBlock | None = None
+    airspace: list[tuple[float, float]] = field(default_factory=list)
+    scheduling_activity: str = ""
+    artcc: str = ""
+    hours: str = ""
+    remarks: str = ""
+    warnings: list[str] = field(default_factory=list)
+
+    @property
+    def all_points(self) -> list[ArPoint]:
+        return [p for v in self.variants for p in v.points + v.pattern]
+
+
+@dataclass
+class FrdProbe:
+    """One published Fac/Rad/Dist paired with the coordinate printed on the same row."""
+
+    route: str
+    point: str
+    fix: str
+    radial: int
+    distance: int
+    lat: float
+    lon: float
 
 
 def haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -610,6 +724,343 @@ def validate_route(route: MilitaryRoute) -> list[str]:
     return problems
 
 
+# ---------------------------------------------------------------------------
+# Chapter 5 -- aerial refueling tracks and anchors
+# ---------------------------------------------------------------------------
+
+
+def bands_from_headers(names: tuple[str, ...], xs: list[float]) -> dict[str, tuple[float, float]]:
+    """Half-open x bands split at the midpoint between adjacent column headers.
+
+    Chapter 5's columns sit 45-70 pt apart while a cell drifts at most 5 pt from its own header,
+    so midpoints separate them with room to spare and need no per-column offset table.
+    """
+    edges = [-1e9] + [(low + high) / 2 for low, high in zip(xs, xs[1:])] + [1e9]
+    return {name: (edges[i], edges[i + 1]) for i, name in enumerate(names)}
+
+
+def find_ar_bands(rows: list[list[dict]]) -> tuple[dict[str, tuple[float, float]], str, int] | None:
+    """Locate a chapter 5 column header and derive its x-bands, or None on a non-table page."""
+    for index, row in enumerate(rows):
+        texts = [word["text"].strip() for word in row]
+        if "NUMBER" not in texts or "ARIP" not in texts:
+            continue
+        kind = "anchor" if "PATTERN" in texts else "track"
+        names = AR_ANCHOR_COLUMNS if kind == "anchor" else AR_TRACK_COLUMNS
+        # An exact width match is the guard that the header was read cleanly; a short or long row
+        # means a glyph merged or split, and silently mis-binding every cell below is far worse
+        # than skipping the page and failing the count invariant.
+        if len(row) != len(names):
+            continue
+        return bands_from_headers(names, sorted(word["x0"] for word in row)), kind, index
+    return None
+
+
+def iter_ar_rows(pdf: pdfplumber.PDF) -> "list[tuple[list[dict], dict[str, tuple[float, float]], str, int]]":
+    """Every chapter 5 table row in document order, tagged with its page's bands and table kind."""
+    tagged: list[tuple[list[dict], dict[str, tuple[float, float]], str, int]] = []
+    for index, page in enumerate(pdf.pages):
+        located = find_ar_bands(cluster_rows(page_words(page)))
+        if located is None:
+            continue
+        bands, kind, start = located
+        for row in cluster_rows(page_words(page))[start + 1 :]:
+            tagged.append((row, bands, kind, index + 1))
+    return tagged
+
+
+def ar_row_head(row: list[dict], bands: dict[str, tuple[float, float]]) -> str:
+    words = [w for w in row if band_of(w, bands) == "number"]
+    return words[0]["text"].strip() if words else ""
+
+
+def split_ar_entries(
+    tagged: list[tuple[list[dict], dict[str, tuple[float, float]], str, int]],
+) -> list[tuple[str, str, int, dict, list[list[list[dict]]], list[list[dict]]]]:
+    """Group rows into (designator, kind, page, bands, directional variants, trailer rows).
+
+    A variant is one direction of the track. The first direction's label belongs to the variant
+    already open -- it is printed below the designator, and not always on the very next row, since
+    a lone footnote glyph can sit between them (AR112L). Every direction row after the first is a
+    reverse variant and opens a new one.
+    """
+    entries: list[tuple[str, str, int, dict, list[list[list[dict]]], list[list[dict]]]] = []
+    variants: list[list[list[dict]]] = []
+    trailer: list[list[dict]] = []
+    seen_direction = False
+    in_trailer = False
+
+    for row, bands, kind, page in tagged:
+        head = ar_row_head(row, bands)
+        if AR_DESIGNATOR_RE.match(head):
+            variants, trailer, seen_direction, in_trailer = [[]], [], False, False
+            entries.append((head, kind, page, bands, variants, trailer))
+        elif not entries:
+            continue
+
+        if in_trailer or head.startswith(AR_TRAILER_MARKERS):
+            in_trailer = True
+            trailer.append(row)
+            continue
+
+        if AR_DIRECTION_RE.match(head):
+            if seen_direction:
+                variants.append([])
+            seen_direction = True
+        variants[-1].append(row)
+
+    return entries
+
+
+def parse_ar_cell(words: list[dict], role: str) -> list[ArPoint]:
+    """Read one column's vertical stack of cells into points.
+
+    A cell is a 2-line (lat, long) or 4-line (facility, radial/distance, lat, long) run, and the
+    check-point and anchor-pattern columns stack several of them below their own row. The longitude
+    is what closes a cell, which is what lets one loop read both shapes and any number of them.
+    """
+    points: list[ArPoint] = []
+    current = ArPoint(role=role)
+    for word in words:
+        text = " ".join(word["text"].split())
+        if not text or text.startswith("(cid:"):
+            continue
+
+        latitude = parse_coordinate(text, LATITUDE_RE, "S")
+        if latitude is not None:
+            current.lat = latitude
+            continue
+
+        longitude = parse_coordinate(text, LONGITUDE_RE, "W")
+        if longitude is not None:
+            current.lon = longitude
+            points.append(current)
+            current = ArPoint(role=role)
+            continue
+
+        radial = FRD_RE.match(text)
+        if radial is not None:
+            current.radial, current.distance = int(radial.group(1)), int(radial.group(2))
+            continue
+
+        facility = AR_FACILITY_RE.match(text)
+        if facility is not None and current.facility is None:
+            current.facility = facility.group(1)
+
+    return points
+
+
+def column_words(rows: list[list[dict]], bands: dict[str, tuple[float, float]], column: str) -> list[dict]:
+    """One column's words in printed reading order: down the rows, then left to right within one."""
+    return [word for row in rows for word in row if band_of(word, bands) == column]
+
+
+def column_text(rows: list[list[dict]], bands: dict[str, tuple[float, float]], column: str) -> str:
+    """A column's words as one whitespace-normalised string, minus unmapped-glyph placeholders.
+
+    pdfplumber renders AP/1B's footnote daggers as "(cid:2)"-style placeholders. They land in
+    whichever column the mark was printed over and would otherwise defeat every cell regex.
+    """
+    parts = [" ".join(word["text"].split()) for word in column_words(rows, bands, column)]
+    return " ".join(part for part in parts if part and not part.startswith("(cid:"))
+
+
+def label_ar_points(points: list[ArPoint], prefix: str) -> None:
+    """Number a column's points only when it published more than one, so most labels stay bare."""
+    for index, point in enumerate(points):
+        point.label = prefix if len(points) == 1 else f"{prefix}{index + 1}"
+
+
+def parse_ar_altitude(raw: str) -> AltitudeBlock:
+    """Parse chapter 5's floor/ceiling pair, e.g. "FL240/FL310", "16000/FL260", "1000 AGL/8500".
+
+    The cell routinely carries trailing prose ("or as assigned by ATC", "3000' required") and some
+    tracks publish several named blocks in one cell ("(Low Block) ... (Mid Block) ... (High
+    Block)"). The *first* published pair is taken as the assigned default rather than the envelope
+    across all of them: the envelope would authorise the gaps between blocks, which is airspace
+    nobody published, whereas the first pair is always a real assignable block. The full cell text
+    is preserved so the remaining blocks stay visible.
+    """
+    text = " ".join(raw.split())
+    block = AltitudeBlock(raw=text)
+    if not text:
+        return block
+    block.kind = "unparsed"
+
+    match = AR_ALTITUDE_RE.search(text)
+    if match is None:
+        return block
+    floor, floor_ref, ceiling, ceiling_ref = match.groups()
+    low, high = ar_altitude_feet(floor), ar_altitude_feet(ceiling)
+    if not all(AR_ALTITUDE_RANGE_FT[0] <= ft <= AR_ALTITUDE_RANGE_FT[1] for ft in (low, high)):
+        return block
+
+    block.parsed = True
+    block.kind = "block"
+    block.floor_ft, block.ceiling_ft = low, high
+    # Chapter 5 prints whole feet, not chapters 2-4's hundreds, and only marks the reference when
+    # it is AGL -- an unmarked refueling altitude is MSL.
+    block.floor_ref = (floor_ref or "MSL").upper()
+    block.ceiling_ref = (ceiling_ref or "MSL").upper()
+    return block
+
+
+def ar_altitude_feet(token: str) -> int:
+    upper = token.replace(",", "").replace(" ", "").upper()
+    if upper == "SFC":
+        return 0
+    return int(upper[2:]) * HUNDREDS_OF_FEET if upper.startswith("FL") else int(upper)
+
+
+def build_ar_route(
+    designator: str,
+    kind: str,
+    page: int,
+    bands: dict[str, tuple[float, float]],
+    variants: list[list[list[dict]]],
+    trailer: list[list[dict]],
+) -> ArRoute:
+    """Assemble one chapter 5 entry: the primary direction's points plus shared metadata."""
+    route = ArRoute(designator=designator, kind=kind, page=page)
+    primary = variants[0]
+    for rows in variants:
+        route.variants.append(build_ar_variant(rows, bands, kind))
+    dedupe_variant_labels(route)
+
+    route.altitude_raw = column_text(primary, bands, "altitudes")
+    route.altitude = parse_ar_altitude(route.altitude_raw)
+    route.scheduling_activity = column_text(primary, bands, "unit")[:200]
+    route.artcc = column_text(primary, bands, "artcc")[:200]
+    if kind == "anchor":
+        route.hours = column_text(primary, bands, "hours")[:200]
+
+    trailer_text = " ".join(" ".join(w["text"].split()) for row in trailer for w in row)
+    route.remarks = trailer_text[:600]
+    route.airspace = parse_airspace_polygon(trailer_text)
+    return route
+
+
+def build_ar_variant(rows: list[list[dict]], bands: dict[str, tuple[float, float]], kind: str) -> ArVariant:
+    """Read one direction's columns into an ordered point list, plus an anchor's orbit corners."""
+    heads = [ar_row_head(row, bands) for row in rows]
+    direction = next((m.group(1) for h in heads if (m := AR_DIRECTION_RE.match(h)) is not None), None)
+    variant = ArVariant(direction=direction)
+
+    for column, role, prefix in AR_ANCHOR_SEQUENCE if kind == "anchor" else AR_TRACK_SEQUENCE:
+        points = [p for p in parse_ar_cell(column_words(rows, bands, column), role) if p.complete]
+        label_ar_points(points, prefix)
+        variant.points.extend(points)
+
+    if kind == "anchor":
+        variant.pattern = [p for p in parse_ar_cell(column_words(rows, bands, "anchorPattern"), "patternCorner") if p.complete]
+        label_ar_points(variant.pattern, "PC")
+    return variant
+
+
+def dedupe_variant_labels(route: ArRoute) -> None:
+    """Suffix each direction's labels so the two directions' synthetic fix names stay distinct.
+
+    A track's directions are separate geometries sharing one designator, so leaving both sides
+    named "AR4AARIP" would map one name to two positions 50 NM apart. The single-direction case
+    keeps the bare label, which is the common one and the one a controller would recognise.
+    """
+    if len(route.variants) < 2:
+        return
+    for index, variant in enumerate(route.variants):
+        suffix = (variant.direction or f"V{index + 1}")[0].upper()
+        for point in variant.points + variant.pattern:
+            point.label = f"{point.label}{suffix}"
+
+
+def parse_airspace_polygon(text: str) -> list[tuple[float, float]]:
+    """The anchor tables' ATC ASSIGNED AIRSPACE clause: a lat/long chain closing "to beginning"."""
+    marker = text.find("ATC ASSIGNED AIRSPACE")
+    if marker < 0:
+        return []
+    clause = text[marker:].split("REMARKS")[0]
+    vertices: list[tuple[float, float]] = []
+    for latitude, longitude in re.findall(r"([NS]\s?\d{2,3}\D\d{2}\.\d{1,2}')\s*([EW]\s?\d{2,3}\D\d{2}\.\d{1,2}')", clause):
+        lat = parse_coordinate(latitude, LATITUDE_RE, "S")
+        lon = parse_coordinate(longitude, LONGITUDE_RE, "W")
+        if lat is not None and lon is not None:
+            vertices.append((lat, lon))
+    return vertices
+
+
+def is_reversed_pair(first: ArVariant, second: ArVariant) -> bool:
+    """Whether two directions are the same line flown backwards rather than offset parallels.
+
+    Reported for provenance only. Some tracks (AR5H, AR6) publish exact reversals while others
+    (AR4A) offset the opposing direction laterally so the traffic is separated, and the fixture
+    has to carry both geometries either way.
+    """
+    if len(first.points) != len(second.points) or not first.points:
+        return False
+    for near, far in zip(first.points, reversed(second.points)):
+        assert near.lat is not None and near.lon is not None and far.lat is not None and far.lon is not None
+        if haversine_nm(near.lat, near.lon, far.lat, far.lon) > AR_REVERSAL_TOLERANCE_NM:
+            return False
+    return True
+
+
+def extract_ar_routes(pdf: pdfplumber.PDF) -> list[ArRoute]:
+    entries = split_ar_entries(iter_ar_rows(pdf))
+    return [build_ar_route(*entry) for entry in entries]
+
+
+def validate_ar_route(route: ArRoute) -> list[str]:
+    """Per-entry invariants. A failing entry is dropped and reported, not fatal to the batch."""
+    problems: list[str] = []
+    for index, variant in enumerate(route.variants):
+        label = variant.direction or f"variant {index + 1}"
+        if len(variant.points) < AR_MIN_POINTS:
+            problems.append(f"{label} has only {len(variant.points)} point(s)")
+        if route.kind == "anchor" and not variant.pattern:
+            problems.append(f"{label} publishes no anchor pattern")
+
+    if not any(len(v.points) >= AR_MIN_POINTS for v in route.variants):
+        return problems
+
+    for point in route.all_points:
+        assert point.lat is not None and point.lon is not None
+        if not (LAT_RANGE[0] <= point.lat <= LAT_RANGE[1] and LON_RANGE[0] <= point.lon <= LON_RANGE[1]):
+            problems.append(f"point {point.label} at ({point.lat:.3f},{point.lon:.3f}) outside the Americas")
+
+    block = route.altitude
+    if block is not None and block.parsed and block.floor_ft is not None and block.ceiling_ft is not None:
+        if block.floor_ft > block.ceiling_ft:
+            problems.append(f"altitude floor {block.floor_ft} above ceiling {block.ceiling_ft}")
+
+    problems.extend(route.warnings)
+    return problems
+
+
+def iter_frd_probes(routes: list[MilitaryRoute]) -> "list[FrdProbe]":
+    probes: list[FrdProbe] = []
+    for route in routes:
+        for point in route.points:
+            if point.frd_fix is None or point.lat is None or point.lon is None or point.frd_distance is None:
+                continue
+            assert point.frd_radial is not None
+            probes.append(
+                FrdProbe(route.designator, point.label, point.frd_fix, point.frd_radial, point.frd_distance, point.lat, point.lon)
+            )
+    return probes
+
+
+def iter_ar_frd_probes(routes: list[ArRoute]) -> "list[FrdProbe]":
+    probes: list[FrdProbe] = []
+    for route in routes:
+        for point in route.all_points:
+            if point.facility is None or point.distance is None or point.radial is None or not point.complete:
+                continue
+            assert point.lat is not None and point.lon is not None
+            probes.append(
+                FrdProbe(route.designator, point.label, point.facility, point.radial, point.distance, point.lat, point.lon)
+            )
+    return probes
+
+
 def fetch_arcgis(url: str, fields: str, geometry: bool, where: str = "1=1") -> list[dict]:
     features: list[dict] = []
     offset = 0
@@ -649,32 +1100,28 @@ def load_navaids(cache: Path) -> dict[str, list[tuple[float, float]]]:
     return {k: [(e["lat"], e["lon"]) for e in v] for k, v in navaids.items()}
 
 
-def run_frd_oracle(routes: list[MilitaryRoute], navaids: dict[str, list[tuple[float, float]]]) -> dict:
+def run_frd_oracle(probes: list[FrdProbe], navaids: dict[str, list[tuple[float, float]]]) -> dict:
     """Prove row association: navaid-to-point distance must match the published Fac/Rad/Dist."""
     errors: list[float] = []
     disagreements: list[dict] = []
     unknown = 0
 
-    for route in routes:
-        for point in route.points:
-            if point.frd_fix is None or point.lat is None or point.lon is None:
-                continue
-            entries = navaids.get(point.frd_fix.upper())
-            if not entries:
-                unknown += 1
-                continue
-            assert point.frd_distance is not None
-            best = min(abs(haversine_nm(lat, lon, point.lat, point.lon) - point.frd_distance) for lat, lon in entries)
-            errors.append(best)
-            if best > FRD_ORACLE_TOLERANCE_NM:
-                disagreements.append(
-                    {
-                        "route": route.designator,
-                        "point": point.label,
-                        "frd": f"{point.frd_fix} {point.frd_radial:03d}/{point.frd_distance}",
-                        "errorNm": round(best, 1),
-                    }
-                )
+    for probe in probes:
+        entries = navaids.get(probe.fix.upper())
+        if not entries:
+            unknown += 1
+            continue
+        best = min(abs(haversine_nm(lat, lon, probe.lat, probe.lon) - probe.distance) for lat, lon in entries)
+        errors.append(best)
+        if best > FRD_ORACLE_TOLERANCE_NM:
+            disagreements.append(
+                {
+                    "route": probe.route,
+                    "point": probe.point,
+                    "frd": f"{probe.fix} {probe.radial:03d}/{probe.distance}",
+                    "errorNm": round(best, 1),
+                }
+            )
 
     checked = len(errors)
     agreed = checked - len(disagreements)
@@ -796,6 +1243,114 @@ def document_text(routes: list[MilitaryRoute], source_sha: str, edition: str, or
     return "\n".join(lines) + "\n"
 
 
+def ar_point_payload(route: ArRoute, point: ArPoint) -> dict:
+    assert point.lat is not None and point.lon is not None
+    return {
+        "id": point.label,
+        "name": f"{route.designator}{point.label}",
+        "lat": round(point.lat, 6),
+        "lon": round(point.lon, 6),
+        "role": point.role,
+        **({"frd": f"{point.facility}{point.radial:03d}{point.distance:03d}"} if point.facility and point.distance else {}),
+    }
+
+
+def ar_variant_payload(route: ArRoute, variant: ArVariant) -> dict:
+    return {
+        "direction": variant.direction or "",
+        "entryPoints": [p.label for p in variant.points if p.role in ("arip", "entry")],
+        "exitPoints": [p.label for p in variant.points if p.role == "exit"],
+        "points": [ar_point_payload(route, p) for p in variant.points],
+        "pattern": [ar_point_payload(route, p) for p in variant.pattern],
+    }
+
+
+def ar_payload(route: ArRoute) -> dict:
+    return {
+        "designator": route.designator,
+        "printed": route.designator,
+        "type": "AR",
+        "arKind": route.kind,
+        "page": route.page,
+        "schedulingActivity": route.scheduling_activity,
+        "artcc": route.artcc,
+        "hours": route.hours,
+        "altitude": {k: v for k, v in asdict(route.altitude).items() if v is not None} if route.altitude else {},
+        # One entry per published direction. A track's two directions are separate geometries, so
+        # the clearance picks the variant the aircraft is actually positioned to fly.
+        "variants": [ar_variant_payload(route, v) for v in route.variants],
+        "airspace": [[round(lat, 6), round(lon, 6)] for lat, lon in route.airspace],
+        "remarks": route.remarks,
+    }
+
+
+def ar_document_text(routes: list[ArRoute], source_sha: str, edition: str, oracle: dict) -> str:
+    payloads = [ar_payload(r) for r in sorted(routes, key=lambda r: (r.kind, r.page, r.designator))]
+    metadata = {
+        "source": SOURCE_URL,
+        "sourceSha256": source_sha,
+        "edition": edition,
+        "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "routeCount": len(payloads),
+        "pointCount": sum(len(v["points"]) for p in payloads for v in p["variants"]),
+        "byType": dict(Counter(p["arKind"] for p in payloads)),
+        "frdOracleRate": oracle["rate"],
+        "note": "DoD AP/1B chapter 5 aerial refueling tracks and anchors. Not for navigation.",
+    }
+    lines = ["{", '"metadata": ' + json.dumps(metadata) + ",", '"routes": [']
+    for index, payload in enumerate(payloads):
+        lines.append(json.dumps(payload, separators=(",", ":")) + ("," if index < len(payloads) - 1 else ""))
+    lines.extend(["]", "}"])
+    return "\n".join(lines) + "\n"
+
+
+def check_ar_invariants(routes: list[ArRoute], oracle: dict) -> list[str]:
+    failures: list[str] = []
+    counts = Counter(r.kind for r in routes)
+    for kind, expected in AR_EXPECTED_COUNTS.items():
+        actual = counts.get(kind, 0)
+        if abs(actual - expected) > expected * COUNT_TOLERANCE:
+            failures.append(f"AR {kind} count {actual} differs from expected {expected} by more than {COUNT_TOLERANCE:.0%}")
+
+    duplicates = [d for d, n in Counter(r.designator for r in routes).items() if n > 1]
+    if duplicates:
+        failures.append(f"duplicate AR designators: {', '.join(sorted(duplicates)[:10])}")
+
+    if oracle["checked"] and oracle["rate"] < FRD_ORACLE_GATE:
+        failures.append(f"AR FRD oracle agreement {oracle['rate']:.2%} below gate {FRD_ORACLE_GATE:.0%}")
+
+    names: dict[str, tuple[float, float]] = {}
+    for route in routes:
+        for point in route.all_points:
+            name = f"{route.designator}{point.label}"
+            if name[-3:].isdigit() or name[-6:].isdigit():
+                failures.append(f"synthetic name {name} would be misread as an FRD anchor")
+            # Two directions share a designator, so a labelling slip would silently map one
+            # synthetic fix name to two positions hundreds of NM apart.
+            assert point.lat is not None and point.lon is not None
+            previous = names.setdefault(name, (point.lat, point.lon))
+            if haversine_nm(previous[0], previous[1], point.lat, point.lon) > AR_REVERSAL_TOLERANCE_NM:
+                failures.append(f"synthetic name {name} maps to two different positions")
+    return failures
+
+
+def build_ar_report(routes: list[ArRoute], problems: dict[str, list[str]], oracle: dict) -> dict:
+    multi = [r for r in routes if len(r.variants) >= 2]
+    return {
+        "routes": len(routes),
+        "byType": dict(Counter(r.kind for r in routes)),
+        "points": sum(len(v.points) for r in routes for v in r.variants),
+        "patternCorners": sum(len(v.pattern) for r in routes for v in r.variants),
+        "multiDirection": len(multi),
+        "exactReversals": sum(1 for r in multi if is_reversed_pair(r.variants[0], r.variants[1])),
+        "withAirspace": sum(1 for r in routes if r.airspace),
+        "altitudeKinds": dict(Counter(r.altitude.kind for r in routes if r.altitude is not None)),
+        "unparsedAltitudes": sorted({r.altitude_raw for r in routes if r.altitude is not None and not r.altitude.parsed})[:40],
+        "routeProblems": problems,
+        "frdOracle": oracle,
+    }
+
+
 def find_edition(pdf: pdfplumber.PDF) -> str:
     text = pdf.pages[0].extract_text() or ""
     effective = re.search(r"EFFECTIVE\s+\d{4}L\s+(\d{1,2}\s+\w{3}\s+\d{4})", text)
@@ -886,6 +1441,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input", required=True, help="path to a locally downloaded ap1b.pdf")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--ar-out", type=Path, default=DEFAULT_AR_OUTPUT, help="chapter 5 refueling fixture")
     parser.add_argument("--report", type=Path, help="write the full QA report here as well")
     parser.add_argument("--navaid-cache", type=Path, default=Path(".tmp/navaids.json"))
     parser.add_argument("--no-cross-check", action="store_true", help="skip the FAA layer comparison (offline)")
@@ -898,7 +1454,8 @@ def main() -> int:
     with pdfplumber.open(source) as pdf:
         edition = find_edition(pdf)
         routes = extract_routes(pdf)
-    print(f"  parsed {len(routes)} routes from {source} ({edition})", file=sys.stderr)
+        ar_routes = extract_ar_routes(pdf)
+    print(f"  parsed {len(routes)} routes and {len(ar_routes)} refueling entries from {source} ({edition})", file=sys.stderr)
 
     for route in routes:
         enrich_route(route)
@@ -914,10 +1471,26 @@ def main() -> int:
         else:
             print(f"  SKIP {route.designator}: {'; '.join(issues)}", file=sys.stderr)
 
-    oracle = {"checked": 0, "agreed": 0, "rate": 0.0, "unknownNavaid": 0, "disagreements": []}
+    ar_problems: dict[str, list[str]] = {}
+    ar_kept: list[ArRoute] = []
+    for route in ar_routes:
+        issues = validate_ar_route(route)
+        if issues:
+            ar_problems[route.designator] = issues
+        route.variants = [v for v in route.variants if len(v.points) >= AR_MIN_POINTS]
+        if route.variants:
+            ar_kept.append(route)
+        else:
+            print(f"  SKIP {route.designator}: {'; '.join(issues)}", file=sys.stderr)
+
+    empty_oracle = {"checked": 0, "agreed": 0, "rate": 0.0, "unknownNavaid": 0, "disagreements": []}
+    oracle, ar_oracle = dict(empty_oracle), dict(empty_oracle)
     if not args.no_oracle:
-        oracle = run_frd_oracle(kept, load_navaids(args.navaid_cache))
+        navaids = load_navaids(args.navaid_cache)
+        oracle = run_frd_oracle(iter_frd_probes(kept), navaids)
+        ar_oracle = run_frd_oracle(iter_ar_frd_probes(ar_kept), navaids)
         print(f"  FRD oracle: {oracle['agreed']}/{oracle['checked']} ({oracle['rate']:.2%})", file=sys.stderr)
+        print(f"  AR FRD oracle: {ar_oracle['agreed']}/{ar_oracle['checked']} ({ar_oracle['rate']:.2%})", file=sys.stderr)
 
     cross: dict = {}
     if not args.no_cross_check:
@@ -925,7 +1498,9 @@ def main() -> int:
         print(f"  FAA cross-check: {cross['compared']} of {cross['faaRoutes']} shared routes", file=sys.stderr)
 
     report = build_report(kept, problems, oracle, cross)
-    failures = check_global_invariants(kept, oracle, cross)
+    ar_report = build_ar_report(ar_kept, ar_problems, ar_oracle)
+    report["aerialRefueling"] = ar_report
+    failures = check_global_invariants(kept, oracle, cross) + check_ar_invariants(ar_kept, ar_oracle)
     if failures:
         for failure in failures:
             print(f"  FAIL {failure}", file=sys.stderr)
@@ -934,13 +1509,19 @@ def main() -> int:
         raise SystemExit("global invariants failed; fixture not written")
 
     write_outputs(document_text(kept, source_sha, edition, oracle, cross), args.out, report)
+    write_outputs(ar_document_text(ar_kept, source_sha, edition, ar_oracle), args.ar_out, ar_report)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=1) + "\n", encoding="utf-8")
 
     size_kb = args.out.stat().st_size / 1024
+    ar_size_kb = args.ar_out.stat().st_size / 1024
     print(
         f"OK: {len(kept)} routes / {report['points']} points -> {args.out} ({size_kb:.0f} KB)",
+        file=sys.stderr,
+    )
+    print(
+        f"OK: {len(ar_kept)} refueling entries / {ar_report['points']} points -> {args.ar_out} ({ar_size_kb:.0f} KB)",
         file=sys.stderr,
     )
     return 0

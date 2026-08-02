@@ -203,7 +203,10 @@ public sealed class MilitaryRouteDatabase
             return null;
         }
 
-        var points = ParsePoints(element, designator);
+        var variants = ParseVariants(element, designator);
+        // A chapter 5 entry publishes its geometry per direction, so the first variant supplies the
+        // Points the expander and the airway shadow index read; chapters 2-4 publish points directly.
+        var points = variants.Count > 0 ? variants[0].Points : ParsePoints(element, "points", designator);
         if (points.Count == 0)
         {
             Log.LogWarning("Skipping military route {Designator}: no usable points", designator);
@@ -217,19 +220,73 @@ public sealed class MilitaryRouteDatabase
             Type = type,
             Points = points,
             Widths = ParseWidths(element),
-            EntryPoints = ParseStringArray(element, "entryPoints"),
-            ExitPoints = ParseStringArray(element, "exitPoints"),
+            EntryPoints = variants.Count > 0 ? variants[0].EntryPoints : ParseStringArray(element, "entryPoints"),
+            ExitPoints = variants.Count > 0 ? variants[0].ExitPoints : ParseStringArray(element, "exitPoints"),
             TerrainFollowing = element.GetPropertyOrNull("terrainFollowing")?.GetBoolean() ?? false,
             OriginatingActivity = element.GetPropertyOrNull("originatingActivity")?.GetString() ?? string.Empty,
             SchedulingActivity = element.GetPropertyOrNull("schedulingActivity")?.GetString() ?? string.Empty,
             Hours = element.GetPropertyOrNull("hours")?.GetString() ?? string.Empty,
+            ArKind = ParseArKind(element.GetPropertyOrNull("arKind")?.GetString()),
+            Variants = variants,
+            RouteAltitude = ParseAltitude(element.GetPropertyOrNull("altitude")),
+            AtcAssignedAirspace = ParseAirspace(element),
         };
     }
 
-    private static List<MilitaryRoutePoint> ParsePoints(JsonElement element, string designator)
+    private static List<MilitaryRouteVariant> ParseVariants(JsonElement element, string designator)
+    {
+        var variants = new List<MilitaryRouteVariant>();
+        if (element.GetPropertyOrNull("variants") is not { ValueKind: JsonValueKind.Array } array)
+        {
+            return variants;
+        }
+
+        foreach (var item in array.EnumerateArray())
+        {
+            var points = ParsePoints(item, "points", designator);
+            if (points.Count == 0)
+            {
+                continue;
+            }
+
+            variants.Add(
+                new MilitaryRouteVariant
+                {
+                    Direction = item.GetPropertyOrNull("direction")?.GetString() ?? string.Empty,
+                    Points = points,
+                    Pattern = ParsePoints(item, "pattern", designator),
+                    EntryPoints = ParseStringArray(item, "entryPoints"),
+                    ExitPoints = ParseStringArray(item, "exitPoints"),
+                }
+            );
+        }
+
+        return variants;
+    }
+
+    private static List<LatLon> ParseAirspace(JsonElement element)
+    {
+        var vertices = new List<LatLon>();
+        if (element.GetPropertyOrNull("airspace") is not { ValueKind: JsonValueKind.Array } array)
+        {
+            return vertices;
+        }
+
+        foreach (var item in array.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Array && item.GetArrayLength() == 2)
+            {
+                vertices.Add(new LatLon(item[0].GetDouble(), item[1].GetDouble()));
+            }
+        }
+
+        return vertices;
+    }
+
+    private static List<MilitaryRoutePoint> ParsePoints(JsonElement element, string property, string designator)
     {
         var points = new List<MilitaryRoutePoint>();
-        if (element.GetPropertyOrNull("points") is not { ValueKind: JsonValueKind.Array } array)
+        if (element.GetPropertyOrNull(property) is not { ValueKind: JsonValueKind.Array } array)
         {
             return points;
         }
@@ -351,7 +408,20 @@ public sealed class MilitaryRouteDatabase
             "exit" => MilitaryRoutePointRole.Exit,
             "alternateEntry" => MilitaryRoutePointRole.AlternateEntry,
             "alternateExit" => MilitaryRoutePointRole.AlternateExit,
+            "arip" => MilitaryRoutePointRole.Arip,
+            "arcp" => MilitaryRoutePointRole.Arcp,
+            "checkPoint" => MilitaryRoutePointRole.CheckPoint,
+            "anchorPoint" => MilitaryRoutePointRole.AnchorPoint,
+            "patternCorner" => MilitaryRoutePointRole.PatternCorner,
             _ => MilitaryRoutePointRole.Point,
+        };
+
+    private static MilitaryRouteArKind ParseArKind(string? text) =>
+        text switch
+        {
+            "track" => MilitaryRouteArKind.Track,
+            "anchor" => MilitaryRouteArKind.Anchor,
+            _ => MilitaryRouteArKind.None,
         };
 
     private static MilitaryRouteAltitudeKind ParseAltitudeKind(string? text) =>

@@ -42,8 +42,13 @@ public static class MilitaryRouteExpander
             return [];
         }
 
-        int entryIndex = SnapAnchor(route, entryAnchor, navDb) ?? DefaultEntryIndex(route);
-        int exitIndex = SnapAnchor(route, exitAnchor, navDb) ?? DefaultExitIndex(route);
+        var variant = SelectVariant(route, entryAnchor, exitAnchor, navDb);
+        var points = variant?.Points ?? route.Points;
+        var entryPoints = variant?.EntryPoints ?? route.EntryPoints;
+        var exitPoints = variant?.ExitPoints ?? route.ExitPoints;
+
+        int entryIndex = SnapAnchor(route.Designator, points, entryAnchor, navDb)?.Index ?? DefaultIndex(points, entryPoints, 0);
+        int exitIndex = SnapAnchor(route.Designator, points, exitAnchor, navDb)?.Index ?? DefaultIndex(points, exitPoints, points.Count - 1);
 
         if (exitIndex < entryIndex)
         {
@@ -52,26 +57,92 @@ public static class MilitaryRouteExpander
             Log.LogWarning(
                 "{Route}: exit point {Exit} precedes entry point {Entry}; flying forward to the end of the route",
                 route.Designator,
-                route.Points[exitIndex].Id,
-                route.Points[entryIndex].Id
+                points[exitIndex].Id,
+                points[entryIndex].Id
             );
-            exitIndex = route.Points.Count - 1;
+            exitIndex = points.Count - 1;
         }
 
         var names = new List<string>(exitIndex - entryIndex + 1);
         for (int i = entryIndex; i <= exitIndex; i++)
         {
-            names.Add(route.Points[i].Name);
+            names.Add(points[i].Name);
         }
 
         return names;
     }
 
     /// <summary>
-    /// The index of the route point an anchor names, or null when the anchor is absent, does not
-    /// resolve, or lands further than <see cref="AnchorSnapToleranceNm"/> from every point.
+    /// The published direction the filing describes, or null for a route that publishes only one.
+    ///
+    /// A refueling track's two directions are separate geometries sharing one designator, so the
+    /// bracketing anchors are what say which one was filed: the direction whose points the anchors
+    /// sit closest to, in the order they were filed, is the direction being flown. Scoring the whole
+    /// pair rather than the entry alone is what distinguishes offset parallels, whose entries can be
+    /// nearly co-located while their exits are a hundred miles apart.
     /// </summary>
-    private static int? SnapAnchor(MilitaryRoute route, string? anchor, NavigationDatabase navDb)
+    public static MilitaryRouteVariant? SelectVariant(MilitaryRoute route, string? entryAnchor, string? exitAnchor, NavigationDatabase navDb)
+    {
+        if (route.Variants.Count <= 1)
+        {
+            return route.Variants.Count == 1 ? route.Variants[0] : null;
+        }
+
+        MilitaryRouteVariant? best = null;
+        double bestScore = double.MaxValue;
+        foreach (var variant in route.Variants)
+        {
+            double score = ScoreVariant(route.Designator, variant, entryAnchor, exitAnchor, navDb);
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = variant;
+            }
+        }
+
+        Log.LogDebug("{Route}: filed anchors select the {Direction} direction (score {Score:F1})", route.Designator, best?.Direction, bestScore);
+        return best ?? route.Variants[0];
+    }
+
+    private static double ScoreVariant(
+        string designator,
+        MilitaryRouteVariant variant,
+        string? entryAnchor,
+        string? exitAnchor,
+        NavigationDatabase navDb
+    )
+    {
+        var entry = SnapAnchor(designator, variant.Points, entryAnchor, navDb);
+        var exit = SnapAnchor(designator, variant.Points, exitAnchor, navDb);
+
+        // An anchor that does not resolve against this direction is no evidence either way, so it
+        // costs the tolerance rather than disqualifying the direction outright.
+        double score = (entry?.DistanceNm ?? AnchorSnapToleranceNm) + (exit?.DistanceNm ?? AnchorSnapToleranceNm);
+        if (entry is not null && exit is not null && exit.Value.Index < entry.Value.Index)
+        {
+            score += ReversedOrderPenaltyNm;
+        }
+
+        return score;
+    }
+
+    /// <summary>
+    /// What it costs a direction to have the filed anchors land on it back to front. Larger than any
+    /// snap distance can be, so a correctly ordered direction always wins over a reversed one.
+    /// </summary>
+    private const double ReversedOrderPenaltyNm = 1000.0;
+
+    /// <summary>
+    /// The route point an anchor names and how far away it landed, or null when the anchor is
+    /// absent, does not resolve, or lands further than <see cref="AnchorSnapToleranceNm"/> from
+    /// every point.
+    /// </summary>
+    private static (int Index, double DistanceNm)? SnapAnchor(
+        string designator,
+        IReadOnlyList<MilitaryRoutePoint> points,
+        string? anchor,
+        NavigationDatabase navDb
+    )
     {
         if (string.IsNullOrWhiteSpace(anchor))
         {
@@ -88,9 +159,9 @@ public static class MilitaryRouteExpander
         double best = double.MaxValue;
         double secondBest = double.MaxValue;
 
-        for (int i = 0; i < route.Points.Count; i++)
+        for (int i = 0; i < points.Count; i++)
         {
-            var point = route.Points[i].Position;
+            var point = points[i].Position;
             double distance = GeoMath.DistanceNm(position.Value.Lat, position.Value.Lon, point.Lat, point.Lon);
             if (distance < best)
             {
@@ -108,30 +179,36 @@ public static class MilitaryRouteExpander
         {
             // The filer entered by direct-to rather than at a published point. Treat the anchor as
             // unknown and use the route's own entry or exit, rather than inventing a leg to it.
-            Log.LogDebug("{Route}: anchor {Anchor} is {Distance:F1} NM from the nearest point; treating as unknown", route.Designator, anchor, best);
+            Log.LogDebug("{Route}: anchor {Anchor} is {Distance:F1} NM from the nearest point; treating as unknown", designator, anchor, best);
             return null;
         }
 
         Log.LogDebug(
             "{Route}: anchor {Anchor} snapped to {Point} at {Best:F1} NM (next nearest {Second:F1} NM)",
-            route.Designator,
+            designator,
             anchor,
-            route.Points[bestIndex].Id,
+            points[bestIndex].Id,
             best,
             secondBest
         );
-        return bestIndex;
+        return (bestIndex, best);
     }
 
-    private static int DefaultEntryIndex(MilitaryRoute route)
+    private static int DefaultIndex(IReadOnlyList<MilitaryRoutePoint> points, IReadOnlyList<string> published, int fallback)
     {
-        int published = route.EntryPoints.Count > 0 ? route.IndexOf(route.EntryPoints[0]) : -1;
-        return published >= 0 ? published : 0;
-    }
+        if (published.Count == 0)
+        {
+            return fallback;
+        }
 
-    private static int DefaultExitIndex(MilitaryRoute route)
-    {
-        int published = route.ExitPoints.Count > 0 ? route.IndexOf(route.ExitPoints[0]) : -1;
-        return published >= 0 ? published : route.Points.Count - 1;
+        for (int i = 0; i < points.Count; i++)
+        {
+            if (string.Equals(points[i].Id, published[0], StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return fallback;
     }
 }

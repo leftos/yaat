@@ -137,5 +137,115 @@
    }
   ]
  },
- "crossCheck": {}
+ "crossCheck": {
+  "compared": 347,
+  "faaRoutes": 348,
+  "missingFromParse": [
+   "IR983"
+  ],
+  "overP95Tolerance": [
+   {
+    "route": "IR049",
+    "faaVertices": 10,
+    "parsedPoints": 6,
+    "p95Nm": 8.33,
+    "maxNm": 8.33,
+    "reverseMaxNm": 8.33
+   },
+   {
+    "route": "IR111",
+    "faaVertices": 47,
+    "parsedPoints": 26,
+    "p95Nm": 17.49,
+    "maxNm": 23.34,
+    "reverseMaxNm": 11.55
+   },
+   {
+    "route": "IR177",
+    "faaVertices": 32,
+    "parsedPoints": 17,
+    "p95Nm": 60.96,
+    "maxNm": 62.8,
+    "reverseMaxNm": 27.29
+   },
+   {
+    "route": "IR460",
+    "faaVertices": 14,
+    "parsedPoints": 8,
+    "p95Nm": 24.47,
+    "maxNm": 24.47,
+    "reverseMaxNm": 7.24
+   },
+   {
+    "route": "IR461",
+    "faaVertices": 12,
+    "parsedPoints": 7,
+    "p95Nm": 24.47,
+    "maxNm": 24.47,
+    "reverseMaxNm": 7.24
+   },
+   {
+    "route": "IR923",
+    "faaVertices": 22,
+    "parsedPoints": 12,
+    "p95Nm": 2.68,
+    "maxNm": 3.14,
+    "reverseMaxNm": 3.14
+   }
+  ],
+  "diverging": [
+   {
+    "route": "IR177",
+    "faaVertices": 32,
+    "parsedPoints": 17,
+    "p95Nm": 60.96,
+    "maxNm": 62.8,
+    "reverseMaxNm": 27.29
+   }
+  ],
+  "divergingFraction": 0.0029
+ },
+ "aerialRefueling": {
+  "routes": 247,
+  "byType": {
+   "track": 156,
+   "anchor": 91
+  },
+  "points": 1625,
+  "patternCorners": 385,
+  "multiDirection": 82,
+  "exactReversals": 33,
+  "withAirspace": 78,
+  "altitudeKinds": {
+   "block": 241,
+   "unparsed": 6
+  },
+  "unparsedAltitudes": [
+   "05000",
+   "06500",
+   "FL180 and above",
+   "FL230 and below con- sisting of a 3000' block"
+  ],
+  "routeProblems": {
+   "AR662V": [
+    "variant 1 publishes no anchor pattern"
+   ]
+  },
+  "frdOracle": {
+   "checked": 1739,
+   "agreed": 1738,
+   "rate": 0.999425,
+   "unknownNavaid": 12,
+   "medianErrorNm": 0.217,
+   "p95ErrorNm": 0.58,
+   "disagreements": [
+    {
+     "route": "AR665",
+     "point": "ARIP",
+     "frd": "BJB 128/46",
+     "errorNm": 10.3
+    }
+   ]
+  }
+ }
 }
