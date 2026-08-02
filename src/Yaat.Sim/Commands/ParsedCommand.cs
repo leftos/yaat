@@ -918,6 +918,13 @@ public record ClearedOutOfMilitaryRouteCommand(string Destination, string? Route
 /// </summary>
 public record SayExitFixEstimateCommand : ParsedCommand;
 
+/// <summary>
+/// FAA JO 7110.65 §9-2-13 "CLEARED TO CONDUCT REFUELING ALONG (number) TRACK". The altitude clause
+/// is a block ("MAINTAIN BLOCK (altitude) THROUGH (altitude)"), so both bounds are given or neither
+/// is — a null pair means the track's own published block.
+/// </summary>
+public record ClearedToConductRefuelingCommand(string Designator, int? BlockFloorFt, int? BlockCeilingFt) : ParsedCommand;
+
 public record JoinRadialOutboundCommand(string FixName, double FixLat, double FixLon, int Radial) : ParsedCommand;
 
 public record JoinRadialInboundCommand(string FixName, double FixLat, double FixLon, int Radial) : ParsedCommand;

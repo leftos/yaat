@@ -93,4 +93,46 @@ public static class MilitaryRouteCommandParser
     {
         return string.IsNullOrWhiteSpace(arg) ? PR.Ok(new SayExitFixEstimateCommand()) : PR.Fail($"SAYEXIT takes no arguments, got '{arg.Trim()}'");
     }
+
+    /// <summary>
+    /// <c>CAR AR1</c> — cleared to refuel along the track at its published block.
+    /// <c>CAR AR1 240 310</c> — cleared to refuel, maintain block FL240 through FL310.
+    /// </summary>
+    internal static PR ParseClearedToConductRefueling(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Fail("CAR requires an aerial refueling track (e.g. CAR AR1)");
+        }
+
+        var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var designator = parts[0].ToUpperInvariant();
+
+        if (parts.Length == 1)
+        {
+            return PR.Ok(new ClearedToConductRefuelingCommand(designator, null, null));
+        }
+
+        // §9-2-13 pairs the clearance with "MAINTAIN BLOCK (altitude) THROUGH (altitude)", so the
+        // altitude argument is a pair. A lone altitude is rejected rather than guessed at: a block
+        // has two bounds and inventing the second would authorise airspace nobody assigned.
+        if (parts.Length != 3)
+        {
+            return PR.Fail($"CAR takes a track and either no altitude or a block of two, got '{arg.Trim()}'");
+        }
+
+        var floor = AltitudeResolver.Resolve(parts[1]);
+        var ceiling = AltitudeResolver.Resolve(parts[2]);
+        if (floor is null || ceiling is null)
+        {
+            return PR.Fail($"Invalid block altitude '{parts[1]} {parts[2]}' for CAR");
+        }
+
+        if (floor >= ceiling)
+        {
+            return PR.Fail($"CAR block floor {floor:N0} must be below its ceiling {ceiling:N0}");
+        }
+
+        return PR.Ok(new ClearedToConductRefuelingCommand(designator, floor, ceiling));
+    }
 }

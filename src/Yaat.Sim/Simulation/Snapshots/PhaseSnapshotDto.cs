@@ -258,6 +258,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(VfrHoldPhaseDto), "VfrHold")]
 [JsonDerivedType(typeof(AirspaceBoundaryHoldPhaseDto), "AirspaceBoundaryHold")]
 [JsonDerivedType(typeof(MilitaryRoutePhaseDto), "MilitaryRoute")]
+[JsonDerivedType(typeof(AerialRefuelingAnchorPhaseDto), "AerialRefuelingAnchor")]
 [JsonDerivedType(typeof(STurnPhaseDto), "STurn")]
 [JsonDerivedType(typeof(StopAndGoPhaseDto), "StopAndGo")]
 [JsonDerivedType(typeof(TouchAndGoPhaseDto), "TouchAndGo")]
@@ -582,12 +583,31 @@ public sealed class MilitaryRoutePhaseDto : PhaseDto
 {
     public required string Designator { get; init; }
     public required int Kind { get; init; }
+
+    /// <summary>Published direction of an aerial refueling track, or null/empty for a training route.</summary>
+    public string? Direction { get; init; }
+
     public string? EntryPointId { get; init; }
     public string? ExitPointId { get; init; }
     public bool Marsa { get; init; }
     public bool TerrainFollowing { get; init; }
     public List<string>? PointNames { get; init; }
     public bool Started { get; init; }
+}
+
+public sealed class AerialRefuelingAnchorPhaseDto : PhaseDto
+{
+    public required string Designator { get; init; }
+    public string? Direction { get; init; }
+
+    /// <summary>Flown once to reach the anchor point.</summary>
+    public List<string>? EntryNames { get; init; }
+
+    /// <summary>The orbit corners, flown on repeat.</summary>
+    public List<string>? PatternNames { get; init; }
+
+    public bool Started { get; init; }
+    public int Laps { get; init; }
 }
 
 public sealed class STurnPhaseDto : PhaseDto

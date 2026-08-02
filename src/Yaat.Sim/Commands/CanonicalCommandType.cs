@@ -194,6 +194,9 @@ public enum CanonicalCommandType
     ClearedOutOfMilitaryRoute,
     SayExitFixEstimate,
 
+    // Aerial refueling (DoD AP/1B chapter 5; FAA JO 7110.65 §9-2-13)
+    ClearedToConductRefueling,
+
     JoinRadialOutbound,
     JoinRadialInbound,
     HoldingPattern,

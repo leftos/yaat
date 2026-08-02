@@ -737,6 +737,8 @@ public static class CommandDispatcher
                 return MilitaryRouteCommandHandler.DispatchMaintainRouteAltitudes(aircraft);
             case ClearedOutOfMilitaryRouteCommand cmd:
                 return MilitaryRouteCommandHandler.DispatchClearedOutOf(cmd, aircraft);
+            case ClearedToConductRefuelingCommand cmd:
+                return MilitaryRouteCommandHandler.DispatchClearedToConductRefueling(cmd, aircraft);
             case HoldingPatternCommand cmd:
                 return NavigationCommandHandler.DispatchHoldingPattern(cmd, aircraft);
             case JoinFinalApproachCourseCommand cmd:

@@ -1661,6 +1661,21 @@ public static class CommandRegistry
                 [O(null, [], "Verify exit fix estimate and requested altitude after exit")]
             ),
             Cmd(
+                ClearedToConductRefueling,
+                "Cleared To Conduct Refueling",
+                "Navigation",
+                false,
+                ["CAR", "CREF"],
+                [
+                    O(null, [R("track", "aerial refueling track")], "Cleared to conduct refueling along the track at its published block"),
+                    O(
+                        "Block",
+                        [R("track", "aerial refueling track"), R("floor", "altitude"), R("ceiling", "altitude")],
+                        "Cleared to conduct refueling, maintain block floor through ceiling"
+                    ),
+                ]
+            ),
+            Cmd(
                 JoinRadialOutbound,
                 "Join Radial Outbound",
                 "Approach",

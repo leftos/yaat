@@ -38,6 +38,10 @@ public sealed class MilitaryRoutePhase : Phase
 
     public required string Designator { get; init; }
     public required MilitaryRouteType Kind { get; init; }
+
+    /// <summary>Published direction of an aerial refueling track being flown, or empty.</summary>
+    public string Direction { get; init; } = string.Empty;
+
     public string? EntryPointId { get; init; }
     public string? ExitPointId { get; init; }
     public bool Marsa { get; init; }
@@ -65,6 +69,7 @@ public sealed class MilitaryRoutePhase : Phase
             Requirements = SnapshotRequirements(),
             Designator = Designator,
             Kind = (int)Kind,
+            Direction = Direction,
             EntryPointId = EntryPointId,
             ExitPointId = ExitPointId,
             Marsa = Marsa,
@@ -80,6 +85,7 @@ public sealed class MilitaryRoutePhase : Phase
             ElapsedSeconds = dto.ElapsedSeconds,
             Designator = dto.Designator,
             Kind = (MilitaryRouteType)dto.Kind,
+            Direction = dto.Direction ?? string.Empty,
             EntryPointId = dto.EntryPointId,
             ExitPointId = dto.ExitPointId,
             Marsa = dto.Marsa,
@@ -95,6 +101,7 @@ public sealed class MilitaryRoutePhase : Phase
 
         state.Designator = Designator;
         state.Kind = Kind;
+        state.Direction = Direction;
         state.EntryPointId = EntryPointId;
         state.ExitPointId = ExitPointId;
         state.Marsa = Marsa;
@@ -241,7 +248,10 @@ public sealed class MilitaryRoutePhase : Phase
         // are the segment's minimum IFR altitudes and an at-or-below restriction cannot lower them.
         // Gating on RouteAltitudes alone made ApplyBlock's at-or-below branch unreachable and let
         // the aircraft descend below the segment floor unopposed.
-        if (state.AltitudeSource is not (MilitaryRouteAltitudeSource.RouteAltitudes or MilitaryRouteAltitudeSource.AtOrBelow))
+        if (
+            state.AltitudeSource
+            is not (MilitaryRouteAltitudeSource.RouteAltitudes or MilitaryRouteAltitudeSource.AtOrBelow or MilitaryRouteAltitudeSource.AssignedBlock)
+        )
         {
             return;
         }
@@ -249,6 +259,15 @@ public sealed class MilitaryRoutePhase : Phase
         var route = NavigationDatabase.Instance.GetMilitaryRoute(Designator);
         if (route is null || ctx.Targets.NavigationRoute.Count == 0)
         {
+            return;
+        }
+
+        // AP/1B chapter 5 publishes one block for the whole refueling entry rather than chapters
+        // 2-4's per-segment blocks, so there is no segment to look up and nothing changes as the
+        // aircraft sequences the track.
+        if (route.IsAerialRefueling)
+        {
+            ApplyRefuelingBlock(ctx, route);
             return;
         }
 
@@ -272,6 +291,38 @@ public sealed class MilitaryRoutePhase : Phase
 
         state.CurrentSegmentIndex = index;
         ApplyBlock(ctx, route.Points[index]);
+    }
+
+    /// <summary>
+    /// Arm the refueling block: the one the controller assigned under §9-2-13 "MAINTAIN BLOCK
+    /// (altitude) THROUGH (altitude)", or the track's published block when none was assigned.
+    /// </summary>
+    private void ApplyRefuelingBlock(PhaseContext ctx, MilitaryRoute route)
+    {
+        var state = ctx.Aircraft.MilitaryRoute;
+        double? floor = state.AssignedFloorFt ?? route.RouteAltitude.FloorFt;
+        double? ceiling = state.AssignedCeilingFt ?? route.RouteAltitude.CeilingFt;
+        if (floor is null || ceiling is null)
+        {
+            return;
+        }
+
+        ctx.Targets.AltitudeFloor = floor;
+        ctx.Targets.AltitudeCeiling = ceiling;
+        // Mid-block rather than the training-route profile's just-above-the-floor. §9-2-13.f NOTE 3
+        // has refueling normally occupying at least three consecutive altitudes, and §9-2-13.i.1-2
+        // has the tanker departing the track from the top of the block and the receiver from the
+        // bottom, so the middle is where the operation actually sits.
+        ctx.Targets.TargetAltitude = floor.Value + ((ceiling.Value - floor.Value) / 2);
+        ctx.Targets.AssignedAltitude = null;
+
+        if (state.AppliedFloorFt != floor || state.AppliedCeilingFt != ceiling)
+        {
+            ctx.Logger.LogDebug("{Callsign}: {Route} refueling block {Floor} - {Ceiling} ft MSL", ctx.Aircraft.Callsign, Designator, floor, ceiling);
+        }
+
+        state.AppliedFloorFt = floor;
+        state.AppliedCeilingFt = ceiling;
     }
 
     private void ApplyBlock(PhaseContext ctx, MilitaryRoutePoint point)

@@ -825,6 +825,7 @@ public static class CommandParser
             MaintainMilitaryRouteAltitudes => MilitaryRouteCommandParser.ParseMaintainRouteAltitudes(arg),
             ClearedOutOfMilitaryRoute => MilitaryRouteCommandParser.ParseClearedOutOf(arg),
             SayExitFixEstimate => MilitaryRouteCommandParser.ParseSayExitFixEstimate(arg),
+            ClearedToConductRefueling => MilitaryRouteCommandParser.ParseClearedToConductRefueling(arg),
             JoinRadialOutbound => ApproachCommandParser.ParseJrado(arg),
             JoinRadialInbound => ApproachCommandParser.ParseJradi(arg),
             HoldingPattern => ApproachCommandParser.ParseHold(arg),

@@ -135,6 +135,7 @@ public static class CommandDescriber
             MaintainMilitaryRouteAltitudesCommand => CanonicalCommandType.MaintainMilitaryRouteAltitudes,
             ClearedOutOfMilitaryRouteCommand => CanonicalCommandType.ClearedOutOfMilitaryRoute,
             SayExitFixEstimateCommand => CanonicalCommandType.SayExitFixEstimate,
+            ClearedToConductRefuelingCommand => CanonicalCommandType.ClearedToConductRefueling,
             JoinRadialOutboundCommand => CanonicalCommandType.JoinRadialOutbound,
             JoinRadialInboundCommand => CanonicalCommandType.JoinRadialInbound,
             HoldingPatternCommand => CanonicalCommandType.HoldingPattern,
@@ -404,6 +405,7 @@ public static class CommandDescriber
             MaintainMilitaryRouteAltitudesCommand => TrackedCommandType.Altitude,
             ClearedOutOfMilitaryRouteCommand => TrackedCommandType.Navigation,
             SayExitFixEstimateCommand => TrackedCommandType.Immediate,
+            ClearedToConductRefuelingCommand => TrackedCommandType.Navigation,
             JoinRadialOutboundCommand => TrackedCommandType.Navigation,
             JoinRadialInboundCommand => TrackedCommandType.Navigation,
             HoldingPatternCommand => TrackedCommandType.Navigation,
@@ -565,6 +567,9 @@ public static class CommandDescriber
             MaintainMilitaryRouteAltitudesCommand => "MTRA",
             ClearedOutOfMilitaryRouteCommand cmd => cmd.Route is null ? $"XMTR {cmd.Destination}" : $"XMTR {cmd.Destination} VIA {cmd.Route}",
             SayExitFixEstimateCommand => "SAYEXIT",
+            ClearedToConductRefuelingCommand cmd => cmd.BlockFloorFt is { } floor && cmd.BlockCeilingFt is { } ceiling
+                ? $"CAR {cmd.Designator} {floor} {ceiling}"
+                : $"CAR {cmd.Designator}",
             JoinRadialOutboundCommand cmd => $"JRADO {cmd.FixName}{cmd.Radial:000}",
             JoinRadialInboundCommand cmd => $"JRADI {cmd.FixName}{cmd.Radial:000}",
             HoldingPatternCommand cmd => FormatHoldCanonical(cmd),
@@ -1001,6 +1006,9 @@ public static class CommandDescriber
                 ? $"Cleared out of the military route to {cmd.Destination}"
                 : $"Cleared out of the military route to {cmd.Destination} via {cmd.Route}",
             SayExitFixEstimateCommand => "Verify exit fix estimate and requested altitude after exit",
+            ClearedToConductRefuelingCommand cmd => cmd.BlockFloorFt is { } floor && cmd.BlockCeilingFt is { } ceiling
+                ? $"Cleared to conduct refueling along {cmd.Designator} track, maintain block {floor:N0} through {ceiling:N0}"
+                : $"Cleared to conduct refueling along {cmd.Designator} track",
             JoinRadialOutboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial outbound",
             JoinRadialInboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial inbound",
             HoldingPatternCommand cmd => FormatHoldNatural(cmd),

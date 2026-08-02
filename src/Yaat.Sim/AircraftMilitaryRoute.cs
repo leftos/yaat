@@ -33,6 +33,13 @@ public enum MilitaryRouteAltitudeSource
 
     /// <summary>An "at or below" restriction, applied under the route's published floor.</summary>
     AtOrBelow,
+
+    /// <summary>
+    /// A controller-assigned altitude block instead of the published one (FAA JO 7110.65 §9-2-13
+    /// "MAINTAIN BLOCK (altitude) THROUGH (altitude)"). Refueling is flown in a block, not at a
+    /// level, so an assigned refueling altitude has two bounds rather than one.
+    /// </summary>
+    AssignedBlock,
 }
 
 /// <summary>
@@ -53,6 +60,13 @@ public class AircraftMilitaryRoute
 
     public MilitaryRouteStatus Status { get; set; } = MilitaryRouteStatus.None;
 
+    /// <summary>
+    /// Which published direction of an aerial refueling track is being flown ("North", "East", …),
+    /// or empty. A track's directions are separate geometries sharing one designator, so the
+    /// direction is part of the clearance rather than a property of the route.
+    /// </summary>
+    public string Direction { get; set; } = string.Empty;
+
     /// <summary>Cleared entry point label, primary or alternate.</summary>
     public string? EntryPointId { get; set; }
 
@@ -66,6 +80,11 @@ public class AircraftMilitaryRoute
 
     /// <summary>The controller-assigned altitude when <see cref="AltitudeSource"/> is not the published block.</summary>
     public int? AssignedOverrideFt { get; set; }
+
+    /// <summary>The assigned block's bounds when <see cref="AltitudeSource"/> is <see cref="MilitaryRouteAltitudeSource.AssignedBlock"/>.</summary>
+    public int? AssignedFloorFt { get; set; }
+
+    public int? AssignedCeilingFt { get; set; }
 
     /// <summary>
     /// True when the route is designated for MARSA operations. Sourced from the route, never typed:
@@ -140,11 +159,14 @@ public class AircraftMilitaryRoute
     {
         Designator = null;
         Status = MilitaryRouteStatus.None;
+        Direction = string.Empty;
         EntryPointId = null;
         ExitPointId = null;
         CurrentSegmentIndex = -1;
         AltitudeSource = MilitaryRouteAltitudeSource.RouteAltitudes;
         AssignedOverrideFt = null;
+        AssignedFloorFt = null;
+        AssignedCeilingFt = null;
         Marsa = false;
         AppliedFloorFt = null;
         AppliedCeilingFt = null;
@@ -157,11 +179,14 @@ public class AircraftMilitaryRoute
             Designator = Designator,
             Kind = (int)Kind,
             Status = (int)Status,
+            Direction = Direction,
             EntryPointId = EntryPointId,
             ExitPointId = ExitPointId,
             CurrentSegmentIndex = CurrentSegmentIndex,
             AltitudeSource = (int)AltitudeSource,
             AssignedOverrideFt = AssignedOverrideFt,
+            AssignedFloorFt = AssignedFloorFt,
+            AssignedCeilingFt = AssignedCeilingFt,
             Marsa = Marsa,
             AppliedFloorFt = AppliedFloorFt,
             AppliedCeilingFt = AppliedCeilingFt,
@@ -174,11 +199,14 @@ public class AircraftMilitaryRoute
             Designator = dto.Designator,
             Kind = (MilitaryRouteType)dto.Kind,
             Status = (MilitaryRouteStatus)dto.Status,
+            Direction = dto.Direction ?? string.Empty,
             EntryPointId = dto.EntryPointId,
             ExitPointId = dto.ExitPointId,
             CurrentSegmentIndex = dto.CurrentSegmentIndex,
             AltitudeSource = (MilitaryRouteAltitudeSource)dto.AltitudeSource,
             AssignedOverrideFt = dto.AssignedOverrideFt,
+            AssignedFloorFt = dto.AssignedFloorFt,
+            AssignedCeilingFt = dto.AssignedCeilingFt,
             Marsa = dto.Marsa,
             AppliedFloorFt = dto.AppliedFloorFt,
             AppliedCeilingFt = dto.AppliedCeilingFt,

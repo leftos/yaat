@@ -998,6 +998,49 @@ public static class PhraseologyVerbalizer
         return spoken;
     }
 
+    /// <summary>
+    /// Aerial refueling track number in the form FAA JO 7110.65 §9-2-13 prescribes: "CLEARED TO
+    /// CONDUCT REFUELING ALONG (number) TRACK".
+    /// <para>
+    /// The designator inverts against §2-5-1.f's training-route form. §9-2-13's phraseology names
+    /// the <em>number</em> and puts "track" after it, so "AR312" is "three twelve track", not "a-r
+    /// three twelve" — the letters are not spoken at all. The group form matches §2-5-1.e, and an
+    /// alternate-track letter suffix ("AR3H") expands phonetically.
+    /// </para>
+    /// </summary>
+    public static string SpellRefuelingTrack(string designator)
+    {
+        if (string.IsNullOrWhiteSpace(designator))
+        {
+            return "";
+        }
+
+        var text = designator.Trim().Replace("-", string.Empty).ToUpperInvariant();
+        if (!text.StartsWith("AR", StringComparison.Ordinal))
+        {
+            return designator;
+        }
+
+        var rest = text[2..];
+        var digits = new string([.. rest.TakeWhile(char.IsDigit)]);
+        var suffix = rest[digits.Length..];
+        if (digits.Length == 0 || !int.TryParse(digits, out var number))
+        {
+            return designator;
+        }
+
+        var spoken =
+            number >= 100 && number % 100 == 0
+                ? $"{AtcNumberParser.FlightNumberToPairedWords(number / 100)} hundred"
+                : AtcNumberParser.FlightNumberToPairedWords(number);
+        foreach (var c in suffix)
+        {
+            spoken += " " + NatoPhoneticAlphabet.SpellChar(c);
+        }
+
+        return spoken;
+    }
+
     /// <summary>Taxiway "B6" → "bravo six"; "AA" → "alpha alpha".</summary>
     public static string SpellTaxiway(string tw)
     {
