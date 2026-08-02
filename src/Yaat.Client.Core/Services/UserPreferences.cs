@@ -361,6 +361,7 @@ public sealed class UserPreferences
     public GroundFilterMode GroundShowHoldShort => (GroundFilterMode)_data.GroundShowHoldShort;
     public GroundFilterMode GroundShowParking => (GroundFilterMode)_data.GroundShowParking;
     public GroundFilterMode GroundShowSpot => (GroundFilterMode)_data.GroundShowSpot;
+    public bool GroundShowAdwMarkings => _data.GroundShowAdwMarkings;
     public bool GroundShowTaxiRouteOnHover => _data.GroundShowTaxiRouteOnHover;
     public bool GroundShowAllTaxiRoutes => _data.GroundShowAllTaxiRoutes;
     public DatablockDeconflictMode GroundDeconflictMode => (DatablockDeconflictMode)_data.GroundDeconflictMode;
@@ -1032,13 +1033,21 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetGroundLabelFilters(bool runways, bool taxiways, GroundFilterMode holdShort, GroundFilterMode parking, GroundFilterMode spot)
+    public void SetGroundLabelFilters(
+        bool runways,
+        bool taxiways,
+        GroundFilterMode holdShort,
+        GroundFilterMode parking,
+        GroundFilterMode spot,
+        bool adwMarkings
+    )
     {
         _data.GroundShowRunwayLabels = runways;
         _data.GroundShowTaxiwayLabels = taxiways;
         _data.GroundShowHoldShort = (int)holdShort;
         _data.GroundShowParking = (int)parking;
         _data.GroundShowSpot = (int)spot;
+        _data.GroundShowAdwMarkings = adwMarkings;
         Save();
     }
 
@@ -1504,6 +1513,7 @@ public sealed class UserPreferences
             GroundShowHoldShort = GetFieldOr(obj, "groundShowHoldShort", 0),
             GroundShowParking = GetFieldOr(obj, "groundShowParking", 0),
             GroundShowSpot = GetFieldOr(obj, "groundShowSpot", 0),
+            GroundShowAdwMarkings = GetFieldOr(obj, "groundShowAdwMarkings", true),
             GroundShowTaxiRouteOnHover = GetFieldOr(obj, "groundShowTaxiRouteOnHover", true),
             GroundShowAllTaxiRoutes = GetFieldOr(obj, "groundShowAllTaxiRoutes", false),
             GroundDeconflictMode = GetFieldOr(obj, "groundDeconflictMode", 0),
@@ -1791,6 +1801,7 @@ public sealed class UserPreferences
         public int GroundShowHoldShort { get; set; }
         public int GroundShowParking { get; set; }
         public int GroundShowSpot { get; set; }
+        public bool GroundShowAdwMarkings { get; set; } = true;
         public bool GroundShowTaxiRouteOnHover { get; set; } = true;
         public bool GroundShowAllTaxiRoutes { get; set; }
         public int GroundDeconflictMode { get; set; }
@@ -2088,6 +2099,7 @@ public sealed class SavedGroundSettings
     public GroundFilterMode ShowHoldShort { get; set; }
     public GroundFilterMode ShowParking { get; set; }
     public GroundFilterMode ShowSpot { get; set; }
+    public bool ShowAdwMarkings { get; set; } = true;
 
     public SavedGroundSettings Clone() =>
         new()
@@ -2102,5 +2114,6 @@ public sealed class SavedGroundSettings
             ShowHoldShort = ShowHoldShort,
             ShowParking = ShowParking,
             ShowSpot = ShowSpot,
+            ShowAdwMarkings = ShowAdwMarkings,
         };
 }

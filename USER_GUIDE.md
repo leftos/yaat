@@ -434,11 +434,20 @@ Selecting a preset is identical to typing the equivalent `TAXI` command (`TAXI T
 **Controls bar** (top-right corner):
 - **Layer toggles** — **SAT** (satellite background image), **MAP** (video map overlay), **GND** (YAAT ground layout)
 - **Label filters** — **RWY** and **TWY** toggle labels on/off. **HS**, **PARK**, and **SPOT** are tri-state: labels+icons → icons only → hidden. Hovering over a hidden element temporarily shows it.
+- **ADW** — Arrival/Departure Window marks (see below). On by default; nothing is drawn at airports where no window is published.
 - **DCNF** — datablock deconfliction (see *Datablock deconfliction* below). Cycles off → **DCNF S** (snap) → **DCNF F** (free-form).
 - **RESET** — reset view to fit the airport
 - **LOCK / UNLK** — lock or unlock pan, zoom, and rotation.
 
-**Per-scenario persistence** — Ground view settings (pan, zoom, rotation, label filters, lock) are saved independently for each scenario.
+**ADW markings:** Where a facility publishes an Arrival/Departure Window — the aid that lets a tower work converging runways without applying full intersecting-runway separation — the ground view draws it as a pair of yellow ticks across the arrival runway's final approach course, the same depiction CRC's ASDE-X shows. The **inner** tick sits at or just past the landing threshold and spans the runway; the **outer** tick sits a few miles out on final, so you have to zoom out to see it. A converging departure has to have begun its takeoff roll before the arrival enters the window, must not begin one while the arrival is inside it, and its takeoff clearance gets cancelled if it hasn't started rolling in time. KMIA ships with the four windows from the Miami ATCT SOP.
+
+An ADW does not change IFR separation standards — what it protects is the arrival's missed approach, and only because the go-around is required to hold runway heading through the departure's flight path. Wake-turbulence intervals still apply on top.
+
+Reading them: all the marks for an airport are drawn at once regardless of the active configuration, and only one direction of a pairing is live in any given flow. The applicable tick also depends on which runway you are departing, and the ticks carry no labels (neither does the real depiction) — at KMIA on runway 30, the tick just inside the pavement end belongs to the runway 26L window and the one further down the runway to the 26R window.
+
+The marks are a visual reference only — YAAT does not enforce the window, does not model the runway-heading missed approach, and does not show the directive's own conditions (at KMIA: 1,000 ft ceiling and 3 SM visibility, arrivals at 120–170 knots groundspeed entering the window, and no intersection departures). An airport with no marks is not necessarily free of converging-runway conflicts — it just has no published window. Toggle the marks with the **ADW** button.
+
+**Per-scenario persistence** — Ground view settings (pan, zoom, rotation, label filters, ADW marks, lock) are saved independently for each scenario.
 
 When weather is loaded, wind direction/speed and altimeter setting are displayed in the top-left corner.
 

@@ -291,6 +291,15 @@ public partial class GroundView : UserControl
         }
     }
 
+    private void OnToggleAdwMarkings(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.ShowAdwMarkings = !vm.ShowAdwMarkings;
+            vm.SaveLabelAndLockSettings();
+        }
+    }
+
     private void OnToggleHoldShort(object? sender, RoutedEventArgs e)
     {
         if (DataContext is GroundViewModel vm)

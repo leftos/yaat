@@ -261,6 +261,6 @@ public class GroundCanvasFitTests
             new(3, MinLat, MaxLon, "Taxiway", null, null, null),
             new(4, MaxLat, MaxLon, "Taxiway", null, null, null),
         };
-        return new GroundLayoutDto("SFO", nodes, [], null, null);
+        return new GroundLayoutDto("SFO", nodes, [], null, null, null);
     }
 }

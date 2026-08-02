@@ -235,6 +235,61 @@ Each waypoint is snapped to the nearest graph node; consecutive waypoints that a
 
 One-way taxiway restrictions are **local SOP / facility conventions** — they are not codified in FAA 7110.65. Author them from an ARTCC-approved SOP or LOA, not from a regulation reference.
 
+### `adw`
+
+Arrival/Departure Windows — one of the facility-directive aids 7110.65 §3-9-9.b permits in lieu of applying
+the §3-9-8 intersecting-runway provisions, where converging centerlines cross within 1 NM of a departure
+end. The window protects the arrival's missed approach from the converging departure; it does **not**
+change IFR separation standards. Each entry is one published window for one arrival/departure runway pair.
+YAAT draws the two ends of the window as reference marks in Ground View and does nothing else with them:
+no separation logic, no pilot behavior, no scoring.
+
+```json
+"adw": [
+  {
+    "arrivalRunway": "26R",
+    "departureRunway": "30",
+    "outerNm": 2.7,
+    "innerNm": -0.1,
+    "notes": "ZMA D11 Miami ATCT SOP 3-9.F — published as one row for arrivals 26L/26R."
+  }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `adw[].arrivalRunway` | string | Yes | Landing runway end the window is measured along, e.g. `"26R"`. Zero-pad-normalized at load, so `"9"` and `"09"` are the same end |
+| `adw[].departureRunway` | string | Yes | The converging runway end whose takeoff roll this window gates |
+| `adw[].outerNm` | number | Yes | Outer range in nm from the landing threshold, outbound along the final approach course |
+| `adw[].innerNm` | number | Yes | Inner range in nm from the same threshold; **negative means past the threshold, on the runway** |
+| `adw[].notes` | string | No | The facility directive this window is published in. Informational, but do not author an entry without one |
+
+Both ranges are signed against the outbound (final approach course) direction, so `2.7 / -0.1` reads as
+"from 0.1 nm down the runway out to 2.7 nm on final". `outerNm` must be positive and exceed `innerNm`, the
+two runways must differ, and both ranges must be within ±15 nm; an entry that fails any check is skipped
+with a warning.
+
+The origin is the **displaced** landing threshold — the airport map's runway LineString endpoints are
+pavement ends, and the map's `threshold` property (e.g. `"0 - 957"`) is applied before the ranges are
+measured. That matters: KMIA RWY 30's 957 ft displacement is larger than its own inner offsets. It also
+means an entry is only as good as vNAS's displacement value; nothing here can detect a wrong one.
+
+The final approach course is taken as the runway centerline bearing. That is exact for a straight-in
+approach and wrong for an offset one — a 3° LDA offset displaces the true outer point ~860 ft laterally at
+2.7 nm, a 10° offset ~2,850 ft. Every published ADW to date is on a straight-in; if one ever isn't, the
+course needs to come from the procedure, not the pavement.
+
+A published row covering two arrival runways (`"Arriving Runway 26L/26R"`) becomes **one entry per arrival
+runway** — the geometry is per-runway.
+
+ADWs are **facility-directive data**, not something to derive from runway geometry. Author them only from an
+ARTCC-approved SOP or facility directive, and cite it in `notes`. The marks themselves carry no
+applicability conditions, so anyone reading them should know the directive's own limits — at KMIA those are
+1,000 ft ceiling / 3 SM visibility, arrivals between 120 and 170 kt groundspeed entering the window, and no
+intersection departures while ADW is in use.
+
+Worked example: [`ZMA/Airports/mia.json`](ZMA/Airports/mia.json).
+
 ---
 
 ## Procedures

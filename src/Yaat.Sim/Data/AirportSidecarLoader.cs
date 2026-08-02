@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Data;
 
@@ -15,6 +16,9 @@ public sealed class AirportSidecarLoadResult
 public static class AirportSidecarLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    /// <summary>Sanity bound on an authored ADW range — real windows sit within a few miles of the threshold.</summary>
+    private const double MaxAdwRangeNm = 15.0;
 
     /// <summary>
     /// Scans <c>{artccsBaseDir}/{ARTCC}/Airports/*.json</c> across every ARTCC subdirectory and parses
@@ -82,8 +86,62 @@ public static class AirportSidecarLoader
                 ImplicitConnectors = ParseImplicitConnectors(file, filePath, result),
                 OneWayEdges = ParseOneWayEdges(file, filePath, result),
                 BlockedTurns = ParseBlockedTurns(file, filePath, result),
+                Adw = ParseAdw(file, filePath, result),
             }
         );
+    }
+
+    private static List<AdwWindow> ParseAdw(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
+    {
+        var windows = new List<AdwWindow>();
+        for (int i = 0; i < file.Adw.Count; i++)
+        {
+            var entry = file.Adw[i];
+            string location = $"{filePath}: adw[{i}]";
+
+            if (string.IsNullOrWhiteSpace(entry.ArrivalRunway) || string.IsNullOrWhiteSpace(entry.DepartureRunway))
+            {
+                result.Warnings.Add($"{location} requires both arrivalRunway and departureRunway, skipping");
+                continue;
+            }
+
+            string arrival = RunwayIdentifier.NormalizeDesignator(entry.ArrivalRunway.Trim().ToUpperInvariant());
+            string departure = RunwayIdentifier.NormalizeDesignator(entry.DepartureRunway.Trim().ToUpperInvariant());
+
+            // A window is always between two converging runways; naming the same one twice is a typo.
+            if (string.Equals(arrival, departure, StringComparison.OrdinalIgnoreCase))
+            {
+                result.Warnings.Add($"{location} ({arrival}): arrivalRunway and departureRunway must differ, skipping");
+                continue;
+            }
+
+            // The window runs from the inner range outbound to the outer range; an inverted or
+            // zero-width pair would draw two marks with no window between them.
+            if (entry.OuterNm <= entry.InnerNm)
+            {
+                result.Warnings.Add($"{location} ({arrival}/{departure}): outerNm must exceed innerNm, skipping");
+                continue;
+            }
+
+            // P/CG: the outer range is the point "on the final approach course" — it is always ahead of
+            // the threshold, so a non-positive value would put both ends of the window on the runway.
+            if (entry.OuterNm <= 0)
+            {
+                result.Warnings.Add($"{location} ({arrival}/{departure}): outerNm must be positive (out on final), skipping");
+                continue;
+            }
+
+            // Anything beyond a normal final is authored data gone wrong, not a real window.
+            if (entry.OuterNm > MaxAdwRangeNm || entry.InnerNm < -MaxAdwRangeNm)
+            {
+                result.Warnings.Add($"{location} ({arrival}/{departure}): ranges must be within ±{MaxAdwRangeNm} nm, skipping");
+                continue;
+            }
+
+            windows.Add(new AdwWindow(arrival, departure, entry.OuterNm, entry.InnerNm, entry.Notes));
+        }
+
+        return windows;
     }
 
     private static List<BlockedTurn> ParseBlockedTurns(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)

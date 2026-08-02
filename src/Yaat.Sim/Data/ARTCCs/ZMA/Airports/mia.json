@@ -1,0 +1,33 @@
+{
+  "airportId": "KMIA",
+  "adw": [
+    {
+      "arrivalRunway": "30",
+      "departureRunway": "26L",
+      "outerNm": 2.7,
+      "innerNm": 0.1,
+      "notes": "ZMA D11 Miami ATCT SOP 3-9.D, under 7110.65 3-9-9.b."
+    },
+    {
+      "arrivalRunway": "30",
+      "departureRunway": "26R",
+      "outerNm": 2.9,
+      "innerNm": -0.3,
+      "notes": "ZMA D11 Miami ATCT SOP 3-9.E, under 7110.65 3-9-9.b."
+    },
+    {
+      "arrivalRunway": "26L",
+      "departureRunway": "30",
+      "outerNm": 2.7,
+      "innerNm": -0.1,
+      "notes": "ZMA D11 Miami ATCT SOP 3-9.F, under 7110.65 3-9-9.b — published as one row for arrivals 26L/26R."
+    },
+    {
+      "arrivalRunway": "26R",
+      "departureRunway": "30",
+      "outerNm": 2.7,
+      "innerNm": -0.1,
+      "notes": "ZMA D11 Miami ATCT SOP 3-9.F, under 7110.65 3-9-9.b — published as one row for arrivals 26L/26R."
+    }
+  ]
+}

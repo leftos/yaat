@@ -131,6 +131,7 @@ public class GroundViewModelDrawRouteTests
             ],
             [new GroundEdgeDto(1, 2, "V", 0.06, null), new GroundEdgeDto(2, 3, "V", 0.06, null), new GroundEdgeDto(3, 4, "RAMP", 0.06, null)],
             null,
+            null,
             null
         );
 
@@ -144,6 +145,7 @@ public class GroundViewModelDrawRouteTests
                 new GroundNodeDto(3, Lat0 + 0.002, Lon0, "Spot", "7", null, null),
             ],
             [new GroundEdgeDto(1, 2, "V", 0.06, null), new GroundEdgeDto(2, 3, "RAMP", 0.06, null)],
+            null,
             null,
             null
         );

@@ -10,6 +10,8 @@
 - The Aircraft List has an **MTR** column showing the route and its current block in controller shorthand (`IR149 050B060`), and **Show nav route** draws the route's protected corridor on the radar using the published widths.
 - All five clearances are read back by the pilot, in both the terminal and spoken forms.
 - Clearing a second aircraft into an occupied route, or assigning an altitude outside the published block, now warns you.
+- Ground View draws a facility's published Arrival/Departure Window marks; KMIA ships with the four windows from the Miami ATCT SOP.
+- The new **ADW** toolbar button shows or hides the marks.
 
 ### Fixed
 - An IFR aircraft that goes around no longer flies a VFR traffic pattern circuit when it was given `MLT`/`MRT` earlier in the session; it climbs runway heading and waits for instructions.

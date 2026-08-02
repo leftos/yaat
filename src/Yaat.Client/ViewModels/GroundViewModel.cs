@@ -108,6 +108,13 @@ public partial class GroundViewModel : ObservableObject
     private GroundFilterMode _showSpot = GroundFilterMode.LabelsAndIcons;
 
     /// <summary>
+    /// When on, the airport's published Arrival/Departure Window marks are drawn. Airports without an
+    /// authored <c>adw</c> sidecar section draw nothing, so leaving this on costs nothing elsewhere.
+    /// </summary>
+    [ObservableProperty]
+    private bool _showAdwMarkings = true;
+
+    /// <summary>
     /// When on, hovering an aircraft on the ground view temporarily draws its taxi route.
     /// Persisted globally (<see cref="Services.UserPreferences.GroundShowTaxiRouteOnHover"/>); default on.
     /// </summary>
@@ -240,6 +247,7 @@ public partial class GroundViewModel : ObservableObject
             ShowHoldShort = preferences.GroundShowHoldShort;
             ShowParking = preferences.GroundShowParking;
             ShowSpot = preferences.GroundShowSpot;
+            ShowAdwMarkings = preferences.GroundShowAdwMarkings;
             ShowTaxiRouteOnHover = preferences.GroundShowTaxiRouteOnHover;
             ShowAllTaxiRoutes = preferences.GroundShowAllTaxiRoutes;
             IsPanZoomLocked = preferences.GroundPanZoomLocked;
@@ -390,7 +398,7 @@ public partial class GroundViewModel : ObservableObject
     public void SaveLabelAndLockSettings()
     {
         SaveSettings();
-        Preferences?.SetGroundLabelFilters(ShowRunwayLabels, ShowTaxiwayLabels, ShowHoldShort, ShowParking, ShowSpot);
+        Preferences?.SetGroundLabelFilters(ShowRunwayLabels, ShowTaxiwayLabels, ShowHoldShort, ShowParking, ShowSpot, ShowAdwMarkings);
         Preferences?.SetGroundPanZoomLocked(IsPanZoomLocked);
     }
 
@@ -554,6 +562,7 @@ public partial class GroundViewModel : ObservableObject
         ShowHoldShort = saved.ShowHoldShort;
         ShowParking = saved.ShowParking;
         ShowSpot = saved.ShowSpot;
+        ShowAdwMarkings = saved.ShowAdwMarkings;
         HasSavedView = true;
 
         _isRestoring = false;
@@ -572,6 +581,7 @@ public partial class GroundViewModel : ObservableObject
             ShowHoldShort = ShowHoldShort,
             ShowParking = ShowParking,
             ShowSpot = ShowSpot,
+            ShowAdwMarkings = ShowAdwMarkings,
         };
 
     private void SaveSettings()

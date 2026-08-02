@@ -69,6 +69,7 @@
                              ShowHoldShort="{Binding ShowHoldShort}"
                              ShowParking="{Binding ShowParking}"
                              ShowSpot="{Binding ShowSpot}"
+                             ShowAdwMarkings="{Binding ShowAdwMarkings}"
                              ColorScheme="{Binding ColorScheme}"
                              BackgroundImage="{Binding BackgroundImage}"
                              TowerCabMap="{Binding TowerCabMap}"
@@ -103,6 +104,7 @@
             <Button Classes="gnd-filter" Classes.active="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="HS" Click="OnToggleHoldShort" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="PARK" Click="OnToggleParking" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="SPOT" Click="OnToggleSpot" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowAdwMarkings}" Content="ADW" Click="OnToggleAdwMarkings" ToolTip.Tip="Toggle Arrival/Departure Window marks (only drawn where the facility publishes them)" />
             <Border Width="1" Background="#555" Margin="4,2" />
             <Button Classes="gnd-filter" Classes.active="{Binding IsDeconflictActive}" Content="{Binding DeconflictModeLabel}" Click="OnToggleDeconflict" ToolTip.Tip="Datablock deconfliction: Off → Snap → Free-form" />
             <Border Width="1" Background="#555" Margin="4,2" />

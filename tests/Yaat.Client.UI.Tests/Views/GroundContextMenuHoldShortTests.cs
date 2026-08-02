@@ -45,6 +45,7 @@ public class GroundContextMenuHoldShortTests
                 new GroundEdgeDto(1, 6, "C", DistanceNm: 0.07, IntermediatePoints: null),
             ],
             null,
+            null,
             null
         );
         vm.SetLayoutForTesting(dto);

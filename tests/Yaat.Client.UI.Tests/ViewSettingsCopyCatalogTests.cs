@@ -134,6 +134,7 @@ public class ViewSettingsCopyCatalogTests
             ShowHoldShort = GroundFilterMode.IconsOnly,
             ShowParking = GroundFilterMode.Off,
             ShowSpot = GroundFilterMode.IconsOnly,
+            ShowAdwMarkings = false,
         };
         var target = new SavedGroundSettings();
 

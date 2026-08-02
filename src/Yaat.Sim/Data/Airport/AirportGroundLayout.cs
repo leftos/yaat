@@ -588,6 +588,15 @@ public sealed class GroundRunway
     public IReadOnlyDictionary<string, IReadOnlyList<string>> NoTurnoffByEnd { private get; init; } =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Author-specified displaced-threshold distance in feet per landing-end designator (vNAS map
+    /// <c>threshold</c>, e.g. <c>"0 - 957"</c>). Absent ends carry no displacement. Keyed by the
+    /// zero-pad-normalized designator; read it via <see cref="ThresholdDisplacementForEnd"/>, never
+    /// the raw map.
+    /// </summary>
+    public IReadOnlyDictionary<string, double> ThresholdDisplacementFtByEnd { private get; init; } =
+        new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>True when either end of this runway is <paramref name="designator"/> (zero-pad-normalized, so "9" matches "09").</summary>
     public bool MatchesEnd(string designator) => Id.Contains(designator);
 
@@ -598,6 +607,34 @@ public sealed class GroundRunway
     /// <summary>Author-specified forbidden turn-off taxiways for the given landing end (empty when none).</summary>
     public IReadOnlyList<string> NoTurnoffForEnd(string designator) =>
         NoTurnoffByEnd.TryGetValue(RunwayIdentifier.NormalizeDesignator(designator), out var names) ? names : [];
+
+    /// <summary>Displaced-threshold distance in feet for the given landing end; 0 when none is authored.</summary>
+    public double ThresholdDisplacementForEnd(string designator) =>
+        ThresholdDisplacementFtByEnd.TryGetValue(RunwayIdentifier.NormalizeDesignator(designator), out double ft) ? ft : 0;
+
+    /// <summary>
+    /// The landing threshold of <paramref name="designator"/> and the true course flown onto it.
+    /// <see cref="Coordinates"/> endpoints are <em>pavement</em> ends, so the authored displacement is
+    /// applied downfield along the landing course. Null when this runway does not have that end, or
+    /// when it carries no geometry.
+    /// </summary>
+    public (LatLon Threshold, double LandingCourseDeg)? LandingThresholdForEnd(string designator)
+    {
+        if ((Coordinates.Count < 2) || !MatchesEnd(designator))
+        {
+            return null;
+        }
+
+        string end = RunwayIdentifier.NormalizeDesignator(designator);
+        bool isEnd1 = string.Equals(end, Id.End1, StringComparison.OrdinalIgnoreCase);
+        var (approachLat, approachLon) = isEnd1 ? Coordinates[0] : Coordinates[^1];
+        var (departureLat, departureLon) = isEnd1 ? Coordinates[^1] : Coordinates[0];
+
+        double landingCourse = GeoMath.BearingTo(approachLat, approachLon, departureLat, departureLon);
+        double displacementNm = ThresholdDisplacementForEnd(end) / GeoMath.FeetPerNm;
+        var (lat, lon) = GeoMath.ProjectPointRaw(approachLat, approachLon, landingCourse, displacementNm);
+        return (new LatLon(lat, lon), landingCourse);
+    }
 }
 
 public sealed class AirportGroundLayout

@@ -59,12 +59,18 @@ The parser expects a GeoJSON FeatureCollection with features typed via `properti
 - **`parking`** — Point geometry. Required properties: `name`, `heading` (integer degrees true). Optional: heading may be a string that needs parsing.
 - **`taxiway`** — LineString geometry. Required: `name` (taxiway letter/number, e.g., "C", "W3").
 - **`spot`** — Point geometry. Required: `name` (intersection or spot identifier).
-- **`runway`** — LineString geometry. Required: `name` (e.g., "28R/10L", both ends).
+- **`runway`** — LineString geometry. Required: `name` (e.g., "28R/10L", both ends). Optional: `turnoff`, `noTurnoff`, `patternAltitude`, `patternSize`, `holdShortDistance`, and `threshold` — displaced-threshold distances in feet as `"end1 - end2"` in the same end order as the name (e.g. `"0 - 957"`).
 - **`helipad`** — Point geometry. Required: `name`, `heading`. Treated like parking with larger connection radius.
 
 **Coordinate System**: All coordinates are `[longitude, latitude]` per GeoJSON spec. The parser converts to `(latitude, longitude)` internally.
 
 **JSON Preprocessing**: The parser strips leading zeros from numeric literals (e.g., `03` → `3`) using regex before parsing, handling invalid JSON that some GeoJSON sources produce.
+
+**Displaced thresholds**: A runway's `Coordinates` endpoints are always the **pavement** ends. The authored
+`threshold` displacement is kept separately on `GroundRunway.ThresholdDisplacementFtByEnd` and applied only
+by `GroundRunway.LandingThresholdForEnd`. Today the sole consumer is `AdwResolver` (the Ground View ADW
+marks) — runway rendering, `RunwayCrossingDetector`, and every landing/pattern/approach phase still anchor
+on undisplaced ends, so do not assume a "threshold" elsewhere in the codebase is the landing threshold.
 
 ### Step 1: Parse Features
 

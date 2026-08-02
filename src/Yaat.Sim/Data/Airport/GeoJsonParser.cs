@@ -245,6 +245,7 @@ public static class GeoJsonParser
                     PatternAltitudeAglFt = rwy.PatternAltitudeAglFt,
                     PatternSizeNm = rwy.PatternSizeNm,
                     NoTurnoffByEnd = rwy.NoTurnoffByEnd,
+                    ThresholdDisplacementFtByEnd = rwy.ThresholdDisplacementFtByEnd,
                 }
             );
         }
@@ -671,7 +672,42 @@ public static class GeoJsonParser
         // when absent RunwayCrossingDetector falls back to the width-based FAA Table 3-2 heuristic.
         double? holdShortDistance = ReadOptionalDouble(props, "holdShortDistance");
 
-        return new RunwayFeature(name, coords, turnoff, patternAltAgl, patternSize, noTurnoff, holdShortDistance);
+        var thresholdDisplacement = ParseThresholdDisplacement(name, props);
+
+        return new RunwayFeature(name, coords, turnoff, patternAltAgl, patternSize, noTurnoff, holdShortDistance, thresholdDisplacement);
+    }
+
+    /// <summary>
+    /// Parse the "threshold" property — displaced-threshold distances in feet as "end1 - end2"
+    /// (e.g. "0 - 957"), in the same end order as the runway name. Produces a per-end map keyed by
+    /// the zero-pad-normalized designator. Absent, null, or unparseable values yield an empty map,
+    /// which <see cref="GroundRunway.ThresholdDisplacementForEnd"/> reads as no displacement.
+    /// </summary>
+    private static IReadOnlyDictionary<string, double> ParseThresholdDisplacement(string runwayName, JsonElement props)
+    {
+        var empty = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        if (!props.TryGetProperty("threshold", out var t) || (t.ValueKind != JsonValueKind.String))
+        {
+            return empty;
+        }
+
+        string[] values = (t.GetString() ?? "").Split('-', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        string[] ends = runwayName.Split('-', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if ((values.Length != 2) || (ends.Length != 2))
+        {
+            return empty;
+        }
+
+        if (!double.TryParse(values[0], out double end1Ft) || !double.TryParse(values[1], out double end2Ft))
+        {
+            return empty;
+        }
+
+        return new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            [RunwayIdentifier.NormalizeDesignator(ends[0])] = end1Ft,
+            [RunwayIdentifier.NormalizeDesignator(ends[1])] = end2Ft,
+        };
     }
 
     /// <summary>
@@ -788,7 +824,8 @@ public static class GeoJsonParser
         double? PatternAltitudeAglFt = null,
         double? PatternSizeNm = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? NoTurnoffByEnd = null,
-        double? HoldShortDistanceFt = null
+        double? HoldShortDistanceFt = null,
+        IReadOnlyDictionary<string, double>? ThresholdDisplacementFtByEnd = null
     )
     {
         public IReadOnlyDictionary<string, ExitSide> TurnoffByEnd { get; init; } =
@@ -796,5 +833,8 @@ public static class GeoJsonParser
 
         public IReadOnlyDictionary<string, IReadOnlyList<string>> NoTurnoffByEnd { get; init; } =
             NoTurnoffByEnd ?? new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
+        public IReadOnlyDictionary<string, double> ThresholdDisplacementFtByEnd { get; init; } =
+            ThresholdDisplacementFtByEnd ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
     }
 }

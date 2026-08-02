@@ -153,6 +153,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         defaultValue: 100
     );
 
+    public static readonly StyledProperty<bool> ShowAdwMarkingsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
+        nameof(ShowAdwMarkings),
+        defaultValue: true
+    );
+
     public static readonly StyledProperty<double> ViewCenterLatProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewCenterLat));
     public static readonly StyledProperty<double> ViewCenterLonProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewCenterLon));
     public static readonly StyledProperty<double> ViewZoomProperty = AvaloniaProperty.Register<GroundCanvas, double>(
@@ -445,6 +450,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(YaatLayoutBrightnessProperty, value);
     }
 
+    /// <summary>Whether the airport's Arrival/Departure Window reference marks are drawn.</summary>
+    public bool ShowAdwMarkings
+    {
+        get => GetValue(ShowAdwMarkingsProperty);
+        set => SetValue(ShowAdwMarkingsProperty, value);
+    }
+
     public bool IsPanZoomLocked
     {
         get => GetValue(IsPanZoomLockedProperty);
@@ -666,6 +678,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == VideoMapOverlayBrightnessProperty
             || change.Property == ShowYaatLayoutProperty
             || change.Property == YaatLayoutBrightnessProperty
+            || change.Property == ShowAdwMarkingsProperty
         )
         {
             MarkDirty();
@@ -731,6 +744,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         int VideoMapOverlayBrightness,
         bool ShowYaatLayout,
         int YaatLayoutBrightness,
+        bool ShowAdwMarkings,
         IReadOnlyList<ResolvedRbl>? RangeBearingLines,
         ResolvedRbl? PendingRangeBearingLine
     );
@@ -815,6 +829,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             VideoMapOverlayBrightness,
             ShowYaatLayout,
             YaatLayoutBrightness,
+            ShowAdwMarkings,
             measurements,
             pendingMeasurement
         );
@@ -859,7 +874,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.ShowVideoMapOverlay,
             s.VideoMapOverlayBrightness,
             s.ShowYaatLayout,
-            s.YaatLayoutBrightness
+            s.YaatLayoutBrightness,
+            s.ShowAdwMarkings
         );
 
         // Drawn last so a measurement stays readable over aircraft symbols, datablocks, and the surface.

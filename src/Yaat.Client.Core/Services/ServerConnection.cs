@@ -1335,7 +1335,8 @@ public record GroundLayoutDto(
     List<GroundNodeDto> Nodes,
     List<GroundEdgeDto> Edges,
     List<GroundArcDto>? Arcs,
-    List<GroundRunwayDto>? Runways
+    List<GroundRunwayDto>? Runways,
+    List<GroundAdwMarkDto>? AdwMarks
 );
 
 public record GroundNodeDto(int Id, double Latitude, double Longitude, string Type, string? Name, double? Heading, string? RunwayId);
@@ -1361,6 +1362,13 @@ public record GroundArcDto(
 );
 
 public record GroundRunwayDto(string Name, List<double[]> Coordinates, double WidthFt);
+
+/// <summary>
+/// One Arrival/Departure Window reference mark, resolved server-side into a line across the arrival
+/// runway's final approach course. <see cref="Kind"/> is <c>Outer</c> or <c>Inner</c>. Drawn in Ground
+/// View as a controller reference; nothing in the simulation acts on it.
+/// </summary>
+public record GroundAdwMarkDto(string ArrivalRunway, string DepartureRunway, string Kind, double Lat1, double Lon1, double Lat2, double Lon2);
 
 public record VideoMapInfoDto(
     string Id,

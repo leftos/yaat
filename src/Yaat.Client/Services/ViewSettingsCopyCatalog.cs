@@ -91,6 +91,14 @@ public static class ViewSettingsCopyCatalog
                 tgt.ShowSpot = src.ShowSpot;
             },
         },
+        new GroundCopyGroup
+        {
+            Key = "ground.adw",
+            Label = "ADW markings",
+            Describe = s => OnOff(s.ShowAdwMarkings),
+            AreEqual = (a, b) => a.ShowAdwMarkings == b.ShowAdwMarkings,
+            Copy = (src, tgt) => tgt.ShowAdwMarkings = src.ShowAdwMarkings,
+        },
     ];
 
     public static IReadOnlyList<RadarCopyGroup> RadarGroups { get; } =

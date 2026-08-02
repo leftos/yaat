@@ -117,6 +117,7 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(GroundEdgeDto))]
 [JsonSerializable(typeof(GroundArcDto))]
 [JsonSerializable(typeof(GroundRunwayDto))]
+[JsonSerializable(typeof(GroundAdwMarkDto))]
 [JsonSerializable(typeof(VideoMapInfoDto))]
 [JsonSerializable(typeof(StarsAreaDto))]
 [JsonSerializable(typeof(MapGroupDto))]

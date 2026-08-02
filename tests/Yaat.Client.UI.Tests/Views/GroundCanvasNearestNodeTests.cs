@@ -87,6 +87,7 @@ public class GroundCanvasNearestNodeTests
             ],
             [],
             null,
+            null,
             null
         );
 }

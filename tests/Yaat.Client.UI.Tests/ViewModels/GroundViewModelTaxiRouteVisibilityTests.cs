@@ -142,6 +142,7 @@ public class GroundViewModelTaxiRouteVisibilityTests
                 new GroundEdgeDto(2, 3, "C", DistanceNm: 0.06, IntermediatePoints: null),
             ],
             null,
+            null,
             null
         );
 

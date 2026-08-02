@@ -18,6 +18,7 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, List<ImplicitConnectorEntry>> _connectorsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<OneWayConstraint>> _oneWayByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<BlockedTurn>> _blockedTurnsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<AdwWindow>> _adwByAirport = new(StringComparer.OrdinalIgnoreCase);
 
     public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports)
     {
@@ -34,7 +35,24 @@ public sealed class AirportSidecarCatalog
             MergeImplicitConnectors(key, airport.ImplicitConnectors);
             MergeOneWayConstraints(key, airport.OneWayEdges);
             MergeBlockedTurns(key, airport.BlockedTurns);
+            MergeAdw(key, airport.Adw);
         }
+    }
+
+    private void MergeAdw(string key, IReadOnlyList<AdwWindow> windows)
+    {
+        if (windows.Count == 0)
+        {
+            return;
+        }
+
+        if (!_adwByAirport.TryGetValue(key, out var list))
+        {
+            list = [];
+            _adwByAirport[key] = list;
+        }
+
+        list.AddRange(windows);
     }
 
     private void MergeAvoidedTaxiways(string key, IReadOnlyList<AvoidTaxiwayEntry> entries)
@@ -199,5 +217,21 @@ public sealed class AirportSidecarCatalog
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
         return _blockedTurnsByAirport.TryGetValue(key, out var list) ? list : [];
+    }
+
+    /// <summary>
+    /// Arrival/Departure Windows published for the given airport — reference marks only, nothing in the
+    /// simulation acts on them. Never null; returns an empty list when the airport has none. Resolved
+    /// against a concrete layout by <see cref="Yaat.Sim.Data.Airport.AdwResolver"/>.
+    /// </summary>
+    public IReadOnlyList<AdwWindow> GetAdwWindows(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return [];
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _adwByAirport.TryGetValue(key, out var list) ? list : [];
     }
 }

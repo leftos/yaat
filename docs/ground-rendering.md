@@ -25,7 +25,7 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
 1. **Background clear**
 2. **Layer 1 — satellite image** (`ShowSatelliteImage`, brightness-scaled)
 3. **Layer 2 — tower-cab video map overlay** (`ShowVideoMapOverlay`)
-4. **Runways** (drawn when GND *or* MAP is on; labels + threshold markers only when GND is on and an aircraft is selected)
+4. **Runways** (drawn when GND *or* MAP is on; labels + threshold markers only when GND is on and an aircraft is selected), then **ADW marks** under the same condition plus the `ADW` toggle — see below
 5. **Layer 3 — YAAT ground layout** (only when `ShowYaatLayout`), brightness-scaled, in this sub-order:
    - `DrawEdges` (taxiway/ramp infrastructure)
    - `DrawPreviewRoute` → `DrawShownTaxiRoutes` → **`DrawHoverRoute`** → `DrawDrawnRoute` → `DrawDrawHoverPreview` (the five route overlays — see below)
@@ -53,6 +53,61 @@ All five overlays flow VM → `GroundCanvas` `StyledProperty` → `RenderSnapsho
 | Draw-mode hover | `DrawHoverPreview` | node hover during draw mode | — |
 
 `ShownTaxiRouteEntry(Callsign, Route, Color)` pairs a resolved route with its palette color; `GroundRenderer` maps the color back to the matching pre-built `SKPaint`.
+
+## ADW markings
+
+An **Arrival/Departure Window** is one of the facility-directive aids 7110.65 §3-9-9.b permits in lieu of
+applying the §3-9-8 intersecting-runway provisions, where converging centerlines cross within 1 NM of a
+departure end. The facility publishes a window on the arrival runway's final approach course; a converging
+departure must have begun its takeoff roll before the arrival enters it, must not begin one while the
+arrival is inside it, and a takeoff clearance already issued gets cancelled if the roll hasn't started in
+time. `GroundRenderer.DrawAdwMarks` draws the two ends of each published window as flat-yellow ticks
+perpendicular to the final approach course, matching how CRC's ASDE-X depicts them.
+
+**ADW does not change IFR separation standards.** What it protects is the arrival's *missed approach* from
+the converging departure — and only because the directive also requires the go-around to hold runway
+heading through the departure's flight path. §3-9-9.c wake-turbulence intervals apply independently and are
+untouched by any of this.
+
+**The marks are a reference, not a rule.** Nothing in the simulation reads them: no separation logic, no
+pilot behavior, no scoring, and YAAT's own go-around does not know it is supposed to hold runway heading.
+They also carry no applicability conditions — the directive that publishes a window sets its own (at KMIA:
+1,000 ft ceiling / 3 SM visibility, arrivals between 120 and 170 kt groundspeed entering the window, no
+intersection departures while ADW is in use).
+
+**Reading them.** Marks are drawn config-agnostically, exactly as CRC's static overlay does — all of KMIA's
+eight ticks are on screen at once, but only one direction of a pairing is live in any given flow. Which
+tick applies also depends on the *departure* runway, and the ticks are unlabelled (the reference has no
+text): at KMIA on RWY 30, the tick ~350 ft inside the pavement end is the RWY 26L window, and the one
+~2,800 ft in is the RWY 26R window. Finally, no mark does not mean no conflict — KMIA's 12/30 centerline
+also crosses 9/27's within 1 NM of RWY 27's departure end, and the SOP publishes no window for that pair.
+
+Where the geometry comes from:
+
+- **Data** — the `adw` section of the per-airport sidecar (`Data/ARTCCs/{ARTCC}/Airports/{airport}.json`),
+  carrying the published ranges verbatim. See [`Data/ARTCCs/README.md`](../src/Yaat.Sim/Data/ARTCCs/README.md#adw).
+  These are facility-directive values — never derive one from runway geometry, and always cite the
+  directive in `notes`.
+- **Resolution** — `Data/Airport/AdwResolver.cs` (Yaat.Sim), same per-layout-cached shape as
+  `BlockedTurnResolver`. Ranges are signed against the outbound direction: **positive is outbound onto
+  final, negative is past the threshold and down the runway**, measured from the *landing* threshold
+  (`GroundRunway.LandingThresholdForEnd`, which applies the vNAS map's `threshold` displacement — the
+  LineString endpoints are pavement ends). The final approach course is taken as the runway centerline
+  bearing, which is exact for a straight-in and would be wrong for an offset LDA/PRM final (~860 ft of
+  lateral error at 2.7 nm for a 3° offset). Every published ADW to date is on a straight-in.
+- **Wire** — resolved server-side in `DtoConverter.ToGroundLayoutDto` and shipped as
+  `GroundLayoutDto.AdwMarks`, so the client needs neither the sidecar nor the displacement data. Same
+  posture as the hidden-arc resolution alongside it.
+- **Drawing** — the inner mark spans exactly the runway width (what makes it read as "on the runway"); the
+  outer mark is a fixed ~547 ft tick, the same convention the SFO final-approach overlay uses. Stroke width
+  scales in world feet with a screen-pixel floor, like `DrawHoldShortBar`.
+
+The outer marks sit a few miles out on final, well off the airport diagram at normal zoom. `MapViewport`
+has no geographic bounds, so they draw correctly and simply come into view as the user zooms out.
+
+Toggle: the `ADW` button on the label/filter toolbar, persisted globally as
+`UserPreferences.GroundShowAdwMarkings` and per-scenario as `SavedGroundSettings.ShowAdwMarkings`
+(default on — airports without an `adw` section ship no marks, so it is inert elsewhere).
 
 ## Taxi-route display feature
 

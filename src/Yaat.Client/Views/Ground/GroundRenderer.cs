@@ -231,6 +231,18 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
     };
 
+    /// <summary>
+    /// Arrival/Departure Window marks. Flat yellow, matching how the ASDE-X surface display depicts them,
+    /// so they read as a published reference rather than as YAAT layout geometry.
+    /// </summary>
+    private readonly SKPaint _adwMarkPaint = new()
+    {
+        Color = new SKColor(220, 220, 0),
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Butt,
+    };
+
     private readonly SKPaint _taxiwayPaint = new()
     {
         Color = SKColor.Parse(GroundColorScheme.DefaultTaxiway),
@@ -476,6 +488,7 @@ public sealed class GroundRenderer : IDisposable
             [_nodePaint] = _nodePaint.Color.Alpha,
             [_holdShortBarPaint] = _holdShortBarPaint.Color.Alpha,
             [_nodeLabelPaint] = _nodeLabelPaint.Color.Alpha,
+            [_adwMarkPaint] = _adwMarkPaint.Color.Alpha,
         }.ToFrozenDictionary();
     }
 
@@ -563,7 +576,8 @@ public sealed class GroundRenderer : IDisposable
         bool showVideoMapOverlay,
         int videoMapOverlayBrightness,
         bool showYaatLayout,
-        int yaatLayoutBrightness
+        int yaatLayoutBrightness,
+        bool showAdwMarkings
     )
     {
         canvas.Clear(_backgroundColor);
@@ -598,6 +612,11 @@ public sealed class GroundRenderer : IDisposable
                 drawThresholdMarkers: showYaatLayout && selectedAircraft is not null,
                 hoveredRunwayEnd
             );
+
+            if (showAdwMarkings)
+            {
+                DrawAdwMarks(canvas, vp, layout);
+            }
         }
 
         // Layer 3: YAAT ground layout (conditionally rendered with brightness)
@@ -959,6 +978,36 @@ public sealed class GroundRenderer : IDisposable
                     }
                 }
             }
+        }
+    }
+
+    /// <summary>Stroke width of an ADW mark in feet — heavy enough to read against the runway fill.</summary>
+    private const float AdwMarkStrokeWidthFt = 8f;
+
+    /// <summary>Floor on the ADW stroke so the marks stay visible when the whole field is on screen.</summary>
+    private const float MinAdwMarkStrokePx = 1.5f;
+
+    /// <summary>
+    /// Draws the airport's Arrival/Departure Window marks. Endpoints arrive resolved from the server, so
+    /// this only projects and strokes them. The outer marks sit a few miles out on final and are off the
+    /// airport diagram at normal zoom — the viewport has no geographic bounds, so they simply come into
+    /// view when the user zooms out.
+    /// </summary>
+    private void DrawAdwMarks(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
+    {
+        if (layout.AdwMarks is null || layout.AdwMarks.Count == 0)
+        {
+            return;
+        }
+
+        var pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
+        _adwMarkPaint.StrokeWidth = MathF.Max(AdwMarkStrokeWidthFt * pxPerFt, MinAdwMarkStrokePx);
+
+        foreach (var mark in layout.AdwMarks)
+        {
+            var (x1, y1) = vp.LatLonToScreen(mark.Lat1, mark.Lon1);
+            var (x2, y2) = vp.LatLonToScreen(mark.Lat2, mark.Lon2);
+            canvas.DrawLine(x1, y1, x2, y2, _adwMarkPaint);
         }
     }
 
@@ -2330,6 +2379,7 @@ public sealed class GroundRenderer : IDisposable
         _waypointTextFont.Dispose();
         _nodePaint.Dispose();
         _holdShortBarPaint.Dispose();
+        _adwMarkPaint.Dispose();
         _nodeLabelPaint.Dispose();
         _nodeLabelFont.Dispose();
         _aircraftPaint.Dispose();
