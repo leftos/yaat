@@ -910,8 +910,10 @@ public record MaintainMilitaryRouteAltitudesCommand : ParsedCommand;
 
 /// <summary>
 /// FAA JO 7110.65 §9-2-6.b "CLEARED TO (destination) FROM IR (designator/exit fix) VIA (route)".
+/// The published phraseology is two lines ending "MAINTAIN (altitude)", so the exit clearance
+/// carries the altitude to fly after the route; null leaves the aircraft's altitude as it was.
 /// </summary>
-public record ClearedOutOfMilitaryRouteCommand(string Destination, string? Route) : ParsedCommand;
+public record ClearedOutOfMilitaryRouteCommand(string Destination, string? Route, int? AltitudeFt) : ParsedCommand;
 
 /// <summary>
 /// FAA JO 7110.65 §9-2-6.e "VERIFY YOUR EXIT FIX ESTIMATE AND REQUESTED ALTITUDE AFTER EXIT".

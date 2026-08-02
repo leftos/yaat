@@ -324,9 +324,18 @@ public static class MilitaryRouteCommandHandler
             LoadRouteOfFlight(aircraft, cmd.Route);
         }
 
+        // §9-2-6.b's phraseology is two lines ending "MAINTAIN (altitude)". Without it the aircraft
+        // leaves the route carrying no assigned altitude at all, having just had its block cleared.
+        if (cmd.AltitudeFt is { } altitude)
+        {
+            aircraft.Targets.AssignedAltitude = altitude;
+            aircraft.Targets.TargetAltitude = altitude;
+        }
+
         var via = cmd.Route is null ? "" : $" via {cmd.Route}";
+        var maintain = cmd.AltitudeFt is { } assigned ? $", maintain {assigned:N0}" : "";
         var from = exitPoint is null ? designator : $"{designator} {exitPoint}";
-        return CommandDispatcher.Ok($"Cleared to {cmd.Destination} from {from}{via}");
+        return CommandDispatcher.Ok($"Cleared to {cmd.Destination} from {from}{via}{maintain}");
     }
 
     private static void LoadRouteOfFlight(AircraftState aircraft, string route)

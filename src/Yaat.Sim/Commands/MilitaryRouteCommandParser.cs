@@ -62,7 +62,14 @@ public static class MilitaryRouteCommandParser
 
     /// <summary>
     /// <c>XMTR KTCM</c> — cleared to a limit off the route.
+    /// <c>XMTR KTCM 240</c> — ...and maintain 24000 after the route.
     /// <c>XMTR KTCM VIA V495 SEA</c> — cleared to a limit via a route of flight.
+    /// <c>XMTR KTCM 240 VIA V495 SEA</c> — all three.
+    /// <para>
+    /// The altitude sits between the destination and <c>VIA</c> because the route of flight runs
+    /// greedily to end of line: a trailing altitude could not be told apart from a route fix, while
+    /// <c>VIA</c> delimits the slot unambiguously. It also reads in §9-2-6.b's own order.
+    /// </para>
     /// </summary>
     internal static PR ParseClearedOutOf(string? arg)
     {
@@ -73,20 +80,35 @@ public static class MilitaryRouteCommandParser
 
         var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var destination = parts[0].ToUpperInvariant();
+        int index = 1;
 
-        if (parts.Length == 1)
+        // All-digits is what separates an altitude from a route token: airways and fixes always
+        // carry a letter, so "240" can only be an altitude and "V495" can only be a route element.
+        int? altitude = null;
+        if (index < parts.Length && parts[index].All(char.IsDigit))
         {
-            return PR.Ok(new ClearedOutOfMilitaryRouteCommand(destination, null));
+            altitude = AltitudeResolver.Resolve(parts[index]);
+            if (altitude is null)
+            {
+                return PR.Fail($"Invalid altitude '{parts[index]}' for XMTR");
+            }
+
+            index++;
         }
 
-        int routeStart = string.Equals(parts[1], "VIA", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
+        if (index >= parts.Length)
+        {
+            return PR.Ok(new ClearedOutOfMilitaryRouteCommand(destination, null, altitude));
+        }
+
+        int routeStart = string.Equals(parts[index], "VIA", StringComparison.OrdinalIgnoreCase) ? index + 1 : index;
         if (routeStart >= parts.Length)
         {
             return PR.Fail("XMTR VIA requires a route of flight");
         }
 
         var route = string.Join(' ', parts[routeStart..]).ToUpperInvariant();
-        return PR.Ok(new ClearedOutOfMilitaryRouteCommand(destination, route));
+        return PR.Ok(new ClearedOutOfMilitaryRouteCommand(destination, route, altitude));
     }
 
     internal static PR ParseSayExitFixEstimate(string? arg)

@@ -565,7 +565,7 @@ public static class CommandDescriber
             JoinAirwayCommand cmd => $"JAWY {cmd.AirwayId}",
             ClearedIntoMilitaryRouteCommand cmd => DescribeClearedIntoMilitaryRoute(cmd),
             MaintainMilitaryRouteAltitudesCommand => "MTRA",
-            ClearedOutOfMilitaryRouteCommand cmd => cmd.Route is null ? $"XMTR {cmd.Destination}" : $"XMTR {cmd.Destination} VIA {cmd.Route}",
+            ClearedOutOfMilitaryRouteCommand cmd => DescribeClearedOutOfMilitaryRoute(cmd),
             SayExitFixEstimateCommand => "SAYEXIT",
             ClearedToConductRefuelingCommand cmd => cmd.BlockFloorFt is { } floor && cmd.BlockCeilingFt is { } ceiling
                 ? $"CAR {cmd.Designator} {floor} {ceiling}"
@@ -1002,9 +1002,7 @@ public static class CommandDescriber
             JoinAirwayCommand cmd => $"Join airway {cmd.AirwayId}",
             ClearedIntoMilitaryRouteCommand cmd => DescribeClearedIntoMilitaryRouteNatural(cmd),
             MaintainMilitaryRouteAltitudesCommand => "Maintain military route altitudes",
-            ClearedOutOfMilitaryRouteCommand cmd => cmd.Route is null
-                ? $"Cleared out of the military route to {cmd.Destination}"
-                : $"Cleared out of the military route to {cmd.Destination} via {cmd.Route}",
+            ClearedOutOfMilitaryRouteCommand cmd => DescribeClearedOutOfMilitaryRouteNatural(cmd),
             SayExitFixEstimateCommand => "Verify exit fix estimate and requested altitude after exit",
             ClearedToConductRefuelingCommand cmd => cmd.BlockFloorFt is { } floor && cmd.BlockCeilingFt is { } ceiling
                 ? $"Cleared to conduct refueling along {cmd.Designator} track, maintain block {floor:N0} through {ceiling:N0}"
@@ -2484,6 +2482,20 @@ public static class CommandDescriber
 
         var prefix = cmd.AtOrBelow ? "B" : "";
         return $"CMTR {cmd.Designator} {prefix}{altitude}";
+    }
+
+    private static string DescribeClearedOutOfMilitaryRoute(ClearedOutOfMilitaryRouteCommand cmd)
+    {
+        var altitude = cmd.AltitudeFt is { } feet ? $" {feet}" : "";
+        var via = cmd.Route is null ? "" : $" VIA {cmd.Route}";
+        return $"XMTR {cmd.Destination}{altitude}{via}";
+    }
+
+    private static string DescribeClearedOutOfMilitaryRouteNatural(ClearedOutOfMilitaryRouteCommand cmd)
+    {
+        var via = cmd.Route is null ? "" : $" via {cmd.Route}";
+        var maintain = cmd.AltitudeFt is { } feet ? $", maintain {feet:N0}" : "";
+        return $"Cleared out of the military route to {cmd.Destination}{via}{maintain}";
     }
 
     private static string DescribeClearedIntoMilitaryRouteNatural(ClearedIntoMilitaryRouteCommand cmd)

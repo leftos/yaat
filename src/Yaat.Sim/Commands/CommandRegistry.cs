@@ -1649,6 +1649,11 @@ public static class CommandRegistry
                 ["XMTR", "EMTR"],
                 [
                     O(null, [R("destination", "clearance limit")], "Cleared out of route to a clearance limit"),
+                    O(
+                        "Altitude",
+                        [R("destination", "clearance limit"), R("altitude", "altitude")],
+                        "Cleared out of route to a clearance limit, maintain altitude"
+                    ),
                     O("Route", [R("destination", "clearance limit"), R("route", "route of flight")], "Cleared out of route via a route of flight"),
                 ]
             ),

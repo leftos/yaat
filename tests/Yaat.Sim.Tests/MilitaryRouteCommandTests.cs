@@ -336,7 +336,12 @@ public sealed class MilitaryRouteCommandTests
         Assert.Equal("CMTR IR149 5000", CommandDescriber.DescribeCommand(new ClearedIntoMilitaryRouteCommand("IR149", 5000, false)));
         Assert.Equal("CMTR IR149 B5000", CommandDescriber.DescribeCommand(new ClearedIntoMilitaryRouteCommand("IR149", 5000, true)));
         Assert.Equal("MTRA", CommandDescriber.DescribeCommand(new MaintainMilitaryRouteAltitudesCommand()));
-        Assert.Equal("XMTR KTCM VIA V495 SEA", CommandDescriber.DescribeCommand(new ClearedOutOfMilitaryRouteCommand("KTCM", "V495 SEA")));
+        Assert.Equal("XMTR KTCM VIA V495 SEA", CommandDescriber.DescribeCommand(new ClearedOutOfMilitaryRouteCommand("KTCM", "V495 SEA", null)));
+        Assert.Equal("XMTR KTCM 24000", CommandDescriber.DescribeCommand(new ClearedOutOfMilitaryRouteCommand("KTCM", null, 24000)));
+        Assert.Equal(
+            "XMTR KTCM 24000 VIA V495 SEA",
+            CommandDescriber.DescribeCommand(new ClearedOutOfMilitaryRouteCommand("KTCM", "V495 SEA", 24000))
+        );
         Assert.Equal("SAYEXIT", CommandDescriber.DescribeCommand(new SayExitFixEstimateCommand()));
     }
 }

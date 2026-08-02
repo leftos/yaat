@@ -274,6 +274,11 @@ public static class PhraseologyVerbalizer
             CrossFixCommand cf => CrossFixArgs(cf, fmt),
             ClimbViaCommand cv when cv.Altitude is int alt => Map("alt", fmt.Altitude(alt)),
 
+            // The military route and aerial refueling clearances are absent on purpose: their rules
+            // are SttOnly and PilotResponder.VerbalizeForReadback builds their readbacks, because
+            // rule selection cannot see which arguments are present and a pattern cannot carry the
+            // comma before the altitude clause.
+
             // Tower
             LandAndHoldShortCommand l => Map("crossrwy", fmt.Runway(l.CrossingRunwayId)),
 
@@ -1039,6 +1044,52 @@ public static class PhraseologyVerbalizer
         }
 
         return spoken;
+    }
+
+    /// <summary>
+    /// A whole route of flight, element by element: "V495 SEA" → "victor four ninety five, seattle".
+    /// <para>
+    /// FAA JO 7110.65 §2-5-1.a states an ATS route by its phonetic-letter prefix and its number in
+    /// group form ("Victor Twelve"), while a fix keeps its own pronunciation via
+    /// <see cref="SpellFix"/>. Elements are comma-separated so a synthesiser pauses between them
+    /// rather than running the route into one word.
+    /// </para>
+    /// </summary>
+    public static string SpellRouteString(string route)
+    {
+        if (string.IsNullOrWhiteSpace(route))
+        {
+            return "";
+        }
+
+        var spoken = route.Split([' ', '.'], StringSplitOptions.RemoveEmptyEntries).Select(SpellRouteElement);
+        return string.Join(", ", spoken);
+    }
+
+    /// <summary>
+    /// One route element. An airway is a single leading letter followed by digits — "V495", "J80",
+    /// "Q42" — which is a shape no fix or navaid identifier takes, so the two never collide.
+    /// </summary>
+    private static string SpellRouteElement(string element)
+    {
+        var text = element.Trim().ToUpperInvariant();
+        if (text.Length < 2 || !char.IsLetter(text[0]) || !text[1..].All(char.IsDigit))
+        {
+            return SpellFix(text);
+        }
+
+        if (!int.TryParse(text[1..], out var number))
+        {
+            return SpellFix(text);
+        }
+
+        // §2-5-1.e's own example is "Alfa Seven Hundred", so a round hundred says "hundred" rather
+        // than pairing the trailing zeros the way a flight number would.
+        var groupForm =
+            number >= 100 && number % 100 == 0
+                ? $"{AtcNumberParser.FlightNumberToPairedWords(number / 100)} hundred"
+                : AtcNumberParser.FlightNumberToPairedWords(number);
+        return $"{NatoPhoneticAlphabet.SpellChar(text[0])} {groupForm}";
     }
 
     /// <summary>Taxiway "B6" → "bravo six"; "AA" → "alpha alpha".</summary>

@@ -180,6 +180,34 @@ public static class PhraseologyRules
             // FAA 7110.65 §5-6-6: "DEPART (fix) HEADING (degrees)" — departure-fix heading
             // assignment used for radar departures off published fixes.
             new(["depart", "{fix}", "heading", "{hdg}"], "DEPART {fix} {hdg}", DepartFix),
+            // Military training routes (7110.65 §9-2-6.a) and aerial refueling (§9-2-13).
+            //
+            // All SttOnly: these recognise the controller's spoken form, but the pilot readback is
+            // built in PilotResponder.VerbalizeForReadback instead. Two reasons the rule renderer
+            // cannot produce it. Selection: CMTR has three forms (published altitudes, an assigned
+            // altitude, at-or-below) that differ by which argument is present, and rule choice
+            // happens per canonical type without seeing the arguments, so the longest pattern wins
+            // and an assigned altitude is silently read back as "maintain route altitudes".
+            // Punctuation: RenderPattern joins tokens with spaces, and these clauses need the comma
+            // that separates the clearance from its altitude.
+            new(["cleared", "into", "{route}", "maintain", "{route}", "altitudes"], "CMTR {route}", ClearedIntoMilitaryRoute, SttOnly: true),
+            new(["cleared", "into", "{route}"], "CMTR {route}", ClearedIntoMilitaryRoute, SttOnly: true),
+            new(["cleared", "into", "{route}", "maintain", "{alt}"], "CMTR {route} {alt}", ClearedIntoMilitaryRoute, SttOnly: true),
+            new(
+                ["cleared", "into", "{route}", "maintain", "at", "or", "below", "{alt}"],
+                "CMTR {route} B{alt}",
+                ClearedIntoMilitaryRoute,
+                SttOnly: true
+            ),
+            // §9-2-13's designator inverts against §2-5-1.f: the number is spoken and "track"
+            // follows it, so the letters "A-R" are never said.
+            new(
+                ["cleared", "to", "conduct", "refueling", "along", "{track}", "track", "maintain", "block", "{floor}", "through", "{ceiling}"],
+                "CAR {track} {floor} {ceiling}",
+                ClearedToConductRefueling,
+                SttOnly: true
+            ),
+            new(["cleared", "to", "conduct", "refueling", "along", "{track}", "track"], "CAR {track}", ClearedToConductRefueling, SttOnly: true),
         ];
 
     // --- Tower (CommandRegistry.TowerCommands) ---
@@ -773,5 +801,10 @@ public static class PhraseologyRules
             new(["say", "position"], "SPOS", SayPosition),
             new(["report", "position"], "SPOS", SayPosition),
             new(["say", "expected", "approach"], "SEAPP", SayExpectedApproach),
+            // 7110.65 §9-2-6.e. The pilot's answer is built by PilotSayBuilder rather than rendered
+            // from this pattern, so these exist to recognise the controller's spoken form.
+            new(["verify", "your?", "exit", "fix", "estimate", "and?", "requested?", "altitude?", "after?", "exit?"], "SAYEXIT", SayExitFixEstimate),
+            new(["say", "exit", "fix", "estimate"], "SAYEXIT", SayExitFixEstimate, SttOnly: true),
+            new(["report", "exit", "fix", "estimate"], "SAYEXIT", SayExitFixEstimate, SttOnly: true),
         ];
 }

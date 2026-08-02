@@ -283,8 +283,102 @@ public static class PilotResponder
             ),
             ExtendPatternCommand ext => BuildExtendPatternClause(aircraft, ext),
             ReportCommand report => BuildReportWilcoClause(report),
+            ClearedIntoMilitaryRouteCommand cmtr => BuildClearedIntoMilitaryRouteClause(cmtr),
+            MaintainMilitaryRouteAltitudesCommand => BuildMaintainRouteAltitudesClause(aircraft),
+            ClearedOutOfMilitaryRouteCommand xmtr => BuildClearedOutOfMilitaryRouteClause(aircraft, xmtr),
+            ClearedToConductRefuelingCommand car => BuildClearedToConductRefuelingClause(car),
+            SayExitFixEstimateCommand => null,
             _ => VerbalizeDual(cmd, personality, activityLevel),
         };
+
+    /// <summary>
+    /// FAA JO 7110.65 §9-2-6.a "CLEARED INTO IR (designator)", with the published-altitudes,
+    /// assigned-altitude, or at-or-below clause.
+    ///
+    /// A builder rather than a <see cref="PhraseologyRule"/> for two reasons. The three forms differ
+    /// only by which argument is present, and rule selection happens per canonical type without
+    /// seeing the arguments — the longest pattern would win and an assigned altitude would be read
+    /// back as "maintain route altitudes". And the comma before the altitude clause cannot be
+    /// expressed in a pattern, whose tokens are joined with spaces.
+    /// </summary>
+    private static PilotSpeechText BuildClearedIntoMilitaryRouteClause(ClearedIntoMilitaryRouteCommand cmd)
+    {
+        var terminalRoute = cmd.Designator.ToUpperInvariant();
+        var spokenRoute = PhraseologyVerbalizer.SpellMilitaryRoute(cmd.Designator);
+
+        if (cmd.AltitudeFt is not { } altitude)
+        {
+            return new PilotSpeechText(
+                $"cleared into {terminalRoute}, maintain {terminalRoute} altitudes",
+                $"cleared into {spokenRoute}, maintain {spokenRoute} altitudes"
+            );
+        }
+
+        // Worded exactly as the existing at-or-below altitude rendering so the two never diverge.
+        var prefix = cmd.AtOrBelow ? "maintain at or below" : "maintain";
+        return new PilotSpeechText(
+            $"cleared into {terminalRoute}, {prefix} {PhraseologyVerbalizer.CompactAltitude(altitude)}",
+            $"cleared into {spokenRoute}, {prefix} {PhraseologyVerbalizer.AltitudeWords(altitude)}"
+        );
+    }
+
+    /// <summary>
+    /// §9-2-13 "CLEARED TO CONDUCT REFUELING ALONG (number) TRACK" and its "MAINTAIN BLOCK
+    /// (altitude) THROUGH (altitude)" clause. A builder for the same punctuation reason as
+    /// <see cref="BuildClearedIntoMilitaryRouteClause"/>.
+    /// </summary>
+    private static PilotSpeechText BuildClearedToConductRefuelingClause(ClearedToConductRefuelingCommand cmd)
+    {
+        var terminal = $"cleared to conduct refueling along {cmd.Designator.ToUpperInvariant()} track";
+        var spoken = $"cleared to conduct refueling along {PhraseologyVerbalizer.SpellRefuelingTrack(cmd.Designator)} track";
+
+        if (cmd.BlockFloorFt is not { } floor || cmd.BlockCeilingFt is not { } ceiling)
+        {
+            return new PilotSpeechText(terminal, spoken);
+        }
+
+        return new PilotSpeechText(
+            $"{terminal}, maintain block {PhraseologyVerbalizer.CompactAltitude(floor)} through {PhraseologyVerbalizer.CompactAltitude(ceiling)}",
+            $"{spoken}, maintain block {PhraseologyVerbalizer.AltitudeWords(floor)} through {PhraseologyVerbalizer.AltitudeWords(ceiling)}"
+        );
+    }
+
+    /// <summary>
+    /// FAA JO 7110.65 §9-2-6.a "MAINTAIN IR (designator) ALTITUDES". The command carries no
+    /// designator — it comes from the aircraft's clearance — and a <see cref="PhraseologyRule"/>
+    /// cannot reach aircraft state, so this is a builder rather than a rule.
+    /// </summary>
+    private static PilotSpeechText? BuildMaintainRouteAltitudesClause(AircraftState aircraft)
+    {
+        if (aircraft.MilitaryRoute.Designator is not { Length: > 0 } designator)
+        {
+            return null;
+        }
+
+        return new PilotSpeechText($"maintain {designator} altitudes", $"maintain {PhraseologyVerbalizer.SpellMilitaryRoute(designator)} altitudes");
+    }
+
+    /// <summary>
+    /// §9-2-6.b "CLEARED TO (destination) FROM IR (designator/exit fix) VIA (route). MAINTAIN
+    /// (altitude)." The designator again comes from state rather than from the command.
+    /// </summary>
+    private static PilotSpeechText? BuildClearedOutOfMilitaryRouteClause(AircraftState aircraft, ClearedOutOfMilitaryRouteCommand cmd)
+    {
+        if (aircraft.MilitaryRoute.Designator is not { Length: > 0 } designator)
+        {
+            return null;
+        }
+
+        var terminalVia = cmd.Route is { Length: > 0 } route ? $" via {route}" : "";
+        var spokenVia = cmd.Route is { Length: > 0 } spoken ? $" via {PhraseologyVerbalizer.SpellRouteString(spoken)}" : "";
+        var terminalAlt = cmd.AltitudeFt is { } feet ? $", maintain {PhraseologyVerbalizer.CompactAltitude(feet)}" : "";
+        var spokenAlt = cmd.AltitudeFt is { } spokenFeet ? $", maintain {PhraseologyVerbalizer.AltitudeWords(spokenFeet)}" : "";
+
+        return new PilotSpeechText(
+            $"cleared to {PhraseologyVerbalizer.FixDisplayTextUpper(cmd.Destination)} from {designator}{terminalVia}{terminalAlt}",
+            $"cleared to {PhraseologyVerbalizer.SpellFix(cmd.Destination)} from {PhraseologyVerbalizer.SpellMilitaryRoute(designator)}{spokenVia}{spokenAlt}"
+        );
+    }
 
     /// <summary>
     /// Pilot wilco for a controller <c>REPORT</c> request: acknowledges now ("will report turning
