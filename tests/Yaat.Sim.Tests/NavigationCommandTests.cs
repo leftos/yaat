@@ -710,7 +710,6 @@ public class NavigationCommandTests : IDisposable
             Lon2 = -122.25,
             Elevation2Ft = 6,
             TrueHeading2 = new TrueHeading(100),
-            LengthFt = 10000,
             WidthFt = 150,
         };
         aircraft.Phases = new PhaseList { AssignedRunway = runway };

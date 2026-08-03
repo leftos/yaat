@@ -39,7 +39,6 @@ public sealed class RunwayInfoDto
     public required double Lon2 { get; init; }
     public required double Elevation2Ft { get; init; }
     public required double TrueHeading2Deg { get; init; }
-    public required double LengthFt { get; init; }
     public required double WidthFt { get; init; }
 }
 

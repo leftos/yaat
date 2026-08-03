@@ -6,6 +6,10 @@ namespace Yaat.Sim.Tests;
 /// <summary>
 /// Creates <see cref="RunwayInfo"/> instances for tests with sensible defaults.
 /// Only specify the fields the test cares about.
+///
+/// There is no length parameter: <see cref="RunwayInfo.PavementLengthFt"/> is derived from the two ends'
+/// coordinates, so a fixture that cares how long the runway is has to place <c>endLat</c>/<c>endLon</c>
+/// at that distance (see <c>LineUpGeometryTests</c>, which projects them from the heading).
 /// </summary>
 internal static class TestRunwayFactory
 {
@@ -19,7 +23,6 @@ internal static class TestRunwayFactory
         double heading = 280,
         double elevationFt = 0,
         double endElevationFt = 0,
-        double lengthFt = 10000,
         double widthFt = 150
     )
     {
@@ -39,7 +42,6 @@ internal static class TestRunwayFactory
             Lon2 = endLon,
             TrueHeading2 = new TrueHeading(oppositeHeading),
             Elevation2Ft = endElevationFt,
-            LengthFt = lengthFt,
             WidthFt = widthFt,
         };
     }

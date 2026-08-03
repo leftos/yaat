@@ -762,14 +762,19 @@ public sealed class NavigationDatabase
         return false;
     }
 
+    /// <summary>
+    /// Longest pavement at the field. This gates a "would a controller recognize this airport" filter,
+    /// not an operational suitability check, so it asks how big the airport is rather than how much
+    /// landing distance either end declares.
+    /// </summary>
     private static double MaxRunwayLength(IReadOnlyList<RunwayInfo> runways)
     {
         double max = 0;
         foreach (var r in runways)
         {
-            if (r.LengthFt > max)
+            if (r.PavementLengthFt > max)
             {
-                max = r.LengthFt;
+                max = r.PavementLengthFt;
             }
         }
         return max;
@@ -1721,7 +1726,6 @@ public sealed class NavigationDatabase
                         Lon2 = rwy2.StartLocation.Lon,
                         Elevation2Ft = airport.Elevation,
                         TrueHeading2 = new TrueHeading(rwy2.TrueHeading),
-                        LengthFt = rwy1.LandingDistanceAvailable,
                         WidthFt = rwy1.Width,
                     };
                 }
@@ -1740,7 +1744,6 @@ public sealed class NavigationDatabase
                         Lon2 = rwy1.EndLocation.Lon,
                         Elevation2Ft = airport.Elevation,
                         TrueHeading2 = new TrueHeading(rwy1.TrueHeading + 180.0),
-                        LengthFt = rwy1.LandingDistanceAvailable,
                         WidthFt = rwy1.Width,
                     };
                 }

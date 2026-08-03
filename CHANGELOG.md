@@ -19,6 +19,7 @@
 - The traffic pattern's downwind-abeam and base turn follow a displaced threshold; the departure end and crosswind turn stay at the pavement.
 - LAHSO hold-short distances are the available landing distance from the displaced threshold, and solo-training runway scoring measures arrivals from it.
 - The final approach glidepath crosses the threshold at a wheel crossing height instead of aiming at the surface, so aircraft descend on a real 3° path and touch down at the runway's aiming point markings. Jets now land ~1,370 ft in rather than floating to ~1,700 ft.
+- A runway's length is its physical pavement everywhere it is used, instead of one end's published landing distance applied to both directions. Line-up geometry, departure path projection and solo-training runway scoring no longer lose the pavement behind a displaced threshold — 2,414 ft of it at KSJC 12R/30L.
 
 ## v0.10.2-beta [2026/07/31]
 

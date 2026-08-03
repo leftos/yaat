@@ -478,7 +478,7 @@ Airports are indexed into a 1°×1° (~60 nm) spatial grid at build time, dedupl
 
 - `FindNearestAirportElevation(position, maxRangeNm = 100)` (`:522`) — nearest airport's elevation, a terrain proxy for STARS/AGL
   gating when no precise runway reference exists.
-- `FindNearestSizeableAirport(position, minRunwayLengthFt, maxRangeNm)` (`:562`) — nearest airport whose longest runway clears the
+- `FindNearestSizeableAirport(position, minRunwayLengthFt, maxRangeNm)` (`:562`) — nearest airport whose longest *pavement* clears the
   threshold; used to anchor pilot position reports against a recognizable field instead of an arbitrary RNAV waypoint.
 
 Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).

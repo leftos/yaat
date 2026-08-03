@@ -59,7 +59,6 @@ public class FinalApproachGenuineOffsetTests
             Lon2 = -122.055150,
             TrueHeading2 = new TrueHeading((runwayHeadingDeg + 180) % 360),
             Elevation2Ft = thresholdElev,
-            LengthFt = 5011,
             WidthFt = 150,
         };
 

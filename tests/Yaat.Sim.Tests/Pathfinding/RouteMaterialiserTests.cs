@@ -487,7 +487,6 @@ public class RouteMaterialiserTests
             Lon2 = -122.209,
             Elevation2Ft = 0,
             TrueHeading2 = new TrueHeading(100),
-            LengthFt = 9000,
             WidthFt = 150,
         };
         using var scope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));

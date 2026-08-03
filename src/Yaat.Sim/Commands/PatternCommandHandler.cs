@@ -2287,7 +2287,7 @@ internal static class PatternCommandHandler
         TrueHeading reverseEntry45 = entry45Hdg.ToReciprocal();
         TrueHeading reverseDownwind = waypoints.DownwindHeading.ToReciprocal();
 
-        double runwayHalfNm = runway.LengthFt * 0.5 / 6076.12;
+        double runwayHalfNm = runway.PavementLengthFt * 0.5 / 6076.12;
         double categoryFloorNm = category switch
         {
             AircraftCategory.Jet => 2.0,

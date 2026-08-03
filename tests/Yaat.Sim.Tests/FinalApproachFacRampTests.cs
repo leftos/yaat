@@ -56,7 +56,6 @@ public class FinalApproachFacRampTests
             Lon2 = -122.357141,
             TrueHeading2 = new TrueHeading((runwayHeadingDeg + 180) % 360),
             Elevation2Ft = thresholdElev,
-            LengthFt = 11193,
             WidthFt = 200,
         };
 

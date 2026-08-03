@@ -48,7 +48,6 @@ public class PatternEntryPreservesLandingClearanceTests : IDisposable
             endLon: -122.21926,
             heading: 292,
             elevationFt: 9,
-            lengthFt: 6213,
             widthFt: 150
         );
     }

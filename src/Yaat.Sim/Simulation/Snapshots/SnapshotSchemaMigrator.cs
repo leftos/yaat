@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 17;
+    public const int CurrentSchemaVersion = 18;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -110,6 +110,11 @@ public static class SnapshotSchemaMigrator
         // V16→V17: Added AircraftSnapshotDto.MilitaryRoute (AP/1B military training route clearance
         //   state) and the MilitaryRoute phase DTO. No data transformation — older snapshots default
         //   to "not on a military route", exactly the pre-feature behavior.
+        // V17→V18: Removed RunwayInfoDto.LengthFt. It carried one end's published landing distance
+        //   available and was read as a physical runway length; the length is now derived from the
+        //   runway's own end coordinates, which every snapshot already carries. No data transformation —
+        //   the field is ignored on read, and the derived length is strictly more correct than the value
+        //   it replaces (at KSJC 12R/30L, 11,001 ft of pavement rather than an 8,587 ft landing distance).
         if (snapshot.SchemaVersion < 4)
         {
             foreach (var ac in snapshot.Aircraft)

@@ -167,14 +167,14 @@ public class MiaRwy9RolloutExitTests(ITestOutputHelper output)
 
         output.WriteLine(
             $"Summary: exit={exitTaxiway ?? "(none)"}, commitDist={exitCommitDistFt:F0} ft, "
-                + $"maxAlong={maxAlongFt:F0} ft, runwayLen={rwy9.LengthFt:F0} ft"
+                + $"maxAlong={maxAlongFt:F0} ft, runwayLen={rwy9.PavementLengthFt:F0} ft"
         );
 
         Assert.NotNull(exitTaxiway);
         Assert.True(
             exitCommitDistFt < 8500,
             $"B738 landing MIA rwy 9 committed to exit {exitTaxiway} {exitCommitDistFt:F0} ft past threshold on a "
-                + $"{rwy9.LengthFt:F0} ft runway — expected a mid-field exit, not a near-full rollout. Authored turnoff is 'left'."
+                + $"{rwy9.PavementLengthFt:F0} ft runway — expected a mid-field exit, not a near-full rollout. Authored turnoff is 'left'."
         );
     }
 }

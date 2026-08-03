@@ -52,8 +52,8 @@ public static class RunwayIntersectionCalculator
         double maxBeyondDepartureEndNm
     )
     {
-        double firstLengthNm = (firstRunway.LengthFt / GeoMath.FeetPerNm) + maxBeyondDepartureEndNm;
-        double secondLengthNm = (secondRunway.LengthFt / GeoMath.FeetPerNm) + maxBeyondDepartureEndNm;
+        double firstLengthNm = (firstRunway.PavementLengthFt / GeoMath.FeetPerNm) + maxBeyondDepartureEndNm;
+        double secondLengthNm = (secondRunway.PavementLengthFt / GeoMath.FeetPerNm) + maxBeyondDepartureEndNm;
         var firstThreshold = new LatLon(firstRunway.ThresholdLatitude, firstRunway.ThresholdLongitude);
         var secondThreshold = new LatLon(secondRunway.ThresholdLatitude, secondRunway.ThresholdLongitude);
         var firstProjectedEnd = GeoMath.ProjectPoint(firstThreshold, firstRunway.TrueHeading, firstLengthNm);

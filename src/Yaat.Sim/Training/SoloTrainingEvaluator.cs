@@ -2013,32 +2013,10 @@ public sealed class SoloTrainingEvaluator
                 runwayKey,
                 alongPavementFt,
                 displacementFt,
-                PavementLengthFt(runway, authoredRunway),
+                runway.PavementLengthFt,
                 ResolveSrsCategory(aircraft),
                 ResolveCwtCategory(aircraft)
             );
-        }
-
-        /// <summary>
-        /// Physical pavement length, which is what "crossed the runway end" (7110.65 §3-9-6) means.
-        /// <see cref="RunwayInfo.LengthFt"/> is a landing distance available, so it stops short of the
-        /// pavement on a displaced runway; the airport map's centerline is the real extent when present.
-        /// </summary>
-        private static double PavementLengthFt(RunwayInfo runway, GroundRunway? authoredRunway)
-        {
-            var coordinates = authoredRunway?.Coordinates;
-            if ((coordinates is null) || (coordinates.Count < 2))
-            {
-                return runway.LengthFt;
-            }
-
-            double lengthNm = 0;
-            for (int i = 0; i < coordinates.Count - 1; i++)
-            {
-                lengthNm += GeoMath.DistanceNm(coordinates[i].Lat, coordinates[i].Lon, coordinates[i + 1].Lat, coordinates[i + 1].Lon);
-            }
-
-            return Math.Max(runway.LengthFt, lengthNm * GeoMath.FeetPerNm);
         }
 
         private static RunwayOperation? DetectOperation(

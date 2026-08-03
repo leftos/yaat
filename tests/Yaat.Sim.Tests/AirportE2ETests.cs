@@ -285,7 +285,6 @@ public class AirportE2ETests
             Lon2 = 0,
             Elevation2Ft = 0,
             TrueHeading2 = new TrueHeading(0),
-            LengthFt = 0,
             WidthFt = widthFt,
         };
 

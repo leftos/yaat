@@ -764,7 +764,6 @@ public class SpeedPhysicsTests
             Elevation2Ft = 6,
             TrueHeading1 = new TrueHeading(300),
             TrueHeading2 = new TrueHeading(120),
-            LengthFt = 6000,
             WidthFt = 150,
         };
 

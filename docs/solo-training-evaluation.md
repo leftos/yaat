@@ -219,8 +219,9 @@ First observation seeds an op from the current phase (`TrySeedOperation`, `:1875
 **Two datums, and picking the wrong one is a scoring bug.** `AlongThresholdFt` is measured from the **pavement**
 threshold; `AlongLandingThresholdFt` subtracts the airport map's displacement for that end. Departure-side rules stay
 on the pavement — §3-9-6 spacing, `HasPassedIntersection` (`PrecedingIntersectionFt` is itself pavement-referenced),
-and `HasCrossedRunwayEnd`, which compares against `PavementLengthFt` (the map's centerline length, *not*
-`RunwayInfo.LengthFt` — that is a landing distance available and stops short of the pavement on a displaced runway).
+and `HasCrossedRunwayEnd`, which compares against `RunwayInfo.PavementLengthFt` — the physical
+threshold-to-threshold length, derived from the two ends' coordinates, which on a displaced runway is
+longer than either end's declared landing distance.
 Arrival-side rules use the landing datum: `IsLandingAfterThreshold` and `ArrivalBehindLandingSatisfied`, because
 §3-10-3's "(n) feet down the runway" counts from where the arrival was allowed to touch down. At KSJC 30L that is
 2,537 ft of difference — enough to clear a succeeding arrival across the threshold early if the datums are crossed.

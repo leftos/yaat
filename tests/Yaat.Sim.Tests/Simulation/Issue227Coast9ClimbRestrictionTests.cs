@@ -53,7 +53,6 @@ public class Issue227Coast9ClimbRestrictionTests
             Lon2 = phys.Lon2,
             Elevation2Ft = phys.Elevation2Ft,
             TrueHeading2 = phys.TrueHeading2,
-            LengthFt = phys.LengthFt,
             WidthFt = phys.WidthFt,
         };
     }

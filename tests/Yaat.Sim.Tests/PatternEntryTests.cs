@@ -49,7 +49,6 @@ public class PatternEntryTests : IDisposable
             endLon: -122.21926,
             heading: 292,
             elevationFt: 9,
-            lengthFt: 6213,
             widthFt: 150
         );
     }
@@ -861,7 +860,6 @@ public class PatternEntryTests : IDisposable
             endLon: -122.39305,
             heading: 284,
             elevationFt: 13,
-            lengthFt: 11870,
             widthFt: 200
         );
     }
@@ -929,7 +927,6 @@ public class PatternEntryTests : IDisposable
             endLon: -122.235,
             heading: 120,
             elevationFt: 50,
-            lengthFt: 5000,
             widthFt: 150
         );
     }
@@ -1123,7 +1120,7 @@ public class PatternEntryTests : IDisposable
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         var wp = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null, authoredRunway: null);
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
-        double expectedNm = runway.LengthFt * 0.5 / 6076.12;
+        double expectedNm = runway.PavementLengthFt * 0.5 / 6076.12;
 
         _output.WriteLine($"Piston lead-in distance from abeam: {distAbeamToLeadIn:F3}nm (expected {expectedNm:F3}nm for 6213ft runway)");
         Assert.InRange(distAbeamToLeadIn, expectedNm - 0.03, expectedNm + 0.03);
@@ -1179,16 +1176,22 @@ public class PatternEntryTests : IDisposable
         // SFO 28R is 11870ft = 1.95nm half-length, which is still under 2.0nm, so
         // the jet floor barely dominates. Use a synthesized runway-length test:
         // we pick a hypothetical 30000ft runway → half=2.47nm > 2.0 floor.
+        const double ThresholdLat = 37.72152;
+        const double ThresholdLon = -122.20065;
+        const double HeadingDeg = 292;
+        const double LengthFt = 30_000;
+        // The runway's length is the distance between its ends, so project the far end out to it
+        // rather than stating a length the coordinates don't back up.
+        var (endLat, endLon) = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, new TrueHeading(HeadingDeg), LengthFt / GeoMath.FeetPerNm);
         var runway = TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK", // reuse KOAK so NavDb finds the 28R designator
-            thresholdLat: 37.72152,
-            thresholdLon: -122.20065,
-            endLat: 37.73833,
-            endLon: -122.23416, // ~30000ft = 4.94nm, heading ~292°
-            heading: 292,
+            thresholdLat: ThresholdLat,
+            thresholdLon: ThresholdLon,
+            endLat: endLat,
+            endLon: endLon,
+            heading: HeadingDeg,
             elevationFt: 9,
-            lengthFt: 30000,
             widthFt: 150
         );
         using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
@@ -1203,7 +1206,7 @@ public class PatternEntryTests : IDisposable
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         var wp = PatternGeometry.Compute(runway, cat, PatternDirection.Right, null, null, null, authoredRunway: null);
         double distAbeamToLeadIn = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, entry.LeadInLat!.Value, entry.LeadInLon!.Value);
-        double expectedNm = runway.LengthFt * 0.5 / 6076.12;
+        double expectedNm = runway.PavementLengthFt * 0.5 / 6076.12;
 
         _output.WriteLine($"Jet on long runway lead-in distance: {distAbeamToLeadIn:F3}nm (expected {expectedNm:F3}nm, floor {2.0:F1}nm)");
         Assert.InRange(distAbeamToLeadIn, expectedNm - 0.05, expectedNm + 0.05);

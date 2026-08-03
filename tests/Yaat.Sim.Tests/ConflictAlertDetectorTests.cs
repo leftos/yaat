@@ -560,7 +560,6 @@ public class ConflictAlertDetectorTests
             Lon2 = lon10R,
             Elevation2Ft = KoakElevationFt,
             TrueHeading2 = new TrueHeading(Koak10LHeading),
-            LengthFt = 6213,
             WidthFt = 150,
         };
         var navDb = TestNavDbFactory.WithRunways(rwy28R, rwy28L);
@@ -786,7 +785,6 @@ public class ConflictAlertDetectorTests
             Lon2 = Koak10LThreshLon,
             Elevation2Ft = KoakElevationFt,
             TrueHeading2 = new TrueHeading(Koak10LHeading),
-            LengthFt = 6213,
             WidthFt = 150,
         };
 

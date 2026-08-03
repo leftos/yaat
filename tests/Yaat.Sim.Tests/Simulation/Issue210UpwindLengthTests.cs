@@ -136,7 +136,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
 
         output.WriteLine(
             $"[{label}] patternAlt={waypoints.PatternAltitude:F0}MSL crosswindPoint={crosswindPointNm:F2}nm "
-                + $"=> UPWIND ENDS at {upwindEndNm:F2}nm (alt {altAtTurnAgl:F0}AGL); runwayLen={rwy.LengthFt / 6076.12:F2}nm"
+                + $"=> UPWIND ENDS at {upwindEndNm:F2}nm (alt {altAtTurnAgl:F0}AGL); runwayLen={rwy.PavementLengthFt / 6076.12:F2}nm"
         );
         return (upwindEndNm, waypoints.PatternAltitude, crosswindPointNm, altAtTurnAgl);
     }
@@ -182,7 +182,7 @@ public class Issue210UpwindLengthTests(ITestOutputHelper output)
         Assert.True(defaultRun.upwindEndNm > authoredRun.upwindEndNm, "default-TPA upwind should be climb-bound past the DER");
     }
 
-    private static double RunwayLengthNm(RunwayInfo rwy) => rwy.LengthFt / 6076.12;
+    private static double RunwayLengthNm(RunwayInfo rwy) => rwy.PavementLengthFt / 6076.12;
 
     [Fact]
     public void Compute_CrosswindTurn_AtDepartureEnd_IndependentOfPatternSize()

@@ -216,7 +216,11 @@ public static class LineUpGeometry
         double wasteStraightFt = ComputeWasteStraightFt(crossFt, dHdgDeg);
         double alongFromThreshFt =
             GeoMath.AlongTrackDistanceNm(acLat, acLon, runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading) * GeoMath.FeetPerNm;
-        double remainingRunwayFt = runway.LengthFt - alongFromThreshFt;
+        // Pavement, not the landing distance available: the pavement behind a displaced threshold is
+        // usable for takeoff in either direction (AIM 2-3-3.b.8.2), so a departure lining up there has
+        // more runway ahead of it than an arrival would have had.
+        double pavementFt = runway.PavementLengthFt;
+        double remainingRunwayFt = pavementFt - alongFromThreshFt;
         if (remainingRunwayFt <= 0)
         {
             return Fault(
@@ -224,7 +228,7 @@ public static class LineUpGeometry
                 rwyHdgDeg,
                 dthetaDeg,
                 arcSpeedKts,
-                $"aircraft past runway end (along={alongFromThreshFt:F1}ft, length={runway.LengthFt:F1}ft)"
+                $"aircraft past runway end (along={alongFromThreshFt:F1}ft, pavement={pavementFt:F1}ft)"
             );
         }
 

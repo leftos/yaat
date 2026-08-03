@@ -44,7 +44,6 @@ public class LineUpGeometryTests(ITestOutputHelper output)
             endLat: endLat,
             endLon: endLon,
             heading: runwayHdgDeg,
-            lengthFt: lengthFt,
             widthFt: 200
         );
     }
@@ -69,7 +68,6 @@ public class LineUpGeometryTests(ITestOutputHelper output)
             endLat: endLat,
             endLon: endLon,
             heading: runwayHdgDeg,
-            lengthFt: lengthFt,
             widthFt: 150
         );
     }
@@ -89,7 +87,6 @@ public class LineUpGeometryTests(ITestOutputHelper output)
             endLat: 25.802018111111114,
             endLon: -80.26953561111111,
             heading: 87.37069530318303,
-            lengthFt: 10506,
             widthFt: 200
         );
     }
@@ -348,7 +345,6 @@ public class LineUpGeometryTests(ITestOutputHelper output)
             endLat: GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(90), 10000.0 / GeoMath.FeetPerNm).Lat,
             endLon: GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(90), 10000.0 / GeoMath.FeetPerNm).Lon,
             heading: 90.0,
-            lengthFt: 10000,
             widthFt: 150
         );
         double acLat = 37.0 - 200.0 / (GeoMath.FeetPerNm * 60.0);

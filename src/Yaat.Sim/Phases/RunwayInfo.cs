@@ -38,7 +38,6 @@ public sealed class RunwayInfo
     public required double Elevation2Ft { get; init; }
     public required TrueHeading TrueHeading2 { get; init; }
 
-    public required double LengthFt { get; init; }
     public required double WidthFt { get; init; }
 
     // Backward-compatible directional properties
@@ -48,6 +47,21 @@ public sealed class RunwayInfo
     public double ElevationFt => IsEnd1 ? Elevation1Ft : Elevation2Ft;
     public double EndLatitude => IsEnd1 ? Lat2 : Lat1;
     public double EndLongitude => IsEnd1 ? Lon2 : Lon1;
+
+    /// <summary>
+    /// Physical pavement length (feet), threshold to threshold. Derived from the two ends' coordinates
+    /// rather than stored, so it cannot drift from the geometry every other calculation uses, and it is
+    /// the same in both directions by construction.
+    ///
+    /// This is the only length the runway carries. The nav data's <c>landing_distance_available</c> is
+    /// deliberately not stored: it is declared per end and can differ between them (KSJC 12L 8,831 ft
+    /// vs 30R 7,597 ft, AIM 4-3-4.d.4), and every caller here wants the physical extent instead — a
+    /// takeoff run (pre-threshold pavement is usable in either direction, AIM 2-3-3.b.8.2), a departure
+    /// flight path projection, or "crossed the runway end" (7110.65 §3-9-6, §3-10-3). An arrival's
+    /// usable distance comes from <c>LandingThreshold</c> instead, which starts at the displaced
+    /// threshold.
+    /// </summary>
+    public double PavementLengthFt => GeoMath.DistanceNm(Lat1, Lon1, Lat2, Lon2) * GeoMath.FeetPerNm;
 
     private bool IsEnd1 => Id.End1.Equals(Designator, StringComparison.OrdinalIgnoreCase);
 
@@ -76,7 +90,6 @@ public sealed class RunwayInfo
             Lon2 = Lon2,
             Elevation2Ft = Elevation2Ft,
             TrueHeading2Deg = TrueHeading2.Degrees,
-            LengthFt = LengthFt,
             WidthFt = WidthFt,
         };
 
@@ -94,7 +107,6 @@ public sealed class RunwayInfo
             Lon2 = dto.Lon2,
             Elevation2Ft = dto.Elevation2Ft,
             TrueHeading2 = new TrueHeading(dto.TrueHeading2Deg),
-            LengthFt = dto.LengthFt,
             WidthFt = dto.WidthFt,
         };
 
@@ -113,7 +125,6 @@ public sealed class RunwayInfo
             Lon2 = Lon2,
             Elevation2Ft = Elevation2Ft,
             TrueHeading2 = TrueHeading2,
-            LengthFt = LengthFt,
             WidthFt = WidthFt,
         };
     }

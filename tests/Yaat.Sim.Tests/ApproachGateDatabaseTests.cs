@@ -85,8 +85,7 @@ public class ApproachGateDatabaseTests
                 endLat: 37.72,
                 endLon: -122.19,
                 heading: 100,
-                elevationFt: 10,
-                lengthFt: 8000
+                elevationFt: 10
             )
         );
         using var _ = NavigationDatabase.ScopedOverride(navDb);
@@ -160,7 +159,6 @@ public class ApproachGateDatabaseTests
                 endLon: -122.22,
                 heading: 360,
                 elevationFt: 10,
-                lengthFt: 6000,
                 widthFt: 100
             )
         );
@@ -206,7 +204,6 @@ public class ApproachGateDatabaseTests
                 endLon: thresholdLon,
                 heading: 360,
                 elevationFt: 10,
-                lengthFt: 6000,
                 widthFt: 100
             )
         );

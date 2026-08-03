@@ -567,7 +567,6 @@ public class ShownRouteBuilderTests
             Lon2 = threshold30Lon - 0.02,
             Elevation2Ft = 9,
             TrueHeading2 = new TrueHeading(trueHdg30 + 180),
-            LengthFt = 8000,
             WidthFt = 150,
         };
     }

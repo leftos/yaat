@@ -49,7 +49,6 @@ public class TouchdownPointTests
             Lon2 = endLon,
             TrueHeading2 = new TrueHeading((RunwayHeadingDeg + 180) % 360),
             Elevation2Ft = ThresholdElev,
-            LengthFt = 10_000,
             WidthFt = 150,
         };
     }

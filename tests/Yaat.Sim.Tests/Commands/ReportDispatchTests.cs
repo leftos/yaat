@@ -214,7 +214,6 @@ public class ReportDispatchTests
             Lon2 = -122.18,
             Elevation2Ft = 9,
             TrueHeading2 = new TrueHeading(104),
-            LengthFt = 10000,
             WidthFt = 150,
         };
 }

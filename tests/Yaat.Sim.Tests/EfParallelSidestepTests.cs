@@ -41,7 +41,6 @@ public class EfParallelSidestepTests : IDisposable
             endLon: -122.22220,
             heading: 292,
             elevationFt: 9,
-            lengthFt: 10000,
             widthFt: 150
         );
     }
@@ -57,7 +56,6 @@ public class EfParallelSidestepTests : IDisposable
             endLon: -122.22590,
             heading: 292,
             elevationFt: 9,
-            lengthFt: 6213,
             widthFt: 150
         );
     }

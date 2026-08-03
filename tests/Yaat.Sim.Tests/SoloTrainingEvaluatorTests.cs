@@ -938,7 +938,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 10, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1180,7 +1180,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 75, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(runway28R, runway28R.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway28R, runway28R.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway28R, new InitialClimbPhase());
         SetPhase(follower, runway10L, new TakeoffPhase());
@@ -1464,7 +1464,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1488,7 +1488,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1522,7 +1522,7 @@ public sealed class SoloTrainingEvaluatorTests
             [lead, follower]
         );
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1544,7 +1544,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1575,7 +1575,7 @@ public sealed class SoloTrainingEvaluatorTests
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
         evaluator.RecordControllerCommand(follower, SingleCommand(new WakeAdvisoryCommand()), scenarioElapsedSeconds: 120, [lead, follower]);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1598,7 +1598,7 @@ public sealed class SoloTrainingEvaluatorTests
         var queuedCommand = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10)]), new ParsedBlock(null, [new WakeAdvisoryCommand()])]);
         evaluator.RecordControllerCommand(follower, queuedCommand, scenarioElapsedSeconds: 159, [lead, follower]);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1624,7 +1624,7 @@ public sealed class SoloTrainingEvaluatorTests
             WakeDirectiveServiceContext(SuppressWakeIntervalRule())
         );
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1662,7 +1662,7 @@ public sealed class SoloTrainingEvaluatorTests
             WakeDirectiveServiceContext(NonMatchingCwtRule())
         );
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1693,7 +1693,7 @@ public sealed class SoloTrainingEvaluatorTests
             WakeDirectiveServiceContext(RequireWakeAdvisoryRule())
         );
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1731,7 +1731,7 @@ public sealed class SoloTrainingEvaluatorTests
             [lead, follower]
         );
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1762,7 +1762,7 @@ public sealed class SoloTrainingEvaluatorTests
             WakeDirectiveServiceContext(SuppressWakeAdvisoryRule())
         );
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1789,7 +1789,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1834,7 +1834,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(leadRunway, leadRunway.LengthFt + 100);
+        lead.Position = PositionOnRunway(leadRunway, leadRunway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, leadRunway, new InitialClimbPhase());
         SetPhase(follower, followerRunway, new TakeoffPhase());
@@ -1859,7 +1859,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(leadRunway, leadRunway.LengthFt + 100);
+        lead.Position = PositionOnRunway(leadRunway, leadRunway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, leadRunway, new InitialClimbPhase());
         SetPhase(follower, followerRunway, new TakeoffPhase());
@@ -1881,7 +1881,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1906,7 +1906,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -1989,7 +1989,7 @@ public sealed class SoloTrainingEvaluatorTests
         var evaluator = new SoloTrainingEvaluator();
         evaluator.Evaluate([lead, follower], scenarioElapsedSeconds: 100, AirspaceDatabase.Default);
 
-        lead.Position = PositionOnRunway(runway, runway.LengthFt + 100);
+        lead.Position = PositionOnRunway(runway, runway.PavementLengthFt + 100);
         lead.IsOnGround = false;
         SetPhase(lead, runway, new InitialClimbPhase());
         SetPhase(follower, runway, new TakeoffPhase());
@@ -2208,7 +2208,6 @@ public sealed class SoloTrainingEvaluatorTests
             Lon2 = -122.190000,
             Elevation2Ft = 10,
             TrueHeading2 = new TrueHeading(270),
-            LengthFt = 10000,
             WidthFt = 150,
         };
 
@@ -2230,7 +2229,6 @@ public sealed class SoloTrainingEvaluatorTests
             Lon2 = end.Lon,
             Elevation2Ft = baseRunway.Elevation2Ft,
             TrueHeading2 = baseRunway.TrueHeading2,
-            LengthFt = baseRunway.LengthFt,
             WidthFt = baseRunway.WidthFt,
         };
     }
@@ -2249,7 +2247,6 @@ public sealed class SoloTrainingEvaluatorTests
             Lon2 = -122.205000,
             Elevation2Ft = 10,
             TrueHeading2 = new TrueHeading(0),
-            LengthFt = 10000,
             WidthFt = 150,
         };
 
@@ -2267,7 +2264,6 @@ public sealed class SoloTrainingEvaluatorTests
             Lon2 = -122.195000,
             Elevation2Ft = 10,
             TrueHeading2 = new TrueHeading(340),
-            LengthFt = 10000,
             WidthFt = 150,
         };
 
@@ -2285,7 +2281,6 @@ public sealed class SoloTrainingEvaluatorTests
             Lon2 = -122.215000,
             Elevation2Ft = 10,
             TrueHeading2 = new TrueHeading(340),
-            LengthFt = 10000,
             WidthFt = 150,
         };
 

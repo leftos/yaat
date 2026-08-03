@@ -720,7 +720,6 @@ public class SnapshotRoundTripTests
                             Lon2 = -122.23,
                             Elevation2Ft = 9,
                             TrueHeading2Deg = 100,
-                            LengthFt = 10000,
                             WidthFt = 150,
                         },
                         NextSpawnSeconds = 180.5,

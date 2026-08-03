@@ -32,7 +32,6 @@ public class PatternEnterFinalDirectionTests : IDisposable
             endLon: -122.22218,
             heading: 292,
             elevationFt: 9,
-            lengthFt: 5336,
             widthFt: 150
         );
 
@@ -46,7 +45,6 @@ public class PatternEnterFinalDirectionTests : IDisposable
             endLon: -122.22580,
             heading: 292,
             elevationFt: 9,
-            lengthFt: 10500,
             widthFt: 150
         );
 
@@ -61,7 +59,6 @@ public class PatternEnterFinalDirectionTests : IDisposable
             endLon: -121.00,
             heading: 180,
             elevationFt: 100,
-            lengthFt: 5000,
             widthFt: 100
         );
 
