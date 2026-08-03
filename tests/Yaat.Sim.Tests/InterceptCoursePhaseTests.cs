@@ -15,12 +15,12 @@ public class InterceptCoursePhaseTests
     private const double ThresholdLat = 37.72;
     private const double ThresholdLon = -122.22;
 
-    private static AircraftState MakeAircraft(double heading, double lat, double lon)
+    private static AircraftState MakeAircraft(double heading, double lat, double lon, string type = "B738")
     {
         return new AircraftState
         {
             Callsign = "N123",
-            AircraftType = "B738",
+            AircraftType = type,
             TrueHeading = new TrueHeading(heading),
             Altitude = 3000,
             Position = new LatLon(lat, lon),
@@ -28,13 +28,13 @@ public class InterceptCoursePhaseTests
         };
     }
 
-    private static PhaseContext MakeContext(AircraftState aircraft, double deltaSeconds = 1.0)
+    private static PhaseContext MakeContext(AircraftState aircraft, double deltaSeconds = 1.0, AircraftCategory category = AircraftCategory.Jet)
     {
         return new PhaseContext
         {
             Aircraft = aircraft,
             Targets = aircraft.Targets,
-            Category = AircraftCategory.Jet,
+            Category = category,
             DeltaSeconds = deltaSeconds,
             Logger = NullLogger.Instance,
         };
@@ -283,6 +283,85 @@ public class InterceptCoursePhaseTests
         aircraft.Phases.Add(new LandingPhase());
 
         var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        phase.OnTick(ctx);
+
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.02, aircraft.Position.Lon - 0.03);
+
+        bool complete = phase.OnTick(ctx);
+        Assert.True(complete);
+        Assert.Single(aircraft.PendingNotifications);
+        Assert.Contains("localizer", aircraft.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Null(aircraft.Phases.ActiveApproach);
+    }
+
+    /// <summary>
+    /// Helicopter, 40° intercept: heading 240, course 280. TBL 5-9-1 allows a helicopter 45° at
+    /// 2 miles or more from the gate, so this cut is legal and must capture — the same geometry
+    /// busts a jet through (see <see cref="BustThrough_35DegIntercept_DetectsOnCrossing"/>).
+    /// </summary>
+    [Fact]
+    public void Capture_Helicopter_40DegIntercept_CompletesOnCrossing()
+    {
+        var aircraft = MakeAircraft(heading: 240, lat: 37.74, lon: -122.23, type: "EC45");
+        aircraft.Phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
+            },
+        };
+
+        var phase = MakePhase();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new HelicopterLandingPhase());
+
+        var ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        phase.OnTick(ctx);
+
+        aircraft.Position = new LatLon(aircraft.Position.Lat - 0.02, aircraft.Position.Lon - 0.03);
+
+        bool complete = phase.OnTick(ctx);
+        Assert.True(complete);
+        Assert.Empty(aircraft.PendingNotifications);
+        Assert.NotNull(aircraft.Phases.ActiveApproach);
+        Assert.Equal(RunwayHeading, ctx.Targets.TargetTrueHeading!.Value.Degrees);
+    }
+
+    /// <summary>
+    /// Helicopter, 50° intercept: heading 230, course 280. The helicopter allowance is 45°, not
+    /// unbounded — beyond it the aircraft still busts through.
+    /// </summary>
+    [Fact]
+    public void BustThrough_Helicopter_50DegIntercept_DetectsOnCrossing()
+    {
+        var aircraft = MakeAircraft(heading: 230, lat: 37.74, lon: -122.23, type: "EC45");
+        aircraft.Phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
+            },
+        };
+
+        var phase = MakePhase();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new HelicopterLandingPhase());
+
+        var ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
         phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
 

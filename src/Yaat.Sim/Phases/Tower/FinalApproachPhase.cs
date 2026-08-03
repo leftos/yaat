@@ -47,12 +47,6 @@ public sealed class FinalApproachPhase : Phase
     /// <summary>Cross-track tolerance for the glideslope lateral-established gate ("on centerline").</summary>
     private const double GsEstablishedCrossTrackNm = 0.15;
 
-    /// <summary>
-    /// A recorded intercept capture angle steeper than the normal 30° bust-through gate marks a
-    /// force-captured intercept (PTACF / implied-PTAC) that will S-turn onto course — it bypasses
-    /// the lateral glideslope gate (which would otherwise leave it high while it recovers).
-    /// </summary>
-    private const double ForcedInterceptCaptureAngleDeg = 30.0;
     private const double AimPointMinNm = 0.1;
 
     /// <summary>
@@ -1200,8 +1194,13 @@ public sealed class FinalApproachPhase : Phase
             return true;
         }
 
+        // A capture steeper than the category's own bust-through gate is one the aircraft could not
+        // have flown unforced, so it will S-turn onto course; a helicopter force-captured at 35° is
+        // still inside its 45° envelope and joins cleanly, so it stays behind the lateral gate.
         bool forcedIntercept =
-            clearance.ForcedInterceptCapture && clearance.InterceptCaptureAngleDeg is { } angle && (angle > ForcedInterceptCaptureAngleDeg);
+            clearance.ForcedInterceptCapture
+            && clearance.InterceptCaptureAngleDeg is { } angle
+            && (angle > InterceptAngleLimits.BeyondGateAngleForCategory(ctx.Category));
         bool visualApproach = clearance.ApproachId.StartsWith("VIS", StringComparison.Ordinal);
         if (forcedIntercept || visualApproach)
         {
@@ -1312,11 +1311,11 @@ public sealed class FinalApproachPhase : Phase
         // but recorded on the score for the approach report.
         bool isDistanceLegal = notVectoredToFac || captureDistNm >= minIntercept;
 
-        // TBL 5-9-1: max intercept angle depends on distance to approach gate
+        // TBL 5-9-1: max intercept angle depends on distance to approach gate and on category.
         // Approach gate = minIntercept - 2nm (the 2nm padding is from gate to min intercept)
         double approachGate = minIntercept - 2.0;
         double distToGate = captureDistNm - approachGate;
-        double maxAngle = distToGate < 2.0 ? 20.0 : 30.0;
+        double maxAngle = InterceptAngleLimits.MaxAngleForCategory(ctx.Category, distToGate);
         bool isAngleLegal = notVectoredToFac || interceptAngle <= maxAngle;
 
         // Glideslope deviation at establishment, against the path this aircraft is actually flying —

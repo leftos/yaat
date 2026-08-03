@@ -13,19 +13,19 @@ namespace Yaat.Sim.Phases.Approach;
 ///
 /// The phase anticipates the turn: it computes the aircraft's turn radius and
 /// begins turning onto the FAC when the cross-track distance is within that
-/// lead distance, provided the intercept angle is legal (≤ 30°). This avoids
-/// lateral overshoot and lets FinalApproachPhase begin glideslope descent
-/// immediately.
+/// lead distance, provided the intercept angle is legal (≤ 30°, or ≤ 45° for a
+/// helicopter — 7110.65 §5-9-2 TBL 5-9-1). This avoids lateral overshoot and lets
+/// FinalApproachPhase begin glideslope descent immediately.
 ///
 /// If the aircraft is still turning toward its assigned heading (intercept angle
 /// not yet legal), the phase keeps checking each tick until either the angle
 /// becomes legal or the aircraft crosses the centerline.
 ///
-/// Bust-through: if the aircraft crosses the centerline with heading > 30° off,
-/// the approach is cleared and the RPO is notified.
+/// Bust-through: if the aircraft crosses the centerline with heading beyond that
+/// category gate, the approach is cleared and the RPO is notified.
 ///
 /// When <see cref="ForcedIntercept"/> is true (PTACF / CAPPF implied-PTAC), the
-/// 30° capture-angle gate is bypassed: the aircraft will capture the FAC at any
+/// capture-angle gate is bypassed: the aircraft will capture the FAC at any
 /// angle, overshoot laterally, and S-turn back under FinalApproachPhase control.
 /// The approach clearance is preserved regardless of intercept geometry.
 ///
@@ -47,7 +47,6 @@ public sealed partial class InterceptCoursePhase : Phase
     private const double AlreadyOnCourseThresholdNm = 0.15;
     private const double SpeedAnticipationThresholdNm = 2.0;
     private const double InterceptSpeedFasMultiplier = 1.3;
-    private const double BustThroughAlignmentDeg = 30.0;
     private const double MaxElapsedSeconds = 180.0;
 
     private double? _previousSignedCrossTrack;
@@ -67,14 +66,14 @@ public sealed partial class InterceptCoursePhase : Phase
     public string? ApproachId { get; init; }
 
     /// <summary>
-    /// When true, bypass the 30° capture-angle gate: the aircraft captures the FAC at
+    /// When true, bypass the capture-angle gate: the aircraft captures the FAC at
     /// any intercept angle instead of busting through the localizer. Set by PTACF and
     /// by the implied-PTAC branch of CAPPF.
     /// </summary>
     public bool ForcedIntercept { get; init; }
 
     /// <summary>
-    /// When true (JFAC / JLOC), bypass the 30° capture-angle gate the same way
+    /// When true (JFAC / JLOC), bypass the capture-angle gate the same way
     /// <see cref="ForcedIntercept"/> does — a relaxed armed join: the aircraft flies its
     /// assigned vector and joins the localizer/FAC when it intercepts, at any cut, never
     /// reporting passing through it. Kept separate from <see cref="ForcedIntercept"/>
@@ -103,7 +102,7 @@ public sealed partial class InterceptCoursePhase : Phase
         // gate is effectively unbounded (180° is the theoretical maximum between two headings).
         // The bust-through branch at the centerline-crossing check becomes unreachable, so the
         // aircraft always joins the localizer regardless of how steep the cut is.
-        double maxAlignmentDeg = (ForcedIntercept || RelaxedJoin) ? 180.0 : BustThroughAlignmentDeg;
+        double maxAlignmentDeg = (ForcedIntercept || RelaxedJoin) ? 180.0 : InterceptAngleLimits.BeyondGateAngleForCategory(ctx.Category);
 
         // For parallel-offset approaches the FAC line does not pass through the runway
         // threshold, so we measure cross-track against the published anchor (e.g. the LDA's
@@ -301,14 +300,15 @@ public sealed partial class InterceptCoursePhase : Phase
         }
 
         double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
-        if ((ForcedIntercept || RelaxedJoin) && headingDiff > BustThroughAlignmentDeg)
+        double gateDeg = InterceptAngleLimits.BeyondGateAngleForCategory(ctx.Category);
+        if ((ForcedIntercept || RelaxedJoin) && headingDiff > gateDeg)
         {
             Log.LogInformation(
                 "[InterceptCourse] {Callsign}: forced capture ({Reason}) — hdgDiff={HD:F1}° > {Gate:F0}°, expect lateral overshoot and S-turn recovery",
                 ctx.Aircraft.Callsign,
                 reason,
                 headingDiff,
-                BustThroughAlignmentDeg
+                gateDeg
             );
         }
         else

@@ -368,14 +368,17 @@ under lateral tracking. There is also an already-on-course fast path
 (`InterceptCoursePhase.cs:169`) as the fallback when anticipation didn't fire.
 
 > **Glideslope descent waits for lateral establishment, not capture.** The early/anticipated capture hands off
-> while the aircraft may still be up to 30° off the FAC; `FinalApproachPhase` does **not** start the glideslope
+> while the aircraft may still be a full category gate off the FAC (30°, 45° for a helicopter);
+> `FinalApproachPhase` does **not** start the glideslope
 > descent (`_gsCaptured`) until the aircraft is laterally established — within `GsEstablishedHeadingDeg = 5°` of the
 > FAC **and** within `GsEstablishedCrossTrackNm = 0.15 nm` of centerline (`IsLaterallyEstablishedForGs`). This
 > reproduces "maintain until established on the localizer, cleared ILS" (AIM 5-4-7 / 7110.65 5-9-4): the aircraft
 > holds the assigned altitude through the turn-on, then descends. The gate is bypassed when there is no approach
 > clearance (pattern/visual turning final), for pattern traffic, for visual approaches (`VIS` prefix), and for
-> forced intercepts (`InterceptCaptureAngleDeg > 30°`, which intentionally S-turn back and would otherwise be
-> stranded high). The 91.117 250-kt cap and the level-off-then-intercept-from-below logic are unchanged.
+> forced intercepts (`InterceptCaptureAngleDeg` beyond the category's own bust-through gate — those intentionally
+> S-turn back and would otherwise be stranded high; a helicopter force-captured at 35° is inside its 45° envelope,
+> joins cleanly, and so stays behind the gate). The 91.117 250-kt cap and the level-off-then-intercept-from-below
+> logic are unchanged.
 
 **The three heading-diff checks (mag-var tolerance).** The capture/bust-through decision must tolerate the gap
 between the published FAC, the runway-number heading, and the controller's assigned magnetic heading. A two-way
@@ -393,14 +396,24 @@ In the anticipation branch, check #3 is gated on the aircraft having actually *r
 (within 5° via `onAssignedHeading`) so a mid-turn aircraft isn't waved through prematurely
 (`InterceptCoursePhase.cs:146`).
 
-**The 30° bust-through gate.** `BustThroughAlignmentDeg = 30.0` (`InterceptCoursePhase.cs:41`). If the aircraft
-crosses the centerline with the effective diff > 30°, `HandleBustThrough` clears the approach phases and
-`ActiveApproach` and notifies "Unable, passing through localizer" (`InterceptCoursePhase.cs:363`). The same fires
-on the `MaxElapsedSeconds = 180` safety timeout (flying parallel and never crossing).
+**The bust-through gate is per-category.** `InterceptAngleLimits.BeyondGateAngleForCategory` returns 30°, or
+45° for `AircraftCategory.Helicopter` — TBL 5-9-1's "2 miles or more" row reads "30 degrees (45 degrees for
+helicopters)". If the aircraft crosses the centerline with the effective diff beyond its category gate,
+`HandleBustThrough` clears the approach phases and `ActiveApproach` and notifies "Unable, passing through
+localizer". The same fires on the `MaxElapsedSeconds = 180` safety timeout (flying parallel and never crossing).
+Helicopters do reach this phase — PTAC/CAPP/JAPP (`ApproachCommandHandler`) and JFAC (`NavigationCommandHandler`)
+all build `InterceptCoursePhase → HelicopterLandingPhase` for rotorcraft — so a hard-coded 30° here refuses a
+legal 30–45° helicopter cut.
+
+> `InterceptAngleLimits` (`src/Yaat.Sim/Phases/InterceptAngleLimits.cs`) is the single home for TBL 5-9-1, used
+> by the bust-through gate, the `ApproachScore` legality verdict, and the forced-intercept glideslope bypass.
+> `PatternCommandHandler.MaxCloseInFinalAngleOffDeg` deliberately does **not** route through it: it gives
+> helicopters 45° at any distance, because it is an airmanship analogy for VFR pattern entry rather than the
+> regulatory vectoring limit (see the pattern-entry section above).
 
 **`ForcedIntercept` (PTACF / implied-PTAC in CAPPF).** When `ForcedIntercept` is set, `maxAlignmentDeg` is raised
 to **180°**, which makes the bust-through branch unreachable: the aircraft captures the FAC at *any* angle,
-overshoots laterally, and S-turns back under `FinalApproachPhase`. Don't assume the 30° gate is always active.
+overshoots laterally, and S-turns back under `FinalApproachPhase`. Don't assume the category gate is always active.
 
 **Parallel-offset anchor.** For parallel-offset approaches (e.g. KDCA LDA-X 19, KCCR S19R) the FAC line does not
 pass through the threshold. The phase measures cross-track against `ActiveApproach.FinalApproachAnchorLat/Lon` when
@@ -773,7 +786,8 @@ capture distance, reconstructing the gate as `minIntercept − 2nm` (`FinalAppro
 
 ```
 distToGate = captureDistNm − approachGate
-maxAngle   = (distToGate < 2nm) ? 20° : 30°    // TBL 5-9-1
+farGate    = (category == Helicopter) ? 45° : 30°   // TBL 5-9-1 "2 miles or more" row
+maxAngle   = (distToGate < 2nm) ? 20° : farGate     // the 20° row applies to every category
 ```
 
 `ApproachEvaluator` (`src/Yaat.Sim/Phases/ApproachEvaluator.cs`) is the per-room tracker. `RecordEstablishment`

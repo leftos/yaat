@@ -25,7 +25,8 @@ public class ApproachScoreTests
         double heading = 280,
         double altitude = 3000,
         double distFromThresholdNm = 8.0,
-        double ias = 160
+        double ias = 160,
+        string type = "B738"
     )
     {
         var runway = MakeRunway();
@@ -37,7 +38,7 @@ public class ApproachScoreTests
         return new AircraftState
         {
             Callsign = "UAL123",
-            AircraftType = "B738",
+            AircraftType = type,
             TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
@@ -50,7 +51,8 @@ public class ApproachScoreTests
         AircraftState aircraft,
         RunwayInfo? runway = null,
         double scenarioElapsedSeconds = 120.0,
-        double delta = 1.0
+        double delta = 1.0,
+        AircraftCategory category = AircraftCategory.Jet
     )
     {
         runway ??= MakeRunway();
@@ -58,7 +60,7 @@ public class ApproachScoreTests
         {
             Aircraft = aircraft,
             Targets = aircraft.Targets,
-            Category = AircraftCategory.Jet,
+            Category = category,
             DeltaSeconds = delta,
             Runway = runway,
             FieldElevation = runway.ElevationFt,
@@ -306,6 +308,92 @@ public class ApproachScoreTests
 
         var score = aircraft.PendingApproachScores[0];
         // At 6nm, default minIntercept=7nm, approachGate=5nm, distToGate=1nm < 2nm → 20°
+        Assert.Equal(20, score.MaxAllowedAngleDeg);
+    }
+
+    /// <summary>
+    /// TBL 5-9-1's "2 miles or more" row reads "30 degrees (45 degrees for helicopters)", so a
+    /// helicopter that captured at a 40° cut is legal where a jet at the same cut is not.
+    /// </summary>
+    [Fact]
+    public void ScoreCreatedAtEstablishment_Tbl591_Helicopter_FarFromGate_MaxAngle45()
+    {
+        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0, type: "EC45");
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.ActiveApproach = new ApproachClearance
+        {
+            ApproachId = "I28R",
+            AirportCode = "OAK",
+            RunwayId = "28R",
+            FinalApproachCourse = new TrueHeading(280),
+            InterceptCaptureDistanceNm = 8.0,
+            InterceptCaptureAngleDeg = 40.0,
+        };
+
+        var phase = new FinalApproachPhase();
+        var ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        var score = aircraft.PendingApproachScores[0];
+        Assert.Equal(45, score.MaxAllowedAngleDeg);
+        Assert.True(score.IsInterceptAngleLegal);
+    }
+
+    /// <summary>
+    /// Regression guard for the jet side of the same geometry: 40° is still illegal at 30°.
+    /// </summary>
+    [Fact]
+    public void ScoreCreatedAtEstablishment_Tbl591_Jet_FarFromGate_MaxAngle30()
+    {
+        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 8.0);
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.ActiveApproach = new ApproachClearance
+        {
+            ApproachId = "I28R",
+            AirportCode = "OAK",
+            RunwayId = "28R",
+            FinalApproachCourse = new TrueHeading(280),
+            InterceptCaptureDistanceNm = 8.0,
+            InterceptCaptureAngleDeg = 40.0,
+        };
+
+        var phase = new FinalApproachPhase();
+        var ctx = MakeContext(aircraft);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        var score = aircraft.PendingApproachScores[0];
+        Assert.Equal(30, score.MaxAllowedAngleDeg);
+        Assert.False(score.IsInterceptAngleLegal);
+    }
+
+    /// <summary>
+    /// The 45° allowance is scoped to the "2 miles or more" row — inside 2 miles of the gate the
+    /// limit is 20° for every category, helicopters included.
+    /// </summary>
+    [Fact]
+    public void ScoreCreatedAtEstablishment_Tbl591_Helicopter_CloseToGate_MaxAngle20()
+    {
+        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 6.0, type: "EC45");
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.ActiveApproach = new ApproachClearance
+        {
+            ApproachId = "I28R",
+            AirportCode = "OAK",
+            RunwayId = "28R",
+            FinalApproachCourse = new TrueHeading(280),
+        };
+
+        var phase = new FinalApproachPhase();
+        var ctx = MakeContext(aircraft, category: AircraftCategory.Helicopter);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        var score = aircraft.PendingApproachScores[0];
         Assert.Equal(20, score.MaxAllowedAngleDeg);
     }
 
